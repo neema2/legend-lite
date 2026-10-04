@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
  *
  * <p>OUR OWN annotation (AUDIT_PROGRAM §3.1 decision): no JSpecify/JSR-305
  * dependency ever appears in production source. NullAway recognizes it via
- * {@code -XepOpt:NullAway:CustomNullableAnnotations} in {@code core/pom.xml}.
+ * {@code -XepOpt:NullAway:CustomNullableAnnotations} in {@code tools/nullaway/defs.bzl}.
  *
  * <p>The rule it serves (§3.4): Java {@code null} may appear only inside a
  * method converting an external value into a domain type — a {@code @Nullable}

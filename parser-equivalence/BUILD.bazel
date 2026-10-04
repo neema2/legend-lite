@@ -116,7 +116,7 @@ _FILE_FLAGS = ["-Dledger.%s=$(rlocationpath //docs:%s.tsv)" % (l, l) for l in _L
     "-Dpe.engine.fixtures=$(rlocationpath src/test/resources/engine-grammar-fixtures.jsonl)",
 ]
 
-# The measurement battery (tools/diagnostics.sh): censuses and a benchmark, run on
+# The measurement battery (//parser-equivalence:diagnostics): censuses and a benchmark, run on
 # their triggers, never as part of the gate.
 _DIAGNOSTICS = [
     "ParseSpeedBenchmarkTest",
@@ -127,9 +127,8 @@ _DIAGNOSTICS = [
     "MigrationSizingTest",
 ]
 
-# Maven gate 8: every asserting parity class. Selected by PACKAGE, so a new test is
-# in the gate the moment it exists — the rename-goes-red roster tools/allgates.sh
-# keeps by hand is not needed when nothing is selected by name.
+# Gate 8: every asserting parity class. Selected by PACKAGE, so a new test is in the
+# gate the moment it exists: no hand-kept roster of class names to go stale.
 junit_test(
     name = "parser_parity",
     memory_mb = 2816,

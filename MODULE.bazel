@@ -125,7 +125,7 @@ maven.install(
 )
 
 # THE MODERN H2, for the one lane that runs on it: pct's gate 7 (PCT relation on
-# H2 2.4.240, pct/pom.xml's -Dh2.version profile). An ALTERNATIVE to core's
+# H2 2.4.240, the version the engine's own PCT H2 profile used). An ALTERNATIVE to core's
 # 2.1.214, never beside it — the target that takes this one is given no other H2.
 maven.install(
     name = "maven_h2_modern",
@@ -197,7 +197,7 @@ _UPSTREAM_ARTIFACTS = [
     "junit:junit:4.13.1",
 
     # parser-equivalence: the reference parser and EVERY section grammar the
-    # engine ships (parser-equivalence/pom.xml says why all of them), test only
+    # engine ships (the parser differential compares every section, so it needs them all), test only
     "org.finos.legend.engine:legend-engine-language-pure-grammar:" + LEGEND_ENGINE_RELEASE,
     "org.finos.legend.engine:legend-engine-xt-relationalStore-grammar:" + LEGEND_ENGINE_RELEASE,
     "org.finos.legend.engine:legend-engine-xt-diagram-grammar:" + LEGEND_ENGINE_RELEASE,
@@ -210,7 +210,7 @@ _UPSTREAM_ARTIFACTS = [
     "org.finos.legend.pure:legend-pure-m3-core:" + LEGEND_PURE_RELEASE,
 
     # pct: the engine's PCT framework, the three function universes it runs,
-    # and the interpreted runtime with their native extensions (pct/pom.xml);
+    # and the interpreted runtime with their native extensions;
     # compiled-core and the TDS DSL are also the PAR generator's classpath
     "org.finos.legend.engine:legend-engine-test-framework:" + LEGEND_ENGINE_RELEASE,
     "org.finos.legend.engine:legend-engine-pure-code-compiled-core:" + LEGEND_ENGINE_RELEASE,
@@ -238,7 +238,7 @@ _UPSTREAM_ARTIFACTS = [
     "org.eclipse.collections:eclipse-collections-api:10.2.0",
 
     # INV-5: the third-party versions the ENGINE release's own root pom manages
-    # (root pom.xml dependencyManagement says why) — listed so `pinned` holds them
+    # (its dependencyManagement; //tools/bump reads them from the release's pom) — listed so `pinned` holds them
     "com.zaxxer:HikariCP:7.0.2",
     "org.apache.commons:commons-lang3:3.18.0",
     "org.apache.httpcomponents:httpcore:4.4.13",
@@ -297,7 +297,7 @@ maven.install(
     # imported as a BOM, so a third-party artifact here (guava, slf4j, snakeyaml,
     # the jackson family, ...) resolves at the version the engine's reactor — the
     # PCT framework included — builds and runs with. Derived from the release,
-    # never chosen here (root pom.xml, INV-5). BOM import needs the maven resolver.
+    # never chosen here (INV-5). BOM import needs the maven resolver.
     boms = ["org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE],
     resolver = "maven",
     # Jars another pool owns are left out, so a test that uses both pools gets

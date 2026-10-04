@@ -282,7 +282,7 @@ legend_java_library(
     visibility = ["//spec:__pkg__", "//pct:__pkg__"],
 )
 
-# Maven gate 1: every core BEHAVIOUR test — everything but the heavy and stress
+# Gate 1: every core BEHAVIOUR test — everything but the heavy and stress
 # groups and the source checks below — JUnit's own console launcher selecting by
 # package.
 junit_test(
@@ -374,8 +374,7 @@ junit_test(
 # THE SCALE TESTS: generated models far past the 1K baseline (StressTest, in
 # core_tests) — 10K, 100K, dense links, complex multi-hop queries, 50K chaotic
 # classes, and the 100K parse-vs-compile profile. Named explicitly: none of these
-# class names matches a test-name pattern, so no default discovery (Maven's
-# surefire included) ever ran them.
+# class names matches a test-name pattern, so no default discovery would run them.
 _SCALE = [
     "StressTest10K",
     "StressTest100K",
@@ -412,7 +411,7 @@ _SCALE_MEMORY_MB = {
     ],
 ) for c in _SCALE]
 
-# Maven gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
+# Gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
 # sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest. Its own
 # lane: the stress group is what gate 1 leaves out.
 junit_test(

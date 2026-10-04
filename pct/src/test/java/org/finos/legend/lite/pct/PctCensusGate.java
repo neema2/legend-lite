@@ -14,7 +14,7 @@ import junit.framework.Test;
  * discarded. Each PCT suite's teardown now pins the lane.
  *
  * <p>Counters are CUMULATIVE PER JVM (the trap roster: measure lanes
- * whole, never per-suite), and one surefire JVM runs every pct test
+ * whole, never per-suite), and one JVM (the lane's junit_test) runs every pct test
  * class in file order — so per-suite deltas are meaningless and only
  * ORDER-SAFE facts are asserted at each teardown: never-happens
  * invariants ({@code mismatch == 0} — a label lie escaped

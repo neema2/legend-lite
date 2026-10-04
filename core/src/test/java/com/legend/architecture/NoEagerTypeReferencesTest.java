@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * ({@link TypedClass}'s own javadoc: superclasses are FQN strings so
  * cross-project lazy loading works transparently — doc §5). This test makes
  * that a checked property instead of a comment: it walks every compiled class
- * in {@code core/target/classes} and fails if any field outside the allowlist
+ * in core's jars and fails if any field outside the allowlist
  * carries a resolved {@link TypedClass} or {@link TypedEnum} reference —
  * directly, or nested inside a Collection, Map, Optional, array, or wildcard
  * bound.
@@ -61,9 +61,8 @@ class NoEagerTypeReferencesTest {
 
     @Test
     void noForbiddenTypeFieldsOutsideAllowlist() throws Exception {
-        // core's compiled classes are ONE directory under Maven (target/classes)
-        // and, since execution plan step 0c (2026-09-26), TWENTY-NINE jars under
-        // Bazel — one per package group, `bin/core/lib<target>.jar`. Walk every
+        // core's compiled classes are, since execution plan step 0c (2026-09-26),
+        // one jar per package group, `bin/core/lib<target>.jar`. Walk every
         // main jar in the directory that holds TypedClass's jar, and count,
         // because a walk over one jar of twenty-nine finds a fraction and a
         // guard that checks a fraction passes (the floor below caught exactly
