@@ -32,7 +32,7 @@ common:linux --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
 startup --windows_enable_symlinks
 build:windows --enable_runfiles
 # Windows: bash, for what still needs one -- rules_jvm_external's Maven fetch (it fails
-# without BAZEL_SH), rules_js's launchers and the genrules. Bazel looks for one in BAZEL_SH,
+# without BAZEL_SH) and rules_js's launchers. Bazel looks for one in BAZEL_SH,
 # then MSYS2's registry key, then PATH: on a desk with Git for Windows and no MSYS2, from a
 # PowerShell or cmd prompt, it found none and every Maven repository failed to fetch
 # (2026-10-02). So it is named: Git for Windows' own bash, at Git's default install path.
@@ -51,9 +51,9 @@ test:ci --test_output=errors --test_summary=terse
 common:ci --lockfile_mode=error
 # HEAPS. Each test's heap is its own `junit_test(memory_mb = …)`, the live peak each run prints
 # plus headroom, which is also its scheduling tag, so CI and the desk run the same command line
-# (Bazel workplan P1-21, 2026-10-04; it replaced CI-only -Xmx8g/-Xmx4g here). The Pure PAR
-# generator, a build tool in a genrule, keeps its own until P1-22 makes it a java_run:
-build:ci --host_jvmopt=-Xmx3g
+# (Bazel workplan P1-21, 2026-10-04; it replaced CI-only -Xmx8g/-Xmx4g here). The build actions' own heaps
+# are java_run's memory_mb and //tools/teavm:compile's -Xmx2g, each measured (P1-22): they replaced
+# --host_jvmopt=-Xmx3g, which every exec-configuration Java tool ran under.
 # java_binary launchers a test starts (//core:server under //query-store:lite_test and //query:tests,
 # //datacube:app_postgres under verify_app_test) are not junit_test JVMs: they take the JVM's default heap,
 # a quarter of the machine's RAM, as they do on a desk.

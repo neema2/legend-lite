@@ -8,6 +8,10 @@ runtime `<name>/wasm-gc-module-runtime.js`, side by side, as a loader wants them
 
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 
+# The compiler's heap, as the scheduler sees it: //tools/teavm:compile's -Xmx2g (BUILD.bazel, measured there).
+def _teavm_memory(os, inputs):
+    return {"cpu": 1, "memory": 2048}
+
 def _teavm_wasm_impl(ctx):
     jars = depset(transitive = [d[JavaInfo].transitive_runtime_jars for d in ctx.attr.deps])
     wasm = ctx.actions.declare_file(ctx.label.name + "/classes.wasm")
@@ -25,6 +29,7 @@ def _teavm_wasm_impl(ctx):
         inputs = jars,
         outputs = [wasm, runtime],
         mnemonic = "TeaVM",
+        resource_set = _teavm_memory,
         progress_message = "TeaVM: compiling %s to WebAssembly (%%{label})" % ctx.attr.main_class,
     )
     return [DefaultInfo(files = depset([wasm, runtime]))]

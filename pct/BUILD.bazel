@@ -5,6 +5,7 @@
 load("@rules_java//java:defs.bzl", "java_library")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/java_run:defs.bzl", "java_run")
 
 # sources exported for the guard tests that walk every module
 filegroup(
@@ -19,14 +20,23 @@ filegroup(
 # //tools/par.
 _DEFINITION = "src/main/resources/core_legend_lite_pct.definition.json"
 
-genrule(
+java_run(
     name = "adapter_par",
     testonly = True,
     srcs = glob(["src/main/resources/**"]),
     outs = ["pure-core_legend_lite_pct.par"],
-    cmd = "$(location //tools/par:par_generator) core_legend_lite_pct " +
-          "$(location %s) $$(dirname $(location %s)) $(RULEDIR)" % (_DEFINITION, _DEFINITION),
-    tools = ["//tools/par:par_generator"],
+    arguments = [
+        "core_legend_lite_pct",
+        "$(execpath %s)" % _DEFINITION,
+        "{SRC}",
+        "{OUT}",
+    ],
+    main_class = "com.legend.tools.par.ParGenerator",
+    # peaks at 2,099 MB live (-Xlog:gc, macOS arm64, 2026-10-04)
+    memory_mb = 4096,
+    mnemonic = "PureParGenerator",
+    roots = {_DEFINITION: "{SRC}"},
+    deps = ["//tools/par:par_generator"],
 )
 
 # the adapter on the classpath: its Pure source and definition, and its PAR at

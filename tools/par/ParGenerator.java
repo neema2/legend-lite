@@ -14,7 +14,7 @@ import org.finos.legend.pure.m3.generator.par.PureJarGenerator;
  * same call ({@code PureJarGenerator.doGeneratePAR}), without Maven.
  *
  * <pre>
- *   ParGenerator &lt;repository&gt; &lt;definition.json&gt; &lt;source dir&gt; &lt;output dir&gt;
+ *   ParGenerator &lt;repository&gt; &lt;definition.json&gt; &lt;source dir&gt; &lt;output pure-&lt;repository&gt;.par&gt;
  * </pre>
  *
  * <p>The repository's dependencies ({@code platform}, {@code core}, ...) are found
@@ -29,7 +29,12 @@ public final class ParGenerator {
     public static void main(String[] args) throws Exception {
         if (args.length != 4) {
             throw new IllegalArgumentException(
-                    "usage: ParGenerator <repository> <definition.json> <source dir> <output dir>");
+                    "usage: ParGenerator <repository> <definition.json> <source dir> <output pure-<repository>.par>");
+        }
+        // the PAR file a build action declares (java_run's {OUT}); the generator writes it into its directory
+        File par = new File(args[3]).getAbsoluteFile();
+        if (!par.getName().equals("pure-" + args[0] + ".par")) {
+            throw new IllegalArgumentException("the output must be named pure-" + args[0] + ".par, not " + par.getName());
         }
         PureJarGenerator.doGeneratePAR(
                 Set.of(args[0]),
@@ -38,9 +43,12 @@ public final class ParGenerator {
                 platformVersion(),
                 null,
                 new File(args[2]),
-                new File(args[3]),
+                par.getParentFile(),
                 ParGenerator.class.getClassLoader(),
                 new LogToSystemOut());
+        if (!par.isFile()) {
+            throw new IllegalStateException("PureJarGenerator wrote no " + par);
+        }
     }
 
     private static String platformVersion() throws IOException {
