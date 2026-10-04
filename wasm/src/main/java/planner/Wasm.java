@@ -217,6 +217,23 @@ public final class Wasm {
     }
 
     /**
+     * C1's twin, for Studio's in-tab compile (docs/STUDIO_DESIGN_2026_10_02.md S4): exactly what the
+     * server's {@code compilation/compile} does -- the model's elements ({@code Compiler.compileModel},
+     * which refuses on the first element error), then every body in it
+     * ({@code Compiler.compileAllBodies}, which collects them all). {@code "OK\n" + [message, ...]}
+     * (empty when it compiles), or the folded refusal.
+     */
+    @org.teavm.jso.JSExport
+    public static String compileOrError(String model) {
+        try {
+            java.util.Map<String, String> walls = com.legend.Compiler.compileAllBodies(com.legend.Compiler.compileModel(model));
+            return "OK\n" + com.legend.json.Json.toCompact(new java.util.ArrayList<>(walls.values()));
+        } catch (RuntimeException | StackOverflowError e) {
+            return folded(e);
+        }
+    }
+
+    /**
      * E2's twin: a model's text to its PMCD JSON ({@code {"_type":"data","elements":[...]}}),
      * without source information -- the same {@code PmcdParser.parseDocument} the server's
      * {@code grammar/grammarToJson/model} calls. How a browser app browses a model's classes,
