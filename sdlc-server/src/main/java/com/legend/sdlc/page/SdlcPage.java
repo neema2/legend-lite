@@ -10,7 +10,7 @@ import java.util.List;
 
 /**
  * THE SDLC IN THE PAGE (design S21, level 0): {@link Sdlc}'s rules compiled to WebAssembly, over memory
- * the page persists. The page's adapter ({@code project-store/src/wasm-server.ts}) turns each
+ * the page persists. The page's adapter ({@code sdlc-client/src/wasm-server.ts}) turns each
  * {@code fetch} into {@link #handle}, saves {@link #changes} to IndexedDB after it, and {@link #load}s
  * them back when the page opens. One call at a time: the module is single-threaded.
  */

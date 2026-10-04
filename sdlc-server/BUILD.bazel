@@ -1,7 +1,7 @@
 # SDLC-lite (design S1, S21): legend-sdlc's REST API and lite's text routes, its RULES written once in
 # Java (com.legend.sdlc.Sdlc over a Storage) and run two ways -- by the server (to come: HTTP over a git
 # backend) and in the page, compiled to WebAssembly (:page). One conformance suite holds both
-# (project-store/test/conformance.ts). Depends on //core's public API, never the reverse.
+# (sdlc-client/test/conformance.ts). Depends on //core's public API, never the reverse.
 load("@rules_java//java:defs.bzl", "java_library")
 load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
 load("//tools/teavm:defs.bzl", "teavm_wasm")

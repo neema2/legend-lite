@@ -1,4 +1,4 @@
-// The project store (README.md): upstream legend-sdlc's records and lite's text routes, one typed client,
+// The SDLC client (README.md): upstream legend-sdlc's records and lite's text routes, one typed client,
 // and the page's SDLC (sdlc-server's rules, compiled to WebAssembly) behind a fetch.
 
 export * from './wire.ts';

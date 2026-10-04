@@ -1,10 +1,10 @@
-# project-store
+# sdlc-client
 
-Projects, through upstream legend-sdlc's REST API and lite's text routes (design S15), for Studio
-and every app here that reads projects. It is what `query-store/` is for saved queries: one client,
-and where the SDLC lives -- `sdlc-server/`, a real legend-sdlc, or this page -- is only which `fetch`
-it gets (design S21). No Depot here: a page has no published versions; a typed `depot-client/`
-arrives when Query (by GAV) or Studio (dependencies) needs one.
+The client side of `sdlc-server/`: projects through upstream legend-sdlc's REST API and lite's text
+routes (design S15), for Studio and every app here that reads projects. One typed client, and where
+the SDLC lives -- `sdlc-server/` as a server, a real legend-sdlc, or `sdlc-server/`'s rules compiled
+into this page -- is only which `fetch` it gets (design S21). Its Depot twin is `depot-client/`, with
+`depot-server/` (both to come).
 
 - `src/wire.ts`: upstream's records (`Entity`, `Project`, `Workspace`, `Revision`,
   `ProjectConfiguration`, …) and the text routes' `PureFile` / `PureChange`.
@@ -27,7 +27,7 @@ arrives when Query (by GAV) or Studio (dependencies) needs one.
 
 **One suite, every SDLC** (`test/conformance.ts`). It sends raw HTTP and checks the JSON field
 orders, the statuses and the refusals word for word, then repeats through the client.
-- `//project-store:wasm_test` runs it on the page's SDLC (the Java rules in WebAssembly).
+- `//sdlc-client:wasm_test` runs it on the page's SDLC (the Java rules in WebAssembly).
 - `sdlc-server/` over HTTP joins it when it lands.
 
 ## What the page's SDLC does not have

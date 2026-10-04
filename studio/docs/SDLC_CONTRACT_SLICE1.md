@@ -1,9 +1,9 @@
 # legend-sdlc slice-1 behavioural contract (GitLab backend + shared resource layer)
 
-> Read 2026-10-04 for Phase 1 (design S6, S15, S21): the rules `project-store/` (the page's SDLC) and
+> Read 2026-10-04 for Phase 1 (design S6, S15, S21): the rules `sdlc-client/` (the page's SDLC) and
 > `sdlc-server/` port, statuses and messages verbatim. JSON key orders were checked with replica
 > classes in jshell on jackson-databind 2.10.5.1 / dropwizard-jersey 1.3.29. Where lite departs (a quirk
-> below not copied), `project-store/README.md` lists it.
+> below not copied), `sdlc-client/README.md` lists it.
 
 Source: `/Users/neema/legend/legend-lite-query/.scratch/legend-sdlc` @ `1021fda`. All paths below are relative to that root.
 Abbreviations used in citations:

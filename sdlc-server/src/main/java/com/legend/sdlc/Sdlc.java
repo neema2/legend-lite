@@ -21,9 +21,9 @@ import java.util.regex.Pattern;
  * THE SDLC's RULES, written once (design S21): upstream legend-sdlc's REST API and lite's text routes
  * (S15) as one {@link #handle} over a {@link Storage}. The server wraps it in HTTP over a git backend;
  * the page runs it compiled to WebAssembly over memory it persists in IndexedDB; one conformance suite
- * (project-store/test/conformance.ts) holds both. The rules, statuses and messages are legend-sdlc's
+ * (sdlc-client/test/conformance.ts) holds both. The rules, statuses and messages are legend-sdlc's
  * GitLab backend's (studio/docs/SDLC_CONTRACT_SLICE1.md); departures are lite's, listed in
- * project-store/README.md and marked DEPARTURE here.
+ * sdlc-client/README.md and marked DEPARTURE here.
  *
  * What it stores is text (design S5): one {@code .pure} file per element at {@code <package path>/<Name>.pure},
  * {@code project.json} beside them, imports refused at save as upstream SDLC refuses them (S20, v0).
