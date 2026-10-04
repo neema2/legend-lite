@@ -26,8 +26,8 @@ write_source_files(
 # NOT a generated file: the own-corpus protocol ledger's reasons are written by a
 # person. This writes a DRAFT (current diffs, surviving reasons kept, new rows
 # "TODO: adjudicate") for that person to finish; OwnCorpusParityTest is the check.
-# Deliberately outside //:update_generated, and with no diff test of its own.
-exports_files(["own-corpus-protocol-diffs.tsv"])
+# Deliberately outside //:update_generated, and with no diff test of its own. (Exported with
+# every ledger, above.)
 
 write_source_files(
     name = "draft_own_corpus_ledger",

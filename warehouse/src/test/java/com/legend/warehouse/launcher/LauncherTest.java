@@ -35,10 +35,10 @@ import org.junit.jupiter.api.Test;
  */
 class LauncherTest {
 
-    /** {@code $(rootpath //warehouse:serve)}: this platform's launcher, in this test's runfiles. */
+    /** {@code $(rlocationpath //warehouse:serve)}: this platform's launcher, in this test's runfiles. */
     private static final Path LAUNCHER = Runfile.of(required("WAREHOUSE_SERVE"));
 
-    /** {@code $(rootpath //warehouse:launcher_test_serve_site)}: a site, and {@code --single-user} fixed. */
+    /** {@code $(rlocationpath //warehouse:launcher_test_serve_site)}: a site, and {@code --single-user} fixed. */
     private static final Path LAUNCHER_WITH_SITE = Runfile.of(required("WAREHOUSE_SERVE_SITE"));
 
     @Test

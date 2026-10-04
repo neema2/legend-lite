@@ -102,10 +102,14 @@ _LEDGERS = [
     "version-skew-claims",
 ]
 
-_FILE_DATA = ["//docs:%s.tsv" % l for l in _LEDGERS] + ["src/test/resources/corpus-manifest.tsv"]
+_FILE_DATA = ["//docs:%s.tsv" % l for l in _LEDGERS] + [
+    "src/test/resources/corpus-manifest.tsv",
+    "src/test/resources/engine-grammar-fixtures.jsonl",
+]
 
 _FILE_FLAGS = ["-Dledger.%s=$(rlocationpath //docs:%s.tsv)" % (l, l) for l in _LEDGERS] + [
     "-Dpe.corpus.manifest=$(rlocationpath src/test/resources/corpus-manifest.tsv)",
+    "-Dpe.engine.fixtures=$(rlocationpath src/test/resources/engine-grammar-fixtures.jsonl)",
 ]
 
 # The measurement battery (tools/diagnostics.sh): censuses and a benchmark, run on

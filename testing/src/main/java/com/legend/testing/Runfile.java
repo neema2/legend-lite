@@ -16,17 +16,16 @@ import java.util.Map;
  */
 public final class Runfile {
 
-    private static final Runfiles.Preloaded RUNFILES = preload();
-
     private Runfile() {}
 
-    /** The file or directory at {@code rlocationpath}; fails when it is not in this test's runfiles. */
+    /** The FILE at {@code rlocationpath} (a directory resolves only under a runfiles tree, never by the Windows
+     *  manifest: pass a file in it); fails when it is not in this test's runfiles. */
     public static Path of(String rlocationpath) {
         if (rlocationpath == null || rlocationpath.isEmpty()) {
             throw new IllegalArgumentException("no runfiles path given: set it from the BUILD file with "
                     + "-D<name>=$(rlocationpath <label>)");
         }
-        String found = RUNFILES.unmapped().rlocation(rlocationpath);
+        String found = Holder.RUNFILES.unmapped().rlocation(rlocationpath);
         if (found == null || !Files.exists(Path.of(found))) {
             throw new IllegalStateException("not in this test's runfiles: " + rlocationpath
                     + " (declare it in the target's data)");
@@ -46,14 +45,20 @@ public final class Runfile {
 
     /** What a child process needs to find the same runfiles. */
     public static Map<String, String> env() {
-        return RUNFILES.unmapped().getEnvVars();
+        return Holder.RUNFILES.unmapped().getEnvVars();
     }
 
-    private static Runfiles.Preloaded preload() {
-        try {
-            return Runfiles.preload();
-        } catch (IOException e) {
-            throw new UncheckedIOException("this test's runfiles cannot be read", e);
+    /** Loaded on first use; a JVM without runfiles fails that use with the reason (and every later one
+     *  with NoClassDefFoundError naming this holder). */
+    private static final class Holder {
+        static final Runfiles.Preloaded RUNFILES = preload();
+
+        private static Runfiles.Preloaded preload() {
+            try {
+                return Runfiles.preload();
+            } catch (IOException e) {
+                throw new UncheckedIOException("this test's runfiles cannot be read", e);
+            }
         }
     }
 }

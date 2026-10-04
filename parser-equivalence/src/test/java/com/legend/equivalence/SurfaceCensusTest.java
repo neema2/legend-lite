@@ -136,8 +136,9 @@ class SurfaceCensusTest {
                 engineRoot)) {
             for (var g4 : (Iterable<java.nio.file.Path>) walk
                     .filter(f -> f.toString().endsWith("Grammar.g4"))
-                    .filter(f -> !Corpus.slashed(f).contains("/target/")
-                            && !Corpus.slashed(f).contains("/test/"))::iterator) {
+                    // the path within the tree: the tree's own location (an output base) never decides
+                    .filter(f -> !Corpus.within(engineRoot, f).contains("/target/")
+                            && !Corpus.within(engineRoot, f).contains("/test/"))::iterator) {
                 grammars++;
                 var m = rule.matcher(java.nio.file.Files.readString(g4));
                 while (m.find()) {

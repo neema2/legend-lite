@@ -51,6 +51,12 @@ public final class Corpus {
         return p.toString().replace(java.io.File.separatorChar, '/');
     }
 
+    /** {@code file}'s path within {@code root}, forward-slashed and with a leading slash, so a filter on
+     *  "/target/" or "/src/test/" judges the tree's own layout, never where the tree sits on the host. */
+    static String within(java.nio.file.Path root, java.nio.file.Path file) {
+        return "/" + slashed(root.relativize(file));
+    }
+
     /** Every {@code .pure} under a root, excluding build output. */
     private static List<Path> pureFiles(Path root) {
         return filesWith(root, ".pure");
@@ -62,7 +68,7 @@ public final class Corpus {
         }
         try (Stream<Path> s = Files.walk(root)) {
             return s.filter(p -> p.toString().endsWith(ext))
-                    .filter(p -> !slashed(p).contains("/target/"))
+                    .filter(p -> !within(root, p).contains("/target/"))
                     // ORDER BY THE ID, not the Path: Windows's
                     // Path.compareTo is CASE-INSENSITIVE, so a Path sort
                     // interleaves dataSpaceX and dataspaceY differently
@@ -180,7 +186,8 @@ public final class Corpus {
         if (named != null) {
             return java.nio.file.Path.of(named);
         }
-        return Repo.module("src/test/resources/engine-grammar-fixtures.jsonl");
+        // a test: the committed snapshot, by the runfiles path its target passes (Bazel workplan P1-05)
+        return com.legend.testing.Runfile.property("pe.engine.fixtures");
     }
 
     /** C6: the committed engine-fixture snapshot (see the harvest note
