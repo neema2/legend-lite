@@ -13,8 +13,9 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 /**
- * G10 (Bazel workplan P6-10): every jar pool is locked and strict. Each maven.install in MODULE.bazel sets
- * fail_if_repin_required = True (a pool edit without its repin fails the build instead of resolving silently) and
+ * G10 (Bazel workplan P6-10): every jar pool is locked and strict. Each maven.install in MODULE.bazel names its lock
+ * (lock_file = "//:<pool>_install.json"), sets fail_if_repin_required = True (a pool edit without its repin fails
+ * the build instead of resolving silently) and
  * strict_visibility = True (a BUILD file names only the jars its pool lists; P1-25).
  */
 class LocksTest {
@@ -36,6 +37,10 @@ class LocksTest {
                 if (!body.contains("\n    " + setting + ",")) {
                     missing.add(pool + ": " + setting);
                 }
+            }
+            // fail_if_repin_required means nothing without a lock to hold the pool to
+            if (!body.contains("\n    lock_file = \"//:" + pool + "_install.json\",")) {
+                missing.add(pool + ": lock_file = \"//:" + pool + "_install.json\"");
             }
         }
         assertTrue(pools >= 8, "found " + pools + " maven.install pools in MODULE.bazel: the guard is not looking");

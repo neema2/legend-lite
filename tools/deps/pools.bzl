@@ -4,7 +4,7 @@ What may never SHIP: @maven_upstream (legend-engine, legend-pure), @maven_runner
 whole (TESTONLY_POOLS; MODULE.bazel amends every listed jar testonly, and
 third_party/rules_jvm_external_testonly_closure.patch marks whatever only they reach), and .bazelrc's
 --incompatible_check_testonly_for_output_files extends Bazel's testonly check to generated files, so Bazel refuses
-any non-test target that reaches one of their jars, by any path. //tools/deps:pools_list_test keeps each of those
+any non-test target that reaches one of their jar targets. //tools/deps:pools_list_test keeps each of those
 pools testonly as a whole.
 
 What this file adds is which TEST code may use which pool: POOL_USERS names, for each pool, the packages (or single

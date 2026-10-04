@@ -9,3 +9,8 @@ experiments
 runs
 datacube/node_modules
 query/node_modules
+#   .git: git's own store (a directory in a clone, a file in a worktree); its files churn with every commit in any
+#     worktree, and a glob over it would make the guards' inputs (//:all_files) flake (Bazel workplan P6-00).
+#   .claude: agent worktrees and settings in the main checkout; their BUILD files are other checkouts' packages.
+.git
+.claude

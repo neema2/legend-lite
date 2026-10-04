@@ -7,11 +7,13 @@ list: a package that forgets the call fails analysis there.
 """
 
 load(":classpath.bzl", "classpath_report")
+load(":markdown.bzl", "markdown_report")
 
 def _check_tests():
     # G16 (Bazel workplan P6-16): every JVM test is a junit_test (tools/junit/defs.bzl), run by its JUnitMain:
-    # one runner, one set of pinned settings, Bazel's test protocol. guards_package() runs last in every BUILD
-    # file (G0), so it sees every rule of the package, manual ones included.
+    # one runner, one set of pinned settings, Bazel's test protocol. guards_package() is the LAST call of every BUILD
+    # file (by convention: G0 checks only that it is there; a rule written after it escapes these checks), so it sees
+    # every rule of the package, manual ones included.
     for rule in native.existing_rules().values():
         if rule["kind"] == "java_test" and (
             rule.get("generator_function") != "junit_test" or rule.get("main_class") != "com.legend.tools.junit.JUnitMain"
@@ -33,25 +35,28 @@ def guards_package():
     _check_tests()
     _check_js_tests()
 
-    # every test rule of the package, manual ones included (listed explicitly, so none is filtered out): the
-    # graph guards' scope, collected per package from the inventory (//tools/guards, G17)
-    native.test_suite(
-        name = "guard_tests",
-        tests = [":" + r["name"] for r in native.existing_rules().values() if r["kind"].endswith("_test")],
-        tags = ["manual"],
+    rules = native.existing_rules().values()
+
+    # this repository's Markdown among every test's runtime files, manual tests included (G17,
+    # //tools/guards:markdown_inputs_test)
+    markdown_report(
+        name = "guard_markdown",
+        targets = [":" + r["name"] for r in rules if r["kind"].endswith("_test")],
+        testonly = True,
         visibility = ["//tools/guards:__pkg__"],
     )
     # every JVM target's runtime classpath, as Maven coordinates (G11, //tools/guards:classpath_test)
     classpath_report(
         name = "guard_classpaths",
-        targets = [":" + r["name"] for r in native.existing_rules().values() if r["kind"] in ("java_test", "java_binary")],
+        targets = [":" + r["name"] for r in rules if r["kind"] in ("java_test", "java_binary", "_java_run")],
         testonly = True,
         visibility = ["//tools/guards:__pkg__"],
     )
     native.filegroup(
         name = "all_files",
         # the root package's glob would follow Bazel's convenience links (bazel-bin, bazel-out, ...) into the output
-        # tree; their names vary by checkout, so .bazelignore cannot list them
+        # tree; their names vary by checkout, so .bazelignore cannot list them. .git is ignored there, but in a
+        # worktree it is a FILE, which an ignored directory name does not cover.
         srcs = native.glob(["**"], exclude = [".git", "bazel-*/**"] if not native.package_name() else [], allow_empty = True),
         visibility = ["//tools/guards:__pkg__"],
     )

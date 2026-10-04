@@ -99,7 +99,8 @@ common --repo_env=DO_NOT_TRACK=1
 # TESTONLY ON GENERATED FILES TOO (Bazel workplan P6-14, P1-25): Bazel refuses a non-test target that depends on a
 # testonly rule, and with this also on a testonly rule's OUTPUT FILE (a filegroup over a test binary's deploy jar).
 # With the test pools testonly as a whole (MODULE.bazel), nothing that ships can reach legend-engine, legend-pure,
-# the engine runner's stack or the test tooling, by any path. One of Bazel 10's flags (below), on everywhere now.
+# the engine runner's stack or the test tooling through the pools' jar targets (a BUILD file naming a per-jar download
+# repository by its canonical @@ label is the one way around, and nothing does). One of Bazel 10's flags (below).
 build --incompatible_check_testonly_for_output_files
 
 # BAZEL 10 READINESS (Bazel workplan P6-14, G14): the incompatible flags Bazel 10 flips that pass here today. CI's

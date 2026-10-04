@@ -44,16 +44,13 @@ junit_test(
     ],
 )
 
-# G17 (Bazel workplan P6-17): no Markdown file is a test input, so prose cannot change a verdict (and CI's
-# paths-ignore of **/*.md stays true). The scope is every package's guard_tests (guards_package) but this one: the
-# guards read every file by design.
-_TEST_SCOPE = ["//%s:guard_tests" % p for p in PACKAGES if p != "tools/guards"]
-
-genquery(
-    name = "markdown_inputs",
-    # this repository's Markdown (//...): the pinned upstream trees' .md files are spec input, not our prose
-    expression = "filter('^//.*\\.md$', kind('source file', deps(tests(set(%s)))))" % " ".join(_TEST_SCOPE),
-    scope = _TEST_SCOPE,
+# G17 (Bazel workplan P6-17): no Markdown file of this repository is a test input, so prose cannot change a verdict
+# (and CI's paths-ignore of **/*.md stays true): every package's guard_markdown report (guards_package), but this
+# one's (the guards read every file by design).
+filegroup(
+    name = "markdown_reports",
+    testonly = True,
+    srcs = ["//%s:guard_markdown" % p for p in PACKAGES if p != "tools/guards"],
 )
 
 junit_test(
@@ -61,8 +58,8 @@ junit_test(
     memory_mb = 768,
     size = "small",
     srcs = ["MarkdownInputsTest.java"],
-    data = [":markdown_inputs"],
-    jvm_flags = ["-Dmarkdown.inputs=$(rlocationpath :markdown_inputs)"],
+    data = [":markdown_reports"],
+    env = {"MARKDOWN_REPORTS": "$(rlocationpaths :markdown_reports)"},
     select = ["--select-class=com.legend.tools.guards.MarkdownInputsTest"],
     deps = [
         "//testing",
