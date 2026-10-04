@@ -1,0 +1,33 @@
+# The SDLC store (README.md): upstream legend-sdlc's records and lite's text routes (design S15), ONE
+# typed client over a fetch, and the same API answered in the page from IndexedDB (design S21, level 0).
+# Plain TypeScript with no npm dependency, for Studio and every app here that reads projects.
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+
+js_library(
+    name = "sdlc_store",
+    srcs = glob(["src/**/*.ts", "data/**/*.json"]) + ["package.json"],
+    visibility = ["//visibility:public"],
+)
+
+# The one suite against the page's own SDLC, with the grammar the page has: legend-lite's planner in
+# WebAssembly (its modelJsonOrError, the engine's grammarToJson).
+js_test(
+    name = "local_test",
+    size = "small",
+    chdir = package_name(),
+    data = [
+        ":sdlc_store",
+        "test/conformance.ts",
+        "test/grammar.ts",
+        "test/local.test.ts",
+        "//wasm:planner",
+    ],
+    entry_point = "test/local.test.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--experimental-wasm-exnref",
+        "--disable-warning=ExperimentalWarning",
+        "--test-reporter=spec",
+        "--test-reporter-destination=stdout",
+    ],
+)
