@@ -1,5 +1,5 @@
 {
-  "name": "@legend-lite/sdlc-store",
+  "name": "@legend-lite/project-store",
   "private": true,
   "type": "module",
   "description": "Upstream legend-sdlc's REST API and lite's text routes: their records, one typed client over a fetch, and the same API answered in the page from IndexedDB. No dependencies."

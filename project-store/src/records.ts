@@ -33,7 +33,7 @@ export class MemoryRecords implements Records {
 }
 
 /** The database every app on this origin shares for its SDLC: one name, one layout, defined here only. */
-export const DATABASE = 'legend-sdlc';
+export const DATABASE = 'legend-projects';
 const STORE = 'records';
 const LAYOUT = 1;
 

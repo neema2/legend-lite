@@ -1,10 +1,10 @@
-# The SDLC store (README.md): upstream legend-sdlc's records and lite's text routes (design S15), ONE
+# The project store (README.md): upstream legend-sdlc's records and lite's text routes (design S15), ONE
 # typed client over a fetch, and the same API answered in the page from IndexedDB (design S21, level 0).
 # Plain TypeScript with no npm dependency, for Studio and every app here that reads projects.
 load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
 
 js_library(
-    name = "sdlc_store",
+    name = "project_store",
     srcs = glob(["src/**/*.ts", "data/**/*.json"]) + ["package.json"],
     visibility = ["//visibility:public"],
 )
@@ -16,7 +16,7 @@ js_test(
     size = "small",
     chdir = package_name(),
     data = [
-        ":sdlc_store",
+        ":project_store",
         "test/conformance.ts",
         "test/grammar.ts",
         "test/local.test.ts",

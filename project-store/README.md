@@ -1,8 +1,10 @@
-# sdlc-store
+# project-store
 
-Upstream legend-sdlc's REST API and lite's text routes (design S15), for Studio and every app here
-that reads projects. Built the way `query-store/` is: one client, and where the SDLC lives is only
-which `fetch` it gets (design S21).
+Projects, through upstream legend-sdlc's REST API and lite's text routes (design S15), for Studio
+and every app here that reads projects. It is what `query-store/` is for saved queries: one client,
+and where the SDLC lives -- `sdlc-server/`, a real legend-sdlc, or this page -- is only which `fetch`
+it gets (design S21). No Depot here: a page has no published versions; a typed `depot-client/`
+arrives when Query (by GAV) or Studio (dependencies) needs one.
 
 - `src/wire.ts`: upstream's records (`Entity`, `Project`, `Workspace`, `Revision`,
   `ProjectConfiguration`, …) and the text routes' `PureFile` / `PureChange`.
@@ -15,14 +17,14 @@ which `fetch` it gets (design S21).
   - Imports are refused at save, as upstream SDLC refuses them (S20, v0).
   - Entities are derived on read by the page's grammar (the WASM planner's `modelJsonOrError`, i.e.
     the engine's `grammarToJson`), never stored.
-- `src/records.ts`: where the page keeps them: IndexedDB (`legend-sdlc`), or memory in a test.
+- `src/records.ts`: where the page keeps them: IndexedDB (`legend-projects`), or memory in a test.
 - `src/classifiers.ts` + `data/classifier-paths.json`: an element's `_type` → its `classifierPath`.
   The data is legend-engine 4.145.0's own answer, plus the four core types its route omits.
 
 **One suite, every SDLC** (`test/conformance.ts`). It sends raw HTTP and checks the JSON field
 orders, the statuses and the refusals word for word, then repeats through the client.
-- `//sdlc-store:local_test` runs it on the page's SDLC with the real WASM grammar.
-- The model home's server joins it when it lands.
+- `//project-store:local_test` runs it on the page's SDLC with the real WASM grammar.
+- `sdlc-server/` joins it when it lands.
 
 ## What the page's SDLC does not have
 

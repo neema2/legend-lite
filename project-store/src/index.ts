@@ -1,4 +1,4 @@
-// The SDLC store (README.md): upstream legend-sdlc's records and lite's text routes, one typed client,
+// The project store (README.md): upstream legend-sdlc's records and lite's text routes, one typed client,
 // and the same API answered in the page.
 
 export * from './wire.ts';
