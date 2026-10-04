@@ -4,6 +4,7 @@
 # Every upstream jar is a TEST input from @maven_upstream: core never sees one.
 load("@rules_java//java:defs.bzl", "java_library")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 
 # sources exported for the guard tests that walk every module
 filegroup(
@@ -183,6 +184,7 @@ junit_test(
     jvm_flags = _POSTGRES_FLAGS,
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_Postgres_%sFunctions_PCT" % s for s in _SUITES],
     runtime_deps = _POSTGRES_DEPS,
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
 )
 
 # ONE JVM PER SUITE, for the 7 GB macOS runner, as :pct_duckdb_<suite>. Manual: //... runs :pct_postgres.
@@ -197,6 +199,7 @@ junit_test(
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_Postgres_%sFunctions_PCT" % s],
     tags = ["manual"],
     runtime_deps = _POSTGRES_DEPS,
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
 ) for s in _SUITES]
 
 # GATE 9 — channel B: lite's own compiler runs the PCT sources straight from the

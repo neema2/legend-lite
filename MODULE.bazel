@@ -107,11 +107,11 @@ maven.install(
     repositories = ["https://repo1.maven.org/maven2"],
 )
 
-# THE POSTGRES the Postgres lanes run on (tools/postgres/postgres.bzl): the host's pinned Postgres 16
-# binaries, unpacked by Bazel -- no Docker, no jar on a classpath.
-embedded_postgres = use_repo_rule("//tools/postgres:postgres.bzl", "embedded_postgres")
-
-embedded_postgres(name = "embedded_postgres")
+# THE POSTGRES the Postgres lanes run on (tools/postgres/postgres.bzl): pinned Postgres 16 binaries, one
+# repository per platform, unpacked by Bazel -- no Docker, no jar on a classpath -- and the hub
+# @embedded_postgres that selects this platform's (Bazel workplan P1-15).
+embedded_postgres = use_extension("//tools/postgres:extensions.bzl", "embedded_postgres")
+use_repo(embedded_postgres, "embedded_postgres")
 
 # test tooling, at legend-lite's own versions (root pom <junit.version>). JUnit's
 # BOM keeps the Jupiter and Platform jars in step. tools/junit/JUnitMain drives the

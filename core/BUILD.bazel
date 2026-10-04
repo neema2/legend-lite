@@ -7,6 +7,7 @@ load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -367,6 +368,7 @@ junit_test(
     jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
     select = ["--select-class=com.legend.server.PostgresArmTest"],
     runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
         "//testing",

@@ -10,6 +10,7 @@ load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/platforms:defs.bzl", "compatible_with", "platform_select")
 load(":defs.bzl", "POSTGRES_EXTENSION", "POSTGRES_EXTENSION_COMPATIBLE", "jar_entry", "warehouse_run")
 load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
+load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 
 # DuckDB's native library for this platform, out of its JDBC jar (//tools/platforms; Bazel workplan P1-19)
 _DUCKDB_LIBRARY, _DUCKDB_LIBRARY_COMPATIBLE = platform_select({
@@ -273,6 +274,8 @@ warehouse_run(
 # where Bazel puts it, so this test does not judge that flag on its own.
 junit_test(
     name = "launcher_test",
+    # starts the embedded Postgres: skipped where no build is pinned (P1-15)
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     memory_mb = 768,
     size = "medium",
     srcs = ["src/test/java/com/legend/warehouse/launcher/LauncherTest.java"],

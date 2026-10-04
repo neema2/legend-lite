@@ -53,8 +53,8 @@ config_setting(
 
 # A platform the native targets do not support (A25): Linux on s390x, which has a Java runtime (rules_js's
 # esbuild choice is ambiguous on ppc64le). Every non-test target of //warehouse, //pct and //datacube must
-# analyze for it, the native, DuckDB, pyarrow and Chromium ones skipped as incompatible, never failing on a
-# select (the embedded Postgres joins them with P1-15). Tests are left out: Bazel 9 resolves a test's
+# analyze for it, the native, DuckDB, pyarrow, Chromium and Postgres ones skipped as incompatible, never failing on a
+# select. Tests are left out: Bazel 9 resolves a test's
 # toolchain for a platform that can run it before it sees an incompatible dependency.
 #   S='//warehouse/... + //pct/... + //datacube/...'
 #   bazel build --nobuild --skip_incompatible_explicit_targets --platforms=//tools/platforms:unlisted_test \

@@ -14,6 +14,7 @@ load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
+load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -888,6 +889,8 @@ executable_of(
 # until its stdin closes
 java_binary(
     name = "app_postgres",
+    # starts the embedded Postgres: skipped where no build is pinned (P1-15)
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     testonly = True,
     srcs = ["tools/apppostgres/AppPostgres.java"],
     data = [
