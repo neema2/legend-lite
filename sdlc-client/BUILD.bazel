@@ -9,6 +9,26 @@ js_library(
     visibility = ["//visibility:public"],
 )
 
+# The same suite against sdlc-server over HTTP, its repository then checked by git itself.
+js_test(
+    name = "server_test",
+    size = "medium",
+    chdir = package_name(),
+    data = [
+        ":sdlc_client",
+        "test/conformance.ts",
+        "test/server.test.ts",
+        "//sdlc-server:server",
+    ],
+    entry_point = "test/server.test.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+        "--test-reporter=spec",
+        "--test-reporter-destination=stdout",
+    ],
+)
+
 # The one suite against the page's SDLC: sdlc-server's rules in WebAssembly (//sdlc-server:page).
 js_test(
     name = "wasm_test",

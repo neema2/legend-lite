@@ -2,7 +2,7 @@
 # Java (com.legend.sdlc.Sdlc over a Storage) and run two ways -- by the server (to come: HTTP over a git
 # backend) and in the page, compiled to WebAssembly (:page). One conformance suite holds both
 # (sdlc-client/test/conformance.ts). Depends on //core's public API, never the reverse.
-load("@rules_java//java:defs.bzl", "java_library")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
 load("//tools/teavm:defs.bzl", "teavm_wasm")
 
@@ -20,6 +20,25 @@ java_library(
         "//core",
         "//json",
     ],
+)
+
+# THE SERVER (JVM only): the rules behind the JDK's HTTP server, over a git repository on disk.
+java_library(
+    name = "server_lib",
+    srcs = glob(["src/main/java/com/legend/sdlc/server/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = [NULLAWAY_PLUGIN],
+    deps = [
+        ":rules",
+        "//base",
+    ],
+)
+
+# `bazel run //sdlc-server:server -- --port 6100 --repo DIR [--user id[:Name]]`
+java_binary(
+    name = "server",
+    main_class = "com.legend.sdlc.server.SdlcServer",
+    runtime_deps = [":server_lib"],
 )
 
 # TeaVM's annotations, at compile time only (as //wasm:teavm_api).
