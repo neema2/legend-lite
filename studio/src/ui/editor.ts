@@ -320,7 +320,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     const message = await dialog('Save local changes', h('div', { class: 'form' },
       h('div', { class: 'dialog-list' }, ...pending.changes.map((c) => h('div', {}, `${c.type}  ${c.path}`))),
       field('Message', input)),
-    () => (input.value.trim() === '' ? 'A save needs a message.' : input.value.trim()), 'Save');
+    () => (input.value.trim() === '' ? 'A save needs a message.' : { ok: input.value.trim() }), 'Save');
     if (!message) return;
     // the open tabs' keys become paths once saved
     const before = new Map(ws.files().map((f) => [f.key, fileLabel(f)]));
@@ -354,7 +354,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       const split = splitPath(path.value);
       if (!split) return 'A full path, like model::domain::Person (a package, then a name).';
       if (ws.files().some((f) => fileLabel(f) === path.value.trim())) return `${path.value.trim()} already exists.`;
-      return ELEMENT_KINDS[Number(kind.value)]!.template(split.pkg, split.name);
+      return { ok: ELEMENT_KINDS[Number(kind.value)]!.template(split.pkg, split.name) };
     }, 'Create');
     if (made === undefined) return;
     show(ws.add(made));
@@ -366,7 +366,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   const remove = async (key: string): Promise<void> => {
     const f = ws.file(key);
     if (!f) return;
-    const ok = await dialog(`Delete ${fileLabel(f)}?`, h('div', {}, 'It is removed from the workspace when you save.'), () => true, 'Delete');
+    const ok = await dialog(`Delete ${fileLabel(f)}?`, h('div', {}, 'It is removed from the workspace when you save.'), () => ({ ok: true }), 'Delete');
     if (!ok) return;
     ws.remove(key);
     models.get(key)?.dispose();

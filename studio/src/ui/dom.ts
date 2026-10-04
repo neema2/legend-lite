@@ -19,8 +19,11 @@ export function clear(el: Element): void {
   while (el.firstChild) el.removeChild(el.firstChild);
 }
 
-/** A modal dialog: resolves with what `body` reads when OK is pressed, undefined when cancelled. */
-export function dialog<T>(title: string, body: HTMLElement, read: () => T | string, ok = 'OK'): Promise<T | undefined> {
+/**
+ * A modal dialog: resolves with what `read` answers as `{ ok }` when OK is pressed, undefined when
+ * cancelled. `read` answers a string to refuse, shown in the dialog.
+ */
+export function dialog<T>(title: string, body: HTMLElement, read: () => { ok: T } | string, ok = 'OK'): Promise<T | undefined> {
   return new Promise((resolve) => {
     const error = h('div', { class: 'dialog-error' });
     const close = (v: T | undefined): void => {
@@ -33,7 +36,7 @@ export function dialog<T>(title: string, body: HTMLElement, read: () => T | stri
         error.textContent = v;
         return;
       }
-      close(v);
+      close(v.ok);
     };
     const overlay = h('div', { class: 'overlay', onkeydown: ((e: KeyboardEvent) => {
       if (e.key === 'Escape') close(undefined);

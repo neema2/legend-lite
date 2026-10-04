@@ -48,9 +48,9 @@ export async function renderSetup(root: HTMLElement, ctx: SetupContext, selected
     const description = h('input', { class: 'input', placeholder: 'optional' });
     const created = await dialog('Create project', h('div', { class: 'form' },
       field('Name', name), field('Group id', groupId), field('Artifact id', artifactId), field('Description', description)),
-    () => (name.value.trim() === '' ? 'A project needs a name.' : {
+    () => (name.value.trim() === '' ? 'A project needs a name.' : { ok: {
       name: name.value.trim(), groupId: groupId.value.trim(), artifactId: artifactId.value.trim(), description: description.value,
-    }), 'Create');
+    } }), 'Create');
     if (!created) return;
     try {
       const p = await ctx.client.createProject(created);
@@ -68,7 +68,7 @@ export async function renderSetup(root: HTMLElement, ctx: SetupContext, selected
     }
     const id = h('input', { class: 'input', placeholder: 'my-change' });
     const made = await dialog('Create workspace', h('div', { class: 'form' }, field('Workspace id', id)),
-      () => (id.value.trim() === '' ? 'A workspace needs an id.' : id.value.trim()), 'Create');
+      () => (id.value.trim() === '' ? 'A workspace needs an id.' : { ok: id.value.trim() }), 'Create');
     if (!made) return;
     try {
       await ctx.client.createWorkspace(current, made);
