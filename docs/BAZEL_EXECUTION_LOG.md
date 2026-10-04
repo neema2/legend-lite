@@ -84,8 +84,23 @@ without a **done** entry.
 
 ## Batch 6: build hygiene, JS, early guards, Phase 1 audit
 
-- **6a ready** (local): P1-28 (disk-cache GC; --enable_bzlmod gone), P1-27 (every pin by integrity; all 19 re-fetched into an
+- **6a built** (local): P1-28 (disk-cache GC; --enable_bzlmod gone), P1-27 (every pin by integrity; all 19 re-fetched into an
   empty cache and verified), P1-22 (the two shell genrules are java_run actions; java_run's memory_mb; the PAR generator and
-  the reference dump found non-reproducible, recorded on P2-11/P2-14), P1-25b (investigated: no host Maven repository read;
-  settings.xml only for access). Full proof 179/179. Audit: running.
+  the reference dump found non-reproducible, recorded on P2-11/P2-14). Full proof 179/179.
+- **6a audit: not ready, two High.** (1) P1-27 broke `//tools/bump` (it still matched `sha256 =`) and nothing tested it.
+  (2) My P1-25b "no change needed" was wrong: rules_jvm_external's Maven resolver uses ~/.m2/repository unless
+  RJE_UNSAFE_CACHE=0. Medium: removing --host_jvmopt changed TeaVM's heap; the PAR heap was a guess.
+- **USER review, 2026-10-04:** "why is a Java unzip better than gzip?" It was not: Bazel's http_archive unpacks a .gz at fetch
+  time. Also found: my "no shell steps left" survey was broken (it filtered out every path under runs/), and missed the
+  launchers' run_shell `gzip -dc`.
+- **6a fixed:** Bump writes integrity and reads tag commits over HTTPS (no host git), with //tools/bump:bump_test on the real
+  files; P1-25b done (`run --run_env=RJE_UNSAFE_CACHE=0`; empty-home repin of the three pools byte-identical, ~/.m2 untouched);
+  heaps measured (TeaVM 889 MB live → -Xmx2g plus resource_set; PAR 2,099 MB → 4096; reference dump 3,072 MB → 8192, was 12 GB);
+  java_run refuses -Xmx beside memory_mb. Full proof 180/180.
+- **Windows throwaway 37224856941: red** on app, native, build. Bazel 9.2's fetch-time .gz unpacking (my P1-17 redo) sets a
+  modification time 1000x too far out; Windows refuses it ("Permission denied"). The re-audit had predicted it (H1).
+  Dropped: the Java gunzip stays; the launchers copy its output with copy_to_directory (the last run_shell still goes).
+  Re-audit's lows fixed: Bump inserts values literally; bump_test covers prefix tags; settings.xml/.netrc wording; stale
+  comments. Live `bazel run //tools/bump -- 4.145.0 --pins`: no diff. Second Windows throwaway (37225812205): green (checks, app, native, build). Full proof 180/180.
+- **6a on main** (4f7448989; P1-28, P1-27, P1-22, P1-25b, P1-17 follow-up). Local gate 148/148. Main CI: running.
 - P1-25 investigated: 45 undeclared artifacts under strict_visibility (upstream 34, runner 5, test 5, teavm 1).
