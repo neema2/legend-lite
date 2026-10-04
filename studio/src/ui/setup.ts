@@ -10,6 +10,8 @@ export interface SetupContext {
   /** Where the projects live, as a person reads it ("this browser", a server URL). */
   readonly where: string;
   open(project: string, workspace: string): void;
+  /** Publishes the demo projects (design S18), reporting each step. */
+  loadDemo?(progress: (message: string) => void): Promise<void>;
 }
 
 export async function renderSetup(root: HTMLElement, ctx: SetupContext, selected?: string): Promise<void> {
@@ -78,10 +80,26 @@ export async function renderSetup(root: HTMLElement, ctx: SetupContext, selected
     }
   };
 
+  const status = h('span', { class: 'setup-where', 'data-testid': 'demo-status' });
+  const loadDemo = async (): Promise<void> => {
+    if (!ctx.loadDemo) return;
+    try {
+      await ctx.loadDemo((m) => { status.textContent = `Publishing ${m}…`; });
+      status.textContent = 'Demo projects published.';
+      await showProjects();
+    } catch (e) {
+      status.textContent = '';
+      toast(e instanceof Error ? e.message : String(e), 'error');
+    }
+  };
+
   root.append(h('div', { class: 'setup' },
     h('div', { class: 'setup-header' },
       h('div', { class: 'brand' }, h('span', { class: 'brand-mark' }, 'L'), 'Legend Studio'),
-      h('div', { class: 'setup-where' }, `Projects in ${ctx.where}`)),
+      h('div', { class: 'setup-header-right' },
+        status,
+        ctx.loadDemo ? h('button', { class: 'btn', 'data-testid': 'load-demo', onclick: () => void loadDemo() }, 'Load demo projects') : null,
+        h('span', { class: 'setup-where' }, `Projects in ${ctx.where}`))),
     h('div', { class: 'setup-cols' },
       h('div', { class: 'setup-col' },
         h('div', { class: 'setup-col-head' }, h('div', { class: 'setup-col-title' }, 'Projects'),

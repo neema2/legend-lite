@@ -1,0 +1,9 @@
+###Connection
+// The party database, in DuckDB.
+RelationalDatabaseConnection demo::party::Connection
+{
+  store: demo::party::PartyDB;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}

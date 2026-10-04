@@ -4,9 +4,10 @@
 
 import { fileURLToPath } from 'node:url';
 
+import { DepotClient } from '../../depot-client/src/client.ts';
 import { MemoryRecords } from '../../sdlc-client/src/records.ts';
 import { SdlcClient } from '../../sdlc-client/src/client.ts';
-import { WASM_API, wasmSdlcServer, type SdlcModule } from '../../sdlc-client/src/wasm-server.ts';
+import { WASM_API, WASM_DEPOT_API, wasmSdlcServer, type SdlcModule } from '../../sdlc-client/src/wasm-server.ts';
 import { Compiler, type PlannerPort } from '../src/backend/planner.ts';
 import type { PlannerRequest } from '../src/backend/planner-worker.ts';
 
@@ -44,7 +45,12 @@ export const compiler = new Compiler(new DirectPort());
 
 /** A fresh in-page SDLC (its own module, its own records) and a client over it. */
 export async function pageSdlc(): Promise<SdlcClient> {
+  return (await pageSdlcAndDepot()).client;
+}
+
+/** A fresh in-page SDLC and the Depot beside it (the same module), with clients over both. */
+export async function pageSdlcAndDepot(): Promise<{ client: SdlcClient; depot: DepotClient }> {
   const module = await load<SdlcModule>(new URL('../../sdlc-server/page/', import.meta.url));
   const server = await wasmSdlcServer(module, new MemoryRecords(), { userId: 'local', name: 'Local User' });
-  return new SdlcClient(WASM_API, server.fetch);
+  return { client: new SdlcClient(WASM_API, server.fetch), depot: new DepotClient(WASM_DEPOT_API, server.depotFetch) };
 }

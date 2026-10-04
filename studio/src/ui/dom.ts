@@ -56,7 +56,9 @@ export function dialog<T>(title: string, body: HTMLElement, read: () => { ok: T 
 
 /** A short-lived message at the bottom of the window. */
 export function toast(message: string, kind: 'info' | 'error' = 'info'): void {
+  let stack = document.querySelector('.toasts');
+  if (!stack) document.body.append(stack = h('div', { class: 'toasts' }));
   const t = h('div', { class: `toast toast-${kind}` }, message);
-  document.body.append(t);
+  stack.append(t);
   setTimeout(() => t.remove(), kind === 'error' ? 8000 : 3000);
 }

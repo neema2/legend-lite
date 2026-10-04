@@ -110,7 +110,7 @@ export async function renderProject(root: HTMLElement, ctx: PanelContext): Promi
   body.append(h('div', { class: 'section-title' }, 'Versions'), versionsEl);
   const [versions, line] = await Promise.all([ctx.client.versions(ctx.project), ctx.client.revision({ project: ctx.project })]);
   for (const v of versions) {
-    versionsEl.append(h('div', { class: 'dep' }, h('span', { class: 'dep-name' }, versionText(v.id)), h('span', { class: 'hint' }, v.notes ?? '')));
+    versionsEl.append(h('div', { class: 'dep' }, h('span', { class: 'dep-name version' }, versionText(v.id)), h('span', { class: 'hint' }, v.notes ?? '')));
   }
   if (versions.length === 0) versionsEl.append(h('div', { class: 'hint' }, 'No version yet.'));
   const released = versions[0]?.revisionId === line.id;

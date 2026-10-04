@@ -1,0 +1,7 @@
+// A legal entity we trade with.
+Class <<demo::types::Governance.certified>> {demo::types::Governance.owner = 'reference-data'} demo::party::Party
+{
+  id: Integer[1];
+  name: String[1];
+  country: demo::types::Country[1];
+}

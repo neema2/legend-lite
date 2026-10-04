@@ -1,0 +1,6 @@
+// A party's registered addresses.
+Association demo::party::Party_Address
+{
+  party: demo::party::Party[1];
+  addresses: demo::party::Address[*];
+}

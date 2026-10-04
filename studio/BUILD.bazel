@@ -90,6 +90,7 @@ filegroup(
         "demo/*.html",
         "demo/*.json",
         "demo/*.css",
+        "demo/projects/**",
         "src/**/*.css",
     ]) + [":bundle", ":bundle_planner_worker", ":bundle_editor_worker", ":vendor"],
 )
@@ -99,6 +100,19 @@ js_binary(
     name = "serve",
     data = [":site"],
     entry_point = "demo/serve.mjs",
+)
+
+# `bazel run //studio:verify`: the whole loop in Chromium, in the page alone and against the model
+# home's server (needs Playwright's Chromium, installed once).
+js_binary(
+    name = "verify",
+    data = [
+        ":site",
+        ":node_modules/playwright",
+        "//sdlc-server:server",
+    ],
+    entry_point = "demo/verify.mjs",
+    tags = ["browser-ci"],
 )
 
 _NODE_OPTIONS = [
@@ -119,7 +133,9 @@ _NODE_OPTIONS = [
         ":src",
         "test/modules.ts",
         t,
+        "//depot-client:depot_client",
         "//sdlc-server:page",
+    ] + glob(["demo/projects/**"]) + [
         "//wasm:planner",
     ],
     entry_point = t,

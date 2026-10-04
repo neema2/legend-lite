@@ -1,0 +1,7 @@
+// The currencies the demo trades in (1.0.0).
+Enum <<demo::types::Governance.certified>> demo::types::Currency
+{
+  USD,
+  EUR,
+  GBP
+}

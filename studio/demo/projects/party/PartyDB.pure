@@ -1,0 +1,14 @@
+###Relational
+// Where parties are kept.
+Database demo::party::PartyDB
+(
+  Schema PARTY
+  (
+    Table PARTY
+    (
+      ID INTEGER PRIMARY KEY,
+      NAME VARCHAR(200),
+      COUNTRY VARCHAR(2)
+    )
+  )
+)

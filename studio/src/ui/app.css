@@ -41,7 +41,8 @@ button { font: inherit; color: inherit; }
 .dialog-error { color: var(--error); min-height: 18px; margin-top: 6px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 .dialog-list { font-family: var(--mono); font-size: 12px; max-height: 200px; overflow: auto; background: var(--bg); padding: 6px 8px; border-radius: 3px; }
-.toast { position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%); background: var(--bg-4); border: 1px solid var(--line); padding: 8px 16px; border-radius: 3px; z-index: 200; max-width: 70vw; }
+.toasts { position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 200; }
+.toast { background: var(--bg-4); border: 1px solid var(--line); padding: 8px 16px; border-radius: 3px; max-width: 70vw; }
 .toast-error { border-color: var(--error); color: #ffd0d0; }
 
 /* setup */
@@ -50,6 +51,7 @@ button { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 500; }
 .brand-mark { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; background: var(--accent); color: #fff; border-radius: 3px; font-weight: 900; }
 .setup-where { color: var(--text-dim); }
+.setup-header-right { display: flex; align-items: center; gap: 14px; }
 .setup-cols { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 24px; min-height: 0; }
 .setup-col { display: flex; flex-direction: column; background: var(--bg-2); border: 1px solid var(--line); border-radius: 4px; min-height: 0; }
 .setup-col-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--line); }
@@ -94,6 +96,7 @@ button { font: inherit; color: inherit; }
 .deps { display: flex; flex-direction: column; gap: 4px; }
 .dep { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .dep-name { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.dep-name.version { flex-shrink: 0; word-break: normal; }
 .button-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .review-title { font-weight: 500; }
 .btn[disabled] { opacity: .45; cursor: default; }

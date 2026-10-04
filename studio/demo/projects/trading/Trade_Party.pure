@@ -1,0 +1,6 @@
+// Across projects: the party a trade was done with (party's class, trading's association).
+Association demo::trading::Trade_Party
+{
+  counterparty: demo::party::Party[1];
+  trades: demo::trading::Trade[*];
+}

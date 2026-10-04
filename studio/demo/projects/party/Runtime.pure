@@ -1,0 +1,16 @@
+###Runtime
+// Parties, mapped from DuckDB.
+Runtime demo::party::Runtime
+{
+  mappings:
+  [
+    demo::party::PartyMapping
+  ];
+  connections:
+  [
+    demo::party::PartyDB:
+    [
+      db: demo::party::Connection
+    ]
+  ];
+}

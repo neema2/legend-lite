@@ -1,0 +1,6 @@
+// Across projects: the instrument traded.
+Association demo::trading::Trade_Instrument
+{
+  instrument: demo::instruments::Instrument[1];
+  instrumentTrades: demo::trading::Trade[*];
+}

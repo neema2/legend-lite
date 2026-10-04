@@ -9,6 +9,7 @@ import { connect, type StudioConfig } from '../backend/sdlc.ts';
 import { clear, h } from '../ui/dom.ts';
 import { renderEditor } from '../ui/editor.ts';
 import { registerPure } from '../ui/pure-language.ts';
+import { loadDemoProjects, type Manifest } from './demo-projects.ts';
 import { renderSetup } from '../ui/setup.ts';
 
 export async function start(root: HTMLElement, config: StudioConfig, workerUrl: string): Promise<void> {
@@ -39,7 +40,14 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
         });
       } else {
         const selected = /^\/project\/([^/]+)$/.exec(hash)?.[1];
-        await renderSetup(root, { client, where, open }, selected);
+        await renderSetup(root, {
+          client, where, open,
+          loadDemo: async (progress) => {
+            const base = new URL('./projects/', globalThis.location.href);
+            const manifest = await (await fetch(new URL('manifest.json', base))).json() as Manifest;
+            await loadDemoProjects(client, compiler, manifest, async (f) => (await fetch(new URL(f, base))).text(), progress);
+          },
+        }, selected);
       }
     } catch (e) {
       root.append(h('div', { class: 'fatal' }, h('div', { class: 'fatal-title' }, 'Studio could not open this'),

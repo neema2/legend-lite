@@ -1,0 +1,5 @@
+// Whether a currency is one of the majors the desk quotes first.
+function demo::types::isMajor(currency: demo::types::Currency[1]): Boolean[1]
+{
+  ($currency == demo::types::Currency.USD) || ($currency == demo::types::Currency.EUR)
+}
