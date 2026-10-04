@@ -19,6 +19,15 @@ def _check_tests():
 
 def guards_package():
     _check_tests()
+
+    # every test rule of the package, manual ones included (listed explicitly, so none is filtered out): the
+    # graph guards' scope, collected per package from the inventory (//tools/guards, G17)
+    native.test_suite(
+        name = "guard_tests",
+        tests = [":" + r["name"] for r in native.existing_rules().values() if r["kind"].endswith("_test")],
+        tags = ["manual"],
+        visibility = ["//tools/guards:__pkg__"],
+    )
     native.filegroup(
         name = "all_files",
         # the root package's glob would follow Bazel's convenience links (bazel-bin, bazel-out, ...) into the output

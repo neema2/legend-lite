@@ -44,4 +44,30 @@ junit_test(
     ],
 )
 
+# G17 (Bazel workplan P6-17): no Markdown file is a test input, so prose cannot change a verdict (and CI's
+# paths-ignore of **/*.md stays true). The scope is every package's guard_tests (guards_package) but this one: the
+# guards read every file by design.
+_TEST_SCOPE = ["//%s:guard_tests" % p for p in PACKAGES if p != "tools/guards"]
+
+genquery(
+    name = "markdown_inputs",
+    # this repository's Markdown (//...): the pinned upstream trees' .md files are spec input, not our prose
+    expression = "filter('^//.*\\.md$', kind('source file', deps(tests(set(%s)))))" % " ".join(_TEST_SCOPE),
+    scope = _TEST_SCOPE,
+)
+
+junit_test(
+    name = "markdown_inputs_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["MarkdownInputsTest.java"],
+    data = [":markdown_inputs"],
+    jvm_flags = ["-Dmarkdown.inputs=$(rlocationpath :markdown_inputs)"],
+    select = ["--select-class=com.legend.tools.guards.MarkdownInputsTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 guards_package()
