@@ -18,6 +18,8 @@ java_library(
     deps = [
         "//base",
         "//core",
+        # Depot's interface and resolver: SDLC asks Depot (as upstream's does), never the reverse
+        "//depot-server:rules",
         "//json",
     ],
 )
@@ -31,6 +33,7 @@ java_library(
     deps = [
         ":rules",
         "//base",
+        "//depot-server:rules",
     ],
 )
 
@@ -60,6 +63,7 @@ java_library(
     deps = [
         ":rules",
         ":teavm_api",
+        "//depot-server:rules",
         "//json",
     ],
 )

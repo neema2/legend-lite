@@ -1,0 +1,51 @@
+# The Depot client (README.md): upstream legend-depot's records and lite's dependency-files route, ONE typed
+# client over a fetch. Plain TypeScript, no npm dependency. Its Depot is depot-server's rules: in the page
+# (compiled to WebAssembly with sdlc-server's, sdlc-client/src/wasm-server.ts) or in the model home's server.
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+
+js_library(
+    name = "depot_client",
+    srcs = glob(["src/**/*.ts"]) + ["package.json"],
+    visibility = ["//visibility:public"],
+    deps = ["//sdlc-client:sdlc_client"],
+)
+
+_NODE_OPTIONS = [
+    "--experimental-strip-types",
+    "--experimental-wasm-exnref",
+    "--disable-warning=ExperimentalWarning",
+    "--test-reporter=spec",
+    "--test-reporter-destination=stdout",
+]
+
+# The one suite against the page's Depot (depot-server's rules in WebAssembly).
+js_test(
+    name = "wasm_test",
+    size = "small",
+    chdir = package_name(),
+    data = [
+        ":depot_client",
+        "test/conformance.ts",
+        "test/wasm.test.ts",
+        "//sdlc-client:sdlc_client",
+        "//sdlc-server:page",
+    ],
+    entry_point = "test/wasm.test.ts",
+    node_options = _NODE_OPTIONS,
+)
+
+# The same suite against the model home's server over HTTP.
+js_test(
+    name = "server_test",
+    size = "medium",
+    chdir = package_name(),
+    data = [
+        ":depot_client",
+        "test/conformance.ts",
+        "test/server.test.ts",
+        "//sdlc-client:sdlc_client",
+        "//sdlc-server:server",
+    ],
+    entry_point = "test/server.test.ts",
+    node_options = _NODE_OPTIONS,
+)

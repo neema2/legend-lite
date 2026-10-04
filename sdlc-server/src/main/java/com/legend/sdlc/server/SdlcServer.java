@@ -52,6 +52,33 @@ public final class SdlcServer {
         };
     }
 
+    public static final String DEPOT_ROOT = "/depot/api";
+
+    /**
+     * Depot-lite's handler for {@link #DEPOT_ROOT}: Depot's rules over this SDLC's version tags (design S1:
+     * one process, two contracts). It shares the SDLC's lock: the repository has one writer.
+     */
+    public HttpHandler depotHandler(com.legend.depot.Depot depot) {
+        return exchange -> {
+            try (exchange) {
+                cors(exchange);
+                if (exchange.getRequestMethod().equals("OPTIONS")) {
+                    exchange.sendResponseHeaders(204, -1);
+                    return;
+                }
+                String raw = exchange.getRequestURI().getRawPath();
+                String query = exchange.getRequestURI().getRawQuery();
+                String target = raw.substring(DEPOT_ROOT.length()) + (query == null ? "" : "?" + query);
+                String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+                com.legend.depot.Depot.Response r;
+                synchronized (sdlc) {
+                    r = depot.handle(exchange.getRequestMethod(), target, body.isEmpty() ? null : body);
+                }
+                send(exchange, r.status(), r.body());
+            }
+        };
+    }
+
     static void cors(HttpExchange exchange) {
         exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
         exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -93,13 +120,16 @@ public final class SdlcServer {
         if (repo == null) throw new IllegalArgumentException("--repo DIR is required: where the projects' git repository lives");
         Sdlc sdlc = new Sdlc(new GitStorage(repo), userId, userName, new CoreGrammar(), System::currentTimeMillis).backendType("git");
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
-        server.createContext(ROOT + "/", new SdlcServer(sdlc).handler());
+        SdlcServer home = new SdlcServer(sdlc);
+        server.createContext(ROOT + "/", home.handler());
+        server.createContext(DEPOT_ROOT + "/", home.depotHandler(new com.legend.depot.Depot(sdlc.artifacts(), System::currentTimeMillis)));
         server.createContext("/health", exchange -> {
             try (exchange) {
                 send(exchange, 200, "{\"status\":\"ok\"}");
             }
         });
         server.start();
-        System.out.println("sdlc-server: http://127.0.0.1:" + port + ROOT + " over " + repo.toAbsolutePath());
+        System.out.println("model home: SDLC http://127.0.0.1:" + port + ROOT + ", Depot http://127.0.0.1:" + port + DEPOT_ROOT
+                + ", over " + repo.toAbsolutePath());
     }
 }

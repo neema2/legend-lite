@@ -1,5 +1,6 @@
 package com.legend.sdlc.page;
 
+import com.legend.depot.Depot;
 import com.legend.json.Json;
 import com.legend.sdlc.CoreGrammar;
 import com.legend.sdlc.MemoryStorage;
@@ -19,6 +20,8 @@ public final class SdlcPage {
 
     private static MemoryStorage storage = new MemoryStorage();
     private static Sdlc sdlc = make("local", "Local User");
+    /** Depot-lite over the page's own versions: the same rules as the server's Depot, the same source. */
+    private static Depot depot = new Depot(sdlc.artifacts(), System::currentTimeMillis);
 
     private static Sdlc make(String userId, String name) {
         return new Sdlc(storage, userId, name, new CoreGrammar(), System::currentTimeMillis);
@@ -28,6 +31,14 @@ public final class SdlcPage {
     @org.teavm.jso.JSExport
     public static void start(String userId, String name) {
         sdlc = make(userId, name);
+        depot = new Depot(sdlc.artifacts(), System::currentTimeMillis);
+    }
+
+    /** One Depot request under its API root ({@code /projects/g/a/versions}), answered as {@link #handle}'s. */
+    @org.teavm.jso.JSExport
+    public static String handleDepot(String method, String target, String body) {
+        Depot.Response r = depot.handle(method, target, body.isEmpty() ? null : body);
+        return r.status() + "\n" + (r.body() == null ? "" : r.body());
     }
 
     /** Restores one persisted record. */
@@ -41,6 +52,7 @@ public final class SdlcPage {
     public static void reset() {
         storage = new MemoryStorage();
         sdlc = make("local", "Local User");
+        depot = new Depot(sdlc.artifacts(), System::currentTimeMillis);
     }
 
     /**

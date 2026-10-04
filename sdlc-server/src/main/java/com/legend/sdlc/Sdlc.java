@@ -1,6 +1,9 @@
 package com.legend.sdlc;
 
 import com.legend.base.Nullable;
+import com.legend.depot.ArtifactSource;
+import com.legend.depot.Depot;
+import com.legend.depot.Resolver;
 import com.legend.json.Json;
 
 import java.nio.charset.StandardCharsets;
@@ -990,39 +993,83 @@ public final class Sdlc {
     }
 
     /**
-     * The commits of a configuration's dependencies, transitively: each project once, at the version
-     * nearest the root (breadth first; at equal depth the first declared), exclusions honoured.
+     * The commits of a configuration's dependencies, transitively, as Depot resolves them (its
+     * {@link Resolver}: nearest wins), so a gate compiles against exactly the closure Depot serves.
      */
     private List<String> dependencyCommits(Json.Obj config) {
-        java.util.ArrayDeque<Want> todo = new java.util.ArrayDeque<>();
-        for (Json.Node d : dependencies(config)) todo.add(want((Json.Obj) d, Set.of()));
-        Map<String, String> chosen = new LinkedHashMap<>();
         List<String> commits = new ArrayList<>();
-        while (!todo.isEmpty()) {
-            Want want = todo.removeFirst();
-            if (chosen.containsKey(want.projectId())) continue;
-            chosen.put(want.projectId(), want.versionId());
-            String commit = storage.get(versionRef(want.projectId(), want.versionId()));
+        for (ArtifactSource.Dependency d : Resolver.closure(declaredOf(config), this::declared)) {
+            String commit = storage.get(versionRef(d.key(), d.versionId()));
             if (commit == null) {
-                throw new Refusal("Unknown dependency: version " + want.versionId() + " of project " + want.projectId(), 409);
+                throw new Refusal("Unknown dependency: version " + d.versionId() + " of project " + d.key(), 409);
             }
             commits.add(commit);
-            for (Json.Node d : dependencies(config(commit))) {
-                Want next = want((Json.Obj) d, want.excluded());
-                if (!want.excluded().contains(next.projectId())) todo.add(next);
-            }
         }
         return commits;
     }
 
-    private static Want want(Json.Obj dep, Set<String> inherited) {
-        Set<String> excluded = new HashSet<>(inherited);
-        Json.Arr ex = dep.getArrOr("exclusions", null);
-        if (ex != null) for (Json.Node e : ex.items()) excluded.add(String.valueOf(((Json.Obj) e).getStringOr("projectId", "")));
-        return new Want(String.valueOf(dep.getStringOr("projectId", "")), String.valueOf(dep.getStringOr("versionId", "")), excluded);
+    private @Nullable List<ArtifactSource.Dependency> declared(ArtifactSource.Dependency d) {
+        String commit = storage.get(versionRef(d.key(), d.versionId()));
+        return commit == null ? null : declaredOf(config(commit));
     }
 
-    private record Want(String projectId, String versionId, Set<String> excluded) {}
+    /** {@code project.json}'s dependencies as Depot reads them ({@code projectId} is {@code group:artifact}). */
+    private static List<ArtifactSource.Dependency> declaredOf(Json.Obj config) {
+        List<ArtifactSource.Dependency> out = new ArrayList<>();
+        for (Json.Node n : dependencies(config)) {
+            Json.Obj dep = (Json.Obj) n;
+            String pid = String.valueOf(dep.getStringOr("projectId", ""));
+            int colon = pid.indexOf(':');
+            List<String> exclusions = new ArrayList<>();
+            Json.Arr ex = dep.getArrOr("exclusions", null);
+            if (ex != null) for (Json.Node e : ex.items()) exclusions.add(String.valueOf(((Json.Obj) e).getStringOr("projectId", "")));
+            out.add(new ArtifactSource.Dependency(colon < 0 ? pid : pid.substring(0, colon), colon < 0 ? "" : pid.substring(colon + 1),
+                    String.valueOf(dep.getStringOr("versionId", "")), exclusions));
+        }
+        return out;
+    }
+
+    /**
+     * SDLC-lite's versions as Depot's {@link ArtifactSource} (design S22's first source): a project's
+     * releases are its version tags, its snapshot its project line, each read from its commit.
+     */
+    public ArtifactSource artifacts() {
+        return new ArtifactSource() {
+            @Override
+            public List<Project> projects() {
+                List<Project> out = new ArrayList<>();
+                for (String key : storage.keys("project/")) {
+                    String id = key.substring(8);
+                    int colon = id.indexOf(':');
+                    out.add(new Project(id.substring(0, colon), id.substring(colon + 1), id));
+                }
+                return out;
+            }
+
+            @Override
+            public List<String> versions(String groupId, String artifactId) {
+                List<String> out = new ArrayList<>();
+                for (int[] v : versionsOf(groupId + ":" + artifactId, Map.of())) out.add(versionText(v));
+                return out;
+            }
+
+            @Override
+            public boolean hasSnapshot(String groupId, String artifactId) {
+                return storage.get(lineRef(groupId + ":" + artifactId)) != null;
+            }
+
+            @Override
+            public @Nullable Release release(String groupId, String artifactId, String versionId) {
+                String p = groupId + ":" + artifactId;
+                String commit = versionId.equals(Depot.SNAPSHOT) ? storage.get(lineRef(p)) : storage.get(versionRef(p, versionId));
+                if (commit == null) return null;
+                Map<String, String> files = entityFiles(git.readTree(git.readCommit(commit).tree()));
+                List<Object> texts = new ArrayList<>();
+                for (Map.Entry<String, String> f : files.entrySet()) texts.add(map("path", f.getKey(), "pureCode", git.readBlob(f.getValue())));
+                return new Release(declaredOf(config(commit)), Json.toCompact(entities(files, false)), Json.toCompact(texts));
+            }
+        };
+    }
 
     // =====================================================================================================
     // text and entities

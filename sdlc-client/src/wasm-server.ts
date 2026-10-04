@@ -8,6 +8,8 @@ import type { Records } from './records.ts';
 
 /** The API root the page's SDLC answers at: never on the network. */
 export const WASM_API = 'http://this-browser.invalid/sdlc/api';
+/** The API root the page's Depot answers at (the same module, over the page's own versions). */
+export const WASM_DEPOT_API = 'http://this-browser.invalid/depot/api';
 
 /** What the module exports (`com.legend.sdlc.page.SdlcPage`). */
 export interface SdlcModule {
@@ -16,6 +18,7 @@ export interface SdlcModule {
     load(key: string, value: string): void;
     reset(): void;
     handle(method: string, target: string, body: string): string;
+    handleDepot(method: string, target: string, body: string): string;
     changes(): string;
   };
 }
@@ -27,7 +30,10 @@ interface Kept {
 }
 
 export interface WasmSdlc {
+  /** The SDLC, at {@link WASM_API}. */
   readonly fetch: typeof fetch;
+  /** Depot, at {@link WASM_DEPOT_API}. */
+  readonly depotFetch: typeof fetch;
 }
 
 /**
@@ -40,15 +46,15 @@ export async function wasmSdlcServer(module: SdlcModule, records: Records, user:
   for (const kept of await records.list<Kept>('')) e.load(kept.key, kept.value);
   e.start(user.userId, user.name);
 
-  const root = new URL(WASM_API);
   let calls: Promise<unknown> = Promise.resolve();
-  const one = async (request: Request): Promise<Response> => {
+  const one = async (request: Request, api: string, handle: (method: string, target: string, body: string) => string): Promise<Response> => {
+    const root = new URL(api);
     const url = new URL(request.url);
     if (url.origin !== root.origin || !url.pathname.startsWith(`${root.pathname}/`)) {
       return new Response(JSON.stringify({ code: 404, message: 'HTTP 404 Not Found' }), { status: 404 });
     }
     const target = url.pathname.slice(root.pathname.length) + url.search;
-    const answer = e.handle(request.method, target, await request.text());
+    const answer = handle(request.method, target, await request.text());
     for (const [key, value] of JSON.parse(e.changes()) as [string, string | null][]) {
       if (value === null) await records.delete(key);
       else await records.put(key, { key, value } satisfies Kept);
@@ -59,10 +65,15 @@ export async function wasmSdlcServer(module: SdlcModule, records: Records, user:
     return new Response(status === 204 ? null : body, { status, headers: { 'Content-Type': 'application/json' } });
   };
   // one call at a time: the module is single-threaded and each call's changes are written before the next
-  const serial = (request: Request): Promise<Response> => {
-    const next = calls.then(() => one(request), () => one(request));
+  const serial = (request: Request, api: string, handle: (method: string, target: string, body: string) => string): Promise<Response> => {
+    const next = calls.then(() => one(request, api, handle), () => one(request, api, handle));
     calls = next.catch(() => undefined);
     return next;
   };
-  return { fetch: (input, init) => serial(input instanceof Request ? input : new Request(input, init)) };
+  const sdlc = (m: string, t: string, b: string): string => e.handle(m, t, b);
+  const depot = (m: string, t: string, b: string): string => e.handleDepot(m, t, b);
+  return {
+    fetch: (input, init) => serial(input instanceof Request ? input : new Request(input, init), WASM_API, sdlc),
+    depotFetch: (input, init) => serial(input instanceof Request ? input : new Request(input, init), WASM_DEPOT_API, depot),
+  };
 }

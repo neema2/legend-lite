@@ -1,0 +1,21 @@
+# Depot-lite (design S1, S22): legend-depot's read API, its RULES written once in Java
+# (com.legend.depot.Depot over an ArtifactSource) and run two ways -- in the model home's server and in
+# the page, compiled to WebAssembly with sdlc-server's rules. It never depends on sdlc-server: what it
+# serves comes through ArtifactSource (sdlc-server's version tags first, a Maven repository later), so it
+# can run as its own service.
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
+
+package(default_visibility = ["//visibility:public"])
+
+# THE RULES: TeaVM-safe by rule (no files, sockets, threads, reflection, java.security).
+java_library(
+    name = "rules",
+    srcs = glob(["src/main/java/com/legend/depot/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = [NULLAWAY_PLUGIN],
+    deps = [
+        "//base",
+        "//json",
+    ],
+)

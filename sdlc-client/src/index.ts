@@ -4,4 +4,4 @@
 export * from './wire.ts';
 export * from './client.ts';
 export { BrowserRecords, MemoryRecords, DATABASE, type Records } from './records.ts';
-export { wasmSdlcServer, WASM_API, type SdlcModule, type WasmSdlc } from './wasm-server.ts';
+export { wasmSdlcServer, WASM_API, WASM_DEPOT_API, type SdlcModule, type WasmSdlc } from './wasm-server.ts';
