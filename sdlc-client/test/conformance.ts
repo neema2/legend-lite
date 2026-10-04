@@ -149,6 +149,14 @@ export function conformance(name: string, target: () => Target): void {
       assert.deepEqual(await client().revision({ project: p, workspace: 'w1' }), line);
     });
 
+    it('keeps ids differing only in case as one: a repository on macOS or Windows would (re-review D)', async () => {
+      await refused('POST', `/projects/${P}/workspaces/W1`, undefined, 409,
+        `Error creating user workspace W1 of project ${p}: workspace w1 already exists, and ids differing only in case are one`);
+      const upper = groupId.replace(/^org/, 'Org');
+      await refused('POST', '/projects', { name: 'Shout', description: '', groupId: upper, artifactId: run }, 409,
+        `Failed to create project: Shout: a project with coordinates ${p} already exists`);
+    });
+
     let saved: Revision;
 
     it('saves text: one element per file, comments kept, the new revision answered', async () => {

@@ -6,7 +6,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { SdlcClient } from '../src/client.ts';
-import { MemoryRecords } from '../src/records.ts';
+import { MemoryRecords, type Guard } from '../src/records.ts';
 import { WASM_API, wasmSdlcServer, type SdlcModule } from '../src/wasm-server.ts';
 import { conformance } from './conformance.ts';
 
@@ -49,12 +49,12 @@ describe("the page's SDLC, compiled from Java: what a page asks", () => {
   it('a save the browser cannot store is not made: the page stays what is stored (review finding 6)', async () => {
     class FailOnce extends MemoryRecords {
       fail = false;
-      override async apply(changes: readonly (readonly [string, unknown])[]): Promise<void> {
+      override async apply(changes: readonly (readonly [string, unknown])[], guard?: Guard): Promise<boolean> {
         if (this.fail) {
           this.fail = false;
           throw new Error('QuotaExceededError');
         }
-        return super.apply(changes);
+        return super.apply(changes, guard);
       }
     }
     const records = new FailOnce();
@@ -74,6 +74,73 @@ describe("the page's SDLC, compiled from Java: what a page asks", () => {
     const reopened = new SdlcClient(WASM_API, (await wasmSdlcServer(await load(), records, user)).fetch);
     assert.deepEqual(await reopened.revision({ project: 'org.finos.lite.page:quota', workspace: 'w' }), next);
     assert.deepEqual((await reopened.pure({ project: 'org.finos.lite.page:quota', workspace: 'w' })).map((f) => f.path), ['demo::Kept']);
+  });
+
+  it('a page that cannot be put back to what is stored refuses everything after: reload (re-review A)', async () => {
+    class Failing extends MemoryRecords {
+      fail = false;
+      override async apply(changes: readonly (readonly [string, unknown])[], guard?: Guard): Promise<boolean> {
+        if (this.fail) throw new Error('QuotaExceededError');
+        return super.apply(changes, guard);
+      }
+      override async list<T>(prefix: string): Promise<T[]> {
+        if (this.fail) throw new Error('UnknownError: the database is gone');
+        return super.list<T>(prefix);
+      }
+    }
+    const records = new Failing();
+    const page = new SdlcClient(WASM_API, (await wasmSdlcServer(await load(), records, user)).fetch);
+    await page.createProject({ name: 'Gone', description: '', groupId: 'org.finos.lite.page', artifactId: 'gone' });
+    records.fail = true;
+    await assert.rejects(page.createWorkspace('org.finos.lite.page:gone', 'w'), (e: Error) => {
+      assert.match(e.message, /could not store this change/);
+      assert.match(String((e.cause as Error).message), /the database is gone/);
+      return true;
+    });
+    // the records work again, but this module's memory was half reset: it must not answer, nor write over them
+    records.fail = false;
+    await assert.rejects(page.projects(), (e: Error) => {
+      assert.match(e.message, /reload this page/);
+      assert.match(String((e.cause as Error).message), /the database is gone/);
+      return true;
+    });
+    const reloaded = new SdlcClient(WASM_API, (await wasmSdlcServer(await load(), records, user)).fetch);
+    assert.deepEqual((await reloaded.projects()).map((x) => x.projectId), ['org.finos.lite.page:gone']);
+  });
+
+  it('two tabs over one store: each sees the other\'s saves, and neither writes over them (re-review C)', async () => {
+    /** Runs `between` once, just before the next guarded write: another tab's write landing first. */
+    class Racing extends MemoryRecords {
+      between: (() => Promise<unknown>) | undefined;
+      override async apply(changes: readonly (readonly [string, unknown])[], guard?: Guard): Promise<boolean> {
+        const other = this.between;
+        this.between = undefined;
+        if (other !== undefined) await other();
+        return super.apply(changes, guard);
+      }
+    }
+    const records = new Racing();
+    const one = new SdlcClient(WASM_API, (await wasmSdlcServer(await load(), records, user)).fetch);
+    const two = new SdlcClient(WASM_API, (await wasmSdlcServer(await load(), records, user)).fetch);
+    const p = 'org.finos.lite.page:tabs';
+    await one.createProject({ name: 'Tabs', description: '', groupId: 'org.finos.lite.page', artifactId: 'tabs' });
+    // tab two loaded before the project was made: it catches up before it answers
+    await two.createWorkspace(p, 'w');
+    const base = await one.revision({ project: p, workspace: 'w' });
+
+    // tab two saves while tab one's save is on its way to the store: one's lost the race, runs again over two's
+    records.between = () => two.performPureChanges(p, 'w', { message: 'two', changes: [{ type: 'CREATE', path: 'demo::Two', pureCode: 'Class demo::Two {}' }] });
+    await one.performPureChanges(p, 'w', { message: 'one', changes: [{ type: 'CREATE', path: 'demo::One', pureCode: 'Class demo::One {}' }] });
+    const kept = ['demo::One', 'demo::Two'];
+    assert.deepEqual((await one.pure({ project: p, workspace: 'w' })).map((f) => f.path).sort(), kept);
+    assert.deepEqual((await two.pure({ project: p, workspace: 'w' })).map((f) => f.path).sort(), kept);
+    const reopened = new SdlcClient(WASM_API, (await wasmSdlcServer(await load(), records, user)).fetch);
+    assert.deepEqual((await reopened.pure({ project: p, workspace: 'w' })).map((f) => f.path).sort(), kept);
+
+    // a save locked to a revision another tab moved past is refused, as a server refuses a second client's
+    await assert.rejects(two.performPureChanges(p, 'w', {
+      message: 'stale', revisionId: base.id, changes: [{ type: 'CREATE', path: 'demo::Stale', pureCode: 'Class demo::Stale {}' }],
+    }), /Expected revision/);
   });
 
   it('keeps one project per coordinates', async () => {

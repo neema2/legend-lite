@@ -8,9 +8,21 @@ export interface Records {
   put(key: string, value: unknown): Promise<void>;
   delete(key: string): Promise<void>;
   list<T>(prefix: string): Promise<T[]>;
-  /** Writes (a value) and deletes (null) together: all of them or none (one IndexedDB transaction). */
-  apply(changes: readonly (readonly [string, unknown])[]): Promise<void>;
+  /**
+   * Writes (a value) and deletes (null) together: all of them or none (one IndexedDB transaction). With a
+   * `guard`, only if the record at `guard.key` still holds `guard.expect` (undefined: none) when the
+   * transaction reads it -- false, and nothing written, if not.
+   */
+  apply(changes: readonly (readonly [string, unknown])[], guard?: Guard): Promise<boolean>;
 }
+
+/** What `apply` checks first, in its own transaction: compared as JSON. */
+export interface Guard {
+  readonly key: string;
+  readonly expect: unknown;
+}
+
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 export class MemoryRecords implements Records {
   readonly #data = new Map<string, string>();
@@ -32,11 +44,13 @@ export class MemoryRecords implements Records {
     return [...this.#data.keys()].filter((k) => k.startsWith(prefix)).sort().map((k) => JSON.parse(this.#data.get(k)!) as T);
   }
 
-  async apply(changes: readonly (readonly [string, unknown])[]): Promise<void> {
+  async apply(changes: readonly (readonly [string, unknown])[], guard?: Guard): Promise<boolean> {
+    if (guard !== undefined && !same(await this.get(guard.key), guard.expect)) return false;
     for (const [key, value] of changes) {
       if (value === null) this.#data.delete(key);
       else this.#data.set(key, JSON.stringify(value));
     }
+    return true;
   }
 }
 
@@ -92,10 +106,10 @@ export class BrowserRecords implements Records {
     await this.#request('readwrite', (s) => s.delete(key));
   }
 
-  async apply(changes: readonly (readonly [string, unknown])[]): Promise<void> {
-    if (changes.length === 0) return;
+  async apply(changes: readonly (readonly [string, unknown])[], guard?: Guard): Promise<boolean> {
+    if (changes.length === 0 && guard === undefined) return true;
     const db = await this.#db;
-    await new Promise<void>((resolve, reject) => {
+    return new Promise<boolean>((resolve, reject) => {
       let tx: IDBTransaction;
       try {
         tx = db.transaction(STORE, 'readwrite');
@@ -103,14 +117,37 @@ export class BrowserRecords implements Records {
         reject(new Error(`the projects were upgraded by another tab: reload this page (${e instanceof Error ? e.message : String(e)})`));
         return;
       }
-      const store = tx.objectStore(STORE);
-      for (const [key, value] of changes) {
-        if (value === null) store.delete(key);
-        else store.put(value, key);
-      }
-      tx.oncomplete = () => resolve();
-      tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
+      let refused = false;
+      tx.oncomplete = () => resolve(true);
+      tx.onabort = () => (refused ? resolve(false) : reject(tx.error ?? new Error('IndexedDB transaction aborted')));
       tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
+      const store = tx.objectStore(STORE);
+      const write = (): void => {
+        // a put that throws (a value that cannot be cloned, say) must take the whole transaction with it
+        try {
+          for (const [key, value] of changes) {
+            if (value === null) store.delete(key);
+            else store.put(value, key);
+          }
+        } catch (e) {
+          tx.onabort = () => reject(e);
+          tx.abort();
+        }
+      };
+      if (guard === undefined) {
+        write();
+        return;
+      }
+      // read and write in the one transaction: no other tab can write between the check and the writes
+      const read = store.get(guard.key);
+      read.onsuccess = () => {
+        if (same(read.result, guard.expect)) {
+          write();
+        } else {
+          refused = true;
+          tx.abort();
+        }
+      };
     });
   }
 

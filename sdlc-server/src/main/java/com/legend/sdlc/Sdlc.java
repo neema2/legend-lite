@@ -351,6 +351,16 @@ public final class Sdlc {
         return out;
     }
 
+    /**
+     * DEPARTURE (lite): the one of {@code ids} equal to {@code id} ignoring case, or null. Ids differing only in
+     * case are one id here (upstream's GitLab branches are not), since a repository on macOS or Windows keeps
+     * them as one file: two of them would silently share one ref.
+     */
+    private static @Nullable String sameIgnoringCase(List<String> ids, String id) {
+        for (String i : ids) if (i.equalsIgnoreCase(id)) return i;
+        return null;
+    }
+
     private boolean isAncestor(String ancestor, String of) {
         return git.reaches(of, ancestor);
     }
@@ -482,8 +492,9 @@ public final class Sdlc {
         // DEPARTURE (lite): a project is named by its coordinates, `groupId:artifactId` -- the id upstream's
         // own project.json uses for a dependency -- not a GitLab number; one project per coordinates.
         String projectId = groupId + ":" + artifactId;
-        if (storage.get(projectKey(projectId)) != null) {
-            throw new Refusal("Failed to create project: " + name + ": a project with coordinates " + projectId + " already exists", 409);
+        String same = sameIgnoringCase(storage.keys("project/"), "project/" + projectId);
+        if (same != null) {
+            throw new Refusal("Failed to create project: " + name + ": a project with coordinates " + same.substring("project/".length()) + " already exists", 409);
         }
         List<String> tags = new ArrayList<>();
         Json.Arr tagArr = c.getArrOr("tags", null);
@@ -522,6 +533,10 @@ public final class Sdlc {
     private Map<String, Object> createWorkspace(String p, String w) {
         if (!WORKSPACE_ID.matcher(w).matches()) throw invalidWorkspace(w);
         String line = lineHead(p);
+        String same = sameIgnoringCase(workspaceIds(p), w);
+        if (same != null && !same.equals(w)) {
+            throw new Refusal("Error creating " + wsOf(p, w) + ": workspace " + same + " already exists, and ids differing only in case are one", 409);
+        }
         String existing = storage.get(workspaceRef(p, w));
         // upstream: already there AT the line's head is a no-op; elsewhere, GitLab's "Branch already exists" as a 500
         if (existing != null && !existing.equals(line)) {
