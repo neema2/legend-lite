@@ -64,6 +64,15 @@ without a **done** entry.
   run 37212513283: 53/53, the native lanes on Linux x86_64, Linux arm64, macOS and Windows.
 - **4c pushed** (`eda84cb92`): D1 revised (USER: macOS like Windows): the Command Line Tools and MSVC declared and
   checked by @host_cc, their exact versions recorded as a native-image input (USER: "Is that the best way? If yes let's
-  do it"), floors MSVC 17.6 and Apple clang 15. Audit: pass with fixes, applied. `main`'s CI: running.
+  do it"), floors MSVC 17.6 and Apple clang 15. Audit: pass with fixes, applied. `main`'s CI run 37214692462:
+  one Windows timeout (`//datacube:infer_test`, 60 s, while the lane built the native image), green on re-run (53/53).
+  **Done.**
 - **P1-12 (a)**: upstream PR https://github.com/sgammon/rules_graalvm/pull/602 after research (no duplicate; GraalVM has no
   sysroot option). (b) per-platform GraalVM toolchains: to investigate.
+
+## Batch 5: platform infrastructure (P1-15, P1-16, P1-17, P1-18, P1-19)
+
+- **5a pushed** (`ecc95b30d`): the WebAssembly-planner tests get medium (the timeout above); P1-17 (a Java gunzip action,
+  no shell); P1-19 (`//tools/platforms`: every platform config_setting, platform_select/compatible_with; native, DuckDB,
+  pyarrow and Chromium targets skip on an unlisted platform). Audit: pass with fixes, applied (its proof query had
+  matched every rule; corrected). `main`'s CI: running.
