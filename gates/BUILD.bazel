@@ -19,6 +19,7 @@ test_suite(
         "//tools/deps:pools_are_disjoint",
         "//tools/deps:warehouse_closure_test",
         "//tools/browser:revision_test",
+        "//tools/bump:bump_test",
         "//tools/java_run:pins_test",
         "//tools/junit:pins_test",
         "//tools/junit:runner_test",

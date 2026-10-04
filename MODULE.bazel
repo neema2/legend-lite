@@ -377,7 +377,7 @@ _SYSROOT_BUILD_AMD64 = 'filegroup(name = "sysroot", srcs = glob(' + (_SYSROOT_GL
 sysroot_archive(
     name = "linux_sysroot_arm64",
     build_file_content = _SYSROOT_BUILD_ARM64,
-    sha256 = "c7176a4c7aacbf46bda58a029f39f79a68008d3dee6518f154dcf5161a5486d8",
+    integrity = "sha256-xxdqTHqsv0a9pYoCnzn3mmgAjT3uZRjxVNz1FhpUhtg=",
     type = "tar.xz",
     urls = ["https://commondatastorage.googleapis.com/chrome-linux-sysroot/c7176a4c7aacbf46bda58a029f39f79a68008d3dee6518f154dcf5161a5486d8"],
 )
@@ -385,7 +385,7 @@ sysroot_archive(
 sysroot_archive(
     name = "linux_sysroot_amd64",
     build_file_content = _SYSROOT_BUILD_AMD64,
-    sha256 = "52d61d4446ffebfaa3dda2cd02da4ab4876ff237853f46d273e7f9b666652e1d",
+    integrity = "sha256-UtYdREb/6/qj3aLNAtpKtIdv8jeFP0bSc+f5tmZlLh0=",
     type = "tar.xz",
     urls = ["https://commondatastorage.googleapis.com/chrome-linux-sysroot/52d61d4446ffebfaa3dda2cd02da4ab4876ff237853f46d273e7f9b666652e1d"],
 )
@@ -408,7 +408,7 @@ http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "ht
 http_archive(
     name = "legend_engine_src",
     build_file = "//third_party:legend_engine_src.BUILD",
-    sha256 = "cf1c2524106c1cde0f98da7af23b943ddadf57e663945f6eb347d469e8e6d361",
+    integrity = "sha256-zxwlJBBsHN4PmNp68juUPdrfV+ZjlF9us0fUaejm02E=",
     strip_prefix = "legend-engine-legend-engine-" + LEGEND_ENGINE_RELEASE,
     urls = ["https://github.com/finos/legend-engine/archive/refs/tags/legend-engine-" + LEGEND_ENGINE_RELEASE + ".tar.gz"],
 )
@@ -416,7 +416,7 @@ http_archive(
 http_archive(
     name = "legend_pure_src",
     build_file = "//third_party:legend_pure_src.BUILD",
-    sha256 = "f216faaa4d414c55b2e9fb92cd25fcd8d934656775ea30d00a865e9cfdf26e8a",
+    integrity = "sha256-8hb6qk1BTFWy6fuSzSX82Nk0ZWd16jDQCoZenP3yboo=",
     strip_prefix = "legend-pure-legend-pure-" + LEGEND_PURE_RELEASE,
     urls = ["https://github.com/finos/legend-pure/archive/refs/tags/legend-pure-" + LEGEND_PURE_RELEASE + ".tar.gz"],
 )
@@ -427,14 +427,14 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 
 [http_file(
     name = "duckdb_postgres_extension_" + platform,
-    sha256 = sha,
+    integrity = sha,
     urls = ["https://extensions.duckdb.org/v1.5.5/" + platform + "/postgres_scanner.duckdb_extension.gz"],
 ) for platform, sha in {
-    "osx_arm64": "4fb5079e67b00e6643e6ee91545a355010004d1dad50b43f1c060de0cb789c8e",
-    "osx_amd64": "b8764ed496be635fbac3e5e6a6c8e3e3c2dbfcaa862ce0422c21cad6fcc6c353",
-    "linux_amd64": "e0f631a5535f165468bc8a20501f8bc1490adbc877d38fcdff2f8d05531e1e5b",
-    "linux_arm64": "59849e8a4be00fa0ec8c4db0d26707999061d103b902bf32322fa5cde1fc393d",
-    "windows_amd64": "65b31f002c70ac5f812d293b8552b977d1c0e6752d0a1127176454c8184ed001",
+    "osx_arm64": "sha256-T7UHnmewDmZD5u6RVFo1UBAATR2tULQ/HAYN4Mt4nI4=",
+    "osx_amd64": "sha256-uHZO1Ja+Y1+6w+Xmpsjj48Lb/KqGLOBCLCHK1vzGw1M=",
+    "linux_amd64": "sha256-4PYxpVNfFlRovIogUB+LwUkK28h304/N/y+NBVMeHls=",
+    "linux_arm64": "sha256-WYSeikvgD6DsjE2w0mcHmZBh0QO5Ar8yMi+lzeH8OT0=",
+    "windows_amd64": "sha256-ZbMfACxwrF+BLSk7hVK5d9HA5nUtChEnF2RUyBhO0AE=",
 }.items()]
 
 # THE BROWSER the harnesses drive (Bazel workplan P1-14, spike S4): Playwright 1.63.0's
@@ -444,12 +444,12 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 chromium = use_extension("//tools/browser:extensions.bzl", "chromium")
 chromium.pin(
     revision = "1243",
-    sha256 = {
-        "linux-arm64": "d433c45172c7836e38124fe545f767b02210bfb43a6262f08a297473a8e91c99",
-        "linux64": "a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d",
-        "mac-arm64": "89d80a6d26ccd0ccfd51e22d9e1297283862af2b0cd91dce07459b35ca0059f2",
-        "mac-x64": "5c2eaa1aad62111bb5a70dd0889dd3093f3142277b8f78957a238257ee85f009",
-        "win64": "7aec872f3090e639c4237467624ea863c20fe2878914c93a6556bdbb52aa6c4c",
+    integrity = {
+        "linux-arm64": "sha256-1DPEUXLHg244Ek/lRfdnsCIQv7Q6YmLwiil0c6jpHJk=",
+        "linux64": "sha256-qdoCiGGgz3if8lwv7UX18ar5ae2SR4NbanghpPevnR0=",
+        "mac-arm64": "sha256-idgKbSbM0Mz9UeItnhKXKDhirysM2R3OB0WbNcoAWfI=",
+        "mac-x64": "sha256-XC6qGq1iERu1pw3QiJ3TCT8xQid7j3iVeiOCV+6F8Ak=",
+        "win64": "sha256-euyHLzCQ5jnEI3RnYk6oY8IP4oeJFMk6ZVa9u1KqbEw=",
     },
     version = "153.0.8010.12",
 )

@@ -3,12 +3,12 @@
 load(":postgres.bzl", "BUILDS", "embedded_postgres_hub", "embedded_postgres_platform")
 
 def _embedded_postgres_impl(module_ctx):
-    for platform, (suffix, archive, sha256) in BUILDS.items():
+    for platform, (suffix, archive, integrity) in BUILDS.items():
         embedded_postgres_platform(
             name = "embedded_postgres_" + platform,
             archive = archive,
             platform = platform,
-            sha256 = sha256,
+            integrity = integrity,
             suffix = suffix,
         )
     embedded_postgres_hub(name = "embedded_postgres", platforms = BUILDS.keys())

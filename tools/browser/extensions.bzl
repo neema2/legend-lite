@@ -2,7 +2,7 @@
 
 MODULE.bazel holds the pin in one line:
 
-    chromium.pin(revision = "1243", version = "153.0.8010.12", sha256 = {"mac-arm64": "...", ...})
+    chromium.pin(revision = "1243", version = "153.0.8010.12", integrity = {"mac-arm64": "sha256-...", ...})
 
 `revision` is the locked playwright-core's browsers.json revision for chromium-headless-shell, and
 `version` its Chrome for Testing version (//tools/browser:revision_test holds them equal). Each archive
@@ -46,9 +46,9 @@ def _chromium_impl(mctx):
     if len(pins) != 1:
         fail("chromium.pin: exactly one pin, in the root module; found %d" % len(pins))
     pin = pins[0]
-    if sorted(pin.sha256.keys()) != sorted(_PLATFORMS):
-        fail("chromium.pin: sha256 must name exactly %s; got %s" % (_PLATFORMS, sorted(pin.sha256.keys())))
-    for platform, sha256 in pin.sha256.items():
+    if sorted(pin.integrity.keys()) != sorted(_PLATFORMS):
+        fail("chromium.pin: integrity must name exactly %s; got %s" % (_PLATFORMS, sorted(pin.integrity.keys())))
+    for platform, integrity in pin.integrity.items():
         http_archive(
             name = "chromium_headless_shell_" + platform.replace("-", "_"),
             add_prefix = "chromium_headless_shell-" + pin.revision,
@@ -57,7 +57,7 @@ def _chromium_impl(mctx):
                 platform = platform,
                 exe = ".exe" if platform == "win64" else "",
             ),
-            sha256 = sha256,
+            integrity = integrity,
             urls = [
                 "https://cdn.playwright.dev/builds/cft/%s/%s/chrome-headless-shell-%s.zip" % (pin.version, platform, platform),
                 "https://storage.googleapis.com/chrome-for-testing-public/%s/%s/chrome-headless-shell-%s.zip" % (pin.version, platform, platform),
@@ -72,7 +72,7 @@ chromium = module_extension(
         "pin": tag_class(attrs = {
             "revision": attr.string(mandatory = True, doc = "chromium-headless-shell's revision in the locked playwright-core's browsers.json"),
             "version": attr.string(mandatory = True, doc = "its Chrome for Testing version (browsers.json browserVersion)"),
-            "sha256": attr.string_dict(mandatory = True, doc = "platform (mac-arm64, mac-x64, linux64, linux-arm64, win64) to the archive's sha256"),
+            "integrity": attr.string_dict(mandatory = True, doc = "platform (mac-arm64, mac-x64, linux64, linux-arm64, win64) to the archive's integrity (sha256-<base64>)"),
         }),
     },
 )
