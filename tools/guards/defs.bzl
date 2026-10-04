@@ -6,6 +6,8 @@ subpackages), visible to //tools/guards, whose :repository_files collects one pe
 list: a package that forgets the call fails analysis there.
 """
 
+load(":classpath.bzl", "classpath_report")
+
 def _check_tests():
     # G16 (Bazel workplan P6-16): every JVM test is a junit_test (tools/junit/defs.bzl), run by its JUnitMain:
     # one runner, one set of pinned settings, Bazel's test protocol. guards_package() runs last in every BUILD
@@ -26,6 +28,13 @@ def guards_package():
         name = "guard_tests",
         tests = [":" + r["name"] for r in native.existing_rules().values() if r["kind"].endswith("_test")],
         tags = ["manual"],
+        visibility = ["//tools/guards:__pkg__"],
+    )
+    # every JVM target's runtime classpath, as Maven coordinates (G11, //tools/guards:classpath_test)
+    classpath_report(
+        name = "guard_classpaths",
+        targets = [":" + r["name"] for r in native.existing_rules().values() if r["kind"] in ("java_test", "java_binary")],
+        testonly = True,
         visibility = ["//tools/guards:__pkg__"],
     )
     native.filegroup(

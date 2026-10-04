@@ -80,9 +80,8 @@ maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 # strict_visibility, so a BUILD file may name only the jars its pool LISTS below; a
 # transitive jar is invisible until it is listed. Core reaches no outside jar at all
 # (//tools/deps:core_closure_test). Pools may share coordinates (each
-# resolves its own versions); //tools/deps:pools_are_disjoint holds core, h2_modern,
-# test and upstream apart, with two named overlaps (P6-11 replaces it with a check
-# per runtime classpath).
+# resolves its own versions); //tools/guards:classpath_test fails on any runtime
+# classpath that holds one coordinate at two versions (Bazel workplan P6-11).
 #
 #   @maven_core      core's JDBC drivers (the warehouse adds @maven_warehouse, the planner TeaVM's classlib)
 #   @maven_warehouse DuckDB's JDBC driver, for the warehouse and the app on it

@@ -78,25 +78,6 @@ junit_test(
     ],
 )
 
-junit_test(
-    name = "pools_are_disjoint",
-    memory_mb = 768,
-    size = "small",
-    srcs = ["PoolsAreDisjointTest.java"],
-    data = [
-        "//:maven_core_install.json",
-        "//:maven_h2_modern_install.json",
-        "//:maven_test_install.json",
-        "//:maven_upstream_install.json",
-    ],
-    jvm_flags = ["-Dlock.%s=$(rlocationpath //:maven_%s_install.json)" % (p, p) for p in ["core", "h2_modern", "test", "upstream"]],
-    select = ["--select-class=com.legend.tools.deps.PoolsAreDisjointTest"],
-    deps = [
-        "//testing",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
-    ],
-)
-
 # one release: MODULE.bazel and tools/oracle-pins.env agree (//tools/bump writes both)
 junit_test(
     name = "one_release",

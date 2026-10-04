@@ -70,4 +70,27 @@ junit_test(
     ],
 )
 
+# G11 (Bazel workplan P6-11): no runtime classpath holds two versions of one Maven coordinate; every package's
+# guard_classpaths report (guards_package) from the inventory's package list. Replaces pools_are_disjoint.
+filegroup(
+    name = "classpath_reports",
+    testonly = True,
+    srcs = ["//%s:guard_classpaths" % p for p in PACKAGES if p != "tools/guards"],  # the guards: no cycle
+)
+
+junit_test(
+    name = "classpath_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["ClasspathTest.java"],
+    data = [":classpath_reports"],
+    # a list: an environment variable keeps it one value (in jvm_flags it would split into JVM arguments)
+    env = {"CLASSPATH_REPORTS": "$(rlocationpaths :classpath_reports)"},
+    select = ["--select-class=com.legend.tools.guards.ClasspathTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 guards_package()
