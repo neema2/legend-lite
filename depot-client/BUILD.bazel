@@ -49,3 +49,12 @@ js_test(
     entry_point = "test/server.test.ts",
     node_options = _NODE_OPTIONS,
 )
+
+# every test here: the local gate and CI run it (gates/BUILD.bazel)
+test_suite(
+    name = "tests",
+    tests = [
+        ":server_test",
+        ":wasm_test",
+    ],
+)

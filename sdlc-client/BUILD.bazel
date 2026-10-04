@@ -49,3 +49,12 @@ js_test(
         "--test-reporter-destination=stdout",
     ],
 )
+
+# every test here: the local gate and CI run it (gates/BUILD.bazel)
+test_suite(
+    name = "tests",
+    tests = [
+        ":server_test",
+        ":wasm_test",
+    ],
+)

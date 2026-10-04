@@ -160,3 +160,13 @@ typescript.tsc_test(
         ":node_modules/monaco-editor",
     ],
 )
+
+# every test here but the browser harness (verify, tagged browser-ci): the local gate and CI run it
+test_suite(
+    name = "tests",
+    tests = [
+        ":demo_test",
+        ":typecheck_test",
+        ":workspace_test",
+    ],
+)
