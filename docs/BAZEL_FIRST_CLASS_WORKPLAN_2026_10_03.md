@@ -1058,11 +1058,13 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | ID | P1-19 |
 | Why | Plan 1.4; BZ-N12; WH-N16; Part 0 (1.4 grew: `warehouse_run` has no `**kwargs`). |
 | Change | <ul><li>New `tools/platforms/BUILD.bazel`: move the `config_setting`s `linux_x86_64`, `linux_aarch64`, `windows_x86_64`, `windows_aarch64`, `macos_arm64` and `macos_x86_64` out of `warehouse/BUILD.bazel` (`:149-182, 274-290`).</li><li>New `tools/platforms/defs.bzl`: `INCOMPATIBLE_WINDOWS`, `NOT_ON_WINDOWS_ARM64`, and `platform_select(mapping, what)`, which returns a `select` with `no_match_error` plus the matching `target_compatible_with` (default `@platforms//:incompatible`).</li><li>Rewrite `warehouse/defs.bzl`, `warehouse/BUILD.bazel` and `datacube/BUILD.bazel`'s two re-inlined selects to use it.</li></ul> **(A25)** A test-only `platform(name = "unlisted_test", constraint_values = ["@platforms//os:linux", "@platforms//cpu:ppc"])` in `//tools/platforms`. |
-| Proof | `bazel build --nobuild //...`. `bazel query 'attr(target_compatible_with, ".", //warehouse/... + //datacube/...)' --output=label` gives the same set before and after. **(A25)** `bazel build --nobuild --platforms=//tools/platforms:unlisted_test //warehouse/... //pct/... //datacube/...` succeeds, with the native, DuckDB and Postgres targets skipped as incompatible rather than failing with a select error. **Windows proof (C2)** (§1). |
+| Proof | `bazel build --nobuild //...`. `bazel query 'attr(target_compatible_with, "incompatible", //warehouse/... + //datacube/... + //tools/...)'` changes only as intended (2026-10-04: the `"."` form matched every rule, since an unset attribute prints as `[]`). **(A25)** `bazel build --nobuild --platforms=//tools/platforms:unlisted_test //warehouse/... //pct/... //datacube/...` succeeds, with the native, DuckDB and Postgres targets skipped as incompatible rather than failing with a select error. **Windows proof (C2)** (§1). |
 | Depends on | P0-12 |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
 | Done when | No platform `config_setting` lives outside `//tools/platforms`. WH-N16's open question is answered by that command (A25). |
+
+**As built (2026-10-04):** the unlisted platform is Linux on s390x, not ppc (ppc has no Java runtime; ppc64le makes rules_js's esbuild selection ambiguous). The A25 check runs over non-test targets only (Bazel 9 resolves a test's toolchain for a platform that can run it before it sees an incompatible dependency); its command is in `tools/platforms/BUILD.bazel`. A guard that it keeps passing, and that no `config_setting` appears outside `//tools/platforms`, joins Phase 6 (P6-14). The embedded Postgres skips there once P1-15 lands.
 
 #### P1-20 · `legend_java_library`: NullAway built in, private by default
 
