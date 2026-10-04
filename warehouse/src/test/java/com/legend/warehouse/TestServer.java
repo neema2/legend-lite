@@ -69,7 +69,9 @@ final class TestServer implements AutoCloseable {
         if (binary == null) {
             WarehouseServer s = new WarehouseServer(new WarehouseServer.Config(0, data, List.of("main"), users, null,
                     Duration.ofMinutes(5), limits).withOwners(owners).withAllowedOrigins(allowedOrigins)
-                    .withPostgres(postgres, extensions));
+                    .withPostgres(postgres, extensions)
+                    // the library, never extracted from DuckDB's jar (Bazel workplan P1-16)
+                    .withDuckdbLibrary(Runfile.property("warehouse.duckdb.library")));
             return new TestServer(s, null, s.port());
         }
         List<String> cmd = new ArrayList<>(List.of(Runfile.of(binary).toString(), "--port", "0", "--data", data.toString(),

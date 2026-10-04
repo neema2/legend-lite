@@ -62,13 +62,14 @@ java_library(
     javacopts = NULLAWAY_OPTS,
     plugins = [NULLAWAY_PLUGIN],
     deps = [
+        "@rules_java//java/runfiles",
         ":sqlapi",
         "//base",
         "//json",
     ],
-    # DuckDB's native library, for every platform, rides inside its JDBC jar: the server calls DuckDB's
-    # C API through java.lang.foreign and uses no JDBC class (docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md).
-    runtime_deps = ["@maven_warehouse//:org_duckdb_duckdb_jdbc"],
+    # No DuckDB jar here: the server calls DuckDB's C API through java.lang.foreign and uses no JDBC class
+    # (docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md), and its native library is :duckdb_library, never extracted
+    # from the jar at run time (Bazel workplan P1-16).
     # What a native image of the server needs to know ahead of time (W1e): its FFM call shapes and
     # upcalls, the JDK's HTTP server and crypto providers. Recorded by GraalVM's agent under the
     # warehouse test suite; native-image reads it from the jar.
@@ -79,6 +80,12 @@ java_library(
 # `bazel run //warehouse:server -- --user alice:secret --data /tmp/wh`
 java_binary(
     name = "server",
+    # DuckDB's library and the postgres extension, found in the server's runfiles by their paths
+    # (<repo>/warehouse/<library>, <repo>/warehouse/duckdb_extensions/...; ServerRunfiles, Bazel workplan P1-16)
+    data = [
+        ":duckdb_extensions",
+        ":duckdb_library",
+    ],
     main_class = "com.legend.warehouse.server.WarehouseServer",
     runtime_deps = [":server_lib"],
 )
@@ -124,6 +131,9 @@ executable_of(
 
 _ARROW_COMPARATOR = "-Dwarehouse.arrow.comparator=$(rlocationpath :arrow_matches_json_executable)"
 
+# DuckDB's library, for the in-process servers and DuckLibrary's own tests (Bazel workplan P1-16)
+_DUCKDB_LIBRARY_FLAG = "-Dwarehouse.duckdb.library=$(rlocationpath :duckdb_library)"
+
 junit_test(
     name = "tests",
     memory_mb = 768,
@@ -131,8 +141,12 @@ junit_test(
     data = [
         ":arrow_matches_json",
         ":arrow_matches_json_executable",
+        ":duckdb_library",
     ],
-    jvm_flags = [_ARROW_COMPARATOR],
+    jvm_flags = [
+        _ARROW_COMPARATOR,
+        _DUCKDB_LIBRARY_FLAG,
+    ],
     select = ["--select-package=com.legend.warehouse"],
     runtime_deps = [":tests_lib"],
 )
@@ -177,8 +191,12 @@ junit_test(
     data = [
         ":arrow_matches_json",
         ":arrow_matches_json_executable",
+        ":duckdb_library",
     ],
-    jvm_flags = [_ARROW_COMPARATOR],
+    jvm_flags = [
+        _ARROW_COMPARATOR,
+        _DUCKDB_LIBRARY_FLAG,
+    ],
     select = ["--select-class=com.legend.warehouse.WarehousePostgresLiveTest"],
     tags = ["manual"],
     runtime_deps = [":tests_lib"],
@@ -189,7 +207,10 @@ junit_test(
     name = "postgres_live_native",
     memory_mb = 768,
     size = "medium",
-    jvm_flags = [_ARROW_COMPARATOR],
+    jvm_flags = [
+        _ARROW_COMPARATOR,
+        _DUCKDB_LIBRARY_FLAG,
+    ],
     data = [
         ":arrow_matches_json",
         ":arrow_matches_json_executable",
@@ -206,6 +227,7 @@ junit_test(
 )
 
 # DuckDB's native library for this platform, out of its JDBC jar: what the image loads.
+# DO NOT RENAME: the server finds this output in its runfiles by its path (ServerRunfiles, Bazel workplan P1-16).
 jar_entry(
     name = "duckdb_library",
     entry = _DUCKDB_LIBRARY,
@@ -218,7 +240,10 @@ junit_test(
     name = "tests_native",
     memory_mb = 768,
     size = "medium",
-    jvm_flags = [_ARROW_COMPARATOR],
+    jvm_flags = [
+        _ARROW_COMPARATOR,
+        _DUCKDB_LIBRARY_FLAG,
+    ],
     data = [
         ":arrow_matches_json",
         ":arrow_matches_json_executable",
@@ -306,6 +331,7 @@ alias(
     target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
 )
 
+# DO NOT RENAME: the server finds this output in its runfiles by its path (ServerRunfiles, Bazel workplan P1-16).
 java_run(
     name = "duckdb_extensions",
     srcs = [":duckdb_extension_gz"],

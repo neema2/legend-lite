@@ -105,7 +105,11 @@ junit_test(
 junit_test(
     name = "corpus_warehouse",
     memory_mb = 768,
-    data = _INPUTS + ["//warehouse:server_deploy.jar"],
+    # the warehouse it starts finds DuckDB's library in these runfiles (Bazel workplan P1-16)
+    data = _INPUTS + [
+        "//warehouse:duckdb_library",
+        "//warehouse:server_deploy.jar",
+    ],
     jvm_flags = [
         "-Drcorpus.warehouse.server=$(rootpath //warehouse:server_deploy.jar)",
         "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",

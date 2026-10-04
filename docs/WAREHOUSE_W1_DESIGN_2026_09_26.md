@@ -15,14 +15,16 @@ A new Bazel package **`//warehouse`** (Java package `com.legend.warehouse`;
 |---|---|---|
 | `:sqlapi` | the HTTP SQL API as Java records, their JSON codec, the **binding** interface (a sans-I/O state machine, program §2c), and the native binding | **java.base only**. It must compile into the WebAssembly module beside the planner (ruling 7), and a guardrail pins that |
 | `:client` | the JVM driver for a binding (`java.net.http`), and a **`java.sql.Driver`** over it (`jdbc:warehouse:http://host:port/catalog`) | `:sqlapi`, java.net.http, java.sql |
-| `:server_lib` / `:server` | the warehouse process: DuckDB's **C API through `java.lang.foreign`** (W1d), no JDBC class | `:sqlapi`, jdk.httpserver; DuckDB **1.5.5.1**'s native library, taken at run time from its JDBC jar (its own Maven set; legend-lite core stays on 1.4.4 until its own upgrade leg) or passed with `--duckdb-library` |
+| `:server_lib` / `:server` | the warehouse process: DuckDB's **C API through `java.lang.foreign`** (W1d), no JDBC class | `:sqlapi`, jdk.httpserver; DuckDB **1.5.5.1**'s native library (its own Maven set; legend-lite core stays on 1.4.4 until its own upgrade leg): `:duckdb_library`, out of the JDBC jar at build time, passed with `--duckdb-library` or found in the server's runfiles |
 | `:tests` | conformance, cancel/timeout, concurrency, identity | all of the above |
 
 Rules carried from core: no reflection (ArchUnit), NullAway, the
 Windows portability guardrail. **DuckDB's library** is passed with
-`--duckdb-library` (a native image ships it beside the binary), or else
-extracted once from the JDBC jar on the classpath into a cache file that
-every later start reuses (W1d).
+`--duckdb-library` (a native image ships it beside the binary), or found in
+the server's runfiles when Bazel started it (`//warehouse:duckdb_library`).
+Since 2026-10-04 (Bazel workplan P1-16) it is never extracted from the JDBC
+jar into a temporary directory: a JVM started without it fails, naming the
+flag.
 
 ## 2. The process
 

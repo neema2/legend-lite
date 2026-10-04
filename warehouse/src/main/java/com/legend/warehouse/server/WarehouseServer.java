@@ -108,6 +108,12 @@ public final class WarehouseServer implements AutoCloseable {
                     allowedOrigins, sessionLimit, Map.copyOf(postgres), duckdbExtensions, site, singleUser);
         }
 
+        /** DuckDB's native library ({@code --duckdb-library}): what a server started in a JVM loads. */
+        public Config withDuckdbLibrary(@Nullable Path duckdbLibrary) {
+            return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
+                    allowedOrigins, sessionLimit, postgres, duckdbExtensions, site, singleUser);
+        }
+
         /** A DataCube page served from DIR for every GET outside the API, with {@code /config.json} naming this server. */
         public Config withSite(@Nullable Path site) {
             return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
@@ -862,7 +868,7 @@ public final class WarehouseServer implements AutoCloseable {
             }
             if (i + 1 >= args.length) throw new IllegalArgumentException(args[i] + " needs a value");
             switch (args[i]) {
-                case "--site" -> site = Path.of(args[++i]);
+                case "--site" -> site = named(args[++i], startedIn);
                 case "--table" -> table = args[++i];
                 case "--postgres" -> {
                     String[] kv = args[++i].split("=", 2);
@@ -874,7 +880,7 @@ public final class WarehouseServer implements AutoCloseable {
                         throw new IllegalArgumentException("catalog " + kv[0] + " is named twice");
                     }
                 }
-                case "--duckdb-extensions" -> extensions = Path.of(args[++i]);
+                case "--duckdb-extensions" -> extensions = directoryOf(named(args[++i], startedIn));
                 case "--port" -> port = Integer.parseInt(args[++i]);
                 case "--data" -> {
                     data = Path.of(args[++i]);
@@ -884,13 +890,13 @@ public final class WarehouseServer implements AutoCloseable {
                 case "--user" -> users.add(args[++i].split(":", 2));
                 case "--concurrency" -> concurrency = Integer.parseInt(args[++i]);
                 case "--queue" -> queue = Integer.parseInt(args[++i]);
-                case "--duckdb-library" -> library = Path.of(args[++i]);
+                case "--duckdb-library" -> library = named(args[++i], startedIn);
                 case "--owner" -> owners.add(args[++i]);
                 case "--allow-origin" -> origins.add(args[++i]);
                 case "--max-rows" -> maxRows = Long.parseLong(args[++i]);
                 case "--retain-minutes" -> retainMinutes = Long.parseLong(args[++i]);
                 case "--result-memory-mb" -> resultMemoryMb = Long.parseLong(args[++i]);
-                case "--token-key-file" -> tokenKeyFile = Path.of(args[++i]);
+                case "--token-key-file" -> tokenKeyFile = callers(args[++i], startedIn);
                 case "--token-minutes" -> tokenMinutes = Long.parseLong(args[++i]);
                 case "--session-hours" -> sessionHours = Long.parseLong(args[++i]);
                 default -> throw new IllegalArgumentException("unknown argument " + args[i]);
@@ -901,6 +907,17 @@ public final class WarehouseServer implements AutoCloseable {
         for (String n : postgres.keySet()) {
             if (!Catalogs.validName(n)) throw new IllegalArgumentException("bad catalog name: " + n);
             if (cats.contains(n)) throw new IllegalArgumentException("catalog " + n + " is named twice");
+        }
+        // Started by Bazel (bazel run, a test's data, bazel-bin), the server finds DuckDB's library and the postgres
+        // extension in its own runfiles, where //warehouse:duckdb_library and //warehouse:duckdb_extensions put them
+        // (Bazel workplan P1-16): never extracted to a temporary directory.
+        if (library == null) {
+            library = ServerRunfiles.rlocation(ServerRunfiles.repository() + "/warehouse/" + DuckLibrary.resourceName());
+        }
+        if (extensions == null) {
+            Path inRunfiles = ServerRunfiles.rlocation(ServerRunfiles.repository()
+                    + "/warehouse/duckdb_extensions/" + Attachment.POSTGRES.extensionFile);
+            if (inRunfiles != null) extensions = inRunfiles.getParent();
         }
         if (!postgres.isEmpty() && extensions == null) {
             if (!DuckLibrary.nativeImage()) {
@@ -930,6 +947,30 @@ public final class WarehouseServer implements AutoCloseable {
                 new Statements.Limits(concurrency, queue, maxRows, Duration.ofMinutes(retainMinutes), resultMemoryMb << 20),
                 library, owners, origins, Duration.ofHours(sessionHours), Map.copyOf(postgres), extensions, site, user);
         return new CommandLine(config, open, table, temporaryData);
+    }
+
+    /**
+     * A file or directory the command line names: absolute as given; relative, where {@code bazel run} was started
+     * ({@code BUILD_WORKING_DIRECTORY}) when it is there, else a runfiles path ({@code $(rlocationpath)} in a target's
+     * {@code args}) found in this process's runfiles (Bazel workplan P1-16).
+     */
+    static Path named(String value, @Nullable Path startedIn) {
+        Path callers = callers(value, startedIn);
+        if (Path.of(value).isAbsolute() || java.nio.file.Files.exists(callers)) return callers;
+        Path runfile = ServerRunfiles.rlocation(value.replace('\\', '/'));
+        return runfile != null ? runfile : callers;
+    }
+
+    /** A path the caller wrote: relative to where {@code bazel run} was started, when it was. */
+    static Path callers(String value, @Nullable Path startedIn) {
+        Path p = Path.of(value);
+        return startedIn == null || p.isAbsolute() ? p : startedIn.resolve(p);
+    }
+
+    /** {@code --duckdb-extensions} names the directory, or the extension file in it ($(rlocationpath) of a file). */
+    private static Path directoryOf(Path p) {
+        Path parent = p.getParent();
+        return java.nio.file.Files.isRegularFile(p) && parent != null ? parent : p;
     }
 
     /** {@code --table}'s schema.name: what the page's address carries, so nothing that needs escaping there. */

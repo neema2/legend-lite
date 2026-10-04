@@ -1,5 +1,7 @@
 package com.legend.warehouse.server;
 
+import com.legend.testing.Runfile;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -59,7 +61,7 @@ class PostgresCatalogTest {
 
     @Test
     void aMissingExtensionFailsTheStartNamingWhereItLooked() throws Exception {
-        DuckLibrary.load(null);
+        DuckLibrary.load(Runfile.property("warehouse.duckdb.library"));
         Path dir = Files.createTempDirectory("pg-no-ext");
         var e = assertThrows(java.io.IOException.class,
                 () -> new Catalogs(dir, List.of("main"), Map.of("sales",
@@ -117,7 +119,7 @@ class PostgresCatalogTest {
 
     @Test
     void usageGrantsTheCatalogAndNoObjectInIt() throws Exception {
-        DuckLibrary.load(null);
+        DuckLibrary.load(Runfile.property("warehouse.duckdb.library"));
         try (Database system = Database.open(null)) {
             Grants g = new Grants(system);
             try {
@@ -177,7 +179,7 @@ class PostgresCatalogTest {
 
     @Test
     void everyWarehouseConnectionIsInTheUtcSession() throws Exception {
-        DuckLibrary.load(null);
+        DuckLibrary.load(Runfile.property("warehouse.duckdb.library"));
         try (Database db = Database.open(null);
              com.legend.warehouse.server.duck.Conn c = db.connect("alice");
              com.legend.warehouse.server.duck.Result r = c.execute("SELECT current_setting('TimeZone') AS z,"
