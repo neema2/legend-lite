@@ -1161,6 +1161,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | Resolution may get slower without the local cache. Bazel's repository cache still holds the jars. |
 | Done when | No pin action reads `~/.m2`. |
 
+**Investigated (2026-10-04): no change needed.** rules_jvm_external 7.1's Maven resolver (`ResolutionRequest.getUserHome`) resolves into a fresh temporary `resolver-home` on every repin unless a pool sets `use_unsafe_shared_cache`, which none does: `~/.m2/repository` is never read or written. It does read `~/.m2/settings.xml` when one exists (`RemoteRepositoryFactory`), but only for server credentials and a proxy for the repositories the pool names: it adds no repository and no mirror, so it cannot change WHICH artifacts resolve, and the lock pins every artifact by sha256. Accepted as network-access configuration, like Bazel's own `.netrc`.
+
 #### P1-26 · pnpm locks checked against `package.json`; exact versions
 
 | Field | Content |
