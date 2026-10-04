@@ -206,6 +206,25 @@ below), not done here.
 missing platform functions (W2.1 / W4.4a, decision D9), the plan/execution split (W6.2's first cut) — each with its
 measurements in the plan document above.
 
+## A fifth line, 2026-10-03: Studio, SDLC-lite and Depot-lite (the user's ask, rule 5)
+
+On the remote branch `studio` (worktree `legend-lite-query`); everything lands there first, only this announcement on
+`main`. Design `docs/STUDIO_DESIGN_2026_10_02.md` and census `studio/docs/` (both on `studio`). **Owns, all new
+top-level modules:** `studio/` (the app), `project-store/` (TypeScript: the one SDLC client and the SDLC answered in
+the page), `sdlc-server/` and `depot-server/` (Java: the model home, which depends on `//core`'s public API, never the
+reverse), and the dogfood model.
+
+**Now (2026-10-04): a spike.** The SDLC's rules written once in Java (`sdlc-server/`), TeaVM-safe, over a git-shaped
+storage interface, compiled to WebAssembly by its OWN `teavm_wasm` target inside `sdlc-server/`, and held to
+`project-store/`'s conformance suite. **No edit in `core/`, `wasm/`, `tools/` or `json/`**: `//core`, `//json` and
+`//tools/teavm:defs.bzl` are used as they are. If the spike lands and the rules move into the page's planner module,
+that `wasm/` edit is announced here first.
+
+The compiler rebuild is paused by the user while this line works (design S11). Core pieces it will need later, each
+announced here with its files before it lands: the model JSON reader and printer (opening existing upstream projects),
+the WASM compile entry, W1.2 diagnostics, and (v1) name-resolved entity JSON with the function-resolution fix
+(`docs/function-resolution/README.md` on `studio`).
+
 ## Rules between sessions
 
 1. Never force-push; never bare `git stash` (the stash stack is shared by every worktree).
