@@ -235,6 +235,11 @@ out stuff that query is using from datacube"; "should we call it engine-client")
 Gated by DataCube's own suites (its tests, `//wasm:all`, the browser lane) and Query's. A DataCube session working
 on `datacube/` should rebase after this lands.
 
+**2026-10-04, announced before landing: four one-line edits for the Bazel program's guards** (after merging `main`'s
+P1-20/P1-25 into `studio`): `//sdlc-server` and `//depot-server` join the visibility lists of `//base:base`,
+`//json:json` and (`//sdlc-server` only) `//core:core`; `tools/deps/pools.bzl` lets `sdlc-server` use `@maven_teavm`
+(its page module, built like `//wasm:planner`), with the reason. The two modules use `legend_java_library`.
+
 The compiler rebuild is paused by the user while this line works (design S11). Core pieces it will need later, each
 announced here with its files before it lands: the model JSON reader and printer (opening existing upstream projects),
 W1.2 diagnostics, and (v1) name-resolved entity JSON with the function-resolution fix
