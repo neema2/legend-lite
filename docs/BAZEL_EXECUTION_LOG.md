@@ -19,3 +19,14 @@ without a **done** entry.
 - The ruleset on `main`: done, id 24454941 (2026-10-04). @johnnymads invited with write (invitation 336017981, pending acceptance).
 - **P0-90:** done 2026-10-04, recorded in the workplan's §6.5: 14 of 15 yes, P0-14 partial until the invitation is accepted. PR #21 merged as `0662fed80`.
 - PR #22: rebased onto `0662fed80` after conflicting with #21 (both edited the lane lists); the runbook's one-line-of-work rule came from it.
+- **P1-14, P1-14b:** done. Pushed to `main` directly (`8eabfbea7..253c47750`, PR #22 closed with a pointer); the
+  ruleset's owner bypass worked. `main`'s CI run 37203023190: 51/51 on Linux, macOS, Windows, including
+  `verify_app_test` in the Windows app lane.
+- **Batch 0: done** (2026-10-04).
+
+## Batch 1: the test runner (P1-01, P1-02, P1-21)
+
+- Local: `852372d5d` (P1-01, P1-02) and `d782b2b3f` (P1-21) on `253c47750`. Full proof 178/178 with the measured heaps
+  (every manual java test included but `//spec:reference_lane`, red on `main` itself: its golden drifted 1515 → 1517
+  after 2026-09-29, outside this program). Identity diff: all 44 shared java tests select the same testcases under
+  both runners. Independent audit: running.
