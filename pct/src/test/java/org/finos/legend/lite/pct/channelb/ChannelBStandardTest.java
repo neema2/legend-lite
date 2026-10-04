@@ -59,10 +59,8 @@ class ChannelBStandardTest {
         System.out.println("[chB-std] census=" + census
                 + " total=" + out.size());
         ChannelBDiff.Counts c = ChannelBDiff.report("chB-std", out,
-                com.legend.testing.Repo.module("src/test/java/org/finos/legend/lite/pct/"
-                        + "Test_LegendLite_StandardFunctions_PCT.java"),
-                com.legend.testing.Repo.module("src/test/resources/oracle/"
-                        + "StandardFunctions_manifest.duckdb.json"));
+                com.legend.testing.Runfile.property("pct.suite.Standard"),
+                com.legend.testing.Runfile.property("pct.oracle.Standard"));
         // RE-MEASURED 2026-08-19 after the let-indirection adapter arm
         // un-declined the 64 window/non-identity rows (declines hide,
         // measurements name): PASS 133->180, and the previously hidden

@@ -3,7 +3,7 @@ package com.legend.tools.deps;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
@@ -67,7 +67,7 @@ class CoreClosureTest {
     }
 
     private static List<String> jars(String closure) throws IOException {
-        return Files.readAllLines(Repo.module(closure)).stream()
+        return Files.readAllLines(Runfile.property("closure." + closure)).stream()
                 .filter(l -> !l.isBlank())
                 .sorted()
                 .toList();

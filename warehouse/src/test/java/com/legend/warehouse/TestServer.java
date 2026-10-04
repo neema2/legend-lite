@@ -1,5 +1,7 @@
 package com.legend.warehouse;
 
+import com.legend.testing.Runfile;
+
 import com.legend.base.Nullable;
 import com.legend.warehouse.server.Statements;
 import com.legend.warehouse.server.WarehouseServer;
@@ -70,7 +72,7 @@ final class TestServer implements AutoCloseable {
                     .withPostgres(postgres, extensions));
             return new TestServer(s, null, s.port());
         }
-        List<String> cmd = new ArrayList<>(List.of(binary, "--port", "0", "--data", data.toString(),
+        List<String> cmd = new ArrayList<>(List.of(Runfile.of(binary).toString(), "--port", "0", "--data", data.toString(),
                 "--concurrency", Integer.toString(limits.concurrency()), "--queue", Integer.toString(limits.queue()),
                 "--max-rows", Long.toString(limits.maxRows()), "--retain-minutes", Long.toString(limits.retain().toMinutes()),
                 "--result-memory-mb", Long.toString(Math.max(1, limits.resultMemory() >> 20))));
@@ -97,7 +99,7 @@ final class TestServer implements AutoCloseable {
         String library = System.getenv("WAREHOUSE_DUCKDB_LIBRARY");
         if (library != null) {
             cmd.add("--duckdb-library");
-            cmd.add(library);
+            cmd.add(Runfile.of(library).toString());
         }
         Process p = new ProcessBuilder(cmd).redirectOutput(ProcessBuilder.Redirect.INHERIT).start();
         BufferedReader err = new BufferedReader(new InputStreamReader(p.getErrorStream(), StandardCharsets.UTF_8));

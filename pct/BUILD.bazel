@@ -206,6 +206,14 @@ junit_test(
     name = "pct_channel_b",
     memory_mb = 768,
     data = glob(["src/**"]),
+    # each suite's PCT class and its oracle manifest, by runfiles path (Bazel workplan P1-05)
+    jvm_flags = [
+        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s)
+        for s in _SUITES
+    ] + [
+        "-Dpct.oracle.%s=$(rlocationpath src/test/resources/oracle/%sFunctions_manifest.duckdb.json)" % (s, s)
+        for s in _SUITES
+    ],
     select = ["--select-package=org.finos.legend.lite.pct.channelb"],
     upstream = True,
     runtime_deps = [

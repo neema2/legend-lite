@@ -3,7 +3,7 @@ package com.legend.tools.deps;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
@@ -19,7 +19,7 @@ class WarehouseClosureTest {
 
     @Test
     void theWarehouseReachesNoCoreTarget() throws IOException {
-        List<String> reached = Files.readAllLines(Repo.module("warehouse_closure")).stream()
+        List<String> reached = Files.readAllLines(Runfile.property("closure.warehouse_closure")).stream()
                 .filter(l -> !l.isBlank())
                 .sorted()
                 .toList();

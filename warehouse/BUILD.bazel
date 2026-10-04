@@ -83,6 +83,7 @@ java_library(
         ":sqlapi",
         "//base",
         "//json",
+        "//testing",
         "@maven_warehouse//:org_duckdb_duckdb_jdbc",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -94,6 +95,7 @@ junit_test(
     memory_mb = 768,
     size = "medium",
     data = ["src/test/python/arrow_matches_json.py"],
+    jvm_flags = ["-Dwarehouse.arrow.comparator=$(rlocationpath src/test/python/arrow_matches_json.py)"],
     select = ["--select-package=com.legend.warehouse"],
     runtime_deps = [":tests_lib"],
 )
@@ -140,8 +142,8 @@ junit_test(
         ":server_native",
     ],
     env = {
-        "WAREHOUSE_BINARY": "$(rootpath :server_native)",
-        "WAREHOUSE_DUCKDB_LIBRARY": "$(rootpath :duckdb_library)",
+        "WAREHOUSE_BINARY": "$(rlocationpath :server_native)",
+        "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath :duckdb_library)",
     },
     select = ["--select-class=com.legend.warehouse.WarehousePostgresLiveTest"],
     tags = ["manual"],
@@ -205,9 +207,10 @@ junit_test(
         ":server_native",
     ],
     env = {
-        "WAREHOUSE_BINARY": "$(rootpath :server_native)",
-        "WAREHOUSE_DUCKDB_LIBRARY": "$(rootpath :duckdb_library)",
+        "WAREHOUSE_BINARY": "$(rlocationpath :server_native)",
+        "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath :duckdb_library)",
     },
+    jvm_flags = ["-Dwarehouse.arrow.comparator=$(rlocationpath src/test/python/arrow_matches_json.py)"],
     select = ["--select-package=com.legend.warehouse"],
     runtime_deps = [":tests_lib"],
 )
@@ -263,8 +266,8 @@ junit_test(
         "@embedded_postgres//:postgres",
     ],
     env = {
-        "WAREHOUSE_SERVE": "$(rootpath :serve)",
-        "WAREHOUSE_SERVE_SITE": "$(rootpath :launcher_test_serve_site)",
+        "WAREHOUSE_SERVE": "$(rlocationpath :serve)",
+        "WAREHOUSE_SERVE_SITE": "$(rlocationpath :launcher_test_serve_site)",
     },
     jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
     select = ["--select-class=com.legend.warehouse.launcher.LauncherTest"],

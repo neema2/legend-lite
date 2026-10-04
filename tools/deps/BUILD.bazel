@@ -42,6 +42,7 @@ junit_test(
         ":drivers_closure",
         ":spec_closure",
     ],
+    jvm_flags = ["-Dclosure.%s=$(rlocationpath :%s)" % (c, c) for c in ["core_closure", "drivers_closure", "spec_closure"]],
     select = ["--select-class=com.legend.tools.deps.CoreClosureTest"],
     deps = [
         "//testing",
@@ -67,6 +68,7 @@ junit_test(
     size = "small",
     srcs = ["WarehouseClosureTest.java"],
     data = [":warehouse_closure"],
+    jvm_flags = ["-Dclosure.warehouse_closure=$(rlocationpath :warehouse_closure)"],
     select = ["--select-class=com.legend.tools.deps.WarehouseClosureTest"],
     deps = [
         "//testing",
@@ -85,6 +87,7 @@ junit_test(
         "//:maven_test_install.json",
         "//:maven_upstream_install.json",
     ],
+    jvm_flags = ["-Dlock.%s=$(rlocationpath //:maven_%s_install.json)" % (p, p) for p in ["core", "h2_modern", "test", "upstream"]],
     select = ["--select-class=com.legend.tools.deps.PoolsAreDisjointTest"],
     deps = [
         "//testing",
@@ -101,6 +104,10 @@ junit_test(
     data = [
         "//:MODULE.bazel",
         "//tools:oracle-pins.env",
+    ],
+    jvm_flags = [
+        "-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)",
+        "-Doracle.pins=$(rlocationpath //tools:oracle-pins.env)",
     ],
     select = ["--select-class=com.legend.tools.deps.OneReleaseTest"],
     deps = [

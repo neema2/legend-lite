@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.legend.base.Nullable;
 import com.legend.testing.EmbeddedPostgres;
-import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -36,10 +36,10 @@ import org.junit.jupiter.api.Test;
 class LauncherTest {
 
     /** {@code $(rootpath //warehouse:serve)}: this platform's launcher, in this test's runfiles. */
-    private static final Path LAUNCHER = Repo.path(required("WAREHOUSE_SERVE"));
+    private static final Path LAUNCHER = Runfile.of(required("WAREHOUSE_SERVE"));
 
     /** {@code $(rootpath //warehouse:launcher_test_serve_site)}: a site, and {@code --single-user} fixed. */
-    private static final Path LAUNCHER_WITH_SITE = Repo.path(required("WAREHOUSE_SERVE_SITE"));
+    private static final Path LAUNCHER_WITH_SITE = Runfile.of(required("WAREHOUSE_SERVE_SITE"));
 
     @Test
     void theCallersArgumentsReachTheServerAndItsExitCodeComesBack() throws Exception {
@@ -119,7 +119,7 @@ class LauncherTest {
         command.addAll(args);
         ProcessBuilder b = new ProcessBuilder(command).redirectErrorStream(true);
         // the launcher finds the server, DuckDB's library and the extension in this test's runfiles
-        b.environment().put("RUNFILES_DIR", Repo.root().getParent().toString());
+        b.environment().putAll(Runfile.env());
         b.environment().remove("BUILD_WORKING_DIRECTORY");
         if (startedIn != null) b.environment().put("BUILD_WORKING_DIRECTORY", startedIn.toString());
         return b.start();

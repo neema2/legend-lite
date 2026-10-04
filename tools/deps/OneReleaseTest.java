@@ -2,7 +2,7 @@ package com.legend.tools.deps;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -22,9 +22,9 @@ class OneReleaseTest {
 
     @Test
     void theModuleAndThePinsNameOneRelease() throws IOException {
-        String module = Files.readString(Repo.path("MODULE.bazel"));
+        String module = Files.readString(Runfile.property("module.bazel"));
         Map<String, String> pins = new LinkedHashMap<>();
-        for (String line : Files.readAllLines(Repo.path("tools", "oracle-pins.env"))) {
+        for (String line : Files.readAllLines(Runfile.property("oracle.pins"))) {
             int eq = line.indexOf('=');
             if (!line.startsWith("#") && eq > 0) {
                 pins.put(line.substring(0, eq).trim(), line.substring(eq + 1).trim());

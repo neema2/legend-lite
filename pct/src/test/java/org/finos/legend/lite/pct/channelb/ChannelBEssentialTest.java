@@ -280,8 +280,7 @@ class ChannelBEssentialTest {
      * stripped to plain FQNs). */
     private static java.util.Set<String> engineDuckDbExclusions()
             throws java.io.IOException {
-        Path manifest = com.legend.testing.Repo.module("src/test/resources/oracle/"
-                + "EssentialFunctions_manifest.duckdb.json");
+        Path manifest = com.legend.testing.Runfile.property("pct.oracle.Essential");
         java.util.Set<String> names = new java.util.HashSet<>();
         var m = java.util.regex.Pattern
                 .compile("\"test\"\\s*:\\s*\"(meta::[a-zA-Z:_0-9]+?)_Function_")
@@ -303,8 +302,7 @@ class ChannelBEssentialTest {
      * match channel B's plain FQNs). */
     private static java.util.Set<String> channelAExpectedFailures()
             throws java.io.IOException {
-        Path suite = com.legend.testing.Repo.module("src/test/java/org/finos/legend/lite/pct/"
-                + "Test_LegendLite_EssentialFunctions_PCT.java");
+        Path suite = com.legend.testing.Runfile.property("pct.suite.Essential");
         java.util.Set<String> names = new java.util.HashSet<>();
         var m = java.util.regex.Pattern.compile("one\\(\"(meta::[a-zA-Z:_0-9]+)_Function")
                 .matcher(java.nio.file.Files.readString(suite));

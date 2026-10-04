@@ -55,10 +55,8 @@ class ChannelBUnclassifiedTest {
         System.out.println("[chB-Unclassified] census=" + census
                 + " total=" + out.size());
         ChannelBDiff.Counts c = ChannelBDiff.report("chB-Unclassified", out,
-                com.legend.testing.Repo.module("src/test/java/org/finos/legend/lite/pct/"
-                        + "Test_LegendLite_UnclassifiedFunctions_PCT.java"),
-                com.legend.testing.Repo.module("src/test/resources/oracle/"
-                        + "UnclassifiedFunctions_manifest.duckdb.json"));
+                com.legend.testing.Runfile.property("pct.suite.Unclassified"),
+                com.legend.testing.Runfile.property("pct.oracle.Unclassified"));
         // measured 2026-08-19: PERFECT out of the box — 95/95 PASS,
         // every row corroborated, zero declines, zero wire bugs.
         // 95 -> 94 at the 4.145.0 bump (batch 8): one unclassified PCT.test

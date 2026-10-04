@@ -1,5 +1,7 @@
 package com.legend.warehouse;
 
+import com.legend.testing.Runfile;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -122,7 +124,7 @@ class WarehouseArrowTest {
             assertEquals("application/vnd.apache.arrow.stream", r.headers().firstValue("Content-Type").orElse(""));
             Files.write(dir.resolve("arrow-" + i + ".arrows"), r.body());
         }
-        Process p = new ProcessBuilder(python, Path.of("warehouse/src/test/python/arrow_matches_json.py").toString(), dir.toString())
+        Process p = new ProcessBuilder(python, Runfile.property("warehouse.arrow.comparator").toString(), dir.toString())
                 .redirectErrorStream(true).start();
         String out = new String(p.getInputStream().readAllBytes());
         assertTrue(p.waitFor(120, TimeUnit.SECONDS), "the comparator did not finish");

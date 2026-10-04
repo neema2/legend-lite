@@ -2,7 +2,7 @@ package com.legend.tools.deps;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Map;
@@ -40,7 +40,7 @@ class PoolsAreDisjointTest {
     void noArtifactIsInTwoPools() throws IOException {
         Map<String, Set<String>> owners = new TreeMap<>();
         for (String pool : POOLS) {
-            String lock = Files.readString(Repo.path("maven_" + pool + "_install.json"));
+            String lock = Files.readString(Runfile.property("lock." + pool));
             String artifacts = lock.substring(lock.indexOf("\"artifacts\": {"),
                     lock.indexOf("\n  },", lock.indexOf("\"artifacts\": {")));
             Matcher m = ARTIFACT.matcher(artifacts);
