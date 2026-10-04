@@ -3128,7 +3128,31 @@ All 85 IDs are mapped. The ledger's proposed G2, G5 and G8 allowlists are adopte
 
 | Phase | Date | Auditor | Items checked | Done-when met | Gaps found → items |
 |---|---|---|---|---|---|
-| — | — | — | — | — | — |
+| 0 | 2026-10-04 | independent review agent (wrote none of Phase 0) | P0-01 … P0-15, §6.1/§6.4 rows naming them, PRs #19–#21, `main`'s CI | 14 of 15 yes; P0-14 partial | P0-14 stays open until `codeowners/errors` is `[]`; gaps 4–8 below folded into P0-09/P6-17, P2-10, P1-15, P5-01, P5-03/P5-05 |
+
+**Phase 0 (P0-90), 2026-10-04.** Checked on `origin/main` `0662fed80` in a scratch worktree; light targets run locally (`--lockfile_mode=error` `//tools/junit:pins_test //tools/java_run:pins_test //tools/deps:all //:generated //core:postgres_arm_test`, 21/21; `//json:tests` under `tr_TR.UTF-8`), heavy lanes cited from each PR head's CI. Negative checks run and reverted: a misspelt suite label fails `//:generated`; a `MODULE.bazel` version bump without a repin fails under `--lockfile_mode=error`; a package under `runs/` is invisible to `//...`.
+
+| Item | Evidence | Verdict |
+|---|---|---|
+| P0-01 | `.bazelignore:8-11`; `bazel query //runs/...` filtered out by the ignored directory | yes |
+| P0-02 | `BUILD.bazel:21-29` (all four suites); a misspelt label exits 1; no `bazel query` in the test step | yes |
+| P0-03 | `tests(//...)` minus manual minus every lane's targets is empty (the two `pins_test`s were in no lane from #19 to #21; fixed in #21) | yes |
+| P0-04 | 8 × `fail_if_repin_required = True`; `.bazelrc:42`; the negative check fails with "must be regenerated" | yes |
+| P0-05 | `Bump.java:54` `RELEASE_POOLS`; the only pools keyed on the release | yes (the proof's `--help` does not exist: P2-10) |
+| P0-06 | `run-stress.mjs:40`; browser lane green on #21 | yes |
+| P0-07 | `PureLspServerTest.java:198,200` port 0 | yes |
+| P0-08 | `somepath(//core:server, …postgresql)` through `//core:drivers`; `//core:postgres_arm_test` 7.0 s | yes (no `target_compatible_with`: P1-15) |
+| P0-09 | `core/BUILD.bazel:280`, `datacube/BUILD.bazel:99`; no main-repo `.md` input | yes (the proof query also matches 167 upstream `.md` files: P6-17 filters to `^//`) |
+| P0-10 | the pins in both macros; `JUnitMain` tmpdir; both `pins_test`s; Turkish-locale run | yes |
+| P0-11 | `java_run/defs.bzl:25`; `--incompatible_disable_target_default_provider_fields` builds | yes |
+| P0-12 | https only; every default-less select has `no_match_error` | yes |
+| P0-13 | `live_snap_test` in `//datacube:tests`; `//spec:corpus_lanes` gone | yes |
+| P0-14 | `//gates:local` (143 tests, covers every light lane); AGENTS.md rule; ruleset 24454941 active as D17 amended | **partial:** CODEOWNERS reports "Unknown owner" until @johnnymads accepts his write invitation (sent 2026-10-04) |
+| P0-15 | the template; independent review recorded on #21 and #22 | yes |
+
+PR reviews: #19 combined #15–#18, whose independent review is `bazel-audit-2026-10-02/review-phase0-prs.md`; #20 (the 31-line teardown fix) had none recorded, accepted as an exception (its Windows proof is run 37157212989). `main`'s CI: green on `5a44c6554` and `7bbd1dc04`; run 37201164021 on `0662fed80` pending at audit time, re-checked before batch 1 pushes.
+
+Gaps folded into existing items: P6-17 filters G17's query to main-repo labels; P2-10 gives Bump a `--help`/`--dry-run` (or fixes the proof text); P1-15 adds `//core:postgres_arm_test` to the hub-select targets; P5-01 ends `//gates:local`'s hand copy of the lanes; P5-03/P5-05 close the remaining `set -euo pipefail` gaps (`gates-run.yml:108-111`, `gate.yml:59-62,105-110`). No regression from Phase 0 without an item.
 
 ---
 
