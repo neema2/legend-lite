@@ -43,19 +43,21 @@ js_library(
     srcs = ["pinned-chromium.mjs"],
 )
 
-# Every locked Playwright expects the pinned revision: a Playwright bump that moves it fails here, without
-# launching anything. A new lock with Playwright is added to LOCKS and data.
+# Every locked Playwright expects the pinned revision and version: a Playwright bump that moves either fails
+# here, without launching or downloading anything (it reads the pin, @chromium_pin//:pin.json). A new lock
+# with Playwright is added to LOCKS and data.
 js_test(
     name = "revision_test",
     data = [
-        ":chromium_headless_shell_executable",
         "//datacube:node_modules/playwright",
         "//query:node_modules/playwright",
+        "@chromium_pin//:pin.json",
     ],
     entry_point = "revision_test.mjs",
     env = {
         "LOCKS": "datacube query",
-        "PINNED_CHROMIUM": "$(rlocationpath :chromium_headless_shell_executable)",
+        "PIN": "$(rlocationpath @chromium_pin//:pin.json)",
     },
-    no_copy_to_bin = [":chromium_headless_shell_executable"],
+    # an external file: rules_js takes it as a runfile, not a copy into bazel-bin
+    no_copy_to_bin = ["@chromium_pin//:pin.json"],
 )

@@ -34,6 +34,9 @@ if (process.env.APP_POSTGRES) {
     env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
     stdio: ['pipe', 'pipe', 'inherit'],
   });
+  // a test that fails part-way, even before Postgres is ready, leaves no Postgres behind: its stdin closes
+  // with this process
+  process.on('exit', () => postgres.stdin.end());
   const port = await new Promise((done, fail) => {
     let said = '';
     postgres.stdout.on('data', (b) => {
@@ -52,8 +55,6 @@ ${said}`)), 180_000);
   GROUP ??= 'channel';
   console.log(`ok: the test's Postgres 16 is up on port ${port}, the sample loaded`);
 }
-// a test that fails part-way leaves no Postgres behind: its stdin closes with this process
-process.on('exit', () => postgres?.stdin.end());
 
 if (!PG || !TABLE || !GROUP) {
   console.error('set DATACUBE_APP_PG (a postgresql:// URL with its password), DATACUBE_APP_TABLE (schema.name)'
@@ -88,8 +89,10 @@ const address = await new Promise((done, fail) => {
 });
 ok(`the warehouse printed ${address.replace(/key=.*/, 'key=…')}`);
 
-const browser = await chromium.launch();
+let browser;
 try {
+  // inside the try: a launch failure still stops the warehouse below
+  browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const statuses = [];
   page.on('pageerror', (e) => bad(`page error: ${e.message}`));
@@ -181,7 +184,7 @@ try {
     else ok(`the blank page says: ${said}`);
   }
 } finally {
-  await browser.close();
+  await browser?.close();
   if (process.platform === 'win32') {
     // On Windows the launcher and the server are two processes, and kill() would stop the launcher alone.
     // taskkill takes the PID of a child that is still running: once it has exited, Node has released its

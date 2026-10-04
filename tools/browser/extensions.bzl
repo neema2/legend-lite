@@ -30,6 +30,17 @@ filegroup(
 
 _PLATFORMS = ["mac-arm64", "mac-x64", "linux64", "linux-arm64", "win64"]
 
+def _pin_repo_impl(rctx):
+    rctx.file("pin.json", json.encode({"revision": rctx.attr.revision, "version": rctx.attr.version}) + "\n")
+    rctx.file("BUILD.bazel", 'exports_files(["pin.json"], visibility = ["//visibility:public"])\n')
+
+# @chromium_pin//:pin.json: the pin's revision and version, for //tools/browser:revision_test, which then
+# needs no ~100 MB archive to read them
+_pin_repo = repository_rule(
+    implementation = _pin_repo_impl,
+    attrs = {"revision": attr.string(mandatory = True), "version": attr.string(mandatory = True)},
+)
+
 def _chromium_impl(mctx):
     pins = [tag for mod in mctx.modules for tag in mod.tags.pin]
     if len(pins) != 1:
@@ -52,6 +63,7 @@ def _chromium_impl(mctx):
                 "https://storage.googleapis.com/chrome-for-testing-public/%s/%s/chrome-headless-shell-%s.zip" % (pin.version, platform, platform),
             ],
         )
+    _pin_repo(name = "chromium_pin", revision = pin.revision, version = pin.version)
     return mctx.extension_metadata(reproducible = True)
 
 chromium = module_extension(
