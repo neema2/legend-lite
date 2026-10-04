@@ -138,6 +138,16 @@ native_image(
         "--enable-native-access=ALL-UNNAMED",
     ],
     main_class = "com.legend.warehouse.server.WarehouseServer",
+    # zlib from source (Bazel workplan P1-09; the rule uses it on Linux only): -lz finds this static
+    # libz.a, never a host zlib1g-dev.
+    static_zlib = "@zlib",
+    # link with LLVM's lld, beside the hermetic clang, never the host's ld. Linux only: macOS gets its
+    # hermetic toolchain in P1-10 (until then its native-image uses the Command Line Tools), and Windows
+    # keeps MSVC (D5).
+    c_compiler_option = select({
+        "@platforms//os:linux": ["-fuse-ld=lld"],
+        "//conditions:default": [],
+    }),
     target_compatible_with = NOT_ON_WINDOWS_ARM64,
     deps = [":server_lib"],
 )

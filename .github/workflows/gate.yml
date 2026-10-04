@@ -37,7 +37,7 @@ on:
         description: "Which platforms to run."
         default: all
         type: choice
-        options: [all, linux, macos, windows]
+        options: [all, linux, macos, windows, linux-arm]
 
 concurrency:
   group: gates-${{ github.workflow }}-${{ github.ref }}
@@ -89,6 +89,17 @@ jobs:
       platform: windows
       gates: ${{ inputs.gates }}
 
+  # LINUX ARM64 (Bazel workplan P1-13): the native warehouse on a real arm64 runner, with the hermetic C
+  # toolchain. CI had never run Linux arm64; the native-image crash seen under Docker Desktop on Apple silicon
+  # does not happen on real hardware (run 37139357779). The native lane only, until P5-03.
+  linux-arm:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'linux-arm' }}
+    uses: ./.github/workflows/gates-run.yml
+    with:
+      runs-on: ubuntu-24.04-arm
+      platform: linux-arm
+      gates: native
+
   # THE ONE REQUIRED CHECK (Bazel workplan P0-14, D17): main's ruleset requires this job, not the ~50 lane
   # jobs, whose names move with every lane change. It fails unless every job above succeeded. It does not
   # run on workflow_dispatch: a dispatch can choose a subset of lanes or platforms, and its green would
@@ -96,7 +107,7 @@ jobs:
   green:
     name: gates green
     if: ${{ always() && github.event_name != 'workflow_dispatch' }}
-    needs: [workflows, linux, macos, windows]
+    needs: [workflows, linux, macos, windows, linux-arm]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

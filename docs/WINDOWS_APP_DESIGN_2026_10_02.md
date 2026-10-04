@@ -37,7 +37,8 @@ published with the Linux build).
    A2), and the Windows native build is owed (`WAREHOUSE_W1_DESIGN_2026_09_26.md`, `gates-run.yml`).
    GraalVM 25 supports FFM downcalls and upcalls on Windows x64, which is how the server calls DuckDB.
    rules_graalvm 0.12.0 already hands MSVC's environment to `native-image`; no new rule, no patch.
-   *Cost:* Visual Studio 2022 Build Tools on every Windows desk, as a C toolchain is on macOS and Linux;
+   *Cost:* Visual Studio 2022 Build Tools on every Windows desk, as the Command Line Tools are on macOS (Linux
+   uses a Bazel-fetched LLVM since 2026-10-04, P1-09);
    the hosted `windows-2022` runners carry Visual Studio 2022. *Measured:* a native image built under
    Bazel with Build Tools 17.14 (MSVC 14.44) in 15 s (a probe program).
 

@@ -25,6 +25,11 @@ common --enable_platform_specific_config
 # is too long", main's CI run 37209395985: 252 characters). A short root on every Windows host, CI and desk
 # alike (Bazel workplan P1-08): the longest such path drops to about 226.
 startup:windows --output_user_root=C:/bzl
+# Linux's C toolchain is the hermetic LLVM (MODULE.bazel, Bazel workplan P1-09), registered here because
+# the repository exists with these targets only on a Linux or macOS host. A platform it does not match
+# fails, never falling back to the host's gcc. `common`, so query and build see one configuration.
+common:linux --extra_toolchains=@llvm_toolchain//:cc-toolchain-x86_64-linux,@llvm_toolchain//:cc-toolchain-aarch64-linux
+common:linux --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
 startup --windows_enable_symlinks
 build:windows --enable_runfiles
 # Windows: bash, for what still needs one -- rules_jvm_external's Maven fetch (it fails
