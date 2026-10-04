@@ -36,9 +36,13 @@ public final class Sdlc {
     /** An answer: its status and its JSON body ({@code null} for 204). */
     public record Response(int status, @Nullable String body) {}
 
-    /** Pure text to its protocol JSON ({@code {"_type":"data","elements":[...]}}), or a refusal (a RuntimeException). */
+    /** The compiler, as the rules use it. */
     public interface Grammar {
+        /** Pure text to its protocol JSON ({@code {"_type":"data","elements":[...]}}), or a refusal (a RuntimeException). */
         String modelJson(String text);
+
+        /** A whole model's compile errors, as the server's {@code compilation/compile} finds them: none when it compiles. */
+        List<String> compile(String model);
     }
 
     /** The project structure every project here declares (upstream's latest; the layout itself is lite's, S5). */
@@ -170,8 +174,8 @@ public final class Sdlc {
             return ok(projectView(project(p)));
         }
         String c = rest.get(0);
-        if (c.equals("reviews")) throw new Unsupported("REVIEWS");
-        if (c.equals("versions")) throw new Unsupported("VERSIONS");
+        if (c.equals("reviews")) return reviews(method, p, rest.subList(1, rest.size()), q, body);
+        if (c.equals("versions")) return versions(method, p, rest.subList(1, rest.size()), q, body);
         if (c.equals("patches")) throw new Unsupported("PATCHES");
         if (c.equals("conflictResolution") && rest.size() == 1 && method.equals("GET")) {
             project(p);
@@ -222,6 +226,9 @@ public final class Sdlc {
                 workspaceHead(p, w, wsOf(p, w));
                 throw new Unsupported("ENTITY_CHANGES");
             }
+            if (sub.size() == 1 && method.equals("POST") && sub.get(0).equals("configuration")) {
+                return updateConfiguration(p, w, parse(body));
+            }
             return reads(p, w, sub, method, q);
         }
         return reads(p, null, rest, method, q);
@@ -234,7 +241,7 @@ public final class Sdlc {
         boolean named = false;
         List<String> at = sub;
         if (!at.isEmpty() && at.get(0).equals("revisions")) {
-            if (at.size() == 1) throw new Refusal("HTTP 404 Not Found", 404); // revision history: not in this slice
+            if (at.size() == 1) return ok(revisionList(p, w, q));
             revision = at.get(1);
             named = true;
             at = at.subList(2, at.size());
@@ -242,6 +249,11 @@ public final class Sdlc {
         }
         String id = resolve(p, w, revision);
         String desc = (named ? "revision " + revision + " of " : "") + (w == null ? "project " + p : wsOf(p, w));
+        return readsAt(id, desc, at, q);
+    }
+
+    /** What a commit holds -- its configuration, entities, text -- for the routes under a revision or a version. */
+    private Response readsAt(String id, String desc, List<String> at, Map<String, List<String>> q) {
         Map<String, String> files = entityFiles(git.readTree(git.readCommit(id).tree()));
         String what = at.isEmpty() ? "" : at.get(0);
         if (what.equals("configuration") && at.size() == 1) return ok(configView(config(id)));
@@ -317,26 +329,20 @@ public final class Sdlc {
     }
 
     private boolean isAncestor(String ancestor, String of) {
-        for (String at = of; at != null; at = git.readCommit(at).parent()) {
-            if (at.equals(ancestor)) return true;
-        }
-        return false;
+        return git.reaches(of, ancestor);
     }
 
     /** The first commit of a history (upstream: a project line's BASE is its oldest commit). */
     private String root(String head) {
-        String at = head;
-        for (String parent = git.readCommit(at).parent(); parent != null; parent = git.readCommit(at).parent()) at = parent;
-        return at;
+        List<String> all = git.history(head);
+        for (String id : all) if (git.readCommit(id).parents().isEmpty()) return id;
+        throw new IllegalStateException("history of " + head + " has no first commit");
     }
 
-    /** Where a workspace was made from: the newest of its commits the project line also has (git's merge base). */
+    /** Where a workspace was made from: the newest commit both it and the project line reach (git's merge base). */
     private String mergeBase(String line, String workspace) {
-        Set<String> onLine = new HashSet<>();
-        for (String at = line; at != null; at = git.readCommit(at).parent()) onLine.add(at);
-        for (String at = workspace; at != null; at = git.readCommit(at).parent()) {
-            if (onLine.contains(at)) return at;
-        }
+        Set<String> onLine = new HashSet<>(git.history(line));
+        for (String at : git.history(workspace)) if (onLine.contains(at)) return at;
         throw new IllegalStateException("workspace " + workspace + " shares no history with its project line");
     }
 
@@ -469,7 +475,7 @@ public final class Sdlc {
         config.put("projectType", type);
         Map<String, String> files = new TreeMap<>();
         files.put("project.json", git.writeBlob(Json.toPretty(config)));
-        String first = commit(null, files, "Build project structure");
+        String first = commit(List.of(), files, "Build project structure");
 
         Map<String, Object> record = map("projectId", projectId, "name", name, "description", description, "tags", tags);
         storage.put("project/" + projectId, Json.toCompact(record));
@@ -491,11 +497,532 @@ public final class Sdlc {
         return workspaceView(p, w);
     }
 
-    /** A commit of {@code files} (all of the tree: path → blob) on {@code parent}; its id. */
-    private String commit(@Nullable String parent, Map<String, String> files, String message) {
+    /** A commit of {@code files} (all of the tree: path → blob) on {@code parents}; its id. */
+    private String commit(List<String> parents, Map<String, String> files, String message) {
         long now = clock.getAsLong() / 1000;
-        return git.writeCommit(new Git.Commit(git.writeTree(files), parent, userId, now, userId, now, message));
+        return git.writeCommit(new Git.Commit(git.writeTree(files), parents, userId, now, userId, now, message));
     }
+
+    // =====================================================================================================
+    // revision lists (contract slice 2 §3)
+    // =====================================================================================================
+
+    private List<Object> revisionList(String p, @Nullable String w, Map<String, List<String>> q) {
+        String head = w == null ? lineHead(p) : workspaceHead(p, w, wsIn(p, w));
+        Integer limit = intParam(q, "limit");
+        if (limit != null && limit < 0) throw new Refusal("Invalid limit: " + limit, 400);
+        Instant since = instantParam(q, "since");
+        Instant until = instantParam(q, "until");
+        List<Object> out = new ArrayList<>();
+        if (limit != null && limit == 0) return out;
+        for (String id : git.history(head)) {
+            Instant at = Instant.ofEpochSecond(git.readCommit(id).committerSeconds());
+            if (since != null && at.isBefore(since)) continue;
+            if (until != null && at.isAfter(until)) continue;
+            out.add(revisionView(id));
+            if (limit != null && out.size() == limit) break;
+        }
+        return out;
+    }
+
+    // =====================================================================================================
+    // reviews (contract slice 2 §1): a workspace's way onto the project line
+    // =====================================================================================================
+
+    private static final Pattern REVIEW_ID = Pattern.compile("^\\d+$");
+
+    private String reviewKey(String p, String id) {
+        return "review/" + p + "/" + id;
+    }
+
+    private Response reviews(String method, String p, List<String> sub, Map<String, List<String>> q, @Nullable String body) {
+        project(p);
+        if (sub.isEmpty()) {
+            if (method.equals("GET")) return ok(listReviews(p, q));
+            if (method.equals("POST")) return ok(reviewView(p, createReview(p, parse(body))));
+            throw new Refusal("HTTP 405 Method Not Allowed", 405);
+        }
+        String id = sub.get(0);
+        if (!REVIEW_ID.matcher(id).matches()) throw new Refusal("Invalid id: " + id, 400);
+        Map<String, Object> review = review(p, id);
+        if (sub.size() == 1) {
+            if (!method.equals("GET")) throw new Refusal("HTTP 405 Method Not Allowed", 405);
+            return ok(reviewView(p, review));
+        }
+        String action = sub.get(1);
+        if (sub.size() == 2 && method.equals("GET") && action.equals("approval")) {
+            return ok(map("approvedBy", listOf(review.get("approvedBy"))));
+        }
+        if (sub.size() != 2 || !method.equals("POST")) throw new Refusal("HTTP 404 Not Found", 404);
+        String now = Instant.ofEpochMilli(clock.getAsLong()).toString();
+        switch (action) {
+            case "close", "reject" -> {
+                requireState(review, "OPEN");
+                review.put("state", "CLOSED");
+                review.put("closedAt", now);
+                review.put("commits", commitsOf(p, review));
+            }
+            case "reopen" -> {
+                requireState(review, "CLOSED");
+                review.put("state", "OPEN");
+                review.put("closedAt", Json.nil());
+            }
+            case "approve" -> {
+                List<Object> approvers = new ArrayList<>(listOf(review.get("approvedBy")));
+                Map<String, Object> me = map("name", userName, "userId", userId);
+                if (approvers.stream().noneMatch(a -> userId.equals(field(a, "userId")))) approvers.add(me);
+                review.put("approvedBy", approvers);
+            }
+            case "revokeApproval" -> {
+                List<Object> approvers = new ArrayList<>(listOf(review.get("approvedBy")));
+                approvers.removeIf(a -> userId.equals(field(a, "userId")));
+                review.put("approvedBy", approvers);
+            }
+            case "commit" -> commitReview(p, id, review, parse(body), now);
+            default -> throw new Refusal("HTTP 404 Not Found", 404);
+        }
+        review.put("lastUpdatedAt", now);
+        storage.put(reviewKey(p, id), Json.toCompact(review));
+        return ok(reviewView(p, review));
+    }
+
+    private Map<String, Object> review(String p, String id) {
+        String record = storage.get(reviewKey(p, id));
+        if (record == null) throw new Refusal("Unknown review in project " + p + ": " + id, 404);
+        return new LinkedHashMap<>(Json.parseObject(record).fields());
+    }
+
+    private static void requireState(Map<String, Object> review, String expected) {
+        String actual = String.valueOf(field(review, "state"));
+        if (!actual.equals(expected)) {
+            throw new Refusal("Review is not " + expected.toLowerCase(Locale.ROOT) + " (state: " + actual.toLowerCase(Locale.ROOT) + ")", 409);
+        }
+    }
+
+    /** The {@code Review} as served, in the interface's order (contract slice 2 §0.5). */
+    private static Map<String, Object> reviewView(String p, Map<String, Object> r) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("id", r.get("id"));
+        out.put("projectId", p);
+        for (String f : List.of("workspaceId", "workspaceType", "title", "description", "createdAt", "lastUpdatedAt",
+                "closedAt", "committedAt", "state", "author", "commitRevisionId")) {
+            Object v = r.get(f);
+            out.put(f, v == null ? Json.nil() : v);
+        }
+        out.put("webURL", Json.nil());
+        out.put("labels", r.containsKey("labels") ? r.get("labels") : List.of());
+        return out;
+    }
+
+    private Map<String, Object> createReview(String p, Json.@Nullable Node body) {
+        if (!(body instanceof Json.Obj c)) throw new Refusal("Input required to create review", 400);
+        String w = string(c, "workspaceId");
+        // DEPARTURE: upstream answers a missing workspaceId with a 500 NPE (slice 2 quirk 3)
+        if (w == null) throw new Refusal("id may not be null", 400);
+        String type = string(c, "workspaceType");
+        if (type != null && !type.equalsIgnoreCase("USER")) throw new Refusal("Unknown: group workspace " + w + " of project " + p, 404);
+        String title = string(c, "title");
+        if (title == null) throw new Refusal("title may not be null", 400);
+        String description = string(c, "description");
+        if (description == null) throw new Refusal("description may not be null", 400);
+        workspaceHead(p, w, wsOf(p, w));
+        // DEPARTURE: upstream lets GitLab refuse a second open review for a workspace, answered as a 500 (quirk 2)
+        for (Map<String, Object> other : allReviews(p)) {
+            if ("OPEN".equals(field(other, "state")) && w.equals(field(other, "workspaceId"))) {
+                throw new Refusal("Error submitting changes from " + wsOf(p, w) + " for review: an open review already exists for it: "
+                        + field(other, "id"), 409);
+            }
+        }
+        String seqKey = "seq/" + p + "/review";
+        String last = storage.get(seqKey);
+        String id = String.valueOf(last == null ? 1 : Long.parseLong(last.trim()) + 1);
+        storage.put(seqKey, id);
+        String now = Instant.ofEpochMilli(clock.getAsLong()).toString();
+        List<Object> labels = new ArrayList<>();
+        Json.Arr given = c.getArrOr("labels", null);
+        if (given != null) labels.addAll(given.items());
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("id", id);
+        r.put("workspaceId", w);
+        r.put("workspaceType", "USER");
+        r.put("title", title);
+        r.put("description", description);
+        r.put("createdAt", now);
+        r.put("lastUpdatedAt", now);
+        r.put("closedAt", Json.nil());
+        r.put("committedAt", Json.nil());
+        r.put("state", "OPEN");
+        r.put("author", map("name", userName, "userId", userId));
+        r.put("commitRevisionId", Json.nil());
+        r.put("labels", labels);
+        r.put("approvedBy", List.of());
+        storage.put(reviewKey(p, id), Json.toCompact(r));
+        return r;
+    }
+
+    private List<Map<String, Object>> allReviews(String p) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (String key : storage.keys("review/" + p + "/")) {
+            out.add(new LinkedHashMap<>(Json.parseObject(String.valueOf(storage.get(key))).fields()));
+        }
+        // newest first, as GitLab lists merge requests
+        out.sort((a, b) -> Long.compare(Long.parseLong(String.valueOf(field(b, "id"))), Long.parseLong(String.valueOf(field(a, "id")))));
+        return out;
+    }
+
+    /** The commits a review brings: those its workspace has that the project line had not (git's diff range). */
+    private List<String> commitsOf(String p, Map<String, Object> review) {
+        if ("OPEN".equals(field(review, "state"))) {
+            String head = storage.get(workspaceRef(p, String.valueOf(field(review, "workspaceId"))));
+            if (head != null) {
+                Set<String> base = new HashSet<>(git.history(mergeBase(lineHead(p), head)));
+                List<String> out = new ArrayList<>();
+                for (String id : git.history(head)) if (!base.contains(id)) out.add(id);
+                return out;
+            }
+        }
+        List<String> out = new ArrayList<>();
+        for (Object o : listOf(review.get("commits"))) out.add(String.valueOf(o instanceof Json.Str s ? s.value() : o));
+        return out;
+    }
+
+    private List<Object> listReviews(String p, Map<String, List<String>> q) {
+        String stateText = firstOrNull(q, "state");
+        String state = stateText == null || stateText.isEmpty() ? null : stateText.toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_');
+        if (state != null && !List.of("OPEN", "COMMITTED", "CLOSED", "UNKNOWN").contains(state)) throw new Refusal("HTTP 400 Bad Request", 400);
+        Set<String> revisionIds = new HashSet<>(q.getOrDefault("revisionIds", List.of()));
+        String workspaceRegex = firstOrNull(q, "workspaceIdRegex");
+        Pattern wsPattern = workspaceRegex == null ? null : regex(workspaceRegex);
+        Set<String> types = new HashSet<>();
+        for (String t : q.getOrDefault("workspaceTypes", List.of())) types.add(t.toUpperCase(Locale.ROOT));
+        Instant since = instantParam(q, "since");
+        Instant until = instantParam(q, "until");
+        Integer limit = intParam(q, "limit");
+        List<Object> out = new ArrayList<>();
+        for (Map<String, Object> r : allReviews(p)) {
+            String own = String.valueOf(field(r, "state"));
+            if (state != null && !state.equals("UNKNOWN") && !state.equals(own)) continue;
+            if (!revisionIds.isEmpty() && commitsOf(p, r).stream().noneMatch(revisionIds::contains)) continue;
+            if ((since != null || until != null) && !inTime(r, state, since, until)) continue;
+            if (wsPattern != null && !wsPattern.matcher(String.valueOf(field(r, "workspaceId"))).find()) continue;
+            if (!types.isEmpty() && !types.contains(String.valueOf(field(r, "workspaceType")))) continue;
+            out.add(reviewView(p, r));
+            // DEPARTURE: the limit counts what passed every filter (upstream applies it before the workspace filter, quirk 1)
+            if (limit != null && limit > 0 && out.size() == limit) break;
+        }
+        return out;
+    }
+
+    /** Contract slice 2 §1.1 step 6: which timestamps a state's time window looks at. */
+    private static boolean inTime(Map<String, Object> r, @Nullable String state, @Nullable Instant since, @Nullable Instant until) {
+        java.util.function.Predicate<String> within = f -> {
+            Object v = field(r, f);
+            if (!(v instanceof String s)) return false;
+            Instant at = Instant.parse(s);
+            return (since == null || !at.isBefore(since)) && (until == null || !at.isAfter(until));
+        };
+        if ("OPEN".equals(state)) return within.test("createdAt") || within.test("lastUpdatedAt");
+        if ("CLOSED".equals(state)) return within.test("closedAt") || within.test("lastUpdatedAt");
+        if ("COMMITTED".equals(state)) return within.test("committedAt") || within.test("lastUpdatedAt");
+        if (within.test("lastUpdatedAt")) return true;
+        return switch (String.valueOf(field(r, "state"))) {
+            case "COMMITTED" -> within.test("committedAt");
+            case "CLOSED" -> within.test("closedAt");
+            default -> within.test("createdAt");
+        };
+    }
+
+    /**
+     * Commits a review: the workspace merged onto the project line as one merge commit with the given
+     * message (GitLab's default merge method), the workspace then deleted (upstream removes the source
+     * branch; Studio relies on it). Refused, in upstream's words, for a review that is not open, for
+     * dependencies that are not released versions, and -- lite's guard, design S7 -- for a merge that
+     * conflicts or does not compile, so the project line always compiles.
+     */
+    private void commitReview(String p, String id, Map<String, Object> review, Json.@Nullable Node body, String now) {
+        if (!(body instanceof Json.Obj cmd)) throw new Refusal("Input required to commit review", 400);
+        String message = string(cmd, "message");
+        if (message == null) throw new Refusal("message may not be null", 400);
+        requireState(review, "OPEN");
+        String w = String.valueOf(field(review, "workspaceId"));
+        String head = storage.get(workspaceRef(p, w));
+        if (head == null) {
+            throw new Refusal("Review " + id + " in project " + p + " is not in a committable state: its workspace no longer exists", 409);
+        }
+        Json.Obj config = config(head);
+        List<String> improper = new ArrayList<>();
+        for (Json.Node d : dependencies(config)) {
+            Json.Obj dep = (Json.Obj) d;
+            String pid = dep.getStringOr("projectId", null);
+            String vid = dep.getStringOr("versionId", null);
+            if (pid == null || pid.isBlank() || vid == null || !VERSION.matcher(vid).matches()) {
+                improper.add("<SimpleProjectDependency " + pid + ":" + vid + ">");
+            }
+        }
+        if (!improper.isEmpty()) throw new Refusal("Cannot create a review with the following dependencies: " + String.join(", ", improper), 409);
+
+        String line = lineHead(p);
+        String base = mergeBase(line, head);
+        Map<String, String> merged = merge(git.readTree(git.readCommit(base).tree()), git.readTree(git.readCommit(line).tree()),
+                git.readTree(git.readCommit(head).tree()), id, p);
+        List<String> errors = grammar.compile(model(merged, config));
+        if (!errors.isEmpty()) {
+            throw new Refusal("Review " + id + " in project " + p + " is not in a committable state: the project would not compile: "
+                    + String.join("; ", errors), 409);
+        }
+        List<String> commits = commitsOf(p, review);
+        String mergeCommit = commit(List.of(line, head), merged, message);
+        storage.put(lineRef(p), mergeCommit);
+        storage.delete(workspaceRef(p, w));
+        review.put("state", "COMMITTED");
+        review.put("committedAt", now);
+        review.put("commitRevisionId", mergeCommit);
+        review.put("commits", commits);
+    }
+
+    /** Three-way, file by file: a file changed on one side only takes that side; changed on both, differently, is a conflict. */
+    private static Map<String, String> merge(Map<String, String> base, Map<String, String> ours, Map<String, String> theirs, String id, String p) {
+        Set<String> paths = new java.util.TreeSet<>(base.keySet());
+        paths.addAll(ours.keySet());
+        paths.addAll(theirs.keySet());
+        Map<String, String> out = new TreeMap<>();
+        List<String> conflicts = new ArrayList<>();
+        for (String path : paths) {
+            String b = base.get(path);
+            String o = ours.get(path);
+            String t = theirs.get(path);
+            String result;
+            if (java.util.Objects.equals(o, t)) result = o;
+            else if (java.util.Objects.equals(o, b)) result = t;
+            else if (java.util.Objects.equals(t, b)) result = o;
+            else {
+                conflicts.add(path);
+                continue;
+            }
+            if (result != null) out.put(path, result);
+        }
+        if (!conflicts.isEmpty()) {
+            throw new Refusal("Could not commit review " + id + " in project " + p + " because of a conflict: "
+                    + "the project line changed the same files since the workspace was made: " + String.join(", ", conflicts), 409);
+        }
+        return out;
+    }
+
+    // =====================================================================================================
+    // versions (contract slice 2 §2): a version is a tag on the project line
+    // =====================================================================================================
+
+    private static final Pattern VERSION = Pattern.compile("^(0|[1-9]\\d{0,9})\\.(0|[1-9]\\d{0,9})\\.(0|[1-9]\\d{0,9})$");
+
+    private Response versions(String method, String p, List<String> sub, Map<String, List<String>> q, @Nullable String body) {
+        project(p);
+        if (sub.isEmpty()) {
+            if (method.equals("GET")) {
+                List<Object> out = new ArrayList<>();
+                for (int[] v : versionsOf(p, q)) out.add(versionView(p, v));
+                return ok(out);
+            }
+            if (method.equals("POST")) return ok(createVersion(p, parse(body)));
+            throw new Refusal("HTTP 405 Method Not Allowed", 405);
+        }
+        if (!method.equals("GET")) throw new Refusal("HTTP 405 Method Not Allowed", 405);
+        if (sub.get(0).equals("latest") && sub.size() == 1) {
+            List<int[]> all = versionsOf(p, q);
+            return all.isEmpty() ? new Response(204, null) : ok(versionView(p, all.get(0)));
+        }
+        String text = sub.get(0);
+        if (!VERSION.matcher(text).matches()) throw new Refusal("Invalid version string: \"" + text + "\"", 400);
+        String commit = storage.get(versionRef(p, text));
+        if (commit == null) throw new Refusal("Version " + text + " is unknown for project " + p, 404);
+        if (sub.size() == 1) return ok(versionView(p, parseVersion(text)));
+        // DEPARTURE: upstream writes "version <v>project <p>" in these messages (slice 2 quirk 14)
+        return readsAt(commit, "version " + text + " of project " + p, sub.subList(1, sub.size()), q);
+    }
+
+    private String versionRef(String p, String v) {
+        return "ref/" + p + "/version/" + v;
+    }
+
+    private static int[] parseVersion(String v) {
+        String[] parts = v.split("\\.");
+        return new int[] {Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2])};
+    }
+
+    private static String versionText(int[] v) {
+        return v[0] + "." + v[1] + "." + v[2];
+    }
+
+    /** A project's versions, newest first, filtered component by component as upstream does (slice 2 §2.4). */
+    private List<int[]> versionsOf(String p, Map<String, List<String>> q) {
+        String prefix = "ref/" + p + "/version/";
+        List<int[]> out = new ArrayList<>();
+        String[][] bounds = {{"major", "minMajor", "maxMajor"}, {"minor", "minMinor", "maxMinor"}, {"patch", "minPatch", "maxPatch"}};
+        for (String key : storage.keys(prefix)) {
+            String text = key.substring(prefix.length());
+            if (!VERSION.matcher(text).matches()) continue;
+            int[] v = parseVersion(text);
+            boolean keep = true;
+            for (int i = 0; i < 3; i++) {
+                Integer exact = intParam(q, bounds[i][0]);
+                Integer min = intParam(q, bounds[i][1]);
+                Integer max = intParam(q, bounds[i][2]);
+                if (exact != null) keep &= v[i] == exact;
+                else keep &= (min == null || v[i] >= min) && (max == null || v[i] <= max);
+            }
+            if (keep) out.add(v);
+        }
+        out.sort((a, b) -> a[0] != b[0] ? Integer.compare(b[0], a[0]) : a[1] != b[1] ? Integer.compare(b[1], a[1]) : Integer.compare(b[2], a[2]));
+        return out;
+    }
+
+    private Map<String, Object> versionView(String p, int[] v) {
+        String text = versionText(v);
+        String notes = storage.get("note/" + p + "/" + text);
+        return map("id", map("majorVersion", v[0], "minorVersion", v[1], "patchVersion", v[2]),
+                "projectId", p, "revisionId", String.valueOf(storage.get(versionRef(p, text))),
+                "notes", notes == null ? Json.nil() : notes);
+    }
+
+    /**
+     * Cuts a version (slice 2 §2.3): the next number after the latest, on the project line's head (or the
+     * revision given, which must be on the line), then -- lite's gate, design S7 -- only if that revision
+     * compiles with its dependencies.
+     */
+    private Map<String, Object> createVersion(String p, Json.@Nullable Node body) {
+        if (!(body instanceof Json.Obj cmd)) throw new Refusal("Input required to create version", 400);
+        String line = lineHead(p);
+        if ("EMBEDDED".equals(config(line).getStringOr("projectType", null))) {
+            throw new Refusal("Creating a version of a project of type EMBEDDED is not allowed", 409);
+        }
+        String type = string(cmd, "versionType");
+        // DEPARTURE: upstream answers a missing versionType with a 500 NPE (slice 2 quirk 12)
+        if (type == null) throw new Refusal("type may not be null", 400);
+        type = type.toUpperCase(Locale.ROOT);
+        if (!List.of("MAJOR", "MINOR", "PATCH").contains(type)) throw new Refusal("Unable to process JSON", 400, "versionType must be one of MAJOR, MINOR, PATCH");
+        List<int[]> all = versionsOf(p, Map.of());
+        int[] latest = all.isEmpty() ? new int[] {0, 0, 0} : all.get(0);
+        int[] next = switch (type) {
+            case "MAJOR" -> new int[] {latest[0] + 1, 0, 0};
+            case "MINOR" -> new int[] {latest[0], latest[1] + 1, 0};
+            default -> new int[] {latest[0], latest[1], latest[2] + 1};
+        };
+        String v = versionText(next);
+        String revision = string(cmd, "revisionId");
+        String commit = revision == null ? line : revision;
+        if (revision != null && (!git.isCommit(revision) || !isAncestor(revision, line))) {
+            throw new Refusal("Revision " + revision + " is unknown in project " + p, 400);
+        }
+        Json.Obj config = config(commit);
+        List<String> errors = grammar.compile(model(git.readTree(git.readCommit(commit).tree()), config));
+        if (!errors.isEmpty()) {
+            throw new Refusal("Version " + v + " of project " + p + " does not compile: " + String.join("; ", errors), 409);
+        }
+        storage.put(versionRef(p, v), commit);
+        String notes = string(cmd, "notes");
+        if (notes != null) storage.put("note/" + p + "/" + v, notes);
+        return versionView(p, next);
+    }
+
+    // =====================================================================================================
+    // the project's configuration, and the model a gate compiles
+    // =====================================================================================================
+
+    private static List<Json.Node> dependencies(Json.Obj config) {
+        Json.Arr deps = config.getArrOr("projectDependencies", null);
+        return deps == null ? List.of() : deps.items();
+    }
+
+    /**
+     * {@code POST …/workspaces/{w}/configuration} ({@code UpdateProjectConfigurationCommand}): the project
+     * dependencies added and removed, as one revision of {@code project.json}. Only the dependencies are
+     * served here (Studio's project configuration editor); the other fields are kept.
+     */
+    private Response updateConfiguration(String p, String w, Json.@Nullable Node body) {
+        if (!(body instanceof Json.Obj cmd)) throw new Refusal("Input required to update project configuration", 400);
+        String message = string(cmd, "message");
+        if (message == null) throw new Refusal("message may not be null", 400);
+        String head = workspaceHead(p, w, wsIn(p, w));
+        Json.Obj config = config(head);
+        List<Json.Node> deps = new ArrayList<>(dependencies(config));
+        Json.Arr remove = cmd.getArrOr("projectDependenciesToRemove", null);
+        if (remove != null) for (Json.Node r : remove.items()) {
+            String pid = ((Json.Obj) r).getStringOr("projectId", null);
+            deps.removeIf(d -> java.util.Objects.equals(((Json.Obj) d).getStringOr("projectId", null), pid));
+        }
+        Json.Arr add = cmd.getArrOr("projectDependenciesToAdd", null);
+        if (add != null) for (Json.Node a : add.items()) {
+            Json.Obj dep = (Json.Obj) a;
+            String pid = dep.getStringOr("projectId", null);
+            String vid = dep.getStringOr("versionId", null);
+            if (pid == null || vid == null) throw new Refusal("Invalid project dependency: " + Json.toCompact(dep), 400);
+            deps.removeIf(d -> pid.equals(((Json.Obj) d).getStringOr("projectId", null)));
+            Map<String, Object> clean = new TreeMap<>();
+            clean.put("projectId", pid);
+            clean.put("versionId", vid);
+            deps.add(Json.of(clean));
+        }
+        deps.sort((x, y) -> String.valueOf(((Json.Obj) x).getStringOr("projectId", "")).compareTo(String.valueOf(((Json.Obj) y).getStringOr("projectId", ""))));
+        Map<String, Object> next = new TreeMap<>(config.fields());
+        next.put("projectDependencies", deps);
+        Map<String, String> tree = new TreeMap<>(git.readTree(git.readCommit(head).tree()));
+        tree.put("project.json", git.writeBlob(Json.toPretty(next)));
+        String commit = commit(List.of(head), tree, message);
+        storage.put(workspaceRef(p, w), commit);
+        return ok(revisionView(commit));
+    }
+
+    /**
+     * The model a gate compiles: the dependencies' files (their released versions, transitively,
+     * nearest wins as Depot resolves them), then the tree's own, each file in its own Pure section.
+     */
+    private String model(Map<String, String> tree, Json.Obj config) {
+        StringBuilder text = new StringBuilder();
+        for (String commit : dependencyCommits(config)) appendFiles(text, git.readTree(git.readCommit(commit).tree()));
+        appendFiles(text, tree);
+        return text.toString();
+    }
+
+    private void appendFiles(StringBuilder text, Map<String, String> tree) {
+        for (Map.Entry<String, String> f : tree.entrySet()) {
+            if (!f.getKey().endsWith(".pure")) continue;
+            text.append("###Pure\n").append(git.readBlob(f.getValue())).append('\n');
+        }
+    }
+
+    /**
+     * The commits of a configuration's dependencies, transitively: each project once, at the version
+     * nearest the root (breadth first; at equal depth the first declared), exclusions honoured.
+     */
+    private List<String> dependencyCommits(Json.Obj config) {
+        java.util.ArrayDeque<Want> todo = new java.util.ArrayDeque<>();
+        for (Json.Node d : dependencies(config)) todo.add(want((Json.Obj) d, Set.of()));
+        Map<String, String> chosen = new LinkedHashMap<>();
+        List<String> commits = new ArrayList<>();
+        while (!todo.isEmpty()) {
+            Want want = todo.removeFirst();
+            if (chosen.containsKey(want.projectId())) continue;
+            chosen.put(want.projectId(), want.versionId());
+            String commit = storage.get(versionRef(want.projectId(), want.versionId()));
+            if (commit == null) {
+                throw new Refusal("Unknown dependency: version " + want.versionId() + " of project " + want.projectId(), 409);
+            }
+            commits.add(commit);
+            for (Json.Node d : dependencies(config(commit))) {
+                Want next = want((Json.Obj) d, want.excluded());
+                if (!want.excluded().contains(next.projectId())) todo.add(next);
+            }
+        }
+        return commits;
+    }
+
+    private static Want want(Json.Obj dep, Set<String> inherited) {
+        Set<String> excluded = new HashSet<>(inherited);
+        Json.Arr ex = dep.getArrOr("exclusions", null);
+        if (ex != null) for (Json.Node e : ex.items()) excluded.add(String.valueOf(((Json.Obj) e).getStringOr("projectId", "")));
+        return new Want(String.valueOf(dep.getStringOr("projectId", "")), String.valueOf(dep.getStringOr("versionId", "")), excluded);
+    }
+
+    private record Want(String projectId, String versionId, Set<String> excluded) {}
 
     // =====================================================================================================
     // text and entities
@@ -744,7 +1271,7 @@ public final class Sdlc {
             changed = true;
         }
         if (!changed) return new Response(204, null);
-        String next = commit(head, tree, message);
+        String next = commit(List.of(head), tree, message);
         storage.put(workspaceRef(p, w), next);
         return ok(revisionView(next));
     }
@@ -792,6 +1319,43 @@ public final class Sdlc {
         Map<String, Object> out = new LinkedHashMap<>();
         for (int i = 0; i < kv.length; i += 2) out.put((String) kv[i], kv[i + 1]);
         return out;
+    }
+
+    /** An integer query parameter; one that is not an integer is JAX-RS's 404 (contract §0.2). */
+    private static @Nullable Integer intParam(Map<String, List<String>> q, String key) {
+        String text = firstOrNull(q, key);
+        if (text == null) return null;
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            throw new Refusal("HTTP 404 Not Found", 404);
+        }
+    }
+
+    /** An instant query parameter (ISO-8601, `Z` or an offset); one that does not parse is upstream's 500 (slice 2 §0.1). */
+    private static @Nullable Instant instantParam(Map<String, List<String>> q, String key) {
+        String text = firstOrNull(q, key);
+        if (text == null || text.isEmpty()) return null;
+        try {
+            return java.time.OffsetDateTime.parse(text).toInstant();
+        } catch (RuntimeException e) {
+            throw new Refusal("Could not convert \"" + text + "\": Could not parse \"" + text + "\"", 500);
+        }
+    }
+
+    /** A record's field: its JSON node's value for a string, or the node. */
+    private static @Nullable Object field(Object record, String key) {
+        Object v = record instanceof Map<?, ?> m ? m.get(key) : record instanceof Json.Obj o ? o.fields().get(key) : null;
+        if (v instanceof Json.Str s) return s.value();
+        if (v instanceof Json.Null) return null;
+        return v;
+    }
+
+    /** A record's list field, whether written as JSON or as Java. */
+    private static List<?> listOf(@Nullable Object v) {
+        if (v instanceof Json.Arr a) return a.items();
+        if (v instanceof List<?> l) return l;
+        return List.of();
     }
 
     private static @Nullable String firstOrNull(Map<String, List<String>> q, String key) {

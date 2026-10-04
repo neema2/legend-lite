@@ -55,6 +55,8 @@ java_library(
 java_library(
     name = "page_boundary",
     srcs = glob(["src/main/java/com/legend/sdlc/page/*.java"]),
+    resource_strip_prefix = "sdlc-server/src/main/resources",
+    resources = ["src/main/resources/META-INF/services/org.teavm.classlib.ResourceSupplier"],
     deps = [
         ":rules",
         ":teavm_api",

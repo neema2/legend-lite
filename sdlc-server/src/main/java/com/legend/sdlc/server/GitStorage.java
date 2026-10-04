@@ -117,7 +117,17 @@ public final class GitStorage implements Storage {
                         });
                     }
                 }
-            } else if (prefix.startsWith("obj/")) {
+            } else if (!prefix.startsWith("obj/")) {
+                Path base = dir.resolve("legend/records");
+                if (Files.isDirectory(base)) {
+                    try (Stream<Path> files = Files.walk(base)) {
+                        files.filter(Files::isRegularFile).forEach(f -> {
+                            String rel = base.relativize(f).toString().replace('\\', '/');
+                            if (rel.endsWith(".json")) out.add(rel.substring(0, rel.length() - 5).replace('~', ':'));
+                        });
+                    }
+                }
+            } else {
                 try (Stream<Path> files = Files.walk(dir.resolve("objects"))) {
                     files.filter(Files::isRegularFile).forEach(f -> {
                         Path parent = f.getParent();
@@ -146,7 +156,8 @@ public final class GitStorage implements Storage {
             int slash = rest.indexOf('/');
             String project = rest.substring(0, slash).replace(':', '/');
             String name = rest.substring(slash + 1);
-            if (name.startsWith("version/")) return dir.resolve("refs/tags/" + project + "/" + name.substring(8));
+            // a version is a tag, named as upstream names it (`release-<v>`), under its project
+            if (name.startsWith("version/")) return dir.resolve("refs/tags/" + project + "/release-" + name.substring(8));
             return dir.resolve("refs/heads/" + project + "/" + name);
         }
         if (key.startsWith("project/")) {
@@ -155,7 +166,8 @@ public final class GitStorage implements Storage {
             int colon = id.indexOf(':');
             return dir.resolve("legend/projects").resolve(id.substring(0, colon)).resolve(id.substring(colon + 1) + ".json");
         }
-        throw new IllegalArgumentException("not a key of the SDLC's storage: " + key);
+        // the SDLC's own records (reviews, version notes, counters): `<kind>/<group>:<artifact>/<name>`
+        return dir.resolve("legend/records").resolve(key.replace(':', '~') + ".json");
     }
 
     /** {@code <group>/<artifact>/<name...>} under heads or tags back to its key, or null when not ours. */
@@ -163,7 +175,10 @@ public final class GitStorage implements Storage {
         String[] parts = relative.split("/", 3);
         if (parts.length < 3) return null;
         String project = parts[0] + ":" + parts[1];
-        return root.equals("refs/tags") ? "ref/" + project + "/version/" + parts[2] : "ref/" + project + "/" + parts[2];
+        if (root.equals("refs/tags")) {
+            return parts[2].startsWith("release-") ? "ref/" + project + "/version/" + parts[2].substring(8) : null;
+        }
+        return "ref/" + project + "/" + parts[2];
     }
 
     // ---- the rules' text records ↔ git's loose objects ----

@@ -288,6 +288,141 @@ export function conformance(name: string, target: () => Target): void {
         && e.message === `Unknown: user workspace nope of project ${p}`);
     });
 
+    // ---- the loop: review, commit, version (slice 2) ----
+
+    const P2 = `${groupId}:${run}-loop`;
+    const E2 = encodeURIComponent(P2);
+    const loopProject = async (): Promise<void> => {
+      await client().createProject({ name: 'Loop', description: '', groupId, artifactId: `${run}-loop` });
+    };
+
+    it('reviews a workspace and commits it onto the project line, as a merge, deleting the workspace', async () => {
+      await loopProject();
+      await client().createWorkspace(P2, 'feature');
+      const saved = await client().performPureChanges(P2, 'feature', { message: 'add types', changes: [create('demo::types::Country', COUNTRY)] });
+      await refused('POST', `/projects/${E2}/reviews`, '', 400, 'Input required to create review');
+      await refused('POST', `/projects/${E2}/reviews`, { workspaceId: 'feature', workspaceType: 'USER', description: '' }, 400, 'title may not be null');
+      await refused('POST', `/projects/${E2}/reviews`, { workspaceId: 'nope', workspaceType: 'USER', title: 't', description: '' }, 404,
+        `Unknown: user workspace nope of project ${P2}`);
+      const r = await raw('POST', `/projects/${E2}/reviews`, { workspaceId: 'feature', workspaceType: 'USER', title: 'Add types', description: 'd' });
+      assert.equal(r.status, 200, r.text);
+      const review = r.json as Record<string, unknown>;
+      assert.deepEqual(Object.keys(review), ['id', 'projectId', 'workspaceId', 'workspaceType', 'title', 'description', 'createdAt',
+        'lastUpdatedAt', 'closedAt', 'committedAt', 'state', 'author', 'commitRevisionId', 'webURL', 'labels']);
+      assert.equal(review['state'], 'OPEN');
+      assert.equal(review['workspaceId'], 'feature');
+      assert.match(String(review['createdAt']), INSTANT);
+      const id = String(review['id']);
+      // a second open review of the same workspace
+      await refused('POST', `/projects/${E2}/reviews`, { workspaceId: 'feature', title: 'again', description: '' }, 409,
+        `Error submitting changes from user workspace feature of project ${P2} for review: an open review already exists for it: ${id}`);
+      // Studio's question: the open review holding the workspace's head
+      const found = await raw('GET', `/projects/${E2}/reviews?state=OPEN&revisionIds=${saved.id}&revisionIds=${saved.id}&limit=1`);
+      assert.deepEqual((found.json as { id: string }[]).map((x) => x.id), [id]);
+      await refused('GET', `/projects/${E2}/reviews/x1`, undefined, 400, 'Invalid id: x1');
+      await refused('GET', `/projects/${E2}/reviews/999`, undefined, 404, `Unknown review in project ${P2}: 999`);
+      await refused('POST', `/projects/${E2}/reviews/${id}/reopen`, undefined, 409, 'Review is not closed (state: open)');
+      const approved = await raw('POST', `/projects/${E2}/reviews/${id}/approve`);
+      assert.equal(approved.status, 200, approved.text);
+      assert.deepEqual((await raw('GET', `/projects/${E2}/reviews/${id}/approval`)).json, { approvedBy: [{ name: 'Local User', userId: target().user }] });
+      await refused('POST', `/projects/${E2}/reviews/${id}/commit`, {}, 400, 'message may not be null');
+      const committed = await raw('POST', `/projects/${E2}/reviews/${id}/commit`, { message: 'Add types [review]' });
+      assert.equal(committed.status, 200, committed.text);
+      const c = committed.json as Record<string, unknown>;
+      assert.equal(c['state'], 'COMMITTED');
+      assert.match(String(c['committedAt']), INSTANT);
+      // the line now holds the file, as one merge commit with the review's message; the workspace is gone
+      const line = await client().revision({ project: P2 });
+      assert.equal(line.id, c['commitRevisionId']);
+      assert.equal(line.message, 'Add types [review]');
+      assert.deepEqual(await client().pure({ project: P2 }), [{ path: 'demo::types::Country', pureCode: COUNTRY }]);
+      await refused('GET', `/projects/${E2}/workspaces/feature`, undefined, 404, `Unknown: user workspace feature of project ${P2}`);
+      await refused('POST', `/projects/${E2}/reviews/${id}/commit`, { message: 'again' }, 409, 'Review is not open (state: committed)');
+      // listed by state, and the committed review still answers for the commits it brought
+      const committedList = await raw('GET', `/projects/${E2}/reviews?state=COMMITTED&revisionIds=${saved.id}&limit=1`);
+      assert.deepEqual((committedList.json as { id: string }[]).map((x) => x.id), [id]);
+    });
+
+    it('closes and reopens a review', async () => {
+      await client().createWorkspace(P2, 'side');
+      await client().performPureChanges(P2, 'side', { message: 'add address', changes: [create('demo::party::Address', ADDRESS)] });
+      const r = await raw('POST', `/projects/${E2}/reviews`, { workspaceId: 'side', title: 'Address', description: '' });
+      const id = String((r.json as { id: string }).id);
+      assert.equal(((await raw('POST', `/projects/${E2}/reviews/${id}/reject`)).json as { state: string }).state, 'CLOSED');
+      await refused('POST', `/projects/${E2}/reviews/${id}/close`, undefined, 409, 'Review is not open (state: closed)');
+      assert.equal(((await raw('POST', `/projects/${E2}/reviews/${id}/reopen`)).json as { state: string }).state, 'OPEN');
+      await raw('POST', `/projects/${E2}/reviews/${id}/close`);
+    });
+
+    it('will not commit a review that would leave the project line not compiling, or that conflicts', async () => {
+      await client().createWorkspace(P2, 'broken');
+      await client().performPureChanges(P2, 'broken', { message: 'bad', changes: [create('demo::party::Order', 'Class demo::party::Order\n{\n  country: demo::types::Nope[1];\n}\n')] });
+      const r = await raw('POST', `/projects/${E2}/reviews`, { workspaceId: 'broken', title: 'Bad', description: '' });
+      const id = String((r.json as { id: string }).id);
+      const refusal = await raw('POST', `/projects/${E2}/reviews/${id}/commit`, { message: 'bad' });
+      assert.equal(refusal.status, 409, refusal.text);
+      assert.match(String((refusal.json as { message: string }).message), new RegExp(`^Review ${id} in project ${P2.replace(/\./g, '\\.')} is not in a committable state: the project would not compile: .*demo::types::Nope`));
+      await raw('POST', `/projects/${E2}/reviews/${id}/close`);
+      // two workspaces change the same file: the first lands, the second conflicts
+      for (const w of ['one', 'two']) await client().createWorkspace(P2, w);
+      for (const [w, value] of [['one', 'GB, US, FR'], ['two', 'GB, US, DE']]) {
+        await client().performPureChanges(P2, w!, { message: w!, changes: [{ type: 'MODIFY', path: 'demo::types::Country', pureCode: COUNTRY.replace('GB, US', value!) }] });
+      }
+      const one = String(((await raw('POST', `/projects/${E2}/reviews`, { workspaceId: 'one', title: 'one', description: '' })).json as { id: string }).id);
+      const two = String(((await raw('POST', `/projects/${E2}/reviews`, { workspaceId: 'two', title: 'two', description: '' })).json as { id: string }).id);
+      assert.equal((await raw('POST', `/projects/${E2}/reviews/${one}/commit`, { message: 'one' })).status, 200);
+      await refused('POST', `/projects/${E2}/reviews/${two}/commit`, { message: 'two' }, 409,
+        `Could not commit review ${two} in project ${P2} because of a conflict: the project line changed the same files since the workspace was made: demo/types/Country.pure`);
+    });
+
+    it('cuts versions on the project line, numbered from the latest, and reads a version\'s files', async () => {
+      const none = await raw('GET', `/projects/${E2}/versions/latest`);
+      assert.equal(none.status, 204, none.text);
+      await refused('POST', `/projects/${E2}/versions`, '', 400, 'Input required to create version');
+      const line = await client().revision({ project: P2 });
+      const v1 = await raw('POST', `/projects/${E2}/versions`, { versionType: 'MINOR', notes: 'first' });
+      assert.equal(v1.status, 200, v1.text);
+      assert.deepEqual(v1.json, { id: { majorVersion: 0, minorVersion: 1, patchVersion: 0 }, projectId: P2, revisionId: line.id, notes: 'first' });
+      const v2 = await raw('POST', `/projects/${E2}/versions`, { versionType: 'PATCH', revisionId: line.id });
+      assert.deepEqual((v2.json as { id: unknown }).id, { majorVersion: 0, minorVersion: 1, patchVersion: 1 });
+      await refused('POST', `/projects/${E2}/versions`, { versionType: 'MAJOR', revisionId: 'abc' }, 400, `Revision abc is unknown in project ${P2}`);
+      const list = (await raw('GET', `/projects/${E2}/versions`)).json as { id: { patchVersion: number } }[];
+      assert.deepEqual(list.map((v) => v.id.patchVersion), [1, 0]);
+      assert.deepEqual(((await raw('GET', `/projects/${E2}/versions/latest`)).json as { id: unknown }).id, { majorVersion: 0, minorVersion: 1, patchVersion: 1 });
+      await refused('GET', `/projects/${E2}/versions/1.0`, undefined, 400, 'Invalid version string: "1.0"');
+      await refused('GET', `/projects/${E2}/versions/9.9.9`, undefined, 404, `Version 9.9.9 is unknown for project ${P2}`);
+      assert.equal(((await raw('GET', `/projects/${E2}/versions/0.1.0/pure`)).json as unknown[]).length, 1);
+      assert.deepEqual(((await raw('GET', `/projects/${E2}/versions/0.1.0/entities`)).json as { path: string }[]).map((e) => e.path), ['demo::types::Country']);
+      await refused('GET', `/projects/${E2}/versions/0.1.0/entities/demo::x::Y`, undefined, 404, `Unknown entity demo::x::Y for version 0.1.0 of project ${P2}`);
+    });
+
+    it('a project depends on another\'s version: its configuration names it, and the gate compiles with it', async () => {
+      const P3 = `${groupId}:${run}-app`;
+      await client().createProject({ name: 'App', description: '', groupId, artifactId: `${run}-app` });
+      await client().createWorkspace(P3, 'w');
+      await refused('POST', `/projects/${encodeURIComponent(P3)}/workspaces/w/configuration`, {}, 400, 'message may not be null');
+      const changed = await raw('POST', `/projects/${encodeURIComponent(P3)}/workspaces/w/configuration`, {
+        message: 'depend on the loop', projectDependenciesToAdd: [{ projectId: P2, versionId: '0.1.1' }],
+      });
+      assert.equal(changed.status, 200, changed.text);
+      assert.deepEqual((await client().configuration({ project: P3, workspace: 'w' })).projectDependencies, [{ projectId: P2, versionId: '0.1.1' }]);
+      await client().performPureChanges(P3, 'w', { message: 'use it', changes: [create('demo::app::Customer', 'Class demo::app::Customer\n{\n  country: demo::types::Country[1];\n}\n')] });
+      const id = String(((await raw('POST', `/projects/${encodeURIComponent(P3)}/reviews`, { workspaceId: 'w', title: 'use', description: '' })).json as { id: string }).id);
+      const committed = await raw('POST', `/projects/${encodeURIComponent(P3)}/reviews/${id}/commit`, { message: 'use' });
+      assert.equal(committed.status, 200, committed.text);
+      const v = await raw('POST', `/projects/${encodeURIComponent(P3)}/versions`, { versionType: 'MAJOR' });
+      assert.deepEqual((v.json as { id: unknown }).id, { majorVersion: 1, minorVersion: 0, patchVersion: 0 });
+    });
+
+    it('lists a history newest first, with upstream\'s limit rules', async () => {
+      const all = (await raw('GET', `/projects/${E2}/revisions`)).json as { id: string; message: string }[];
+      assert.equal(all[all.length - 1]!.message, 'Build project structure');
+      assert.equal(all[0]!.id, (await client().revision({ project: P2 })).id);
+      assert.deepEqual((await raw('GET', `/projects/${E2}/revisions?limit=0`)).json, []);
+      assert.equal(((await raw('GET', `/projects/${E2}/revisions?limit=1`)).json as unknown[]).length, 1);
+      await refused('GET', `/projects/${E2}/revisions?limit=-1`, undefined, 400, 'Invalid limit: -1');
+    });
+
     it('deletes a workspace, and deleting one that is not there succeeds', async () => {
       await client().createWorkspace(p, 'w2');
       await client().deleteWorkspace(p, 'w2');

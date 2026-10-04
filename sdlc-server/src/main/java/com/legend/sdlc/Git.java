@@ -22,9 +22,62 @@ final class Git {
         this.storage = storage;
     }
 
-    /** A commit: one parent at most here (no merges yet), times in whole seconds, UTC. */
-    record Commit(String tree, @Nullable String parent, String author, long authorSeconds,
+    /** A commit: no parent (a project's first), one, or two (a review's merge); times in whole seconds, UTC. */
+    record Commit(String tree, List<String> parents, String author, long authorSeconds,
                   String committer, long committerSeconds, String message) {}
+
+    /**
+     * {@code head} and every commit it reaches, each once, as {@code git log} lists them: a commit always
+     * before its parents, and among those ready the newest (committer time; times are whole seconds, so
+     * ties are common) first.
+     */
+    List<String> history(String head) {
+        java.util.Map<String, Commit> commits = new java.util.LinkedHashMap<>();
+        java.util.Map<String, Integer> children = new java.util.HashMap<>();
+        java.util.ArrayDeque<String> todo = new java.util.ArrayDeque<>();
+        todo.add(head);
+        while (!todo.isEmpty()) {
+            String id = todo.removeFirst();
+            if (commits.containsKey(id)) continue;
+            Commit c = readCommit(id);
+            commits.put(id, c);
+            for (String parent : c.parents()) {
+                children.merge(parent, 1, Integer::sum);
+                todo.add(parent);
+            }
+        }
+        // discovery order breaks time ties: a child is always found before its parents
+        java.util.Map<String, Integer> found = new java.util.HashMap<>();
+        for (String id : commits.keySet()) found.put(id, found.size());
+        java.util.function.Function<String, Commit> at = id -> java.util.Objects.requireNonNull(commits.get(id));
+        java.util.PriorityQueue<String> ready = new java.util.PriorityQueue<>((a, b) -> {
+            int byTime = Long.compare(at.apply(b).committerSeconds(), at.apply(a).committerSeconds());
+            return byTime != 0 ? byTime : Integer.compare(found.getOrDefault(a, 0), found.getOrDefault(b, 0));
+        });
+        ready.add(head);
+        List<String> out = new ArrayList<>();
+        while (!ready.isEmpty()) {
+            String id = ready.poll();
+            out.add(id);
+            for (String parent : at.apply(id).parents()) {
+                if (children.merge(parent, -1, Integer::sum) == 0) ready.add(parent);
+            }
+        }
+        return out;
+    }
+
+    /** Whether {@code ancestor} is {@code of} or reached from it. */
+    boolean reaches(String of, String ancestor) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.ArrayDeque<String> todo = new java.util.ArrayDeque<>();
+        todo.add(of);
+        while (!todo.isEmpty()) {
+            String id = todo.removeFirst();
+            if (id.equals(ancestor)) return true;
+            if (seen.add(id)) todo.addAll(readCommit(id).parents());
+        }
+        return false;
+    }
 
     // ---- blobs ----
 
@@ -115,7 +168,7 @@ final class Git {
     String writeCommit(Commit c) {
         StringBuilder text = new StringBuilder();
         text.append("tree ").append(c.tree()).append('\n');
-        if (c.parent() != null) text.append("parent ").append(c.parent()).append('\n');
+        for (String parent : c.parents()) text.append("parent ").append(parent).append('\n');
         text.append("author ").append(c.author()).append(" <> ").append(c.authorSeconds()).append(" +0000\n");
         text.append("committer ").append(c.committer()).append(" <> ").append(c.committerSeconds()).append(" +0000\n");
         text.append('\n').append(c.message()).append('\n');
@@ -136,7 +189,7 @@ final class Git {
     Commit readCommit(String id) {
         String text = body(id, "commit");
         String tree = "";
-        String parent = null;
+        List<String> parents = new ArrayList<>();
         String author = "";
         long authorSeconds = 0;
         String committer = "";
@@ -144,7 +197,7 @@ final class Git {
         int blank = text.indexOf("\n\n");
         for (String line : text.substring(0, blank).split("\n")) {
             if (line.startsWith("tree ")) tree = line.substring(5);
-            else if (line.startsWith("parent ")) parent = line.substring(7);
+            else if (line.startsWith("parent ")) parents.add(line.substring(7));
             else if (line.startsWith("author ") || line.startsWith("committer ")) {
                 String rest = line.substring(line.indexOf(' ') + 1);
                 String name = rest.substring(0, rest.indexOf(" <"));
@@ -156,7 +209,7 @@ final class Git {
         }
         String message = text.substring(blank + 2);
         if (message.endsWith("\n")) message = message.substring(0, message.length() - 1);
-        return new Commit(tree, parent, author, authorSeconds, committer, committerSeconds, message);
+        return new Commit(tree, List.copyOf(parents), author, authorSeconds, committer, committerSeconds, message);
     }
 
     // ----

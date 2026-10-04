@@ -30,15 +30,13 @@ const server = await wasmSdlcServer(module, new MemoryRecords(), user);
 conformance("the page's SDLC, compiled from Java", () => ({ api: WASM_API, fetch: server.fetch, user: 'local' }));
 
 describe("the page's SDLC, compiled from Java: what a page asks", () => {
-  it('answers reviews, versions and JSON saves with upstream\'s 501', async () => {
+  it('answers patches and JSON saves with upstream\'s 501', async () => {
     const p = encodeURIComponent('org.finos.lite.page:only');
     await server.fetch(`${WASM_API}/projects`, {
       method: 'POST', body: JSON.stringify({ name: 'Only', description: '', groupId: 'org.finos.lite.page', artifactId: 'only' }),
     });
     await server.fetch(`${WASM_API}/projects/${p}/workspaces/w`, { method: 'POST' });
     for (const [method, path, capability] of [
-      ['GET', `/projects/${p}/reviews`, 'REVIEWS'],
-      ['POST', `/projects/${p}/versions`, 'VERSIONS'],
       ['GET', `/projects/${p}/patches`, 'PATCHES'],
       ['POST', `/projects/${p}/workspaces/w/entityChanges`, 'ENTITY_CHANGES'],
     ] as const) {
