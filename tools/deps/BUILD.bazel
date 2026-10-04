@@ -168,45 +168,4 @@ junit_test(
     ],
 )
 
-# WHAT SHIPS (Bazel workplan P1-25): every jar the shipped roots reach, through every explicit attribute and every
-# select() branch, and through generated files back to the rules that make them. Bazel's testonly rule keeps a
-# non-test RULE off the testonly pools, but not a generated file (a filegroup over a testonly binary's deploy jar
-# passes): this test is what covers that, for everything that ships. A new shipped binary is added here.
-_SHIPPED = [
-    "//core:core",
-    "//core:drivers",
-    "//core:server",
-    "//datacube:app_posix",
-    "//datacube:app_windows",
-    "//warehouse:serve_posix",
-    "//warehouse:serve_windows",
-    "//warehouse:server",
-    "//warehouse:server_native",
-    "//wasm:planner",
-]
-
-genquery(
-    name = "product_closure",
-    expression = "kind(jvm_import, deps(%s))" % " + ".join(_SHIPPED),
-    opts = ["--noimplicit_deps"],
-    scope = _SHIPPED,
-)
-
-junit_test(
-    name = "product_closure_test",
-    memory_mb = 768,
-    size = "small",
-    srcs = ["ProductClosureTest.java"],
-    data = [":product_closure"],
-    jvm_flags = [
-        "-Dclosure.product_closure=$(rlocationpath :product_closure)",
-        "-Dforbidden.pools=" + ",".join(TESTONLY_POOLS),
-    ],
-    select = ["--select-class=com.legend.tools.deps.ProductClosureTest"],
-    deps = [
-        "//testing",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
-    ],
-)
-
 guards_package()

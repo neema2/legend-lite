@@ -19,7 +19,6 @@ test_suite(
         "//tools/deps:core_layering_test",
         "//tools/deps:one_release",
         "//tools/deps:pools_list_test",
-        "//tools/deps:product_closure_test",
         "//tools/deps:pools_are_disjoint",
         "//tools/deps:warehouse_closure_test",
         "//tools/guards:inventory_test",

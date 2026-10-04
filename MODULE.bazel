@@ -71,10 +71,10 @@ maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 # NEVER SHIPPED: @maven_upstream, @maven_runner and @maven_test are testonly as a
 # whole (every listed jar is amended testonly below, and the testonly-closure patch
 # marks whatever only they reach), so Bazel refuses any non-test RULE that depends on
-# one of their jars, in any package. Bazel does not check a generated file (a
-# filegroup over a testonly binary's deploy jar passes), so
-# //tools/deps:product_closure_test holds every shipped root clear of the three pools
-# by any path, and //tools/deps:pools_list_test keeps each pool testonly as a whole.
+# one of their jars, in any package, and .bazelrc's
+# --incompatible_check_testonly_for_output_files extends that to generated files (a
+# filegroup over a testonly binary's deploy jar), so nothing that ships can reach
+# them by any path. //tools/deps:pools_list_test keeps each pool testonly as a whole.
 # WHO MAY USE EACH POOL, test
 # code included, is tools/deps/pools.bzl (Bazel workplan P1-25). Every pool has
 # strict_visibility, so a BUILD file may name only the jars its pool LISTS below; a
@@ -183,8 +183,8 @@ maven.install(
     repositories = ["https://repo1.maven.org/maven2"],
 )
 # TEST ONLY: every jar this pool lists is testonly, and with the testonly-closure patch (above) so is every
-# jar only they reach, which is the whole pool: Bazel refuses any non-test rule that depends on one, and
-# //tools/deps:product_closure_test covers generated files (test tooling never ships).
+# jar only they reach, which is the whole pool: Bazel refuses any non-test target that depends on one, or on a
+# file generated from one (.bazelrc: --incompatible_check_testonly_for_output_files) (test tooling never ships).
 [maven.amend_artifact(
     name = "maven_test",
     coordinates = coordinates,
@@ -325,8 +325,8 @@ maven.install(
     repositories = ["https://repo1.maven.org/maven2"],
 )
 # TEST ONLY: every jar this pool lists is testonly, and with the testonly-closure patch (above) so is every
-# jar only they reach, which is the whole pool: Bazel refuses any non-test rule that depends on one, and
-# //tools/deps:product_closure_test covers generated files (legend-engine and legend-pure are test inputs: AGENTS.md, reference-checkout tenet).
+# jar only they reach, which is the whole pool: Bazel refuses any non-test target that depends on one, or on a
+# file generated from one (.bazelrc: --incompatible_check_testonly_for_output_files) (legend-engine and legend-pure are test inputs: AGENTS.md, reference-checkout tenet).
 [maven.amend_artifact(
     name = "maven_upstream",
     coordinates = coordinates,
@@ -379,8 +379,8 @@ maven.install(
     repositories = ["https://repo1.maven.org/maven2"],
 )
 # TEST ONLY: every jar this pool lists is testonly, and with the testonly-closure patch (above) so is every
-# jar only they reach, which is the whole pool: Bazel refuses any non-test rule that depends on one, and
-# //tools/deps:product_closure_test covers generated files (the engine runner is a test tool).
+# jar only they reach, which is the whole pool: Bazel refuses any non-test target that depends on one, or on a
+# file generated from one (.bazelrc: --incompatible_check_testonly_for_output_files) (the engine runner is a test tool).
 [maven.amend_artifact(
     name = "maven_runner",
     coordinates = coordinates,

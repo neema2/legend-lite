@@ -95,3 +95,20 @@ common --@rules_python//python/config_settings:bootstrap_impl=script
 # every build unless told not to. This repository's builds send nothing.
 common --repo_env=ASPECT_TOOLS_TELEMETRY=-all
 common --repo_env=DO_NOT_TRACK=1
+
+# TESTONLY ON GENERATED FILES TOO (Bazel workplan P6-14, P1-25): Bazel refuses a non-test target that depends on a
+# testonly rule, and with this also on a testonly rule's OUTPUT FILE (a filegroup over a test binary's deploy jar).
+# With the test pools testonly as a whole (MODULE.bazel), nothing that ships can reach legend-engine, legend-pure,
+# the engine runner's stack or the test tooling, by any path. One of Bazel 10's flags (below), on everywhere now.
+build --incompatible_check_testonly_for_output_files
+
+# BAZEL 10 READINESS (Bazel workplan P6-14, G14): the incompatible flags Bazel 10 flips that pass here today. CI's
+# build lane analyzes //... with them (`bazel build --nobuild --config=bazel10 //...`); a flag joins when it passes.
+build:bazel10 --incompatible_auto_exec_groups
+build:bazel10 --incompatible_check_testonly_for_output_files
+build:bazel10 --incompatible_config_setting_private_default_visibility
+build:bazel10 --incompatible_no_implicit_file_export
+build:bazel10 --incompatible_resolve_select_keys_eagerly
+build:bazel10 --incompatible_disable_starlark_host_transitions
+build:bazel10 --incompatible_check_external_repo_source_dir_package_boundary
+build:bazel10 --incompatible_disable_non_executable_java_binary

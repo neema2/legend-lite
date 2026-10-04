@@ -166,6 +166,8 @@ jobs:
           # the build lane builds every target (non-test targets included); every other lane tests
           if [ "${{ matrix.lane.key }}" = build ]; then cmd="build"; else cmd="test"; fi
           bazel "$cmd" "${flags[@]}" "${targets[@]}"
+          # G14 (Bazel workplan P6-14): every target still analyzes under Bazel 10's incompatible flags (.bazelrc)
+          if [ "${{ matrix.lane.key }}" = build ]; then bazel build --nobuild --config=bazel10 "${flags[@]}" //...; fi
       - name: the browser harnesses (every //datacube, //query and //site target tagged browser-ci)
         if: matrix.lane.key == 'browser'
         run: |
