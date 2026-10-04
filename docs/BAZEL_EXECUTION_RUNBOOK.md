@@ -58,7 +58,7 @@ permission is denied; a finding would change the plan's scope.
 | 1 | Test runner speaks Bazel's protocol | P1-01, P1-02, P1-21 | Critical path. Resume branch `bazel/b2-test-runner` (6500ab9de, 33d054e9e, WIP 29c8a689b): review every line before building on it |
 | 2 | Runfiles through the official library | P1-03, P1-04, P1-05, P1-06 | Package by package |
 | 3 | Python foundation | P1-07, P1-08 | rules_python, one locked pip hub; the pyarrow check never skips |
-| 4 | Hermetic C toolchains | P1-09, P1-13, P1-10, P1-11, P1-12 | Linux, macOS (D1), MSVC declared (D5), Linux arm64 in CI |
+| 4 | C toolchains | P1-09, P1-13, P1-10, P1-11, P1-12 | Linux hermetic (LLVM); macOS CLT and Windows MSVC declared and checked (D1 revised, D5); Linux arm64 in CI |
 | 5 | Platform infrastructure | P1-15, P1-16, P1-17, P1-19, P1-18 | |
 | 6 | Build hygiene, JS, early guards | P1-20, P1-22, P1-23, P1-24, P1-25, P1-25b, P1-26, P1-27, P1-28; P6-00, P6-10, P6-11, P6-14, P6-16, P6-17, P6-19; P7-10, P7-12; **P1-90** | Phase 1 closes |
 | 7 | Generators I | P2-01–P2-05, P2-20 | The stress corpus from Bazel actions, byte-identical |

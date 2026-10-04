@@ -123,6 +123,8 @@ Each decision lists its options, a recommendation, and the items it blocks. An i
 
 **Decided (2026-10-03):** (b).
 
+**Revised (2026-10-04): macOS is treated as Windows is (D5).** USER: "Let's just do similar thing on Mac that we did for windows". Apple's Command Line Tools stay the macOS C toolchain, a declared prerequisite checked before any native target builds, as MSVC is on Windows. No SDK copy, no per-SDK-version pin, no CI-versus-desk SDK mismatch, nothing of Apple's redistributed; the Mac binary keeps Apple's linker (ld64), which S3 flagged as the safer choice for a shipped binary. Linux alone gets the hermetic LLVM toolchain (P1-09). P1-10 is rewritten below.
+
 ### D2. PCT sharding: `shard_by = "class"` or one target per class (S1)
 
 | Option | For | Against |
@@ -913,18 +915,18 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | `BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN` affects every cc user on Linux. The proof build covers analysis of `//...`. Rollback: unregister the toolchains. The patch's old branch is unchanged. |
 | Done when | Linux builds the native image with no host gcc, zlib-dev or libc headers. No native-image action runs a shell (G-03). |
 
-#### P1-10 · Hermetic C toolchain for native-image on macOS (S3; D1)
+#### P1-10 · macOS: the Command Line Tools declared, and checked before native-image runs (D1 revised)
 
 | Field | Content |
 |---|---|
 | ID | P1-10 |
-| Why | Plan 1.3; WH-N15; BZ-N7(b). S3: macOS GO, pending the SDK source. |
-| Change | <ul><li>`llvm.sysroot(label = "@macos_sdk//:sysroot", targets = ["darwin-aarch64"])` and `register_toolchains("@llvm_toolchain//:cc-toolchain-aarch64-darwin")`.</li><li>`@macos_sdk` per D1. Recommended: a Starlark repository rule `tools/cc/macos_sdk.bzl` that copies the installed CLT SDK, pruning `Ruby.framework` (its symlink loop breaks `glob`) and `usr/share/man`, and checks a pinned sha256 of a canonical listing.</li><li>`.bazelrc`: `build:macos --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1`, plus `build:hermetic-cc --sandbox_block_path=/Library/Developer/CommandLineTools --sandbox_block_path=/usr/bin/ld --sandbox_block_path=/usr/bin/clang --sandbox_block_path=/usr/bin/xcrun` (S3 E7; guard G18).</li><li>**Investigate:** with the sysroot branch first, drop the patch's original CLT hunk, and check whether `--incompatible_stop_exporting_language_modules` then loads `//warehouse` (BZ-N7(c); Part 4).</li><li>Intel Macs (`cc-toolchain-x86_64-darwin`): only if the user says they matter (S3 Q5).</li></ul> |
-| Proof | **Heavy: H-native**: `bazel test --config=hermetic-cc //warehouse:tests_native` passes (S3 E7: 101 passed, 8 skipped, 0 failed). `otool -l bazel-bin/warehouse/server_native-bin \| grep -A3 LC_BUILD_VERSION` shows `tool 4 (LLD) version 20.1.8`. **Windows proof (C2)** (§1). |
-| Depends on | P1-09, D1 |
-| Size | M (1.5 d; S3: 0.5–1 d for the SDK work, plus the guard config) |
-| Risk/rollback | lld instead of Apple ld64 for the shipped Mac binary (S3 risk 2). `tests_native` is the check. Rollback: unregister the darwin toolchain. |
-| Done when | A Mac with the CLT compiler blocked builds and passes the native suite. `--incompatible_stop_exporting_language_modules` passes and joins `build:bazel10` (G14), or §6.3 lists it with the rules_graalvm issue (G-21). `docs/DATACUBE_ON_POSTGRES.md:24`'s C-toolchain prerequisite line is rewritten in this PR, since this item makes it false (ledger D-17). |
+| Why | D1 revised (2026-10-04): macOS keeps Apple's C toolchain, as Windows keeps MSVC (D5), declared and checked rather than found by accident. WH-N15; BZ-N7(b). |
+| Change | <ul><li>`tools/cc/` gains a macOS check beside P1-11's MSVC one: a repository rule that, on macOS, finds the Command Line Tools (`xcode-select -p`, then `clang` and `ld` under it, via `rctx.which`/`rctx.execute`) and `fail()`s with "macOS native targets need Apple's Command Line Tools (README: Prerequisites)" when they are missing; elsewhere an empty package.</li><li>`server_native` gains the macOS check's marker in its data, through the same `select` as P1-11's `@msvc//:present`, so only native targets fetch it.</li><li>The rules_graalvm patch keeps its Command Line Tools branch (no Xcode.app). No darwin LLVM toolchain is registered; no SDK is copied.</li><li>`README.md` and `docs/DATACUBE_ON_POSTGRES.md:24` name the CLT as the one declared host C toolchain on macOS (ledger D-17).</li><li>G18 (P6-18) keeps its Linux half only; its macOS half and `--config=hermetic-cc` are dropped.</li></ul> |
+| Proof | `bazel test //warehouse:tests_native` on macOS (unchanged action). A manual negative check with the CLT hidden: a clear failure at fetch. `bazel build --nobuild //...` unchanged on Linux and Windows. **Windows proof (C2)** (§1). |
+| Depends on | D1 (revised) |
+| Size | S (0.25 d) |
+| Risk/rollback | None known; remove the data edge. |
+| Done when | A missing CLT fails at fetch, naming the prerequisite; macOS's native image is unchanged. |
 
 #### P1-11 · Windows: MSVC declared, and checked before native-image runs (D5)
 
