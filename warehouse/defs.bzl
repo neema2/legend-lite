@@ -8,6 +8,8 @@ action, so the file is an ordinary Bazel output with a runfiles path -- never un
 warehouse_run is `bazel run`'s launcher for the native warehouse (docs/WINDOWS_APP_DESIGN_2026_10_02.md).
 """
 
+load("//tools/platforms:defs.bzl", "INCOMPATIBLE_WINDOWS", "compatible_with", "platform_select")
+
 load("@hermetic_launcher//launcher:launcher_binary.bzl", "launcher_binary")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 
@@ -42,22 +44,13 @@ jar_entry = rule(
 
 # DuckDB's postgres extension for the platform being built, as MODULE.bazel pins it: one choice for
 # every launcher (//warehouse:serve, //datacube:app).
-POSTGRES_EXTENSION = select({
-    "//warehouse:macos_arm64": "@duckdb_postgres_extension_osx_arm64//file",
-    "//warehouse:macos_x86_64": "@duckdb_postgres_extension_osx_amd64//file",
-    "//warehouse:linux_x86_64": "@duckdb_postgres_extension_linux_amd64//file",
-    "//warehouse:linux_aarch64": "@duckdb_postgres_extension_linux_arm64//file",
-    "//warehouse:windows_x86_64": "@duckdb_postgres_extension_windows_amd64//file",
-}, no_match_error = "no DuckDB postgres extension is pinned for this platform (MODULE.bazel, duckdb_postgres_extension_*; warehouse/defs.bzl POSTGRES_EXTENSION)")
-
-# Windows on ARM: DuckDB's JDBC jar carries no windows_arm64 library, MODULE.bazel pins no postgres
-# extension for it, and hermetic-launcher registers no windows/aarch64 stub. Its native targets are
-# incompatible there, so `bazel build //...` skips them rather than failing analysis on a select that
-# has no arm for it (review of neema2/legend-lite#14, 2026-10-03).
-NOT_ON_WINDOWS_ARM64 = select({
-    "//warehouse:windows_aarch64": ["@platforms//:incompatible"],
-    "//conditions:default": [],
-})
+POSTGRES_EXTENSION, POSTGRES_EXTENSION_COMPATIBLE = platform_select({
+    "macos_arm64": "@duckdb_postgres_extension_osx_arm64//file",
+    "macos_x86_64": "@duckdb_postgres_extension_osx_amd64//file",
+    "linux_x86_64": "@duckdb_postgres_extension_linux_amd64//file",
+    "linux_aarch64": "@duckdb_postgres_extension_linux_arm64//file",
+    "windows_x86_64": "@duckdb_postgres_extension_windows_amd64//file",
+}, "DuckDB postgres extension (MODULE.bazel, duckdb_postgres_extension_*)")
 
 def _duckdb_extensions_impl(ctx):
     # DuckDB loads an extension file by name: the download is gzipped, so it is unpacked here, under the
@@ -135,7 +128,7 @@ def warehouse_run(name, server, library, postgres_extension_gz, site = None, arg
     at '&', so a hermetic-launcher stub starts the server with its arguments intact; it runs the server in
     the runfiles folder, so the server resolves a relative --data against BUILD_WORKING_DIRECTORY itself
     (docs/WINDOWS_APP_DESIGN_2026_10_02.md, §2 and its known limits). Windows x64 only: on Windows ARM64
-    the targets are incompatible (NOT_ON_WINDOWS_ARM64).
+    the targets are incompatible (POSTGRES_EXTENSION_COMPATIBLE, //tools/platforms).
 
     Args:
         name: the target `bazel run` runs (an alias of <name>_posix or <name>_windows).
@@ -151,7 +144,7 @@ def warehouse_run(name, server, library, postgres_extension_gz, site = None, arg
         name = extensions,
         gz = postgres_extension_gz,
         testonly = testonly,
-        target_compatible_with = NOT_ON_WINDOWS_ARM64,
+        target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
     )
     _posix_launcher(
         name = name + "_posix",
@@ -161,10 +154,7 @@ def warehouse_run(name, server, library, postgres_extension_gz, site = None, arg
         site = site,
         args_before = args_before,
         testonly = testonly,
-        target_compatible_with = select({
-            "@platforms//os:windows": ["@platforms//:incompatible"],
-            "//conditions:default": [],
-        }),
+        target_compatible_with = INCOMPATIBLE_WINDOWS,
     )
     embedded = [
         "--duckdb-library",
@@ -190,10 +180,7 @@ def warehouse_run(name, server, library, postgres_extension_gz, site = None, arg
         embedded_args = embedded + args_before,
         data = data,
         testonly = testonly,
-        target_compatible_with = select({
-            "//warehouse:windows_x86_64": [],
-            "//conditions:default": ["@platforms//:incompatible"],
-        }),
+        target_compatible_with = compatible_with(["windows_x86_64"]),
     )
     native.alias(
         name = name,

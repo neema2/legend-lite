@@ -384,7 +384,8 @@ java_run(
 
 js_test(
     name = "wasm_differential_test",
-    size = "small",
+    # loads the WebAssembly planner, as _WASM_TESTS do: medium for the same reason (main's CI run 37214692462)
+    size = "medium",
     chdir = package_name(),
     data = [
         "test/strict-reporter.mjs",

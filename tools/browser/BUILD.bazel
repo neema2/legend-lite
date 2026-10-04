@@ -2,40 +2,35 @@
 # Bazel (tools/browser/extensions.bzl, pinned in MODULE.bazel), and browser_test (defs.bzl), which runs a
 # Playwright harness as a hermetic test against it.
 load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+load("//tools/platforms:defs.bzl", "platform_select")
+load(":defs.bzl", "CHROMIUM_COMPATIBLE", "CHROMIUM_PLATFORMS")
 
 package(default_visibility = ["//visibility:public"])
 
-_PLATS = {
-    "mac-arm64": ["@platforms//os:macos", "@platforms//cpu:arm64"],
-    "mac-x64": ["@platforms//os:macos", "@platforms//cpu:x86_64"],
-    "linux64": ["@platforms//os:linux", "@platforms//cpu:x86_64"],
-    "linux-arm64": ["@platforms//os:linux", "@platforms//cpu:arm64"],
-    "win64": ["@platforms//os:windows", "@platforms//cpu:x86_64"],
-}
+_NO_MATCH_WHAT = "pinned chromium-headless-shell (Chrome for Testing builds mac-arm64, mac-x64, linux64, linux-arm64 and win64; tools/browser/extensions.bzl)"
 
-[config_setting(
-    name = p,
-    constraint_values = c,
-) for p, c in _PLATS.items()]
+_SHELL_FILES, _ = platform_select(
+    {p: "@chromium_headless_shell_%s//:files" % c for p, c in CHROMIUM_PLATFORMS.items()},
+    _NO_MATCH_WHAT,
+)
 
-_NO_MATCH = "no pinned chromium-headless-shell for this platform: Chrome for Testing builds mac-arm64, mac-x64, linux64, linux-arm64 and win64 (tools/browser/extensions.bzl)"
+_SHELL_EXECUTABLE, _ = platform_select(
+    {p: "@chromium_headless_shell_%s//:executable" % c for p, c in CHROMIUM_PLATFORMS.items()},
+    _NO_MATCH_WHAT,
+)
 
 # every file of the shell (its .pak, ICU data and, on Linux, its bundled libs)
 alias(
     name = "chromium_headless_shell",
-    actual = select(
-        {":" + p: "@chromium_headless_shell_%s//:files" % p.replace("-", "_") for p in _PLATS},
-        no_match_error = _NO_MATCH,
-    ),
+    actual = _SHELL_FILES,
+    target_compatible_with = CHROMIUM_COMPATIBLE,
 )
 
 # the executable alone: its rlocation is what pinned-chromium.mjs resolves
 alias(
     name = "chromium_headless_shell_executable",
-    actual = select(
-        {":" + p: "@chromium_headless_shell_%s//:executable" % p.replace("-", "_") for p in _PLATS},
-        no_match_error = _NO_MATCH,
-    ),
+    actual = _SHELL_EXECUTABLE,
+    target_compatible_with = CHROMIUM_COMPATIBLE,
 )
 
 js_library(

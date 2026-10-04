@@ -70,14 +70,15 @@ published with the Linux build).
 ### 1. Toolchain and targets
 
 - **Windows x64 only.** DuckDB's jar carries no Windows ARM64 library. On Windows ARM64 the native
-  targets are incompatible (`NOT_ON_WINDOWS_ARM64` on `server_native`, `duckdb_library` and
-  `warehouse_run`'s targets; a `windows_aarch64` `config_setting`), so `bazel build //...` skips them
-  there instead of failing analysis on a `select` with no arm for it (added in review, 2026-10-03).
+  targets are incompatible, so `bazel build //...` skips them there instead of failing analysis on a
+  `select` with no arm for it (added in review, 2026-10-03). Since 2026-10-04 (Bazel workplan P1-19) every
+  such select and its compatibility come from `//tools/platforms` (`platform_select`), which lists the
+  platforms each native piece supports.
 - `//warehouse:server_native` drops `NOT_ON_WINDOWS`; on Windows it is an `.exe`.
 - `//warehouse:duckdb_library` gains a `windows_x86_64` arm (a new `config_setting` beside
   `linux_x86_64`) naming `libduckdb_java.so_windows_amd64`, out of the same pinned jar.
 - `MODULE.bazel` pins `windows_amd64` in the `duckdb_postgres_extension_*` comprehension, by its
-  sha256 like the four others; `POSTGRES_EXTENSION` selects it for `//warehouse:windows_x86_64`.
+  sha256 like the four others; `POSTGRES_EXTENSION` selects it for `windows_x86_64` (`//tools/platforms`).
 - Every Windows exclusion listed above is removed; each existed only for want of the native image.
 - `MODULE.bazel` adds `bazel_dep(name = "hermetic_launcher", version = "0.0.16")` and moves `platforms`
   from 1.0.0 to 1.1.0, the version hermetic_launcher requires (`--check_direct_dependencies` otherwise

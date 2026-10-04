@@ -1,6 +1,19 @@
 """browser_test: a Playwright harness as a hermetic js_test against the pinned Chromium (Bazel workplan P1-14)."""
 
 load("@aspect_rules_js//js:defs.bzl", "js_test")
+load("//tools/platforms:defs.bzl", "compatible_with")
+
+# The platforms Chrome for Testing builds chromium-headless-shell for (tools/browser/extensions.bzl): the pinned
+# browser, its aliases and every browser_test are skipped everywhere else (Bazel workplan P1-19).
+CHROMIUM_PLATFORMS = {
+    "linux_aarch64": "linux_arm64",
+    "linux_x86_64": "linux64",
+    "macos_arm64": "mac_arm64",
+    "macos_x86_64": "mac_x64",
+    "windows_x86_64": "win64",
+}
+
+CHROMIUM_COMPATIBLE = compatible_with(CHROMIUM_PLATFORMS.keys())
 
 def browser_test(name, entry_point, data = [], env = {}, tags = [], size = "medium", **kwargs):
     """A js_test that drives the Chromium Bazel fetched (tools/browser/extensions.bzl), nothing from $HOME.
@@ -29,5 +42,6 @@ def browser_test(name, entry_point, data = [], env = {}, tags = [], size = "medi
         ],
         size = size,
         tags = tags + ["browser"],
+        target_compatible_with = CHROMIUM_COMPATIBLE,
         **kwargs
     )

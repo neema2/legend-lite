@@ -7,8 +7,18 @@ load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
-load(":defs.bzl", "NOT_ON_WINDOWS_ARM64", "POSTGRES_EXTENSION", "jar_entry", "warehouse_run")
+load("//tools/platforms:defs.bzl", "compatible_with", "platform_select")
+load(":defs.bzl", "POSTGRES_EXTENSION", "POSTGRES_EXTENSION_COMPATIBLE", "jar_entry", "warehouse_run")
 load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
+
+# DuckDB's native library for this platform, out of its JDBC jar (//tools/platforms; Bazel workplan P1-19)
+_DUCKDB_LIBRARY, _DUCKDB_LIBRARY_COMPATIBLE = platform_select({
+    "macos_arm64": "libduckdb_java.so_osx_universal",
+    "macos_x86_64": "libduckdb_java.so_osx_universal",
+    "linux_x86_64": "libduckdb_java.so_linux_amd64",
+    "linux_aarch64": "libduckdb_java.so_linux_arm64",
+    "windows_x86_64": "libduckdb_java.so_windows_amd64",
+}, "native library in DuckDB's JDBC jar")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -100,8 +110,8 @@ py_binary(
     name = "arrow_matches_json",
     testonly = True,
     srcs = ["src/test/python/arrow_matches_json.py"],
-    # no cp312 pyarrow wheel for Windows on Arm: skipped cleanly there, never a source build
-    target_compatible_with = NOT_ON_WINDOWS_ARM64,
+    # the platforms with a cp312 pyarrow wheel: skipped elsewhere (Windows on Arm, for one), never a source build
+    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64", "windows_x86_64"]),
     deps = ["@pypi//pyarrow"],
 )
 
@@ -150,7 +160,8 @@ native_image(
         "@platforms//os:linux": ["-fuse-ld=lld"],
         "//conditions:default": [],
     }),
-    target_compatible_with = NOT_ON_WINDOWS_ARM64,
+    # the platforms DuckDB's JDBC jar carries a native library for: the image loads it
+    target_compatible_with = _DUCKDB_LIBRARY_COMPATIBLE,
     deps = [":server_lib"],
 )
 
@@ -193,50 +204,12 @@ junit_test(
     runtime_deps = [":tests_lib"],
 )
 
-config_setting(
-    name = "linux_x86_64",
-    constraint_values = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-    ],
-)
-
-config_setting(
-    name = "linux_aarch64",
-    constraint_values = [
-        "@platforms//os:linux",
-        "@platforms//cpu:aarch64",
-    ],
-)
-
-config_setting(
-    name = "windows_x86_64",
-    constraint_values = [
-        "@platforms//os:windows",
-        "@platforms//cpu:x86_64",
-    ],
-)
-
-# Windows on ARM: no native targets there (NOT_ON_WINDOWS_ARM64, warehouse/defs.bzl).
-config_setting(
-    name = "windows_aarch64",
-    constraint_values = [
-        "@platforms//os:windows",
-        "@platforms//cpu:aarch64",
-    ],
-)
-
 # DuckDB's native library for this platform, out of its JDBC jar: what the image loads.
 jar_entry(
     name = "duckdb_library",
-    entry = select({
-        "@platforms//os:macos": "libduckdb_java.so_osx_universal",
-        ":linux_x86_64": "libduckdb_java.so_linux_amd64",
-        ":linux_aarch64": "libduckdb_java.so_linux_arm64",
-        ":windows_x86_64": "libduckdb_java.so_windows_amd64",
-    }, no_match_error = "DuckDB's JDBC jar carries no native library for this platform (warehouse/BUILD.bazel duckdb_library)"),
+    entry = _DUCKDB_LIBRARY,
     jar = "@maven_warehouse//:org_duckdb_duckdb_jdbc",
-    target_compatible_with = NOT_ON_WINDOWS_ARM64,
+    target_compatible_with = _DUCKDB_LIBRARY_COMPATIBLE,
 )
 
 # The same suite, judging the native binary instead of an in-process server (TestServer).
@@ -322,27 +295,12 @@ junit_test(
     ],
 )
 
-config_setting(
-    name = "macos_arm64",
-    constraint_values = [
-        "@platforms//os:macos",
-        "@platforms//cpu:aarch64",
-    ],
-)
-
-config_setting(
-    name = "macos_x86_64",
-    constraint_values = [
-        "@platforms//os:macos",
-        "@platforms//cpu:x86_64",
-    ],
-)
-
 # DuckDB's postgres extension, gunzipped by a Java action (Bazel workplan P1-17): no shell, no host gzip.
 # warehouse_run still unpacks its own copy until P4-12 replaces it.
 alias(
     name = "duckdb_extension_gz",
     actual = POSTGRES_EXTENSION,
+    target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
 )
 
 java_run(
@@ -355,6 +313,6 @@ java_run(
     ],
     main_class = "com.legend.tools.gunzip.Gunzip",
     mnemonic = "GunzipDuckdbExtension",
-    target_compatible_with = NOT_ON_WINDOWS_ARM64,
+    target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
     deps = ["//tools/gunzip"],
 )
