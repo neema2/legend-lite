@@ -45,38 +45,15 @@ wait out of the way.
 that can read (see the last row of the table above).
 
 **To try it without touching a real database,** start Postgres 16 in Docker and load a small
-sample: 5,000 orders in a `sales.orders` table, readable by a `reader` login.
+sample: 5,000 orders in a `sales.orders` table, readable by a `reader` login. The sample is
+[`datacube/demo/sample-shop.sql`](../datacube/demo/sample-shop.sql); run these from the repository's root.
+`//datacube:verify_app_test` loads the same file into its own Postgres.
 
 ```bash
 docker run -d --name datacube-pg -e POSTGRES_PASSWORD=admin -p 5432:5432 postgres:16
 until docker exec datacube-pg pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; do sleep 1; done
 
-docker exec -i datacube-pg psql -U postgres <<'SQL'
-CREATE DATABASE shop;
-\c shop
-CREATE SCHEMA sales;
-CREATE TABLE sales.orders (
-  id integer PRIMARY KEY,
-  ordered_at timestamptz NOT NULL,
-  channel text NOT NULL,
-  region text NOT NULL,
-  product text NOT NULL,
-  quantity integer NOT NULL,
-  unit_price numeric(10,2) NOT NULL
-);
-INSERT INTO sales.orders
-SELECT g,
-       timestamptz '2026-01-01 00:00:00+00' + g * interval '37 minutes',
-       (ARRAY['web','store','phone'])[1 + g % 3],
-       (ARRAY['north','south','east','west'])[1 + g % 4],
-       (ARRAY['widget','gadget','gizmo','doohickey','sprocket'])[1 + g % 5],
-       1 + g % 7,
-       round((5 + (g % 50) * 1.37)::numeric, 2)
-FROM generate_series(1, 5000) AS g;
-CREATE ROLE reader LOGIN PASSWORD 'secret';
-GRANT USAGE ON SCHEMA sales TO reader;
-GRANT SELECT ON ALL TABLES IN SCHEMA sales TO reader;
-SQL
+docker exec -i datacube-pg psql -U postgres < datacube/demo/sample-shop.sql
 ```
 
 **In PowerShell** (Windows), the same:
@@ -85,32 +62,7 @@ SQL
 docker run -d --name datacube-pg -e POSTGRES_PASSWORD=admin -p 5432:5432 postgres:16
 do { Start-Sleep 1; docker exec datacube-pg pg_isready -h 127.0.0.1 -U postgres *> $null } until ($LASTEXITCODE -eq 0)
 
-@'
-CREATE DATABASE shop;
-\c shop
-CREATE SCHEMA sales;
-CREATE TABLE sales.orders (
-  id integer PRIMARY KEY,
-  ordered_at timestamptz NOT NULL,
-  channel text NOT NULL,
-  region text NOT NULL,
-  product text NOT NULL,
-  quantity integer NOT NULL,
-  unit_price numeric(10,2) NOT NULL
-);
-INSERT INTO sales.orders
-SELECT g,
-       timestamptz '2026-01-01 00:00:00+00' + g * interval '37 minutes',
-       (ARRAY['web','store','phone'])[1 + g % 3],
-       (ARRAY['north','south','east','west'])[1 + g % 4],
-       (ARRAY['widget','gadget','gizmo','doohickey','sprocket'])[1 + g % 5],
-       1 + g % 7,
-       round((5 + (g % 50) * 1.37)::numeric, 2)
-FROM generate_series(1, 5000) AS g;
-CREATE ROLE reader LOGIN PASSWORD 'secret';
-GRANT USAGE ON SCHEMA sales TO reader;
-GRANT SELECT ON ALL TABLES IN SCHEMA sales TO reader;
-'@ | docker exec -i datacube-pg psql -U postgres
+Get-Content -Raw datacube/demo/sample-shop.sql | docker exec -i datacube-pg psql -U postgres
 ```
 
 If port 5432 is already taken on your machine, use `-p 5433:5432` and put `5433` in the URL below.

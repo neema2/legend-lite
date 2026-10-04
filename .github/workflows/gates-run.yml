@@ -52,7 +52,7 @@ jobs:
           fi
           all=$(jq -nc --arg pct6 "$pct6" --arg pct7p "$pct7p" '[
             {"key":"1",      "name":"gate 1 core suite",               "targets":"//core:core_tests"},
-            {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"//:generated //tools/deps:all //tools/junit:pins_test //tools/java_run:pins_test //core:guardrails //core:census"},
+            {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"//:generated //tools/deps:all //tools/junit:pins_test //tools/java_run:pins_test //tools/browser:revision_test //core:guardrails //core:census"},
             {"key":"3",      "name":"gate 3 spec parity",              "targets":"//spec:spec_tests"},
             {"key":"4",      "name":"gates 4+11 DuckDB corpus, both judges", "targets":"//spec:corpus_duckdb"},
             {"key":"5",      "name":"gate 5 H2 corpus, both judges",   "targets":"//spec:corpus_h2"},
@@ -62,11 +62,11 @@ jobs:
             {"key":"8",      "name":"gate 8 parser equivalence",       "targets":"//parser-equivalence:parser_parity"},
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
             {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
-            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //wasm:all //warehouse:tests //query-store:lite_test"},
+            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //datacube:verify_app_test //wasm:all //warehouse:tests //query-store:lite_test"},
             {"key":"misc",   "name":"json, pure-protocol, query, query-store", "targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test"},
             {"key":"build",  "name":"bazel build //... (every target builds)", "targets":"//..."},
             {"key":"native", "name":"warehouse as a native image, and its launcher", "targets":"//warehouse:tests_native //warehouse:launcher_test //datacube:app"},
-            {"key":"browser", "name":"DataCube in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test"}
+            {"key":"browser", "name":"DataCube in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test //datacube:verify_smoke_test"}
           ]')
           # the browser lane runs on Linux only: its harnesses drive DuckDB-WASM in Chromium, the same on
           # every platform, and live-vs-snap compares the native warehouse on x86_64 with the arm64 laptops'
