@@ -1,6 +1,7 @@
 package com.legend.equivalence;
 
 import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import com.legend.parser.ElementParser;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Assumptions;
@@ -77,8 +78,7 @@ class SectionParseSentinelTest {
 
     private static java.util.Set<String> loadSkewClaims() {
         try {
-            java.nio.file.Path f = Repo.path("docs",
-                    "version-skew-claims.tsv");
+            java.nio.file.Path f = Runfile.property("ledger.version-skew-claims");
             // one answer: the repository path (the cwd-relative second guess this had
             // only existed while tests ran from the module directory)
             java.util.Set<String> out = new java.util.HashSet<>();

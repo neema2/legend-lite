@@ -1,6 +1,7 @@
 package com.legend.equivalence;
 
 import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
@@ -52,7 +53,7 @@ class ProtocolRosterCensusTest {
         // adds/removes protocol types as a REVIEWED diff, each row marked
         // COVERED (some source in either corpus reaches it) or UNCOVERED.
         // Regenerate: bazel run //:update_generated (RosterGenerator).
-        Path ledger = Repo.path("docs", "protocol-roster.tsv");
+        Path ledger = Runfile.property("ledger.protocol-roster");
         String committed = java.nio.file.Files.exists(ledger)
                 ? java.nio.file.Files.readString(ledger).lines().filter(l -> !l.startsWith("#"))
                         .collect(java.util.stream.Collectors.joining("\n", "", "\n"))

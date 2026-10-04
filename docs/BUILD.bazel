@@ -9,6 +9,9 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+# each ledger as a label of its own, so a test passes the one it reads by $(rlocationpath)
+exports_files(glob(["*.tsv"]))
+
 # GENERATED ledgers in docs/ (see //:update_generated)
 write_source_files(
     name = "update_generated",
