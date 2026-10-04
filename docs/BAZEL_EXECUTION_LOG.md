@@ -30,3 +30,15 @@ without a **done** entry.
   (every manual java test included but `//spec:reference_lane`, red on `main` itself: its golden drifted 1515 → 1517
   after 2026-09-29, outside this program). Identity diff: all 44 shared java tests select the same testcases under
   both runners. Independent audit: running.
+- **Batch 1: done.** Pushed `687e56668` (b5657e888, 1b9453c5a, 687e56668). `main`'s CI run 37205628053 first failed one test
+  on Windows, `WarehouseServerTest.eachStatementCarriesItsOwnUsersIdentityEvenAtTheSameTime` (a statement's status had
+  chunkCount > 0 but no first chunk): it passed 30/30 locally at the same 768 MB heap and 51/51 on the re-run, so it is a
+  Windows-timing race in the warehouse, not batch 1. Recorded for P3-21 (warehouse tests) to find and fix. Not reverted:
+  a judgment call, stated to the user.
+
+## Batch 2: runfiles (P1-03, P1-04, P1-05, P1-06)
+
+- Pushed `deccc0596` (77b4d1684, b9d978f05, e1e1f55da, b2d02bf89, f04d08f23, cd3fbd559, deccc0596). Full proof 178/178;
+  after the audit's fixes 28/28 on the affected targets, `//gates:local` 146/146. Independent audit: approve with nits,
+  all fixed (path filters within the tree, Corpus's snapshot, Runfile holder, the skip pin moved for bisect); P1-05
+  amended in the workplan with every residual Repo use's owner. `main`'s CI: running.

@@ -1753,6 +1753,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | None known. |
 | Done when | `tests_native` judges only the binary, and no warehouse test leaks a temp directory. |
 
+**Found 2026-10-04 (batch 1 on main, run 37205628053):** `WarehouseServerTest.eachStatementCarriesItsOwnUsersIdentityEvenAtTheSameTime` failed once on Windows: under 24 concurrent statements one status reported `chunkCount > 0` with no first chunk (`WarehouseServerTest.java:105`). It passed 30/30 locally and on the re-run. A race between a statement's status and its first chunk; P3-21 finds and fixes it (a product fix, not a retry).
+
 #### P3-22 · The live Postgres tests are ordinary tests
 
 | Field | Content |
