@@ -24,11 +24,6 @@ JUnitMain lists every one it accepts, and any other argument fails the run.
 
 load("@rules_java//java:defs.bzl", "java_test")
 
-def _runfiles_dir(label):
-    # A runfiles path relative to the test's working directory ($RUNFILES/_main):
-    # external repositories are its siblings.
-    return "../" + Label(label).repo_name
-
 def junit_test(
         name,
         select,
@@ -58,10 +53,17 @@ def junit_test(
     ] + jvm_flags
     inputs = list(data)
     if upstream:
-        inputs += ["@legend_engine_src//:tree", "@legend_pure_src//:tree"]
+        # each tree by the runfiles path of its root's pom.xml; Upstream resolves it through the runfiles
+        # library and takes its directory (Bazel workplan P1-04)
+        inputs += [
+            "@legend_engine_src//:tree",
+            "@legend_engine_src//:pom.xml",
+            "@legend_pure_src//:tree",
+            "@legend_pure_src//:pom.xml",
+        ]
         flags += [
-            "-Dlegend.engine.root=" + _runfiles_dir("@legend_engine_src//:tree"),
-            "-Dlegend.pure.root=" + _runfiles_dir("@legend_pure_src//:tree"),
+            "-Dlegend.engine.root=$(rlocationpath @legend_engine_src//:pom.xml)",
+            "-Dlegend.pure.root=$(rlocationpath @legend_pure_src//:pom.xml)",
         ]
     java_test(
         name = name,

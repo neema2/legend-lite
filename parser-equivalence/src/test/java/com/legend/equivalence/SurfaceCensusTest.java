@@ -119,8 +119,7 @@ class SurfaceCensusTest {
      *  The 75 UNCLASSIFIED rows are the review backlog, family-bucketed. */
     @org.junit.jupiter.api.Test
     void everyG4KeywordIsSnapshotted() throws Exception {
-        String engineRoot = System.getProperty("legend.engine.root");
-        org.junit.jupiter.api.Assumptions.assumeTrue(engineRoot != null);
+        java.nio.file.Path engineRoot = com.legend.testing.Upstream.engine();
         java.util.Set<String> snap = new java.util.HashSet<>();
         for (String line : java.nio.file.Files.readAllLines(
                 Repo.path("docs/g4-keyword-snapshot.tsv"))) {
@@ -133,7 +132,7 @@ class SurfaceCensusTest {
                 java.util.regex.Pattern.MULTILINE);
         int grammars = 0;
         try (var walk = java.nio.file.Files.walk(
-                java.nio.file.Path.of(engineRoot))) {
+                engineRoot)) {
             for (var g4 : (Iterable<java.nio.file.Path>) walk
                     .filter(f -> f.toString().endsWith("Grammar.g4"))
                     .filter(f -> !Corpus.slashed(f).contains("/target/")
