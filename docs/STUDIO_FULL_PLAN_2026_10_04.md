@@ -10,16 +10,21 @@ contracts: `SDLC_CONTRACT_SLICE1.md`, `SDLC_CONTRACT_SLICE2.md`, `DEPOT_CONTRACT
 
 ## 0. What "drop-in replacement" means — the acceptance tests
 
-Studio-lite is a drop-in replacement when all four directions work, each proven by a test that runs in CI:
+**Scope (the user, 2026-10-04): OUR Studio replaces upstream Studio.** "I don't care about upstream studio running
+against our stuff really at all — I want ours to be full drop in replacement." So the work goes into our Studio doing
+everything upstream Studio does, against our servers AND against real Legend deployments. Upstream clients against our
+servers (upstream Studio on SDLC-lite, the upstream engine reading Depot-lite) are **out of scope**; what they would
+have needed is listed in §7 in case that changes.
+
+Our Studio is a drop-in replacement when both work, each proven by a test that runs in CI:
 
 | # | Direction | Acceptance test |
 |---|---|---|
-| **D1** | **Our Studio, nothing else** (level 0) | In Chromium: write a model with a mapping and test data, **run a function, a service and a mapping query on DuckDB in the tab**, see the rows in the grid, run the model's tests, save, review, release — no server process anywhere. |
-| **D2** | **Our Studio → upstream servers** | Our Studio, configured with a real legend-sdlc, legend-depot and legend-engine (4.145.0), opens an existing upstream project (the Legend showcase projects), shows every element as text, edits one, saves, reviews, commits, releases; runs a query through the real engine; every untouched element byte-identical. |
-| **D3** | **Upstream Studio → our servers** | Real legend-studio (built locally), configured with our model home and lite's engine server, does its whole loop: open, edit in forms and text, compile (F9), run a function, run tests, push, review, commit, release, browse dependencies. |
-| **D4** | **Upstream engine → our Depot** | legend-engine 4.145.0 with Depot-lite as its `alloy` metadata server executes a service by pointer against a version our Studio released. |
+| **D1** | **Our Studio, our stack** (in the page, or our model home and lite's engine) | In Chromium: write a model with a mapping and test data, **run a function, a service and a mapping query on DuckDB in the tab**, see the rows in the grid, run the model's tests, build queries, save, review, release — at level 0 with no server process anywhere, and against our servers. |
+| **D2** | **Our Studio → a real Legend deployment** (legend-sdlc, legend-depot, legend-engine 4.145.0) | Opens an existing upstream project (the Legend showcase projects), shows every element as text, edits one, saves, reviews, commits, releases; compiles with real Depot dependencies; runs functions, services, mapping queries and tests on the real engine; every untouched element byte-identical. |
 
-D1 is the **full experience**; D2–D4 together are **drop-in**. Each track below names which it serves.
+D1 is the **full experience**; D2 is **drop-in**. Plus **feature parity**: everything upstream Studio offers a user
+(census Parts A–B) has a counterpart in ours — §3 B5 lists the gaps by feature, not by wire route.
 
 ---
 
@@ -32,8 +37,8 @@ Works, tested at both levels (page alone; model home over git), `//studio:verify
   **dependencies** picked from Depot (upstream's nearest-wins).
 
 Does not work yet: **running anything** (functions, services, mappings, tests), any **upstream server** (text routes
-are lite's own), **upstream Studio against us** (no JSON saves, missing init routes), the engine's **pointer** to Depot.
-And it does not **look** like upstream Studio (re-skin pending, look census done).
+are lite's own), and most of upstream Studio's features beyond text editing and the SDLC loop (§3 B5). And it does
+not **look** like upstream Studio (re-skin pending, look census done).
 
 What exists to build on:
 - **Query's in-tab engine** (`query/src/backend/browser-engine.ts`): planner (WebAssembly) → SQL → DuckDB-WASM or the
@@ -120,10 +125,10 @@ A model's mapping points at a database the browser cannot reach. Rows come, in o
 
 ---
 
-## 3. Track B — interop with upstream (D2, D3, D4)
+## 3. Track B — our Studio on a real Legend deployment (D2), and feature parity
 
-The common thread: **the full model round trip** — upstream speaks entity JSON; we keep text. Everything in this track
-depends on B1.
+The common thread: **the full model round trip** — upstream servers speak entity JSON; our Studio edits text. B2–B4
+depend on B1.
 
 ### B1. The model round trip (core; S19, S20 — design §3 pieces e, f)
 - **Model printer** (`jsonToGrammar/model`, engine-exact, byte parity with 4.145.0 goldens as for lambdas) and **model
@@ -132,8 +137,8 @@ depends on B1.
 - **The exact-round-trip rule** (S5): JSON → text → JSON must give equal protocol records, proven over the whole
   corpus (5,259 sources) and the showcase projects; an element that fails opens read-only as JSON and is preserved
   byte for byte (S19 point 2).
-- **Done when:** the corpus round-trips with equal records, and `entityChanges` on our SDLC stores upstream clients'
-  saves as text (the 501 retires).
+- **Done when:** the corpus and the showcase projects round-trip with equal records, in the tab (WASM) and on lite's
+  server.
 
 ### B2. Our Studio → real legend-sdlc (D2)
 - `sdlc-client` detects the server: text routes present (ours) or not (upstream). Upstream: read entities JSON → print
@@ -158,32 +163,44 @@ depends on B1.
 - Errors: the engine answers the first error with `sourceInformation` — mapped to file and line like ours.
 - **Done when:** D2's engine half: the showcase projects compile, and a query runs, on 4.145.0 from our Studio.
 
-### B5. Upstream Studio → our servers (D3)
-- **SDLC-lite**: every route upstream Studio calls (census A §7, slice 1–2 contracts): `entityChanges` (B1),
-  `auth/*`, `server/platforms`, `configuration/*`, group workspaces, `update` and `conflictResolution/*`, review
-  comparison routes (`comparison`, `from|to/entities|configuration`), revision lists, `pureModelContextData` (SDLC
-  side), patches (501 is acceptable: Studio catches it).
-- **Depot-lite**: `analyzeDependencyTreeFromArtifactDependencies`, `/classifiers/*` (Studio and Query call them; upstream
-  Depot lacks them — we may answer, recorded), the GAV viewer routes.
-- **lite's engine server**: Studio's init calls (`server/v1/currentUser`, `protocol/pure/getClassifierPathMap`,
-  `getSubtypeInfo`, code/schema generation lists, external formats, function activators, supported auth flows),
-  `data` model contexts (B1's reader), `testable/runTests` (A4), `jsonToGrammar/model` (B1), relational-operation
-  grammar for mapping forms, `analytics/mapping/modelCoverage`, `executeRawSQL`.
-- **The oracle**: build legend-studio 821c74c locally, point it at our servers, script its loop in Playwright (S12c).
-- **Done when:** D3 passes, scripted.
+### B5. Feature parity: everything upstream Studio offers a user (census Parts A–B)
+Measured by feature, against both stacks (ours and a real deployment). **Must-have** for drop-in; **later** after D2.
 
-### B6. Upstream engine → our Depot (D4, design S9)
-- Depot-lite serves `GET /projects/{g}/{a}/versions/{v}/pureModelContextData?convertToNewProtocol=false&clientVersion=`
-  exactly as the engine requires (DEPOT_CONTRACT §6.4: serializer, origin with `version: "none"`, dependencies
-  included, every pointer path present) — **without** upstream's collapse bug (§6.2, quirk Q2), recorded.
-- lite's own server resolves `pointer`/`combination` contexts against Depot-lite in process (S9).
-- **Done when:** D4 passes on legend-engine 4.145.0.
+| Feature (upstream) | Ours today | To build | |
+|---|---|---|---|
+| Workspace setup, projects, user workspaces | yes | group workspaces; patches (follow upstream's rules) | must |
+| Text editing, live compile, Problems | yes (text per element) | whole-project text mode; definition/hover/completion; positions in bodies (W1.2) | must |
+| Push (save) with the lock, local changes | yes | local-changes **diff** (Monaco diff editor); discard per change | must |
+| Workspace update (rebase) and conflict resolution | no | `update`, `conflictResolution/*` in SDLC-lite; a 3-way merge editor | must |
+| Reviews: create, approve, commit, close, reopen | create/commit/close | the review page: diffs per element and configuration, approvals | must |
+| Versions / release, project overview | yes | release notes view, versions viewer (read a version's elements) | must |
+| Project configuration: dependencies, platform config, structure version | dependencies | the rest of the configuration editor; dependency report (conflicts) | must |
+| Run function / service / mapping query, generate plan | no | A3 | must |
+| Tests: per element, global test runner | no | A4 | must |
+| Query builder (Class "Query…", services, mapping tests) | no | A5 | must |
+| Element forms: class, enumeration, association, profile, function | no | forms that edit text surgically (design §3 d) | must |
+| Element forms: mapping, runtime, connection, database, service, data space, diagram | no | the same, larger editors; database view (schema tree) | later |
+| Element search (Ctrl+P), rename/move, new element per type | new element | search, rename/move | must |
+| Model importer (paste JSON/grammar, F2) | no | import entities or text into a workspace (B1 printer for JSON) | must |
+| Viewing a project or a version read-only (`/view`, GAV viewer) | no | read-only editor over a version (Depot) | must |
+| File generation (F10), code/schema generation, external formats & bindings | no | engine routes on lite's server + views | later |
+| SQL playground, sample data generation | no | A3, A2 | later |
+| Function activators, lakehouse/data products, data quality | no | extensions; follow demand | later |
+| Light theme | no | A0 (`default-light`) | must |
+
+### B6. What our own servers need for D1
+- **lite's engine server** (when the session targets it instead of the tab): `testable/runTests` (A4),
+  `jsonToGrammar/model` and `data` contexts (B1), `executeRawSQL` (SQL playground), generation routes (later).
+- **SDLC-lite**: group workspaces, `update` and `conflictResolution/*`, review comparison routes, revision lists by
+  entity (history view) — the routes OUR Studio's features above call, in upstream's shapes, so the same Studio code
+  drives a real legend-sdlc (D2).
+- **Depot-lite**: the dependency report, version viewing. Our stack resolves Depot in process (S9) where the engine
+  needs it.
 
 ### B7. Teams and production
 - The GitHub backend (S16: `createCommitOnBranch` with `expectedHeadOid`, PR reviews, Actions as the gate, the merge
   queue or the server as the queue), identity from the user's own token (S10), Depot rebuilt from tags.
-- Imports in files (v1, the function-resolution record) — then "imports kept" (S13) is true and §4 row 2 applies.
-- Form editors (Phase 4–5), editing text surgically (a parser keeping trivia, design §3 d).
+- Imports in files (v1, the function-resolution record) — then "imports kept" (S13) is true.
 
 ---
 
@@ -194,38 +211,48 @@ depends on B1.
 | **M0** | Land `studio` on `main` (full gate, PR, review) | — | the line's announced edits |
 | **M1** | A0 look + A1 in-tab engine + A2 test data + A3 run function/service/mapping | **D1 minus tests**: write → run on DuckDB in the tab → see rows | none beyond A1 moves |
 | **M2** | A4 tests (runTests in core + WASM + UI) + A5 query builder in Studio + A6 Snap | **D1 complete** | runTests in core: announce |
-| **M3** | B1 round trip (printer + reader, corpus parity) | the hinge of interop; `entityChanges` works | core: announce |
+| **M3** | B1 round trip (printer + reader, corpus and showcase parity) | the hinge for D2 | core: announce |
 | **M4** | B2 + B3 + B4: our Studio on real sdlc/depot/engine; v1 function resolution; engine-dialect compile | **D2** | function-resolution fix in core: announce |
-| **M5** | B5 + B6: upstream Studio on our servers; engine pointers on our Depot | **D3, D4** | lite server routes: announce |
-| **M6** | A7 comfort, B7 teams (GitHub backend, imports, forms) | daily use by a team | — |
+| **M5** | B5 must-haves not yet done (diffs, update/conflicts, review page, forms for the core kinds, importer, viewer, search) + B6 | **drop-in replacement** | SDLC-lite routes |
+| **M6** | B5 later items, A7, B7 teams (GitHub backend, imports) | daily use by a team | — |
 
-M1 first: it is what makes Studio *do* something, and it needs no core change. M3 is the hinge for all interop and can
-run in parallel with M2 (different code: core protocol vs. Studio/engine-client).
+M1 first: it is what makes Studio *do* something, and it needs no core change. M3 can run in parallel with M2 (core
+protocol vs. Studio/engine-client). M5's features are built once and work on both stacks, because every one goes through
+`sdlc-client`, `depot-client` and the engine choice in upstream's shapes.
 
 ---
 
 ## 5. Decisions to make (recommendations given)
 
 1. **Where tests' rows live in the browser** — upstream runs mapping tests on H2 engine-side; we run them on DuckDB in
-   the tab. Recommend: DuckDB, recorded as a departure, with the engine as the oracle on the showcase projects (A4).
-2. **Engine-dialect compile in the tab** when targeting a real engine (B4) — recommend yes: live errors must match the
-   engine the user deploys to.
-3. **Our Depot answering `/classifiers/*`** (routes upstream Studio and Query call but upstream Depot lacks) —
-   recommend yes, recorded; they make upstream Studio and Query work fully against us.
-4. **Building upstream legend-studio as the D3 oracle** — recommend yes (a pinned local build in CI); without it D3 is
-   unprovable.
-5. **Merging the page modules** (planner + SDLC/Depot rules in one WebAssembly module, so the grammar is downloaded
-   once) — recommend at M1, when the in-tab engine joins Studio and size starts to matter.
+   the tab. Recommend: DuckDB, recorded as a departure, with the real engine as the oracle on the showcase projects (A4).
+2. **Engine-dialect compile in the tab** when the session targets a real engine (B4) — recommend yes: live errors must
+   match the engine the user deploys to.
+3. **Merging the page modules** (planner + SDLC/Depot rules in one WebAssembly module, so the grammar downloads once) —
+   recommend at M1, when the in-tab engine joins Studio and size starts to matter.
+4. **Forms edit text surgically** (a parser that keeps comments and whitespace as data, design §3 d) rather than
+   reprinting — recommend yes, so a form edit never loses a comment; it is the one large core piece in M5.
 
 ## 6. Risks
 
 - **Test semantics** (A4): the engine's assertion and embedded-data rules are broad; mitigate by the charter (spec by
   upstream tests, the engine as oracle), not by approximation.
-- **Exact round trip** (B1): an element type we cannot print exactly would block saves from upstream clients;
-  mitigated by S19's read-only-and-preserved rule and corpus-wide parity before turning it on.
+- **Exact round trip** (B1): an element we cannot print exactly cannot be edited as text when it comes from a real
+  SDLC; mitigated by S19's read-only-and-preserved rule and showcase/corpus parity before turning it on.
 - **Dialect drift** (B4): lite's leniencies make code that works in the tab fail on the engine; mitigated by the
   engine-dialect compile and the v1 resolution fix, measured on the corpus (as the function-resolution record did).
 - **Browser data scale** (A2): DuckDB-WASM holds what fits in a tab; large data stays live (warehouse, server) with Snap
   for slices.
-- **Upstream Studio's breadth** (B5): it calls ~60 engine routes; many are extensions (lakehouse, activators) — answer
-  them with upstream's 501/empty lists where Studio tolerates it, recorded, and prove the core loop (D3) first.
+- **Real deployments' auth** (B2): GitLab OAuth through the SDLC, engine and Depot auth headers differ per deployment;
+  mitigated by following upstream Studio's flows exactly (census A §8–9) and testing against a real deployment early
+  (M4 starts with a read-only connection).
+
+## 7. Out of scope (the user, 2026-10-04) — kept for reference
+
+Upstream clients against our servers. If that changes, the work is:
+- **Upstream Studio → our servers**: `entityChanges` saves (B1 printer), every SDLC/engine route upstream Studio calls at
+  init and in its editors (census A §7, B §7: `getClassifierPathMap`, `getSubtypeInfo`, generation lists, external
+  formats, function activators, `currentUser`, relational-operation grammar, `modelCoverage`), upstream Depot's
+  `/classifiers/*` gap, and a pinned local build of legend-studio as the oracle.
+- **The upstream engine → our Depot**: `pureModelContextData` exactly as `DEPOT_CONTRACT.md` §6.4 requires, without
+  upstream's collapse bug (§6.2 Q2).
