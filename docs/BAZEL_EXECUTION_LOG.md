@@ -104,3 +104,11 @@ without a **done** entry.
   comments. Live `bazel run //tools/bump -- 4.145.0 --pins`: no diff. Second Windows throwaway (37225812205): green (checks, app, native, build). Full proof 180/180.
 - **6a on main** (4f7448989; P1-28, P1-27, P1-22, P1-25b, P1-17 follow-up). Local gate 148/148. Main CI green (run 37226705706, 53/53).
 - P1-25 investigated: 45 undeclared artifacts under strict_visibility (upstream 34, runner 5, test 5, teavm 1).
+- **6b built** (local): P1-20 (legend_java_library; 21 libraries say `nullaway = False`: NullAway everywhere found 792
+  errors, its own work; core private by default) and P1-25 (strict_visibility, 45 jars declared, locks unchanged but for
+  the input list). USER asked "how do we make sure nothing ever leaks to core or other": a pool-user guard was added.
+- **6b audit: P1-25 not ready.** //tools/par:par_generator was public and shippable on legend-engine jars; the guard saw
+  only direct labels in 5 macros. Marking the engine pools testonly was tried and failed (a pool cannot be testonly as a
+  whole). Fixed in three layers (tools/deps/pools.bzl): direct-use check with canonical labels and per-target grants;
+  direct engine/runner users must be testonly (par_generator now testonly, //pct-only); //tools/deps:product_closure_test
+  over every shipped root. Each layer proven by a reverted negative edit. Full proof 182/182. Re-audit: running.

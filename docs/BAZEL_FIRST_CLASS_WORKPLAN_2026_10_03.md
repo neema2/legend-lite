@@ -1083,6 +1083,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | A visibility change breaks an outside user. The build shows it; add that user explicitly. |
 | Done when | `core/BUILD.bazel` has no repeated `javacopts` or `plugins`. |
 
+**Amended 2026-10-04 (execution).** NullAway everywhere is not this item: forced on for every first-party library it found 792 errors in the first wave (core's test library 680, spec 49, warehouse 22, parser-equivalence 20, ...). So `legend_java_library(nullaway = True)` keeps the gate where it was, and the 21 libraries with sources that lacked it say `nullaway = False` with that reason; making them pass is future work, not a silent default. All 64 libraries use the macro; the eleven raw `java_binary` (seven, and engine-runner's four) use `legend_java_binary` (P1-25's pool check). core's package default is private; its 17 targets used from outside name their users.
+
 #### P1-21 · `junit_test(memory_mb = …)`: one number gives the scheduling tag and the heap
 
 | Field | Content |
@@ -1151,6 +1153,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | M (2 d) |
 | Risk/rollback | Declaring an artifact can change resolution, and so a version. The lock diff shows it, and the PR text names each change. Rollback per pool. |
 | Done when | Every Maven label used in BUILD files is declared in its pool. Guard G10 (P6-10) keeps it so. |
+
+**Amended 2026-10-04 (USER: "how do we make sure nothing ever leaks to core or other [packages]?").** `strict_visibility` cannot say who may use a pool (rules_jvm_external makes every LISTED jar public), and a pool cannot be marked testonly as a whole (its unlisted jars depend on its listed ones: tried, Bazel rejects the pool's own edges). So `tools/deps/pools.bzl` holds three layers: (1) `POOL_USERS`, per pool the packages (or single targets) that may use it, checked at load time by every first-party Java macro (`legend_java_library`, `legend_java_binary`, `junit_test`, `java_run`, `teavm_wasm`), labels normalized to canonical repositories; (2) a direct user of `@maven_upstream` or `@maven_runner` must be `testonly`, so Bazel itself refuses every non-test target that depends on it, transitively (it made `//tools/par:par_generator`, public and shippable before, testonly and `//pct`-only, and the engine runner testonly); (3) `//tools/deps:product_closure_test`: every shipped root (`//core:server`, the warehouse server and native image, the launchers, `//wasm:planner`) reaches no `@maven_upstream`, `@maven_runner` or `@maven_test` jar by any path or rule kind; a new shipped binary is added to its scope. `maven_upstream` is allowed in parser-equivalence, pct, tools/par, tools/reference and `tools/junit:runner_test` (JUnit 4; `tools/junit:junit` is on every test classpath). Raw rules outside the macros (java_import, java_plugin, java_jars, jar_entry) are checked only by layer 3; a graph-wide layer 1 over every package comes with P6-00's inventory. Bump keeps its own `RELEASE_POOLS` (Java cannot load `pools.bzl`).
 
 #### P1-25b · Repinning reads no host Maven state
 
