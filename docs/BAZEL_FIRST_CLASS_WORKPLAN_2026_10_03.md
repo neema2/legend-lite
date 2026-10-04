@@ -1911,6 +1911,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | A remaining tree-mode reader on Windows. The CI failure names it. Rollback: re-add the flag. |
 | Done when | Windows runs `bazel test //...` with manifest-only runfiles. Guard G15 (P6-15) keeps it so. |
 
+**Note (2026-10-04, batch 3):** `.bazelrc` sets `startup:windows --output_user_root=C:/bzl` because pyarrow's DLLs, under a test's runfiles tree, passed Windows' path limit (main's CI run 37209395985; 252-259 characters, about 85 of them the runfiles prefix). Manifest-only Windows removes that prefix: when this item lands, re-measure and drop the short root if it is no longer needed (USER: keep it for now).
+
 #### P3-33 · `testing/Repo.java` and `testing/Upstream.java` are deleted; generator actions name their inputs
 
 | Field | Content |
