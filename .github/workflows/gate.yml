@@ -30,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       gates:
-        description: "Comma-separated lanes to run (empty = all): 1,checks,3,4,5,6,7,7p,8,9,10,app,misc,build,native,browser (4 includes the judge differential, once gate 11; browser is Linux only)."
+        description: "Comma-separated lanes to run (empty = all): 1,checks,3,4,5,6,7,7p,8,9,10,app,misc,build,native,browser (4 includes the judge differential, once gate 11; browser is Linux only). One-off, only when named: heavy, heavy-pct (P1-02)."
         default: ""
         type: string
       platforms:

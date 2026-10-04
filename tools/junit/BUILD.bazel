@@ -1,14 +1,24 @@
-load("@rules_java//java:defs.bzl", "java_library")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load(":defs.bzl", "junit_test")
 
-# The JUnit entry point every test target in the repository runs.
-# See JUnitMain.java for why this is a class rather than BUILD arguments.
+# The JUnit entry point every test target in the repository runs: the Platform Launcher,
+# speaking Bazel's test protocol (Bazel workplan P1-01). It compiles against the launcher
+# and the legacy XML reporter; the engines are runtime choices, the ones the console
+# launcher's fat jar bundled: Jupiter, Vintage (pct's JUnit 3 suites) and Suite.
 java_library(
     name = "junit",
     srcs = ["JUnitMain.java"],
     visibility = ["//visibility:public"],
-    exports = ["@maven_test//:org_junit_platform_junit_platform_console_standalone"],
-    deps = ["@maven_test//:org_junit_platform_junit_platform_console_standalone"],
+    runtime_deps = [
+        "@maven_test//:org_junit_jupiter_junit_jupiter_engine",
+        "@maven_test//:org_junit_platform_junit_platform_suite_engine",
+        "@maven_test//:org_junit_vintage_junit_vintage_engine",
+    ],
+    deps = [
+        "@maven_test//:org_junit_platform_junit_platform_engine",
+        "@maven_test//:org_junit_platform_junit_platform_launcher",
+        "@maven_test//:org_junit_platform_junit_platform_reporting",
+    ],
 )
 
 
@@ -19,4 +29,28 @@ junit_test(
     srcs = ["pins/PinsTest.java"],
     select = ["--select-class=com.legend.tools.junit.pins.PinsTest"],
     deps = ["@maven_test//:org_junit_jupiter_junit_jupiter_api"],
+)
+
+# The runner against Bazel's test protocol, on fixtures a real lane cannot show (Bazel workplan P1-01).
+# JUnit 4 for the JUnit 3 fixtures is the upstream pool's, as on the pct lanes.
+junit_test(
+    name = "runner_test",
+    size = "small",
+    srcs = glob(["runner/**/*.java"]),
+    select = ["--select-class=com.legend.tools.junit.RunnerTest"],
+    deps = [
+        ":junit",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+        "@maven_upstream//:junit_junit",
+    ],
+)
+
+# Do two runs select the same tests? Per target, the testcases only one side has (Bazel workplan P1-02):
+# `bazel run //tools/junit:compare_testcases -- <baseline-testlogs> <after-testlogs>`. Kept for every
+# future runner change.
+java_binary(
+    name = "compare_testcases",
+    srcs = ["compare/CompareTestcases.java"],
+    main_class = "com.legend.tools.junit.compare.CompareTestcases",
 )

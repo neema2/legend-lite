@@ -66,8 +66,14 @@ jobs:
             {"key":"misc",   "name":"json, pure-protocol, query, query-store", "targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test"},
             {"key":"build",  "name":"bazel build //... (every target builds)", "targets":"//..."},
             {"key":"native", "name":"warehouse as a native image, and its launcher", "targets":"//warehouse:tests_native //warehouse:launcher_test //datacube:app"},
-            {"key":"browser", "name":"DataCube in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test"}
+            {"key":"browser", "name":"DataCube in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test"},
+            {"key":"heavy",  "name":"one-off: the manual heavy targets (P1-02)", "targets":"//core:scale_profilebuildcost //core:scale_stresstest100k //core:scale_stresstest10k //core:scale_stresstestchaotic //core:scale_stresstestcomplexqueries //core:scale_stresstestdense //parser-equivalence:diagnostics //spec:corpus_warehouse //spec:reference_lane"},
+            {"key":"heavy-pct", "name":"one-off: the manual per-suite PCT targets (P1-02)", "targets":"//pct:pct_discipline //pct:pct_duckdb_essential //pct:pct_duckdb_grammar //pct:pct_duckdb_relation //pct:pct_duckdb_standard //pct:pct_duckdb_unclassified //pct:pct_postgres_essential //pct:pct_postgres_grammar //pct:pct_postgres_relation //pct:pct_postgres_standard //pct:pct_postgres_unclassified"}
           ]')
+          # ONE-OFF (Bazel workplan P1-02, gap G-08): the heavy lanes run only when a dispatch names them, so
+          # the runner change is compared on the manual heavy targets too. P5-08 replaces them with a weekly
+          # //gates:heavy run and deletes them.
+          if [ -z "${WANT:-}" ]; then all=$(printf '%s' "$all" | jq -c '[.[] | select(.key != "heavy" and .key != "heavy-pct")]'); fi
           # the browser lane runs on Linux only: its harnesses drive DuckDB-WASM in Chromium, the same on
           # every platform, and live-vs-snap compares the native warehouse on x86_64 with the arm64 laptops'
           if [ "$PLATFORM" != linux ]; then all=$(printf '%s' "$all" | jq -c '[.[] | select(.key != "browser")]'); fi
@@ -77,7 +83,7 @@ jobs:
             lanes=$all
           fi
           [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,7p,8,9,10,app,misc,build,native,browser"
+            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,7p,8,9,10,app,misc,build,native,browser,heavy,heavy-pct"
             exit 1
           }
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
