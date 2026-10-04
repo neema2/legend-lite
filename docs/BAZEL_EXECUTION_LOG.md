@@ -102,5 +102,5 @@ without a **done** entry.
   Dropped: the Java gunzip stays; the launchers copy its output with copy_to_directory (the last run_shell still goes).
   Re-audit's lows fixed: Bump inserts values literally; bump_test covers prefix tags; settings.xml/.netrc wording; stale
   comments. Live `bazel run //tools/bump -- 4.145.0 --pins`: no diff. Second Windows throwaway (37225812205): green (checks, app, native, build). Full proof 180/180.
-- **6a on main** (4f7448989; P1-28, P1-27, P1-22, P1-25b, P1-17 follow-up). Local gate 148/148. Main CI: running.
+- **6a on main** (4f7448989; P1-28, P1-27, P1-22, P1-25b, P1-17 follow-up). Local gate 148/148. Main CI green (run 37226705706, 53/53).
 - P1-25 investigated: 45 undeclared artifacts under strict_visibility (upstream 34, runner 5, test 5, teavm 1).
