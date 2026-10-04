@@ -105,7 +105,7 @@ _DIAGNOSTICS = [
 # keeps by hand is not needed when nothing is selected by name.
 junit_test(
     name = "parser_parity",
-    tags = ["resources:memory:3072"],
+    memory_mb = 2816,
     data = _INPUTS + [":engine_jars"],
     jvm_flags = [_ENGINE_JARS_FLAG],
     exclude_tags = [],
@@ -123,11 +123,12 @@ junit_test(
 
 junit_test(
     name = "diagnostics",
+    memory_mb = 2048,
     data = _INPUTS + [":engine_jars"],
     jvm_flags = [_ENGINE_JARS_FLAG],
     runtime_deps = [":pe_tests_lib"],
     select = ["--select-class=com.legend.equivalence." + c for c in _DIAGNOSTICS + ["ProtocolRosterCensusTest"]],
-    tags = ["resources:memory:5120", "manual"],
+    tags = ["manual"],
     upstream = True,
 )
 

@@ -3,7 +3,9 @@ package com.legend.tools.junit;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryUsage;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryType;
 import java.nio.charset.StandardCharsets;
@@ -20,11 +22,16 @@ import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
+import javax.management.NotificationEmitter;
+import javax.management.openmbean.CompositeData;
+
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
+
+import com.sun.management.GarbageCollectionNotificationInfo;
 
 import org.junit.platform.engine.DiscoverySelector;
 import org.junit.platform.engine.FilterResult;
@@ -109,6 +116,7 @@ public final class JUnitMain {
 
     public static void main(String[] args) throws Exception {
         pinTempDirectory();
+        watchHeap();
         String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         expandOutputs(outputs);
         String prerun = System.getProperty("legend.prerun");
@@ -407,17 +415,55 @@ public final class JUnitMain {
         System.setProperty("java.io.tmpdir", tmp);
     }
 
-    /** The run's peak heap, summed over the heap pools' peaks: the measurement a target's
-     *  {@code junit_test(memory_mb = …)} is set from (Bazel workplan P1-21). */
-    private static String peakHeap() {
-        long peak = 0;
+    /** The heap's live peak: the most still in use right after a collection, across every collection of
+     *  the run. With the most in use right before one, it is the measurement a target's
+     *  {@code junit_test(memory_mb = …)} is set from (Bazel workplan P1-21). Each pool's own peak is no
+     *  measure: the pools peak at different moments, so their sum exceeds the heap (it read 11 GB for an
+     *  8 GB JVM). A collection's before/after usage is one simultaneous snapshot of every pool. */
+    private static final AtomicLong LIVE_PEAK = new AtomicLong();
+    private static final AtomicLong USED_PEAK = new AtomicLong();
+
+    private static void watchHeap() {
+        List<String> heapPools = new ArrayList<>();
         for (MemoryPoolMXBean pool : ManagementFactory.getMemoryPoolMXBeans()) {
-            if (pool.getType() == MemoryType.HEAP && pool.getPeakUsage() != null) {
-                peak += pool.getPeakUsage().getUsed();
+            if (pool.getType() == MemoryType.HEAP) {
+                heapPools.add(pool.getName());
             }
         }
+        for (GarbageCollectorMXBean gc : ManagementFactory.getGarbageCollectorMXBeans()) {
+            if (!(gc instanceof NotificationEmitter emitter)) {
+                continue;
+            }
+            emitter.addNotificationListener((notification, handback) -> {
+                if (!notification.getType().equals(GarbageCollectionNotificationInfo.GARBAGE_COLLECTION_NOTIFICATION)) {
+                    return;
+                }
+                var info = GarbageCollectionNotificationInfo.from((CompositeData) notification.getUserData()).getGcInfo();
+                LIVE_PEAK.accumulateAndGet(sum(info.getMemoryUsageAfterGc(), heapPools), Math::max);
+                USED_PEAK.accumulateAndGet(sum(info.getMemoryUsageBeforeGc(), heapPools), Math::max);
+            }, null, null);
+        }
+    }
+
+    private static long sum(Map<String, MemoryUsage> usage, List<String> pools) {
+        long total = 0;
+        for (String pool : pools) {
+            MemoryUsage u = usage.get(pool);
+            if (u != null) {
+                total += u.getUsed();
+            }
+        }
+        return total;
+    }
+
+    /** A run that never collected has no snapshot: its whole heap in use now stands for both. */
+    private static String peakHeap() {
+        long now = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
+        long live = Math.max(LIVE_PEAK.get(), USED_PEAK.get() == 0 ? now : 0);
+        long used = Math.max(USED_PEAK.get(), now);
         long max = Runtime.getRuntime().maxMemory();
-        return "[bazel] peak heap " + (peak >> 20) + " MB of " + (max >> 20) + " MB";
+        return "[bazel] heap: live peak " + (live >> 20) + " MB (in use after a collection), peak "
+                + (used >> 20) + " MB before one, of " + (max >> 20) + " MB";
     }
 
     private static boolean onClasspath(String className) {

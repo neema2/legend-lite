@@ -91,7 +91,7 @@ _SUITES = [
 # that composition.
 junit_test(
     name = "pct_duckdb",
-    tags = ["resources:memory:9216"],
+    memory_mb = 9216,
     data = glob(["src/**"]),
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s for s in _SUITES] + [
         "--select-class=org.finos.legend.lite.pct.PctDisciplineTest",
@@ -108,9 +108,10 @@ junit_test(
 # suite's own JVM stays under. Manual: //... runs :pct_duckdb, not these twice.
 [junit_test(
     name = "pct_duckdb_" + s.lower(),
+    memory_mb = 4352,
     data = glob(["src/**"]),
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s],
-    tags = ["manual", "resources:memory:4096"],
+    tags = ["manual"],
     runtime_deps = [
         ":pct_tests_lib",
         "//core:drivers",
@@ -119,6 +120,7 @@ junit_test(
 
 junit_test(
     name = "pct_discipline",
+    memory_mb = 768,
     size = "small",
     data = glob(["src/**"]),
     select = ["--select-class=org.finos.legend.lite.pct.PctDisciplineTest"],
@@ -134,7 +136,7 @@ junit_test(
 # coin toss.
 junit_test(
     name = "pct_h2",
-    tags = ["resources:memory:4608"],
+    memory_mb = 4864,
     env = {"LEGENDLITE_PCT_BACKEND": "h2"},
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_H2_RelationFunctions_PCT"],
     runtime_deps = [
@@ -163,22 +165,23 @@ _POSTGRES_DEPS = [
 
 junit_test(
     name = "pct_postgres",
+    memory_mb = 9216,
     data = _POSTGRES_DATA,
     env = {"LEGENDLITE_PCT_BACKEND": "postgres"},
     jvm_flags = _POSTGRES_FLAGS,
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_Postgres_%sFunctions_PCT" % s for s in _SUITES],
-    tags = ["resources:memory:9216"],
     runtime_deps = _POSTGRES_DEPS,
 )
 
 # ONE JVM PER SUITE, for the 7 GB macOS runner, as :pct_duckdb_<suite>. Manual: //... runs :pct_postgres.
 [junit_test(
     name = "pct_postgres_" + s.lower(),
+    memory_mb = 4352,
     data = _POSTGRES_DATA,
     env = {"LEGENDLITE_PCT_BACKEND": "postgres"},
     jvm_flags = _POSTGRES_FLAGS,
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_Postgres_%sFunctions_PCT" % s],
-    tags = ["manual", "resources:memory:4096"],
+    tags = ["manual"],
     runtime_deps = _POSTGRES_DEPS,
 ) for s in _SUITES]
 
@@ -187,7 +190,7 @@ junit_test(
 # channel A's ledgers and the engine's manifests.
 junit_test(
     name = "pct_channel_b",
-    tags = ["resources:memory:1024"],
+    memory_mb = 768,
     data = glob(["src/**"]),
     select = ["--select-package=org.finos.legend.lite.pct.channelb"],
     upstream = True,

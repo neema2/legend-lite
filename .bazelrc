@@ -40,17 +40,11 @@ test:ci --test_output=errors --test_summary=terse
 # pool's maven_*_install.json must match its artifacts: fail_if_repin_required in MODULE.bazel).
 # A dependency edit without its lock fails here instead of resolving silently.
 common:ci --lockfile_mode=error
-# CI's HEAPS. A JVM defaults to a quarter of the machine's RAM: plenty on a desk
-# (which keeps that default, so local loops are not capped), too little on a hosted
-# runner. Pinned here, not on the targets, from Maven's measured peaks (2026-09-09):
-# a PCT suite's Pure graph is a 2.0-2.8 GB live set and five in one JVM need 8 GB;
-# the Pure PAR generator (a build tool) peaks at ~2.5 GB. The first Bazel CI run
-# (2026-09-23) died out of heap on Linux gate 6 and macOS gates 7/9 without them.
-build:ci --jvmopt=-Xmx8g
+# HEAPS. Each test's heap is its own `junit_test(memory_mb = …)`, the live peak each run prints
+# plus headroom, which is also its scheduling tag, so CI and the desk run the same command line
+# (Bazel workplan P1-21, 2026-10-04; it replaced CI-only -Xmx8g/-Xmx4g here). The Pure PAR
+# generator, a build tool in a genrule, keeps its own until P1-22 makes it a java_run:
 build:ci --host_jvmopt=-Xmx3g
-# The 7 GB macOS runner: one test JVM at a time (gates-run.yml), each suite in its
-# own JVM, 4 GB each. Given after --config=ci: the JVM takes the LAST -Xmx.
-build:ci-small --jvmopt=-Xmx4g
 
 # LOCAL SCHEDULING (2026-09-27, measured on the 10-core / 32 GB desk — GATES.md entry of
 # that date): Bazel's own estimate of a test's memory comes from `size` (an `enormous`

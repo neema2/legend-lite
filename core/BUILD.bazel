@@ -336,7 +336,7 @@ java_library(
 # package.
 junit_test(
     name = "core_tests",
-    tags = ["resources:memory:1536"],
+    memory_mb = 1024,
     size = "enormous",
     data = _CORE_READS,
     select = ["--select-package=com.legend"],
@@ -357,6 +357,7 @@ junit_test(
 # gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class, one query.
 junit_test(
     name = "postgres_arm_test",
+    memory_mb = 768,
     size = "medium",
     srcs = ["src/test/java/com/legend/server/PostgresArmTest.java"],
     data = [
@@ -382,6 +383,7 @@ junit_test(
 # other modules too — which is why only IT declares them.
 junit_test(
     name = "guardrails",
+    memory_mb = 1280,
     size = "medium",
     data = _CORE_READS,
     select = [
@@ -397,6 +399,7 @@ junit_test(
 
 junit_test(
     name = "census",
+    memory_mb = 1024,
     size = "medium",
     data = _CENSUS_READS,
     select = [
@@ -420,8 +423,20 @@ _SCALE = [
     "ProfileBuildCost",
 ]
 
+# memory_mb per class (Bazel workplan P1-21): the live heap peak measured 2026-10-04 plus half again
+# (at least 512 MB), rounded up to 256 MB
+_SCALE_MEMORY_MB = {
+    "StressTest10K": 768,
+    "StressTest100K": 2304,
+    "StressTestDense": 768,
+    "StressTestComplexQueries": 768,
+    "StressTestChaotic": 6656,
+    "ProfileBuildCost": 3584,
+}
+
 [junit_test(
     name = "scale_" + c.lower(),
+    memory_mb = _SCALE_MEMORY_MB[c],
     size = "enormous",
     data = _STRESS_READS,
     select = [
@@ -440,7 +455,7 @@ _SCALE = [
 # lane: the stress group is what gate 1 leaves out.
 junit_test(
     name = "stress_suites",
-    tags = ["resources:memory:2048"],
+    memory_mb = 768,
     size = "enormous",
     data = _STRESS_READS,
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],

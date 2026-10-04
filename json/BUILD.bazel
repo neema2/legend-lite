@@ -18,6 +18,7 @@ java_library(
 
 junit_test(
     name = "tests",
+    memory_mb = 768,
     size = "small",
     srcs = glob(["src/test/java/com/legend/json/*.java"]),
     select = ["--select-package=com.legend.json"],

@@ -91,6 +91,7 @@ java_library(
 
 junit_test(
     name = "tests",
+    memory_mb = 768,
     size = "medium",
     data = ["src/test/python/arrow_matches_json.py"],
     select = ["--select-package=com.legend.warehouse"],
@@ -120,6 +121,7 @@ native_image(
 #     --test_env=LEGENDLITE_PG_EXTENSIONS=/abs/dir/holding/postgres_scanner.duckdb_extension
 junit_test(
     name = "postgres_live",
+    memory_mb = 768,
     size = "medium",
     data = ["src/test/python/arrow_matches_json.py"],
     select = ["--select-class=com.legend.warehouse.WarehousePostgresLiveTest"],
@@ -130,6 +132,7 @@ junit_test(
 # The same, judging the native binary.
 junit_test(
     name = "postgres_live_native",
+    memory_mb = 768,
     size = "medium",
     data = [
         "src/test/python/arrow_matches_json.py",
@@ -194,6 +197,7 @@ jar_entry(
 # The same suite, judging the native binary instead of an in-process server (TestServer).
 junit_test(
     name = "tests_native",
+    memory_mb = 768,
     size = "medium",
     data = [
         "src/test/python/arrow_matches_json.py",
@@ -249,6 +253,7 @@ warehouse_run(
 # where Bazel puts it, so this test does not judge that flag on its own.
 junit_test(
     name = "launcher_test",
+    memory_mb = 768,
     size = "medium",
     srcs = ["src/test/java/com/legend/warehouse/launcher/LauncherTest.java"],
     data = [

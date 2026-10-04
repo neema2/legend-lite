@@ -34,6 +34,7 @@ genquery(
 
 junit_test(
     name = "core_closure_test",
+    memory_mb = 768,
     size = "small",
     srcs = ["CoreClosureTest.java"],
     data = [
@@ -62,6 +63,7 @@ genquery(
 
 junit_test(
     name = "warehouse_closure_test",
+    memory_mb = 768,
     size = "small",
     srcs = ["WarehouseClosureTest.java"],
     data = [":warehouse_closure"],
@@ -74,6 +76,7 @@ junit_test(
 
 junit_test(
     name = "pools_are_disjoint",
+    memory_mb = 768,
     size = "small",
     srcs = ["PoolsAreDisjointTest.java"],
     data = [
@@ -92,6 +95,7 @@ junit_test(
 # one release: MODULE.bazel and tools/oracle-pins.env agree (//tools/bump writes both)
 junit_test(
     name = "one_release",
+    memory_mb = 768,
     size = "small",
     srcs = ["OneReleaseTest.java"],
     data = [
@@ -121,6 +125,7 @@ _CORE_LAYERS = [
 
 junit_test(
     name = "core_layering_test",
+    memory_mb = 768,
     size = "small",
     srcs = ["CoreLayeringTest.java"],
     data = ["core-layers.txt"] + [":layer_" + t for t in _CORE_LAYERS],
