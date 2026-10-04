@@ -462,6 +462,23 @@ run, and are removed before any commit.
        to be exposed on `ModelContext`), so the server still parses once.
     Unchanged by the audit: the rule; `Sessions`; the opener; direct callers checked; `SystemDatabase`;
     `StorelessRuntime`; `isModelConnection`'s default; the server tests.
+  - **C3b measurement (2026-10-03, `runs/conn/`; probe `runs/conn/probe.patch`, reverted; corpus H2 + DuckDB, core
+    tests, PCT H2, Channel B, uncached, all green under the probe):**
+    1. **No runtime binds more than one distinct database connection** — 0 of 47 runtime shapes in the core tests,
+       0 in PCT, Channel B and both corpora. Audit point 3's server refusal affects nothing measured.
+    2. **Scope limit — the corpus never decides a connection from a test's own runtime.** Every corpus statement
+       executes under the harness's one runtime (`rcorpus::Rt`, `MinimalCorpus.java:113`); a test's own
+       `->from(mapping, runtime)` is read only for its declared TEXT (the C4 reader). Upstream's in-query runtime IS
+       the runtime. So the rule's "no runtime" must mean neither the caller nor the query declares one; until C4 reads
+       the query's runtime, a store read under an in-query runtime with no caller runtime stays REFUSED by name (as
+       today, via `NO_RUNTIME`) — never sent to the platform DuckDB.
+    3. **`CrossStoreGuard` is blind to class queries.** It sees only `TypedTableReference`, which only relation
+       ACCESSORS produce (`TableReferenceChecker.java:128`); a resolved class query names its tables in other nodes.
+       In the corpus it saw a store in 35 of ~256,000 statements. **Fix:** the per-statement check reads the stores a
+       resolved statement touches from every node that names one (accessor AND mapped class), or it is not a check.
+    4. **The one "unbound store" case is the platform's own metamodel store** (`meta::lite::metamodel::MetamodelStore`,
+       73 statements, core tests, `storeless::Runtime`): routed to `SystemDatabase`, legitimately bound by no runtime.
+       **Fix:** exempted by identity, with its reason — not a silent pass.
 
 - **C4. The reader fix.** The static `ExecutionContext` reader follows `->from(m, ^Runtime(connectionStores =
   helper()))`, `toSQLString`'s runtime forms and helper bodies; the four `"H2"` defaults (§3.2) are DELETED; a context
@@ -521,6 +538,12 @@ run, and are removed before any commit.
   Float rule, 2 identity rows shared with DuckDB, 4 Relation incl. 3 jsonb key order).
 - Corpus tests on Postgres (P6): needs homework (the corpus seeds raw H2 SQL).
 - (Corrected 2026-10-03: `//datacube:app` on Windows LANDED on main with PR #14, `23b441852`.)
+- Cross-store queries (user, 2026-10-03: "we will have to support xstore queries"). Upstream plans one node per store,
+  each with its own connection (`connectionByElement` per store), and joins the results (XStore graphFetch: relational +
+  model data). Today lite refuses a query whose stores sit on different connections (`CrossStoreGuard`, one session
+  per query), and C3b keeps that refusal; C3b's shape does not block the feature (the decision is per store, the
+  opener can be asked for more than one connection). Open design, honouring "the database executes": e.g. DuckDB
+  attaching the other databases and running the whole query (the Postgres pass-through strategy).
 
 ## 6. Process lessons from this session (apply throughout)
 
