@@ -153,6 +153,8 @@ jobs:
           set -euo pipefail
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk")
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small --local_test_jobs=1); fi
+          # the one-off heavy lanes (P1-02): untagged JVMs at CI's -Xmx8g each, so one at a time
+          case "${{ matrix.lane.key }}" in heavy|heavy-pct) flags+=(--local_test_jobs=1) ;; esac
           # the warehouse's Arrow test finds python with pyarrow, and FAILS (rather than skips) without it
           if [ "${{ matrix.lane.key }}" = app ] || [ "${{ matrix.lane.key }}" = native ]; then
             flags+=(--test_env=PATH --test_env=PYTHONPATH="$RUNNER_TEMP/pyarrow" --test_env=WAREHOUSE_ARROW_CHECK=required)
