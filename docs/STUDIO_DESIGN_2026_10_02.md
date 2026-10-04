@@ -106,6 +106,16 @@ Phase 0 is therefore **a, b, c, e, f** (e and f because opening existing project
 
 **Re-staged 2026-10-04 (S20):** v0 needs no (a) — files without imports emit through the existing `grammarToJson`, plus a publish check for L and P — so Phase 1 starts now. (e) and (f) follow the loop (Phases 1–2) as their own phase with S19's acceptance test. (a), with the function-resolution fix it depends on, is v1 (`docs/function-resolution/README.md` §7).
 
+**STATUS 2026-10-04: Studio v1 (Phases 1-2, the loop) built on `studio`** (`studio/README.md`): the SDLC's
+and Depot's rules written once in Java (`sdlc-server/`, `depot-server/`) and run both in the page
+(WebAssembly, IndexedDB; level 0) and as the model home's server (`/sdlc/api` + `/depot/api` over a real
+git repository; level 1); `sdlc-client/`, `depot-client/` with one conformance suite each, passing on
+both; Studio (Monaco, live compile with dependencies, save with the lock, review → merge commit,
+release, dependencies); the compile gate on review commit and version (S7); the S18 model;
+`//studio:verify` runs the whole loop in Chromium at both levels. Not yet: the GitHub backend (S16),
+the engine's pointer route (S9), Query by coordinates (Phase 3), forms (Phase 4), opening upstream
+JSON-only elements (e, f; S19, S20), imports (v1).
+
 **Phase 1 — the model home** (`sdlc-client/` in the page; `sdlc-server/` and `depot-server/`, Java, no dependencies; S1)
 - First the SDLC client (TypeScript, one typed client over upstream's routes and S15's text routes) and its conformance suite, so the in-page store (S21 level 0) and the server backends are held to one contract.
 - The git backend interface (S16) with the local-git backend, SDLC-lite routes for S6's first scope under v0's rules (S20: imports refused at save), Depot-lite read API (S8) over the git-tag artifact source (S22), the compiler gate on version cut, the S18 model loaded as SDLC projects with versions.
