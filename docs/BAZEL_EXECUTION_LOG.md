@@ -111,4 +111,7 @@ without a **done** entry.
   only direct labels in 5 macros. Marking the engine pools testonly was tried and failed (a pool cannot be testonly as a
   whole). Fixed in three layers (tools/deps/pools.bzl): direct-use check with canonical labels and per-target grants;
   direct engine/runner users must be testonly (par_generator now testonly, //pct-only); //tools/deps:product_closure_test
-  over every shipped root. Each layer proven by a reverted negative edit. Full proof 182/182. Re-audit: running.
+  over every shipped root. Each layer proven by a reverted negative edit. Full proof 182/182. Re-audit: ready.
+- **6b on main** (ff2dcf107; P1-20, P1-25). Local gate 150/150. Main CI green (run 37230570535, 53/53). Open: the Studio
+  line's announced sdlc-server/depot-server need grants (core/json visibility, TeaVM pool); a rules_jvm_external
+  pool-wide testonly option would let Bazel enforce layer 2 itself (research, then upstream PR).
