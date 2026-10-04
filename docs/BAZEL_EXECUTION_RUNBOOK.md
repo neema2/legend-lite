@@ -33,6 +33,19 @@ spec: an item's Change, Proof and Done-when are what "done" means. This file is 
     result, anything deferred. Each phase ends with its audit item (P*-90), recorded in the workplan's §6.5,
     before the next phase starts.
 
+**One line of work, never two branches (2026-10-04, after PR #22).** Two branches off the same `main` (#21
+and #22) both edited the CI lane lists (`gates-run.yml`, `docs/GATES.md`); the second hit merge conflicts
+and missed `//gates:local`, which the first had created. USER: "complete disaster ... add this to runbook so
+we dont do this again". So:
+- **At most one unpushed batch exists at a time, and it sits on top of the latest `origin/main`.** The
+  pipelined batch N+1 (step 8) is built on top of batch N's pushed commit, never on an older `main`.
+- **Rebase onto `origin/main` twice:** before the local proofs (step 4) and again right before the push
+  (step 7). If the second rebase brings anything in, re-run `//gates:local` and the batch's proofs.
+- **A CI lane edit and `gates/BUILD.bazel` change in the same commit.** Every non-heavy test added to a lane
+  in `gates-run.yml` is added to `//gates:local` too, and `docs/GATES.md` says the same. (P5-01 later makes
+  the lanes suites in `//gates`, which ends the duplication.)
+- **No subagent writes code or holds a branch.** Subagents only review, read-only.
+
 **Stop and notify the user instead of guessing** when: a decision D1–D21 does not settle; a change would
 weaken the native image or needs a ratchet lowered to get green; `main` goes red twice for one batch; a
 permission is denied; a finding would change the plan's scope.
