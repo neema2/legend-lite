@@ -386,6 +386,12 @@ junit_test(
     memory_mb = 1280,
     size = "medium",
     data = _CORE_READS,
+    # the two single files a guard reads, by runfiles path (Bazel workplan P1-05); the guards that walk
+    # source trees read declared file lists in P3-27
+    jvm_flags = [
+        "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
+        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/sql/dialect/DuckDb.java)",
+    ],
     select = [
         "--select-package=com.legend",
         "--include-tag=guardrail",
