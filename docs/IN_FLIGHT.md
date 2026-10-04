@@ -239,6 +239,8 @@ on `datacube/` should rebase after this lands.
 P1-20/P1-25 into `studio`): `//sdlc-server` and `//depot-server` join the visibility lists of `//base:base`,
 `//json:json` and (`//sdlc-server` only) `//core:core`; `tools/deps/pools.bzl` lets `sdlc-server` use `@maven_teavm`
 (its page module, built like `//wasm:planner`), with the reason. The two modules use `legend_java_library`.
+And `//engine-client` joins `//core:core`'s visibility: DataCube's type-facts generator (it runs legend-lite) moved
+there with the type reader.
 
 The compiler rebuild is paused by the user while this line works (design S11). Core pieces it will need later, each
 announced here with its files before it lands: the model JSON reader and printer (opening existing upstream projects),
