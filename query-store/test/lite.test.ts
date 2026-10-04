@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { after, before } from 'node:test';
 
 import { conformance } from './conformance.ts';
+import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 
 // Windows' own taskkill by its full path: a test's PATH is Bazel's, not the desk's (Bazel workplan P1-08
 // removed CI's --test_env=PATH). SystemRoot is set on every Windows process.
@@ -19,7 +20,7 @@ const taskkill = (): string => {
 };
 
 const RUNFILES = process.env['RUNFILES_DIR'] ?? process.env['TEST_SRCDIR'] ?? '';
-const SERVER = join(RUNFILES, '_main', 'core', 'server');
+const SERVER = runfileFromEnv('LEGEND_SERVER');
 
 const freePort = (): Promise<number> => new Promise((resolve, reject) => {
   const s = createServer();

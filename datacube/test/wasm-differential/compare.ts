@@ -18,17 +18,17 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
-import { fileURLToPath } from 'node:url';
 
 import { relationColumns } from '../../src/relation-type.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import { MODEL, queries, RUNTIME } from './cases.ts';
+import { runfileDirUrl, runfileFromEnv } from '../../../tools/js/runfiles.mts';
 
 // Beside this package in the runfiles: the module and its runtime
 // (//wasm:planner), and the JVM's answers.
-const MODULE_DIR = new URL('../../../wasm/planner/', import.meta.url).href;
-const ANSWERS = fileURLToPath(new URL('../../cube_jvm_answers.txt', import.meta.url));
+const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
+const ANSWERS = runfileFromEnv('CUBE_JVM_ANSWERS');
 
 function blocks(text: string): Map<string, string> {
   const out = new Map<string, string>();

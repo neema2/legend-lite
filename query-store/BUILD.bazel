@@ -3,6 +3,7 @@
 # dependency, for every app here that saves or opens queries (Query writes, DataCube reads).
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("//tools/js:defs.bzl", "node_test")
+load("//tools/runfiles:defs.bzl", "executable_of")
 
 js_library(
     name = "query_store",
@@ -14,7 +15,6 @@ js_library(
 node_test(
     name = "local_test",
     size = "small",
-    chdir = package_name(),
     data = [
         ":query_store",
         "test/conformance.ts",
@@ -27,27 +27,28 @@ node_test(
 node_test(
     name = "share_test",
     size = "small",
-    chdir = package_name(),
     data = [
         ":query_store",
         "test/share.test.ts",
         "//fixtures/saved-queries:records",
     ],
     entry_point = "test/share.test.ts",
+    env = {"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"},
 )
 
 # The same suite against legend-lite's server, started here with a fresh store.
 node_test(
     name = "lite_test",
     size = "small",
-    chdir = package_name(),
     data = [
         ":query_store",
         "test/conformance.ts",
         "test/lite.test.ts",
+        ":legend_server",
         "//core:server",
     ],
     entry_point = "test/lite.test.ts",
+    env = {"LEGEND_SERVER": "$(rlocationpath :legend_server)"},
 )
 
 # Every TypeScript file here, for the apps' typechecks (strict tsc: no npm dependency of its own).
@@ -58,4 +59,11 @@ js_library(
         "//datacube:__pkg__",
         "//query:__pkg__",
     ],
+)
+
+# the legend-lite server's launcher, exactly one file, for lite_test to start by runfiles path (Bazel workplan P1-24)
+executable_of(
+    name = "legend_server",
+    testonly = True,
+    binary = "//core:server",
 )

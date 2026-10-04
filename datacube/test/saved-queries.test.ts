@@ -20,11 +20,11 @@ import {
   agg, col, colSpecs, findAll, fn, from, isLambda, lambda, toJson, variable, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { plannerFor } from './catalog-builder.ts';
+import { runfileDirUrl, runfileFromEnv, runfileNamed } from '../../tools/js/runfiles.mts';
 
-const FIXTURES = '../fixtures/saved-queries';
 // the trading project as the site serves it (BUILD.bazel `:projects`, from query/demo/models)
-const MODELS = 'demo/projects/trading';
-const record = (name: string): Query => JSON.parse(readFileSync(`${FIXTURES}/${name}.json`, 'utf8')) as Query;
+const MODELS = runfileFromEnv('TRADING_PROJECT');
+const record = (name: string): Query => JSON.parse(readFileSync(runfileNamed('SAVED_QUERIES', `${name}.json`), 'utf8')) as Query;
 const MODEL = readFileSync(`${MODELS}/trading.pure`, 'utf8') + '\n' + readFileSync(`${MODELS}/runtime-duckdb.pure`, 'utf8');
 
 let engine: DuckDbEngine;
@@ -64,7 +64,7 @@ async function opened(q: Query): Promise<{ source: ValueSpecification; planner: 
   let source = sourceOf(await parser.parse(q.content), values);
   const planner = new WasmPlanner({
     model: MODEL, runtime: context.runtime, mapping: context.mapping,
-    enumerations: [...enumerationsOf(elements)], assetBaseUrl: new URL('../../wasm/planner/', import.meta.url).href, cache: false,
+    enumerations: [...enumerationsOf(elements)], assetBaseUrl: runfileDirUrl('WASM_PLANNER'), cache: false,
   });
   const named = new Set((await planner.relationType(lambda([], source))).filter((c) => c.enumeration).map((c) => c.name));
   if (named.size > 0) source = enumsAsStrings(source, named);

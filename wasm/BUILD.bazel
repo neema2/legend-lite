@@ -1,6 +1,7 @@
 # legend-lite's planner, compiled ahead of time to WebAssembly (TeaVM), and the
 # differential that holds it to the JVM. See README.md.
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("//tools/js:defs.bzl", "node_test")
 load("//tools/java:defs.bzl", "legend_java_library")
 
@@ -58,6 +59,15 @@ teavm_wasm(
     ],
 )
 
+# The planner as ONE directory (classes.wasm beside its runtime), so a test names it with one $(rlocationpath)
+# (node_test's WASM_PLANNER, Bazel workplan P1-24).
+copy_to_directory(
+    name = "planner_dir",
+    srcs = [":planner"],
+    root_paths = ["wasm/planner"],
+    visibility = ["//visibility:public"],
+)
+
 # The JVM halves of the differentials: the corpus, and the timezone probe. Target-
 # configuration libraries run by java_run (//tools/java_run), so core is compiled
 # once for them and for the module.
@@ -103,6 +113,7 @@ node_test(
     wasm = True,
     size = "small",
     data = [
+        ":planner",
         "corpus/model.pure",
         "corpus/queries.tsv",
         ":jvm_answers",
@@ -125,6 +136,7 @@ node_test(
     wasm = True,
     size = "small",
     data = [
+        ":planner",
         ":zone_jvm",
     ],
     entry_point = "zoneprobe.mjs",

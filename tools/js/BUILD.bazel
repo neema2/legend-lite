@@ -6,3 +6,10 @@ js_library(
     srcs = ["strict-reporter.mjs"],
     visibility = ["//visibility:public"],
 )
+
+# A test's inputs through Bazel's runfiles (runfiles.mts; Bazel workplan P1-24): every node_test has it.
+js_library(
+    name = "runfiles",
+    srcs = ["runfiles.mts"],
+    visibility = ["//visibility:public"],
+)

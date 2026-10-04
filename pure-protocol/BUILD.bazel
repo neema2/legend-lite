@@ -16,7 +16,6 @@ node_test(
     name = "twins_test",
     wasm = True,
     size = "small",
-    chdir = package_name(),
     data = [
         ":pure_protocol",
         "test/lite.ts",

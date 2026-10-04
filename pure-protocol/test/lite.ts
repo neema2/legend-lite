@@ -2,6 +2,7 @@
 // directly -- the library under test depends on nothing but the wire.
 
 import { fileURLToPath } from 'node:url';
+import { runfileDirUrl } from '../../tools/js/runfiles.mts';
 
 interface Module {
   readonly exports: {
@@ -10,7 +11,7 @@ interface Module {
   };
 }
 
-const DIR = new URL('../../wasm/planner/', import.meta.url);
+const DIR = new URL(runfileDirUrl('WASM_PLANNER'));
 
 let loaded: Promise<Module> | undefined;
 

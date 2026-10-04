@@ -26,8 +26,9 @@ import type { CubeSnapshot } from '../../src/snapshot.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
 import { MODEL, RUNTIME } from '../wasm-differential/cases.ts';
 import { accessor } from '../../../pure-protocol/src/index.ts';
+import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
 
-const MODULE_DIR = new URL('../../../wasm/planner/', import.meta.url).href;
+const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
 // Several desks per (region, year), so a pivot over a finer intermediate
 // would show. A NULL year (its own column) and a NULL region (its own group).

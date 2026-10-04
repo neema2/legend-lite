@@ -58,11 +58,27 @@ filegroup(
 
 _TESTS = glob(["test/*.test.ts"])
 
+# The tests that scan this package's own sources run from the package directory (chdir) until P3-29 gives them
+# their files as declared inputs; every other test finds its inputs through //tools/js:runfiles (P1-24).
+_SCANNERS = ["config-readers", "guardrails", "menu-ids", "portability", "state-guardrail", "wasm-flag"]
+
+# Each test's inputs by runfiles path ($(rlocationpath); tools/js/runfiles.mts), beside _EXTRA_DATA.
+_EXTRA_ENV = {
+    "bundle-budget": {"BUNDLE": "$(rlocationpath :demo/bundle.js)"},
+    "saved-queries": {
+        "SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)",
+        "TRADING_PROJECT": "$(rlocationpath :projects)",
+    },
+}
+
+# DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
+_DUCKDB_USERS = ["duckdb", "group-derived", "saved-queries", "snap", "sorting", "treeview", "upload"]
+
 # What a test reads from disk beyond src/: the guardrails scan the demo
 # entry points too (they ship), so they are declared, not assumed.
 _EXTRA_DATA = {
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
-    "bundle-budget": [":bundle_bundle"],
+    "bundle-budget": [":bundle_bundle", ":demo/bundle.js"],
     # the WASM list against the files that load the planner (A28)
     "wasm-flag": ["BUILD.bazel"] + glob(["test/*.test.ts"]),
     # legend-lite's own answers for the TypeScript Database writer to match
@@ -132,17 +148,21 @@ _WASM_TESTS = [
     # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
     # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
     size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else "small",
-    chdir = package_name(),
     data = [
         ":node_modules/jsdom",
         ":src",
         "test/fake-engine.ts",
         "test/fake-planner.ts",
     ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + (
+        [":node_modules/@duckdb/duckdb-wasm"] if t[len("test/"):-len(".test.ts")] in _DUCKDB_USERS else []
+    ) + (
         ["test/catalog-builder.ts", "test/lite-compiler.ts", "//pure-protocol:typescript_sources"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []
     ),
     entry_point = t,
+    env = _EXTRA_ENV.get(t[len("test/"):-len(".test.ts")], {}),
     wasm = t[len("test/"):-len(".test.ts")] in _WASM_TESTS,
+    # "" is rules_js's default (the output tree's root)
+    chdir = package_name() if t[len("test/"):-len(".test.ts")] in _SCANNERS else "",
 ) for t in _TESTS]
 
 test_suite(
@@ -167,8 +187,7 @@ test_suite(
 typescript.tsc_test(
     name = "typecheck_test",
     size = "small",
-    args = ["-p", "tsconfig.json"],
-    chdir = package_name(),
+    args = ["-p", package_name() + "/tsconfig.json"],
     data = glob([
         "src/**/*.ts",
         "test/**/*.ts",
@@ -178,6 +197,7 @@ typescript.tsc_test(
         "package.json",
         "tsconfig.json",
         "//pure-protocol:typescript_sources",
+        "//tools/js:runfiles",
         "//query-store:typescript_sources",
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/@types/jsdom",
@@ -377,13 +397,13 @@ node_test(
     wasm = True,
     # loads the WebAssembly planner, as _WASM_TESTS do: medium for the same reason (main's CI run 37214692462)
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/wasm-differential/cases.ts",
         ":cube_jvm_answers",
         ":src",
     ],
     entry_point = "test/wasm-differential/compare.ts",
+    env = {"CUBE_JVM_ANSWERS": "$(rlocationpath :cube_jvm_answers)"},
 )
 
 # PIVOTS JUDGED BY ROWS (docs/DATACUBE_CUBE_PLAN_DESIGN_2026_09_27.md): the real
@@ -393,7 +413,6 @@ node_test(
     name = "pivot_rows_test",
     wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/pivot-rows/pivot-rows.ts",
         "test/wasm-differential/cases.ts",
@@ -410,7 +429,6 @@ node_test(
     name = "json_read_test",
     wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/json-read/json-read.ts",
         ":node_modules/@duckdb/duckdb-wasm",
@@ -426,7 +444,6 @@ node_test(
     name = "cube_open_test",
     wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/cube-open/cube-open.ts",
         ":node_modules/@duckdb/duckdb-wasm",
@@ -443,7 +460,6 @@ node_test(
     name = "typed_values_test",
     wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/typed-values/typed-values.ts",
         ":node_modules/@duckdb/duckdb-wasm",
@@ -459,7 +475,6 @@ node_test(
     name = "typed_values_tokyo_test",
     wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/typed-values/typed-values.ts",
         ":node_modules/@duckdb/duckdb-wasm",
@@ -475,7 +490,6 @@ node_test(
     name = "typed_values_new_york_test",
     wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/typed-values/typed-values.ts",
         ":node_modules/@duckdb/duckdb-wasm",
@@ -492,7 +506,6 @@ node_test(
     name = "live_snap_test",
     wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/live-snap/live-snap.ts",
         "test/wasm-differential/cases.ts",
@@ -503,8 +516,8 @@ node_test(
     ],
     entry_point = "test/live-snap/live-snap.ts",
     env = {
-        "WAREHOUSE_BINARY": "$(rootpath //warehouse:server_native)",
-        "WAREHOUSE_DUCKDB_LIBRARY": "$(rootpath //warehouse:duckdb_library)",
+        "WAREHOUSE_BINARY": "$(rlocationpath //warehouse:server_native)",
+        "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath //warehouse:duckdb_library)",
     },
 )
 

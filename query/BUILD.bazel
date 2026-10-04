@@ -148,32 +148,42 @@ _WASM_TESTS = [
     "saved-queries",
 ]
 
+# the demo's models, by runfiles path for the tests that read them (QUERY_MODELS; Bazel workplan P1-24)
+filegroup(
+    name = "demo_models",
+    srcs = glob(["demo/models/*.pure"]),
+)
+
 [node_test(
     name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
     size = "small",
-    chdir = package_name(),
     data = [
         ":node_modules/jsdom",
         ":src",
         # the saved-query records Query writes and DataCube reads (fixtures/saved-queries/README.md)
         "//fixtures/saved-queries:records",
-    ] + glob(["test/*.ts"], exclude = ["test/*.test.ts"]) + glob(["demo/models/*.pure"]) + (
+        ":demo_models",
+    ] + glob(["test/*.ts"], exclude = ["test/*.test.ts"]) + (
         ["//pure-protocol:pure_protocol", "//query-store:query_store"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []
     ),
     entry_point = t,
+    env = {
+        "QUERY_MODELS": "$(rlocationpaths :demo_models)",
+        "SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)",
+    },
     wasm = t[len("test/"):-len(".test.ts")] in _WASM_TESTS,
 ) for t in _TESTS]
 
 typescript.tsc_test(
     name = "typecheck_test",
     size = "small",
-    args = ["-p", "tsconfig.json"],
-    chdir = package_name(),
+    args = ["-p", package_name() + "/tsconfig.json"],
     data = glob([
         "src/**/*.ts",
         "test/**/*.ts",
         "demo/**/*.ts",
     ]) + [
+        "//tools/js:runfiles",
         "package.json",
         "tsconfig.json",
         "//pure-protocol:pure_protocol",
