@@ -173,7 +173,7 @@ _CORE_TARGETS = [
 legend_java_library(
     name = "core",
     exports = _CORE_TARGETS,
-    visibility = ["//datacube:__pkg__", "//parser-equivalence:__pkg__", "//pct:__pkg__", "//spec:__pkg__", "//tools/engine-runner:__pkg__", "//wasm:__pkg__"],
+    visibility = ["//datacube:__pkg__", "//parser-equivalence:__pkg__", "//pct:__pkg__", "//sdlc-server:__pkg__", "//spec:__pkg__", "//tools/engine-runner:__pkg__", "//wasm:__pkg__"],
 )
 
 # THE JDBC DRIVERS, as their own target. core never compiles against a driver: it

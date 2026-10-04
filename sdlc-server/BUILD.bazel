@@ -1,20 +1,16 @@
 # SDLC-lite (design S1, S21): legend-sdlc's REST API and lite's text routes, its RULES written once in
-# Java (com.legend.sdlc.Sdlc over a Storage) and run two ways -- by the server (to come: HTTP over a git
-# backend) and in the page, compiled to WebAssembly (:page). One conformance suite holds both
-# (sdlc-client/test/conformance.ts). Depends on //core's public API, never the reverse.
-load("@rules_java//java:defs.bzl", "java_binary", "java_library")
-load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
+# Java (com.legend.sdlc.Sdlc over a Storage) and run two ways -- by the model home's server (HTTP over a
+# git repository, with Depot-lite beside it) and in the page, compiled to WebAssembly (:page). One
+# conformance suite holds both (sdlc-client/test/conformance.ts). Depends on //core's public API, never
+# the reverse.
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/teavm:defs.bzl", "teavm_wasm")
-
-package(default_visibility = ["//visibility:public"])
 
 # THE RULES: TeaVM-safe by rule (no files, sockets, threads, reflection, java.security), so the same
 # classes compile into the page's module.
-java_library(
+legend_java_library(
     name = "rules",
     srcs = glob(["src/main/java/com/legend/sdlc/*.java"]),
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     deps = [
         "//base",
         "//core",
@@ -25,11 +21,9 @@ java_library(
 )
 
 # THE SERVER (JVM only): the rules behind the JDK's HTTP server, over a git repository on disk.
-java_library(
+legend_java_library(
     name = "server_lib",
     srcs = glob(["src/main/java/com/legend/sdlc/server/*.java"]),
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     deps = [
         ":rules",
         "//base",
@@ -38,24 +32,29 @@ java_library(
 )
 
 # `bazel run //sdlc-server:server -- --port 6100 --repo DIR [--user id[:Name]]`
-java_binary(
+legend_java_binary(
     name = "server",
     main_class = "com.legend.sdlc.server.SdlcServer",
+    visibility = [
+        "//depot-client:__pkg__",
+        "//sdlc-client:__pkg__",
+        "//studio:__pkg__",
+    ],
     runtime_deps = [":server_lib"],
 )
 
 # TeaVM's annotations, at compile time only (as //wasm:teavm_api).
-java_library(
+legend_java_library(
     name = "teavm_api",
     neverlink = True,
-    visibility = ["//visibility:private"],
+    nullaway = False,  # no sources: only exports
     exports = [
         "@maven_teavm//:org_teavm_teavm_core",
         "@maven_teavm//:org_teavm_teavm_jso",
     ],
 )
 
-java_library(
+legend_java_library(
     name = "page_boundary",
     srcs = glob(["src/main/java/com/legend/sdlc/page/*.java"]),
     resource_strip_prefix = "sdlc-server/src/main/resources",
@@ -68,10 +67,15 @@ java_library(
     ],
 )
 
-# The page's SDLC: the rules and all they reach, compiled to WebAssembly.
+# The page's SDLC and Depot: the rules and all they reach, compiled to WebAssembly.
 teavm_wasm(
     name = "page",
     main_class = "com.legend.sdlc.page.SdlcPage",
+    visibility = [
+        "//depot-client:__pkg__",
+        "//sdlc-client:__pkg__",
+        "//studio:__pkg__",
+    ],
     deps = [
         ":page_boundary",
         "@maven_teavm//:org_teavm_teavm_classlib",
