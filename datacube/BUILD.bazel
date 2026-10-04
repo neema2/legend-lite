@@ -21,10 +21,13 @@ load("//tools/guards:defs.bzl", "guards_package")
 
 npm_link_all_packages(name = "node_modules")
 
-# for //tools/js:lock_matches_package_json_test (Bazel workplan P1-26)
+# for //tools/js:lock_matches_package_json_test (P1-26) and //tools/browser:revision_test (P6-19)
 exports_files(
     ["package.json", "pnpm-lock.yaml"],
-    visibility = ["//tools/js:__pkg__"],
+    visibility = [
+        "//tools/browser:__pkg__",
+        "//tools/js:__pkg__",
+    ],
 )
 
 

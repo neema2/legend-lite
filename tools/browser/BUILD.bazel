@@ -47,16 +47,25 @@ node_test(
     name = "revision_test",
     data = [
         "//datacube:node_modules/playwright",
+        "//datacube:pnpm-lock.yaml",
         "//query:node_modules/playwright",
+        "//query:pnpm-lock.yaml",
         "@chromium_pin//:pin.json",
+        "@repo_inventory//:files.txt",
     ],
     entry_point = "revision_test.mjs",
     env = {
-        "LOCKS": "datacube query",
+        "INVENTORY": "$(rlocationpath @repo_inventory//:files.txt)",
+        "LOCKS": "$(rlocationpath //datacube:pnpm-lock.yaml) $(rlocationpath //query:pnpm-lock.yaml)",
         "PIN": "$(rlocationpath @chromium_pin//:pin.json)",
     },
-    # an external file: rules_js takes it as a runfile, not a copy into bazel-bin
-    no_copy_to_bin = ["@chromium_pin//:pin.json"],
+    # external files and other packages' sources: rules_js takes them as runfiles, not copies into bazel-bin
+    no_copy_to_bin = [
+        "//datacube:pnpm-lock.yaml",
+        "//query:pnpm-lock.yaml",
+        "@chromium_pin//:pin.json",
+        "@repo_inventory//:files.txt",
+    ],
 )
 
 guards_package()
