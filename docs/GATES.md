@@ -8,6 +8,11 @@ below; CI runs the same targets as parallel lanes on Linux, macOS and Windows
 still reads — but **everything under this section is the Maven-era log**: its
 commands (`mvn`, `tools/allgates.sh`, `-Dx.generate=1`) no longer exist.
 
+**Before pushing to `main`: `bazel test --lockfile_mode=error //gates:local`** (`gates/BUILD.bazel`): the light
+lanes (checks, gates 1 and 3, app, misc, and gate 7P's one-query `//core:postgres_arm_test`). The heavy lanes
+(gates 4–10, the native image, the browser lane) and `bazel build //...` run in CI only. The push rule is
+`AGENTS.md`'s "Pushing to main".
+
 | Gate | Target | What it holds |
 |---|---|---|
 | 1 | `//core:core_tests` | the compiler suite + guardrails (NullAway runs on every compile) |
@@ -24,7 +29,7 @@ commands (`mvn`, `tools/allgates.sh`, `-Dx.generate=1`) no longer exist.
 | 11 | `//spec:corpus_duckdb` | its second pass: the database judge, joined per assert to the host pass (one target with gate 4 since 2026-09-23 — the host pass ran twice before) |
 | app | `//datacube:tests`, `//wasm:all`, `//warehouse:tests`, `//query-store:lite_test` | DataCube's suite and typecheck; the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database; the warehouse's suite; legend-lite's server held to the query store's suite. On Windows the lane runs in Eastern time, not the runners' UTC, so a test that reads the machine's zone shows (since 2026-10-03) |
 | native | `//warehouse:tests_native`, `//warehouse:launcher_test`, `//datacube:app` | the warehouse suite against the native binary, on Linux, macOS and Windows x64 (since 2026-10-02); the `bazel run` launchers (bash on Linux and macOS, hermetic-launcher on Windows) started as `bazel run` starts them; and `//datacube:app` built, not run. What the launcher test judges: `docs/WINDOWS_APP_DESIGN_2026_10_02.md` §3 |
-| checks | `//:generated`, `//tools/deps:all`, `//core:guardrails`, `//core:census` | every committed generated file equal to its generator (`//:generated` holds each package's diff-test suite; a missing suite fails the build — since 2026-10-03, replacing a `bazel query` whose failure ran nothing); the dependency guards; the source checks |
+| checks | `//:generated`, `//tools/deps:all`, `//tools/junit:pins_test`, `//tools/java_run:pins_test`, `//core:guardrails`, `//core:census` | every committed generated file equal to its generator (`//:generated` holds each package's diff-test suite; a missing suite fails the build — since 2026-10-03, replacing a `bazel query` whose failure ran nothing); the dependency guards; the test environment's pins (in no lane until 2026-10-03, P0-14); the source checks |
 | misc | `//json:tests`, `//pure-protocol:twins_test`, `//query:tests`, `//query-store:local_test`, `//query-store:share_test` | tests no lane ran before 2026-10-03 (Bazel workplan P0-03) |
 | build | `bazel build //...` | every target builds on every platform, non-test targets included (since 2026-10-03) |
 | browser | `//datacube:live_snap_test`, then every `//datacube`, `//query` and `//site` target tagged `browser-ci` (`bazel run`; `//query:verify` and `//site:verify` since 2026-10-03) | **Linux only in CI.** Every cube case live on the native warehouse and snapped into DuckDB-WASM, the answers compared (plus receipts, sign-in again, token refresh); then the harnesses that drive the built site in headless Chromium and need no server: smoke, features, page (two cubes on one page), charts (one live chart, Pin, Open in grid), cubes, real data, upload, remote, wasm-browser, stress (about 6 minutes together here). Locally: `bazel run //datacube:install_browser` once, then `bazel run` each |

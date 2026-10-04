@@ -41,7 +41,9 @@ on:
 
 concurrency:
   group: gates-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Only a PR's superseded run is cancelled: every commit on main gets a verdict, so `gates green` is never
+  # red merely because a newer push cancelled it (revert-on-red would revert a good commit).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # A workflow whose OWN file is invalid never runs (GitHub reports zero jobs
@@ -86,3 +88,23 @@ jobs:
       runs-on: windows-2022
       platform: windows
       gates: ${{ inputs.gates }}
+
+  # THE ONE REQUIRED CHECK (Bazel workplan P0-14, D17): main's ruleset requires this job, not the ~50 lane
+  # jobs, whose names move with every lane change. It fails unless every job above succeeded. It does not
+  # run on workflow_dispatch: a dispatch can choose a subset of lanes or platforms, and its green would
+  # satisfy the required check on that commit.
+  green:
+    name: gates green
+    if: ${{ always() && github.event_name != 'workflow_dispatch' }}
+    needs: [workflows, linux, macos, windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "results: $RESULTS"
+          if echo "$RESULTS" | grep -q -E '"(failure|cancelled)"'; then
+            echo "::error ::a gate job did not succeed: $RESULTS"
+            exit 1
+          fi
