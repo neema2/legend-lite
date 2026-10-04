@@ -6,7 +6,7 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
-load("//tools/browser:defs.bzl", "browser_test")
+load("//tools/browser:defs.bzl", "browser_test", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//warehouse:defs.bzl", "POSTGRES_EXTENSION", "warehouse_run")
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
@@ -858,18 +858,25 @@ browser_test(
     size = "large",
     data = [
         ":app_postgres",
+        ":app_postgres_executable",
         ":dist",
+        ":node_modules/@bazel/runfiles",
         ":node_modules/playwright",
         "demo/sample-shop.sql",
         "//warehouse:serve",
     ],
     entry_point = "demo/verify-app.mjs",
     env = {
-        # the binary's files: its launcher (a script, or an .exe on Windows) and its jar
-        "APP_POSTGRES": "$(rlocationpaths :app_postgres)",
+        "APP_POSTGRES": "$(rlocationpath :app_postgres_executable)",
         "SAMPLE_SQL": "$(rlocationpath demo/sample-shop.sql)",
         "WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)",
     },
+)
+
+executable_of(
+    name = "app_postgres_executable",
+    testonly = True,
+    binary = ":app_postgres",
 )
 
 # the test's Postgres (tools/apppostgres/AppPostgres.java): prints its port once the sample is in, and runs
