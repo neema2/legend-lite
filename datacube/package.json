@@ -2,7 +2,6 @@
   "name": "@legend/datacube",
   "version": "1.0.0",
   "scripts": {
-    "test": "node --experimental-strip-types --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=../tools/js/strict-reporter.mjs --test-reporter-destination=stderr test/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [],

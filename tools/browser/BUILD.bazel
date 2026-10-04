@@ -57,6 +57,8 @@ node_test(
     env = {
         "INVENTORY": "$(rlocationpath @repo_inventory//:files.txt)",
         "LOCKS": "$(rlocationpath //datacube:pnpm-lock.yaml) $(rlocationpath //query:pnpm-lock.yaml)",
+        # the same locks as workspace paths, to hold against the inventory
+        "LOCK_PATHS": "$(rootpath //datacube:pnpm-lock.yaml) $(rootpath //query:pnpm-lock.yaml)",
         "PIN": "$(rlocationpath @chromium_pin//:pin.json)",
     },
     # external files and other packages' sources: rules_js takes them as runfiles, not copies into bazel-bin

@@ -19,8 +19,19 @@ def _check_tests():
             fail("//%s:%s is a java_test not made by junit_test (tools/junit/defs.bzl): every JVM test is a junit_test (G16)" %
                  (native.package_name(), rule["name"]))
 
+_JS_TEST_MACROS = ("node_test", "browser_test", "tsc_test")
+
+def _check_js_tests():
+    # A28 (Bazel workplan P1-23): every js_test comes from node_test (or browser_test, built on it, or the tsc_test
+    # typechecks), so none spells its own node_options or reporters.
+    for rule in native.existing_rules().values():
+        if rule["kind"] == "js_test" and rule.get("generator_function") not in _JS_TEST_MACROS:
+            fail("//%s:%s is a js_test not made by node_test (tools/js/defs.bzl): every JavaScript test is a node_test (A28)" %
+                 (native.package_name(), rule["name"]))
+
 def guards_package():
     _check_tests()
+    _check_js_tests()
 
     # every test rule of the package, manual ones included (listed explicitly, so none is filtered out): the
     # graph guards' scope, collected per package from the inventory (//tools/guards, G17)

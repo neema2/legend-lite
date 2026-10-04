@@ -151,7 +151,8 @@ _WASM_TESTS = [
 ]
 
 # node:test files, each its own node_test (tools/js/defs.bzl: types stripped, the spec and strict reporters, a
-# pinned locale and clock), from the package directory (a guardrail test walks src/ relative to it).
+# pinned locale and clock). Each finds its inputs through //tools/js:runfiles; only _SCANNERS run from the
+# package directory.
 [node_test(
     name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
     # The tests that load the WebAssembly planner compile it first: seconds on a desk (infer: 6 s), but past
@@ -171,7 +172,7 @@ _WASM_TESTS = [
     entry_point = t,
     env = _EXTRA_ENV.get(t[len("test/"):-len(".test.ts")], {}),
     wasm = t[len("test/"):-len(".test.ts")] in _WASM_TESTS,
-    # "" is rules_js's default (the output tree's root)
+    # "" is rules_js's default: the runfiles tree's main-repository directory under bazel test and run
     chdir = package_name() if t[len("test/"):-len(".test.ts")] in _SCANNERS else "",
 ) for t in _TESTS]
 

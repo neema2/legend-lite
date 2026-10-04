@@ -12,8 +12,11 @@ Every node:test file runs with the same settings, so no target spells them itsel
   * //tools/js:runfiles, through which a test finds its inputs (Bazel workplan P1-24): each input the BUILD file
     names in `env` with $(rlocationpath ...), never by `../..` arithmetic or the working directory.
 
-ONE ENTRY POINT PER TARGET (A28): each test file is its own process, which is what makes a test's global DOM
-mutation (jsdom on globalThis) safe. node_test takes exactly one `entry_point` and nothing else runs in it.
+ONE ENTRY POINT PER TARGET (A28): each test file is its own target and process, which is what makes a test's
+global DOM mutation (jsdom on globalThis) safe. js_test takes one entry point; the convention this macro carries is
+that the entry point is one test file and node_options loads no other (nothing checks what a file imports).
+Every js_test comes from node_test, browser_test (built on it) or tsc_test: guards_package refuses any other
+(tools/guards/defs.bzl).
 """
 
 load("@aspect_rules_js//js:defs.bzl", "js_test")
@@ -27,17 +30,15 @@ def node_test(name, entry_point, data = [], wasm = False, env = {}, node_options
         name: the target.
         entry_point: the one test file (A28: one entry point per target).
         data: what the test reads.
-        wasm: True to load the WebAssembly planner (//wasm:planner).
+        wasm: True to load the WebAssembly planner (//wasm:planner_dir, named in WASM_PLANNER).
         env: added over the pinned LANG/LC_ALL/TZ (a TZ lane overrides TZ here).
         node_options: added after the shared options.
         **kwargs: everything else js_test takes (size, chdir, tags, ...).
     """
-    if type(entry_point) != "string":
-        fail("node_test %s: entry_point must be ONE file (a test file is its own process, A28)" % name)
-
-    # the reporter by path from where the test runs: the package directory under `chdir` (only the source-scanning
-    # tests keep it, until P3-29), else the output tree's root, where rules_js runs a program
-    up = "/".join([".."] * len(native.package_name().split("/"))) if kwargs.get("chdir") else "."
+    # the reporter by path from where the test runs: `chdir` (only the source-scanning tests keep one, until P3-29),
+    # else the runfiles tree's main-repository directory, where rules_js runs a test
+    chdir = kwargs.get("chdir")
+    up = "/".join([".."] * len(chdir.split("/"))) if chdir else "."
     options = ["--experimental-strip-types"] + (["--experimental-wasm-exnref"] if wasm else []) + [
         "--disable-warning=ExperimentalWarning",
         "--test-reporter=spec",

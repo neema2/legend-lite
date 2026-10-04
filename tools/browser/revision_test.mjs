@@ -19,7 +19,7 @@ let bad = 0;
 // every lock in the repository is checked
 const inventoried = readFileSync(runfileFromEnv('INVENTORY'), 'utf8').split('\n')
   .filter((f) => f === 'pnpm-lock.yaml' || f.endsWith('/pnpm-lock.yaml')).sort();
-const checked = locks.map((l) => l.replace(/^_main\//, '')).sort();
+const checked = process.env.LOCK_PATHS.split(' ').filter((l) => l.length > 0).sort();
 if (JSON.stringify(inventoried) !== JSON.stringify(checked)) {
   bad += 1;
   console.log(`BAD the repository's pnpm locks ${JSON.stringify(inventoried)} are not the checked ${JSON.stringify(checked)}`);
