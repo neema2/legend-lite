@@ -8,7 +8,7 @@
 // Playwright's registry derives from the locked playwright-core's browsers.json, so a pin that
 // drifts from the lock fails at launch ("Executable doesn't exist") instead of running another
 // browser.
-import { existsSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 const pinned = process.env.PINNED_CHROMIUM;
@@ -21,11 +21,23 @@ if (pinned) {
     ?? resolve(process.cwd(), '..');
   const exe = join(runfiles, pinned);
   if (!existsSync(exe)) throw new Error(`the pinned Chromium is not in runfiles: ${exe}`);
-  process.env.PLAYWRIGHT_BROWSERS_PATH = dirname(dirname(dirname(exe)));
+  let browsers = dirname(dirname(dirname(exe)));
+  if (process.platform === 'win32') {
+    // Windows starts a process only by a path under MAX_PATH (260): CreateProcess reported a 277-character
+    // runfiles path as ENOENT (CI, 2026-10-04) though the file was there. The runfiles entry is a symlink
+    // to the archive Bazel fetched; its real path, under the output base's external/, is far shorter.
+    const tail = exe.slice(browsers.length);
+    browsers = realpathSync.native(browsers);
+    if ((browsers + tail).length >= 260) {
+      throw new Error(`the pinned Chromium's path is ${(browsers + tail).length} characters, and Windows starts`
+        + ` nothing past 259: ${browsers + tail} (a shorter --output_user_root shortens it)`);
+    }
+  }
+  process.env.PLAYWRIGHT_BROWSERS_PATH = browsers;
   // Playwright's own guard against a browser without its system libraries is a host `ldd`
   // walk keyed to Ubuntu/Debian package names; the test's own launch is the real check.
   process.env.PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS ??= '1';
-  console.error(`pinned chromium: ${exe}`);
+  console.error(`pinned chromium: ${exe} (browsers path ${browsers})`);
 } else if (process.env.TEST_SRCDIR) {
   throw new Error('a browser test without PINNED_CHROMIUM: use browser_test (//tools/browser:defs.bzl)');
 }
