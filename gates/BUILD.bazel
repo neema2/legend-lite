@@ -1,0 +1,48 @@
+# THE LOCAL GATE (Bazel workplan P0-14, decision D17's fast loop): what a session runs before it pushes
+# to main, after rebasing onto the latest origin/main: `bazel test //gates:local`. Light and cached:
+# every CI lane except the heavy ones, which stay CI-only under the desk's two-heavy-jobs cap (the
+# 9 GB PCT lanes, the two corpus lanes, the stress corpus, parser equivalence, Channel B, the native
+# image, the browser lane) and `bazel build //...`. A change under a .github/CODEOWNERS path goes through
+# a PR instead (AGENTS.md, "Pushing to main"). CI names //tools/deps:all and //wasm:all by wildcard and
+# this suite names their tests: a test added there is added here too, until P5-01 makes the CI lanes
+# suites in this package.
+test_suite(
+    name = "local",
+    tests = [
+        # checks
+        "//:generated",
+        "//core:census",
+        "//core:guardrails",
+        "//tools/deps:core_closure_test",
+        "//tools/deps:core_layering_test",
+        "//tools/deps:one_release",
+        "//tools/deps:pools_list_test",
+        "//tools/deps:product_closure_test",
+        "//tools/deps:pools_are_disjoint",
+        "//tools/deps:warehouse_closure_test",
+        "//tools/browser:revision_test",
+        "//tools/bump:bump_test",
+        "//tools/java_run:pins_test",
+        "//tools/junit:pins_test",
+        "//tools/junit:runner_test",
+        "//tools/python:lock_matches_requirements",
+        # gate 1, gate 3
+        "//core:core_tests",
+        "//spec:spec_tests",
+        # the server's Postgres arm: one query against the embedded Postgres 16
+        "//core:postgres_arm_test",
+        # app
+        "//datacube:tests",
+        "//datacube:verify_app_test",
+        "//query-store:lite_test",
+        "//wasm:differential_test",
+        "//wasm:zone_test",
+        "//warehouse:tests",
+        # misc
+        "//json:tests",
+        "//pure-protocol:twins_test",
+        "//query-store:local_test",
+        "//query-store:share_test",
+        "//query:tests",
+    ],
+)

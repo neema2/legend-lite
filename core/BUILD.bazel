@@ -3,23 +3,26 @@
 # on 2026-09-26 (execution plan step 0c) it became one target per package group
 # — see "CORE AS TARGETS" below — with `:core` kept as the umbrella consumers
 # depend on. Bazel now refuses a back-edge at compile time.
-load("@rules_java//java:defs.bzl", "java_binary", "java_library")
-load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
+
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 
-package(default_visibility = ["//visibility:public"])
+# PRIVATE BY DEFAULT (Bazel workplan P1-20): a target is visible outside core only where it says to whom.
+package(default_visibility = ["//visibility:private"])
 
 # core's sources, exported for spec's generator parity checks (they compare the
 # committed generated files — prelude.pure, Pure.java's signature text — against
 # what upstream says they should be).
 filegroup(
     name = "srcs",
-    srcs = glob(["src/**"]),
+    srcs = glob(["src/**"], exclude = ["**/*.md"]),
+    visibility = ["//parser-equivalence:__pkg__", "//spec:__pkg__"],
 )
 
-# THE NULL GATE: NullAway's plugin and flags live in //tools/nullaway, shared with every
-# other Java module.
+# THE NULL GATE: every library is a legend_java_library (//tools/java, Bazel workplan P1-20), which adds
+# NullAway's plugin and flags (//tools/nullaway) unless the target says `nullaway = False`.
 
 # CORE AS TARGETS (execution plan step 0c, 2026-09-26). One java_library per
 # package group, each naming its direct dependencies, so a reference from a
@@ -31,32 +34,27 @@ filegroup(
 # and splits at step G). `:core` below is the umbrella every consumer keeps
 # depending on; it exports all of these. Deps are listed low to high.
 
-# every target below: NULLAWAY_OPTS, the plugin, and PRIVATE visibility —
-# consumers depend on the umbrella `:core` until they choose a narrower target
-# deliberately. (BUILD files allow no **kwargs, so the three lines repeat.)
-_PRIVATE = ["//visibility:private"]
+# every target below is private (legend_java_library's default): consumers depend on the umbrella `:core`
+# until they choose a narrower target deliberately.
 
-java_library(name = "spi", srcs = glob(["src/main/java/com/legend/spi/*.java"]), javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
-java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache/*.java"]), deps = ["//base"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
-java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = ["//base"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
-java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
-java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
-java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
-java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
-java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
-java_library(
+legend_java_library(name = "spi", srcs = glob(["src/main/java/com/legend/spi/*.java"]))
+legend_java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache/*.java"]), deps = ["//base"])
+legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = ["//base"])
+legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
+legend_java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"])
+legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"])
+legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"])
+legend_java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"])
+legend_java_library(
     name = "parser",
     srcs = glob(["src/main/java/com/legend/parser/**/*.java"]),
     deps = ["//base", ":error", ":lexer", ":model", ":protocol", ":spi", ":values"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
 
 # the platform's declarations, generated from the pinned upstream; the four
 # resources (prelude, handler surface, imports, membership) ride here because
 # this is the code that loads them
-java_library(
+legend_java_library(
     name = "builtin",
     srcs = glob(["src/main/java/com/legend/builtin/*.java"]),
     # native-claims.tsv is generated here under the drift test but READ only by
@@ -66,124 +64,82 @@ java_library(
         exclude = ["src/main/resources/com/legend/builtin/native-claims.tsv"],
     ),
     deps = ["//base", ":error", ":model", ":parser", ":protocol"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(name = "platform", srcs = glob(["src/main/java/com/legend/platform/*.java"]), deps = ["//base", ":builtin", ":model"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
-java_library(
+legend_java_library(name = "platform", srcs = glob(["src/main/java/com/legend/platform/*.java"]), deps = ["//base", ":builtin", ":model"])
+legend_java_library(
     name = "compiler_element_type",
     srcs = glob(["src/main/java/com/legend/compiler/element/type/*.java"]),
     deps = ["//base", ":builtin", ":model", ":platform", ":protocol", ":sql"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "sql_dialect",
     srcs = glob(["src/main/java/com/legend/sql/dialect/*.java"]),
     deps = ["//base", ":sql"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
 
 # THE plan-side owner of every per-database decision (C3 of
 # docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a declared DatabaseType -> its dialect,
 # legend-engine's text for it, its plan facts. No JDBC: the browser planner carries it.
-java_library(
+legend_java_library(
     name = "database",
     srcs = glob(["src/main/java/com/legend/database/*.java"]),
     deps = ["//base", ":error", ":model", ":sql_dialect"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
 
 # the compiler quartet: resolver-of-names, element compiler, typer, typed tree
-java_library(
+legend_java_library(
     name = "compiler",
     srcs = glob(["src/main/java/com/legend/compiler/**/*.java"], exclude = ["src/main/java/com/legend/compiler/element/type/*.java"]),
     deps = ["//base", ":builtin", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "normalizer",
     srcs = glob(["src/main/java/com/legend/normalizer/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "lineage",
     srcs = glob(["src/main/java/com/legend/lineage/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "validation",
     srcs = glob(["src/main/java/com/legend/validation/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":protocol"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "lowering",
     srcs = glob(["src/main/java/com/legend/lowering/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "plan",
     srcs = glob(["src/main/java/com/legend/plan/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":database", ":error", ":lineage", ":model", ":sql"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "resolver",
     srcs = glob(["src/main/java/com/legend/resolver/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":values"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
     deps = ["//base", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":sql_dialect", ":values"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "probe",
     srcs = glob(["src/main/java/com/legend/probe/*.java"]),
     deps = ["//base", ":builtin", ":lowering", ":model", ":platform"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "testdatagen",
     srcs = glob(["src/main/java/com/legend/testdatagen/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":sql_dialect", ":values"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
 
 # the root package: the driver (Compiler, StatementExecutor, the judges)
-java_library(
+legend_java_library(
     name = "driver",
     srcs = glob(["src/main/java/com/legend/*.java"]),
     deps = [
@@ -191,26 +147,17 @@ java_library(
         ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
         ":protocol", ":resolver", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":lexer", ":model", ":parser"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
-java_library(
+legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":lexer", ":model", ":parser"])
+legend_java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
     deps = ["//base", ":compiler", ":driver", ":error", ":exec", ":model", ":protocol", ":sql", ":values"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
-java_library(
+legend_java_library(
     name = "server_lib",
     srcs = glob(["src/main/java/com/legend/server/**/*.java"]),
     deps = ["//base", "//json", ":cache", ":compiler_element_type", ":driver", ":error", ":exec", ":lowering", ":model", ":parser", ":plan", ":protocol", ":sql_dialect"],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
-    visibility = _PRIVATE,
 )
 
 _CORE_TARGETS = [
@@ -223,9 +170,10 @@ _CORE_TARGETS = [
 # THE UMBRELLA: what every consumer depends on today and keeps depending on.
 # It compiles nothing; it exports the targets above. A consumer that needs only
 # the front end may later depend on `:parser` and stop carrying exec and server.
-java_library(
+legend_java_library(
     name = "core",
     exports = _CORE_TARGETS,
+    visibility = ["//datacube:__pkg__", "//parser-equivalence:__pkg__", "//pct:__pkg__", "//spec:__pkg__", "//tools/engine-runner:__pkg__", "//wasm:__pkg__"],
 )
 
 # THE JDBC DRIVERS, as their own target. core never compiles against a driver: it
@@ -234,23 +182,23 @@ java_library(
 # core — a test, a server, a CLI — not a dependency of the product. A target that
 # executes queries depends on this; one that only plans (a WASM or native planner)
 # does not, and then carries no external jar at all.
-java_library(
+legend_java_library(
     name = "drivers",
     runtime_deps = [
         ":duckdb_load",
         "@maven_core//:com_h2database_h2",
         "@maven_core//:org_duckdb_duckdb_jdbc",
         "@maven_core//:org_xerial_sqlite_jdbc",
+        "@maven_core//:org_postgresql_postgresql",
     ],
+    visibility = ["//datacube:__pkg__", "//pct:__pkg__", "//spec:__pkg__"],
 )
 
 # DuckDB's bulk load (its Appender) behind core's BulkLoad seam, found by
 # ServiceLoader: it rides with the drivers, so core still compiles against none.
-java_library(
+legend_java_library(
     name = "duckdb_load",
     srcs = glob(["src/main/duckdb/**/*.java"]),
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     resources = glob(["src/main/duckdb/META-INF/**"]),
     resource_strip_prefix = "core/src/main/duckdb",
     deps = [
@@ -262,20 +210,22 @@ java_library(
 # THE PRODUCT, runnable: the HTTP server (LSP, query execution, SQL, diagrams) with
 # the JDBC drivers. `bazel run //core:server` (port 8080, or $PORT);
 # `bazel build //core:server_deploy.jar` is the one self-contained jar to ship.
-java_binary(
+legend_java_binary(
     name = "server",
     main_class = "com.legend.server.LegendHttpServer",
     runtime_deps = [
         ":core",
         ":drivers",
     ],
+    visibility = ["//query:__pkg__", "//query-store:__pkg__"],
 )
 
 # every file a core test reads by path, declared, so it exists in runfiles and
 # nothing is read by accident. Behaviour tests read core's own tree; the stress
 # lanes also read the corpus's linked projects; the CENSUS lane (below) reads
 # every module it walks.
-_CORE_READS = glob(["src/**"])
+# (no .md: prose is never a test input, so CI's docs-only paths-ignore stays true)
+_CORE_READS = glob(["src/**"], exclude = ["**/*.md"])
 
 _STRESS_READS = _CORE_READS + ["//projects:srcs"]
 
@@ -287,27 +237,35 @@ _CENSUS_READS = _CORE_READS + [
 ]
 
 # core's tests, compiled ONCE; every lane below runs from this library.
-java_library(
+legend_java_library(
     name = "core_tests_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     testonly = True,
-    srcs = glob(["src/test/java/**/*.java"]),
+    # PostgresArmTest is :postgres_arm_test's alone: it needs the embedded Postgres in its runfiles
+    srcs = glob(
+        ["src/test/java/**/*.java"],
+        exclude = ["src/test/java/com/legend/server/PostgresArmTest.java"],
+    ),
     resources = glob(
         ["src/test/resources/**"],
-        # the shadow binding rides :shadow_binding, once
-        exclude = ["src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe"],
+        # the shadow binding rides :shadow_binding, once; prose is never a test input
+        exclude = [
+            "**/*.md",
+            "src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe",
+        ],
     ),
     runtime_deps = [":shadow_binding"],
     deps = [
         ":core",
         "//testing",
         "@maven_test//:com_tngtech_archunit_archunit",
+        # H2VersionPinTest reads org.h2.engine.Constants.VERSION
         "@maven_core//:com_h2database_h2",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
-        "@maven_core//:org_duckdb_duckdb_jdbc",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
-        "@maven_core//:org_xerial_sqlite_jdbc",
     ],
 )
 
@@ -315,7 +273,7 @@ java_library(
 # the ServiceLoader file that makes com.legend.platform.Shadow the DecisionProbe. A
 # test-lane resource on the suites' libraries — never the product jar's, so a planner
 # build (//wasm) carries no probe and its loader is empty. Deleted at step 4.
-java_library(
+legend_java_library(
     name = "shadow_binding",
     testonly = True,
     resources = ["src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe"],
@@ -328,7 +286,7 @@ java_library(
 # package.
 junit_test(
     name = "core_tests",
-    tags = ["resources:memory:1536"],
+    memory_mb = 1024,
     size = "enormous",
     data = _CORE_READS,
     select = ["--select-package=com.legend"],
@@ -342,6 +300,31 @@ junit_test(
         ":core_tests_lib",
         ":drivers",
     ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE SERVER'S POSTGRES ARM (Bazel workplan P0-08): a type: Postgres connection resolves through
+# ConnectionResolver and the product's own driver set (:drivers), against the Postgres 16 that
+# gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class, one query.
+junit_test(
+    name = "postgres_arm_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/server/PostgresArmTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.server.PostgresArmTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
 )
 
 # THE SOURCE CHECKS: tests whose subject is the code, not what it does — the
@@ -353,8 +336,15 @@ junit_test(
 # other modules too — which is why only IT declares them.
 junit_test(
     name = "guardrails",
+    memory_mb = 1280,
     size = "medium",
     data = _CORE_READS,
+    # the two single files a guard reads, by runfiles path (Bazel workplan P1-05); the guards that walk
+    # source trees read declared file lists in P3-27
+    jvm_flags = [
+        "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
+        "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/sql/dialect/DuckDb.java)",
+    ],
     select = [
         "--select-package=com.legend",
         "--include-tag=guardrail",
@@ -364,10 +354,12 @@ junit_test(
         ":core_tests_lib",
         ":duckdb_load",
     ],
+    visibility = ["//gates:__pkg__"],
 )
 
 junit_test(
     name = "census",
+    memory_mb = 1024,
     size = "medium",
     data = _CENSUS_READS,
     select = [
@@ -375,6 +367,7 @@ junit_test(
         "--include-tag=census",
     ],
     runtime_deps = [":core_tests_lib"],
+    visibility = ["//gates:__pkg__"],
 )
 
 # THE SCALE TESTS: generated models far past the 1K baseline (StressTest, in
@@ -391,8 +384,20 @@ _SCALE = [
     "ProfileBuildCost",
 ]
 
+# memory_mb per class (Bazel workplan P1-21): the live heap peak measured 2026-10-04 plus half again
+# (at least 512 MB), rounded up to 256 MB
+_SCALE_MEMORY_MB = {
+    "StressTest10K": 768,
+    "StressTest100K": 2304,
+    "StressTestDense": 768,
+    "StressTestComplexQueries": 768,
+    "StressTestChaotic": 6656,
+    "ProfileBuildCost": 3584,
+}
+
 [junit_test(
     name = "scale_" + c.lower(),
+    memory_mb = _SCALE_MEMORY_MB[c],
     size = "enormous",
     data = _STRESS_READS,
     select = [
@@ -411,7 +416,7 @@ _SCALE = [
 # lane: the stress group is what gate 1 leaves out.
 junit_test(
     name = "stress_suites",
-    tags = ["resources:memory:2048"],
+    memory_mb = 768,
     size = "enormous",
     data = _STRESS_READS,
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
@@ -437,28 +442,33 @@ _GENERATED = {
 
 # the committed copies are also generator INPUTS (a generator splices its part
 # in), as is the hand-owned membership list natives reads
-exports_files(list(_GENERATED.keys()) + [
-    "src/main/resources/com/legend/builtin/native-membership.tsv",
-])
+exports_files(
+    list(_GENERATED.keys()) + [
+        "src/main/resources/com/legend/builtin/native-membership.tsv",
+    ],
+    visibility = ["//spec:__pkg__"],
+)
 
 # core's main Java sources as TEXT — the prelude generator reads what the
 # platform's own code names
 filegroup(
     name = "main_java",
     srcs = glob(["src/main/java/**"]),
+    visibility = ["//spec:__pkg__"],
 )
 
 write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThis file is generated from the pinned upstream release — regenerate: bazel run //:update_generated",
     files = _GENERATED,
+    visibility = ["//:__pkg__"],
 )
 
 # CORE AS THE GENERATORS REWRITE IT: the generated Java and prelude in place of
 # the committed copies. Only the claims generator runs on it — the one generator
 # that reads the COMPILED registries the others rewrite. At a fixpoint (every
 # committed file current) it is core, byte for byte.
-java_library(
+legend_java_library(
     name = "core_next",
     srcs = glob(
         ["src/main/java/**/*.java"],
@@ -477,8 +487,6 @@ java_library(
         "//base",
         "//json",
     ],
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     resources = glob(
         ["src/main/resources/**"],
         exclude = ["src/main/resources/com/legend/builtin/prelude.pure"],
@@ -487,7 +495,7 @@ java_library(
     runtime_deps = [":core_next_prelude"],
 )
 
-java_library(
+legend_java_library(
     name = "core_next_prelude",
     resource_strip_prefix = "spec/generated",
     resources = ["//spec:gen_prelude"],

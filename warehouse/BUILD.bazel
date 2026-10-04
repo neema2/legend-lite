@@ -1,11 +1,25 @@
 # The warehouse: a DuckDB server behind the HTTP SQL API
 # (docs/SERVER_PROGRAM_2026_09_26.md, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md).
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@rules_graalvm//graalvm:defs.bzl", "native_image")
-load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//tools/runfiles:defs.bzl", "executable_of")
+load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
-load(":defs.bzl", "NOT_ON_WINDOWS_ARM64", "POSTGRES_EXTENSION", "jar_entry", "warehouse_run")
-load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
+load("//tools/platforms:defs.bzl", "compatible_with", "platform_select")
+load(":defs.bzl", "POSTGRES_EXTENSION", "POSTGRES_EXTENSION_COMPATIBLE", "jar_entry", "warehouse_run")
+load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+
+# DuckDB's native library for this platform, out of its JDBC jar (//tools/platforms; Bazel workplan P1-19)
+_DUCKDB_LIBRARY, _DUCKDB_LIBRARY_COMPATIBLE = platform_select({
+    "macos_arm64": "libduckdb_java.so_osx_universal",
+    "macos_x86_64": "libduckdb_java.so_osx_universal",
+    "linux_x86_64": "libduckdb_java.so_linux_amd64",
+    "linux_aarch64": "libduckdb_java.so_linux_arm64",
+    "windows_x86_64": "libduckdb_java.so_windows_amd64",
+}, "native library in DuckDB's JDBC jar")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -13,11 +27,9 @@ package(default_visibility = ["//visibility:public"])
 # compile into the WebAssembly module beside the planner (program ruling 7), so
 # it names no java.sql, no java.net, no JDK server. It depends on //base and //json only:
 # nothing in the warehouse reaches core (//tools/deps:warehouse_closure_test).
-java_library(
+legend_java_library(
     name = "sqlapi",
     srcs = glob(["src/main/java/com/legend/warehouse/sqlapi/**/*.java"]),
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     deps = [
         "//base",
         "//json",
@@ -27,11 +39,9 @@ java_library(
 # The JVM client: the java.net.http driver for a binding, and a JDBC driver over
 # it (jdbc:warehouse:http://host:port/catalog) whose values are the SAME Java
 # objects DuckDB's own driver returns -- legend-lite's executor runs unchanged.
-java_library(
+legend_java_library(
     name = "client",
     srcs = glob(["src/main/java/com/legend/warehouse/client/**/*.java"]),
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     resources = ["src/main/resources/META-INF/services/java.sql.Driver"],
     resource_strip_prefix = "warehouse/src/main/resources",
     deps = [
@@ -39,22 +49,22 @@ java_library(
         "//base",
         "//json",
     ],
+    visibility = ["//spec:__pkg__"],
 )
 
 # The process: the JDK's HTTP server, DuckDB 1.5.5.1 (its own Maven set).
-java_library(
+legend_java_library(
     name = "server_lib",
     srcs = glob(["src/main/java/com/legend/warehouse/server/**/*.java"]),
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     deps = [
+        "@rules_java//java/runfiles",
         ":sqlapi",
         "//base",
         "//json",
     ],
-    # DuckDB's native library, for every platform, rides inside its JDBC jar: the server calls DuckDB's
-    # C API through java.lang.foreign and uses no JDBC class (docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md).
-    runtime_deps = ["@maven_warehouse//:org_duckdb_duckdb_jdbc"],
+    # No DuckDB jar here: the server calls DuckDB's C API through java.lang.foreign and uses no JDBC class
+    # (docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md), and its native library is :duckdb_library, never extracted
+    # from the jar at run time (Bazel workplan P1-16).
     # What a native image of the server needs to know ahead of time (W1e): its FFM call shapes and
     # upcalls, the JDK's HTTP server and crypto providers. Recorded by GraalVM's agent under the
     # warehouse test suite; native-image reads it from the jar.
@@ -63,14 +73,22 @@ java_library(
 )
 
 # `bazel run //warehouse:server -- --user alice:secret --data /tmp/wh`
-java_binary(
+legend_java_binary(
     name = "server",
+    # DuckDB's library and the postgres extension, found in the server's runfiles by their paths
+    # (<repo>/warehouse/<library>, <repo>/warehouse/duckdb_extensions/...; ServerRunfiles, Bazel workplan P1-16)
+    data = [
+        ":duckdb_extensions",
+        ":duckdb_library",
+    ],
     main_class = "com.legend.warehouse.server.WarehouseServer",
     runtime_deps = [":server_lib"],
 )
 
-java_library(
+legend_java_library(
     name = "tests_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     testonly = True,
     # launcher/ is :launcher_test's alone: it needs the launcher and a Postgres in its runfiles
     srcs = glob(
@@ -83,16 +101,49 @@ java_library(
         ":sqlapi",
         "//base",
         "//json",
+        "//testing",
         "@maven_warehouse//:org_duckdb_duckdb_jdbc",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
 
+# THE ARROW CHECK'S READER (Bazel workplan P1-08): pyarrow, the standard Arrow reader, compares the warehouse's
+# Arrow chunks with its JSON rows. A py_binary on the hermetic interpreter and the locked pip hub
+# (//tools/python), started from a bash stub (.bazelrc bootstrap_impl): never the host's python3, never a skip.
+py_binary(
+    name = "arrow_matches_json",
+    testonly = True,
+    srcs = ["src/test/python/arrow_matches_json.py"],
+    # the platforms with a cp312 pyarrow wheel: skipped elsewhere (Windows on Arm, for one), never a source build
+    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64", "windows_x86_64"]),
+    deps = ["@pypi//pyarrow"],
+)
+
+executable_of(
+    name = "arrow_matches_json_executable",
+    testonly = True,
+    binary = ":arrow_matches_json",
+)
+
+_ARROW_COMPARATOR = "-Dwarehouse.arrow.comparator=$(rlocationpath :arrow_matches_json_executable)"
+
+# DuckDB's library, for the in-process servers and DuckLibrary's own tests (Bazel workplan P1-16)
+_DUCKDB_LIBRARY_FLAG = "-Dwarehouse.duckdb.library=$(rlocationpath :duckdb_library)"
+
 junit_test(
     name = "tests",
+    memory_mb = 768,
     size = "medium",
-    data = ["src/test/python/arrow_matches_json.py"],
+    data = [
+        ":arrow_matches_json",
+        ":arrow_matches_json_executable",
+        ":duckdb_library",
+    ],
+    jvm_flags = [
+        _ARROW_COMPARATOR,
+        _DUCKDB_LIBRARY_FLAG,
+    ],
     select = ["--select-package=com.legend.warehouse"],
     runtime_deps = [":tests_lib"],
 )
@@ -109,8 +160,20 @@ native_image(
         "--link-at-build-time",
         "--enable-native-access=ALL-UNNAMED",
     ],
+    # the host C toolchain, checked before native-image runs (macOS: the CLT; Windows: MSVC; P1-10, P1-11)
+    data = ["@host_cc//:present"],
     main_class = "com.legend.warehouse.server.WarehouseServer",
-    target_compatible_with = NOT_ON_WINDOWS_ARM64,
+    # zlib from source (Bazel workplan P1-09; the rule uses it on Linux only): -lz finds this static
+    # libz.a, never a host zlib1g-dev.
+    static_zlib = "@zlib",
+    # link with LLVM's lld, beside the hermetic clang, never the host's ld. Linux only: macOS keeps Apple's
+    # Command Line Tools (D1 revised) and Windows MSVC (D5), both checked by @host_cc.
+    c_compiler_option = select({
+        "@platforms//os:linux": ["-fuse-ld=lld"],
+        "//conditions:default": [],
+    }),
+    # the platforms DuckDB's JDBC jar carries a native library for: the image loads it
+    target_compatible_with = _DUCKDB_LIBRARY_COMPATIBLE,
     deps = [":server_lib"],
 )
 
@@ -120,8 +183,17 @@ native_image(
 #     --test_env=LEGENDLITE_PG_EXTENSIONS=/abs/dir/holding/postgres_scanner.duckdb_extension
 junit_test(
     name = "postgres_live",
+    memory_mb = 768,
     size = "medium",
-    data = ["src/test/python/arrow_matches_json.py"],
+    data = [
+        ":arrow_matches_json",
+        ":arrow_matches_json_executable",
+        ":duckdb_library",
+    ],
+    jvm_flags = [
+        _ARROW_COMPARATOR,
+        _DUCKDB_LIBRARY_FLAG,
+    ],
     select = ["--select-class=com.legend.warehouse.WarehousePostgresLiveTest"],
     tags = ["manual"],
     runtime_deps = [":tests_lib"],
@@ -130,79 +202,54 @@ junit_test(
 # The same, judging the native binary.
 junit_test(
     name = "postgres_live_native",
+    memory_mb = 768,
     size = "medium",
+    jvm_flags = [
+        _ARROW_COMPARATOR,
+        _DUCKDB_LIBRARY_FLAG,
+    ],
     data = [
-        "src/test/python/arrow_matches_json.py",
+        ":arrow_matches_json",
+        ":arrow_matches_json_executable",
         ":duckdb_library",
         ":server_native",
     ],
     env = {
-        "WAREHOUSE_BINARY": "$(rootpath :server_native)",
-        "WAREHOUSE_DUCKDB_LIBRARY": "$(rootpath :duckdb_library)",
+        "WAREHOUSE_BINARY": "$(rlocationpath :server_native)",
+        "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath :duckdb_library)",
     },
     select = ["--select-class=com.legend.warehouse.WarehousePostgresLiveTest"],
     tags = ["manual"],
     runtime_deps = [":tests_lib"],
 )
 
-config_setting(
-    name = "linux_x86_64",
-    constraint_values = [
-        "@platforms//os:linux",
-        "@platforms//cpu:x86_64",
-    ],
-)
-
-config_setting(
-    name = "linux_aarch64",
-    constraint_values = [
-        "@platforms//os:linux",
-        "@platforms//cpu:aarch64",
-    ],
-)
-
-config_setting(
-    name = "windows_x86_64",
-    constraint_values = [
-        "@platforms//os:windows",
-        "@platforms//cpu:x86_64",
-    ],
-)
-
-# Windows on ARM: no native targets there (NOT_ON_WINDOWS_ARM64, warehouse/defs.bzl).
-config_setting(
-    name = "windows_aarch64",
-    constraint_values = [
-        "@platforms//os:windows",
-        "@platforms//cpu:aarch64",
-    ],
-)
-
 # DuckDB's native library for this platform, out of its JDBC jar: what the image loads.
+# DO NOT RENAME: the server finds this output in its runfiles by its path (ServerRunfiles, Bazel workplan P1-16).
 jar_entry(
     name = "duckdb_library",
-    entry = select({
-        "@platforms//os:macos": "libduckdb_java.so_osx_universal",
-        ":linux_x86_64": "libduckdb_java.so_linux_amd64",
-        ":linux_aarch64": "libduckdb_java.so_linux_arm64",
-        ":windows_x86_64": "libduckdb_java.so_windows_amd64",
-    }),
+    entry = _DUCKDB_LIBRARY,
     jar = "@maven_warehouse//:org_duckdb_duckdb_jdbc",
-    target_compatible_with = NOT_ON_WINDOWS_ARM64,
+    target_compatible_with = _DUCKDB_LIBRARY_COMPATIBLE,
 )
 
 # The same suite, judging the native binary instead of an in-process server (TestServer).
 junit_test(
     name = "tests_native",
+    memory_mb = 768,
     size = "medium",
+    jvm_flags = [
+        _ARROW_COMPARATOR,
+        _DUCKDB_LIBRARY_FLAG,
+    ],
     data = [
-        "src/test/python/arrow_matches_json.py",
+        ":arrow_matches_json",
+        ":arrow_matches_json_executable",
         ":duckdb_library",
         ":server_native",
     ],
     env = {
-        "WAREHOUSE_BINARY": "$(rootpath :server_native)",
-        "WAREHOUSE_DUCKDB_LIBRARY": "$(rootpath :duckdb_library)",
+        "WAREHOUSE_BINARY": "$(rlocationpath :server_native)",
+        "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath :duckdb_library)",
     },
     select = ["--select-package=com.legend.warehouse"],
     runtime_deps = [":tests_lib"],
@@ -217,7 +264,6 @@ junit_test(
 warehouse_run(
     name = "serve",
     library = ":duckdb_library",
-    postgres_extension_gz = POSTGRES_EXTENSION,
     server = ":server_native",
 )
 
@@ -234,7 +280,6 @@ warehouse_run(
     name = "launcher_test_serve_site",
     args_before = ["--single-user"],
     library = ":duckdb_library",
-    postgres_extension_gz = POSTGRES_EXTENSION,
     server = ":server_native",
     site = ":launcher_test_site",
     testonly = True,
@@ -249,6 +294,9 @@ warehouse_run(
 # where Bazel puts it, so this test does not judge that flag on its own.
 junit_test(
     name = "launcher_test",
+    # starts the embedded Postgres: skipped where no build is pinned (P1-15)
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    memory_mb = 768,
     size = "medium",
     srcs = ["src/test/java/com/legend/warehouse/launcher/LauncherTest.java"],
     data = [
@@ -258,8 +306,8 @@ junit_test(
         "@embedded_postgres//:postgres",
     ],
     env = {
-        "WAREHOUSE_SERVE": "$(rootpath :serve)",
-        "WAREHOUSE_SERVE_SITE": "$(rootpath :launcher_test_serve_site)",
+        "WAREHOUSE_SERVE": "$(rlocationpath :serve)",
+        "WAREHOUSE_SERVE_SITE": "$(rlocationpath :launcher_test_serve_site)",
     },
     jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
     select = ["--select-class=com.legend.warehouse.launcher.LauncherTest"],
@@ -270,18 +318,28 @@ junit_test(
     ],
 )
 
-config_setting(
-    name = "macos_arm64",
-    constraint_values = [
-        "@platforms//os:macos",
-        "@platforms//cpu:aarch64",
-    ],
+# DuckDB's postgres extension, gunzipped by a Java action (Bazel workplan P1-17): no shell, no host gzip. Bazel's own
+# fetch-time unpacking of a .gz (http_archive) would be simpler, but Bazel 9.2 sets the unpacked file's modification
+# time 1000x too far in the future (GzFunction multiplies milliseconds by 1000), which Windows refuses: the fetch
+# fails "(Permission denied)" (throwaway CI run 37224856941, 2026-10-04). Revisit once a Bazel release fixes it.
+# warehouse_run's launchers copy this one file into their extension directories.
+alias(
+    name = "duckdb_extension_gz",
+    actual = POSTGRES_EXTENSION,
+    target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
 )
 
-config_setting(
-    name = "macos_x86_64",
-    constraint_values = [
-        "@platforms//os:macos",
-        "@platforms//cpu:x86_64",
+# DO NOT RENAME: the server finds this output in its runfiles by its path (ServerRunfiles, Bazel workplan P1-16).
+java_run(
+    name = "duckdb_extensions",
+    srcs = [":duckdb_extension_gz"],
+    outs = ["duckdb_extensions/postgres_scanner.duckdb_extension"],
+    arguments = [
+        "$(execpath :duckdb_extension_gz)",
+        "{OUT}",
     ],
+    main_class = "com.legend.tools.gunzip.Gunzip",
+    mnemonic = "GunzipDuckdbExtension",
+    target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
+    deps = ["//tools/gunzip"],
 )

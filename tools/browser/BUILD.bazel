@@ -1,0 +1,58 @@
+# THE PINNED BROWSER (Bazel workplan P1-14, spike S4): this platform's chromium-headless-shell, fetched by
+# Bazel (tools/browser/extensions.bzl, pinned in MODULE.bazel), and browser_test (defs.bzl), which runs a
+# Playwright harness as a hermetic test against it.
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+load("//tools/platforms:defs.bzl", "platform_select")
+load(":defs.bzl", "CHROMIUM_COMPATIBLE", "CHROMIUM_PLATFORMS")
+
+package(default_visibility = ["//visibility:public"])
+
+_NO_MATCH_WHAT = "pinned chromium-headless-shell (Chrome for Testing builds mac-arm64, mac-x64, linux64, linux-arm64 and win64; tools/browser/extensions.bzl)"
+
+_SHELL_FILES, _ = platform_select(
+    {p: "@chromium_headless_shell_%s//:files" % c for p, c in CHROMIUM_PLATFORMS.items()},
+    _NO_MATCH_WHAT,
+)
+
+_SHELL_EXECUTABLE, _ = platform_select(
+    {p: "@chromium_headless_shell_%s//:executable" % c for p, c in CHROMIUM_PLATFORMS.items()},
+    _NO_MATCH_WHAT,
+)
+
+# every file of the shell (its .pak, ICU data and, on Linux, its bundled libs)
+alias(
+    name = "chromium_headless_shell",
+    actual = _SHELL_FILES,
+    target_compatible_with = CHROMIUM_COMPATIBLE,
+)
+
+# the executable alone: its rlocation is what pinned-chromium.mjs resolves
+alias(
+    name = "chromium_headless_shell_executable",
+    actual = _SHELL_EXECUTABLE,
+    target_compatible_with = CHROMIUM_COMPATIBLE,
+)
+
+js_library(
+    name = "pinned_chromium",
+    srcs = ["pinned-chromium.mjs"],
+)
+
+# Every locked Playwright expects the pinned revision and version: a Playwright bump that moves either fails
+# here, without launching or downloading anything (it reads the pin, @chromium_pin//:pin.json). A new lock
+# with Playwright is added to LOCKS and data.
+js_test(
+    name = "revision_test",
+    data = [
+        "//datacube:node_modules/playwright",
+        "//query:node_modules/playwright",
+        "@chromium_pin//:pin.json",
+    ],
+    entry_point = "revision_test.mjs",
+    env = {
+        "LOCKS": "datacube query",
+        "PIN": "$(rlocationpath @chromium_pin//:pin.json)",
+    },
+    # an external file: rules_js takes it as a runfile, not a copy into bazel-bin
+    no_copy_to_bin = ["@chromium_pin//:pin.json"],
+)

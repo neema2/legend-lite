@@ -37,7 +37,8 @@ published with the Linux build).
    A2), and the Windows native build is owed (`WAREHOUSE_W1_DESIGN_2026_09_26.md`, `gates-run.yml`).
    GraalVM 25 supports FFM downcalls and upcalls on Windows x64, which is how the server calls DuckDB.
    rules_graalvm 0.12.0 already hands MSVC's environment to `native-image`; no new rule, no patch.
-   *Cost:* Visual Studio 2022 Build Tools on every Windows desk, as a C toolchain is on macOS and Linux;
+   *Cost:* Visual Studio 2022 Build Tools on every Windows desk, as the Command Line Tools are on macOS (Linux
+   uses a Bazel-fetched LLVM since 2026-10-04, P1-09);
    the hosted `windows-2022` runners carry Visual Studio 2022. *Measured:* a native image built under
    Bazel with Build Tools 17.14 (MSVC 14.44) in 15 s (a probe program).
 
@@ -69,14 +70,15 @@ published with the Linux build).
 ### 1. Toolchain and targets
 
 - **Windows x64 only.** DuckDB's jar carries no Windows ARM64 library. On Windows ARM64 the native
-  targets are incompatible (`NOT_ON_WINDOWS_ARM64` on `server_native`, `duckdb_library` and
-  `warehouse_run`'s targets; a `windows_aarch64` `config_setting`), so `bazel build //...` skips them
-  there instead of failing analysis on a `select` with no arm for it (added in review, 2026-10-03).
+  targets are incompatible, so `bazel build //...` skips them there instead of failing analysis on a
+  `select` with no arm for it (added in review, 2026-10-03). Since 2026-10-04 (Bazel workplan P1-19) every
+  such select and its compatibility come from `//tools/platforms` (`platform_select`), which lists the
+  platforms each native piece supports.
 - `//warehouse:server_native` drops `NOT_ON_WINDOWS`; on Windows it is an `.exe`.
 - `//warehouse:duckdb_library` gains a `windows_x86_64` arm (a new `config_setting` beside
   `linux_x86_64`) naming `libduckdb_java.so_windows_amd64`, out of the same pinned jar.
 - `MODULE.bazel` pins `windows_amd64` in the `duckdb_postgres_extension_*` comprehension, by its
-  sha256 like the four others; `POSTGRES_EXTENSION` selects it for `//warehouse:windows_x86_64`.
+  sha256 like the four others; `POSTGRES_EXTENSION` selects it for `windows_x86_64` (`//tools/platforms`).
 - Every Windows exclusion listed above is removed; each existed only for want of the native image.
 - `MODULE.bazel` adds `bazel_dep(name = "hermetic_launcher", version = "0.0.16")` and moves `platforms`
   from 1.0.0 to 1.1.0, the version hermetic_launcher requires (`--check_direct_dependencies` otherwise
@@ -85,11 +87,13 @@ published with the Linux build).
 ### 2. The launcher
 
 `warehouse_run` becomes a macro with the same attributes (`server`, `library`,
-`postgres_extension_gz`, `site`, `args_before`) and four targets:
+`site`, `args_before`) and four targets:
 
-- **`<name>_extensions`**: a directory holding `postgres_scanner.duckdb_extension`, gunzipped from the
-  pinned download as today (a directory, so that a launcher can name it: `--duckdb-extensions` takes a
-  directory, and a runfiles manifest lists a directory output where it does not list a file's parent).
+- **`<name>_extensions`**: a directory holding `postgres_scanner.duckdb_extension`, bazel_lib's
+  `copy_to_directory` of `//warehouse:duckdb_extensions` (the extension gunzipped once, by a Java action;
+  until 2026-10-04 each launcher gunzipped its own copy with a shell `gzip -dc`, Bazel workplan P1-17). A
+  directory, so that a launcher can name it: `--duckdb-extensions` takes a directory, and a runfiles
+  manifest lists a directory output where it does not list a file's parent.
 - **`<name>_posix`**: today's rule and script, `target_compatible_with` everything but Windows. Its one
   change: the script names the extension directory instead of taking the extension file's `dirname`.
 - **`<name>_windows`**: a `launcher_binary` whose `entrypoint` is the server and whose

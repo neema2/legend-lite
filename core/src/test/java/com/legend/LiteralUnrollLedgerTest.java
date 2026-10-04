@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
@@ -68,7 +68,7 @@ class LiteralUnrollLedgerTest {
     @Test
     @DisplayName("LiteralUnroll folds compare-only natives (the pinned set)")
     void foldSetIsCompareOnly() throws Exception {
-        String src = Files.readString(Repo.module("src/main/java/com/legend/compiler/spec/LiteralUnroll.java"));
+        String src = Files.readString(Runfile.property("core.literal_unroll"));
         // since execution plan step 2 (2026-09-26) a fold names the catalog's
         // generated overload GROUPS (`is(c, Pure.AT_COLLECTION_SIZE)`), never a
         // spelling; the pinned set stays the bare names, read off the group's

@@ -6,16 +6,64 @@
 //   DATACUBE_APP_PG=postgresql://reader:secret@127.0.0.1:5432/shop \
 //   DATACUBE_APP_TABLE=sales.orders DATACUBE_APP_GROUP=channel bazel run //datacube:verify_app
 //
-// Manual: it needs a Postgres (16+) that the URL's user can read, as //warehouse:postgres_live does.
+// Under `bazel run` it needs a Postgres (16+) that the URL's user can read, as //warehouse:postgres_live does.
+// As //datacube:verify_app_test (Bazel workplan P1-14b) it starts its own: :app_postgres, the pinned Postgres
+// 16 loaded with demo/sample-shop.sql.
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
-const PG = process.env.DATACUBE_APP_PG;
-const TABLE = process.env.DATACUBE_APP_TABLE;
-const GROUP = process.env.DATACUBE_APP_GROUP;
+// Windows' own taskkill by its full path: a test's PATH is Bazel's, not the desk's (Bazel workplan P1-08
+// removed CI's --test_env=PATH). SystemRoot is set on every Windows process.
+const taskkill = () => {
+  const root = process.env.SystemRoot ?? process.env.SYSTEMROOT;
+  if (!root) throw new Error('SystemRoot is not set: cannot find taskkill.exe');
+  return join(root, 'System32', 'taskkill.exe');
+};
+
+// This file is datacube/demo/verify-app.mjs in the runfiles: the site and the launcher are beside it.
+const DATACUBE = fileURLToPath(new URL('..', import.meta.url));
+const RUNFILES = resolve(DATACUBE, '..', '..');
+
+let PG = process.env.DATACUBE_APP_PG;
+let TABLE = process.env.DATACUBE_APP_TABLE;
+let GROUP = process.env.DATACUBE_APP_GROUP;
+
+// THE TEST'S OWN POSTGRES (verify_app_test): APP_POSTGRES is the rlocation of :app_postgres's executable (a
+// script on Linux and macOS, an .exe on Windows), SAMPLE_SQL the sample's; both resolved by the runfiles library
+let postgres;
+if (process.env.APP_POSTGRES) {
+  const { runfiles } = (await import('@bazel/runfiles')).default;
+  postgres = spawn(runfiles.resolve(process.env.APP_POSTGRES), [runfiles.resolve(process.env.SAMPLE_SQL)], {
+    env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
+    stdio: ['pipe', 'pipe', 'inherit'],
+  });
+  // a test that fails part-way, even before Postgres is ready, leaves no Postgres behind: its stdin closes
+  // with this process
+  process.on('exit', () => postgres.stdin.end());
+  const port = await new Promise((done, fail) => {
+    let said = '';
+    postgres.stdout.on('data', (b) => {
+      said += b.toString();
+      const m = /postgres port (\d+)/.exec(said);
+      if (m) done(m[1]);
+    });
+    postgres.on('exit', (code) => fail(new Error(`the test's Postgres exited (${code}) before it was ready:
+${said}`)));
+    setTimeout(() => fail(new Error(`the test's Postgres was not ready in 180s:
+${said}`)), 180_000);
+  });
+  // the sample's database, login and table (demo/sample-shop.sql)
+  PG = `postgresql://reader:secret@127.0.0.1:${port}/shop`;
+  TABLE ??= 'sales.orders';
+  GROUP ??= 'channel';
+  console.log(`ok: the test's Postgres 16 is up on port ${port}, the sample loaded`);
+}
+
 if (!PG || !TABLE || !GROUP) {
   console.error('set DATACUBE_APP_PG (a postgresql:// URL with its password), DATACUBE_APP_TABLE (schema.name)'
     + ' and DATACUBE_APP_GROUP (a text column of that table to group by)');
@@ -28,10 +76,6 @@ if (!SERVE) {
   console.error('run this as `bazel run //datacube:verify_app`: WAREHOUSE_SERVE names the launcher');
   process.exit(2);
 }
-
-// This file is datacube/demo/verify-app.mjs in the runfiles: the site and the launcher are beside it.
-const DATACUBE = fileURLToPath(new URL('..', import.meta.url));
-const RUNFILES = resolve(DATACUBE, '..', '..');
 
 let failed = false;
 const bad = (m) => { console.log(`FAIL: ${m}`); failed = true; };
@@ -53,8 +97,10 @@ const address = await new Promise((done, fail) => {
 });
 ok(`the warehouse printed ${address.replace(/key=.*/, 'key=…')}`);
 
-const browser = await chromium.launch();
+let browser;
 try {
+  // inside the try: a launch failure still stops the warehouse below
+  browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const statuses = [];
   page.on('pageerror', (e) => bad(`page error: ${e.message}`));
@@ -146,19 +192,41 @@ try {
     else ok(`the blank page says: ${said}`);
   }
 } finally {
-  await browser.close();
+  await browser?.close();
   if (process.platform === 'win32') {
     // On Windows the launcher and the server are two processes, and kill() would stop the launcher alone.
     // taskkill takes the PID of a child that is still running: once it has exited, Node has released its
     // handle and Windows may have given the PID to another process, whose tree /t /f would then stop.
     if (server.exitCode === null && server.signalCode === null) {
-      const r = spawnSync('taskkill', ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
-      // a taskkill that failed leaves the server running, still holding its port and its data directory
+      const r = spawnSync(taskkill(), ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
       if (r.error) bad(`taskkill did not run: ${r.error.message}`);
-      else if (r.status !== 0) {
-        bad(`taskkill did not stop the warehouse (status ${r.status}): ${r.stdout}${r.stderr}`.trim());
+      else {
+        // taskkill's status is not the verdict: it stops the server first, the launcher may then exit on its
+        // own before taskkill reaches it, and taskkill reports 255 for a tree it did stop (CI, 2026-10-03).
+        // The verdict is the outcome: the launcher has exited and nothing answers on the port. A server
+        // still up holds its port and its data directory.
+        const until = Date.now() + 10_000;
+        while (server.exitCode === null && server.signalCode === null && Date.now() < until) {
+          await new Promise((res) => setTimeout(res, 100));
+        }
+        const exited = server.exitCode !== null || server.signalCode !== null;
+        const answers = await fetch(new URL(address).origin).then(() => true, () => false);
+        if (!exited || answers) {
+          bad(`taskkill did not stop the warehouse (status ${r.status}; launcher exited: ${exited}; `
+            + `port answers: ${answers}): ${r.stdout}${r.stderr}`.trim());
+        }
       }
     }
   } else server.kill('SIGTERM');
+}
+if (postgres) {
+  // closing its stdin stops it, and Postgres with it
+  postgres.stdin.end();
+  const code = await new Promise((done) => {
+    if (postgres.exitCode !== null) done(postgres.exitCode);
+    postgres.on('exit', done);
+    setTimeout(() => done('still running after 60 s'), 60_000);
+  });
+  if (code !== 0) bad(`the test's Postgres did not stop cleanly: ${code}`);
 }
 process.exit(failed ? 1 : 0);

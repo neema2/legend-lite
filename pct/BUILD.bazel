@@ -2,8 +2,11 @@
 # own function tests (Pure) through legend-lite, via an adapter written in Pure
 # (src/main/resources) and a native bridge in Java (src/test/java/.../extension).
 # Every upstream jar is a TEST input from @maven_upstream: core never sees one.
-load("@rules_java//java:defs.bzl", "java_library")
+
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/java_run:defs.bzl", "java_run")
 
 # sources exported for the guard tests that walk every module
 filegroup(
@@ -18,34 +21,45 @@ filegroup(
 # //tools/par.
 _DEFINITION = "src/main/resources/core_legend_lite_pct.definition.json"
 
-genrule(
+java_run(
     name = "adapter_par",
     testonly = True,
     srcs = glob(["src/main/resources/**"]),
     outs = ["pure-core_legend_lite_pct.par"],
-    cmd = "$(location //tools/par:par_generator) core_legend_lite_pct " +
-          "$(location %s) $$(dirname $(location %s)) $(RULEDIR)" % (_DEFINITION, _DEFINITION),
-    tools = ["//tools/par:par_generator"],
+    arguments = [
+        "core_legend_lite_pct",
+        "$(execpath %s)" % _DEFINITION,
+        "{SRC}",
+        "{OUT}",
+    ],
+    main_class = "com.legend.tools.par.ParGenerator",
+    # peaks at 2,099 MB live (-Xlog:gc, macOS arm64, 2026-10-04)
+    memory_mb = 4096,
+    mnemonic = "PureParGenerator",
+    roots = {_DEFINITION: "{SRC}"},
+    deps = ["//tools/par:par_generator"],
 )
 
 # the adapter on the classpath: its Pure source and definition, and its PAR at
 # the classpath root, where the runtime looks it up by name
-java_library(
+legend_java_library(
     name = "adapter",
     testonly = True,
     resources = glob(["src/main/resources/**"]),
     runtime_deps = [":adapter_par_jar"],
 )
 
-java_library(
+legend_java_library(
     name = "adapter_par_jar",
     testonly = True,
     resources = [":adapter_par"],
     resource_strip_prefix = package_name(),
 )
 
-java_library(
+legend_java_library(
     name = "pct_tests_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     testonly = True,
     srcs = glob(["src/test/java/**/*.java"]),
     resources = glob(["src/test/resources/**"]),
@@ -89,9 +103,13 @@ _SUITES = [
 # exactly as Maven's unfiltered `mvn test -Dtest='!ChannelB*'` composes them: the
 # census ceilings (PctCensusGate) are cumulative per JVM and were measured on
 # that composition.
+# memory_mb 9216, not a measured value (Bazel workplan P1-21, 2026-10-04): five suites' graphs in one JVM keep
+# the heap full to whatever limit it is given (live 8156 MB of 8192, 8542 of 9216), so the measurement has no
+# ceiling. CI ran it green at -Xmx8g from 2026-09-23 on Linux and Windows (16 GB runners); 9216, its old
+# scheduling tag, is 1 GB above that history. D6 / P3-09 delete the composite lanes.
 junit_test(
     name = "pct_duckdb",
-    tags = ["resources:memory:9216"],
+    memory_mb = 9216,
     data = glob(["src/**"]),
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s for s in _SUITES] + [
         "--select-class=org.finos.legend.lite.pct.PctDisciplineTest",
@@ -106,11 +124,14 @@ junit_test(
 # (2.0-2.8 GB live each) in one JVM: CI's 7 GB macOS runner, as Maven's
 # -Dpct.reuseForks=false was. The census ceilings are whole-lane ceilings, which a
 # suite's own JVM stays under. Manual: //... runs :pct_duckdb, not these twice.
+# memory_mb 4096, not the rule's 4352 (live peak 2878 MB, the relation suite, measured 2026-10-04): CI's 7 GB macOS runner runs this
+# lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
 [junit_test(
     name = "pct_duckdb_" + s.lower(),
+    memory_mb = 4096,
     data = glob(["src/**"]),
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s],
-    tags = ["manual", "resources:memory:4096"],
+    tags = ["manual"],
     runtime_deps = [
         ":pct_tests_lib",
         "//core:drivers",
@@ -119,6 +140,7 @@ junit_test(
 
 junit_test(
     name = "pct_discipline",
+    memory_mb = 768,
     size = "small",
     data = glob(["src/**"]),
     select = ["--select-class=org.finos.legend.lite.pct.PctDisciplineTest"],
@@ -132,9 +154,11 @@ junit_test(
 # legend-engine's shape — so a fix, or a failure swapping for another, fails the
 # run. Given the modern H2 and NO other: two H2s on one classpath would be a
 # coin toss.
+# memory_mb 4096, not the rule's 4864 (live peak 3180 MB, measured 2026-10-04): CI's 7 GB macOS runner runs this
+# lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
 junit_test(
     name = "pct_h2",
-    tags = ["resources:memory:4608"],
+    memory_mb = 4096,
     env = {"LEGENDLITE_PCT_BACKEND": "h2"},
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_H2_RelationFunctions_PCT"],
     runtime_deps = [
@@ -147,8 +171,8 @@ junit_test(
 # Postgres execution dialect), on a real server this JVM starts from the pinned binaries Bazel unpacked
 # (@embedded_postgres, //testing EmbeddedPostgres): no Docker. Each suite carries Postgres's OWN expected
 # failures (Test_LegendLite_Postgres_*Functions_PCT), legend-engine's shape, as gate 7's H2: a fix, or a
-# failure swapping for another, fails the run. Postgres's JDBC driver is the one the upstream pool already
-# holds (the engine's), so no second copy of any jar.
+# failure swapping for another, fails the run. Postgres's JDBC driver comes as every lane's driver does:
+# //core:drivers, the product's own driver set, so no second copy of any jar.
 _POSTGRES_DATA = [
     "@embedded_postgres//:postgres",
     "@embedded_postgres//:pg/PG_ROOT",
@@ -158,28 +182,37 @@ _POSTGRES_FLAGS = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres/
 
 _POSTGRES_DEPS = [
     ":pct_tests_lib",
-    "@maven_upstream//:org_postgresql_postgresql",
+    "//core:drivers",
 ]
 
+# memory_mb 9216, not a measured value (Bazel workplan P1-21, 2026-10-04): five suites' graphs in one JVM keep
+# the heap full to whatever limit it is given (live 8156 MB of 8192, 8542 of 9216), so the measurement has no
+# ceiling. CI ran it green at -Xmx8g from 2026-09-23 on Linux and Windows (16 GB runners); 9216, its old
+# scheduling tag, is 1 GB above that history. D6 / P3-09 delete the composite lanes.
 junit_test(
     name = "pct_postgres",
+    memory_mb = 9216,
     data = _POSTGRES_DATA,
     env = {"LEGENDLITE_PCT_BACKEND": "postgres"},
     jvm_flags = _POSTGRES_FLAGS,
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_Postgres_%sFunctions_PCT" % s for s in _SUITES],
-    tags = ["resources:memory:9216"],
     runtime_deps = _POSTGRES_DEPS,
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
 )
 
 # ONE JVM PER SUITE, for the 7 GB macOS runner, as :pct_duckdb_<suite>. Manual: //... runs :pct_postgres.
+# memory_mb 4096, not the rule's 4352 (live peak 2874 MB, the relation suite, measured 2026-10-04): CI's 7 GB macOS runner runs this
+# lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
 [junit_test(
     name = "pct_postgres_" + s.lower(),
+    memory_mb = 4096,
     data = _POSTGRES_DATA,
     env = {"LEGENDLITE_PCT_BACKEND": "postgres"},
     jvm_flags = _POSTGRES_FLAGS,
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_Postgres_%sFunctions_PCT" % s],
-    tags = ["manual", "resources:memory:4096"],
+    tags = ["manual"],
     runtime_deps = _POSTGRES_DEPS,
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
 ) for s in _SUITES]
 
 # GATE 9 — channel B: lite's own compiler runs the PCT sources straight from the
@@ -187,8 +220,16 @@ junit_test(
 # channel A's ledgers and the engine's manifests.
 junit_test(
     name = "pct_channel_b",
-    tags = ["resources:memory:1024"],
+    memory_mb = 768,
     data = glob(["src/**"]),
+    # each suite's PCT class and its oracle manifest, by runfiles path (Bazel workplan P1-05)
+    jvm_flags = [
+        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s)
+        for s in _SUITES
+    ] + [
+        "-Dpct.oracle.%s=$(rlocationpath src/test/resources/oracle/%sFunctions_manifest.duckdb.json)" % (s, s)
+        for s in _SUITES
+    ],
     select = ["--select-package=org.finos.legend.lite.pct.channelb"],
     upstream = True,
     runtime_deps = [

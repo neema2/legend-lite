@@ -4,14 +4,18 @@
 # Node pinned there. Every test file is its own target — cached and run in
 # parallel on its own, and `bazel test //datacube:<name>_test` runs one.
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/browser:defs.bzl", "browser_test")
+load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
-load("//warehouse:defs.bzl", "POSTGRES_EXTENSION", "warehouse_run")
-load("@rules_java//java:defs.bzl", "java_library")
+load("//warehouse:defs.bzl", "warehouse_run")
+
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
+load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -97,7 +101,7 @@ _EXTRA_DATA = {
         "test/**/*.mjs",
         "test/**/*.ts",
         "tools/**/*",
-    ], exclude = ["test/fake-engine.ts", "test/fake-planner.ts", "test/strict-reporter.mjs"]),
+    ], exclude = ["**/*.md", "test/fake-engine.ts", "test/fake-planner.ts", "test/strict-reporter.mjs"]),
 }
 
 # the tests that write a model from a table's columns ask the compiler (T2): legend-lite's
@@ -133,7 +137,10 @@ _WASM_TESTS = [
 # Node 22 counts a suite whose body throws as `# fail 0` and exits 0.
 [js_test(
     name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
-    size = "small",
+    # The tests that load the WebAssembly planner compile it first: seconds on a desk (infer: 6 s), but past
+    # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
+    # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
+    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else "small",
     chdir = package_name(),
     data = [
         ":node_modules/jsdom",
@@ -167,6 +174,8 @@ test_suite(
         ":typed_values_tokyo_test",
         ":typed_values_new_york_test",
         ":wasm_differential_test",
+        # live against the Bazel-built native warehouse (it builds the native image; not on Windows ARM64)
+        ":live_snap_test",
     ],
 )
 
@@ -203,8 +212,10 @@ typescript.tsc_test(
 # RUNNING legend-lite (a Java program over Type.Primitive and its constants), never by
 # reading its source; a diff test on the committed copy:
 # `bazel run //datacube:update_generated`.
-java_library(
+legend_java_library(
     name = "type_facts_main",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = ["tools/typefacts/TypeFacts.java"],
     deps = ["//core"],
 )
@@ -262,8 +273,10 @@ js_run_binary(
     tool = ":emit_offer_queries",
 )
 
-java_library(
+legend_java_library(
     name = "offer_facts_main",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = ["tools/offer-facts/OfferFacts.java"],
     deps = ["//core"],
 )
@@ -288,8 +301,10 @@ java_run(
 # 2026-10-01): legend-lite's catalog decisions and THE catalog question, generated as data; and
 # CatalogModel's answers for a corpus of real DuckDB tables, which src/catalog-model.ts is tested
 # against (test/catalog-model.test.ts). Nothing parses a type string.
-java_library(
+legend_java_library(
     name = "catalog_facts_main",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = ["tools/catalogfacts/CatalogFacts.java"],
     deps = [
         "//core",
@@ -377,7 +392,8 @@ java_run(
 
 js_test(
     name = "wasm_differential_test",
-    size = "small",
+    # loads the WebAssembly planner, as _WASM_TESTS do: medium for the same reason (main's CI run 37214692462)
+    size = "medium",
     chdir = package_name(),
     data = [
         "test/strict-reporter.mjs",
@@ -713,7 +729,6 @@ warehouse_run(
         "--open",
     ],
     library = "//warehouse:duckdb_library",
-    postgres_extension_gz = POSTGRES_EXTENSION,
     server = "//warehouse:server_native",
     site = ":dist",
 )
@@ -786,7 +801,7 @@ _CI_HARNESSES = [
     # not verify-picker: it drives a site already served on :8000 (`bazel run //datacube:serve`)
     "verify-real-data",
     "verify-remote",
-    "verify-smoke",
+    # not verify-smoke: it is a test, :verify_smoke_test (Bazel workplan P1-14's pilot)
     "verify-upload",
     "verify-wasm-browser",
 ]
@@ -797,7 +812,10 @@ _CI_HARNESSES = [
         ":node_modules/playwright",
         ":site",
         ":src",
-    ] + (["//fixtures/saved-queries:records"] if h == "verify-features" else []),
+    ] + (["//fixtures/saved-queries:records"] if h == "verify-features" else []) + (
+        # it imports pinned-chromium.mjs first, a no-op under bazel run
+        ["//tools/browser:pinned_chromium"] if h == "verify-smoke" else []
+    ),
     entry_point = "demo/" + h + ".mjs",
     node_options = [
         "--experimental-strip-types",
@@ -807,6 +825,25 @@ _CI_HARNESSES = [
     tags = ["browser-ci"] if h in _CI_HARNESSES else [],
 ) for h in _HARNESSES]
 
+# THE SMOKE HARNESS AS A TEST (Bazel workplan P1-14, the pilot): against the Chromium Bazel fetched
+# (//tools/browser), with no install step and nothing in $HOME. .
+# The other harnesses follow in P4.
+browser_test(
+    name = "verify_smoke_test",
+    size = "large",
+    data = _HARNESS_HELPERS + [
+        ":node_modules/playwright",
+        ":site",
+        ":src",
+    ],
+    entry_point = "demo/verify-smoke.mjs",
+    node_options = [
+        "--experimental-strip-types",
+        "--experimental-wasm-exnref",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
 # `bazel run //datacube:verify_app` (manual; see demo/verify-app.mjs for its Postgres): the single-user app
 # end to end -- the native warehouse serving :dist, started from the launch key.
 js_binary(
@@ -814,12 +851,62 @@ js_binary(
     data = [
         ":dist",
         ":node_modules/playwright",
+        # it imports pinned-chromium.mjs first, a no-op under bazel run
+        "//tools/browser:pinned_chromium",
         "//warehouse:serve",
     ],
     entry_point = "demo/verify-app.mjs",
     # this platform's launcher (warehouse/defs.bzl): a script on Linux and macOS, an .exe on Windows
     env = {"WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)"},
     tags = ["manual"],
+)
+
+# THE APP AGAINST POSTGRES, AS A TEST ON EVERY PLATFORM (Bazel workplan P1-14b, D11 revised): verify-app.mjs's
+# checks with the Postgres it needs started inside the test -- :app_postgres, Postgres 16 from the pinned
+# binaries loaded with the guide's sample over JDBC -- and the pinned Chromium. No psql, no host Postgres,
+# no host browser. CI's app lane runs it on Linux, macOS and Windows: the Windows desk's own path.
+browser_test(
+    name = "verify_app_test",
+    size = "large",
+    data = [
+        ":app_postgres",
+        ":app_postgres_executable",
+        ":dist",
+        ":node_modules/@bazel/runfiles",
+        ":node_modules/playwright",
+        "demo/sample-shop.sql",
+        "//warehouse:serve",
+    ],
+    entry_point = "demo/verify-app.mjs",
+    env = {
+        "APP_POSTGRES": "$(rlocationpath :app_postgres_executable)",
+        "SAMPLE_SQL": "$(rlocationpath demo/sample-shop.sql)",
+        "WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)",
+    },
+)
+
+executable_of(
+    name = "app_postgres_executable",
+    testonly = True,
+    binary = ":app_postgres",
+)
+
+# the test's Postgres (tools/apppostgres/AppPostgres.java): prints its port once the sample is in, and runs
+# until its stdin closes
+legend_java_binary(
+    name = "app_postgres",
+    # starts the embedded Postgres: skipped where no build is pinned (P1-15)
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    testonly = True,
+    srcs = ["tools/apppostgres/AppPostgres.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    main_class = "apppostgres.AppPostgres",
+    runtime_deps = ["//core:drivers"],
+    deps = ["//testing"],
 )
 
 # `bazel run //datacube:install_browser [-- --with-deps]`: the Chromium the harnesses drive, at

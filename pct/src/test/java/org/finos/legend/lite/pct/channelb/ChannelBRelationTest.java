@@ -60,10 +60,8 @@ class ChannelBRelationTest {
         System.out.println("[chB-Relation] census=" + census
                 + " total=" + out.size());
         ChannelBDiff.Counts c = ChannelBDiff.report("chB-Relation", out,
-                com.legend.testing.Repo.module("src/test/java/org/finos/legend/lite/pct/"
-                        + "Test_LegendLite_RelationFunctions_PCT.java"),
-                com.legend.testing.Repo.module("src/test/resources/oracle/"
-                        + "RelationFunctions_manifest.duckdb.json"));
+                com.legend.testing.Runfile.property("pct.suite.Relation"),
+                com.legend.testing.Runfile.property("pct.oracle.Relation"));
         // measured 2026-08-19 at the relation-scope landing (the
         // let-indirection adapter arm + the assertTdsEquivalent GRID
         // VERDICT [Clause 2c's chartered TdsCompare route, 79-row

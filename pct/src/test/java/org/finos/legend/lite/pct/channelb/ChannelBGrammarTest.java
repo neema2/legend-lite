@@ -53,10 +53,8 @@ class ChannelBGrammarTest {
         System.out.println("[chB-gram] census=" + census
                 + " total=" + out.size());
         ChannelBDiff.Counts c = ChannelBDiff.report("chB-gram", out,
-                com.legend.testing.Repo.module("src/test/java/org/finos/legend/lite/pct/"
-                        + "Test_LegendLite_GrammarFunctions_PCT.java"),
-                com.legend.testing.Repo.module("src/test/resources/oracle/"
-                        + "GrammarFunctions_manifest.duckdb.json"));
+                com.legend.testing.Runfile.property("pct.suite.Grammar"),
+                com.legend.testing.Runfile.property("pct.oracle.Grammar"));
         // measured 2026-08-19 UNDER THE CLAUSE-2c REDESIGN (K-arm
         // verdicts; the parked seam-arm numbers are superseded), after
         // the two TRUE-wire-bug burns: the engine-verbatim empty-equality

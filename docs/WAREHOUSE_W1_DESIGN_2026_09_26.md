@@ -15,14 +15,16 @@ A new Bazel package **`//warehouse`** (Java package `com.legend.warehouse`;
 |---|---|---|
 | `:sqlapi` | the HTTP SQL API as Java records, their JSON codec, the **binding** interface (a sans-I/O state machine, program §2c), and the native binding | **java.base only**. It must compile into the WebAssembly module beside the planner (ruling 7), and a guardrail pins that |
 | `:client` | the JVM driver for a binding (`java.net.http`), and a **`java.sql.Driver`** over it (`jdbc:warehouse:http://host:port/catalog`) | `:sqlapi`, java.net.http, java.sql |
-| `:server_lib` / `:server` | the warehouse process: DuckDB's **C API through `java.lang.foreign`** (W1d), no JDBC class | `:sqlapi`, jdk.httpserver; DuckDB **1.5.5.1**'s native library, taken at run time from its JDBC jar (its own Maven set; legend-lite core stays on 1.4.4 until its own upgrade leg) or passed with `--duckdb-library` |
+| `:server_lib` / `:server` | the warehouse process: DuckDB's **C API through `java.lang.foreign`** (W1d), no JDBC class | `:sqlapi`, jdk.httpserver; DuckDB **1.5.5.1**'s native library (its own Maven set; legend-lite core stays on 1.4.4 until its own upgrade leg): `:duckdb_library`, out of the JDBC jar at build time, passed with `--duckdb-library` or found in the server's runfiles |
 | `:tests` | conformance, cancel/timeout, concurrency, identity | all of the above |
 
 Rules carried from core: no reflection (ArchUnit), NullAway, the
 Windows portability guardrail. **DuckDB's library** is passed with
-`--duckdb-library` (a native image ships it beside the binary), or else
-extracted once from the JDBC jar on the classpath into a cache file that
-every later start reuses (W1d).
+`--duckdb-library` (a native image ships it beside the binary), or found in
+the server's runfiles when Bazel started it (`//warehouse:duckdb_library`).
+Since 2026-10-04 (Bazel workplan P1-16) it is never extracted from the JDBC
+jar into a temporary directory: a JVM started without it fails, naming the
+flag.
 
 ## 2. The process
 
@@ -327,8 +329,12 @@ core changes). Linux, macOS and, since 2026-10-02, Windows (docs/WINDOWS_APP_DES
   CI did.
 - **A Mac with Command Line Tools only** (no Xcode.app, as on this repository's machine): Bazel
   knows no Xcode, and rules_graalvm's macOS path needs one. A patch applied by Bazel
-  (`third_party/rules_graalvm_command_line_tools.patch`) runs native-image directly there, as on
-  Linux; with Xcode (CI's macOS runners) the rule's own path is unchanged.
+  (`third_party/rules_graalvm_sysroot.patch`, since 2026-10-04; it also carries P1-09's sysroot) runs
+  native-image directly there; with Xcode (CI's macOS runners) the rule's own path is unchanged.
+- **Linux's C toolchain** (2026-10-04, Bazel workplan P1-09): LLVM 20.1.8's clang and lld from
+  toolchains_llvm, Chromium's Debian sysroots and zlib built from source, so no host gcc, libc headers or
+  zlib-dev; `//tools/graalvm:sysroot_native_image` passes the sysroot to native-image without a shell. LLVM's
+  lld needs the host's libxml2.so.2 (D7, a recorded exception).
 
 - **Metadata** (`META-INF/native-image/com.legend/warehouse/reachability-metadata.json`, in the
   server jar, so native-image reads it with no flags): 39 FFM call shapes, the identity function's 3
@@ -339,8 +345,9 @@ core changes). Linux, macOS and, since 2026-10-02, Windows (docs/WINDOWS_APP_DES
   the script that did it is gone. Needed only when the server's FFM or reflection use changes.
 - **`GET /sql/v1/history`:** the caller's own statements, newest first (the history test reads it
   through the API, so it judges the binary too; another user's statements are not in yours).
-- **CI:** the `native` lane (Linux, macOS and, since 2026-10-02, Windows) runs `bazel test //warehouse:tests_native //warehouse:launcher_test //datacube:app`, with the Arrow
-  check required.
+- **CI:** the `native` lane (Linux, macOS and, since 2026-10-02, Windows; Linux arm64 since 2026-10-04) runs
+  `bazel test //warehouse:tests_native //warehouse:launcher_test //datacube:app`; the Arrow check runs
+  everywhere on the locked pyarrow (P1-08).
 
 **Measured (this machine, GraalVM CE 25.0.1, a 21.5 MB binary, built in ~23 s):**
 
@@ -410,3 +417,10 @@ Tests (in process and against the native binary): `aResultTheClientIsDoneWithIsF
 `theClientFreesWhatItHasRead` (both formats), `aResultPastTheMemoryBudgetSpillsToFilesAndReadsTheSame`
 (a 1 MB budget, 200,000 rows: memory within the budget, the rest in files, every checked row right,
 the files deleted on close). `//warehouse:tests` 60/60.
+
+**Linux arm64 (2026-10-04, Bazel workplan P1-13).** native-image segfaulted in
+`CodeSynchronizationOperations.clearCache` when it ran in a Linux arm64 container under Docker Desktop on
+Apple silicon, with the host gcc and with the hermetic LLVM toolchain alike. On a real `ubuntu-24.04-arm`
+runner `//warehouse:tests_native` passes with both (run 37139357779): the crash is Docker Desktop's VM, not
+the warehouse or GraalVM on arm64. CI's `linux-arm` job (`.github/workflows/gate.yml`) runs the native lane
+there on every push, so Linux arm64 stays verified.

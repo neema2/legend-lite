@@ -1,6 +1,7 @@
 # Guards on the build graph itself: who may reach which jars (MODULE.bazel, THE JAR
 # POOLS). Bazel-only by nature — they check what Bazel resolves and links.
 load("//tools/junit:defs.bzl", "junit_test")
+load(":pools.bzl", "POOLS", "TESTONLY_POOLS")
 
 # Every external jar the product reaches: core itself (NullAway subtracted — a
 # compiler plugin, on javac's processor path, never on a classpath) and the
@@ -34,6 +35,7 @@ genquery(
 
 junit_test(
     name = "core_closure_test",
+    memory_mb = 768,
     size = "small",
     srcs = ["CoreClosureTest.java"],
     data = [
@@ -41,6 +43,7 @@ junit_test(
         ":drivers_closure",
         ":spec_closure",
     ],
+    jvm_flags = ["-Dclosure.%s=$(rlocationpath :%s)" % (c, c) for c in ["core_closure", "drivers_closure", "spec_closure"]],
     select = ["--select-class=com.legend.tools.deps.CoreClosureTest"],
     deps = [
         "//testing",
@@ -62,9 +65,11 @@ genquery(
 
 junit_test(
     name = "warehouse_closure_test",
+    memory_mb = 768,
     size = "small",
     srcs = ["WarehouseClosureTest.java"],
     data = [":warehouse_closure"],
+    jvm_flags = ["-Dclosure.warehouse_closure=$(rlocationpath :warehouse_closure)"],
     select = ["--select-class=com.legend.tools.deps.WarehouseClosureTest"],
     deps = [
         "//testing",
@@ -74,6 +79,7 @@ junit_test(
 
 junit_test(
     name = "pools_are_disjoint",
+    memory_mb = 768,
     size = "small",
     srcs = ["PoolsAreDisjointTest.java"],
     data = [
@@ -82,6 +88,7 @@ junit_test(
         "//:maven_test_install.json",
         "//:maven_upstream_install.json",
     ],
+    jvm_flags = ["-Dlock.%s=$(rlocationpath //:maven_%s_install.json)" % (p, p) for p in ["core", "h2_modern", "test", "upstream"]],
     select = ["--select-class=com.legend.tools.deps.PoolsAreDisjointTest"],
     deps = [
         "//testing",
@@ -92,11 +99,16 @@ junit_test(
 # one release: MODULE.bazel and tools/oracle-pins.env agree (//tools/bump writes both)
 junit_test(
     name = "one_release",
+    memory_mb = 768,
     size = "small",
     srcs = ["OneReleaseTest.java"],
     data = [
         "//:MODULE.bazel",
         "//tools:oracle-pins.env",
+    ],
+    jvm_flags = [
+        "-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)",
+        "-Doracle.pins=$(rlocationpath //tools:oracle-pins.env)",
     ],
     select = ["--select-class=com.legend.tools.deps.OneReleaseTest"],
     deps = [
@@ -121,10 +133,75 @@ _CORE_LAYERS = [
 
 junit_test(
     name = "core_layering_test",
+    memory_mb = 768,
     size = "small",
     srcs = ["CoreLayeringTest.java"],
     data = ["core-layers.txt"] + [":layer_" + t for t in _CORE_LAYERS],
+    jvm_flags = [
+        "-Dcore.layers=$(rlocationpath core-layers.txt)",
+        "-Dcore.layer.files=" + ",".join(["$(rlocationpath :layer_%s)" % t for t in _CORE_LAYERS]),
+    ],
     select = ["--select-class=com.legend.tools.deps.CoreLayeringTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# tools/deps/pools.bzl's pools are exactly MODULE.bazel's, and its testonly pools are testonly as a whole (Bazel workplan P1-25)
+junit_test(
+    name = "pools_list_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["PoolsListTest.java"],
+    data = ["//:MODULE.bazel"],
+    jvm_flags = [
+        "-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)",
+        "-Dpools=" + ",".join(POOLS),
+        "-Dtestonly.pools=" + ",".join(TESTONLY_POOLS),
+    ],
+    select = ["--select-class=com.legend.tools.deps.PoolsListTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# WHAT SHIPS (Bazel workplan P1-25): every jar the shipped roots reach, through every explicit attribute and every
+# select() branch, and through generated files back to the rules that make them. Bazel's testonly rule keeps a
+# non-test RULE off the testonly pools, but not a generated file (a filegroup over a testonly binary's deploy jar
+# passes): this test is what covers that, for everything that ships. A new shipped binary is added here.
+_SHIPPED = [
+    "//core:core",
+    "//core:drivers",
+    "//core:server",
+    "//datacube:app_posix",
+    "//datacube:app_windows",
+    "//warehouse:serve_posix",
+    "//warehouse:serve_windows",
+    "//warehouse:server",
+    "//warehouse:server_native",
+    "//wasm:planner",
+]
+
+genquery(
+    name = "product_closure",
+    expression = "kind(jvm_import, deps(%s))" % " + ".join(_SHIPPED),
+    opts = ["--noimplicit_deps"],
+    scope = _SHIPPED,
+)
+
+junit_test(
+    name = "product_closure_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["ProductClosureTest.java"],
+    data = [":product_closure"],
+    jvm_flags = [
+        "-Dclosure.product_closure=$(rlocationpath :product_closure)",
+        "-Dforbidden.pools=" + ",".join(TESTONLY_POOLS),
+    ],
+    select = ["--select-class=com.legend.tools.deps.ProductClosureTest"],
     deps = [
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",

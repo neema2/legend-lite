@@ -1,10 +1,41 @@
-load("@rules_java//java:defs.bzl", "java_binary")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
+load("//tools/junit:defs.bzl", "junit_test")
+
+legend_java_library(
+    name = "bump_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
+    srcs = ["Bump.java"],
+)
 
 # `bazel run //tools/bump -- <engine release> [--pins]` — see Bump.java. It calls
 # Bazel again (repin, //:update_generated, `bazel test //...`): a pin change takes
 # effect only in the next Bazel invocation, never inside the one that made it.
-java_binary(
+legend_java_binary(
     name = "bump",
-    srcs = ["Bump.java"],
     main_class = "com.legend.tools.bump.Bump",
+    runtime_deps = [":bump_lib"],
+)
+
+# The bump's rewrites against the real MODULE.bazel and oracle-pins.env: a pin that moves in either file
+# without the bump fails here, not at the next release (the integrity move, Bazel workplan P1-27, did).
+junit_test(
+    name = "bump_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["test/BumpTest.java"],
+    data = [
+        "//:MODULE.bazel",
+        "//tools:oracle-pins.env",
+    ],
+    jvm_flags = [
+        "-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)",
+        "-Doracle.pins=$(rlocationpath //tools:oracle-pins.env)",
+    ],
+    select = ["--select-class=com.legend.tools.bump.BumpTest"],
+    deps = [
+        ":bump_lib",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )

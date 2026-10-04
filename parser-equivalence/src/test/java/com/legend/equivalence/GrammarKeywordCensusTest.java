@@ -1,5 +1,7 @@
 package com.legend.equivalence;
 
+import com.legend.testing.Upstream;
+
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Test;
 
@@ -24,7 +26,7 @@ class GrammarKeywordCensusTest {
 
     @Test
     void keywordCoverage() throws Exception {
-        Path engineRoot = Path.of(System.getProperty("legend.engine.root"));
+        Path engineRoot = Upstream.engine();
         // keyword literals from lexer/parser grammars: word-shaped, >= 3
         // chars (operators/punctuation can't be checked by text presence)
         Map<String, Set<String>> kwToGrammars = new TreeMap<>();

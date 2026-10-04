@@ -4,6 +4,7 @@
 package com.legend;
 
 import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
@@ -75,7 +76,7 @@ class TestLaneOrderGuardrailTest {
                 filesMatching(SWITCH_LITERAL),
                 "legend.exec.engineScanOrder is named outside DuckDb: only the corpus runner"
                 + " (spec tests) sets it, only DuckDb's pass list reads it");
-        String duck = Files.readString(Repo.module("src/main/java/com/legend/sql/dialect/DuckDb.java"));
+        String duck = Files.readString(Runfile.property("core.duckdb_dialect"));
         assertEquals(1, count(SWITCH_READ, duck), "the switch is read exactly once");
         assertEquals(1, count(PASS_INSTALL, duck), "the pass is installed exactly once");
         String shape = duck.replaceAll("\\s+", " ");

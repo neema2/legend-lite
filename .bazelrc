@@ -1,5 +1,4 @@
 # One JDK for everyone, from the build: nothing depends on the machine's java.
-common --enable_bzlmod
 # Bytecode is Java 21; tests RUN on JDK 25, the JDK the gates have always run on.
 # The two differ observably: BigDecimal.valueOf(NaN)'s message, which the PCT
 # expected-failure pins record (Test_LegendLite_EssentialFunctions_PCT).
@@ -20,10 +19,20 @@ test --test_env=TZ=GMT
 # relative path, so runfiles must exist as a directory (Windows defaults to a
 # manifest only), and Bazel must create real symlinks (CI runs as admin).
 common --enable_platform_specific_config
+# WINDOWS PATH LENGTH: Bazel's default output root (C:\Users\<you>\_bazel_<you>\...) plus a test's runfiles
+# plus rules_python's repository names put pyarrow's DLLs past what Windows loads ("The filename or extension
+# is too long", main's CI run 37209395985: 252 characters). A short root on every Windows host, CI and desk
+# alike (Bazel workplan P1-08): the longest such path drops to about 226.
+startup:windows --output_user_root=C:/bzl
+# Linux's C toolchain is the hermetic LLVM (MODULE.bazel, Bazel workplan P1-09), registered here because
+# the repository exists with these targets only on a Linux or macOS host. A platform it does not match
+# fails, never falling back to the host's gcc. `common`, so query and build see one configuration.
+common:linux --extra_toolchains=@llvm_toolchain//:cc-toolchain-x86_64-linux,@llvm_toolchain//:cc-toolchain-aarch64-linux
+common:linux --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
 startup --windows_enable_symlinks
 build:windows --enable_runfiles
 # Windows: bash, for what still needs one -- rules_jvm_external's Maven fetch (it fails
-# without BAZEL_SH), rules_js's launchers and the genrules. Bazel looks for one in BAZEL_SH,
+# without BAZEL_SH) and rules_js's launchers. Bazel looks for one in BAZEL_SH,
 # then MSYS2's registry key, then PATH: on a desk with Git for Windows and no MSYS2, from a
 # PowerShell or cmd prompt, it found none and every Maven repository failed to fetch
 # (2026-10-02). So it is named: Git for Windows' own bash, at Git's default install path.
@@ -36,17 +45,29 @@ build:windows --shell_executable="C:/Program Files/Git/usr/bin/bash.exe"
 # CI: `--config=ci` — every test's log on failure, and no progress-bar noise.
 common:ci --color=no --curses=no --show_progress_rate_limit=30
 test:ci --test_output=errors --test_summary=terse
-# CI's HEAPS. A JVM defaults to a quarter of the machine's RAM: plenty on a desk
-# (which keeps that default, so local loops are not capped), too little on a hosted
-# runner. Pinned here, not on the targets, from Maven's measured peaks (2026-09-09):
-# a PCT suite's Pure graph is a 2.0-2.8 GB live set and five in one JVM need 8 GB;
-# the Pure PAR generator (a build tool) peaks at ~2.5 GB. The first Bazel CI run
-# (2026-09-23) died out of heap on Linux gate 6 and macOS gates 7/9 without them.
-build:ci --jvmopt=-Xmx8g
-build:ci --host_jvmopt=-Xmx3g
-# The 7 GB macOS runner: one test JVM at a time (gates-run.yml), each suite in its
-# own JVM, 4 GB each. Given after --config=ci: the JVM takes the LAST -Xmx.
-build:ci-small --jvmopt=-Xmx4g
+# CI never updates a lock file: MODULE.bazel.lock must already match MODULE.bazel (and each jar
+# pool's maven_*_install.json must match its artifacts: fail_if_repin_required in MODULE.bazel).
+# A dependency edit without its lock fails here instead of resolving silently.
+common:ci --lockfile_mode=error
+# REPINNING READS NO HOST MAVEN REPOSITORY (Bazel workplan P1-25b). `bazel run @<pool>//:pin` on a
+# `resolver = "maven"` pool (maven_test, maven_upstream, maven_runner) otherwise resolves through
+# ~/.m2/repository, as its first repository and its cache (rules_jvm_external 7.1's ResolverConfig sets the
+# "unsafe shared cache" on unless RJE_UNSAFE_CACHE is 0), so a stale or hand-installed jar there could be
+# what gets pinned. With it off the resolver starts in a fresh temporary home. The coursier pools never use
+# a shared cache (use_unsafe_shared_cache defaults to False). ~/.m2/settings.xml and ~/.netrc are still read,
+# for repository credentials only (RemoteRepositoryFactory): neither adds a repository or a mirror.
+run --run_env=RJE_UNSAFE_CACHE=0
+# HEAPS. Each test's heap is its own `junit_test(memory_mb = …)`, the live peak each run prints
+# plus headroom, which is also its scheduling tag, so CI and the desk run the same command line
+# (Bazel workplan P1-21, 2026-10-04; it replaced CI-only -Xmx8g/-Xmx4g here). The build actions' own heaps
+# are java_run's memory_mb and //tools/teavm:compile's -Xmx2g, each measured (P1-22): they replaced
+# --host_jvmopt=-Xmx3g, which every exec-configuration Java tool ran under.
+# java_binary launchers a test starts (//core:server under //query-store:lite_test and //query:tests,
+# //datacube:app_postgres under verify_app_test) are not junit_test JVMs: they take the JVM's default heap,
+# a quarter of the machine's RAM, as they do on a desk.
+# THE 7 GB macOS RUNNER (gates-run.yml's low-memory lanes): one test JVM at a time. The heaps are the
+# targets' own memory_mb; the lanes that runner runs are sized to fit it (pct/BUILD.bazel, spec/BUILD.bazel).
+build:ci-small --local_test_jobs=1
 
 # LOCAL SCHEDULING (2026-09-27, measured on the 10-core / 32 GB desk — GATES.md entry of
 # that date): Bazel's own estimate of a test's memory comes from `size` (an `enormous`
@@ -55,11 +76,20 @@ build:ci-small --jvmopt=-Xmx4g
 # The heavy lanes declare their MEASURED peak plus headroom (`resources:memory:<MB>`
 # tags on the targets) and the machine declares its budget: 60% of RAM for tests
 # leaves the Bazel server, the OS and whatever else runs on the desk the rest. Bazel
-# then packs tests by memory. CI keeps its own caps (--config=ci / ci-small).
+# then packs tests by memory; each test's own memory_mb is its tag (tools/junit/defs.bzl).
 test --local_resources=memory=HOST_RAM*.6
 # A local disk cache: a fresh worktree or a `bazel clean` costs seconds, not core's
 # compile; CI passes the same path explicitly (gates-run.yml).
 build --disk_cache=~/.cache/bazel-disk
+# ...kept bounded (Bazel workplan P1-28): when Bazel is idle, entries unused for 60 days go, and the cache is
+# trimmed to 50 GB, oldest first. A desk's cache otherwise only grows.
+build --experimental_disk_cache_gc_max_size=50G
+build --experimental_disk_cache_gc_max_age=60d
+
+# Python binaries start from a bash stub, not `#!/usr/bin/env python3`: rules_python's default bootstrap
+# runs the host's python3 before the hermetic interpreter (Bazel workplan P1-07). Windows uses its own
+# .exe launcher, which starts the hermetic interpreter directly.
+common --@rules_python//python/config_settings:bootstrap_impl=script
 
 # rules_js depends on aspect_tools_telemetry, which reports ruleset usage from
 # every build unless told not to. This repository's builds send nothing.

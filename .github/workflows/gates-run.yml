@@ -15,7 +15,7 @@ on:
         required: true
         type: string
       platform:
-        description: "Short label for job and artifact names (linux/macos/windows)."
+        description: "Short label for job and artifact names (linux/linux-arm/macos/windows)."
         required: true
         type: string
       gates:
@@ -42,17 +42,17 @@ jobs:
           LOW_MEMORY: ${{ inputs.low-memory }}
           PLATFORM: ${{ inputs.platform }}
         run: |
-          set -eu
+          set -euo pipefail
           if [ "$LOW_MEMORY" = "true" ]; then
             pct6='//pct:pct_duckdb_essential //pct:pct_duckdb_grammar //pct:pct_duckdb_relation //pct:pct_duckdb_standard //pct:pct_duckdb_unclassified //pct:pct_discipline'
-            pct7p='//pct:pct_postgres_essential //pct:pct_postgres_grammar //pct:pct_postgres_relation //pct:pct_postgres_standard //pct:pct_postgres_unclassified'
+            pct7p='//pct:pct_postgres_essential //pct:pct_postgres_grammar //pct:pct_postgres_relation //pct:pct_postgres_standard //pct:pct_postgres_unclassified //core:postgres_arm_test'
           else
             pct6='//pct:pct_duckdb'
-            pct7p='//pct:pct_postgres'
+            pct7p='//pct:pct_postgres //core:postgres_arm_test'
           fi
           all=$(jq -nc --arg pct6 "$pct6" --arg pct7p "$pct7p" '[
             {"key":"1",      "name":"gate 1 core suite",               "targets":"//core:core_tests"},
-            {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"GENERATED //tools/deps:all //core:guardrails //core:census"},
+            {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"//:generated //tools/deps:all //tools/junit:pins_test //tools/junit:runner_test //tools/java_run:pins_test //tools/python:lock_matches_requirements //tools/browser:revision_test //tools/bump:bump_test //core:guardrails //core:census"},
             {"key":"3",      "name":"gate 3 spec parity",              "targets":"//spec:spec_tests"},
             {"key":"4",      "name":"gates 4+11 DuckDB corpus, both judges", "targets":"//spec:corpus_duckdb"},
             {"key":"5",      "name":"gate 5 H2 corpus, both judges",   "targets":"//spec:corpus_h2"},
@@ -62,9 +62,11 @@ jobs:
             {"key":"8",      "name":"gate 8 parser equivalence",       "targets":"//parser-equivalence:parser_parity"},
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
             {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
-            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //wasm:all //warehouse:tests //query-store:lite_test"},
+            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //datacube:verify_app_test //wasm:all //warehouse:tests //query-store:lite_test"},
+            {"key":"misc",   "name":"json, pure-protocol, query, query-store", "targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test"},
+            {"key":"build",  "name":"bazel build //... (every target builds)", "targets":"//..."},
             {"key":"native", "name":"warehouse as a native image, and its launcher", "targets":"//warehouse:tests_native //warehouse:launcher_test //datacube:app"},
-            {"key":"browser", "name":"DataCube in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test"}
+            {"key":"browser", "name":"DataCube in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test //datacube:verify_smoke_test"}
           ]')
           # the browser lane runs on Linux only: its harnesses drive DuckDB-WASM in Chromium, the same on
           # every platform, and live-vs-snap compares the native warehouse on x86_64 with the arm64 laptops'
@@ -75,7 +77,7 @@ jobs:
             lanes=$all
           fi
           [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,8,9,10,app,native,browser"
+            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,7p,8,9,10,app,misc,build,native,browser"
             exit 1
           }
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
@@ -108,15 +110,19 @@ jobs:
           git config --global core.eol lf
           git config --global core.longpaths true
       - uses: actions/checkout@v4
+      # The runner image's version (GitHub sets ImageVersion on hosted runners): an image update brings a new
+      # Xcode or Visual Studio, whose versions are a native-image input (@host_cc), so it starts a fresh cache.
+      - id: image
+        run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
       - name: Bazel downloads and outputs, keyed by the lock files
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/bazel-repo
             ~/.cache/bazel-disk
-          key: bazel-${{ inputs.platform }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-${{ matrix.lane.key }}
+          key: bazel-${{ inputs.platform }}-${{ steps.image.outputs.version }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-${{ matrix.lane.key }}
           restore-keys: |
-            bazel-${{ inputs.platform }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-
+            bazel-${{ inputs.platform }}-${{ steps.image.outputs.version }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-
             bazel-${{ inputs.platform }}-
       - name: a zone that is not UTC (the Windows app lane)
         # The hosted runners are UTC, which hides a test that reads the machine's zone where it should set its
@@ -128,12 +134,22 @@ jobs:
         run: |
           tzutil /s "Eastern Standard Time"
           tzutil /g
-      - name: pyarrow, the warehouse's Arrow test's standard reader (test-only)
-        if: matrix.lane.key == 'app' || matrix.lane.key == 'native'
+      - name: Linux host prerequisites of the hermetic toolchain (D7) and bazelisk where the image has none
+        if: startsWith(inputs.platform, 'linux')
         run: |
-          set -eu
-          py=python3; command -v python3 >/dev/null 2>&1 || py=python
-          "$py" -m pip install --quiet --target "$RUNNER_TEMP/pyarrow" pyarrow==23.0.1
+          set -euo pipefail
+          # LLVM's prebuilt ld.lld links libxml2.so.2: the C toolchain's one recorded host library (MODULE.bazel)
+          ldconfig -p | grep -q 'libxml2\.so\.2' || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libxml2; }
+          # the arm64 image may carry no bazelisk: the pinned one, by sha256 (spike S3's)
+          if ! command -v bazel >/dev/null 2>&1; then
+            case "$(uname -m)" in
+              x86_64)  arch=amd64; sha=5a408715e932c0250d28bd84555f12edbf70117de42f9181691c736eacc4a992 ;;
+              aarch64) arch=arm64; sha=e20e8b0f4f240091b7a55bf17b9398bd4f40ee70ae0208dff95dd4c445fb4010 ;;
+            esac
+            sudo curl -fsSL -o /usr/local/bin/bazel "https://github.com/bazelbuild/bazelisk/releases/download/v1.29.0/bazelisk-linux-$arch"
+            echo "$sha  /usr/local/bin/bazel" | sha256sum -c -
+            sudo chmod +x /usr/local/bin/bazel
+          fi
       - name: Chromium for the browser harnesses (Playwright's, at the lock file's version)
         if: matrix.lane.key == 'browser'
         run: bazel run --config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk" //datacube:install_browser -- --with-deps
@@ -142,33 +158,26 @@ jobs:
           LANE_TARGETS: ${{ matrix.lane.targets }}
           LOW_MEMORY: ${{ inputs.low-memory }}
         run: |
-          set -eu
+          set -euo pipefail
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk")
-          if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small --local_test_jobs=1); fi
-          # the warehouse's Arrow test finds python with pyarrow, and FAILS (rather than skips) without it
-          if [ "${{ matrix.lane.key }}" = app ] || [ "${{ matrix.lane.key }}" = native ]; then
-            flags+=(--test_env=PATH --test_env=PYTHONPATH="$RUNNER_TEMP/pyarrow" --test_env=WAREHOUSE_ARROW_CHECK=required)
-          fi
-          # GENERATED: every committed generated file's diff test (//:update_generated's)
-          targets=()
-          for t in $LANE_TARGETS; do
-            if [ "$t" = GENERATED ]; then
-              while read -r g; do targets+=("$g"); done < <(bazel query 'attr(name, "update_generated.*_test", tests(//...))' 2>/dev/null)
-            else
-              targets+=("$t")
-            fi
-          done
+          if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
+          read -r -a targets <<< "$LANE_TARGETS"
           echo "targets: ${targets[*]}"
-          bazel test "${flags[@]}" "${targets[@]}"
-      - name: the browser harnesses (every //datacube and //query target tagged browser-ci)
+          # the build lane builds every target (non-test targets included); every other lane tests
+          if [ "${{ matrix.lane.key }}" = build ]; then cmd="build"; else cmd="test"; fi
+          bazel "$cmd" "${flags[@]}" "${targets[@]}"
+      - name: the browser harnesses (every //datacube, //query and //site target tagged browser-ci)
         if: matrix.lane.key == 'browser'
         run: |
-          set -u
+          set -euo pipefail
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk")
           mkdir -p harness-logs
           failed=()
+          # the list first, so a failed query fails the step instead of running no harness at all
+          harnesses=$(bazel query --repository_cache="$HOME/.cache/bazel-repo" 'attr(tags, "browser-ci", //datacube:* + //query:* + //site:*)')
+          [ -n "$harnesses" ] || { echo "::error ::no browser-ci harness found"; exit 1; }
           # one at a time: each serves the site and drives its own browser
-          for t in $(bazel query --repository_cache="$HOME/.cache/bazel-repo" 'attr(tags, "browser-ci", //datacube:* + //query:*)'); do
+          for t in $harnesses; do
             name=${t##*:}
             echo "::group::$t"
             if bazel run "${flags[@]}" "$t" 2>&1 | tee "harness-logs/$name.log"; then :; else failed+=("$t"); fi

@@ -394,6 +394,75 @@ run, and are removed before any commit.
   type census moves Compiler 1 → 0, Databases 0 → 2, EngineText 0 → 1; a new census of decisions by database NAME (`"DB2".equals`,
   `case "H2"`) is pinned at what is left: the grammar (3, out of scope) and `SystemDatabase` (3, C3b).
   `tools/census/RenderCensus` is left: a debug tool that renders every dialect by design.
+- **C3b — the execution-side owner, REVISED 2026-10-03 after upstream homework (audit point 3's "narrow input from the
+  parsed model" is WITHDRAWN: it would re-implement `ModelBuilder.ingestRuntime`'s connection classification — inline
+  connections, model, model-chain and foreign connections — a second owner).**
+  - **Upstream (traced, file:line):** the server compiles first (`Execute.java:404-419`; a concrete model is recompiled
+    per request, `ModelManager.java:153-155`); plan generation picks the connection per store from the runtime
+    (`connectionByElement`, `runtimeExtension.pure:79-93`, called at `relationalMappingExecution.pure:59`) and writes the
+    definition INTO the plan (`SQLExecutionNode.connection`, `SQLExecutionNode.java:32`); the executor opens it only when
+    it reaches the node (`RelationalExecutor.java:400-419` → `ConnectionManagerSelector`), throwing on any unknown spec
+    or type — no fallback. `ExecuteInput`'s runtime is OPTIONAL (`ExecuteInput.java:28-34`; null passes through,
+    `HelperRuntimeBuilder.java:277-279`): a storeless lambda is planned as a platform node and runs in Java
+    (`executionPlan_generation.pure:48-60`); model data runs in memory (`storeContract.pure:86-92`). NOT copied:
+    `connectionByElement`'s silent `at(0)` when no connection matches the store.
+  - **The rule (user, 2026-10-03; SEMANTICS_REGISTER S27 widened):** a query that reads a declared database runs there;
+    a query that reads NO database — model data only, or literals only — with no runtime runs on the platform DuckDB;
+    a storeless query WITH a runtime runs on that runtime's database (upstream ignores the runtime there: recorded
+    difference — PCT's lanes rely on it, and an explicit runtime is honoured). A query that reads a database with no
+    runtime is refused by name, for relation accessors too (today only the class-query wall exists,
+    `StoreResolver.java:1503`; an accessor is refused only by the blanket `NO_RUNTIME`, which this rule replaces).
+  - **Steps:**
+    1. `executesOn` returns the TARGET, not just a type: `Declared(ConnectionDefinition)` or `Platform`, decided once
+       from the compiled model and, for no runtime, from whether the resolved query reads a database. Two DIFFERENT
+       connection definitions in one runtime are refused by name (one query, one session) — measured first.
+    2. The execution-side owner `com.legend.exec.Sessions`: the JDBC product name per type (the session check, moved
+       off the dialect: `SqlDialect.jdbcProduct` and `AnsiSqlRenderer`'s constructor argument DELETED, with
+       `CarrierDifferentialTest`'s); opening a session from a connection definition, exhaustive over type × spec with
+       no `default` arm (unknown → refused by name); a private in-memory instance (DuckDB, H2, SQLite; Postgres refused
+       by name); `PLATFORM`'s DuckDB.
+    3. The server: the four `QueryService` paths that resolve a connection today hand the compiler an OPENER (the
+       server's `ConnectionResolver`, keeping its content-keyed cache and leases) instead of a connection; the compiler
+       compiles once, computes the target, and asks the opener for exactly it. `ConnectionResolver.resolve(source,
+       runtimeName)` is DELETED with its parse-based lookup — the first-binding pick, the short-name match (dead: the
+       compiler resolves runtimes by full name only, `SymbolTable.resolveId`, so a short name already fails at
+       execution), and its `default ->` spec arms (silent in-memory fallbacks). Tests: a JSON-only runtime over the
+       server (fails today, "Connection not found"); a storeless query with no runtime; a runtime with two different
+       connections; an unknown spec kind.
+    4. Direct callers that hand their own connection keep it, CHECKED against the target's type (`Platform` = DuckDB).
+    5. `exec/SystemDatabase` opens by the target's type through `Sessions` (its product-name switch goes: the name census
+       3 → 0).
+    6. `test/StorelessRuntime` declares the REAL session (the embedded Postgres port from `PctBackend`).
+    7. `ModelContext.isModelConnection`'s `default false` goes (every context answers; a default hid the question).
+    8. `Compiler.NO_RUNTIME` is replaced by the rule's refusal; `MetamodelStoreTest`/`MetamodelMappingStoreTest` pin
+       the new wall.
+  - **Gate:** the full chain uncached; PCT (3 lanes), Channel B and both corpora unchanged; the server tests above.
+  - **C3b audit (2026-10-03, before code) — corrections to the steps above:**
+    1. **A second owner already exists: `CrossStoreGuard`** (root, called at `StatementExecutor:358`). It maps the
+       stores a RESOLVED statement touches to their bound connections (upstream's `connectionByElement`, per store) and
+       refuses two different connections. It also has three silent passes: no runtime → return; runtime not found →
+       return; a touched store the runtime does not bind "rides the session connection" — upstream's `at(0)` in our
+       code. **Fix:** one decision, two halves. `executesOn` (runtime level, before execution) chooses the session;
+       the per-statement walk CHECKS every touched store is bound to that session's connection, and refuses, by name,
+       a store the runtime does not bind and a store read with no runtime. Its silent returns are deleted; it moves
+       beside `executesOn` as that decision's per-statement half.
+    2. **"Reads no database" is not decided by a pre-walk.** Statements resolve one at a time inside the executor,
+       after user-function inlining, so a walk before execution would miss a `getAll` or `#>{db.T}#` inside a called
+       function. **Fix:** no runtime → the `Platform` target; the per-statement check (1) refuses a store read with no
+       runtime when it meets one (a class query still meets the resolver's existing wall first,
+       `StoreResolver.java:1503`). Step 1's "decided from whether the resolved query reads a database" is withdrawn.
+    3. **Two different connections in one runtime.** Refusing the whole runtime would break the direct-caller path,
+       which never opens anything (it only checks the type). **Fix:** the target carries the runtime's connection
+       definitions; only the server's opener needs ONE and refuses more than one distinct definition by name. Measured
+       before coding: how many corpus/test runtimes bind more than one distinct definition.
+    4. **`exec/JdbcMetadata`** (the product/version read kept out of `Compiler` for `java.sql` linking) merges into
+       `Sessions` — the product name and the read of it in one place; `JdbcMetadata` deleted (rule 15).
+    5. **The server cache key** (`ConnectionResolver.storesKey`, a hash of the model's Database declarations) comes from
+       the parsed model today; under the opener it is computed from the compiled model (`ModelBuilder.databases()`,
+       to be exposed on `ModelContext`), so the server still parses once.
+    Unchanged by the audit: the rule; `Sessions`; the opener; direct callers checked; `SystemDatabase`;
+    `StorelessRuntime`; `isModelConnection`'s default; the server tests.
+
 - **C4. The reader fix.** The static `ExecutionContext` reader follows `->from(m, ^Runtime(connectionStores =
   helper()))`, `toSQLString`'s runtime forms and helper bodies; the four `"H2"` defaults (§3.2) are DELETED; a context
   that truly cannot be read is refused by name. Gate: the 21 corpus tests pass reading their real declarations.
@@ -456,6 +525,9 @@ run, and are removed before any commit.
 ## 6. Process lessons from this session (apply throughout)
 
 - Measure, don't sample: full-suite probes over the uncached chain; static call-site parsing over grep reading.
+- Trace upstream's WHOLE flow for a seam before designing its fix — not the one function. C3b's first design (the
+  server reading the parsed model) was written from an assumption; tracing `Execute` → plan → executor showed upstream
+  decides the connection after compile, from the compiled model (2026-10-03, user catch).
 - A probe insertion and its run are one chained command; probes never reach a commit.
 - Read comments when judging code (a "silent default" had a written rationale — still wrong, for a different reason).
 - When a guard claims a property, verify the guard sees what it claims (F1.3b).

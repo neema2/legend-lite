@@ -1,5 +1,7 @@
 package com.legend.warehouse.server;
 
+import com.legend.testing.Runfile;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -220,7 +222,8 @@ class AppModeTest {
     private static WarehouseServer singleUser(Path dir, Path site) throws Exception {
         return new WarehouseServer(new WarehouseServer.Config(0, dir.resolve("data"), List.of("main"), List.of(), null,
                 Duration.ofMinutes(5), new Statements.Limits(2, 10, 1000, Duration.ofMinutes(1))).withSite(site)
-                .withSingleUser(System.getProperty("user.name")));
+                .withSingleUser(System.getProperty("user.name"))
+                .withDuckdbLibrary(Runfile.property("warehouse.duckdb.library")));
     }
 
     private static HttpResponse<String> get(String url) throws Exception {

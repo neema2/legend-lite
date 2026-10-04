@@ -4,6 +4,7 @@
 package com.legend.equivalence;
 
 import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -34,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CorpusManifestTest {
 
     private static final Path MANIFEST =
-            Repo.module("src/test/resources/corpus-manifest.tsv");
+            Runfile.property("pe.corpus.manifest");
 
     @Test
     void corpusMatchesTheCommittedManifest() throws Exception {

@@ -1,0 +1,31 @@
+# WINDOWS-SENSITIVE PATHS (Bazel workplan P0-14, decision D17's fast loop). On a PR touching any of these,
+# GitHub asks the owner and the Windows contributor to review it (never a PR's own author). The rule that
+# these paths go through a PR, never a direct push, is suspended until the Bazel program ends (AGENTS.md,
+# "Pushing to main", rule 2; restored by P8-01).
+# Requested, not required. main's ruleset (applied with P0-14) makes everyone but the repository owner use
+# a PR with an approval and `gates green`; the owner, and the agent sessions running as the owner, bypass
+# it and keep this rule by convention. Add a path here when a change to it has broken, or could break, a
+# Windows desk.
+#
+# The build's own settings: shell, line endings, toolchains, pinned downloads
+/.bazelrc                                               @neema2 @johnnymads
+/.bazelversion                                          @neema2 @johnnymads
+/.gitattributes                                         @neema2 @johnnymads
+/MODULE.bazel                                           @neema2 @johnnymads
+/MODULE.bazel.lock                                      @neema2 @johnnymads
+/.github/workflows/                                     @neema2 @johnnymads
+# this file: removing a path from it is itself Windows-sensitive
+/.github/CODEOWNERS                                     @neema2 @johnnymads
+# The test runners and the actions every JVM test and generator goes through
+/tools/junit/                                           @neema2 @johnnymads
+/tools/java_run/                                        @neema2 @johnnymads
+/testing/                                               @neema2 @johnnymads
+/tools/postgres/                                        @neema2 @johnnymads
+# The warehouse a Windows desk runs: its native image and launcher (the server's code changes with
+# ordinary feature work, so it is not listed: Windows CI on main catches a server regression)
+/warehouse/BUILD.bazel                                  @neema2 @johnnymads
+/warehouse/defs.bzl                                     @neema2 @johnnymads
+/warehouse/src/test/java/com/legend/warehouse/launcher/ @neema2 @johnnymads
+# The two tests that stop a Windows process tree (until P4-18)
+/datacube/demo/verify-app.mjs                           @neema2 @johnnymads
+/query-store/test/lite.test.ts                          @neema2 @johnnymads

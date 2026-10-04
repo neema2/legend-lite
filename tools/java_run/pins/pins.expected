@@ -1,0 +1,8 @@
+-Duser.timezone=GMT given
+-Duser.language=en given
+-Duser.country=US given
+-Dfile.encoding=UTF-8 given
+timezone=GMT
+locale=en_US
+encoding=UTF-8
+tmpdir=pins_tmp

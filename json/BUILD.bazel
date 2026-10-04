@@ -2,22 +2,22 @@
 # streaming writer, and THE JSON escape table. java.base and the null annotations only. Used by
 # core's server shell and protocol emitter, and by the warehouse, which needs nothing else of
 # core. Lived in core's server package until 2026-09-26.
-load("@rules_java//java:defs.bzl", "java_library")
+
 load("//tools/junit:defs.bzl", "junit_test")
-load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
+load("//tools/java:defs.bzl", "legend_java_library")
 
 package(default_visibility = ["//visibility:public"])
 
-java_library(
+legend_java_library(
     name = "json",
     srcs = glob(["src/main/java/com/legend/json/*.java"]),
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     deps = ["//base"],
+    visibility = ["//core:__pkg__", "//datacube:__pkg__", "//warehouse:__pkg__", "//wasm:__pkg__"],
 )
 
 junit_test(
     name = "tests",
+    memory_mb = 768,
     size = "small",
     srcs = glob(["src/test/java/com/legend/json/*.java"]),
     select = ["--select-package=com.legend.json"],

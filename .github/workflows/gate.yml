@@ -30,18 +30,20 @@ on:
   workflow_dispatch:
     inputs:
       gates:
-        description: "Comma-separated lanes to run (empty = all): 1,checks,3,4,5,6,7,8,9,10,app,native,browser (4 includes the judge differential, once gate 11; browser is Linux only)."
+        description: "Comma-separated lanes to run (empty = all): 1,checks,3,4,5,6,7,7p,8,9,10,app,misc,build,native,browser (4 includes the judge differential, once gate 11; browser is Linux only)."
         default: ""
         type: string
       platforms:
         description: "Which platforms to run."
         default: all
         type: choice
-        options: [all, linux, macos, windows]
+        options: [all, linux, macos, windows, linux-arm]
 
 concurrency:
   group: gates-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Only a PR's superseded run is cancelled: every commit on main gets a verdict, so `gates green` is never
+  # red merely because a newer push cancelled it (revert-on-red would revert a good commit).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # A workflow whose OWN file is invalid never runs (GitHub reports zero jobs
@@ -86,3 +88,34 @@ jobs:
       runs-on: windows-2022
       platform: windows
       gates: ${{ inputs.gates }}
+
+  # LINUX ARM64 (Bazel workplan P1-13): the native warehouse on a real arm64 runner, with the hermetic C
+  # toolchain. CI had never run Linux arm64; the native-image crash seen under Docker Desktop on Apple silicon
+  # does not happen on real hardware (run 37139357779). The native lane only, until P5-03.
+  linux-arm:
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'linux-arm' }}
+    uses: ./.github/workflows/gates-run.yml
+    with:
+      runs-on: ubuntu-24.04-arm
+      platform: linux-arm
+      gates: native
+
+  # THE ONE REQUIRED CHECK (Bazel workplan P0-14, D17): main's ruleset requires this job, not the ~50 lane
+  # jobs, whose names move with every lane change. It fails unless every job above succeeded. It does not
+  # run on workflow_dispatch: a dispatch can choose a subset of lanes or platforms, and its green would
+  # satisfy the required check on that commit.
+  green:
+    name: gates green
+    if: ${{ always() && github.event_name != 'workflow_dispatch' }}
+    needs: [workflows, linux, macos, windows, linux-arm]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "results: $RESULTS"
+          if echo "$RESULTS" | grep -q -E '"(failure|cancelled)"'; then
+            echo "::error ::a gate job did not succeed: $RESULTS"
+            exit 1
+          fi

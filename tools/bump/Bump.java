@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HexFormat;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,11 +31,12 @@ import java.util.regex.Pattern;
  *   <li>DECIDE — the release must be PUBLISHED on Maven Central (tags and Central
  *       disagree: 4.142.0 is tagged and unpublished); the pure release is DERIVED
  *       from that engine release's own pom (nobody types a pure version); the tag
- *       COMMITS come from {@code git ls-remote}; the third-party versions the
- *       engine's root pom manages are read from it.</li>
- *   <li>MOVE — MODULE.bazel (the two releases, both source archives' sha256
+ *       COMMITS come from GitHub's ref advertisement over HTTPS (what {@code git
+ *       ls-remote} reads; no host git); the third-party versions the engine's root
+ *       pom manages are read from it.</li>
+ *   <li>MOVE — MODULE.bazel (the two releases, both source archives' integrity
  *       computed from the download, the engine-managed third-party versions) and
- *       tools/oracle-pins.env; then the upstream jar pool is repinned.</li>
+ *       tools/oracle-pins.env; then every jar pool keyed on the engine release is repinned.</li>
  *   <li>REGENERATE and CHECK — {@code bazel run //:update_generated} (every
  *       generated file, from the new pins; a generator that REFUSES — "the new
  *       thing we cannot parse yet" — stops the bump: fix the platform first, then
@@ -49,6 +50,9 @@ import java.util.regex.Pattern;
 public final class Bump {
 
     private static final String CENTRAL = "https://repo1.maven.org/maven2";
+
+    /** The jar pools keyed on LEGEND_ENGINE_RELEASE in MODULE.bazel: each is repinned by a bump. */
+    private static final List<String> RELEASE_POOLS = List.of("maven_upstream", "maven_runner");
 
     private final Path ws;
 
@@ -83,8 +87,8 @@ public final class Bump {
         System.out.println("   to   " + release + " / " + pure + " (derived from engine " + release + "'s pom)");
         String engineTag = "legend-engine-" + release;
         String pureTag = "legend-pure-" + pure;
-        String engineSha = peeled(pins.get("LEGEND_ENGINE_REPO"), engineTag);
-        String pureSha = peeled(pins.get("LEGEND_PURE_REPO"), pureTag);
+        String engineSha = tagCommit(http, pins.get("LEGEND_ENGINE_REPO"), engineTag);
+        String pureSha = tagCommit(http, pins.get("LEGEND_PURE_REPO"), pureTag);
         System.out.println("   " + engineTag + " = " + engineSha);
         System.out.println("   " + pureTag + " = " + pureSha);
         Map<String, String> managed = new LinkedHashMap<>();
@@ -95,44 +99,35 @@ public final class Bump {
         managed.put("com.google.guava:guava", property(enginePom, "guava.version", release));
         System.out.println("   engine-managed at " + release + ": " + managed);
 
-        step("phase 1: move — MODULE.bazel, tools/oracle-pins.env, the upstream jar pool");
+        step("phase 1: move — MODULE.bazel, tools/oracle-pins.env, the release's jar pools");
         String engineArchive = "https://github.com/" + pins.get("LEGEND_ENGINE_REPO") + "/archive/refs/tags/"
                 + engineTag + ".tar.gz";
         String pureArchive = "https://github.com/" + pins.get("LEGEND_PURE_REPO") + "/archive/refs/tags/"
                 + pureTag + ".tar.gz";
-        String engineArchiveSha = sha256(http, engineArchive);
-        String pureArchiveSha = sha256(http, pureArchive);
-        System.out.println("   " + engineArchive + " sha256 " + engineArchiveSha);
-        System.out.println("   " + pureArchive + " sha256 " + pureArchiveSha);
+        String engineIntegrity = integrity(http, engineArchive);
+        String pureIntegrity = integrity(http, pureArchive);
+        System.out.println("   " + engineArchive + " " + engineIntegrity);
+        System.out.println("   " + pureArchive + " " + pureIntegrity);
 
         Path module = ws.resolve("MODULE.bazel");
-        String m = Files.readString(module, StandardCharsets.UTF_8);
-        m = replaceOne(m, "(?m)^LEGEND_ENGINE_RELEASE = \"[^\"]*\"", "LEGEND_ENGINE_RELEASE = \"" + release + "\"");
-        m = replaceOne(m, "(?m)^LEGEND_PURE_RELEASE = \"[^\"]*\"", "LEGEND_PURE_RELEASE = \"" + pure + "\"");
-        m = replaceOne(m, "(name = \"legend_engine_src\",[^)]*?sha256 = \")[0-9a-f]{64}\"", "$1" + engineArchiveSha + "\"");
-        m = replaceOne(m, "(name = \"legend_pure_src\",[^)]*?sha256 = \")[0-9a-f]{64}\"", "$1" + pureArchiveSha + "\"");
-        for (Map.Entry<String, String> e : managed.entrySet()) {
-            m = replaceOne(m, "\"" + Pattern.quote(e.getKey()) + ":[^\"]+\"", "\"" + e.getKey() + ":" + e.getValue() + "\"");
-        }
-        Files.writeString(module, m, StandardCharsets.UTF_8);
+        Files.writeString(module, rewriteModule(Files.readString(module, StandardCharsets.UTF_8),
+                release, pure, engineIntegrity, pureIntegrity, managed), StandardCharsets.UTF_8);
         System.out.println("   MODULE.bazel -> " + release + " / " + pure + " (+ archives, engine-managed versions)");
 
         Path pinsFile = ws.resolve("tools/oracle-pins.env");
-        String p = Files.readString(pinsFile, StandardCharsets.UTF_8);
-        p = replaceOne(p, "(?m)^LEGEND_ENGINE_RELEASE=.*$", "LEGEND_ENGINE_RELEASE=" + release);
-        p = replaceOne(p, "(?m)^LEGEND_PURE_RELEASE=.*$", "LEGEND_PURE_RELEASE=" + pure);
-        p = replaceOne(p, "(?m)^LEGEND_ENGINE_SHA=.*$", "LEGEND_ENGINE_SHA=" + engineSha);
-        p = replaceOne(p, "(?m)^LEGEND_ENGINE_DESCRIBE=.*$", "LEGEND_ENGINE_DESCRIBE=" + engineTag);
-        p = replaceOne(p, "(?m)^LEGEND_PURE_SHA=.*$", "LEGEND_PURE_SHA=" + pureSha);
-        p = replaceOne(p, "(?m)^LEGEND_PURE_DESCRIBE=.*$", "LEGEND_PURE_DESCRIBE=" + pureTag);
-        Files.writeString(pinsFile, p, StandardCharsets.UTF_8);
+        Files.writeString(pinsFile, rewritePins(Files.readString(pinsFile, StandardCharsets.UTF_8),
+                release, pure, engineSha, engineTag, pureSha, pureTag), StandardCharsets.UTF_8);
         System.out.println("   tools/oracle-pins.env -> " + release + " / " + pure);
 
-        bazel(Map.of("REPIN", "1"), "the upstream jar pool could not be repinned at " + release,
-                "run", "@maven_upstream//:pin");
+        // every jar pool whose artifacts or BOM name the engine release (MODULE.bazel: maven_upstream,
+        // maven_runner). MODULE.bazel sets fail_if_repin_required on every pool, so a pool left
+        // unpinned here fails the build instead of resolving stale jars silently.
+        for (String pool : RELEASE_POOLS) {
+            bazel(Map.of("REPIN", "1"), "the " + pool + " jar pool could not be repinned at " + release,
+                    "run", "@" + pool + "//:pin");
+        }
         if (pinsOnly) {
-            step("pins only — stopping before regeneration");
-            git("status", "--short");
+            step("pins only — stopping before regeneration: `git status --short` shows what moved");
             return;
         }
 
@@ -147,13 +142,11 @@ public final class Bump {
                 + " with a reason (ledgers shrink-only)",
                 "test", "//...");
 
-        step("done — the upstream change, made legible:");
-        git("status", "--short");
-        git("diff", "--stat");
+        step("done — the upstream change, made legible by `git status --short` and `git diff --stat`");
         System.out.println("""
 
                 NEXT (the judgement half):
-                  1. read the diff above — prelude.pure / Pure.java / native-*.tsv / DynaFn.java /
+                  1. read the diff — prelude.pure / Pure.java / native-*.tsv / DynaFn.java /
                      corpus-manifest.tsv / protocol-roster.tsv / the fixture snapshot: that IS the
                      upstream change;
                   2. re-pin every ratchet the gates reported moved, each with a reason; ledgers shrink-only;
@@ -161,6 +154,53 @@ public final class Bump {
     }
 
     // ------------------------------------------------------------------
+
+    /** MODULE.bazel at the new release: both releases, both source archives' integrity, the engine-managed
+     *  versions. Every pin must appear exactly once (BumpTest holds the real file to that). */
+    static String rewriteModule(String m, String release, String pure, String engineIntegrity, String pureIntegrity,
+            Map<String, String> managed) {
+        m = replaceOne(m, "(?m)^LEGEND_ENGINE_RELEASE = \"[^\"]*\"", "LEGEND_ENGINE_RELEASE = \"" + release + "\"");
+        m = replaceOne(m, "(?m)^LEGEND_PURE_RELEASE = \"[^\"]*\"", "LEGEND_PURE_RELEASE = \"" + pure + "\"");
+        m = replaceOne(m, "(name = \"legend_engine_src\",[^)]*?integrity = \")" + SRI_SHA256 + "\"", engineIntegrity + "\"");
+        m = replaceOne(m, "(name = \"legend_pure_src\",[^)]*?integrity = \")" + SRI_SHA256 + "\"", pureIntegrity + "\"");
+        for (Map.Entry<String, String> e : managed.entrySet()) {
+            m = replaceOne(m, "\"" + Pattern.quote(e.getKey()) + ":[^\"]+\"", "\"" + e.getKey() + ":" + e.getValue() + "\"");
+        }
+        return m;
+    }
+
+    /** tools/oracle-pins.env at the new release. */
+    static String rewritePins(String p, String release, String pure, String engineSha, String engineTag,
+            String pureSha, String pureTag) {
+        p = replaceOne(p, "(?m)^LEGEND_ENGINE_RELEASE=.*$", "LEGEND_ENGINE_RELEASE=" + release);
+        p = replaceOne(p, "(?m)^LEGEND_PURE_RELEASE=.*$", "LEGEND_PURE_RELEASE=" + pure);
+        p = replaceOne(p, "(?m)^LEGEND_ENGINE_SHA=.*$", "LEGEND_ENGINE_SHA=" + engineSha);
+        p = replaceOne(p, "(?m)^LEGEND_ENGINE_DESCRIBE=.*$", "LEGEND_ENGINE_DESCRIBE=" + engineTag);
+        p = replaceOne(p, "(?m)^LEGEND_PURE_SHA=.*$", "LEGEND_PURE_SHA=" + pureSha);
+        p = replaceOne(p, "(?m)^LEGEND_PURE_DESCRIBE=.*$", "LEGEND_PURE_DESCRIBE=" + pureTag);
+        return p;
+    }
+
+    /** A pinned download's {@code integrity} (Subresource Integrity), as Bazel's http rules check it. */
+    static String integrity(byte[] sha256) {
+        return "sha256-" + Base64.getEncoder().encodeToString(sha256);
+    }
+
+    private static final String SRI_SHA256 = "sha256-[A-Za-z0-9+/]{43}=";
+
+    /** The commit a tag names in a git ref advertisement: the peeled ref of an annotated tag, else the ref
+     *  itself (upstream's tags are lightweight since the 4.14x release workflow); null when there is none. */
+    static String tagCommit(String advertisement, String tag) {
+        String ref = " refs/tags/" + Pattern.quote(tag);
+        for (String suffix : List.of("\\^\\{\\}", "")) {
+            // a pkt-line is <4 hex length><40 hex sha> <ref>, ending at the newline (or, on the first, a NUL)
+            Matcher m = Pattern.compile("([0-9a-f]{40})" + ref + suffix + "(?=[\\n\\x00])").matcher(advertisement);
+            if (m.find()) {
+                return m.group(1);
+            }
+        }
+        return null;
+    }
 
     private static void step(String s) {
         System.out.println();
@@ -200,7 +240,7 @@ public final class Bump {
         return m.group(1).trim();
     }
 
-    private static String sha256(HttpClient http, String url) throws Exception {
+    private static String integrity(HttpClient http, String url) throws Exception {
         HttpResponse<InputStream> r = http.send(HttpRequest.newBuilder(URI.create(url)).build(),
                 HttpResponse.BodyHandlers.ofInputStream());
         if (r.statusCode() != 200) {
@@ -213,36 +253,25 @@ public final class Bump {
                 md.update(buf, 0, n);
             }
         }
-        return HexFormat.of().formatHex(md.digest());
+        return integrity(md.digest());
     }
 
-    /** The commit a tag names: the peeled ref of an annotated tag, else the ref itself
-     *  (upstream's tags are lightweight since the 4.14x release workflow). */
-    private String peeled(String repo, String tag) throws Exception {
-        String url = "https://github.com/" + repo;
-        String sha = firstSha(capture("git", "ls-remote", "--tags", url, "refs/tags/" + tag + "^{}"));
-        if (sha == null) {
-            sha = firstSha(capture("git", "ls-remote", "--tags", url, "refs/tags/" + tag));
-        }
+    /** The commit {@code tag} names on GitHub: the smart-HTTP ref advertisement, the list {@code git ls-remote}
+     *  reads, fetched over HTTPS so the bump needs no host git. */
+    private static String tagCommit(HttpClient http, String repo, String tag) throws Exception {
+        String url = "https://github.com/" + repo + ".git/info/refs?service=git-upload-pack";
+        String sha = tagCommit(get(http, url, "cannot list " + repo + "'s refs"), tag);
         if (sha == null) {
             throw new IllegalStateException("no tag " + tag + " on " + repo);
         }
         return sha;
     }
 
-    private static String firstSha(String lsRemote) {
-        for (String line : lsRemote.split("\n")) {
-            String[] f = line.trim().split("\\s+");
-            if (f.length >= 1 && f[0].matches("[0-9a-f]{40}")) {
-                return f[0];
-            }
-        }
-        return null;
-    }
-
     /** Rewrites a pin that appears EXACTLY once — none means the file moved on
-     *  without the bump, two would leave one behind. */
-    private static String replaceOne(String text, String regex, String replacement) {
+     *  without the bump, two would leave one behind. The match becomes {@code literal}, taken as written (a
+     *  version or digest is never a regex replacement: no {@code $} or {@code \\} escapes), after the pattern's
+     *  group 1 when it has one (the text kept before the value). */
+    private static String replaceOne(String text, String regex, String literal) {
         Pattern pattern = Pattern.compile(regex);
         Matcher count = pattern.matcher(text);
         int n = 0;
@@ -252,16 +281,10 @@ public final class Bump {
         if (n != 1) {
             throw new IllegalStateException("pin must appear exactly once, found " + n + ": " + regex);
         }
-        return pattern.matcher(text).replaceFirst(replacement);
-    }
-
-    private String capture(String... cmd) throws Exception {
-        Process p = new ProcessBuilder(cmd).directory(ws.toFile()).redirectErrorStream(true).start();
-        String out = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-        if (p.waitFor() != 0) {
-            throw new IllegalStateException(String.join(" ", cmd) + " failed:\n" + out);
-        }
-        return out;
+        Matcher m = pattern.matcher(text);
+        m.find();
+        String kept = m.groupCount() >= 1 ? m.group(1) : "";
+        return text.substring(0, m.start()) + kept + literal + text.substring(m.end());
     }
 
     private void bazel(Map<String, String> env, String whenItFails, String... args) throws Exception {
@@ -275,11 +298,5 @@ public final class Bump {
             throw new IllegalStateException("BUMP STOPPED at `" + String.join(" ", cmd) + "` (exit " + rc + "): "
                     + whenItFails);
         }
-    }
-
-    private void git(String... args) throws Exception {
-        List<String> cmd = new ArrayList<>(List.of("git"));
-        cmd.addAll(List.of(args));
-        new ProcessBuilder(cmd).directory(ws.toFile()).inheritIO().start().waitFor();
     }
 }

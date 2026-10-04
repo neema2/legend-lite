@@ -2,14 +2,16 @@
 # @maven_upstream jars (4.145.0 / 5.99.0), compiles core_relational's 27-module closure and dumps what every call
 # resolved to. Test input only (the reference-checkout tenet): nothing in //core depends on this. The H3 spike
 # (2026-09-29) proved it: 35 s, 5.3 GB.
-load("@rules_java//java:defs.bzl", "java_binary")
 
-java_binary(
+load("//tools/java_run:defs.bzl", "java_run")
+load("//tools/java:defs.bzl", "legend_java_library")
+
+legend_java_library(
     name = "ref_resolutions",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     testonly = True,
     srcs = ["RefResolutions.java"],
-    main_class = "RefResolutions",
-    jvm_flags = ["-Xmx12g", "-Xss16m"],
     deps = [
         "@maven_upstream//:org_eclipse_collections_eclipse_collections",
         "@maven_upstream//:org_eclipse_collections_eclipse_collections_api",
@@ -51,15 +53,28 @@ java_binary(
     ],
 )
 
-# The reference dump as a BUILD OUTPUT: a pure function of the pinned jars and RefResolutions.java, so Bazel caches
-# it and a lane run pays only our side and the join (plan W1.1). ~35 s and ~6 GB when it does run; built only for
-# the manual //spec:reference_lane.
-genrule(
+# The reference dump as a BUILD OUTPUT: it depends only on the pinned jars and RefResolutions.java, so Bazel caches
+# it and a lane run pays only our side and the join (plan W1.1). Not byte-reproducible: two runs on the same inputs
+# differ (as the genrule did; Bazel workplan P2-14), so it is cached, never compared. ~35 s when it does run;
+# built only for the manual //spec:reference_lane.
+java_run(
     name = "ref_dump",
     testonly = True,
     outs = ["ref-resolutions.tsv"],
-    cmd = "$(location :ref_resolutions) $@ /core_relational/ /platform/ /core_functions_ /core/ 2> /dev/null",
+    arguments = [
+        "{OUT}",
+        "/core_relational/",
+        "/platform/",
+        "/core_functions_",
+        "/core/",
+    ],
+    # the compiler's diagnostics go to the action's stderr, and a failure fails the action (Bazel workplan P1-22)
+    jvm_flags = ["-Xss16m"],
+    main_class = "RefResolutions",
+    # peaks at 3,072 MB live (-Xlog:gc, macOS arm64, 2026-10-04); the genrule's -Xmx12g was never measured
+    memory_mb = 8192,
+    mnemonic = "ReferenceDump",
     tags = ["manual"],
-    tools = [":ref_resolutions"],
     visibility = ["//spec:__pkg__"],
+    deps = [":ref_resolutions"],
 )

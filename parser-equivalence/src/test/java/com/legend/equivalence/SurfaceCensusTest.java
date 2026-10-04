@@ -1,6 +1,7 @@
 package com.legend.equivalence;
 
 import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -16,7 +17,7 @@ class SurfaceCensusTest {
     @Test
     void everyEngineSurfaceIsParsedOrNamed() throws Exception {
         java.util.Set<String> excluded = new java.util.HashSet<>();
-        java.nio.file.Path ledger = Repo.path("docs/parser-surface-exclusions.tsv");
+        java.nio.file.Path ledger = Runfile.property("ledger.parser-surface-exclusions");
         for (String line : java.nio.file.Files.readAllLines(ledger)) {
             String[] c = line.split("\t");
             if (c.length >= 2 && !"kind".equals(c[0])) {
@@ -119,11 +120,10 @@ class SurfaceCensusTest {
      *  The 75 UNCLASSIFIED rows are the review backlog, family-bucketed. */
     @org.junit.jupiter.api.Test
     void everyG4KeywordIsSnapshotted() throws Exception {
-        String engineRoot = System.getProperty("legend.engine.root");
-        org.junit.jupiter.api.Assumptions.assumeTrue(engineRoot != null);
+        java.nio.file.Path engineRoot = com.legend.testing.Upstream.engine();
         java.util.Set<String> snap = new java.util.HashSet<>();
         for (String line : java.nio.file.Files.readAllLines(
-                Repo.path("docs/g4-keyword-snapshot.tsv"))) {
+                Runfile.property("ledger.g4-keyword-snapshot"))) {
             snap.add(line.split("\t")[0]);
         }
         java.util.List<String> fresh = new java.util.ArrayList<>();
@@ -133,11 +133,12 @@ class SurfaceCensusTest {
                 java.util.regex.Pattern.MULTILINE);
         int grammars = 0;
         try (var walk = java.nio.file.Files.walk(
-                java.nio.file.Path.of(engineRoot))) {
+                engineRoot)) {
             for (var g4 : (Iterable<java.nio.file.Path>) walk
                     .filter(f -> f.toString().endsWith("Grammar.g4"))
-                    .filter(f -> !Corpus.slashed(f).contains("/target/")
-                            && !Corpus.slashed(f).contains("/test/"))::iterator) {
+                    // the path within the tree: the tree's own location (an output base) never decides
+                    .filter(f -> !Corpus.within(engineRoot, f).contains("/target/")
+                            && !Corpus.within(engineRoot, f).contains("/test/"))::iterator) {
                 grammars++;
                 var m = rule.matcher(java.nio.file.Files.readString(g4));
                 while (m.find()) {

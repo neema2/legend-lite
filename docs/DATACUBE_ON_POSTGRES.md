@@ -21,7 +21,7 @@ app actually prints.
 |---|---|
 | **OS** | macOS (Apple silicon or Intel), Linux (x86-64 or ARM64), or Windows 11 (x64). |
 | **Bazelisk** | Installed as `bazel` ([github.com/bazelbuild/bazelisk](https://github.com/bazelbuild/bazelisk)). It runs the Bazel version the repository pins. Bazel fetches everything else: the JDK, GraalVM, DuckDB and its Postgres extension, Node and the web app's packages. |
-| **A C toolchain** | The app is compiled to a native binary by GraalVM's `native-image`, which links with your system's compiler. On macOS: `xcode-select --install`. On Linux: `gcc`, plus the glibc and zlib development headers (Debian/Ubuntu: `sudo apt install build-essential zlib1g-dev`). On Windows: Visual Studio 2022 Build Tools with "Desktop development with C++" (`winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"`). Install it before your first build; if Bazel ran first, run `bazel fetch --configure --force` once so that it finds the compiler. |
+| **A C toolchain (macOS and Windows)** | The app is compiled to a native binary by GraalVM's `native-image`. On Linux, Bazel fetches the compiler, linker, C library and zlib itself; the one host library its linker needs is `libxml2` (present on most systems; Debian/Ubuntu: `sudo apt install libxml2`). On macOS: Apple's Command Line Tools, `xcode-select --install`. On Windows: Visual Studio 2022 Build Tools with "Desktop development with C++" (`winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"`). The first build checks for it and, if it is missing, stops and says what to install. On Windows, if Bazel ran before you installed it, also run `bazel fetch --configure --force` once: Bazel keeps the C++ toolchain it found first. |
 | **On Windows, also** | Developer Mode on (Settings → System → For developers) and Git for Windows at its default path; see the README's Windows prerequisites. Run the commands below in PowerShell. |
 | **A browser** | Any current one. |
 | **Postgres 16 or newer** | Reachable over TCP from your machine. Older servers are refused at start. See section 3 for a throwaway one in Docker. |
@@ -45,38 +45,15 @@ wait out of the way.
 that can read (see the last row of the table above).
 
 **To try it without touching a real database,** start Postgres 16 in Docker and load a small
-sample: 5,000 orders in a `sales.orders` table, readable by a `reader` login.
+sample: 5,000 orders in a `sales.orders` table, readable by a `reader` login. The sample is
+[`datacube/demo/sample-shop.sql`](../datacube/demo/sample-shop.sql); run these from the repository's root.
+`//datacube:verify_app_test` loads the same file into its own Postgres.
 
 ```bash
 docker run -d --name datacube-pg -e POSTGRES_PASSWORD=admin -p 5432:5432 postgres:16
 until docker exec datacube-pg pg_isready -h 127.0.0.1 -U postgres >/dev/null 2>&1; do sleep 1; done
 
-docker exec -i datacube-pg psql -U postgres <<'SQL'
-CREATE DATABASE shop;
-\c shop
-CREATE SCHEMA sales;
-CREATE TABLE sales.orders (
-  id integer PRIMARY KEY,
-  ordered_at timestamptz NOT NULL,
-  channel text NOT NULL,
-  region text NOT NULL,
-  product text NOT NULL,
-  quantity integer NOT NULL,
-  unit_price numeric(10,2) NOT NULL
-);
-INSERT INTO sales.orders
-SELECT g,
-       timestamptz '2026-01-01 00:00:00+00' + g * interval '37 minutes',
-       (ARRAY['web','store','phone'])[1 + g % 3],
-       (ARRAY['north','south','east','west'])[1 + g % 4],
-       (ARRAY['widget','gadget','gizmo','doohickey','sprocket'])[1 + g % 5],
-       1 + g % 7,
-       round((5 + (g % 50) * 1.37)::numeric, 2)
-FROM generate_series(1, 5000) AS g;
-CREATE ROLE reader LOGIN PASSWORD 'secret';
-GRANT USAGE ON SCHEMA sales TO reader;
-GRANT SELECT ON ALL TABLES IN SCHEMA sales TO reader;
-SQL
+docker exec -i datacube-pg psql -U postgres < datacube/demo/sample-shop.sql
 ```
 
 **In PowerShell** (Windows), the same:
@@ -85,32 +62,7 @@ SQL
 docker run -d --name datacube-pg -e POSTGRES_PASSWORD=admin -p 5432:5432 postgres:16
 do { Start-Sleep 1; docker exec datacube-pg pg_isready -h 127.0.0.1 -U postgres *> $null } until ($LASTEXITCODE -eq 0)
 
-@'
-CREATE DATABASE shop;
-\c shop
-CREATE SCHEMA sales;
-CREATE TABLE sales.orders (
-  id integer PRIMARY KEY,
-  ordered_at timestamptz NOT NULL,
-  channel text NOT NULL,
-  region text NOT NULL,
-  product text NOT NULL,
-  quantity integer NOT NULL,
-  unit_price numeric(10,2) NOT NULL
-);
-INSERT INTO sales.orders
-SELECT g,
-       timestamptz '2026-01-01 00:00:00+00' + g * interval '37 minutes',
-       (ARRAY['web','store','phone'])[1 + g % 3],
-       (ARRAY['north','south','east','west'])[1 + g % 4],
-       (ARRAY['widget','gadget','gizmo','doohickey','sprocket'])[1 + g % 5],
-       1 + g % 7,
-       round((5 + (g % 50) * 1.37)::numeric, 2)
-FROM generate_series(1, 5000) AS g;
-CREATE ROLE reader LOGIN PASSWORD 'secret';
-GRANT USAGE ON SCHEMA sales TO reader;
-GRANT SELECT ON ALL TABLES IN SCHEMA sales TO reader;
-'@ | docker exec -i datacube-pg psql -U postgres
+Get-Content -Raw datacube/demo/sample-shop.sql | docker exec -i datacube-pg psql -U postgres
 ```
 
 If port 5432 is already taken on your machine, use `-p 5433:5432` and put `5433` in the URL below.

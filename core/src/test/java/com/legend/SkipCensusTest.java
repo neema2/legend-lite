@@ -100,8 +100,9 @@ class SkipCensusTest {
             "MigrationSizingTest.java",
             "OwnDialectCensusTest.java",
             "ParseSpeedBenchmarkTest.java",
-            "SectionParseSentinelTest.java",
-            "SurfaceCensusTest.java");
+            // SurfaceCensusTest.java left 2026-10-04 (Bazel workplan P1-04): it reads the engine tree through
+            // Upstream, which fails when the tree is missing instead of skipping.
+            "SectionParseSentinelTest.java");
 
     private static final Pattern DISABLED =
             Pattern.compile("@Disabled\\(\"([^\"]*)\"\\)");

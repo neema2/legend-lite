@@ -18,6 +18,8 @@
 //   ONLY=nulls bazel run //datacube:verify_smoke        (one sample)
 //   ROWS=200 bazel run //datacube:verify_smoke          (smaller files, faster)
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { createServer } from 'node:http';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -72,7 +74,10 @@ const server = createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const { port } = server.address();
 
-const dir = await mkdtemp(join(tmpdir(), 'dc-smoke-'));
+// under a test, Bazel's own per-test temp directory, never the host's shared one
+const dir = await mkdtemp(join(process.env.TEST_TMPDIR ?? tmpdir(), 'dc-smoke-'));
+// a test's artifacts (the summary, a screenshot of a failing shape) go where Bazel keeps them
+const OUT = process.env.TEST_UNDECLARED_OUTPUTS_DIR;
 const wanted = SAMPLES.filter((s) => !ONLY || s.id.includes(ONLY));
 if (!wanted.length) {
   console.error(`no sample matches ${ONLY}; have`
@@ -81,6 +86,8 @@ if (!wanted.length) {
 }
 
 const browser = await chromium.launch();
+console.log(`browser: ${browser.browserType().name()} ${browser.version()}`
+  + ` from ${process.env.PLAYWRIGHT_BROWSERS_PATH ?? "Playwright's default cache"}`);
 const context = await browser.newContext({
   viewport: { width: 1400, height: 900 },
 });
@@ -261,6 +268,7 @@ try {
     await page.waitForTimeout(150);
 
     const broke = failures.filter((f) => f.sample === sample.id).length;
+    if (broke && OUT) await page.screenshot({ path: join(OUT, `${sample.id}.png`) });
     summary.push({ id: sample.id, ok: broke === 0 });
   }
 } catch (e) {
@@ -270,6 +278,10 @@ try {
   server.close();
 }
 
+if (OUT) {
+  await writeFile(join(OUT, 'summary.json'),
+    JSON.stringify({ summary, failures }, null, 2), 'utf8');
+}
 console.log('\n---');
 for (const s of summary) {
   console.log(`  ${s.ok ? 'ok  ' : 'BAD '} ${s.id}`);

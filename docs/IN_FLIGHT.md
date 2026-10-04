@@ -192,6 +192,14 @@ below), not done here.
   C3a landed 2026-10-03: `//core:database` (`core/BUILD.bazel`, `tools/deps/BUILD.bazel`), `PlanEnvelope`,
   `ArchitectureTest`'s library map, and the `dialectFor` callers `wasm/.../Wasm.java` and
   `datacube/tools/catalogfacts/CatalogFacts.java` (now `Databases.dialect`).
+  C3b announced 2026-10-03 (plan doc §4 C3b and its audit): the connecting side's one owner, a new `exec/Sessions`
+  (`exec/JdbcMetadata` deleted into it); `Compiler` (`executesOn` returns the target, `dialectOf`'s session check, new
+  execute/executeWire/executeStreaming entries taking a connection opener, `NO_RUNTIME` replaced); `CrossStoreGuard`
+  (moved beside `executesOn`, silent returns deleted); `StatementExecutor` (its `CrossStoreGuard` and `SystemDatabase`
+  calls only); `exec/SystemDatabase`; `server/ConnectionResolver` (`resolve` deleted; becomes the opener) and
+  `server/QueryService`; `compiler/element/ModelContext` (`isModelConnection` default; a `databases()` view);
+  `sql/dialect/SqlDialect` + `AnsiSqlRenderer` and subclasses (`jdbcProduct` deleted); `test/StorelessRuntime`;
+  `pct/.../PctBackend`; `docs/SEMANTICS_REGISTER.md` S27; the tests that pin `NO_RUNTIME` and the server's resolver.
 
 **Handed to the rebuild (not touched here):** the effect scan's swallowed compile errors (`StatementExecutor
 .containsEffect`; D10's demand-driven rule), the `ExecutionContext` reader's `"H2"` defaults (`ContextReading`), the
@@ -200,22 +208,37 @@ measurements in the plan document above.
 
 ## A fifth line, 2026-10-03: Studio, SDLC-lite and Depot-lite (the user's ask, rule 5)
 
-Design `docs/STUDIO_DESIGN_2026_10_02.md` (every decision ruled); census `studio/docs/UPSTREAM_STUDIO_CENSUS.md`. The
-user: "write the depot and lite projects/versions/model home as part of studio so we have a real writer of models";
-"i paused compiler rewrite so we can do (2) here". **Owns:** `studio/` (the app), the SDLC-lite and Depot-lite servers
-(their module named when it lands), and the S18 dogfood model.
+On the remote branch `studio` (worktree `legend-lite-query`); everything lands there first, only this announcement on
+`main`. Design `docs/STUDIO_DESIGN_2026_10_02.md` and census `studio/docs/` (both on `studio`). **Owns, all new
+top-level modules:** `studio/` (the app), `sdlc-client/` and `depot-client/` (TypeScript clients), `sdlc-server/` and
+`depot-server/` (Java: the model home's rules, written once and run both as servers and compiled to WebAssembly for
+the page; they depend on `//core`'s public API, never the reverse), and the dogfood model.
 
-**The compiler rebuild is paused by the user** while this line builds the core pieces Studio needs (design S11), each
-announced here with its files before it lands, every push through the full chain:
-- (a) name-resolved entity JSON per element (the protocol layer and `NameResolver`'s rules);
-- (b) W1.2 by its written design (`plan-audit-2026-09-26/h4-diagnostics-design-2026-09-29.md`): parser codes, spans
-  and UTF-16 columns first, then the diagnostics sink and stage bridges; moved to the execution plan's §3 when it lands;
-- (c) a WASM compile entry (`wasm/`);
-- (e) the model JSON reader and (f) the model printer (`jsonToGrammar/model`), for opening existing upstream projects
-  (design S19).
+**Spike landed (2026-10-04, on `studio`):** the SDLC's rules in Java compile to WebAssembly by `sdlc-server/`'s own
+`teavm_wasm` target and pass the same conformance suite as the server over a real git repository. No edit in `core/`,
+`json/` or `tools/`.
 
-Not touched: the stress corpus and the Bazel hermeticity work (another session's; the design takes the stress corpus
-last, S17).
+**2026-10-04, announced before landing: one edit in `wasm/`** for Studio's in-tab compile.
+`wasm/src/main/java/planner/Wasm.java` gains one export, `compileOrError(model)`: exactly what the server's
+`compilation/compile` does (`Compiler.compileModel` then `Compiler.compileAllBodies`), answered as `"OK\n" + [every
+body error]` or the folded refusal, like the module's other exports. Nothing else in `wasm/` changes.
+
+**2026-10-04, announced before landing: a cross-area edit in `datacube/` and `query/`** (the user: "let's also pull
+out stuff that query is using from datacube"; "should we call it engine-client"). No behaviour changes, moves only:
+- **New `engine-client/`** (TypeScript): where a query runs, shared by DataCube, Query and Studio. MOVED from
+  `datacube/src/`: `engine.ts`, `relation-type.ts`, `result.ts`, `receipt.ts`, `values.ts`, `types.ts`, `pure-v1.ts`,
+  `duckdb.ts`, `warehouse.ts`, `engine-remote.ts` (and whatever they alone import). Every importer in `datacube/`
+  (about 50 files, one line each) and `query/` points at the new paths; BUILD and typecheck targets follow.
+- **New `datacube/src/embed.ts`**: DataCube's one public entry for an app embedding the cube (`CubeApp`, `CubeView`,
+  `RemoteRun`, the snapshot type, `sourceColumns`); Query imports only from it, no longer from DataCube's internals.
+- Later in the same line: legend-art's tokens and the icon generator shared by Query, Studio and DataCube.
+Gated by DataCube's own suites (its tests, `//wasm:all`, the browser lane) and Query's. A DataCube session working
+on `datacube/` should rebase after this lands.
+
+The compiler rebuild is paused by the user while this line works (design S11). Core pieces it will need later, each
+announced here with its files before it lands: the model JSON reader and printer (opening existing upstream projects),
+W1.2 diagnostics, and (v1) name-resolved entity JSON with the function-resolution fix
+(`docs/function-resolution/README.md` on `studio`).
 
 ## Rules between sessions
 

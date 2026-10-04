@@ -8,6 +8,11 @@ below; CI runs the same targets as parallel lanes on Linux, macOS and Windows
 still reads — but **everything under this section is the Maven-era log**: its
 commands (`mvn`, `tools/allgates.sh`, `-Dx.generate=1`) no longer exist.
 
+**Before pushing to `main`: `bazel test --lockfile_mode=error //gates:local`** (`gates/BUILD.bazel`): the light
+lanes (checks, gates 1 and 3, app, misc, and gate 7P's one-query `//core:postgres_arm_test`). The heavy lanes
+(gates 4–10, the native image, the browser lane) and `bazel build //...` run in CI only. The push rule is
+`AGENTS.md`'s "Pushing to main".
+
 | Gate | Target | What it holds |
 |---|---|---|
 | 1 | `//core:core_tests` | the compiler suite + guardrails (NullAway runs on every compile) |
@@ -22,13 +27,16 @@ commands (`mvn`, `tools/allgates.sh`, `-Dx.generate=1`) no longer exist.
 | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites |
 | 10 | `//core:stress_suites` | the stress corpus |
 | 11 | `//spec:corpus_duckdb` | its second pass: the database judge, joined per assert to the host pass (one target with gate 4 since 2026-09-23 — the host pass ran twice before) |
-| app | `//datacube:tests`, `//wasm:all`, `//warehouse:tests`, `//query-store:lite_test` | DataCube's suite and typecheck; the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database; the warehouse's suite; legend-lite's server held to the query store's suite. On Windows the lane runs in Eastern time, not the runners' UTC, so a test that reads the machine's zone shows (since 2026-10-03) |
-| native | `//warehouse:tests_native`, `//warehouse:launcher_test`, `//datacube:app` | the warehouse suite against the native binary, on Linux, macOS and Windows x64 (since 2026-10-02); the `bazel run` launchers (bash on Linux and macOS, hermetic-launcher on Windows) started as `bazel run` starts them; and `//datacube:app` built, not run. What the launcher test judges: `docs/WINDOWS_APP_DESIGN_2026_10_02.md` §3 |
-| browser | `//datacube:live_snap_test`, then every `//datacube` target tagged `browser-ci` (`bazel run`) | **Linux only in CI.** Every cube case live on the native warehouse and snapped into DuckDB-WASM, the answers compared (plus receipts, sign-in again, token refresh); then the harnesses that drive the built site in headless Chromium and need no server: smoke, features, page (two cubes on one page), charts (one live chart, Pin, Open in grid), cubes, real data, upload, remote, wasm-browser, stress (about 6 minutes together here). Locally: `bazel run //datacube:install_browser` once, then `bazel run` each |
+| app | `//datacube:tests`, `//datacube:verify_app_test`, `//wasm:all`, `//warehouse:tests`, `//query-store:lite_test` | the single-user app against Postgres 16 in the pinned Chromium, on every platform (`verify_app_test`, since 2026-10-04, Bazel workplan P1-14b: its own Postgres from the pinned binaries, no psql); DataCube's suite and typecheck; the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database; the warehouse's suite; legend-lite's server held to the query store's suite. On Windows the lane runs in Eastern time, not the runners' UTC, so a test that reads the machine's zone shows (since 2026-10-03) |
+| native | `//warehouse:tests_native`, `//warehouse:launcher_test`, `//datacube:app` | the warehouse suite against the native binary, on Linux, macOS and Windows x64 (since 2026-10-02) and Linux arm64 (since 2026-10-04, P1-13), linked on Linux by the hermetic LLVM toolchain (P1-09); the `bazel run` launchers (bash on Linux and macOS, hermetic-launcher on Windows) started as `bazel run` starts them; and `//datacube:app` built, not run. What the launcher test judges: `docs/WINDOWS_APP_DESIGN_2026_10_02.md` §3 |
+| checks | `//:generated`, `//tools/deps:all`, `//tools/junit:pins_test`, `//tools/junit:runner_test`, `//tools/java_run:pins_test`, `//tools/python:lock_matches_requirements`, `//tools/browser:revision_test`, `//core:guardrails`, `//core:census` | the pinned Chromium equal to every locked Playwright's revision (since 2026-10-04, P1-14); the Python lock holding every pin of tools/python/requirements.in with hashes (offline; since 2026-10-04, P1-07); every committed generated file equal to its generator (`//:generated` holds each package's diff-test suite; a missing suite fails the build — since 2026-10-03, replacing a `bazel query` whose failure ran nothing); the dependency guards; the test environment's pins (in no lane until 2026-10-03, P0-14); the source checks |
+| misc | `//json:tests`, `//pure-protocol:twins_test`, `//query:tests`, `//query-store:local_test`, `//query-store:share_test` | tests no lane ran before 2026-10-03 (Bazel workplan P0-03) |
+| build | `bazel build //...` | every target builds on every platform, non-test targets included (since 2026-10-03) |
+| browser | `//datacube:live_snap_test`, `//datacube:verify_smoke_test` (a test on the pinned Chromium since 2026-10-04, P1-14), then every `//datacube`, `//query` and `//site` target tagged `browser-ci` (`bazel run`; `//query:verify` and `//site:verify` since 2026-10-03) | **Linux only in CI.** Every cube case live on the native warehouse and snapped into DuckDB-WASM, the answers compared (plus receipts, sign-in again, token refresh); then the harnesses that drive the built site in headless Chromium and need no server (smoke is a `bazel test` on the pinned Chromium and needs no `install_browser`; the others are still `bazel run` after `install_browser`, until P4): features, page (two cubes on one page), charts (one live chart, Pin, Open in grid), cubes, real data, upload, remote, wasm-browser, stress (about 6 minutes together here). Locally: `bazel run //datacube:install_browser` once, then `bazel run` each |
 
 Beside the gates, in `bazel test //...`:
 
-- **Generated files** — `//core:update_generated_*_test`,
+- **Generated files** — `//:generated` (CI's checks lane), that is `//core:update_generated_*_test`,
   `//docs:update_generated_test`, `//parser-equivalence:update_generated_*_test`,
   `//datacube:update_generated_test`: each committed generated file
   (Pure.java's signatures, DynaFn.java, NameResolver.java's imports,
@@ -40,11 +48,12 @@ Beside the gates, in `bazel test //...`:
   and `//core:census` (the ones that walk other modules too; `@Tag("census")`).
   Out of `//core:core_tests`, so the behaviour suite declares only core's tree.
 - **Dependency guards** — `//tools/deps:core_closure_test` (core compiles
-  against no jar; the drivers are exactly three), `:pools_are_disjoint`,
+  against no jar; the drivers are exactly the named five: H2, DuckDB, SQLite,
+  Postgres and its annotations jar, since 2026-10-03), `:pools_are_disjoint`,
   `:one_release` (MODULE.bazel and tools/oracle-pins.env name one release).
 
-Suites and manual targets: `//spec:judge_lanes` (all four judge lanes),
-`//spec:corpus_lanes`, `//parser-equivalence:diagnostics` (the measurement
+Suites and manual targets: `//spec:judge_lanes` (all four judge lanes, the full corpus on both backends),
+`//parser-equivalence:diagnostics` (the measurement
 battery), `//core:heavy`, `//docs:draft_own_corpus_ledger` (a DRAFT of the
 own-corpus ledger for a person to finish — never generated).
 

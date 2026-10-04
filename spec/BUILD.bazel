@@ -1,7 +1,8 @@
 # spec — the tests that read the upstream sources as the SPEC: the generators'
 # byte-parity checks (Maven gate 3) and the relational corpus lanes (gates 4, 5).
-load("@rules_java//java:defs.bzl", "java_library")
+
 load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES")
+load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 
@@ -27,14 +28,18 @@ _GENERATOR_SRCS = [
     "src/test/java/com/legend/generators/UpstreamFiles.java",
 ]
 
-java_library(
+legend_java_library(
     name = "generators",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = _GENERATOR_SRCS,
     deps = ["//core"],
 )
 
-java_library(
+legend_java_library(
     name = "spec_tests_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     testonly = True,
     srcs = glob(
         ["src/test/java/**/*.java"],
@@ -49,7 +54,6 @@ java_library(
         ":generators",
         "//core",
         "//testing",
-        "@maven_core//:com_h2database_h2",
         "@maven_test//:com_tngtech_archunit_archunit",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
         "@maven_core//:org_duckdb_duckdb_jdbc",
@@ -67,7 +71,7 @@ _INPUTS = [
 # Maven gate 3: every spec test except the heavy corpus sweep.
 junit_test(
     name = "spec_tests",
-    tags = ["resources:memory:1536"],
+    memory_mb = 1024,
     data = _INPUTS,
     exclude_tags = ["heavy"],
     runtime_deps = [":spec_tests_lib"],
@@ -85,7 +89,7 @@ junit_test(
 # chain ran the host pass twice.
 junit_test(
     name = "corpus_duckdb",
-    tags = ["resources:memory:1536"],
+    memory_mb = 768,
     data = _INPUTS,
     jvm_flags = [
         "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
@@ -105,7 +109,12 @@ junit_test(
 # are the leg's rows.
 junit_test(
     name = "corpus_warehouse",
-    data = _INPUTS + ["//warehouse:server_deploy.jar"],
+    memory_mb = 768,
+    # the warehouse it starts finds DuckDB's library in these runfiles (Bazel workplan P1-16)
+    data = _INPUTS + [
+        "//warehouse:duckdb_library",
+        "//warehouse:server_deploy.jar",
+    ],
     jvm_flags = [
         "-Drcorpus.warehouse.server=$(rootpath //warehouse:server_deploy.jar)",
         "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
@@ -118,7 +127,7 @@ junit_test(
         "//warehouse:client",
     ],
     select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
-    tags = ["resources:memory:1536", "manual"],
+    tags = ["manual"],
     upstream = True,
 )
 
@@ -126,9 +135,11 @@ junit_test(
 # prerun, writing its ledger), then under the DATABASE judge, joined per assert —
 # :corpus_duckdb's shape. The database pass was its own target until 2026-09-23,
 # which ran the H2 database judge but never the join.
+# memory_mb 4096, not the rule's 4864 (live peak 3235 MB, measured 2026-10-04): CI's 7 GB macOS runner runs this
+# lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
 junit_test(
     name = "corpus_h2",
-    tags = ["resources:memory:5120"],
+    memory_mb = 4096,
     data = _INPUTS,
     jvm_flags = [
         "-Drcorpus.backend=h2",
@@ -144,33 +155,25 @@ junit_test(
 
 # THE REFERENCE LANE (execution plan W1.1): legend-pure's own compiler, from the pinned jars, against ours, call by
 # call, over core_relational's closure. The reference side is a cached build output (//tools/reference:ref_dump); the
-# test types our side, joins, and compares the whole report to its committed golden. Manual (about 8 GB): not in CI's
-# 7 GB runners; every front-end slice's GATES entry cites a run.
+# test types our side, joins, and compares the whole report to its committed golden. Manual: in no CI
+# lane; every front-end slice's GATES entry cites a run.
 junit_test(
     name = "reference_lane",
+    memory_mb = 2048,
     data = _INPUTS + ["//tools/reference:ref_dump"],
     jvm_flags = [
-        "-Xmx8g",
         "-Xss16m",
         "-Dreference.dump=$(rootpath //tools/reference:ref_dump)",
     ],
     runtime_deps = [":spec_tests_lib"],
     select = ["--select-class=com.legend.generators.ReferenceLaneTest"],
-    tags = ["manual", "resources:memory:8192"],
+    tags = ["manual"],
     upstream = True,
 )
 
-# THE MEASURE BEFORE ANY CHAIN (was tools/corpus-both.sh): the full corpus on both
-# backends. `bazel test //spec:corpus_lanes`
-test_suite(
-    name = "corpus_lanes",
-    tests = [
-        ":corpus_duckdb",
-        ":corpus_h2",
-    ],
-)
-
-# THE JUDGE LANES (was tools/judge-lanes.sh; docs/DATABASE_MODE_HOMEWORK_2026_09_18.md):
+# THE CORPUS LANES and THE JUDGE LANES, one suite (was tools/corpus-both.sh and
+# tools/judge-lanes.sh, whose suites held the same two targets; corpus_lanes deleted
+# 2026-10-03, workplan P0-13; docs/DATABASE_MODE_HOMEWORK_2026_09_18.md):
 # DuckDB and H2 under both judges, and the per-assert differential at zero
 # unregistered disagreements. `bazel test //spec:judge_lanes`
 test_suite(
@@ -188,7 +191,6 @@ test_suite(
 # //core:update_generated writes the outputs into the checkout; its diff tests fail
 # `bazel test` when a committed file is not its generator's output.
 _ENGINE_COMPILE_CONTEXT = "@legend_engine_src//:legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/CompileContext.java"
-
 
 # Each generator runs through java_run (//tools/java_run): its program is an
 # ordinary TARGET-configuration library — compiled once, with core — run on the
@@ -302,8 +304,10 @@ java_run(
 # the claims generator reads the COMPILED registries, so it is compiled against,
 # and runs on, //core:core_next — core as the generators above rewrite it — and
 # never beside a second core
-java_library(
+legend_java_library(
     name = "claims_generator_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = [
         "src/test/java/com/legend/claims/Claims.java",
         "src/test/java/com/legend/claims/ClaimsGenerator.java",

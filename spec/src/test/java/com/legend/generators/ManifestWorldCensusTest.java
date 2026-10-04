@@ -64,7 +64,8 @@ public class ManifestWorldCensusTest {
         for (Path tree : List.of(engine, pure)) {
             try (Stream<Path> walk = Files.walk(tree)) {
                 for (Path p : walk.filter(x -> x.getFileName().toString().endsWith(".definition.json")).toList()) {
-                    if (p.toString().contains("/target/")) {
+                    // the path within the tree: the tree's own location (an output base) never decides
+                    if (("/" + tree.relativize(p).toString().replace('\\', '/')).contains("/target/")) {
                         continue;
                     }
                     String text = Files.readString(p, StandardCharsets.UTF_8);
