@@ -3,6 +3,7 @@
 # TypeScript with no npm dependency, for every UI that talks to legend-lite or legend-engine.
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("//tools/js:defs.bzl", "node_test")
+load("//tools/guards:defs.bzl", "guards_package")
 
 js_library(
     name = "pure_protocol",
@@ -31,3 +32,5 @@ js_library(
     srcs = glob(["src/**/*.ts", "test/**/*.ts"]) + ["package.json"],
     visibility = ["//datacube:__pkg__"],
 )
+
+guards_package()

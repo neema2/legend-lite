@@ -1,5 +1,6 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/deps:pools.bzl", "POOLS")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # Root package. Exists so the jar pools' lock files are labels rules_jvm_external
 # can read (MODULE.bazel says which pool is whose; tools/deps/pools.bzl lists them),
@@ -34,3 +35,4 @@ write_source_files(
     ],
 )
 
+guards_package()

@@ -1,4 +1,5 @@
 load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # Compiles a Pure code repository to its PAR — see ParGenerator.java. The classpath
 # is the one the Maven goal ran with in pct/pom.xml: the engine's compiled core
@@ -18,3 +19,5 @@ legend_java_library(
     ],
     deps = ["@maven_upstream//:org_finos_legend_pure_legend_pure_m3_core"],
 )
+
+guards_package()

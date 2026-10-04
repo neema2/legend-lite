@@ -17,6 +17,7 @@ load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/guards:defs.bzl", "guards_package")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -833,3 +834,5 @@ js_binary(
     data = [":node_modules/playwright"],
     entry_point = "demo/install-browser.mjs",
 )
+
+guards_package()

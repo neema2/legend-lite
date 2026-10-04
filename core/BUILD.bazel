@@ -8,6 +8,7 @@ load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # PRIVATE BY DEFAULT (Bazel workplan P1-20): a target is visible outside core only where it says to whom.
 package(default_visibility = ["//visibility:private"])
@@ -501,3 +502,4 @@ legend_java_library(
     resources = ["//spec:gen_prelude"],
 )
 
+guards_package()

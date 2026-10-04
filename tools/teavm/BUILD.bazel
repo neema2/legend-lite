@@ -1,4 +1,5 @@
 load("//tools/java:defs.bzl", "legend_java_binary")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # TeaVM as a build action (defs.bzl, teavm_wasm). The compiler's jars come from
 # @maven_teavm, build tooling that runs here and nowhere else.
@@ -16,3 +17,5 @@ legend_java_binary(
         "@maven_teavm//:org_teavm_teavm_tooling",
     ],
 )
+
+guards_package()

@@ -1,5 +1,6 @@
 # THE PLATFORMS (Bazel workplan P1-19): every platform config_setting the repository selects on lives here;
 # tools/platforms/defs.bzl holds the selects over them.
+load("//tools/guards:defs.bzl", "guards_package")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -66,3 +67,5 @@ platform(
         "@platforms//cpu:s390x",
     ],
 )
+
+guards_package()

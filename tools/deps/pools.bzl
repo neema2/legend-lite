@@ -27,7 +27,7 @@ POOL_USERS = {
     # TeaVM: the WebAssembly compiler and the class library the planner compiles against
     "maven_teavm": ["tools/teavm", "wasm"],
     # test tooling: JUnit, ArchUnit; for the packages with tests
-    "maven_test": ["core", "json", "parser-equivalence", "pct", "spec", "tools/bump", "tools/deps", "tools/junit", "warehouse"],
+    "maven_test": ["core", "json", "parser-equivalence", "pct", "spec", "tools/bump", "tools/deps", "tools/guards", "tools/junit", "warehouse"],
     # compiler plugins (NullAway), never on a classpath
     "maven_tools": ["tools/nullaway"],
     # legend-engine and legend-pure: TEST INPUTS ONLY, for the packages that referee lite against them (AGENTS.md,

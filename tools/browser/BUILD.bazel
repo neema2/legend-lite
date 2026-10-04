@@ -5,6 +5,7 @@ load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("//tools/js:defs.bzl", "node_test")
 load("//tools/platforms:defs.bzl", "platform_select")
 load(":defs.bzl", "CHROMIUM_COMPATIBLE", "CHROMIUM_PLATFORMS")
+load("//tools/guards:defs.bzl", "guards_package")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -57,3 +58,5 @@ node_test(
     # an external file: rules_js takes it as a runfile, not a copy into bazel-bin
     no_copy_to_bin = ["@chromium_pin//:pin.json"],
 )
+
+guards_package()

@@ -1,4 +1,5 @@
 load("//tools/java:defs.bzl", "legend_java_binary")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # native-image with the hermetic C toolchain's sysroot made absolute (Bazel workplan P1-09): the
 # rules_graalvm patch runs it, in the exec configuration, in place of a shell (G-03).
@@ -8,3 +9,5 @@ legend_java_binary(
     main_class = "com.legend.tools.graalvm.SysrootNativeImage",
     visibility = ["//visibility:public"],
 )
+
+guards_package()

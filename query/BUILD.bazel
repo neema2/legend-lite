@@ -7,6 +7,7 @@ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_query//:defs.bzl", "npm_link_all_packages")
 load("@npm_query//query:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm_query//query:typescript/package_json.bzl", typescript = "bin")
+load("//tools/guards:defs.bzl", "guards_package")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -200,3 +201,5 @@ test_suite(
     name = "tests",
     tests = [t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in _TESTS] + [":typecheck_test"],
 )
+
+guards_package()

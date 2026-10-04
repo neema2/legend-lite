@@ -2,6 +2,7 @@
 # that holds the null discipline loads both (core, warehouse, json, base). It used to live in
 # core, and the warehouse kept its own copy of the flags.
 load("@rules_java//java:defs.bzl", "java_plugin")
+load("//tools/guards:defs.bzl", "guards_package")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -11,3 +12,5 @@ java_plugin(
     name = "nullaway",
     deps = ["@maven_tools//:com_uber_nullaway_nullaway"],
 )
+
+guards_package()

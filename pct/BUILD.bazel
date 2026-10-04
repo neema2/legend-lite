@@ -7,6 +7,7 @@ load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 load("//tools/java_run:defs.bzl", "java_run")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # sources exported for the guard tests that walk every module
 filegroup(
@@ -237,3 +238,5 @@ junit_test(
         "//core:drivers",
     ],
 )
+
+guards_package()

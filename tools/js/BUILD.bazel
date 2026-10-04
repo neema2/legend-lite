@@ -1,5 +1,6 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load(":defs.bzl", "node_test")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # node_test's exit-code reporter (defs.bzl): every JavaScript test target runs it beside `spec`.
 js_library(
@@ -38,3 +39,5 @@ node_test(
         "PNPM_LOCKS": "$(rlocationpath //datacube:pnpm-lock.yaml) $(rlocationpath //query:pnpm-lock.yaml)",
     },
 )
+
+guards_package()

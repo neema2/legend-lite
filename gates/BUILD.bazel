@@ -6,6 +6,8 @@
 # a PR instead (AGENTS.md, "Pushing to main"). CI names //tools/deps:all and //wasm:all by wildcard and
 # this suite names their tests: a test added there is added here too, until P5-01 makes the CI lanes
 # suites in this package.
+load("//tools/guards:defs.bzl", "guards_package")
+
 test_suite(
     name = "local",
     tests = [
@@ -20,6 +22,7 @@ test_suite(
         "//tools/deps:product_closure_test",
         "//tools/deps:pools_are_disjoint",
         "//tools/deps:warehouse_closure_test",
+        "//tools/guards:inventory_test",
         "//tools/browser:revision_test",
         "//tools/bump:bump_test",
         "//tools/java_run:pins_test",
@@ -47,3 +50,5 @@ test_suite(
         "//query:tests",
     ],
 )
+
+guards_package()

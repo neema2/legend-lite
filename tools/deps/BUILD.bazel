@@ -2,6 +2,7 @@
 # POOLS). Bazel-only by nature — they check what Bazel resolves and links.
 load("//tools/junit:defs.bzl", "junit_test")
 load(":pools.bzl", "POOLS", "TESTONLY_POOLS")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # Every external jar the product reaches: core itself (NullAway subtracted — a
 # compiler plugin, on javac's processor path, never on a classpath) and the
@@ -207,3 +208,5 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
+
+guards_package()

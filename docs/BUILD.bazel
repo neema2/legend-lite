@@ -1,4 +1,5 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # docs/ is prose, except for the committed LEDGERS some tests compare against
 # (the protocol roster, the refusal allowlists, the skew claims, ...). Declared here
@@ -38,3 +39,4 @@ write_source_files(
     },
 )
 
+guards_package()

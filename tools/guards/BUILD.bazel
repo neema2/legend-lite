@@ -1,0 +1,32 @@
+# THE GUARDS (Bazel workplan Phase 6): tests over the repository itself. inventory.bzl lists every file and package
+# (@repo_inventory); defs.bzl's guards_package gives each package an `all_files` the content guards read.
+load("@repo_inventory//:packages.bzl", "PACKAGES")
+load(":defs.bzl", "guards_package")
+load("//tools/junit:defs.bzl", "junit_test")
+
+# Every package's files (guards_package), from the inventory's package list: a package without guards_package()
+# fails analysis here (G0, Bazel workplan P6-00).
+filegroup(
+    name = "repository_files",
+    srcs = ["//%s:all_files" % p for p in PACKAGES],
+)
+
+# G0: the inventory is complete, and every file in it is in some package's all_files (Bazel workplan P6-00)
+junit_test(
+    name = "inventory_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["InventoryTest.java"],
+    data = [
+        ":repository_files",
+        "@repo_inventory//:files.txt",
+    ],
+    jvm_flags = ["-Dinventory.files=$(rlocationpath @repo_inventory//:files.txt)"],
+    select = ["--select-class=com.legend.tools.guards.InventoryTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+guards_package()

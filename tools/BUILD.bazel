@@ -1,4 +1,8 @@
 # The release as the tests read it (parser-equivalence's OraclePins). MODULE.bazel
 # holds the build's copy; //tools/bump writes both and //tools/deps:one_release
 # holds them equal.
+load("//tools/guards:defs.bzl", "guards_package")
+
 exports_files(["oracle-pins.env"])
+
+guards_package()

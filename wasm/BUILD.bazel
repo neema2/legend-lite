@@ -7,6 +7,7 @@ load("//tools/java:defs.bzl", "legend_java_library")
 
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/teavm:defs.bzl", "teavm_wasm")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # DataCube's guardrail requires the differential behind its second transport
 js_library(
@@ -154,3 +155,5 @@ js_binary(
     entry_point = "startup.mjs",
     node_options = ["--experimental-wasm-exnref"],
 )
+
+guards_package()

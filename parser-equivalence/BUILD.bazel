@@ -8,6 +8,7 @@ load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/jars:defs.bzl", "java_jars")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # sources exported for core's guard tests that walk every module
 filegroup(
@@ -304,3 +305,4 @@ java_run(
     deps = [":pe_tests_lib"],
 )
 
+guards_package()
