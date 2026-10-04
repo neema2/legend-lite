@@ -121,5 +121,13 @@ without a **done** entry.
   product_closure_test stays and pools_list_test keeps the pools testonly as a whole. USER: stop accommodating other
   sessions (the Studio line adapts when it rebases).
 - **6c built** (local): P1-23 node_test (every JS test; wasm_flag_test), P1-24 runfiles lookup (tools/js/runfiles.mts,
-  chdir only on the six scanners), P1-26 lock check (datacube exact versions). Full proof 184/184. Audit and a Windows
-  throwaway (37238983590): running.
+  chdir only on the six scanners), P1-26 lock check (datacube exact versions). Full proof 184/184.
+- **6c audit: OK after small fixes** (an overclaimed `_main` claim, a toothless A28 check, wrong counts); fixed, with a
+  load-time js_test guard. **Windows throwaway 37238983590: green** (checks, misc, app, build).
+- **6d guards built:** P6-00 inventory, P6-10 locks, P6-14 Bazel 10 config + testonly on output files everywhere
+  (product_closure_test deleted), P6-16 junit_test-only, P6-17 no Markdown inputs, P6-19 derived lock list, P6-11
+  classpath conflicts (pools_are_disjoint deleted), P7-10 dead references. **Guards audit: not ready** (.git and
+  .claude un-ignored; the G17 genquery fetched every platform's downloads); fixed. Each guard proven by a reverted
+  negative edit. Full proof 186/186.
+- **On main** (8822b03b0; 13 commits: 6c + 6d guards + P7-10). Local gate 154/154. Main CI: running.
+- Left in batch 6: P7-12 (generator sources out of src/test), then the P1-90 Phase 1 audit.

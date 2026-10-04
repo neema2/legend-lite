@@ -2625,6 +2625,8 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 | Risk/rollback | If `watch_tree` is too costly, fall back to per-package `all_files` only. Then the inventory is "every file in some package", which misses nothing, since the root package covers top-level directories. |
 | Done when | A test can read a complete, cache-correct list of the repository's files. |
 
+**Done 2026-10-04.** `repo_inventory` reads every directory with `readdir(watch = "yes")` (re-runs on entry changes only; watch_tree would stat every file of node_modules and runs/), about 1 s; writes files.txt, packages.txt and packages.bzl. `guards_package()` (the last call of every BUILD file) adds all_files plus the per-package reports the guards read (G11's guard_classpaths, G17's guard_markdown) and the load-time checks (G16, A28). //tools/guards:repository_files derives from packages.bzl, so a package without guards_package fails analysis (G0). .bazelignore gained .git and .claude (the audit: a clone's .git directory and the main checkout's agent worktrees). **Known limits:** "last call" is a convention (a Bazel 8+ finalizer macro would enforce it); a package with a platform-incompatible JVM test makes its reports incompatible on that platform (no CI platform today).
+
 #### P6-01 · G1: a GENERATED marker means a producer
 
 | Field | Content |
@@ -2768,6 +2770,8 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 | Risk/rollback | Real conflicts may surface (`slf4j-api` 2.0.12 vs 1.7.36: BZ K17). Each needs an allowlist row with a reason, or a fix. |
 | Done when | The real invariant is tested over every runtime classpath. |
 
+**Done 2026-10-04.** classpath.bzl reads java_common.JavaRuntimeClasspathInfo of every java_test, java_binary and java_run (java_run now provides it); 62 JVM targets, no conflict; pools_are_disjoint deleted. Not covered: BCR jars, java_jars run-time lists.
+
 #### P6-12 · G12: no whole-tree globs as test data
 
 | Field | Content |
@@ -2807,6 +2811,8 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 | Risk/rollback | None known. |
 | Done when | A regression on any passing flag fails CI. |
 
+**Done 2026-10-04.** The eight flags pass; `--incompatible_check_testonly_for_output_files` is on for every build (it closes P1-25's generated-file hole, so product_closure_test was deleted). CI's build lane runs the bazel10 analysis on every platform.
+
 #### P6-15 · G15: runfiles only through the official libraries (S2)
 
 | Field | Content |
@@ -2833,6 +2839,8 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 | Risk/rollback | None known. |
 | Done when | It passes. |
 
+**Done 2026-10-04** as a load-time check in guards_package (no genquery scope to keep).
+
 #### P6-17 · G17: no Markdown file is a test input
 
 | Field | Content |
@@ -2845,6 +2853,8 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
 | Done when | It passes. |
+
+**Done 2026-10-04.** First a genquery over every package's tests; the audit showed it loaded every platform's downloads, so it is markdown.bzl's per-package, per-configuration report of each test's runfiles (this repository's .md only; the upstream trees' are spec input).
 
 #### P6-18 · G18: the native image is linked by the hermetic toolchain, continuously (S3)
 
@@ -2871,6 +2881,8 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 | Size | S (0.25 d: the derived lock list) |
 | Risk/rollback | None known. |
 | Done when | It is part of the checks gate. |
+
+**Done 2026-10-04.** revision_test holds the inventory's pnpm locks equal to the ones it checks (LOCK_PATHS by $(rootpath)); no //tools/guards:all alias was needed (it is in //gates:local and the checks lane).
 
 #### P6-20 · G20: product code reads only declared environment and properties
 
