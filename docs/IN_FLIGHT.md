@@ -210,19 +210,22 @@ measurements in the plan document above.
 
 On the remote branch `studio` (worktree `legend-lite-query`); everything lands there first, only this announcement on
 `main`. Design `docs/STUDIO_DESIGN_2026_10_02.md` and census `studio/docs/` (both on `studio`). **Owns, all new
-top-level modules:** `studio/` (the app), `project-store/` (TypeScript: the one SDLC client and the SDLC answered in
-the page), `sdlc-server/` and `depot-server/` (Java: the model home, which depends on `//core`'s public API, never the
-reverse), and the dogfood model.
+top-level modules:** `studio/` (the app), `sdlc-client/` and `depot-client/` (TypeScript clients), `sdlc-server/` and
+`depot-server/` (Java: the model home's rules, written once and run both as servers and compiled to WebAssembly for
+the page; they depend on `//core`'s public API, never the reverse), and the dogfood model.
 
-**Now (2026-10-04): a spike.** The SDLC's rules written once in Java (`sdlc-server/`), TeaVM-safe, over a git-shaped
-storage interface, compiled to WebAssembly by its OWN `teavm_wasm` target inside `sdlc-server/`, and held to
-`project-store/`'s conformance suite. **No edit in `core/`, `wasm/`, `tools/` or `json/`**: `//core`, `//json` and
-`//tools/teavm:defs.bzl` are used as they are. If the spike lands and the rules move into the page's planner module,
-that `wasm/` edit is announced here first.
+**Spike landed (2026-10-04, on `studio`):** the SDLC's rules in Java compile to WebAssembly by `sdlc-server/`'s own
+`teavm_wasm` target and pass the same conformance suite as the server over a real git repository. No edit in `core/`,
+`json/` or `tools/`.
+
+**2026-10-04, announced before landing: one edit in `wasm/`** for Studio's in-tab compile.
+`wasm/src/main/java/planner/Wasm.java` gains one export, `compileOrError(model)`: exactly what the server's
+`compilation/compile` does (`Compiler.compileModel` then `Compiler.compileAllBodies`), answered as `"OK\n" + [every
+body error]` or the folded refusal, like the module's other exports. Nothing else in `wasm/` changes.
 
 The compiler rebuild is paused by the user while this line works (design S11). Core pieces it will need later, each
 announced here with its files before it lands: the model JSON reader and printer (opening existing upstream projects),
-the WASM compile entry, W1.2 diagnostics, and (v1) name-resolved entity JSON with the function-resolution fix
+W1.2 diagnostics, and (v1) name-resolved entity JSON with the function-resolution fix
 (`docs/function-resolution/README.md` on `studio`).
 
 ## Rules between sessions
