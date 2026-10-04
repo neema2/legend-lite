@@ -1,5 +1,11 @@
 # How a function name in a call is resolved — legend-engine vs legend-lite (homework, 2026-10-03)
 
+> **The complete record is `docs/function-resolution/README.md`** — every citation, probe input and output, the
+> measurement method and its scratch code, the design options for fully-qualified entity JSON, the fix
+> alternatives and the step-by-step plan, with the probes in `docs/function-resolution/probes/` and the measured
+> data in `docs/function-resolution/data/`. This page is the short version. Status: deferred to Studio v1
+> (2026-10-04); v0 stores `.pure` text without imports.
+
 Why this was read: Studio-lite stores `.pure` files with imports and serves fully-qualified entity JSON
 (design `docs/STUDIO_DESIGN_2026_10_02.md` S5, S14). For a call like `$x->filter(...)` the JSON must make
 legend-engine bind the same function lite bound, so lite must know the engine's rule exactly. Read in
