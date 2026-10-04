@@ -14,8 +14,13 @@ import { dirname, join, resolve } from 'node:path';
 const pinned = process.env.PINNED_CHROMIUM;
 // Bazel gives a test HOME = TEST_TMPDIR but passes the host's TMPDIR through on macOS
 // (/var/folders/...), where Playwright would put the browser profile and artifacts: keep them in
-// the test's own directory. os.tmpdir() reads TMPDIR on every call.
-if (process.env.TEST_TMPDIR) process.env.TMPDIR = process.env.TEST_TMPDIR;
+// the test's own directory. os.tmpdir() reads TMPDIR on every call, and on Windows TEMP and TMP instead
+// (CI, 2026-10-04: the profile went to the runner's AppData\Local\Temp).
+if (process.env.TEST_TMPDIR) {
+  process.env.TMPDIR = process.env.TEST_TMPDIR;
+  process.env.TEMP = process.env.TEST_TMPDIR;
+  process.env.TMP = process.env.TEST_TMPDIR;
+}
 if (pinned) {
   const runfiles = process.env.JS_BINARY__RUNFILES ?? process.env.RUNFILES_DIR
     ?? resolve(process.cwd(), '..');
@@ -24,14 +29,16 @@ if (pinned) {
   let browsers = dirname(dirname(dirname(exe)));
   if (process.platform === 'win32') {
     // Windows starts a process only by a path under MAX_PATH (260): CreateProcess reported a 277-character
-    // runfiles path as ENOENT (CI, 2026-10-04) though the file was there. The runfiles entry is a symlink
-    // to the archive Bazel fetched; its real path, under the output base's external/, is far shorter.
-    const tail = exe.slice(browsers.length);
-    browsers = realpathSync.native(browsers);
-    if ((browsers + tail).length >= 260) {
-      throw new Error(`the pinned Chromium's path is ${(browsers + tail).length} characters, and Windows starts`
-        + ` nothing past 259: ${browsers + tail} (a shorter --output_user_root shortens it)`);
+    // runfiles path as ENOENT (CI, 2026-10-04) though the file was there. In a runfiles tree the FILES are
+    // symlinks (the directories are real): the executable's link points into the archive Bazel fetched,
+    // under the output base's external/, a far shorter path. Its browsers path is three levels up.
+    const real = realpathSync.native(exe);
+    browsers = dirname(dirname(dirname(real)));
+    if (real.length >= 260) {
+      throw new Error(`the pinned Chromium's path is ${real.length} characters, and Windows starts nothing`
+        + ` past 259: ${real} (a shorter --output_user_root shortens it)`);
     }
+    console.error(`pinned chromium on Windows: ${real} (${real.length} characters)`);
   }
   process.env.PLAYWRIGHT_BROWSERS_PATH = browsers;
   // Playwright's own guard against a browser without its system libraries is a host `ldd`
