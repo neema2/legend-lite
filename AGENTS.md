@@ -361,8 +361,7 @@ by GitHub:
 1. **The local gate is green.** Rebase onto the latest `origin/main`, then
    `bazel test --lockfile_mode=error //gates:local` (CI's lock check: a `MODULE.bazel` edit without its lock
    fails here, not in CI); push only if it passes. Say so in the commit message ("local gate: //gates:local
-   green"). It is lighter than CI: the heavy lanes and `bazel build //...` run there only, and
-   `WarehouseArrowTest` skips without a local pyarrow.
+   green"). It is lighter than CI: the heavy lanes and `bazel build //...` run there only.
 2. **Windows-sensitive changes go through a PR: SUSPENDED until the Bazel program ends** (USER, 2026-10-04:
    most of its items touch `.github/CODEOWNERS` paths, and the rule would put each one behind a CI wait;
    restored by P8-01). Until then a change to those paths may be pushed like any other, and `main`'s CI on

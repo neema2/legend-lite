@@ -3,6 +3,8 @@
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_graalvm//graalvm:defs.bzl", "native_image")
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/junit:defs.bzl", "junit_test")
 load(":defs.bzl", "NOT_ON_WINDOWS_ARM64", "POSTGRES_EXTENSION", "jar_entry", "warehouse_run")
 load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
@@ -90,12 +92,35 @@ java_library(
     ],
 )
 
+# THE ARROW CHECK'S READER (Bazel workplan P1-08): pyarrow, the standard Arrow reader, compares the warehouse's
+# Arrow chunks with its JSON rows. A py_binary on the hermetic interpreter and the locked pip hub
+# (//tools/python), started from a bash stub (.bazelrc bootstrap_impl): never the host's python3, never a skip.
+py_binary(
+    name = "arrow_matches_json",
+    testonly = True,
+    srcs = ["src/test/python/arrow_matches_json.py"],
+    # no cp312 pyarrow wheel for Windows on Arm: skipped cleanly there, never a source build
+    target_compatible_with = NOT_ON_WINDOWS_ARM64,
+    deps = ["@pypi//pyarrow"],
+)
+
+executable_of(
+    name = "arrow_matches_json_executable",
+    testonly = True,
+    binary = ":arrow_matches_json",
+)
+
+_ARROW_COMPARATOR = "-Dwarehouse.arrow.comparator=$(rlocationpath :arrow_matches_json_executable)"
+
 junit_test(
     name = "tests",
     memory_mb = 768,
     size = "medium",
-    data = ["src/test/python/arrow_matches_json.py"],
-    jvm_flags = ["-Dwarehouse.arrow.comparator=$(rlocationpath src/test/python/arrow_matches_json.py)"],
+    data = [
+        ":arrow_matches_json",
+        ":arrow_matches_json_executable",
+    ],
+    jvm_flags = [_ARROW_COMPARATOR],
     select = ["--select-package=com.legend.warehouse"],
     runtime_deps = [":tests_lib"],
 )
@@ -125,7 +150,11 @@ junit_test(
     name = "postgres_live",
     memory_mb = 768,
     size = "medium",
-    data = ["src/test/python/arrow_matches_json.py"],
+    data = [
+        ":arrow_matches_json",
+        ":arrow_matches_json_executable",
+    ],
+    jvm_flags = [_ARROW_COMPARATOR],
     select = ["--select-class=com.legend.warehouse.WarehousePostgresLiveTest"],
     tags = ["manual"],
     runtime_deps = [":tests_lib"],
@@ -136,8 +165,10 @@ junit_test(
     name = "postgres_live_native",
     memory_mb = 768,
     size = "medium",
+    jvm_flags = [_ARROW_COMPARATOR],
     data = [
-        "src/test/python/arrow_matches_json.py",
+        ":arrow_matches_json",
+        ":arrow_matches_json_executable",
         ":duckdb_library",
         ":server_native",
     ],
@@ -201,8 +232,10 @@ junit_test(
     name = "tests_native",
     memory_mb = 768,
     size = "medium",
+    jvm_flags = [_ARROW_COMPARATOR],
     data = [
-        "src/test/python/arrow_matches_json.py",
+        ":arrow_matches_json",
+        ":arrow_matches_json_executable",
         ":duckdb_library",
         ":server_native",
     ],
@@ -210,7 +243,6 @@ junit_test(
         "WAREHOUSE_BINARY": "$(rlocationpath :server_native)",
         "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath :duckdb_library)",
     },
-    jvm_flags = ["-Dwarehouse.arrow.comparator=$(rlocationpath src/test/python/arrow_matches_json.py)"],
     select = ["--select-package=com.legend.warehouse"],
     runtime_deps = [":tests_lib"],
 )

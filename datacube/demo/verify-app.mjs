@@ -17,6 +17,14 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
+// Windows' own taskkill by its full path: a test's PATH is Bazel's, not the desk's (Bazel workplan P1-08
+// removed CI's --test_env=PATH). SystemRoot is set on every Windows process.
+const taskkill = () => {
+  const root = process.env.SystemRoot ?? process.env.SYSTEMROOT;
+  if (!root) throw new Error('SystemRoot is not set: cannot find taskkill.exe');
+  return join(root, 'System32', 'taskkill.exe');
+};
+
 // This file is datacube/demo/verify-app.mjs in the runfiles: the site and the launcher are beside it.
 const DATACUBE = fileURLToPath(new URL('..', import.meta.url));
 const RUNFILES = resolve(DATACUBE, '..', '..');
@@ -190,7 +198,7 @@ try {
     // taskkill takes the PID of a child that is still running: once it has exited, Node has released its
     // handle and Windows may have given the PID to another process, whose tree /t /f would then stop.
     if (server.exitCode === null && server.signalCode === null) {
-      const r = spawnSync('taskkill', ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
+      const r = spawnSync(taskkill(), ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
       if (r.error) bad(`taskkill did not run: ${r.error.message}`);
       else {
         // taskkill's status is not the verdict: it stops the server first, the launcher may then exit on its
