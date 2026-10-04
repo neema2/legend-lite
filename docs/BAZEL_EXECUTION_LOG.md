@@ -75,4 +75,9 @@ without a **done** entry.
 - **5a pushed** (`ecc95b30d`): the WebAssembly-planner tests get medium (the timeout above); P1-17 (a Java gunzip action,
   no shell); P1-19 (`//tools/platforms`: every platform config_setting, platform_select/compatible_with; native, DuckDB,
   pyarrow and Chromium targets skip on an unlisted platform). Audit: pass with fixes, applied (its proof query had
-  matched every rule; corrected). `main`'s CI: running.
+  matched every rule; corrected). `main`'s CI run 37218299154: 53/53. **Done.**
+- **5b pushed** (`b0e7a86cd`): P1-15 (the embedded Postgres per platform behind a hub; only the host's fetched; skipped on an
+  unlisted platform) and P1-16 (the server finds DuckDB in its runfiles; the extraction into java.io.tmpdir is gone; DuckDB's
+  jar left server_lib). The full proof caught //spec:corpus_warehouse, whose child JVM relied on the extraction: fixed by
+  declaring the library. Audit: both pass, fixes applied. P1-18 investigated: the engine server artifact exists; its
+  target lands with P4-07. `main`'s CI: running.
