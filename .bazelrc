@@ -1,5 +1,4 @@
 # One JDK for everyone, from the build: nothing depends on the machine's java.
-common --enable_bzlmod
 # Bytecode is Java 21; tests RUN on JDK 25, the JDK the gates have always run on.
 # The two differ observably: BigDecimal.valueOf(NaN)'s message, which the PCT
 # expected-failure pins record (Test_LegendLite_EssentialFunctions_PCT).
@@ -74,6 +73,10 @@ test --local_resources=memory=HOST_RAM*.6
 # A local disk cache: a fresh worktree or a `bazel clean` costs seconds, not core's
 # compile; CI passes the same path explicitly (gates-run.yml).
 build --disk_cache=~/.cache/bazel-disk
+# ...kept bounded (Bazel workplan P1-28): when Bazel is idle, entries unused for 60 days go, and the cache is
+# trimmed to 50 GB, oldest first. A desk's cache otherwise only grows.
+build --experimental_disk_cache_gc_max_size=50G
+build --experimental_disk_cache_gc_max_age=60d
 
 # Python binaries start from a bash stub, not `#!/usr/bin/env python3`: rules_python's default bootstrap
 # runs the host's python3 before the hermetic interpreter (Bazel workplan P1-07). Windows uses its own
