@@ -21,6 +21,11 @@ js_test(
         "//sdlc-server:server",
     ],
     entry_point = "test/server.test.ts",
+    # Bazel's test PATH on Windows leaves out Git for Windows, whose install .bazelrc already names (BAZEL_SH)
+    env = select({
+        "@platforms//os:windows": {"GIT": "C:/Program Files/Git/cmd/git.exe"},
+        "//conditions:default": {},
+    }),
     node_options = [
         "--experimental-strip-types",
         "--disable-warning=ExperimentalWarning",

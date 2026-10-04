@@ -108,16 +108,22 @@ describe('sdlc-server: who may call it (review findings 1, 2)', () => {
   });
 });
 
+/** git itself, over the server's repository: its output, or the failure in full (one that never ran, too). */
+function git(...args: string[]): string {
+  const r = spawnSync(process.env['GIT'] ?? 'git', ['--git-dir', repo, ...args], { encoding: 'utf8' });
+  if (r.error) throw new Error(`git ${args[0]} did not run: ${r.error.message}`);
+  assert.equal(r.status, 0, `git ${args.join(' ')}:\n${r.stdout}${r.stderr}`);
+  return r.stdout;
+}
+
 describe('sdlc-server: the repository it writes is git\'s', () => {
   it('passes git fsck, and git reads the history the suite saved', async () => {
-    const fsck = spawnSync('git', ['--git-dir', repo, 'fsck', '--strict', '--no-dangling'], { encoding: 'utf8' });
-    assert.equal(fsck.status, 0, `${fsck.stdout}${fsck.stderr}`);
-    const refs = spawnSync('git', ['--git-dir', repo, 'for-each-ref', '--format=%(refname)'], { encoding: 'utf8' });
-    const workspace = refs.stdout.split('\n').find((r) => r.endsWith('/workspace/local/w1'));
-    assert.ok(workspace, refs.stdout);
-    const history = spawnSync('git', ['--git-dir', repo, 'log', '--format=%s', workspace], { encoding: 'utf8' });
-    assert.deepEqual(history.stdout.trim().split('\n'), ['drop', 'email', 'add the party', 'Build project structure']);
-    const file = spawnSync('git', ['--git-dir', repo, 'show', `${workspace}:demo/party/Person.pure`], { encoding: 'utf8' });
-    assert.match(file.stdout, /^\/\/ a person, as the demo writes one\nClass demo::party::Person/);
+    git('fsck', '--strict', '--no-dangling');
+    const refs = git('for-each-ref', '--format=%(refname)');
+    const workspace = refs.split('\n').find((r) => r.endsWith('/workspace/local/w1'));
+    assert.ok(workspace, refs);
+    assert.deepEqual(git('log', '--format=%s', workspace).trim().split('\n'), ['drop', 'email', 'add the party', 'Build project structure']);
+    // git on Windows may write CRLF: the file's own text is compared, line ends aside
+    assert.match(git('show', `${workspace}:demo/party/Person.pure`).replace(/\r\n/g, '\n'), /^\/\/ a person, as the demo writes one\nClass demo::party::Person/);
   });
 });
