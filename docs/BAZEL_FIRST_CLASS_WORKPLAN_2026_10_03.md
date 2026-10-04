@@ -956,6 +956,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | Upstream may decline. The patch then stays, documented. |
 | Done when | The patch is gone, or §6.3 lists it with the upstream PR link once the deadline has passed (G-03); the GraalVM toolchain declares its platform. |
 
+**Progress (2026-10-04):** (a) filed upstream after research (USER: "Do research first and if don't find similar issue ... file PR upstream"): https://github.com/sgammon/rules_graalvm/pull/602. Research: no issue or PR on rules_graalvm mentions a sysroot (#27, closed, asked for hermetic native images in general); GraalVM has no sysroot option of its own (`-H:CCompilerOption` only, and native-image compiles from its own temporary directory, so the path must be absolute). The upstream form is self-contained (its own `//internal/native_image:sysroot_launcher`), handles an explicit `native_image_tool`, and cites legend-lite's Linux x86_64/arm64 run 37212513283. #567 (no Xcode.app) is our patch's other hunk, offered upstream as a follow-up. When #602 is released, delete `third_party/rules_graalvm_sysroot.patch`'s sysroot hunk and `//tools/graalvm`. (b), per-platform GraalVM toolchain registration: still to investigate.
+
 #### P1-13 · Linux arm64 joins CI permanently (the crash investigation is closed)
 
 | Field | Content |

@@ -54,4 +54,16 @@ without a **done** entry.
   from the test's runfiles: past Windows' path limit (252-259 characters). Reverted at once (`5cc648148`, its tree
   identical to batch 2's proven-green one). Re-landed as `822cfeb47` with `startup:windows --output_user_root=C:/bzl`
   in .bazelrc (checked to apply per host OS): the longest path drops to about 226, on CI and on a Windows desk.
-  `main`'s CI on the re-land: running.
+  `main`'s CI on the re-land, run 37211485516: 51/51, Windows native included. **Done.**
+
+## Batch 4: C toolchains (P1-09, P1-13, P1-10, P1-11, P1-12)
+
+- **4a done** (`91cd1f8e0`): Linux links the native warehouse with the hermetic LLVM toolchain through a shell-free
+  launcher; Linux arm64 joins CI. The independent audit caught a Windows blocker (toolchains registered in MODULE.bazel
+  name targets an empty Windows repository lacks), fixed by registering them in .bazelrc's common:linux. `main`'s CI
+  run 37212513283: 53/53, the native lanes on Linux x86_64, Linux arm64, macOS and Windows.
+- **4c pushed** (`eda84cb92`): D1 revised (USER: macOS like Windows): the Command Line Tools and MSVC declared and
+  checked by @host_cc, their exact versions recorded as a native-image input (USER: "Is that the best way? If yes let's
+  do it"), floors MSVC 17.6 and Apple clang 15. Audit: pass with fixes, applied. `main`'s CI: running.
+- **P1-12 (a)**: upstream PR https://github.com/sgammon/rules_graalvm/pull/602 after research (no duplicate; GraalVM has no
+  sysroot option). (b) per-platform GraalVM toolchains: to investigate.
