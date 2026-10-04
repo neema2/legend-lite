@@ -80,4 +80,12 @@ without a **done** entry.
   unlisted platform) and P1-16 (the server finds DuckDB in its runfiles; the extraction into java.io.tmpdir is gone; DuckDB's
   jar left server_lib). The full proof caught //spec:corpus_warehouse, whose child JVM relied on the extraction: fixed by
   declaring the library. Audit: both pass, fixes applied. P1-18 investigated: the engine server artifact exists; its
-  target lands with P4-07. `main`'s CI: running.
+  target lands with P4-07. `main`'s CI run 37219814277: 53/53. **Batch 5 done.**
+
+## Batch 6: build hygiene, JS, early guards, Phase 1 audit
+
+- **6a ready** (local): P1-28 (disk-cache GC; --enable_bzlmod gone), P1-27 (every pin by integrity; all 19 re-fetched into an
+  empty cache and verified), P1-22 (the two shell genrules are java_run actions; java_run's memory_mb; the PAR generator and
+  the reference dump found non-reproducible, recorded on P2-11/P2-14), P1-25b (investigated: no host Maven repository read;
+  settings.xml only for access). Full proof 179/179. Audit: running.
+- P1-25 investigated: 45 undeclared artifacts under strict_visibility (upstream 34, runner 5, test 5, teavm 1).
