@@ -135,7 +135,10 @@ _WASM_TESTS = [
 # Node 22 counts a suite whose body throws as `# fail 0` and exits 0.
 [js_test(
     name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
-    size = "small",
+    # The tests that load the WebAssembly planner compile it first: seconds on a desk (infer: 6 s), but past
+    # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
+    # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
+    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else "small",
     chdir = package_name(),
     data = [
         ":node_modules/jsdom",
