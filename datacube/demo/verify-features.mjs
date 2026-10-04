@@ -5143,7 +5143,7 @@ if (process.env.NO_WASM) {
   else console.log(`\nNO_WASM: the in-tab planner's files were never asked for (planner: ${PLANNER || 'local'})`);
 }
 // CANARY, ENGINE DEFECT S23 (docs/SEMANTICS_REGISTER.md): legend-engine types a BIT column TinyInt,
-// and DataCube reads it Boolean (src/relation-type.ts). The day engine answers Boolean itself,
+// and DataCube reads it Boolean (engine-client/src/relation-type.ts). The day engine answers Boolean itself,
 // this fails: delete the compensation and the register row.
 if (PLANNER === 'engine') {
   const { readFile } = await import('node:fs/promises');

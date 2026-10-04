@@ -28,6 +28,7 @@ legend_java_library(
         ":rules",
         "//base",
         "//depot-server:rules",
+        "//json",
     ],
 )
 

@@ -46,6 +46,36 @@ describe("the page's SDLC, compiled from Java: what a page asks", () => {
     }
   });
 
+  it('a save the browser cannot store is not made: the page stays what is stored (review finding 6)', async () => {
+    class FailOnce extends MemoryRecords {
+      fail = false;
+      override async apply(changes: readonly (readonly [string, unknown])[]): Promise<void> {
+        if (this.fail) {
+          this.fail = false;
+          throw new Error('QuotaExceededError');
+        }
+        return super.apply(changes);
+      }
+    }
+    const records = new FailOnce();
+    const page = new SdlcClient(WASM_API, (await wasmSdlcServer(await load(), records, user)).fetch);
+    await page.createProject({ name: 'Quota', description: '', groupId: 'org.finos.lite.page', artifactId: 'quota' });
+    await page.createWorkspace('org.finos.lite.page:quota', 'w');
+    const before = await page.revision({ project: 'org.finos.lite.page:quota', workspace: 'w' });
+    records.fail = true;
+    await assert.rejects(page.performPureChanges('org.finos.lite.page:quota', 'w', {
+      message: 'lost', changes: [{ type: 'CREATE', path: 'demo::Lost', pureCode: 'Class demo::Lost {}' }],
+    }), /could not store this change/);
+    // memory went back to the records: the save never happened, and the next one stands on what is stored
+    assert.deepEqual(await page.revision({ project: 'org.finos.lite.page:quota', workspace: 'w' }), before);
+    const next = await page.performPureChanges('org.finos.lite.page:quota', 'w', {
+      message: 'kept', revisionId: before.id, changes: [{ type: 'CREATE', path: 'demo::Kept', pureCode: 'Class demo::Kept {}' }],
+    });
+    const reopened = new SdlcClient(WASM_API, (await wasmSdlcServer(await load(), records, user)).fetch);
+    assert.deepEqual(await reopened.revision({ project: 'org.finos.lite.page:quota', workspace: 'w' }), next);
+    assert.deepEqual((await reopened.pure({ project: 'org.finos.lite.page:quota', workspace: 'w' })).map((f) => f.path), ['demo::Kept']);
+  });
+
   it('keeps one project per coordinates', async () => {
     const body = JSON.stringify({ name: 'Twice', description: '', groupId: 'org.finos.lite.page', artifactId: 'twice' });
     assert.equal((await server.fetch(`${WASM_API}/projects`, { method: 'POST', body })).status, 200);

@@ -8,6 +8,8 @@ export interface Records {
   put(key: string, value: unknown): Promise<void>;
   delete(key: string): Promise<void>;
   list<T>(prefix: string): Promise<T[]>;
+  /** Writes (a value) and deletes (null) together: all of them or none (one IndexedDB transaction). */
+  apply(changes: readonly (readonly [string, unknown])[]): Promise<void>;
 }
 
 export class MemoryRecords implements Records {
@@ -28,6 +30,13 @@ export class MemoryRecords implements Records {
 
   async list<T>(prefix: string): Promise<T[]> {
     return [...this.#data.keys()].filter((k) => k.startsWith(prefix)).sort().map((k) => JSON.parse(this.#data.get(k)!) as T);
+  }
+
+  async apply(changes: readonly (readonly [string, unknown])[]): Promise<void> {
+    for (const [key, value] of changes) {
+      if (value === null) this.#data.delete(key);
+      else this.#data.set(key, JSON.stringify(value));
+    }
   }
 }
 
@@ -81,6 +90,28 @@ export class BrowserRecords implements Records {
 
   async delete(key: string): Promise<void> {
     await this.#request('readwrite', (s) => s.delete(key));
+  }
+
+  async apply(changes: readonly (readonly [string, unknown])[]): Promise<void> {
+    if (changes.length === 0) return;
+    const db = await this.#db;
+    await new Promise<void>((resolve, reject) => {
+      let tx: IDBTransaction;
+      try {
+        tx = db.transaction(STORE, 'readwrite');
+      } catch (e) {
+        reject(new Error(`the projects were upgraded by another tab: reload this page (${e instanceof Error ? e.message : String(e)})`));
+        return;
+      }
+      const store = tx.objectStore(STORE);
+      for (const [key, value] of changes) {
+        if (value === null) store.delete(key);
+        else store.put(value, key);
+      }
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
+      tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
+    });
   }
 
   async list<T>(prefix: string): Promise<T[]> {

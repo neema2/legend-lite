@@ -325,7 +325,9 @@ public final class Depot {
         while (i < s.length()) {
             char ch = s.charAt(i);
             if (ch == '%' && i + 2 < s.length()) {
-                bytes.write(Integer.parseInt(s.substring(i + 1, i + 3), 16));
+                String hex = s.substring(i + 1, i + 3);
+                if (!hex.matches("[0-9A-Fa-f]{2}")) throw new Refusal("HTTP 400 Bad Request", 400);
+                bytes.write(Integer.parseInt(hex, 16));
                 i += 3;
             } else if (ch == '+' && plusIsSpace) {
                 bytes.write(' ');

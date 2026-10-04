@@ -42,9 +42,13 @@ export interface WasmSdlc {
  */
 export async function wasmSdlcServer(module: SdlcModule, records: Records, user: { userId: string; name: string }): Promise<WasmSdlc> {
   const e = module.exports;
-  e.reset();
-  for (const kept of await records.list<Kept>('')) e.load(kept.key, kept.value);
-  e.start(user.userId, user.name);
+  /** The module's memory made what the records hold, exactly. */
+  const restore = async (): Promise<void> => {
+    e.reset();
+    for (const kept of await records.list<Kept>('')) e.load(kept.key, kept.value);
+    e.start(user.userId, user.name);
+  };
+  await restore();
 
   let calls: Promise<unknown> = Promise.resolve();
   const one = async (request: Request, api: string, handle: (method: string, target: string, body: string) => string): Promise<Response> => {
@@ -55,9 +59,15 @@ export async function wasmSdlcServer(module: SdlcModule, records: Records, user:
     }
     const target = url.pathname.slice(root.pathname.length) + url.search;
     const answer = handle(request.method, target, await request.text());
-    for (const [key, value] of JSON.parse(e.changes()) as [string, string | null][]) {
-      if (value === null) await records.delete(key);
-      else await records.put(key, { key, value } satisfies Kept);
+    // the call's changes are stored together or not at all; if not, the module goes back to what IS stored, so its
+    // memory never runs ahead of the records (a later save must not reference a commit that was never written)
+    const changes = (JSON.parse(e.changes()) as [string, string | null][])
+      .map(([key, value]) => [key, value === null ? null : { key, value } satisfies Kept] as const);
+    try {
+      await records.apply(changes);
+    } catch (cause) {
+      await restore();
+      throw new Error(`the page could not store this change, so it was not made: ${cause instanceof Error ? cause.message : String(cause)}`);
     }
     const cut = answer.indexOf('\n');
     const status = Number(answer.slice(0, cut));
