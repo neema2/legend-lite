@@ -83,7 +83,7 @@ public final class EmbeddedPostgres {
         }
         try {
             // the install's real directory: postgres finds its lib/ and share/ beside its own binary
-            Path root = runfile(marker).toRealPath().getParent();
+            Path root = Runfile.of(marker).toRealPath().getParent();
             String tmp = System.getenv("TEST_TMPDIR");
             Path data = Files.createTempDirectory(tmp == null ? Path.of(System.getProperty("java.io.tmpdir")) : Path.of(tmp),
                     "pg");
@@ -146,23 +146,5 @@ public final class EmbeddedPostgres {
                     + Files.readString(out, StandardCharsets.UTF_8)
                     + (Files.exists(log) ? "\nthe server's log:\n" + Files.readString(log, StandardCharsets.UTF_8) : ""));
         }
-    }
-
-    /** A runfile by its rlocation path: under the runfiles directory, or by the manifest where there is none (Windows). */
-    private static Path runfile(String rlocation) throws IOException {
-        String dir = System.getenv("RUNFILES_DIR") != null ? System.getenv("RUNFILES_DIR") : System.getenv("TEST_SRCDIR");
-        if (dir != null && Files.exists(Path.of(dir, rlocation))) {
-            return Path.of(dir, rlocation);
-        }
-        String manifest = System.getenv("RUNFILES_MANIFEST_FILE");
-        if (manifest != null) {
-            for (String line : Files.readAllLines(Path.of(manifest), StandardCharsets.UTF_8)) {
-                int space = line.indexOf(' ');
-                if (space > 0 && line.substring(0, space).equals(rlocation)) {
-                    return Path.of(line.substring(space + 1));
-                }
-            }
-        }
-        throw new IllegalStateException("no runfile " + rlocation + " (runfiles " + dir + ", manifest " + manifest + ")");
     }
 }
