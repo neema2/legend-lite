@@ -25,11 +25,12 @@ let PG = process.env.DATACUBE_APP_PG;
 let TABLE = process.env.DATACUBE_APP_TABLE;
 let GROUP = process.env.DATACUBE_APP_GROUP;
 
-// THE TEST'S OWN POSTGRES (verify_app_test): APP_POSTGRES names :app_postgres's files, its launcher and its jar
+// THE TEST'S OWN POSTGRES (verify_app_test): APP_POSTGRES is the rlocation of :app_postgres's executable (a
+// script on Linux and macOS, an .exe on Windows), SAMPLE_SQL the sample's; both resolved by the runfiles library
 let postgres;
 if (process.env.APP_POSTGRES) {
-  const launcher = process.env.APP_POSTGRES.split(' ').find((f) => !f.endsWith('.jar'));
-  postgres = spawn(join(RUNFILES, launcher), [join(RUNFILES, process.env.SAMPLE_SQL)], {
+  const { runfiles } = (await import('@bazel/runfiles')).default;
+  postgres = spawn(runfiles.resolve(process.env.APP_POSTGRES), [runfiles.resolve(process.env.SAMPLE_SQL)], {
     env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
     stdio: ['pipe', 'pipe', 'inherit'],
   });
