@@ -17,9 +17,9 @@ spec: an item's Change, Proof and Done-when are what "done" means. This file is 
    `bazel test --lockfile_mode=error //gates:local`, then every heavy lane the batch can affect (PCT,
    corpus, stress, native, browser), in this one Bazel server: the desk has 10 cores and 32 GB. Do not stack
    a 9 GB run on top of another session's.
-5. **Windows before main, when it matters.** A batch touching a `.github/CODEOWNERS` path gets a
-   `gh workflow run gate.yml --ref <branch> -f platforms=windows -f gates=<affected lanes>` run, green,
-   before the push. Started early, it runs while step 6 happens.
+5. **No PRs, no pre-push CI.** Every batch goes straight to `main` (USER, 2026-10-04: "just straight to main").
+   `main`'s CI runs Linux, macOS and Windows on every push; step 9 bounds a break to one CI cycle. A local
+   proof the batch cannot run on macOS (a Windows-only path) is named in the commit message.
 6. **Independent audit.** A fresh read-only reviewer that wrote none of it checks the diff against the
    items' spec and reports findings with file:line and evidence. Fix every finding (or record, in the commit
    message, why it is not one), re-run the affected proofs, and have the reviewer look at the fixes.
@@ -41,7 +41,7 @@ permission is denied; a finding would change the plan's scope.
 
 | # | Batch | Items | Notes |
 |---|---|---|---|
-| 0 | Close Phase 0 | merge PR #21; the ruleset on main; write access for @johnnymads; finish and merge PR #22 (P1-14, P1-14b); **P0-90** | #22 makes `verify_app_test` guard Windows from here on |
+| 0 | Close Phase 0 | merge PR #21; the ruleset on main; write access for @johnnymads; PR #22 (P1-14, P1-14b) to main, the last PR; **P0-90** | #22 makes `verify_app_test` guard Windows from here on |
 | 1 | Test runner speaks Bazel's protocol | P1-01, P1-02, P1-21 | Critical path. Resume branch `bazel/b2-test-runner` (6500ab9de, 33d054e9e, WIP 29c8a689b): review every line before building on it |
 | 2 | Runfiles through the official library | P1-03, P1-04, P1-05, P1-06 | Package by package |
 | 3 | Python foundation | P1-07, P1-08 | rules_python, one locked pip hub; the pyarrow check never skips |
