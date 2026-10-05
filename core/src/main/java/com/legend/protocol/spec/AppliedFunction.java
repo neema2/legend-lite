@@ -187,6 +187,16 @@ public record AppliedFunction(
     /** {@code ^X(...)} — the constructor wrapped as {@code new(receiver, NewInstance)}. */
     public static final String NEW = "new";
 
+    /** {@code list([...])} as a legacy service-test parameter: the call the engine wires as a
+     *  {@code listInstance} class instance. ONE spelling for the parser (text) and the model reader (JSON). */
+    public static final String LIST = "list";
+
+    /** A legacy service-test parameter's {@code list(argument)}, spanning the whole call. */
+    public static AppliedFunction list(ValueSpecification argument,
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo span) {
+        return new AppliedFunction(LIST, List.of(argument), List.of(), span);
+    }
+
     public static boolean isNew(AppliedFunction af) {
         return af.function().equals(NEW);
     }
