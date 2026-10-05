@@ -38,6 +38,8 @@ export interface EmbedHost {
   readonly title: string;
   /** Upstream Studio's "Save Query": the query's Pure text (no `->from()`) into the host. Absent: the builder only runs. */
   readonly keep?: (content: string) => Promise<void>;
+  /** The kept text ends with `->from(mapping, runtime)`: a function's body names its own (a service's does not). */
+  readonly keepWithFrom?: boolean;
   close(): void;
 }
 
@@ -201,7 +203,7 @@ export function renderEditor(root: HTMLElement, app: AppContext, session: Sessio
   const keep = async (): Promise<void> => {
     if (!embed?.keep) return;
     try {
-      await embed.keep(await contentOf(app, session));
+      await embed.keep(await contentOf(app, session, embed.keepWithFrom === true));
       session.markKept();
       toast('Query saved into the element: push it with the workspace');
     } catch (e) {
