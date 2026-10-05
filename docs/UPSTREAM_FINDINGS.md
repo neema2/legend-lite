@@ -1904,11 +1904,14 @@ Workaround: name the target set id on every class-typed property mapped over a j
 Repro: `repro/join-property-no-set-id/`, `scripts/corpus/probe_missing_setid.py`. Prevented
 going forward by `unroutable()` in `scripts/projects/check.py`.
 
-## F58 — `dateDiff(..., HOURS)` from a start off the hour: legend-engine says 164, legend-lite 163
+## F58 — legend-engine's relational SQL counts hour boundaries where Pure measures elapsed time (`dateDiff`)
 
-From `%2024-01-15T14:30:00` to `%2024-01-22T10:02:00` (163 h 32 min) legend-engine's relational SQL counts hour
-boundaries crossed (164) and legend-lite truncates the elapsed time (163). legend-pure's own `dateDiff` tests start
-every HOURS, MINUTES and SECONDS case on a unit boundary, where the two rules agree, so they pin neither. Found
-2026-10-05 when the cross-engine differential first ran (Bazel workplan P3-18): `stress::MO2_Confirmations`. **Open**
-(owner: the compiler line): which rule is Legend's; a PCT case starting off the boundary would settle it for every
-engine. Repro: `repro/datediff-hours-off-boundary/`.
+From `%2024-01-15T14:30:00` to `%2024-01-22T10:02:00` (163 h 32 min), `dateDiff(..., HOURS)` is **163** in Pure:
+legend-pure's m4 `DateFunctions` defines the time units as elapsed time with the remainder dropped, "not the same as
+counting boundaries", and `DateDiff` computes `ChronoUnit.between`. legend-engine's relational SQL counts boundaries
+(SQL `DATEDIFF`: 164), as did this repository's corpus oracle until 2026-10-05; legend-lite answers 163. legend-pure's
+PCT cases all start on a unit boundary, where the two rules agree, so no PCT test catches the engine. Five stress
+services show it (their expectations now follow Pure; legend-engine's are in `ENGINE_QUARANTINE`, to be confirmed by
+`run.py`). First noted as a seed disagreement (`docs/plan-audit-2026-09-26/wrongrows/seed-disagreements-2026-09-30.md`);
+found decisive 2026-10-05 when the cross-engine differential first ran (Bazel workplan P3-18). Repro:
+`repro/datediff-hours-off-boundary/`. Upstream: a PCT case starting off the boundary would pin it for every engine.

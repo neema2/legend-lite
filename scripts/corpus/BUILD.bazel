@@ -170,7 +170,10 @@ filegroup(
 run_binary(
     name = "gen_differential",
     srcs = _GATE_DATA,
-    out_dirs = ["diff"],
+    # seed.sql a file of its own, so a test resolves IT by runfiles path and takes expected/ beside it (a directory
+    # resolves only under a runfiles tree, never by the Windows manifest: com.legend.testing.Runfile)
+    outs = ["diff/seed.sql"],
+    out_dirs = ["diff/expected"],
     args = [
         "--out",
         "$(RULEDIR)/diff",

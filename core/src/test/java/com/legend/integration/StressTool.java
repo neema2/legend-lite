@@ -24,6 +24,14 @@ public final class StressTool {
     public static void main(String[] args) throws Exception {
         String backend = option(args, "--backend", "duckdb");
         String sessions = option(args, "--sessions", "");
+        if (!backend.matches("duckdb|h2") || !sessions.matches("|fresh|shared")) {
+            throw new IllegalArgumentException("--backend duckdb|h2, --sessions fresh|shared");
+        }
+        for (String a : args) {
+            if (a.startsWith("--") && a.contains("=")) {
+                throw new IllegalArgumentException(a + ": give the value as its own argument (--name value)");
+            }
+        }
         String data = option(args, "--data", "");
         String rows = option(args, "--rows", "");
         List<Path> overrides = Arrays.stream(data.split(",")).map(String::trim).filter(x -> !x.isEmpty())

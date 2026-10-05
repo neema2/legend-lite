@@ -389,8 +389,11 @@ junit_test(
 junit_test(
     name = "corpus_differential_test",
     memory_mb = 768,
-    data = _STRESS_READS + ["//scripts/corpus:gen_differential"],
-    jvm_flags = ["-Dcorpus.differential=$(rlocationpath //scripts/corpus:gen_differential)"],
+    data = _STRESS_READS + [
+        "//scripts/corpus:diff/seed.sql",
+        "//scripts/corpus:gen_differential",
+    ],
+    jvm_flags = ["-Dcorpus.differential.seed=$(rlocationpath //scripts/corpus:diff/seed.sql)"],
     select = ["--select-class=com.legend.integration.CorpusDifferentialTest"],
     runtime_deps = [
         ":core_tests_lib",
@@ -539,7 +542,7 @@ junit_test(
 # shape), held by MIN_PASS_H2 (StressServiceSuitesH2Test). Until 2026-10-05 the H2 floor was enforced by no lane.
 junit_test(
     name = "stress_suites_h2",
-    # live peak 232 MB, 692 MB before a collection, of 1024 (measured 2026-10-05): stress_suites' 768
+    # live peak 232 MB, 692 MB before a collection (measured 2026-10-05 at -Xmx1024m): stress_suites' 768 holds it
     memory_mb = 768,
     size = "enormous",
     data = _STRESS_READS,

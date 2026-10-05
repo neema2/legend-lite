@@ -6,8 +6,10 @@ set -u
 label=${1:?usage: tools/census/lanes.sh <label>}
 # the PCT lanes are suites of one target per suite or class (Bazel workplan P3-09): a suite writes no test.log, so
 # each is expanded to its tests here
-lanes=(//core:core_tests //core:stress_suites //spec:corpus_duckdb //spec:corpus_h2 //spec:corpus_warehouse
-       $(bazel query 'tests(//pct:pct_duckdb + //pct:pct_channel_b)' 2>/dev/null) //pct:pct_h2)
+# (the corpus lanes too: their passes are actions, and the lane is a suite of checks)
+expanded=$(bazel query 'tests(//pct:pct_duckdb + //pct:pct_channel_b + //spec:corpus_duckdb + //spec:corpus_h2)')
+[ -n "$expanded" ] || { echo "lanes.sh: the suites expanded to nothing" >&2; exit 1; }
+lanes=(//core:core_tests //core:stress_suites //core:stress_suites_h2 $expanded //pct:pct_h2)
 mkdir -p runs/census/$label
 bazel test "${lanes[@]}" --test_env=LEGEND_LITE_DUMP_SQL=1 --test_env=LL_PCT_CASES=1 --cache_test_results=no \
   > runs/census/$label/bazel.out 2>&1

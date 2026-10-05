@@ -64,7 +64,11 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    srcs = glob(["src/test/java/**/*.java"]),
+    # PctDisciplineTest is :pct_discipline's alone (a source scan with no PCT runtime)
+    srcs = glob(
+        ["src/test/java/**/*.java"],
+        exclude = ["src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java"],
+    ),
     resources = glob(["src/test/resources/**"]),
     runtime_deps = [
         "//core:shadow_binding",

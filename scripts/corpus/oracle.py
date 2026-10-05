@@ -518,16 +518,18 @@ def _date_diff(vals):
         raise Unsupported(
             f"dateDiff in {unit} is not implemented: a month and a year are not fixed "
             f"lengths, so the answer depends on a convention the signature does not state")
-    # BOUNDARY COUNTING, not elapsed complete units. `dateDiff` follows the SQL DATEDIFF
-    # convention: truncate both operands to the unit and subtract, so 14:30 to 10:02 seven
-    # days later is 164 hours -- the number of hour boundaries crossed -- and not the 163
-    # complete hours that actually elapsed.
-    #
-    # The two agree whenever both operands are already on a unit boundary, which is why every
-    # date-level case in this corpus agreed for months and a confirmation sent at half past
-    # the hour was the first to disagree. Elapsed-time was my reading; boundary counting is
-    # the documented one, and where a convention is not fixed by the signature the documented
-    # reading wins.
+    if unit in ("HOURS", "MINUTES", "SECONDS"):
+        # ELAPSED TIME, with the remainder dropped toward zero: legend-pure's own definition (m4
+        # DateFunctions: the time units "measure elapsed time, dropping any remainder. This is not the same
+        # as counting boundaries"; DateDiff computes ChronoUnit.between). 14:30 to 10:02 seven days later is
+        # 163 hours. This oracle counted boundaries (164) until 2026-10-05, reading SQL's DATEDIFF as the
+        # documented convention; legend-pure documents the other, and legend-engine's relational SQL
+        # counting boundaries is the divergence (UPSTREAM_FINDINGS F58). Exact, in microseconds.
+        micros = (b - a) // _timedelta(microseconds=1)
+        unit_micros = {"HOURS": 3_600_000_000, "MINUTES": 60_000_000, "SECONDS": 1_000_000}[unit]
+        n = abs(micros) // unit_micros
+        return n if micros >= 0 else -n
+    # the calendar units count boundaries: truncate both operands to the unit and subtract
     step = _FIXED_UNITS[unit] * 86400
     trunc_a = int(a.timestamp() // step)
     trunc_b = int(b.timestamp() // step)

@@ -1,24 +1,22 @@
-# `dateDiff(..., HOURS)` from a start off the hour: 163 or 164
+# `dateDiff(..., HOURS)` from a start off the hour: 163, not 164
 
     sentAt    = %2024-01-15T14:30:00
     matchedAt = %2024-01-22T10:02:00
     $sentAt->dateDiff($matchedAt, DurationUnit.HOURS)
 
-The elapsed time is 163 h 32 min. Two rules give two answers:
+The elapsed time is 163 h 32 min. **Pure's answer is 163.** legend-pure's m4 `DateFunctions` documents it: the time
+units (HOURS, MINUTES, SECONDS, ...) "measure elapsed time, dropping any remainder. This is not the same as counting
+boundaries" (12:59:00 to 13:01:00 is zero HOURS), and `DateDiff` computes `ChronoUnit.HOURS.between` (4.145.0 /
+5.99.0). Its PCT cases (`platform/pure/essential/date/operation/dateDiff.pure`) all start on a unit boundary, where the
+two rules agree, so they do not show it.
 
 | rule | answer | who |
 | --- | --- | --- |
-| hour boundaries crossed (`date_diff('hour', a, b)`) | **164** | legend-engine's relational SQL; the corpus oracle (`scripts/corpus/oracle.py`), whose expectation the engine passes (`stress::MO2_Confirmations` is in no `ENGINE_QUARANTINE`) |
-| truncated elapsed time | **163** | legend-lite (`Scalars.dateDiffExpr`: `(epoch_ms(b) - epoch_ms(a)) // 3600000`) |
+| truncated elapsed time | **163** | legend-pure (the reference); legend-lite (`Scalars.dateDiffExpr`); the corpus oracle since 2026-10-05 |
+| hour boundaries crossed (SQL `DATEDIFF`) | 164 | legend-engine's relational SQL; the corpus oracle until 2026-10-05 |
 
-legend-pure's own tests do not decide it: every HOURS, MINUTES and SECONDS case in
-`platform/pure/essential/date/operation/dateDiff.pure` (4.145.0 / 5.99.0) starts ON a unit
-boundary (`13:00:00`, `23:00:00`, `00:00:00`), where the two rules agree. legend-lite's comment
-calls its rule "PCT-pinned"; the PCT cases pin neither.
-
-Where it shows: `stress::MO2_Confirmations` (`hoursToMatch`, CNF-00005) fails in
-`//core:stress_suites` (one of its counted failures) and disagrees in
-`//core:corpus_differential_test` (LITE_QUARANTINE, F58).
-
-Open: which rule is Legend's. The interpreted reference (legend-pure's Java native for
-`dateDiff`) decides; a PCT case starting off the boundary would pin it for every engine.
+Where it shows: `stress::MO2_Confirmations` and `stress::DSLocal_MiddleofficeConfirmation` (`hoursToMatch`),
+`stress::REGX_All`, `stress::REGX_LiquidityCoverageReport` and `stress::DSLocal_RegulatorySubmission` (`ackHours`,
+negative intervals included: elapsed time truncates toward zero). Their expectations moved when the oracle was fixed;
+legend-engine's are in `ENGINE_QUARANTINE` (F58), to be confirmed by `run.py` when it runs again. Also recorded
+earlier as a seed disagreement: `docs/plan-audit-2026-09-26/wrongrows/seed-disagreements-2026-09-30.md`.

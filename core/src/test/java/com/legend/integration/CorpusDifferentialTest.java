@@ -21,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>Its inputs are a build output: {@code //scripts/corpus:gen_differential} runs
  * {@code scripts/corpus/differential.py} over the committed corpus into one tree ({@code seed.sql},
- * {@code expected/}), which {@code //core:corpus_differential_test} names by {@code -Dcorpus.differential}.
+ * {@code expected/}), which {@code //core:corpus_differential_test} names by its seed file,
+ * {@code -Dcorpus.differential.seed}.
  *
  * <p>Comparison is on a normalised text form, not JSON, so that neither side's float
  * formatter or key ordering can manufacture a difference. Column kinds travel in the
@@ -31,7 +32,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag("differential")   // //core:corpus_differential_test alone: its data is that target's (core_tests excludes the tag)
 class CorpusDifferentialTest {
 
-    private static final Path DIFF = com.legend.testing.Runfile.property("corpus.differential");
+    /** The generated tree: seed.sql (resolved by its runfiles path) and expected/ beside it. */
+    private static final Path DIFF = com.legend.testing.Runfile.property("corpus.differential.seed").getParent();
     private static final String NULL = "~";
 
     @Test
@@ -87,12 +89,14 @@ class CorpusDifferentialTest {
                 }
 
                 boolean same = expectedRows.equals(actualRows);
+                // a quarantined service that CRASHES is not its known divergence: it is a new failure
+                boolean crashed = actualRows.size() == 1 && actualRows.get(0).startsWith("ERROR ");
                 if (same && known.containsKey(name)) {
                     fixed.add(name);
                     System.out.println("FIXED " + name + " — remove from quarantine.py");
                 } else if (same) {
                     agree.add(name);
-                } else if (known.containsKey(name)) {
+                } else if (known.containsKey(name) && !crashed) {
                     knownFail.add(name);
                     System.out.println("KNOWN-DIVERGENCE " + name + " — " + known.get(name));
                 } else {
@@ -144,10 +148,7 @@ class CorpusDifferentialTest {
     private String cell(ResultSet rs, int i, String kind) throws SQLException {
         if ("float".equals(kind)) {
             double d = rs.getDouble(i);
-            // the EXACT binary value rounded half-even, as Python's f"{x:.6f}" rounds it: %.6f rounds the shortest
-            // decimal string half-up, so 0.0001625 (0.000162499... exactly) read 0.000163 here and 0.000162 there
-            return rs.wasNull() ? NULL
-                    : new java.math.BigDecimal(d).setScale(6, java.math.RoundingMode.HALF_EVEN).toPlainString();
+            return rs.wasNull() ? NULL : sixPlaces(d);
         }
         String v = rs.getString(i);
         if (v == null) return NULL;
@@ -166,5 +167,20 @@ class CorpusDifferentialTest {
                 .forEach(r -> out.add("actual   only: " + r));
         if (out.isEmpty()) out.add("same rows, different multiplicity");
         return out;
+    }
+
+    /** {@code d} as Python's {@code f"{d:.6f}"} spells it (differential.py's normalise): the EXACT binary value
+     *  rounded half-even (%.6f rounds the shortest decimal string half-up: 0.0001625, 0.000162499... exactly, read
+     *  0.000163 here and 0.000162 there); a negative that rounds to zero keeps its sign (-0.000000); nan, inf, -inf. */
+    static String sixPlaces(double d) {
+        if (Double.isNaN(d)) {
+            return "nan";
+        }
+        if (Double.isInfinite(d)) {
+            return d > 0 ? "inf" : "-inf";
+        }
+        String s = new java.math.BigDecimal(d).setScale(6, java.math.RoundingMode.HALF_EVEN).toPlainString();
+        boolean negative = Double.doubleToRawLongBits(d) < 0;
+        return negative && !s.startsWith("-") ? "-" + s : s;
     }
 }
