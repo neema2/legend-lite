@@ -1,0 +1,14 @@
+###Service
+// Every party, its name and country, served at /parties: what the demo runs as a service.
+Service demo::party::PartyService
+{
+  pattern: '/parties';
+  documentation: 'Every party, its name and country.';
+  autoActivateUpdates: true;
+  execution: Single
+  {
+    query: |demo::party::Party.all()->project(~[name: p | $p.name, country: p | $p.country]);
+    mapping: demo::party::PartyMapping;
+    runtime: demo::party::Runtime;
+  }
+}

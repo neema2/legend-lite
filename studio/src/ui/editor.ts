@@ -218,18 +218,18 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       h('button', { class: 'tab__close', title: 'Close', onclick: (e: Event) => { e.stopPropagation(); close(key); } }, icon('times', '12px'))));
     }
     if (active !== undefined && ws.file(active)) {
-      const fn = kindOf(ws.file(active)!.text) === 'function';
+      const runnable = ['function', 'Service'].includes(kindOf(ws.file(active)!.text) ?? '');
       tabsBar.append(h('div', { class: 'tabs-spacer' }),
-        ...(fn ? [h('button', { class: 'btn btn-small btn-primary tabs__run', 'data-testid': 'run-function', title: 'Run this function (F5)', onclick: () => void runActive() },
+        ...(runnable ? [h('button', { class: 'btn btn-small btn-primary tabs__run', 'data-testid': 'run-function', title: 'Run (F5)', onclick: () => void runActive() },
           icon('play', '10px'), 'Run')] : []),
         h('button', { class: 'btn btn-small', 'data-testid': 'delete-element', title: 'Delete this element', onclick: () => void remove(active!) }, 'Delete'));
     }
   };
 
-  /** Runs the open function on the session's engine (plan A3): its rows in RESULTS, or what refused it. */
+  /** Runs the open function or service on the session's engine (plan A3): its rows in RESULTS, or what refused it. */
   const runActive = async (): Promise<void> => {
     const f = active === undefined ? undefined : ws.file(active);
-    if (!f || kindOf(f.text) !== 'function') return;
+    if (!f || !['function', 'Service'].includes(kindOf(f.text) ?? '')) return;
     panelTab = 'results';
     panelOpen = true;
     clear(resultsPanel);
