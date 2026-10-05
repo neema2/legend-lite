@@ -437,6 +437,15 @@ async function loop(browser, name, query) {
     assert.equal(await page.locator('[data-testid=query-builder] [data-testid=builder-keep]').count(), 0, 'a mapping execution keeps nothing');
     await page.getByTestId('builder-close').click();
     await page.waitForSelector('[data-testid=query-builder]', { state: 'detached' });
+    // 7. party's service tests in the tab (plan A4): core plans both suites (one on its Data element, one inline),
+    // each query runs on its own rows; judging in the tab waits on core's judging library, so each says so (SKIPPED)
+    await page.locator('[data-testid=explorer] .element[data-path="demo::party::PartyService"]').click();
+    await page.getByTestId('run-tests').click();
+    await page.waitForFunction(() => /^\d+ passed/.test(document.querySelector('[data-testid=test-summary]')?.textContent ?? ''), undefined, { timeout: 120_000 });
+    assert.equal(await statusOf('test-summary'), '0 passed, 0 failed, 2 skipped');
+    for (const t of ['projectRows.everyParty', 'oneRow.osprey']) {
+      assert.match(await page.locator(`[data-testid=test-results] tr[data-test="${t}"]`).textContent(), /the query ran; judging in the tab waits on core's judging library/);
+    }
     // the activity bar's sun/moon switch: upstream's default-light, kept, and back
     await page.getByTestId('theme-toggle').click();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'default-light');
