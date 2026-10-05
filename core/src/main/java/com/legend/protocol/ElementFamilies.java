@@ -74,15 +74,23 @@ final class ElementFamilies {
                     List.of("dataQualityValidation", "dataqualityRelationValidation", "dataQualityRelationComparison")),
             new Family("Relational", false, DatabaseComposer::database, List.of("relational")),
             new Family("QueryPostProcessor", false, DatabaseComposer::relationalMapper, List.of("relationalMapper")),
+            new Family("Deephaven", false, DeephavenComposer::element, List.of("deephavenStore", "DeephavenApp")),
             new Family("Diagram", false, DiagramComposer::diagram, List.of("diagram")),
             new Family("Elasticsearch", false, ElasticsearchComposer::store, List.of("elasticsearch7Store")),
             new Family("FunctionJar", false, FunctionActivatorComposer::functionJar, List.of("functionJar")),
             new Family("HostedService", false, FunctionActivatorComposer::hostedService, List.of("hostedService")),
             new Family("MemSql", false, FunctionActivatorComposer::memSqlFunction, List.of("memSqlFunction")),
+            new Family("MongoDB", false, MongoComposer::store, List.of("MongoDatabase")),
             new Family("Persistence", false, PersistenceComposer::element, List.of("persistenceContext", "persistence"), true),
             new Family("ServiceStore", false, ServiceStoreComposer::serviceStore, List.of("serviceStore")),
             new Family("Snowflake", false, FunctionActivatorComposer::snowflake, List.of("snowflakeApp", "snowflakeM2MUdf")),
             new Family("Text", false, ExternalFormatComposer::text, List.of("text")));
+
+    /**
+     * The kinds an extension prints in its own section but leaves out of its free section: with no section
+     * index upstream drops them, so lite refuses the model rather than print it without them.
+     */
+    static final java.util.Set<String> NOT_IN_FREE_SECTIONS = java.util.Set.of("DeephavenApp");
 
     /** Each element {@code _type}'s family. */
     static final Map<String, Family> BY_TYPE;

@@ -47,7 +47,8 @@ final class MappingComposer {
             "aggregationAware", (cm, level) -> aggregationAware(cm),
             "relation", MappingComposer::relationFunction,
             "relational", (cm, level) -> RelationalMappingComposer.classMapping(cm),
-            "serviceStore", (cm, level) -> ServiceStoreComposer.classMapping(cm));
+            "serviceStore", (cm, level) -> ServiceStoreComposer.classMapping(cm),
+            "MongoDB", (cm, level) -> MongoComposer.classMapping(cm));
 
     private static final Map<String, PropertyPrinter> PROPERTY_MAPPINGS = Map.of(
             "purePropertyMapping", (pm, level) -> purePropertyMapping(pm),
