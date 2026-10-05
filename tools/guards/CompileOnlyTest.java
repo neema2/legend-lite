@@ -53,7 +53,8 @@ class CompileOnlyTest {
                     Map.entry("cc_library CppCompile", "compiles zlib, which the native image links"),
                     Map.entry("cc_library CppArchive", "archives zlib for the image (libz.a)"),
                     Map.entry("cc_library CppLink", "zlib's shared library: registered on Linux and Windows, unused"),
-                    Map.entry("cc_library CppModuleMap", "zlib's module map, registered beside its compile"))),
+                    Map.entry("cc_library CppModuleMap", "zlib's module map, registered beside its compile"),
+                    Map.entry("cc_library DefParser", "zlib's DLL export list: registered on Windows (MSVC), unused"))),
             "web", Map.ofEntries(
                     Map.entry("_esbuild_bundle Esbuild", "esbuild's native binary bundles TypeScript (tools/js/esbuild.bzl)"),
                     Map.entry("_copy_to_bin CopyFile", "a source file copied into the output tree for esbuild"),
