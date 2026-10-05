@@ -128,6 +128,11 @@ public final class EmbeddedPostgres {
                     pg.startServer(cluster);
                     return pg;
                 } catch (IllegalStateException e) {
+                    String log = Files.exists(data.resolve("postgres.log"))
+                            ? Files.readString(data.resolve("postgres.log"), StandardCharsets.UTF_8) : "";
+                    if (!log.contains("could not bind") && !log.contains("Address already in use")) {
+                        throw e;   // not a taken port: no retry hides it
+                    }
                     last = e;   // the port was taken before the server bound it: another, up to three
                 }
             }
@@ -137,7 +142,9 @@ public final class EmbeddedPostgres {
         }
     }
 
-    /** Starts the server on {@link #port}, returning once it accepts connections; a server that exits first fails. */
+    /** Starts the server on {@link #port}, returning once it is READY: postmaster.pid names this process and says
+     *  "ready" (a TCP connect could reach whatever took the port, or a server still starting up, which refuses with
+     *  "the database system is starting up"). A server that exits first fails. */
     private void startServer(Path cluster) throws IOException {
         Path log = data.resolve("postgres.log");
         if (WINDOWS) {
@@ -152,32 +159,40 @@ public final class EmbeddedPostgres {
                 throw new IllegalStateException("postgres exited " + server.exitValue() + " before accepting connections:\n"
                         + Files.readString(log, StandardCharsets.UTF_8));
             }
-            try (java.net.Socket socket = new java.net.Socket(java.net.InetAddress.getLoopbackAddress(), port)) {
+            if (ready(cluster.resolve("postmaster.pid"), server.pid())) {
                 return;
-            } catch (IOException notYet) {
-                try {
-                    Thread.sleep(50);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IllegalStateException("interrupted waiting for postgres", e);
-                }
+            }
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("interrupted waiting for postgres", e);
             }
         }
-        server.destroyForcibly();
+        stop();
         throw new IllegalStateException("postgres did not accept connections in 120 s:\n"
                 + Files.readString(log, StandardCharsets.UTF_8));
     }
 
+    /** postmaster.pid's first line is the server's pid and its eighth its status ("ready" once it accepts work). */
+    private static boolean ready(Path pidFile, long pid) {
+        try {
+            List<String> lines = Files.readAllLines(pidFile, StandardCharsets.UTF_8);
+            return lines.size() >= 8 && lines.get(0).trim().equals(Long.toString(pid)) && lines.get(7).trim().equals("ready");
+        } catch (IOException notYet) {
+            return false;
+        }
+    }
+
     private void stop() {
         if (server != null) {
-            server.destroy();   // SIGTERM: a smart shutdown
+            // a FAST shutdown through pg_ctl (it signals the postmaster.pid's server, which need not be its own): a
+            // smart one (SIGTERM) waits for every client, and the JVM's own pool and other processes' connections
+            // are still open at exit. Forced if that fails
             try {
-                if (!server.waitFor(30, TimeUnit.SECONDS)) {
-                    server.destroyForcibly();
-                }
-            } catch (InterruptedException e) {
+                run(List.of(tool("pg_ctl"), "-D", data.resolve("cluster").toString(), "-m", "fast", "-w", "-t", "30", "stop"));
+            } catch (IOException | IllegalStateException e) {
                 server.destroyForcibly();
-                Thread.currentThread().interrupt();
             }
             return;
         }

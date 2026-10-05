@@ -195,7 +195,7 @@ public class MinimalCorpusTest {
                 long flushesBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES);
                 long hostDecidedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED);
                 if (TRACE) {
-                    // -Drcorpus.trace=1: name each test BEFORE it runs, so a
+                    // -Dlegend.diagnostics=corpus-trace: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
                     // a hang) still says which test it was in
                     System.out.println("[corpus2] run " + t.fqn());

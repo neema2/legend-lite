@@ -33,7 +33,7 @@ import java.util.function.Supplier;
  * <p>usage: bazel run //tools/census:render_census -- out.tsv cases.tsv... (paths from where it is run), or
  * java -cp core_tests_deploy.jar:. RenderCensus out.tsv cases.tsv... (render.sh, at a commit older than the target)
  * (cases: Base64 model TAB Base64 expression, one a line; the PCT lane writes them with
- * LL_PCT_CASES set).
+ * -Dlegend.diagnostics=pct-cases).
  */
 public final class RenderCensus {
 

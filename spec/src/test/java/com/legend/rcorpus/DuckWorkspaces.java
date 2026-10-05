@@ -135,8 +135,8 @@ final class DuckWorkspaces {
     }
 
     /** Starts the warehouse as a child process on a free port, with an empty
-     *  data directory and one user; stopped when this JVM exits. Its own
-     *  classpath: the warehouse runs DuckDB 1.5.5.1, this harness 1.4.4. */
+     *  data directory and one user; stopped when this JVM exits. The native
+     *  binary, its own build: the warehouse runs DuckDB 1.5.5.1, this harness 1.4.4. */
     private static String startWarehouse(String binary) throws SQLException {
         try {
             // rcorpus.warehouse.data: keep the warehouse's data (its query history) where it can be read after

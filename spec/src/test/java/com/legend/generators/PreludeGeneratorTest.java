@@ -42,7 +42,7 @@ class PreludeGeneratorTest {
     }
 
     @Test
-    @DisplayName("m3 reader: every class of m3.pure prints as a declaration (-Dprelude.m3=1 lists them)")
+    @DisplayName("m3 reader: every class of m3.pure prints as a declaration")
     void m3ReaderPrintsEveryClass() throws IOException {
         Path m3 = pureRoot().resolve(PreludeGenerator.M3_PURE);
         // never an assumption-skip (SkipCensusTest): the reference checkout is

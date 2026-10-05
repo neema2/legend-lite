@@ -41,6 +41,7 @@ before(async () => {
       if (m) resolve(Number(m[1]));
     });
     server!.once('exit', (code) => reject(new Error(`legend-lite exited (${code}) before starting:\n${log.slice(-2000)}`)));
+    server!.once('error', (e) => reject(new Error(`legend-lite did not start (${SERVER}): ${e.message}`)));
   });
   server.stderr?.on('data', (d) => { log += d; });
   const port = await started;

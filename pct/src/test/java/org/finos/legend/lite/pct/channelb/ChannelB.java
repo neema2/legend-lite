@@ -184,7 +184,7 @@ public final class ChannelB {
             }
             scopePrefixes.add(prefix);
         }
-        // SCOPED DEBUG RUNS (the rcorpus.only idiom): -Dchb.only=<substr>
+        // SCOPED DEBUG RUNS (the rcorpus.only idiom): -Dlegend.diagnostics=chb-only=<substr>
         // filters by test FQN. A scoped run trivially satisfies the
         // cumulative pins (fewer declines than the ceiling) and never
         // writes a scoreboard — the gate configuration is always the
