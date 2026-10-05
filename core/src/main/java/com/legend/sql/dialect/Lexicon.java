@@ -19,14 +19,22 @@ public record Lexicon(char quoteChar, Set<String> reservedWords) {
         reservedWords = Set.copyOf(reservedWords);
     }
 
-    /** DuckDB (the execution backend). */
+    /** DuckDB (the execution backend): every keyword DuckDB will not take as a table or column name (its
+     *  {@code reserved} and {@code type_function} categories, {@code duckdb_keywords()}), held so by
+     *  DuckDbKeywordsTest against the pinned DuckDB; a few more DML words besides. */
     public static final Lexicon DUCKDB = new Lexicon('"', Set.of(
-            "all", "and", "as", "asc", "between", "by", "case", "cast", "create", "cross",
-            "default", "delete", "desc", "distinct", "drop", "else", "end", "except", "exists",
-            "false", "from", "full", "group", "having", "in", "inner", "insert", "intersect",
-            "into", "is", "isnull", "join", "left", "like", "limit", "not", "null", "offset", "on", "or",
-            "notnull", "order", "outer", "pivot", "qualify", "right", "select", "table", "then", "true",
-            "union", "update", "using", "values", "when", "where", "window", "with"));
+            "all", "analyse", "analyze", "and", "anti", "any", "array", "as", "asc", "asof", "asymmetric", "at",
+            "authorization", "between", "binary", "both", "by", "case", "cast", "check", "collate", "collation",
+            "column", "columns", "concurrently", "constraint", "create", "cross", "default", "deferrable", "delete",
+            "desc", "describe", "distinct", "do", "drop", "else", "end", "except", "exists", "false", "fetch", "for",
+            "foreign", "freeze", "from", "full", "generated", "glob", "group", "having", "ilike", "in", "initially",
+            "inner", "insert", "intersect", "into", "is", "isnull", "join", "lambda", "lateral", "leading", "left",
+            "like", "limit", "map", "natural", "not", "notnull", "null", "offset", "on", "only", "or", "order",
+            "outer", "overlaps", "pivot", "pivot_longer", "pivot_wider", "placing", "positional", "primary",
+            "qualify", "references", "returning", "right", "select", "semi", "show", "similar", "some", "struct",
+            "summarize", "symmetric", "table", "tablesample", "then", "to", "trailing", "true", "try_cast", "union",
+            "unique", "unpack", "unpivot", "update", "using", "values", "variadic", "verbose", "when", "where",
+            "window", "with"));
 
     /**
      * SQLite (<a href="https://sqlite.org/lang_keywords.html">lang_keywords</a>)
