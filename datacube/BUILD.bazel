@@ -146,7 +146,7 @@ _EXTRA_ENV = {
 }
 
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
-_DUCKDB_USERS = ["duckdb", "group-derived", "saved-queries", "snap", "sorting", "treeview", "upload"]
+_DUCKDB_USERS = ["duckdb", "group-derived", "saved-queries", "sorting", "treeview", "upload"]
 
 # What a test reads from disk beyond src/: the guardrails scan the demo
 # entry points too (they ship), so they are declared, not assumed.
