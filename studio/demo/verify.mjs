@@ -119,6 +119,22 @@ async function loop(browser, name, query) {
     await page.waitForFunction(() => !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), undefined, { timeout: 120_000 });
     const served = await statusOf('run-status');
     if (!/^5 rows in \d+ ms/.test(served)) throw new Error(`the service's run said: ${served}`);
+    // 3d. a function with a parameter: Run asks for its value, as Pure, and binds it (plan A3)
+    await page.getByTestId('new-element').click();
+    await page.getByTestId('new-kind').selectOption({ label: 'Function' });
+    await page.getByTestId('new-path').fill('demo::trading::partiesNamed');
+    await page.locator('.dialog .btn-primary').click();
+    await page.locator('.monaco-editor .view-lines').click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.insertText('function demo::trading::partiesNamed(prefix: String[1]): meta::pure::metamodel::relation::Relation<Any>[1]\n{\ndemo::party::Party.all()->filter(p | $p.name->startsWith($prefix))->project(~[name: p | $p.name])->from(demo::party::PartyMapping, demo::party::Runtime)\n}\n');
+    await waitCompiled();
+    await page.getByTestId('run-function').click();
+    await page.locator('.dialog input[data-param=prefix]').fill("'K'");
+    await page.locator('.dialog .btn-primary').click();
+    await page.waitForFunction(() => !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), undefined, { timeout: 120_000 });
+    const named = await statusOf('run-status');
+    if (!/^1 row in \d+ ms/.test(named)) throw new Error(`the run with prefix 'K' said: ${named}`);
+    assert.ok((await page.getByTestId('run-rows').textContent()).includes('Kestrel Partners'), "prefix 'K' finds Kestrel");
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();
     await waitStatus('changes-count', /no changes detected/);

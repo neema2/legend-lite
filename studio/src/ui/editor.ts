@@ -230,6 +230,24 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   const runActive = async (): Promise<void> => {
     const f = active === undefined ? undefined : ws.file(active);
     if (!f || !['function', 'Service'].includes(kindOf(f.text) ?? '')) return;
+    // a function's parameters first (upstream's parameter dialog): each value as Pure, which the compiler reads
+    let values: Map<string, string> | undefined;
+    try {
+      const parameters = await ctx.run.parameters(f.text);
+      if (parameters.length > 0) {
+        const inputs = parameters.map((p) => ({ p, input: h('input', { class: 'input', placeholder: placeholderFor(p.type), 'data-param': p.name }) }));
+        values = await dialog('Run with parameters', h('div', { class: 'form' },
+          ...inputs.map(({ p, input }) => field(`${p.name}: ${p.type}${p.multiplicity}`, input))),
+        () => {
+          const empty = inputs.find(({ input }) => input.value.trim() === '');
+          return empty ? `a value for ${empty.p.name} is needed` : { ok: new Map(inputs.map(({ p, input }) => [p.name, input.value])) };
+        }, 'Run');
+        if (!values) return;
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'error');
+      return;
+    }
     panelTab = 'results';
     panelOpen = true;
     clear(resultsPanel);
@@ -238,7 +256,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     renderStatus();
     const started = performance.now();
     try {
-      const result = await ctx.run.run(f.text, ws.model().text);
+      const result = await ctx.run.run(f.text, ws.model().text, values);
       clear(resultsPanel);
       resultsPanel.append(resultView(result, Math.round(performance.now() - started)));
     } catch (e) {
@@ -595,4 +613,17 @@ function resultView(r: ExecutionResult, ms: number): HTMLElement {
     h('table', { class: 'run-result__table', 'data-testid': 'run-rows' },
       h('thead', {}, h('tr', {}, ...r.result.columns.map((c) => h('th', {}, c)))),
       h('tbody', {}, ...rows.map((row) => h('tr', {}, ...row.values.map((v) => h('td', {}, v === null || v === undefined ? '' : String(v))))))));
+}
+
+/** A hint of how a value of `type` is written in Pure, for the parameter dialog's field. */
+function placeholderFor(type: string): string {
+  switch (type) {
+    case 'String': return "'text'";
+    case 'Integer': return '42';
+    case 'Float': case 'Number': case 'Decimal': return '4.2';
+    case 'Boolean': return 'true';
+    case 'Date': case 'StrictDate': return '%2024-06-01';
+    case 'DateTime': return '%2024-06-01T09:30:00';
+    default: return `a ${type}, as Pure`;
+  }
 }
