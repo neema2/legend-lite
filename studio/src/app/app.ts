@@ -4,9 +4,13 @@
 import * as monaco from 'monaco-editor/editor/editor.api';
 import 'monaco-editor/features/register.all';
 
+import { startDuckDbInTab } from '../../../engine-client/src/duckdb-tab.ts';
+import { BrowserEngine } from '../../../engine-client/src/legend/browser-engine.ts';
 import { HttpEngine } from '../../../engine-client/src/legend/engine.ts';
+import { dataTables, loadDataTables, type DataSink } from '../../../engine-client/src/model-data.ts';
 import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler, WorkerPort } from '../backend/planner.ts';
+import { runner, type RunSession } from '../backend/run.ts';
 import { connect, type StudioConfig } from '../backend/sdlc.ts';
 import { clear, h } from '../ui/dom.ts';
 import { renderEditor } from '../ui/editor.ts';
@@ -31,6 +35,12 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   const compiler = inTab
     ? new Compiler(inTab, () => inTab.warm({ _type: 'text', code: '' }))
     : new Compiler(new HttpEngine(config.engine!));
+  // running a function (plan A3): in the tab, DuckDB started the first time and the model's own rows loaded before each
+  // run; on a server, its pure/v1 execute
+  const run = runner(inTab ? inTabSession(inTab, `${config.vendor}duckdb/`, config.user?.userId ?? 'local') : {
+    modelJson: (text) => new HttpEngine(config.engine!).modelJson(text),
+    engine: () => Promise.resolve(new HttpEngine(config.engine!)),
+  });
   let dispose: (() => void) | undefined;
 
   const route = async (): Promise<void> => {
@@ -46,7 +56,7 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
       if (edit) {
         const project = edit[1]!;
         dispose = await renderEditor(root, {
-          client, depot, compiler, monaco, project, workspace: edit[2]!,
+          client, depot, compiler, run, monaco, project, workspace: edit[2]!,
           back: () => { globalThis.location.hash = `#/project/${encodeURIComponent(project)}`; },
         });
       } else {
@@ -68,4 +78,20 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   };
   globalThis.addEventListener('hashchange', () => void route());
   await route();
+}
+
+/** A run in this tab: the planner writes the SQL, DuckDB here runs it on the model's own test data (plan A2, A3). */
+function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string): RunSession {
+  let enumerations = new Set<string>();
+  let started: Promise<{ engine: BrowserEngine; data: DataSink }> | undefined;
+  const start = (): Promise<{ engine: BrowserEngine; data: DataSink }> => (started ??= startDuckDbInTab(duckdbVendor)
+    .then((tab) => ({ engine: new BrowserEngine(grammar, tab.engine, (t) => enumerations.has(t), user), data: tab.data })));
+  return {
+    modelJson: (text) => grammar.modelJson(text),
+    engine: async () => (await start()).engine,
+    async loadData(model) {
+      enumerations = new Set(model.elements.filter((e) => e._type === 'Enumeration').map((e) => `${e.package}::${e.name}`));
+      await loadDataTables((await start()).data, dataTables(model.elements as Parameters<typeof dataTables>[0]));
+    },
+  };
 }
