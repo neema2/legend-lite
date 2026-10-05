@@ -100,6 +100,15 @@ final class Composing {
         return out;
     }
 
+    /**
+     * A JSON number read as Java's {@code double}, from the token as written when the reader kept it: an
+     * exact decimal has no negative zero, so {@code -0.0} would come back {@code 0.0}.
+     */
+    static double doubleOf(Json.Num n) {
+        String token = n.token();
+        return token != null ? Double.parseDouble(token) : n.doubleValue();
+    }
+
     /** A field's value, or null when absent or JSON null. */
     static @com.legend.base.Nullable Json.Node value(Json.Obj o, String key) {
         Json.Node v = o.getOr(key, null);
