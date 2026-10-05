@@ -1763,6 +1763,12 @@ action's.
 | Risk/rollback | None known. |
 | Done when | Every class with `@Test` methods is selected and asserts something. Guards G3 and G13 (P6-03, P6-13) keep it so. |
 
+**Amended 2026-10-05 (execution).** `ParseSpeedBenchmark` is a `bazel run` binary, not a report action: a timing is
+the machine's, so caching it would report one run forever. `RefImports` and `EagerCorpusCompileProbe` are report
+actions (deterministic over pinned inputs). `ManifestWorldCensusTest` asserts ceilings, so it stays a test, manual
+(`//spec:manifest_world_census`), and `OurResolutionsTest` became the program `//spec:our_resolutions`.
+`GrammarCoverageCensusTest` asserts and stays in `//parser-equivalence:diagnostics`.
+
 #### P3-18 · `CorpusDifferentialTest` runs on generated data (D3 row 4)
 
 | Field | Content |

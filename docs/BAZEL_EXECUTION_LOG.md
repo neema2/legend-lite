@@ -205,3 +205,35 @@ without a **done** entry.
 - P2-09 done (a: FFM metadata from Duck.DOWNCALLS/AuthenticatedUser.UPCALLS; b: the whole metadata generated, the
   agent's host-dependent recording replaced by declared JDK services, A23; equal entry for entry). Phase 3 started:
   P3-02, P3-11, P3-03 committed locally.
+- **Phase 3, batch 10 (part):** P3-02, P3-11, P3-03, P3-04, P3-15, P3-14 committed; two audits. First audit: counter
+  readers @Isolated (a shared lock kept out only lock holders), the skip census walks warehouse's tests and counts
+  every conditional skip, stronger order-free proofs (isOnDay pairing; streaming at 50 mid-fetch writes; now() on
+  DuckDB's clock). Second: unreasoned @Disabled fails the census, real target names, Rows tags keys by kind.
+- **P3-01 done** (amended: the host pass is per lane, one action each). //spec:judge_host_<lane> runs the host pass
+  through JUnitAction; ledger, log and exit code are outputs; the database test fails first, quoting the host log, when
+  it failed. JUnitMain's prerun and ${TEST_UNDECLARED_OUTPUTS_DIR} expansion deleted; engineScanOrder a jvm_flag. Both
+  lanes' ledgers identical to the prerun era, row for row; a forced rerun reuses the host pass. Audit follow-ups:
+  scoped runs skip the host verdict; a broken run (exit not 0/1) fails the action; the heap measured; G16 confines
+  JUnitAction to corpus_lane.
+- **Throwaway 37274021833** (9d271f028): linux //datacube:verify_app_test timed out waiting for "Live" (passed
+  locally on the native image; the reachability metadata is identical entry for entry to main's); superseded by
+  37276478964 (6b66e3d74, all lanes, all platforms), where the lane passed: a flake.
+- **A product bug found by P3-17:** Lexicon.DUCKDB lacked 59 keywords DuckDB will not take as names (at, to, for,
+  column, map, struct, ...): a table named aT rendered unparseable SQL. ResolveUnionV4ProbeTest printed that SQL and
+  asserted nothing. Fixed (d29aac770) with DuckDbKeywordsTest holding the list to the pinned DuckDB's
+  duckdb_keywords(); corpus_duckdb ledgers and rosters unchanged; pct_duckdb green.
+- **P3-17 done** (two commits): empty GAP stubs deleted (OUTSTANDING.md keeps the 15 gaps), probes assert rows, a
+  @Test restored; measurements are report actions (diagnostics_reports, eager_corpus_compile, ref_imports), probes and
+  the benchmark binaries. Amended: the benchmark is a binary, not an action (a timing is the machine's); RefImports and
+  the eager compile are actions. Noted for P7: scripts/census_gate.py is dead (mvn, a deleted class).
+- **Pushed to main: 6b66e3d74** (P3-02, P3-11, P3-03, P3-04, P3-15, P3-14, P2-09, both Phase 3 audits' follow-ups,
+  P3-01 and its audit's): throwaway 37276478964 52/52, local gate 201/201 with the PCT lanes. Main CI 37280220578.
+- **P3-17 audit** (no blocker): probes now seed a non-matching row per route (a dropped join condition fails them);
+  report failures print on the action's console; FixtureSweep and the benchmark take --out; RefImports its own library;
+  ManifestWorldCensusTest a manual test (//spec:manifest_world_census), OurResolutionsTest the program
+  //spec:our_resolutions.
+- **Found, not re-pinned:** //spec:manifest_world_census, runnable for the first time since it was written, FAILS its
+  core_relational ceilings (load walls 37 > 32, failing bodies 1,476 > 1,447, both set 2026-09-25). Drift no run saw
+  while it skipped; the target is manual (not in CI). Owner: the compiler line (needs the five new walls named).
+- **Noted:** Lexicon.H2 also lacks H2 2.x reserved words (key, value, year, month, day, set, user, ...): same class of
+  bug as the DuckDB one, not yet hit by a test. Follow-up for the H2/engine-style dialect owner.
