@@ -5,27 +5,21 @@
 // owner comes back, so this holds, mechanically, that nothing else keeps or assigns it.
 
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
-function sources(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) sources(p, out);
-    else if (name.endsWith('.ts')) out.push(p);
-  }
-  return out;
-}
+import { Sources } from '../../tools/js/runfiles.mts';
 
-const OWNER = join('src', 'state-owner.ts');
+// the sources this reads, as the BUILD target declares them (Bazel workplan P3-29)
+const SOURCES = new Sources('SOURCES', 'datacube');
+
+const OWNER = 'src/state-owner.ts';
 /** The two that held copies: the app and the controller. */
-const HOLDERS = [join('src', 'app.ts'), join('src', 'cube.ts')];
+const HOLDERS = ['src/app.ts', 'src/cube.ts'];
 /** The cube's state, by the names the holders used for it. */
 const STATE = '(snapshot|config|configuration|tree|history|lastState|past|future|view|treeRows)';
 
 const code = (file: string): { line: string; at: number }[] =>
-  readFileSync(file, 'utf8').split('\n').map((line, i) => ({ line, at: i + 1 }))
+  SOURCES.read(file).split('\n').map((line, i) => ({ line, at: i + 1 }))
     .filter(({ line }) => {
       const t = line.trim();
       return !(t.startsWith('//') || t.startsWith('*') || t.startsWith('/*'));
@@ -49,7 +43,7 @@ describe('one owner of the cube\'s state', () => {
   });
 
   it('there is one history: the owner\'s', () => {
-    const bad = sources('src').filter((f) => f !== OWNER)
+    const bad = SOURCES.under('src', '.ts').filter((f) => f !== OWNER)
       .flatMap((file) => code(file)
         .filter(({ line }) => /new UndoStack\b|class \w*History\b/.test(line))
         .map(({ line, at }) => `${file}:${at}: ${line.trim()}`));

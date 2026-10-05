@@ -7,35 +7,28 @@
 // so with a `portable: <why>` comment on that line.
 //
 // Scanned: everything a build or a person runs from this package --
-// src, test, demo, bench. (tools/ holds the Java program that generates
-// lite-facts.ts; it has no Node script to scan since the regex generator went,
-// 2026-09-27.)
+// src, test, demo, bench, and tools (which holds Java programs today, and
+// whose Node scripts, should one come back, are scanned with the rest), as
+// the BUILD target declares them (Bazel workplan P3-29).
 
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { after, describe, it } from 'node:test';
 
 import { servedPath } from '../demo/static-files.ts';
+import { Sources } from '../../tools/js/runfiles.mts';
 
+const SOURCES = new Sources('SOURCES', 'datacube');
+
+/** The trees that hold scripts today; tools/ is scanned too, and may hold none. */
 const ROOTS = ['src', 'test', 'demo', 'bench'];
-const SELF = join('test', 'portability.test.ts');
+const SELF = 'test/portability.test.ts';
 
-function sources(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) {
-      if (name !== 'node_modules') sources(p, out);
-    } else if (/\.(ts|mjs|js|cjs)$/.test(name) && p !== SELF) {
-      out.push(p);
-    }
-  }
-  return out;
-}
-
-const FILES = ROOTS.flatMap((r) => sources(r));
+const FILES = [...ROOTS, 'tools']
+  .flatMap((r) => SOURCES.under(r, '.ts', '.mjs', '.js', '.cjs'))
+  .filter((f) => f !== SELF && !f.includes('/node_modules/'));
 
 interface Rule {
   readonly name: string;
@@ -121,7 +114,7 @@ describe('the Windows guardrail', () => {
   it('scans the whole package', () => {
     // A guardrail that scans nothing passes for the wrong reason.
     for (const root of ROOTS) {
-      assert.ok(FILES.some((f) => f.startsWith(root + sep)), `nothing under ${root}/`);
+      assert.ok(FILES.some((f) => f.startsWith(`${root}/`)), `nothing under ${root}/`);
     }
     assert.ok(FILES.length > 100, `${FILES.length} files`);
   });
@@ -136,13 +129,13 @@ describe('the Windows guardrail', () => {
         `the rule misses its own witness: ${bad}`);
       assert.deepEqual(violations(rule, 'witness', fixture + good), [],
         `the rule flags the portable spelling: ${good}`);
-      const found = FILES.flatMap((f) => violations(rule, f, readFileSync(f, 'utf8')));
+      const found = FILES.flatMap((f) => violations(rule, f, SOURCES.read(f)));
       assert.deepEqual(found, [], `use ${rule.instead}:\n${found.join('\n')}`);
     });
   }
 
   it('a `portable:` exemption gives its reason', () => {
-    const bare = FILES.flatMap((f) => readFileSync(f, 'utf8').split('\n')
+    const bare = FILES.flatMap((f) => SOURCES.read(f).split('\n')
       .flatMap((line, i) => (/\bportable:\s*$/.test(line) ? [`${f}:${i + 1}`] : [])));
     assert.deepEqual(bare, []);
   });

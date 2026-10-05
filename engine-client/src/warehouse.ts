@@ -17,6 +17,7 @@
 // `toRawTable` the local plane uses. Measured: for every type the warehouse
 // returns, the cells are identical to DuckDB-WASM's (the D1 homework, H2).
 
+import { UI_LOCALE } from './locale.ts';
 import { Table, tableFromIPC, type RecordBatch } from 'apache-arrow';
 
 import { QueryError, typedByPlan, type QueryEngine, type RawTable } from './engine.ts';
@@ -338,8 +339,8 @@ export class WarehouseEngine implements QueryEngine {
     const who = this.#session.principal;
     if (!found) return `Not on the warehouse's record for ${who}: no statement ${id} in its last ${history.length}.`;
     return `On the warehouse's record for ${who}: statement ${id}, ${found.state}, `
-      + `${Number(found.rowCount).toLocaleString()} rows, submitted ${new Date(found.submittedAt).toLocaleTimeString()}`
-      + (found.finishedAt ? `, finished ${new Date(found.finishedAt).toLocaleTimeString()}` : '') + '.';
+      + `${Number(found.rowCount).toLocaleString(UI_LOCALE)} rows, submitted ${new Date(found.submittedAt).toLocaleTimeString(UI_LOCALE)}`
+      + (found.finishedAt ? `, finished ${new Date(found.finishedAt).toLocaleTimeString(UI_LOCALE)}` : '') + '.';
   }
 
   /**
