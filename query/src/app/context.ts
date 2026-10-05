@@ -135,6 +135,11 @@ export class AppContext {
   byName: ((groupId: string, artifactId: string, versionId: string) => Promise<LoadedProject>) | undefined;
   /** A project's versions in Depot, HEAD first (by-name.ts versionsOf); undefined for the demo's own projects. */
   versions: ((groupId: string, artifactId: string) => Promise<string[]>) | undefined;
+  /**
+   * The projects in Depot, by name only: none is loaded at start (a Depot may hold many); the start page lists them,
+   * and opening one loads its HEAD (ensure).
+   */
+  depotProjects: readonly { readonly groupId: string; readonly artifactId: string }[] = [];
   readonly #loading = new Map<string, Promise<LoadedProject>>();
 
   /**
