@@ -751,7 +751,6 @@ class M2MIntegrationTest {
 
         // WHEN: Execute via QueryService
         String json = executeGraphFetch(pureQuery);
-        System.out.println("Deep Fetch 1-to-Many JSON: " + json);
 
         // THEN: JSON contains nested address arrays
         assertTrue(json.contains("Bob Jones"), "Should have Bob's fullName");
@@ -759,8 +758,10 @@ class M2MIntegrationTest {
         assertTrue(json.contains("Chicago"), "Should have Bob's first city");
         assertTrue(json.contains("Seattle"), "Should have Bob's second city");
 
-        // Bob should have 2 addresses in array
-        // Count occurrences of "street" following Bob - he has 2
+        // Bob has 2 addresses in his array
+        String bob = json.substring(json.indexOf("Bob Jones"));
+        bob = bob.substring(0, bob.indexOf("]"));
+        assertEquals(2, bob.split("\"street\"", -1).length - 1, "Bob's two streets: " + bob);
     }
 
     @Test
@@ -775,10 +776,12 @@ class M2MIntegrationTest {
 
         // WHEN: Execute via QueryService
         String json = executeGraphFetch(pureQuery);
-        System.out.println("Deep Fetch with null JSON: " + json);
 
         // THEN: Alice should have null address
         assertTrue(json.contains("Alice Wonder"), "Should have Alice's fullName");
-        // Alice's address should be null or empty object
+        // Alice's address is absent: no city in her entry
+        String alice = json.substring(json.indexOf("Alice Wonder"));
+        alice = alice.substring(0, alice.indexOf("}"));
+        assertFalse(alice.contains("city"), "Alice has no address: " + alice);
     }
 }

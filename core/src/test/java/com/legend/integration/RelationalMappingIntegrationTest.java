@@ -51,7 +51,6 @@ class RelationalMappingIntegrationTest {
                 ###Pure
                 import test::*;
 
-
                 ###Connection
                 import test::*;
                 RelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
@@ -2381,14 +2380,6 @@ class RelationalMappingIntegrationTest {
             assertTrue(names.contains("Bob"));
         }
 
-        // --- Mapping Extends ---
-
-        @Test @Disabled("GAP: extends clause ignored by builder")
-        @DisplayName("GAP: Mapping inheritance via extends")
-        void testMappingExtends() throws SQLException {
-            // Employee[emp] extends [person_base]: Relational { ... }
-        }
-
         // --- Mapping Includes ---
 
         @Test
@@ -2430,22 +2421,6 @@ class RelationalMappingIntegrationTest {
             var names = colStr(result, 0);
             assertEquals(2, names.size());
             assertTrue(names.contains("Alice"));
-        }
-
-        // --- Store Substitution ---
-
-        @Test @Disabled("GAP: store substitution not visited by builder")
-        @DisplayName("GAP: Mapping include with store substitution")
-        void testStoreSubstitution() throws SQLException {
-            // include model::BaseMapping[store::DevDB -> store::ProdDB]
-        }
-
-        // --- Scope Blocks ---
-
-        @Test @Disabled("GAP: scope keyword in lexer but no grammar rule")
-        @DisplayName("GAP: Scope block")
-        void testScopeBlock() throws SQLException {
-            // scope([DB]T) (prop1: col1, prop2: col2)
         }
 
         // --- Complex Join Conditions ---
@@ -3041,14 +3016,6 @@ class RelationalMappingIntegrationTest {
                     "SQL should contain schema-qualified table. SQL: " + sql);
         }
 
-        // --- Database Filters ---
-
-        @Test @Disabled("GAP: Database filters not extracted")
-        @DisplayName("GAP: Named database filter")
-        void testDatabaseFilter() throws SQLException {
-            // Filter ActiveFilter(T.STATUS = 1)
-        }
-
         // --- Database Includes ---
 
         @Test
@@ -3102,14 +3069,6 @@ class RelationalMappingIntegrationTest {
             assertEquals(2, names.size());
             assertTrue(names.contains("Alice"));
             assertTrue(names.contains("Bob"));
-        }
-
-        // --- Local Properties ---
-
-        @Test @Disabled("GAP: Local property + prefix semantics lost")
-        @DisplayName("GAP: Local mapping property")
-        void testLocalProperty() throws SQLException {
-            // +localProp: String[1]: [DB] T.EXTRA
         }
 
         // --- DynaFunction in Property Mapping ---
@@ -3317,29 +3276,6 @@ class RelationalMappingIntegrationTest {
             assertTrue(firms.contains("ACME"));
         }
 
-        // --- XStore ---
-
-        @Test  // F2.6: un-disabled — the audit flagged this GAP stale (XStore IS in the grammar)
-        @DisplayName("GAP: XStore cross-store mapping")
-        void testXStore() throws SQLException {
-            // PersonFirm: XStore { persons: $this.firmId == $that.id }
-        }
-
-        // --- AggregationAware ---
-
-        @Test  // F2.6: un-disabled — the audit flagged this GAP stale (aggregationAware family scores 13/13)
-        @DisplayName("GAP: AggregationAware mapping")
-        void testAggregationAware() throws SQLException {
-            // Class: AggregationAware { Views: [...], ~mainMapping: ... }
-        }
-
-        // --- Relation Mapping Type ---
-
-        @Test @Disabled("GAP: Relation class mapping not in grammar")
-        @DisplayName("GAP: Relation class mapping (~func)")
-        void testRelationClassMapping() throws SQLException {
-            // Class: Relation { ~func myFunction }
-        }
     }
 
     // ==================== 15. Advanced Filter Patterns ====================
@@ -5216,50 +5152,6 @@ class RelationalMappingIntegrationTest {
             assertEquals(2, r.rowCount());
         }
 
-
-        @Test @Disabled("GAP: Set IDs + filter disambiguation")
-        @DisplayName("GAP: Multiple set IDs with filter selecting correct set")
-        void testSetIdFilter() throws SQLException {
-            // *Person[set1]: Relational { ~mainTable T_ACTIVE ... }
-            // Person[set2]: Relational { ~mainTable T_ARCHIVED ... }
-        }
-
-        @Test @Disabled("GAP: Extends + filter inheritance")
-        @DisplayName("GAP: Mapping extends with filter on parent properties")
-        void testExtendsWithFilter() throws SQLException {
-            // Employee extends Person, filter on Person.name
-        }
-
-        @Test @Disabled("GAP: Mapping include + join navigation")
-        @DisplayName("GAP: Included mapping's classes used in join query")
-        void testIncludeWithJoin() throws SQLException {
-            // include BaseMapping, then query joining to included class
-        }
-
-        @Test @Disabled("GAP: Store substitution + query")
-        @DisplayName("GAP: Include with store sub, verify correct DB used")
-        void testStoreSubstitutionQuery() throws SQLException {
-            // include BaseMapping[DevDB -> ProdDB], verify ProdDB tables queried
-        }
-
-        @Test @Disabled("GAP: View + join + filter")
-        @DisplayName("GAP: Query through view with join and filter")
-        void testViewJoinFilter() throws SQLException {
-            // View as source table + join to another table + filter
-        }
-
-        @Test @Disabled("GAP: Database filter + mapping filter stacking")
-        @DisplayName("GAP: Both database filter and mapping ~filter active")
-        void testDbFilterPlusMappingFilter() throws SQLException {
-            // Database Filter(isActive) + Mapping ~filter [activeOnly]
-        }
-
-        @Test @Disabled("GAP: Local property + join + filter")
-        @DisplayName("GAP: Local mapping property used in filter with join")
-        void testLocalPropertyWithJoin() throws SQLException {
-            // +fullName: $p.first + ' ' + $p.last, filter on fullName, project dept
-        }
-
         @Test
         @DisplayName("DynaFunction mapped property filtered on")
         void testDynaFunctionWithFilter() throws SQLException {
@@ -5477,19 +5369,6 @@ class RelationalMappingIntegrationTest {
             assertEquals(300, colInt(r, 1).get(0));
             assertEquals(8, colInt(r, 1).get(1));
         }
-
-        @Test @Disabled("GAP: Scope block + embedded + filter")
-        @DisplayName("GAP: Scope block containing embedded mapping, filtered on")
-        void testScopeEmbeddedFilter() throws SQLException {
-            // scope([DB]T) (firm(name: FIRM_NAME), ...) + filter on firm.name
-        }
-
-        @Test @Disabled("GAP: AggregationAware + join")
-        @DisplayName("GAP: AggregationAware mapping with join navigation")
-        void testAggAwareWithJoin() throws SQLException {
-            // AggregationAware mapping auto-selecting aggregate view vs detail
-        }
-
 
         @Test
         @DisplayName("Self-join + filter + sort composition")

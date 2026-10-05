@@ -43,14 +43,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class SkipCensusTest {
 
     /** file basename -> pinned MAX {@code @Disabled(} count. */
-    private static final Map<String, Integer> DISABLED_PINS = Map.of(
-            // the 15 named grammar/builder GAP rows (2026-08-19 census):
-            // extends clause, store substitution x2, scope keyword,
-            // Database filters, local property prefix, Relation class
-    // mapping, set IDs, extends+filter, include+join, view+join+filter,
-            // filter stacking, local property+join+filter, scope+embedded,
-            // AggregationAware+join
-            "RelationalMappingIntegrationTest.java", 15);
+    private static final Map<String, Integer> DISABLED_PINS = Map.of();
+    // EMPTIED 2026-10-05 (Bazel workplan P3-17): RelationalMappingIntegrationTest's 15 GAP rows were empty bodies, so
+    // asserted nothing; they are deleted, and the gaps stay listed in docs/OUTSTANDING.md ("Declared platform gaps").
 
     /** Files permitted to carry a conditional skip ({@link #CONDITIONAL}). */
     private static final List<String> ASSUMPTION_FILES = List.of(

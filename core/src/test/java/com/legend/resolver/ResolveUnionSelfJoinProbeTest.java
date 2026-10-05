@@ -11,16 +11,25 @@ import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.DuckDb;
+import com.legend.testing.Rows;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Union SELF-JOIN probe (testIdentificationOfFKColumnsForUnionSelfJoin):
  * a class-typed property navigating from a union INTO THE SAME union with
  * a full per-(source-member, target-member) route matrix — the engine
- * merges the coinciding FK columns into the un-suffixed shared key.
+ * merges the coinciding FK columns into the un-suffixed shared key. The
+ * emitted SQL runs on DuckDB and its rows are asserted (Bazel workplan P3-17:
+ * it printed the SQL and asserted nothing).
  */
 class ResolveUnionSelfJoinProbeTest {
 
@@ -66,10 +75,24 @@ class ResolveUnionSelfJoinProbeTest {
 
     @Test
     @DisplayName("union self-join: per-pair route matrix into the same union")
-    void unionSelfJoin() {
+    void unionSelfJoin() throws SQLException {
         String sql = sqlOf("u::Person.all()"
                 + "->project([p|$p.lastName, p|$p.manager.lastName],"
                 + " ['Name','manager'])->from(u::M, u::RT)");
-        System.out.println("[selfjoin-sql]\n" + sql);
+        // the joins match on last name: each person's only manager is itself, through its own set's route (the
+        // cross-set routes find no one with a different last name)
+        List<List<Object>> rows = new ArrayList<>();
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
+            st.execute("CREATE TABLE P1 (ID INTEGER PRIMARY KEY, lastName_s1 VARCHAR(200))");
+            st.execute("CREATE TABLE P2 (ID INTEGER PRIMARY KEY, lastName_s2 VARCHAR(200))");
+            st.execute("INSERT INTO P1 VALUES (1, 'Smith')");
+            st.execute("INSERT INTO P2 VALUES (2, 'Jones')");
+            try (ResultSet rs = st.executeQuery(sql)) {
+                while (rs.next()) {
+                    rows.add(List.of(rs.getString(1), rs.getString(2)));
+                }
+            }
+        }
+        Rows.assertSameRows(List.of(List.of("Smith", "Smith"), List.of("Jones", "Jones")), rows);
     }
 }
