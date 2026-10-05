@@ -1449,6 +1449,18 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 
 **Amended 2026-10-05 (execution).** Moved after P3-01, which it depends on (the database pass as a `java_run` chain): it leaves batch 9 for Phase 3's batch.
 
+**Amended 2026-10-05 (execution: the classification and the shape).** Of the 30 `rcorpus` files, 10 are
+MEASUREMENTS and generated: each lane's fail and skipped rosters, unordered-chain and engine-order registers, and the
+database judge's engine-order register (which nothing had checked: `pinRoster` returned in database mode before its
+exact check; generated, it had 52 stale rows). The 20 others are POLICY and stay hand-owned with dated rows: the
+accepted, database-accepted, differential, lost, gained, untriaged, host-compared and outside-body registers, the
+ord-unmappable registers (each row grants a leniency) and the unjudged ceilings. Both passes are actions
+(`//spec:judge_host_<lane>`, `//spec:judge_database_<lane>`); the lane `//spec:corpus_<lane>` is a suite of
+`CorpusVerdictTest` (both verdicts) and `//spec:update_rcorpus_<lane>`'s diff tests (not `update_rcorpus_test`, not
+`corpus_*_report`). The roster updates are not in `//:update_generated`: a newly failing test is re-blessed only
+deliberately, lane by lane (the risk line's laundering, kept where it was). `//spec:corpus_one` runs one pass scoped
+to a test.
+
 #### P2-16 · Pins that a generated file already determines are computed; measurement reports are generated (D9)
 
 | Field | Content |
@@ -1606,6 +1618,8 @@ action's.
 | Done when | `core_tests` is a suite of targets with exact data, and the union is identical. No core target declares data it does not read, no core test is a manual timing script (A11), and `CorpusDifferentialTest` is selected once (A7). |
 
 **Amended 2026-10-04 (P1-90 audit, (J)).** P1-02's baseline was not kept: the proof takes its baseline from `main`'s CI test.xml artifacts at the commit before this item.
+
+**Amended 2026-10-05 (execution).** Moved after P3-27 (batch 13), which it depends on (A11's exact data lists).
 
 #### P3-06 · Core test sources split into per-package libraries
 

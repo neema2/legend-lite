@@ -237,3 +237,10 @@ without a **done** entry.
   while it skipped; the target is manual (not in CI). Owner: the compiler line (needs the five new walls named).
 - **Noted:** Lexicon.H2 also lacks H2 2.x reserved words (key, value, year, month, day, set, user, ...): same class of
   bug as the DuckDB one, not yet hit by a test. Follow-up for the H2/engine-style dialect owner.
+- **P2-15 done** (amended: classification table in the workplan; both passes actions; the lane a suite of
+  CorpusVerdictTest and the roster diff tests). The database judge's engine-order register was never checked; generated,
+  52 stale rows and 1 missing (re-blessed). Audit: one blocker fixed (rosters written with the platform's line ends
+  would fail every Windows diff test: LF now); a failing pass never blanks a roster (written first; UNMEASURED lines);
+  //:update_generated no longer re-blesses the rosters; the warehouse lane checks against DuckDB's committed rosters.
+- **Batch 10 complete** but P3-05 (moved after P3-27, which it depends on) and P3-06 (deferred in §6.3 unless the
+  user chooses it). Next: push batch 10's rest, P2-90 on main, then batch 11.
