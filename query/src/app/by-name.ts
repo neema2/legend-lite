@@ -15,14 +15,25 @@ export async function modelText(depot: DepotClient, groupId: string, artifactId:
   return closure.flatMap((v) => v.files.map((f) => `###Pure\n${f.pureCode}`)).join('\n');
 }
 
-/** Every project the Depot has with a snapshot, loaded at it. */
+/** One version of a project, loaded: its model text and graph, as the demo's files are. */
+export async function loadByName(depot: DepotClient, grammar: Grammar, groupId: string, artifactId: string, versionId: string): Promise<LoadedProject> {
+  const code = await modelText(depot, groupId, artifactId, versionId);
+  const config: ProjectConfig = { groupId, artifactId, versionId, title: artifactId, models: [] };
+  return { config, gav: gavOf(config), context: { _type: 'text', code }, graph: new ModelGraph(await grammar.modelJson(code)) };
+}
+
+/** Every project the Depot has with a snapshot, loaded at it (what the start page lists). */
 export async function projectsByName(depot: DepotClient, grammar: Grammar): Promise<LoadedProject[]> {
   const out: LoadedProject[] = [];
   for (const p of await depot.projects()) {
     if (!(await depot.versions(p.groupId, p.artifactId, true)).includes(SNAPSHOT)) continue;
-    const code = await modelText(depot, p.groupId, p.artifactId, SNAPSHOT);
-    const config: ProjectConfig = { groupId: p.groupId, artifactId: p.artifactId, versionId: SNAPSHOT, title: p.artifactId, models: [] };
-    out.push({ config, gav: gavOf(config), context: { _type: 'text', code }, graph: new ModelGraph(await grammar.modelJson(code)) });
+    out.push(await loadByName(depot, grammar, p.groupId, p.artifactId, SNAPSHOT));
   }
   return out;
+}
+
+/** A project's versions as the picker offers them: HEAD (the snapshot) first, then releases, newest first. */
+export async function versionsOf(depot: DepotClient, groupId: string, artifactId: string): Promise<string[]> {
+  const all = await depot.versions(groupId, artifactId, true);
+  return [...all.filter((v) => v === SNAPSHOT), ...all.filter((v) => v !== SNAPSHOT).reverse()];
 }
