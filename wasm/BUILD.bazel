@@ -42,7 +42,8 @@ legend_java_library(
     resource_strip_prefix = "wasm/src/main/resources",
     deps = [
         ":teavm_api",
-        "//core",
+        # the plan side only (C2a): the WebAssembly planner carries no execution library, no database, no driver
+        "//core:plan_side",
         "//json",
     ],
 )

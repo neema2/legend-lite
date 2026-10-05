@@ -3,7 +3,7 @@
 
 package com.legend.normalizer;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -88,7 +88,7 @@ class AssocSimpleNameProbeTest {
                 st.execute("INSERT INTO PT VALUES (1,'ann'),(2,'bob')");
                 st.execute("INSERT INTO CT VALUES (10,'X1',1)");
             }
-            ExecutionResult r = Compiler.execute(MODEL,
+            ExecutionResult r = Execution.execute(MODEL,
                     "a::m::Person.all()->filter(p|$p.roadVehicles->isNotEmpty())"
                     + "->project([p|$p.name], ['n'])->from(a::M, a::RT)",
                     "a::RT", conn);

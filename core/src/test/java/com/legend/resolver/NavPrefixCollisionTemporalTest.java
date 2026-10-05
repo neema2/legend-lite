@@ -4,6 +4,7 @@
 package com.legend.resolver;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.testing.KnownDefect;
 import org.junit.jupiter.api.Test;
 
@@ -64,7 +65,7 @@ class NavPrefixCollisionTemporalTest {
                         + " (10, 'old', DATE '2010-01-01', DATE '2015-01-01'),"
                         + " (10, 'new', DATE '2015-01-01', DATE '9999-12-31')");
             }
-            var r = Compiler.execute(model, QUERY, "c::RT", c);
+            var r = Execution.execute(model, QUERY, "c::RT", c);
             List<String> out = new ArrayList<>();
             for (var row : r.rows()) {
                 StringBuilder sb = new StringBuilder();

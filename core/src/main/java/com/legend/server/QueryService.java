@@ -63,7 +63,7 @@ public class QueryService {
     public ExecutionResult execute(String pureSource, String query, String runtimeName,
             Connection connection, com.legend.ExecuteOptions options) throws SQLException {
         return Objects.requireNonNull(
-                com.legend.Compiler.execute(pureSource, query, null, runtimeName, connection,
+                com.legend.Execution.execute(pureSource, query, null, runtimeName, connection,
                         options),
                 "query produced no result");
     }
@@ -75,7 +75,7 @@ public class QueryService {
     public ExecutionResult execute(String pureSource, String query, String runtimeName)
             throws SQLException {
 
-        return Objects.requireNonNull(com.legend.Compiler.execute(pureSource, query, runtimeName,
+        return Objects.requireNonNull(com.legend.Execution.execute(pureSource, query, runtimeName,
                 ConnectionResolver.SOURCE, com.legend.ExecuteOptions.NONE), "query produced no result");
     }
 
@@ -97,7 +97,7 @@ public class QueryService {
         // CSV/JSON bytes (Compiler.executeWire); the registry stays the
         // format-metadata surface (id/contentType/streaming capability)
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Compiler.executeWire(pureSource, query, runtimeName,
+        com.legend.Execution.executeWire(pureSource, query, runtimeName,
                 connection,
                 format == OutputFormat.CSV
                         ? com.legend.lowering.WireRender.Format.CSV
@@ -114,7 +114,7 @@ public class QueryService {
     public com.legend.plan.QueryPlan executeUpstream(String model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeName, Writer rows) {
         try {
-            return com.legend.Compiler.executeWire(model, query, runtimeName, ConnectionResolver.SOURCE, rows);
+            return com.legend.Execution.executeWire(model, query, runtimeName, ConnectionResolver.SOURCE, rows);
         } catch (IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
@@ -129,7 +129,7 @@ public class QueryService {
             throws SQLException, IOException {
 
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Compiler.executeWire(pureSource, query, runtimeName, ConnectionResolver.SOURCE,
+        com.legend.Execution.executeWire(pureSource, query, runtimeName, ConnectionResolver.SOURCE,
                 format == OutputFormat.CSV
                         ? com.legend.lowering.WireRender.Format.CSV
                         : com.legend.lowering.WireRender.Format.JSON,
@@ -158,7 +158,7 @@ public class QueryService {
             throws SQLException, IOException {
 
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Compiler.executeStreaming(pureSource, query, runtimeName,
+        com.legend.Execution.executeStreaming(pureSource, query, runtimeName,
                 connection, writer);
         writer.flush();
     }
@@ -172,7 +172,7 @@ public class QueryService {
             throws SQLException, IOException {
 
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Compiler.executeStreaming(pureSource, query, runtimeName, ConnectionResolver.SOURCE, writer);
+        com.legend.Execution.executeStreaming(pureSource, query, runtimeName, ConnectionResolver.SOURCE, writer);
         writer.flush();
     }
 

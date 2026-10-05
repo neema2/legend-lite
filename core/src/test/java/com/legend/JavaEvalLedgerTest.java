@@ -1192,6 +1192,11 @@ class JavaEvalLedgerTest {
                     // anything runs; the executor's own planning arms, in order — no
                     // evaluation of its own
                     "BodyCompiler.java", "Compiler.java",
+                    // C2a (2026-10-04): the execution front door — the execute entry
+                    // points moved out of Compiler (the planner): a session handed or
+                    // opened, the planned query run through StatementExecutor; it
+                    // sequences, it evaluates nothing
+                    "Execution.java",
                     "ConnectionLets.java",
                     // audit §4y (2026-09-20): pure's equality KIND CLASSES
                     // over stamps as a CLOSED type (the stringly "numeric" /

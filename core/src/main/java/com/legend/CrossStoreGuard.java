@@ -21,12 +21,12 @@ import java.util.TreeSet;
  * Database elements sharing one connection — the ordinary corpus shape
  * — pass untouched; only a genuine multi-connection demand walls.
  */
-final class CrossStoreGuard {
+public final class CrossStoreGuard {
 
     private CrossStoreGuard() {
     }
 
-    static void check(List<TypedSpec> body, ModelContext ctx,
+    public static void check(List<TypedSpec> body, ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn) {
         // a statement executes only after Compiler.executesOn decided its session, which refuses
         // no runtime and an undefined one first (C3b: these were silent passes; measured unreached

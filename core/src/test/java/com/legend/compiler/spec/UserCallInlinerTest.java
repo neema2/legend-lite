@@ -1,6 +1,7 @@
 package com.legend.compiler.spec;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -66,7 +67,7 @@ class UserCallInlinerTest {
     }
 
     private ExecutionResult run(String query) throws SQLException {
-        return Compiler.execute(MODEL, query, "m::RT", conn);
+        return Execution.execute(MODEL, query, "m::RT", conn);
     }
 
     private java.util.List<?> col(ExecutionResult r) {

@@ -4,6 +4,7 @@
 package com.legend.test;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.PureModelContext;
 import com.legend.exec.ExecutionResult;
@@ -239,7 +240,7 @@ public final class ServiceTestRunner implements AutoCloseable {
         try {
             ExecutionResult result;
             try {
-                result = Compiler.executeResolved(resolved, rt.ctx(), rt.runtimeFqn(), conn);
+                result = Execution.executeResolved(resolved, rt.ctx(), rt.runtimeFqn(), conn);
             } catch (RuntimeException e) {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();   // the same diagnostic switch the resolver walls honor

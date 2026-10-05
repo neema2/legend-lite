@@ -50,7 +50,7 @@ class TabularFunctionTest {
                 st.execute("CREATE TABLE PLAIN (a VARCHAR, n DOUBLE)");
                 st.execute("INSERT INTO PLAIN VALUES ('X', 9.0)");
             }
-            var r = Compiler.execute(MODEL, query, "tf::RT", c);
+            var r = Execution.execute(MODEL, query, "tf::RT", c);
             return r.rows().stream().map(row -> row.get(0) + "|" + row.get(1)).toList();
         }
     }

@@ -10,6 +10,8 @@
 # plan (the IN-list facts) and driver reach it.
 # 2026-10-04 C3b: exec (Target, which Sessions opens) and server_lib (the server opens the compiler's target;
 # its cache key reads the compiled model's databases) reach database; server_lib reaches compiler.
+# 2026-10-04 C2a: `planner` (Compiler, CrossStoreGuard, ProgramFacts) -- the root package's plan side, NO exec and
+# NO testdatagen; driver, test and server_lib reach it.
 spi	
 cache	base
 values	base
@@ -34,7 +36,8 @@ resolver	base builtin compiler compiler_element_type error lowering model plan p
 exec	base compiler compiler_element_type database error lowering model plan platform sql sql_dialect values
 probe	base builtin lowering model platform
 testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver sql_dialect values
-driver	base builtin cache compiler compiler_element_type database error exec lineage lowering model normalizer parser plan platform protocol resolver sql sql_dialect testdatagen validation values
+planner	base builtin cache compiler compiler_element_type database error lineage lowering model normalizer parser plan platform protocol resolver sql sql_dialect validation values
+driver	base builtin cache compiler compiler_element_type database error exec lineage lowering model normalizer parser plan planner platform protocol resolver sql sql_dialect testdatagen validation values
 ide	base lexer model parser
-test	base compiler driver error exec model protocol sql values
-server_lib	base cache compiler compiler_element_type database driver error exec json lowering model parser plan protocol sql_dialect
+test	base compiler driver error exec model planner protocol sql values
+server_lib	base cache compiler compiler_element_type database driver error exec json lowering model parser plan planner protocol sql_dialect

@@ -81,7 +81,9 @@ class JdbcSurfaceCensusTest {
     private static final int FILE_FLOOR = 778;
 
     private static final Set<String> MAIN_REGISTER = new TreeSet<>(List.of(
-            "core/src/main/java/com/legend/Compiler.java",
+            // 2026-10-04 C2a: Compiler (the planner) left the register; Execution, the execution front door, holds the
+            // execute entry points it took (a session in, checked; nothing evaluated)
+            "core/src/main/java/com/legend/Execution.java",
             // leg 3.4: the deferred verdict statements are keyed by the
             // session they run on (a store side's routed connection, or the
             // body's); sent through the one Executor choke point

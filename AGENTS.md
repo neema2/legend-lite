@@ -90,8 +90,12 @@ Recover legacy sources via git history (last present at tag-commit
 
 ## Pipeline — 11 steps, one driver
 
-`com.legend.Compiler` owns step ordering. Every step is the same method its
-own unit tests exercise; there is no orchestrator-only code path.
+`com.legend.Compiler` (the planner, `//core:planner`) owns step ordering through J;
+`com.legend.Execution` (the execution front door) runs a planned query on a
+session (K). The planner's library has no execution dependency — planning never
+touches a database (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md);
+a plan-only consumer depends on `//core:plan_side`. Every step is the same method
+its own unit tests exercise; there is no orchestrator-only code path.
 
 ```
 text                                                             [FRONTEND]
@@ -129,15 +133,15 @@ user-visible error carries one of these eight.
 | `Compiler.compileAllBodies(ctx)` | eager G over all bodies | **never throws**, returns walls |
 | `Compiler.compileQuery(model, query)` | frontend + G | STRICT |
 | `Compiler.plan(...)` | frontend → J | STRICT — **the production seam** |
-| `Compiler.execute(...)` | A→K | STRICT — **the production seam** |
-| `Compiler.executeResolved(...)` | G½→K, the one back-half sequence | STRICT |
+| `Execution.execute(...)` | A→K | STRICT — **the production seam** |
+| `Execution.executeResolved(...)` | G½→K, the one back-half sequence | STRICT |
 
 `compileModel` and `buildModule` differ by **one argument**:
 `NameResolver.resolve(parsed)` vs `resolve(parsed, walls)`. If you want every
 error rather than the first, you want `buildModule`.
 
 `StatementExecutor` is **package-private by design** — reachable only through
-`Compiler.executeResolved`. The driver never re-implements a step; the
+`Execution.executeResolved`. The driver never re-implements a step; the
 executor never decides pipeline order.
 
 ## Layer ownership (the contract)

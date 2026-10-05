@@ -49,7 +49,7 @@ class AuditRound5Test {
 
     private static Object scalar(String query) throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            return Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
+            return Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
         }
     }
 

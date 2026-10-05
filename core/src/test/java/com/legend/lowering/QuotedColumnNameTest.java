@@ -3,7 +3,7 @@
 
 package com.legend.lowering;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -69,7 +69,7 @@ class QuotedColumnNameTest {
             String model = "duckdb".equals(engine) ? MODEL : MODEL.replace(
                     "{ type: DuckDB; specification: DuckDB { }; auth: Test; }",
                     "{ type: H2; specification: LocalH2 { }; auth: DefaultH2; }");
-            var r = Compiler.execute(model, query, "local::RT", c);
+            var r = Execution.execute(model, query, "local::RT", c);
             return r.rows().stream().map(row -> {
                 StringBuilder sb = new StringBuilder();
                 for (int i = 0; i < r.columns().size(); i++) {

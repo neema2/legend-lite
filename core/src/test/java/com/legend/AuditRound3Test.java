@@ -29,7 +29,7 @@ class AuditRound3Test {
 
     private static Object scalar(String query) throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            return Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
+            return Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
         }
     }
 
@@ -54,7 +54,7 @@ class AuditRound3Test {
         // signatures alone.
         var ex = assertThrows(Exception.class, () -> {
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-                Compiler.execute(StorelessRuntime.with(MODEL + "function test::f(): Integer[1] { [] }\n", DatabaseType.DuckDB),
+                Execution.execute(StorelessRuntime.with(MODEL + "function test::f(): Integer[1] { [] }\n", DatabaseType.DuckDB),
                         "|test::f()", StorelessRuntime.RUNTIME, c);
             }
         });

@@ -4,6 +4,7 @@
 package com.legend.test;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.ExecuteOptions;
 import com.legend.ProgramFacts;
 import com.legend.compiler.element.ModelContext;
@@ -356,7 +357,7 @@ public final class PureTestRunner implements AutoCloseable {
             // refuses the known clashes
         }
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
-            Compiler.executeResolved(call, ctx, runtimeFqn, target, null, null, options);
+            Execution.executeResolved(call, ctx, runtimeFqn, target, null, null, options);
         } finally {
             if (isolated) {
                 observer.fixtureIsolated(conn);
@@ -475,7 +476,7 @@ public final class PureTestRunner implements AutoCloseable {
         try {
             String failure = null;
             try {
-                Compiler.executeResolved(resolved, ctx, runtimeFqn, conn,
+                Execution.executeResolved(resolved, ctx, runtimeFqn, conn,
                         new AssertListener() {
                             @Override
                             public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {

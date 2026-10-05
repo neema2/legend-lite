@@ -142,13 +142,32 @@ legend_java_library(
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":sql_dialect", ":values"],
 )
 
-# the root package: the driver (Compiler, StatementExecutor, the judges)
+# THE PLANNER (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the root package's plan side --
+# model text to a compiled model, a query to its SQL. No :exec, no :testdatagen: planning never touches a database
+# (the build enforces it; a plan-only consumer carries no driver).
+_PLANNER_SRCS = [
+    "src/main/java/com/legend/Compiler.java",
+    "src/main/java/com/legend/CrossStoreGuard.java",
+    "src/main/java/com/legend/ProgramFacts.java",
+]
+
+legend_java_library(
+    name = "planner",
+    srcs = _PLANNER_SRCS,
+    deps = [
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error",
+        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
+        ":protocol", ":resolver", ":sql", ":sql_dialect", ":validation", ":values",
+    ],
+)
+
+# the root package's execution side: Execution (the front door), StatementExecutor, the judges
 legend_java_library(
     name = "driver",
-    srcs = glob(["src/main/java/com/legend/*.java"]),
+    srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error", ":exec",
-        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
+        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner", ":platform",
         ":protocol", ":resolver", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
@@ -156,20 +175,35 @@ legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.j
 legend_java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
-    deps = ["//base", ":compiler", ":driver", ":error", ":exec", ":model", ":protocol", ":sql", ":values"],
+    deps = ["//base", ":compiler", ":driver", ":error", ":exec", ":model", ":planner", ":protocol", ":sql", ":values"],
 )
 legend_java_library(
     name = "server_lib",
     srcs = glob(["src/main/java/com/legend/server/**/*.java"]),
-    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":driver", ":error", ":exec", ":lowering", ":model", ":parser", ":plan", ":protocol", ":sql_dialect"],
+    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":driver", ":error", ":exec", ":lowering", ":model", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
 )
 
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":exec", ":probe", ":testdatagen",
-    ":driver", ":ide", ":test", ":server_lib",
+    ":planner", ":driver", ":ide", ":test", ":server_lib",
 ]
+
+# THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it
+# stands on, and none of execution (exec, testdatagen, driver, probe, ide, test, server_lib). A plan-only consumer
+# depends on this, so the build proves it carries no database and no driver.
+_PLAN_SIDE_TARGETS = [
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
+    ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":planner",
+]
+
+legend_java_library(
+    name = "plan_side",
+    exports = _PLAN_SIDE_TARGETS,
+    visibility = ["//wasm:__pkg__"],
+)
 
 # THE UMBRELLA: what every consumer depends on today and keeps depending on.
 # It compiles nothing; it exports the targets above. A consumer that needs only
@@ -605,6 +639,7 @@ core_layer_queries(not_layers = {
     "core_tests_lib": "the tests' library, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_load": "the drivers' bulk loader, beside the layers",
+    "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
     "shadow_binding": "a test-lane ServiceLoader resource",
 })
 

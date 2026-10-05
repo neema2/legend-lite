@@ -132,7 +132,8 @@ final class ArchitectureTest {
             java.util.Map.entry("exec", "com.legend.exec.Executor"),
             java.util.Map.entry("probe", "com.legend.probe.Shadow"),
             java.util.Map.entry("testdatagen", "com.legend.testdatagen.TestDataGenerationNatives"),
-            java.util.Map.entry("driver", "com.legend.Compiler"),
+            java.util.Map.entry("planner", "com.legend.Compiler"),
+            java.util.Map.entry("driver", "com.legend.Execution"),
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
             java.util.Map.entry("server_lib", "com.legend.server.QueryService"),
@@ -837,7 +838,10 @@ final class ArchitectureTest {
             .that().resideInAPackage("com.legend")
             // nested classes (StatementExecutor$ExecEnv, ...) ride with
             // their owner — the pin is per top-level class
-            .and().haveNameNotMatching("com\\.legend\\.(Compiler"
+            // 2026-10-04 C2a: Compiler LEFT the pin -- the planner, java.sql-free, in //core:planner (no
+            // :exec); Execution, the execution front door, holds the execute entry points' Connection
+            // parameters it took from Compiler (a move, not growth)
+            .and().haveNameNotMatching("com\\.legend\\.(Execution"
                     + "|StatementExecutor"
                     // THE EXCEPTION SEAM (user directive 2026-09-01):
                     // SQLException stops at the executor boundary —
@@ -851,7 +855,7 @@ final class ArchitectureTest {
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"
-                    + " {Compiler, StatementExecutor} —"
+                    + " {Execution, StatementExecutor} —"
                     + " shrink-only (the exception seam landed"
                     + " 2026-09-01; the carrier-type residue left 2026-09-22)")
             .check(CORE_PROD_CLASSES);

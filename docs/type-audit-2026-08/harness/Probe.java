@@ -1,4 +1,5 @@
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.exec.ExecutionResult;
@@ -67,7 +68,7 @@ public final class Probe {
                     }
                 }
             }
-            ExecutionResult r = Compiler.execute(model, query, runtime, c);
+            ExecutionResult r = Execution.execute(model, query, runtime, c);
             if (r == null) { System.out.println("[EXEC] null result"); return; }
             System.out.println("[EXEC] shape=" + r.getClass().getSimpleName()
                     + " returnType=" + r.returnType().typeName()

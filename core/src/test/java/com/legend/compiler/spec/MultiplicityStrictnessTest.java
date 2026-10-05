@@ -7,6 +7,7 @@ import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.spec.typed.TypedSpec;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -75,7 +76,7 @@ class MultiplicityStrictnessTest {
     @DisplayName("audit §1b: declared return [1] with a [0..1] body is REJECTED at inline")
     void declaredReturnStricterThanBodyRejects() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            Exception e = assertThrows(Exception.class, () -> Compiler.execute(StorelessRuntime.with(MODEL + "function m::f(a: String[0..1]): String[1] { $a }\n", DatabaseType.DuckDB),
+            Exception e = assertThrows(Exception.class, () -> Execution.execute(StorelessRuntime.with(MODEL + "function m::f(a: String[0..1]): String[1] { $a }\n", DatabaseType.DuckDB),
                     "|m::f('x')", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e.getMessage())
                             .contains("[0..1] is not compatible with [1]"),
@@ -87,7 +88,7 @@ class MultiplicityStrictnessTest {
     @DisplayName("audit §1b: declared return [3] with a [2] body is REJECTED at inline")
     void declaredReturnCountMismatchRejects() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            Exception e = assertThrows(Exception.class, () -> Compiler.execute(StorelessRuntime.with(MODEL + "function m::g(): String[3] { ['a', 'b'] }\n", DatabaseType.DuckDB),
+            Exception e = assertThrows(Exception.class, () -> Execution.execute(StorelessRuntime.with(MODEL + "function m::g(): String[3] { ['a', 'b'] }\n", DatabaseType.DuckDB),
                     "|m::g()", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e.getMessage()).contains("not compatible"),
                     e.getMessage());
@@ -99,13 +100,13 @@ class MultiplicityStrictnessTest {
     void literalCollectionToOneRaisesUserError() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             Exception e = assertThrows(Exception.class,
-                    () -> Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{| [1,2]->toOne() }", StorelessRuntime.RUNTIME, c));
+                    () -> Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{| [1,2]->toOne() }", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e.getMessage())
                             .contains("Cannot cast a collection of size 2"
                                     + " to multiplicity [1]"),
                     e.getMessage());
             // the singleton extracts — the guard is size-exact
-            var ok = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{| [7]->toOne() }", StorelessRuntime.RUNTIME, c);
+            var ok = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{| [7]->toOne() }", StorelessRuntime.RUNTIME, c);
             assertEquals(7L, ((Number) ((com.legend.exec.ExecutionResult
                     .Scalar) ok).value()).longValue());
         }
@@ -115,7 +116,7 @@ class MultiplicityStrictnessTest {
     @DisplayName("audit §3: a runtime-emptied list through toOne() raises size-0 (the lower bound, checked in SQL)")
     void runtimeEmptyListToOneRaises() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            Exception e = assertThrows(Exception.class, () -> Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{| [1,2,3]->filter(x|$x > 10)->toOne() }", StorelessRuntime.RUNTIME, c));
+            Exception e = assertThrows(Exception.class, () -> Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{| [1,2,3]->filter(x|$x > 10)->toOne() }", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e.getMessage())
                             .contains("Cannot cast a collection of size 0"),
                     e.getMessage());
@@ -129,7 +130,7 @@ class MultiplicityStrictnessTest {
             // relation lane: the in-expression toOne FLOWS (row-lane
             // adjudication), so the FINISH-LINE check is what catches a
             // broken exactly-one promise — engine parity, egress-side
-            Exception e = assertThrows(Exception.class, () -> Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+            Exception e = assertThrows(Exception.class, () -> Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
                     "{| #TDS\n  x:Integer\n  1\n#"
                             + "->filter(r|$r.x > 5)->map(r|$r.x)->toOne() }", StorelessRuntime.RUNTIME,
                     c));
@@ -137,14 +138,14 @@ class MultiplicityStrictnessTest {
                             .contains("Cannot cast a collection of size 0"),
                     e.getMessage());
             // control: a satisfied promise still flows
-            var ok = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+            var ok = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
                     "{| #TDS\n  x:Integer\n  7\n#"
                             + "->filter(r|$r.x > 5)->map(r|$r.x)->toOne() }", StorelessRuntime.RUNTIME, c);
             assertEquals(7L, ((Number) ((com.legend.exec.ExecutionResult
                     .Scalar) ok).value()).longValue());
             // TWO rows at the root raise PURE's size message, not the
             // backend's bare more-than-one-row subquery error
-            Exception e2 = assertThrows(Exception.class, () -> Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+            Exception e2 = assertThrows(Exception.class, () -> Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
                     "{| #TDS\n  x:Integer\n  1\n  2\n#"
                             + "->map(r|$r.x)->toOne() }", StorelessRuntime.RUNTIME, c));
             assertTrue(String.valueOf(e2.getMessage())
@@ -158,7 +159,7 @@ class MultiplicityStrictnessTest {
     @DisplayName("egress slice A: a [1..*]-declared collection result with ZERO rows raises")
     void collectionEgressLowerBoundRaisesOnZeroRows() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            Exception e = assertThrows(Exception.class, () -> Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+            Exception e = assertThrows(Exception.class, () -> Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
                     "{| #TDS\n  x:Integer\n  1\n#"
                             + "->filter(r|$r.x > 5)->map(r|$r.x)"
                             + "->toOneMany() }", StorelessRuntime.RUNTIME, c));
@@ -166,7 +167,7 @@ class MultiplicityStrictnessTest {
                             .contains("Cannot cast a collection of size 0"),
                     e.getMessage());
             // control: satisfied [1..*] still yields the collection
-            var ok = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+            var ok = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
                     "{| #TDS\n  x:Integer\n  7\n  9\n#"
                             + "->map(r|$r.x)->toOneMany() }", StorelessRuntime.RUNTIME, c);
             assertEquals(java.util.List.of(7L, 9L),
@@ -188,7 +189,7 @@ class MultiplicityStrictnessTest {
                     new Case("{| ['a','b']->filter(x|false)->head()->makeString() }", ""),
             }) {
                 Object got = ((com.legend.exec.ExecutionResult.Scalar)
-                        Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), k.q(), StorelessRuntime.RUNTIME, c)).value();
+                        Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), k.q(), StorelessRuntime.RUNTIME, c)).value();
                 assertEquals(k.want(), got, k.q());
             }
         }

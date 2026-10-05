@@ -545,6 +545,24 @@ run, and are removed before any commit.
   is left outside an owner in core's product code. Out of scope by reading (§C3's sweep): the lexer's `H2` keyword,
   `PureAsserts`' Pure type names, protocol node kinds, the warehouse's own catalog, test and tool support
   (`tools/census/RenderCensus` renders every dialect by design).
+- **C1 — DONE 2026-10-04** (`210c6e5ab`): `compiler/spec/StatementEffects` holds `containsEffect` (from
+  `StatementExecutor`), `callsVerdict` and `containsTdgGenerator` (from `Compiler`), moved verbatim; `Compiler.programFacts`
+  and `BodyCompiler` ask there. The effect scan's catch moves as it is (B3, the rebuild's).
+- **C2a — the structural split, DONE 2026-10-05.** `//core:planner` (`Compiler`, `CrossStoreGuard`, `ProgramFacts`) has
+  no `:exec` and no `:testdatagen` — the build enforces that planning touches no database. `com.legend.Execution` (in
+  `:driver`) holds every execute entry point moved verbatim out of `Compiler` (execute ×5, executeResolved ×4,
+  executeWire ×4, executeStreaming ×2, the session-checking `dialectOf`, `wireSchema`); it reaches the planner only
+  through public API — `compileModel`, `parseQuery`, `resolveQuery`, `executesOn`, and `Compiler.lower(...)` returning
+  the public `Compiler.LoweredQuery` (was the private `Lowered`); `CrossStoreGuard.check` is public (both sides call it;
+  no package-private reach across the two libraries). 132 `Compiler.execute*` calls in 70 files became `Execution.*`.
+  `//core:plan_side` exports the planner and every library it stands on and none of execution; `//wasm:boundary` depends
+  on it, not on `//core`. Guards moved with dated notes: `ArchitectureTest` F1.3b (Compiler left the java.sql pin,
+  Execution took its place) and its library map, `JdbcSurfaceCensusTest` and `JavaEvalLedgerTest` (Execution
+  registered), `core-layers.txt` (a `planner` line), `not_layers` (`plan_side`), AGENTS.md's pipeline text and
+  entry-point table.
+- **C2b — the compile-once API: NEXT.** `Planner.compile(...)` → compiled model → query → plan, replacing `Compiler`'s
+  string-recompiling plan statics (~290 calls: `compileModel` 138, `plan` 35, `compileQuery` 30, `parseSources` 29,
+  `buildModel` 20, ...).
 - **C4. The reader fix.** The static `ExecutionContext` reader follows `->from(m, ^Runtime(connectionStores =
   helper()))`, `toSQLString`'s runtime forms and helper bodies; the four `"H2"` defaults (§3.2) are DELETED; a context
   that truly cannot be read is refused by name. Gate: the 21 corpus tests pass reading their real declarations.
