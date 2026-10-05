@@ -49,7 +49,7 @@ class CarrierDifferentialTest {
         String nativeSql = new DuckDb().render(q);
         // the PORTABLE strategy must also be VALID DuckDB — that is the
         // whole differential contract
-        String portableSql = new AnsiSqlRenderer("DuckDB", Lexicon.DUCKDB,
+        String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
                 TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
         assertTrue(nativeSql.contains("list_aggregate"),
                 "native strategy should use the list carrier: " + nativeSql);
@@ -91,7 +91,7 @@ class CarrierDifferentialTest {
                 .withProjections(List.of(
                                 new SqlSelect.Projection(reduce, "joined", null)));
         String nativeSql = new DuckDb().render(q);
-        String portableSql = new AnsiSqlRenderer("DuckDB", Lexicon.DUCKDB,
+        String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
                 TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
@@ -121,7 +121,7 @@ class CarrierDifferentialTest {
                 .withProjections(List.of(
                                 new SqlSelect.Projection(reduce, "joined", null)));
         String nativeSql = new DuckDb().render(q);
-        String portableSql = new AnsiSqlRenderer("DuckDB", Lexicon.DUCKDB,
+        String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
                 TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                 Statement st = c.createStatement()) {
@@ -159,7 +159,7 @@ class CarrierDifferentialTest {
                     .withProjections(List.of(
                                     new SqlSelect.Projection(member, "m", null)));
             String nativeSql = new DuckDb().render(q);
-            String portableSql = new AnsiSqlRenderer("DuckDB", Lexicon.DUCKDB,
+            String portableSql = new AnsiSqlRenderer(Lexicon.DUCKDB,
                     TypeNames.DUCKDB, Spellings.DUCKDB).render(q);
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:");
                     Statement st = c.createStatement()) {
@@ -620,7 +620,7 @@ class CarrierDifferentialTest {
     }
 
     private static AnsiSqlRenderer portable() {
-        return new AnsiSqlRenderer("DuckDB", Lexicon.DUCKDB, TypeNames.DUCKDB,
+        return new AnsiSqlRenderer(Lexicon.DUCKDB, TypeNames.DUCKDB,
                 Spellings.DUCKDB);
     }
 

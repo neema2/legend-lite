@@ -7,6 +7,7 @@ import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -55,7 +56,7 @@ class ExecuteInDbTest {
         // "default" is a keyword column name — legal unquoted on the
         // engine's H2, a syntax error on DuckDB without the dialect's
         // raw-SQL adaptation; the blob carries two statements
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'Create Table kTest(id INT, default VARCHAR(20));"
                 + " Insert into kTest (id, default) values (7, \\'x\\');', $c, 0, 1000);}", StorelessRuntime.RUNTIME,
@@ -72,7 +73,7 @@ class ExecuteInDbTest {
     @Test
     @DisplayName("executeInDb: the sql argument is a Pure EXPRESSION, evaluated through the pipeline")
     void sqlArgumentEvaluatedThroughPipeline() throws Exception {
-        Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "let tbl = 'kExpr';\n"
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'Create Table ' + $tbl + '(id INT); Insert into ' + $tbl"
@@ -117,7 +118,7 @@ class ExecuteInDbTest {
     void effectfulSetupFunctionSequences() throws Exception {
         // one statement-position call fans out: create + nested fill (a
         // parameterized callee — the arg travels through the frame)
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with(SETUP_MODEL, DatabaseType.DuckDB),
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(SETUP_MODEL, DatabaseType.DuckDB),
                 "{| my::s::createAndFill();}", StorelessRuntime.RUNTIME, conn);
         assertEquals(true, ((ExecutionResult.Scalar) r).value(),
                 "the sequence's value is its LAST statement");
@@ -134,7 +135,7 @@ class ExecuteInDbTest {
     void effectfulLetExecutesOnce() throws Exception {
         // corpus shape (embedded createTimeStamKeysTableAndFill): the let
         // binds an opaque ResultSet handle as a smoke check, never read
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with(SETUP_MODEL, DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(SETUP_MODEL, DatabaseType.DuckDB), CONN_LET
                 + "let rs = meta::relational::metamodel::execute::executeInDb("
                 + "'Create Table kDrop(id INT);', $c, 0, 1000);\ntrue;}", StorelessRuntime.RUNTIME, conn);
         assertEquals(true, ((ExecutionResult.Scalar) r).value());
@@ -150,7 +151,7 @@ class ExecuteInDbTest {
         // an opaque execute-once handle). A query shape is a VALUE now
         // (the typed-relation channel) — pinned green below.
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> Compiler.execute(StorelessRuntime.with(SETUP_MODEL, DatabaseType.DuckDB), CONN_LET
+                () -> Execution.execute(StorelessRuntime.with(SETUP_MODEL, DatabaseType.DuckDB), CONN_LET
                         + "let rs = meta::relational::metamodel::execute::executeInDb("
                         + "'create table EFFECT_LET_T(x int);', $c, 0, 1000);\n"
                         + "let n = $rs;\ntrue;}", StorelessRuntime.RUNTIME, conn));
@@ -161,7 +162,7 @@ class ExecuteInDbTest {
     @Test
     @DisplayName("Phase 1c FLIP: a QUERY-shaped executeInDb binding is a VALUE — it reads back")
     void queryShapedLetReadsBack() throws Exception {
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with(SETUP_MODEL, DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(SETUP_MODEL, DatabaseType.DuckDB), CONN_LET
                 + "let rs = meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as A;', $c, 0, 1000);\n"
                 + "$rs.rows->size();}", StorelessRuntime.RUNTIME, conn);
@@ -182,14 +183,14 @@ class ExecuteInDbTest {
         String call = CONN_LET
                 + "meta::relational::functions::toDDL::dropAndCreateTableInDb("
                 + "my::store::DB, 'kDdlTable', $c);}";
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with(model, DatabaseType.DuckDB), call, StorelessRuntime.RUNTIME, conn);
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(model, DatabaseType.DuckDB), call, StorelessRuntime.RUNTIME, conn);
         assertEquals(true, ((ExecutionResult.Scalar) r).value());
         try (Statement st = conn.createStatement()) {
             st.execute("Insert into kDdlTable (id, name) values (1, 'a')");
         }
         // drop+create again: the table comes back EMPTY (no constraints —
         // engine-harness parity: milestoned seeds repeat ids)
-        Compiler.execute(StorelessRuntime.with(model, DatabaseType.DuckDB), call, StorelessRuntime.RUNTIME, conn);
+        Execution.execute(StorelessRuntime.with(model, DatabaseType.DuckDB), call, StorelessRuntime.RUNTIME, conn);
         try (Statement st = conn.createStatement();
                 ResultSet rs = st.executeQuery("select count(*) from kDdlTable")) {
             assertTrue(rs.next());
@@ -200,7 +201,7 @@ class ExecuteInDbTest {
     @Test
     @DisplayName("executeInDb: a broken statement fails loudly, never silently")
     void brokenStatementFailsLoudly() {
-        assertThrows(com.legend.error.DataError.class, () -> Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        assertThrows(com.legend.error.DataError.class, () -> Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'Insert into noSuchTable (id) values (1);', $c, 0, 1000);}", StorelessRuntime.RUNTIME, conn));
     }
@@ -233,7 +234,7 @@ class ExecuteInDbTest {
         // structure is ITERATED anywhere in core (T3.1 B3 census), and
         // 12 consecutive fresh-JVM runs resolve. Tightened to ROWS-ONLY:
         // any recurrence of the wall (or a third behavior) fails loudly.
-        Compiler.execute(model, CONN_LET
+        Execution.execute(model, CONN_LET
             + "let names = t9::P.all()->map(p|$p.name)->makeString('_');\n"
             + "let x = meta::relational::metamodel::execute::executeInDb("
             + "'Create Table T9OUT(v VARCHAR); Insert into T9OUT (v)"

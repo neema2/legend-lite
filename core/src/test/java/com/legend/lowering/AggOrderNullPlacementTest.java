@@ -6,7 +6,7 @@ package com.legend.lowering;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,7 +30,7 @@ class AggOrderNullPlacementTest {
     @DisplayName("DESC NULLS FIRST survives the toString aggregate hoist")
     void descNullsFirstInsideAggregate() throws Exception {
         try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
-            ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+            ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
                     "{|#TDS\n"
                     + "  p, o, i\n"
                     + "  200, 1, 10\n"

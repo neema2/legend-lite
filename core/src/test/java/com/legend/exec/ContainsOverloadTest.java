@@ -4,6 +4,7 @@
 package com.legend.exec;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -61,7 +62,7 @@ class ContainsOverloadTest {
     }
 
     private List<Object> column(String query) throws SQLException {
-        ExecutionResult.Tabular t = (ExecutionResult.Tabular) Compiler.execute(MODEL, query, RUNTIME, conn);
+        ExecutionResult.Tabular t = (ExecutionResult.Tabular) Execution.execute(MODEL, query, RUNTIME, conn);
         List<Object> out = new ArrayList<>();
         for (Row row : t.rows()) {
             out.add(row.get(0));
@@ -72,7 +73,7 @@ class ContainsOverloadTest {
     @Test
     @DisplayName("a text column's contains is engine's [0..1] string overload")
     void textColumnResolvesToTheStringOverload() {
-        TypedSpec typed = Compiler.compileQuery(MODEL, "|#>{m::DB.T}#->filter(x|$x.S->contains('b'))");
+        TypedSpec typed = Compiler.query(Compiler.compileModel(MODEL), "|#>{m::DB.T}#->filter(x|$x.S->contains('b'))").expression();
         List<String> calls = new ArrayList<>();
         ArrayDeque<TypedSpec> work = new ArrayDeque<>(List.of(typed));
         while (!work.isEmpty()) {
@@ -110,7 +111,7 @@ class ContainsOverloadTest {
     @Test
     @DisplayName("the collection callee's first parameter is many; a text column never reaches it")
     void collectionOverloadIsForLists() {
-        TypedSpec typed = Compiler.compileQuery(MODEL, "|#>{m::DB.T}#->filter(x|$x.I->contains(1))");
+        TypedSpec typed = Compiler.query(Compiler.compileModel(MODEL), "|#>{m::DB.T}#->filter(x|$x.I->contains(1))").expression();
         ArrayDeque<TypedSpec> work = new ArrayDeque<>(List.of(typed));
         String found = null;
         while (!work.isEmpty()) {

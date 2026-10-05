@@ -10,6 +10,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -30,8 +31,8 @@ class ChannelBStandardTest {
         return com.legend.testing.Upstream.engine();
     }
 
-    @Test
-    void standardCensus() throws Exception {
+    /** This suite's run: its model roots and discovery scope (PctRatchets measures its discovery the same way). */
+    static List<ChannelB.Outcome> runSuite(java.util.List<String> walls) throws Exception {
         Path platform = pureRoot().resolve(
                 "legend-pure-core/legend-pure-m3-core/src/main/resources"
                         + "/platform/pure");
@@ -40,9 +41,14 @@ class ChannelBStandardTest {
                         + "/legend-engine-pure-code-functions-standard"
                         + "/legend-engine-pure-functions-standard-pure"
                         + "/src/main/resources/core_functions_standard");
-        java.util.List<String> walls = new java.util.ArrayList<>();
-        List<ChannelB.Outcome> out = ChannelB.run(
+        return ChannelB.run(
                 List.of(platform, standard), List.of(standard), walls);
+    }
+
+    @Test
+    void standardCensus() throws Exception {
+        java.util.List<String> walls = new java.util.ArrayList<>();
+        List<ChannelB.Outcome> out = runSuite(walls);
         walls.forEach(w -> System.out.println("[chB-Standard-wall] " + w));
         System.out.println("[chB-Standard] walls=" + walls.size());
         // audit-of-audits #12: walls ASSERTED shrink-only (20 measured
@@ -71,8 +77,7 @@ class ChannelBStandardTest {
         // slices.
         // 204 -> 205 at the 4.145.0 bump (batch 8): one PCT.test added
         // upstream; 205/205 PASS
-        assertTrue(out.size() == 205,
-                "standard discovery moved: " + out.size() + " != 205");
+        assertEquals(PctRatchets.measured("channel_b.standard.discovered"), out.size(), "standard discovery moved -- an upstream move or a discovery-rule change: bazel run //pct:update_ratchets, with the reason in the commit");
         // 100% (2026-08-19): the columns() compile-time fold burned the
         // reflection pair
         assertTrue(c.pass() >= 204, "standard PASS fell: " + c.pass());

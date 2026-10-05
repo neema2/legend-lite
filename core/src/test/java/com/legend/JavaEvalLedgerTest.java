@@ -92,7 +92,7 @@ class JavaEvalLedgerTest {
             // case, evaluates nothing in Java
             // 110 -> 106 (leg P2, 2026-10-02): the database a lane runs on moved to PctBackend
             // (DuckDB, H2, Postgres), one call here
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 106),
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 105),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
@@ -674,7 +674,7 @@ class JavaEvalLedgerTest {
             // one effect-only rule — the evaluator shrank
             // 2388 -> 2394 (2026-09-21, block compiler stage 1): the dispatch of a PURE body to
             // BodyCompiler and the batch construction factored out for it — sequencing only
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2377),   // 2392 -> 2377 (2026-10-03, C3a: the engine-text renderer choice — the toSQLString switch and planDialect with its default -> H2 — moved to its one owner EngineText, by declared DatabaseType; nothing evaluated); 2413 -> 2392 (2026-09-27: running a connection's setup steps moved to CsvSeed.run, beside declaredSteps which builds them, so pure/v1 execute establishes a connection through the same loop); 2415 -> 2413 (2026-09-26, execution plan step 2: a callee compare against a catalog constant reads the constant's identity on one line, `FunctionId.of(Pure.X)`, where the two-line signature-key build stood, and the context-owner family is asked by the callee's identity instead of a name held in a local; nothing evaluated); 2427 -> 2415 (2026-09-23: a runtime's declared test data moved to CsvSeed.declaredSteps, beside the CSV steps it builds; test data rows load through Executor.load); 2431 -> 2427 (2026-09-23: an execute() call's activity rows are LAZY — PlanAllocations builds the second render on first read, so the two call sites hand it the chain instead of the rendered SQL); 2436 -> 2431 (2026-09-22: the driver's hand-built view accessor deleted — the compiler hands it the view's relation); 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2314),   // 2382 -> 2314 (2026-10-04, C1: the effect scan, containsEffect, moved verbatim to compiler/spec/StatementEffects -- a compile-time fact about the typed program, the plan side's one reach into execution); 2377 -> 2382 (2026-10-04, C3b: one execution-resolution helper, resolvedToExecute — resolve, then check every touched store against the runtime's connections — used by all four StatementExecutor execution paths, three of which ran unchecked; the system database opened by the declared type; nothing evaluated); 2392 -> 2377 (2026-10-03, C3a: the engine-text renderer choice — the toSQLString switch and planDialect with its default -> H2 — moved to its one owner EngineText, by declared DatabaseType; nothing evaluated); 2413 -> 2392 (2026-09-27: running a connection's setup steps moved to CsvSeed.run, beside declaredSteps which builds them, so pure/v1 execute establishes a connection through the same loop); 2415 -> 2413 (2026-09-26, execution plan step 2: a callee compare against a catalog constant reads the constant's identity on one line, `FunctionId.of(Pure.X)`, where the two-line signature-key build stood, and the context-owner family is asked by the callee's identity instead of a name held in a local; nothing evaluated); 2427 -> 2415 (2026-09-23: a runtime's declared test data moved to CsvSeed.declaredSteps, beside the CSV steps it builds; test data rows load through Executor.load); 2431 -> 2427 (2026-09-23: an execute() call's activity rows are LAZY — PlanAllocations builds the second render on first read, so the two call sites hand it the chain instead of the rendered SQL); 2436 -> 2431 (2026-09-22: the driver's hand-built view accessor deleted — the compiler hands it the view's relation); 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1016,10 +1016,16 @@ class JavaEvalLedgerTest {
                     // seam an engine's own bulk API joins through. Egress
                     // only: nothing is typed, produced or compared here
                     "RowLoad.java", "BulkLoad.java",
-                    // datacube port (2026-09-23): the driver's ONE metadata read
-                    // (dialect resolution), moved out of Compiler so the plan
-                    // surface loads without java.sql; reads a name, computes nothing
-                    "JdbcMetadata.java",
+                    // C3c (2026-10-04): a driver's own cell types, found beside the
+                    // driver as BulkLoad is (DuckDB's JSON node to its text); the
+                    // executor names no driver class. Carriage only
+                    "DriverCells.java",
+                    // C3b (2026-10-04): the execution side's ONE session owner, which
+                    // absorbed JdbcMetadata (the driver's one metadata read, kept out of
+                    // Compiler so the plan surface loads without java.sql): a handed
+                    // session's product checked, a declared connection or a private
+                    // in-memory database opened; reads names, computes nothing
+                    "Sessions.java",
                     // block-compiler stage 3 (2026-09-21): an EFFECT SEGMENT under
                     // construction — the statements the effect natives would have
                     // sent, collected (text + the ledger's text + a statically
@@ -1186,6 +1192,15 @@ class JavaEvalLedgerTest {
                     // anything runs; the executor's own planning arms, in order — no
                     // evaluation of its own
                     "BodyCompiler.java", "Compiler.java",
+                    // C2a (2026-10-04): the execution front door — the execute entry
+                    // points moved out of Compiler (the planner): a session handed or
+                    // opened, the planned query run through StatementExecutor; it
+                    // sequences, it evaluates nothing
+                    "Execution.java",
+                    // C2b (2026-10-05): a query typed once against a compiled model; its
+                    // type, target, lowering and plan off the one object (the planner's
+                    // text-recompiling statics replaced). Planning only, no evaluation
+                    "TypedQuery.java",
                     "ConnectionLets.java",
                     // audit §4y (2026-09-20): pure's equality KIND CLASSES
                     // over stamps as a CLOSED type (the stringly "numeric" /

@@ -3,7 +3,7 @@
 
 package com.legend.resolver;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -283,7 +283,7 @@ class ResolveGraphUnionProbeTest {
             st.execute("INSERT INTO NPT1 VALUES (20, 'WRONG')");
             st.execute("INSERT INTO NPT2 VALUES (20, 'def2')");
         }
-        ExecutionResult r = Compiler.execute(MODEL_NAMED_SET,
+        ExecutionResult r = Execution.execute(MODEL_NAMED_SET,
                 "g::NOrder.all()->filter(o|$o.product.pname == 'def2')"
                         + "->project([o|$o.oid], ['id'])->from(g::M7, g::RT7)",
                 "g::RT7", conn);
@@ -339,7 +339,7 @@ class ResolveGraphUnionProbeTest {
                 + "->graphFetch(#{g::TOrder{oid, product(%2015-08-20){pname}}}#)"
                 + "->serialize(#{g::TOrder{oid, product(%2015-08-20){pname}}}#)"
                 + "->from(g::M6, g::RT6)";
-        ExecutionResult r = Compiler.execute(MODEL_TEMPORAL, query, "g::RT6", conn);
+        ExecutionResult r = Execution.execute(MODEL_TEMPORAL, query, "g::RT6", conn);
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[graph-temporal] " + json);
@@ -370,7 +370,7 @@ class ResolveGraphUnionProbeTest {
                 + "->graphFetch(#{g::MOrder{oid, product{pname}}}#)"
                 + "->serialize(#{g::MOrder{oid, product{pname}}}#)"
                 + "->from(g::M5, g::RT5)";
-        ExecutionResult r = Compiler.execute(MODEL_MATRIX, query, "g::RT5", conn);
+        ExecutionResult r = Execution.execute(MODEL_MATRIX, query, "g::RT5", conn);
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[graph-matrix] " + json);
@@ -389,7 +389,7 @@ class ResolveGraphUnionProbeTest {
                 + "->graphFetch(#{g::EPerson{firstName, firm{legalName}}}#)"
                 + "->serialize(#{g::EPerson{firstName, firm{legalName}}}#)"
                 + "->from(g::M4, g::RT4)";
-        ExecutionResult r = Compiler.execute(MODEL_EMBEDDED, query, "g::RT4", conn);
+        ExecutionResult r = Execution.execute(MODEL_EMBEDDED, query, "g::RT4", conn);
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[graph-embedded] " + json);
@@ -418,7 +418,7 @@ class ResolveGraphUnionProbeTest {
                 + "->graphFetch(#{g::Trade{tradeId, product{productId, productName}}}#)"
                 + "->serialize(#{g::Trade{tradeId, product{productId, productName}}}#)"
                 + "->from(g::M3, g::RT3)";
-        ExecutionResult r = Compiler.execute(MODEL_DIAGONAL, query, "g::RT3", conn);
+        ExecutionResult r = Execution.execute(MODEL_DIAGONAL, query, "g::RT3", conn);
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[graph-diagonal] " + json);
@@ -435,7 +435,7 @@ class ResolveGraphUnionProbeTest {
                 + "->graphFetch(#{g::Firm{legalName, employees{lastName}}}#)"
                 + "->serialize(#{g::Firm{legalName, employees{lastName}}}#)"
                 + "->from(g::M2, g::RT2)";
-        ExecutionResult r = Compiler.execute(MODEL_ROOT_ONLY, query, "g::RT2", conn);
+        ExecutionResult r = Execution.execute(MODEL_ROOT_ONLY, query, "g::RT2", conn);
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[graph-union-root] " + json);
@@ -451,7 +451,7 @@ class ResolveGraphUnionProbeTest {
                 + "->serialize(#{g::Firm{legalName, employees{lastName,"
                 + " address{name}}}}#)"
                 + "->from(g::M, g::RT)";
-        ExecutionResult r = Compiler.execute(MODEL, query, "g::RT", conn);
+        ExecutionResult r = Execution.execute(MODEL, query, "g::RT", conn);
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[graph-union] " + json);

@@ -5,7 +5,6 @@ import com.legend.model.DatabaseDefinition;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -13,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
@@ -32,15 +30,14 @@ import java.util.function.Function;
  * query's constructed instances ({@code ^DynaFunction(...)} trees) ride
  * the query itself as inline relations.
  *
- * <p>The engine follows the SESSION the query would have run on (an H2
+ * <p>The engine is the database the query's runtime DECLARES (an H2
  * lane keeps exercising the metamodel queries on H2 &mdash; the 21-kind
- * union hang was an H2 finding); the connection is the ONE in-memory
- * database of that engine.
+ * union hang was an H2 finding), opened private by {@link Sessions}; the
+ * connection is the ONE in-memory database of that engine.
  */
 public final class SystemDatabase {
 
     private static final java.lang.ref.Cleaner CLEANER = java.lang.ref.Cleaner.create();
-    private static final AtomicInteger IDS = new AtomicInteger();
 
     /** The Cleaner action: holds the open connections, NEVER the store
      * (a self-reference would keep the graph alive). */
@@ -69,7 +66,7 @@ public final class SystemDatabase {
         }
     }
 
-    private final Map<String, Session> sessions = new HashMap<>();
+    private final Map<com.legend.model.ConnectionDefinition.DatabaseType, Session> sessions = new HashMap<>();
     private final Map<String, List<List<String>>> rows = new ConcurrentHashMap<>();
     private final Closer closer = new Closer();
 
@@ -91,10 +88,10 @@ public final class SystemDatabase {
      * the query as inline relations (the resolver's scoped class sources),
      * never this database.
      */
-    public synchronized Connection connectionFor(Connection session,
+    public synchronized Connection connectionFor(
+            com.legend.model.ConnectionDefinition.DatabaseType engine,
             SqlDialect dialect, DatabaseDefinition store,
             Function<String, List<List<String>>> rowsOf) {
-        String engine = product(session);
         Session s = sessions.get(engine);
         if (s == null) {
             s = open(engine, dialect, store, rowsOf);
@@ -103,18 +100,11 @@ public final class SystemDatabase {
         return s.connection;
     }
 
-    private Session open(String engine, SqlDialect dialect,
+    private Session open(com.legend.model.ConnectionDefinition.DatabaseType engine, SqlDialect dialect,
             DatabaseDefinition store, Function<String, List<List<String>>> rowsOf) {
         Connection c;
         try {
-            c = switch (engine) {
-                case "H2" -> DriverManager.getConnection("jdbc:h2:mem:sysstore"
-                        + IDS.getAndIncrement() + H2Settings.SETTINGS, "sa", "");
-                case "DuckDB" -> DriverManager.getConnection("jdbc:duckdb:");
-                case "SQLite" -> DriverManager.getConnection("jdbc:sqlite::memory:");
-                default -> throw new IllegalStateException("system database: no"
-                        + " in-memory engine for a '" + engine + "' session");
-            };
+            c = Sessions.openPrivate(engine);
         } catch (SQLException e) {
             throw new IllegalStateException("system database: cannot open the "
                     + engine + " session", e);
@@ -137,15 +127,5 @@ public final class SystemDatabase {
             }
         }
         return new Session(c);
-    }
-
-    /** The session's engine — java.sql stops here. */
-    private static String product(Connection session) {
-        try {
-            return session.getMetaData().getDatabaseProductName();
-        } catch (SQLException e) {
-            throw new IllegalStateException("system database: the session's"
-                    + " engine is unreadable", e);
-        }
     }
 }

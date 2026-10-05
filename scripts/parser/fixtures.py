@@ -277,7 +277,7 @@ def main() -> None:
     if not skew and not K.runner_vocabulary():
         print("NOTE: tools/engine-runner/vocab.tsv absent -- version skew between the .g4\n"
               "      census and the runner's jars is NOT being checked. Regenerate with\n"
-              "      java -cp <runner>/target/classes:$(cat cp.txt) perf.TokenDump > vocab.tsv\n")
+              "      bazel run //tools/engine-runner:update_vocab\n")
     for label, stems in (("TIER 1  core Legend surface", tiers.TIER1),
                          ("TIER 1  embedded (GraphQL)", tiers.TIER1_EMBEDDED)):
         declared = set().union(*[grammars[s] for s in stems if s in grammars])

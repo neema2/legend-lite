@@ -135,9 +135,7 @@ class RelationMappingWindowSeamTest {
     @Test
     @DisplayName("the boundary is a subquery around the window, filter outside")
     void lowersToAnIsolatedWindowSelect() {
-        String sql = com.legend.Compiler.plan(MODEL,
-                "test::Person.all()->filter(x|$x.age > 25)->project(~[name:x|$x.name, rank:x|$x.rank])",
-                "test::RT").sql();
+        String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(MODEL), "test::Person.all()->filter(x|$x.age > 25)->project(~[name:x|$x.name, rank:x|$x.rank])").plan("test::RT").sql();
         int over = sql.indexOf("OVER (");
         int where = sql.indexOf("WHERE");
         assertTrue(over >= 0, sql);

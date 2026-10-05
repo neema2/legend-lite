@@ -104,7 +104,7 @@ class CatalogModelTest {
     void everyDuckDbTypeCompiles_andTheCompilerTypesIt() throws java.sql.SQLException {
         List<CatalogModel.Column> columns = readCatalog(EXPECTED.keySet());
         CatalogModel.Database db = CatalogModel.database("t::DB", null, "T", columns, new DuckDb(), true);
-        ExprType root = com.legend.Compiler.resultType(db.text() + WRAPPER, db.accessor());
+        ExprType root = com.legend.Compiler.query(com.legend.Compiler.compileModel(db.text() + WRAPPER), db.accessor()).resultType();
         List<String> types = UpstreamRelationType.columns(root).stream()
                 .map(c -> UpstreamRelationType.typePath(c.type())).toList();
         assertEquals(List.copyOf(EXPECTED.values()), types, db.text());
@@ -202,10 +202,10 @@ class CatalogModelTest {
         CatalogModel.Database db = CatalogModel.database("t::DB", "sales", "orders",
                 catalog("id BIGINT, ordered_at TIMESTAMPTZ NOT NULL"), new DuckDb(), false);
         String model = db.text() + WRAPPER.replace("type: DuckDB", "type: Postgres");
-        String sql = com.legend.Compiler.plan(model, db.accessor()
+        String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), db.accessor()
                 + "->filter(r|$r.ordered_at >= %2025-01-01T00:00:00)"
                 + "->extend(~[y: r|$r.ordered_at->year(), m: r|$r.ordered_at->monthNumber()])"
-                + "->groupBy(~[y, m], ~n: r|$r.id: c|$c->count())", "t::RT").sql();
+                + "->groupBy(~[y, m], ~n: r|$r.id: c|$c->count())").plan("t::RT").sql();
         assertTrue(sql.contains("FROM \"sales\".\"orders\""), sql);
         assertTrue(sql.contains("\"ordered_at\" >= "), sql);
         assertTrue(!sql.contains("timezone("), sql);
@@ -224,15 +224,15 @@ class CatalogModelTest {
         CatalogModel.Database db = CatalogModel.database("t::DB", "my schema", "total \"pnl\" 2024",
                 catalog("\"a b\" INTEGER"), new DuckDb(), true);
         assertEquals("#>{t::DB.\"my schema\".\"total \\\"pnl\\\" 2024\"}#", db.accessor());
-        ExprType root = com.legend.Compiler.resultType(db.text() + WRAPPER, db.accessor());
+        ExprType root = com.legend.Compiler.query(com.legend.Compiler.compileModel(db.text() + WRAPPER), db.accessor()).resultType();
         assertEquals(List.of("a b"), UpstreamRelationType.columns(root).stream().map(c -> c.name()).toList());
-        String sql = com.legend.Compiler.plan(db.text() + WRAPPER, db.accessor() + "->select(~['a b'])", "t::RT").sql();
+        String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(db.text() + WRAPPER), db.accessor() + "->select(~['a b'])").plan("t::RT").sql();
         assertTrue(sql.contains("FROM \"my schema\".\"total \"\"pnl\"\" 2024\""), sql);
         for (String name : List.of("select", "a-b", "2024")) {
             CatalogModel.Database k = CatalogModel.database("t::DB", null, name,
                     catalog("a INTEGER"), new DuckDb(), true);
             assertEquals(List.of("a"), UpstreamRelationType.columns(
-                    com.legend.Compiler.resultType(k.text() + WRAPPER, k.accessor())).stream().map(c -> c.name()).toList(),
+                    com.legend.Compiler.query(com.legend.Compiler.compileModel(k.text() + WRAPPER), k.accessor()).resultType()).stream().map(c -> c.name()).toList(),
                     name);
         }
         // upstream splits the accessor on '.': a dotted name cannot be carried

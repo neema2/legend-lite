@@ -4,6 +4,7 @@
 package com.legend.resolver;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -102,7 +103,7 @@ class RoutedEquiJoinTest {
                 st.execute("INSERT INTO OPS VALUES (1,'A',10), (2,'B',20), (3,'A',30), (4,'B',NULL)");
                 st.execute("INSERT INTO TYS VALUES (10,'I','INT'), (20,'S','VARCHAR'), (30,'B','BIT')");
             }
-            var r = Compiler.execute(MODEL, QUERY, "x::RT", c);
+            var r = Execution.execute(MODEL, QUERY, "x::RT", c);
             assertEquals(List.of("1|INT", "2|VARCHAR", "3|BIT", "4|null"),
                     r.rows().stream().map(row -> row.get(0) + "|" + row.get(1)).toList());
         }
@@ -111,7 +112,7 @@ class RoutedEquiJoinTest {
     @Test
     @DisplayName("the routed join is one equality, not an OR per pair")
     void rectangleIsOneEquality() {
-        String sql = Compiler.plan(MODEL, QUERY.substring(1), "x::RT").sql();
+        String sql = Compiler.query(Compiler.compileModel(MODEL), QUERY.substring(1)).plan("x::RT").sql();
         assertFalse(sql.contains(" OR "), "a routed join over one shared condition must be"
                 + " one equality (hashable), not an OR per (arm, target set) pair:\n" + sql);
     }

@@ -12,9 +12,9 @@
     "runtime": "demo::trading::Runtime"
   },
   "content": "|demo::trading::Firm.all()->graphFetch(\n  #{demo::trading::Firm{legalName}}#\n)->serialize(\n  #{demo::trading::Firm{legalName}}#\n)",
-  "lastUpdatedAt": 1790887287713,
-  "createdAt": 1790887287713,
-  "lastOpenAt": 1790887287714,
+  "lastUpdatedAt": 0,
+  "createdAt": 0,
+  "lastOpenAt": 0,
   "deletedAt": null,
   "validUntil": null,
   "version": 1,

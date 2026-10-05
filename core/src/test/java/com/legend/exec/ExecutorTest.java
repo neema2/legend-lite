@@ -2,6 +2,7 @@ package com.legend.exec;
 import com.legend.plan.ResultShape;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.type.ExprType;
@@ -66,7 +67,7 @@ class ExecutorTest {
     @Test
     @DisplayName("SCALAR: single value, Pure type on the result")
     void scalarShape() throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL, "1 + 2 * 3", RUNTIME, conn);
+        ExecutionResult r = Execution.execute(MODEL, "1 + 2 * 3", RUNTIME, conn);
         ExecutionResult.Scalar s = assertInstanceOf(ExecutionResult.Scalar.class, r);
         assertEquals(7L, ((Number) s.value()).longValue());
         assertEquals(Type.Primitive.INTEGER, s.returnType());
@@ -76,7 +77,7 @@ class ExecutorTest {
     @Test
     @DisplayName("COLLECTION: N rows x 1 column, element type on the result")
     void collectionShape() throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL, "[10, 20, 30]", RUNTIME, conn);
+        ExecutionResult r = Execution.execute(MODEL, "[10, 20, 30]", RUNTIME, conn);
         ExecutionResult.Collection c = assertInstanceOf(ExecutionResult.Collection.class, r);
         assertEquals(List.of(10L, 20L, 30L),
                 c.values().stream().map(v -> ((Number) v).longValue()).toList());
@@ -87,7 +88,7 @@ class ExecutorTest {
     @Test
     @DisplayName("TABULAR: typed columns from the plan's outputs, raw JDBC cells")
     void tabularShape() throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL,
+        ExecutionResult r = Execution.execute(MODEL,
                 "#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 30)", RUNTIME, conn);
         ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
         assertEquals(List.of("NAME", "AGE"),
@@ -103,7 +104,7 @@ class ExecutorTest {
     @Test
     @DisplayName("aggregate over empty input: one row, NULL cell, schema intact")
     void aggregateEmptyInput() throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL,
+        ExecutionResult r = Execution.execute(MODEL,
                 "#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 99)"
                         + "->aggregate(~m : x|$x.AGE : y|$y->max())", RUNTIME, conn);
         ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
@@ -114,7 +115,7 @@ class ExecutorTest {
     @Test
     @DisplayName("PIVOT: dynamic '<value>__|__<agg>' columns inherit the aggregate template's type")
     void pivotDynamicColumnsInheritTemplateType() throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL,
+        ExecutionResult r = Execution.execute(MODEL,
                 "#>{test::DB.T_TREES}#->pivot(~CITY, ~total : x|$x.TREES : y|$y->sum())", RUNTIME, conn);
         ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
         // YR is the static group column; the city columns are data-derived —

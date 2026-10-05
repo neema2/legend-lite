@@ -35,8 +35,8 @@ junit_test(
     memory_mb = 768,
     size = "small",
     srcs = ["LocksTest.java"],
-    data = ["//:MODULE.bazel"],
-    jvm_flags = ["-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)"],
+    data = ["//:module_files"],
+    env = {"MODULE_FILES": "$(rlocationpaths //:module_files)"},
     select = ["--select-class=com.legend.tools.guards.LocksTest"],
     deps = [
         "//testing",

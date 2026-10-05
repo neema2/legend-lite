@@ -17,7 +17,6 @@ test_suite(
         "//core:guardrails",
         "//tools/deps:core_closure_test",
         "//tools/deps:core_layering_test",
-        "//tools/deps:one_release",
         "//tools/deps:pools_list_test",
         "//tools/deps:warehouse_closure_test",
         "//tools/guards:classpath_test",

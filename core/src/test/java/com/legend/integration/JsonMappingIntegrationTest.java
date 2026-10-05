@@ -304,7 +304,7 @@ class JsonMappingIntegrationTest {
 
             String query = "model::Order.all()->project([o | $o.id, o | $o.customerName, o | $o.total], ['id', 'name', 'total'])";
 
-            var plan = com.legend.Compiler.plan(pureModel, query, "test::TestRuntime");
+            var plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(pureModel), query).plan("test::TestRuntime");
             String sql = plan.sql();
             System.out.println("Order JSON SQL: " + sql);
 
@@ -418,7 +418,7 @@ class JsonMappingIntegrationTest {
 
             String query = "model::OrderItem.all()->project([i | $i.productName, i | $i.quantity, i | $i.price], ['product', 'qty', 'price'])";
 
-            var plan = com.legend.Compiler.plan(pureModel, query, "test::TestRuntime");
+            var plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(pureModel), query).plan("test::TestRuntime");
             String sql = plan.sql();
             System.out.println("OrderItem JSON SQL: " + sql);
 
@@ -648,7 +648,7 @@ class JsonMappingIntegrationTest {
             // Project order's customer name and item's product name (via association)
             String query = "model::Order.all()->project([o | $o.customerName, o | $o.items.productName], ['customer', 'product'])";
 
-            var plan = com.legend.Compiler.plan(pureModel, query, "test::TestRuntime");
+            var plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(pureModel), query).plan("test::TestRuntime");
             String sql = plan.sql();
             System.out.println("Association + JSON SQL: " + sql);
 
@@ -734,7 +734,7 @@ class JsonMappingIntegrationTest {
             // properties
             String query = "model::Order.all()->filter(o | $o.items.orderId == 1)->project([o | $o.customerName, o | $o.items.productName], ['customer', 'product'])";
 
-            var plan = com.legend.Compiler.plan(pureModel, query, "test::TestRuntime");
+            var plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(pureModel), query).plan("test::TestRuntime");
             String sql = plan.sql();
             System.out.println("Filter Scalar + Project JSON Association SQL: " + sql);
 
@@ -813,7 +813,7 @@ class JsonMappingIntegrationTest {
             // Filter by scalar id, project JSON via association
             String query = "model::Order.all()->filter(o | $o.id == 1)->project([o | $o.customerName, o | $o.items.productName, o | $o.items.quantity], ['customer', 'product', 'qty'])";
 
-            var plan = com.legend.Compiler.plan(pureModel, query, "test::TestRuntime");
+            var plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(pureModel), query).plan("test::TestRuntime");
             String sql = plan.sql();
             System.out.println("Mixed Scalar Filter + JSON Association SQL: " + sql);
 

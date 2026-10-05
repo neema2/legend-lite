@@ -6,7 +6,7 @@ package com.legend.compiler;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -51,7 +51,7 @@ class PctFunctionSuppressionTest {
         String model = "function <<PCT.function>>"
                 + " meta::pure::functions::collection::or(vals:Boolean[*]):Boolean[1]"
                 + " { $vals->fold({i,a|false}, false) }";
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with(model, DatabaseType.DuckDB),
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(model, DatabaseType.DuckDB),
                 "{|or([true, false])}", StorelessRuntime.RUNTIME, conn);
         assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) r).value(),
                 "the native must own the platform FQN — the reference"
@@ -63,7 +63,7 @@ class PctFunctionSuppressionTest {
     void unownedKeepsBody() throws Exception {
         String model = "function <<PCT.function>>"
                 + " my::pkg::triple(x:Integer[1]):Integer[1] { $x * 3 }";
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with(model, DatabaseType.DuckDB),
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(model, DatabaseType.DuckDB),
                 "{|my::pkg::triple(2)}", StorelessRuntime.RUNTIME, conn);
         assertEquals(6L, ((Number) ((ExecutionResult.Scalar) r).value())
                 .longValue());

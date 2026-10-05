@@ -7,7 +7,7 @@ import com.legend.test.StorelessRuntime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -57,7 +57,7 @@ class MetamodelStoreSubstitutionTest {
     }
 
     private List<Object> values(String query) throws SQLException {
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, connection);
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, connection);
         if (r instanceof ExecutionResult.Collection c) {
             return c.values();
         }
@@ -90,7 +90,7 @@ class MetamodelStoreSubstitutionTest {
                 """;
         var e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.LegendCompileException.class,
-                () -> Compiler.execute(StorelessRuntime.with(cyclic, DatabaseType.DuckDB), "ss::c1->meta::pure::mapping::resolveStore(ss::db).name", StorelessRuntime.RUNTIME, connection));
+                () -> Execution.execute(StorelessRuntime.with(cyclic, DatabaseType.DuckDB), "ss::c1->meta::pure::mapping::resolveStore(ss::db).name", StorelessRuntime.RUNTIME, connection));
         org.junit.jupiter.api.Assertions.assertTrue(
                 String.valueOf(e.getMessage()).contains("mapping include cycle")
                         && e.getMessage().contains("ss::c1") && e.getMessage().contains("ss::c2"),

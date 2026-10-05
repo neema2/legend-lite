@@ -24,9 +24,9 @@ public final class PlanOnJavaBase {
                 Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ c0: x::DBDuckDB ] ]; }
                 """;
         System.out.println("java.sql visible: " + ModuleLayer.boot().findModule("java.sql").isPresent());
-        System.out.println(Compiler.plan(model, "x::Firm.all()->filter(f|$f.size > 10)"
+        System.out.println(Compiler.query(Compiler.compileModel(model), "x::Firm.all()->filter(f|$f.size > 10)"
                 + "->project(~[n: f|$f.name, s: f|$f.size])->groupBy(~[n], ~[t: x|$x.s: y|$y->plus()])"
-                + "->sort(~n->ascending())", "x::RT").sql());
+                + "->sort(~n->ascending())").plan("x::RT").sql());
         // the Postgres dialect plans on java.base too (2026-10-01 W5.5/P1 Postgres
         // dialect): a runtime declaring Postgres, the browser planner's path
         String pg = """
@@ -38,8 +38,8 @@ public final class PlanOnJavaBase {
                 ###Runtime
                 Runtime x::PgRT { mappings: []; connections: [ x::PG: [ c1: x::PgConn ] ]; }
                 """;
-        System.out.println("postgres: " + Compiler.plan(pg, "#>{x::PG.FIRM}#->filter(r|$r.SIZE > 10)"
+        System.out.println("postgres: " + Compiler.query(Compiler.compileModel(pg), "#>{x::PG.FIRM}#->filter(r|$r.SIZE > 10)"
                 + "->extend(over(~NAME, ~ID->ascending()), ~[rn:{p,w,r|$p->rowNumber($r)}])"
-                + "->filter(r|$r.rn == 1)->groupBy(~[NAME], ~[t: r|$r.SIZE : y|$y->plus()])", "x::PgRT").sql());
+                + "->filter(r|$r.rn == 1)->groupBy(~[NAME], ~[t: r|$r.SIZE : y|$y->plus()])").plan("x::PgRT").sql());
     }
 }

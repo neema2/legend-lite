@@ -21,27 +21,39 @@ import java.util.TreeSet;
  * Database elements sharing one connection — the ordinary corpus shape
  * — pass untouched; only a genuine multi-connection demand walls.
  */
-final class CrossStoreGuard {
+public final class CrossStoreGuard {
 
     private CrossStoreGuard() {
     }
 
-    static void check(List<TypedSpec> body, ModelContext ctx,
+    public static void check(List<TypedSpec> body, ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn) {
+        // a statement executes only after Compiler.executesOn decided its session, which refuses
+        // no runtime and an undefined one first (C3b: these were silent passes; measured unreached
+        // 2026-10-03 across both corpora, the core tests, PCT and Channel B)
         if (runtimeFqn == null) {
-            return;
+            throw new IllegalStateException("a statement executes with no runtime: Compiler.executesOn"
+                    + " refuses that before execution");
         }
-        var rt = ctx.findRuntime(runtimeFqn);
-        if (rt.isEmpty()) {
-            return;
-        }
-        var bindings = rt.get().connectionBindings();
-        // store -> bound connection, touched tables only; a store the
-        // runtime does not bind rides the session connection (today's
-        // single-connection model) and constrains nothing
+        var rt = ctx.findRuntime(runtimeFqn).orElseThrow(() -> new IllegalStateException(
+                "runtime '" + runtimeFqn + "' is not defined: Compiler.executesOn refuses that before execution"));
+        var bindings = withIncludes(rt.connectionBindings(), ctx);
+        // store -> bound connection, touched tables only. A touched store the runtime does not bind is
+        // REFUSED by name (it rode the session connection before C3b — legend-engine's
+        // connectionByElement at(0); SEMANTICS_REGISTER S27); the platform's own metamodel store is the
+        // one exemption: no runtime binds it, the executor routes it to the system database
         var conns = new TreeMap<String, String>();
         for (TypedSpec n : body) {
             collect(n, bindings, conns);
+        }
+        var unbound = new TreeSet<String>();
+        for (TypedSpec n : body) {
+            collectUnbound(n, bindings, unbound);
+        }
+        unbound.remove(com.legend.builtin.SystemMetamodel.STORE_FQN);
+        if (!unbound.isEmpty()) {
+            throw new com.legend.error.NotImplementedException("the query reads " + unbound + ", which runtime '"
+                    + runtimeFqn + "' does not bind to a connection");
         }
         var distinct = new TreeSet<>(conns.values());
         if (distinct.size() > 1) {
@@ -50,6 +62,39 @@ final class CrossStoreGuard {
                     + conns + " under runtime '" + runtimeFqn
                     + "' — multi-connection execution is not modeled"
                     + " (one session connection per query)");
+        }
+    }
+
+    /** The runtime's bindings, each also covering every store its database INCLUDES, at any depth: an included
+     *  database's tables are part of the including one, reached through its connection (a store bound directly
+     *  keeps its own binding too, so a conflicting one is still the multi-connection shape refused above). */
+    private static java.util.Map<String, java.util.List<String>> withIncludes(
+            java.util.Map<String, java.util.List<String>> bindings, ModelContext ctx) {
+        var out = new TreeMap<String, java.util.List<String>>(bindings);
+        for (var e : bindings.entrySet()) {
+            var work = new java.util.ArrayDeque<String>(java.util.List.of(e.getKey()));
+            var seen = new TreeSet<String>();
+            while (!work.isEmpty()) {
+                String store = work.poll();
+                if (!seen.add(store)) {
+                    continue;
+                }
+                ctx.findDatabase(store).ifPresent(db -> db.includes().forEach(inc -> {
+                    out.putIfAbsent(inc, e.getValue());
+                    work.add(inc);
+                }));
+            }
+        }
+        return out;
+    }
+
+    private static void collectUnbound(TypedSpec n,
+            java.util.Map<String, java.util.List<String>> bindings, TreeSet<String> unbound) {
+        if (n instanceof TypedTableReference t && !bindings.containsKey(t.store())) {
+            unbound.add(t.store());
+        }
+        for (TypedSpec c : n.children()) {
+            collectUnbound(c, bindings, unbound);
         }
     }
 

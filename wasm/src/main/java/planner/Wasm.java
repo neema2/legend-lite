@@ -91,7 +91,7 @@ public final class Wasm {
      */
     @org.teavm.jso.JSExport
     public static String plan(String model, String query, String runtime) {
-        return com.legend.Compiler.plan(model, query, runtime).sql();
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).plan(runtime).sql();
     }
 
     /**
@@ -102,7 +102,7 @@ public final class Wasm {
      * (docs/DATACUBE_TYPED_VALUES_DESIGN_2026_09_27.md, step 1).
      */
     public static String planTyped(String model, String query, String runtime) {
-        com.legend.plan.QueryPlan p = com.legend.Compiler.plan(model, query, runtime);
+        com.legend.plan.QueryPlan p = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).plan(runtime);
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("sql", p.sql());
         out.put("type", com.legend.plan.UpstreamRelationType.of(p.rootType()));
@@ -138,7 +138,7 @@ public final class Wasm {
     public static String relationTypeOrError(String model, String query) {
         try {
             return "OK\n" + com.legend.json.Json.toCompact(com.legend.plan.UpstreamRelationType.of(
-                    com.legend.Compiler.resultType(model, query)));
+                    com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).resultType()));
         } catch (RuntimeException | StackOverflowError e) {
             String name = e.getClass().getName();
             return "ERR\n" + name + "\n" + (e.getMessage() == null ? "" : e.getMessage());
@@ -165,7 +165,7 @@ public final class Wasm {
     @org.teavm.jso.JSExport
     public static String planJsonOrError(String model, String lambdaJson, String runtime) {
         try {
-            com.legend.plan.QueryPlan p = com.legend.Compiler.plan(model, lambdaOf(lambdaJson), runtime);
+            com.legend.plan.QueryPlan p = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambdaOf(lambdaJson)).plan(runtime);
             java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
             out.put("sql", p.sql());
             out.put("type", com.legend.plan.UpstreamRelationType.of(p.rootType()));
@@ -180,7 +180,7 @@ public final class Wasm {
     public static String relationTypeJsonOrError(String model, String lambdaJson) {
         try {
             return "OK\n" + com.legend.json.Json.toCompact(com.legend.plan.UpstreamRelationType.of(
-                    com.legend.Compiler.resultType(model, lambdaOf(lambdaJson))));
+                    com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambdaOf(lambdaJson)).resultType()));
         } catch (RuntimeException | StackOverflowError e) {
             return folded(e);
         }

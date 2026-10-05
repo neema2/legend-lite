@@ -11,7 +11,6 @@ import com.legend.compiler.element.TypedParameter;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.parser.SpecParser;
 import com.legend.plan.UpstreamRelationType;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.spec.AppliedFunction;
@@ -80,13 +79,13 @@ public final class OfferFacts {
             switch (kind) {
                 case "column" -> declared.put(probe, name);
                 case "type" -> {
-                    for (Type.Column c : UpstreamRelationType.columns(Compiler.resultType(model, lambda(query)))) {
+                    for (Type.Column c : UpstreamRelationType.columns(Compiler.query(ctx, lambda(query)).resultType())) {
                         compiled.put(c.name(), UpstreamRelationType.typePath(c.type()));
                     }
                 }
-                case "agg" -> facts(byProbe, probe).aggregates().put(name, measureType(model, query));
-                case "op" -> facts(byProbe, probe).operators().put(name, compiles(model, query));
-                case "calc" -> calcs.put(name, calc(model, ctx, name, query));
+                case "agg" -> facts(byProbe, probe).aggregates().put(name, measureType(ctx, query));
+                case "op" -> facts(byProbe, probe).operators().put(name, compiles(ctx, query));
+                case "calc" -> calcs.put(name, calc(ctx, name, query));
                 default -> throw new IllegalArgumentException("unknown line kind: " + kind);
             }
         }
@@ -125,13 +124,15 @@ public final class OfferFacts {
      * to it -- the one path the example's typed tree used, when the name has several -- and
      * each overload declared under that path.
      */
-    private static Calc calc(String model, ModelContext ctx, String name, String example) {
+    private static Calc calc(ModelContext ctx, String name, String example) {
         // the example is text a person reads and types: parsed, the query around it built as protocol
         String extend = "|#>{offer::DB.TRADES}#->extend(~calc:" + "x|" + example + ")";
         TypedSpec typed;
         try {
-            Compiler.resultType(model, extend);
-            typed = Compiler.compileQuery(model, SpecParser.parse(extend, com.legend.parser.Dialect.LEGEND_LITE));
+            // typed once: its result type checked, its expression read
+            com.legend.TypedQuery q = Compiler.query(ctx, extend);
+            q.resultType();
+            typed = q.expression();
         } catch (RuntimeException refused) {
             throw new IllegalStateException("the example of '" + name + "' does not compile -- fix it in"
                     + " src/calc.ts or stop offering the function: " + example + "\n" + refused.getMessage(), refused);
@@ -204,9 +205,9 @@ public final class OfferFacts {
     }
 
     /** Whether the compiler accepts a query. */
-    private static boolean compiles(String model, String query) {
+    private static boolean compiles(ModelContext ctx, String query) {
         try {
-            Compiler.resultType(model, lambda(query));
+            Compiler.query(ctx, lambda(query)).resultType();
             return true;
         } catch (RuntimeException refused) {
             return false;
@@ -214,9 +215,9 @@ public final class OfferFacts {
     }
 
     /** The measure's type in a level query, or null when the compiler refuses the query. */
-    private static String measureType(String model, String query) {
+    private static String measureType(ModelContext ctx, String query) {
         try {
-            for (Type.Column c : UpstreamRelationType.columns(Compiler.resultType(model, lambda(query)))) {
+            for (Type.Column c : UpstreamRelationType.columns(Compiler.query(ctx, lambda(query)).resultType())) {
                 if (c.name().equals("m")) {
                     return UpstreamRelationType.typePath(c.type());
                 }

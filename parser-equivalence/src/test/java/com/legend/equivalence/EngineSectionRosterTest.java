@@ -29,7 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class EngineSectionRosterTest {
 
-    /** Sections engine can parse at the pinned oracle release (tools/oracle-pins.env):
+    /** Sections engine can parse at the pinned oracle release (release.MODULE.bazel's pins):
      *  21 extension + 4 core. A pull that ADDS one should widen the census,
      *  not pass in silence. */
     private static final int MIN_SECTIONS = 25;

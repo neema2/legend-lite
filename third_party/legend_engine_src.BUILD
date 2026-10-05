@@ -12,3 +12,10 @@ filegroup(
 
 # every file, individually addressable, for generators that read one named file
 exports_files(glob(["**"]))
+
+# the ANTLR grammars, for the keyword census (//scripts/parser:keyword_coverage; Bazel workplan P2-20)
+filegroup(
+    name = "grammars",
+    srcs = glob(["**/*.g4"]),
+    visibility = ["//visibility:public"],
+)

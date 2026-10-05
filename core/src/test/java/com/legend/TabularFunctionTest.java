@@ -50,7 +50,7 @@ class TabularFunctionTest {
                 st.execute("CREATE TABLE PLAIN (a VARCHAR, n DOUBLE)");
                 st.execute("INSERT INTO PLAIN VALUES ('X', 9.0)");
             }
-            var r = Compiler.execute(MODEL, query, "tf::RT", c);
+            var r = Execution.execute(MODEL, query, "tf::RT", c);
             return r.rows().stream().map(row -> row.get(0) + "|" + row.get(1)).toList();
         }
     }
@@ -72,9 +72,9 @@ class TabularFunctionTest {
     @Test
     @DisplayName("it renders as a call; a plain table as a reference")
     void rendersAsCall() {
-        String fn = Compiler.plan(MODEL, "#>{tf::DB.FN}#->select(~[a, n])", "tf::RT").sql();
+        String fn = Compiler.query(Compiler.compileModel(MODEL), "#>{tf::DB.FN}#->select(~[a, n])").plan("tf::RT").sql();
         assertTrue(fn.contains("FN()"), "a tabular function is CALLED: " + fn);
-        String plain = Compiler.plan(MODEL, "#>{tf::DB.PLAIN}#->select(~[a, n])", "tf::RT").sql();
+        String plain = Compiler.query(Compiler.compileModel(MODEL), "#>{tf::DB.PLAIN}#->select(~[a, n])").plan("tf::RT").sql();
         assertTrue(plain.contains("PLAIN") && !plain.contains("PLAIN()"), plain);
     }
 

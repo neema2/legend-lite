@@ -192,7 +192,7 @@ public final class Corpus {
 
     /** C6: the committed engine-fixture snapshot (see the harvest note
      *  in {@link #all()}). LOUD (batch 2): an ABSENT snapshot, or one whose
-     *  in-file header names another release than tools/oracle-pins.env,
+     *  in-file header names another release than release.MODULE.bazel's pins,
      *  fails — until 2026-09-10 the reader returned an empty list and tier C6
      *  (1,552 sources) vanished from every gate without a word. */
     static List<Source> engineFixtures() {
@@ -217,7 +217,7 @@ public final class Corpus {
                     String harvested = line.substring(FIXTURE_HEADER_PREFIX.length()).strip();
                     if (!harvested.equals(OraclePins.engineRelease())) {
                         throw new IllegalStateException("fixture snapshot " + p + " was harvested from"
-                                + " engine " + harvested + " but tools/oracle-pins.env pins "
+                                + " engine " + harvested + " but release.MODULE.bazel pins "
                                 + OraclePins.engineRelease() + " — re-harvest");
                     }
                     continue;

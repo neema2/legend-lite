@@ -1,0 +1,74 @@
+# keyword coverage of the pinned legend-engine grammars by this repository's .pure (scripts/parser/keywords.py). Regenerate: bazel run //scripts/parser:update_keyword_coverage
+tier	grammar	covered	total	missing
+1	AggregationAwareLexerGrammar	9	9	
+2	AthenaLexerGrammar	7	7	
+2	AuroraLexerGrammar	8	8	
+2	AuthenticationLexerGrammar	46	46	
+1	AuthenticationStrategyLexerGrammar	29	29	
+2	BigQueryFunctionLexerGrammar	11	11	
+2	BigQueryLexerGrammar	5	5	
+1	ConnectionLexerGrammar	1	1	
+1	CoreLexerGrammar	1	1	
+1	DataLexerGrammar	1	1	
+2	DataQualityLexerGrammar	32	32	
+1	DataSourceSpecificationLexerGrammar	11	11	
+2	DataSpaceLexerGrammar	36	42	coverageRegions,expertIds,expertise,mappingProvider,operationalMetadata,updateFrequency
+2	DatabricksLexerGrammar	5	5	
+2	DeephavenConnectionLexerGrammar	4	4	
+2	DeephavenLexerGrammar	21	21	
+1	DiagramLexerGrammar	15	15	
+1	DomainLexerGrammar	23	23	
+2	DuckDBLexerGrammar	2	2	
+2	ElasticsearchConnectionLexerGrammar	3	3	
+2	ElasticsearchLexerGrammar	18	18	
+1	EqualToAssertionLexerGrammar	2	2	
+1	EqualToContentPatternLexerGrammar	1	1	
+1	EqualToJsonAssertionLexerGrammar	2	2	
+1	EqualToJsonContentPatternLexerGrammar	1	1	
+1	EqualToTDSAssertionLexerGrammar	2	2	
+1	ExternalFormatDataLexerGrammar	2	2	
+1	ExternalFormatLexerGrammar	13	13	
+1	FileGenerationLexerGrammar	4	4	
+1	FlatDataLexerGrammar	5	8	falseString,optional,trueString
+2	FunctionJarLexerGrammar	10	10	
+1	GenerationSpecificationLexerGrammar	6	6	
+1	GraphFetchTreeLexerGrammar	1	1	
+1e	GraphQL	32	32	
+2	HostedServiceLexerGrammar	38	38	
+1	M3LexerGrammar	5	5	
+1	MappingLexerGrammar	14	14	
+2	MemSqlFunctionLexerGrammar	11	11	
+2	MemSqlLexerGrammar	5	5	
+1	ModelConnectionLexerGrammar	3	3	
+2	MongoDBConnectionLexerGrammar	5	5	
+2	MongoDBMappingLexerGrammar	5	5	
+2	MongoDBSchemaLexerGrammar	14	14	
+2	OracleLexerGrammar	4	4	
+2	PersistenceCloudLexerGrammar	1	1	
+2	PersistenceLexerGrammar	103	103	
+2	PersistenceRelationalLexerGrammar	32	32	
+1	PostProcessorLexerGrammar	8	8	
+1	PureInstanceClassMappingLexerGrammar	3	3	
+1	QueryGenerationConfigsLexerGrammar	3	3	
+2	RedshiftLexerGrammar	7	7	
+1	RelationElementsDataLexerGrammar	1	1	
+1	RelationFunctionMappingLexerGrammar	6	6	
+1	RelationalDatabaseConnectionLexerGrammar	10	10	
+1	RelationalEmbeddedDataLexerGrammar	1	1	
+1	RelationalLexerGrammar	39	39	
+1	RelationalMapperLexerGrammar	7	7	
+1	RuntimeLexerGrammar	7	7	
+1	ServiceLexerGrammar	41	41	
+2	ServiceStoreConnectionLexerGrammar	2	2	
+2	ServiceStoreEmbeddedDataLexerGrammar	9	9	
+2	ServiceStoreLexerGrammar	22	22	
+2	SnowflakeLexerGrammar@legend-engine-xt-relationalStore-snowflake-grammar	20	20	
+2	SnowflakeLexerGrammar@legend-engine-xt-snowflake-grammar	17	17	
+2	SpannerLexerGrammar	6	6	
+1	TextLexerGrammar	3	3	
+2	TrinoLexerGrammar	14	14	
+TOTAL	1	230	233	falseString,optional,trueString
+TOTAL	1-embedded	32	32	
+TOTAL	2-vendor	186	186	
+TOTAL	2-dsl	238	244	coverageRegions,expertIds,expertise,mappingProvider,operationalMetadata,updateFrequency
+TOTAL	in-scope	598	607	coverageRegions,expertIds,expertise,falseString,mappingProvider,operationalMetadata,optional,trueString,updateFrequency

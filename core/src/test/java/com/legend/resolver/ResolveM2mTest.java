@@ -1,6 +1,7 @@
 package com.legend.resolver;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -127,7 +128,7 @@ class ResolveM2mTest {
     @Test
     @DisplayName("H5-3: M2M bare root — the implicit serialize composes too")
     void m2mImplicitSerialize() throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL, "m::Person.all()", "m::RT", conn);
+        ExecutionResult r = Execution.execute(MODEL, "m::Person.all()", "m::RT", conn);
         assertInstanceOf(ExecutionResult.Graph.class, r);
         String json = ((ExecutionResult.Graph) r).json();
         assertTrue(json.contains("\"fullName\":\"Ann Ash\"")

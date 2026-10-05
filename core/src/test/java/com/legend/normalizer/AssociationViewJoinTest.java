@@ -3,7 +3,7 @@
 
 package com.legend.normalizer;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -59,7 +59,7 @@ class AssociationViewJoinTest {
                 st.execute("INSERT INTO TA VALUES (1), (2)");
                 st.execute("INSERT INTO TB VALUES (10, 1), (11, 1), (12, 2)");
             }
-            var r = Compiler.execute(MODEL,
+            var r = Execution.execute(MODEL,
                     "|model::A.all()->project(~[aid: a|$a.id, bid: a|$a.b.bid])"
                             + "->sort([~aid->ascending(), ~bid->ascending()])",
                     "my::RT", c);
@@ -83,7 +83,7 @@ class AssociationViewJoinTest {
                 st.execute("INSERT INTO TA VALUES (1), (2)");
                 st.execute("INSERT INTO TB VALUES (10, 1), (11, 1), (12, 2)");
             }
-            var r = Compiler.execute(VIEW_SOURCE_MODEL,
+            var r = Execution.execute(VIEW_SOURCE_MODEL,
                     "|model::A.all()->project(~[aid: a|$a.id, bid: a|$a.b.bid])"
                             + "->sort([~aid->ascending(), ~bid->ascending()])",
                     "my::RT", c);

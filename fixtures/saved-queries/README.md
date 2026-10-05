@@ -28,5 +28,7 @@ How to read one:
 | `default-parameter-values.json` | `TradingMapping`, `Runtime` | `minQty` = `1000000` | 6 rows | yes, its value bound first |
 | `graph-fetch.json` | `TradingMapping`, `Runtime` | -- | 4 objects (JSON) | **no**: objects, not rows |
 
-Timestamps (`createdAt`, `lastUpdatedAt`, `lastOpenAt`) are incidental. Regenerate with `make.mjs`,
-which also re-runs every record.
+Timestamps (`createdAt`, `lastUpdatedAt`, `lastOpenAt`) are incidental, and written as 0 so the bytes do not
+depend on the clock. Bazel makes the records (`make.mjs`, which also re-runs every record to the counts above);
+regenerate with `bazel run //fixtures/saved-queries:update_generated`, and `//:generated` fails when they are
+stale.

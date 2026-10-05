@@ -43,6 +43,18 @@ public final class Runfile {
         return of(rlocationpath);
     }
 
+    /** The files whose runfiles paths the environment variable {@code name} holds, space-separated: the BUILD file
+     *  passes {@code env = {name: "$(rlocationpaths <label>)"}} (an environment variable stays one value; a JVM flag
+     *  would be split). */
+    public static java.util.List<Path> envList(String name) {
+        String paths = System.getenv(name);
+        if (paths == null || paths.isBlank()) {
+            throw new IllegalStateException("$" + name + " is not set: the BUILD file passes it as "
+                    + "env = {\"" + name + "\": \"$(rlocationpaths <label>)\"}");
+        }
+        return java.util.Arrays.stream(paths.split(" ")).filter(p -> !p.isEmpty()).map(Runfile::of).toList();
+    }
+
     /** What a child process needs to find the same runfiles. */
     public static Map<String, String> env() {
         return Holder.RUNFILES.unmapped().getEnvVars();

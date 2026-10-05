@@ -8,7 +8,7 @@ import com.legend.test.StorelessRuntime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.List;
@@ -29,7 +29,7 @@ class ValueSortComparatorTest {
 
     private static List<Object> col(String query) throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            return Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c).rows().stream()
+            return Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c).rows().stream()
                     .map(r -> r.get(0)).toList();
         }
     }

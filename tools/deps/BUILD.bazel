@@ -78,27 +78,6 @@ junit_test(
     ],
 )
 
-# one release: MODULE.bazel and tools/oracle-pins.env agree (//tools/bump writes both)
-junit_test(
-    name = "one_release",
-    memory_mb = 768,
-    size = "small",
-    srcs = ["OneReleaseTest.java"],
-    data = [
-        "//:MODULE.bazel",
-        "//tools:oracle-pins.env",
-    ],
-    jvm_flags = [
-        "-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)",
-        "-Doracle.pins=$(rlocationpath //tools:oracle-pins.env)",
-    ],
-    select = ["--select-class=com.legend.tools.deps.OneReleaseTest"],
-    deps = [
-        "//testing",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
-    ],
-)
-
 # THE LAYERS OF //core (execution plan rule 0.12): each product library's direct dependencies, as Bazel resolves
 # them, one genquery per target; CoreLayeringTest compares them with core-layers.txt.
 junit_test(
@@ -126,9 +105,9 @@ junit_test(
     memory_mb = 768,
     size = "small",
     srcs = ["PoolsListTest.java"],
-    data = ["//:MODULE.bazel"],
+    data = ["//:module_files"],
+    env = {"MODULE_FILES": "$(rlocationpaths //:module_files)"},
     jvm_flags = [
-        "-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)",
         "-Dpools=" + ",".join(POOLS),
         "-Dtestonly.pools=" + ",".join(TESTONLY_POOLS),
     ],

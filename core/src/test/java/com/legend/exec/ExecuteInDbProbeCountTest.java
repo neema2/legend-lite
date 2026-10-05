@@ -6,7 +6,7 @@ package com.legend.exec;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -87,7 +87,7 @@ class ExecuteInDbProbeCountTest {
 
     private static ExecutionResult run(String tail) throws Exception {
         executed = new ArrayList<>();
-        return Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET + tail, StorelessRuntime.RUNTIME, counting(real));
+        return Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET + tail, StorelessRuntime.RUNTIME, counting(real));
     }
 
     @Test

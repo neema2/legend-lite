@@ -19,7 +19,6 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -51,20 +50,6 @@ class DynaFnRegistryTest {
 
     static Path engineRoot() {
         return com.legend.testing.Upstream.engine();
-    }
-
-    @Test
-    @DisplayName("the registry IS the engine's: every dynaFnToSql and type-inference name, with its dialects, and nothing else")
-    void registryMatchesTheCheckout() throws IOException {
-        Assumptions.assumeTrue(Files.isDirectory(engineRoot()), "legend-engine checkout not present");
-        TreeMap<String, DynaFnGenerator.Upstream> up = DynaFnGenerator.upstream(engineRoot());
-        TreeMap<String, DynaFnGenerator.Upstream> ours = new TreeMap<>();
-        for (DynaFn d : DynaFn.values()) {
-            TreeSet<String> ds = new TreeSet<>();
-            d.dialects().forEach(x -> ds.add(x.name()));
-            ours.put(d.dynaName(), new DynaFnGenerator.Upstream(ds, d.inference() == DynaFn.Inference.MAPPED));
-        }
-        assertEquals(up, ours, "DynaFn drifted from the checkout's registries — regenerate: bazel run //:update_generated");
     }
 
     @Test
@@ -112,7 +97,12 @@ class DynaFnRegistryTest {
         }
         int unsupported = DynaFn.withResolution(DynaFn.Resolution.UNSUPPORTED).size();
         assertTrue(unsupported <= UNSUPPORTED_MAX, "UNSUPPORTED dynafunctions grew: " + unsupported + " > " + UNSUPPORTED_MAX);
-        assertTrue(unsupported == UNSUPPORTED_MAX, "UNSUPPORTED shrank to " + unsupported + " — re-pin UNSUPPORTED_MAX (headroom is not a pin)");
+        // the measured count is ratchets.tsv's (generated, diff-tested); UNSUPPORTED_MAX stays the ceiling (D9), and a
+        // ceiling with headroom is no ceiling: it comes down with the count
+        assertEquals(UNSUPPORTED_MAX, unsupported, "UNSUPPORTED dynafunctions shrank to " + unsupported
+                + " -- lower UNSUPPORTED_MAX with the reason (headroom is not a pin)");
+        assertEquals(SpecRatchets.measured("dynafn.unsupported"), unsupported, "UNSUPPORTED dynafunctions moved"
+                + " -- bazel run //spec:update_ratchets (and lower UNSUPPORTED_MAX when it shrank: headroom is not a pin)");
     }
 
     @Test

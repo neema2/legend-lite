@@ -24,13 +24,24 @@ public final class StorelessRuntime {
     private StorelessRuntime() {
     }
 
-    /** {@code model} with the storeless runtime for {@code type} declared beside it. */
+    /** {@code model} with the storeless runtime for {@code type}, an in-process database, declared beside it. */
     public static String with(String model, DatabaseType type) {
         return model + "\n" + declaration(type);
     }
 
-    /** The empty database, its connection on {@code type}, and the runtime binding them. */
+    /** {@code model} with the storeless runtime on the {@code type} SERVER at {@code host}:{@code port}, database
+     *  {@code database} — the session the caller opens, declared as it is (C3b: a server's coordinates are real). */
+    public static String onServer(String model, DatabaseType type, String host, int port, String database) {
+        return model + "\n" + runtime(type, "specification: Static { name: '" + database + "'; host: '" + host
+                + "'; port: " + port + "; };\n  auth: Test");
+    }
+
+    /** The empty database, its connection on the in-process {@code type}, and the runtime binding them. */
     public static String declaration(DatabaseType type) {
+        return runtime(type, specificationAndAuth(type));
+    }
+
+    private static String runtime(DatabaseType type, String specificationAndAuth) {
         return """
                 ###Relational
                 Database storeless::Store ( )
@@ -47,16 +58,17 @@ public final class StorelessRuntime {
                   mappings: [];
                   connections: [ storeless::Store: [ session: storeless::Connection ] ];
                 }
-                """.formatted(type, specificationAndAuth(type));
+                """.formatted(type, specificationAndAuth);
     }
 
-    /** The connection's specification and authentication, as the session on {@code type} is opened. */
+    /** The connection's specification and authentication, as the in-process session on {@code type} is opened. */
     private static String specificationAndAuth(DatabaseType type) {
         return switch (type) {
             case DuckDB -> "specification: DuckDB { };\n  auth: Test";
             case H2 -> "specification: LocalH2 { };\n  auth: DefaultH2";
-            case Postgres -> "specification: Static { name: 'storeless'; host: '127.0.0.1'; port: 5432; };\n  auth: Test";
             case SQLite -> "specification: SQLite { };\n  auth: Test";
+            case Postgres -> throw new IllegalArgumentException("Postgres is a server: its storeless runtime"
+                    + " declares the session's coordinates (onServer)");
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
                  Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora ->
                     throw new IllegalArgumentException("no storeless runtime on " + type

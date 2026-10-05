@@ -251,7 +251,7 @@ user: not worth dropping for a tiny saving, and a link read by eye explains itse
 
 - **The dictionary** (`src/share/link-p1.ts`) is text the compressor may refer back to; the app
   ships it and never sends it. It is GENERATED once, from the product's own tables through its own
-  writers (`tools/link-dictionary/make.ts`, `bazel run //datacube:make_link_dictionary -- p2`): the
+  writers (`tools/link-dictionary/make.ts`; the next version is cut by `bazel run //datacube:cut_link_dictionary`): the
   document's keys and kinds (a template page using every kind of thing a page holds, empty), the
   protocol's node shapes and every calculated-column, window and core function by name, the filter
   operators, the compiler's types and aggregates, the chart marks. It holds no user text (pinned: the

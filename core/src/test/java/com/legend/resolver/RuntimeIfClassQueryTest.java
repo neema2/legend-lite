@@ -3,7 +3,7 @@
 
 package com.legend.resolver;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,7 +50,7 @@ class RuntimeIfClassQueryTest {
                 st.execute("CREATE TABLE FIRM (ID INTEGER, NAME VARCHAR)");
                 st.execute("INSERT INTO FIRM VALUES (1, 'Acme'), (2, 'Default')");
             }
-            ExecutionResult r = Compiler.execute(MODEL, query, "x::RT", c);
+            ExecutionResult r = Execution.execute(MODEL, query, "x::RT", c);
             if (r instanceof ExecutionResult.Collection coll) {
                 return coll.values();
             }

@@ -115,7 +115,7 @@ class RowLoadTest {
                 """;
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             long before = Census.count(Census.Key.BULK_LOADS);
-            var r = com.legend.Compiler.execute(com.legend.test.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
+            var r = com.legend.Execution.execute(com.legend.test.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
                     "|ss::m->meta::pure::mapping::resolveStore(ss::dbInc).name", com.legend.test.StorelessRuntime.RUNTIME, c);
             assertEquals("dbInc", ((ExecutionResult.Scalar) r).value());
             assertTrue(Census.count(Census.Key.BULK_LOADS) > before,
@@ -149,7 +149,7 @@ class RowLoadTest {
         // text; DuckDB's bulk path is systemSeedIsBulk's
         try (Connection c = DriverManager.getConnection("jdbc:h2:mem:declaredcsv" + com.legend.exec.H2Settings.SETTINGS)) {
             long before = Census.count(Census.Key.BULK_LOADS);
-            var r = com.legend.Compiler.execute(model, "|x::Firm.all()->project(~[name: f|$f.name,"
+            var r = com.legend.Execution.execute(model, "|x::Firm.all()->project(~[name: f|$f.name,"
                     + " since: f|$f.since, size: f|$f.size])->sort(~name->ascending())", "x::RT", c);
             assertEquals(List.of("Acme|2020-01-02|10", "O'Brien|null|null"), r.rows().stream()
                     .map(row -> row.get(0) + "|" + row.get(1) + "|" + row.get(2)).toList());

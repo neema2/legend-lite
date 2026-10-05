@@ -124,7 +124,7 @@ class VariantIntegrationTest {
     }
 
     private String generateSql(String pureQuery) {
-        var plan = com.legend.Compiler.plan(getCompletePureModel(), pureQuery, "test::TestRuntime");
+        var plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(getCompletePureModel()), pureQuery).plan("test::TestRuntime");
         return plan.sql();
     }
 
@@ -388,7 +388,7 @@ class VariantIntegrationTest {
                 """;
 
         // Compile and check SQL
-        var plan = com.legend.Compiler.plan(pureModel, pureQuery, "test::TestRuntime");
+        var plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(pureModel), pureQuery).plan("test::TestRuntime");
         String sql = plan.sql();
         System.out.println("Embedded class SQL: " + sql);
 

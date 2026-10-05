@@ -486,17 +486,92 @@ run, and are removed before any commit.
        the runtime. So the rule's "no runtime" must mean neither the caller nor the query declares one; until C4 reads
        the query's runtime, a store read under an in-query runtime with no caller runtime stays REFUSED by name (as
        today, via `NO_RUNTIME`) — never sent to the platform DuckDB.
-    3. **`CrossStoreGuard` is blind to class queries.** It sees only `TypedTableReference`, which only relation
-       ACCESSORS produce (`TableReferenceChecker.java:128`); a resolved class query names its tables in other nodes.
-       In the corpus it saw a store in 35 of ~256,000 statements. **Fix:** the per-statement check reads the stores a
-       resolved statement touches from every node that names one (accessor AND mapped class), or it is not a check.
+    3. **`CrossStoreGuard` ran on ONE of five execution paths** (CORRECTED 2026-10-04 — first recorded as "blind to
+       class queries", which was wrong: a resolved class query names its tables in `TypedTableReference`s built from
+       the mapping, and a probe on `RelationalMappingIntegrationTest` saw `store::DB` in 248 statements). Queries
+       resolve for execution at five sites: the statement path (`StatementExecutor` prepare — checked), `execute()`
+       frames, legend-query frames, staged assertion sides, and the compiler's own `lowerParsed`/`lowerResolved`
+       (the server's wire/streaming/plan paths) — those four unchecked. The corpus runs its class queries through
+       `execute()` frames, hence 35 of ~256,000. **Fix (done in C3b):** one helper, `resolvedToExecute`, resolves
+       and checks for every `StatementExecutor` execution path; `lowerParsed`/`lowerResolved` decide the runtime
+       (`executesOn`) and then check.
     5. **(found 2026-10-04) `Compiler.target(model, query)` already reads a query's own `->from(.., runtime)`** (its
        typed `TypedFrom.runtime()`), taking the FIRST found. A starting point for the in-query runtime, not an answer:
        first-match is the shape this line removes; C4 owns reading it fully.
-    4. **The one "unbound store" case is the platform's own metamodel store** (`meta::lite::metamodel::MetamodelStore`,
+    4. **The one "unbound store" case seen is the platform's own metamodel store** (`meta::lite::metamodel::MetamodelStore`,
        73 statements, core tests, `storeless::Runtime`): routed to `SystemDatabase`, legitimately bound by no runtime.
        **Fix:** exempted by identity, with its reason — not a silent pass.
 
+- **C3b — DONE 2026-10-04** (full chain `runs/c3b-full.log`). `exec/Sessions` owns the session side: the JDBC product
+  per type and the check of a handed session (moved off the dialects: `SqlDialect.jdbcProduct` and the
+  `AnsiSqlRenderer` constructor argument DELETED), opening a declared connection (`openingFor`: every type ×
+  specification and every authentication listed — the in-memory folds of unknown specifications and the silent
+  "nothing to apply" for unhandled authentications are gone, refused by name), a named (H2) vs held (DuckDB, SQLite)
+  in-memory database, and private instances (`openPrivate`, Postgres refused by name); `exec/JdbcMetadata` deleted
+  into it. `Compiler.executesOn` is public and returns the `com.legend.database.Target` (`Declared` with the
+  connection definitions, or `Platform`); it now also reads a ModelStore's inline `JsonModelConnection`s as model
+  data (found by the new JSON-only server test: such a runtime was refused, "binds no connection"). The server opens
+  the compiler's target: four `Compiler` entries take a `Sessions.Source` (the connection overloads wrap
+  `Sessions.given`, checked); `ConnectionResolver.resolve` and its first-binding pick and short-name match are DELETED;
+  it is the server's source (`SOURCE`, `lease(ctx, runtime)`), refusing two different connection definitions by name,
+  its cache key read from the compiled model (`ModelContext.databases()`, new). `SystemDatabase` opens by the declared
+  type. `CrossStoreGuard`: its no-runtime / undefined-runtime passes are hard failures (unreached); a touched store the
+  runtime does not bind is refused by name, a store INCLUDED by a bound database counting as bound (the stress suites'
+  `store::DB` includes ten domain stores — the first full run refused them), the metamodel store exempt by identity;
+  and every execution path now runs it (`StatementExecutor.resolvedToExecute`; `lowerParsed`/`lowerResolved` decide
+  the runtime first). `ModelContext.isModelConnection` has no default. `StorelessRuntime.onServer` declares a server's
+  real coordinates (`PctBackend.withStorelessRuntime`: the embedded Postgres port). Tests: `ServerSessionsTest` (a
+  JSON-only runtime on the platform DuckDB, an unbuilt specification refused, two connections refused); the server
+  test helpers lease through `ConnectionResolver.lease`. Guards: `DialectBoundaryTest` (Sessions 1; SystemDatabase's
+  name decisions 3 → 0), `JdbcSurfaceCensusTest` and `JavaEvalLedgerTest` (JdbcMetadata → Sessions; StatementExecutor
+  2377 → 2382, PctExecuteNative 106 → 105), the Postgres PCT roster's one message, `core-layers.txt` (exec,
+  server_lib reach database; server_lib reaches compiler), SEMANTICS_REGISTER S27.
+- **C3c — DONE 2026-10-04** (full chain `runs/c3c-full.log`: 187/189 — `//datacube:live_snap_test` reset a
+  warehouse sign-in under two parallel heavy builds and passes alone 6/6). (1) A seed spells its stored names as the
+  SESSION's dialect references them: new `SqlDialect.physicalName` (the base's identifier rule; H2's `execPart`;
+  Postgres quotes every name), used by `CsvSeed` and `CsvSeed.rowLoad` (now taking the dialect, spelling schema and
+  table itself: the `loadCsvToDbTable` path passed them raw). `CsvSeed`'s union of DuckDB's and H2's reserved words is
+  DELETED. Test: `SeedSpellingTest`. (2) The DuckDB driver's JSON node: audit point 8 proposed `DuckDb.normalize`;
+  measured otherwise — a dialect file naming a driver class becomes JDBC surface (the census counts the file's every
+  accessor), and converting the node in `normalize` would change what a Variant root and an untyped array element
+  carry. Done instead as `BulkLoad` is: an `exec.DriverCells` SPI (`jsonText(cell)`), DuckDB's implementation
+  `DuckDbCells` in `:duckdb_load` beside the driver with a real `instanceof`, found by `ServiceLoader`;
+  `Executor.decodeAny` names no driver class; behaviour unchanged. Registers: `JdbcSurfaceCensusTest` (DuckDbCells),
+  `JavaEvalLedgerTest`'s funnel register (DriverCells).
+- **The guard at zero — DONE 2026-10-04.** `DialectBoundaryTest.eachDatabaseDecisionHasOneOwner` pins three more
+  shapes to the owners, measured over `core/src/main/java` outside `sql/dialect`: dialect construction (only
+  `Databases` 4, `EngineText` 5), JDBC URLs (only `Sessions` 9), driver class names (none). With the type and name
+  censuses (`Databases` 2, `EngineText` 1, `Sessions` 1; the connection grammar 3, by reason) no per-database decision
+  is left outside an owner in core's product code. Out of scope by reading (§C3's sweep): the lexer's `H2` keyword,
+  `PureAsserts`' Pure type names, protocol node kinds, the warehouse's own catalog, test and tool support
+  (`tools/census/RenderCensus` renders every dialect by design).
+- **C1 — DONE 2026-10-04** (`210c6e5ab`): `compiler/spec/StatementEffects` holds `containsEffect` (from
+  `StatementExecutor`), `callsVerdict` and `containsTdgGenerator` (from `Compiler`), moved verbatim; `Compiler.programFacts`
+  and `BodyCompiler` ask there. The effect scan's catch moves as it is (B3, the rebuild's).
+- **C2a — the structural split, DONE 2026-10-05.** `//core:planner` (`Compiler`, `CrossStoreGuard`, `ProgramFacts`) has
+  no `:exec` and no `:testdatagen` — the build enforces that planning touches no database. `com.legend.Execution` (in
+  `:driver`) holds every execute entry point moved verbatim out of `Compiler` (execute ×5, executeResolved ×4,
+  executeWire ×4, executeStreaming ×2, the session-checking `dialectOf`, `wireSchema`); it reaches the planner only
+  through public API — `compileModel`, `parseQuery`, `resolveQuery`, `executesOn`, and `Compiler.lower(...)` returning
+  the public `Compiler.LoweredQuery` (was the private `Lowered`); `CrossStoreGuard.check` is public (both sides call it;
+  no package-private reach across the two libraries). 132 `Compiler.execute*` calls in 70 files became `Execution.*`.
+  `//core:plan_side` exports the planner and every library it stands on and none of execution; `//wasm:boundary` depends
+  on it, not on `//core`. Guards moved with dated notes: `ArchitectureTest` F1.3b (Compiler left the java.sql pin,
+  Execution took its place) and its library map, `JdbcSurfaceCensusTest` and `JavaEvalLedgerTest` (Execution
+  registered), `core-layers.txt` (a `planner` line), `not_layers` (`plan_side`), AGENTS.md's pipeline text and
+  entry-point table.
+- **C2b — the compile-once API, DONE 2026-10-05.** The compiled model is the `ModelContext` `compileModel` returns (no
+  wrapper); `Compiler.query(ctx, text | spec)` parses, resolves names and types the query ONCE into a `TypedQuery`
+  (planner library), off which `resultType()`, `target()`, `expression()`, `lower(runtime, streaming)`, `plan(runtime)`
+  and `planStreaming(runtime)` come. DELETED, every `Compiler` static that took the model as TEXT and recompiled it per
+  question: `plan` ×2, `planStreaming`, `compile`, `resultType` ×2, `target`, `compileQuery` ×2, `lower` ×2 — 93 calls
+  rewritten (an argument-aware rewriter; legend-engine's own `Compiler.compile` in `tools/engine-runner` untouched).
+  Where one request asked several questions of one model it now compiles once: `PureV1Api.generatePlan` (target + plan),
+  `OfferFacts` (its compiled model reused for every probe; `calc`'s type and expression off one typed query). Kept, as
+  compile steps rather than wrappers: `compileModel` (text and sources), `parseSources`, `buildModel`, `buildModule`,
+  `compileAllBodies`, `resolveQuery`, `lowerResolved`. Not done: `PureV1Api.execute` still compiles for its target and
+  again inside `Execution.executeWire` (the execution front door takes model text; a `TypedQuery`-taking entry is the
+  next refinement).
 - **C4. The reader fix.** The static `ExecutionContext` reader follows `->from(m, ^Runtime(connectionStores =
   helper()))`, `toSQLString`'s runtime forms and helper bodies; the four `"H2"` defaults (§3.2) are DELETED; a context
   that truly cannot be read is refused by name. Gate: the 21 corpus tests pass reading their real declarations.
@@ -544,6 +619,15 @@ run, and are removed before any commit.
     did), activity-SQL and setup-DDL text asserts, the DuckDB lane (same oracle, expected identical), and whether a
     test-side printer can reach the Lowerer's engine options without a hook in main.
   - **Order:** after C3 (C3b, C3c, the guard); `EngineText` stays until then, labelled test-only-to-be.
+  - **Scope found 2026-10-05 (before any C6 code): the engine text is not one surface but about EIGHT user-callable Pure
+    functions** — `toSQLString` (plain, pretty, non-executable), `executionPlan` / `planToString` (formatted and not)
+    and an executed plan, `generateTestData`, `setUpDataSQLs` (two versions), and an `execute()` result's activity SQL
+    — produced through `plan/PlanText`, `PlanEnvelope`, `PlanAllocations`, `plan/InProtocol`, `SeedSqlForms`/`exec/Ddl`
+    and `testdatagen/TestDataGenerator`. Each family has its own verdict path (rows replay for SQL text, plan replay for
+    plan text, the fetch-text verdict for test-data generation). The measurement above covers the `toSQLString` family
+    only. **C6 is staged per family:** measure each (what the product would print with the real dialect; which tests
+    rest on exact text; whether rows / plan replay can judge them), then bring the user the per-family numbers BEFORE
+    any product output changes.
 
 ## 5. Other open work (recorded so it is not lost; NOT in this plan)
 

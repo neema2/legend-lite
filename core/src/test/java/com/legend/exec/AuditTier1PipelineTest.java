@@ -7,6 +7,7 @@ import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -55,7 +56,7 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("B: a NULL grid cell through ->toString() is EMPTY, not the text \"null\"")
     void nullCellToStringIsEmpty() throws Exception {
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select null as X', $c, 0, 1000)"
                 + ".rows->at(0).value('X')->toString();}", StorelessRuntime.RUNTIME, conn);
@@ -67,7 +68,7 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("B control: a real cell through ->toString() still reads its text")
     void realCellToStringReads() throws Exception {
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select \\'hi\\' as X', $c, 0, 1000)"
                 + ".rows->at(0).value('X')->toString();}", StorelessRuntime.RUNTIME, conn);
@@ -81,7 +82,7 @@ class AuditTier1PipelineTest {
         // in the emitted SQL (tenet #1 — the database raises, with
         // pure's own message), replacing the old egress-side wall.
         Exception e = assertThrows(Exception.class,
-                () -> Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+                () -> Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
                         "{|[1, 2, 3]->filter(x | $x > 10)->toOneMany();}", StorelessRuntime.RUNTIME,
                         conn));
         assertTrue(String.valueOf(e.getMessage())
@@ -93,7 +94,7 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("F control: a satisfied [1..*] collection still flows")
     void satisfiedLowerBoundFlows() throws Exception {
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
                 "{|[1, 2, 3]->filter(x | $x > 2)->toOneMany();}", StorelessRuntime.RUNTIME, conn);
         java.util.List<Object> values =
                 ((ExecutionResult.Collection) r).values();

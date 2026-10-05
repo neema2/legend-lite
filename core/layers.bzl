@@ -11,8 +11,11 @@ def core_layer_queries(not_layers):
     """Args:
       not_layers: library name -> why it is not a layer (an umbrella, a test library, ...).
     """
-    names = sorted([r["name"] for r in native.existing_rules().values()
-                    if r["kind"] == "java_library" and r["name"] not in not_layers])
+    libraries = [r["name"] for r in native.existing_rules().values() if r["kind"] == "java_library"]
+    stale = sorted([n for n in not_layers if n not in libraries])
+    if stale:
+        fail("core_layer_queries: not_layers names %s, which is no java_library of this package" % stale)
+    names = sorted([n for n in libraries if n not in not_layers])
     for name in names:
         native.genquery(
             name = "layer_" + name,

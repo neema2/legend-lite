@@ -203,10 +203,14 @@ public interface ModelContext extends StoreLookups {
 
     /** Whether {@code fqn} names a MODEL-store connection (Json/Xml/
      *  ModelChain) — defined, but carrying no database type, so dialect
-     *  selection skips rather than refuses it. */
-    default boolean isModelConnection(String fqn) {
-        return false;
-    }
+     *  selection skips rather than refuses it. No default: a context that
+     *  cannot answer would read every model connection as undefined
+     *  (C3b, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md). */
+    boolean isModelConnection(String fqn);
+
+    /** Every {@code ###Relational} Database the model declares — what a server keys a database's identity by
+     *  (its stores' shape), read from the compiled model so the server parses once. */
+    java.util.stream.Stream<com.legend.model.DatabaseDefinition> databases();
 
     /**
      * Classify an FQN into a kinded {@link Type}: <strong>primitive &rarr; class

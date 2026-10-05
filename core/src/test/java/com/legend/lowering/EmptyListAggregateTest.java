@@ -6,7 +6,7 @@ package com.legend.lowering;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.Test;
 
@@ -26,7 +26,7 @@ class EmptyListAggregateTest {
 
     private static String scalar(String query) throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c);
+            ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c);
             if (r instanceof ExecutionResult.Scalar s) {
                 return String.valueOf(s.value());
             }

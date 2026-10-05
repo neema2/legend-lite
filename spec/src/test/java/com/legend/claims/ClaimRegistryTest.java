@@ -86,19 +86,6 @@ public class ClaimRegistryTest {
     static final int UNCLAIMED_MAX = 0;
 
     @Test
-    @DisplayName("the implemented surface is the committed ledger (native-claims.tsv), byte-equal")
-    void ledgerIsCurrent() throws Exception {
-        List<String> actual = ClaimsGenerator.ledger(com.legend.generators.SourceTree.of(MAIN));
-        Files.createDirectories(Repo.outDir());
-        Files.write(Repo.out("native-claims.tsv"), actual, StandardCharsets.UTF_8);
-        assertTrue(Files.exists(RESOURCE), "native-claims.tsv missing — regenerate: bazel run //:update_generated");
-        List<String> expected = Files.readAllLines(RESOURCE, StandardCharsets.UTF_8);
-        assertEquals(expected, actual,
-                "the implemented surface moved — review target/native-claims.tsv against the"
-                + " committed ledger; regenerate (bazel run //:update_generated) for a DELIBERATE change");
-    }
-
-    @Test
     @DisplayName("no Pure.java overload is unclaimed beyond the shrink-only ratchet")
     void unclaimedIsRatcheted() throws Exception {
         List<String> unclaimed = new ArrayList<>();

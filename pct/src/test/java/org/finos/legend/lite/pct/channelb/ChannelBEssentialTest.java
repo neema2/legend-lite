@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.EnumMap;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -26,14 +27,19 @@ class ChannelBEssentialTest {
         return com.legend.testing.Upstream.pure();
     }
 
-    @Test
-    void essentialCensus() throws Exception {
+    /** This suite's run: its model roots and discovery scope (PctRatchets measures its discovery the same way). */
+    static List<ChannelB.Outcome> runSuite(java.util.List<String> walls) throws Exception {
         Path modelRoot = pureRoot().resolve(
                 "legend-pure-core/legend-pure-m3-core/src/main/resources"
                         + "/platform/pure");
         Path scope = modelRoot.resolve("essential");
+        return ChannelB.run(modelRoot, List.of(scope), walls);
+    }
+
+    @Test
+    void essentialCensus() throws Exception {
         java.util.List<String> walls = new java.util.ArrayList<>();
-        List<ChannelB.Outcome> out = ChannelB.run(modelRoot, List.of(scope), walls);
+        List<ChannelB.Outcome> out = runSuite(walls);
         walls.forEach(w -> System.out.println("[chB-wall] " + w));
         System.out.println("[chB] walls=" + walls.size());
         // audit-of-audits #12: the wall count is ASSERTED shrink-only —
@@ -57,8 +63,7 @@ class ChannelBEssentialTest {
         // 327 -> 345 at the 4.145.0 bump (batch 8): the drift read's 18 new
         // PCT.test functions in the 6 new platform files (binFloor, left,
         // right, substr, elementPath, lenientPathToElement)
-        assertTrue(out.size() == 345,
-                "essential discovery moved: " + out.size() + " != 345");
+        assertEquals(PctRatchets.measured("channel_b.essential.discovered"), out.size(), "essential discovery moved -- an upstream move or a discovery-rule change: bazel run //pct:update_ratchets, with the reason in the commit");
         int pass = census.getOrDefault(ChannelB.Status.PASS, 0);
         // 293 (slice 11): exists ×2 (adapter shadow-stop), concatenate
         // (type() sig [1]→[*] per real type.pure:18), + the is/assertIs
@@ -154,8 +159,8 @@ class ChannelBEssentialTest {
                 + " B-FIXES-A=" + bFixesA + " DECLINED=" + declined);
 
         // THE FRONTIER ORACLE (third channel): the engine's OWN
-        // relational-DuckDB PCT manifest (snapshot from legend-engine
-        // 943d38b3 / 2026-08-06 — the oracle-pin discipline) names the
+        // relational-DuckDB PCT manifest (the pinned release's, read from
+        // @legend_engine_src since Bazel workplan P2-11) names the
         // tests the reference RELATIONAL executor itself cannot pass
         // (indexOf 0-vs-1-base, partial-precision dates, mixed-type Any
         // …). A wire-bug row the engine also excludes is the RELATIONAL
@@ -276,7 +281,7 @@ class ChannelBEssentialTest {
     }
 
     /** The engine's relational-DuckDB essential manifest exclusions
-     * (pinned oracle snapshot; names carry the reference suffix —
+     * (the pinned release's, from @legend_engine_src; names carry the reference suffix —
      * stripped to plain FQNs). */
     private static java.util.Set<String> engineDuckDbExclusions()
             throws java.io.IOException {
@@ -290,8 +295,8 @@ class ChannelBEssentialTest {
         }
         if (names.isEmpty()) {
             throw new IllegalStateException(
-                    "engine DuckDB manifest scan found nothing — the oracle"
-                    + " snapshot moved");
+                    "engine DuckDB manifest scan found nothing — the"
+                    + " manifest's shape moved");
         }
         return names;
     }
