@@ -20,13 +20,25 @@ import { suggest } from '../app/probe.ts';
 import { renderConstants } from './constants.ts';
 import { renderParameters } from './params.ts';
 import { openQueryDialog, save, saveAs } from './queries.ts';
-import { toQuery } from '../app/persist.ts';
+import { contentOf, toQuery } from '../app/persist.ts';
 import { queryFragment } from '../../../query-store/src/share.ts';
 import { Results } from './results.ts';
 import { textDialog } from './text.ts';
 
 export interface EditorHandle {
   dispose(): void;
+}
+
+/**
+ * The host the builder is embedded in (Studio, plan A5; upstream's embedded query builder): it holds the query, and
+ * the builder is a dialog over it. The header has the host's actions in place of the query store's.
+ */
+export interface EmbedHost {
+  /** What is edited (`Service query: model::PartyService`), where a saved query's name shows. */
+  readonly title: string;
+  /** Upstream Studio's "Save Query": the query's Pure text (no `->from()`) into the host. Absent: the builder only runs. */
+  readonly keep?: (content: string) => Promise<void>;
+  close(): void;
 }
 
 /** The classes a source offers: a data space's (its mapping's classes, narrowed by `elements`), or every mapped class. */
@@ -51,7 +63,7 @@ function offeredClasses(session: Session): string[] {
   return [...graph.classes.keys()].filter((c) => graph.mappingsFor(c).length > 0).sort();
 }
 
-export function renderEditor(root: HTMLElement, app: AppContext, session: Session): EditorHandle {
+export function renderEditor(root: HTMLElement, app: AppContext, session: Session, embed?: EmbedHost): EditorHandle {
   const graph = session.project.graph;
   const explorer = new Explorer(session, { humanized: true }, (path) => void showPreview(app, session, path));
   const results = new Results(app, session);
@@ -101,8 +113,10 @@ export function renderEditor(root: HTMLElement, app: AppContext, session: Sessio
     }
     if (src.dataSpace) {
       const ds = graph.dataSpaces.get(src.dataSpace.path);
+      // its viewer is Query's page: embedded, the name alone
       rows.push(h('div', { class: 'q-field' }, h('label', null, 'Data Space'),
-        h('a', { href: formatRoute({ kind: 'dataSpaceViewer', gav: session.project.gav, path: src.dataSpace.path }), title: src.dataSpace.path }, ds?.title ?? simpleName(src.dataSpace.path))));
+        embed ? h('span', { title: src.dataSpace.path }, ds?.title ?? simpleName(src.dataSpace.path))
+          : h('a', { href: formatRoute({ kind: 'dataSpaceViewer', gav: session.project.gav, path: src.dataSpace.path }), title: src.dataSpace.path }, ds?.title ?? simpleName(src.dataSpace.path))));
       if (ds) {
         rows.push(h('div', { class: 'q-field' }, h('label', null, 'Context'),
           select(src.dataSpace.context, ds.executionContexts.map((c) => ({ value: c.name, label: c.title ?? c.name })), (v) => {
@@ -182,7 +196,40 @@ export function renderEditor(root: HTMLElement, app: AppContext, session: Sessio
       toast(`Could not make the share link: ${(e as Error).message}`, 6000);
     }
   };
+  // embedded (Studio): the host keeps the query -- Save Query -- and Close goes back to it, asking first when the
+  // query has changes not yet kept
+  const keep = async (): Promise<void> => {
+    if (!embed?.keep) return;
+    try {
+      await embed.keep(await contentOf(app, session));
+      session.markKept();
+      toast('Query saved into the element: push it with the workspace');
+    } catch (e) {
+      toast(`Could not save the query: ${(e as Error).message}`, 6000);
+    }
+  };
+  const close = async (): Promise<void> => {
+    if (embed?.keep && session.changed && !await confirmDialog('Unsaved changes', 'Close the query builder? Its changes will be lost.', 'Close')) return;
+    embed?.close();
+  };
+  const drawEmbeddedHeader = (host: EmbedHost): void => {
+    mount(header,
+      h('div', { class: 'q-builder__status' },
+        h('span', { class: 'q-builder__title' }, host.title),
+        host.keep && session.changed ? h('span', { class: 'q-chip q-chip--status', title: 'Not yet saved into the element' }, 'unsaved') : null),
+      h('span', { class: 'q-spacer' }),
+      stacked('undo', 'Undo', 'Undo (Ctrl+Z)', session.canUndo, () => session.undo()),
+      stacked('redo', 'Redo', 'Redo (Ctrl+Shift+Z)', session.canRedo, () => session.redo()),
+      host.keep ? h('button', { class: 'q-header-action', 'data-testid': 'builder-keep', title: 'Save the query into the element (Ctrl+S)', onclick: () => void keep() }, icon('save'), h('span', null, 'Save Query')) : null,
+      menuButton(['Advanced', icon('caretDown')], () => [
+        { label: 'Edit Pure', action: () => void textDialog(app, session) },
+        { label: showParams ? 'Hide Parameters' : 'Show Parameters', action: () => { showParams = !showParams; drawSide(); } },
+        { label: showConstants ? 'Hide Constants' : 'Show Constants', action: () => { showConstants = !showConstants; drawSide(); } },
+      ], { class: 'q-header-pill' }),
+      h('button', { class: 'q-header-action', 'data-testid': 'builder-close', title: 'Close the query builder', onclick: () => void close() }, icon('x'), h('span', null, 'Close')));
+  };
   const drawHeader = (): void => {
+    if (embed) { drawEmbeddedHeader(embed); return; }
     const saved = session.saved;
     mount(header,
       h('div', { class: 'q-builder__status' },
@@ -265,7 +312,7 @@ export function renderEditor(root: HTMLElement, app: AppContext, session: Sessio
       // the results cube has its own undo and redo
       || (e.target instanceof Element && e.target.closest('.dc-app') !== null);
     if (mod && e.key === 'Enter') { e.preventDefault(); results.run(); }
-    else if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void save(app, session); }
+    else if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); void (embed ? keep() : save(app, session)); }
     else if (mod && !inField && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) session.redo(); else session.undo(); }
     else if (mod && !inField && e.key.toLowerCase() === 'y') { e.preventDefault(); session.redo(); }
   };

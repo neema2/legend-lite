@@ -120,6 +120,12 @@ export class Session {
     this.#emit('saved');
   }
 
+  /** Kept by an embedding host (Studio's service): what is shown now is what it holds. */
+  markKept(): void {
+    this.#savedHash = this.hash();
+    this.#emit('saved');
+  }
+
   setParam(name: string, value: Value | undefined): void {
     if (value === undefined) this.paramValues.delete(name);
     else this.paramValues.set(name, value);
