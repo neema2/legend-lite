@@ -12,13 +12,15 @@
 // proves the writer and the reader agree.
 //
 // Run: bazel run //datacube:verify_remote
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { engineClientRequire } from '../../engine-client/src/node-require.ts';
 import { readFile, rm } from 'node:fs/promises';
 import { extname } from 'node:path';
 import path from 'node:path';
 
 import { chromium } from 'playwright';
-import { serve, siteRoot } from './harness.mjs';
+import { serve, siteRoot, tmpDir } from './harness.mjs';
 
 const ROOT = siteRoot();
 
@@ -71,10 +73,12 @@ conn.query(
 // serves stale bytes. That is exactly what happened: the connection
 // checks passed against a four-row file while the assertions had
 // moved on.
-const fixture = `dc-fixture-${process.pid}-${Date.now()}.parquet`;
+// In the run's own temp directory (harness.tmpDir), never the working directory (Bazel workplan P4-03: under a
+// test that is the runfiles tree).
+const fixture = path.join(await tmpDir('dc-remote-'), `dc-fixture-${process.pid}-${Date.now()}.parquet`);
 conn.query(`COPY t TO '${fixture}' (FORMAT PARQUET)`);
 const parquet = db.copyFileToBuffer(fixture);
-for (const stray of [fixture, `tmp_${fixture}`]) {
+for (const stray of [fixture, path.join(path.dirname(fixture), `tmp_${path.basename(fixture)}`)]) {
   await rm(stray, { force: true }).catch(() => {});
 }
 check('built a Parquet fixture', parquet.length > 0, `${parquet.length} bytes`);

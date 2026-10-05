@@ -23,10 +23,12 @@
 // eight columns demo/trades.pure declares: region, desk, book, year,
 // qtr, notional, pnl, qty.
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { open, readFile, stat } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { chromium } from 'playwright';
-import { sendFile, serve, siteRoot } from './harness.mjs';
+import { sendFile, serve, siteRoot, tmpDir } from './harness.mjs';
 
 const ROOT = siteRoot();
 const GIVEN = process.env.DATA ?? process.env.PARQUET;
@@ -39,8 +41,6 @@ const EXPECT = fixture ? fixture.expect : JSON.parse(process.env.EXPECT ?? '{}')
 /** A Parquet file of the demo's eight columns, and DuckDB's per-region total of notional. */
 async function buildFixture() {
   const { engineClientRequire } = await import('../../engine-client/src/node-require.ts');
-  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
-  const { tmpdir } = await import('node:os');
   const path = await import('node:path');
   const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
   const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
@@ -63,12 +63,10 @@ async function buildFixture() {
     FROM range(30000) t(i)`);
   const expect = Object.fromEntries(conn.query('SELECT region, sum(notional) AS n FROM t GROUP BY region')
     .toArray().map((r) => [String(r.region), Number(r.n)]));
-  const name = `dc-real-${process.pid}-${Date.now()}.parquet`;
-  conn.query(`COPY t TO '${name}' (FORMAT PARQUET)`);
-  const bytes = db.copyFileToBuffer(name);
-  for (const stray of [name, `tmp_${name}`]) await rm(stray, { force: true }).catch(() => {});
-  const file = path.join(await mkdtemp(path.join(tmpdir(), 'dc-real-')), 'trades.parquet');
-  await writeFile(file, bytes);
+  // in the run's own temp directory, never the working directory (P4-03: under a test, the runfiles tree)
+  const dir = await tmpDir('dc-real-');
+  const file = path.join(dir, 'trades.parquet');
+  conn.query(`COPY t TO '${file}' (FORMAT PARQUET)`);
   console.log(`no DATA: built ${file} (30,000 rows); DuckDB says ${JSON.stringify(expect)}`);
   return { file, expect };
 }

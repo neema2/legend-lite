@@ -879,7 +879,7 @@ _BROWSER_TESTS = {
         "//tools/js:runfiles",
     ] + (["//fixtures/saved-queries:records"] if h == "verify-features" else []) + (
         # it imports pinned-chromium.mjs first, a no-op under bazel run
-        ["//tools/browser:pinned_chromium"] if h == "verify-smoke" or h in _BROWSER_TESTS else []
+        ["//tools/browser:pinned_chromium"] if h in ["verify-smoke", "verify-remote", "verify-real-data"] or h in _BROWSER_TESTS else []
     ),
     entry_point = "demo/" + h + ".mjs",
     env = _SITE_ENV | ({"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"} if h == "verify-features" else {}),
@@ -925,10 +925,32 @@ browser_test(
     wasm = True,
 ) for h, size in _BROWSER_TESTS.items()]
 
+# the two remote-data harnesses as one test, a shard each (P4-03): demo/verify-remote-test.mjs
+browser_test(
+    name = "verify_remote_test",
+    size = "large",
+    shard_count = 2,
+    data = _HARNESS_HELPERS + [
+        "demo/index.html",
+        "demo/verify-real-data.mjs",
+        "demo/verify-remote.mjs",
+        ":node_modules/@duckdb/duckdb-wasm",
+        ":node_modules/playwright",
+        ":site",
+        ":src",
+    ],
+    entry_point = "demo/verify-remote-test.mjs",
+    env = _SITE_ENV,
+    wasm = True,
+)
+
 # every browser test of this package (P4-09's //:browser names it)
 test_suite(
     name = "browser",
-    tests = [":verify_smoke_test"] + [":" + h.replace("-", "_") + "_test" for h in _BROWSER_TESTS],
+    tests = [
+        ":verify_remote_test",
+        ":verify_smoke_test",
+    ] + [":" + h.replace("-", "_") + "_test" for h in _BROWSER_TESTS],
 )
 
 # `bazel run //datacube:verify_app` (manual; see demo/verify-app.mjs for its Postgres): the single-user app
