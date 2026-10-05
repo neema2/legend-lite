@@ -38,8 +38,9 @@
   --shadow: var(--color-shadow) 0 1px 5px 0;
 }
 
-/* legacy-light: Query's own tokens on Legend Query's light theme (legend-art has the rest) */
-:root[data-theme='legacy-light'] {
+/* legacy-light: Query's own tokens on Legend Query's light theme (legend-art has the rest); default-light too, Studio's
+   light theme, for the builder Studio embeds (src/embed.ts) */
+:root[data-theme='legacy-light'], :root[data-theme='default-light'] {
   --color-editable-value: #1b4c8c;
   --color-filter-selected: #def3ff;
   --color-grid-bg: #fff;

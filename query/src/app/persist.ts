@@ -3,7 +3,7 @@
 // the mapping and runtime, or the data space), tagged with its data space and class, parameter
 // values kept as Pure text.
 
-import { lambda as makeLambda, type Lambda } from '../../../pure-protocol/src/index.ts';
+import { findAll, isFunction, lambda as makeLambda, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { buildLambda, valueSpec } from '../builder/build.ts';
 import { loadLambda, parametersOf, valueOf } from '../builder/load.ts';
 import { emptyQuery, type ClassSource, type Value } from '../builder/state.ts';
@@ -105,6 +105,17 @@ export async function openQuery(app: AppContext, q: Query, urlParams: ReadonlyMa
     if (v) session.paramValues.set(name, v);
   }
   return session;
+}
+
+/** A curated, service or embedding host's query opened in the form, or as text when the form cannot show it. */
+export function sessionFrom(p: LoadedProject, lambda: Lambda, ctx: { mapping: string; runtime: string; dataSpace?: ClassSource['dataSpace'] }): Session {
+  const loaded = loadLambda(p.graph, lambda, ctx);
+  if (loaded.ok) return new Session(p, loaded.query);
+  const getAll = findAll(lambda, isFunction).find((f) => f.function === 'getAll' || f.function.endsWith('::getAll'));
+  const target = getAll?.parameters[0];
+  const cls = target?._type === 'packageableElementPtr' ? target.fullPath : '';
+  const source: ClassSource = { kind: 'class', class: cls, mapping: ctx.mapping, runtime: ctx.runtime, ...(ctx.dataSpace ? { dataSpace: ctx.dataSpace } : {}) };
+  return new Session(p, { ...emptyQuery(source), parameters: parametersOf(lambda) }, undefined, { lambda, reason: loaded.reason });
 }
 
 export function newQueryId(): string {

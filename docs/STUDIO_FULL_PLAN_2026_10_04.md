@@ -100,6 +100,15 @@ Left out of this plan when it was written; the user ruled it next after A0 (2026
   single-execution service, in the tab; RESULTS shows the rows, count, time and SQL. The SQL playground runs SQL on the
   tab's DuckDB with the model's rows. `//studio:verify_test` runs a function, a service, a parameterised function and
   the playground at both levels. Left for A5: the results in DataCube's grid, and mapping execution (the query builder).
+- **A5 step 1 done.** Query's builder is embedded in Studio (`query/src/embed.ts`, as upstream Studio embeds
+  legend-query-builder): "Edit Query" on a service opens its query in the form (full screen, over the workspace's
+  model, on the session's engine -- in the tab, the model's own rows); Save Query writes the query's Pure text into the
+  service's text (`studio/src/model/service-query.ts`: only the lambda after `query:` replaced, then read back by the
+  grammar and refused if it differs), an undoable edit pushed with the workspace. "Query…" on a class opens a new query
+  on it, and "Execute…" on a mapping a query on the first class it maps (upstream's mapping execution); both run and
+  are kept nowhere. The results are Query's: its grid and DataCube's. `//studio:verify_test` builds a column in the
+  form, saves it into a service and runs the service's text, and executes party's mapping (5 rows). Next: a
+  function's body in the builder, and mapping tests (with A4).
 
 ### A1. One in-tab engine for every app
 - Move Query's `BrowserEngine` (planner → SQL → DuckDB/warehouse, engine-shaped answers) into `engine-client/` as **the
