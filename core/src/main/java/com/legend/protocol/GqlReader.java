@@ -139,7 +139,7 @@ final class GqlReader {
 
     private static final Map<String, Function<Wire, Gql.Value>> VALUES = Map.of(
             "intValue", w -> new Gql.IntValue(w.lng("value")),
-            "floatValue", w -> new Gql.FloatValue(w.decimal("value").doubleValue()),
+            "floatValue", w -> new Gql.FloatValue(w.dbl("value")),
             "stringValue", w -> new Gql.StringValue(w.str("value")),
             "booleanValue", w -> new Gql.BooleanValue(w.bool("value")),
             "nullValue", w -> new Gql.NullValue(),
