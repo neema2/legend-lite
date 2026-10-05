@@ -59,6 +59,8 @@ test_suite(
         "//warehouse:tests",
         # the SQL API compiled to WebAssembly (P3-24)
         "//warehouse:sqlapi_wasm_build_test",
+        # the engine-runner binaries through their launchers (P3-26)
+        "//tools/engine-runner:smoke_test",
         # misc
         "//json:tests",
         "//pure-protocol:twins_test",

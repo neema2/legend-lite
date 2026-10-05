@@ -52,12 +52,21 @@ def _check_js_tests():
                  (native.package_name(), rule["name"]))
 
 def _check_libraries():
-    # A19 (Bazel workplan P3-28): every first-party java_library is a legend_java_library (tools/java/defs.bzl), so
-    # every compile takes LEGEND_JAVACOPTS: the Error Prone locale checks hold repository-wide, not only in core
+    # A19 (Bazel workplan P3-28): every first-party Java compile takes LEGEND_JAVACOPTS (tools/java/defs.bzl), so the
+    # Error Prone locale checks hold repository-wide: a java_library is a legend_java_library, and a java_binary or
+    # java_test that compiles sources of its own comes from legend_java_binary or a junit_test macro (G16)
+    makers = {
+        "java_library": ["legend_java_library"],
+        "java_binary": ["legend_java_binary"],
+        "java_test": _JUNIT_MACROS,
+    }
     for rule in native.existing_rules().values():
-        if rule["kind"] == "java_library" and rule.get("generator_function") != "legend_java_library":
-            fail("//%s:%s is a java_library not made by legend_java_library (tools/java/defs.bzl): every first-party library takes the shared javacopts (A19)" %
-                 (native.package_name(), rule["name"]))
+        kind = rule["kind"]
+        if kind not in makers or rule.get("generator_function") in makers[kind]:
+            continue
+        if kind == "java_library" or rule.get("srcs"):
+            fail("//%s:%s is a %s with sources not made by %s: every first-party compile takes the shared javacopts (A19)" %
+                 (native.package_name(), rule["name"], kind, " or ".join(makers[kind])))
 
 def _check_config_settings():
     # P1-19 (G-nn): platform policy lives in //tools/platforms, so no other package declares a config_setting

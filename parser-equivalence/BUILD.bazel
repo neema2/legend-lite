@@ -188,10 +188,8 @@ junit_test(
 # The corpus machinery they share finds files through Repo, which a build action
 # points at its own inputs (-Dlegend.repo.root: the action's working directory,
 # where declared inputs sit at their repository paths).
-# THE FIXTURE HARVEST's classpath: the shims first (:pe_tests_lib), then the
-# engine's grammar and compiler tests-jars (grammar before compiler — the order
-# the snapshot's dedup is minted in) and json-unit. QUARANTINED: nothing else
-# depends on these jars, whose test-scoped registrations would alter the oracle.
+# The fixture harvest's shims (P3-31): the upstream classes of the same names, replaced, in a library of their own
+# so :harvest_lib can put them first.
 legend_java_library(
     name = "harvest_shims",
     # not yet written to the null discipline (Bazel workplan P1-20)
@@ -213,6 +211,10 @@ legend_java_library(
     ],
 )
 
+# THE FIXTURE HARVEST's classpath: the shims first (:harvest_shims), then the
+# engine's grammar and compiler tests-jars (grammar before compiler — the order
+# the snapshot's dedup is minted in) and json-unit. QUARANTINED: nothing else
+# depends on these jars, whose test-scoped registrations would alter the oracle.
 legend_java_library(
     name = "harvest_lib",
     testonly = True,

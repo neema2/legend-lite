@@ -23,6 +23,7 @@ JUnitMain lists every one it accepts, and any other argument fails the run.
 
 load("@rules_java//java:defs.bzl", "java_test")
 load("//tools/deps:pools.bzl", "check_pool_use")
+load("//tools/java:defs.bzl", "LEGEND_JAVACOPTS")
 
 def junit_test(
         name,
@@ -77,5 +78,7 @@ def junit_test(
         data = inputs,
         deps = deps,
         runtime_deps = runtime_deps + ["//tools/junit"],
+        # a test's own sources take the shared javacopts too: the locale checks (P3-28) hold in test code
+        javacopts = LEGEND_JAVACOPTS + kwargs.pop("javacopts", []),
         **kwargs
     )
