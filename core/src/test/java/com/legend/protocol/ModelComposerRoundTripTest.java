@@ -33,6 +33,7 @@ class ModelComposerRoundTripTest {
         return Stream.of(
                 // the domain: classes with generalization, constraints, defaults, derived properties, annotations
                 """
+                ###Pure
                 Profile my::Tags
                 {
                   stereotypes: [important, legacy];
@@ -95,6 +96,7 @@ class ModelComposerRoundTripTest {
                 """,
                 // a model-to-model mapping with an enumeration mapping, a filter and a model connection runtime
                 """
+                ###Pure
                 Class my::Source
                 {
                   name: String[1];
@@ -156,6 +158,7 @@ class ModelComposerRoundTripTest {
                 """,
                 // a relational store, its mapping, connection, runtime and a service over them
                 """
+                ###Pure
                 Class my::Firm
                 {
                   name: String[1];
@@ -259,6 +262,7 @@ class ModelComposerRoundTripTest {
                 """,
                 // embedded data, a data space, a diagram, an external format binding and a text
                 """
+                ###Pure
                 Class my::Thing
                 {
                   name: String[1];
