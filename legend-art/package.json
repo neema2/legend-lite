@@ -1,0 +1,6 @@
+{
+  "name": "@legend-lite/legend-art",
+  "private": true,
+  "type": "module",
+  "description": "The look every app here shares: upstream Legend's colour tokens, icons and type. No npm dependencies."
+}

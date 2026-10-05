@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { engineClientRequire } from '../../engine-client/src/node-require.ts';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
@@ -32,9 +32,8 @@ let elements: ModelElement[];
 const parser = plannerFor(MODEL, 'demo::trading::Runtime');
 
 before(async () => {
-  const require = createRequire(import.meta.url);
-  const duckdb = require('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(require.resolve('@duckdb/duckdb-wasm/blocking'));
+  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
+  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
   const db = await duckdb.createDuckDB(
     {
       mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },

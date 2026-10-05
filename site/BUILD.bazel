@@ -1,18 +1,21 @@
-# ONE SITE, BOTH APPS (the user, 2026-10-01: "the private browser sharing mode with no server"):
-# Legend Query and DataCube from one origin -- /query/ and /datacube/, each its own site exactly as
+# ONE SITE, EVERY APP (the user, 2026-10-01: "the private browser sharing mode with no server"; Studio joined
+# 2026-10-05):
+# Legend Query, DataCube and Studio from one origin -- /query/, /datacube/ and /studio/, each its own site exactly as
 # it is built -- so the saved queries Query keeps in this browser (query-store, IndexedDB) are the
-# ones DataCube opens. A browser keeps storage per origin: two ports would be two stores.
+# ones DataCube opens, and the projects Studio keeps here (sdlc-client's legend-projects) are every app's. A
+# browser keeps storage per origin: two ports would be two stores.
 load("@aspect_rules_js//js:defs.bzl", "js_binary")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("//tools/guards:defs.bzl", "guards_package")
 
-# `bazel build //site:dist`: the folder for any static host -- both apps, no backend.
+# `bazel build //site:dist`: the folder for any static host -- every app, no backend.
 copy_to_directory(
     name = "dist",
     srcs = [
         "index.html",
         "//datacube:site",
         "//query:site",
+        "//studio:site",
     ],
     out = "dist",
 )

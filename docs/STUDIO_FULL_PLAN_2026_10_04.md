@@ -63,6 +63,20 @@ What exists to build on:
   look. Screenshot per screen in `//studio:verify_test`.
 - **Done when:** side-by-side screenshots against the census show no unexplained difference.
 
+### A0½. Query and DataCube open models by name (design Phase 3; added 2026-10-05)
+Left out of this plan when it was written; the user ruled it next after A0 (2026-10-05).
+- Query and DataCube load a model from Depot by coordinates instead of the demo's `.pure` config: a project, a
+  version, then a data space or class (upstream Query's pickers), the version's text and its dependency closure from
+  Depot (its nearest-wins resolution, already Studio's) handed to the planner. In the page, Depot is the same
+  WebAssembly module Studio runs, on the same origin (`//site`), so a project Studio publishes is one Query opens.
+- **The project line first** (the user: "start with non-releases first"): Depot's `master-SNAPSHOT` -- the line's
+  head, read live, upstream Query's HEAD -- is the default; releases are the same picker with a fixed version. A saved
+  query pins the version it was built on (a snapshot follows the line, a release does not), with the upgrade path.
+- A workspace's unmerged edits are not Depot's: upstream reads those from inside Studio ("Query..." on a class), so
+  they come with A5.
+- **Done when:** `//site:verify` creates a project in Studio, commits a class, and Query opens it at HEAD and runs a
+  query; then releases it and opens 1.0.0.
+
 ### A1. One in-tab engine for every app
 - Move Query's `BrowserEngine` (planner → SQL → DuckDB/warehouse, engine-shaped answers) into `engine-client/` as **the
   in-tab legend engine**: `execute`, `generatePlan` (SQL shown), `lambdaRelationType`, `lambdaReturnType`, `compile`
@@ -208,8 +222,8 @@ Measured by feature, against both stacks (ours and a real deployment). **Must-ha
 
 | Milestone | Contents | Proves | Core / `main` coordination |
 |---|---|---|---|
-| **M0** | Land `studio` on `main` (full gate, PR, review) | — | the line's announced edits |
-| **M1** | A0 look + A1 in-tab engine + A2 test data + A3 run function/service/mapping | **D1 minus tests**: write → run on DuckDB in the tab → see rows | none beyond A1 moves |
+| **M0** | Land `studio` on `main` (full gate, PR, review) -- **done 2026-10-05** (PR #23, 6f86c86dd, `main` green on every lane) | — | the line's announced edits |
+| **M1** | A0 look + **A0½ Query and DataCube by name (the snapshot first)** + A1 in-tab engine + A2 test data + A3 run function/service/mapping | **D1 minus tests**: write → run on DuckDB in the tab → see rows; what Studio publishes, Query opens | none beyond A1 moves |
 | **M2** | A4 tests (runTests in core + WASM + UI) + A5 query builder in Studio + A6 Snap | **D1 complete** | runTests in core: announce |
 | **M3** | B1 round trip (printer + reader, corpus and showcase parity) | the hinge for D2 | core: announce |
 | **M4** | B2 + B3 + B4: our Studio on real sdlc/depot/engine; v1 function resolution; engine-dialect compile | **D2** | function-resolution fix in core: announce |
@@ -222,16 +236,26 @@ protocol vs. Studio/engine-client). M5's features are built once and work on bot
 
 ---
 
-## 5. Decisions to make (recommendations given)
+## 5. Decisions
 
-1. **Where tests' rows live in the browser** — upstream runs mapping tests on H2 engine-side; we run them on DuckDB in
-   the tab. Recommend: DuckDB, recorded as a departure, with the real engine as the oracle on the showcase projects (A4).
-2. **Engine-dialect compile in the tab** when the session targets a real engine (B4) — recommend yes: live errors must
-   match the engine the user deploys to.
-3. **Merging the page modules** (planner + SDLC/Depot rules in one WebAssembly module, so the grammar downloads once) —
-   recommend at M1, when the in-tab engine joins Studio and size starts to matter.
-4. **Forms edit text surgically** (a parser that keeps comments and whitespace as data, design §3 d) rather than
-   reprinting — recommend yes, so a form edit never loses a comment; it is the one large core piece in M5.
+1. **Tests run anywhere; the browser first** (ruled 2026-10-04, the user: "yes on tests running in browser as v1, but
+   they really should be able to be run anywhere"). The test runner -- the engine's assertion and embedded-data
+   semantics -- is written ONCE in core, like the SDLC rules, and runs in the tab (WebAssembly, rows in DuckDB-WASM),
+   on lite's server (`testable/runTests`), and Studio can send the same tests to a real engine's `runTests`. The browser
+   is v1; the server route follows in the same milestone. Upstream runs mapping tests on H2 engine-side; lite runs them on
+   DuckDB -- a recorded departure, with the real engine as the oracle on the showcase projects.
+2. **Engine rules by default; a "full Pure" mode as a per-project choice** (the user: "engine rules in the tab for sure as
+   default, but maybe a special tab to run in full pure mode as well"). lite compiles two dialects: `LEGEND_ENGINE` (what
+   legend-engine accepts) and `LEGEND_LITE` (more of legend-pure's language). Recommended refinement: the mode belongs to
+   the PROJECT (in its configuration), not to an editor tab -- whether saved text is valid must not depend on which tab it
+   was typed in, and the release gate must use the same rules as the editor. Engine mode is the default and is forced
+   when the project lives on a real deployment (D2); full-Pure projects show a badge, and their releases say so.
+3. **One WebAssembly module per app** (the user: "def a single wasm for studio, maybe stripped for datacube and query").
+   TeaVM compiles only what an entry class reaches, so each app gets its own build from one source: Studio's (compiler,
+   planner, SDLC and Depot rules, test runner), Query's and DataCube's (planner and grammar only, as today). At M1.
+4. **Forms edit the text, never reprint it** -- see the recommendation in the answer of 2026-10-04: start with
+   position-based splices (the parser's source positions, which exist today), move to a lossless syntax tree (design §3 d)
+   when forms need it.
 
 ## 6. Risks
 

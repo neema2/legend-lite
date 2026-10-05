@@ -5,7 +5,7 @@
 // pivot-generated column names -- only appear against the real engine.
 
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
+import { engineClientRequire } from '../../engine-client/src/node-require.ts';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
@@ -18,15 +18,14 @@ import type { ArrowishConnection } from '../../engine-client/src/duckdb.ts';
 import { EpochGuard, STALE } from '../src/epoch.ts';
 import { columnIndex } from '../../engine-client/src/result.ts';
 
-const require = createRequire(import.meta.url);
 
 let engine: DuckDbEngine;
 let conn: ArrowishConnection;
 let db: { connect(): unknown; instantiate(): Promise<unknown> };
 
 before(async () => {
-  const duckdb = require('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(require.resolve('@duckdb/duckdb-wasm/blocking'));
+  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
+  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
   db = await duckdb.createDuckDB(
     {
       mvp: {

@@ -1,0 +1,53 @@
+/* legend-art, lite: how icons sit (icon.ts) and upstream's element-type colours (type-icon.ts). The colours are
+   upstream's _extensions.scss tokens (legend-application style/_extensions.scss:17-147; census
+   studio/docs/UPSTREAM_STUDIO_LOOK.md 3.3), the same in every theme. */
+:root {
+  --color-class: #8a58ab;
+  --color-enumeration: #39cca2;
+  --color-association: #bbb;
+  --color-profile: #aad468;
+  --color-measure: #39cca2;
+  --color-unit: #39cca2;
+  --color-primitive: #477cc5;
+  --color-enum-value: #34a853;
+  --color-function: #7fdbff;
+  --color-mapping: #16b8bf;
+  --color-runtime: #ea4646;
+  --color-connection: #ffca34;
+  --color-database: #e97f49;
+  --color-flat-data: #e97f49;
+  --color-service: #40a6ff;
+  --color-data: #6391d0;
+  --color-file-generation: #1c89d2;
+  --color-data-space: #1c89d2;
+  --color-diagram: #bb619b;
+  /* tree roots that are not the workspace's own (Explorer.tsx:1034-1051) */
+  --color-generated: #f05577;
+  --color-system: #6391d0;
+  --color-dependency: #a5ea81;
+}
+
+/* an icon (icon.ts): the SVG is 1em, so font-size sizes it and color paints it */
+.icon { display: inline-flex; line-height: 0; }
+.icon svg { display: block; }
+
+/* a type icon (TypeIcon.tsx; _icon.scss:19-32): flex-centred, the letters in Raleway 900 */
+.type-icon { display: flex; align-items: center; justify-content: center; }
+.type-icon--letter { font-family: Raleway, sans-serif; font-weight: 900; }
+.type-icon--unknown { color: var(--color-text-disabled); }
+.color--class { color: var(--color-class); }
+.color--enumeration { color: var(--color-enumeration); }
+.color--association { color: var(--color-association); }
+.color--profile { color: var(--color-profile); }
+.color--measure { color: var(--color-measure); }
+.color--function { color: var(--color-function); }
+.color--mapping { color: var(--color-mapping); }
+.color--runtime { color: var(--color-runtime); }
+.color--connection { color: var(--color-connection); }
+.color--database { color: var(--color-database); }
+.color--flat-data { color: var(--color-flat-data); }
+.color--service { color: var(--color-service); }
+.color--data { color: var(--color-data); }
+.color--file-generation { color: var(--color-file-generation); }
+.color--data-space { color: var(--color-data-space); }
+.color--diagram { color: var(--color-diagram); }

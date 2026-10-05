@@ -19,6 +19,7 @@ js_library(
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
     deps = [
         "//depot-client:depot_client",
+        "//legend-art:legend_art",
         "//sdlc-client:sdlc_client",
     ],
 )
@@ -63,8 +64,8 @@ esbuild.esbuild(
 copy_to_directory(
     name = "vendor",
     srcs = [
-        ":node_modules/@fontsource/roboto",
-        ":node_modules/@fontsource/roboto-mono",
+        "//legend-art:fonts",
+        "//legend-art:styles",
         "//sdlc-server:page",
         "//wasm:planner",
     ],
@@ -74,21 +75,28 @@ copy_to_directory(
         "wasm/planner/wasm-gc-module-runtime.js",
         "sdlc-server/page/classes.wasm",
         "sdlc-server/page/wasm-gc-module-runtime.js",
-        "**/files/roboto-latin-400-normal.woff2",
-        "**/files/roboto-latin-500-normal.woff2",
-        "**/files/roboto-latin-700-normal.woff2",
-        "**/files/roboto-mono-latin-400-normal.woff2",
+        "legend-art/fonts/roboto-latin-400-normal.woff2",
+        "legend-art/fonts/roboto-latin-500-normal.woff2",
+        "legend-art/fonts/roboto-latin-700-normal.woff2",
+        "legend-art/fonts/roboto-mono-latin-400-normal.woff2",
+        "legend-art/fonts/roboto-mono-latin-700-normal.woff2",
+        "legend-art/fonts/raleway-latin-900-normal.woff2",
+        "legend-art/fonts/LICENSE-*.txt",
+        "legend-art/src/*.css",
     ],
     replace_prefixes = {
         "wasm/planner/": "planner/",
         "sdlc-server/page/": "sdlc/",
-        "**/files/": "fonts/",
+        "legend-art/fonts/": "fonts/",
+        "legend-art/src/": "legend-art/",
     },
 )
 
 # Everything a browser fetches.
 filegroup(
     name = "site",
+    # served beside Query and DataCube from one origin (//site): they share the browser's stores (IndexedDB)
+    visibility = ["//site:__pkg__"],
     srcs = glob([
         "demo/*.html",
         "demo/*.json",
@@ -159,6 +167,7 @@ typescript.tsc_test(
         "package.json",
         "tsconfig.json",
         "//depot-client:depot_client",
+        "//legend-art:legend_art",
         "//sdlc-client:sdlc_client",
         "//tools/js:runfiles",
         ":node_modules/@types/node",

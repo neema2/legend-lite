@@ -1,0 +1,118 @@
+# legend-art, lite (README.md): the look every app here shares -- upstream Legend's colour tokens, icons and type.
+# No npm dependency: icons and fonts come from archives MODULE.bazel pins by their registry integrity.
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary")
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/guards:defs.bzl", "guards_package")
+
+js_library(
+    name = "legend_art",
+    srcs = glob(["src/**/*.ts"]) + ["package.json"],
+    visibility = [
+        "//query:__pkg__",
+        "//studio:__pkg__",
+    ],
+)
+
+# The shared stylesheets (tokens.css: upstream's colour tokens, dark and both light themes), served with each site
+# from ./vendor/legend-art/ and linked before the app's own.
+filegroup(
+    name = "styles",
+    srcs = glob(["src/*.css"]),
+    visibility = [
+        "//query:__pkg__",
+        "//studio:__pkg__",
+    ],
+)
+
+# Upstream Legend's type (legend-art _fonts.scss): Roboto, Roboto Mono, and Raleway 900 for Query's type letters, from
+# the pinned @fontsource packages (MODULE.bazel: @fontsource_*, each by its registry sha512). The files the apps serve,
+# with each family's SIL OFL 1.1 licence beside them as LICENSE-<family>.txt, as one folder; each site serves it from
+# ./vendor/fonts/, never a font CDN. No font is checked in.
+_FONT_FILES = {
+    "raleway": ["raleway-latin-900-normal"],
+    "roboto": [
+        "roboto-latin-300-normal",
+        "roboto-latin-400-normal",
+        "roboto-latin-500-normal",
+        "roboto-latin-700-normal",
+        "roboto-latin-900-normal",
+        # DataCube's accented letters
+        "roboto-latin-ext-400-normal",
+        "roboto-latin-ext-500-normal",
+        "roboto-latin-ext-700-normal",
+    ],
+    "roboto_mono": [
+        "roboto-mono-latin-400-normal",
+        "roboto-mono-latin-700-normal",
+    ],
+}
+
+[copy_file(
+    name = "license_" + family,
+    src = "@fontsource_%s//:LICENSE" % family,
+    out = "licenses/LICENSE-%s.txt" % family.replace("_", "-"),
+) for family in _FONT_FILES]
+
+copy_to_directory(
+    name = "fonts",
+    srcs = ["@fontsource_%s//:files/%s.woff2" % (family, f) for family, files in _FONT_FILES.items() for f in files] +
+           [":license_" + family for family in _FONT_FILES],
+    include_external_repositories = ["*fontsource_*"],
+    replace_prefixes = {
+        "files/": "",
+        "licenses/": "",
+    },
+    visibility = [
+        "//datacube:__pkg__",
+        "//query:__pkg__",
+        "//studio:__pkg__",
+    ],
+)
+
+# THE ICONS: upstream Legend's, as SVG strings (src/icons.ts), generated from the pinned react-icons (MODULE.bazel's
+# @react_icons, legend-studio's version) -- the one generator for every app here; `bazel run
+# //legend-art:update_generated` writes them, and //:generated's diff test fails when the committed copy is stale.
+js_binary(
+    name = "icons_tool",
+    entry_point = "tools/icons.mjs",
+)
+
+# the react-icons sets tools/icons.mjs's table draws from, as one tree in this package's output (rules_js does not
+# copy another repository's files)
+_ICON_SETS = [
+    "bs",
+    "fa",
+    "fi",
+    "go",
+    "io5",
+    "md",
+    "ri",
+    "si",
+    "tb",
+    "vsc",
+]
+
+copy_to_directory(
+    name = "react_icons",
+    srcs = ["@react_icons//:%s/index.mjs" % s for s in _ICON_SETS],
+    include_external_repositories = ["*react_icons"],
+)
+
+js_run_binary(
+    name = "icons_gen",
+    srcs = [":react_icons"],
+    args = ["$(rootpath :react_icons)"],
+    stdout = "icons.gen.ts",
+    tool = ":icons_tool",
+)
+
+write_source_files(
+    name = "update_generated",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-art/src/icons.ts is generated from the pinned react-icons -- regenerate: bazel run //legend-art:update_generated",
+    files = {"src/icons.ts": ":icons_gen"},
+    visibility = ["//:__pkg__"],
+)
+
+guards_package()

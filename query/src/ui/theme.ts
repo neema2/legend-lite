@@ -15,14 +15,15 @@ function stored(): 'light' | 'dark' {
 
 function apply(theme: 'light' | 'dark'): void {
   const root = document.documentElement;
-  if (theme === 'light') root.dataset['theme'] = 'light';
+  // upstream's name for Query's light theme (legend-art/src/tokens.css)
+  if (theme === 'light') root.dataset['theme'] = 'legacy-light';
   else delete root.dataset['theme'];
   root.dataset['dcTheme'] = theme;
 }
 
 /** The theme now. */
 export function theme(): 'light' | 'dark' {
-  return document.documentElement.dataset['theme'] === 'light' ? 'light' : 'dark';
+  return document.documentElement.dataset['theme'] === 'legacy-light' ? 'light' : 'dark';
 }
 
 /** Put the kept theme on the page (dark when none was kept). */

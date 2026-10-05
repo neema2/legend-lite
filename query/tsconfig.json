@@ -23,5 +23,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "test", "demo", "../engine-client/src", "../pure-protocol/src", "../query-store/src"]
+  "include": ["src", "test", "demo", "../engine-client/src", "../legend-art/src", "../pure-protocol/src", "../query-store/src"]
 }

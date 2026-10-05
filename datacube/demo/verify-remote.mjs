@@ -12,7 +12,7 @@
 // proves the writer and the reader agree.
 //
 // Run: bazel run //datacube:verify_remote
-import { createRequire } from 'node:module';
+import { engineClientRequire } from '../../engine-client/src/node-require.ts';
 import { createServer } from 'node:http';
 import { readFile, rm } from 'node:fs/promises';
 import { extname } from 'node:path';
@@ -22,7 +22,6 @@ import { servedPath } from './static-files.ts';
 
 import { chromium } from 'playwright';
 
-const require = createRequire(import.meta.url);
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PORT = 8741;
 
@@ -33,8 +32,8 @@ const check = (name, ok, detail = '') => {
 };
 
 // ---- build a Parquet file with node's duckdb ------------------------
-const duckdb = require('@duckdb/duckdb-wasm/blocking');
-const dist = path.dirname(require.resolve('@duckdb/duckdb-wasm/blocking'));
+const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
+const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
 const db = await duckdb.createDuckDB(
   {
     mvp: {

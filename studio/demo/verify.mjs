@@ -46,36 +46,49 @@ const TRADING = 'org.finos.lite.demo:trading';
 
 async function loop(browser, name, query) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  // generous waits: under a full gate run the machine is loaded, and the in-tab compile and the page's SDLC take
+  // longer than Playwright's 30 s default (//studio:verify_test failed only then, 2026-10-05)
+  page.setDefaultTimeout(120_000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const shot = (n) => page.screenshot({ path: join(OUT, `${name}-${n}.png`) });
-  const statusText = (id) => page.getByTestId(id).textContent();
+  // the status bar's problems button says when the compiler is done and how many errors it found (data-state,
+  // data-errors): upstream's bar shows icons and counts, not words
+  const waitCompiled = () => page.waitForFunction(() => { const b = document.querySelector('[data-testid=problems-count]'); return b?.dataset.state === 'idle' && b.dataset.errors === '0'; }, undefined, { timeout: 120_000 });
   const waitStatus = (id, pattern) => page.waitForFunction(([id, source]) => new RegExp(source).test(document.querySelector(`[data-testid=${id}]`)?.textContent ?? ''), [id, pattern.source], { timeout: 120_000 });
   try {
     await page.goto(`${SITE}/demo/index.html${query}`);
     // 1. the demo projects, published through the SDLC (every release through the compile gate)
     await page.getByTestId('load-demo').click({ timeout: 60_000 });
     await waitStatus('demo-status', /Demo projects published/);
-    await page.locator(`[data-testid=projects] .setup-item[data-id="${TRADING}"]`).click();
+    await page.getByTestId('project-selector').click();
+    await page.locator(`[data-testid=project-selector-menu] [data-id="${TRADING}"]`).click();
     await shot('1-projects');
     // 2. a workspace on trading: it compiles in the tab, with its dependencies from Depot
     await page.getByTestId('new-workspace').click();
     await page.locator('.dialog input').fill('dev');
+    await shot('1-dialog');
     await page.locator('.dialog .btn-primary').click();
     await page.waitForSelector('[data-testid=explorer] .element');
-    await waitStatus('problems-count', /^0 problems/);
+    await waitCompiled();
     // 3. an element using a type from a dependency, then saved
     await page.getByTestId('new-element').click();
     await page.getByTestId('new-path').fill('demo::trading::Desk');
     await page.locator('.dialog .btn-primary').click();
     await page.locator('.monaco-editor .view-lines').click();
     await page.keyboard.press('ControlOrMeta+A');
-    await page.keyboard.type('// a trading desk, quoting in one currency\nClass demo::trading::Desk\n{\nname: String[1];\nbase: demo::types::Currency[1];\n}\n');
-    await waitStatus('problems-count', /^0 problems/);
+    // one input event, as a paste: keystroke by keystroke, Monaco's bracket auto-closing raced the typed '}' (a
+    // stray second brace, 2026-10-04)
+    await page.keyboard.insertText('// a trading desk, quoting in one currency\nClass demo::trading::Desk\n{\nname: String[1];\nbase: demo::types::Currency[1];\n}\n');
+    await waitCompiled();
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();
-    await waitStatus('changes-count', /no local changes/);
+    await waitStatus('changes-count', /no changes detected/);
+    // the status bar's problems counts open upstream's Problems panel
+    await page.getByTestId('problems-count').click();
+    await page.getByText('No problems have been detected in the workspace.').waitFor();
     await shot('2-saved');
+    await page.locator('.panel-group__action[title=Close]').click();
     // 4. a review, committed onto the project line (the workspace closes)
     await page.locator('[data-activity=review]').click();
     await page.getByTestId('review-title').fill('Add the desk');
@@ -89,13 +102,25 @@ async function loop(browser, name, query) {
     await page.waitForSelector('[data-testid=explorer] .element');
     assert.ok((await page.getByTestId('explorer').textContent()).includes('Desk'), 'the committed element is on the project line');
     await page.locator('[data-activity=project]').click();
+    await page.locator('[data-project-tab=release]').click();
     await page.getByTestId('release-notes').fill('the desk');
     await page.getByTestId('release-minor').click();
-    await page.waitForFunction(() => /1\.1\.0/.test(document.querySelector('[data-testid=versions]')?.textContent ?? ''), null, { timeout: 60_000 });
+    await page.waitForFunction(() => /1\.1\.0/.test(document.querySelector('[data-testid=latest-release]')?.textContent ?? ''), null, { timeout: 60_000 });
     await shot('3-released');
+    await page.locator('[data-project-tab=versions]').click();
+    await page.getByTestId('versions').waitFor();
+    assert.match(await page.getByTestId('versions').textContent(), /1\.1\.0/);
+    await page.locator('[data-project-tab=overview]').click();
+    await page.getByTestId('dependencies').waitFor();
     assert.match(await page.getByTestId('dependencies').textContent(), /org\.finos\.lite\.demo:party : 1\.0\.0/);
+    // the activity bar's sun/moon switch: upstream's default-light, kept, and back
+    await page.getByTestId('theme-toggle').click();
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'default-light');
+    await shot('4-light');
+    await page.getByTestId('theme-toggle').click();
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), undefined);
     assert.deepEqual(errors, []);
-    console.log(`${name}: the loop passed (${await statusText('problems-count')})`);
+    console.log(`${name}: the loop passed (${await page.getByTestId('problems-count').getAttribute('data-errors')} errors)`);
   } catch (e) {
     await shot('failed');
     throw new Error(`${name}: ${e.message}\npage errors: ${errors.join('\n')}`);

@@ -11,11 +11,16 @@ import { renderEditor } from '../ui/editor.ts';
 import { registerPure } from '../ui/pure-language.ts';
 import { loadDemoProjects, type Manifest } from './demo-projects.ts';
 import { renderSetup } from '../ui/setup.ts';
+import { followTheme } from '../ui/theme.ts';
 
 export async function start(root: HTMLElement, config: StudioConfig, workerUrl: string): Promise<void> {
   (globalThis as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
     getWorker: () => new Worker(new URL('./editor.worker.js', globalThis.location.href), { type: 'module' }),
   };
+  followTheme();     // the kept theme before anything paints (theme.ts)
+  // the code editor's font, loaded before any editor is made, so Monaco measures with it (upstream:
+  // CodeEditorUtils.ts:215-228); a font that will not load leaves the fallback, not a broken page
+  await Promise.all(["400 14px 'Roboto Mono'", "700 14px 'Roboto Mono'"].map((f) => document.fonts.load(f))).catch(() => undefined);
   registerPure(monaco);
   root.append(h('div', { class: 'loading' }, 'Loading Legend Studio…'));
   const { client, depot, where } = await connect(config);

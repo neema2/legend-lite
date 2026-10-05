@@ -41,7 +41,7 @@
 //   ENGINE=http://127.0.0.1:6300 bazel run //datacube:verify_engine_differential
 //   ONLY=pivot bazel run //datacube:verify_engine_differential
 
-import { createRequire } from 'node:module';
+import { engineClientRequire } from '../../engine-client/src/node-require.ts';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
@@ -95,9 +95,8 @@ async function seededRows() {
 // ---- the local plane, in this process ------------------------------
 
 async function localPlane(rows) {
-  const require = createRequire(import.meta.url);
-  const duckdb = require('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(require.resolve('@duckdb/duckdb-wasm/blocking'));
+  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
+  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
   const db = await duckdb.createDuckDB(
     {
       mvp: {

@@ -10,10 +10,14 @@ import { SdlcError } from '../../../sdlc-client/src/client.ts';
 import type { Compiler } from '../backend/planner.ts';
 import { ELEMENT_KINDS, splitPath } from '../model/templates.ts';
 import { Workspace, type OpenFile, type Problem } from '../model/workspace.ts';
-import { clear, dialog, h, toast } from './dom.ts';
-import { PURE } from './pure-language.ts';
+import { icon } from '../../../legend-art/src/icon.ts';
+import { typeIcon } from '../../../legend-art/src/type-icon.ts';
+import type { IconName } from '../../../legend-art/src/icons.ts';
+import { clear, dialog, h, headerAction, menu, sideHead, subPanel, toast } from './dom.ts';
+import { editorTheme, PURE } from './pure-language.ts';
 import { field } from './setup.ts';
 import { renderProject, renderReview } from './sdlc-panels.ts';
+import { theme, toggleTheme } from './theme.ts';
 
 export interface EditorContext {
   readonly client: SdlcClient;
@@ -54,33 +58,62 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   const sideBar = h('div', { class: 'side-bar' });
   const tabsBar = h('div', { class: 'tabs', 'data-testid': 'tabs' });
   const editorHost = h('div', { class: 'editor-host' });
+  // upstream's empty-editor splash (census 4.2), its shortcuts block: the ones this Studio has, in upstream's words
+  // (upstream's cards -- showcases, documentation -- have nothing to point at here yet)
   const empty = h('div', { class: 'editor-empty' },
-    h('div', { class: 'editor-empty-title' }, 'Open an element from the explorer, or create one'),
-    h('div', { class: 'shortcuts' },
-      shortcut('New element', 'Ctrl+Shift+N'), shortcut('Save (push local changes)', 'Ctrl+S'), shortcut('Compile', 'F9')));
-  const problemsPanel = h('div', { class: 'panel-body', 'data-testid': 'problems' });
-  const problemsTitle = h('div', { class: 'panel-title' }, 'Problems');
+    h('div', { class: 'editor-empty__content' },
+      h('div', { class: 'editor-empty__title' }, 'Essential Keyboard Shortcuts'),
+      h('div', { class: 'shortcuts' },
+        shortcut('Push Local Changes', ['Ctrl', 'S']), shortcut('Compile', ['F9']), shortcut('New Element', ['Ctrl', 'Shift', 'N']))));
+  // upstream's panel group (census 6): closed at first; the PROBLEMS tab with its count, expand and close; opened
+  // to 300px from the status bar (its problems counts, or the terminal toggle)
+  const problemsPanel = h('div', { class: 'panel-group__content', 'data-testid': 'problems' });
+  const problemsBadge = h('div', { class: 'panel-group__badge' });
+  let panelOpen = false;
+  let panelMaximised = false;
+  const panel = h('div', { class: 'panel-group' });
+  const main = h('div', { class: 'main' });
+  const renderPanel = (): void => {
+    panel.classList.toggle('panel-group--closed', !panelOpen);
+    main.classList.toggle('main--panel-maximised', panelOpen && panelMaximised);
+    clear(panel);
+    panel.append(
+      h('div', { class: 'panel-group__header' },
+        h('div', { class: 'panel-group__tabs' }, h('button', { class: 'panel-group__tab panel-group__tab--active' }, 'Problems', problemsBadge)),
+        h('div', { class: 'panel-group__actions' },
+          h('button', { class: 'panel-group__action', title: 'Toggle expand/collapse', onclick: () => { panelMaximised = !panelMaximised; renderPanel(); } },
+            icon(panelMaximised ? 'chevronDown' : 'chevronUp', '18px')),
+          h('button', { class: 'panel-group__action', title: 'Close', onclick: () => { panelOpen = false; renderPanel(); renderStatus(); } }, icon('x', '18px')))),
+      problemsPanel);
+  };
+  const openPanel = (): void => {
+    panelOpen = true;
+    renderPanel();
+    renderStatus();
+  };
   const status = h('div', { class: 'status-bar' });
   const activityBar = h('div', { class: 'activity-bar' });
 
-  root.append(h('div', { class: 'studio' },
-    activityBar,
-    sideBar,
-    h('div', { class: 'main' },
-      tabsBar,
-      h('div', { class: 'editor-area' }, editorHost, empty),
-      h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, problemsTitle), problemsPanel)),
-    status));
+  main.append(tabsBar, h('div', { class: 'editor-area' }, editorHost, empty), panel);
+  root.append(h('div', { class: 'studio' }, activityBar, sideBar, main, status));
+  renderPanel();
 
+  // upstream's options (census 5.2, CodeEditorUtils.ts:51-78); what it leaves unset (minimap, line height, scrolling
+  // past the end) stays Monaco's default here too
   const editor = monaco.editor.create(editorHost, {
     model: null,
-    theme: 'vs-dark',
+    theme: editorTheme(theme() === 'light'),
     automaticLayout: true,
-    fontFamily: "'Roboto Mono', monospace",
-    fontSize: 13,
-    minimap: { enabled: false },
+    fontFamily: "'Roboto Mono'",
+    fontSize: 14,
+    fontLigatures: true,
     tabSize: 2,
-    scrollBeyondLastLine: false,
+    detectIndentation: false,
+    contextmenu: false,
+    copyWithSyntaxHighlighting: false,
+    bracketPairColorization: { enabled: false },
+    fixedOverflowWidgets: true,
+    renderValidationDecorations: 'on',
   });
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void save());
   editor.addCommand(monaco.KeyCode.F9, () => void compile());
@@ -88,6 +121,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
     if (e.key === 'F9') { e.preventDefault(); void compile(); }
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'n') { e.preventDefault(); void newElement(); }
+    if (e.ctrlKey && e.key === '`') { e.preventDefault(); panelOpen = !panelOpen; renderPanel(); renderStatus(); }
   };
   document.addEventListener('keydown', onKey);
 
@@ -158,12 +192,16 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       const label = fileLabel(f);
       const name = label.split('::').pop() ?? label;
       const errors = problems.filter((p) => p.key === key).length;
+      // upstream's tab (census 4.1): the type icon and the name, the full path as tooltip; the close button shows on
+      // the active or hovered tab; a middle click closes. No unsaved marker (upstream shows that in the status bar
+      // and on the activity bar). A tab with compile errors keeps lite's red name.
       tabsBar.append(h('div', {
-        class: `tab${key === active ? ' active' : ''}${ws.isChanged(key) ? ' changed' : ''}${errors ? ' has-errors' : ''}`,
+        class: `tab${key === active ? ' active' : ''}${errors ? ' has-errors' : ''}`,
         title: label, 'data-key': key, onclick: () => show(key),
+        onauxclick: (e: Event) => { if ((e as MouseEvent).button === 1) { e.preventDefault(); close(key); } },
       },
-      h('span', { class: 'tab-name' }, name),
-      h('button', { class: 'tab-close', title: 'Close', onclick: (e: Event) => { e.stopPropagation(); close(key); } }, '×')));
+      h('div', { class: 'tab__label' }, typeIcon(kindOf(f.text)), h('span', { class: 'tab-name' }, name)),
+      h('button', { class: 'tab__close', title: 'Close', onclick: (e: Event) => { e.stopPropagation(); close(key); } }, icon('times', '12px'))));
     }
     if (active !== undefined && ws.file(active)) {
       tabsBar.append(h('div', { class: 'tabs-spacer' }),
@@ -172,13 +210,31 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   };
 
   // ---- the side bar ----
+  // upstream's activity bar (census 2.1): the menu cell, the activities in upstream's order with upstream's icons
+  // and sizes, and the theme switch pinned to the bottom. Active and hover change only the colour.
   const renderActivityBar = (): void => {
     clear(activityBar);
-    const item = (a: Activity, label: string, glyph: string): HTMLElement =>
-      h('button', { class: `activity${activity === a ? ' active' : ''}`, title: label, 'data-activity': a, onclick: () => { activity = a; renderActivityBar(); renderSide(); } }, glyph);
-    activityBar.append(item('explorer', 'Explorer', '☰'), item('changes', 'Local changes', '±'), item('review', 'Review', '✓'), item('project', 'Project', '▣'),
-      h('div', { class: 'activity-spacer' }),
-      h('button', { class: 'activity', title: 'Back to workspace setup', onclick: () => ctx.back() }, '⌂'));
+    const changed = ws.removed().length + ws.files().filter((f) => ws.isChanged(f.key)).length;
+    const item = (a: Activity, glyph: IconName, size: string, label: string, badge?: HTMLElement): HTMLElement =>
+      h('button', { class: `activity-bar__item${activity === a ? ' activity-bar__item--active' : ''}`, title: label, 'data-activity': a,
+        onclick: () => { activity = a; renderActivityBar(); renderSide(); } },
+      h('div', { class: 'activity-bar__item__icon-with-indicator' }, icon(glyph, size), badge));
+    const counter = changed === 0 ? undefined
+      : h('div', { class: 'activity-bar__local-change-counter', 'data-testid': 'activity-changes-count' }, changed > 99 ? '99+' : String(changed));
+    const menuCell: HTMLButtonElement = h('button', { class: 'activity-bar__menu', title: 'Menu', 'data-testid': 'activity-menu',
+      onclick: () => menu(menuCell, [{ label: 'Back to workspace setup', run: () => ctx.back(), testId: 'menu-back' }]) },
+    icon('menu', '23px'));
+    const dark = theme() === 'dark';
+    activityBar.append(
+      menuCell,
+      h('div', { class: 'activity-bar__items' },
+        item('explorer', 'fileTray', '23px', 'Explorer (Ctrl + Shift + X)'),
+        item('changes', 'codeBranch', '20px', `Local Changes (Ctrl + Shift + G)${changed ? ` - ${changed} unpushed change${changed === 1 ? '' : 's'}` : ''}`, counter),
+        item('review', 'gitPullRequest', '23px', 'Review (Ctrl + Shift + M)'),
+        item('project', 'repo', '23px', 'Project')),
+      h('button', { class: 'activity-bar__item', title: dark ? 'Switch to light theme' : 'Switch to dark theme', 'data-testid': 'theme-toggle',
+        onclick: () => { const next = toggleTheme(); monaco.editor.setTheme(editorTheme(next === 'light')); renderActivityBar(); } },
+      icon(dark ? 'sun' : 'moon', '20px')));
   };
 
   const renderSide = (): void => {
@@ -196,8 +252,15 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   };
 
   const renderExplorer = (): void => {
-    const head = h('div', { class: 'side-head' }, h('span', {}, 'Explorer'),
-      h('button', { class: 'btn btn-small', 'data-testid': 'new-element', title: 'New element (Ctrl+Shift+N)', onclick: () => void newElement() }, '+ New'));
+    // upstream's explorer (census 3): the side-bar header, then the sub-header -- the "workspace" chip, its id, and
+    // the actions this Studio has (New Element, Collapse All) -- then the tree
+    const head = h('div', { class: 'side-head' }, h('span', { class: 'side-head__title' }, 'Explorer'));
+    const subHead = h('div', { class: 'explorer__header' },
+      h('div', { class: 'explorer__header__chip' }, 'workspace'),
+      h('div', { class: 'explorer__header__title', title: ctx.workspace }, ctx.workspace),
+      h('div', { class: 'panel__header__actions' },
+        h('button', { class: 'panel__header__action', 'data-testid': 'new-element', title: 'New Element... (Ctrl + Shift + N)', onclick: () => void newElement() }, icon('plus')),
+        h('button', { class: 'panel__header__action', title: 'Collapse All', onclick: () => { for (const p of packagePaths()) collapsed.add(p); renderSide(); } }, icon('compress'))));
     const tree = h('div', { class: 'tree', 'data-testid': 'explorer' });
     const files = ws.files();
     if (files.length === 0) tree.append(h('div', { class: 'side-empty' }, 'This workspace is empty: create an element.'));
@@ -214,42 +277,63 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       }
       node.files.push({ name: parts[parts.length - 1]!, file: f });
     }
+    // a row (census 3.2): 22px, indented 10px a level; a 40px icon block -- the expand chevron, then the folder or
+    // the element's type icon -- then the label, whose tooltip is the full path
+    const row = (depth: number, cls: string, expand: HTMLElement | undefined, type: HTMLElement, label: string, title: string, onclick?: () => void, path?: string): HTMLElement =>
+      h('div', { class: `tree-node ${cls}`, style: `padding-left:${depth * 10}px`, 'data-path': path, onclick },
+        h('div', { class: 'tree-node__icon' }, h('div', { class: 'tree-node__icon__expand' }, expand), h('div', { class: 'tree-node__icon__type' }, type)),
+        h('div', { class: 'tree-node__label', title }, label));
     const draw = (node: Node, prefix: string, depth: number): void => {
       for (const [name, sub] of [...node.pkgs].sort(([a], [b]) => a.localeCompare(b))) {
         const path = prefix ? `${prefix}::${name}` : name;
         const open = !collapsed.has(path);
-        tree.append(h('div', { class: 'tree-node package', style: `padding-left:${8 + depth * 12}px`, onclick: () => { if (open) collapsed.add(path); else collapsed.delete(path); renderSide(); } },
-          h('span', { class: 'tree-caret' }, open ? '▾' : '▸'), h('span', {}, name)));
+        tree.append(row(depth, 'package', icon(open ? 'chevronDown' : 'chevronRight', '10px'), icon(open ? 'folderOpen' : 'folder'), name, path,
+          () => { if (open) collapsed.add(path); else collapsed.delete(path); renderSide(); }));
         if (open) draw(sub, path, depth + 1);
       }
       for (const { name, file } of node.files.sort((a, b) => a.name.localeCompare(b.name))) {
         const errors = problems.some((p) => p.key === file.key);
-        tree.append(h('div', {
-          class: `tree-node element${file.key === active ? ' selected' : ''}${ws.isChanged(file.key) ? ' changed' : ''}${errors ? ' has-errors' : ''}`,
-          style: `padding-left:${20 + depth * 12}px`, 'data-path': fileLabel(file), onclick: () => show(file.key),
-        }, h('span', { class: 'tree-icon' }, kindGlyph(file.text)), h('span', {}, name)));
+        tree.append(row(depth, `element${file.key === active ? ' selected' : ''}${ws.isChanged(file.key) ? ' changed' : ''}${errors ? ' has-errors' : ''}`,
+          undefined, typeIcon(kindOf(file.text)), name, fileLabel(file), () => show(file.key), fileLabel(file)));
       }
     };
     draw(rootNode, '', 0);
-    for (const path of ws.removed()) {
-      tree.append(h('div', { class: 'tree-node element removed', style: 'padding-left:8px' }, h('span', { class: 'tree-icon' }, '−'), h('span', {}, path)));
+    for (const path of ws.removed()) tree.append(row(0, 'element removed', undefined, icon('trash'), path, `${path} (removed, not yet saved)`));
+    sideBar.append(head, h('div', { class: 'explorer' }, subHead, tree));
+  };
+
+  /** Every package path in the workspace, for Collapse All. */
+  const packagePaths = (): string[] => {
+    const out = new Set<string>();
+    for (const f of ws.files()) {
+      const parts = fileLabel(f).split('::').slice(0, -1);
+      for (let i = 1; i <= parts.length; i++) out.add(parts.slice(0, i).join('::'));
     }
-    sideBar.append(head, tree);
+    return [...out];
   };
 
   const renderChanges = async (): Promise<void> => {
-    const head = h('div', { class: 'side-head' }, h('span', {}, 'Local changes'),
-      h('button', { class: 'btn btn-small btn-primary', onclick: () => void save(), 'data-testid': 'save' }, 'Save'));
-    const list = h('div', { class: 'tree', 'data-testid': 'changes' });
-    sideBar.append(head, list);
-    if (!ws.hasChanges()) {
-      list.append(h('div', { class: 'side-empty' }, 'No local changes.'));
-      return;
-    }
-    const { changes, problems: blocked } = await ws.pending();
+    // upstream's Local Changes (census 8.1): the header with Push, then the CHANGES sub-panel -- a diff row per
+    // change: the name, the path in grey, upstream's letter (N new, M modified, D deleted) in its colour. A change
+    // the compiler refuses (lite's: it cannot be saved yet) shows its message.
+    const changesBody = h('div', { class: 'side-bar__body' });
+    sideBar.append(sideHead('Local Changes', headerAction('cloudUpload', 'Push local changes (Ctrl + S)', ws.hasChanges() ? () => void save() : undefined, { 'data-testid': 'save' })), changesBody);
+    const { changes, problems: blocked } = ws.hasChanges() ? await ws.pending() : { changes: [], problems: [] };
     if (activity !== 'changes') return;
-    for (const c of changes) list.append(h('div', { class: `change change-${c.type.toLowerCase()}` }, h('span', { class: 'change-type' }, c.type[0]), h('span', {}, c.path)));
-    for (const p of blocked) list.append(h('div', { class: 'change change-blocked' }, h('span', { class: 'change-type' }, '!'), h('span', {}, `${ws.file(p.key ?? '') ? fileLabel(ws.file(p.key!)!) : ''}: ${p.message}`)));
+    const LETTER: Record<string, string> = { CREATE: 'N', MODIFY: 'M', DELETE: 'D' };
+    const rows = changes.map((c) => {
+      const name = c.path.split('::').pop() ?? c.path;
+      return h('div', { class: `side-bar__panel__item diff-item diff-item--${c.type.toLowerCase()}`, title: c.path },
+        h('div', { class: 'diff-item__name' }, name), h('div', { class: 'diff-item__path' }, c.path),
+        h('div', { class: 'diff-item__type' }, LETTER[c.type] ?? c.type[0]));
+    });
+    for (const p of blocked) {
+      rows.push(h('div', { class: 'side-bar__panel__item diff-item diff-item--blocked', title: p.message },
+        h('div', { class: 'diff-item__name' }, ws.file(p.key ?? '') ? fileLabel(ws.file(p.key!)!) : ''), h('div', { class: 'diff-item__path' }, p.message),
+        h('div', { class: 'diff-item__type' }, '!')));
+    }
+    changesBody.append(subPanel('Changes', { info: 'All local changes that have not been yet pushed with the server', count: changes.length, testId: 'changes' },
+      ...(rows.length ? rows : [h('div', { class: 'side-bar__panel__empty' }, 'No local changes')])));
   };
 
   // ---- problems and compile ----
@@ -268,19 +352,23 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
 
   const renderProblems = (): void => {
     clear(problemsPanel);
-    problemsTitle.textContent = compiling ? 'Problems (compiling…)' : `Problems (${problems.length})`;
-    if (problems.length === 0) problemsPanel.append(h('div', { class: 'panel-empty' }, compiling ? '' : 'No problems.'));
+    problemsBadge.textContent = String(problems.length);
+    // census 6: upstream's empty text; a row per problem -- the error icon, the message (its full text as tooltip),
+    // and where: the element and [Ln, Col] (upstream's text mode shows [Ln, Col]; lite's text is per element)
+    if (problems.length === 0) problemsPanel.append(h('div', { class: 'panel-group__empty' }, compiling ? '' : 'No problems have been detected in the workspace.'));
+    const list = h('div', { class: 'panel-group__list' });
     for (const p of problems) {
       const f = p.key ? ws.file(p.key) : undefined;
-      problemsPanel.append(h('div', { class: 'problem', onclick: () => {
+      list.append(h('button', { class: 'panel-group__problem', title: p.message, onclick: () => {
         if (!p.key) return;
         show(p.key);
         if (p.line) { editor.revealLineInCenter(p.line); editor.setPosition({ lineNumber: p.line, column: p.column ?? 1 }); }
       } },
-      h('span', { class: 'problem-icon' }, '⨯'),
-      h('span', { class: 'problem-message' }, p.message),
-      h('span', { class: 'problem-where' }, f ? `${fileLabel(f)}${p.line ? ` [Ln ${p.line}${p.column ? `, Col ${p.column}` : ''}]` : ''}` : '')));
+      h('div', { class: 'panel-group__problem__icon' }, icon('error')),
+      h('div', { class: 'panel-group__problem__message' }, p.message),
+      h('div', { class: 'panel-group__problem__source' }, f ? `${fileLabel(f)}${p.line ? ` [Ln ${p.line}${p.column ? `, Col ${p.column}` : ''}]` : ''}` : '')));
     }
+    if (problems.length > 0) problemsPanel.append(list);
   };
 
   const setProblems = (next: Problem[]): void => {
@@ -296,6 +384,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     if (compileTimer) clearTimeout(compileTimer);
     compiling = true;
     renderProblems();
+    renderStatus();
     try {
       setProblems(await ws.compile());
     } catch (e) {
@@ -351,7 +440,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     resync(renamed);
     renderSide();
     renderStatus();
-    toast(`Saved: ${ws.revision?.id.slice(0, 8) ?? ''}`);
+    toast(`Saved: ${ws.revision?.id.slice(0, 8) ?? ''}`, 'success');
     void compile();
   };
 
@@ -398,15 +487,33 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   const renderStatus = (): void => {
     clear(status);
     const changed = ws.removed().length + ws.files().filter((f) => ws.isChanged(f.key)).length;
+    // upstream's status bar (census 7): left, the branch icon, project / workspace (a * for unpushed changes; each
+    // goes back to setup) and the problems counts (they open Problems); right, the sync text, the push button,
+    // Compile (the hammer wiggles while compiling) and the panel toggle. `data-*` are the harness's to read.
+    const errors = problems.length;
     status.append(
-      h('button', { class: 'status-item', onclick: () => ctx.back(), title: 'Back to workspace setup' }, `${ctx.project}`),
-      h('span', { class: 'status-item' }, `workspace: ${ctx.workspace}`),
-      h('span', { class: 'status-item', title: ws.revision?.id ?? '' }, `revision ${ws.revision?.id.slice(0, 8) ?? '—'}`),
-      h('span', { class: `status-item${changed ? ' warn' : ''}`, 'data-testid': 'changes-count' }, changed ? `${changed} local change${changed === 1 ? '' : 's'}` : 'no local changes'),
-      h('span', { class: `status-item${problems.length ? ' error' : ''}`, 'data-testid': 'problems-count' }, compiling ? 'compiling…' : `${problems.length} problem${problems.length === 1 ? '' : 's'}`),
-      h('div', { class: 'status-spacer' }),
-      h('button', { class: 'status-item status-action', onclick: () => void compile(), 'data-testid': 'compile' }, 'Compile (F9)'),
-      h('button', { class: 'status-item status-action primary', onclick: () => void save(), 'data-testid': 'save-status' }, 'Save (Ctrl+S)'));
+      h('div', { class: 'status-bar__left' },
+        h('div', { class: 'status-bar__workspace' },
+          icon('codeBranch'),
+          h('button', { class: 'status-bar__workspace__project', title: 'Go back to workspace setup using the specified project', onclick: () => ctx.back() }, ctx.project),
+          '/',
+          h('button', { class: 'status-bar__workspace__workspace', title: 'Go back to workspace setup using the specified workspace', onclick: () => ctx.back() },
+            `${ctx.workspace}${changed ? '*' : ''}`)),
+        h('button', { class: 'status-bar__problems', title: `Error: ${errors}, Warnings: 0`, 'data-testid': 'problems-count',
+          'data-errors': errors, 'data-state': compiling ? 'compiling' : 'idle', onclick: openPanel },
+        icon('error'), h('div', { class: 'status-bar__problems__count' }, String(errors)),
+        icon('vscWarning'), h('div', { class: 'status-bar__problems__count' }, '0'))),
+      h('div', { class: 'status-bar__right' },
+        h('div', { class: 'status-bar__sync', 'data-testid': 'changes-count', title: ws.revision?.id ?? '' },
+          changed ? `${changed} unpushed change${changed === 1 ? '' : 's'}` : 'no changes detected'),
+        h('button', { class: 'status-bar__push', title: 'Push local changes (Ctrl + S)', 'data-testid': 'save-status', disabled: changed === 0, onclick: () => void save() },
+          icon('cloudUpload', '16px')),
+        h('button', { class: `status-bar__action${compiling ? ' status-bar__action--compiling' : ''}`, title: 'Compile (F9)', 'data-testid': 'compile', onclick: () => void compile() },
+          icon('hammer')),
+        h('button', { class: `status-bar__action status-bar__toggler${panelOpen ? ' status-bar__toggler--on' : ''}`, title: 'Toggle panel (Ctrl + `)',
+          onclick: () => { panelOpen = !panelOpen; renderPanel(); renderStatus(); } },
+        icon('terminal'))));
+    renderActivityBar();     // its local-change counter follows the same count
   };
 
   renderActivityBar();
@@ -423,22 +530,17 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   };
 }
 
-function shortcut(label: string, keys: string): HTMLElement {
-  return h('div', { class: 'shortcut' }, h('span', {}, label), h('kbd', {}, keys));
+/** A shortcut on the splash (upstream's hotkey look): the label, then each key as a key cap, a plus between. */
+function shortcut(label: string, keys: readonly string[]): HTMLElement {
+  const caps: Node[] = [];
+  keys.forEach((k, i) => {
+    if (i > 0) caps.push(icon('plus'));
+    caps.push(h('kbd', { class: 'hotkey__key' }, k));
+  });
+  return h('div', { class: 'shortcut' }, h('div', { class: 'shortcut__label' }, label), h('div', { class: 'hotkey' }, ...caps));
 }
 
-function kindGlyph(text: string): string {
-  const k = DECLARES.exec(text.replace(/\/\/.*$/gm, ''))?.[0]?.trim().split(/\s/)[0];
-  switch (k) {
-    case 'Class': return 'C';
-    case 'Enum': return 'E';
-    case 'Association': return 'A';
-    case 'Profile': return 'P';
-    case 'function': return 'ƒ';
-    case 'Mapping': return 'M';
-    case 'Runtime': return 'R';
-    case 'Database': return 'D';
-    case 'Service': return 'S';
-    default: return '•';
-  }
+/** The keyword an element's text declares it with (`Class`, `function`, ...), for its type icon. */
+function kindOf(text: string): string | undefined {
+  return DECLARES.exec(text.replace(/\/\/.*$/gm, ''))?.[0]?.trim().split(/\s/)[0];
 }
