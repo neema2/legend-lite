@@ -31,8 +31,20 @@ from pathlib import Path
 
 import tiers
 
-REPO = Path(__file__).resolve().parents[2]
-ENGINE = Path.home() / "legend" / "legend-engine"
+# Every input arrives by argument, from Bazel (scripts/parser/BUILD.bazel; Bazel workplan P2-20): the pinned
+# legend-engine tree (@legend_engine_src, by its pom.xml), the runner's vocabulary (//tools/engine-runner:vocab) and
+# the roots of the .pure this repository owns. Paths are relative to the working directory: the execution root in
+# //scripts/parser:keyword_coverage, the runfiles tree under `bazel run //scripts/parser:keywords`.
+def _arg(name: str) -> str | None:
+    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else None
+
+
+def _args(name: str) -> list[str]:
+    return [sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == name and i + 1 < len(sys.argv)]
+
+
+_ENGINE_POM = _arg("--engine-pom")
+ENGINE = Path(_ENGINE_POM).parent if _ENGINE_POM else None
 
 # `NAME: 'literal'` at the start of a line — a lexer token with a typeable spelling.
 _TOKEN = re.compile(r"^([A-Z_][A-Z0-9_]*)\s*:\s*'([^']+)'", re.M)
@@ -100,7 +112,7 @@ _VOCAB = re.compile(r"tokenVocab\s*=\s*([A-Za-z0-9_]+)")
 # Five of those in DomainLexerGrammar alone, every one of them covered by a passing fixture.
 _SIMPLE_TOKEN = re.compile(r"^([A-Z_][A-Z0-9_]*)\s*:\s*'([^']+)'\s*;", re.M)
 
-RUNNER_VOCAB = Path(__file__).resolve().parents[2] / "tools" / "engine-runner" / "vocab.tsv"
+RUNNER_VOCAB = Path(_arg("--vocab") or "tools/engine-runner/vocab.tsv")
 
 
 def runner_vocabulary() -> dict[str, set[str]]:
@@ -283,12 +295,15 @@ def our_sources() -> str:
     contain — and against CODE, not prose about code.
     """
     parts = []
-    for root in ("core/src/test/resources", "scripts", "pct-corpus", "experiments"):
-        base = REPO / root
+    roots = _args("--ours") or ["core/src/test/resources", "scripts"]
+    for root in roots:
+        base = Path(root)
         if not base.is_dir():
-            continue
-        for p in base.rglob("*.pure"):
+            raise SystemExit(f"keywords.py: --ours {root} is not a directory")
+        for p in sorted(base.rglob("*.pure")):
             parts.append(strip_noncode(p.read_text(errors="replace")))
+    if not parts:
+        raise SystemExit("keywords.py: no .pure under " + ", ".join(roots))
     return "\n".join(parts)
 
 
@@ -333,11 +348,40 @@ def _keywords_in(grammars: dict[str, set[str]], stems) -> set[str]:
     return set().union(*[grammars[s] for s in stems if s in grammars]) if stems else set()
 
 
+def coverage_tsv(grammars: dict[str, set[str]], have: set[str]) -> str:
+    """The measurement as a file (keyword-coverage.tsv, a diff-tested golden): one row per in-scope grammar --
+    tier, grammar, covered, total, the missing keywords -- then a row per tier and the in-scope total."""
+    lines = ["# keyword coverage of the pinned legend-engine grammars by this repository's .pure (scripts/parser/keywords.py)."
+             " Regenerate: bazel run //scripts/parser:update_keyword_coverage",
+             "tier\tgrammar\tcovered\ttotal\tmissing"]
+    for stem in sorted(grammars):
+        tier = tiers.tier_of(stem)
+        if tier in ("out", "unclassified"):
+            continue
+        kws = grammars[stem]
+        lines.append(f"{tier}\t{stem}\t{len(kws & have)}\t{len(kws)}\t{','.join(sorted(kws - have))}")
+    for label, stems in (("1", tiers.TIER1), ("1-embedded", tiers.TIER1_EMBEDDED), ("2-vendor", tiers.TIER2_VENDOR),
+                         ("2-dsl", tiers.TIER2_DSL),
+                         ("in-scope", tiers.TIER1 | tiers.TIER1_EMBEDDED | tiers.TIER2)):
+        kws = _keywords_in(grammars, stems)
+        lines.append(f"TOTAL\t{label}\t{len(kws & have)}\t{len(kws)}\t{','.join(sorted(kws - have))}")
+    return "\n".join(lines) + "\n"
+
+
 def main() -> None:
+    if ENGINE is None or not ENGINE.is_dir():
+        raise SystemExit("keywords.py: --engine-pom <the pinned legend-engine tree's pom.xml> (Bazel passes it)")
     grammars = harvest()
     text = our_sources()
     all_kw = {k for ks in grammars.values() for k in ks}
     have = covered(all_kw, text)
+    out = _arg("--out")
+    if out:
+        unclassified = sorted(s for s in grammars if tiers.tier_of(s) == "unclassified")
+        if unclassified:
+            raise SystemExit(f"UNCLASSIFIED GRAMMARS (add to scripts/parser/tiers.py): {unclassified}")
+        Path(out).write_text(coverage_tsv(grammars, have), encoding="utf-8")
+        return
 
     # A grammar upstream adds must land in a tier deliberately. Without this it would
     # simply be absent from every total, and the coverage percentage would go UP because

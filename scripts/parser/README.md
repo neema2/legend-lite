@@ -27,7 +27,7 @@ This measures the **grammar** directly, and grades coverage on fixtures that par
 cd scripts/parser
 python3 fixtures.py            # coverage + both harnesses; exit non-zero on any problem
 python3 fixtures.py --gaps     # what is still missing, by grammar
-python3 keywords.py --tier1    # the raw keyword census, no fixtures involved
+bazel run //scripts/parser:keywords -- --tier1   # the raw keyword census over the pinned grammars (Bazel)
 python3 mutants.py             # regenerate the mutation manifest
 python3 mutants.py --check     # fail on drift instead of overwriting
 python3 mutants.py --accepted  # the review queue: mutations legend-engine tolerated

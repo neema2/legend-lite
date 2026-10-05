@@ -152,4 +152,11 @@ _GATE_ENV = {
     deps = [":corpus"],
 ) for gate in ["density", "executed", "stacking"]]
 
+# this package's hand-written .pure, for the keyword census (//scripts/parser:keyword_coverage, P2-20)
+filegroup(
+    name = "pure_sources",
+    srcs = glob(["**/*.pure"]),
+    visibility = ["//scripts/parser:__pkg__"],
+)
+
 guards_package()

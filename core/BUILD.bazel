@@ -509,6 +509,13 @@ exports_files(
     visibility = ["//scripts/corpus:__pkg__"],
 )
 
+# every .pure under the test resources: the keyword census's share of "the .pure this repository owns" (P2-20)
+filegroup(
+    name = "test_pure",
+    srcs = glob(["src/test/resources/**/*.pure"]),
+    visibility = ["//scripts/parser:__pkg__"],
+)
+
 # every stress file, the generated ten included: what the corpus ratchets measure (//scripts/corpus, P2-04)
 filegroup(
     name = "stress_files",
