@@ -57,6 +57,7 @@ write_source_files(
         "//fixtures/saved-queries:update_generated",
         "//parser-equivalence:update_generated",
         "//parser-equivalence:update_ratchets",
+        "//pct:update_ratchets",
         "//query:update_generated",
         "//scripts/parser:update_keyword_coverage",
         "//spec:update_ratchets",

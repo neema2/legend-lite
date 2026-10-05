@@ -52,7 +52,6 @@ legend_java_library(
     ("testable", "TestableMain"),
     ("parse", "ParseMain"),
     ("lite_parse", "LiteParseMain"),
-    ("token_dump", "TokenDump"),
 ]]
 
 # vocab.tsv: every literal token the runner's lexers know, at the pinned release (TokenDump over the runner's jars;

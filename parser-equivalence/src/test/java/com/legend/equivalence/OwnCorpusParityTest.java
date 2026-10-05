@@ -40,7 +40,11 @@ import org.junit.jupiter.api.Test;
  */
 class OwnCorpusParityTest {
 
-    static final Path LEDGER = com.legend.testing.Runfile.property("ledger.own-corpus-protocol-diffs");
+    /** The ledger, as the BUILD file passes it (-Dledger.own-corpus-protocol-diffs); read lazily, so a program that
+     *  only calls {@link #readLedger(Path)} (OwnCorpusLedgerDraft, given the path) needs no such flag. */
+    static Path ledger() {
+        return com.legend.testing.Runfile.property("ledger.own-corpus-protocol-diffs");
+    }
     // The MATCHED elements are MEASURED (OwnCorpusLedgerDraft.diffs) into this package's generated ratchets.tsv
     // (own_corpus.matched; //parser-equivalence:update_ratchets, diff-tested in //:generated): a test model joining the
     // own corpus moves the count there, as a reviewed diff, instead of a hand re-pin here. Its history -- 2292 on
@@ -82,7 +86,7 @@ class OwnCorpusParityTest {
     }
 
     static Map<String, String> readLedger() throws IOException {
-        return readLedger(LEDGER);
+        return readLedger(ledger());
     }
 
     static Map<String, String> readLedger(Path ledger) throws IOException {

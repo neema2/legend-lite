@@ -271,6 +271,8 @@ write_source_files(
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA Channel B discovery count moved -- bazel run //pct:update_ratchets, with the reason in the commit",
     files = {"src/test/resources/org/finos/legend/lite/pct/channelb/ratchets.tsv": ":ratchets"},
     tags = ["manual"],
+    # //:update_generated runs it too (a bump moves discovery); its diff test stays manual, gate 9 holds the file
+    visibility = ["//:__pkg__"],
 )
 
 guards_package()

@@ -1,6 +1,7 @@
 # The parser harness's kept part (D3 row 6): the keyword census over the PINNED legend-engine grammars
 # (@legend_engine_src), the runner's vocabulary (//tools/engine-runner:vocab) and the .pure this repository owns.
 # The other scripts here are history (P7-04). Bazel workplan P2-20.
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@rules_python//python:py_binary.bzl", "py_binary")
@@ -48,21 +49,40 @@ py_binary(
     deps = [":tiers"],
 )
 
-# the census as a measurement (D9: a golden), from declared inputs only
+# The census's inputs as two trees holding ONLY the declared files, so the walk sees nothing else even where the action
+# is not sandboxed (Windows): the pinned grammars, and the .pure this repository owns, each at its repository path.
+copy_to_directory(
+    name = "engine_grammars",
+    testonly = True,
+    srcs = ["@legend_engine_src//:grammars"],
+    include_external_repositories = ["*legend_engine_src"],
+)
+
+copy_to_directory(
+    name = "our_pure",
+    testonly = True,
+    srcs = [
+        ":pure_sources",
+        "//core:test_pure",
+        "//scripts/corpus:pure_sources",
+    ],
+    root_paths = ["."],
+)
+
+# the census as a measurement (D9: a golden), from declared inputs only (the vocabulary is the report's, not this)
 run_binary(
     name = "keyword_coverage",
     testonly = True,
-    srcs = _DATA,
+    srcs = [
+        ":engine_grammars",
+        ":our_pure",
+    ],
     outs = ["generated/keyword-coverage.tsv"],
     args = [
-        "--engine-pom",
-        "$(execpath @legend_engine_src//:pom.xml)",
-        "--vocab",
-        "$(execpath //tools/engine-runner:vocab)",
+        "--engine-root",
+        "$(execpath :engine_grammars)",
         "--ours",
-        "core/src/test/resources",
-        "--ours",
-        "scripts",
+        "$(execpath :our_pure)",
         "--out",
         "$(execpath generated/keyword-coverage.tsv)",
     ],

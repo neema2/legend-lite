@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -91,13 +90,12 @@ class ImplementationTableTest {
         int stdlib = built.stdlib();
         int atCatalogFqns = built.atCatalogFqns();
 
-        Map<String, Integer> kinds = new LinkedHashMap<>();
+        Map<String, Integer> kinds = kindsOf(impl);
         List<String> rows = new ArrayList<>();
         rows.add("fqn\tid\tkind\tbodied\tdetail");
         for (var e : impl.rows().entrySet()) {
             Implementation i = e.getValue();
             String kind = i.getClass().getSimpleName();
-            kinds.merge(kind, 1, Integer::sum);
             Function decl = table.get(e.getKey());
             rows.add(decl.qualifiedName() + "\t" + e.getKey() + "\t" + kind + "\t"
                     + (decl instanceof com.legend.model.FunctionDefinition) + "\t" + detail(i));
@@ -127,7 +125,7 @@ class ImplementationTableTest {
         // THE KINDS, checked against the generated report (audit 2026-09-25: totality alone lets an empty
         // registration set pass). The measured counts live in ratchets.tsv (//spec:update_ratchets, diff-tested in
         // //:generated), so a registration that lands moves them there, as a reviewed diff (Bazel workplan P2-16, D9)
-        assertEquals(SpecRatchets.measuredWithPrefix("implementation.kinds."), new java.util.TreeMap<>(kinds),
+        assertEquals(SpecRatchets.measuredWithPrefix("implementation.kinds."), kinds,
                 "implementation kinds");
     }
 

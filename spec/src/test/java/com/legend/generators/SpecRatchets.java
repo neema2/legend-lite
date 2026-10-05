@@ -54,30 +54,40 @@ public final class SpecRatchets {
         Files.writeString(Path.of(args[0]), text.toString(), StandardCharsets.UTF_8);
     }
 
-    private static final Map<String, Integer> COMMITTED = load();
+    /** The committed file, read on first use only: the generator ({@link #main}) never reads it, so a damaged copy
+     *  cannot block its own regeneration. */
+    private static final class Committed {
+        static final Map<String, Integer> VALUES = load();
 
-    private static Map<String, Integer> load() {
-        Map<String, Integer> m = new TreeMap<>();
-        try (InputStream in = SpecRatchets.class.getResourceAsStream("ratchets.tsv")) {
-            if (in == null) {
-                return m;   // the generator's own run reads none
-            }
-            for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
-                if (line.isBlank() || line.startsWith("#")) {
-                    continue;
+        private static Map<String, Integer> load() {
+            Map<String, Integer> m = new TreeMap<>();
+            try (InputStream in = SpecRatchets.class.getResourceAsStream("ratchets.tsv")) {
+                if (in == null) {
+                    throw new IllegalStateException("ratchets.tsv is not on the classpath -- bazel run //spec:update_ratchets");
                 }
-                String[] kv = line.split("\t", -1);
-                m.put(kv[0], Integer.parseInt(kv[1]));
+                int n = 0;
+                for (String line : new String(in.readAllBytes(), StandardCharsets.UTF_8).split("\n")) {
+                    n++;
+                    if (line.isBlank() || line.startsWith("#")) {
+                        continue;
+                    }
+                    String[] kv = line.split("\t", -1);
+                    if (kv.length != 2 || !kv[1].matches("-?\\d+")) {
+                        throw new IllegalStateException("ratchets.tsv line " + n + " is no key<TAB>integer: " + line
+                                + " -- bazel run //spec:update_ratchets");
+                    }
+                    m.put(kv[0], Integer.parseInt(kv[1]));
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            return m;
         }
-        return m;
     }
 
     /** The committed measured value for {@code key}. */
     public static int measured(String key) {
-        Integer v = COMMITTED.get(key);
+        Integer v = Committed.VALUES.get(key);
         if (v == null) {
             throw new IllegalStateException("ratchets.tsv has no " + key + " -- bazel run //spec:update_ratchets");
         }
@@ -87,7 +97,7 @@ public final class SpecRatchets {
     /** Every committed measured value under {@code prefix}, keyed by the rest of the key. */
     public static Map<String, Integer> measuredWithPrefix(String prefix) {
         Map<String, Integer> out = new TreeMap<>();
-        COMMITTED.forEach((k, v) -> {
+        Committed.VALUES.forEach((k, v) -> {
             if (k.startsWith(prefix)) {
                 out.put(k.substring(prefix.length()), v);
             }

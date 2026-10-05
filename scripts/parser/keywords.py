@@ -44,7 +44,8 @@ def _args(name: str) -> list[str]:
 
 
 _ENGINE_POM = _arg("--engine-pom")
-ENGINE = Path(_ENGINE_POM).parent if _ENGINE_POM else None
+_ENGINE_ROOT = _arg("--engine-root")   # a tree of the grammars alone (//scripts/parser:engine_grammars)
+ENGINE = Path(_ENGINE_ROOT) if _ENGINE_ROOT else (Path(_ENGINE_POM).parent if _ENGINE_POM else None)
 
 # `NAME: 'literal'` at the start of a line — a lexer token with a typeable spelling.
 _TOKEN = re.compile(r"^([A-Z_][A-Z0-9_]*)\s*:\s*'([^']+)'", re.M)
@@ -112,7 +113,7 @@ _VOCAB = re.compile(r"tokenVocab\s*=\s*([A-Za-z0-9_]+)")
 # Five of those in DomainLexerGrammar alone, every one of them covered by a passing fixture.
 _SIMPLE_TOKEN = re.compile(r"^([A-Z_][A-Z0-9_]*)\s*:\s*'([^']+)'\s*;", re.M)
 
-RUNNER_VOCAB = Path(_arg("--vocab") or "tools/engine-runner/vocab.tsv")
+RUNNER_VOCAB = Path(_arg("--vocab")) if _arg("--vocab") else None
 
 
 def runner_vocabulary() -> dict[str, set[str]]:
@@ -121,10 +122,10 @@ def runner_vocabulary() -> dict[str, set[str]]:
     Produced by perf.TokenDump; regenerate whenever the engine version moves. Absent file
     means the check is skipped rather than silently passing -- see version_skew.
     """
-    if not RUNNER_VOCAB.is_file():
+    if RUNNER_VOCAB is None or not RUNNER_VOCAB.is_file():
         return {}
     out = {}
-    for line in RUNNER_VOCAB.read_text().splitlines():
+    for line in RUNNER_VOCAB.read_text(encoding="utf-8").splitlines():
         parts = line.split("\t")
         if parts:
             out[parts[0]] = set(parts[1:])
@@ -370,7 +371,7 @@ def coverage_tsv(grammars: dict[str, set[str]], have: set[str]) -> str:
 
 def main() -> None:
     if ENGINE is None or not ENGINE.is_dir():
-        raise SystemExit("keywords.py: --engine-pom <the pinned legend-engine tree's pom.xml> (Bazel passes it)")
+        raise SystemExit("keywords.py: --engine-pom <the pinned tree's pom.xml> or --engine-root <a grammar tree> (Bazel passes one)")
     grammars = harvest()
     text = our_sources()
     all_kw = {k for ks in grammars.values() for k in ks}
@@ -380,7 +381,7 @@ def main() -> None:
         unclassified = sorted(s for s in grammars if tiers.tier_of(s) == "unclassified")
         if unclassified:
             raise SystemExit(f"UNCLASSIFIED GRAMMARS (add to scripts/parser/tiers.py): {unclassified}")
-        Path(out).write_text(coverage_tsv(grammars, have), encoding="utf-8")
+        Path(out).write_text(coverage_tsv(grammars, have), encoding="utf-8", newline="\n")
         return
 
     # A grammar upstream adds must land in a tier deliberately. Without this it would

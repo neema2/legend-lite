@@ -14,9 +14,9 @@ import java.util.jar.JarFile;
 /**
  * Dumps every literal token the RUNNER can actually lex, grouped by lexer.
  *
- * This exists because the census was measuring a different artifact from the one it was
- * verifying against. keywords.py harvests .g4 files from a legend-engine WORKING COPY at
- * git HEAD; the runner parses with released jars (4.138.2). Five keywords in the census --
+ * This exists because the census once measured a different artifact from the one it verified
+ * against: keywords.py harvested .g4 files from a legend-engine WORKING COPY at git HEAD while
+ * the runner parsed with released jars (4.138.2 then; both are the pinned release now). Five keywords in the census --
  * DataSpace `mappingProvider`, DataQuality `testSuites`/`data`/`tests`/`asserts` -- do not
  * exist in the jars at all, so no fixture could ever cover them, and "100%" would have been
  * a claim about a parser nobody was running.

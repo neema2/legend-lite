@@ -129,12 +129,8 @@ so no fixture could ever cover them, and "100%" would have been a claim about a 
 nobody was running. The fix takes the surface from the same artifact that parses:
 `perf.TokenDump` reads the `Vocabulary` ANTLR bakes into every generated lexer — the same
 table the parser uses to produce its "Valid alternatives: [...]" messages — into
-`tools/engine-runner/vocab.tsv`. **Regenerate it whenever the engine version moves:**
-
-```
-java -cp tools/engine-runner/target/classes:$(cat tools/engine-runner/cp.txt) \
-     perf.TokenDump > tools/engine-runner/vocab.tsv
-```
+`tools/engine-runner/vocab.tsv`, a build output now: **after a release bump,** `bazel run
+//tools/engine-runner:update_vocab` (and `//:generated` fails while it is stale).
 
 If that file is missing the harness says so rather than quietly skipping the check. Note
 only simple-literal tokens are comparable: a composite like
