@@ -109,7 +109,8 @@ FEATURES = [
 
 
 def load() -> tuple[str, list[tuple[str, str]]]:
-    src = "\n".join(open(f).read() for f in sorted(glob.glob(STRESS)))
+    import model
+    src = "\n".join(f.read_text() for f in model.stress_sources())
     # Comments must not count. The corpus is heavily commented and several of these feature
     # names appear in prose explaining why they are ABSENT.
     src = re.sub(r"//[^\n]*", " ", src)

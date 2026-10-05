@@ -6,6 +6,7 @@ subpackages), visible to //tools/guards, whose :repository_files collects one pe
 list: a package that forgets the call fails analysis there.
 """
 
+load("//tools/platforms:defs.bzl", "PLATFORMS", "compatible_with")
 load(":classpath.bzl", "classpath_report")
 load(":markdown.bzl", "markdown_report")
 
@@ -31,9 +32,18 @@ def _check_js_tests():
             fail("//%s:%s is a js_test not made by node_test (tools/js/defs.bzl): every JavaScript test is a node_test (A28)" %
                  (native.package_name(), rule["name"]))
 
+def _check_config_settings():
+    # P1-19 (G-nn): platform policy lives in //tools/platforms, so no other package declares a config_setting
+    if native.package_name() != "tools/platforms":
+        for rule in native.existing_rules().values():
+            if rule["kind"] == "config_setting":
+                fail("//%s:%s is a config_setting outside //tools/platforms: platform policy lives there (Bazel workplan P1-19)" %
+                     (native.package_name(), rule["name"]))
+
 def guards_package():
     _check_tests()
     _check_js_tests()
+    _check_config_settings()
 
     rules = native.existing_rules().values()
 
@@ -43,6 +53,9 @@ def guards_package():
         name = "guard_markdown",
         targets = [":" + r["name"] for r in rules if r["kind"].endswith("_test")],
         testonly = True,
+        # the reports depend on every test, so on a platform no test is written for (A25's unlisted one) they are
+        # skipped, not analyzed into the tests' toolchain resolution
+        target_compatible_with = compatible_with(PLATFORMS),
         visibility = ["//tools/guards:__pkg__"],
     )
     # every JVM target's runtime classpath, as Maven coordinates (G11, //tools/guards:classpath_test)
@@ -50,6 +63,7 @@ def guards_package():
         name = "guard_classpaths",
         targets = [":" + r["name"] for r in rules if r["kind"] in ("java_test", "java_binary", "_java_run")],
         testonly = True,
+        target_compatible_with = compatible_with(PLATFORMS),
         visibility = ["//tools/guards:__pkg__"],
     )
     native.filegroup(

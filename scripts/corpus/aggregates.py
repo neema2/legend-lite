@@ -61,6 +61,13 @@ def _child_counts(c: model.Corpus, tables: dict[str, list[dict]],
     return [len(oracle.walk_many(c, tables, r, hops)) for r in rows]
 
 
+# usable_ends per (corpus, tables, seeded): spread.py asks once per candidate root (about 2,000
+# times a build) with the same three, and each answer walks every seeded parent's children
+# (99% of the executed gate's time before this). The entry keeps the objects its key's ids name,
+# so an id cannot be reused while the entry stands.
+_USABLE: dict[tuple, tuple] = {}
+
+
 def usable_ends(c: model.Corpus, tables: dict[str, list[dict]],
                 seeded: set[str]) -> dict[str, list[str]]:
     """owner class -> to-many properties whose every seeded parent HAS children.
@@ -69,6 +76,14 @@ def usable_ends(c: model.Corpus, tables: dict[str, list[dict]],
     matters: asking the engine which parents are empty would use the very behaviour F6 makes
     wrong, and the generator would then exclude exactly the wrong ends.
     """
+    key = (id(c), id(tables), frozenset(seeded))
+    if key not in _USABLE:
+        _USABLE[key] = (c, tables, _usable_ends(c, tables, seeded))
+    return {owner: list(props) for owner, props in _USABLE[key][2].items()}
+
+
+def _usable_ends(c: model.Corpus, tables: dict[str, list[dict]],
+                 seeded: set[str]) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     for (owner, prop), end in sorted(c.ends.items()):
         if not end.to_many or not end.join:

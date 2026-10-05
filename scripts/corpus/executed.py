@@ -376,6 +376,11 @@ def _cond_kind(j, kind: str) -> bool:
     return walk(j.condition)
 
 
+# One computation per corpus per run (Bazel workplan P2-05): build.py and all_specs both need the base list, and
+# spread.build both need its result; the lists are read, never mutated, so the same object is handed back.
+_BASE_SPECS: dict[int, list] = {}
+
+
 def base_specs(c: model.Corpus):
     """Every spec except the coverage-directed ones.
 
@@ -396,13 +401,16 @@ def base_specs(c: model.Corpus):
     import taxonomy
     import tomany
 
+    if id(c) in _BASE_SPECS:
+        return _BASE_SPECS[id(c)]
     tables = flat.all_tables(c)
     seeded = {k for k, v in tables.items() if v}
-    return (query.load() + list(battery.SPECS) + stacks.build(c, seeded)
+    _BASE_SPECS[id(c)] = (query.load() + list(battery.SPECS) + stacks.build(c, seeded)
             + graphs.build(c, seeded, tables) + aggregates.build(c, seeded, tables)
             + hier.specs(c) + combos.specs(c)
             + tomany.build(c, seeded, tables)
             + taxonomy.build(c, seeded, tables))
+    return _BASE_SPECS[id(c)]
 
 
 def all_specs(c: model.Corpus):

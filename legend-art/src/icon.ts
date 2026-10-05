@@ -1,4 +1,4 @@
-// One of upstream's icons (icons.ts) as a DOM element: the vendored SVG, 1em square in the current text colour, so
+// One of upstream's icons (icons.ts) as a DOM element: its SVG, 1em square in the current text colour, so
 // CSS sizes and colours it as upstream's react-icons are (`font-size` on the wrapper, `color` for the paint).
 
 import { ICONS, type IconName } from './icons.ts';

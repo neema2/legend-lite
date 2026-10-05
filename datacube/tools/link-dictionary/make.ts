@@ -8,9 +8,8 @@
 // calculated-column and window functions, the chart marks) through the product's own writers (the
 // cube's, the page's, the protocol's) -- never typed by hand. And made ONCE per version: a link names
 // the dictionary it was made with (`p1.`), so a version's dictionary never changes after it ships
-// (src/share/link-p1.ts, pinned by its hash in test/share-link.test.ts). A new vocabulary is `p2`.
-//
-//   bazel run //datacube:make_link_dictionary -- p2 > datacube/src/share/link-p2.ts
+// (src/share/link-p1.ts, pinned by its hash in test/share-link.test.ts). A new vocabulary is `p2`:
+// `bazel run //datacube:cut_link_dictionary` writes it (datacube/BUILD.bazel names the next version).
 
 import { col, fn, lambda, lit, toJson } from '../../../pure-protocol/src/index.ts';
 import { CALC_FUNCTIONS } from '../../src/calc.ts';

@@ -1,0 +1,706 @@
+// The hand-written stress queries: the SOURCE scripts/corpus/build.py generates
+// core/src/test/resources/stress/92-services.pure from. Each service here is written
+// without its testSuite; the generator evaluates it with the reference oracle and emits
+// it again, with the expectation, into 92. Edit queries here, never in 92.
+
+###Service
+Service stress::Q0_TradeInstrSectorCptyTraderBook
+{
+    pattern: '/stress/q0';
+    documentation: 'Trade -> Instrument -> Sector + Counterparty + Trader + Book (48 props, 3-hop)';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            tradeDate:x|$x.tradeDate,
+            settlementDate:x|$x.settlementDate,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            notional:x|$x.notional,
+            side:x|$x.side,
+            status:x|$x.status,
+            tradeType:x|$x.tradeType,
+            currency:x|$x.currency,
+            commission:x|$x.commission,
+            fees:x|$x.fees,
+            executionVenue:x|$x.executionVenue,
+            isBlock:x|$x.isBlock,
+            createdTime:x|$x.createdTime,
+            lastModifiedTime:x|$x.lastModifiedTime,
+            instrName:x|$x.instrument.name,
+            instrTicker:x|$x.instrument.ticker,
+            instrAssetClass:x|$x.instrument.assetClass,
+            instrCurrency:x|$x.instrument.currency,
+            instrIsin:x|$x.instrument.isin,
+            instrCusip:x|$x.instrument.cusip,
+            instrSedol:x|$x.instrument.sedol,
+            instrProductType:x|$x.instrument.productType,
+            instrIsActive:x|$x.instrument.isActive,
+            instrNotional:x|$x.instrument.notionalAmount,
+            instrListingDate:x|$x.instrument.listingDate,
+            instrMaturityDate:x|$x.instrument.maturityDate,
+            instrDescription:x|$x.instrument.description,
+            instrIssueDate:x|$x.instrument.issueDate,
+            sectorName:x|$x.instrument.sector.name,
+            sectorGics:x|$x.instrument.sector.gicsCode,
+            sectorLevel:x|$x.instrument.sector.level,
+            sectorIsActive:x|$x.instrument.sector.isActive,
+            cptyId:x|$x.counterparty.counterpartyId,
+            cptyName:x|$x.counterparty.legalName,
+            cptyLei:x|$x.counterparty.lei,
+            cptyType:x|$x.counterparty.counterpartyType,
+            cptyDomicile:x|$x.counterparty.domicile,
+            cptyTier:x|$x.counterparty.tier,
+            cptyIsActive:x|$x.counterparty.isActive,
+            cptyCreditRating:x|$x.counterparty.creditRating,
+            traderFirst:x|$x.trader.firstName,
+            traderLast:x|$x.trader.lastName,
+            traderId:x|$x.trader.traderId,
+            traderSeniority:x|$x.trader.seniority,
+            bookId:x|$x.book.bookId,
+            bookName:x|$x.book.name,
+            bookCurrency:x|$x.book.currency,
+            bookType:x|$x.book.bookType
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q1_TradeBookDeskInstrTrader
+{
+    pattern: '/stress/q1';
+    documentation: 'Trade -> Book -> Desk + Instrument + Trader (50 props, 3-hop)';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            tradeDate:x|$x.tradeDate,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            notional:x|$x.notional,
+            side:x|$x.side,
+            status:x|$x.status,
+            tradeType:x|$x.tradeType,
+            currency:x|$x.currency,
+            commission:x|$x.commission,
+            fees:x|$x.fees,
+            executionVenue:x|$x.executionVenue,
+            isBlock:x|$x.isBlock,
+            createdTime:x|$x.createdTime,
+            bkId:x|$x.book.bookId,
+            bkName:x|$x.book.name,
+            bkCurrency:x|$x.book.currency,
+            bkType:x|$x.book.bookType,
+            bkStrategy:x|$x.book.strategy,
+            bkIsActive:x|$x.book.isActive,
+            bkOpenDate:x|$x.book.openDate,
+            bkLegalEntity:x|$x.book.legalEntity,
+            bkPnlYTD:x|$x.book.pnlYTD,
+            bkDescription:x|$x.book.description,
+            deskId:x|$x.book.desk.deskId,
+            deskName:x|$x.book.desk.name,
+            deskType:x|$x.book.desk.deskType,
+            deskAssetClass:x|$x.book.desk.assetClass,
+            deskRegion:x|$x.book.desk.region,
+            deskIsActive:x|$x.book.desk.isActive,
+            deskHeadTrader:x|$x.book.desk.headTrader,
+            deskCostCenter:x|$x.book.desk.costCenter,
+            deskFloor:x|$x.book.desk.floor,
+            deskBuilding:x|$x.book.desk.building,
+            deskPhone:x|$x.book.desk.phone,
+            deskRiskLimit:x|$x.book.desk.riskLimit,
+            deskPnlTarget:x|$x.book.desk.pnlTarget,
+            instrId:x|$x.instrument.instrumentId,
+            instrName:x|$x.instrument.name,
+            instrTicker:x|$x.instrument.ticker,
+            instrAsset:x|$x.instrument.assetClass,
+            instrCcy:x|$x.instrument.currency,
+            instrIsin:x|$x.instrument.isin,
+            instrActive:x|$x.instrument.isActive,
+            instrNotional:x|$x.instrument.notionalAmount,
+            instrMaturity:x|$x.instrument.maturityDate,
+            instrType:x|$x.instrument.productType,
+            traderId:x|$x.trader.traderId,
+            traderFirst:x|$x.trader.firstName,
+            traderLast:x|$x.trader.lastName,
+            traderSeniority:x|$x.trader.seniority,
+            traderSpecialization:x|$x.trader.specialization,
+            traderIsActive:x|$x.trader.isActive,
+            traderEmail:x|$x.trader.email,
+            traderBadge:x|$x.trader.badge
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q2_PnLBookDeskTrader
+{
+    pattern: '/stress/q2';
+    documentation: 'DailyPnL -> Book -> Desk + Trader (45 props, 3-hop: pnl->positions->org)';
+    execution: Single
+    {
+    query: |pnl::DailyPnL.all()
+        ->project(~[
+            pnlId:x|$x.pnlId,
+            pnlDate:x|$x.pnlDate,
+            totalPnL:x|$x.totalPnL,
+            realizedPnL:x|$x.realizedPnL,
+            unrealizedPnL:x|$x.unrealizedPnL,
+            newTradePnL:x|$x.newTradePnL,
+            carryPnL:x|$x.carryPnL,
+            fxPnL:x|$x.fxPnL,
+            commissions:x|$x.commissions,
+            fees:x|$x.fees,
+            currency:x|$x.currency,
+            isOfficial:x|$x.isOfficial,
+            publishedTime:x|$x.publishedTime,
+            version:x|$x.version,
+            bkId:x|$x.book.bookId,
+            bkName:x|$x.book.name,
+            bkCurrency:x|$x.book.currency,
+            bkType:x|$x.book.bookType,
+            bkStrategy:x|$x.book.strategy,
+            bkIsActive:x|$x.book.isActive,
+            bkOpenDate:x|$x.book.openDate,
+            bkLegalEntity:x|$x.book.legalEntity,
+            bkPnlYTD:x|$x.book.pnlYTD,
+            deskId:x|$x.book.desk.deskId,
+            deskName:x|$x.book.desk.name,
+            deskType:x|$x.book.desk.deskType,
+            deskAssetClass:x|$x.book.desk.assetClass,
+            deskRegion:x|$x.book.desk.region,
+            deskIsActive:x|$x.book.desk.isActive,
+            deskHeadTrader:x|$x.book.desk.headTrader,
+            deskCostCenter:x|$x.book.desk.costCenter,
+            deskFloor:x|$x.book.desk.floor,
+            traderId:x|$x.trader.traderId,
+            traderFirst:x|$x.trader.firstName,
+            traderLast:x|$x.trader.lastName,
+            traderSeniority:x|$x.trader.seniority,
+            traderEmail:x|$x.trader.email,
+            traderIsActive:x|$x.trader.isActive,
+            traderHireDate:x|$x.trader.hireDate,
+            traderLicense:x|$x.trader.license,
+            deskId2:x|$x.desk.deskId,
+            deskName2:x|$x.desk.name,
+            deskRegion2:x|$x.desk.region,
+            deskAsset2:x|$x.desk.assetClass,
+            deskActive2:x|$x.desk.isActive
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q3_SettlementTradeInstrCptyCountry
+{
+    pattern: '/stress/q3';
+    documentation: 'Settlement -> Trade -> Instrument + Counterparty -> Country (52 props, 4-hop)';
+    execution: Single
+    {
+    query: |settlement::Settlement.all()
+        ->project(~[
+            settlementId:x|$x.settlementId,
+            settlementDate:x|$x.settlementDate,
+            amount:x|$x.amount,
+            currency:x|$x.currency,
+            status:x|$x.status,
+            settledDate:x|$x.settledDate,
+            settlementMethod:x|$x.settlementMethod,
+            custodian:x|$x.custodian,
+            depository:x|$x.depository,
+            settledAmount:x|$x.settledAmount,
+            failReason:x|$x.failReason,
+            isPartial:x|$x.isPartial,
+            priority:x|$x.priority,
+            lastUpdated:x|$x.lastUpdated,
+            trdId:x|$x.trade.tradeId,
+            trdDate:x|$x.trade.tradeDate,
+            trdQty:x|$x.trade.quantity,
+            trdPrice:x|$x.trade.price,
+            trdNotional:x|$x.trade.notional,
+            trdSide:x|$x.trade.side,
+            trdStatus:x|$x.trade.status,
+            trdType:x|$x.trade.tradeType,
+            trdCcy:x|$x.trade.currency,
+            trdComm:x|$x.trade.commission,
+            trdFees:x|$x.trade.fees,
+            trdVenue:x|$x.trade.executionVenue,
+            trdIsBlock:x|$x.trade.isBlock,
+            trdCreated:x|$x.trade.createdTime,
+            instrId:x|$x.trade.instrument.instrumentId,
+            instrName:x|$x.trade.instrument.name,
+            instrTicker:x|$x.trade.instrument.ticker,
+            instrAsset:x|$x.trade.instrument.assetClass,
+            instrCcy:x|$x.trade.instrument.currency,
+            instrIsin:x|$x.trade.instrument.isin,
+            instrActive:x|$x.trade.instrument.isActive,
+            instrType:x|$x.trade.instrument.productType,
+            cptyId:x|$x.counterparty.counterpartyId,
+            cptyName:x|$x.counterparty.legalName,
+            cptyLei:x|$x.counterparty.lei,
+            cptyType:x|$x.counterparty.counterpartyType,
+            cptyDomicile:x|$x.counterparty.domicile,
+            cptyCreditRating:x|$x.counterparty.creditRating,
+            cptyTier:x|$x.counterparty.tier,
+            cptyCountry:x|$x.counterparty.country.countryCode,
+            cptyCountryName:x|$x.counterparty.country.name,
+            cptyCountryRegion:x|$x.counterparty.country.region
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q4_ConfirmTradeInstrSector
+{
+    pattern: '/stress/q4';
+    documentation: 'Confirmation -> Trade -> Instrument -> Sector (40 props, 4-hop: ops->trading->products->refdata)';
+    execution: Single
+    {
+    query: |ops::Confirmation.all()
+        ->project(~[
+            confirmId:x|$x.confirmId,
+            status:x|$x.status,
+            confirmMethod:x|$x.confirmMethod,
+            isElectronic:x|$x.isElectronic,
+            version:x|$x.version,
+            sentDate:x|$x.sentDate,
+            affirmedDate:x|$x.affirmedDate,
+            daysOutstanding:x|$x.daysOutstanding,
+            isOverdue:x|$x.isOverdue,
+            counterpartyRef:x|$x.counterpartyRef,
+            trdId:x|$x.trade.tradeId,
+            trdDate:x|$x.trade.tradeDate,
+            trdQty:x|$x.trade.quantity,
+            trdPrice:x|$x.trade.price,
+            trdSide:x|$x.trade.side,
+            trdStatus:x|$x.trade.status,
+            trdCcy:x|$x.trade.currency,
+            trdComm:x|$x.trade.commission,
+            trdVenue:x|$x.trade.executionVenue,
+            trdIsBlock:x|$x.trade.isBlock,
+            instrId:x|$x.trade.instrument.instrumentId,
+            instrName:x|$x.trade.instrument.name,
+            instrTicker:x|$x.trade.instrument.ticker,
+            instrAsset:x|$x.trade.instrument.assetClass,
+            instrCcy:x|$x.trade.instrument.currency,
+            instrIsin:x|$x.trade.instrument.isin,
+            instrType:x|$x.trade.instrument.productType,
+            instrActive:x|$x.trade.instrument.isActive,
+            instrNotional:x|$x.trade.instrument.notionalAmount,
+            instrMaturity:x|$x.trade.instrument.maturityDate,
+            secName:x|$x.trade.instrument.sector.name,
+            secGics:x|$x.trade.instrument.sector.gicsCode,
+            secLevel:x|$x.trade.instrument.sector.level,
+            secActive:x|$x.trade.instrument.sector.isActive,
+            cptyId:x|$x.trade.counterparty.counterpartyId,
+            cptyName:x|$x.trade.counterparty.legalName,
+            cptyLei:x|$x.trade.counterparty.lei,
+            cptyType:x|$x.trade.counterparty.counterpartyType,
+            cptyDomicile:x|$x.trade.counterparty.domicile,
+            cptyCreditRating:x|$x.trade.counterparty.creditRating
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q5_SalesCreditTradeBookDesk
+{
+    pattern: '/stress/q5';
+    documentation: 'SalesCredit -> Trade -> Book -> Desk (42 props, 4-hop: sales->trading->positions->org)';
+    execution: Single
+    {
+    query: |sales::SalesCredit.all()
+        ->project(~[
+            creditId:x|$x.creditId,
+            creditAmount:x|$x.creditAmount,
+            creditDate:x|$x.creditDate,
+            creditType:x|$x.creditType,
+            currency:x|$x.currency,
+            splitPct:x|$x.splitPct,
+            status:x|$x.status,
+            isOverride:x|$x.isOverride,
+            overrideBy:x|$x.overrideBy,
+            originalAmount:x|$x.originalAmount,
+            region:x|$x.region,
+            productArea:x|$x.productArea,
+            trdId:x|$x.trade.tradeId,
+            trdDate:x|$x.trade.tradeDate,
+            trdQty:x|$x.trade.quantity,
+            trdPrice:x|$x.trade.price,
+            trdNotional:x|$x.trade.notional,
+            trdCcy:x|$x.trade.currency,
+            trdSide:x|$x.trade.side,
+            trdStatus:x|$x.trade.status,
+            bkId:x|$x.trade.book.bookId,
+            bkName:x|$x.trade.book.name,
+            bkCcy:x|$x.trade.book.currency,
+            bkType:x|$x.trade.book.bookType,
+            bkStrategy:x|$x.trade.book.strategy,
+            bkLegalEntity:x|$x.trade.book.legalEntity,
+            bkActive:x|$x.trade.book.isActive,
+            deskId:x|$x.trade.book.desk.deskId,
+            deskName:x|$x.trade.book.desk.name,
+            deskType:x|$x.trade.book.desk.deskType,
+            deskAsset:x|$x.trade.book.desk.assetClass,
+            deskRegion:x|$x.trade.book.desk.region,
+            deskActive:x|$x.trade.book.desk.isActive,
+            instrId:x|$x.trade.instrument.instrumentId,
+            instrName:x|$x.trade.instrument.name,
+            instrTicker:x|$x.trade.instrument.ticker,
+            instrAsset:x|$x.trade.instrument.assetClass,
+            instrCcy:x|$x.trade.instrument.currency,
+            instrType:x|$x.trade.instrument.productType,
+            cptyId:x|$x.trade.counterparty.counterpartyId,
+            cptyName:x|$x.trade.counterparty.legalName,
+            cptyLei:x|$x.trade.counterparty.lei
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q6_GreeksPositionInstr
+{
+    pattern: '/stress/q6';
+    documentation: 'Greeks -> Position -> Instrument + Instrument (44 props, 3-hop: risk->positions->products)';
+    execution: Single
+    {
+    query: |risk::Greeks.all()
+        ->project(~[
+            greeksId:x|$x.greeksId,
+            calcDate:x|$x.calcDate,
+            delta:x|$x.delta,
+            gamma:x|$x.gamma,
+            vega:x|$x.vega,
+            theta:x|$x.theta,
+            rho:x|$x.rho,
+            charm:x|$x.charm,
+            vanna:x|$x.vanna,
+            volga:x|$x.volga,
+            currency:x|$x.currency,
+            model:x|$x.model,
+            isEOD:x|$x.isEOD,
+            underlyingPrice:x|$x.underlyingPrice,
+            posId:x|$x.position.positionId,
+            posQty:x|$x.position.quantity,
+            posMarketVal:x|$x.position.marketValue,
+            posCcy:x|$x.position.currency,
+            posCostBasis:x|$x.position.costBasis,
+            posAvgCost:x|$x.position.averageCost,
+            posDirection:x|$x.position.direction,
+            posIsOpen:x|$x.position.isOpen,
+            posDate:x|$x.position.positionDate,
+            posLastUpdated:x|$x.position.lastUpdated,
+            instrId:x|$x.position.instrument.instrumentId,
+            instrName:x|$x.position.instrument.name,
+            instrTicker:x|$x.position.instrument.ticker,
+            instrAsset:x|$x.position.instrument.assetClass,
+            instrCcy:x|$x.position.instrument.currency,
+            instrIsin:x|$x.position.instrument.isin,
+            instrType:x|$x.position.instrument.productType,
+            instrActive:x|$x.position.instrument.isActive,
+            instrNotional:x|$x.position.instrument.notionalAmount,
+            secName:x|$x.position.instrument.sector.name,
+            secGics:x|$x.position.instrument.sector.gicsCode,
+            secLevel:x|$x.position.instrument.sector.level,
+            gInstrId:x|$x.instrument.instrumentId,
+            gInstrName:x|$x.instrument.name,
+            gInstrTicker:x|$x.instrument.ticker,
+            gInstrAsset:x|$x.instrument.assetClass
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q7_TradeReportTradeInstrBookCpty
+{
+    pattern: '/stress/q7';
+    documentation: 'TradeReport -> Trade -> Instrument + Book + Counterparty (46 props, 4-hop)';
+    execution: Single
+    {
+    query: |regulatory::TradeReport.all()
+        ->project(~[
+            reportId:x|$x.reportId,
+            reportType:x|$x.reportType,
+            status:x|$x.status,
+            submissionDate:x|$x.submissionDate,
+            reportingEntity:x|$x.reportingEntity,
+            regime:x|$x.regime,
+            uti:x|$x.uti,
+            usi:x|$x.usi,
+            reportingCounterparty:x|$x.reportingCounterparty,
+            rejectReason:x|$x.rejectReason,
+            retryCount:x|$x.retryCount,
+            isLateReport:x|$x.isLateReport,
+            dueDate:x|$x.dueDate,
+            trdId:x|$x.trade.tradeId,
+            trdDate:x|$x.trade.tradeDate,
+            trdQty:x|$x.trade.quantity,
+            trdPrice:x|$x.trade.price,
+            trdNotional:x|$x.trade.notional,
+            trdSide:x|$x.trade.side,
+            trdStatus:x|$x.trade.status,
+            trdCcy:x|$x.trade.currency,
+            trdComm:x|$x.trade.commission,
+            trdVenue:x|$x.trade.executionVenue,
+            trdIsBlock:x|$x.trade.isBlock,
+            instrId:x|$x.trade.instrument.instrumentId,
+            instrName:x|$x.trade.instrument.name,
+            instrTicker:x|$x.trade.instrument.ticker,
+            instrAsset:x|$x.trade.instrument.assetClass,
+            instrCcy:x|$x.trade.instrument.currency,
+            instrIsin:x|$x.trade.instrument.isin,
+            instrType:x|$x.trade.instrument.productType,
+            instrActive:x|$x.trade.instrument.isActive,
+            bkId:x|$x.trade.book.bookId,
+            bkName:x|$x.trade.book.name,
+            bkCcy:x|$x.trade.book.currency,
+            bkType:x|$x.trade.book.bookType,
+            bkStrategy:x|$x.trade.book.strategy,
+            cptyId:x|$x.trade.counterparty.counterpartyId,
+            cptyName:x|$x.trade.counterparty.legalName,
+            cptyLei:x|$x.trade.counterparty.lei,
+            cptyType:x|$x.trade.counterparty.counterpartyType,
+            cptyDomicile:x|$x.trade.counterparty.domicile,
+            deskId:x|$x.trade.book.desk.deskId,
+            deskName:x|$x.trade.book.desk.name,
+            deskRegion:x|$x.trade.book.desk.region,
+            deskAsset:x|$x.trade.book.desk.assetClass,
+            deskActive:x|$x.trade.book.desk.isActive
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q8_CollateralCptyCountry
+{
+    pattern: '/stress/q8';
+    documentation: 'CollateralAgreement -> Counterparty -> Country (40 props, 3-hop)';
+    execution: Single
+    {
+    query: |collateral::CollateralAgreement.all()
+        ->project(~[
+            agreementId:x|$x.agreementId,
+            agreementType:x|$x.agreementType,
+            threshold:x|$x.threshold,
+            minimumTransferAmount:x|$x.minimumTransferAmount,
+            currency:x|$x.currency,
+            effectiveDate:x|$x.effectiveDate,
+            terminationDate:x|$x.terminationDate,
+            independentAmount:x|$x.independentAmount,
+            roundingAmount:x|$x.roundingAmount,
+            valuationFrequency:x|$x.valuationFrequency,
+            disputeResolutionDays:x|$x.disputeResolutionDays,
+            isActive:x|$x.isActive,
+            eligibleCollateral:x|$x.eligibleCollateral,
+            governingLaw:x|$x.governingLaw,
+            cptyId:x|$x.counterparty.counterpartyId,
+            cptyName:x|$x.counterparty.legalName,
+            cptyLei:x|$x.counterparty.lei,
+            cptyType:x|$x.counterparty.counterpartyType,
+            cptyDomicile:x|$x.counterparty.domicile,
+            cptyCreditRating:x|$x.counterparty.creditRating,
+            cptyRatingAgency:x|$x.counterparty.ratingAgency,
+            cptyTier:x|$x.counterparty.tier,
+            cptyIndustry:x|$x.counterparty.industry,
+            cptyIsActive:x|$x.counterparty.isActive,
+            cptyOnboard:x|$x.counterparty.onboardDate,
+            countryCode:x|$x.counterparty.country.countryCode,
+            countryName:x|$x.counterparty.country.name,
+            countryRegion:x|$x.counterparty.country.region,
+            countryIso3:x|$x.counterparty.country.iso3Code,
+            countrySubRegion:x|$x.counterparty.country.subRegion,
+            countryContinent:x|$x.counterparty.country.continent,
+            countryCapital:x|$x.counterparty.country.capitalCity,
+            countryTimezone:x|$x.counterparty.country.timeZone,
+            countryGdp:x|$x.counterparty.country.gdp,
+            countryPopulation:x|$x.counterparty.country.population,
+            countryIsEU:x|$x.counterparty.country.isEU,
+            countryIsOECD:x|$x.counterparty.country.isOECD
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q9_PositionInstrSectorCurrency
+{
+    pattern: '/stress/q9';
+    documentation: 'Position -> Instrument -> Sector + Currency (40 props, 3-hop)';
+    execution: Single
+    {
+    query: |positions::Position.all()
+        ->project(~[
+            positionId:x|$x.positionId,
+            quantity:x|$x.quantity,
+            averageCost:x|$x.averageCost,
+            marketValue:x|$x.marketValue,
+            unrealizedPnL:x|$x.unrealizedPnL,
+            realizedPnL:x|$x.realizedPnL,
+            currency:x|$x.currency,
+            positionDate:x|$x.positionDate,
+            direction:x|$x.direction,
+            costBasis:x|$x.costBasis,
+            accruedInterest:x|$x.accruedInterest,
+            lastUpdated:x|$x.lastUpdated,
+            isOpen:x|$x.isOpen,
+            settlementDate:x|$x.settlementDate,
+            instrId:x|$x.instrument.instrumentId,
+            instrName:x|$x.instrument.name,
+            instrTicker:x|$x.instrument.ticker,
+            instrAsset:x|$x.instrument.assetClass,
+            instrCcy:x|$x.instrument.currency,
+            instrIsin:x|$x.instrument.isin,
+            instrType:x|$x.instrument.productType,
+            instrActive:x|$x.instrument.isActive,
+            instrNotional:x|$x.instrument.notionalAmount,
+            instrMaturity:x|$x.instrument.maturityDate,
+            instrListing:x|$x.instrument.listingDate,
+            instrDescription:x|$x.instrument.description,
+            secName:x|$x.instrument.sector.name,
+            secGics:x|$x.instrument.sector.gicsCode,
+            secLevel:x|$x.instrument.sector.level,
+            secActive:x|$x.instrument.sector.isActive,
+            secDescription:x|$x.instrument.sector.description,
+            ccyCode:x|$x.instrument.instrumentCurrency.code,
+            ccyName:x|$x.instrument.instrumentCurrency.name,
+            ccyMinor:x|$x.instrument.instrumentCurrency.minorUnit,
+            ccySymbol:x|$x.instrument.instrumentCurrency.symbol,
+            ccyActive:x|$x.instrument.instrumentCurrency.isActive,
+            ccyRegion:x|$x.instrument.instrumentCurrency.region,
+            ccyMajor:x|$x.instrument.instrumentCurrency.isMajor,
+            ccyCentralBank:x|$x.instrument.instrumentCurrency.centralBank
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q10_TradeFilterSortLimit
+{
+    pattern: '/stress/q10';
+    documentation: 'Wide filter + sort + limit with cross-domain nav (21 props)';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.status == 'EXECUTED')})
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            tradeDate:x|$x.tradeDate,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            notional:x|$x.notional,
+            side:x|$x.side,
+            currency:x|$x.currency,
+            commission:x|$x.commission,
+            fees:x|$x.fees,
+            executionVenue:x|$x.executionVenue,
+            isBlock:x|$x.isBlock,
+            instrName:x|$x.instrument.name,
+            instrAsset:x|$x.instrument.assetClass,
+            instrCcy:x|$x.instrument.currency,
+            instrIsin:x|$x.instrument.isin,
+            bkName:x|$x.book.name,
+            bkCcy:x|$x.book.currency,
+            deskName:x|$x.book.desk.name,
+            deskRegion:x|$x.book.desk.region,
+            cptyName:x|$x.counterparty.legalName,
+            cptyLei:x|$x.counterparty.lei
+        ])
+        ->sort(~notional->descending())
+        ->limit(100);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}
+
+Service stress::Q11_TradeMonster9Joins
+{
+    pattern: '/stress/q11';
+    documentation: 'THE MONSTER - 9 disjoint JOINs from Trade across 6 domains, 60 props';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            tradeId:x|$x.tradeId,
+            tradeDate:x|$x.tradeDate,
+            settlementDate:x|$x.settlementDate,
+            quantity:x|$x.quantity,
+            price:x|$x.price,
+            notional:x|$x.notional,
+            side:x|$x.side,
+            status:x|$x.status,
+            tradeType:x|$x.tradeType,
+            currency:x|$x.currency,
+            commission:x|$x.commission,
+            fees:x|$x.fees,
+            executionVenue:x|$x.executionVenue,
+            isBlock:x|$x.isBlock,
+            createdTime:x|$x.createdTime,
+            lastModifiedTime:x|$x.lastModifiedTime,
+            instrId:x|$x.instrument.instrumentId,
+            instrName:x|$x.instrument.name,
+            instrTicker:x|$x.instrument.ticker,
+            instrAsset:x|$x.instrument.assetClass,
+            instrCcy:x|$x.instrument.currency,
+            instrIsin:x|$x.instrument.isin,
+            instrCusip:x|$x.instrument.cusip,
+            instrType:x|$x.instrument.productType,
+            secName:x|$x.instrument.sector.name,
+            secGics:x|$x.instrument.sector.gicsCode,
+            secLevel:x|$x.instrument.sector.level,
+            secActive:x|$x.instrument.sector.isActive,
+            secDesc:x|$x.instrument.sector.description,
+            ccyCode:x|$x.instrument.instrumentCurrency.code,
+            ccyName:x|$x.instrument.instrumentCurrency.name,
+            ccySymbol:x|$x.instrument.instrumentCurrency.symbol,
+            ccyRegion:x|$x.instrument.instrumentCurrency.region,
+            ccyMajor:x|$x.instrument.instrumentCurrency.isMajor,
+            ccyCentralBank:x|$x.instrument.instrumentCurrency.centralBank,
+            exchMic:x|$x.instrument.exchange.mic,
+            exchName:x|$x.instrument.exchange.name,
+            exchCity:x|$x.instrument.exchange.city,
+            exchTimezone:x|$x.instrument.exchange.timezone,
+            exchIsElectronic:x|$x.instrument.exchange.isElectronic,
+            exchRegulator:x|$x.instrument.exchange.regulatoryBody,
+            bkId:x|$x.book.bookId,
+            bkName:x|$x.book.name,
+            bkCcy:x|$x.book.currency,
+            bkType:x|$x.book.bookType,
+            bkStrategy:x|$x.book.strategy,
+            bkPnlYTD:x|$x.book.pnlYTD,
+            deskId:x|$x.book.desk.deskId,
+            deskName:x|$x.book.desk.name,
+            deskType:x|$x.book.desk.deskType,
+            deskAsset:x|$x.book.desk.assetClass,
+            deskRegion:x|$x.book.desk.region,
+            deskCostCenter:x|$x.book.desk.costCenter,
+            traderId:x|$x.trader.traderId,
+            traderFirst:x|$x.trader.firstName,
+            traderLast:x|$x.trader.lastName,
+            traderBadge:x|$x.trader.badge,
+            traderSeniority:x|$x.trader.seniority,
+            traderSpecialization:x|$x.trader.specialization,
+            cptyId:x|$x.counterparty.counterpartyId,
+            cptyName:x|$x.counterparty.legalName,
+            cptyLei:x|$x.counterparty.lei,
+            cptyType:x|$x.counterparty.counterpartyType,
+            cptyCountryCode:x|$x.counterparty.country.countryCode,
+            cptyCountryName:x|$x.counterparty.country.name,
+            cptyCountryRegion:x|$x.counterparty.country.region,
+            cptyCountryContinent:x|$x.counterparty.country.continent,
+            cptyCountryIsEU:x|$x.counterparty.country.isEU
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+}

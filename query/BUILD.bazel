@@ -23,6 +23,8 @@ js_library(
     name = "src",
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
     deps = [
+        # upstream Legend's icons, shared with Studio (legend-art/src/icons.ts)
+        "//legend-art:legend_art",
         "//pure-protocol:pure_protocol",
         # saved queries: the one client, and the store answered in the page (query-store/README.md)
         "//query-store:query_store",
@@ -61,7 +63,7 @@ copy_to_directory(
     srcs = [
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         # upstream Legend Query's type (legend-art _fonts.scss): Roboto, Roboto Mono, Raleway 900
-        # for the type letters -- vendored in legend-art, served with the site, no font CDN (OFL-1.1)
+        # for the type letters -- from legend-art (the pinned @fontsource), served with the site, no font CDN (OFL-1.1)
         "//legend-art:fonts",
         "//legend-art:styles",
         "//wasm:planner",
@@ -194,6 +196,7 @@ typescript.tsc_test(
         "//query-store:query_store",
         "//datacube:src",
         "//engine-client:engine_client",
+        "//legend-art:legend_art",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/@types/node",
     ],

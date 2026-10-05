@@ -1,5 +1,5 @@
-/* Upstream Legend Studio's type (legend-art: Roboto, Roboto Mono, Raleway 900 for the type letters), vendored in
- * legend-art/fonts and served with the site (OFL-1.1): no request leaves for a font CDN. */
+/* Upstream Legend Studio's type (legend-art: Roboto, Roboto Mono, Raleway 900 for the type letters), from
+ * //legend-art:fonts (the pinned @fontsource), served with the site (OFL-1.1): no request leaves for a font CDN. */
 @font-face { font-family: 'Roboto'; font-style: normal; font-display: swap; font-weight: 400; src: url(vendor/fonts/roboto-latin-400-normal.woff2) format('woff2'); }
 @font-face { font-family: 'Roboto'; font-style: normal; font-display: swap; font-weight: 500; src: url(vendor/fonts/roboto-latin-500-normal.woff2) format('woff2'); }
 @font-face { font-family: 'Roboto'; font-style: normal; font-display: swap; font-weight: 700; src: url(vendor/fonts/roboto-latin-700-normal.woff2) format('woff2'); }

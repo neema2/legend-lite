@@ -20,8 +20,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE LAYERS OF CORE (execution plan rule 0.12). Every product library in {@code //core} depends on exactly the
- * targets {@code core-layers.txt} lists for it: Bazel's own answer (a genquery of each target's direct {@code deps},
- * in this package) is compared with the committed file, line by line. Java's strict dependencies already stop code
+ * targets {@code core-layers.txt} lists for it: Bazel's own answer (a genquery of each library's direct {@code deps},
+ * which {@code core/layers.bzl} makes for every library of the package) is compared with the committed file, line by
+ * line, both ways: a library with no line fails, and so does a line with no library. Java's strict dependencies already stop code
  * from importing a target it does not list; this test stops the LIST from growing unnoticed, so a stage cannot quietly
  * start depending on a later stage (the store resolver on lowering, say) or on the whole compiler.
  *
@@ -43,16 +44,26 @@ class CoreLayeringTest {
         assertTrue(expected.size() >= 20, "core-layers.txt lists " + expected.size() + " targets — the guard is not looking");
         // each layer_<target> genquery output, by its runfiles path
         Map<String, Path> layerFiles = new LinkedHashMap<>();
-        for (String rlocationpath : System.getProperty("core.layer.files").split(",")) {
+        for (String rlocationpath : System.getenv("CORE_LAYER_FILES").split(" ")) {
+            if (rlocationpath.isBlank()) continue;
             layerFiles.put(rlocationpath.substring(rlocationpath.lastIndexOf("/layer_") + "/layer_".length()),
                     Runfile.of(rlocationpath));
         }
+        // every core library (core/layers.bzl queries each one) has its policy line: a new library is a decision
         List<String> drift = new ArrayList<>();
+        for (String library : layerFiles.keySet()) {
+            if (!expected.containsKey(library)) {
+                drift.add("//core:" + library + " is a core library with no line in tools/deps/core-layers.txt"
+                        + " (add its allowed layers, or name it in core/BUILD.bazel's not_layers with why)");
+            }
+        }
         for (Map.Entry<String, String> e : expected.entrySet()) {
             String target = e.getKey();
             Path layer = layerFiles.get(target);
             if (layer == null) {
-                throw new IllegalStateException("tools/deps/BUILD.bazel passes no layer_" + target);
+                drift.add("core-layers.txt lists " + target + ", which is no core library (core/layers.bzl made no"
+                        + " layer_" + target + "): delete its line, or take it out of core/BUILD.bazel's not_layers");
+                continue;
             }
             String actual = normalise(Files.readAllLines(layer));
             if (!actual.equals(e.getValue())) {

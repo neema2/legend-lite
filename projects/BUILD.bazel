@@ -6,7 +6,18 @@ load("//tools/guards:defs.bzl", "guards_package")
 filegroup(
     name = "srcs",
     srcs = glob(["**/*.pure"]),
-    visibility = ["//core:__pkg__"],
+    visibility = [
+        "//core:__pkg__",
+        "//scripts/corpus:__pkg__",
+    ],
 )
+
+# one filegroup per project (its top-level .pure files), so a consumer declares only the projects it links
+# (//scripts/corpus's generators: core/stress.bzl's LINKED_PROJECTS; Bazel workplan P2-03)
+[filegroup(
+    name = project,
+    srcs = glob([project + "/*.pure"]),
+    visibility = ["//scripts/corpus:__pkg__"],
+) for project in sorted({f.split("/")[0]: None for f in glob(["*/*.pure"])}.keys())]
 
 guards_package()
