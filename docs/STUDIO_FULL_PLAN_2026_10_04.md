@@ -132,8 +132,10 @@ Left out of this plan when it was written; the user ruled it next after A0 (2026
   grammar and refused if it differs), an undoable edit pushed with the workspace. "Query…" on a class opens a new query
   on it, and "Execute…" on a mapping a query on the first class it maps (upstream's mapping execution); both run and
   are kept nowhere. The results are Query's: its grid and DataCube's. `//studio:verify_test` builds a column in the
-  form, saves it into a service and runs the service's text, and executes party's mapping (5 rows). Next: a
-  function's body in the builder, and mapping tests (with A4).
+  form, saves it into a service and runs the service's text, and executes party's mapping (5 rows). Then a function's
+  query: "Edit Query" on a function whose body ends `->from(mapping, runtime)` opens it in the builder, and Save Query
+  writes the body back with its `from()` (the signature as written; parameters other than the signature's refused;
+  read back by the grammar -- `studio/src/model/function-body.ts`). Next: mapping tests (with A4).
 
 ### A1. One in-tab engine for every app
 - Move Query's `BrowserEngine` (planner → SQL → DuckDB/warehouse, engine-shaped answers) into `engine-client/` as **the
