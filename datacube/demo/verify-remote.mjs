@@ -13,17 +13,14 @@
 //
 // Run: bazel run //datacube:verify_remote
 import { engineClientRequire } from '../../engine-client/src/node-require.ts';
-import { createServer } from 'node:http';
 import { readFile, rm } from 'node:fs/promises';
 import { extname } from 'node:path';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { servedPath } from './static-files.ts';
 
 import { chromium } from 'playwright';
+import { serve, siteRoot } from './harness.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const PORT = 8741;
+const ROOT = siteRoot();
 
 let failed = false;
 const check = (name, ok, detail = '') => {
@@ -84,67 +81,48 @@ check('built a Parquet fixture', parquet.length > 0, `${parquet.length} bytes`);
 
 // ---- serve it, and the harness page, with RANGE support -------------
 let rangeRequests = 0;
-const TYPES = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.mjs': 'text/javascript',
-  '.css': 'text/css',
-  '.wasm': 'application/wasm',
-  '.json': 'application/json',
+
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+  'Cross-Origin-Resource-Policy': 'cross-origin',
 };
-
-const server = createServer(async (req, res) => {
-  const url = new URL(req.url ?? '/', 'http://x');
-  const cors = {
-    'Access-Control-Allow-Origin': '*',
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Embedder-Policy': 'require-corp',
-    'Cross-Origin-Resource-Policy': 'cross-origin',
-  };
-
-  if (url.pathname === '/data/trades.parquet') { // portable: an HTTP route
-    // Object storage serves ranges, and DuckDB relies on it: it reads
-    // the footer first to find the row groups. A server without range
-    // support forces a whole-file download, which is the difference
-    // between this architecture working and not.
-    const range = req.headers.range;
-    if (range) {
-      rangeRequests += 1;
-      const m = /bytes=(\d*)-(\d*)/.exec(range);
-      const start = Number(m?.[1] ?? 0);
-      const end = m?.[2] ? Number(m[2]) : parquet.length - 1;
-      res.writeHead(206, {
+// port 0: any free one, never a fixed number (Bazel workplan P4-01)
+const { port: PORT, close: closeServer } = await serve(ROOT, {
+  headers: cors,
+  route: async (req, res, url) => {
+    if (url.pathname === '/data/trades.parquet') { // portable: an HTTP route
+      // Object storage serves ranges, and DuckDB relies on it: it reads
+      // the footer first to find the row groups. A server without range
+      // support forces a whole-file download, which is the difference
+      // between this architecture working and not.
+      const range = req.headers.range;
+      if (range) {
+        rangeRequests += 1;
+        const m = /bytes=(\d*)-(\d*)/.exec(range);
+        const start = Number(m?.[1] ?? 0);
+        const end = m?.[2] ? Number(m[2]) : parquet.length - 1;
+        res.writeHead(206, {
+          ...cors,
+          'Content-Range': `bytes ${start}-${end}/${parquet.length}`,
+          'Accept-Ranges': 'bytes',
+          'Content-Length': end - start + 1,
+        });
+        res.end(parquet.subarray(start, end + 1));
+        return true;
+      }
+      res.writeHead(200, {
         ...cors,
-        'Content-Range': `bytes ${start}-${end}/${parquet.length}`,
         'Accept-Ranges': 'bytes',
-        'Content-Length': end - start + 1,
+        'Content-Length': parquet.length,
       });
-      res.end(parquet.subarray(start, end + 1));
-      return;
+      res.end(req.method === 'HEAD' ? undefined : parquet);
+      return true;
     }
-    res.writeHead(200, {
-      ...cors,
-      'Accept-Ranges': 'bytes',
-      'Content-Length': parquet.length,
-    });
-    res.end(req.method === 'HEAD' ? undefined : parquet);
-    return;
-  }
-
-  try {
-    const file = servedPath(ROOT, req.url, '');
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      ...cors,
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-    });
-    res.end(body);
-  } catch {
-    res.writeHead(404, cors).end('not found');
-  }
+    return false;
+  },
 });
-await new Promise((r) => server.listen(PORT, r));
 
 // ---- drive it in a real browser -------------------------------------
 const browser = await chromium.launch();
@@ -152,7 +130,7 @@ const page = await browser.newPage();
 const problems = [];
 page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
 
-await page.goto(`http://localhost:${PORT}/demo/remote.html`);
+await page.goto(`http://127.0.0.1:${PORT}/demo/remote.html`);
 await page.waitForFunction(() => document.body.dataset['ready'] === 'yes', {
   timeout: 60_000,
 });
@@ -160,7 +138,7 @@ check('the harness booted duckdb-wasm in the browser', true);
 
 const out = await page.evaluate(
   (url) => window.remoteTest({ name: 'TRADES', url }),
-  `http://localhost:${PORT}/data/trades.parquet`,
+  `http://127.0.0.1:${PORT}/data/trades.parquet`,
 );
 
 check(
@@ -217,9 +195,9 @@ const app = await browser.newPage();
 const appProblems = [];
 app.on('pageerror', (e) => appProblems.push(`pageerror: ${e.message}`));
 const remoteUrl = encodeURIComponent(
-  `http://localhost:${PORT}/data/trades.parquet`,
+  `http://127.0.0.1:${PORT}/data/trades.parquet`,
 );
-await app.goto(`http://localhost:${PORT}/demo/index.html?remote=${remoteUrl}`);
+await app.goto(`http://127.0.0.1:${PORT}/demo/index.html?remote=${remoteUrl}`);
 
 let rendered = 0;
 try {
@@ -240,6 +218,6 @@ check(
 );
 
 await browser.close();
-server.close();
+closeServer();
 console.log(failed ? '\nREMOTE VERIFY FAILED' : '\nremote sources work');
 process.exit(failed ? 1 : 0);

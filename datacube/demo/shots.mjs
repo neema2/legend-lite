@@ -10,46 +10,18 @@
 // than reloading it.
 //
 // Run: bazel run //datacube:shots
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { servedPath } from './static-files.ts';
 
 import { chromium } from 'playwright';
+import { serve, siteRoot } from './harness.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = siteRoot();
 // `bazel run` starts this in its runfiles; screenshots are for a person,
 // so they go under the directory the run was started from.
 const OUT = join(process.env.BUILD_WORKING_DIRECTORY ?? process.cwd(), 'datacube-shots');
-const PORT = 8732;
-const TYPES = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.mjs': 'text/javascript',
-  '.css': 'text/css',
-  '.wasm': 'application/wasm',
-  '.json': 'application/json',
-};
-
-const server = createServer(async (req, res) => {
-  try {
-    const file = servedPath(ROOT, req.url);
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Resource-Policy': 'cross-origin',
-    });
-    res.end(body);
-  } catch {
-    res.writeHead(404).end('not found');
-  }
-});
-
-await new Promise((r) => server.listen(PORT, r));
+// port 0: any free one, never a fixed number (Bazel workplan P4-01)
+const { port: PORT, close: closeServer } = await serve(ROOT, { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Cross-Origin-Resource-Policy': 'cross-origin' } });
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -106,7 +78,7 @@ const field = (label) =>
     .first();
 
 try {
-  await page.goto(`http://localhost:${PORT}/demo/index.html`, {
+  await page.goto(`http://127.0.0.1:${PORT}/demo/index.html`, {
     waitUntil: 'domcontentloaded',
   });
   await page.waitForSelector('.dc-row .dc-cell', { timeout: 120_000 });
@@ -310,5 +282,5 @@ try {
   process.exitCode = 1;
 } finally {
   await browser.close();
-  server.close();
+  closeServer();
 }

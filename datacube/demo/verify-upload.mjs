@@ -13,14 +13,12 @@
 //   DATA=/abs/path/trades.csv EXPECT_ROWS=50000 bazel run //datacube:verify_upload
 //   bazel run //datacube:verify_upload        (no DATA: the product's own sample, 50,000 rows)
 
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { chromium } from 'playwright';
-import { fileURLToPath } from 'node:url';
-import { servedPath } from './static-files.ts';
+import { serve, siteRoot } from './harness.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = siteRoot();
 
 // A function declaration, not a const: this is used above its
 // definition and a const there is a temporal-dead-zone error
@@ -46,23 +44,7 @@ async function sampleFile() {
   return file;
 }
 
-const TYPES = {
-  '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm',
-  '.pure': 'text/plain', '.css': 'text/css',
-};
-const server = createServer(async (req, res) => {
-  const file = servedPath(ROOT, req.url);
-  try {
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-    });
-    res.end(body);
-  } catch { res.writeHead(404).end('not found'); }
-});
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const { port } = server.address();
+const { port, close: closeServer } = await serve(ROOT);
 
 /** "50,000 rows × 12 cols": the opened cube's own status line, read as soon as it opened. */
 let countsAfterOpen = '';
@@ -456,7 +438,7 @@ try {
     failed = true;
   }
   await browser.close();
-  server.close();
+  closeServer();
 }
 
 console.log(failed

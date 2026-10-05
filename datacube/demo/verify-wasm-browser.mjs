@@ -13,46 +13,17 @@
 //
 //   bazel run //datacube:verify_wasm_browser
 
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { chromium } from 'playwright';
-import { fileURLToPath } from 'node:url';
-import { servedPath } from './static-files.ts';
+import { serve, siteRoot } from './harness.mjs';
 
 // Serve the datacube/ directory, not demo/: index.html links its
 // stylesheets as ../src/*.css, so a demo-rooted server 404s them
 // and the page renders unstyled. The real demo is served from here.
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const TYPES = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.mjs': 'text/javascript',
-  '.wasm': 'application/wasm',
-  '.pure': 'text/plain',
-  '.css': 'text/css',
-  '.json': 'application/json',
-};
+const ROOT = siteRoot();
 
-const server = createServer(async (req, res) => {
-  const file = servedPath(ROOT, req.url);
-  try {
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-      // duckdb-wasm wants these for its threaded build; harmless here.
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    });
-    res.end(body);
-  } catch {
-    res.writeHead(404).end('not found');
-  }
-});
-
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const { port } = server.address();
+const { port, close: closeServer } = await serve(ROOT, { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp' } });
 const url = `http://127.0.0.1:${port}/demo/index.html`;
 console.log(`serving datacube/ on ${port}\nno legend-lite server is running\n`);
 
@@ -226,7 +197,7 @@ try {
     failed = true;
   }
   await browser.close();
-  server.close();
+  closeServer();
 }
 
 console.log(failed

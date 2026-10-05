@@ -10,32 +10,16 @@
 //
 //   bazel run //datacube:verify_cubes
 
-import { createServer } from 'node:http';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
-import { servedPath } from './static-files.ts';
 import { readView, sameTyped, stamp } from './typed-view.mjs';
+import { serve, siteRoot } from './harness.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const TYPES = {
-  '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm',
-  '.pure': 'text/plain', '.css': 'text/css', '.csv': 'text/csv', '.json': 'application/json',
-};
-const server = createServer(async (req, res) => {
-  const file = servedPath(ROOT, req.url);
-  try {
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, { 'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream' });
-    res.end(body);
-  } catch { res.writeHead(404).end('not found'); }
-});
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const { port } = server.address();
+const ROOT = siteRoot();
+const { port, close: closeServer } = await serve(ROOT);
 const URL_BASE = `http://127.0.0.1:${port}`;
 
 const dir = await mkdtemp(join(tmpdir(), 'dc-cubes-'));
@@ -442,7 +426,7 @@ try {
   });
 } finally {
   await browser.close();
-  server.close();
+  closeServer();
 }
 
 const bad = results.filter((r) => !r.ok).length;

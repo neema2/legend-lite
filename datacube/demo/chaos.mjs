@@ -26,29 +26,17 @@
 // is that after being abused it still WORKS.
 //
 // Run: bazel run //datacube:chaos   (needs bazel run //core:server)
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { servedPath } from './static-files.ts';
 
 import { chromium } from 'playwright';
+import { serve, siteRoot } from './harness.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const PORT = 8734;
+const ROOT = siteRoot();
 // legend-lite's server: ENGINE= overrides the local default, as every harness here takes it
 const ENGINE = (process.env.ENGINE ?? 'http://localhost:8080').replace(/\/$/, '');
 const ROUNDS = Number(process.env.CHAOS_ROUNDS ?? 14);
 const SEED = Number(process.env.CHAOS_SEED ?? 20260919);
-
-const TYPES = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.mjs': 'text/javascript',
-  '.css': 'text/css',
-  '.wasm': 'application/wasm',
-  '.json': 'application/json',
-};
 
 // The engine is a PRECONDITION, not something to fall back from. A
 // chaos run against fake data proves nothing about how the product
@@ -68,23 +56,8 @@ try {
   process.exit(1);
 }
 
-const server = createServer(async (req, res) => {
-  try {
-    const file = servedPath(ROOT, req.url);
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-      'Cross-Origin-Resource-Policy': 'cross-origin',
-    });
-    res.end(body);
-  } catch {
-    res.writeHead(404).end('not found');
-  }
-});
-await new Promise((r) => server.listen(PORT, r));
+// port 0: any free one, never a fixed number (Bazel workplan P4-01)
+const { port: PORT, close: closeServer } = await serve(ROOT, { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Cross-Origin-Resource-Policy': 'cross-origin' } });
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
@@ -146,7 +119,7 @@ const closeWindow = async () => {
   if (await close.count()) await tolerant(() => close.first().click({ timeout: 3000 }));
 };
 
-await page.goto(`http://localhost:${PORT}/demo/index.html`);
+await page.goto(`http://127.0.0.1:${PORT}/demo/index.html`);
 await page.waitForSelector('.dc-row', { timeout: 60_000 });
 await page.waitForTimeout(1200);
 check('the grid loads before anyone abuses it', true);
@@ -486,6 +459,6 @@ check('still no page errors after the recovery actions',
   problems.length === 0, problems.slice(0, 4).join(' | '));
 
 await browser.close();
-server.close();
+closeServer();
 console.log(failed ? '\nCHAOS FOUND SOMETHING' : '\nsurvived');
 process.exit(failed ? 1 : 0);

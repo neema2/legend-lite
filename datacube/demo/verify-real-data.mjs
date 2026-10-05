@@ -23,14 +23,12 @@
 // eight columns demo/trades.pure declares: region, desk, book, year,
 // qtr, notional, pnl, qty.
 
-import { createServer } from 'node:http';
 import { open, readFile, stat } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { chromium } from 'playwright';
-import { fileURLToPath } from 'node:url';
-import { servedPath } from './static-files.ts';
+import { sendFile, serve, siteRoot } from './harness.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = siteRoot();
 const GIVEN = process.env.DATA ?? process.env.PARQUET;
 const FORMAT = GIVEN ? (process.env.FORMAT ?? 'parquet') : 'parquet';
 const fixture = GIVEN ? undefined : await buildFixture();
@@ -75,63 +73,16 @@ async function buildFixture() {
   return { file, expect };
 }
 
-const TYPES = {
-  '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm',
-  '.pure': 'text/plain', '.css': 'text/css',
-};
 
-const server = createServer(async (req, res) => {
-  const path = (req.url ?? '/').split('?')[0];
-
-  // The Parquet, WITH byte-range support. httpfs reads the footer
-  // first and then only the row groups a query needs; a server that
-  // ignores Range forces the whole file down every time and hides
-  // whether pushdown is working at all.
-  if (path === '/data.parquet' || path === '/data.csv') {
-    const { size } = await stat(DATA);
-    const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? '');
-    const fh = await open(DATA, 'r');
-    try {
-      if (range) {
-        const start = range[1] ? Number(range[1]) : 0;
-        const end = range[2] ? Number(range[2]) : size - 1;
-        const len = end - start + 1;
-        const buf = Buffer.alloc(len);
-        await fh.read(buf, 0, len, start);
-        res.writeHead(206, {
-          'Content-Type': 'application/octet-stream',
-          'Content-Length': String(len),
-          'Content-Range': `bytes ${start}-${end}/${size}`,
-          'Accept-Ranges': 'bytes',
-        });
-        res.end(buf);
-      } else {
-        res.writeHead(200, {
-          'Content-Type': 'application/octet-stream',
-          'Content-Length': String(size),
-          'Accept-Ranges': 'bytes',
-        });
-        res.end(await readFile(DATA));
-      }
-    } finally {
-      await fh.close();
-    }
-    return;
-  }
-
-  const file = servedPath(ROOT, req.url);
-  try {
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-    });
-    res.end(body);
-  } catch { res.writeHead(404).end('not found'); }
+// the data file WITH byte-range support (harness.sendFile): httpfs reads the footer first and then only the row groups
+// a query needs; a server that ignores Range forces the whole file down every time and hides whether pushdown works
+const { port, close: closeServer } = await serve(ROOT, {
+  route: async (req, res, url) => {
+    if (url.pathname !== '/data.parquet' && url.pathname !== '/data.csv') return false; // portable: an HTTP route
+    await sendFile(res, DATA, req.headers.range);
+    return true;
+  },
 });
-
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const { port } = server.address();
 const data = `http://127.0.0.1:${port}/data.${FORMAT}`;
 const url = `http://127.0.0.1:${port}/demo/index.html`
   + `?remote=${encodeURIComponent(data)}&format=${FORMAT}`;
@@ -207,7 +158,7 @@ try {
     failed = true;
   }
   await browser.close();
-  server.close();
+  closeServer();
 }
 
 console.log(failed

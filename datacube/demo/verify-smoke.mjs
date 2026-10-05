@@ -20,7 +20,6 @@
 
 // first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
 import '../../tools/browser/pinned-chromium.mjs';
-import { createServer } from 'node:http';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
@@ -29,10 +28,9 @@ import { chromium } from 'playwright';
 import { SAMPLES, sampleFileName } from '../src/samples.ts';
 import { kindOf } from '../src/snapshot.ts';
 import { TEMPORAL_TYPES, gridInvariants } from './grid-invariants.mjs';
-import { fileURLToPath } from 'node:url';
-import { servedPath } from './static-files.ts';
+import { serve, siteRoot } from './harness.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = siteRoot();
 const ONLY = process.env.ONLY;
 /**
  * Each sample's OWN size, capped for time -- not a flat small number.
@@ -56,23 +54,7 @@ if (ROWS !== undefined && ROWS < 20_000) {
     + ' result (the header crush) will not reproduce at this size');
 }
 
-const TYPES = {
-  '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm',
-  '.pure': 'text/plain', '.css': 'text/css', '.csv': 'text/csv',
-};
-const server = createServer(async (req, res) => {
-  const file = servedPath(ROOT, req.url);
-  try {
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-    });
-    res.end(body);
-  } catch { res.writeHead(404).end('not found'); }
-});
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const { port } = server.address();
+const { port, close: closeServer } = await serve(ROOT);
 
 // under a test, Bazel's own per-test temp directory, never the host's shared one
 const dir = await mkdtemp(join(process.env.TEST_TMPDIR ?? tmpdir(), 'dc-smoke-'));
@@ -275,7 +257,7 @@ try {
   fail('the run', 'itself', String(e.message ?? e).split('\n')[0]);
 } finally {
   await browser.close();
-  server.close();
+  closeServer();
 }
 
 if (OUT) {

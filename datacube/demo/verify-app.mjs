@@ -14,8 +14,8 @@
 import '../../tools/browser/pinned-chromium.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { runfile, runfileFromEnv, runfilesRoot } from '../../tools/js/runfiles.mts';
 
 // Windows' own taskkill by its full path: a test's PATH is Bazel's, not the desk's (Bazel workplan P1-08
 // removed CI's --test_env=PATH). SystemRoot is set on every Windows process.
@@ -25,9 +25,8 @@ const taskkill = () => {
   return join(root, 'System32', 'taskkill.exe');
 };
 
-// This file is datacube/demo/verify-app.mjs in the runfiles: the site and the launcher are beside it.
-const DATACUBE = fileURLToPath(new URL('..', import.meta.url));
-const RUNFILES = resolve(DATACUBE, '..', '..');
+// the runfiles tree, through the runfiles helper (never this file's own location), for the launchers' RUNFILES_DIR
+const RUNFILES = runfilesRoot();
 
 let PG = process.env.DATACUBE_APP_PG;
 let TABLE = process.env.DATACUBE_APP_TABLE;
@@ -83,8 +82,8 @@ const bad = (m) => { console.log(`FAIL: ${m}`); failed = true; };
 const ok = (m) => console.log(`ok: ${m}`);
 
 // The warehouse as //datacube:app runs it, without --open: the address is read from what it prints.
-const server = spawn(join(RUNFILES, SERVE),
-  ['--port', '0', '--site', join(DATACUBE, 'dist'), '--single-user', PG],
+const server = spawn(runfile(SERVE),
+  ['--port', '0', '--site', runfileFromEnv('DIST'), '--single-user', PG],
   { env: { ...process.env, RUNFILES_DIR: RUNFILES }, stdio: ['ignore', 'ignore', 'pipe'] });
 let printed = '';
 const address = await new Promise((done, fail) => {

@@ -16,7 +16,6 @@
 //
 // Run: bazel run //datacube:torture   (needs `bazel run //core:server`)
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 
 import { engineClientRequire } from '../../engine-client/src/node-require.ts';
 import path from 'node:path';
@@ -29,9 +28,9 @@ import { sourceColumns } from '../src/source-columns.ts';
 import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
 import { buildColumnModel } from '../src/grid/columns.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
+import { siteRoot } from './harness.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const MODEL = readFileSync(`${ROOT}demo/torture.pure`, 'utf8');
+const MODEL = readFileSync(path.join(siteRoot(), 'demo', 'torture.pure'), 'utf8');
 // legend-lite's server: ENGINE= overrides the local default, as every harness here takes it
 const ENGINE = (process.env.ENGINE ?? 'http://localhost:8080').replace(/\/$/, '');
 

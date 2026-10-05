@@ -4,30 +4,14 @@
 //
 //   bazel run //datacube:verify_charts            (SHOTS=<dir> also saves a screenshot)
 
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { serve, siteRoot } from './harness.mjs';
 
-import { servedPath } from './static-files.ts';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const TYPES = {
-  '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm',
-  '.pure': 'text/plain', '.css': 'text/css', '.json': 'application/json', '.woff2': 'font/woff2',
-};
-const server = createServer(async (req, res) => {
-  const file = servedPath(ROOT, req.url);
-  try {
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, { 'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream' });
-    res.end(body);
-  } catch { res.writeHead(404).end('not found'); }
-});
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const { port } = server.address();
+const ROOT = siteRoot();
+const { port, close: closeServer } = await serve(ROOT);
 
 const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 1400, height: 900 } })).newPage();
@@ -175,7 +159,7 @@ try {
   });
 } finally {
   await browser.close();
-  server.close();
+  closeServer();
 }
 
 const bad = results.filter((r) => !r.ok).length;

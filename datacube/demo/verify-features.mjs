@@ -16,7 +16,6 @@
 //   WAREHOUSE=http://127.0.0.1:8772 [WAREHOUSE_SNAP=1] PORT=8022 bazel run //datacube:verify_features
 //                                                  (the sample, LIVE on a warehouse: warehouse-source.mjs)
 
-import { createServer } from 'node:http';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
@@ -28,11 +27,11 @@ import {
 } from './typed-view.mjs';
 import { isNumeric } from '../../engine-client/src/types.ts';
 import { sampleCsv } from '../src/samples.ts';
-import { fileURLToPath } from 'node:url';
-import { servedPath } from './static-files.ts';
 import { WAREHOUSE, openWarehouseTable } from './warehouse-source.mjs';
+import { serve, siteRoot } from './harness.mjs';
+import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = siteRoot();
 
 /**
  * THE SWEEP OPENS A FILE, ALWAYS.
@@ -75,15 +74,11 @@ const SETTLE_TIMEOUT_MS = 20_000;
  */
 const CHECK_DEADLINE_MS = 30_000;
 
-const TYPES = {
-  '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm',
-  '.pure': 'text/plain', '.css': 'text/css', '.csv': 'text/csv',
-};
 // THE QUERY STORE, as legend-lite answers it: the fixture records ARE its answers
-// (fixtures/saved-queries/README.md), so this needs no server of its own -- CI runs it.
-const STORED = join(ROOT, '..', 'fixtures', 'saved-queries');
-const storedQueries = async () => Promise.all((await readdir(STORED)).filter((f) => f.endsWith('.json'))
-  .map(async (f) => JSON.parse(await readFile(join(STORED, f), 'utf8'))));
+// (fixtures/saved-queries/README.md), so this needs no server of its own -- CI runs it. The records are the ones the
+// BUILD file names (SAVED_QUERIES), never found beside this file.
+const storedQueries = async () => Promise.all(runfilesFromEnv('SAVED_QUERIES').filter((f) => f.endsWith('.json'))
+  .map(async (f) => JSON.parse(await readFile(f, 'utf8'))));
 const queryStore = async (req, res) => {
   const json = (status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
@@ -101,21 +96,15 @@ const queryStore = async (req, res) => {
   return found ? json(200, found) : json(404, { message: `no query ${id}` });
 };
 
-const server = createServer(async (req, res) => {
-  if (req.url.startsWith('/api/pure/v1/query')) return queryStore(req, res);
-  const file = servedPath(ROOT, req.url);
-  try {
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-    });
-    res.end(body);
-  } catch { res.writeHead(404).end('not found'); }
-});
 // PORT: a fixed one, for a warehouse that must allow this page's origin (warehouse-source.mjs)
-await new Promise((r) => server.listen(Number(process.env.PORT ?? 0), '127.0.0.1', r));
-const { port } = server.address();
+const { port, close: closeServer } = await serve(ROOT, {
+  port: Number(process.env.PORT ?? 0),
+  route: async (req, res) => {
+    if (!req.url.startsWith('/api/pure/v1/query')) return false;
+    await queryStore(req, res);
+    return true;
+  },
+});
 const URL_BASE = `http://127.0.0.1:${port}`;
 
 const browser = await chromium.launch();
@@ -5116,7 +5105,7 @@ try {
   record('the run itself', false, String(e.message ?? e).split('\n')[0]);
 } finally {
   await browser.close();
-  server.close();
+  closeServer();
 }
 
 // -- the verdict ---------------------------------------------------------

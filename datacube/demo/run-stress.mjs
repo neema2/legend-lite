@@ -1,29 +1,11 @@
 // Drive the stress page and report what broke.
-import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { chromium } from 'playwright';
-import { fileURLToPath } from 'node:url';
-import { servedPath } from './static-files.ts';
+import { serve, siteRoot } from './harness.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const TYPES = {
-  '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm',
-  '.pure': 'text/plain', '.css': 'text/css',
-};
-const server = createServer(async (req, res) => {
-  const file = servedPath(ROOT, req.url);
-  try {
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-    });
-    res.end(body);
-  } catch { res.writeHead(404).end('not found'); }
-});
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const { port } = server.address();
+const ROOT = siteRoot();
+const { port, close: closeServer } = await serve(ROOT);
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
@@ -39,7 +21,7 @@ const results = await page.evaluate(() => window.__stress ?? []);
 // so any non-ok ingest threw a ReferenceError and the invariant never evaluated -- workplan P0-06)
 const offered = new Set(await page.evaluate(() => window.__stressOffered ?? []));
 await browser.close();
-server.close();
+closeServer();
 
 const byVerdict = { ok: 0, refused: 0, broke: 0 };
 for (const r of results) byVerdict[r.verdict]++;

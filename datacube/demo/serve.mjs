@@ -18,13 +18,13 @@
 
 import { createServer } from 'node:http';
 import { execFileSync } from 'node:child_process';
-import { open, readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { servedPath } from './static-files.ts';
+import { sendFile as sendRange, siteRoot } from './harness.mjs';
 
-const HERE = fileURLToPath(new URL('.', import.meta.url));
-const ROOT = resolve(HERE, '..');
+// the site, from the build (SITE names one of its files by runfiles path; harness.siteRoot)
+const ROOT = siteRoot();
 
 const args = process.argv.slice(2);
 const flag = (name) => {
@@ -52,58 +52,14 @@ const port = Number(flag('port') ?? 8000);
 const host = flag('host') || '127.0.0.1';
 
 // ---- serve -----------------------------------------------------------
-const TYPES = {
-  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript',
-  '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm',
-  '.pure': 'text/plain; charset=utf-8', '.json': 'application/json',
-  '.map': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml',
-};
-
-/** Serve a file, honouring Range so DuckDB can read parts of it. */
+/**
+ * Serve a file, honouring Range so DuckDB can read parts of it (harness.sendFile). REVALIDATE ALWAYS: without
+ * no-cache the browser heuristically caches bundle.js, and a rebuilt page loads new HTML against old script -- the
+ * sample dropdown renders empty, the row count sits at its min, and the button does nothing.
+ */
 async function sendFile(res, path, range) {
   const st = await stat(path);
-  const size = st.size;
-  const type = TYPES[extname(path)] ?? 'application/octet-stream';
-  // REVALIDATE ALWAYS. Without this the browser heuristically caches
-  // bundle.js, and a rebuilt page loads new HTML against old script:
-  // the sample dropdown renders empty, the row count sits at its
-  // min, and the button does nothing, because the code that fills
-  // them in is simply not in the file the browser kept. `no-cache`
-  // is revalidation, not "do not store" -- the 36 MB duckdb binary
-  // still comes back 304 while its mtime is unchanged.
-  const cacheHeaders = {
-    'Cache-Control': 'no-cache',
-    'Last-Modified': st.mtime.toUTCString(),
-  };
-  const m = /^bytes=(\d*)-(\d*)$/.exec(range ?? '');
-  if (!m) {
-    res.writeHead(200, {
-      'Content-Type': type,
-      'Content-Length': String(size),
-      'Accept-Ranges': 'bytes',
-      ...cacheHeaders,
-    });
-    res.end(await readFile(path));
-    return;
-  }
-  const start = m[1] ? Number(m[1]) : 0;
-  const end = m[2] ? Number(m[2]) : size - 1;
-  const len = Math.max(0, end - start + 1);
-  const fh = await open(path, 'r');
-  try {
-    const buf = Buffer.alloc(len);
-    await fh.read(buf, 0, len, start);
-    res.writeHead(206, {
-      'Content-Type': type,
-      'Content-Length': String(len),
-      'Content-Range': `bytes ${start}-${end}/${size}`,
-      'Accept-Ranges': 'bytes',
-      ...cacheHeaders,
-    });
-    res.end(buf);
-  } finally {
-    await fh.close();
-  }
+  await sendRange(res, path, range, { 'Cache-Control': 'no-cache', 'Last-Modified': st.mtime.toUTCString() });
 }
 
 const DATA_ROUTE = dataPath ? `/data${extname(dataPath) || '.parquet'}` : undefined;

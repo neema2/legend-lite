@@ -7,35 +7,16 @@
 // of what anyone experiences.
 //
 //   bazel run //datacube:measure_startup
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { chromium } from 'playwright';
-import { fileURLToPath } from 'node:url';
-import { servedPath } from './static-files.ts';
+import { serve, siteRoot } from './harness.mjs';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript',
-  '.wasm': 'application/wasm', '.pure': 'text/plain', '.css': 'text/css' };
+const ROOT = siteRoot();
 const PAGE = process.env.PAGE ?? 'index.html';
 const RUNS = Number(process.env.RUNS ?? 5);
 
-const server = createServer(async (req, res) => {
-  const file = servedPath(ROOT, req.url);
-  try {
-    if (!file) throw new Error('not under the root');
-    const body = await readFile(file);
-    res.writeHead(200, {
-      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-      // No caching: every run is a first visit, which is the case
-      // worth optimising. A warm cache flatters the numbers.
-      'Cache-Control': 'no-store',
-    });
-    res.end(body);
-  } catch { res.writeHead(404).end('nope'); }
-});
-await new Promise((r) => server.listen(0, '127.0.0.1', r));
-const { port } = server.address();
+const { port, close: closeServer } = await serve(ROOT, { headers: { 'Cache-Control': 'no-store' } });
 
 const browser = await chromium.launch();
 const samples = [];
@@ -64,7 +45,7 @@ for (let i = 0; i < RUNS; i++) {
   await ctx.close();
 }
 await browser.close();
-server.close();
+closeServer();
 
 samples.sort((a, b) => a - b);
 const mid = samples[Math.floor(samples.length / 2)];

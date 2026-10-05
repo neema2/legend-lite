@@ -744,14 +744,22 @@ filegroup(
     ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [":vendor", ":projects"],
 )
 
+# Where a harness finds the site (harness.siteRoot): one of its files by runfiles path, never the harness's own
+# location (Bazel workplan P4-01, G-07)
+_SITE_ENV = {"SITE": "$(rlocationpath demo/index.html)"}
+
 # `bazel run //datacube:serve [-- --data FILE] [-- --open]`: the site, on loopback.
 js_binary(
     name = "serve",
     data = [
+        "demo/harness.mjs",
+        "demo/index.html",
         "demo/static-files.ts",
         ":site",
+        "//tools/js:runfiles",
     ],
     entry_point = "demo/serve.mjs",
+    env = _SITE_ENV,
     node_options = [
         "--experimental-strip-types",
         "--disable-warning=ExperimentalWarning",
@@ -797,6 +805,8 @@ js_run_binary(
 # hand, not tests: several need a live engine as well (the script says which).
 _HARNESS_HELPERS = [
     "demo/engine-cases.mjs",
+    # the one module every harness shares: its server, the site root, outputs and temp paths, checks (P4-01)
+    "demo/harness.mjs",
     "demo/static-files.ts",
     "demo/grid-invariants.mjs",
     "demo/stress-corpus.ts",
@@ -849,14 +859,19 @@ _CI_HARNESSES = [
 [js_binary(
     name = h.replace("-", "_"),
     data = _HARNESS_HELPERS + [
+        # named itself: SITE is its runfiles path
+        "demo/index.html",
         ":node_modules/playwright",
         ":site",
         ":src",
+        # harness.mjs finds the site through it (a node_test has it already)
+        "//tools/js:runfiles",
     ] + (["//fixtures/saved-queries:records"] if h == "verify-features" else []) + (
         # it imports pinned-chromium.mjs first, a no-op under bazel run
         ["//tools/browser:pinned_chromium"] if h == "verify-smoke" else []
     ),
     entry_point = "demo/" + h + ".mjs",
+    env = _SITE_ENV | ({"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"} if h == "verify-features" else {}),
     node_options = [
         "--experimental-strip-types",
         "--experimental-wasm-exnref",
@@ -872,11 +887,14 @@ browser_test(
     name = "verify_smoke_test",
     size = "large",
     data = _HARNESS_HELPERS + [
+        # named itself: SITE is its runfiles path
+        "demo/index.html",
         ":node_modules/playwright",
         ":site",
         ":src",
     ],
     entry_point = "demo/verify-smoke.mjs",
+    env = _SITE_ENV,
     wasm = True,
 )
 
@@ -889,11 +907,16 @@ js_binary(
         ":node_modules/playwright",
         # it imports pinned-chromium.mjs first, a no-op under bazel run
         "//tools/browser:pinned_chromium",
+        "//tools/js:runfiles",
         "//warehouse:serve",
     ],
     entry_point = "demo/verify-app.mjs",
-    # this platform's launcher (warehouse/defs.bzl): a script on Linux and macOS, an .exe on Windows
-    env = {"WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)"},
+    # this platform's launcher (warehouse/defs.bzl): a script on Linux and macOS, an .exe on Windows; the site it
+    # serves, by runfiles path
+    env = {
+        "DIST": "$(rlocationpath :dist)",
+        "WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)",
+    },
     tags = ["manual"],
 )
 
@@ -915,6 +938,7 @@ browser_test(
     entry_point = "demo/verify-app.mjs",
     env = {
         "APP_POSTGRES": "$(rlocationpath :app_postgres_executable)",
+        "DIST": "$(rlocationpath :dist)",
         "SAMPLE_SQL": "$(rlocationpath demo/sample-shop.sql)",
         "WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)",
     },

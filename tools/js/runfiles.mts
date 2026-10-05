@@ -15,6 +15,11 @@ function root(): string {
   return dir;
 }
 
+/** The runfiles tree's root, for a child process that needs RUNFILES_DIR (a Java launcher). */
+export function runfilesRoot(): string {
+  return root();
+}
+
 /** The absolute path of the runfile `rlocationpath` (what $(rlocationpath) gives, e.g. `_main/wasm/planner_dir`). */
 export function runfile(rlocationpath: string): string {
   return join(root(), rlocationpath);
