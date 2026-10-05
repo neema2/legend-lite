@@ -267,6 +267,14 @@ announced here with its files before it lands: the model JSON reader and printer
 W1.2 diagnostics, and (v1) name-resolved entity JSON with the function-resolution fix
 (`docs/function-resolution/README.md` on `studio`).
 
+**2026-10-05, announced before landing: the reference-lane fix in `core/`** (the user: "fix rule to match pure for
+sure"). The rule `c1f9bac5b` added (a list literal's elements are `[1]`) is legend-pure's and stays. The lane's two
+new failures (`dataTypeToSqlTextH2`, `max([$MIN, min([$v.size, $MAX])])`) come from overload choice: legend-pure picks
+`math::min(Integer[1..*]):Integer[1]`, which our catalog lacks, so we pick `min(Integer[*]):Integer[0..1]`. The fix adds
+the six `[1..*]` overloads legend-engine registers (`math::min`/`max` over `Integer`, `Float`, `Number`) to
+`native-membership.tsv` and `Pure.java` (their text and the `AT_MATH_MIN`/`AT_MATH_MAX` groups regenerated); lowering
+already dispatches on the groups. Gate: the full chain plus `//spec:reference_lane` back at its golden.
+
 ## Rules between sessions
 
 1. Never force-push; never bare `git stash` (the stash stack is shared by every worktree).
