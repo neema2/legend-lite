@@ -8,6 +8,7 @@ load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/teavm:defs.bzl", "teavm_wasm")
 load("//tools/platforms:defs.bzl", "compatible_with", "platform_select")
 load(":defs.bzl", "POSTGRES_EXTENSION", "POSTGRES_EXTENSION_COMPATIBLE", "jar_entry", "warehouse_run")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
@@ -104,7 +105,11 @@ legend_java_library(
     # launcher/ is :launcher_test's alone: it needs the launcher and a Postgres in its runfiles
     srcs = glob(
         ["src/test/java/**/*.java"],
-        exclude = ["src/test/java/com/legend/warehouse/launcher/**"],
+        exclude = [
+            "src/test/java/com/legend/warehouse/launcher/**",
+            # the WebAssembly compile's entry and its test are :sqlapi_wasm's and :sqlapi_wasm_build_test's (P3-24)
+            "src/test/java/com/legend/warehouse/sqlapi/**",
+        ],
     ),
     deps = [
         ":client",
@@ -396,6 +401,42 @@ write_source_files(
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe native image's metadata moved (an FFM signature, or a declared JDK service) -- bazel run //warehouse:update_reachability_metadata",
     files = {"src/main/resources/META-INF/native-image/com.legend/warehouse/reachability-metadata.json": ":reachability_metadata"},
     visibility = ["//:__pkg__"],
+)
+
+# THE SQL API IN WEBASSEMBLY (Bazel workplan P3-24): WasmEntry reaches the binding, the JSON codec and the Arrow
+# reader, and TeaVM compiles it, so a class the API reaches that TeaVM's class library lacks fails the build. The
+# test's data is the module: building the test is the compile.
+legend_java_library(
+    name = "sqlapi_wasm_entry",
+    testonly = True,
+    srcs = ["src/test/java/com/legend/warehouse/sqlapi/WasmEntry.java"],
+    deps = [":sqlapi"],
+)
+
+teavm_wasm(
+    name = "sqlapi_wasm",
+    testonly = True,
+    main_class = "com.legend.warehouse.sqlapi.WasmEntry",
+    deps = [
+        ":sqlapi_wasm_entry",
+        "@maven_teavm//:org_teavm_teavm_classlib",
+        "@maven_teavm//:org_teavm_teavm_jso",
+    ],
+)
+
+junit_test(
+    name = "sqlapi_wasm_build_test",
+    memory_mb = 256,
+    size = "small",
+    srcs = ["src/test/java/com/legend/warehouse/sqlapi/WasmBuildTest.java"],
+    data = [":sqlapi_wasm"],
+    # the module's files (classes.wasm and its runtime) by runfiles path
+    env = {"SQLAPI_WASM": "$(rlocationpaths :sqlapi_wasm)"},
+    select = ["--select-class=com.legend.warehouse.sqlapi.WasmBuildTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )
 
 guards_package()

@@ -27,7 +27,8 @@ POOL_USERS = {
     # TeaVM: the WebAssembly compiler and the class library the planner compiles against; and sdlc-server, whose
     # rules (with depot-server's) compile to the page's SDLC module the same way (2026-10-04, the Studio line,
     # docs/STUDIO_DESIGN_2026_10_02.md S21: its :teavm_api and :page targets, as //wasm's)
-    "maven_teavm": ["sdlc-server", "tools/teavm", "wasm"],
+    # warehouse: the SQL API compiled to WebAssembly, //warehouse:sqlapi_wasm (Bazel workplan P3-24)
+    "maven_teavm": ["sdlc-server", "tools/teavm", "warehouse", "wasm"],
     # test tooling: JUnit, ArchUnit; for the packages with tests. sdlc-server also takes JGit from here, the judge
     # of the git repository it writes by hand (2026-10-04, the Studio line: no host git in tests)
     "maven_test": ["core", "json", "parser-equivalence", "pct", "sdlc-server", "spec", "tools/bump", "tools/deps", "tools/engine-runner", "tools/guards", "tools/junit", "warehouse"],

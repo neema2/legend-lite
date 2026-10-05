@@ -57,6 +57,8 @@ test_suite(
         "//wasm:differential_test",
         "//wasm:zone_test",
         "//warehouse:tests",
+        # the SQL API compiled to WebAssembly (P3-24)
+        "//warehouse:sqlapi_wasm_build_test",
         # misc
         "//json:tests",
         "//pure-protocol:twins_test",
