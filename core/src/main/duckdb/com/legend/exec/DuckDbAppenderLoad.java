@@ -23,6 +23,12 @@ public final class DuckDbAppenderLoad implements BulkLoad {
     private static final String TEMP_CATALOG = "temp";
     private static final String TEMP_SCHEMA = "main";
 
+    /** The staging table's drop, as a try-with-resources resource. */
+    private interface StagingDrop extends AutoCloseable {
+        @Override
+        void close() throws SQLException;
+    }
+
     @Override
     public boolean accepts(Connection connection) throws SQLException {
         return connection.isWrapperFor(DuckDBConnection.class);
@@ -33,8 +39,15 @@ public final class DuckDbAppenderLoad implements BulkLoad {
         try (Statement st = connection.createStatement()) {
             st.execute(staging.create());
         }
-        SQLException failure = null;
-        try {
+        // the staging drop runs as the try's resource, on its OWN statement: DuckDB closes a statement that raised,
+        // and a drop through it threw "Statement was closed" in place of the real error, leaving the staging table
+        // behind for every later load (rebuild D23, found by the damaged data). As a resource, a failed drop rides
+        // the load's own error as suppressed, whatever that error is, and is thrown only when the load succeeded.
+        try (StagingDrop ignored = () -> {
+            try (Statement drop = connection.createStatement()) {
+                drop.execute(staging.drop());
+            }
+        }) {
             try (DuckDBAppender appender = connection.unwrap(DuckDBConnection.class)
                     .createAppender(TEMP_CATALOG, TEMP_SCHEMA, staging.table())) {
                 for (List<String> row : load.rows()) {
@@ -51,23 +64,6 @@ public final class DuckDbAppenderLoad implements BulkLoad {
             }
             try (Statement st = connection.createStatement()) {
                 st.execute(staging.copy());
-            }
-        } catch (SQLException e) {
-            failure = e;
-            throw e;
-        } finally {
-            // the drop runs on its OWN statement: DuckDB closes a statement
-            // that raised, and a drop through it threw "Statement was closed"
-            // in place of the real error, leaving the staging table behind
-            // for every later load (rebuild D23, found by the damaged data)
-            try (Statement drop = connection.createStatement()) {
-                drop.execute(staging.drop());
-            } catch (SQLException e) {
-                if (failure != null) {
-                    failure.addSuppressed(e);
-                } else {
-                    throw e;
-                }
             }
         }
     }

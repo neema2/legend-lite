@@ -15,6 +15,7 @@
 // decision it makes is about WHEN to call them, never about what
 // they mean.
 
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { hostOf, receiptLabel, receiptLines } from '../../engine-client/src/receipt.ts';
 import { sessionExpired, WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { isQueryFailure, type QueryRunner } from './runner.ts';
@@ -356,7 +357,7 @@ const MINIMIZED_WIDTH = 50;
  */
 function timingText(view: CubeView, cols: number): string {
   return (
-    `${view.rows.rowCount.toLocaleString()} rows × ` +
+    `${view.rows.rowCount.toLocaleString(UI_LOCALE)} rows × ` +
     `${cols} cols in ${view.rows.elapsedMs.toFixed(0)}ms`
   );
 }
@@ -1191,7 +1192,7 @@ export class CubeApp {
       // Saying WHICH level was cut matters: "some rows are missing"
       // sends someone hunting through the whole cube.
       this.#status(
-        `${base} — showing the first ${(this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString()} of ` +
+        `${base} — showing the first ${(this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString(UI_LOCALE)} of ` +
           `${view.truncated.length} level${view.truncated.length > 1 ? 's' : ''}`,
         'warn',
       );
@@ -1270,10 +1271,10 @@ export class CubeApp {
       right.append(this.#statusSeparator());
       const warn = doc.createElement('div');
       warn.className = 'dc-status-warning';
-      const cap = (this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString();
+      const cap = (this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString(UI_LOCALE);
       // a flat cube says how many there are in all (cube.ts `totalRows`): the first 1,000 of 48,213
       warn.textContent = view.totalRows !== undefined
-        ? `⚠ Showing the first ${cap} of ${view.totalRows.toLocaleString()} rows (row limit)`
+        ? `⚠ Showing the first ${cap} of ${view.totalRows.toLocaleString(UI_LOCALE)} rows (row limit)`
         : `⚠ Results truncated to fit within row limit (${cap})`;
       right.append(warn);
     }
@@ -1413,7 +1414,7 @@ export class CubeApp {
    */
   #renderAdHocStatus(rows: number, cols: number, stale: boolean): void {
     const { right } = this.#statusFrame();
-    this.#readout(right, `${rows.toLocaleString()} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
+    this.#readout(right, `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
     this.#statusTail(right);
   }
 
@@ -2717,7 +2718,7 @@ export class CubeApp {
     const rows = this.#view?.rows.rowCount ?? 0;
     const receipt = this.#view?.receipts.at(-1);
     return [
-      `${title}: ${rows.toLocaleString()} row${rows === 1 ? '' : 's'}, exported ${new Date().toLocaleString()}.`,
+      `${title}: ${rows.toLocaleString(UI_LOCALE)} row${rows === 1 ? '' : 's'}, exported ${new Date().toLocaleString(UI_LOCALE)}.`,
       `Attached: ${file}`,
       ...(receipt ? [`Answered by ${receipt.where}${receipt.as ? ` as ${receipt.as}` : ''}`
         + `${receipt.statementId ? ` (statement ${receipt.statementId})` : ''}.`] : []),
@@ -3612,8 +3613,8 @@ export class CubeApp {
       snap.classList.add('dc-fixed');
       snap.setAttribute('aria-disabled', 'true');
       snap.title = held !== undefined
-        ? `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString()}, ` +
-          `${held.rowCount.toLocaleString()} rows. Nothing can change it while you work.`
+        ? `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}, ` +
+          `${held.rowCount.toLocaleString(UI_LOCALE)} rows. Nothing can change it while you work.`
         : describePlane({ mode: 'live' }, { remote: false, toggles: false }).title;
       host.append(snap);
       this.#paintSnap = null;

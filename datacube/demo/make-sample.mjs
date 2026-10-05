@@ -33,7 +33,7 @@ const text = sampleCsv({ rows, seed });
 await writeFile(out, text, 'utf8');
 
 console.log(`${out}`);
-console.log(`  ${rows.toLocaleString()} rows, `
+console.log(`  ${rows.toLocaleString('en-US')} rows, `
   + `${SAMPLE_COLUMNS.length} columns, `
   + `${(Buffer.byteLength(text) / 1024).toFixed(0)} KB`);
 console.log(`  ${SAMPLE_COLUMNS.join(', ')}`);

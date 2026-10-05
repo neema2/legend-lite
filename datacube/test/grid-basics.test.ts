@@ -149,12 +149,14 @@ describe('the overlays', () => {
     assert.equal(o.textContent, '0 rows');
   });
 
-  it('"Loading..." waits a moment, so a fast answer does not flicker', async () => {
+  it('"Loading..." waits a moment, so a fast answer does not flicker', (t) => {
+    // the test's own clock (Bazel workplan P3-16): the delay is advanced, not slept through
+    t.mock.timers.enable({ apis: ['setTimeout'] });
     const g = grid();
     const o = container.querySelector('.dc-grid-overlay') as HTMLElement;
     g.setBusy(true);
     assert.equal(o.hidden, true);
-    await new Promise((r) => setTimeout(r, 300));
+    t.mock.timers.tick(300);
     assert.equal(o.hidden, false);
     assert.equal(o.textContent, 'Loading...');
     g.setBusy(false);

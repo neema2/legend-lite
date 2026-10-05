@@ -33,6 +33,7 @@
 // its cube behaviour on top): the manager, the stamp it carries, the refusals and the preflight. Where a snap's
 // queries are planned is the app's (DataCube's SnapTarget adds its planner).
 
+import { UI_LOCALE } from './locale.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from './engine.ts';
 import type { Receipt } from './receipt.ts';
@@ -212,8 +213,8 @@ export class SnapManager {
         rowCount,
         withinLimit: false,
         refusal:
-          `${rowCount.toLocaleString()} rows exceeds the ` +
-          `${MAX_SNAP_ROWS.toLocaleString()} row snap limit. ` +
+          `${rowCount.toLocaleString(UI_LOCALE)} rows exceeds the ` +
+          `${MAX_SNAP_ROWS.toLocaleString(UI_LOCALE)} row snap limit. ` +
           `Narrow the filter, or stay live.`,
       };
     }
@@ -334,7 +335,7 @@ export function describePlane(state: PlaneState, where: { readonly remote: boole
     const s = state.snap;
     return {
       text: 'Snapped',
-      title: `${s.label} — frozen at ${s.takenAt.toLocaleTimeString()}, ${s.rowCount.toLocaleString()} rows`
+      title: `${s.label} — frozen at ${s.takenAt.toLocaleTimeString(UI_LOCALE)}, ${s.rowCount.toLocaleString(UI_LOCALE)} rows`
         + (where.remote ? ', a copy in this tab' : '') + '.' + (where.toggles ? ' Click to go live.' : ' Nothing can change it while you work.'),
     };
   }

@@ -2,15 +2,16 @@
 // an audit entry reproduced the way a person meets it, over the fixture's gated engine.
 
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
 import {
-  app, busy, chevron, dom, engine, groupRow, menu, menuItems, remount, root, settle, setUp, statuses, unhandled, zoneChips,
+  app, busy, chevron, dom, engine, groupRow, menu, menuItems, remount, root, settle, setUp, statuses, tearDown, unhandled, zoneChips,
 } from './cube-fixture.ts';
 
 beforeEach(setUp);
+afterEach(tearDown);
 
 describe('a refused change is not a change (B1b)', () => {
   it('leaves no undo step and nothing of itself behind (P2-100)', async () => {

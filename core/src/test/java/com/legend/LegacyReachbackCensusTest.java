@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -51,9 +51,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("census")
 class LegacyReachbackCensusTest {
 
+    // production sources only; parser-equivalence has none (its "src/main" root was scanned as absent and
+    // silently skipped until a missing root failed: Bazel workplan P3-14)
     private static final List<String> ROOTS = List.of(
-            "core/src/main", "pct/src/main",
-            "parser-equivalence/src/main");
+            "core/src/main", "pct/src/main");
 
     /** Coverage floor: production files scanned on 2026-08-30. Shrink
      * needs a written justification (files deleted); growth is free. */
@@ -113,11 +114,11 @@ class LegacyReachbackCensusTest {
         Map<String, Integer> found = new TreeMap<>();
         int scanned = 0;
         for (String root : ROOTS) {
-            Path p = Repo.path(root);
-            if (!Files.isDirectory(p)) {
-                continue;
+            String p = root;
+            if (SourceFiles.under(p).isEmpty()) {
+                throw new IllegalStateException("LegacyReachbackCensusTest root " + p + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
             }
-            try (Stream<Path> files = Files.walk(p)) {
+            try (Stream<Path> files = SourceFiles.under(p).stream()) {
                 for (Path f : files.filter(x -> x.toString().endsWith(".java"))
                         .toList()) {
                     scanned++;
@@ -131,8 +132,7 @@ class LegacyReachbackCensusTest {
                         // REPOSITORY-relative: relativized against the root
                         // rather than by stripping a "../" that only existed
                         // while the working directory was the module.
-                        found.put(Repo.root().relativize(f.toAbsolutePath().normalize())
-                                .toString().replace(java.io.File.separatorChar, '/'), n);
+                        found.put(SourceFiles.path(f), n);
                     }
                 }
             }

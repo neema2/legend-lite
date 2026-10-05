@@ -11,16 +11,24 @@ import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.DuckDb;
+import com.legend.testing.Rows;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * V4 mini-probe (Leg 3, task #82): an ASSOCIATION with PER-PAIR routes
  * into a union target where one route is a CHAINED join (@X0_A > @A_Y1)
- * — the engine push-into-arm shape. This probe prints the emitted SQL to
- * localize which emission carries the disagreeing chained-lift read.
+ * — the engine push-into-arm shape. Each case runs the emitted SQL on DuckDB
+ * over one row per route and asserts every route's row arrives, once (Bazel
+ * workplan P3-17: it printed the SQL and asserted nothing).
  */
 class ResolveUnionV4ProbeTest {
 
@@ -105,12 +113,55 @@ class ResolveUnionV4ProbeTest {
             """).formatted(UNION_FQN, UNION_FQN);
 
     @Test
-    @DisplayName("V4 mini 2-hop: chained routes across TWO unions (SQL probe)")
-    void v4TwoUnionHops() {
+    @DisplayName("V4 mini 2-hop: chained routes across TWO unions")
+    void v4TwoUnionHops() throws SQLException {
         String sql = sqlOf(MODEL2, "v::X.all(%2018-1-1)"
                 + "->project([x|$x.pk, x|$x.y.pk, x|$x.y.z.pk], ['xpk','ypk','zpk'])"
                 + "->from(v::M2, v::RT2)");
-        System.out.println("[v4b-sql]\n" + sql);
+        // x1 reaches y100 (y0, X0_Y0) and y200 (y1, X0_A > A_Y1); y101 and y201 match no route: a join that lost
+        // its condition would bring them in; y100 reaches z500 (z0, Y0_Z0), y200 z600
+        // (z1, Y1_G > G_Z1); every milestoned row is live on 2018-01-01. y101, y201, z501 and z601 match no route:
+        // a join that lost its condition would bring them in
+        Rows.assertSameRows(List.of(List.of(1, 100, 500), List.of(1, 200, 600)), rows(sql,
+                "CREATE TABLE xT0 (pk INTEGER PRIMARY KEY, fk INTEGER, fk1 INTEGER, from_z DATE, thru_z DATE)",
+                "CREATE TABLE yT0 (pk INTEGER PRIMARY KEY, fk INTEGER, zfk INTEGER, from_z DATE, thru_z DATE)",
+                "CREATE TABLE yT1 (pk INTEGER PRIMARY KEY, yfk1 INTEGER, gfk INTEGER, from_z DATE, thru_z DATE)",
+                "CREATE TABLE zT0 (pk INTEGER PRIMARY KEY, fk INTEGER, from_z DATE, thru_z DATE)",
+                "CREATE TABLE zT1 (pk INTEGER PRIMARY KEY, zfk1 INTEGER, from_z DATE, thru_z DATE)",
+                "CREATE TABLE \"aT\" (fk1 INTEGER, afk INTEGER)",
+                "CREATE TABLE gT (fk0 INTEGER, fk1 INTEGER)",
+                "INSERT INTO xT0 VALUES (1, 10, 20, DATE '2017-01-01', DATE '2019-01-01')",
+                "INSERT INTO yT0 VALUES (100, 10, 50, DATE '2017-01-01', DATE '2019-01-01'),"
+                        + " (101, 11, 51, DATE '2017-01-01', DATE '2019-01-01')",
+                "INSERT INTO yT1 VALUES (200, 30, 60, DATE '2017-01-01', DATE '2019-01-01'),"
+                        + " (201, 31, 61, DATE '2017-01-01', DATE '2019-01-01')",
+                "INSERT INTO zT0 VALUES (500, 50, DATE '2017-01-01', DATE '2019-01-01'),"
+                        + " (501, 52, DATE '2017-01-01', DATE '2019-01-01')",
+                "INSERT INTO zT1 VALUES (600, 70, DATE '2017-01-01', DATE '2019-01-01'),"
+                        + " (601, 71, DATE '2017-01-01', DATE '2019-01-01')",
+                "INSERT INTO \"aT\" VALUES (20, 30)",
+                "INSERT INTO gT VALUES (60, 70)"));
+    }
+
+    /** {@code sql}'s rows on a fresh DuckDB after {@code setup}. */
+    private static List<List<Object>> rows(String sql, String... setup) throws SQLException {
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
+            for (String s : setup) {
+                st.execute(s);
+            }
+            List<List<Object>> out = new ArrayList<>();
+            try (ResultSet rs = st.executeQuery(sql)) {
+                int n = rs.getMetaData().getColumnCount();
+                while (rs.next()) {
+                    List<Object> row = new ArrayList<>();
+                    for (int i = 1; i <= n; i++) {
+                        row.add(rs.getObject(i));
+                    }
+                    out.add(row);
+                }
+            }
+            return out;
+        }
     }
 
     private static final String MODEL = ("""
@@ -158,11 +209,20 @@ class ResolveUnionV4ProbeTest {
     }
 
     @Test
-    @DisplayName("V4 mini: per-pair chained routes into a union target (SQL probe)")
-    void v4ChainedPairRoutes() {
+    @DisplayName("V4 mini: per-pair chained routes into a union target")
+    void v4ChainedPairRoutes() throws SQLException {
         String sql = sqlOf("v::X.all()"
                 + "->project([x|$x.pk, x|$x.y.pk], ['xpk','ypk'])"
                 + "->from(v::M, v::RT)");
-        System.out.println("[v4-sql]\n" + sql);
+        // x1 reaches y100 (y0, X0_Y0) and y200 (y1, X0_A > A_Y1)
+        Rows.assertSameRows(List.of(List.of(1, 100), List.of(1, 200)), rows(sql,
+                "CREATE TABLE xT0 (pk INTEGER PRIMARY KEY, fk INTEGER, fk1 INTEGER)",
+                "CREATE TABLE yT0 (pk INTEGER PRIMARY KEY, fk INTEGER)",
+                "CREATE TABLE yT1 (pk INTEGER PRIMARY KEY, yfk1 INTEGER)",
+                "CREATE TABLE \"aT\" (fk1 INTEGER, afk INTEGER)",
+                "INSERT INTO xT0 VALUES (1, 10, 20)",
+                "INSERT INTO yT0 VALUES (100, 10), (101, 11)",
+                "INSERT INTO yT1 VALUES (200, 30), (201, 31)",
+                "INSERT INTO \"aT\" VALUES (20, 30)"));
     }
 }

@@ -308,6 +308,13 @@ function exported(view: { rows: ResultTable }, column: string): string[] {
 }
 
 describe('step 2: exact cells, whatever the time zone (run under TZ lanes)', () => {
+  it('the lane runs in the zone it names (EXPECTED_UTC_OFFSET_MINUTES, January)', () => {
+    const expected = process.env['EXPECTED_UTC_OFFSET_MINUTES'];
+    assert.notEqual(expected, undefined, 'the BUILD target names its offset');
+    assert.equal(new Date('2024-01-15T12:00:00Z').getTimezoneOffset(), Number(expected),
+      `TZ=${process.env['TZ']} is not the zone this lane claims to run in`);
+  });
+
   it('S2a: a DATE exports as its own calendar day, east and west of UTC', async () => {
     const o = await flat(SOURCE);
     assert.deepEqual(o.errors, []);

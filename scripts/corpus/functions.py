@@ -58,11 +58,15 @@ work is visible rather than a single discouraging number.
 """
 from __future__ import annotations
 
+import os
 import sys
 from collections import Counter
 from pathlib import Path
 
-INVENTORY = Path(__file__).resolve().parents[2] / "docs/ENGINE_FUNCTIONS.tsv"
+# the repository root as model.py takes it: CORPUS_ROOT under Bazel (declared inputs only), never __file__, which
+# follows the runfiles symlink back into the checkout
+ROOT = Path(os.environ["CORPUS_ROOT"]) if os.environ.get("CORPUS_ROOT") else Path(__file__).resolve().parents[2]
+INVENTORY = ROOT / "docs/ENGINE_FUNCTIONS.tsv"
 
 # Families, in the order the burndown works them. The split is by what a function IS, not by
 # package: a scalar usable in a mapping expression is a different kind of work from a TDS
@@ -125,7 +129,7 @@ def refused(fam: str | None = None) -> dict[str, str]:
     return dict(oracle.REFUSED)
 
 
-EVIDENCE = Path(__file__).resolve().parents[2] / "docs/FUNCTIONS_EXECUTED.tsv"
+EVIDENCE = ROOT / "docs/FUNCTIONS_EXECUTED.tsv"
 
 
 # Which families each probe's verdicts apply to. Evidence is per (probe, name), and a probe

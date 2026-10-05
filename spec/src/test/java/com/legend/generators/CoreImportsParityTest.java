@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -74,8 +73,8 @@ class CoreImportsParityTest {
     @Test
     @DisplayName("CORE_IMPORTS is the engine's META_IMPORTS sequence; pure's coreImport is that set minus the engine's three")
     void coreImportsAreUpstreams() throws IOException {
-        Assumptions.assumeTrue(Files.isDirectory(Corpus.ENGINE_ROOT), "legend-engine checkout not present");
-        Assumptions.assumeTrue(Files.isDirectory(PreludeGeneratorTest.pureRoot()), "legend-pure checkout not present");
+        org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(Corpus.ENGINE_ROOT), "legend-engine checkout not present");
+        org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(PreludeGeneratorTest.pureRoot()), "legend-pure checkout not present");
         List<String> engine = engineMetaImports();
         List<String> pure = pureCoreImport();
         assertEquals(engine, NameResolver.CORE_IMPORTS,

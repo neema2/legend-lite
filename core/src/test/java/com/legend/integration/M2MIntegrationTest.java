@@ -751,7 +751,6 @@ class M2MIntegrationTest {
 
         // WHEN: Execute via QueryService
         String json = executeGraphFetch(pureQuery);
-        System.out.println("Deep Fetch 1-to-Many JSON: " + json);
 
         // THEN: JSON contains nested address arrays
         assertTrue(json.contains("Bob Jones"), "Should have Bob's fullName");
@@ -759,8 +758,9 @@ class M2MIntegrationTest {
         assertTrue(json.contains("Chicago"), "Should have Bob's first city");
         assertTrue(json.contains("Seattle"), "Should have Bob's second city");
 
-        // Bob should have 2 addresses in array
-        // Count occurrences of "street" following Bob - he has 2
+        // Bob has 2 addresses in his array
+        assertEquals(2, ((com.legend.json.Json.Arr) person(json, "Bob Jones").get("addresses")).items().size(),
+                "Bob's two addresses: " + json);
     }
 
     @Test
@@ -775,10 +775,22 @@ class M2MIntegrationTest {
 
         // WHEN: Execute via QueryService
         String json = executeGraphFetch(pureQuery);
-        System.out.println("Deep Fetch with null JSON: " + json);
 
         // THEN: Alice should have null address
         assertTrue(json.contains("Alice Wonder"), "Should have Alice's fullName");
-        // Alice's address should be null or empty object
+        // Alice's address is absent: no city in her entry
+        com.legend.json.Json.Node address = person(json, "Alice Wonder").getOr("address", null);
+        assertTrue(address == null || address instanceof com.legend.json.Json.Arr a && a.items().isEmpty(),
+                "Alice has no address: " + json);
+    }
+
+    /** The serialized person named {@code fullName}. */
+    private static com.legend.json.Json.Obj person(String json, String fullName) {
+        for (com.legend.json.Json.Node p : ((com.legend.json.Json.Arr) com.legend.json.Json.parse(json)).items()) {
+            if (p instanceof com.legend.json.Json.Obj o && fullName.equals(o.getString("fullName"))) {
+                return o;
+            }
+        }
+        throw new AssertionError("no " + fullName + " in " + json);
     }
 }

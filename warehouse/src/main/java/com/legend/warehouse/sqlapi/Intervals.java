@@ -38,7 +38,7 @@ public final class Intervals {
             sb.append(hours < 10 ? "0" + hours : Long.toString(hours)).append(':')
                     .append(two(minutes)).append(':').append(two(seconds));
             if (fraction != 0) {
-                String f = String.format("%06d", fraction);
+                String f = String.format(java.util.Locale.ROOT, "%06d", fraction);
                 int end = f.length();
                 while (f.charAt(end - 1) == '0') end--;
                 sb.append('.').append(f, 0, end);

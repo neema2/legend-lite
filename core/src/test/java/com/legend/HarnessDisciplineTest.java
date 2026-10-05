@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -219,16 +219,16 @@ class HarnessDisciplineTest {
             throws IOException {
         Map<String, Integer> found = new TreeMap<>();
         int scanned = 0;
-        for (Path root : new Path[] {
+        for (String root : new String[] {
                 // batch 7b (2026-09-11): the harness and the referee live in
                 // the spec module; the discipline is theirs wherever they sit
-                Repo.path("spec/src/test/java/com/legend/harness"),
-                Repo.path("spec/src/test/java/com/legend/rcorpus"),
+                "spec/src/test/java/com/legend/harness",
+                "spec/src/test/java/com/legend/rcorpus",
                 // audit-of-audits #9: the comparison policy lives in
                 // PRODUCTION exec now (TdsCompare/PureAsserts moved
                 // from the harness) — the discipline follows the code
-                Repo.module("src/main/java/com/legend/exec")}) {
-            try (Stream<Path> files = Files.walk(root)) {
+                "core/src/main/java/com/legend/exec"}) {
+            try (Stream<Path> files = SourceFiles.under(root).stream()) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))
                         .toList()) {

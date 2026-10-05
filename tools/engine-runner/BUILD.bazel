@@ -1,6 +1,7 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
+load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # The engine runner (README.md): the real legend-engine over .pure sources, beside
@@ -73,6 +74,31 @@ write_source_files(
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nvocab.tsv is the runner's lexer vocabulary at the pinned release -- regenerate: bazel run //tools/engine-runner:update_vocab",
     files = {"vocab.tsv": ":vocab"},
     visibility = ["//:__pkg__"],
+)
+
+# The binaries, each run through its launcher on a one-class fixture (Bazel workplan P3-26): no test exercised them.
+junit_test(
+    name = "smoke_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = ["src/test/java/perf/RunnerSmokeTest.java"],
+    data = [
+        "src/test/resources/smoke/person.pure",
+        ":lite_parse",
+        ":parse",
+        ":testable",
+    ],
+    jvm_flags = [
+        "-Drunner.smoke.fixture=$(rlocationpath src/test/resources/smoke/person.pure)",
+        "-Drunner.parse=$(rlocationpath :parse)",
+        "-Drunner.lite_parse=$(rlocationpath :lite_parse)",
+        "-Drunner.testable=$(rlocationpath :testable)",
+    ],
+    select = ["--select-class=perf.RunnerSmokeTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )
 
 guards_package()

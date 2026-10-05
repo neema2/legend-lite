@@ -3,29 +3,25 @@
 
 package com.legend.generators;
 
-import com.legend.testing.Repo;
 import java.nio.file.Path;
 
 /**
- * Where core's tree is, from this module: the generators WRITE core's generated
- * resources (the prelude, the signature text, the dynafunction registry, the
- * implicit-import sequence) and the parity tests READ them — the generator
- * lives outside, the generated resource inside, byte-parity asserted (the
- * upstream boundary's contract, workstream C). One root, every path through it.
+ * Core's files, from this module: the generators WRITE core's generated resources (the prelude, the signature text,
+ * the dynafunction registry, the implicit-import sequence) and the parity tests READ them — the generator lives
+ * outside, the generated resource inside, byte-parity asserted (the upstream boundary's contract, workstream C). Each
+ * file is one spec_tests declares (SourceFiles: its :core_main_sources list; Bazel workplan P3-33), never found from a
+ * repository root.
  */
 public final class CoreTree {
 
     private CoreTree() {
     }
 
-    /** The core module's directory, by repository path. */
-    public static final Path CORE = Repo.path("core");
-
     public static Path main(String relative) {
-        return CORE.resolve("src/main/java").resolve(relative);
+        return com.legend.testing.SourceFiles.file("core/src/main/java/" + relative);
     }
 
     public static Path resource(String relative) {
-        return CORE.resolve("src/main/resources").resolve(relative);
+        return com.legend.testing.SourceFiles.file("core/src/main/resources/" + relative);
     }
 }

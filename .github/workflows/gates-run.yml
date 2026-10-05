@@ -24,8 +24,8 @@ on:
         type: string
       low-memory:
         description: >-
-          The 7 GB macOS runner: one test JVM at a time, and the PCT suites each
-          in their own JVM (a suite's Pure graph is a 2.0-2.8 GB live set).
+          The 7 GB macOS runner: one test JVM at a time (--config=ci-small). The
+          PCT suites are one target per suite on every runner (P3-09).
         default: false
         type: boolean
 
@@ -39,20 +39,16 @@ jobs:
       - id: pick
         env:
           WANT: ${{ inputs.gates }}
-          LOW_MEMORY: ${{ inputs.low-memory }}
           PLATFORM: ${{ inputs.platform }}
         run: |
           set -euo pipefail
-          if [ "$LOW_MEMORY" = "true" ]; then
-            pct6='//pct:pct_duckdb_essential //pct:pct_duckdb_grammar //pct:pct_duckdb_relation //pct:pct_duckdb_standard //pct:pct_duckdb_unclassified //pct:pct_discipline'
-            pct7p='//pct:pct_postgres_essential //pct:pct_postgres_grammar //pct:pct_postgres_relation //pct:pct_postgres_standard //pct:pct_postgres_unclassified //core:postgres_arm_test'
-          else
-            pct6='//pct:pct_duckdb'
-            pct7p='//pct:pct_postgres //core:postgres_arm_test'
-          fi
+          # the PCT lanes are one target per suite on every runner (Bazel workplan P3-09); a 7 GB runner runs them one
+          # at a time through --config=ci-small (--local_test_jobs=1), added below for low-memory runners
+          pct6='//pct:pct_duckdb'
+          pct7p='//pct:pct_postgres //core:postgres_arm_test'
           all=$(jq -nc --arg pct6 "$pct6" --arg pct7p "$pct7p" '[
-            {"key":"1",      "name":"gate 1 core suite",               "targets":"//core:core_tests"},
-            {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"//:generated //tools/deps:all //tools/guards:classpath_test //tools/guards:inventory_test //tools/guards:locks_test //tools/guards:markdown_inputs_test //tools/junit:pins_test //tools/junit:runner_test //tools/java_run:pins_test //tools/python:lock_matches_requirements //tools/browser:revision_test //tools/bump:bump_test //tools/js:lock_matches_package_json_test //scripts/corpus:density_gate //scripts/corpus:executed_gate //scripts/corpus:stacking_gate //core:guardrails //core:census"},
+            {"key":"1",      "name":"gate 1 core suite",               "targets":"//core:core_tests //core:duckdb_load_test //core:section_grammar_registry_test //core:corpus_differential_test //core:planner_on_java_base_test"},
+            {"key":"checks", "name":"generated files, dependency guards, source checks, the model projects", "targets":"//:generated //projects:tests //tools/deps:all //tools/guards:classpath_test //tools/guards:inventory_test //tools/guards:locks_test //tools/guards:markdown_inputs_test //tools/junit:pins_test //tools/junit:runner_test //tools/java_run:pins_test //tools/python:lock_matches_requirements //tools/browser:revision_test //tools/bump:bump_test //tools/js:lock_matches_package_json_test //scripts/corpus:density_gate //scripts/corpus:executed_gate //scripts/corpus:stacking_gate //scripts/corpus:scoreboard_gate //scripts/corpus:functions_gate //core:guardrails //core:census"},
             {"key":"3",      "name":"gate 3 spec parity",              "targets":"//spec:spec_tests"},
             {"key":"4",      "name":"gates 4+11 DuckDB corpus, both judges", "targets":"//spec:corpus_duckdb"},
             {"key":"5",      "name":"gate 5 H2 corpus, both judges",   "targets":"//spec:corpus_h2"},
@@ -61,9 +57,9 @@ jobs:
             {"key":"7p",     "name":"gate 7P PCT Postgres 16",         "targets":$pct7p},
             {"key":"8",      "name":"gate 8 parser equivalence",       "targets":"//parser-equivalence:parser_parity"},
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
-            {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
-            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //datacube:verify_app_test //wasm:all //warehouse:tests //query-store:lite_test"},
-            {"key":"misc",   "name":"json, pure-protocol, query, query-store, studio", "targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test //sdlc-server:git_repository_test //engine-client:tests //sdlc-client:tests //depot-client:tests //studio:tests"},
+            {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites //core:stress_suites_h2"},
+            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //datacube:verify_app_test //wasm:all //warehouse:tests //warehouse:sqlapi_wasm_build_test //query-store:lite_test"},
+            {"key":"misc",   "name":"json, pure-protocol, query, query-store, studio, engine-runner", "targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test //sdlc-server:git_repository_test //engine-client:tests //sdlc-client:tests //depot-client:tests //studio:tests //tools/engine-runner:smoke_test"},
             {"key":"build",  "name":"bazel build //... (every target builds)", "targets":"//..."},
             {"key":"native", "name":"warehouse as a native image, and its launcher", "targets":"//warehouse:tests_native //warehouse:launcher_test //datacube:app"},
             {"key":"browser", "name":"DataCube and Studio in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test //datacube:verify_smoke_test //studio:verify_test"}
@@ -206,5 +202,10 @@ jobs:
             bazel-testlogs/**/test.log
             bazel-testlogs/**/test.xml
             bazel-testlogs/**/test.outputs/**
+            bazel-bin/spec/judge_host_*/host.log
+            bazel-bin/spec/judge_host_*/verdict.txt
+            bazel-bin/spec/judge_database_*/database.log
+            bazel-bin/spec/judge_database_*/verdict.txt
+            bazel-bin/spec/judge_*/*-*.txt
             harness-logs/**
           if-no-files-found: ignore

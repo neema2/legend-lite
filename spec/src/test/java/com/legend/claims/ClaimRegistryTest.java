@@ -3,7 +3,6 @@
 
 package com.legend.claims;
 
-import com.legend.testing.Repo;
 import com.legend.builtin.Pure;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.protocol.TypeExpression;
@@ -49,7 +48,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 public class ClaimRegistryTest {
 
     static final Path RESOURCE = com.legend.generators.CoreTree.resource("com/legend/builtin/native-claims.tsv");
-    static final Path MAIN = com.legend.generators.CoreTree.CORE.resolve("src/main/java");
 
     /** Shrink-only: UNCLAIMED overloads in the ledger. MEASURED at the batch-3
      *  landing (2026-09-10): 133 overloads / 94 FQNs — Pure.java entries no
@@ -107,8 +105,8 @@ public class ClaimRegistryTest {
         }
         System.out.println("[claims] overloads=" + total + " unclaimed=" + unclaimed.size()
                 + " (" + unclaimedFqns.size() + " FQNs) by-kind=" + byKind);
-        Files.createDirectories(Repo.outDir());
-        Files.write(Repo.out("unclaimed-natives.txt"), unclaimed, StandardCharsets.UTF_8);
+        Files.createDirectories(com.legend.testing.TestOutputs.dir());
+        Files.write(com.legend.testing.TestOutputs.file("unclaimed-natives.txt"), unclaimed, StandardCharsets.UTF_8);
         assertTrue(unclaimed.size() <= UNCLAIMED_MAX, "UNCLAIMED overloads GREW: " + unclaimed.size()
                 + " > " + UNCLAIMED_MAX + " — a Pure.java entry nothing implements; register it or"
                 + " move it to the prelude (target/unclaimed-natives.txt)");

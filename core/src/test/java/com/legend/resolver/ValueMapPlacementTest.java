@@ -92,6 +92,14 @@ class ValueMapPlacementTest {
         return new DuckDb().render(plan);
     }
 
+    /** {@link #exec}'s rows sorted: for a relation queried with no ORDER BY, whose row order is the database's
+     *  (Bazel workplan P3-11). A collection keeps its order: use {@link #exec}. */
+    private List<String> execUnordered(String sql) throws SQLException {
+        List<String> rows = new ArrayList<>(exec(sql));
+        rows.sort(null);
+        return rows;
+    }
+
     private List<String> exec(String sql) throws SQLException {
         List<String> rows = new ArrayList<>();
         try (Statement st = conn.createStatement();
@@ -227,7 +235,7 @@ class ValueMapPlacementTest {
         String sql = sqlOf("m::Org.all()->map(o|"
                 + "$o.children->filter(c|$c.name == 'Beta').name->joinStrings(',') + 'T')"
                 + "->from(m::M, m::RT)");
-        assertEquals(List.of("BetaT", "T", "T"), exec(sql), sql);
+        assertEquals(List.of("BetaT", "T", "T"), execUnordered(sql), sql);
         assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
     }
 }

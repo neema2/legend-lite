@@ -27,19 +27,20 @@ import java.util.function.Supplier;
  * (model, expression) lowered once, the way {@code Compiler.execute} does -- parse, resolve,
  * {@code lowerResolved} with no runtime -- and rendered by each dialect: DuckDb, H2, EngineStyleH2,
  * Postgres. One line per case and dialect: the SQL (newlines escaped), or the failure's class and
- * first message line. Run at two commits against each one's {@code //core:core_tests_deploy.jar}
+ * first message line. Run at two commits against each one's core test deploy jar ({@code //core:core_tests_root_deploy.jar})
  * and diff the outputs: a change to rendering shows as a changed line.
  *
- * <p>usage: java -cp core_tests_deploy.jar:. RenderCensus out.tsv cases.tsv...
+ * <p>usage: bazel run //tools/census:render_census -- out.tsv cases.tsv... (paths from where it is run), or
+ * java -cp core_tests_root_deploy.jar:. RenderCensus out.tsv cases.tsv... (render.sh, at a commit older than the target)
  * (cases: Base64 model TAB Base64 expression, one a line; the PCT lane writes them with
- * LL_PCT_CASES set).
+ * -Dlegend.diagnostics=pct-cases).
  */
 public final class RenderCensus {
 
     public static void main(String[] args) throws Exception {
         Set<String> cases = new LinkedHashSet<>();
         for (int i = 1; i < args.length; i++) {
-            cases.addAll(Files.readAllLines(Path.of(args[i])));
+            cases.addAll(Files.readAllLines(arg(args[i])));
         }
         Map<String, Supplier<SqlDialect>> dialects = new LinkedHashMap<>();
         dialects.put("DuckDb", DuckDb::new);
@@ -53,7 +54,7 @@ public final class RenderCensus {
             String[] f = line.split("\t", -1);
             String model = decode(f[0]);
             String expression = decode(f[1]);
-            String id = String.format("%05d", n++);
+            String id = String.format(java.util.Locale.ROOT, "%05d", n++);
             SqlQuery q;
             try {
                 Object built = models.computeIfAbsent(model, m -> {
@@ -88,7 +89,7 @@ public final class RenderCensus {
                 out.append(id).append('\t').append(d.getKey()).append('\t').append(sql).append('\n');
             }
         }
-        Files.writeString(Path.of(args[0]), out.toString());
+        Files.writeString(arg(args[0]), out.toString());
         System.out.println(n + " cases rendered to " + args[0]);
     }
 
@@ -100,5 +101,11 @@ public final class RenderCensus {
         String m = String.valueOf(e.getMessage());
         int nl = m.indexOf('\n');
         return "FAIL " + e.getClass().getSimpleName() + ": " + (nl < 0 ? m : m.substring(0, nl));
+    }
+
+    /** A path argument, from the directory {@code bazel run} was started in (it runs the program in its runfiles). */
+    private static Path arg(String path) {
+        String cwd = System.getenv("BUILD_WORKING_DIRECTORY");
+        return cwd == null ? Path.of(path) : Path.of(cwd).resolve(path);
     }
 }

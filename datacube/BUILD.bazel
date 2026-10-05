@@ -18,6 +18,7 @@ load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 load("//tools/guards:defs.bzl", "guards_package")
+load(":test_imports.bzl", "TEST_IMPORTS")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -35,12 +36,20 @@ exports_files(
 # "type": "module" (the sources are ES modules)
 js_library(
     name = "src",
-    srcs = glob(["src/**/*.ts"]) + [
+    srcs = glob(["src/**/*.ts"]),
+    # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse)
+    visibility = ["//query:__pkg__"],
+    deps = [":src_base"],
+)
+
+# what every source file needs beside itself: the package's module settings and the libraries the sources import. A
+# test takes this and the files its imports reach (TEST_IMPORTS, P3-34), not all of :src.
+js_library(
+    name = "src_base",
+    srcs = [
         "package.json",
         "tsconfig.json",
     ],
-    # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse)
-    visibility = ["//query:__pkg__"],
     deps = [
         # the protocol library (T4b): the cube's queries built as protocol JSON
         "//pure-protocol:pure_protocol",
@@ -68,9 +77,51 @@ filegroup(
 
 _TESTS = glob(["test/*.test.ts"])
 
-# The tests that scan this package's own sources run from the package directory (chdir) until P3-29 gives them
-# their files as declared inputs; every other test finds its inputs through //tools/js:runfiles (P1-24).
-_SCANNERS = ["config-readers", "guardrails", "menu-ids", "portability", "state-guardrail", "wasm-flag"]
+# THE SOURCE SCANNERS (Bazel workplan P3-29): the tests that read this package's sources as text. Each reads exactly
+# the files named here, passed in SOURCES by $(rlocationpaths) and read through //tools/js:runfiles' Sources: no
+# scanner walks a directory or reads from the working directory, and a file it should see is one it declares.
+_SCANNED = {
+    "config-readers": [":src"],
+    # the shipped trees: the app, the engine client (DataCube's until 2026-10-04) and the demo, and the
+    # differentials behind the second planner transport
+    "guardrails": [
+        ":src",
+        "//engine-client:engine_client",
+        ":scanned_demo",
+        "test/wasm-differential/compare.ts",
+        "//wasm:differential",
+    ],
+    "menu-ids": [":src"],
+    # everything a build or a person runs from this package
+    "portability": [":src", ":scanned_scripts"],
+    "state-guardrail": [":src"],
+    # the WASM list against the files that load the planner (A28)
+    "wasm-flag": ["BUILD.bazel", ":scanned_tests"],
+}
+
+filegroup(
+    name = "scanned_demo",
+    srcs = glob(["demo/**/*.ts"]) + ["demo/index.html"],
+)
+
+filegroup(
+    name = "scanned_scripts",
+    srcs = glob(
+        [
+            "bench/**/*",
+            "demo/**/*.mjs",
+            "demo/**/*.ts",
+            "test/**/*.ts",
+            "tools/**/*",
+        ],
+        exclude = ["**/*.md"],
+    ),
+)
+
+filegroup(
+    name = "scanned_tests",
+    srcs = glob(["test/*.test.ts"]),
+)
 
 # Each test's inputs by runfiles path ($(rlocationpath); tools/js/runfiles.mts), beside _EXTRA_DATA.
 # THE SHARE LINK'S NEXT DICTIONARY VERSION (P2-08; see :cut_link_dictionary)
@@ -93,15 +144,13 @@ _EXTRA_ENV = {
 }
 
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
-_DUCKDB_USERS = ["duckdb", "group-derived", "saved-queries", "snap", "sorting", "treeview", "upload"]
+_DUCKDB_USERS = ["duckdb", "group-derived", "saved-queries", "sorting", "treeview", "upload"]
 
 # What a test reads from disk beyond src/: the guardrails scan the demo
 # entry points too (they ship), so they are declared, not assumed.
 _EXTRA_DATA = {
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
     "bundle-budget": [":bundle_bundle", ":demo/bundle.js"],
-    # the WASM list against the files that load the planner (A28)
-    "wasm-flag": ["BUILD.bazel"] + glob(["test/*.test.ts"]),
     # legend-lite's own answers for the TypeScript Database writer to match
     "catalog-model": ["test/generated/catalog-corpus.ts"],
     # the saved queries Query writes, and the project they compile against
@@ -117,21 +166,6 @@ _EXTRA_DATA = {
     "cube-adhoc-shell": ["test/cube-fixture.ts", "test/gate.ts"],
     "multi-cube": ["test/cube-fixture.ts", "test/gate.ts"],
     "chart-tiles": ["test/cube-fixture.ts", "test/gate.ts"],
-    "guardrails": glob(["demo/**/*.ts"]) + [
-        # the one page: its preload hint reads ?planner= (the one-place check)
-        "demo/index.html",
-        "test/wasm-differential/compare.ts",
-        "//wasm:differential",
-    ],
-    # the Windows guardrail scans every script this package runs, and
-    # tests the demo servers' one URL -> file mapping
-    "portability": glob([
-        "bench/**/*",
-        "demo/**/*.mjs",
-        "demo/**/*.ts",
-        "test/**/*.ts",
-        "tools/**/*",
-    ], exclude = ["**/*.md", "test/fake-engine.ts", "test/fake-planner.ts"]),
 }
 
 # the tests that write a model from a table's columns ask the compiler (T2): legend-lite's
@@ -162,29 +196,31 @@ _WASM_TESTS = [
 ]
 
 # node:test files, each its own node_test (tools/js/defs.bzl: types stripped, the spec and strict reporters, a
-# pinned locale and clock). Each finds its inputs through //tools/js:runfiles; only _SCANNERS run from the
-# package directory.
+# pinned locale and clock). Each finds its inputs through //tools/js:runfiles.
 [node_test(
     name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
     # The tests that load the WebAssembly planner compile it first: seconds on a desk (infer: 6 s), but past
     # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
     # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
     size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else "small",
+    # a scanner reads every source; any other test, the files its imports reach (a test not yet in the generated
+    # list takes them all until //datacube:update_generated adds it)
     data = [
         ":node_modules/jsdom",
-        ":src",
         "test/fake-engine.ts",
         "test/fake-planner.ts",
-    ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + (
+    ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + [f for f in _SCANNED.get(t[len("test/"):-len(".test.ts")], []) if f != ":src"] + (
+        [":src"] if t[len("test/"):-len(".test.ts")] in _SCANNED or t[len("test/"):-len(".test.ts")] not in TEST_IMPORTS else [":src_base"] + TEST_IMPORTS[t[len("test/"):-len(".test.ts")]]
+    ) + (
         ["//engine-client:node_modules/@duckdb/duckdb-wasm"] if t[len("test/"):-len(".test.ts")] in _DUCKDB_USERS else []
     ) + (
         ["test/catalog-builder.ts", "test/lite-compiler.ts", "//pure-protocol:typescript_sources"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []
     ),
     entry_point = t,
-    env = _EXTRA_ENV.get(t[len("test/"):-len(".test.ts")], {}),
+    env = _EXTRA_ENV.get(t[len("test/"):-len(".test.ts")], {}) | ({
+        "SOURCES": " ".join(["$(rlocationpaths %s)" % f for f in _SCANNED[t[len("test/"):-len(".test.ts")]]]),
+    } if t[len("test/"):-len(".test.ts")] in _SCANNED else {}),
     wasm = t[len("test/"):-len(".test.ts")] in _WASM_TESTS,
-    # "" is rules_js's default: the runfiles tree's main-repository directory under bazel test and run
-    chdir = package_name() if t[len("test/"):-len(".test.ts")] in _SCANNERS else "",
 ) for t in _TESTS]
 
 test_suite(
@@ -357,6 +393,33 @@ java_run(
     deps = [":catalog_facts_main"],
 )
 
+# THE TESTS' IMPORT CLOSURES (P3-34): test_imports.bzl, generated from the imports themselves, diff-tested below
+js_binary(
+    name = "test_imports_tool",
+    entry_point = "tools/test-imports.mts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+filegroup(
+    name = "import_scan",
+    srcs = glob(["src/**/*.ts", "test/**/*.ts"]),
+)
+
+js_run_binary(
+    name = "test_imports",
+    srcs = [":import_scan"],
+    outs = ["test_imports_generated.bzl"],
+    args = [
+        package_name() + "/test_imports_generated.bzl",
+        package_name(),
+        "$(rootpaths :import_scan)",
+    ],
+    tool = ":test_imports_tool",
+)
+
 write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows; a changed offer fact changes what a column is offered)",
@@ -364,6 +427,7 @@ write_source_files(
         "src/generated/offer-facts.ts": ":offer_facts",
         "src/generated/catalog-facts.ts": ":catalog_rules",
         "test/generated/catalog-corpus.ts": ":catalog_corpus",
+        "test_imports.bzl": ":test_imports",
     },
     visibility = ["//:__pkg__"],
 )
@@ -481,6 +545,8 @@ node_test(
 # real app over the real WASM planner and DuckDB-WASM; a column's type is the
 # compiler's, never an engine's wire type or one learned from a result.
 node_test(
+    # each lane names its zone and the offset it must see (the test asserts it, Bazel workplan P3-10)
+    env = {"TZ": "UTC", "EXPECTED_UTC_OFFSET_MINUTES": "0"},
     name = "typed_values_test",
     wasm = True,
     size = "medium",
@@ -495,7 +561,7 @@ node_test(
 
 # the same file east / west of UTC (T3): a date must be its own day everywhere
 node_test(
-    env = {"TZ": "Asia/Tokyo"},
+    env = {"TZ": "Asia/Tokyo", "EXPECTED_UTC_OFFSET_MINUTES": "-540"},
     name = "typed_values_tokyo_test",
     wasm = True,
     size = "medium",
@@ -510,7 +576,7 @@ node_test(
 
 # the same file east / west of UTC (T3): a date must be its own day everywhere
 node_test(
-    env = {"TZ": "America/New_York"},
+    env = {"TZ": "America/New_York", "EXPECTED_UTC_OFFSET_MINUTES": "300"},
     name = "typed_values_new_york_test",
     wasm = True,
     size = "medium",

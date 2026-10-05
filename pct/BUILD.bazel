@@ -10,12 +10,21 @@ load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/jars:defs.bzl", "file_list")
 
 # sources exported for the guard tests that walk every module
 filegroup(
     name = "srcs",
     srcs = glob(["src/**"]),
     visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__"],
+)
+
+# the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
+# src/test/**/*.java and nothing else; Bazel workplan P3-07)
+filegroup(
+    name = "test_java",
+    srcs = glob(["src/test/**/*.java"]),
+    visibility = ["//parser-equivalence:__pkg__"],
 )
 
 # THE ADAPTER'S PAR: the Pure adapter compiled against the engine's platform, the
@@ -64,7 +73,11 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    srcs = glob(["src/test/java/**/*.java"]),
+    # PctDisciplineTest is :pct_discipline's alone (a source scan with no PCT runtime)
+    srcs = glob(
+        ["src/test/java/**/*.java"],
+        exclude = ["src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java"],
+    ),
     resources = glob(["src/test/resources/**"]),
     runtime_deps = [
         "//core:shadow_binding",
@@ -102,52 +115,48 @@ _SUITES = [
     "Unclassified",
 ]
 
-# GATE 6 — the five PCT suites on DuckDB, in ONE JVM with the discipline guard,
-# the composition the census ceilings (PctCensusGate) were measured on: they are
-# cumulative per JVM.
-# memory_mb 9216, not a measured value (Bazel workplan P1-21, 2026-10-04): five suites' graphs in one JVM keep
-# the heap full to whatever limit it is given (live 8156 MB of 8192, 8542 of 9216), so the measurement has no
-# ceiling. CI ran it green at -Xmx8g from 2026-09-23 on Linux and Windows (16 GB runners); 9216, its old
-# scheduling tag, is 1 GB above that history. D6 / P3-09 delete the composite lanes.
-junit_test(
-    name = "pct_duckdb",
-    memory_mb = 9216,
-    data = glob(["src/**"]),
-    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s for s in _SUITES] + [
-        "--select-class=org.finos.legend.lite.pct.PctDisciplineTest",
-    ],
-    runtime_deps = [
-        ":pct_tests_lib",
-        "//core:drivers",
-    ],
-)
-
-# GATE 6, ONE JVM PER SUITE — for a machine that cannot hold five Pure graphs
-# (2.0-2.8 GB live each) in one JVM: CI's 7 GB macOS runner, as Maven's
-# -Dpct.reuseForks=false was. The census ceilings are whole-lane ceilings, which a
-# suite's own JVM stays under. Manual: //... runs :pct_duckdb, not these twice.
+# GATE 6 — the five PCT suites on DuckDB, ONE JVM PER SUITE (Bazel workplan P3-09, D2, D6): each suite is judged on
+# its own traffic (PctCensusGate's per-suite ceilings), so its verdict does not depend on which suites share its JVM.
+# The composite lane (all five and the discipline guard in one JVM, 9 GB) is gone; the label is a suite.
 # memory_mb 4096, not the rule's 4352 (live peak 2878 MB, the relation suite, measured 2026-10-04): CI's 7 GB macOS runner runs this
 # lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
 [junit_test(
     name = "pct_duckdb_" + s.lower(),
     memory_mb = 4096,
-    data = glob(["src/**"]),
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s],
-    tags = ["manual"],
     runtime_deps = [
         ":pct_tests_lib",
         "//core:drivers",
     ],
 ) for s in _SUITES]
 
+# the module's discipline guard (no comparison machinery in Java), in gate 6 (G-02)
+# its own library, so the light //gates:local does not build the PCT adapter's 4 GB PAR to run a source scan
+# the module's files, as the discipline scan reads them: a declared list (SourceFiles; Bazel workplan P3-27b)
+file_list(
+    name = "discipline_sources",
+    testonly = True,
+    srcs = [":srcs"],
+)
+
 junit_test(
     name = "pct_discipline",
     memory_mb = 768,
     size = "small",
-    data = glob(["src/**"]),
+    srcs = ["src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java"],
+    # a source scan: it reads the whole module, by its declared list (whose files ride in its runfiles)
+    data = [":discipline_sources"],
+    jvm_flags = ["-Dlegend.sources=$(rlocationpath :discipline_sources)"],
     select = ["--select-class=org.finos.legend.lite.pct.PctDisciplineTest"],
-    tags = ["manual"],
-    runtime_deps = [":pct_tests_lib"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+test_suite(
+    name = "pct_duckdb",
+    tests = [":pct_duckdb_" + s.lower() for s in _SUITES] + [":pct_discipline"],
 )
 
 # GATE 7 — the relation suite on H2 2.4.240 (LEGENDLITE_PCT_BACKEND=h2 selects
@@ -187,22 +196,7 @@ _POSTGRES_DEPS = [
     "//core:drivers",
 ]
 
-# memory_mb 9216, not a measured value (Bazel workplan P1-21, 2026-10-04): five suites' graphs in one JVM keep
-# the heap full to whatever limit it is given (live 8156 MB of 8192, 8542 of 9216), so the measurement has no
-# ceiling. CI ran it green at -Xmx8g from 2026-09-23 on Linux and Windows (16 GB runners); 9216, its old
-# scheduling tag, is 1 GB above that history. D6 / P3-09 delete the composite lanes.
-junit_test(
-    name = "pct_postgres",
-    memory_mb = 9216,
-    data = _POSTGRES_DATA,
-    env = {"LEGENDLITE_PCT_BACKEND": "postgres"},
-    jvm_flags = _POSTGRES_FLAGS,
-    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_Postgres_%sFunctions_PCT" % s for s in _SUITES],
-    runtime_deps = _POSTGRES_DEPS,
-    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
-)
-
-# ONE JVM PER SUITE, for the 7 GB macOS runner, as :pct_duckdb_<suite>. Manual: //... runs :pct_postgres.
+# ONE JVM PER SUITE (Bazel workplan P3-09), as gate 6; the label is a suite.
 # memory_mb 4096, not the rule's 4352 (live peak 2874 MB, the relation suite, measured 2026-10-04): CI's 7 GB macOS runner runs this
 # lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
 [junit_test(
@@ -212,10 +206,14 @@ junit_test(
     env = {"LEGENDLITE_PCT_BACKEND": "postgres"},
     jvm_flags = _POSTGRES_FLAGS,
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_Postgres_%sFunctions_PCT" % s],
-    tags = ["manual"],
     runtime_deps = _POSTGRES_DEPS,
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
 ) for s in _SUITES]
+
+test_suite(
+    name = "pct_postgres",
+    tests = [":pct_postgres_" + s.lower() for s in _SUITES],
+)
 
 # GATE 9 — channel B: lite's own compiler runs the PCT sources straight from the
 # pinned legend-pure / legend-engine trees, and its verdicts are diffed against
@@ -224,24 +222,32 @@ junit_test(
 # vendored snapshots of 2026-08-06, 943d38b3).
 _ENGINE_MANIFEST = "@legend_engine_src//:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-duckdb/legend-engine-xt-relationalStore-duckdb-PCT/src/main/resources/pct-manifests/relational-duckdb/%sFunctions_manifest.json"
 
-junit_test(
-    name = "pct_channel_b",
+# ONE JVM PER CLASS (Bazel workplan P3-09, A17), as the suites: a channel B verdict does not depend on which classes
+# share its JVM; the label is a suite.
+[junit_test(
+    name = "pct_channel_b_" + s.lower(),
     memory_mb = 768,
-    data = glob(["src/**"]) + [_ENGINE_MANIFEST % s for s in _SUITES],
-    # each suite's PCT class and its oracle manifest, by runfiles path (Bazel workplan P1-05)
-    jvm_flags = [
-        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s)
-        for s in _SUITES
-    ] + [
-        "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s)
-        for s in _SUITES
+    # exactly what it reads as files: its suite's PCT class and oracle manifest (Bazel workplan P3-07)
+    data = [
+        "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java" % s,
+        _ENGINE_MANIFEST % s,
     ],
-    select = ["--select-package=org.finos.legend.lite.pct.channelb"],
+    # its suite's PCT class and oracle manifest, by runfiles path (Bazel workplan P1-05)
+    jvm_flags = [
+        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),
+        "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s),
+    ],
+    select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
     upstream = True,
     runtime_deps = [
         ":pct_tests_lib",
         "//core:drivers",
     ],
+) for s in _SUITES]
+
+test_suite(
+    name = "pct_channel_b",
+    tests = [":pct_channel_b_" + s.lower() for s in _SUITES],
 )
 
 # PCT'S MEASURED RATCHET VALUES (PctRatchets; Bazel workplan P2-16, D9): each Channel B suite's discovery count,

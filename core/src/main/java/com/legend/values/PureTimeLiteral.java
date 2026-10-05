@@ -51,7 +51,7 @@ public sealed interface PureTimeLiteral
     record TimeWithMinute(int hour, int minute) implements PureTimeLiteral {
         public TimeWithMinute { validateHour(hour); validateMinute(minute); }
         @Override public String toEngineString() {
-            return String.format("%02d:%02d", hour, minute);
+            return String.format(java.util.Locale.ROOT, "%02d:%02d", hour, minute);
         }
     }
 
@@ -62,7 +62,7 @@ public sealed interface PureTimeLiteral
             validateSecond(second);
         }
         @Override public String toEngineString() {
-            return String.format("%02d:%02d:%02d", hour, minute, second);
+            return String.format(java.util.Locale.ROOT, "%02d:%02d:%02d", hour, minute, second);
         }
     }
 
@@ -74,7 +74,7 @@ public sealed interface PureTimeLiteral
             validateSubsecond(subsecond);
         }
         @Override public String toEngineString() {
-            return String.format("%02d:%02d:%02d.%s", hour, minute, second, subsecond);
+            return String.format(java.util.Locale.ROOT, "%02d:%02d:%02d.%s", hour, minute, second, subsecond);
         }
     }
 

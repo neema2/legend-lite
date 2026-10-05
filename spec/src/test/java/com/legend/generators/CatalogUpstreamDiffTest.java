@@ -11,7 +11,6 @@ import com.legend.model.PackageableElement;
 import com.legend.model.SignatureMangle;
 import com.legend.parser.Dialect;
 import com.legend.parser.ElementParser;
-import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -57,8 +56,8 @@ class CatalogUpstreamDiffTest {
 
     @Test
     void census() throws IOException {
-        Path pure = com.legend.testing.Upstream.pure();
-        Path engine = com.legend.testing.Upstream.engine();
+        Path pure = com.legend.testing.ProgramPaths.rootOf("legend.pure.root");
+        Path engine = com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
         // the pinned trees are declared inputs: absence is an error, never a skip
         org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(pure) && Files.isDirectory(engine),
                 "pinned upstream trees not present: " + pure + ", " + engine);
@@ -175,8 +174,8 @@ class CatalogUpstreamDiffTest {
         out.addAll(rows);
         out.add("## unreadable upstream files");
         out.addAll(unreadable);
-        Files.createDirectories(Repo.outDir());
-        Files.write(Repo.out("catalog-upstream-diff.tsv"), out);
+        Files.createDirectories(com.legend.testing.TestOutputs.dir());
+        Files.write(com.legend.testing.TestOutputs.file("catalog-upstream-diff.tsv"), out);
         out.subList(0, 4).forEach(System.out::println);
 
         // THE CATALOG NEVER DIVERGES: every overload it declares is upstream's

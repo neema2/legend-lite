@@ -19,11 +19,13 @@
 // taken.
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const read = (path: string): string =>
-  readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+import { Sources } from '../../tools/js/runfiles.mts';
+
+// the sources this reads, as the BUILD target declares them (Bazel workplan P3-29)
+const SOURCES = new Sources('SOURCES', 'datacube');
+const read = (path: string): string => SOURCES.read(path);
 
 // Ad Hoc Analysis mode builds and handles its own entries.
 const MODE = read('src/adhoc/mode.ts');

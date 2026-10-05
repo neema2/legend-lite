@@ -206,8 +206,10 @@ class ResolveM2mTest {
                     com.legend.testing.Own.spec("m::Person.all()->project(~[f: p|$p.fullName])")));
             new StoreResolver(ctx, specs).resolve(body, "m::RT");
         });
-        assertTrue(String.valueOf(ex.getMessage()).contains("row")
-                        || ex.getMessage() != null,
+        // loud, on the property whose binding captures `row` (today it is refused as unbound, not yet named as a
+        // capture: the claim held is that it never resolves silently mis-scoped; Bazel workplan P3-17 replaced an
+        // assertion that any message passed)
+        assertTrue(String.valueOf(ex.getMessage()).contains("'fullName'"),
                 "capture must be loud, never silently mis-scoped: " + ex.getMessage());
     }
 

@@ -11,10 +11,16 @@ with the compiler's plan/execution split**, in this order:
    `docs/bazel-first-class-plan`): build files — `core/BUILD.bazel`, `tools/deps`, `MODULE.bazel` (splitting out a
    `release.MODULE.bazel`), `pct`, `spec`, `parser-equivalence`, the guards. Batch 8 lands first. It also carries the
    reference-lane fix the user decided ("fix rule to match pure": legend-pure's overload for `min`/`max` over a list
-   literal), in `core/compiler/spec` — no one else edits those files until it lands.
+   literal), in `core/compiler/spec` — no one else edits those files until it lands. **Announced 2026-10-05:** two small core edits the
+   guards found — `core/src/main/duckdb/com/legend/exec/DuckDbAppenderLoad.java` (its `finally` replaced an in-flight
+   unchecked error with the staging drop's; found when P3-27 put `src/main/duckdb` under the guards), and the core
+   test sources the guards and censuses read (declared file lists, P3-27/P3-05). Not fixed by this program: F-L1 in
+   `projects/FINDINGS.md` (a view inside a Schema is lifted twice; one line in `ModelBuilder`), for the compiler's owner. **Announced 2026-10-05 (P4-18):** `core/.../server/LegendHttpServer.java` and the warehouse server gain
+   `--exit-with-parent` (exit when stdin reaches EOF; only tests set it), so no test stops a server with `taskkill`.
 2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; PR #24 `studio-m1`, then `query-by-name`): `studio/`,
-   `legend-art/`, `query/`, `datacube/` (imports and labels), `site/`, a `@fontsource` block in `MODULE.bazel`. Nothing
-   in `core/`. Lands on the user's merge; `MODULE.bazel` is shared with the Bazel program (the second to land rebases).
+   `legend-art/`, `query/`, `datacube/` (imports and labels; the Snap move, A6), `site/`, a `@fontsource` block in
+   `MODULE.bazel`; then, on `studio-engine`, core's test runner and model printer (A4, B1: files in the fifth line's
+   2026-10-05 note). Lands on the user's merge; `MODULE.bazel` is shared with the Bazel program (the second to land rebases).
 3. **The database owner** (the fourth line below; `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md`): C3c
    now (no shared files); **C1/C2, the plan/execution split, starts only after the Bazel program's batch 8 is on
    `main`** (both touch `core/BUILD.bazel` and `tools/deps`), announced to the other lines first.
@@ -275,12 +281,41 @@ the six `[1..*]` overloads legend-engine registers (`math::min`/`max` over `Inte
 `native-membership.tsv` and `Pure.java` (their text and the `AT_MATH_MIN`/`AT_MATH_MAX` groups regenerated); lowering
 already dispatches on the groups. Gate: the full chain plus `//spec:reference_lane` back at its golden.
 
+**2026-10-05, announced before the first edit: the Studio plan's core work and the Snap move** (the user: "do the whole
+thing on a branch"; `docs/STUDIO_FULL_PLAN_2026_10_04.md` A4, B1, A6). All of it on the branch `studio-engine`, landing
+through its PR after `studio-m1` and `query-by-name`; nothing on `main` but this note.
+- **A4, tests (the engine's testable framework)**, from `docs/DEFERRED_TEST_EXECUTION.md`. Files:
+  `core/src/main/java/com/legend/test/` (the existing `ServiceTestRunner`/`TestAssertions` extended to mapping and
+  function suites, and split into a planner half -- each test's query, data and assertion -- that runs without JDBC, so
+  the tab can execute it on DuckDB, and the judgment, written once); the typed suite records in
+  `core/src/main/java/com/legend/model/` (`MappingDefinition`, `ServiceDefinition`, `MappingFromProtocol`: the raw
+  `testSuitesSource` replaced as the charter says); `core/src/main/java/com/legend/server/PureV1Api.java` and
+  `LegendHttpServer.java` (`testable/runTests`); `wasm/src/main/java/planner/Wasm.java` (exports for the tab's runner).
+- **B1, the model round trip**: `core/src/main/java/com/legend/protocol/` (a model composer beside `PureComposer`:
+  model JSON to Pure text, element by element, upstream's grammar composer as the spec), `PureV1Api.java`
+  (`grammar/jsonToGrammar/model`), `Wasm.java` (its export).
+- **A6, Snap for every app**: `datacube/src/` (Snap's engine half -- freezing rows into the tab's DuckDB, the stamp,
+  the refusals, receipts -- moved to `engine-client/`; DataCube keeps its cube behaviour on top) and DataCube's Snap
+  tests, which move with it. Gated by DataCube's suites and browser lane.
+Shared with the database owner's C2 (the execution front door): `core/.../test/` runs suites through
+`Compiler.executeResolved`; whoever lands second merges.
+
+**2026-10-05, later: A4 PARKED; B1 becomes the protocol program** (the user). **A4 (user tests) is parked** behind the
+round trip as its own design program (tab and server must give the same verdict; judging's home is the database
+owner's open question): nothing in `core/.../test/`, `com.legend.model` suite records, `testable/runTests` or `Wasm.java`
+test exports is being changed; the provisional work sits unmerged on `studio-tests-parked`. **B1 is now the protocol
+program** (`docs/PROTOCOL_PROGRAM_2026_10_05.md`, branch `protocol`): parse, emit, read and compose all on the typed
+protocol records. Files: `core/src/main/java/com/legend/protocol/` (a model reader beside `ProtocolReader`, the
+composers -- `PureComposer` and the element composers -- moved from JSON onto records, one public face),
+`PureV1Api.java`'s `grammar/*` routes, `Wasm.java`'s grammar exports, and the oracles in `parser-equivalence/`. The
+parser and the emitter are read, not reshaped. A6 proceeds as announced.
+
 ## Rules between sessions
 
 1. Never force-push; never bare `git stash` (the stash stack is shared by every worktree).
 2. Before pushing, `git fetch origin`; `main` must fast-forward.
-3. The gate chain is `bazel test //...` then `bazel test //tools/deps:all`; `//parser-equivalence:diagnostics` runs only on
-   its triggers (a pin bump, a parser/lexer/protocol change, a corpus manifest change).
+3. The gate chain is `bazel test //...` then `bazel test //tools/deps:all`; `//parser-equivalence:diagnostics` and
+   `//parser-equivalence:diagnostics_reports` run only on their triggers (a pin bump, a parser/lexer/protocol change, a corpus manifest change).
 4. A timing is a lane run alone with `--nocache_test_results`, load under 3 at the start, nothing else building.
 5. If a second line of work starts again, this file becomes the handshake again: each side's owned area, cross-area edits
    announced one line each before they land, and dated status lines.

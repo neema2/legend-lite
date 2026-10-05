@@ -246,7 +246,7 @@ final class SpecParserTest {
     void dollarWithoutIdentifierRejected() {
         ParseException ex = assertThrows(ParseException.class,
                 () -> com.legend.testing.Platform.spec("$"));
-        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("expected identifier"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("expected identifier"),
                 () -> "want identifier-after-dollar error, got: " + ex.getMessage());
     }
 
@@ -290,7 +290,7 @@ final class SpecParserTest {
         // keeps test corpora byte-comparable.
         ParseException ex = assertThrows(ParseException.class,
                 () -> com.legend.testing.Platform.spec("[1, 2,]"));
-        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("trailing comma"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("trailing comma"),
                 () -> "want trailing-comma error, got: " + ex.getMessage());
     }
 
@@ -341,7 +341,7 @@ final class SpecParserTest {
         // is a C.4 feature).
         ParseException ex = assertThrows(ParseException.class,
                 () -> com.legend.testing.Platform.spec("1 2"));
-        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("trailing"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("trailing"),
                 () -> "want trailing-tokens error, got: " + ex.getMessage());
     }
 
@@ -1279,7 +1279,7 @@ final class SpecParserTest {
         // would be the signal that the change happened.
         ParseException ex = assertThrows(ParseException.class,
                 () -> com.legend.testing.Platform.spec("1 + let x = 2"));
-        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("trailing"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("trailing"),
                 () -> "want trailing-tokens error (LET absorbed as identifier, "
                         + "subsequent 'x' is trailing), got: " + ex.getMessage());
     }

@@ -500,7 +500,7 @@ final class ModelIndexerTest {
         ParseException ex = assertThrows(ParseException.class,
                 () -> scan("Database my::DB { Table T (X INTEGER) }"));
         assertTrue(String.valueOf(ex.getMessage()).contains("DATABASE")
-                        || ex.getMessage().toLowerCase().contains("database"),
+                        || ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("database"),
                 () -> "error should mention DATABASE kind, got: " + ex.getMessage());
     }
 
@@ -510,7 +510,7 @@ final class ModelIndexerTest {
         // at EOF and must error rather than return a zero-width range.
         ParseException ex = assertThrows(ParseException.class,
                 () -> scan("Class my::Foo"));
-        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("missing body"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("missing body"),
                 () -> "want missing-body error, got: " + ex.getMessage());
     }
 
@@ -520,7 +520,7 @@ final class ModelIndexerTest {
         // scanner must not absorb it into the range or silently skip it.
         ParseException ex = assertThrows(ParseException.class,
                 () -> scan("Class my::Foo ) { x: String[1]; }"));
-        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("unbalanced"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("unbalanced"),
                 () -> "want unbalanced-delimiter error, got: " + ex.getMessage());
     }
 
@@ -533,7 +533,7 @@ final class ModelIndexerTest {
         // top-level keyword check fires.
         ParseException ex = assertThrows(ParseException.class,
                 () -> scan("Class my::A {} garbageToken Class my::B {}"));
-        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("unsupported"),
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("unsupported"),
                 () -> "want unsupported-keyword error, got: " + ex.getMessage());
         assertTrue(ex.getMessage().contains("garbageToken"),
                 () -> "error should name the offending token, got: " + ex.getMessage());

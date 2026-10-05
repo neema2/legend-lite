@@ -343,7 +343,7 @@ class ResolveGraphUnionProbeTest {
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[graph-temporal] " + json);
-        assertEquals("[{\"oid\":1,\"product(2015-08-20)\":"
+        assertSameJson("[{\"oid\":1,\"product(2015-08-20)\":"
                 + "[{\"pname\":\"Current\"}]}]", json);
     }
 
@@ -374,7 +374,7 @@ class ResolveGraphUnionProbeTest {
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[graph-matrix] " + json);
-        assertEquals("[{\"oid\":1,\"product\":[{\"pname\":\"A1\"},{\"pname\":\"A2\"}]},"
+        assertSameJson("[{\"oid\":1,\"product\":[{\"pname\":\"A1\"},{\"pname\":\"A2\"}]},"
                 + "{\"oid\":2,\"product\":[{\"pname\":\"B2\"}]}]", json);
     }
 
@@ -422,7 +422,7 @@ class ResolveGraphUnionProbeTest {
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[graph-diagonal] " + json);
-        assertEquals("[{\"tradeId\":1,\"product\":{\"productId\":\"30\",\"productName\":\"Prod_1\"}},"
+        assertSameJson("[{\"tradeId\":1,\"product\":{\"productId\":\"30\",\"productName\":\"Prod_1\"}},"
                 + "{\"tradeId\":5,\"product\":null},"
                 + "{\"tradeId\":2,\"product\":{\"productId\":\"31\",\"productName\":\"Prod_2\"}},"
                 + "{\"tradeId\":3,\"product\":null}]", json);
@@ -461,5 +461,28 @@ class ResolveGraphUnionProbeTest {
                         && json.contains("Cid")
                         && json.contains("New York") && json.contains("Hoboken"),
                 json);
+    }
+
+    /** The two JSON documents are equal with every array taken as a multiset: a graph fetch with no sort returns its
+     *  roots and children in the database's order (Bazel workplan P3-11). */
+    private static void assertSameJson(String expected, String actual) {
+        assertEquals(canonical(com.legend.json.Json.parse(expected)), canonical(com.legend.json.Json.parse(actual)),
+                "graph JSON (array order ignored): " + actual);
+    }
+
+    private static String canonical(com.legend.json.Json.Node n) {
+        if (n instanceof com.legend.json.Json.Obj o) {
+            java.util.List<String> fields = new java.util.ArrayList<>();
+            o.fields().forEach((k, v) -> fields.add(k + "=" + canonical(v)));
+            fields.sort(null);
+            return "{" + String.join(",", fields) + "}";
+        }
+        if (n instanceof com.legend.json.Json.Arr a) {
+            java.util.List<String> items = new java.util.ArrayList<>();
+            a.items().forEach(v -> items.add(canonical(v)));
+            items.sort(null);
+            return "[" + String.join(",", items) + "]";
+        }
+        return String.valueOf(n);
     }
 }

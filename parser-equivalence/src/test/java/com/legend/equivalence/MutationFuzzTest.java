@@ -296,12 +296,9 @@ class MutationFuzzTest {
         // listed as FILES of this module's test resources, not by turning the
         // classpath URL into a Path: under Bazel the resources are packed in a
         // jar, and a jar: URI has no default FileSystem (2026-09-22)
-        var path = com.legend.testing.Repo.module(
-                "src/test/resources/sibling-corpus/fixtures");
-        try (var files = java.nio.file.Files.list(path)) {
-            return files.map(p -> p.getFileName().toString())
-                    .filter(f -> f.endsWith(".pure")).sorted().toList();
-        }
+        return ModuleFiles.in("parser-equivalence/src/test/resources/sibling-corpus/fixtures").stream()
+                .map(p -> p.getFileName().toString())
+                .filter(f -> f.endsWith(".pure")).sorted().toList();
     }
 
     private static String readFixture(String name) throws Exception {

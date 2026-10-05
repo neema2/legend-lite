@@ -3,18 +3,13 @@
 // bans actually happened here.
 
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
-function sources(dir: string, out: string[] = []): string[] {
-  for (const name of readdirSync(dir)) {
-    const p = join(dir, name);
-    if (statSync(p).isDirectory()) sources(p, out);
-    else if (name.endsWith('.ts')) out.push(p);
-  }
-  return out;
-}
+import { Sources } from '../../tools/js/runfiles.mts';
+
+// the sources this reads, as the BUILD target declares them (Bazel workplan P3-29): it walks no directory
+const SOURCES = new Sources('SOURCES', 'datacube');
+const sources = (dir: string): string[] => SOURCES.under(dir, '.ts');
 
 // the engine client was datacube/src until 2026-10-04: its files keep DataCube's guardrails
 const FILES = [...sources('src'), ...sources('../engine-client/src')];
@@ -37,7 +32,7 @@ describe('source guardrails', () => {
     // actually used instead.
     const bad: string[] = [];
     for (const file of FILES) {
-      readFileSync(file, 'utf8')
+      SOURCES.read(file)
         .split('\n')
         .forEach((line, i) => {
           if (isComment(line)) return;
@@ -60,16 +55,30 @@ describe('source guardrails', () => {
     const control = new RegExp('[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f]');
     const bad: string[] = [];
     for (const file of FILES) {
-      if (control.test(readFileSync(file, 'utf8'))) bad.push(file);
+      if (control.test(SOURCES.read(file))) bad.push(file);
     }
     assert.deepEqual(bad, [], `use an escape sequence: ${bad.join(', ')}`);
+  });
+
+  it('writes its own words in one locale (Bazel workplan P3-29)', () => {
+    // A row count or a clock time the app writes into a message read differently on every
+    // machine: toLocaleString() takes the browser's locale. The app's words name UI_LOCALE
+    // (engine-client/src/locale.ts); a column's display format names its own.
+    const bare = /\.toLocale(String|DateString|TimeString)\((\)|\s*undefined\b)/;
+    const hits: string[] = [];
+    for (const file of [...FILES, ...sources('demo')]) {
+      SOURCES.read(file).split('\n').forEach((line, i) => {
+        if (!isComment(line) && bare.test(line)) hits.push(`${file}:${i + 1}: ${line.trim()}`);
+      });
+    }
+    assert.deepEqual(hits, [], `name the locale (UI_LOCALE):\n${hits.join('\n')}`);
   });
 
   it('keeps the demo-only planner out of the product', () => {
     // "One planner" is an architectural commitment, and a convenient
     // second one is exactly how such commitments rot.
     const bad = FILES.filter((f) =>
-      /DemoOnlyPlanner|filterToSql/.test(readFileSync(f, 'utf8')),
+      /DemoOnlyPlanner|filterToSql/.test(SOURCES.read(f)),
     );
     assert.deepEqual(bad, [], `demo code in src: ${bad.join(', ')}`);
   });
@@ -86,10 +95,10 @@ describe('types come from the compiler (docs/DATACUBE_TYPES_TO_SERVER_2026_09_27
 
   it('decides nothing by comparing a type name, outside the one reader', () => {
     const shipped = [...sources('src'), ...sources('../engine-client/src'), ...sources('demo')]
-      .filter((f) => !f.includes('generated') && f !== join('..', 'engine-client', 'src', 'types.ts'));
+      .filter((f) => !f.includes('generated') && f !== '../engine-client/src/types.ts');
     const hits: string[] = [];
     for (const f of shipped) {
-      readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+      SOURCES.read(f).split('\n').forEach((line, i) => {
         if (!isComment(line) && COMPARED.test(line)) hits.push(`${f}:${i + 1}: ${line.trim()}`);
       });
     }
@@ -111,15 +120,15 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
    * name cannot be read through.
    */
   const FOR_A_PERSON = new Map([
-    [join('src', 'calc.ts'), 'the column editor\'s examples and completions'],
-    [join('src', 'query.ts'), 'a refusal suggesting what to type'],
-    [join('src', 'catalog-model.ts'), 'a refusal naming the accessor a name cannot be read through, in legend-lite\'s words'],
+    ['src/calc.ts', 'the column editor\'s examples and completions'],
+    ['src/query.ts', 'a refusal suggesting what to type'],
+    ['src/catalog-model.ts', 'a refusal naming the accessor a name cannot be read through, in legend-lite\'s words'],
   ]);
 
   it('builds no Pure text outside what a person types', () => {
     const hits: string[] = [];
     for (const f of FILES.filter((x) => !x.includes('generated'))) {
-      readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+      SOURCES.read(f).split('\n').forEach((line, i) => {
         if (isComment(line) || !PURE_SYNTAX.test(line)) return;
         const allowed = FOR_A_PERSON.get(f);
         if (allowed === undefined) hits.push(`${f}:${i + 1}: ${line.trim()}`);
@@ -129,18 +138,18 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
   });
 
   it('keeps the exceptions to what they are for', () => {
-    const count = (f: string): number => readFileSync(f, 'utf8').split('\n')
+    const count = (f: string): number => SOURCES.read(f).split('\n')
       .filter((line) => !isComment(line) && PURE_SYNTAX.test(line)).length;
     // pinned, so a query built as text cannot hide in an allowed file
-    assert.equal(count(join('src', 'query.ts')), 1, 'query.ts: only the unpivotable refusal');
-    assert.ok(count(join('src', 'calc.ts')) > 0, 'calc.ts: the editor help still exists');
+    assert.equal(count('src/query.ts'), 1, 'query.ts: only the unpivotable refusal');
+    assert.ok(count('src/calc.ts') > 0, 'calc.ts: the editor help still exists');
   });
 
   it('calls no TDS function: the Relation API only (the user, 2026-09-27)', () => {
     const TDS = /\bfn\(\s*'(project|restrict|olapGroupBy|renameColumns|groupByWithWindowSubset|tdsRows|extendWithWindow)'/;
     const hits: string[] = [];
     for (const f of FILES) {
-      readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+      SOURCES.read(f).split('\n').forEach((line, i) => {
         if (!isComment(line) && TDS.test(line)) hits.push(`${f}:${i + 1}: ${line.trim()}`);
       });
     }
@@ -153,8 +162,8 @@ describe('keys and values are typed, never text sentinels or local Dates (T4c)',
   // literal is written by its column's compiler type (src/query.ts literalNode). A text
   // sentinel for null collided with nothing only by luck; a JavaScript Date carried the
   // browser's time zone into a filter that has none.
-  const QUERY_PATH = FILES.filter((f) => f === join('src', 'query.ts') || f === join('src', 'tree.ts')
-    || f === join('src', 'treeview.ts') || f === join('src', 'plan.ts') || f.includes(join('src', 'adhoc')));
+  const QUERY_PATH = FILES.filter((f) => f === 'src/query.ts' || f === 'src/tree.ts'
+    || f === 'src/treeview.ts' || f === 'src/plan.ts' || f.includes('src/adhoc'));
 
   it('reads the query path at all', () => {
     assert.ok(QUERY_PATH.length >= 6, QUERY_PATH.join(', '));
@@ -163,7 +172,7 @@ describe('keys and values are typed, never text sentinels or local Dates (T4c)',
   it('has no null-key sentinel and no Date on the query path', () => {
     const hits: string[] = [];
     for (const f of QUERY_PATH) {
-      readFileSync(f, 'utf8').split('\n').forEach((line, i) => {
+      SOURCES.read(f).split('\n').forEach((line, i) => {
         if (!isComment(line) && /\\u0000null|instanceof Date|new Date\(/.test(line)) {
           hits.push(`${f}:${i + 1}: ${line.trim()}`);
         }
@@ -209,11 +218,11 @@ describe('there is exactly one planner, and no way to fall back to another', () 
   //
   // That argument is only worth anything if something checks it, so
   // the next test requires the differentials that do.
-  const PLANNERS = [join('src', 'planner.ts'), join('src', 'wasm-planner.ts')];
+  const PLANNERS = ['src/planner.ts', 'src/wasm-planner.ts'];
 
   it('implements Planner in exactly the two blessed shipped files', () => {
     const impls = shipped.filter((f) =>
-      /implements\s+Planner\b/.test(readFileSync(f, 'utf8')),
+      /implements\s+Planner\b/.test(SOURCES.read(f)),
     );
     assert.deepEqual(
       impls.sort(),
@@ -234,7 +243,7 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     // on every push; this only stops them being deleted.
     for (const f of ['test/wasm-differential/compare.ts',
       '../wasm/differential.mjs']) {
-      assert.ok(existsSync(f), `the wasm planner's differential is gone (${f})`
+      assert.ok(SOURCES.has(f), `the wasm planner's differential is gone (${f})`
         + ' — either restore it or drop src/wasm-planner.ts');
     }
   });
@@ -243,22 +252,22 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     // The page's `?planner=` is read in `chosenPlane` (demo/boot.ts) and nowhere else; a planner
     // is BUILT from what it answers (demo/main.ts). A URL or env lookup in the same function as a
     // planner's construction would be a second, unreviewed place to choose.
-    const readers = shipped.filter((f) => /searchParams\.get\('planner'\)|get\('planner'\)/.test(readFileSync(f, 'utf8')));
+    const readers = shipped.filter((f) => /searchParams\.get\('planner'\)|get\('planner'\)/.test(SOURCES.read(f)));
     assert.deepEqual(readers.map((f) => f.replace(/\\/g, '/')), ['demo/boot.ts'], `?planner= read in: ${readers.join(', ')}`);
     // index.html reads it too, ONLY to start the in-tab planner's download early: one read, in
     // the one script that adds the preload hint, and nothing else in the page reads it
-    const page = readFileSync(join('demo', 'index.html'), 'utf8');
+    const page = SOURCES.read('demo/index.html');
     const reads = page.match(/get\('planner'\)/g) ?? [];
     assert.equal(reads.length, 1, 'index.html reads ?planner= once');
     const script = page.slice(page.lastIndexOf('<script>', page.indexOf("get('planner')")), page.indexOf('</script>', page.indexOf("get('planner')")));
     assert.match(script, /rel: 'preload'/, 'and only to add the preload hint');
     assert.doesNotMatch(script, /Planner|import|bundle/, 'never to build or load a planner');
-    const boot = readFileSync(join('demo', 'boot.ts'), 'utf8');
+    const boot = SOURCES.read('demo/boot.ts');
     assert.match(boot, /export function chosenPlane\(\)/);
     assert.match(boot, /throw new Error\(`\?planner=\$\{word\} is not a planner/, 'an unknown planner is refused, never guessed');
     const bad: string[] = [];
     for (const file of shipped) {
-      const text = readFileSync(file, 'utf8');
+      const text = SOURCES.read(file);
       if (!/\bnew\s+\w*Planner\b/.test(text)) continue;
       const code = text.split('\n').filter((l) => !isComment(l)).join('\n');
       if (/URLSearchParams|process\.env|location\.search/.test(code)
@@ -283,7 +292,7 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     // a fake returned from it.
     const bad: string[] = [];
     for (const file of shipped) {
-      const text = readFileSync(file, 'utf8');
+      const text = SOURCES.read(file);
       // A `catch` block that constructs or returns a planner.
       if (/catch\s*(\([^)]*\))?\s*\{[^}]*\bnew\s+\w*Planner\b/s.test(text)) {
         bad.push(file);
@@ -300,7 +309,7 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     // telling you about a back end you are not using.
     const bad: string[] = [];
     for (const file of shipped) {
-      const text = readFileSync(file, 'utf8');
+      const text = SOURCES.read(file);
       if (!/\bnew\s+(?:RemoteRun|PlanThenRun)\b/.test(text)) continue;
       const code = text.split('\n').filter((l) => !isComment(l)).join('\n');
       const spans = code.split(/\n(?=(?:export )?(?:async )?function )/);
@@ -322,7 +331,7 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     // would be a cube showing different data under the same title.
     const bad: string[] = [];
     for (const file of shipped) {
-      const text = readFileSync(file, 'utf8');
+      const text = SOURCES.read(file);
       if (/catch\s*(\([^)]*\))?\s*\{[^}]*\bnew\s+(?:RemoteRun|PlanThenRun)\b/s
         .test(text)) {
         bad.push(file);
@@ -334,14 +343,14 @@ describe('there is exactly one planner, and no way to fall back to another', () 
   it('the refusal STOPS the page: it throws, it never returns a planner', () => {
     // Not "warns and carries on": a refusal that falls through builds the cube anyway, a grid of
     // invented numbers under a title that claims data.
-    const boot = readFileSync(join('demo', 'boot.ts'), 'utf8');
+    const boot = SOURCES.read('demo/boot.ts');
     const fn = boot.slice(boot.indexOf('export function refusePlanner('));
     assert.match(fn.slice(0, fn.indexOf('\n}\n')), /throw new Error\(/, 'refusePlanner must throw');
     assert.match(boot, /export function refusePlanner\([^)]*\): never/);
   });
 
   it('a server planner is asked first, and refused BEFORE it is built', () => {
-    const demo = readFileSync(join('demo', 'planners.ts'), 'utf8');
+    const demo = SOURCES.read('demo/planners.ts');
     const refuse = demo.indexOf('if (!answered) refusePlanner(');
     const build = demo.indexOf('new UpstreamPlanner');
     assert.ok(refuse > 0 && build > refuse, 'planners.ts must refuse an absent server planner before building it');
@@ -355,7 +364,7 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     // `warmUp()` is what forces that: it loads and instantiates, so
     // an unavailable module rejects startup instead of surfacing as
     // a half-rendered grid on the user's first interaction.
-    const demo = readFileSync(join('demo', 'planners.ts'), 'utf8');
+    const demo = SOURCES.read('demo/planners.ts');
     assert.ok(
       /await\s+planner\.warmUp\(\)/.test(demo),
       'planners.ts must await warmUp() before handing the planner to boot,'
@@ -376,7 +385,7 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     // 409ms to 1038ms, and time-to-first-row got WORSE (1009 -> 1175)
     // when the planner was started earlier to "overlap" it. On a
     // worker the two genuinely run at once: 828ms.
-    const demo = readFileSync(join('demo', 'planners.ts'), 'utf8');
+    const demo = SOURCES.read('demo/planners.ts');
     assert.ok(
       /workerUrl\s*:/.test(demo),
       'demo/planners.ts must give WasmPlanner a workerUrl — without it the'
@@ -388,7 +397,7 @@ describe('there is exactly one planner, and no way to fall back to another', () 
   it('keeps the shim gone from every entry point', () => {
     for (const f of ['main.ts', 'planners.ts', 'boot.ts']) {
       assert.equal(
-        /DemoOnlyPlanner/.test(readFileSync(join('demo', f), 'utf8')),
+        /DemoOnlyPlanner/.test(SOURCES.read(`demo/${f}`)),
         false,
         `the shim must be gone, not merely unreferenced (${f})`,
       );
@@ -406,7 +415,7 @@ describe('nothing is built and left unreachable', () => {
   //
   // So: a module that exists to be used by the product must be
   // imported by the product, and called. app.ts is the product.
-  const APP = readFileSync(join('src', 'app.ts'), 'utf8');
+  const APP = SOURCES.read('src/app.ts');
 
   const REACHABLE: readonly [string, string][] = [
     ['the context menu', './ui/menu.ts'],

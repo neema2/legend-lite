@@ -305,7 +305,7 @@ final class RelOpTranslator {
                             toOne(translate(call.args().get(1), tableScope,
                                     targetVarOrNull, rowBindOrNull, pipeline)),
                             new EnumValue("meta::pure::functions::date::DurationUnit",
-                                    unit.toUpperCase())));
+                                    unit.toUpperCase(java.util.Locale.ROOT))));
             }
             case RelationalOperation.FunctionCall call
                     when dyna(call) == DynaFn.CONVERT_TIME_ZONE && call.args().size() == 3 ->

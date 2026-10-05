@@ -40,7 +40,8 @@ node_test(
 # The same suite against legend-lite's server, started here with a fresh store.
 node_test(
     name = "lite_test",
-    size = "small",
+    # starts a JVM server: past `small`'s 60 s on a loaded runner (Bazel workplan P3-16)
+    size = "medium",
     data = [
         ":query_store",
         "test/conformance.ts",

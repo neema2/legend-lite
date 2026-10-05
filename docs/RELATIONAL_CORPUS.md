@@ -1,5 +1,9 @@
 # Relational corpus scoreboard (real legend-engine core_relational)
 
+> **History, not a live report** (Bazel workplan P2-22): a snapshot from the Maven-era sweep (last written 2026-09-06);
+> nothing regenerates it. The live corpus measurements are the corpus lanes' generated rosters
+> (`//spec:corpus_duckdb`, `//spec:corpus_h2`; `spec/src/test/resources/rcorpus/`).
+
 RUN-as-data over the local legend-engine checkout; row equality is the
 contract, golden SQL is advisory. SHAPE = test body/assert form the
 runner does not yet recognize (accounted, not skipped silently).

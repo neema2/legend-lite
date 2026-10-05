@@ -42,7 +42,7 @@ async function sampleFile() {
   const { join } = await import('node:path');
   const file = join(await mkdtemp(join(tmpdir(), 'dc-upload-')), 'sample-trades.csv');
   await writeFile(file, sampleCsv({ rows: SAMPLE_ROWS, seed: 20260920 }), 'utf8');
-  console.log(`no DATA: the product's sample, ${SAMPLE_ROWS.toLocaleString()} rows -> ${file}`);
+  console.log(`no DATA: the product's sample, ${SAMPLE_ROWS.toLocaleString('en-US')} rows -> ${file}`);
   return file;
 }
 

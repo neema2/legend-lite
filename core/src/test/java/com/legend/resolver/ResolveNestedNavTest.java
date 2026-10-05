@@ -9,8 +9,6 @@ import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.DuckDb;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -80,10 +78,11 @@ class ResolveNestedNavTest {
             Runtime n::RT { mappings: [n::M]; }
             """;
 
-    private static Connection conn;
+    // one connection per method: nothing a test writes reaches the next (Bazel workplan P3-04)
+    private Connection conn;
 
-    @BeforeAll
-    static void setUp() throws SQLException {
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() throws SQLException {
         conn = DriverManager.getConnection("jdbc:duckdb:");
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE TA (ID INTEGER, aname VARCHAR, BID INTEGER)");
@@ -96,8 +95,8 @@ class ResolveNestedNavTest {
         }
     }
 
-    @AfterAll
-    static void tearDown() throws SQLException {
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() throws SQLException {
         conn.close();
     }
 

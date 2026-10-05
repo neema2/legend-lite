@@ -40,7 +40,7 @@ class PostgresArmTest {
             }
         }
 
-        String model = """
+        String model = String.format(java.util.Locale.ROOT, """
                 ###Relational
                 Database store::PgDB ( Table T ( ID INTEGER PRIMARY KEY ) )
 
@@ -56,7 +56,7 @@ class PostgresArmTest {
                     mappings: [ ];
                     connections: [ store::PgDB: [ environment: store::PgConn ] ];
                 }
-                """.formatted(pg.port());
+                """, pg.port());
 
         try (ConnectionResolver.Lease lease = ConnectionResolver.lease(com.legend.Compiler.compileModel(model), "test::PgRuntime");
                 Statement s = lease.connection().createStatement();

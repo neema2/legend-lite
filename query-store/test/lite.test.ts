@@ -3,7 +3,6 @@
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before } from 'node:test';
@@ -22,29 +21,30 @@ const taskkill = (): string => {
 const RUNFILES = process.env['RUNFILES_DIR'] ?? process.env['TEST_SRCDIR'] ?? '';
 const SERVER = runfileFromEnv('LEGEND_SERVER');
 
-const freePort = (): Promise<number> => new Promise((resolve, reject) => {
-  const s = createServer();
-  s.once('error', reject);
-  s.listen(0, '127.0.0.1', () => {
-    const port = (s.address() as { port: number }).port;
-    s.close(() => resolve(port));
-  });
-});
-
 let server: ChildProcess | undefined;
 let api = '';
 let health = '';
 let log = '';
 
 before(async () => {
-  const port = await freePort();
   const store = mkdtempSync(join(process.env['TEST_TMPDIR'] ?? tmpdir(), 'query-store-'));
-  server = spawn(SERVER, [String(port), '--query-store', store], {
+  // port 0: the server binds a free port itself and prints it (Bazel workplan P3-16; a port probed here first could
+  // be taken by another test before the server bound it)
+  server = spawn(SERVER, ['0', '--query-store', store], {
     env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  server.stdout?.on('data', (d) => { log += d; });
+  const started = new Promise<number>((resolve, reject) => {
+    server!.stdout?.on('data', (d) => {
+      log += d;
+      const m = /Legend HTTP server started on port (\d+)/.exec(log);
+      if (m) resolve(Number(m[1]));
+    });
+    server!.once('exit', (code) => reject(new Error(`legend-lite exited (${code}) before starting:\n${log.slice(-2000)}`)));
+    server!.once('error', (e) => reject(new Error(`legend-lite did not start (${SERVER}): ${e.message}`)));
+  });
   server.stderr?.on('data', (d) => { log += d; });
+  const port = await started;
   const until = Date.now() + 60_000;
   for (;;) {
     const up = await fetch(`http://127.0.0.1:${port}/health`).then((r) => r.ok, () => false);

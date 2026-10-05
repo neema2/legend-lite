@@ -39,13 +39,16 @@ class EngineElementRosterTest {
     @Test
     void listEveryElementTypeEngineCanProduce() {
         Map<String, String> byClass = new TreeMap<>();
+        java.util.List<String> unread = new java.util.ArrayList<>();
         for (PureProtocolExtension ext
                 : java.util.ServiceLoader.load(PureProtocolExtension.class)) {
             Map<Class<? extends PackageableElement>, String> m;
             try {
                 m = ext.getExtraProtocolToClassifierPathMap();
             } catch (RuntimeException e) {
-                continue;               // extension needs a fuller classpath
+                // an extension that needs a fuller classpath: named, never silent (Bazel workplan P3-14)
+                unread.add(ext.getClass().getName() + " (" + e.getClass().getSimpleName() + ")");
+                continue;
             }
             m.forEach((k, v) -> byClass.put(k.getSimpleName(), v));
         }
@@ -55,7 +58,8 @@ class EngineElementRosterTest {
         byClass.forEach((k, v) ->
                 System.out.println("[engine-element] " + k + "  ::  " + v));
 
+        System.out.println("[engine-elements] extensions not read: " + unread);
         assertTrue(byClass.size() >= MIN_ELEMENTS,
-                "engine element roster shrank to " + byClass.size());
+                "engine element roster shrank to " + byClass.size() + " (extensions not read: " + unread + ")");
     }
 }

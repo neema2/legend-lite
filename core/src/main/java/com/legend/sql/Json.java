@@ -204,7 +204,7 @@ public final class Json {
                 case '\f' -> b.append("\\f");
                 default -> {
                     if (c < 0x20) {
-                        b.append(String.format("\\u%04x", (int) c));
+                        b.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) c));
                     } else {
                         b.append(c);
                     }

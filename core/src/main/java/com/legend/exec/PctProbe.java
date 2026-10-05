@@ -38,7 +38,7 @@ public final class PctProbe {
             Map<String, String> typeNames = new LinkedHashMap<>();
             for (int i = 1; i <= md.getColumnCount(); i++) {
                 String tn = md.getColumnTypeName(i) == null ? ""
-                        : md.getColumnTypeName(i).toUpperCase();
+                        : md.getColumnTypeName(i).toUpperCase(java.util.Locale.ROOT);
                 SqlType slot = tn.equals("DATE") ? SqlType.Scalar.DATE
                         : tn.startsWith("TIMESTAMP")
                                 ? SqlType.Scalar.TIMESTAMP

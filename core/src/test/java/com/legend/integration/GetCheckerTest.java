@@ -445,7 +445,7 @@ public class GetCheckerTest {
                         ->extend(~cnt: _ | $_.PAYLOAD->get('count')->to(@Integer))
                         ->select(~[ID, cnt])
                     """);
-            assertTrue(generatedSql.toUpperCase().contains("CAST"),
+            assertTrue(generatedSql.toUpperCase(java.util.Locale.ROOT).contains("CAST"),
                     "get()->to(@Type) should generate CAST. SQL: " + generatedSql);
         }
 

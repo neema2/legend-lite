@@ -67,11 +67,16 @@ final class DuckWorkspaces {
      *  this means a close/DETACH leak, which must fail fast. */
     private static final int LEAK_CEILING = 8;
 
-    /** The warehouse's deploy jar: set, every connection is a session on a
-     *  warehouse this harness starts (W1c, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md);
-     *  unset, the in-process DuckDB below. */
-    private static final @com.legend.base.Nullable String WAREHOUSE_JAR =
+    /** The warehouse's native binary (//warehouse:server_native): set, every connection is a session on a
+     *  warehouse this harness starts (W1c, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md); unset, the in-process DuckDB
+     *  below. The binary itself, never a child JVM of this one (Bazel workplan P3-19). */
+    private static final @com.legend.base.Nullable String WAREHOUSE_BINARY =
             System.getProperty("rcorpus.warehouse.server");
+
+    /** DuckDB's library for that warehouse, named when it has no runfiles to find it in (the host pass, a build
+     *  action: spec/corpus.bzl); unset, the server finds it in its runfiles (Bazel workplan P1-16). */
+    private static final @com.legend.base.Nullable String WAREHOUSE_LIBRARY =
+            System.getProperty("rcorpus.warehouse.library");
 
     /** The instance's root connection: in process, the DuckDB connection the
      *  others duplicate; on a warehouse, a session of its own. */
@@ -85,8 +90,8 @@ final class DuckWorkspaces {
 
     static synchronized Connection open() throws SQLException {
         if (root == null) {
-            if (WAREHOUSE_JAR != null) {
-                warehouseUrl = startWarehouse(WAREHOUSE_JAR);
+            if (WAREHOUSE_BINARY != null) {
+                warehouseUrl = startWarehouse(WAREHOUSE_BINARY);
                 root = DriverManager.getConnection(warehouseUrl);
             } else {
                 root = DriverManager.getConnection("jdbc:duckdb:");
@@ -130,18 +135,21 @@ final class DuckWorkspaces {
     }
 
     /** Starts the warehouse as a child process on a free port, with an empty
-     *  data directory and one user; stopped when this JVM exits. Its own
-     *  classpath: the warehouse runs DuckDB 1.5.5.1, this harness 1.4.4. */
-    private static String startWarehouse(String jar) throws SQLException {
+     *  data directory and one user; stopped when this JVM exits. The native
+     *  binary, its own build: the warehouse runs DuckDB 1.5.5.1, this harness 1.4.4. */
+    private static String startWarehouse(String binary) throws SQLException {
         try {
             // rcorpus.warehouse.data: keep the warehouse's data (its query history) where it can be read after
             String keep = System.getProperty("rcorpus.warehouse.data");
             java.nio.file.Path data = keep != null ? java.nio.file.Files.createDirectories(java.nio.file.Path.of(keep))
                     : java.nio.file.Files.createTempDirectory("rcorpus-warehouse");
-            String launcher = java.nio.file.Path.of(System.getProperty("java.home"), "bin", "java").toString();
-            Process p = new ProcessBuilder(launcher, "--enable-native-access=ALL-UNNAMED", "-jar", jar,
+            java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(binary,
                     "--port", "0", "--data", data.toString(), "--user", "rcorpus:rcorpus", "--owner", "rcorpus",
-                    "--concurrency", "4")
+                    "--concurrency", "4"));
+            if (WAREHOUSE_LIBRARY != null) {
+                command.addAll(java.util.List.of("--duckdb-library", WAREHOUSE_LIBRARY));
+            }
+            Process p = new ProcessBuilder(command)
                     .redirectOutput(ProcessBuilder.Redirect.INHERIT)
                     .start();
             Runtime.getRuntime().addShutdownHook(new Thread(p::destroy));
@@ -169,7 +177,7 @@ final class DuckWorkspaces {
             }
             throw new SQLException("the warehouse exited before listening (exit " + p.waitFor() + ")");
         } catch (java.io.IOException e) {
-            throw new SQLException("cannot start the warehouse from " + jar, e);
+            throw new SQLException("cannot start the warehouse from " + binary, e);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new SQLException("interrupted starting the warehouse", e);
@@ -290,7 +298,7 @@ final class DuckWorkspaces {
             DETACHES.incrementAndGet();
             DETACH_NANOS.addAndGet(dt);
             DETACH_MAX_NANOS.accumulateAndGet(dt, Math::max);
-            if (System.getProperty("rcorpus.detachTrace") != null && dt > 20_000_000L) {
+            if (com.legend.diagnostics.Diagnostics.on("detach-trace") && dt > 20_000_000L) {
                 System.out.println("[ws-detach] " + dt / 1_000_000L + "ms " + ws);
             }
         } catch (SQLException e) {

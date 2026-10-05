@@ -881,24 +881,24 @@ public final class WarehouseServer implements AutoCloseable {
                     }
                 }
                 case "--duckdb-extensions" -> extensions = directoryOf(named(args[++i], startedIn));
-                case "--port" -> port = Integer.parseInt(args[++i]);
+                case "--port" -> port = intArgument("--port", args[++i]);
                 case "--data" -> {
                     data = Path.of(args[++i]);
                     dataGiven = true;
                 }
                 case "--catalog" -> cats.add(args[++i]);
                 case "--user" -> users.add(args[++i].split(":", 2));
-                case "--concurrency" -> concurrency = Integer.parseInt(args[++i]);
-                case "--queue" -> queue = Integer.parseInt(args[++i]);
+                case "--concurrency" -> concurrency = intArgument("--concurrency", args[++i]);
+                case "--queue" -> queue = intArgument("--queue", args[++i]);
                 case "--duckdb-library" -> library = named(args[++i], startedIn);
                 case "--owner" -> owners.add(args[++i]);
                 case "--allow-origin" -> origins.add(args[++i]);
-                case "--max-rows" -> maxRows = Long.parseLong(args[++i]);
-                case "--retain-minutes" -> retainMinutes = Long.parseLong(args[++i]);
-                case "--result-memory-mb" -> resultMemoryMb = Long.parseLong(args[++i]);
+                case "--max-rows" -> maxRows = longArgument("--max-rows", args[++i]);
+                case "--retain-minutes" -> retainMinutes = longArgument("--retain-minutes", args[++i]);
+                case "--result-memory-mb" -> resultMemoryMb = longArgument("--result-memory-mb", args[++i]);
                 case "--token-key-file" -> tokenKeyFile = callers(args[++i], startedIn);
-                case "--token-minutes" -> tokenMinutes = Long.parseLong(args[++i]);
-                case "--session-hours" -> sessionHours = Long.parseLong(args[++i]);
+                case "--token-minutes" -> tokenMinutes = longArgument("--token-minutes", args[++i]);
+                case "--session-hours" -> sessionHours = longArgument("--session-hours", args[++i]);
                 default -> throw new IllegalArgumentException("unknown argument " + args[i]);
             }
         }
@@ -975,4 +975,21 @@ public final class WarehouseServer implements AutoCloseable {
 
     /** {@code --table}'s schema.name: what the page's address carries, so nothing that needs escaping there. */
     private static final Pattern TABLE = Pattern.compile("[A-Za-z_][A-Za-z0-9_$]*\\.[A-Za-z_][A-Za-z0-9_$]*");
+
+    /** A numeric argument, or the server's own refusal naming it (not the JDK's NumberFormatException text). */
+    static int intArgument(String flag, String value) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(flag + " takes a number, not '" + value + "'");
+        }
+    }
+
+    static long longArgument(String flag, String value) {
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(flag + " takes a number, not '" + value + "'");
+        }
+    }
 }

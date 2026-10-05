@@ -1,7 +1,6 @@
 package com.legend.equivalence;
 
 
-import com.legend.testing.Repo;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
@@ -64,7 +63,7 @@ public final class RosterGenerator {
         // ledger depend on classpath order — Maven's and Bazel's differ, and
         // the two builds pinned different classes for 8 tags (2026-09-22).
         Map<String, Set<String>> tagToClass = new TreeMap<>();
-        for (java.nio.file.Path jarPath : com.legend.testing.Repo.listed("legend.engine.jars")) {
+        for (java.nio.file.Path jarPath : com.legend.testing.ProgramPaths.listed("legend.engine.jars")) {
             String entry = jarPath.toString();
             if (!entry.endsWith(".jar") || !entry.contains("legend-engine")) {
                 continue;
@@ -113,7 +112,7 @@ public final class RosterGenerator {
         List<Corpus.Source> universe = new ArrayList<>(Corpus.all());
         universe.addAll(Corpus.engineFixtures());
         for (String module : new String[]{"core", "spec", "pct"}) {
-            universe.addAll(InlineSnippets.extract(Repo.path(module),
+            universe.addAll(InlineSnippets.extract(module,
                     "own-" + module, InlineSnippets.OWN_DECL));
         }
         int accepted = 0;

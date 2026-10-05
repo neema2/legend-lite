@@ -238,7 +238,7 @@ public final class GitStorage implements Storage {
             while (raw[nul] != 0) nul++;
             String modeName = new String(raw, i, nul - i, StandardCharsets.UTF_8);
             StringBuilder id = new StringBuilder();
-            for (int k = nul + 1; k < nul + 21; k++) id.append(String.format("%02x", raw[k] & 0xff));
+            for (int k = nul + 1; k < nul + 21; k++) id.append(String.format(java.util.Locale.ROOT, "%02x", raw[k] & 0xff));
             sb.append(modeName).append(' ').append(id).append('\n');
             i = nul + 21;
         }
