@@ -361,6 +361,46 @@ async function loop(browser, name, query) {
     await page.locator('[data-testid=revision-changes] .diff-item[data-path="demo::party::Memo"]').click();
     assert.match(await page.locator('[data-testid=diff-view] .diff-view__title').textContent(), /^Memo \(new\)$/);
     await page.getByTestId('diff-close').click();
+    // 5c. a conflict resolved (plan A7): exec gives Memo pages, memo2 gives it an author and lands first; exec's update
+    // conflicts, Memo is resolved to both in the merge view, and the resolution accepted
+    const writeMemo = async (fields) => {
+      await page.locator('[data-activity=explorer]').click();
+      await page.locator('[data-testid=explorer] .element[data-path="demo::party::Memo"]').click();
+      await page.locator('.monaco-editor .view-lines').click();
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.insertText(`Class demo::party::Memo\n{\ntext: String[1];\n${fields}\n}\n`);
+      await waitCompiled();
+      await page.getByTestId('save-status').click();
+      await page.locator('.dialog .btn-primary').click();
+      await waitStatus('changes-count', /no changes detected/);
+    };
+    await writeMemo('pages: Integer[1];');
+    await toSetup();
+    await newPartyWorkspace('memo2');
+    await writeMemo('author: String[1];');
+    await page.locator('[data-activity=review]').click();
+    await page.getByTestId('review-title').fill('Memo author');
+    await page.getByTestId('create-review').click();
+    await page.getByTestId('commit-review').click({ timeout: 30_000 });
+    await page.waitForSelector('[data-testid=new-workspace]', { timeout: 60_000 });
+    await page.getByTestId('workspace-selector').click();
+    await page.locator('[data-testid=workspace-selector-menu] [data-id="exec"]').click();
+    await page.getByTestId('go').click();
+    await page.waitForSelector('[data-testid=explorer] .element');
+    await page.locator('[data-activity=changes]').click();
+    await page.getByTestId('workspace-outdated').locator('button').click();
+    await page.locator('[data-testid=conflicts] .diff-item[data-path="demo::party::Memo"]').click();
+    await page.getByTestId('merge-view').locator('.monaco-diff-editor').waitFor();
+    await page.locator('[data-testid=merge-view] .editor.modified .view-lines').click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.insertText('Class demo::party::Memo\n{\n  text: String[1];\n  author: String[1];\n  pages: Integer[1];\n}\n');
+    await page.getByTestId('merge-use').click();
+    await page.getByTestId('accept-resolution').click();
+    await page.getByTestId('conflict-resolution').waitFor({ state: 'detached', timeout: 60_000 });
+    await page.locator('[data-activity=explorer]').click();
+    await page.locator('[data-testid=explorer] .element[data-path="demo::party::Memo"]').click();
+    await page.waitForFunction(() => /author.*pages/s.test(document.querySelector('.monaco-editor .view-lines')?.textContent ?? ''));
+    await waitCompiled();
     await page.locator('[data-activity=explorer]').click();
     await page.locator('[data-testid=explorer] .element[data-path="demo::party::PartyMapping"]').click();
     await waitCompiled();

@@ -7,6 +7,7 @@ import type * as Monaco from 'monaco-editor/editor/editor.api';
 import type { DepotClient } from '../../../depot-client/src/client.ts';
 import type { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import { SdlcError } from '../../../sdlc-client/src/client.ts';
+import type { PureChange } from '../../../sdlc-client/src/wire.ts';
 import type { Compiler } from '../backend/planner.ts';
 import type { QueryBuilder } from '../backend/query-builder.ts';
 import type { EditorHandle } from '../../../query/src/embed.ts';
@@ -20,7 +21,7 @@ import { Workspace, type OpenFile, type Problem } from '../model/workspace.ts';
 import { icon } from '../../../legend-art/src/icon.ts';
 import { typeIcon } from '../../../legend-art/src/type-icon.ts';
 import type { IconName } from '../../../legend-art/src/icons.ts';
-import { showDiff, type ElementChange } from './diff.ts';
+import { conflictsAmong, showDiff, showMerge, type ElementChange } from './diff.ts';
 import { clear, dialog, h, headerAction, menu, sideHead, subPanel, toast } from './dom.ts';
 import { editorTheme, PURE } from './pure-language.ts';
 import { field } from './setup.ts';
@@ -542,8 +543,11 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       ctx.client.outdated(ctx.project, ctx.workspace).catch(() => false),
     ]);
     if (activity !== 'changes') return;
-    // the project line has moved on since the workspace was made (plan A7): upstream's update, here
-    if (outdated) {
+    // an update met a conflict (upstream's conflict resolution mode): the conflicting elements to resolve, then accept
+    if (ws.inConflictResolution) {
+      changesBody.append(await conflictSection());
+    } else if (outdated) {
+      // the project line has moved on since the workspace was made (plan A7): upstream's update, here
       changesBody.append(h('div', { class: 'side-bar__notice', 'data-testid': 'workspace-outdated' },
         'The project line has new revisions. ', h('button', { class: 'btn btn-small', onclick: () => void updateWorkspace() }, 'Update workspace')));
     }
@@ -703,6 +707,64 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     void compile();
   };
 
+  /** In a conflict resolution, each conflicting element's resolved text, as chosen in its merge view (path → text). */
+  const resolved = new Map<string, string>();
+
+  /**
+   * Upstream's conflict resolution (plan A7): the elements the line and this workspace both changed, differently
+   * (BASE, the line's head and the workspace, three ways), each resolved in a merge view; then Accept makes the
+   * resolution -- the line's head with this workspace's changes, and these resolutions -- the workspace. Discard leaves
+   * the workspace as it was; Discard my changes makes it the line's head.
+   */
+  const conflictSection = async (): Promise<HTMLElement> => {
+    const where = { project: ctx.project, workspace: ctx.workspace };
+    const [base, line, mine, resolution] = await Promise.all([
+      ctx.client.pure({ ...where, revision: 'BASE' }), ctx.client.pure({ project: ctx.project }), ctx.client.pure(where),
+      ctx.client.conflictResolutionPure(ctx.project, ctx.workspace)]);
+    const byPath = (fs: readonly { path: string; pureCode: string }[]): Map<string, string> => new Map(fs.map((f) => [f.path, f.pureCode]));
+    const lineText = byPath(line);
+    const resolutionText = byPath(resolution);
+    const conflicts = conflictsAmong(byPath(base), lineText, byPath(mine));
+    const settle = async (what: () => Promise<void>, done: string): Promise<void> => {
+      if (ws.hasChanges()) { toast('Push or discard your local changes first: the workspace is read again after this.', 'error'); return; }
+      try {
+        await what();
+        resolved.clear();
+        await reload();
+        toast(done, 'success');
+      } catch (e) {
+        toast(e instanceof Error ? e.message : String(e), 'error');
+      }
+    };
+    const accept = (): Promise<void> => settle(async () => {
+      const changes: PureChange[] = [];
+      for (const path of conflicts) {
+        const text = resolved.get(path)!;
+        const now = resolutionText.get(path);
+        if (text.trim() === '') { if (now !== undefined) changes.push({ type: 'DELETE', path }); }
+        else if (now === undefined) changes.push({ type: 'CREATE', path, pureCode: text });
+        else if (now !== text) changes.push({ type: 'MODIFY', path, pureCode: text });
+      }
+      await ctx.client.acceptConflictResolution(ctx.project, ctx.workspace, { message: 'Resolve conflicts with the project line', changes });
+    }, 'Conflicts resolved: the workspace is on the project line\'s latest revision');
+    const all = conflicts.every((p) => resolved.has(p));
+    return h('div', { class: 'conflict-resolution', 'data-testid': 'conflict-resolution' },
+      h('div', { class: 'side-bar__notice' }, `Conflict resolution: the project line and this workspace both changed ${conflicts.length} element${conflicts.length === 1 ? '' : 's'}.`),
+      subPanel('Conflicts', { info: 'Resolve each: the project line\'s text beside yours', count: conflicts.length, testId: 'conflicts' },
+        ...conflicts.map((path) => h('div', {
+          class: `side-bar__panel__item diff-item${resolved.has(path) ? ' diff-item--resolved' : ' diff-item--conflict'}`, title: path, 'data-path': path,
+          onclick: () => showMerge(monaco, path, lineText.get(path), resolved.get(path) ?? resolutionText.get(path) ?? '', (text) => { resolved.set(path, text); renderSide(); }),
+        }, h('div', { class: 'diff-item__name' }, path.split('::').pop() ?? path), h('div', { class: 'diff-item__path' }, path),
+        h('div', { class: 'diff-item__type' }, resolved.has(path) ? '✓' : '!')))),
+      h('div', { class: 'conflict-resolution__actions' },
+        h('button', { class: 'btn btn-small btn-primary', 'data-testid': 'accept-resolution', disabled: !all, title: all ? 'Make the resolution the workspace' : 'Resolve every conflict first',
+          onclick: () => void accept() }, 'Accept resolution'),
+        h('button', { class: 'btn btn-small', 'data-testid': 'discard-resolution', title: 'Drop the resolution: the workspace stays as it was',
+          onclick: () => void settle(() => ctx.client.discardConflictResolution(ctx.project, ctx.workspace), 'Conflict resolution discarded') }, 'Discard'),
+        h('button', { class: 'btn btn-small', 'data-testid': 'discard-my-changes', title: "Drop this workspace's changes: it becomes the project line's head",
+          onclick: () => void settle(() => ctx.client.discardConflictResolutionChanges(ctx.project, ctx.workspace), "The workspace's changes were discarded") }, 'Discard my changes')));
+  };
+
   /**
    * Upstream's workspace update (plan A7): the workspace rebased onto the project line's head by the SDLC, then read
    * again. Local changes are pushed first (they would be lost in the reload). lite's SDLC refuses a conflict -- the line
@@ -716,8 +778,13 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     try {
       const r = await ctx.client.updateWorkspace(ctx.project, ctx.workspace);
       if (r.status === 'CONFLICT') {
+        // upstream's conflict resolution: resolve each conflicting element in Local Changes, then accept
+        await reload();
+        activity = 'changes';
+        renderActivityBar();
+        renderSide();
         const elements = (r.conflicts ?? []).map((f) => f.replace(/\.pure$/, '').split('/').join('::'));
-        toast(`Not updated: the project line changed ${elements.join(', ')} differently from this workspace.`, 'error');
+        toast(`The project line changed ${elements.join(', ')} differently: resolve the conflicts in Local Changes.`, 'error');
       } else if (r.status === 'NO_OP') {
         toast('The workspace already has the latest revision of the project line.');
       } else {
