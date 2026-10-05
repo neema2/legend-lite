@@ -2572,8 +2572,9 @@ class RelationalMappingIntegrationTest {
             var r = exec(model, "test::Employee.all()->project(~[empId, empName])");
             assertEquals(2, r.columnCount());
             assertEquals(2, r.rows().size());
-            assertEquals(List.of(1, 2), colInt(r, 0));
-            assertEquals(List.of("Alice", "Bob"), colStr(r, 1));
+            // no sort: the rows as a multiset (P3-11)
+            com.legend.testing.Rows.assertSameRows(List.of(List.of(1, "Alice"), List.of(2, "Bob")), r.rows(),
+                    com.legend.exec.Row::values);
         }
 
         @Test
@@ -2621,9 +2622,9 @@ class RelationalMappingIntegrationTest {
             var r = exec(model, "test::Employee.all()->project(~[empId, fullName, deptName])");
             assertEquals(3, r.columnCount());
             assertEquals(2, r.rows().size());
-            assertEquals(List.of(1, 2), colInt(r, 0));
-            assertEquals(List.of("Alice Smith", "Bob Jones"), colStr(r, 1));
-            assertEquals(List.of("Engineering", "Sales"), colStr(r, 2));
+            // no sort: the rows as a multiset (P3-11)
+            com.legend.testing.Rows.assertSameRows(List.of(List.of(1, "Alice Smith", "Engineering"),
+                    List.of(2, "Bob Jones", "Sales")), r.rows(), com.legend.exec.Row::values);
         }
 
         @Test

@@ -126,6 +126,10 @@ class ResolveSimpleClassTest {
                 rows.add(b.toString());
             }
         }
+        // no ORDER BY: the rows' order is the database's, so compare them sorted (Bazel workplan P3-11)
+        if (!sql.toUpperCase(java.util.Locale.ROOT).contains("ORDER BY")) {
+            rows.sort(null);
+        }
         return rows;
     }
 

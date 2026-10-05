@@ -216,10 +216,11 @@ public class LetCheckerTest extends AbstractDatabaseTest {
                     #;
                     $data->filter(x|$x.id > 1);""");
             assertEquals(2, result.rows().size(), "Bob and Charlie");
-            assertEquals(2, result.rows().get(0).values().get(0));
-            assertEquals("Bob", result.rows().get(0).values().get(1));
-            assertEquals(3, result.rows().get(1).values().get(0));
-            assertEquals("Charlie", result.rows().get(1).values().get(1));
+            var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.values().get(0));   // a TDS, no sort: by id (P3-11)
+            assertEquals(2, sorted.get(0).values().get(0));
+            assertEquals("Bob", sorted.get(0).values().get(1));
+            assertEquals(3, sorted.get(1).values().get(0));
+            assertEquals("Charlie", sorted.get(1).values().get(1));
         }
 
         @Test

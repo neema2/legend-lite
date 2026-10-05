@@ -89,6 +89,14 @@ class LowerRelationTest {
     }
 
     /** Execute; return rows as "cell|cell" strings. */
+    /** {@link #exec}'s rows sorted: for a relation queried with no ORDER BY, whose row order is the database's
+     *  (Bazel workplan P3-11). A collection keeps its order: use {@link #exec}. */
+    private List<String> execUnordered(String sql) throws SQLException {
+        List<String> rows = new ArrayList<>(exec(sql));
+        rows.sort(null);
+        return rows;
+    }
+
     private List<String> exec(String sql) throws SQLException {
         List<String> rows = new ArrayList<>();
         try (Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql)) {
@@ -177,7 +185,7 @@ class LowerRelationTest {
                 SELECT t0.NAME AS FULL_NAME, t0.AGE, t0.FIRM
                 FROM T_PERSON AS t0""", sql);
         assertEquals(List.of("Ann|25|ACME", "Bob|35|ACME", "Cat|45|Widget", "Dan|55|null"),
-                exec(sql));
+                execUnordered(sql));
     }
 
     @Test
@@ -354,7 +362,7 @@ class LowerRelationTest {
         assertEquals("""
                 SELECT t0.NAME AS who, t0.AGE + 10 AS older
                 FROM T_PERSON AS t0""", sql);
-        assertEquals(List.of("Ann|35", "Bob|45", "Cat|55", "Dan|65"), exec(sql));
+        assertEquals(List.of("Ann|35", "Bob|45", "Cat|55", "Dan|65"), execUnordered(sql));
     }
 
     @Test

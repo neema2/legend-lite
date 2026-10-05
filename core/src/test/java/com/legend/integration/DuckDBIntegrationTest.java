@@ -2753,10 +2753,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("dateDiff result: " + result.rows());
         assertEquals(2, result.rows().size());
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
 
         // Verify results: 9 days and 91 days
-        int days1 = ((Number) result.rows().get(0).get(0)).intValue();
-        int days2 = ((Number) result.rows().get(1).get(0)).intValue();
+        int days1 = ((Number) sorted.get(0).get(0)).intValue();
+        int days2 = ((Number) sorted.get(1).get(0)).intValue();
         System.out.printf("  Row 1: %d days, Row 2: %d days%n", days1, days2);
         assertEquals(9, days1, "Jan 1 to Jan 10 = 9 days");
         assertEquals(91, days2, "Jan 1 to Apr 1 = 91 days");
@@ -3126,13 +3127,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("isOnDay result: " + result.rows());
         assertEquals(2, result.rows().size());
 
-        // First row: same day -> true
-        Boolean sameDay1 = (Boolean) result.rows().get(0).get(0);
-        // Second row: different days -> false
-        Boolean sameDay2 = (Boolean) result.rows().get(1).get(0);
-        System.out.printf("  Row 1 (same day times): %s, Row 2 (different days): %s%n", sameDay1, sameDay2);
-        assertTrue(sameDay1, "Same day should return true");
-        assertFalse(sameDay2, "Different days should return false");
+        // one record on the same day (true), one on different days (false); no ORDER BY, so as a multiset (P3-11)
+        com.legend.testing.Rows.assertSameRows(java.util.List.of(java.util.List.of(true), java.util.List.of(false)),
+                result.rows(), com.legend.exec.Row::values);
     }
 
     @Test
@@ -3228,9 +3225,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var result = queryService.execute(pureSource, query, "test::TestRuntime", connection);
         System.out.println("isOnOrAfterDay result: " + result.rows());
         assertEquals(2, result.rows().size());
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
 
-        Boolean row1 = (Boolean) result.rows().get(0).get(0);
-        Boolean row2 = (Boolean) result.rows().get(1).get(0);
+        Boolean row1 = (Boolean) sorted.get(0).get(0);
+        Boolean row2 = (Boolean) sorted.get(1).get(0);
         System.out.printf("  Row 1 (same day): %s, Row 2 (date1 after date2): %s%n", row1, row2);
         assertTrue(row1, "Same day should be on or after");
         assertTrue(row2, "Jan 20 is on or after Jan 15");
@@ -3477,11 +3475,12 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("monthNumber result: " + result.rows());
         assertEquals(3, result.rows().size());
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
 
         // Months should be 1, 6, 12
-        assertEquals(1L, ((Number) result.rows().get(0).get(0)).longValue());
-        assertEquals(6L, ((Number) result.rows().get(1).get(0)).longValue());
-        assertEquals(12L, ((Number) result.rows().get(2).get(0)).longValue());
+        assertEquals(1L, ((Number) sorted.get(0).get(0)).longValue());
+        assertEquals(6L, ((Number) sorted.get(1).get(0)).longValue());
+        assertEquals(12L, ((Number) sorted.get(2).get(0)).longValue());
     }
 
     @Test
@@ -3527,12 +3526,13 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("quarterNumber result: " + result.rows());
         assertEquals(4, result.rows().size());
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
 
         // Quarters should be 1, 2, 3, 4
-        assertEquals(1L, ((Number) result.rows().get(0).get(0)).longValue());
-        assertEquals(2L, ((Number) result.rows().get(1).get(0)).longValue());
-        assertEquals(3L, ((Number) result.rows().get(2).get(0)).longValue());
-        assertEquals(4L, ((Number) result.rows().get(3).get(0)).longValue());
+        assertEquals(1L, ((Number) sorted.get(0).get(0)).longValue());
+        assertEquals(2L, ((Number) sorted.get(1).get(0)).longValue());
+        assertEquals(3L, ((Number) sorted.get(2).get(0)).longValue());
+        assertEquals(4L, ((Number) sorted.get(3).get(0)).longValue());
     }
 
     @Test
@@ -3653,12 +3653,13 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("dayOfWeekNumber result: " + result.rows());
         assertEquals(4, result.rows().size());
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
 
         // Monday=1, Tuesday=2, Wednesday=3, Sunday=7
-        assertEquals(1L, ((Number) result.rows().get(0).get(0)).longValue(), "Monday should be 1");
-        assertEquals(2L, ((Number) result.rows().get(1).get(0)).longValue(), "Tuesday should be 2");
-        assertEquals(3L, ((Number) result.rows().get(2).get(0)).longValue(), "Wednesday should be 3");
-        assertEquals(7L, ((Number) result.rows().get(3).get(0)).longValue(), "Sunday should be 7");
+        assertEquals(1L, ((Number) sorted.get(0).get(0)).longValue(), "Monday should be 1");
+        assertEquals(2L, ((Number) sorted.get(1).get(0)).longValue(), "Tuesday should be 2");
+        assertEquals(3L, ((Number) sorted.get(2).get(0)).longValue(), "Wednesday should be 3");
+        assertEquals(7L, ((Number) sorted.get(3).get(0)).longValue(), "Sunday should be 7");
     }
 
     @Test
@@ -3703,10 +3704,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("dayOfYear result: " + result.rows());
         assertEquals(3, result.rows().size());
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
 
-        assertEquals(1L, ((Number) result.rows().get(0).get(0)).longValue(), "Jan 1 should be day 1");
-        assertEquals(46L, ((Number) result.rows().get(1).get(0)).longValue(), "Feb 15 should be day 46");
-        assertEquals(366L, ((Number) result.rows().get(2).get(0)).longValue(), "Dec 31 of leap year should be day 366");
+        assertEquals(1L, ((Number) sorted.get(0).get(0)).longValue(), "Jan 1 should be day 1");
+        assertEquals(46L, ((Number) sorted.get(1).get(0)).longValue(), "Feb 15 should be day 46");
+        assertEquals(366L, ((Number) sorted.get(2).get(0)).longValue(), "Dec 31 of leap year should be day 366");
     }
 
     // ==================== CONSTANT LAMBDA EXPRESSION TESTS ====================
@@ -6134,12 +6136,13 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Row 4: [10,11,12] -> atCol0 = 10 (NOT < 7) ✗
         // Row 5: [13,14,15] -> atCol0 = 13 (NOT < 7) ✗
         assertEquals(2, result.rows().size(), "Should have 2 rows where atCol0 < 7");
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
 
-        var row1 = result.rows().get(0);
+        var row1 = sorted.get(0);
         assertEquals(1, ((Number) row1.get(0)).intValue(), "First row ID should be 1");
         assertEquals(1, ((Number) row1.get(2)).intValue(), "First row atCol0 should be 1");
 
-        var row2 = result.rows().get(1);
+        var row2 = sorted.get(1);
         assertEquals(2, ((Number) row2.get(0)).intValue(), "Second row ID should be 2");
         assertEquals(4, ((Number) row2.get(2)).intValue(), "Second row atCol0 should be 4");
     }
@@ -6181,8 +6184,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Row 4: [10,11,12] -> [10,12]
         // Row 5: [13,14,15] -> [14]
         assertEquals(5, result.rows().size(), "Should have 5 rows");
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
 
-        var row1 = result.rows().get(0);
+        var row1 = sorted.get(0);
         assertEquals(1, ((Number) row1.get(0)).intValue(), "First row ID should be 1");
         String filtered1 = row1.get(2).toString();
         assertTrue(filtered1.contains("2") && !filtered1.contains("1") && !filtered1.contains("3"),
@@ -6219,9 +6223,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // THEN: Should have 3 rows with extracted keys
         assertEquals(3, result.rows().size(), "Should have 3 rows");
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
 
         // Row 1: {boolean:true, integer:1, string:hello}
-        var row1 = result.rows().get(0);
+        var row1 = sorted.get(0);
         assertEquals(1, ((Number) row1.get(0)).intValue(), "First row ID should be 1");
         // Keys should be extracted (exact format depends on how variant handles JSON)
         assertNotNull(row1.get(2), "booleanKey should not be null");
@@ -6274,10 +6279,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // [10,11,12] -> evens [10,12] -> size 2 == 2 -> PASS
         // [13,14,15] -> evens [14] -> size 1 != 2 -> FAIL
         assertEquals(2, result.rows().size(), "Should have 2 rows (those with exactly 2 even numbers)");
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
 
         // Verify the IDs of matching rows
-        var row1 = result.rows().get(0);
-        var row2 = result.rows().get(1);
+        var row1 = sorted.get(0);
+        var row2 = sorted.get(1);
         assertEquals(2, ((Number) row1.get(0)).intValue(), "First matching row should be ID 2");
         assertEquals(4, ((Number) row2.get(0)).intValue(), "Second matching row should be ID 4");
     }

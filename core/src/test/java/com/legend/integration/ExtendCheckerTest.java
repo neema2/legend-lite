@@ -153,8 +153,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     #->extend(~total: x | $x.a + $x.b)""");
             assertEquals(2, result.rowCount());
             int idx = colIdx(result, "total");
-            assertEquals(11L, ((Number) result.rows().get(0).get(idx)).longValue());
-            assertEquals(22L, ((Number) result.rows().get(1).get(idx)).longValue());
+            var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(idx));   // no sort: by value (P3-11)
+            assertEquals(11L, ((Number) sorted.get(0).get(idx)).longValue());
+            assertEquals(22L, ((Number) sorted.get(1).get(idx)).longValue());
         }
 
         @Test
@@ -218,8 +219,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     20, 7
                     #->extend(~sum: x | $x.a + $x.b)""");
             int idx = colIdx(result, "sum");
-            assertEquals(13L, ((Number) result.rows().get(0).get(idx)).longValue());
-            assertEquals(27L, ((Number) result.rows().get(1).get(idx)).longValue());
+            var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(idx));   // no sort: by value (P3-11)
+            assertEquals(13L, ((Number) sorted.get(0).get(idx)).longValue());
+            assertEquals(27L, ((Number) sorted.get(1).get(idx)).longValue());
         }
 
         @Test
@@ -432,8 +434,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     Bob
                     #->extend(~upper: x | $x.name->toUpper())""");
             int idx = colIdx(result, "upper");
-            assertEquals("ALICE", result.rows().get(0).get(idx));
-            assertEquals("BOB", result.rows().get(1).get(idx));
+            var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(idx));   // no sort: by value (P3-11)
+            assertEquals("ALICE", sorted.get(0).get(idx));
+            assertEquals("BOB", sorted.get(1).get(idx));
         }
 
         @Test
@@ -1220,8 +1223,10 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         void testGreaterThan() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n10, 5\n3, 7\n#->extend(~gt: x | $x.a > $x.b)");
             int idx = colIdx(r, "gt");
-            assertEquals(true, r.rows().get(0).get(idx));
-            assertEquals(false, r.rows().get(1).get(idx));
+            // no sort: by a (P3-11) -- (3, 7) is not greater, (10, 5) is
+            var sorted = com.legend.testing.Rows.sortedBy(r.rows(), row -> row.get(colIdx(r, "a")));
+            assertEquals(false, sorted.get(0).get(idx));
+            assertEquals(true, sorted.get(1).get(idx));
         }
 
         @Test
@@ -1525,8 +1530,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     25
                     #->filter(x | $x.val > 10)->extend(~doubled: x | $x.val * 2)""");
             assertEquals(2, r.rowCount());
-            assertEquals(30L, ((Number) r.rows().get(0).get(colIdx(r, "doubled"))).longValue());
-            assertEquals(50L, ((Number) r.rows().get(1).get(colIdx(r, "doubled"))).longValue());
+            var sorted = com.legend.testing.Rows.sortedBy(r.rows(), row -> row.get(colIdx(r, "doubled")));   // no sort: by value (P3-11)
+            assertEquals(30L, ((Number) sorted.get(0).get(colIdx(r, "doubled"))).longValue());
+            assertEquals(50L, ((Number) sorted.get(1).get(colIdx(r, "doubled"))).longValue());
         }
 
         @Test
