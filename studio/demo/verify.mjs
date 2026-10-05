@@ -109,6 +109,15 @@ async function loop(browser, name, query) {
     await page.waitForSelector('.tab.active[title="demo::trading::Trade"]');
     await waitStatus('changes-count', /^1 unpushed change$/);
     await waitCompiled();
+    // rename or move (plan A7): Desk moved to demo::desks::TradingDesk, and back -- its declaration follows
+    for (const [from, to] of [['demo::trading::Desk', 'demo::desks::TradingDesk'], ['demo::desks::TradingDesk', 'demo::trading::Desk']]) {
+      await page.locator(`[data-testid=explorer] .element[data-path="${from}"]`).click();
+      await page.getByTestId('rename-element').click();
+      await page.getByTestId('rename-path').fill(to);
+      await page.locator('.dialog .btn-primary').click();
+      await page.locator(`[data-testid=explorer] .element[data-path="${to}"]`).waitFor();
+      await waitCompiled();
+    }
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();
     await waitStatus('changes-count', /no changes detected/);
@@ -223,6 +232,11 @@ async function loop(browser, name, query) {
     await page.locator('[data-activity=review]').click();
     await page.getByTestId('review-title').fill('Add the desk');
     await page.getByTestId('create-review').click();
+    // the review's changes (plan A7): what it brings, each opening its diff
+    await page.locator('[data-testid=review-changes] .diff-item[data-path="demo::trading::Desk"]').click();
+    await page.getByTestId('diff-view').locator('.monaco-diff-editor').waitFor();
+    assert.match(await page.locator('[data-testid=diff-view] .diff-view__title').textContent(), /^Desk \(new\)$/);
+    await page.getByTestId('diff-close').click();
     await page.getByTestId('commit-review').click({ timeout: 30_000 });
     await page.waitForSelector('[data-testid=new-workspace]', { timeout: 60_000 });
     // 5. a version of the line's head, released through the gate
@@ -290,6 +304,16 @@ async function loop(browser, name, query) {
     await page.locator('[data-activity=changes]').click();
     await page.getByTestId('changes').waitFor();
     assert.equal(await page.getByTestId('workspace-outdated').count(), 0, 'exec is up to date');
+    // the workspace's history (plan A7): the review's merge newest, then the commit it brought, which created Memo
+    await page.locator('[data-activity=project]').click();
+    await page.locator('[data-project-tab=history]').click();
+    const revisions = page.locator('[data-testid=revisions] .revision-item');
+    await revisions.first().waitFor();
+    assert.match(await revisions.first().textContent(), /^Add Memo \[review\]/);
+    await revisions.nth(1).click();
+    await page.locator('[data-testid=revision-changes] .diff-item[data-path="demo::party::Memo"]').click();
+    assert.match(await page.locator('[data-testid=diff-view] .diff-view__title').textContent(), /^Memo \(new\)$/);
+    await page.getByTestId('diff-close').click();
     await page.locator('[data-activity=explorer]').click();
     await page.locator('[data-testid=explorer] .element[data-path="demo::party::PartyMapping"]').click();
     await waitCompiled();
