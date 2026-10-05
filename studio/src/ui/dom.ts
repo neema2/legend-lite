@@ -120,3 +120,43 @@ export function menu(anchor: HTMLElement, items: readonly MenuItem[]): void {
   document.addEventListener('mousedown', outside, true);
   document.addEventListener('keydown', escape, true);
 }
+
+/** A side-bar header (census 2.2): the view's title, upper-case, then its actions (28px icon buttons). */
+export function sideHead(title: string, ...actions: HTMLElement[]): HTMLElement {
+  return h('div', { class: 'side-head' }, h('span', { class: 'side-head__title' }, title), h('div', { class: 'panel__header__actions' }, ...actions));
+}
+
+/** A side-bar header action: an icon button with its tooltip. */
+export function headerAction(glyph: IconName, title: string, onclick: (() => void) | undefined, attrs: Attrs = {}): HTMLButtonElement {
+  return h('button', { class: 'panel__header__action', title, onclick, disabled: onclick === undefined, ...attrs }, icon(glyph));
+}
+
+/**
+ * A sub-panel inside a side-bar view (census 2.2, `side-bar__panel`): its 28px header on the header grey -- the
+ * title in bold, an info icon whose tooltip says what it lists, a count pill -- then its content.
+ */
+export function subPanel(title: string, opts: { readonly info?: string; readonly count?: number; readonly testId?: string }, ...content: Child[]): HTMLElement {
+  return h('div', { class: 'side-bar__panel' },
+    h('div', { class: 'side-bar__panel__header' },
+      h('div', { class: 'side-bar__panel__title' }, title),
+      opts.info === undefined ? null : h('div', { class: 'side-bar__panel__info', title: opts.info }, icon('info')),
+      opts.count === undefined ? null : h('div', { class: 'side-bar__panel__count' }, String(opts.count))),
+    h('div', { class: 'side-bar__panel__content', 'data-testid': opts.testId }, ...content));
+}
+
+/** How long ago `iso` was, in date-fns formatDistanceToNow's words (upstream's review status: "created {N} ago"). */
+export function ago(iso: string, now = Date.now()): string {
+  const s = Math.max(0, (now - Date.parse(iso)) / 1000);
+  const m = Math.round(s / 60);
+  const hrs = Math.round(s / 3600);
+  const d = Math.round(s / 86400);
+  if (s < 30) return 'less than a minute';
+  if (s < 90) return '1 minute';
+  if (m < 45) return `${m} minutes`;
+  if (m < 90) return 'about 1 hour';
+  if (hrs < 24) return `about ${hrs} hours`;
+  if (hrs < 42) return '1 day';
+  if (d < 30) return `${d} days`;
+  const months = Math.round(d / 30);
+  return months < 2 ? 'about 1 month' : `${months} months`;
+}

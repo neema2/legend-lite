@@ -6,7 +6,8 @@ import type { DepotClient } from '../../../depot-client/src/client.ts';
 import type { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import { versionText, type NewVersionType, type Review } from '../../../sdlc-client/src/wire.ts';
 import type { Workspace } from '../model/workspace.ts';
-import { clear, dialog, h, toast } from './dom.ts';
+import { icon } from '../../../legend-art/src/icon.ts';
+import { ago, clear, dialog, h, headerAction, sideHead, subPanel, toast } from './dom.ts';
 import { field } from './setup.ts';
 
 export interface PanelContext {
@@ -29,17 +30,29 @@ async function openReview(ctx: PanelContext): Promise<Review | undefined> {
   return reviews.find((r) => r.workspaceId === ctx.workspace && r.workspaceType === 'USER');
 }
 
+/**
+ * upstream's Workspace Review (census 8.2): the header with Close review; with no review, the title field and a
+ * square accent + to create it; with one, its title, a square accent merge button to commit it, and
+ * "created {N} ago".
+ */
 export async function renderReview(root: HTMLElement, ctx: PanelContext): Promise<void> {
   clear(root);
-  const body = h('div', { class: 'side-body', 'data-testid': 'review-panel' });
-  root.append(h('div', { class: 'side-head' }, h('span', {}, 'Review')), body);
+  const body = h('div', { class: 'side-bar__body', 'data-testid': 'review-panel' });
   const review = await openReview(ctx);
+  const closeReview = review === undefined ? undefined : async (): Promise<void> => {
+    try {
+      // upstream Studio's "Close review" calls reject (slice 2 section 4.5)
+      await ctx.client.reviewAction(ctx.project, review.id, 'reject');
+      await renderReview(root, ctx);
+    } catch (e) {
+      toast(message(e), 'error');
+    }
+  };
+  root.append(sideHead('Review', headerAction('times', 'Close review', closeReview && (() => void closeReview()), { 'data-testid': 'close-review' })), body);
   if (!review) {
-    const title = h('input', { class: 'input', placeholder: 'What this workspace changes', 'data-testid': 'review-title' });
-    body.append(
-      h('div', { class: 'hint' }, 'A review lands this workspace on the project line. Save your changes first.'),
-      field('Title', title),
-      h('button', { class: 'btn btn-primary', 'data-testid': 'create-review', onclick: async () => {
+    const title = h('input', { class: 'input', placeholder: 'Title', 'data-testid': 'review-title' });
+    body.append(h('div', { class: 'workspace-review__title' }, title,
+      h('button', { class: 'btn btn-primary btn-square', title: 'Create review', 'data-testid': 'create-review', onclick: async () => {
         if (ctx.ws.hasChanges()) return toast('Save your local changes first: a review takes what is saved.', 'error');
         if (title.value.trim() === '') return toast('A review needs a title.', 'error');
         try {
@@ -51,16 +64,13 @@ export async function renderReview(root: HTMLElement, ctx: PanelContext): Promis
         } catch (e) {
           toast(message(e), 'error');
         }
-      } }, 'Create review'));
+      } }, icon('plus'))));
     return;
   }
   body.append(
-    h('div', { class: 'review-title' }, `#${review.id} ${review.title}`),
-    row('State', review.state),
-    row('Author', review.author.name),
-    row('Created', new Date(review.createdAt).toLocaleString()),
-    h('div', { class: 'button-row' },
-      h('button', { class: 'btn btn-primary', 'data-testid': 'commit-review', onclick: async () => {
+    h('div', { class: 'workspace-review__title' },
+      h('div', { class: 'workspace-review__title__content', title: `Review #${review.id} by ${review.author.name}` }, `#${review.id} ${review.title}`),
+      h('button', { class: 'btn btn-primary btn-square', title: 'Commit review', 'data-testid': 'commit-review', onclick: async () => {
         if (ctx.ws.hasChanges()) return toast('Save your local changes first: they are not in the review.', 'error');
         try {
           await ctx.client.commitReview(ctx.project, review.id, `${review.title} [review]`);
@@ -68,53 +78,66 @@ export async function renderReview(root: HTMLElement, ctx: PanelContext): Promis
         } catch (e) {
           toast(message(e), 'error');
         }
-      } }, 'Commit'),
-      h('button', { class: 'btn', 'data-testid': 'close-review', onclick: async () => {
-        try {
-          // upstream Studio's "Close review" calls reject (slice 2 §4.5)
-          await ctx.client.reviewAction(ctx.project, review.id, 'reject');
-          await renderReview(root, ctx);
-        } catch (e) {
-          toast(message(e), 'error');
-        }
-      } }, 'Close')));
+      } }, icon('gitMergeShort', '17px'))),
+    h('div', { class: 'workspace-review__status' }, `created ${ago(review.createdAt)} ago`));
 }
 
+type ProjectTab = 'overview' | 'release' | 'versions';
+/** The Project view's tab, kept while the view is drawn again. */
+let projectTab: ProjectTab = 'overview';
+
+/**
+ * upstream's Project Overview (census 8.3): a vertical tab rail -- OVERVIEW, RELEASE, VERSIONS -- and the tab.
+ * OVERVIEW holds the project's coordinates and, lite's own, its dependencies (upstream edits them in the project
+ * configuration editor, a tab); RELEASE the notes and MAJOR (caution) / MINOR / PATCH, then the latest release;
+ * VERSIONS every version with its notes.
+ */
 export async function renderProject(root: HTMLElement, ctx: PanelContext): Promise<void> {
   clear(root);
-  const body = h('div', { class: 'side-body', 'data-testid': 'project-panel' });
-  root.append(h('div', { class: 'side-head' }, h('span', {}, 'Project')), body);
-  const config = ctx.ws.configuration ?? await ctx.client.configuration({ project: ctx.project, workspace: ctx.workspace });
-  body.append(row('Project', ctx.project), row('Group id', config.groupId), row('Artifact id', config.artifactId));
+  const [config, versions, line] = await Promise.all([
+    ctx.ws.configuration ?? ctx.client.configuration({ project: ctx.project, workspace: ctx.workspace }),
+    ctx.client.versions(ctx.project),
+    ctx.client.revision({ project: ctx.project }),
+  ]);
+  const content = h('div', { class: 'project-overview__content', 'data-testid': 'project-panel' });
+  const tab = (t: ProjectTab, label: string): HTMLElement => h('button', {
+    class: `project-overview__tab${projectTab === t ? ' project-overview__tab--active' : ''}`, title: label, 'data-project-tab': t,
+    onclick: () => { projectTab = t; void renderProject(root, ctx); },
+  }, t.toUpperCase());
+  root.append(sideHead('Project'), h('div', { class: 'project-overview' },
+    h('div', { class: 'project-overview__activity-bar' }, tab('overview', 'Overview'), tab('release', 'Release'), tab('versions', 'Versions')),
+    content));
 
-  // ---- dependencies (this workspace's project.json) ----
-  const deps = h('div', { class: 'deps', 'data-testid': 'dependencies' });
-  for (const d of config.projectDependencies) {
-    deps.append(h('div', { class: 'dep' },
-      h('span', { class: 'dep-name' }, `${d.projectId} : ${d.versionId}`),
-      h('button', { class: 'btn btn-small', title: 'Remove', onclick: async () => {
+  if (projectTab === 'overview') {
+    const deps = config.projectDependencies.map((d) => h('div', { class: 'side-bar__panel__item' },
+      h('div', { class: 'side-bar__panel__item__label' }, `${d.projectId} : ${d.versionId}`),
+      h('button', { class: 'side-bar__panel__item__action', title: 'Remove dependency', onclick: async () => {
         try {
           await ctx.client.updateConfiguration(ctx.project, ctx.workspace, { message: `remove dependency ${d.projectId}`, projectDependenciesToRemove: [d] });
           await ctx.reload();
         } catch (e) {
           toast(message(e), 'error');
         }
-      } }, '−')));
+      } }, icon('times'))));
+    content.append(
+      h('div', { class: 'side-bar__form' }, row('Project', ctx.project), row('Group id', config.groupId), row('Artifact id', config.artifactId)),
+      subPanel('Dependencies', { info: 'The published versions this workspace depends on (project.json)', count: deps.length, testId: 'dependencies' },
+        ...(deps.length ? deps : [h('div', { class: 'side-bar__panel__empty' }, 'No dependencies')]),
+        h('button', { class: 'btn btn-small side-bar__panel__add', 'data-testid': 'add-dependency', onclick: () => void addDependency(ctx) }, 'Add Dependency')));
+    return;
   }
-  if (config.projectDependencies.length === 0) deps.append(h('div', { class: 'hint' }, 'No dependencies.'));
-  body.append(h('div', { class: 'section-title' }, 'Dependencies'), deps,
-    h('button', { class: 'btn btn-small', 'data-testid': 'add-dependency', onclick: () => void addDependency(ctx) }, '+ Add dependency'));
 
-  // ---- versions (the project line) ----
-  const versionsEl = h('div', { class: 'deps', 'data-testid': 'versions' });
-  body.append(h('div', { class: 'section-title' }, 'Versions'), versionsEl);
-  const [versions, line] = await Promise.all([ctx.client.versions(ctx.project), ctx.client.revision({ project: ctx.project })]);
-  for (const v of versions) {
-    versionsEl.append(h('div', { class: 'dep' }, h('span', { class: 'dep-name version' }, versionText(v.id)), h('span', { class: 'hint' }, v.notes ?? '')));
+  if (projectTab === 'versions') {
+    content.append(subPanel('Versions', { count: versions.length, testId: 'versions' },
+      ...(versions.length ? versions.map((v) => h('div', { class: 'side-bar__panel__item', title: 'See version' },
+        h('div', { class: 'side-bar__panel__item__label' }, versionText(v.id)),
+        h('div', { class: 'side-bar__panel__item__note' }, v.notes ?? ''))) : [h('div', { class: 'side-bar__panel__empty' }, 'This project has no version')])));
+    return;
   }
-  if (versions.length === 0) versionsEl.append(h('div', { class: 'hint' }, 'No version yet.'));
+
+  // release
   const released = versions[0]?.revisionId === line.id;
-  const notes = h('input', { class: 'input', placeholder: 'Release notes', 'data-testid': 'release-notes' });
+  const notes = h('textarea', { class: 'input project-overview__release__notes', placeholder: 'Release notes', 'data-testid': 'release-notes' });
   const release = (type: NewVersionType) => async (): Promise<void> => {
     try {
       const v = await ctx.client.createVersion(ctx.project, { versionType: type, revisionId: line.id, notes: notes.value.trim() || null });
@@ -124,15 +147,23 @@ export async function renderProject(root: HTMLElement, ctx: PanelContext): Promi
       toast(message(e), 'error');
     }
   };
-  body.append(
-    h('div', { class: 'hint' }, released
-      ? 'The project line\'s head is already released.'
-      : `Release the project line's head (${line.id.slice(0, 8)}): only a revision that compiles is released.`),
-    field('Notes', notes),
-    h('div', { class: 'button-row' },
-      ...(['MAJOR', 'MINOR', 'PATCH'] as const).map((t) => h('button', {
-        class: 'btn btn-small', 'data-testid': `release-${t.toLowerCase()}`, disabled: released, onclick: release(t),
-      }, t[0] + t.slice(1).toLowerCase()))));
+  const tips: Record<NewVersionType, string> = {
+    MAJOR: 'Create a major release which comes with backward-incompatible features',
+    MINOR: 'Create a minor release which comes with backward-compatible features',
+    PATCH: 'Create a patch release which comes with backward-compatible bug fixes',
+  };
+  const latest = versions[0];
+  content.append(
+    h('div', { class: 'project-overview__release' }, notes,
+      h('div', { class: 'project-overview__release__actions' }, ...(['MAJOR', 'MINOR', 'PATCH'] as const).map((t) => h('button', {
+        class: `btn btn-primary project-overview__release__btn${t === 'MAJOR' ? ' btn-caution' : ''}`, title: released ? 'The project line\'s head is already released' : tips[t],
+        'data-testid': `release-${t.toLowerCase()}`, disabled: released, onclick: release(t),
+      }, t)))),
+    subPanel('Latest Release', { testId: 'latest-release' }, latest
+      ? h('div', { class: 'side-bar__panel__item', title: 'See version' },
+        h('div', { class: 'side-bar__panel__item__label' }, versionText(latest.id)),
+        h('div', { class: 'side-bar__panel__item__note' }, latest.notes ?? ''))
+      : h('div', { class: 'side-bar__panel__empty' }, 'This project has no release')));
 }
 
 async function addDependency(ctx: PanelContext): Promise<void> {

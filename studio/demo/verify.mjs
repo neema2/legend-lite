@@ -98,10 +98,16 @@ async function loop(browser, name, query) {
     await page.waitForSelector('[data-testid=explorer] .element');
     assert.ok((await page.getByTestId('explorer').textContent()).includes('Desk'), 'the committed element is on the project line');
     await page.locator('[data-activity=project]').click();
+    await page.locator('[data-project-tab=release]').click();
     await page.getByTestId('release-notes').fill('the desk');
     await page.getByTestId('release-minor').click();
-    await page.waitForFunction(() => /1\.1\.0/.test(document.querySelector('[data-testid=versions]')?.textContent ?? ''), null, { timeout: 60_000 });
+    await page.waitForFunction(() => /1\.1\.0/.test(document.querySelector('[data-testid=latest-release]')?.textContent ?? ''), null, { timeout: 60_000 });
     await shot('3-released');
+    await page.locator('[data-project-tab=versions]').click();
+    await page.getByTestId('versions').waitFor();
+    assert.match(await page.getByTestId('versions').textContent(), /1\.1\.0/);
+    await page.locator('[data-project-tab=overview]').click();
+    await page.getByTestId('dependencies').waitFor();
     assert.match(await page.getByTestId('dependencies').textContent(), /org\.finos\.lite\.demo:party : 1\.0\.0/);
     // the activity bar's sun/moon switch: upstream's default-light, kept, and back
     await page.getByTestId('theme-toggle').click();

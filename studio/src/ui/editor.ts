@@ -13,7 +13,7 @@ import { Workspace, type OpenFile, type Problem } from '../model/workspace.ts';
 import { icon } from '../../../legend-art/src/icon.ts';
 import { typeIcon } from '../../../legend-art/src/type-icon.ts';
 import type { IconName } from '../../../legend-art/src/icons.ts';
-import { clear, dialog, h, menu, toast } from './dom.ts';
+import { clear, dialog, h, headerAction, menu, sideHead, subPanel, toast } from './dom.ts';
 import { editorTheme, PURE } from './pure-language.ts';
 import { field } from './setup.ts';
 import { renderProject, renderReview } from './sdlc-panels.ts';
@@ -313,18 +313,27 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   };
 
   const renderChanges = async (): Promise<void> => {
-    const head = h('div', { class: 'side-head' }, h('span', {}, 'Local changes'),
-      h('button', { class: 'btn btn-small btn-primary', onclick: () => void save(), 'data-testid': 'save' }, 'Save'));
-    const list = h('div', { class: 'tree', 'data-testid': 'changes' });
-    sideBar.append(head, list);
-    if (!ws.hasChanges()) {
-      list.append(h('div', { class: 'side-empty' }, 'No local changes.'));
-      return;
-    }
-    const { changes, problems: blocked } = await ws.pending();
+    // upstream's Local Changes (census 8.1): the header with Push, then the CHANGES sub-panel -- a diff row per
+    // change: the name, the path in grey, upstream's letter (N new, M modified, D deleted) in its colour. A change
+    // the compiler refuses (lite's: it cannot be saved yet) shows its message.
+    const changesBody = h('div', { class: 'side-bar__body' });
+    sideBar.append(sideHead('Local Changes', headerAction('cloudUpload', 'Push local changes (Ctrl + S)', ws.hasChanges() ? () => void save() : undefined, { 'data-testid': 'save' })), changesBody);
+    const { changes, problems: blocked } = ws.hasChanges() ? await ws.pending() : { changes: [], problems: [] };
     if (activity !== 'changes') return;
-    for (const c of changes) list.append(h('div', { class: `change change-${c.type.toLowerCase()}` }, h('span', { class: 'change-type' }, c.type[0]), h('span', {}, c.path)));
-    for (const p of blocked) list.append(h('div', { class: 'change change-blocked' }, h('span', { class: 'change-type' }, '!'), h('span', {}, `${ws.file(p.key ?? '') ? fileLabel(ws.file(p.key!)!) : ''}: ${p.message}`)));
+    const LETTER: Record<string, string> = { CREATE: 'N', MODIFY: 'M', DELETE: 'D' };
+    const rows = changes.map((c) => {
+      const name = c.path.split('::').pop() ?? c.path;
+      return h('div', { class: `side-bar__panel__item diff-item diff-item--${c.type.toLowerCase()}`, title: c.path },
+        h('div', { class: 'diff-item__name' }, name), h('div', { class: 'diff-item__path' }, c.path),
+        h('div', { class: 'diff-item__type' }, LETTER[c.type] ?? c.type[0]));
+    });
+    for (const p of blocked) {
+      rows.push(h('div', { class: 'side-bar__panel__item diff-item diff-item--blocked', title: p.message },
+        h('div', { class: 'diff-item__name' }, ws.file(p.key ?? '') ? fileLabel(ws.file(p.key!)!) : ''), h('div', { class: 'diff-item__path' }, p.message),
+        h('div', { class: 'diff-item__type' }, '!')));
+    }
+    changesBody.append(subPanel('Changes', { info: 'All local changes that have not been yet pushed with the server', count: changes.length, testId: 'changes' },
+      ...(rows.length ? rows : [h('div', { class: 'side-bar__panel__empty' }, 'No local changes')])));
   };
 
   // ---- problems and compile ----
