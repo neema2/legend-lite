@@ -167,3 +167,19 @@ without a **done** entry.
   `max([$MIN, min([...])])`, which legend-pure's compiler types: the rule is stricter than the reference. A user
   decision (refine the rule, or re-bless with a dated reason); the golden stays at 1515 meanwhile.
 - Local, unpushed: P2-13, the batch 8 audit follow-ups, P2-06, P2-10 (release.MODULE.bazel), P2-11.
+- **Main CI 37253460391 green** (a97cbd188, 53/53). Throwaway 37253950183 (batch 8's rest: checks, build, gate 8; all
+  platforms) green.
+- **The reference-lane fix** (USER: "fix rule to match pure for sure"): the [1] rule of c1f9bac5b is legend-pure's; the
+  gap was six missing catalog overloads (math::min/max over Integer, Float, Number [1..*], which legend-engine
+  registers). Found by probing the closure's candidate set (only natives; legend-pure's bodied [1..*] overloads absent).
+  Lane re-blessed through bazel run //spec:update_reference_lane: failed bodies 1515 -> 1508, AGREE +832, OVERLOAD
+  769 -> 745. Pins moved with dated reasons: EngineHandlersTest 168 -> 162, ImplementationTableTest Body 2193 -> 2187 /
+  Intrinsic 665 -> 671. Announced in IN_FLIGHT on main first (d7611403a). All-lanes Linux throwaway 37256509404: 18/18.
+- **P2-14 done** (reference-lane report as a java_run; golden via write_source_files, manual). **P2-19 done** (no test
+  re-runs a diff-tested generator; the reachability census reads :gen_roster); its SkipCensusTest pin fixed after the
+  gate caught it.
+- **Pushed to main: cf911b24f** (P2-13, audit follow-ups, P2-06, P2-10, P2-11, P2-14, the overload fix, P2-19), rebased
+  over C3c; local gate green but for //wasm:differential_test and //sdlc-client:wasm_test TIMEOUT at 60 s and
+  //datacube:live_snap_test ECONNRESET under the full gate's load (all pass alone): sizing follow-up owed.
+- Studio's second branch (query-by-name) reviewed: approved. The database-owner line (neema-32) told C2 may start.
+- **Batch 8 complete**; batch 9 left: P2-15, P2-16, P2-18, P2-20, P2-09, P2-90.
