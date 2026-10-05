@@ -95,7 +95,13 @@ Left out of this plan when it was written; the user ruled it next after A0 (2026
 - **A2 step 1 done.** A model's own test data (relational Data elements) is loaded into the tab's DuckDB
   (`engine-client/src/model-data.ts`; types as SQL, DuckDB judges them; DuckDB parses the CSV) by Studio before each
   run, by Query when it opens a project by name, by DataCube when a saved query does. The demo's party rows are its
-  Data element; the separate seed file is gone. Next: CSV/Parquet dropped in, generated samples, Snap.
+  Data element; the separate seed file is gone.
+- **A2 step 2 done.** Studio's Data panel lists every table the model's Databases declare, where its rows in the tab
+  are from (the model's test data, a person's file, or nothing) and how many. Upload fills a table from a .csv (header
+  row, read with the declared types) or .parquet (each declared column by name, cast to its type) -- DuckDB refuses a
+  file that does not fit -- and the file's rows are kept over the test data on every run until Reset
+  (`engine-client/src/tab-data.ts`, TabTables). Next: generated samples (lite's testdatagen, a core WASM export:
+  announced first), Snap (A6).
 - **A3 mostly done.** Run (F5) a function -- its parameters asked for as Pure, read by the compiler -- or a
   single-execution service, in the tab; RESULTS shows the rows, count, time and SQL. The SQL playground runs SQL on the
   tab's DuckDB with the model's rows. `//studio:verify_test` runs a function, a service, a parameterised function and

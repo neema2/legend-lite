@@ -312,6 +312,10 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .sql-playground__editor { display: flex; align-items: flex-start; gap: 8px; padding: 10px; }
 .sql-playground__text { flex: 1; height: 72px; font-family: var(--font-mono); font-size: 13px; }
 .sql-playground__out { flex: 1; overflow: auto; }
+/* the Data panel (plan A2): a table per declared table, its source, its rows, its actions */
+.data-tables { overflow: auto; }
+.data-tables__rows { text-align: right; }
+.data-tables__actions { display: flex; justify-content: flex-end; gap: 6px; }
 
 /* the query builder (plan A5): Query's, full screen over the editor as upstream's embedded builder is -- under its own
    dialogs, menus and toasts (Query's stylesheet, vendor/query/app.css, at z-index 50 and up), in Query's type size */
