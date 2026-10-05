@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -110,15 +110,13 @@ class SqlTextRatchetTest {
 
     @Test
     void sqlTextOutsideTheDialectLayerOnlyShrinks() throws IOException {
-        Path root = Repo.path("core/src/main/java/com/legend");
+        String root = "core/src/main/java/com/legend";
         Map<String, Integer> actual = new TreeMap<>();
         int scanned = 0;
-        try (Stream<Path> s = Files.walk(root)) {
+        try (Stream<Path> s = SourceFiles.under(root).stream()) {
             for (Path p : s.filter(f -> f.toString().endsWith(".java"))
                     .toList()) {
-                String rel = root.toAbsolutePath().normalize()
-                        .relativize(p.toAbsolutePath().normalize())
-                        .toString().replace(java.io.File.separatorChar, '/');
+                String rel = SourceFiles.rel(root, p).substring(1);
                 if (rel.startsWith("sql/dialect/")) {
                     continue;
                 }

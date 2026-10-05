@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -142,15 +142,15 @@ class SkipCensusTest {
         // core-only scope let 8 assumption-skipping files sit invisible
         // in parser-equivalence (the exact scope-rot this file's own
         // header warns about). pct is included for the same reason.
-        for (Path root : List.of(Repo.module("src/test/java"),
-                Repo.path("spec/src/test/java"),
-                Repo.path("parser-equivalence/src/test/java"),
-                Repo.path("pct/src/test/java"),
-                Repo.path("warehouse/src/test/java"))) {
-            if (!Files.isDirectory(root)) {
+        for (String root : List.of("core/src/test/java",
+                "spec/src/test/java",
+                "parser-equivalence/src/test/java",
+                "pct/src/test/java",
+                "warehouse/src/test/java")) {
+            if (SourceFiles.under(root).isEmpty()) {
                 throw new IllegalStateException("SkipCensusTest root " + root + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
             }
-            try (Stream<Path> s = Files.walk(root)) {
+            try (Stream<Path> s = SourceFiles.under(root).stream()) {
                 out.addAll(s.filter(p -> p.toString().endsWith(".java"))
                         .toList());
             }

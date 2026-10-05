@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -51,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag("guardrail")
 class DialectBoundaryTest {
 
-    private static final Path MAIN = Repo.module("src/main/java/com/legend");
+    private static final String MAIN = "core/src/main/java/com/legend";
 
     /** {@code rawH2IsNative()} CALLS outside the dialect package, by file. */
     private static final Map<String, Integer> RAW_H2_CALLERS = Map.of(
@@ -134,12 +134,12 @@ class DialectBoundaryTest {
     private static TreeMap<String, Integer> census(Pattern p) throws IOException {
         TreeMap<String, Integer> out = new TreeMap<>();
         List<Path> files = new ArrayList<>();
-        try (Stream<Path> s = Files.walk(MAIN)) {
+        try (Stream<Path> s = SourceFiles.under(MAIN).stream()) {
             // relative to MAIN and '/'-separated: the absolute path would let the
             // checkout's directory names reach the contains(), and on Windows
             // toString() has backslashes, so "/sql/dialect/" never matched there
             s.filter(f -> f.toString().endsWith(".java"))
-                    .filter(f -> !Repo.rel(MAIN, f).contains("/sql/dialect/"))
+                    .filter(f -> !SourceFiles.rel(MAIN, f).contains("/sql/dialect/"))
                     .forEach(files::add);
         }
         for (Path f : files) {

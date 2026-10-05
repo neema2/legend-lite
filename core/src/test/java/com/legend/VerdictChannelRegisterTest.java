@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -61,14 +61,14 @@ class VerdictChannelRegisterTest {
         // skip: this walk used to `continue` past an absent root, so from any
         // working directory but core/ it scanned nothing — it went red only
         // because it compares an exact set (Bazel, 2026-09-22).
-        for (String root : List.of("core/src/main/java", "core/src/test/java",
+        for (String root : List.of("core/src/main/java", "core/src/main/duckdb", "core/src/test/java",
                 "pct/src/test/java", "spec/src/test/java")) {
-            Path dir = Repo.path(root);
-            if (!Files.isDirectory(dir)) {
+            String dir = root;
+            if (SourceFiles.under(dir).isEmpty()) {
                 throw new IllegalStateException("verdict-channel scan root missing: " + dir
                         + " (Bazel: declare it as data of the test target)");
             }
-            try (Stream<Path> s = Files.walk(dir)) {
+            try (Stream<Path> s = SourceFiles.under(dir).stream()) {
                 for (Path f : s.filter(p -> p.toString().endsWith(".java")).toList()) {
                     String name = f.getFileName().toString();
                     if (name.equals("VerdictChannelRegisterTest.java")
@@ -78,14 +78,13 @@ class VerdictChannelRegisterTest {
                     String src = Files.readString(f)
                             .replaceAll("(?s)/\\*.*?\\*/", "")
                             .replaceAll("//.*", "");
-                    String rel = Repo.root().relativize(f.toAbsolutePath().normalize())
-                            .toString().replace(java.io.File.separatorChar, '/');
+                    String rel = SourceFiles.path(f);
                     // the JUDGE's own name as a type reference (never a
                     // suffix such as EqualityKeys, never the file name)
                     if (JUDGE_REF.matcher(src).find()) {
                         callers.add(rel);
                     }
-                    if (root.equals("core/src/main/java") && src.contains("Math.ulp(")) {
+                    if (root.startsWith("core/src/main/") && src.contains("Math.ulp(")) {
                         ulpSites.add(rel);
                     }
                 }

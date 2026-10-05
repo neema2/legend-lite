@@ -4,7 +4,6 @@ import com.legend.protocol.TypeExpression;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
-import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -34,77 +33,28 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 @Tag("guardrail")
 final class ArchitectureTest {
 
-    // Declared BEFORE CORE_PROD_CLASSES on purpose: static fields initialise in
-    // textual order, and CORE_PROD_CLASSES's importer reads THIS_TEST_TREE. In
-    // the other order it read null and the import excluded every class — which
-    // ArchUnit's "failed to check any classes" guard caught (2026-09-22).
     /**
-     * DO_NOT_INCLUDE_TESTS recognises test classes by the PATH of their output
-     * directory — Maven's target/test-classes, Gradle's build/classes/…/test,
-     * IntelliJ's out/test. Bazel packs this module's test classes into a jar
-     * matching none of them, so under Bazel every test class was imported as
-     * production code and the rules reported legitimate test code — one rule
-     * 4,774 times. Excluding this test tree by its own code-source location is
-     * correct under every build: under Maven it is target/test-classes, which
-     * the predefined option already excludes.
+     * Imports exactly the production classes: the product's jars, as core/BUILD.bazel's {@code :product_jars} declares
+     * them (every core library, //base, //json and {@code :duckdb_load}; Bazel workplan P3-27). Nothing is found from
+     * a class's code source or excluded by where it sits: this test tree and the test support on the classpath are
+     * simply not in the list. All structural rules apply to production code; tests may use whatever helpers they need
+     * without piercing the production import boundary. {@link #theImportIsEveryProductLibrary} pins that every
+     * product library is in it.
      */
-    private static final java.nio.file.Path THIS_TEST_TREE = realPath(
-            java.nio.file.Path.of(codeSourceUri()));
+    private static final JavaClasses CORE_PROD_CLASSES = importJars("legend.product.jars");
 
-    /**
-     * Compared as REAL paths: under Bazel the test jar reaches the classpath
-     * through a runfiles symlink, so its code-source path and the path ArchUnit
-     * reports for the same classes can be two spellings of one file (macOS's
-     * /var -> /private/var is a second one). A string match missed every test
-     * class that way.
-     */
-    private static boolean notThisTestTree(com.tngtech.archunit.core.importer.Location location) {
-        java.net.URI uri = location.asURI();
-        java.nio.file.Path container;
-        if ("jar".equals(uri.getScheme())) {
-            String spec = uri.getSchemeSpecificPart();          // file:/x/y.jar!/com/...
-            container = realPath(java.nio.file.Path.of(
-                    java.net.URI.create(spec.substring(0, spec.indexOf("!/")))));
-        } else if ("file".equals(uri.getScheme())) {
-            container = realPath(java.nio.file.Path.of(uri));
-        } else {
-            return true;   // jrt: and friends: the JDK, never this module's test tree
-        }
-        return !container.startsWith(THIS_TEST_TREE);
-    }
-
-    private static java.net.URI codeSourceUri() {
+    /** The classes of the jars a declared list names (java_jars): a jar is imported as a jar, not as a file path. */
+    private static JavaClasses importJars(String property) {
+        java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
-            return ArchitectureTest.class.getProtectionDomain().getCodeSource()
-                    .getLocation().toURI();
-        } catch (java.net.URISyntaxException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static java.nio.file.Path realPath(java.nio.file.Path p) {
-        try {
-            return p.toRealPath();
+            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
+                jars.add(new java.util.jar.JarFile(jar.toFile()));
+            }
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
+        return new ClassFileImporter().importJars(jars);
     }
-
-    /**
-     * Imports exactly the production classes: not this test tree, and not the test SUPPORT
-     * on the classpath under {@code com.legend} ({@code //testing}'s {@code com.legend.testing}, the
-     * JUnit launcher's {@code com.legend.tools}) — measured 2026-10-03, those four classes were checked
-     * as product. All structural rules apply to production code; tests may use whatever helpers they
-     * need without piercing the production import boundary. {@link #theImportIsEveryProductLibrary}
-     * pins that every product library is in it (the guardrail target loads {@code :duckdb_load} for
-     * that: its {@code DuckDbAppenderLoad} was invisible to every rule until then).
-     */
-    private static final JavaClasses CORE_PROD_CLASSES = new ClassFileImporter()
-            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
-            .withImportOption(ArchitectureTest::notThisTestTree)
-            .importPackages("com.legend")
-            .that(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideOutsideOfPackages(
-                    "com.legend.testing..", "com.legend.tools.."));
 
     /** One class of every product library (`tools/deps/core-layers.txt`, plus `:duckdb_load`), by library. */
     private static final java.util.Map<String, String> PRODUCT_LIBRARIES = java.util.Map.ofEntries(
@@ -598,11 +548,9 @@ final class ArchitectureTest {
      *  at the type level. Measured zero before the rule; the rule keeps it. */
     @Test
     void upstreamJavaNeverEntersCore() {
-        // main AND tests: the production import already read, plus this test
-        // tree alone (re-importing everything re-parsed every class)
-        JavaClasses thisTestTree = new ClassFileImporter()
-                .withImportOption(location -> !notThisTestTree(location))
-                .importPackages("com.legend");
+        // main AND tests: the production import already read, plus core's test jar alone, declared
+        // (:core_test_jar; re-importing everything re-parsed every class)
+        JavaClasses thisTestTree = importJars("legend.test.jars");
         var rule = noClasses()
             .that().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().resideInAnyPackage(

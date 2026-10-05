@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
@@ -101,7 +101,7 @@ class ParkedWorkLedgerTest {
     }
 
     private static List<Path> mainSources() throws IOException {
-        try (Stream<Path> s = Files.walk(Repo.module("src/main/java"))) {
+        try (Stream<Path> s = SourceFiles.under("core/src/main/java").stream()) {
             List<Path> out = s.filter(p -> p.toString().endsWith(".java")).toList();
             GuardCoverage.assertFloor("ParkedWorkLedgerTest", out.size(), 490);
             return out;

@@ -10,6 +10,7 @@ load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 load("//tools/java_run:defs.bzl", "java_run")
+load("//tools/jars:defs.bzl", "file_list", "java_jars")
 load("//tools/guards:defs.bzl", "guards_package")
 load(":layers.bzl", "core_layer_queries")
 load(":stress.bzl", "STRESS_GENERATED", "stress_layout")
@@ -482,12 +483,19 @@ junit_test(
     name = "guardrails",
     memory_mb = 1280,
     size = "medium",
-    data = _CORE_READS,
-    # the two single files a guard reads, by runfiles path (Bazel workplan P1-05); the guards that walk
-    # source trees read declared file lists in P3-27
+    data = _CORE_READS + [
+        ":core_test_jar",
+        ":guardrails_sources",
+        ":product_jars",
+    ],
+    # the two single files a guard reads, by runfiles path (Bazel workplan P1-05), and every file the source guards
+    # read, as one declared list (SourceFiles, P3-27): no guard walks a directory
     jvm_flags = [
         "-Dcore.literal_unroll=$(rlocationpath src/main/java/com/legend/compiler/spec/LiteralUnroll.java)",
         "-Dcore.duckdb_dialect=$(rlocationpath src/main/java/com/legend/sql/dialect/DuckDb.java)",
+        "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
+        "-Dlegend.product.jars=$(rlocationpath :product_jars)",
+        "-Dlegend.test.jars=$(rlocationpath :core_test_jar)",
     ],
     select = [
         "--select-package=com.legend",
@@ -501,11 +509,44 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
+# THE PRODUCT'S JARS, declared: what ArchitectureTest imports and NoEagerTypeReferencesTest loads (Bazel workplan
+# P3-27), never found from a class's code source or a directory listing beside it
+java_jars(
+    name = "product_jars",
+    testonly = True,
+    rlocation_paths = True,
+    transitive = False,
+    deps = _CORE_TARGETS + [":duckdb_load"],
+)
+
+# core's test classes, for the one rule that checks them too (ArchitectureTest.upstreamJavaNeverEntersCore)
+java_jars(
+    name = "core_test_jar",
+    testonly = True,
+    rlocation_paths = True,
+    transitive = False,
+    deps = [":core_tests_lib"],
+)
+
+# what the source guards and censuses read, declared (SourceFiles; Bazel workplan P3-27)
+file_list(
+    name = "guardrails_sources",
+    testonly = True,
+    srcs = _CORE_READS,
+)
+
+file_list(
+    name = "census_sources",
+    testonly = True,
+    srcs = _CENSUS_READS,
+)
+
 junit_test(
     name = "census",
     memory_mb = 1024,
     size = "medium",
-    data = _CENSUS_READS,
+    data = _CENSUS_READS + [":census_sources"],
+    jvm_flags = ["-Dlegend.sources=$(rlocationpath :census_sources)"],
     select = [
         "--select-package=com.legend",
         "--include-tag=census",

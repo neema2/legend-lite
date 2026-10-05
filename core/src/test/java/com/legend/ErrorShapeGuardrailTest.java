@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -183,6 +183,13 @@ class ErrorShapeGuardrailTest {
     // reintroduced. Shrink-only; a new site must throw instead.
     private static final int DEFAULT_LITERAL_FALLBACKS = 5;
 
+    /** The finally blocks whose throw cannot swallow an in-flight exception, each with why (file:line of the
+     *  {@code finally}). Found when core/src/main/duckdb joined the scan (Bazel workplan P3-27, CT-N10: the
+     *  DuckDB-only sources sat outside every guard's root). */
+    private static final Map<String, String> FINALLY_THROWS_NOTHING_IN_FLIGHT = Map.of(
+            "DuckDbAppenderLoad.java:58", "the staging drop's error is thrown only when nothing failed"
+                    + " (failure == null); when the load failed, it rides that error as suppressed");
+
     @Test
     void noReturnOrThrowInsideFinally() throws IOException {
         List<String> bad = new ArrayList<>();
@@ -191,6 +198,10 @@ class ErrorShapeGuardrailTest {
             Matcher m = Pattern.compile("\\} finally \\{").matcher(src);
             while (m.find()) {
                 String body = blockAfter(src, m.end());
+                String site = p.getFileName() + ":" + lineOf(src, m.start());
+                if (FINALLY_THROWS_NOTHING_IN_FLIGHT.containsKey(site)) {
+                    continue;
+                }
                 if (Pattern.compile("\\breturn\\b|\\bthrow\\b")
                         .matcher(body).find()) {
                     bad.add(p.getFileName() + ":" + lineOf(src, m.start()));
@@ -398,8 +409,9 @@ class ErrorShapeGuardrailTest {
     }
 
     private static List<Path> mainSources() throws IOException {
-        Path root = Repo.module("src/main/java");
-        try (Stream<Path> s = Files.walk(root)) {
+        // core's main sources: src/main/java and the DuckDB-only src/main/duckdb (Bazel workplan P3-27, CT-N10)
+        String root = "core/src/main/java";
+        try (Stream<Path> s = SourceFiles.under(root, "core/src/main/duckdb").stream()) {
             List<Path> out = s.filter(p -> p.toString().endsWith(".java"))
                     .toList();
             GuardCoverage.assertFloor(/* 499->498: HostEval DELETED, Phase 1 batch 2 */ "ErrorShapeGuardrailTest",

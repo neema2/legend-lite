@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -225,8 +225,8 @@ class   CarrierPurityRatchetTest {
      * exactly where the idioms belong (as strategy rules). */
     private static java.util.List<Path> preDialectSources()
             throws IOException {
-        Path root = Repo.module("src/main/java/com/legend");
-        try (Stream<Path> s = Files.walk(root)) {
+        String root = "core/src/main/java/com/legend";
+        try (Stream<Path> s = SourceFiles.under(root).stream()) {
             java.util.List<Path> out = s
                     .filter(f -> f.toString().endsWith(".java"))
                     .filter(f -> {
@@ -239,7 +239,7 @@ class   CarrierPurityRatchetTest {
                         // root is absolute, so the checkout's own directory
                         // names would otherwise reach these contains() —
                         // a checkout under .../plan/ would match every file.
-                        String path = Repo.rel(root, f);
+                        String path = SourceFiles.rel(root, f);
                         return (path.contains("/lowering/")
                                 || path.contains("/resolver/")
                                 || path.contains("/plan/"))

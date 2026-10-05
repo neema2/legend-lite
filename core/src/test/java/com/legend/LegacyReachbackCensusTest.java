@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -114,11 +114,11 @@ class LegacyReachbackCensusTest {
         Map<String, Integer> found = new TreeMap<>();
         int scanned = 0;
         for (String root : ROOTS) {
-            Path p = Repo.path(root);
-            if (!Files.isDirectory(p)) {
+            String p = root;
+            if (SourceFiles.under(p).isEmpty()) {
                 throw new IllegalStateException("LegacyReachbackCensusTest root " + p + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
             }
-            try (Stream<Path> files = Files.walk(p)) {
+            try (Stream<Path> files = SourceFiles.under(p).stream()) {
                 for (Path f : files.filter(x -> x.toString().endsWith(".java"))
                         .toList()) {
                     scanned++;
@@ -132,8 +132,7 @@ class LegacyReachbackCensusTest {
                         // REPOSITORY-relative: relativized against the root
                         // rather than by stripping a "../" that only existed
                         // while the working directory was the module.
-                        found.put(Repo.root().relativize(f.toAbsolutePath().normalize())
-                                .toString().replace(java.io.File.separatorChar, '/'), n);
+                        found.put(SourceFiles.path(f), n);
                     }
                 }
             }

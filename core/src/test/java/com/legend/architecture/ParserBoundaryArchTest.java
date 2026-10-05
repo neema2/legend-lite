@@ -3,7 +3,7 @@
 
 package com.legend.architecture;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -100,8 +100,8 @@ class ParserBoundaryArchTest {
     @Test
     void theCompilerLayerNeverTouchesTheParser() throws IOException {
         List<String> violations = new ArrayList<>();
-        for (Path root : roots()) {
-            try (var walk = Files.walk(root)) {
+        for (String root : roots()) {
+            try (var walk = SourceFiles.under(root).stream()) {
                 for (Path f : walk.filter(p -> p.toString().endsWith(".java"))
                         .toList()) {
                     String rel = rel(root, f);
@@ -131,8 +131,8 @@ class ParserBoundaryArchTest {
                             + " classes: " + entry);
         }
         List<String> violations = new ArrayList<>();
-        for (Path root : roots()) {
-            try (var walk = Files.walk(root)) {
+        for (String root : roots()) {
+            try (var walk = SourceFiles.under(root).stream()) {
                 for (Path f : walk.filter(p -> p.toString().endsWith(".java"))
                         .toList()) {
                     String rel = rel(root, f);
@@ -157,25 +157,25 @@ class ParserBoundaryArchTest {
                         + String.join("\n  ", violations));
     }
 
-    private static List<Path> roots() {
-        List<Path> roots = new ArrayList<>();
-        roots.add(Repo.module("src/main/java"));
-        roots.add(Repo.module("src/test/java"));
+    private static List<String> roots() {
+        List<String> roots = new ArrayList<>();
+        roots.add("core/src/main/java");
+        roots.add("core/src/main/duckdb");
+        roots.add("core/src/test/java");
         // every root this guard claims to cover must be there: a missing one fails, naming it, instead of
         // shrinking the scan silently (Bazel workplan P3-14; the long-gone "server/src" sat here as a no-op)
         for (String sibling : new String[] {"pct/src", "parser-equivalence/src"}) {
-            Path p = Repo.path(sibling);
-            if (!Files.isDirectory(p)) {
+            if (SourceFiles.under(sibling).isEmpty()) {
                 throw new IllegalStateException("ParserBoundaryArchTest's root " + sibling
                         + " is not among its inputs: declare it, or drop it from the guard with a reason");
             }
-            roots.add(p);
+            roots.add(sibling);
         }
         return roots;
     }
 
-    private static String rel(Path root, Path f) {
-        String s = root.relativize(f).toString().replace(java.io.File.separatorChar, '/');
+    private static String rel(String root, Path f) {
+        String s = SourceFiles.rel(root, f).substring(1);
         int i = s.indexOf("java/");
         return i >= 0 ? s.substring(i + 5) : s;
     }

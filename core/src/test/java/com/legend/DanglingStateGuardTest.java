@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -47,13 +47,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("census")
 class DanglingStateGuardTest {
 
-    /** Source roots, relative to the core module (the test's cwd): every
-     * module of the reactor (core, spec, pct, parser-equivalence), main and
-     * test trees where they exist — a slot's readers may live in another
-     * module (batch 123's lesson: pct reads core's censuses). */
-    private static final List<Path> ROOTS = Stream.of("core", "spec", "pct", "parser-equivalence")
-            .flatMap(m -> Stream.of(Repo.path(m, "src/main/java"), Repo.path(m, "src/test/java")))
-            .filter(Files::isDirectory)
+    /** Source roots, by repository path: every module of the reactor (core, spec, pct, parser-equivalence), main
+     * and test trees where the test target declares files in them — a slot's readers may live in another module
+     * (batch 123's lesson: pct reads core's censuses). */
+    private static final List<String> ROOTS = Stream.of("core", "spec", "pct", "parser-equivalence")
+            .flatMap(m -> Stream.of(m + "/src/main/java", m + "/src/test/java"))
+            .filter(root -> !SourceFiles.under(root).isEmpty())
             .toList();
 
     private static final Pattern WORD = Pattern.compile("[A-Za-z_]\\w*");
@@ -93,8 +92,8 @@ class DanglingStateGuardTest {
     @Test
     void everyStaticSlotHasReadersIffWriters() throws IOException {
         Map<Path, String> sources = new LinkedHashMap<>();
-        for (Path root : ROOTS) {
-            try (Stream<Path> files = Files.walk(root)) {
+        for (String root : ROOTS) {
+            try (Stream<Path> files = SourceFiles.under(root).stream()) {
                 for (Path f : files.filter(p -> p.toString().endsWith(".java")).toList()) {
                     sources.put(f, stripCommentsAndStrings(Files.readString(f)));
                 }
