@@ -9,7 +9,7 @@ and compared. Everything is written under the git-ignored `runs/census/`.
 ```
 git switch --detach <base>; tools/census/lanes.sh base
 git switch <branch>;        tools/census/lanes.sh head
-python3 tools/census/lanes_diff.py runs/census/base runs/census/head
+bazel run //tools/census:lanes_diff -- runs/census/base runs/census/head
 ```
 
 `lanes.sh` runs core, the stress suites, the three spec corpora and the three PCT lanes with
