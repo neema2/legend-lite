@@ -300,6 +300,16 @@ through its PR after `studio-m1` and `query-by-name`; nothing on `main` but this
 Shared with the database owner's C2 (the execution front door): `core/.../test/` runs suites through
 `Compiler.executeResolved`; whoever lands second merges.
 
+**2026-10-05, later: A4 PARKED; B1 becomes the protocol program** (the user). **A4 (user tests) is parked** behind the
+round trip as its own design program (tab and server must give the same verdict; judging's home is the database
+owner's open question): nothing in `core/.../test/`, `com.legend.model` suite records, `testable/runTests` or `Wasm.java`
+test exports is being changed; the provisional work sits unmerged on `studio-tests-parked`. **B1 is now the protocol
+program** (`docs/PROTOCOL_PROGRAM_2026_10_05.md`, branch `protocol`): parse, emit, read and compose all on the typed
+protocol records. Files: `core/src/main/java/com/legend/protocol/` (a model reader beside `ProtocolReader`, the
+composers -- `PureComposer` and the element composers -- moved from JSON onto records, one public face),
+`PureV1Api.java`'s `grammar/*` routes, `Wasm.java`'s grammar exports, and the oracles in `parser-equivalence/`. The
+parser and the emitter are read, not reshaped. A6 proceeds as announced.
+
 ## Rules between sessions
 
 1. Never force-push; never bare `git stash` (the stash stack is shared by every worktree).
