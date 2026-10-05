@@ -49,14 +49,12 @@ class SkipCensusTest {
 
     /** Files permitted to carry a conditional skip ({@link #CONDITIONAL}). */
     private static final List<String> ASSUMPTION_FILES = List.of(
-            // skips when the generated expected/ dir is absent -- the
-            // differential needs its oracle materialized first (it reads Maven's
-            // core/target/diff, so under Bazel it always skips: P3-18 runs it on generated data)
-            "CorpusDifferentialTest.java",
             // the warehouse against a live Postgres: runs only when LEGENDLITE_PG_DSN names one, by its own
             // manual target (//warehouse:postgres_live); an embedded Postgres in the chain is leg P2 of
             // docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md
             "WarehousePostgresLiveTest.java");
+    // LEFT 2026-10-05 (Bazel workplan P3-18): CorpusDifferentialTest, which runs on the data
+    // //scripts/corpus:gen_differential generates, and never skips.
     // LEFT 2026-10-05 (Bazel workplan P3-17): ManifestWorldCensusTest (a heavy test of //spec:manifest_world_census,
     // its module a flag) and OurResolutionsTest (now the program //spec:our_resolutions).
     // LEFT 2026-10-05 (Bazel workplan P3-14): MinimalCorpusTest, SpecBodyCensusTest, CoreImportsParityTest,

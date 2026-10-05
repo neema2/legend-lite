@@ -59,6 +59,12 @@ py_binary(
 )
 
 py_binary(
+    name = "differential",
+    srcs = ["differential.py"],
+    deps = [":corpus"],
+)
+
+py_binary(
     name = "dense_build",
     srcs = ["dense_build.py"],
     deps = [":corpus"],
@@ -157,6 +163,23 @@ filegroup(
     name = "pure_sources",
     srcs = glob(["**/*.pure"]),
     visibility = ["//scripts/parser:__pkg__"],
+)
+
+# THE CROSS-ENGINE DIFFERENTIAL's data (Bazel workplan P3-18, D3 row 4: wired): the oracle's answers over the
+# committed stress corpus and the seed they are computed on, as one tree, the data of //core:corpus_differential_test.
+run_binary(
+    name = "gen_differential",
+    srcs = _GATE_DATA,
+    out_dirs = ["diff"],
+    args = [
+        "--out",
+        "$(RULEDIR)/diff",
+        "--inputs",
+        "$(execpaths //core:stress_files)",
+    ] + ["$(execpaths %s)" % p for p in _LINKED],
+    env = dict(_GATE_ENV, LC_ALL = "C.UTF-8"),
+    tool = ":differential",
+    visibility = ["//core:__pkg__"],
 )
 
 guards_package()

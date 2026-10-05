@@ -15,7 +15,7 @@ lanes (checks, gates 1 and 3, app, misc, gate 6's source-scan guard `//pct:pct_d
 
 | Gate | Target | What it holds |
 |---|---|---|
-| 1 | `//core:core_tests` | the compiler suite + guardrails (NullAway runs on every compile) |
+| 1 | `//core:core_tests` | the compiler suite + guardrails (NullAway runs on every compile); with `//core:corpus_differential_test`, legend-lite's SQL over the stress seed against the corpus oracle (wired 2026-10-05, P3-18) |
 | 2 | *(the build itself)* | NullAway is a compile error; the jar pools are one version each by construction; `//tools/deps:all` (below) |
 | 3 | `//spec:spec_tests` | spec parity: generators, census, manifest |
 | 4 | `//spec:corpus_duckdb` | the relational corpus on DuckDB, host judge (the build action `:judge_host_duckdb`; the lane, a suite, is its verdict and the diff tests of what it measures; spec/corpus.bzl) |

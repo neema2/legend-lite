@@ -1903,3 +1903,12 @@ Workaround: name the target set id on every class-typed property mapped over a j
 
 Repro: `repro/join-property-no-set-id/`, `scripts/corpus/probe_missing_setid.py`. Prevented
 going forward by `unroutable()` in `scripts/projects/check.py`.
+
+## F58 — `dateDiff(..., HOURS)` from a start off the hour: legend-engine says 164, legend-lite 163
+
+From `%2024-01-15T14:30:00` to `%2024-01-22T10:02:00` (163 h 32 min) legend-engine's relational SQL counts hour
+boundaries crossed (164) and legend-lite truncates the elapsed time (163). legend-pure's own `dateDiff` tests start
+every HOURS, MINUTES and SECONDS case on a unit boundary, where the two rules agree, so they pin neither. Found
+2026-10-05 when the cross-engine differential first ran (Bazel workplan P3-18): `stress::MO2_Confirmations`. **Open**
+(owner: the compiler line): which rule is Legend's; a PCT case starting off the boundary would settle it for every
+engine. Repro: `repro/datediff-hours-off-boundary/`.

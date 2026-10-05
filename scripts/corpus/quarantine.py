@@ -264,6 +264,10 @@ ENGINE_QUARANTINE["stress::F32_TradeRollupEverything"] = (
 LITE_QUARANTINE: dict[str, tuple[str, str]] = {
     "stress::F32_TradeRollupEverything": (
         "F14", "shared with legend-engine: groupBy uses the enum SOURCE code"),
+    # 2026-10-05, the differential's first run under Bazel (P3-18): an open semantics question, not yet a defect
+    # either side owns; repro/datediff-hours-off-boundary/
+    "stress::MO2_Confirmations": (
+        "F58", "dateDiff HOURS from a start off the hour: the oracle counts boundaries (164), lite truncates (163)"),
 }
 
 # Kept for callers that predate the split; run.py is the legend-engine harness.
