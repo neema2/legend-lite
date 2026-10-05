@@ -1,6 +1,7 @@
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
 load("//core:stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED")
 load("//tools/guards:defs.bzl", "guards_package")
 
@@ -117,5 +118,32 @@ run_binary(
     tool = ":build",
     visibility = ["//core:__pkg__"],
 )
+
+# THE CORPUS RATCHETS (Bazel workplan P2-04): each `--gate` of the corpus's own measures as a test, over the
+# committed corpus (every stress file, the linked projects, the queries). Each ratchet constant stays a hand-owned,
+# dated pin in its script (density.py MAX_PLAIN_RATIO/MAX_ABSENT, executed.py's baseline, stacking.py
+# SURFACE_BASELINE; D9). They run from the runfiles tree, so they read only what is declared here.
+_GATE_DATA = [
+    "queries.pure",
+    "//core:src/test/resources/com/legend/integration/stress-layout.json",
+    "//core:stress_files",
+] + _LINKED
+
+_GATE_ENV = {
+    "CORPUS_ROOT": ".",
+    "PYTHONHASHSEED": "0",
+    "PYTHONTZPATH": "",
+}
+
+[py_test(
+    name = gate + "_gate",
+    size = "medium",
+    srcs = [gate + ".py"],
+    args = ["--gate"],
+    data = _GATE_DATA,
+    env = _GATE_ENV,
+    main = gate + ".py",
+    deps = [":corpus"],
+) for gate in ["density", "executed", "stacking"]]
 
 guards_package()

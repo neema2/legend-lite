@@ -472,6 +472,13 @@ exports_files(
     visibility = ["//scripts/corpus:__pkg__"],
 )
 
+# every stress file, the generated ten included: what the corpus ratchets measure (//scripts/corpus, P2-04)
+filegroup(
+    name = "stress_files",
+    srcs = glob(["src/test/resources/stress/*.pure"]),
+    visibility = ["//scripts/corpus:__pkg__"],
+)
+
 filegroup(
     name = "stress_sources",
     srcs = glob(
