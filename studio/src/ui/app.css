@@ -185,6 +185,8 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .side-bar__panel__count { display: flex; align-items: center; height: 16px; margin: 0 10px 0 auto; padding: 3px 7px; border-radius: 8px; background: var(--color-bg-tag); color: var(--color-text-secondary); font-size: 10px; font-weight: 500; }
 .side-bar__panel__content { padding: 5px 0; background: var(--color-bg-panel); }
 .side-bar__panel__item { display: flex; align-items: center; width: 100%; height: 22px; padding: 0 5px 0 10px; color: var(--color-text-muted); }
+.side-bar__panel__item--selected { background: var(--color-bg-selected); color: var(--color-text-primary); }
+.revision-item { cursor: pointer; gap: 8px; }
 .side-bar__panel__item:hover { background: var(--color-accent-subtle); }
 .side-bar__panel__item__label { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-bar__panel__item__note { flex: 1; margin-left: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--color-text-disabled); }
