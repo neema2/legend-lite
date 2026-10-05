@@ -158,6 +158,24 @@ _GATE_ENV = {
     deps = [":corpus"],
 ) for gate in ["density", "executed", "stacking"]]
 
+# the engine-surface and function inventories' ratchets (Bazel workplan P2-04, D3 row 7): every construct the engine
+# can express is written by the corpus or recorded as blocked; every implemented function was run against the engine
+_INVENTORIES = {
+    "scoreboard": ["//docs:ENGINE_SURFACE.tsv", "//docs:SURFACE_BLOCKED.tsv"],
+    "functions": ["//docs:ENGINE_FUNCTIONS.tsv", "//docs:FUNCTIONS_EXECUTED.tsv"],
+}
+
+[py_test(
+    name = gate + "_gate",
+    size = "medium",
+    srcs = [gate + ".py"],
+    args = ["--gate"],
+    data = _GATE_DATA + docs,
+    env = _GATE_ENV,
+    main = gate + ".py",
+    deps = [":corpus"],
+) for gate, docs in _INVENTORIES.items()]
+
 # this package's hand-written .pure, for the keyword census (//scripts/parser:keyword_coverage, P2-20)
 filegroup(
     name = "pure_sources",

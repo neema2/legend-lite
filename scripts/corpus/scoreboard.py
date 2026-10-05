@@ -29,11 +29,15 @@ the absent rows named, because the list is the actionable artefact and the ratio
 """
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
 
-SURFACE = Path(__file__).resolve().parents[2] / "docs/ENGINE_SURFACE.tsv"
+# the repository root as model.py takes it: CORPUS_ROOT under Bazel (declared inputs only), never __file__, which
+# follows the runfiles symlink back into the checkout
+ROOT = Path(os.environ["CORPUS_ROOT"]) if os.environ.get("CORPUS_ROOT") else Path(__file__).resolve().parents[2]
+SURFACE = ROOT / "docs/ENGINE_SURFACE.tsv"
 
 
 def load_surface() -> list[dict]:

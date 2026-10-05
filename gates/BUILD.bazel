@@ -37,6 +37,8 @@ test_suite(
         "//scripts/corpus:density_gate",
         "//scripts/corpus:executed_gate",
         "//scripts/corpus:stacking_gate",
+        "//scripts/corpus:scoreboard_gate",
+        "//scripts/corpus:functions_gate",
         # gate 1, gate 3
         "//core:core_tests",
         "//core:duckdb_load_test",
