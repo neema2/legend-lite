@@ -1,7 +1,8 @@
 # spec — the tests that read the upstream sources as the SPEC: the generators'
 # byte-parity checks (Maven gate 3) and the relational corpus lanes (gates 4, 5).
 
-load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
@@ -177,18 +178,52 @@ junit_test(
 # call, over core_relational's closure. The reference side is a cached build output (//tools/reference:ref_dump); the
 # test types our side, joins, and compares the whole report to its committed golden. Manual: in no CI
 # lane; every front-end slice's GATES entry cites a run.
+# The report: our side against the cached reference dump, joined (ReferenceLaneReport); its header's release from
+# the oracle pins. Manual like the lane: with the dump it needs about 8 GB, so it must not join every `//...`.
+java_run(
+    name = "reference_lane_report",
+    testonly = True,
+    srcs = UPSTREAM_TREES + [
+        "//tools:oracle-pins.env",
+        "//tools/reference:ref_dump",
+    ],
+    outs = [
+        "reference-lane/core_relational.txt",
+        "reference-lane/core_relational-examples.tsv",
+    ],
+    arguments = [
+        "$(execpath //tools/reference:ref_dump)",
+        "$(execpath //tools:oracle-pins.env)",
+        "{OUT_DIR}",
+    ],
+    jvm_flags = program_jvm_flags("spec") + ["-Xss16m"],
+    main_class = "com.legend.generators.ReferenceLaneReport",
+    memory_mb = 2048,
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
+    tags = ["manual"],
+    deps = [":spec_tests_lib"],
+)
+
+# The report against its golden; `bazel run //spec:update_reference_lane` re-blesses a deliberate change (the GATES
+# entry says which lines moved and why).
+write_source_files(
+    name = "update_reference_lane",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe reference lane moved -- a deliberate front-end change re-blesses it: bazel run //spec:update_reference_lane, with the GATES entry saying which lines moved and why",
+    files = {"src/test/resources/reference-lane/core_relational.txt": ":reference-lane/core_relational.txt"},
+    tags = ["manual"],
+)
+
+# The lane's invariant: every disagreement class in the report has a reason (reasons.tsv).
 junit_test(
     name = "reference_lane",
-    memory_mb = 2048,
-    data = _INPUTS + ["//tools/reference:ref_dump"],
-    jvm_flags = [
-        "-Xss16m",
-        "-Dreference.dump=$(rootpath //tools/reference:ref_dump)",
-    ],
+    memory_mb = 768,
+    data = [":reference-lane/core_relational.txt"],
+    jvm_flags = ["-Dreference.report=$(rlocationpath :reference-lane/core_relational.txt)"],
     runtime_deps = [":spec_tests_lib"],
     select = ["--select-class=com.legend.generators.ReferenceLaneTest"],
     tags = ["manual"],
-    upstream = True,
 )
 
 # THE CORPUS LANES and THE JUDGE LANES, one suite (was tools/corpus-both.sh and
