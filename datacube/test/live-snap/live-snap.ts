@@ -33,7 +33,7 @@ import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/sr
 import { inferModel } from '../../src/infer.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
 import { PlanThenRun } from '../../src/runner.ts';
-import { SnapManager } from '../../src/snap.ts';
+import { SnapManager } from '../../../engine-client/src/snap.ts';
 import { listObjects, SessionExpired, sessionExpired, signIn, WarehouseEngine } from '../../../engine-client/src/warehouse.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
 import { levelLambda } from '../../src/query.ts';

@@ -28,10 +28,14 @@
 //      aggregated results, so drill-through audits the same frozen data
 //      it is drilling into.
 
+//
+// The engine half, shared by every app that freezes rows into the tab (Studio plan A6; moved from DataCube, which keeps
+// its cube behaviour on top): the manager, the stamp it carries, the refusals and the preflight. Where a snap's
+// queries are planned is the app's (DataCube's SnapTarget adds its planner).
+
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
-import type { Planner } from './cube.ts';
-import type { QueryEngine } from '../../engine-client/src/engine.ts';
-import type { Receipt } from '../../engine-client/src/receipt.ts';
+import type { QueryEngine } from './engine.ts';
+import type { Receipt } from './receipt.ts';
 
 /**
  * A LIVE plane on another machine (the warehouse): where a snap's rows come
@@ -79,11 +83,11 @@ export interface SnapInfo {
 }
 
 /**
- * Where a snap materialises: a table the cube's MODEL also declares, and the
- * relation that reads it (`#>{db.TABLE_SNAP}#`), so a snapped cube's queries
+ * Where a snap materialises: a table the app's MODEL also declares, and the
+ * relation that reads it (`#>{db.TABLE_SNAP}#`), so a snapped app's queries
  * are planned exactly as live ones are.
  */
-export interface SnapTarget {
+export interface SnapTable {
   readonly schema?: string;
   readonly table: string;
   readonly source: ValueSpecification;
@@ -98,13 +102,6 @@ export interface SnapTarget {
    * spelled in it.
    */
   readonly conversions: readonly { readonly column: string; readonly sql: string }[];
-  /**
-   * How a query on the copy is planned: the SAME model against the runtime of the store the copy
-   * is in (`InferredModel.snapRuntime`). The rows are pulled with the live plan, which runs where
-   * they are; every query on the copy runs here, in the tab's engine, so it is planned for that
-   * engine's database type (docs/DATACUBE_APP_PLAN_2026_10_02.md, leg C).
-   */
-  readonly planner: Planner;
 }
 
 export type PlaneState =
@@ -235,10 +232,10 @@ export class SnapManager {
       readonly label?: string;
       /**
        * Where to materialise, and what to call it in a query afterwards:
-       * a table the cube's model also declares. Supplied by the caller,
+       * a table the app's model also declares. Supplied by the caller,
        * which owns the model.
        */
-      readonly target: Omit<SnapTarget, 'planner'>;
+      readonly target: SnapTable;
     },
   ): Promise<SnapInfo> {
     const estimate = await this.preflight(sourceSql, epoch);
@@ -325,6 +322,29 @@ export class SnapManager {
     await this.#localStore()
       .run(`DROP TABLE IF EXISTS ${qualified(snap.schema, snap.table)}`, 0);
   }
+}
+
+/**
+ * The plane as every app states it (rule 1: what you are looking at is never inferable): the pill's word and its
+ * tooltip -- WHEN a snap was frozen and HOW MANY rows it holds, or where live data is. `remote`: live is another
+ * machine (a warehouse); `toggles`: a click changes the plane (both planes exist), which the tooltip offers.
+ */
+export function describePlane(state: PlaneState, where: { readonly remote: boolean; readonly toggles: boolean }): { text: string; title: string } {
+  if (state.mode === 'snapped') {
+    const s = state.snap;
+    return {
+      text: 'Snapped',
+      title: `${s.label} — frozen at ${s.takenAt.toLocaleTimeString()}, ${s.rowCount.toLocaleString()} rows`
+        + (where.remote ? ', a copy in this tab' : '') + '.' + (where.toggles ? ' Click to go live.' : ' Nothing can change it while you work.'),
+    };
+  }
+  if (!where.toggles) return { text: 'Live', title: 'Live — this plane has no store in this tab to snap into.' };
+  return {
+    text: 'Live',
+    title: where.remote
+      ? 'Live — running on the warehouse, as you. Click to snap a copy of your rows into this tab.'
+      : 'Live data, which may move while you work. Click to snap.',
+  };
 }
 
 function defaultLabel(at: Date): string {

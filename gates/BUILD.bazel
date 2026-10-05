@@ -55,7 +55,7 @@ test_suite(
         # Studio and its model home (docs/STUDIO_DESIGN_2026_10_02.md): the SDLC and Depot suites, each run on the
         # page's WebAssembly module and on the server over git; Studio's model and demo
         "//depot-client:tests",
-        "//engine-client:model_data_test",
+        "//engine-client:tests",
         "//sdlc-client:tests",
         "//sdlc-server:git_repository_test",
         "//studio:tests",
