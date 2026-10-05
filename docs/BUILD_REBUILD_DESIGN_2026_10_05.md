@@ -395,6 +395,42 @@ unchanged, so nothing above it recompiles.
   - `wasm:jvm_answers`, `wasm:zone_jvm`.
 - Steps 3 and 4 are measured against these numbers.
 
+## 5b. Next: the product's jars through native Bazel (agreed 2026-10-05)
+
+Our own code already builds with native Bazel rules. rules_jvm_external (the "Maven plugin") is only for third-party
+jars, and its value is resolving dependency trees:
+
+| Pool | Jars | What | Keep the plugin? |
+|---|---|---|---|
+| `maven_runner` | 610 | upstream legend-engine's runtime (engine-runner, the oracle) | yes: a large tree |
+| `maven_upstream` | 396 | upstream legend-engine and legend-pure (spec and test input) | yes: a large tree |
+| `maven_teavm` | 29 | the TeaVM compiler | yes |
+| `maven_test` | 22 | JUnit 5, ArchUnit | yes |
+| `maven_tools` | 10 | NullAway and its dependencies | yes |
+| `maven_core` | 5 | DuckDB JDBC, H2, Postgres, SQLite, checker-qual: **the product's drivers** | **no** |
+| `maven_warehouse` | 1 | DuckDB JDBC 1.5.5: **the product** | **no** |
+| `maven_h2_modern` | 1 | a newer H2 (tests) | **no** |
+
+**The product's jars are leaf jars, and the plugin costs the clean build its critical path.** It stamps the DuckDB
+jar's manifest (10.4 s), then makes a full compile-only copy (7.0 s), before `//core:duckdb_load` can compile.
+
+**The step:**
+- Move these 7 jars to Bazel's built-in `http_jar` (from `@bazel_tools`): one download, pinned by URL and sha256.
+  - Compiling uses Bazel's ijar interface jar, which keeps class signatures only, skips the native libraries, and
+    stamps the target label, so strict-deps still names the target to add.
+  - Running uses the downloaded jar untouched.
+- Delete the three pools and their lock files, and the pool guard's entries for them.
+- Extend G11 (two versions on one classpath) to recognise these jars.
+- Switch the users: `//core:drivers`, `//core:duckdb_load`, the warehouse and the spec test library.
+- **Expected effect:** the clean `//:java` build drops to about 12-13 s, which is where our own code finishes. Measure
+  it with B1's protocol.
+- **Same step:** Postgres JDBC goes to the latest release, **42.7.13** (Maven Central, 2026-07-06; we pin 42.7.4).
+  - Its POM declares only `checker-qual` (runtime, annotations only) and `waffle-jna` (optional: Windows single
+    sign-on, never pulled).
+  - The product needs the one 1.2 MB jar. Drop `checker-qual` from it if the Postgres tests prove it unneeded:
+    annotations whose classes are missing are ignored at run time.
+- With no product jar left in the plugin, stamping (experiment E1) needs no change.
+
 ## 6. Decisions for the user
 
 - **D1. Error Prone.**
