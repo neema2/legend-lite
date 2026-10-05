@@ -3,7 +3,6 @@
 
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import com.legend.testing.SourceFiles;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -17,8 +16,8 @@ import java.util.stream.Stream;
 /**
  * This repository's files under a directory, the way the running program may read them (Bazel workplan P3-27b). A
  * TEST reads its target's declared list (SourceFiles: -Dlegend.sources), never a walk of a directory, so it runs the
- * same under a runfiles tree and a manifest alone. A generator ACTION (no list) walks its own declared inputs, laid out
- * at their repository paths (Repo), until Bazel workplan P3-33 gives the generators explicit arguments.
+ * same under a runfiles tree and a manifest alone. A generator ACTION (no list) walks its own declared inputs, which sit
+ * at their repository paths under its working directory (the execroot).
  */
 final class ModuleFiles {
 
@@ -33,7 +32,7 @@ final class ModuleFiles {
         if (declared()) {
             return SourceFiles.under(dir);
         }
-        Path root = Repo.path(dir);
+        Path root = Path.of(dir);
         if (!Files.isDirectory(root)) {
             throw new IllegalStateException(dir + " is not among this action's inputs: declare it");
         }
@@ -59,6 +58,6 @@ final class ModuleFiles {
 
     /** {@code file}'s path from {@code dir}, '/'-separated, with a leading '/'. */
     static String rel(String dir, Path file) {
-        return declared() ? SourceFiles.rel(dir, file) : Corpus.within(Repo.path(dir), file);
+        return declared() ? SourceFiles.rel(dir, file) : Corpus.within(Path.of(dir), file);
     }
 }

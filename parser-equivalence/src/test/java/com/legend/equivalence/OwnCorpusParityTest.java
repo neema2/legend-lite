@@ -3,7 +3,6 @@
 
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -59,10 +58,10 @@ class OwnCorpusParityTest {
         Map<String, String> diffs = pass.diffs();
         int matched = pass.matched();
         System.out.println("[own-parity] " + kinds + " matched=" + matched + " diffs=" + diffs.size());
-        Files.createDirectories(Repo.outDir());
+        Files.createDirectories(com.legend.testing.TestOutputs.dir());
         StringBuilder report = new StringBuilder();
         diffs.forEach((k, d) -> report.append(k).append('\t').append(d).append('\n'));
-        Files.writeString(Repo.out("own-corpus-protocol-diffs.txt"), report.toString());
+        Files.writeString(com.legend.testing.TestOutputs.file("own-corpus-protocol-diffs.txt"), report.toString());
         Map<String, String> ledger = readLedger();
         List<String> unledgered = new ArrayList<>();
         diffs.forEach((k, d) -> {

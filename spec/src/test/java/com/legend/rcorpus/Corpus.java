@@ -45,7 +45,7 @@ public final class Corpus {
      * different checkout. If the resolved path has no corpus, the sweep skips
      * via {@link #available()} rather than half-running.
      */
-    public static final Path ENGINE_ROOT = com.legend.testing.Upstream.engine();
+    public static final Path ENGINE_ROOT = com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
 
     public static final Path RELATIONAL = ENGINE_ROOT.resolve(com.legend.generators.UpstreamFiles.RELATIONAL);
 

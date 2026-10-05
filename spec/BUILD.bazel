@@ -207,13 +207,13 @@ corpus_lane(
 legend_java_binary(
     name = "corpus_one",
     testonly = True,
-    data = _INPUTS + UPSTREAM_TREES,
+    data = _INPUTS + UPSTREAM_TREES + ["src/test/resources/rcorpus/duckdb-fail-roster.txt"],
     jvm_flags = [
         "--enable-native-access=ALL-UNNAMED",
-        "-Dlegend.repo.root=.",
-        "-Dlegend.repo.module=spec",
-        "-Dlegend.engine.root=$(rlocationpath @legend_engine_src//:pom.xml)",
-        "-Dlegend.pure.root=$(rlocationpath @legend_pure_src//:pom.xml)",
+        "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
+        "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
+        # the committed rosters, by one of them (MinimalCorpusTest.readRoster)
+        "-Drcorpus.committed.rlocation=$(rlocationpath src/test/resources/rcorpus/duckdb-fail-roster.txt)",
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",
@@ -553,10 +553,8 @@ legend_java_binary(
     testonly = True,
     data = _INPUTS + UPSTREAM_TREES,
     jvm_flags = [
-        "-Dlegend.repo.root=.",
-        "-Dlegend.repo.module=spec",
-        "-Dlegend.engine.root=$(rlocationpath @legend_engine_src//:pom.xml)",
-        "-Dlegend.pure.root=$(rlocationpath @legend_pure_src//:pom.xml)",
+        "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
+        "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         "-Xss16m",
     ],
     main_class = "com.legend.generators.OurResolutionsDump",

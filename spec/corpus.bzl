@@ -67,6 +67,8 @@ def corpus_lane(
     database_roots = dict(UPSTREAM_ROOTS)
     database_roots[":%s/verdict.txt" % host] = "{HOST_DIR}"
     database_measured = ["%s/%s-%s.txt" % (database, rosters, m) for m in _DATABASE_MEASURED] if golden else []
+    # a lane without its own rosters reads the committed ones, named by one of them (MinimalCorpusTest.readRoster)
+    committed_flag = [] if golden else ["-Drcorpus.committed=$(execpath %s)" % committed[0]]
     java_run(
         name = host,
         testonly = True,
@@ -79,7 +81,7 @@ def corpus_lane(
         jvm_flags = _pass_flags(golden) + [
             "-Dlegend.judge.mode=host",
             "-Dlegend.judge.ledger={OUT_DIR}/judge-host.tsv",
-        ] + jvm_flags + host_jvm_flags,
+        ] + committed_flag + jvm_flags + host_jvm_flags,
         main_class = "com.legend.tools.junit.JUnitAction",
         memory_mb = memory_mb,
         mnemonic = "CorpusHostPass",
@@ -104,7 +106,7 @@ def corpus_lane(
             "-Dlegend.judge.host.verdict={HOST_DIR}/verdict.txt",
             "-Dlegend.judge.host.log={HOST_DIR}/host.log",
             "-Dlegend.judge.ledger.host={HOST_DIR}/judge-host.tsv",
-        ] + (["-Drcorpus.host.measured={HOST_DIR}"] if golden else []) + jvm_flags + host_jvm_flags,
+        ] + (["-Drcorpus.host.measured={HOST_DIR}"] if golden else []) + committed_flag + jvm_flags + host_jvm_flags,
         main_class = "com.legend.tools.junit.JUnitAction",
         memory_mb = memory_mb,
         mnemonic = "CorpusDatabasePass",

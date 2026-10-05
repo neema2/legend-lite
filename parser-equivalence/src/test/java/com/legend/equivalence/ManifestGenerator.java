@@ -17,7 +17,7 @@ import java.util.Map;
  *
  * <pre>
  *   ManifestGenerator &lt;output&gt;
- *     -Dlegend.engine.root / -Dlegend.pure.root, -Dlegend.repo.root / -Dlegend.repo.module
+ *     -Dlegend.engine.root / -Dlegend.pure.root (each tree by the file at its root: ProgramPaths)
  * </pre>
  */
 public final class ManifestGenerator {

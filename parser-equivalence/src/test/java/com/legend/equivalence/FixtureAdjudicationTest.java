@@ -7,7 +7,6 @@ import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import com.legend.testing.Repo;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;

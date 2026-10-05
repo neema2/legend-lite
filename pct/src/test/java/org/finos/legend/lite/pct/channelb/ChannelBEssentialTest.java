@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ChannelBEssentialTest {
 
     private static Path pureRoot() {
-        return com.legend.testing.Upstream.pure();
+        return com.legend.testing.ProgramPaths.rootOf("legend.pure.root");
     }
 
     /** This suite's run: its model roots and discovery scope (PctRatchets measures its discovery the same way). */

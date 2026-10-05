@@ -3,7 +3,6 @@
 
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -23,11 +22,8 @@ public final class OraclePins {
     private static final Map<String, String> PINS = load();
 
     private static Map<String, String> load() {
-        String pins = System.getProperty("oracle.pins");
-        if (pins == null || pins.isEmpty()) {
-            throw new IllegalStateException("-Doracle.pins is not set: the BUILD file passes //tools:oracle-pins.env");
-        }
-        Path f = Repo.path(pins);
+        // //tools:oracle-pins.env, as the BUILD file names it (a test's runfiles path or an action's exec path)
+        Path f = com.legend.testing.ProgramPaths.file("oracle.pins");
         Map<String, String> out = new LinkedHashMap<>();
         try {
             for (String line : Files.readAllLines(f)) {

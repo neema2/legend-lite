@@ -9,7 +9,6 @@ import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.model.PackageableElement;
 import com.legend.model.ParsedModel;
-import com.legend.testing.Repo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -127,8 +126,8 @@ public class ManifestWorldCensusTest {
         if (target == null || target.isEmpty()) {
             throw new IllegalStateException("-Dmanifest.census=<module>: run it as //spec:manifest_world_census");
         }
-        Path engine = com.legend.testing.Upstream.engine();
-        Path pure = com.legend.testing.Upstream.pure();
+        Path engine = com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
+        Path pure = com.legend.testing.ProgramPaths.rootOf("legend.pure.root");
         Map<String, Module> all = manifests(engine, pure);
         List<Module> world = closure(target, all);
 
@@ -341,8 +340,8 @@ public class ManifestWorldCensusTest {
         out.add("");
         out.add("## typing failures (" + failures.size() + ")");
         failures.forEach((k, v) -> out.add(k + " :: " + v));
-        Files.createDirectories(Repo.outDir());
-        Files.write(Repo.out("manifest-census-" + target + ".txt"), out);
+        Files.createDirectories(com.legend.testing.TestOutputs.dir());
+        Files.write(com.legend.testing.TestOutputs.file("manifest-census-" + target + ".txt"), out);
         System.out.println("[manifest-census] " + target + ": modules=" + world.size() + " files=" + fileCount
                 + " loadWalls=" + loadWalls.size() + " ok=" + ok + " failed=" + failures.size()
                 + " walled=" + walled.size() + " byReason=" + byReason);

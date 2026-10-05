@@ -49,6 +49,11 @@ public final class JUnitAction {
         }
         Path verdict = Path.of(args[0]);
         Path log = Path.of(args[1]);
+        // the pass's side reports (TestOutputs: what a test writes beside its verdict) go to a scratch directory of
+        // the action's own temp: an action declares its outputs, and these are not among them (Bazel workplan P3-33)
+        if (System.getProperty("legend.outputs.dir") == null && System.getenv("TEST_UNDECLARED_OUTPUTS_DIR") == null) {
+            System.setProperty("legend.outputs.dir", Files.createTempDirectory("junit-action-reports-").toString());
+        }
         int code = 4;
         PrintStream out = System.out;
         PrintStream err = System.err;

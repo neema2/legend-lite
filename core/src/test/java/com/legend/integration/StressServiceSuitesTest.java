@@ -1,6 +1,5 @@
 package com.legend.integration;
 
-import com.legend.testing.Repo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +35,7 @@ class StressServiceSuitesTest {
 
     /** One full run on the backend, its pass count at or above {@code floor}. */
     static void assertAtLeast(boolean h2, int floor) throws Exception {
-        StressSuites.Result r = StressSuites.run(new StressSuites.Config(h2, null, "", List.of(), null, Repo.outDir()));
+        StressSuites.Result r = StressSuites.run(new StressSuites.Config(h2, null, "", List.of(), null, com.legend.testing.TestOutputs.dir()));
         assertFalse(r.pass().isEmpty(), "nothing passed — the harness itself is broken");
         assertTrue(r.pass().size() >= floor, r.pass().size() + " tests passed, below the ratchet " + floor
                 + " — see stress-suites-fail" + (h2 ? "-h2" : "") + ".txt in the test's outputs");

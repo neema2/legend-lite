@@ -1,6 +1,5 @@
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Test;
 
@@ -201,9 +200,9 @@ class OwnCorpusConformanceTest {
                     .append(msg, 0, Math.min(160, msg.length()))
                     .append('\n');
         }
-        java.nio.file.Files.createDirectories(Repo.outDir());
+        java.nio.file.Files.createDirectories(com.legend.testing.TestOutputs.dir());
         java.nio.file.Files.writeString(
-                Repo.out("own-corpus-conformance.txt"),
+                com.legend.testing.TestOutputs.file("own-corpus-conformance.txt"),
                 report.toString());
         System.out.println("own-corpus: " + ours.size() + " snippets, "
                 + accepted + " oracle-accepted, " + bothRefuse

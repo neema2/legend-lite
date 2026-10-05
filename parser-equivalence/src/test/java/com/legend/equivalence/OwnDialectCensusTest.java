@@ -3,7 +3,6 @@
 
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -216,7 +215,7 @@ class OwnDialectCensusTest {
         b.append("# id\trefusal\n");
         rows.sort(String::compareTo);
         rows.forEach(r -> b.append(r).append('\n'));
-        Files.writeString(Repo.out("own-dialect-census.tsv"),
+        Files.writeString(com.legend.testing.TestOutputs.file("own-dialect-census.tsv"),
                 b.toString());
         System.out.println("own-dialect census: " + platformAccepts
                 + " platform-accepted, " + liteAccepts + " LITE-accepted, "

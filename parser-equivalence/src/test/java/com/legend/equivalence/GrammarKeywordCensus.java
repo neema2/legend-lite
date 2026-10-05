@@ -1,7 +1,6 @@
 package com.legend.equivalence;
 
 import java.io.PrintWriter;
-import com.legend.testing.Upstream;
 
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 
@@ -37,7 +36,7 @@ public final class GrammarKeywordCensus {
     }
 
     private static void report(PrintWriter out, Path outDir) throws Exception {
-        Path engineRoot = Upstream.engine();
+        Path engineRoot = com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
         // keyword literals from lexer/parser grammars: word-shaped, >= 3
         // chars (operators/punctuation can't be checked by text presence)
         Map<String, Set<String>> kwToGrammars = new TreeMap<>();

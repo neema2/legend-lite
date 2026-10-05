@@ -14,7 +14,7 @@ The list file has one path per line:
     also takes the jars themselves as inputs, through a filegroup over this
     target's `jars` output group.
 Either way a reader resolves a line against the root it resolves the list's own
-path against (Repo.listed).
+path against (ProgramPaths.listed reads either form).
 """
 
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")

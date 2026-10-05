@@ -3,7 +3,6 @@
 package com.legend.rcorpus;
 
 import com.legend.test.PureTestRunner;
-import com.legend.testing.Repo;
 import com.legend.testing.Runfile;
 
 import java.io.IOException;
@@ -43,7 +42,7 @@ final class JudgeLedger {
             return Path.of(path);
         }
         return "database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))
-                ? Repo.out("judge-database.tsv") : null;
+                ? com.legend.testing.TestOutputs.file("judge-database.tsv") : null;
     }
 
     /** An input file named by {@code -D<property>}: an exec path in a build action (the corpus passes, P2-15), a

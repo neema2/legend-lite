@@ -47,8 +47,8 @@ final class OurResolutions {
     }
 
     static Result dump(String target, PrintWriter w) throws IOException {
-        Path engine = com.legend.testing.Upstream.engine();
-        Path pure = com.legend.testing.Upstream.pure();
+        Path engine = com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
+        Path pure = com.legend.testing.ProgramPaths.rootOf("legend.pure.root");
         List<ManifestWorldCensusTest.Module> world =
                 ManifestWorldCensusTest.closure(target, ManifestWorldCensusTest.manifests(engine, pure));
         List<Compiler.ModelSource> sources = new ArrayList<>();

@@ -1,6 +1,5 @@
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import com.legend.testing.Runfile;
 import com.legend.parser.ElementParser;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
@@ -254,7 +253,7 @@ class SectionParseSentinelTest {
         // "engine accepts, we refuse" bucket — the coverage debt — and a
         // capped list means you can quote 198 without ever seeing 198.
         failures.forEach(f -> report.append("  ").append(f).append('\n'));
-        Files.writeString(Repo.out("section-sentinel-report.txt"),
+        Files.writeString(com.legend.testing.TestOutputs.file("section-sentinel-report.txt"),
                 report.toString());
         System.out.println(report);
 

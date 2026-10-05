@@ -1,6 +1,5 @@
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import com.legend.testing.Runfile;
 import org.junit.jupiter.api.Test;
 
@@ -83,9 +82,9 @@ class SurfaceCensusTest {
             }
         }
         java.nio.file.Files.createDirectories(
-                Repo.outDir());
+                com.legend.testing.TestOutputs.dir());
         java.nio.file.Files.write(
-                Repo.out("surface-census.tsv"), census);
+                com.legend.testing.TestOutputs.file("surface-census.tsv"), census);
         assertTrue(missing.isEmpty(),
                 "ENGINE grammar surface we neither parse nor NAME in "
                 + "docs/parser-surface-exclusions.tsv: " + missing);
@@ -120,7 +119,7 @@ class SurfaceCensusTest {
      *  The 75 UNCLASSIFIED rows are the review backlog, family-bucketed. */
     @org.junit.jupiter.api.Test
     void everyG4KeywordIsSnapshotted() throws Exception {
-        java.nio.file.Path engineRoot = com.legend.testing.Upstream.engine();
+        java.nio.file.Path engineRoot = com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
         java.util.Set<String> snap = new java.util.HashSet<>();
         for (String line : java.nio.file.Files.readAllLines(
                 Runfile.property("ledger.g4-keyword-snapshot"))) {

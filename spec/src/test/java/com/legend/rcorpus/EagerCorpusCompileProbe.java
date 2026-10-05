@@ -110,7 +110,7 @@ public final class EagerCorpusCompileProbe {
         }
         // WORLD 2: the corpus + legend-pure's platform packages WHOLE (their
         // bodied FUNCTIONS, which the prelude does not carry) — what closes?
-        Path pure = com.legend.testing.Upstream.pure();
+        Path pure = com.legend.testing.ProgramPaths.rootOf("legend.pure.root");
         List<Compiler.ModelSource> w2 = new ArrayList<>(corpus.sources());
         for (String r : com.legend.generators.SpecBodyCensusTest.PLATFORM_ROOTS) {
             Path root = pure.resolve(r);

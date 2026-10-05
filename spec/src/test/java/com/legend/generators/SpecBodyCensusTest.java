@@ -3,7 +3,6 @@
 
 package com.legend.generators;
 
-import com.legend.testing.Repo;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
@@ -62,7 +61,7 @@ public class SpecBodyCensusTest {
         // ${user.home} default), and gate 1 passes the resolved roots — so
         // the census RUNS there and its shrink-only pin below is a standing
         // gate; the literal is only the IDE fallback
-        Path pure = com.legend.testing.Upstream.pure();
+        Path pure = com.legend.testing.ProgramPaths.rootOf("legend.pure.root");
         // PRECHECK ALL NINE ROOTS (upstream boundary batch 2): a missing
         // checkout skips (there is nothing to census); a PRESENT checkout
         // missing any one root FAILS, every miss named — a root that moved
@@ -98,7 +97,7 @@ public class SpecBodyCensusTest {
         // failing body's scope is its DECLARATION's: the signature ids of every
         // function these files declare, generated from each declaration
         // (SignatureMangle.mangle) — membership, never a test on a name
-        Path engine = com.legend.testing.Upstream.engine();
+        Path engine = com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
         java.util.Set<String> engineHalfIds = new java.util.HashSet<>();
         for (String r : UpstreamFiles.STDLIB_ENGINE_ROOTS) {
             Path root = engine.resolve(r);
@@ -222,8 +221,8 @@ public class SpecBodyCensusTest {
         out.add("## core_functions_* typing failures (shrink-only to zero): " + stdlibFailures.size());
         stdlibFailures.forEach((k, v) -> out.add(k + " :: " + v));
         out.add("");
-        Files.createDirectories(Repo.outDir());
-        Files.write(Repo.out("spec-body-census.txt"), out);
+        Files.createDirectories(com.legend.testing.TestOutputs.dir());
+        Files.write(com.legend.testing.TestOutputs.file("spec-body-census.txt"), out);
         System.out.println("[spec-census] files=" + fileCount + " loadWalls=" + loadWalls.size()
                 + " typedOK=" + ok.size() + " walled=" + walled.size() + " failed(UNWALLED)=" + failures.size()
                 + " nativesSkipped=" + natives);

@@ -3,7 +3,6 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
 import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -180,8 +179,8 @@ class IdentityGuardrailTest {
                 }
             }
         }
-        Files.createDirectories(Repo.outDir());
-        Files.write(Repo.out("identity-sites.tsv"), sites);
+        Files.createDirectories(com.legend.testing.TestOutputs.dir());
+        Files.write(com.legend.testing.TestOutputs.file("identity-sites.tsv"), sites);
         System.out.println("[identity-guardrail] " + counts);
         List<String> grew = new ArrayList<>();
         for (var e : counts.entrySet()) {

@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.legend.model.ParsedModel;
 import com.legend.parser.Dialect;
 import com.legend.parser.ElementParser;
-import com.legend.testing.Repo;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -22,14 +21,13 @@ import org.junit.jupiter.api.Test;
  *  current output, and the m3 reader prints every m3.pure class. */
 class PreludeGeneratorTest {
 
-    private static final Path OUT = CoreTree.resource("com/legend/builtin/prelude.pure");
 
     static Path engineRoot() {
-        return com.legend.testing.Upstream.engine();
+        return com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
     }
 
     static Path pureRoot() {
-        return com.legend.testing.Upstream.pure();
+        return com.legend.testing.ProgramPaths.rootOf("legend.pure.root");
     }
 
     @Test

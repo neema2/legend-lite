@@ -1,7 +1,6 @@
 package com.legend.equivalence;
 
 import java.io.PrintWriter;
-import com.legend.testing.Repo;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 
 import java.lang.reflect.Field;
@@ -46,7 +45,7 @@ public final class PmcdReachabilityCensus {
         // ---- tag -> class (and class -> subtypes) from every jar ----
         Map<String, String> tagToClass = new TreeMap<>();
         Map<String, Set<String>> parentToChildren = new HashMap<>();
-        for (java.nio.file.Path jarPath : com.legend.testing.Repo.listed("legend.engine.jars")) {
+        for (java.nio.file.Path jarPath : com.legend.testing.ProgramPaths.listed("legend.engine.jars")) {
             String entry = jarPath.toString();
             if (!entry.endsWith(".jar") || !entry.contains("legend-engine")) {
                 continue;

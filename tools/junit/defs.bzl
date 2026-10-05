@@ -8,7 +8,8 @@ file) with the same settings, so no target sets them on its own:
   * counts always printed, and a run that finds no tests FAILS — a PASSED line
     cannot otherwise tell a full suite from an empty one;
   * the upstream source trees, when asked for, as declared inputs with the
-    legend.engine.root / legend.pure.root properties pointing at them;
+    legend.engine.root.rlocation / legend.pure.root.rlocation properties naming the file at each root
+    (ProgramPaths.rootOf);
   * ONE number for memory, `memory_mb` (Bazel workplan P1-21): the scheduler's
     `resources:memory:<n>` tag and the JVM's -Xmx<n>m, so Bazel packs tests by what
     each JVM may actually use, and CI and the desk run the same command line (and
@@ -64,8 +65,8 @@ def junit_test(
             "@legend_pure_src//:pom.xml",
         ]
         flags += [
-            "-Dlegend.engine.root=$(rlocationpath @legend_engine_src//:pom.xml)",
-            "-Dlegend.pure.root=$(rlocationpath @legend_pure_src//:pom.xml)",
+            "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
+            "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         ]
     java_test(
         name = name,

@@ -27,7 +27,6 @@ class SubsumedRegistryTest {
      *  USER: a stub that types and is never consumed is not an implementation). */
     static final int SUBSUMED_MAX = 2;
 
-    static final Path MAIN = CoreTree.CORE.resolve("src/main/java");
 
     @Test
     @DisplayName("subsumed programs: not declared here, value dead, body cited — count shrink-only")

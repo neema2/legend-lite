@@ -3,7 +3,6 @@
 
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
@@ -268,7 +267,7 @@ class GrammarCoverageCensusTest {
                 .append(undriven.size()).append("):\n");
         undriven.forEach(g -> out.append("#   ").append(g).append('\n'));
         out.append('\n').append(uncoveredDetail);
-        Files.writeString(Repo.out("grammar-coverage.tsv"),
+        Files.writeString(com.legend.testing.TestOutputs.file("grammar-coverage.tsv"),
                 out.toString());
         System.out.println(out.toString().lines().limit(40)
                 .reduce("", (a, b) -> a + b + "\n"));
@@ -647,7 +646,7 @@ class GrammarCoverageCensusTest {
     private static Map<String, String> discoverParserGrammars()
             throws Exception {
         Map<String, String> found = new TreeMap<>();
-        for (java.nio.file.Path jarPath : com.legend.testing.Repo.listed("legend.engine.jars")) {
+        for (java.nio.file.Path jarPath : com.legend.testing.ProgramPaths.listed("legend.engine.jars")) {
             String cp = jarPath.toString();
             if (!cp.endsWith(".jar")) {
                 continue;

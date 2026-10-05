@@ -3,7 +3,6 @@
 
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import com.legend.testing.Runfile;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.antlr.v4.runtime.BaseErrorListener;
@@ -447,7 +446,7 @@ public class CorpusSweepTest {
                 asymRows, catalog, catalogByClass, stale);
         double calibration = calAccepted == 0 ? 0
                 : 100.0 * calAgree / calAccepted;
-        Files.writeString(Repo.out("m3-platform-differential.txt"),
+        Files.writeString(com.legend.testing.TestOutputs.file("m3-platform-differential.txt"),
                 "agree " + m3PlatformAgree + "; m3-only (PLATFORM GAP) "
                         + m3OnlyRows.size() + "\n"
                         + String.join("\n", m3OnlyRows));
@@ -459,7 +458,7 @@ public class CorpusSweepTest {
                 "m3-accepts-platform-refuses grew: " + m3OnlyRows.size()
                         + " > " + MAX_M3_ONLY_PLATFORM_GAPS
                         + " (see target/m3-platform-differential.txt)");
-        Files.writeString(Repo.out("message-parity.txt"),
+        Files.writeString(com.legend.testing.TestOutputs.file("message-parity.txt"),
                 "verbatim " + msgVerbatim + " richer " + msgRicher
                         + " genuine-mismatch " + msgMismatch.size()
                         + " / " + bothReject + "\n\n"
@@ -508,7 +507,7 @@ public class CorpusSweepTest {
                         + head(weRefuse)),
                 () -> {
                     try {
-                        java.nio.file.Files.write(Repo.out("model-refuse.tsv"), modelRefuse);
+                        java.nio.file.Files.write(com.legend.testing.TestOutputs.file("model-refuse.tsv"), modelRefuse);
                     } catch (java.io.IOException ignored) {
                         // diagnostic artifact only
                     }
@@ -957,11 +956,11 @@ public class CorpusSweepTest {
         docDiffs.stream().limit(15).forEach(d ->
                 eq.append("  DIFF ").append(d).append('\n'));
         try {
-            java.nio.file.Files.write(Repo.out("we-refuse.tsv"), weRefuse);
+            java.nio.file.Files.write(com.legend.testing.TestOutputs.file("we-refuse.tsv"), weRefuse);
         } catch (java.io.IOException ignored) {
             // diagnostic artifact only
         }
-        Files.writeString(Repo.out("equivalence-report.txt"),
+        Files.writeString(com.legend.testing.TestOutputs.file("equivalence-report.txt"),
                 eq.toString());
 
         StringBuilder seam = new StringBuilder();
@@ -980,7 +979,7 @@ public class CorpusSweepTest {
                 seam.append("  ENGINE-ASYM ").append(d).append('\n'));
         seamAccepts.stream().limit(400).forEach(d ->
                 seam.append("  SPI-ACCEPTS ").append(d).append('\n'));
-        Files.writeString(Repo.out("spi-seam-report.txt"),
+        Files.writeString(com.legend.testing.TestOutputs.file("spi-seam-report.txt"),
                 seam.toString());
 
         StringBuilder asym = new StringBuilder();
@@ -991,12 +990,12 @@ public class CorpusSweepTest {
         asym.append("\n# id\tcategory\taccepting-surfaces\toracle-message\n");
         asymRows.stream().sorted().forEach(r ->
                 asym.append(r).append('\n'));
-        Files.writeString(Repo.out("refusal-asymmetry.tsv"),
+        Files.writeString(com.legend.testing.TestOutputs.file("refusal-asymmetry.tsv"),
                 asym.toString());
 
-        Files.writeString(Repo.out("platform-coverage-catalog.txt"),
+        Files.writeString(com.legend.testing.TestOutputs.file("platform-coverage-catalog.txt"),
                 "by class: " + catalogByClass + "\n" + catalog);
-        Files.writeString(Repo.out("strict-oracle-asymmetry.txt"),
+        Files.writeString(com.legend.testing.TestOutputs.file("strict-oracle-asymmetry.txt"),
                 String.join("\n", strictAsymmetryIds));
         if (!stale.isEmpty()) {
             System.out.println("refusal-allowlist STALE rows (fixed parity —"

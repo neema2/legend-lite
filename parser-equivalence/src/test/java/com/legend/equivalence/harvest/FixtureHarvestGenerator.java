@@ -15,8 +15,8 @@ import java.util.List;
  *
  * <pre>
  *   FixtureHarvestGenerator &lt;output&gt;
- *     -Dlegend.engine.root  the pinned engine tree (tier 2's sources)
- *     -Dlegend.repo.root / -Dlegend.repo.module  the tree the recorder reads the pin from
+ *     -Dlegend.engine.root  the pinned engine tree (tier 2's sources), by the file at its root
+ *     -Doracle.pins         the pins the recorder stamps the dump with
  * </pre>
  *
  * The classpath is the harvest's own (parser-equivalence's :harvest_lib): the
@@ -39,7 +39,7 @@ public final class FixtureHarvestGenerator {
         // the grammar and compiler tests-jars, in that order: declared by the BUILD
         // file (java_jars), not found on the class path
         List<String> testJars = new ArrayList<>();
-        for (Path jar : com.legend.testing.Repo.listed("legend.harvest.jars")) {
+        for (Path jar : com.legend.testing.ProgramPaths.listed("legend.harvest.jars")) {
             testJars.add(jar.toString());
         }
         if (testJars.size() != 2) {
@@ -53,7 +53,7 @@ public final class FixtureHarvestGenerator {
         System.out.println("@@ tier 1 " + FixtureHarvest.tier1(testJars, loader));
 
         Path t2 = work.resolve("tier2-classes");
-        FixtureHarvest.compileTier2(com.legend.testing.Upstream.engine(), t2, classpath, System.out);
+        FixtureHarvest.compileTier2(com.legend.testing.ProgramPaths.rootOf("legend.engine.root"), t2, classpath, System.out);
         System.out.println("@@ tier 2 " + FixtureHarvest.tier2(t2, loader));
 
         String snapshot = FixtureHarvest.snapshot(dump);

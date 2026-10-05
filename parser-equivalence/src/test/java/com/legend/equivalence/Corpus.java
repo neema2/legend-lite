@@ -1,6 +1,5 @@
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,11 +26,11 @@ public final class Corpus {
     }
 
     public static Path engineRoot() {
-        return com.legend.testing.Upstream.engine();
+        return com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
     }
 
     public static Path pureRoot() {
-        return com.legend.testing.Upstream.pure();
+        return com.legend.testing.ProgramPaths.rootOf("legend.pure.root");
     }
 
     /** One unit of input: a source file, its text, and where it came from. */
