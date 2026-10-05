@@ -63,6 +63,7 @@ async function loop(browser, name, query) {
     // 2. a workspace on trading: it compiles in the tab, with its dependencies from Depot
     await page.getByTestId('new-workspace').click();
     await page.locator('.dialog input').fill('dev');
+    await shot('1-dialog');
     await page.locator('.dialog .btn-primary').click();
     await page.waitForSelector('[data-testid=explorer] .element');
     await waitCompiled();

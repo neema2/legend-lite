@@ -1,5 +1,8 @@
 // A small DOM builder: `h('div', { class: 'x', onclick }, child, 'text')`.
 
+import { icon } from '../../../legend-art/src/icon.ts';
+import type { IconName } from '../../../legend-art/src/icons.ts';
+
 type Child = Node | string | null | undefined | false;
 type Attrs = Record<string, string | number | boolean | EventListener | undefined | null>;
 
@@ -54,13 +57,34 @@ export function dialog<T>(title: string, body: HTMLElement, read: () => { ok: T 
   });
 }
 
-/** A short-lived message at the bottom of the window. */
-export function toast(message: string, kind: 'info' | 'error' = 'info'): void {
-  let stack = document.querySelector('.toasts');
-  if (!stack) document.body.append(stack = h('div', { class: 'toasts' }));
-  const t = h('div', { class: `toast toast-${kind}` }, message);
-  stack.append(t);
-  setTimeout(() => t.remove(), kind === 'error' ? 8000 : 3000);
+/** The toast now showing, and its timer: upstream shows one at a time, a new one replacing it. */
+let shown: { readonly el: HTMLElement; readonly timer: ReturnType<typeof setTimeout> | undefined } | undefined;
+
+const SEVERITY: Record<'info' | 'success' | 'error', [IconName, string]> = {
+  info: ['info', 'Info'],
+  success: ['checkCircle', 'Success'],
+  error: ['timesCircle', 'Error'],
+};
+
+/**
+ * A notification, as upstream's (census 10): one at a time at the bottom right, clear of the status bar -- the
+ * severity's icon, the message (one line; a click copies it) and Dismiss. Info and success hide after 6 s; an
+ * error stays until dismissed (upstream's notifyError passes no duration).
+ */
+export function toast(message: string, kind: 'info' | 'success' | 'error' = 'info'): void {
+  const dismiss = (): void => {
+    if (shown?.timer !== undefined) clearTimeout(shown.timer);
+    shown?.el.remove();
+    shown = undefined;
+  };
+  dismiss();
+  const [glyph, label] = SEVERITY[kind];
+  const el = h('div', { class: `toast toast-${kind}`, role: kind === 'error' ? 'alert' : 'status' },
+    h('div', { class: 'toast__icon', title: label }, icon(glyph, '16px')),
+    h('div', { class: 'toast__message', title: 'Click to Copy', onclick: () => void navigator.clipboard?.writeText(message).catch(() => undefined) }, message),
+    h('button', { class: 'toast__action', title: 'Dismiss', onclick: dismiss }, icon('times')));
+  document.body.append(el);
+  shown = { el, timer: kind === 'error' ? undefined : setTimeout(dismiss, 6000) };
 }
 
 /** One entry of a {@link menu}. */

@@ -24,28 +24,47 @@ button { font: inherit; color: inherit; }
 .loading, .fatal { padding: 48px; color: var(--text-dim); }
 .fatal-title { font-size: 18px; color: var(--text); margin-bottom: 8px; }
 
-/* buttons, inputs */
-.btn { background: var(--bg-4); border: 1px solid var(--line); border-radius: 3px; padding: 5px 12px; cursor: pointer; }
-.btn:hover { background: #3d4350; }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn-primary:hover { background: var(--accent-2); }
-.btn-small { padding: 2px 8px; font-size: 12px; }
-.input { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; padding: 6px 8px; color: var(--text); font: inherit; }
-.input:focus { outline: 1px solid var(--accent); }
-.form { display: flex; flex-direction: column; gap: 10px; min-width: 380px; }
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field-label { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim); }
+/* buttons (census 9.3, legend-art _button.scss): .btn is upstream's btn--medium (the secondary chip),
+   .btn-primary its btn--dark (accent, a focus ring); flat, 1px radius, no animation */
+.btn { display: inline-flex; align-items: center; justify-content: center; height: 28px; padding: 0 10px; border: 0; border-radius: 1px; background: var(--color-bg-panel-header); color: var(--color-text-primary); cursor: pointer; }
+.btn:hover { background: var(--color-bg-hover); }
+.btn-primary { background: var(--color-accent); color: var(--color-text-on-accent); }
+.btn-primary:hover { background: var(--color-accent-hover); }
+.btn-primary:focus { outline: 1px solid var(--color-border-focus); outline-offset: 1px; }
+.btn[disabled], .btn[disabled]:hover { background: var(--color-bg-tag); color: var(--color-text-disabled); cursor: not-allowed; }
+.btn-small { height: 22px; padding: 0 8px; font-size: 12px; }
+/* inputs (9.4: input--dark): 28px, the panel grey, a border that turns accent on focus */
+.input { width: 100%; height: 28px; padding: 0 5px; border: 1px solid var(--color-border-default); border-radius: 0; background: var(--color-bg-panel); color: var(--color-text-primary); font: inherit; }
+textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
+.input::placeholder { color: var(--color-text-disabled); }
+.input:hover { border-color: var(--color-border-strong); }
+.input:focus { outline: none; border-color: var(--color-border-focus); }
+.input[disabled] { color: var(--color-text-disabled); }
+/* a form section (9.4): the label 500 in primary text, sentence case */
+.form { display: flex; flex-direction: column; gap: 20px; min-width: 380px; }
+.field { display: flex; flex-direction: column; }
+.field-label { margin-bottom: 5px; line-height: 20px; font-weight: 500; color: var(--color-text-primary); }
 
-/* dialog and toast */
-.overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, .5); display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; z-index: 100; }
-.dialog { background: var(--bg-2); border: 1px solid var(--line); border-radius: 4px; padding: 16px; box-shadow: 0 8px 32px rgba(0, 0, 0, .5); max-width: 640px; }
-.dialog-title { font-size: 15px; font-weight: 500; margin-bottom: 12px; }
-.dialog-error { color: var(--error); min-height: 18px; margin-top: 6px; }
-.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-.dialog-list { font-family: var(--mono); font-size: 12px; max-height: 200px; overflow: auto; background: var(--bg); padding: 6px 8px; border-radius: 3px; }
-.toasts { position: fixed; bottom: 36px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; z-index: 200; }
-.toast { background: var(--bg-4); border: 1px solid var(--line); padding: 8px 16px; border-radius: 3px; max-width: 70vw; }
-.toast-error { border-color: var(--error); color: #ffd0d0; }
+/* dialogs (9.1-9.2): at the top of the window (34px down), on the dark modal with the accent border; the title
+   18px / 700; the actions right-aligned */
+.overlay { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 34px; background: rgba(0, 0, 0, .5); z-index: 100; }
+.dialog { width: 600px; max-width: calc(100vw - 32px); max-height: calc(100% - 64px); overflow: auto; padding: 10px; border: 1px solid var(--color-accent); border-radius: 4px; background: var(--color-bg-app); color: var(--color-text-secondary); box-shadow: 0 11px 15px -7px rgba(0, 0, 0, .2), 0 24px 38px 3px rgba(0, 0, 0, .14), 0 9px 46px 8px rgba(0, 0, 0, .12); }
+.dialog-title { margin-bottom: 10px; font-size: 18px; font-weight: 700; color: var(--color-text-primary); }
+.dialog-error { min-height: 18px; margin-top: 6px; color: var(--color-status-error); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 5px; margin-top: 10px; }
+.dialog-list { max-height: 200px; overflow: auto; padding: 6px 8px; background: var(--color-bg-panel); font-family: var(--font-mono); font-size: 12px; }
+
+/* the notification (census 10): one at a time, bottom right clear of the status bar; elevated, 12px; the
+   severity's icon, the message on one line, Dismiss */
+.toast { position: fixed; right: 10px; bottom: 30px; z-index: 200; display: flex; align-items: flex-start; max-width: 600px; padding: 6px 16px; border-radius: 3px; background: var(--color-bg-elevated); color: var(--color-text-primary); font-size: 12px; box-shadow: 0 3px 5px -1px rgba(0, 0, 0, .2), 0 6px 10px 0 rgba(0, 0, 0, .14), 0 1px 18px 0 rgba(0, 0, 0, .12); }
+.toast__icon { display: flex; padding: 2px 10px 0 0; }
+.toast-info .toast__icon { color: var(--color-status-info); }
+.toast-success .toast__icon { color: var(--color-status-success); }
+.toast-error .toast__icon { color: var(--color-status-error); }
+.toast__message { flex: 1; min-width: 0; padding: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.toast__message:active { background: var(--color-bg-panel); }
+.toast__action { display: flex; align-items: center; justify-content: center; width: 20px; margin-left: 10px; padding: 2px 0; border: 0; background: none; color: var(--color-text-muted); cursor: pointer; }
+.toast__action:hover { color: var(--color-text-primary); }
 
 /* setup */
 .setup { height: 100%; display: flex; flex-direction: column; }
@@ -131,7 +150,6 @@ button { font: inherit; color: inherit; }
 .dep-name.version { flex-shrink: 0; word-break: normal; }
 .button-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .review-title { font-weight: 500; }
-.btn[disabled] { opacity: .45; cursor: default; }
 
 .main { grid-row: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 /* the tab bar (census 4.1): 34px on the panel grey; an inactive tab on the header grey, the active one on the

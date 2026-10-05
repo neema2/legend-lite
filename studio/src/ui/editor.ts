@@ -431,7 +431,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     resync(renamed);
     renderSide();
     renderStatus();
-    toast(`Saved: ${ws.revision?.id.slice(0, 8) ?? ''}`);
+    toast(`Saved: ${ws.revision?.id.slice(0, 8) ?? ''}`, 'success');
     void compile();
   };
 

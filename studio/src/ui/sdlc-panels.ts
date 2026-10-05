@@ -118,7 +118,7 @@ export async function renderProject(root: HTMLElement, ctx: PanelContext): Promi
   const release = (type: NewVersionType) => async (): Promise<void> => {
     try {
       const v = await ctx.client.createVersion(ctx.project, { versionType: type, revisionId: line.id, notes: notes.value.trim() || null });
-      toast(`Released ${versionText(v.id)}`);
+      toast(`Released ${versionText(v.id)}`, 'success');
       await renderProject(root, ctx);
     } catch (e) {
       toast(message(e), 'error');
