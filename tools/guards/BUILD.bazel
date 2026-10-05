@@ -3,6 +3,7 @@
 load("@repo_inventory//:packages.bzl", "PACKAGES")
 load(":compile_only.bzl", "action_kinds_report")
 load(":defs.bzl", "guards_package")
+load("//tools/deps:pools.bzl", "POOLS")
 load("//tools/junit:defs.bzl", "junit_test")
 
 # Every package's files (guards_package), from the inventory's package list: a package without guards_package()
@@ -37,7 +38,11 @@ junit_test(
     size = "small",
     srcs = ["LocksTest.java"],
     data = ["//:module_files"],
-    env = {"MODULE_FILES": "$(rlocationpaths //:module_files)"},
+    # the pools tools/deps/pools.bzl names: the maven.install calls found must be exactly these
+    env = {
+        "MODULE_FILES": "$(rlocationpaths //:module_files)",
+        "POOLS": " ".join(POOLS),
+    },
     select = ["--select-class=com.legend.tools.guards.LocksTest"],
     deps = [
         "//testing",

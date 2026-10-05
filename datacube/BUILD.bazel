@@ -372,7 +372,7 @@ legend_java_library(
         "//json",
     ],
     # the DuckDB DataCube meets -- the warehouse's 1.5.x, as the tab's DuckDB-WASM is -- not core's 1.4.4
-    runtime_deps = ["@maven_warehouse//:org_duckdb_duckdb_jdbc"],
+    runtime_deps = ["@duckdb_jdbc_warehouse//jar"],
 )
 
 java_run(

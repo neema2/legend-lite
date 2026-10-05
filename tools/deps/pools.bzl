@@ -14,14 +14,13 @@ first-party Java targets: legend_java_library, legend_java_binary, junit_test, j
 outside them are not checked here; a graph-wide check over every package comes with P6-00's inventory. Core
 itself reaches no outside jar at all: //tools/deps:core_closure_test.
 
-Adding a user is a reviewed edit here, with the reason.
+Adding a user is a reviewed edit here, with the reason. The product's jars (JDBC drivers, the warehouse's DuckDB) are not
+pools: Bazel's http_jar fetches them (jars.bzl, which names each one's users), and check_pool_use holds them to it too.
 """
 
+load(":jars.bzl", "JARS", "jar_of_label")
+
 POOL_USERS = {
-    # core's JDBC drivers: core's own targets, and spec, which runs the corpus through them
-    "maven_core": ["core", "spec"],
-    # H2 2.4.240, the alternative H2 one PCT lane runs on
-    "maven_h2_modern": ["pct"],
     # legend-engine's execution stack, for the engine runner tool only
     "maven_runner": ["tools/engine-runner"],
     # TeaVM: the WebAssembly compiler and the class library the planner compiles against; and sdlc-server, whose
@@ -38,8 +37,6 @@ POOL_USERS = {
     # reference-checkout tenet); in tools/junit only runner_test, which takes JUnit 4 from here for its JUnit 3
     # fixtures (tools/junit:junit is on every test's classpath, so the package as a whole is not a user)
     "maven_upstream": ["parser-equivalence", "pct", "tools/junit:runner_test", "tools/par", "tools/reference"],
-    # DuckDB's JDBC driver for the warehouse and the app built on it
-    "maven_warehouse": ["datacube", "warehouse"],
 }
 
 POOLS = sorted(POOL_USERS.keys())
@@ -70,7 +67,17 @@ def check_pool_use(name, *label_lists):
         for label in labels:
             # every spelling (@maven_x//:y, @@rules_jvm_external++maven+maven_x//:y, a per-jar repository) resolves
             # to one canonical repository; an unknown ++maven+ repository fails closed below
-            pool = _pool_of_label(native.package_relative_label(label))
+            resolved = native.package_relative_label(label)
+            jar = jar_of_label(resolved)
+            if jar:
+                if jar not in JARS:
+                    fail("%s uses %s, a product jar tools/deps/jars.bzl does not list" % (what, label))
+                users = JARS[jar].users
+                if package not in users and "%s:%s" % (package, name) not in users:
+                    fail(("%s depends on @%s, which only %s may use (tools/deps/jars.bzl): add it there, with the " +
+                          "reason, if it really needs that jar") % (what, jar, ", ".join(["//" + u for u in users])))
+                continue
+            pool = _pool_of_label(resolved)
             if not pool:
                 continue
             users = POOL_USERS.get(pool)

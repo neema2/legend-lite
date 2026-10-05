@@ -118,7 +118,7 @@ legend_java_library(
         "//base",
         "//json",
         "//testing",
-        "@maven_warehouse//:org_duckdb_duckdb_jdbc",
+        "@duckdb_jdbc_warehouse//jar",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
@@ -263,7 +263,7 @@ junit_test(
 jar_entry(
     name = "duckdb_library",
     entry = _DUCKDB_LIBRARY,
-    jar = "@maven_warehouse//:org_duckdb_duckdb_jdbc",
+    jar = "@duckdb_jdbc_warehouse//jar",
     target_compatible_with = _DUCKDB_LIBRARY_COMPATIBLE,
 )
 

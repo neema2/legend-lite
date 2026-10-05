@@ -32,6 +32,7 @@ class CompileOnlyTest {
             "java_library Turbine", "a library's header jar, what its dependents compile against",
             "java_library JavaSourceJar", "a library's source jar, registered beside its compile",
             "java_library JavaResourceJar", "a library's resources, packed into its jar",
+            "java_import JavaIjar", "Bazel's interface jar of a product jar (tools/deps/jars.bzl, http_jar)",
             "jvm_import StampJarManifest", "rules_jvm_external labels a Maven jar's manifest (its runtime jar)",
             "jvm_import CreateCompileJar", "rules_jvm_external's compile-only copy of a Maven jar",
             "_copy_file Symlink", "a file linked into place (a Maven jar's extension, a header)");
