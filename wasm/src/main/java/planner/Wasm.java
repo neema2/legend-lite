@@ -202,6 +202,24 @@ public final class Wasm {
     }
 
     /**
+     * {@code jsonToGrammar/model}'s twin (docs/STUDIO_FULL_PLAN_2026_10_04.md, B1): a model's protocol JSON
+     * ({@code {"_type":"data","elements":[...]}}, with or without its section index) as Pure text, byte for
+     * byte as legend-engine prints it, or the refusal naming the element kind lite cannot print yet.
+     */
+    @org.teavm.jso.JSExport
+    public static String jsonToGrammarModelOrError(String modelJson) {
+        try {
+            com.legend.json.Json.Node n = com.legend.json.Json.parse(modelJson, new com.legend.json.Json.Config(4096));
+            if (!(n instanceof com.legend.json.Json.Obj o)) {
+                throw new IllegalArgumentException("model JSON: not a JSON object");
+            }
+            return "OK\n" + com.legend.protocol.ModelComposer.model(o);
+        } catch (RuntimeException | StackOverflowError e) {
+            return folded(e);
+        }
+    }
+
+    /**
      * E1's twin: Pure text to its lambda JSON, without source information (text without a
      * leading {@code |} is wrapped in a parameterless lambda, as the engine does). How a
      * user-typed fragment -- a calculated column, a custom filter -- joins a query built as JSON.
