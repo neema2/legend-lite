@@ -45,7 +45,6 @@ class DirectPort implements PlannerPort {
       case 'warm': e.warmModel!(r.model); return 'OK\n';
       case 'compile': return e.compileOrError!(r.model) as string;
       case 'testPlan': return e.testPlanOrError!(r.model, r.service) as string;
-      case 'judge': return e.judgeJsonOrError!(r.expected, r.actual) as string;
     }
   }
 }

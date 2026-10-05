@@ -131,10 +131,10 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
       await (await start()).tables.load(model.elements as Parameters<TabTables['load']>[0]);
     },
     tabTables: async () => (await start()).tables,
-    // tests in the tab (plan A4): core's plan and judgment, the in-tab engine, the tab's DuckDB
+    // tests in the tab (plan A4): core's plan, the in-tab engine, the tab's DuckDB (judging waits on core's library)
     testHost: async () => {
       const tab = await start();
-      return { testPlan: (code, service) => grammar.testPlan(code, service), judge: (expected, actual) => grammar.judge(expected, actual), engine: tab.engine, data: tab.data };
+      return { testPlan: (code, service) => grammar.testPlan(code, service), engine: tab.engine, data: tab.data };
     },
   };
 }

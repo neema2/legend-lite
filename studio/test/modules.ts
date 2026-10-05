@@ -39,7 +39,6 @@ class DirectPort implements PlannerPort {
       case 'modelJson': return e.modelJsonOrError!(r.text) as string;
       case 'compile': return e.compileOrError!(r.model) as string;
       case 'testPlan': return e.testPlanOrError!(r.model, r.service) as string;
-      case 'judge': return e.judgeJsonOrError!(r.expected, r.actual) as string;
       case 'lambdaJson': return e.lambdaJsonOrError!(r.text) as string;
       case 'compose': return e.composeLambdaOrError!(r.lambda, r.style) as string;
       case 'relationType': return e.relationTypeJsonOrError!(r.model, r.lambda) as string;
