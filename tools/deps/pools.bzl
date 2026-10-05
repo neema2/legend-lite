@@ -31,7 +31,7 @@ POOL_USERS = {
     "maven_teavm": ["sdlc-server", "tools/teavm", "warehouse", "wasm"],
     # test tooling: JUnit, ArchUnit; for the packages with tests. sdlc-server also takes JGit from here, the judge
     # of the git repository it writes by hand (2026-10-04, the Studio line: no host git in tests)
-    "maven_test": ["core", "json", "parser-equivalence", "pct", "sdlc-server", "spec", "tools/bump", "tools/deps", "tools/engine-runner", "tools/guards", "tools/junit", "warehouse"],
+    "maven_test": ["core", "json", "parser-equivalence", "pct", "sdlc-server", "spec", "tools/bump", "tools/deps", "tools/engine-runner", "tools/guards", "tools/junit", "tools/legend", "warehouse"],
     # compiler plugins (NullAway), never on a classpath
     "maven_tools": ["tools/nullaway"],
     # legend-engine and legend-pure: TEST INPUTS ONLY, for the packages that referee lite against them (AGENTS.md,

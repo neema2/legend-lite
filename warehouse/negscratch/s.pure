@@ -1,0 +1,10 @@
+###Relational
+Database r::Store
+(
+  Table L (K VARCHAR(10) PRIMARY KEY, V INTEGER)
+  View V
+  (
+    K: L.K PRIMARY KEY,
+    N: L.V
+  )
+)

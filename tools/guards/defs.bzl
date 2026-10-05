@@ -16,6 +16,9 @@ _JUNIT_MACROS = [
     "junit_test",
     # spec/corpus.bzl: a corpus lane's host-judge action and its test (Bazel workplan P3-01)
     "corpus_lane",
+    # tools/legend/defs.bzl: a Legend model project's compile check, and the graph's (Bazel workplan P3-23)
+    "legend_library",
+    "legend_graph_test",
 ]
 
 # The JVM tests that are not junit_tests, each with its reason (G16's allowlist).

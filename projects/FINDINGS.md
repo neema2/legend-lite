@@ -109,3 +109,31 @@ corrections rather than quietly dropping:
 * **The same column is two widths on either side of a join.** `INSTRUMENT_ID` is `VARCHAR(60)`
   in position-keeping and `VARCHAR(20)` in valuation-core; the join across them compiles.
   Whichever side is narrower is the one that truncates, and nothing says so at compile time.
+
+## legend-lite, found by `bazel test //projects:all` (Bazel workplan P3-23)
+
+Every project is compiled by legend-lite alone with its declared closure, and the graph together
+(`tools/legend/defs.bzl`). A failure is quarantined in `projects/BUILD.bazel` (`QUARANTINE`) with
+its row here; the quarantined test holds the project to the recorded failure and turns red when
+legend-lite compiles it, so the row comes out then.
+
+* **F-L1 (2026-10-05): a view declared inside a `Schema` is lifted twice.** Quarantined:
+  `firm-balance-sheet` (its views are in `Schema fbs`), which the graph test leaves out until then. The smallest model that
+  fails:
+
+      ###Relational
+      Database r::Store
+      (
+        Schema s
+        (
+          Table L (K VARCHAR(10) PRIMARY KEY, V INTEGER)
+          View V ( K: s.L.K PRIMARY KEY, N: s.L.V )
+        )
+      )
+
+  `function 'r::Store$view$s.V' is defined more than once with the same signature`. The same
+  view outside a schema compiles. Cause: `DatabaseDefinition.views()` is the flat mirror of
+  EVERY schema's views, and `ModelBuilder`'s view index walks it and then each schema's views,
+  so a schema view is declared twice (`LiftedViews` then lifts it twice).
+  `DatabaseDefinition.defaultSchemaViews()` exists for exactly this walk; the index should read
+  it. Not fixed here: it is a compiler change outside the Bazel program's files.

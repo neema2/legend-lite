@@ -1,0 +1,4 @@
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/legend:defs.bzl", "legend_library")
+legend_library(name = "r", srcs = glob(["*.pure"]))
+guards_package()

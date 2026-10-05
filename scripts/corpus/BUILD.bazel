@@ -85,7 +85,7 @@ _ENV = {
 
 # Only what the generators read (Bazel workplan P2-03): the queries, the layout, the hand-written stress files and
 # the LINKED projects, not every project. The .pure files are also passed as --inputs, the only files read.
-_LINKED = ["//projects:" + p for p in LINKED_PROJECTS]
+_LINKED = ["//projects:%s_files" % p for p in LINKED_PROJECTS]
 
 _INPUTS = [
     "queries.pure",

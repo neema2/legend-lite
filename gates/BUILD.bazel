@@ -33,6 +33,8 @@ test_suite(
         # PCT's discipline guard (no comparison machinery in the module): seconds, and it turned main red once
         # when only CI ran it (2026-10-05)
         "//pct:pct_discipline",
+        # the model projects: each compiled alone with its declared closure, the graph, the contract (P3-23)
+        "//projects:tests",
         # the corpus ratchets (P2-04)
         "//scripts/corpus:density_gate",
         "//scripts/corpus:executed_gate",

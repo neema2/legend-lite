@@ -1,0 +1,18 @@
+# legend_library (defs.bzl): a Legend model project as a target, compiled alone with its declared dependencies, and
+# legend_graph_test, several compiled together (Bazel workplan P3-23). CompilesTest is the one check both run.
+load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/guards:defs.bzl", "guards_package")
+
+legend_java_library(
+    name = "compiles_test_lib",
+    testonly = True,
+    srcs = ["src/test/java/com/legend/tools/legend/CompilesTest.java"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//core",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+guards_package()
