@@ -25,6 +25,19 @@ export interface PageConfig {
   readonly user: string;
   /** The projects a saved query can belong to, as the Query app's config.json names them. */
   readonly projects: readonly ProjectConfig[];
+  /**
+   * Where a saved query's project is opened by name when `projects[]` has none (design Phase 3): a Depot --
+   * `"sdlc": "page"`, the one this origin's pages share (what Studio publishes), or a model home's server -- and the
+   * SQL that puts those projects' rows in this tab's DuckDB (`seed`, URLs relative to config.json). Absent: none.
+   */
+  readonly depot?: DepotConfig;
+}
+
+export interface DepotConfig {
+  readonly sdlc: string;
+  /** Where the page's SDLC module is served (`<vendor>sdlc/`), for `"page"`. */
+  readonly vendor: string;
+  readonly seed: readonly string[];
 }
 
 /**
@@ -64,6 +77,15 @@ function projects(v: unknown, base: string): ProjectConfig[] {
   });
 }
 
+
+/** `depot`, when it names an SDLC (`"page"` or a URL); its vendor and seed URLs relative to config.json. */
+function depot(v: unknown, base: string): DepotConfig | undefined {
+  if (typeof v !== 'object' || v === null) return undefined;
+  const o = v as Record<string, unknown>;
+  const sdlc = text(o['sdlc']);
+  if (!sdlc) return undefined;
+  return { sdlc, vendor: text(o['vendor']) || './vendor/', seed: texts(o['seed']).map((u) => new URL(u, base).href) };
+}
 function text(v: unknown): string {
   return typeof v === 'string' ? v.trim() : '';
 }
@@ -81,9 +103,11 @@ export async function pageConfig(location: Location = window.location): Promise<
     const r = await fetch(url, { cache: 'no-cache' });
     if (r.ok) {
       const raw = await r.json() as Record<string, unknown>;
+      const byName = depot(raw['depot'], url.href);
       file = {
         legendLite: text(raw['legendLite']), legendEngine: text(raw['legendEngine']), warehouse: text(raw['warehouse']),
         queryStore: text(raw['queryStore']), user: text(raw['user']), projects: projects(raw['projects'], url.href),
+        ...(byName ? { depot: byName } : {}),
       };
     }
   } catch {
@@ -97,5 +121,6 @@ export async function pageConfig(location: Location = window.location): Promise<
     queryStore: text(q.get('queryStore')) || file.queryStore,
     user: file.user,
     projects: file.projects,
+    ...(file.depot ? { depot: file.depot } : {}),
   };
 }

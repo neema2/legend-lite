@@ -1,0 +1,13 @@
+load("//tools/guards:defs.bzl", "guards_package")
+
+# Rows for the demo model's databases (studio/demo/projects: the model Studio publishes into Depot), for the apps
+# that open it by name and run it in the tab: one source, each site copies it beside its own demo files.
+exports_files(
+    ["party-seed.sql"],
+    visibility = [
+        "//datacube:__pkg__",
+        "//query:__pkg__",
+    ],
+)
+
+guards_package()
