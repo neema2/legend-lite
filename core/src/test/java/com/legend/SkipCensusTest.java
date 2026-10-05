@@ -70,11 +70,6 @@ class SkipCensusTest {
             // our side of the reference differential (2026-09-25): a MEASUREMENT
             // program, opt-in by -Dour.resolutions=<module>; skips in the chain
             "OurResolutionsTest.java",
-            // the dynafunction registry (upstream boundary batch 5 audit,
-            // 2026-09-11): skips only when the legend-engine checkout is
-            // absent — the enum is compared EXHAUSTIVELY with the engine's
-            // dynaFnToSql registries, which live in that checkout
-            "DynaFnRegistryTest.java",
             // batch 5 audit remainder (2026-09-11): the implicit-import sequence
             // and the PlatformTypes spelling parity — both read the checkouts,
             // both skip only when a checkout is absent
@@ -95,7 +90,6 @@ class SkipCensusTest {
             // roots_present + skipped() detection is the loud
             // back-stop that keeps the skip from reading as a pass.
             "CorpusCensusTest.java",
-            "CorpusManifestTest.java",
             "CorpusSweepTest.java",
             "MigrationSizingTest.java",
             "OwnDialectCensusTest.java",

@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * GENERATES corpus-manifest.tsv — one row per distinct corpus source: the SHA-256
- * of its text, its tier, its id ({@link CorpusManifestTest} says why the corpus is
+ * of its text, its tier, its id (//parser-equivalence:update_generated diff-tests it; see the manifest's header for why the corpus is
  * pinned as data). The corpus includes tier C6, the engine fixture snapshot, so in
  * a bump the manifest is generated from the NEW snapshot
  * ({@code -Dlegend.engine.fixtures}, parser-equivalence's :gen_manifest).

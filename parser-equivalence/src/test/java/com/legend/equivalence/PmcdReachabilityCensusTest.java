@@ -120,14 +120,9 @@ class PmcdReachabilityCensusTest {
         }
 
         // ---- verdicts over the uncovered set ----
-        // SELF-SUFFICIENT (user ruling 2026-08-21 — no skipping class
-        // on a gate roster): the roster this reads is materialized HERE
-        // when absent (DEEP_AUDIT §11c: this was a raw
-        // NoSuchFileException ERROR dependent on class run order).
-        Path roster = Repo.out("protocol-roster.txt");
-        if (!Files.exists(roster)) {
-            ProtocolRosterCensusTest.materializeRoster();
-        }
+        // the roster, as //parser-equivalence:gen_roster makes it (Bazel workplan P2-19: no test reads another
+        // test's output; this was ProtocolRosterCensusTest's file, regenerated here when absent)
+        Path roster = com.legend.testing.Runfile.property("pe.roster");
         List<String> lines = Files.readAllLines(roster);
         Map<String, List<String>> inScope = new TreeMap<>();
         int outOfScope = 0;

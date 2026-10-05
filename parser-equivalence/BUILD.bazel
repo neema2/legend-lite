@@ -141,13 +141,8 @@ junit_test(
     jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS,
     exclude_tags = [],
     runtime_deps = [":pe_tests_lib"],
-    # ProtocolRosterCensusTest's one assertion — the committed roster equals a
-    # fresh generation — IS //docs:update_generated's diff test for
-    # docs/protocol-roster.tsv (the gen_roster action, cached on its inputs); run
-    # here it parsed every corpus with the engine a second time (~35s). It stays
-    # in :diagnostics, which also writes the roster file the reachability census reads.
     select = ["--select-package=com.legend.equivalence"] + [
-        "--exclude-classname=.*\\." + c for c in _DIAGNOSTICS + ["ProtocolRosterCensusTest"]
+        "--exclude-classname=.*\\." + c for c in _DIAGNOSTICS
     ],
     upstream = True,
 )
@@ -155,10 +150,14 @@ junit_test(
 junit_test(
     name = "diagnostics",
     memory_mb = 2048,
-    data = _INPUTS + _FILE_DATA + [":engine_jars"],
-    jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS,
+    # the reachability census reads the roster as :gen_roster makes it (P2-19)
+    data = _INPUTS + _FILE_DATA + [
+        ":engine_jars",
+        ":gen_roster",
+    ],
+    jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS + ["-Dpe.roster=$(rlocationpath :gen_roster)"],
     runtime_deps = [":pe_tests_lib"],
-    select = ["--select-class=com.legend.equivalence." + c for c in _DIAGNOSTICS + ["ProtocolRosterCensusTest"]],
+    select = ["--select-class=com.legend.equivalence." + c for c in _DIAGNOSTICS],
     tags = ["manual"],
     upstream = True,
 )

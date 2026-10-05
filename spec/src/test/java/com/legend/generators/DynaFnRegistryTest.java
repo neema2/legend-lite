@@ -19,7 +19,6 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -51,20 +50,6 @@ class DynaFnRegistryTest {
 
     static Path engineRoot() {
         return com.legend.testing.Upstream.engine();
-    }
-
-    @Test
-    @DisplayName("the registry IS the engine's: every dynaFnToSql and type-inference name, with its dialects, and nothing else")
-    void registryMatchesTheCheckout() throws IOException {
-        Assumptions.assumeTrue(Files.isDirectory(engineRoot()), "legend-engine checkout not present");
-        TreeMap<String, DynaFnGenerator.Upstream> up = DynaFnGenerator.upstream(engineRoot());
-        TreeMap<String, DynaFnGenerator.Upstream> ours = new TreeMap<>();
-        for (DynaFn d : DynaFn.values()) {
-            TreeSet<String> ds = new TreeSet<>();
-            d.dialects().forEach(x -> ds.add(x.name()));
-            ours.put(d.dynaName(), new DynaFnGenerator.Upstream(ds, d.inference() == DynaFn.Inference.MAPPED));
-        }
-        assertEquals(up, ours, "DynaFn drifted from the checkout's registries — regenerate: bazel run //:update_generated");
     }
 
     @Test
