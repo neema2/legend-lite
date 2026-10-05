@@ -587,6 +587,21 @@ http_archive(
     urls = ["https://registry.npmjs.org/react-icons/-/react-icons-5.5.0.tgz"],
 )
 
+# Upstream Legend's type (legend-art _fonts.scss): Roboto, Roboto Mono and Raleway, at the @fontsource version the
+# apps used to take from npm (5.3.0), each pinned by the registry's own sha512. //legend-art:fonts serves the files
+# the apps use (OFL-1.1, the LICENSE beside them); no font is checked in.
+[http_archive(
+    name = "fontsource_" + family.replace("-", "_"),
+    build_file_content = 'exports_files(glob(["files/*.woff2"]) + ["LICENSE"])',
+    integrity = integrity,
+    strip_prefix = "package",
+    urls = ["https://registry.npmjs.org/@fontsource/%s/-/%s-5.3.0.tgz" % (family, family)],
+) for family, integrity in [
+    ("raleway", "sha512-BTWr1I14Ji0DWpS/KCIq/CXcvxXWgMO73gynWpbYv7A5wlPhLevozgRmdPJvZmUf0fhH+Lju+F4nigJ6Ums24A=="),
+    ("roboto", "sha512-BapRJOWYP+LZ21zp+wBQjfpPYKRoxc4LspJ/RLuI+HSMBD5u/X4O+ESDrSvEqDSy0rAl7GwBJ+09mdc16cVQ1Q=="),
+    ("roboto-mono", "sha512-yhwplHMHW9dCk+1pZuERfcJe+K3rosGVZEoK0XktkxRSqQ9qsipSwwiuW2/8Qmtp9lzu3Ixa/ie4BMH3i8CkZQ=="),
+]]
+
 # DuckDB's postgres extension for the warehouse's DuckDB (1.5.5; it must match the library's version
 # exactly), one per platform, pinned by content. `bazel run //warehouse:serve` puts it beside the server.
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")

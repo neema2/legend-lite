@@ -580,7 +580,7 @@ _UNSPLIT = ["src/planner-worker.ts"]
 ) for entry, out in _BUNDLES.items()]
 
 # The two WebAssembly runtimes the page loads from ./vendor/: DuckDB's, from engine-client's
-# npm package, and legend-lite's planner, from //wasm:planner; and the fonts, vendored in legend-art.
+# npm package, and legend-lite's planner, from //wasm:planner; and the fonts, from legend-art (the pinned @fontsource).
 copy_to_directory(
     name = "vendor",
     srcs = [

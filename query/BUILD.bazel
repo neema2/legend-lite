@@ -1,8 +1,7 @@
 # Legend Query, rebuilt light (docs/QUERY_APP_DESIGN_2026_09_30.md): plain TypeScript and DOM,
 # bundled by esbuild, tested with node's own runner. Its npm packages are its own lock
 # (MODULE.bazel `npm_query`), so DataCube's lock never moves for it.
-load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary")
-load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
 load("//tools/js:defs.bzl", "node_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_query//:defs.bzl", "npm_link_all_packages")
@@ -24,6 +23,8 @@ js_library(
     name = "src",
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
     deps = [
+        # upstream Legend's icons, shared with Studio (legend-art/src/icons.ts)
+        "//legend-art:legend_art",
         "//pure-protocol:pure_protocol",
         # saved queries: the one client, and the store answered in the page (query-store/README.md)
         "//query-store:query_store",
@@ -62,7 +63,7 @@ copy_to_directory(
     srcs = [
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         # upstream Legend Query's type (legend-art _fonts.scss): Roboto, Roboto Mono, Raleway 900
-        # for the type letters -- vendored in legend-art, served with the site, no font CDN (OFL-1.1)
+        # for the type letters -- from legend-art (the pinned @fontsource), served with the site, no font CDN (OFL-1.1)
         "//legend-art:fonts",
         "//legend-art:styles",
         "//wasm:planner",
@@ -195,6 +196,7 @@ typescript.tsc_test(
         "//query-store:query_store",
         "//datacube:src",
         "//engine-client:engine_client",
+        "//legend-art:legend_art",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/@types/node",
     ],
@@ -203,43 +205,6 @@ typescript.tsc_test(
 test_suite(
     name = "tests",
     tests = [t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in _TESTS] + [":typecheck_test"],
-)
-
-# THE ICONS: upstream Legend Query's, as SVG strings, from the pinned react-icons (P2-07)
-js_binary(
-    name = "icons_tool",
-    entry_point = "tools/icons.mjs",
-)
-
-# the react-icons sets tools/icons.mjs's table draws from, as one tree in this package's output (rules_js
-# does not copy another repository's files)
-_ICON_SETS = [
-    "fa",
-    "fi",
-    "go",
-    "io5",
-    "md",
-]
-
-copy_to_directory(
-    name = "react_icons",
-    srcs = ["@react_icons//:%s/index.mjs" % s for s in _ICON_SETS],
-    include_external_repositories = ["*react_icons"],
-)
-
-js_run_binary(
-    name = "icons_gen",
-    srcs = [":react_icons"],
-    args = ["$(rootpath :react_icons)"],
-    stdout = "icons.gen.ts",
-    tool = ":icons_tool",
-)
-
-write_source_files(
-    name = "update_generated",
-    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nquery/src/ui/icons.ts is generated from the pinned react-icons -- regenerate: bazel run //query:update_generated",
-    files = {"src/ui/icons.ts": ":icons_gen"},
-    visibility = ["//:__pkg__"],
 )
 
 guards_package()

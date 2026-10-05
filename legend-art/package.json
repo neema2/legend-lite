@@ -2,5 +2,5 @@
   "name": "@legend-lite/legend-art",
   "private": true,
   "type": "module",
-  "description": "The look every app here shares: upstream Legend's icons and type, vendored as data. No dependencies."
+  "description": "The look every app here shares: upstream Legend's colour tokens, icons and type. No npm dependencies."
 }

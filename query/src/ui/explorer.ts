@@ -11,7 +11,7 @@ import {
   humanize, isToMany, multiplicityText, primitiveFamily, simpleName, type ModelGraph, type PropertyInfo,
 } from '../model/graph.ts';
 import { dialog, h, icon, mount, showMenu, tooltip, type Child } from './dom.ts';
-import type { IconName } from './icons.ts';
+import type { IconName } from '../../../legend-art/src/icons.ts';
 import { preview, probeable } from '../app/probe.ts';
 import { addToTree } from './advanced.ts';
 import { stepOf } from './arguments.ts';

@@ -2,7 +2,7 @@
 // (design D6): a panel is a function that renders into its container from the app's state and
 // renders again when that state changes.
 
-import { ICONS, type IconName } from './icons.ts';
+import { ICONS, type IconName } from '../../../legend-art/src/icons.ts';
 
 export type Child = Node | string | number | false | null | undefined | readonly Child[];
 
