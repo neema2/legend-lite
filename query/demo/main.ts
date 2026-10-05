@@ -8,8 +8,8 @@
 // In the browser planes the tab's planner writes the SQL and one of DataCube's engines runs it,
 // and saved queries stay in this browser (the same records and rules as a server's store).
 
-import * as duckdb from '../../engine-client/src/duckdb-wasm.ts';
-import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
+import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
+import type { DataSink } from '../../engine-client/src/model-data.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { signIn, WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { connectModelHome } from '../../depot-client/src/model-home.ts';
@@ -30,17 +30,6 @@ async function text(url: string): Promise<string> {
 }
 
 /** DuckDB in this tab, from the files `//query:vendor` copies next to the page. */
-async function startDuckDb(): Promise<QueryEngine> {
-  const asset = (f: string): string => new URL(`./vendor/${f}`, location.href).href;
-  const bundle = await duckdb.selectBundle({
-    mvp: { mainModule: asset('duckdb-mvp.wasm'), mainWorker: asset('duckdb-browser-mvp.worker.js') },
-    eh: { mainModule: asset('duckdb-eh.wasm'), mainWorker: asset('duckdb-browser-eh.worker.js') },
-  });
-  const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), new Worker(bundle.mainWorker!));
-  await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
-  return new DuckDbEngine((await db.connect()) as unknown as ArrowishConnection);
-}
-
 /** Run each SQL file's statements (one per line; `--` comments skipped) on the engine. */
 async function seed(engine: QueryEngine, files: readonly string[]): Promise<void> {
   for (const f of files) {
@@ -87,11 +76,13 @@ async function boot(): Promise<void> {
   // projects by name (design Phase 3): what this origin's Depot has -- what Studio publishes -- listed, each loaded when opened
   let byName: { load: NonNullable<AppContext["byName"]>; versions: NonNullable<AppContext["versions"]> } | undefined;
   let depotProjects: AppContext["depotProjects"] = [];
+  /** Where a project's test data goes: DuckDB in this tab, once started (set below; none on the warehouse). */
+  let data: DataSink | undefined;
   if (config.depot) {
     starting('Listing the projects in Depot');
     const { depot } = await connectModelHome(config.depot);
     byName = {
-      load: (g: string, a: string, v: string) => loadByName(depot, grammar, g, a, v),
+      load: (g: string, a: string, v: string) => loadByName(depot, grammar, g, a, v, data),
       versions: (g: string, a: string) => versionsOf(depot, g, a),
     };
     depotProjects = (await depot.projects()).map((p) => ({ groupId: p.groupId, artifactId: p.artifactId }));
@@ -112,7 +103,9 @@ async function boot(): Promise<void> {
     let runner: QueryEngine;
     if (exec.kind === 'duckdb-wasm') {
       starting('Starting DuckDB in this tab');
-      runner = await startDuckDb();
+      const tab = await startDuckDbInTab('./vendor/');
+      runner = tab.engine;
+      data = tab.data;     // a project opened by name loads its own test data here (by-name.ts)
       user = exec.user;
     } else {
       const creds = await askSignIn(root, exec.url);
