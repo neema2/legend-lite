@@ -18,7 +18,7 @@ lanes (checks, gates 1 and 3, app, misc, and gate 7P's one-query `//core:postgre
 | 1 | `//core:core_tests` | the compiler suite + guardrails (NullAway runs on every compile) |
 | 2 | *(the build itself)* | NullAway is a compile error; the jar pools are one version each by construction; `//tools/deps:all` (below) |
 | 3 | `//spec:spec_tests` | spec parity: generators, census, manifest |
-| 4 | `//spec:corpus_duckdb` | the relational corpus on DuckDB, host judge (the target's first pass) |
+| 4 | `//spec:corpus_duckdb` | the relational corpus on DuckDB, host judge (the build action `:judge_host_duckdb`, which the target reads; spec/corpus.bzl) |
 | 5 | `//spec:corpus_h2` | the relational corpus on H2, both judges and their per-assert join — :corpus_duckdb's shape (joined since 2026-09-23; `rcorpus/h2-database-untriaged-register.txt` lists what the first join found and has yet to be explained) |
 | 6 | `//pct:pct_duckdb` | the five PCT suites on DuckDB, one JVM (per suite: `//pct:pct_duckdb_<suite>`) |
 | 7 | `//pct:pct_h2` | PCT relation on H2 2.4.240: 469 tests, H2's 26 expected failures (27 -> 26, 2026-10-02: the self-referencing exists) each pinned by message (`Test_LegendLite_H2_RelationFunctions_PCT`) |
@@ -26,7 +26,7 @@ lanes (checks, gates 1 and 3, app, misc, and gate 7P's one-query `//core:postgre
 | 8 | `//parser-equivalence:parser_parity` | byte parity with legend-engine's parser |
 | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites |
 | 10 | `//core:stress_suites` | the stress corpus |
-| 11 | `//spec:corpus_duckdb` | its second pass: the database judge, joined per assert to the host pass (one target with gate 4 since 2026-09-23 — the host pass ran twice before) |
+| 11 | `//spec:corpus_duckdb` | the database judge, joined per assert to the host pass's ledger (one target with gate 4 since 2026-09-23 — the host pass ran twice before; a cached build action since 2026-10-05, Bazel workplan P3-01) |
 | app | `//datacube:tests`, `//datacube:verify_app_test`, `//wasm:all`, `//warehouse:tests`, `//query-store:lite_test` | the single-user app against Postgres 16 in the pinned Chromium, on every platform (`verify_app_test`, since 2026-10-04, Bazel workplan P1-14b: its own Postgres from the pinned binaries, no psql); DataCube's suite and typecheck; the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database; the warehouse's suite; legend-lite's server held to the query store's suite. On Windows the lane runs in Eastern time, not the runners' UTC, so a test that reads the machine's zone shows (since 2026-10-03) |
 | native | `//warehouse:tests_native`, `//warehouse:launcher_test`, `//datacube:app` | the warehouse suite against the native binary, on Linux, macOS and Windows x64 (since 2026-10-02) and Linux arm64 (since 2026-10-04, P1-13), linked on Linux by the hermetic LLVM toolchain (P1-09); the `bazel run` launchers (bash on Linux and macOS, hermetic-launcher on Windows) started as `bazel run` starts them; and `//datacube:app` built, not run. What the launcher test judges: `docs/WINDOWS_APP_DESIGN_2026_10_02.md` §3 |
 | checks | `//:generated`, `//tools/deps:all`, `//tools/guards:classpath_test`, `//tools/guards:inventory_test`, `//tools/guards:locks_test`, `//tools/guards:markdown_inputs_test`, `//tools/junit:pins_test`, `//tools/junit:runner_test`, `//tools/java_run:pins_test`, `//tools/python:lock_matches_requirements`, `//tools/browser:revision_test`, `//tools/bump:bump_test`, `//tools/js:lock_matches_package_json_test`, `//core:guardrails`, `//core:census` | the guards (since 2026-10-04, Bazel workplan Phase 6): every file inventoried and in some package's `all_files`, every jar pool locked and strict, no Markdown test input, no classpath with one Maven coordinate at two versions; Bump's rewrites against the real pins; every pnpm lock equal to its package.json; the pinned Chromium equal to every locked Playwright's revision (since 2026-10-04, P1-14); the Python lock holding every pin of tools/python/requirements.in with hashes (offline; since 2026-10-04, P1-07); every committed generated file equal to its generator (`//:generated` holds each package's diff-test suite; a missing suite fails the build — since 2026-10-03, replacing a `bazel query` whose failure ran nothing); the dependency guards; the test environment's pins (in no lane until 2026-10-03, P0-14); the source checks |
@@ -70,7 +70,8 @@ inputs, so no gate can run against a missing or wrong checkout.
 gate — then the judgement half (re-pin each moved ratchet with a reason).
 
 **Reading a result.** `bazel-testlogs/<package>/<target>/test.log`, and the
-test's written reports under `test.outputs/`. A `(cached) PASSED` is a real
+test's written reports under `test.outputs/`. A corpus lane's host pass is a build action: its log, ledger and
+verdict are in `bazel-bin/spec/judge_host_<lane>/`. A `(cached) PASSED` is a real
 pass: Bazel re-runs a test whenever any of its inputs changed.
 
 ---

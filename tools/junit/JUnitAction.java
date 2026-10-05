@@ -16,21 +16,32 @@ import java.util.Arrays;
  *
  * <p>Arguments: {@code <verdict> <log> [<output> ...] --}, then {@link JUnitMain}'s own. The run's output goes to
  * {@code <log>}; its exit code (JUnitMain's: 0 when every selected test passed) to {@code <verdict>}; each
- * {@code <output>} the run did not write is created empty. The action succeeds either way: a failing pass is a fact
- * its consumer reports, as a test failure quoting the log, never a build error with no test result.
+ * {@code <output>} the run did not write is created empty. A pass whose tests failed (exit 1) is still a successful
+ * action: a fact its consumer reports, as a test failure quoting the log, never a build error with no test result. It is
+ * cached like any output, until an input changes ({@code bazel clean} forces a rerun). Anything else (nothing selected,
+ * a runner error, a log or verdict it cannot write) fails the action, so a broken run is never cached as a verdict.
  */
 public final class JUnitAction {
 
     private JUnitAction() {}
 
-    public static void main(String[] args) throws Exception {
-        run(args);
-        // exit explicitly, as JUnitMain does: a test's non-daemon thread must not hold the action open
-        System.exit(0);
+    public static void main(String[] args) {
+        // the heap's live peak, in the log as a test's is, so the action's memory_mb is set from a measurement (P1-21)
+        JUnitMain.watchHeap();
+        int code = 4;
+        try {
+            code = run(args);
+        } catch (Exception | Error e) {
+            e.printStackTrace();
+        } finally {
+            // exit explicitly, as JUnitMain does: a test's non-daemon thread must not hold the action open
+            System.exit(code == 0 || code == 1 ? 0 : 1);
+        }
     }
 
-    /** The action's work, in this JVM (RunnerTest calls it): the pass, its log, its verdict, its outputs. */
-    static void run(String[] args) throws Exception {
+    /** The action's work, in this JVM (RunnerTest calls it): the pass, its log, its verdict, its outputs; returns
+     *  JUnitMain's exit code. */
+    static int run(String[] args) throws Exception {
         int split = Arrays.asList(args).indexOf("--");
         if (split < 2) {
             throw new IllegalArgumentException("JUnitAction <verdict> <log> [<output> ...] -- <JUnitMain arguments>");
@@ -60,5 +71,6 @@ public final class JUnitAction {
             }
         }
         Files.writeString(verdict, code + "\n", StandardCharsets.UTF_8);
+        return code;
     }
 }

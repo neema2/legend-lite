@@ -29,6 +29,10 @@ def _check_tests():
         ):
             fail("//%s:%s is a java_test not made by junit_test (tools/junit/defs.bzl): every JVM test is a junit_test (G16)" %
                  (native.package_name(), rule["name"]))
+        # the other way to run JUnit, as a build action (tools/junit/JUnitAction.java): only a corpus lane's host pass
+        if rule.get("main_class") == "com.legend.tools.junit.JUnitAction" and rule.get("generator_function") != "corpus_lane":
+            fail("//%s:%s runs JUnitAction outside corpus_lane (spec/corpus.bzl): a JUnit run as a build action is a corpus lane's host pass only (G16)" %
+                 (native.package_name(), rule["name"]))
 
 _JS_TEST_MACROS = ("node_test", "browser_test", "tsc_test")
 

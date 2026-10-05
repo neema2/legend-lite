@@ -425,7 +425,7 @@ public final class JUnitMain {
     private static final AtomicLong LIVE_PEAK = new AtomicLong();
     private static final AtomicLong USED_PEAK = new AtomicLong();
 
-    private static void watchHeap() {
+    static void watchHeap() {
         List<String> heapPools = new ArrayList<>();
         for (MemoryPoolMXBean pool : ManagementFactory.getMemoryPoolMXBeans()) {
             if (pool.getType() == MemoryType.HEAP) {

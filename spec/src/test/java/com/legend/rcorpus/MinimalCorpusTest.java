@@ -115,7 +115,10 @@ public class MinimalCorpusTest {
         org.junit.jupiter.api.Assertions.assertTrue(Corpus.available(), "legend-engine checkout not present");
         // the engine's scan order for the corpus goldens is the lane's -Dlegend.exec.engineScanOrder (spec/corpus.bzl),
         // set for the whole JVM by the build, never flipped here (Bazel workplan P3-01)
-        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+        // a scoped run (-Drcorpus.test) runs the database judge on its tests alone; the host pass, an action, is the
+        // whole corpus's, so only a full run waits on it (pinJudgeDifferential skips a scoped run likewise)
+        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))
+                && System.getProperty("rcorpus.test", "").trim().isEmpty()) {
             JudgeLedger.requireHostPassed();
         }
         run();
@@ -433,8 +436,8 @@ public class MinimalCorpusTest {
     }
 
     /** LEG 3.3 — THE DIFFERENTIAL GATE (docs/JUDGING_TWO_MODES_2026_09_17.md §4): a
-     * DATABASE-mode lane that wrote its per-assert ledger ({@code legend.judge.ledger})
-     * and was handed the HOST lane's ({@code legend.judge.ledger.host}) joins the two
+     * DATABASE-mode lane that wrote its per-assert ledger ({@link JudgeLedger#path})
+     * and was handed the HOST pass's ({@code legend.judge.ledger.host}) joins the two
      * per assert: the same verdict everywhere the registers do not name — unregistered
      * disagreements and one-sided adjudications pinned at ZERO; the database judge's
      * declines pinned by {@code rcorpus/<lane>-judge-unjudged-ceiling.txt}. */
