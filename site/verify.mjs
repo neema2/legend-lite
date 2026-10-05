@@ -305,6 +305,38 @@ try {
   if (!names.some((n) => n.includes('Banque Lumière'))) throw new Error(`the party rows are not the seeded ones: ${names.join(' | ')}`);
   const shown = (parties ?? '').match(/\d+ rows? in \d+ ms/)?.[0];
   console.log(`Query: Studio's party project opened by name at HEAD (master-SNAPSHOT), with its dependencies -- ${shown}`);
+
+  // the version picker: HEAD and the releases; 1.0.0 opens by name (loaded the first time) and runs too
+  const version = byName.locator('select[aria-label=Version]');
+  await byName.waitForFunction(() => (document.querySelector('select[aria-label=Version]')?.options.length ?? 0) > 1, undefined, { timeout: 60_000 });
+  const offered = await version.locator('option').allTextContents();
+  if (offered[0] !== 'HEAD' || !offered.includes('1.0.0')) throw new Error(`the version picker offers ${JSON.stringify(offered)}`);
+  // cancelled, the picker shows HEAD again; then for real
+  await version.selectOption('1.0.0');
+  await byName.click(".q-dialog button:has-text('Cancel')");
+  await byName.waitForFunction(() => document.querySelector('select[aria-label=Version]')?.value === 'master-SNAPSHOT', undefined, { timeout: 30_000 });
+  await version.selectOption('1.0.0');
+  // the builder has unsaved work: Query asks before leaving it, as upstream does
+  await byName.click(".q-dialog button:has-text('Leave')");
+  await byName.waitForFunction(() => location.hash.includes(encodeURIComponent('org.finos.lite.demo:party:1.0.0')), undefined, { timeout: 60_000 });
+  await byName.waitForSelector('.q-node', { timeout: 120_000 });
+  for (const p of ['Name', 'Country']) await byName.dblclick(`.q-node:has-text('${p}')`);
+  await byName.click('button.q-run');
+  await byName.waitForFunction(() => document.querySelector('.q-error-box')
+    || /\d+ rows? in \d+ ms/.test(document.querySelector('.q-results-bar')?.textContent ?? ''), undefined, { timeout: 120_000 });
+  const refusedAt = await byName.$('.q-error-box');
+  if (refusedAt) throw new Error(`Query on party 1.0.0 refused the run: ${await refusedAt.textContent()}`);
+  const atRelease = (await byName.locator('.q-results-bar').textContent() ?? '').match(/\d+ rows? in \d+ ms/)?.[0];
+  console.log(`Query: the version picker offers ${offered.join(', ')}; party 1.0.0 opened by name -- ${atRelease}`);
+
+  // saved on 1.0.0, it reopens on 1.0.0 after a reload (only HEAD loads at start: 1.0.0 is loaded by name again)
+  await byName.click('button[title="Save (Ctrl+S)"]');
+  await byName.fill('.q-dialog input.q-input', 'Parties at 1.0.0');
+  await byName.click('.q-dialog button.primary');
+  await byName.waitForFunction(() => location.hash.startsWith('#/edit/'), undefined, { timeout: 30_000 });
+  await byName.reload();
+  await byName.waitForFunction(() => document.querySelector('select[aria-label=Version]')?.value === '1.0.0', undefined, { timeout: 120_000 });
+  console.log('Query: saved on party 1.0.0, it reopens on 1.0.0 (pinned; loaded by name after a reload)');
   await byName.close();
 } catch (e) {
   failed = true;

@@ -75,8 +75,10 @@ export function contextOf(project: LoadedProject, q: Query): { mapping: string; 
  * not a copy in this store -- the session is unsaved, and Save makes the person's own.
  */
 export async function openQuery(app: AppContext, q: Query, urlParams: ReadonlyMap<string, string>, asSaved = true): Promise<Session> {
-  const project = app.projects.find((p) => p.config.groupId === q.groupId && p.config.artifactId === q.artifactId);
-  if (!project) throw new Error(`the query belongs to ${q.groupId}:${q.artifactId}, which is not configured here`);
+  // the version it was saved on, exactly (upstream pins it too): a snapshot follows the line, a release does not
+  const gav = `${q.groupId}:${q.artifactId}:${q.versionId}`;
+  const project = await app.ensure(gav).catch(() => undefined);
+  if (!project) throw new Error(`the query belongs to ${gav}, which is not configured here and not in Depot`);
   const ctx = contextOf(project, q);
   const lambda = await app.engine.lambdaJson(q.content);
   const loaded = loadLambda(project.graph, lambda, ctx);

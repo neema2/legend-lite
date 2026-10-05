@@ -3,6 +3,7 @@
 // when wanted), the fetch structure in the centre, the filter at the right, the results below --
 // every boundary draggable (split.ts).
 
+import { SNAPSHOT } from '../../../depot-client/src/wire.ts';
 import type { AppContext } from '../app/context.ts';
 import { formatRoute } from '../app/routes.ts';
 import type { Session } from '../app/session.ts';
@@ -74,9 +75,30 @@ export function renderEditor(root: HTMLElement, app: AppContext, session: Sessio
     }
   };
 
+  /** drawSetup, as one listener the version picker can add and dispose can take away */
+  const redrawSetup = (): void => drawSetup();
   const drawSetup = (): void => {
     const src = session.query.source;
     const rows: Child[] = [];
+    // the project's version, for a project opened by name (Depot): HEAD -- the line's snapshot -- or a release.
+    // Choosing one reopens this source at that version (by-name.ts loads it the first time).
+    const p = session.project.config;
+    if (app.versions && p.models.length === 0) {
+      const label = h('label', null, 'Version');
+      const field = h('div', { class: 'q-field' }, label, select(p.versionId, [{ value: p.versionId, label: versionLabel(p.versionId) }], () => undefined, { 'aria-label': 'Version' }));
+      rows.push(field);
+      void app.versions(p.groupId, p.artifactId).then((versions) => {
+        field.replaceChildren(label, select(p.versionId, versions.map((v) => ({ value: v, label: versionLabel(v) })), (v) => {
+          const gav = `${p.groupId}:${p.artifactId}:${v}`;
+          // unsaved work makes the app ask first; cancelled (app.ts says so), the picker shows this version again
+          removeEventListener('q-navigation-cancelled', redrawSetup);
+          addEventListener('q-navigation-cancelled', redrawSetup, { once: true });
+          location.hash = formatRoute(src.dataSpace
+            ? { kind: 'dataSpace', gav, path: src.dataSpace.path, context: src.dataSpace.context, class: src.class }
+            : { kind: 'manual', gav, mapping: src.mapping, runtime: src.runtime, class: src.class });
+        }, { 'aria-label': 'Version' }));
+      });
+    }
     if (src.dataSpace) {
       const ds = graph.dataSpaces.get(src.dataSpace.path);
       rows.push(h('div', { class: 'q-field' }, h('label', null, 'Data Space'),
@@ -251,10 +273,16 @@ export function renderEditor(root: HTMLElement, app: AppContext, session: Sessio
 
   return {
     dispose() {
+      removeEventListener('q-navigation-cancelled', redrawSetup);
       unsubscribe();
       document.removeEventListener('keydown', onKey);
       if (session.run.status === 'running') session.run.abort.abort();
       results.dispose();
     },
   };
+}
+
+/** A version as upstream Query names it: the line's snapshot is HEAD. */
+function versionLabel(v: string): string {
+  return v === SNAPSHOT ? 'HEAD' : v;
 }
