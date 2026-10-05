@@ -336,3 +336,6 @@ without a **done** entry.
   take toOne. Mediums fixed (verify-page's settle reused stale state; verify-cubes' late-pick wait). Windows proof of
   --exit-with-parent rides the Phase 4 throwaway's Windows app lane. Left to the Studio line: query/site harnesses,
   sdlc-client's taskkill.
+- **USER, 2026-10-05:** D18 decided (a), "fine to keep python but as real first bazel": the probes and run.py stay
+  Python, as py_binary/py_test targets that start legend-engine from runfiles through one launch(). The script review
+  (P7-01, with P1-12 and P7-16) waits until everything else is done. P3-25 is unblocked; next.
