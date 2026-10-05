@@ -420,6 +420,10 @@ public final class PureComposer {
             case "tdsOlapRank", "tdsOlapAggregation" -> "olapGroupBy(" + visit(value.get("function")) + ")";
             case "tdsAggregateValue" -> "agg(" + convertString(value.getString("name"), true) + ","
                     + visit(value.get("mapFn")) + ", " + visit(value.get("aggregateFn")) + ")";
+            // the embedded-language islands extensions print verbatim (SQLExpressionGrammarComposerExtension,
+            // TDSRelationAccessorGrammarComposerExtension)
+            case "SQL" -> "#SQL{" + value.getString("sql") + "}#";
+            case "TDS" -> "#TDS{" + value.getString("tdsString") + "}#";
             default -> throw refused("no composer rule for classInstance type '" + type
                     + "' -- add the rule, do not drop it");
         };

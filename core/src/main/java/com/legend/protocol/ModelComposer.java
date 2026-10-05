@@ -13,7 +13,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 
 /**
  * Protocol JSON to Pure text for a whole MODEL: upstream's {@code pure/v1/grammar/jsonToGrammar/model}
@@ -68,7 +67,7 @@ public final class ModelComposer {
                 }
             }
         }
-        for (Family free : Family.FREE_SECTION_ORDER) {
+        for (ElementFamilies.Family free : ElementFamilies.EXTENSIONS) {
             List<Json.Obj> mine = new ArrayList<>();
             for (Json.Obj e : elements) {
                 if (toCompose.contains(e) && !SECTION_INDEX.equals(Composing.type(e)) && family(e) == free) {
@@ -76,11 +75,11 @@ public final class ModelComposer {
                 }
             }
             if (!mine.isEmpty()) {
-                composed.add(free.freeSection(mine) + "\n");
+                composed.add("###" + free.parser() + "\n" + joinPrinted(mine) + "\n");
                 toCompose.removeAll(mine);
             }
         }
-        for (Family core : Family.CORE_SECTION_ORDER) {
+        for (ElementFamilies.Family core : ElementFamilies.CORE) {
             List<Json.Obj> mine = new ArrayList<>();
             for (Json.Obj e : elements) {
                 if (toCompose.contains(e) && !SECTION_INDEX.equals(Composing.type(e)) && family(e) == core) {
@@ -89,7 +88,7 @@ public final class ModelComposer {
             }
             if (!mine.isEmpty()) {
                 toCompose.removeAll(mine);
-                String header = !composed.isEmpty() || !DEFAULT_SECTION.equals(core.parser) ? "###" + core.parser + "\n" : "";
+                String header = !composed.isEmpty() || !DEFAULT_SECTION.equals(core.parser()) ? "###" + core.parser() + "\n" : "";
                 composed.add(header + joinPrinted(mine) + "\n");
             }
         }
@@ -149,9 +148,9 @@ public final class ModelComposer {
         return String.join("\n\n", out);
     }
 
-    private static Family family(Json.Obj element) {
+    private static ElementFamilies.Family family(Json.Obj element) {
         String type = Composing.type(element);
-        Family f = Family.BY_TYPE.get(type);
+        ElementFamilies.Family f = ElementFamilies.BY_TYPE.get(type);
         if (f == null) {
             throw Composing.refused("no model composer rule for an element of _type '" + type
                     + "' -- add the rule, do not drop it");
@@ -159,58 +158,4 @@ public final class ModelComposer {
         return f;
     }
 
-    /**
-     * A kind of element: the section it prints in and its printer. Upstream's core composer prints
-     * the domain, mappings, connections and runtimes in any section no extension claims; each
-     * extension claims its own section and, for a model with no section index, prints its elements
-     * as a free section of its own.
-     */
-    record Family(String parser, boolean core, Function<Json.Obj, String> print) {
-
-        /** _type to family. */
-        static final Map<String, Family> BY_TYPE;
-        /** The extensions' free sections, in upstream's extension order. */
-        static final List<Family> FREE_SECTION_ORDER;
-        /** Upstream's fixed order for the core kinds: domain, mappings, connections, runtimes. */
-        static final List<Family> CORE_SECTION_ORDER;
-
-        static {
-            Family domain = new Family(DEFAULT_SECTION, true, DomainComposer::element);
-            Family mapping = new Family("Mapping", true, MappingComposer::mapping);
-            Family relational = new Family("Relational", false, DatabaseComposer::database);
-            Family relationalMapper = new Family("QueryPostProcessor", false, DatabaseComposer::relationalMapper);
-            Map<String, Family> m = new LinkedHashMap<>();
-            for (String t : DomainComposer.TYPES) {
-                m.put(t, domain);
-            }
-            Family connection = new Family("Connection", true, ConnectionComposer::connection);
-            Family runtime = new Family("Runtime", true, RuntimeComposer::runtime);
-            m.put("mapping", mapping);
-            m.put("connection", connection);
-            m.put("runtime", runtime);
-            m.put("relational", relational);
-            m.put("relationalMapper", relationalMapper);
-            BY_TYPE = Map.copyOf(m);
-            FREE_SECTION_ORDER = List.of(relational, relationalMapper);
-            CORE_SECTION_ORDER = List.of(domain, mapping, connection, runtime);
-        }
-
-        boolean printsIn(String sectionParser) {
-            return core ? !Family.claimed(sectionParser) : parser.equals(sectionParser);
-        }
-
-        /** A section name an extension's section composer claims. */
-        static boolean claimed(String sectionParser) {
-            for (Family f : FREE_SECTION_ORDER) {
-                if (f.parser.equals(sectionParser)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        String freeSection(List<Json.Obj> elements) {
-            return "###" + parser + "\n" + joinPrinted(elements);
-        }
-    }
 }
