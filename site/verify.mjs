@@ -272,6 +272,20 @@ try {
   } finally {
     await remoteCtx.close();
   }
+
+  // Studio on the same origin: the projects it publishes are kept in this origin's store (sdlc-client's
+  // legend-projects in IndexedDB), so they are there again after the page is opened afresh
+  const studio = await context.newPage();
+  await studio.goto(`${ORIGIN}/studio/demo/index.html`);
+  await studio.getByText('Welcome to Legend Studio').waitFor({ timeout: 60_000 });
+  await studio.getByTestId('load-demo').click();
+  await studio.waitForFunction(() => /Demo projects published/.test(document.querySelector('[data-testid=demo-status]')?.textContent ?? ''), undefined, { timeout: 180_000 });
+  await studio.reload();
+  await studio.getByTestId('project-selector').click();
+  const kept = await studio.getByTestId('project-selector-menu').textContent({ timeout: 60_000 });
+  if (!/org\.finos\.lite\.demo:trading/.test(kept ?? '')) throw new Error(`Studio's projects did not survive a reload on this origin: ${kept}`);
+  console.log('Studio: served from the same origin, its demo projects published and still there after a reload');
+  await studio.close();
 } catch (e) {
   failed = true;
   console.log(`FAIL: ${String(e.message ?? e).split('\n')[0]}`);
@@ -283,5 +297,5 @@ if (errors.length) {
   failed = true;
   console.log(`page errors: ${errors.join(' | ')}`);
 }
-console.log(failed ? '\n!!! the apps do not share their saved queries !!!' : '\n*** saved in Query, opened in DataCube: one origin, no server ***');
+console.log(failed ? '\n!!! the apps do not share their stores !!!' : '\n*** saved in Query, opened in DataCube, the Studio projects kept beside them: one origin, no server ***');
 process.exit(failed ? 1 : 0);

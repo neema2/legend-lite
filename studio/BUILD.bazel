@@ -95,6 +95,8 @@ copy_to_directory(
 # Everything a browser fetches.
 filegroup(
     name = "site",
+    # served beside Query and DataCube from one origin (//site): they share the browser's stores (IndexedDB)
+    visibility = ["//site:__pkg__"],
     srcs = glob([
         "demo/*.html",
         "demo/*.json",

@@ -1,5 +1,5 @@
-// `bazel run //site:serve [-- --port 8200] [-- --host 0.0.0.0]`: Legend Query and DataCube from one
-// origin (BUILD.bazel says why), as a static site -- everything both apps run is in the browser.
+// `bazel run //site:serve [-- --port 8200] [-- --host 0.0.0.0]`: Legend Query, DataCube and Studio from one
+// origin (BUILD.bazel says why), as a static site -- everything the apps run is in the browser.
 
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
@@ -22,7 +22,7 @@ const TYPES = {
   '.woff2': 'font/woff2',
 };
 /** Each app's page, where its own server would put it. */
-const PAGES = { '/query': '/query/demo/index.html', '/datacube': '/datacube/demo/index.html' };
+const PAGES = { '/query': '/query/demo/index.html', '/datacube': '/datacube/demo/index.html', '/studio': '/studio/demo/index.html' };
 
 /** The file under ROOT a request path names, or undefined when it climbs out. */
 function servedPath(pathname) {
@@ -48,7 +48,8 @@ createServer(async (req, res) => {
     res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found');
   }
 }).listen(port, host, () => {
-  console.log(`Legend Query and DataCube, one origin: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}/`);
+  console.log(`Legend Query, DataCube and Studio, one origin: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}/`);
   console.log(`  Query     http://localhost:${port}/query/`);
   console.log(`  DataCube  http://localhost:${port}/datacube/`);
+  console.log(`  Studio    http://localhost:${port}/studio/`);
 });
