@@ -4,6 +4,8 @@
 import * as monaco from 'monaco-editor/editor/editor.api';
 import 'monaco-editor/features/register.all';
 
+import { HttpEngine } from '../../../engine-client/src/legend/engine.ts';
+import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler, WorkerPort } from '../backend/planner.ts';
 import { connect, type StudioConfig } from '../backend/sdlc.ts';
 import { clear, h } from '../ui/dom.ts';
@@ -24,7 +26,11 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   registerPure(monaco);
   root.append(h('div', { class: 'loading' }, 'Loading Legend Studio…'));
   const { client, depot, where } = await connect(config);
-  const compiler = new Compiler(new WorkerPort(workerUrl, `${config.vendor}planner/`));
+  // the session's engine (plan A1): a legend server's pure/v1 when the config names one, else the one in this tab
+  const inTab = config.engine ? undefined : new WasmGrammar(new WorkerPort(workerUrl, `${config.vendor}planner/`));
+  const compiler = inTab
+    ? new Compiler(inTab, () => inTab.warm({ _type: 'text', code: '' }))
+    : new Compiler(new HttpEngine(config.engine!));
   let dispose: (() => void) | undefined;
 
   const route = async (): Promise<void> => {

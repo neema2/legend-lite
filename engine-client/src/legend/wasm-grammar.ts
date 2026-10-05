@@ -107,4 +107,15 @@ export class WasmGrammar implements Grammar {
   async warm(model: PureModelContext): Promise<void> {
     unfold(await this.#port.ask({ kind: 'warm', model: model.code }));
   }
+
+  /**
+   * A whole model compiled (`compilation/compile` in the tab): every error, [] when it compiles -- the first element
+   * error stops the compile, as the server's does; every body error is collected (Studio's live problems).
+   */
+  async compileErrors(code: string): Promise<string[]> {
+    const answer = await this.#port.ask({ kind: 'compile', model: code });
+    if (answer.startsWith('OK\n')) return JSON.parse(answer.slice(3)) as string[];
+    const [, kind = '', ...rest] = answer.split('\n');
+    return [rest.join('\n') || kind];
+  }
 }
