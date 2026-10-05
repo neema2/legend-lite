@@ -8,6 +8,7 @@ import { DepotClient } from '../../depot-client/src/client.ts';
 import { MemoryRecords } from '../../sdlc-client/src/records.ts';
 import { SdlcClient } from '../../sdlc-client/src/client.ts';
 import { WASM_API, WASM_DEPOT_API, wasmSdlcServer, type SdlcModule } from '../../sdlc-client/src/wasm-server.ts';
+import { WasmGrammar } from '../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler, type PlannerPort } from '../src/backend/planner.ts';
 import type { PlannerRequest } from '../../engine-client/src/legend/planner-worker.ts';
 import { runfileDirUrl } from '../../tools/js/runfiles.mts';
@@ -46,7 +47,7 @@ class DirectPort implements PlannerPort {
   }
 }
 
-export const compiler = new Compiler(new DirectPort());
+export const compiler = new Compiler(new WasmGrammar(new DirectPort()));
 
 /** A fresh in-page SDLC (its own module, its own records) and a client over it. */
 export async function pageSdlc(): Promise<SdlcClient> {
