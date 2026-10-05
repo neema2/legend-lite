@@ -1,0 +1,50 @@
+{
+  "foreign": {
+    "downcalls": [
+      {"returnType": "jboolean", "parameterTypes": ["void*"]},
+      {"returnType": "jbyte", "parameterTypes": ["void*"]},
+      {"returnType": "jint", "parameterTypes": ["struct(jlong,jlong,jlong,void*,void*,void*)"]},
+      {"returnType": "jint", "parameterTypes": ["void*", "jlong", "jlong"]},
+      {"returnType": "jint", "parameterTypes": ["void*", "jlong", "void*"]},
+      {"returnType": "jint", "parameterTypes": ["void*", "jlong"]},
+      {"returnType": "jint", "parameterTypes": ["void*", "void*", "jlong", "void*"]},
+      {"returnType": "jint", "parameterTypes": ["void*", "void*", "void*", "void*"]},
+      {"returnType": "jint", "parameterTypes": ["void*", "void*", "void*"]},
+      {"returnType": "jint", "parameterTypes": ["void*", "void*"]},
+      {"returnType": "jint", "parameterTypes": ["void*"]},
+      {"returnType": "jlong", "parameterTypes": ["void*", "jlong", "jlong"]},
+      {"returnType": "jlong", "parameterTypes": ["void*", "void*", "void*"]},
+      {"returnType": "jlong", "parameterTypes": ["void*"]},
+      {"returnType": "void", "parameterTypes": ["void*", "jlong", "void*"]},
+      {"returnType": "void", "parameterTypes": ["void*", "void*", "void*"]},
+      {"returnType": "void", "parameterTypes": ["void*", "void*"]},
+      {"returnType": "void", "parameterTypes": ["void*"]},
+      {"returnType": "void*", "parameterTypes": ["jboolean"]},
+      {"returnType": "void*", "parameterTypes": ["jbyte"]},
+      {"returnType": "void*", "parameterTypes": ["jdouble"]},
+      {"returnType": "void*", "parameterTypes": ["jfloat"]},
+      {"returnType": "void*", "parameterTypes": ["jint"]},
+      {"returnType": "void*", "parameterTypes": ["jlong"]},
+      {"returnType": "void*", "parameterTypes": ["jshort"]},
+      {"returnType": "void*", "parameterTypes": ["struct(jbyte,jbyte,padding(6),jlong,jlong)"]},
+      {"returnType": "void*", "parameterTypes": ["struct(jint)"]},
+      {"returnType": "void*", "parameterTypes": ["struct(jint,jint,jlong)"]},
+      {"returnType": "void*", "parameterTypes": ["struct(jlong)"]},
+      {"returnType": "void*", "parameterTypes": ["struct(jlong,jlong)"]},
+      {"returnType": "void*", "parameterTypes": ["struct(jlong,jlong,jlong,void*,void*,void*)"]},
+      {"returnType": "void*", "parameterTypes": ["void*", "jlong", "jlong"]},
+      {"returnType": "void*", "parameterTypes": ["void*", "jlong"]},
+      {"returnType": "void*", "parameterTypes": ["void*", "void*", "jlong"]},
+      {"returnType": "void*", "parameterTypes": ["void*", "void*", "void*", "jlong"]},
+      {"returnType": "void*", "parameterTypes": ["void*", "void*", "void*"]},
+      {"returnType": "void*", "parameterTypes": ["void*", "void*"]},
+      {"returnType": "void*", "parameterTypes": ["void*"]},
+      {"returnType": "void*", "parameterTypes": []}
+    ],
+    "directUpcalls": [
+      {"class": "com.legend.warehouse.server.duck.AuthenticatedUser", "method": "onBind", "returnType": "void", "parameterTypes": ["void*"]},
+      {"class": "com.legend.warehouse.server.duck.AuthenticatedUser", "method": "onCopy", "returnType": "void*", "parameterTypes": ["void*"]},
+      {"class": "com.legend.warehouse.server.duck.AuthenticatedUser", "method": "onExecute", "returnType": "void", "parameterTypes": ["void*", "void*", "void*"]}
+    ]
+  }
+}

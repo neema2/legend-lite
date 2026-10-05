@@ -11,6 +11,7 @@ load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/platforms:defs.bzl", "compatible_with", "platform_select")
 load(":defs.bzl", "POSTGRES_EXTENSION", "POSTGRES_EXTENSION_COMPATIBLE", "jar_entry", "warehouse_run")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # DuckDB's native library for this platform, out of its JDBC jar (//tools/platforms; Bazel workplan P1-19)
@@ -343,6 +344,27 @@ java_run(
     mnemonic = "GunzipDuckdbExtension",
     target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
     deps = ["//tools/gunzip"],
+)
+
+# THE NATIVE IMAGE'S FFM METADATA, from the code that makes the calls (ForeignMetadata over Duck.DOWNCALLS and
+# AuthenticatedUser.UPCALLS; Bazel workplan P2-09): its own metadata directory, so a new signature fails //:generated
+# until `bazel run //warehouse:update_foreign_metadata` writes it.
+java_run(
+    name = "foreign_metadata",
+    testonly = True,
+    outs = ["generated/foreign-metadata.json"],
+    arguments = ["{OUT}"],
+    main_class = "com.legend.warehouse.server.duck.ForeignMetadata",
+    mnemonic = "Generate",
+    deps = [":tests_lib"],
+)
+
+write_source_files(
+    name = "update_foreign_metadata",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nan FFM signature changed -- bazel run //warehouse:update_foreign_metadata",
+    files = {"src/main/resources/META-INF/native-image/com.legend/warehouse-foreign/reachability-metadata.json": ":foreign_metadata"},
+    visibility = ["//:__pkg__"],
 )
 
 guards_package()

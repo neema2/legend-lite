@@ -38,6 +38,7 @@ test_suite(
         "//scripts/parser:update_keyword_coverage_tests",
         "//spec:update_ratchets_tests",
         "//tools/engine-runner:update_vocab_tests",
+        "//warehouse:update_foreign_metadata_tests",
     ],
 )
 
@@ -62,6 +63,7 @@ write_source_files(
         "//scripts/parser:update_keyword_coverage",
         "//spec:update_ratchets",
         "//tools/engine-runner:update_vocab",
+        "//warehouse:update_foreign_metadata",
     ],
 )
 
