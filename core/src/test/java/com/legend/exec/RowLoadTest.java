@@ -22,9 +22,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * staged as text and cast by one INSERT ... SELECT) as on the text path (one
  * multi-row insert of quoted literals): the database types every cell on both.
  */
-// reads process-wide counters (CanonicalDivergence, Census): one such class at a time if JUnit ever runs classes in
-// parallel, so no other test's calls land between its reset and its assert (Bazel workplan P3-04, A9)
-@org.junit.jupiter.api.parallel.ResourceLock("process-counters")
+// reads process-wide counters (CanonicalDivergence, Census) that every query bumps: runs alone if JUnit ever runs
+// classes in parallel, so no other test's calls land between its reset and its assert (Bazel workplan P3-04, A9)
+@org.junit.jupiter.api.parallel.Isolated
 class RowLoadTest {
 
     private static final com.legend.sql.dialect.SqlDialect DUCK = new com.legend.sql.dialect.DuckDb();

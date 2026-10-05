@@ -88,8 +88,8 @@ public class UpstreamPathManifestTest {
     void everyUpstreamPathResolves() {
         Path engine = Corpus.ENGINE_ROOT;
         Path pure = PreludeGeneratorTest.pureRoot();
-        // no checkout at all = nothing to check (under Bazel the pinned archive
-        // is a declared input, always present); a PRESENT checkout is checked in full
+        // both checkouts are declared inputs (the pinned archives): a missing one fails, naming it (Bazel
+        // workplan P3-14), and a present one is checked in full
         org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(engine), "legend-engine checkout not present at " + engine);
         org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(pure), "legend-pure checkout not present at " + pure);
         List<Entry> all = manifest();

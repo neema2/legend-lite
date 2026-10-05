@@ -27,9 +27,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * can never byte-collide; an Any scalar meets a typed side in the
  * typed side's appended literal candidate.
  */
-// reads process-wide counters (CanonicalDivergence, Census): one such class at a time if JUnit ever runs classes in
-// parallel, so no other test's calls land between its reset and its assert (Bazel workplan P3-04, A9)
-@org.junit.jupiter.api.parallel.ResourceLock("process-counters")
+// reads process-wide counters (CanonicalDivergence, Census) that every query bumps: runs alone if JUnit ever runs
+// classes in parallel, so no other test's calls land between its reset and its assert (Bazel workplan P3-04, A9)
+@org.junit.jupiter.api.parallel.Isolated
 class LiteralChannelTest {
 
     private static final String MODEL = """

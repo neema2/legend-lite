@@ -31,9 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (the named feature gap it waits on); the per-file count is pinned MAX
  * (burn a gap, tighten the pin — never add a skip without a pin bump
  * and a written justification here).</li>
- * <li>{@code Assumptions.assume*} sites — environment-conditional
- * skips; the FILE SET is pinned exactly (a new assumption-skipping file
- * is a new way for the suite to go quiet).</li>
+ * <li>environment-conditional skips — {@code Assumptions.assume*},
+ * {@code assumingThat}, {@code @EnabledIf*} and {@code @DisabledIf*}; the
+ * FILE SET is pinned exactly (a new conditionally skipping file is a new
+ * way for the suite to go quiet).</li>
  * </ol>
  */
 @Tag("census")
@@ -49,7 +50,7 @@ class SkipCensusTest {
             // AggregationAware+join
             "RelationalMappingIntegrationTest.java", 15);
 
-    /** Files permitted to carry {@code Assumptions.assume*} sites. */
+    /** Files permitted to carry a conditional skip ({@link #CONDITIONAL}). */
     private static final List<String> ASSUMPTION_FILES = List.of(
             // skips when the generated expected/ dir is absent -- the
             // differential needs its oracle materialized first (it reads Maven's
@@ -61,12 +62,20 @@ class SkipCensusTest {
             "ManifestWorldCensusTest.java",
             // our side of the reference differential (2026-09-25): a MEASUREMENT
             // program, opt-in by -Dour.resolutions=<module>; skips in the chain
-            "OurResolutionsTest.java");
+            "OurResolutionsTest.java",
+            // the warehouse against a live Postgres: runs only when LEGENDLITE_PG_DSN names one, by its own
+            // manual target (//warehouse:postgres_live); an embedded Postgres in the chain is leg P2 of
+            // docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md
+            "WarehousePostgresLiveTest.java");
     // LEFT 2026-10-05 (Bazel workplan P3-14): MinimalCorpusTest, SpecBodyCensusTest, CoreImportsParityTest,
     // PlatformNamesSpellingTest, UpstreamPathManifestTest and parser-equivalence's CorpusCensusTest,
     // CorpusSweepTest, MigrationSizingTest, OwnDialectCensusTest, ParseSpeedBenchmarkTest and
     // SectionParseSentinelTest. Each skipped when a required input (an upstream tree, the corpus) was absent;
     // under Bazel those are declared inputs, so each now FAILS naming the input instead of going quiet.
+
+    /** A conditional skip: an assumption, or a JUnit condition annotation. */
+    private static final Pattern CONDITIONAL =
+            Pattern.compile("Assumptions\\.assume|\\bassumingThat\\(|@EnabledIf|@DisabledIf");
 
     private static final Pattern DISABLED =
             Pattern.compile("@Disabled\\(\"([^\"]*)\"\\)");
@@ -118,7 +127,7 @@ class SkipCensusTest {
         List<String> found = new ArrayList<>();
         for (Path f : testSources()) {
             String src = Files.readString(f);
-            if (src.contains("Assumptions.assume")
+            if (CONDITIONAL.matcher(src).find()
                     && !f.getFileName().toString().equals("SkipCensusTest.java")) {
                 found.add(f.getFileName().toString());
             }
@@ -141,7 +150,8 @@ class SkipCensusTest {
         for (Path root : List.of(Repo.module("src/test/java"),
                 Repo.path("spec/src/test/java"),
                 Repo.path("parser-equivalence/src/test/java"),
-                Repo.path("pct/src/test/java"))) {
+                Repo.path("pct/src/test/java"),
+                Repo.path("warehouse/src/test/java"))) {
             if (!Files.isDirectory(root)) {
                 throw new IllegalStateException("SkipCensusTest root " + root + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
             }

@@ -3121,15 +3121,16 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 Runtime test::TestRuntime { mappings: [ model::DateCompareMap ]; connections: [ store::DateCompareDb: [ environment: store::TestConn ] ]; }
                 """;
 
-        String pureQuery = "model::DateCompareRecord.all()->project([{e | isOnDay($e.date1, $e.date2)}], ['sameDay'])";
+        String pureQuery = "model::DateCompareRecord.all()->project([{e | $e.date2}, {e | isOnDay($e.date1, $e.date2)}], ['date2', 'sameDay'])";
 
         var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("isOnDay result: " + result.rows());
         assertEquals(2, result.rows().size());
 
-        // one record on the same day (true), one on different days (false); no ORDER BY, so as a multiset (P3-11)
-        com.legend.testing.Rows.assertSameRows(java.util.List.of(java.util.List.of(true), java.util.List.of(false)),
-                result.rows(), com.legend.exec.Row::values);
+        // no ORDER BY: rows by date2, so each verdict stays paired with its record (P3-11)
+        var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> String.valueOf(r.get(0)));
+        assertTrue((Boolean) sorted.get(0).get(1), "Jan 15 08:00 and Jan 15 20:00 are one day");
+        assertFalse((Boolean) sorted.get(1).get(1), "Jan 15 08:00 and Jan 16 08:00 are different days");
     }
 
     @Test

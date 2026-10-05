@@ -87,7 +87,6 @@ class LowerRelationTest {
         return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(body));
     }
 
-    /** Execute; return rows as "cell|cell" strings. */
     /** {@link #exec}'s rows sorted: for a relation queried with no ORDER BY, whose row order is the database's
      *  (Bazel workplan P3-11). A collection keeps its order: use {@link #exec}. */
     private List<String> execUnordered(String sql) throws SQLException {
@@ -96,6 +95,7 @@ class LowerRelationTest {
         return rows;
     }
 
+    /** Execute; return rows as "cell|cell" strings. */
     private List<String> exec(String sql) throws SQLException {
         List<String> rows = new ArrayList<>();
         try (Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql)) {

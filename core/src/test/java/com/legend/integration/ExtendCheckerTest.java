@@ -1994,6 +1994,7 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         void testNow() throws SQLException {
             // the year of DuckDB's own clock either side of the query, not the JVM's (P3-15)
             String before = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
+            String beforeUtc = dbScalar("SELECT CAST(year(current_timestamp AT TIME ZONE 'UTC') AS VARCHAR)");
             var r = executeRelation("""
                     |#TDS
                     id
@@ -2001,9 +2002,12 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     #->extend(~ts: x | now())""");
             assertEquals(1, r.rowCount());
             String after = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
+            String afterUtc = dbScalar("SELECT CAST(year(current_timestamp AT TIME ZONE 'UTC') AS VARCHAR)");
             String ts = r.rows().get(0).get(colIdx(r, "ts")).toString();
-            assertTrue(ts.startsWith(before) || ts.startsWith(after),
-                    "now() is in the database's year (" + before + " .. " + after + "), got " + ts);
+            // the value may be rendered in the session's zone or in UTC: either year, either side of the query
+            assertTrue(java.util.stream.Stream.of(before, after, beforeUtc, afterUtc).anyMatch(ts::startsWith),
+                    "now() is in the database's year (" + before + "/" + beforeUtc + " .. " + after + "/" + afterUtc
+                            + "), got " + ts);
         }
 
         @Test
@@ -2267,7 +2271,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     /** One value the test's own DuckDB session computes. */
     private String dbScalar(String sql) throws SQLException {
         try (var st = connection.createStatement(); var rs = st.executeQuery(sql)) {
-            rs.next();
+            if (!rs.next()) {
+                throw new IllegalStateException("no row from " + sql);
+            }
             return rs.getString(1);
         }
     }

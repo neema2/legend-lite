@@ -273,6 +273,7 @@ _CENSUS_READS = _CORE_READS + [
     "//pct:srcs",
     "//projects:srcs",
     "//spec:srcs",
+    "//warehouse:test_java",
 ]
 
 # core's tests, compiled ONCE; every lane below runs from this library.
@@ -701,6 +702,7 @@ core_layer_queries(not_layers = {
     "duckdb_load": "the drivers' bulk loader, beside the layers",
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
     "shadow_binding": "a test-lane ServiceLoader resource",
+    "toy_grammar": "a toy section grammar for the registry's own test (section_grammar_registry_test)",
 })
 
 guards_package()

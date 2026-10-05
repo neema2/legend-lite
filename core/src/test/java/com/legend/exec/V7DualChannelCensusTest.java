@@ -14,9 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * declines, the side-size histogram — before the corpus sweep leans on
  * it. Measurement-instrument pins only; no verdict flows through here.
  */
-// reads process-wide counters (CanonicalDivergence, Census): one such class at a time if JUnit ever runs classes in
-// parallel, so no other test's calls land between its reset and its assert (Bazel workplan P3-04, A9)
-@org.junit.jupiter.api.parallel.ResourceLock("process-counters")
+// reads process-wide counters (CanonicalDivergence, Census) that every query bumps: runs alone if JUnit ever runs
+// classes in parallel, so no other test's calls land between its reset and its assert (Bazel workplan P3-04, A9)
+@org.junit.jupiter.api.parallel.Isolated
 class V7DualChannelCensusTest {
 
     @Test

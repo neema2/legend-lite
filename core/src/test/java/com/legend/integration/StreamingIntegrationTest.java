@@ -256,15 +256,15 @@ class StreamingIntegrationTest {
     //      each row, so the OutputStream sees ~100 write calls for a 100-row
     //      query under streaming; a materialized impl produces ~1.
     //
-    //   2. Observer thread watches the output buffer grow DURING execution,
-    //      with a per-write busy-wait to stretch execution time. Streaming:
-    //      observer sees many intermediate sizes. Materialized: observer sees
-    //      {0, finalSize} only.
+    //   2. A recording connection counts ResultSet.next(), and every write
+    //      notes how many rows had been fetched: streaming writes at many
+    //      distinct points of the fetch, a materialized impl at one or two
+    //      (no clock, no observer thread: Bazel workplan P3-15).
     //
     // Both tests are mutation-verified: temporarily replacing stream() with a
     // materialized impl causes them to fail with clear messages.
 
-    /** OutputStream that tracks the number and timing of write calls. */
+    /** OutputStream that tracks the number and sizes of write calls. */
     static final class CountingOutputStream extends OutputStream {
         final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         final AtomicInteger writeCallCount = new AtomicInteger(0);
@@ -439,22 +439,21 @@ class StreamingIntegrationTest {
         assertRowsFetchedAtFirstWriteFewerThanAll(query);
     }
 
-    /** Streams {@code query} over a connection that counts every ResultSet.next(), and asserts the output saw its
-     *  first byte before the 100 employee rows were all fetched. */
+    /** Streams {@code query} over a connection that counts every ResultSet.next(), and asserts the output was
+     *  written at many different points of the fetch: streaming writes as it fetches, so its writes land at many
+     *  distinct fetched-row counts; a materialized result (even one that writes an opening "[" first) writes at one
+     *  or two. */
     private void assertRowsFetchedAtFirstWriteFewerThanAll(String query) throws Exception {
         AtomicInteger fetched = new AtomicInteger();
-        AtomicInteger fetchedAtFirstWrite = new AtomicInteger(-1);
+        java.util.Set<Integer> fetchedAtWrites = java.util.Collections.synchronizedSet(new java.util.TreeSet<>());
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         OutputStream out = new OutputStream() {
-            private void first() {
-                fetchedAtFirstWrite.compareAndSet(-1, fetched.get());
-            }
             @Override public void write(int b) {
-                first();
+                fetchedAtWrites.add(fetched.get());
                 buffer.write(b);
             }
             @Override public void write(byte[] b, int off, int len) {
-                first();
+                fetchedAtWrites.add(fetched.get());
                 buffer.write(b, off, len);
             }
             @Override public void flush() {}
@@ -464,8 +463,9 @@ class StreamingIntegrationTest {
         assertTrue(buffer.size() > 0, "Should have produced some output");
         assertTrue(fetched.get() >= 100, "the recording connection saw " + fetched.get() + " rows fetched, not the"
                 + " 100 the query reads: the stream bypassed it, and this test proves nothing");
-        assertTrue(fetchedAtFirstWrite.get() < fetched.get(), "the first byte reached the output after all "
-                + fetched.get() + " rows were fetched: the result was materialized before writing");
+        long midFetch = fetchedAtWrites.stream().filter(n -> n > 0 && n < fetched.get()).count();
+        assertTrue(midFetch >= 50, "the output was written at only " + midFetch + " distinct points while rows were"
+                + " still being fetched (" + fetchedAtWrites + "): the result was materialized before writing");
     }
 
     /** {@code inner}, with every ResultSet its statements return counting its next() calls into {@code fetched}. */

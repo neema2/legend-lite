@@ -63,21 +63,29 @@ public final class Rows {
         return out;
     }
 
+    /** A cell's comparison key, tagged by kind so the number 1, the text "1" and a null never meet. */
     private static String key(Object c) {
         if (c == null) {
             return "\u0000null";
         }
-        if (c instanceof Number n) {
-            return number(n).stripTrailingZeros().toPlainString();
+        if (c instanceof Number n && finite(n)) {
+            return "n:" + number(n).stripTrailingZeros().toPlainString();
         }
-        return String.valueOf(c);
+        if (c instanceof CharSequence) {
+            return "s:" + c;
+        }
+        return c.getClass().getSimpleName() + ":" + c;
+    }
+
+    private static boolean finite(Number n) {
+        return !(n instanceof Double d && !Double.isFinite(d)) && !(n instanceof Float f && !Float.isFinite(f));
     }
 
     private static int compareCells(Object a, Object b) {
         if (a == null || b == null) {
             return a == null ? (b == null ? 0 : -1) : 1;
         }
-        if (a instanceof Number x && b instanceof Number y) {
+        if (a instanceof Number x && b instanceof Number y && finite(x) && finite(y)) {
             return number(x).compareTo(number(y));
         }
         return String.valueOf(a).compareTo(String.valueOf(b));
