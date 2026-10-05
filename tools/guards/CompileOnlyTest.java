@@ -53,7 +53,6 @@ class CompileOnlyTest {
                     "java_binary JavaLauncherMaker", "the Windows launcher: registered, never built by //:java")),
             "wasm", with(JAVA_LIBRARY, Map.of(
                     "jvm_import CreateCompileJar", "rules_jvm_external's compile-only copy of a TeaVM jar",
-                    "jvm_import StampJarManifest", "rules_jvm_external labels a TeaVM jar's manifest (its runtime jar)",
                     "_teavm_wasm TeaVM", "compiles Java to WebAssembly")),
             "native", with(JAVA_LIBRARY, Map.of(
                     "_native_image NativeImage", "compiles the database server to a native executable",
