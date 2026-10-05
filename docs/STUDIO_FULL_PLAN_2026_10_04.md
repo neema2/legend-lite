@@ -63,6 +63,20 @@ What exists to build on:
   look. Screenshot per screen in `//studio:verify_test`.
 - **Done when:** side-by-side screenshots against the census show no unexplained difference.
 
+### A0½. Query and DataCube open models by name (design Phase 3; added 2026-10-05)
+Left out of this plan when it was written; the user ruled it next after A0 (2026-10-05).
+- Query and DataCube load a model from Depot by coordinates instead of the demo's `.pure` config: a project, a
+  version, then a data space or class (upstream Query's pickers), the version's text and its dependency closure from
+  Depot (its nearest-wins resolution, already Studio's) handed to the planner. In the page, Depot is the same
+  WebAssembly module Studio runs, on the same origin (`//site`), so a project Studio publishes is one Query opens.
+- **The project line first** (the user: "start with non-releases first"): Depot's `master-SNAPSHOT` -- the line's
+  head, read live, upstream Query's HEAD -- is the default; releases are the same picker with a fixed version. A saved
+  query pins the version it was built on (a snapshot follows the line, a release does not), with the upgrade path.
+- A workspace's unmerged edits are not Depot's: upstream reads those from inside Studio ("Query..." on a class), so
+  they come with A5.
+- **Done when:** `//site:verify` creates a project in Studio, commits a class, and Query opens it at HEAD and runs a
+  query; then releases it and opens 1.0.0.
+
 ### A1. One in-tab engine for every app
 - Move Query's `BrowserEngine` (planner → SQL → DuckDB/warehouse, engine-shaped answers) into `engine-client/` as **the
   in-tab legend engine**: `execute`, `generatePlan` (SQL shown), `lambdaRelationType`, `lambdaReturnType`, `compile`
@@ -208,8 +222,8 @@ Measured by feature, against both stacks (ours and a real deployment). **Must-ha
 
 | Milestone | Contents | Proves | Core / `main` coordination |
 |---|---|---|---|
-| **M0** | Land `studio` on `main` (full gate, PR, review) | — | the line's announced edits |
-| **M1** | A0 look + A1 in-tab engine + A2 test data + A3 run function/service/mapping | **D1 minus tests**: write → run on DuckDB in the tab → see rows | none beyond A1 moves |
+| **M0** | Land `studio` on `main` (full gate, PR, review) -- **done 2026-10-05** (PR #23, 6f86c86dd, `main` green on every lane) | — | the line's announced edits |
+| **M1** | A0 look + **A0½ Query and DataCube by name (the snapshot first)** + A1 in-tab engine + A2 test data + A3 run function/service/mapping | **D1 minus tests**: write → run on DuckDB in the tab → see rows; what Studio publishes, Query opens | none beyond A1 moves |
 | **M2** | A4 tests (runTests in core + WASM + UI) + A5 query builder in Studio + A6 Snap | **D1 complete** | runTests in core: announce |
 | **M3** | B1 round trip (printer + reader, corpus and showcase parity) | the hinge for D2 | core: announce |
 | **M4** | B2 + B3 + B4: our Studio on real sdlc/depot/engine; v1 function resolution; engine-dialect compile | **D2** | function-resolution fix in core: announce |
