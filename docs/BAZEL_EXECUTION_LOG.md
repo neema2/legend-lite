@@ -156,3 +156,14 @@ without a **done** entry.
   (one pin, one generator) and Query then uses legend-art's output.
 - Rebased onto 6f86c86dd (the Studio merge); throwaway 37251203524 (checks, build, all platforms) and the local gate:
   running.
+- **Pushed to main** (a97cbd188; batch 7, P2-12, P2-08, P2-07, P2-17, the memo fix): local gate 177/177 at that
+  commit; throwaway 37251203524 green but for the Windows build job, still running (main's own CI re-runs it); pushed
+  early to unblock the Studio session (USER: "the studio session is waiting for us"). Main CI 37253460391: running.
+- **Studio line reviewed** (studio-m1, /Users/neema/legend/legend-lite-query): in line, but two fixes before it pushes --
+  the fonts committed as .woff2 binaries (pin @fontsource by integrity like @react_icons), and legend-art/src/icons.ts
+  as vendored data (generate it from @react_icons, diff-tested, and retire //query's generator).
+- **P2-14 (F) root cause:** bisect (7 runs) puts the reference lane's 1515 -> 1517 failed bodies at c1f9bac5b
+  (2026-10-01, list literals require [1] elements). The two bodies (dataTypeToSqlTextH2, debugPrint and v2_1_214) use
+  `max([$MIN, min([...])])`, which legend-pure's compiler types: the rule is stricter than the reference. A user
+  decision (refine the rule, or re-bless with a dated reason); the golden stays at 1515 meanwhile.
+- Local, unpushed: P2-13, the batch 8 audit follow-ups, P2-06, P2-10 (release.MODULE.bazel), P2-11.
