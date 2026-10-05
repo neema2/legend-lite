@@ -6,6 +6,8 @@
 //
 // It carries `dc-app-floating`, so DataCube's tokens -- and the dark theme's -- apply to it.
 
+import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
+
 /** The sections, in the order the window lists them. */
 export type SectionId = 'files' | 'examples' | 'saved' | 'database' | 'remote';
 
@@ -157,7 +159,7 @@ function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, cls: s
   return e;
 }
 
-const count = (n: number): string => n.toLocaleString('en-US');
+const count = (n: number): string => n.toLocaleString(UI_LOCALE);
 
 /**
  * Ask the person where the rows come from. Resolves with what the host's `open` made of their

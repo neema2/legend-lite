@@ -2,13 +2,12 @@
 // an audit entry reproduced the way a person meets it, over the fixture's gated engine.
 
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import {
-  app, dom, engine, menu, root, settle, setUp,
-} from './cube-fixture.ts';
+import { app, dom, engine, menu, root, settle, setUp, tearDown } from './cube-fixture.ts';
 
 beforeEach(setUp);
+afterEach(tearDown);
 
 describe('while Ad Hoc Analysis is on, the shell acts on it (B5b)', () => {
   const hamburger = (): HTMLElement[] => {

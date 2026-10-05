@@ -1,7 +1,10 @@
-# The execution census, compared: usage: python3 tools/census/lanes_diff.py <base dir> <head dir> [examples]
+# The execution census, compared: usage: bazel run //tools/census:lanes_diff -- <base dir> <head dir> [examples]
+# (paths from where it is run; Bazel workplan P3-13)
 # Each lane log is compared as a multiset of lines after removing run-to-run noise (ports, sandbox paths,
 # timings, UUIDs, per-run verdict ids, the order of an unordered result); what remains is listed per lane.
 import collections, re, sys, glob, os
+# under bazel run the program starts in its runfiles: the directories are named from where it was run
+os.chdir(os.environ.get("BUILD_WORKING_DIRECTORY", "."))
 NORM = [
     (re.compile(r'darwin-sandbox/\d+'), 'darwin-sandbox/N'),
     (re.compile(r'_tmp/[0-9a-f]{32}'), '_tmp/H'),

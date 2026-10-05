@@ -2,13 +2,12 @@
 // an audit entry reproduced the way a person meets it, over the fixture's gated engine.
 
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import {
-  app, dom, engine, menu, remount, root, settle, setUp,
-} from './cube-fixture.ts';
+import { app, dom, engine, menu, remount, root, settle, setUp, tearDown } from './cube-fixture.ts';
 
 beforeEach(setUp);
+afterEach(tearDown);
 
 describe('lifecycle (B3)', () => {
   it('a disposed cube stops: its query is cancelled and nothing reaches the host after (P2-105)', async () => {

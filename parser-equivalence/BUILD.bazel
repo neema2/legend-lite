@@ -3,12 +3,25 @@
 # live only here: core must never see org.finos.legend.
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
-load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
-load("//tools/jars:defs.bzl", "java_jars")
+load("//tools/jars:defs.bzl", "file_list", "java_jars")
 load("//tools/guards:defs.bzl", "guards_package")
+
+# the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
+# src/test/**/*.java and nothing else; Bazel workplan P3-07)
+filegroup(
+    name = "test_java",
+    srcs = glob(["src/test/**/*.java"]),
+)
+
+# the sibling parser's fixtures, listed as files (FixtureCorpusParityTest, MutationFuzzTest)
+filegroup(
+    name = "sibling_corpus",
+    srcs = glob(["src/test/resources/sibling-corpus/**"]),
+)
 
 # sources exported for core's guard tests that walk every module
 filegroup(
@@ -17,12 +30,24 @@ filegroup(
     visibility = ["//core:__pkg__"],
 )
 
+# THE HARVEST'S RECORDING SHIMS (Bazel workplan P3-31): legend-engine's own test base classes, re-declared in their
+# namespace so the engine's tests-jars record every fixture they parse; with FixtureRecorder, the one class they call.
+# Only the harvest links them, AHEAD of the tests-jars (:harvest_lib), and FixtureHarvestGenerator refuses to run when
+# a shim is not the class that loads.
+_HARVEST_SHIMS = [
+    "src/test/java/org/finos/legend/engine/language/pure/compiler/test/TestCompilationFromGrammar.java",
+    "src/test/java/org/finos/legend/engine/language/pure/grammar/test/TestGrammarParser.java",
+    "src/test/java/org/finos/legend/engine/language/pure/grammar/test/TestGrammarRoundtrip.java",
+    "src/test/java/com/legend/equivalence/harvest/FixtureRecorder.java",
+]
+
 legend_java_library(
     name = "pe_tests_lib",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    srcs = glob(["src/test/java/**/*.java"]),
+    # the recording shims are :harvest_shims' alone: no parity test sees an engine class re-declared
+    srcs = glob(["src/test/java/**/*.java"], exclude = _HARVEST_SHIMS),
     resources = glob(["src/test/resources/**"]),
     deps = [
         "//core",
@@ -65,6 +90,7 @@ legend_java_library(
 java_jars(
     name = "engine_jars",
     testonly = True,
+    rlocation_paths = True,
     deps = [":pe_tests_lib"],
 )
 
@@ -82,13 +108,32 @@ filegroup(
     output_group = "jars",
 )
 
-_ENGINE_JARS_FLAG = "-Dlegend.engine.jars=$(rootpath :engine_jars)"
+_ENGINE_JARS_FLAG = "-Dlegend.engine.jars.rlocation=$(rlocationpath :engine_jars)"
+
+# the repository files the parity tests read, as one declared list (ModuleFiles, SourceFiles; Bazel workplan
+# P3-27b): no test walks a directory
+file_list(
+    name = "parity_sources",
+    testonly = True,
+    srcs = [
+        ":sibling_corpus",
+        ":test_java",
+        "//core:test_java",
+        "//pct:test_java",
+        "//spec:test_java",
+    ],
+)
+
+_SOURCES_FLAG = "-Dlegend.sources=$(rlocationpath :parity_sources)"
 
 _INPUTS = [
-    ":srcs",
-    "//core:srcs",
-    "//pct:srcs",
-    "//spec:srcs",
+    # what the parity tests read as files (Bazel workplan P3-07): every module's test sources (the own corpus:
+    # InlineSnippets reads src/test/**/*.java), this module's sibling corpus, and the oracle pins
+    ":sibling_corpus",
+    ":test_java",
+    "//core:test_java",
+    "//pct:test_java",
+    "//spec:test_java",
     "//tools:oracle-pins.env",
 ]
 
@@ -111,25 +156,21 @@ _FILE_DATA = ["//docs:%s.tsv" % l for l in _LEDGERS] + [
     "src/test/resources/engine-grammar-fixtures.jsonl",
 ]
 
-# the oracle pins (OraclePins, through Repo.path): a test's path is the runfiles one, an action's the execroot one
-_PINS_TEST_FLAG = "-Doracle.pins=$(rootpath //tools:oracle-pins.env)"
+# the oracle pins (OraclePins, through ProgramPaths): a test's by its runfiles path, an action's by its exec path
+_PINS_TEST_FLAG = "-Doracle.pins.rlocation=$(rlocationpath //tools:oracle-pins.env)"
 
 _PINS_ACTION_FLAG = "-Doracle.pins=$(execpath //tools:oracle-pins.env)"
 
-_FILE_FLAGS = [_PINS_TEST_FLAG] + ["-Dledger.%s=$(rlocationpath //docs:%s.tsv)" % (l, l) for l in _LEDGERS] + [
-    "-Dpe.corpus.manifest=$(rlocationpath src/test/resources/corpus-manifest.tsv)",
-    "-Dpe.engine.fixtures=$(rlocationpath src/test/resources/engine-grammar-fixtures.jsonl)",
+_FILE_FLAGS = [_PINS_TEST_FLAG] + ["-Dledger.%s.rlocation=$(rlocationpath //docs:%s.tsv)" % (l, l) for l in _LEDGERS] + [
+    "-Dpe.engine.fixtures.rlocation=$(rlocationpath src/test/resources/engine-grammar-fixtures.jsonl)",
 ]
 
-# The measurement battery (//parser-equivalence:diagnostics): censuses and a benchmark, run on
-# their triggers, never as part of the gate.
+
+# The asserting census run on its trigger, never as part of the gate (//parser-equivalence:diagnostics). The
+# measuring ones are report actions (:diagnostics_reports) and the benchmark a binary (:parse_speed_benchmark):
+# Bazel workplan P3-17.
 _DIAGNOSTICS = [
-    "ParseSpeedBenchmarkTest",
-    "CorpusCensusTest",
-    "GrammarKeywordCensusTest",
-    "PmcdReachabilityCensusTest",
     "GrammarCoverageCensusTest",
-    "MigrationSizingTest",
 ]
 
 # Gate 8: every asserting parity class. Selected by PACKAGE, so a new test is in the
@@ -137,8 +178,14 @@ _DIAGNOSTICS = [
 junit_test(
     name = "parser_parity",
     memory_mb = 2816,
-    data = _INPUTS + _FILE_DATA + [":engine_jars"],
-    jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS,
+    data = _INPUTS + _FILE_DATA + [
+        ":engine_jars",
+        ":parity_sources",
+    ],
+    jvm_flags = [
+        _ENGINE_JARS_FLAG,
+        _SOURCES_FLAG,
+    ] + _FILE_FLAGS,
     exclude_tags = [],
     runtime_deps = [":pe_tests_lib"],
     select = ["--select-package=com.legend.equivalence"] + [
@@ -150,12 +197,14 @@ junit_test(
 junit_test(
     name = "diagnostics",
     memory_mb = 2048,
-    # the reachability census reads the roster as :gen_roster makes it (P2-19)
     data = _INPUTS + _FILE_DATA + [
         ":engine_jars",
-        ":gen_roster",
+        ":parity_sources",
     ],
-    jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS + ["-Dpe.roster=$(rlocationpath :gen_roster)"],
+    jvm_flags = [
+        _ENGINE_JARS_FLAG,
+        _SOURCES_FLAG,
+    ] + _FILE_FLAGS,
     runtime_deps = [":pe_tests_lib"],
     select = ["--select-class=com.legend.equivalence." + c for c in _DIAGNOSTICS],
     tags = ["manual"],
@@ -165,10 +214,33 @@ junit_test(
 # ── THE GENERATORS ──────────────────────────────────────────────────────────────
 # Programs run as build actions over declared inputs; //parser-equivalence:
 # update_generated writes their outputs into the checkout and diff-tests them.
-# The corpus machinery they share finds files through Repo, which a build action
-# points at its own inputs (-Dlegend.repo.root: the action's working directory,
-# where declared inputs sit at their repository paths).
-# THE FIXTURE HARVEST's classpath: the shims first (:pe_tests_lib), then the
+# The corpus machinery they share reads the files each action names (ProgramPaths), or
+# walks its declared inputs, which sit at their repository paths under the action's
+# working directory (ModuleFiles).
+# The fixture harvest's shims (P3-31): the upstream classes of the same names, replaced, in a library of their own
+# so :harvest_lib can put them first.
+legend_java_library(
+    name = "harvest_shims",
+    # not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    testonly = True,
+    srcs = _HARVEST_SHIMS,
+    deps = [
+        # FixtureRecorder stamps the dump with the pinned release (Corpus, OraclePins)
+        ":pe_tests_lib",
+        "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
+        "@maven_upstream//:org_antlr_antlr4_runtime",
+        "@maven_upstream//:org_eclipse_collections_eclipse_collections",
+        "@maven_upstream//:org_eclipse_collections_eclipse_collections_api",
+        "@maven_upstream//:junit_junit",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_compiler",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_grammar",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_protocol_pure",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_shared_core",
+    ],
+)
+
+# THE FIXTURE HARVEST's classpath: the shims first (:harvest_shims), then the
 # engine's grammar and compiler tests-jars (grammar before compiler — the order
 # the snapshot's dedup is minted in) and json-unit. QUARANTINED: nothing else
 # depends on these jars, whose test-scoped registrations would alter the oracle.
@@ -176,6 +248,8 @@ legend_java_library(
     name = "harvest_lib",
     testonly = True,
     runtime_deps = [
+        # the shims FIRST: ahead of the tests-jars' own classes of the same names
+        ":harvest_shims",
         ":pe_tests_lib",
         "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_grammar_tests",
         "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_compiler_tests",
@@ -337,5 +411,81 @@ java_run(
     visibility = ["//docs:__pkg__"],
     deps = [":pe_tests_lib"],
 )
+
+# THE MEASUREMENTS (Bazel workplan P3-17): each census a program over declared inputs, its report a cached build
+# output in bazel-bin/parser-equivalence/<name>/. Manual: a measurement is asked for, never part of `//...`:
+#   bazel build //parser-equivalence:diagnostics_reports
+_REPORTS = {
+    "corpus_census": ("CorpusCensus", ["corpus-census.txt", "corpus-census-defects.txt"]),
+    "grammar_keyword_census": ("GrammarKeywordCensus", ["grammar-keyword-census.txt"]),
+    "migration_sizing": ("MigrationSizing", ["migration-sizing.txt", "migration-legacy-only.txt"]),
+    "pmcd_reachability_census": ("PmcdReachabilityCensus", ["pmcd-reachability-census.txt"]),
+}
+
+[java_run(
+    name = name,
+    testonly = True,
+    srcs = _INPUTS + UPSTREAM_TREES + [
+        ":engine_jar_files",
+        ":engine_jars_exec",
+        ":gen_fixtures",
+        ":gen_roster",
+    ],
+    outs = [name + "/" + f for f in files + ["run.log"]],
+    arguments = ["{OUT_DIR}"],
+    jvm_flags = program_jvm_flags("parser-equivalence") + [
+        _PINS_ACTION_FLAG,
+        _NEW_FIXTURES,
+        "-Dlegend.engine.jars=$(execpath :engine_jars_exec)",
+        "-Dpe.roster=$(execpath :gen_roster)",
+    ],
+    main_class = "com.legend.equivalence." + main,
+    memory_mb = 2048,
+    mnemonic = "Measure",
+    roots = UPSTREAM_ROOTS,
+    tags = ["manual"],
+    deps = [":pe_tests_lib"],
+) for name, (main, files) in _REPORTS.items()]
+
+filegroup(
+    name = "diagnostics_reports",
+    testonly = True,
+    srcs = [":" + name for name in _REPORTS],
+    tags = ["manual"],
+)
+
+# The parse-speed benchmark: a timing is the machine's, so it is run, never cached.
+#   bazel run //parser-equivalence:parse_speed_benchmark [-- --out FILE]
+legend_java_binary(
+    name = "parse_speed_benchmark",
+    testonly = True,
+    data = _INPUTS + _FILE_DATA + UPSTREAM_TREES,
+    jvm_flags = _FILE_FLAGS + [
+        "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
+        "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
+    ],
+    main_class = "com.legend.equivalence.ParseSpeedBenchmark",
+    tags = ["manual"],
+    runtime_deps = [":pe_tests_lib"],
+)
+
+# THE PROBES, run on demand (Bazel workplan P3-17): instruments that print what they find, each its own binary.
+#   bazel run //parser-equivalence:probe_wire_shapes [-- --out FILE]       the reference parser's bytes for constructs
+#   bazel run //parser-equivalence:z_fixture_adjudication_probe -- --out DIR [--fixtures FILE]
+#   bazel run //parser-equivalence:fixture_sweep -- [--out FILE] DIR...     a fixture directory against both parsers
+[legend_java_binary(
+    name = name,
+    testonly = True,
+    # the ledgers and resources the parity code reads, as the tests have them
+    data = _INPUTS + _FILE_DATA + [":parity_sources"],
+    jvm_flags = _FILE_FLAGS + [_SOURCES_FLAG],
+    main_class = "com.legend.equivalence." + main,
+    tags = ["manual"],
+    runtime_deps = [":pe_tests_lib"],
+) for name, main in [
+    ("fixture_sweep", "FixtureSweep"),
+    ("probe_wire_shapes", "ProbeWireShapes"),
+    ("z_fixture_adjudication_probe", "harvest.ZFixtureAdjudicationProbe"),
+]]
 
 guards_package()

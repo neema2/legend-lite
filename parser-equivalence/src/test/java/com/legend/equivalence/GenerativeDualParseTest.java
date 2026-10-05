@@ -3,7 +3,6 @@
 
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.Lexer;
@@ -90,7 +89,7 @@ class GenerativeDualParseTest {
                                 .replace('\n', ' '));
             }
         }
-        Files.writeString(Repo.out("generative-dual-parse.txt"),
+        Files.writeString(com.legend.testing.TestOutputs.file("generative-dual-parse.txt"),
                 "seed " + SEED + " sentences " + SENTENCES
                         + " bothAccept " + bothAccept
                         + " bothReject " + bothReject

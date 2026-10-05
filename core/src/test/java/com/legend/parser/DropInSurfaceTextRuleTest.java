@@ -1,6 +1,6 @@
 package com.legend.parser;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -159,12 +159,12 @@ class DropInSurfaceTextRuleTest {
 
     private static Map<String, Integer> census(Pattern needle, String... pkgs)
             throws IOException {
-        Path root = Repo.module("src", "main", "java", "com", "legend");
-        assertTrue(Files.isDirectory(root), "core's sources are not visible at " + root
-                + " (Bazel: declare them as data of the test target)");
+        String root = "core/src/main/java/com/legend";
+        assertTrue(!SourceFiles.under(root).isEmpty(), "core's sources are not declared: " + root
+                + " (Bazel: the test target's source list, -D" + SourceFiles.PROPERTY + ")");
         Map<String, Integer> out = new TreeMap<>();
         for (String pkg : pkgs) {
-            try (Stream<Path> files = Files.walk(root.resolve(pkg))) {
+            try (Stream<Path> files = SourceFiles.under(root + "/" + pkg).stream()) {
                 for (Path f : files.filter(p -> p.toString().endsWith(".java")).toList()) {
                     int n = 0;
                     for (String line : List.copyOf(Files.readAllLines(f))) {

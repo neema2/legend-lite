@@ -17,6 +17,7 @@
 // `toRawTable` the local plane uses. Measured: for every type the warehouse
 // returns, the cells are identical to DuckDB-WASM's (the D1 homework, H2).
 
+import { UI_LOCALE } from './locale.ts';
 import { Table, tableFromIPC, type RecordBatch } from 'apache-arrow';
 
 import { QueryError, typedByPlan, type QueryEngine, type RawTable } from './engine.ts';
@@ -183,17 +184,38 @@ export function sessionExpired(error: unknown): SessionExpired | null {
   return null;
 }
 
+/** The time a WarehouseEngine reads and the timer it schedules its token refresh on: the system's, or a test's own
+ *  (Bazel workplan P3-16: a test proves the refresh by advancing a clock, never by sleeping). */
+export interface Clock {
+  now(): number;
+  setTimeout(fn: () => void, ms: number): unknown;
+  clearTimeout(handle: unknown): void;
+}
+
+export const SYSTEM_CLOCK: Clock = {
+  now: () => Date.now(),
+  setTimeout: (fn, ms) => {
+    const handle = setTimeout(fn, ms);
+    // a timer must not keep a process alive (node: a test, a CLI) for a page's convenience
+    (handle as { unref?: () => void }).unref?.();
+    return handle;
+  },
+  clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+};
+
 export class WarehouseEngine implements QueryEngine {
   readonly name = 'warehouse';
   /** Renewed in place when the same user signs in again (`renew`) or the token is refreshed. */
   #session: WarehouseSession;
   readonly #catalog: string;
   /** The next refresh of the token, before it expires (`#schedule`). */
-  #refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  #refreshTimer: unknown;
+  readonly #clock: Clock;
 
-  constructor(session: WarehouseSession, catalog = 'main') {
+  constructor(session: WarehouseSession, catalog = 'main', clock: Clock = SYSTEM_CLOCK) {
     this.#session = session;
     this.#catalog = catalog;
+    this.#clock = clock;
     this.#schedule();
   }
 
@@ -204,17 +226,15 @@ export class WarehouseEngine implements QueryEngine {
    * token, the next query says the session expired and the cube offers to sign in again.
    */
   #schedule(): void {
-    clearTimeout(this.#refreshTimer);
-    const left = Date.parse(this.#session.expiresAt) - Date.now();
+    this.#clock.clearTimeout(this.#refreshTimer);
+    const left = Date.parse(this.#session.expiresAt) - this.#clock.now();
     if (!Number.isFinite(left) || left <= 0) return;
-    this.#refreshTimer = setTimeout(() => {
+    this.#refreshTimer = this.#clock.setTimeout(() => {
       this.refreshToken().catch(() => {
         // not refreshed (the session's limit, the server gone): the next query says so, and
         // the cube offers to sign in -- a background timer has no one to tell
       });
     }, Math.max(1_000, left * 0.8));
-    // a timer must not keep a process alive (node: a test, a CLI) for a page's convenience
-    (this.#refreshTimer as { unref?: () => void }).unref?.();
   }
 
   /** Swap the token for a fresh one now: same user, a new expiry. */
@@ -319,8 +339,8 @@ export class WarehouseEngine implements QueryEngine {
     const who = this.#session.principal;
     if (!found) return `Not on the warehouse's record for ${who}: no statement ${id} in its last ${history.length}.`;
     return `On the warehouse's record for ${who}: statement ${id}, ${found.state}, `
-      + `${Number(found.rowCount).toLocaleString()} rows, submitted ${new Date(found.submittedAt).toLocaleTimeString()}`
-      + (found.finishedAt ? `, finished ${new Date(found.finishedAt).toLocaleTimeString()}` : '') + '.';
+      + `${Number(found.rowCount).toLocaleString(UI_LOCALE)} rows, submitted ${new Date(found.submittedAt).toLocaleTimeString(UI_LOCALE)}`
+      + (found.finishedAt ? `, finished ${new Date(found.finishedAt).toLocaleTimeString(UI_LOCALE)}` : '') + '.';
   }
 
   /**
@@ -384,7 +404,7 @@ export class WarehouseEngine implements QueryEngine {
 
   async close(): Promise<void> {
     // nothing held open: every statement is closed as it finishes; the refresh stops
-    clearTimeout(this.#refreshTimer);
+    this.#clock.clearTimeout(this.#refreshTimer);
   }
 
   #auth(): Record<string, string> {

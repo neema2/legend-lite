@@ -8,9 +8,11 @@ load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/teavm:defs.bzl", "teavm_wasm")
 load("//tools/platforms:defs.bzl", "compatible_with", "platform_select")
 load(":defs.bzl", "POSTGRES_EXTENSION", "POSTGRES_EXTENSION_COMPATIBLE", "jar_entry", "warehouse_run")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # DuckDB's native library for this platform, out of its JDBC jar (//tools/platforms; Bazel workplan P1-19)
@@ -82,8 +84,17 @@ legend_java_binary(
         ":duckdb_extensions",
         ":duckdb_library",
     ],
+    # DuckDB's library is loaded through FFM: allowed, so the JDK prints no warning (Bazel workplan P3-21)
+    jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
     main_class = "com.legend.warehouse.server.WarehouseServer",
     runtime_deps = [":server_lib"],
+)
+
+# the test sources, as files: core's skip census walks them (Bazel workplan P3-14)
+filegroup(
+    name = "test_java",
+    srcs = glob(["src/test/java/**/*.java"]),
+    visibility = ["//core:__pkg__"],
 )
 
 legend_java_library(
@@ -94,7 +105,11 @@ legend_java_library(
     # launcher/ is :launcher_test's alone: it needs the launcher and a Postgres in its runfiles
     srcs = glob(
         ["src/test/java/**/*.java"],
-        exclude = ["src/test/java/com/legend/warehouse/launcher/**"],
+        exclude = [
+            "src/test/java/com/legend/warehouse/launcher/**",
+            # the WebAssembly compile's entry and its test are :sqlapi_wasm's and :sqlapi_wasm_build_test's (P3-24)
+            "src/test/java/com/legend/warehouse/sqlapi/**",
+        ],
     ),
     deps = [
         ":client",
@@ -132,6 +147,18 @@ _ARROW_COMPARATOR = "-Dwarehouse.arrow.comparator=$(rlocationpath :arrow_matches
 # DuckDB's library, for the in-process servers and DuckLibrary's own tests (Bazel workplan P1-16)
 _DUCKDB_LIBRARY_FLAG = "-Dwarehouse.duckdb.library=$(rlocationpath :duckdb_library)"
 
+# every warehouse test JVM loads DuckDB's library through FFM (Bazel workplan P3-21)
+_NATIVE_ACCESS = "--enable-native-access=ALL-UNNAMED"
+
+# the suite that drives a server over HTTP (TestServer): what :tests_native judges the BINARY by, nothing else
+_HTTP_SUITE = [
+    "WarehouseArrowTest",
+    "WarehouseCorsTest",
+    "WarehouseEntitlementsTest",
+    "WarehouseJdbcTest",
+    "WarehouseServerTest",
+]
+
 junit_test(
     name = "tests",
     memory_mb = 768,
@@ -144,8 +171,15 @@ junit_test(
     jvm_flags = [
         _ARROW_COMPARATOR,
         _DUCKDB_LIBRARY_FLAG,
+        _NATIVE_ACCESS,
+        # a principal from the machine's account name is host-dependent (AppModeTest); every host is "tester"
+        "-Duser.name=tester",
     ],
-    select = ["--select-package=com.legend.warehouse"],
+    # the live Postgres test is :postgres_live's alone (it needs a DSN): left out by selection, not by a skip
+    select = [
+        "--select-package=com.legend.warehouse",
+        "--exclude-classname=.*\\.WarehousePostgresLiveTest",
+    ],
     runtime_deps = [":tests_lib"],
 )
 
@@ -178,25 +212,33 @@ native_image(
     deps = [":server_lib"],
 )
 
-# A Postgres catalog against a LIVE Postgres (leg P0 of docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md); manual
-# until embedded Postgres (P2) is in the test environment. Pass the database and DuckDB's postgres extension:
-#   bazel test //warehouse:postgres_live --test_env=LEGENDLITE_PG_DSN='host=... user=reader password=...' \
-#     --test_env=LEGENDLITE_PG_EXTENSIONS=/abs/dir/holding/postgres_scanner.duckdb_extension
+# A Postgres catalog against a LIVE Postgres (leg P0 of docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md): the embedded
+# one, which the test starts from the pinned binaries, and DuckDB's postgres extension (Bazel workplan P3-22).
+_POSTGRES_LIVE_DATA = [
+    ":arrow_matches_json",
+    ":arrow_matches_json_executable",
+    ":duckdb_extensions",
+    ":duckdb_library",
+    "@embedded_postgres//:pg/PG_ROOT",
+    "@embedded_postgres//:postgres",
+]
+
+_POSTGRES_LIVE_FLAGS = [
+    _ARROW_COMPARATOR,
+    _DUCKDB_LIBRARY_FLAG,
+    _NATIVE_ACCESS,
+    "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+    "-Dwarehouse.postgres.extension=$(rlocationpath :duckdb_extensions)",
+]
+
 junit_test(
     name = "postgres_live",
     memory_mb = 768,
     size = "medium",
-    data = [
-        ":arrow_matches_json",
-        ":arrow_matches_json_executable",
-        ":duckdb_library",
-    ],
-    jvm_flags = [
-        _ARROW_COMPARATOR,
-        _DUCKDB_LIBRARY_FLAG,
-    ],
+    data = _POSTGRES_LIVE_DATA,
+    jvm_flags = _POSTGRES_LIVE_FLAGS,
     select = ["--select-class=com.legend.warehouse.WarehousePostgresLiveTest"],
-    tags = ["manual"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE + POSTGRES_EXTENSION_COMPATIBLE,
     runtime_deps = [":tests_lib"],
 )
 
@@ -205,22 +247,14 @@ junit_test(
     name = "postgres_live_native",
     memory_mb = 768,
     size = "medium",
-    jvm_flags = [
-        _ARROW_COMPARATOR,
-        _DUCKDB_LIBRARY_FLAG,
-    ],
-    data = [
-        ":arrow_matches_json",
-        ":arrow_matches_json_executable",
-        ":duckdb_library",
-        ":server_native",
-    ],
+    jvm_flags = _POSTGRES_LIVE_FLAGS,
+    data = _POSTGRES_LIVE_DATA + [":server_native"],
     env = {
         "WAREHOUSE_BINARY": "$(rlocationpath :server_native)",
         "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath :duckdb_library)",
     },
     select = ["--select-class=com.legend.warehouse.WarehousePostgresLiveTest"],
-    tags = ["manual"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE + POSTGRES_EXTENSION_COMPATIBLE + _DUCKDB_LIBRARY_COMPATIBLE,
     runtime_deps = [":tests_lib"],
 )
 
@@ -241,6 +275,7 @@ junit_test(
     jvm_flags = [
         _ARROW_COMPARATOR,
         _DUCKDB_LIBRARY_FLAG,
+        _NATIVE_ACCESS,
     ],
     data = [
         ":arrow_matches_json",
@@ -252,7 +287,8 @@ junit_test(
         "WAREHOUSE_BINARY": "$(rlocationpath :server_native)",
         "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath :duckdb_library)",
     },
-    select = ["--select-package=com.legend.warehouse"],
+    # the HTTP suite only: the binary is what this target judges (Bazel workplan P3-21)
+    select = ["--select-class=com.legend.warehouse." + c for c in _HTTP_SUITE],
     runtime_deps = [":tests_lib"],
 )
 
@@ -343,6 +379,64 @@ java_run(
     mnemonic = "GunzipDuckdbExtension",
     target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
     deps = ["//tools/gunzip"],
+)
+
+# THE NATIVE IMAGE'S REACHABILITY METADATA, generated whole (ReachabilityMetadata; Bazel workplan P2-09, A23): the FFM
+# section from Duck.DOWNCALLS and AuthenticatedUser.UPCALLS, the callbacks' reflection from the same table, and the JDK
+# services and resources the server reaches by name, declared with why. A new signature or service fails //:generated
+# until `bazel run //warehouse:update_reachability_metadata` writes it.
+java_run(
+    name = "reachability_metadata",
+    testonly = True,
+    outs = ["generated/reachability-metadata.json"],
+    arguments = ["{OUT}"],
+    main_class = "com.legend.warehouse.server.duck.ReachabilityMetadata",
+    mnemonic = "Generate",
+    deps = [":tests_lib"],
+)
+
+write_source_files(
+    name = "update_reachability_metadata",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe native image's metadata moved (an FFM signature, or a declared JDK service) -- bazel run //warehouse:update_reachability_metadata",
+    files = {"src/main/resources/META-INF/native-image/com.legend/warehouse/reachability-metadata.json": ":reachability_metadata"},
+    visibility = ["//:__pkg__"],
+)
+
+# THE SQL API IN WEBASSEMBLY (Bazel workplan P3-24): WasmEntry reaches the binding, the JSON codec and the Arrow
+# reader, and TeaVM compiles it, so a class the API reaches that TeaVM's class library lacks fails the build. The
+# test's data is the module: building the test is the compile.
+legend_java_library(
+    name = "sqlapi_wasm_entry",
+    testonly = True,
+    srcs = ["src/test/java/com/legend/warehouse/sqlapi/WasmEntry.java"],
+    deps = [":sqlapi"],
+)
+
+teavm_wasm(
+    name = "sqlapi_wasm",
+    testonly = True,
+    main_class = "com.legend.warehouse.sqlapi.WasmEntry",
+    deps = [
+        ":sqlapi_wasm_entry",
+        "@maven_teavm//:org_teavm_teavm_classlib",
+        "@maven_teavm//:org_teavm_teavm_jso",
+    ],
+)
+
+junit_test(
+    name = "sqlapi_wasm_build_test",
+    memory_mb = 256,
+    size = "small",
+    srcs = ["src/test/java/com/legend/warehouse/sqlapi/WasmBuildTest.java"],
+    data = [":sqlapi_wasm"],
+    # the module's files (classes.wasm and its runtime) by runfiles path
+    env = {"SQLAPI_WASM": "$(rlocationpaths :sqlapi_wasm)"},
+    select = ["--select-class=com.legend.warehouse.sqlapi.WasmBuildTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )
 
 guards_package()

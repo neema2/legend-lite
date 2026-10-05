@@ -194,7 +194,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             }
             String parentTemp = "testDataGen_Temp_"
                     + fetches.get(f.parentIndex()).table();
-            if (!goldenSql.toLowerCase().contains(parentTemp.toLowerCase())) {
+            if (!goldenSql.toLowerCase(java.util.Locale.ROOT).contains(parentTemp.toLowerCase(java.util.Locale.ROOT))) {
                 throw new H2Verify.Unverifiable("chained fetch — golden does"
                         + " not reference derived parent temp " + parentTemp,
                         null);
@@ -458,8 +458,8 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         // ORDER-INSENSITIVE compare is GATED on a compile-time fact
         // (harness discipline C2.3): generator fetches carry no ORDER BY
         // on either side — an ordered text names its own decline
-        if (goldenSql.toLowerCase().contains("order by")
-                || ourSql.toLowerCase().contains("order by")) {
+        if (goldenSql.toLowerCase(java.util.Locale.ROOT).contains("order by")
+                || ourSql.toLowerCase(java.util.Locale.ROOT).contains("order by")) {
             throw new H2Verify.Unverifiable("ordered fetch — multiset"
                     + " compare not applicable", null);
         }

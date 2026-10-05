@@ -22,6 +22,8 @@ export interface SaveDialogOptions {
   readonly warning?: string;
   /** Save it; a refusal is shown in the window, which stays open. */
   save(name: string, asNew: boolean): Promise<void>;
+  /** The clock "saved 2 hours ago" is read against: the system's, or a test's own (Bazel workplan P3-16). */
+  readonly now?: () => number;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, cls: string, parent?: Element, text?: string): HTMLElementTagNameMap[K] {
@@ -109,7 +111,7 @@ export function saveDialog(doc: Document, o: SaveDialogOptions): Promise<{ reado
     name.setAttribute('aria-describedby', 'dc-save-where');
     const where = el(doc, 'p', 'dc-save-where', body,
       overIt
-        ? `Saves over “${o.over!.name}”${o.over!.savedAt !== undefined ? `, saved ${ago(o.over!.savedAt)}` : ''}.`
+        ? `Saves over “${o.over!.name}”${o.over!.savedAt !== undefined ? `, saved ${ago(o.over!.savedAt, (o.now ?? Date.now)())}` : ''}.`
         : o.over ? `A new saved cube, beside “${o.over.name}”.` : 'A new saved cube.');
     where.id = 'dc-save-where';
 

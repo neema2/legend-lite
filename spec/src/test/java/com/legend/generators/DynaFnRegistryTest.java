@@ -49,7 +49,7 @@ class DynaFnRegistryTest {
     static final int UNSUPPORTED_MAX = 41;   // 42 -> 41 (2026-09-17: isAlphaNumeric is OURS — ledger F-X)
 
     static Path engineRoot() {
-        return com.legend.testing.Upstream.engine();
+        return com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
     }
 
     @Test

@@ -5,7 +5,8 @@
 // the test resolves it here. rules_js always runs a program inside a runfiles tree and exports its root as
 // JS_BINARY__RUNFILES, so the tree is the whole lookup (no manifest-only mode to support, which is the one thing
 // @bazel/runfiles would add, and it cannot be imported from the packages here that have no npm dependencies).
-import { basename, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { basename, join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 function root(): string {
@@ -44,4 +45,44 @@ export function runfileNamed(name: string, file: string): string {
 export function runfileDirUrl(name: string): string {
   const url = pathToFileURL(runfileFromEnv(name)).href;
   return url.endsWith('/') ? url : `${url}/`;
+}
+
+/**
+ * A source scanner's files (Bazel workplan P3-29): the runfiles the environment variable `name` names with
+ * $(rlocationpaths), each by its path from the package `pkg`, with `/` separators on every platform (`src/app.ts`,
+ * `../engine-client/src/types.ts`): what the scanner matches on and reports. A scanner walks no directory; what it
+ * reads is what its BUILD target declares.
+ */
+export class Sources {
+  readonly #files = new Map<string, string>();
+
+  constructor(name: string, pkg: string) {
+    const value = process.env[name];
+    if (!value) throw new Error(`${name} is not set: the test's BUILD target names its sources in env with $(rlocationpaths ...)`);
+    for (const rlocationpath of value.split(' ').filter((p) => p.length > 0)) {
+      // `<repository>/<path in it>`; a scanner reads the main repository's files
+      const inRepo = rlocationpath.slice(rlocationpath.indexOf('/') + 1);
+      this.#files.set(posix.relative(pkg, inRepo), runfile(rlocationpath));
+    }
+  }
+
+  /** Every file under `dir` (a path from the package) whose name ends with one of `suffixes`, sorted. */
+  under(dir: string, ...suffixes: string[]): string[] {
+    const prefix = dir.endsWith('/') ? dir : `${dir}/`;
+    return [...this.#files.keys()]
+      .filter((f) => f.startsWith(prefix) && (suffixes.length === 0 || suffixes.some((s) => f.endsWith(s))))
+      .sort();
+  }
+
+  /** Whether `file` is among the declared sources. */
+  has(file: string): boolean {
+    return this.#files.has(file);
+  }
+
+  /** `file`'s text; fails when the BUILD target did not declare it. */
+  read(file: string): string {
+    const path = this.#files.get(file);
+    if (path === undefined) throw new Error(`${file} is not among the declared sources: add it to the test's data and env`);
+    return readFileSync(path, 'utf8');
+  }
 }

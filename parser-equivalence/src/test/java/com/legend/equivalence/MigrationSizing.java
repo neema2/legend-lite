@@ -1,11 +1,8 @@
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,7 +25,7 @@ import java.util.regex.Pattern;
  * other's parser, which is how {@code ~primaryKey} stayed readable by one and
  * unreadable by the other for months.
  *
- * <p>This test does not assert. It measures the divergence in BOTH directions
+ * <p>It does not assert. It measures the divergence in BOTH directions
  * over every corpus file carrying those sections, so "finish the migration" can
  * be costed instead of guessed:
  *
@@ -42,17 +39,25 @@ import java.util.regex.Pattern;
  *       before the legacy parser can be deleted.</li>
  *   <li><b>NEITHER</b> — a gap in both; unrelated to the migration.</li>
  * </ul>
+ *
+ * <p>A report action of //parser-equivalence:diagnostics_reports (Bazel workplan P3-17), cached until an input changes.
  */
-class MigrationSizingTest {
+public final class MigrationSizing {
+
+    private MigrationSizing() {}
+
 
     private static final Pattern DUAL_SECTIONS =
             Pattern.compile("(?m)^###(Mapping|Relational)\\b");
 
-    @Test
-    void sizeTheUnfinishedProtocolMigration() throws Exception {
+    /** {@code args[0]}: the directory the report goes in (the action's {@code {OUT_DIR}}). */
+    public static void main(String[] args) throws Exception {
+        Path outDir = Path.of(args[0]);
+        com.legend.testing.Programs.captureConsole(outDir);
         List<Corpus.Source> sources = Corpus.all();
-        Assumptions.assumeTrue(!sources.isEmpty(),
-                "no corpus on disk — set -Dlegend.engine.root / -Dlegend.pure.root");
+        if (sources.isEmpty()) {
+            throw new IllegalStateException("no corpus on disk: set -Dlegend.engine.root / -Dlegend.pure.root");
+        }
 
         int both = 0;
         int protocolOnly = 0;
@@ -85,21 +90,21 @@ class MigrationSizingTest {
         StringBuilder b = new StringBuilder();
         b.append("UNFINISHED MIGRATION — legacy model parser vs protocol parser\n")
                 .append("=".repeat(72)).append('\n')
-                .append(String.format("files with ###Mapping/###Relational : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "files with ###Mapping/###Relational : %d%n",
                         both + protocolOnly + legacyOnly + neither))
-                .append(String.format("  BOTH read it                     : %d"
+                .append(String.format(java.util.Locale.ROOT, "  BOTH read it                     : %d"
                         + "   (mechanical to migrate)%n", both))
-                .append(String.format("  PROTOCOL-ONLY                    : %d"
+                .append(String.format(java.util.Locale.ROOT, "  PROTOCOL-ONLY                    : %d"
                         + "   (compiler GAINS these for free)%n", protocolOnly))
-                .append(String.format("  LEGACY-ONLY                      : %d"
+                .append(String.format(java.util.Locale.ROOT, "  LEGACY-ONLY                      : %d"
                         + "   (THE COST: protocol must learn these)%n", legacyOnly))
-                .append(String.format("  NEITHER                          : %d%n", neither));
+                .append(String.format(java.util.Locale.ROOT, "  NEITHER                          : %d%n", neither));
 
         b.append("\nTHE COST — what the protocol parser must learn\n")
                 .append("-".repeat(72)).append('\n');
         legacyOnlyWhy.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
         b.append("\nTHE GAIN — constructs the compiler cannot see today\n")
@@ -107,13 +112,12 @@ class MigrationSizingTest {
         protocolOnlyWhy.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
                 .limit(20)
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
-        Files.writeString(Repo.out("migration-sizing.txt"), b.toString());
-        Files.writeString(Repo.out("migration-legacy-only.txt"),
+        Files.writeString(outDir.resolve("migration-sizing.txt"), b.toString());
+        Files.writeString(outDir.resolve("migration-legacy-only.txt"),
                 String.join("\n", legacyOnlyFiles));
-        System.out.println(b);
     }
 
     /** The path the COMPILER uses. */

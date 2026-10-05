@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -31,75 +31,46 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (the named feature gap it waits on); the per-file count is pinned MAX
  * (burn a gap, tighten the pin — never add a skip without a pin bump
  * and a written justification here).</li>
- * <li>{@code Assumptions.assume*} sites — environment-conditional
- * skips; the FILE SET is pinned exactly (a new assumption-skipping file
- * is a new way for the suite to go quiet).</li>
+ * <li>environment-conditional skips — any {@code Assumptions} call,
+ * {@code assumeTrue/False/That}, {@code assumingThat}, and the
+ * {@code @EnabledIf/On/For/In*} and {@code @DisabledIf/On/For/In*}
+ * conditions; the
+ * FILE SET is pinned exactly (a new conditionally skipping file is a new
+ * way for the suite to go quiet).</li>
  * </ol>
  */
 @Tag("census")
 class SkipCensusTest {
 
     /** file basename -> pinned MAX {@code @Disabled(} count. */
-    private static final Map<String, Integer> DISABLED_PINS = Map.of(
-            // the 15 named grammar/builder GAP rows (2026-08-19 census):
-            // extends clause, store substitution x2, scope keyword,
-            // Database filters, local property prefix, Relation class
-    // mapping, set IDs, extends+filter, include+join, view+join+filter,
-            // filter stacking, local property+join+filter, scope+embedded,
-            // AggregationAware+join
-            "RelationalMappingIntegrationTest.java", 15);
+    private static final Map<String, Integer> DISABLED_PINS = Map.of();
+    // EMPTIED 2026-10-05 (Bazel workplan P3-17): RelationalMappingIntegrationTest's 15 GAP rows were empty bodies, so
+    // asserted nothing; they are deleted, and the gaps stay listed in docs/OUTSTANDING.md ("Declared platform gaps").
 
-    /** Files permitted to carry {@code Assumptions.assume*} sites. */
-    private static final List<String> ASSUMPTION_FILES = List.of(
-            // the minimal harness (2026-09-06): skips only when the engine
-            // checkout is absent — gate 4 runs it explicitly
-            "MinimalCorpusTest.java",
-            // skips when the generated expected/ dir is absent — the
-            // differential needs its oracle materialized first
-            "CorpusDifferentialTest.java",
-            // the typing census (SYSTEM_PRELUDE_DESIGN §6, 2026-09-08):
-            // skips only when the legend-pure checkout is absent — it is a
-            // REPORT (target/spec-body-census.txt), not yet a pin; its
-            // numbers are recorded in docs/SPEC_BODY_CENSUS_2026_09_08.md
-            "SpecBodyCensusTest.java",
-            // the manifest-world census (charter step 7 / D7, 2026-09-25): a
-            // MEASUREMENT program, opt-in by -Dmanifest.census=<module>; skips
-            // in the chain by design — its numbers are the step's work list,
-            // pinned only when the corpus loader switches to the manifests
-            "ManifestWorldCensusTest.java",
-            // our side of the reference differential (2026-09-25): a MEASUREMENT
-            // program, opt-in by -Dour.resolutions=<module>; skips in the chain
-            "OurResolutionsTest.java",
-            // batch 5 audit remainder (2026-09-11): the implicit-import sequence
-            // and the PlatformTypes spelling parity — both read the checkouts,
-            // both skip only when a checkout is absent
-            "CoreImportsParityTest.java",
-            "PlatformNamesSpellingTest.java",
-            // the upstream path manifest (upstream boundary batch 2,
-            // 2026-09-10): skips ONLY when a checkout root itself is absent
-            // (under Bazel the pinned archive is a declared input, so it is
-            // always present — the skip cannot fire in a gate); a
-            // PRESENT checkout is checked in full — 90 paths, every miss
-            // named, the count pinned
-            "UpstreamPathManifestTest.java",
-            // ---- parser-equivalence (audit-of-audits #11: the walk
-            // now covers sibling modules — these 8 carried the exact
-            // vacuous-green pattern c4386547 was written to kill,
-            // uncensused). All skip on the ORACLE CHECKOUT being
-            // absent (legend.engine/pure roots); gate 8's
-            // roots_present + skipped() detection is the loud
-            // back-stop that keeps the skip from reading as a pass.
-            "CorpusCensusTest.java",
-            "CorpusSweepTest.java",
-            "MigrationSizingTest.java",
-            "OwnDialectCensusTest.java",
-            "ParseSpeedBenchmarkTest.java",
-            // SurfaceCensusTest.java left 2026-10-04 (Bazel workplan P1-04): it reads the engine tree through
-            // Upstream, which fails when the tree is missing instead of skipping.
-            "SectionParseSentinelTest.java");
+    /** Files permitted to carry a conditional skip ({@link #CONDITIONAL}). */
+    private static final List<String> ASSUMPTION_FILES = List.of();   // none: no test in the walked trees skips conditionally
+    // LEFT 2026-10-05 (Bazel workplan P3-21): WarehousePostgresLiveTest, selected only by its manual target and
+    // failing without a DSN, never skipping.
+    // LEFT 2026-10-05 (Bazel workplan P3-18): CorpusDifferentialTest, which runs on the data
+    // //scripts/corpus:gen_differential generates, and never skips.
+    // LEFT 2026-10-05 (Bazel workplan P3-17): ManifestWorldCensusTest (a heavy test of //spec:manifest_world_census,
+    // its module a flag) and OurResolutionsTest (now the program //spec:our_resolutions).
+    // LEFT 2026-10-05 (Bazel workplan P3-14): MinimalCorpusTest, SpecBodyCensusTest, CoreImportsParityTest,
+    // PlatformNamesSpellingTest, UpstreamPathManifestTest and parser-equivalence's CorpusCensusTest,
+    // CorpusSweepTest, MigrationSizingTest, OwnDialectCensusTest, ParseSpeedBenchmarkTest and
+    // SectionParseSentinelTest. Each skipped when a required input (an upstream tree, the corpus) was absent;
+    // under Bazel those are declared inputs, so each now FAILS naming the input instead of going quiet.
+
+    /** A conditional skip: an assumption, or a JUnit condition annotation. */
+    private static final Pattern CONDITIONAL =
+            Pattern.compile("Assumptions\\.|\\bassume(True|False|That)\\(|\\bassumingThat\\(|@(Enabled|Disabled)(If|On|For|In)");
 
     private static final Pattern DISABLED =
             Pattern.compile("@Disabled\\(\"([^\"]*)\"\\)");
+
+    /** An {@code @Disabled} annotation without a quoted reason, which {@link #DISABLED} cannot read. */
+    private static final Pattern UNREASONED_DISABLED =
+            Pattern.compile("(?m)^\\s*@(org\\.junit\\.jupiter\\.api\\.)?Disabled\\b(?!\\(\")");
 
     @Test
     void disabledRowsAreNamedGapsAndShrinkOnly() throws IOException {
@@ -107,6 +78,9 @@ class SkipCensusTest {
         List<String> badReasons = new ArrayList<>();
         for (Path f : testSources()) {
             String src = Files.readString(f);
+            if (UNREASONED_DISABLED.matcher(src).find()) {
+                badReasons.add(f.getFileName() + ": an @Disabled with no quoted reason");
+            }
             Matcher m = DISABLED.matcher(src);
             int c = 0;
             while (m.find()) {
@@ -148,7 +122,7 @@ class SkipCensusTest {
         List<String> found = new ArrayList<>();
         for (Path f : testSources()) {
             String src = Files.readString(f);
-            if (src.contains("Assumptions.assume")
+            if (CONDITIONAL.matcher(src).find()
                     && !f.getFileName().toString().equals("SkipCensusTest.java")) {
                 found.add(f.getFileName().toString());
             }
@@ -168,14 +142,15 @@ class SkipCensusTest {
         // core-only scope let 8 assumption-skipping files sit invisible
         // in parser-equivalence (the exact scope-rot this file's own
         // header warns about). pct is included for the same reason.
-        for (Path root : List.of(Repo.module("src/test/java"),
-                Repo.path("spec/src/test/java"),
-                Repo.path("parser-equivalence/src/test/java"),
-                Repo.path("pct/src/test/java"))) {
-            if (!Files.isDirectory(root)) {
-                continue;
+        for (String root : List.of("core/src/test/java",
+                "spec/src/test/java",
+                "parser-equivalence/src/test/java",
+                "pct/src/test/java",
+                "warehouse/src/test/java")) {
+            if (SourceFiles.under(root).isEmpty()) {
+                throw new IllegalStateException("SkipCensusTest root " + root + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
             }
-            try (Stream<Path> s = Files.walk(root)) {
+            try (Stream<Path> s = SourceFiles.under(root).stream()) {
                 out.addAll(s.filter(p -> p.toString().endsWith(".java"))
                         .toList());
             }

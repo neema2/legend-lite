@@ -18,29 +18,14 @@
 // property accesses.
 
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-const SRC = new URL('../src/', import.meta.url);
+import { Sources } from '../../tools/js/runfiles.mts';
 
-// URLs throughout, never `.pathname` handed to the file system: on
-// Windows a file URL's pathname is `/C:/...`, which `readFileSync`
-// reads as `C:\C:\...` -- this test failed on the Windows CI lane for
-// exactly that (2026-09-25). A URL is read the same on every platform,
-// and its pathname keeps `/` separators for the `/ui/` test below.
-function files(dir: URL): URL[] {
-  const out: URL[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      out.push(...files(new URL(`${entry.name}/`, dir)));
-    } else if (entry.name.endsWith('.ts')) {
-      out.push(new URL(entry.name, dir));
-    }
-  }
-  return out;
-}
+// the sources this reads, as the BUILD target declares them (Bazel workplan P3-29)
+const SOURCES = new Sources('SOURCES', 'datacube');
 
-const CONFIG = readFileSync(new URL('config.ts', SRC), 'utf8');
+const CONFIG = SOURCES.read('src/config.ts');
 
 /** The `readonly` fields of one exported interface in config.ts. */
 function fieldsOf(name: string): string[] {
@@ -54,9 +39,9 @@ function fieldsOf(name: string): string[] {
 // `pivotSortDirection` to show it in the Horizontal Pivots tab, and that
 // one read was enough for this check to pass a setting nothing else
 // used (2026-09-25 sweep). Showing a setting is not honouring it.
-const readers = files(SRC)
-  .filter((f) => !/\/ui\//.test(f.href))
-  .map((f) => readFileSync(f, 'utf8'))
+const readers = SOURCES.under('src', '.ts')
+  .filter((f) => !f.startsWith('src/ui/'))
+  .map((f) => SOURCES.read(f))
   .join('\n');
 
 describe('every configuration field has a reader', () => {

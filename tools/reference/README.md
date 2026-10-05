@@ -16,11 +16,9 @@ function's declared name and its signature id, and the enclosing function's.
 
 It is the oracle for name binding and overload choice: our compiler's answer for the same call
 is right when it equals this, and every difference is either our bug or an upstream fact we did
-not know. `spec/.../OurResolutionsTest` produces our side in the same shape
-(`-Dour.resolutions=<module>`, run as
-`bazel test //spec:spec_tests --test_env=JAVA_TOOL_OPTIONS=-Dour.resolutions=core_relational
---test_arg=--select-class=com.legend.generators.OurResolutionsTest`; the dump lands in the lane's
-`test.outputs/`). Since 2026-09-26 (execution plan step 1) the join is CALL BY CALL, by the
+not know. `spec/.../OurResolutionsDump` produces our side in the same shape
+(`bazel run //spec:our_resolutions -- core_relational [--out FILE]`; by default the dump lands in
+`our-resolutions-core_relational.txt` where it is run). Since 2026-09-26 (execution plan step 1) the join is CALL BY CALL, by the
 call-name token's (source, line, column): `join.py`'s docstring has the rules, `source_drift.py`
 marks the sources whose text differs between the jar's version and our pinned trees (241 of
 1,218: a position there means nothing), and the docstring names the two spellings that need
@@ -93,7 +91,8 @@ differential at zero.
 
 ## The implicit import group (`RefImports.java`)
 
-`RefImports.java` runs the same way as `RefResolutions.java` and prints, for every source the
+`RefImports.java` runs the same way as `RefResolutions.java` (`bazel build //tools/reference:ref_imports`, its
+report in `bazel-bin/tools/reference/ref-imports.tsv`) and prints, for every source the
 reference compiled (2,108 on 2026-09-25), the packages its import group makes visible. Twenty-nine
 packages appear in every source: the implicit imports the Pure parser adds to each section. Our
 generated `NameResolver.CORE_IMPORTS` is those 29 plus three the newer engine added. So a bare

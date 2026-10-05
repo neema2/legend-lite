@@ -75,10 +75,21 @@ export let engine: GateEngine;
 export let app: CubeApp;
 export let unhandled: unknown[];
 export let statuses: [string, string][];
+/** The process's own unhandledRejection listeners, set aside by setUp and put back by tearDown. */
+let savedRejectionListeners: NodeJS.UnhandledRejectionListener[] = [];
 
 /** Let every promise the app started settle (menus and chevrons do not return theirs). */
 export async function settle(): Promise<void> {
   for (let i = 0; i < 20; i += 1) await new Promise((r) => setTimeout(r, 0));
+}
+
+/** The other half of setUp, from each test file's afterEach (Bazel workplan P3-10): the process's own
+ *  unhandledRejection listeners come back, and a rejection nobody handled during the test fails it. */
+export async function tearDown(): Promise<void> {
+  await settle();
+  process.removeAllListeners('unhandledRejection');
+  for (const listener of savedRejectionListeners) process.on('unhandledRejection', listener);
+  assert.deepEqual(unhandled, [], 'a promise the app started was rejected and nothing handled it');
 }
 
 /** A fresh cube in a fresh DOM: call it from each test file's beforeEach. */
@@ -95,6 +106,7 @@ export async function setUp(): Promise<void> {
   root = dom.window.document.getElementById('r') as unknown as HTMLElement;
   engine = new GateEngine();
   unhandled = [];
+  savedRejectionListeners = process.listeners('unhandledRejection');
   process.removeAllListeners('unhandledRejection');
   process.on('unhandledRejection', (e) => unhandled.push(e));
   statuses = [];

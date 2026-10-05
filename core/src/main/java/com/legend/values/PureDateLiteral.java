@@ -94,13 +94,13 @@ public sealed interface PureDateLiteral
             case Year y -> y.toEngineString();
             case YearMonth ym -> ym.toEngineString();
             case StrictDate d -> d.toEngineString();
-            case DateWithHour h -> String.format("%d-%02d-%02dT%02d:00:00.000000000+0000",
+            case DateWithHour h -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:00:00.000000000+0000",
                     h.year(), h.month(), h.day(), h.hour());
-            case DateWithMinute m -> String.format("%d-%02d-%02dT%02d:%02d:00.000000000+0000",
+            case DateWithMinute m -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:00.000000000+0000",
                     m.year(), m.month(), m.day(), m.hour(), m.minute());
-            case DateWithSecond sec -> String.format("%d-%02d-%02dT%02d:%02d:%02d.000000000+0000",
+            case DateWithSecond sec -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.000000000+0000",
                     sec.year(), sec.month(), sec.day(), sec.hour(), sec.minute(), sec.second());
-            case DateWithSubsecond ss -> String.format("%d-%02d-%02dT%02d:%02d:%02d.%s+0000",
+            case DateWithSubsecond ss -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s+0000",
                     ss.year(), ss.month(), ss.day(), ss.hour(), ss.minute(), ss.second(),
                     (ss.subsecond() + "000000000").substring(0, 9));
         };
@@ -247,7 +247,7 @@ public sealed interface PureDateLiteral
                     t.getDayOfMonth(), t.getHour(), t.getMinute(),
                     t.getSecond());
         }
-        String frac = String.format("%09d", t.getNano())
+        String frac = String.format(java.util.Locale.ROOT, "%09d", t.getNano())
                 .replaceFirst("0+$", "");
         return new DateWithSubsecond(t.getYear(), t.getMonthValue(),
                 t.getDayOfMonth(), t.getHour(), t.getMinute(),
@@ -295,7 +295,7 @@ public sealed interface PureDateLiteral
 
     record YearMonth(int year, int month) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format("%d-%02d", year, month);
+            return String.format(java.util.Locale.ROOT, "%d-%02d", year, month);
         }
 
         @Override public String toString() { return toEngineString(); }
@@ -303,7 +303,7 @@ public sealed interface PureDateLiteral
 
     record StrictDate(int year, int month, int day) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format("%d-%02d-%02d", year, month, day);
+            return String.format(java.util.Locale.ROOT, "%d-%02d-%02d", year, month, day);
         }
 
         @Override public String toString() { return toEngineString(); }
@@ -311,7 +311,7 @@ public sealed interface PureDateLiteral
 
     record DateWithHour(int year, int month, int day, int hour) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format("%d-%02d-%02dT%02d", year, month, day, hour);
+            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d", year, month, day, hour);
         }
 
         /** Pure's print form: time-bearing values carry the
@@ -322,7 +322,7 @@ public sealed interface PureDateLiteral
 
     record DateWithMinute(int year, int month, int day, int hour, int minute) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format("%d-%02d-%02dT%02d:%02d", year, month, day, hour, minute);
+            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d", year, month, day, hour, minute);
         }
 
         /** Pure's print form: time-bearing values carry the
@@ -333,7 +333,7 @@ public sealed interface PureDateLiteral
 
     record DateWithSecond(int year, int month, int day, int hour, int minute, int second) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format("%d-%02d-%02dT%02d:%02d:%02d",
+            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d",
                     year, month, day, hour, minute, second);
         }
 
@@ -347,7 +347,7 @@ public sealed interface PureDateLiteral
                              int hour, int minute, int second,
                              String subsecond) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format("%d-%02d-%02dT%02d:%02d:%02d.%s",
+            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s",
                     year, month, day, hour, minute, second, subsecond);
         }
 

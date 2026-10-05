@@ -1381,7 +1381,7 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     protected String ident(String name) {
-        if (PLAIN.matcher(name).matches() && !reservedWords().contains(name.toLowerCase())) {
+        if (PLAIN.matcher(name).matches() && !reservedWords().contains(name.toLowerCase(java.util.Locale.ROOT))) {
             return name;
         }
         char q = quoteChar();

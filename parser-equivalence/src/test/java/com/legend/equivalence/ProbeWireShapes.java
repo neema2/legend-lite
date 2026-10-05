@@ -5,16 +5,21 @@ import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.finos.legend.engine.protocol.pure.m3.PackageableElement;
 import org.finos.legend.engine.protocol.pure.v1.model.context.PureModelContextData;
 import org.finos.legend.engine.shared.core.ObjectMapperFactory;
-import org.junit.jupiter.api.Test;
 
 /**
  * NOT a gate — an instrument. Prints the reference parser's exact bytes for constructs the
  * emitter does not cover yet, so emit rules are written from observation, never inference
  * (the same discipline as ProtocolEmitterTest's pinned constants).
  *
- * Run on demand: mvn test -pl parser-equivalence -Dtest=ProbeWireShapes
+ * Run on demand (Bazel workplan P3-17): bazel run //parser-equivalence:probe_wire_shapes [-- --out FILE]
  */
-class ProbeWireShapes {
+final class ProbeWireShapes {
+
+    public static void main(String[] args) throws Exception {
+        com.legend.testing.Programs.stdoutToOut(args);
+        new ProbeWireShapes().probe();
+    }
+
 
     private final ObjectMapper mapper =
             ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
@@ -38,7 +43,6 @@ class ProbeWireShapes {
         System.out.println();
     }
 
-    @Test
     void probe() throws Exception {
         dump("generic property type", """
                 Class a::C

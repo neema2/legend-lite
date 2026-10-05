@@ -394,7 +394,7 @@ class VariantIntegrationTest {
 
         // Verify SQL contains typed JSON extraction
         assertTrue(sql.contains("PAYLOAD"), "SQL should reference PAYLOAD column");
-        assertTrue(sql.toUpperCase().contains("CAST"), "SQL should contain CAST for type conversion");
+        assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("CAST"), "SQL should contain CAST for type conversion");
         assertTrue(sql.contains("price") || sql.contains("'price'"), "SQL should extract 'price' from JSON");
 
         // Execute query
@@ -538,84 +538,6 @@ class VariantIntegrationTest {
         assertEquals(20.0, totals.get(0), 0.01, "First line total should be 20 (ABC: 10*2)");
         assertEquals(25.0, totals.get(1), 0.01, "Second line total should be 25 (XYZ: 25*1)");
         assertEquals(300.0, totals.get(2), 0.01, "Third line total should be 300 (DEF: 100*3)");
-    }
-
-    /**
-     * Debug test - raw SQL to verify UNNEST behavior in DuckDB.
-     */
-    @Test
-    @DisplayName("Debug: Raw SQL UNNEST JSON array")
-    void testRawSqlUnnest() throws SQLException {
-        try (Statement stmt = connection.createStatement()) {
-            // Test 1: Simple UNNEST
-            System.out.println("=== Test 1: Simple UNNEST ===");
-            String sql1 = """
-                    SELECT ID, UNNEST(CAST(PAYLOAD->'items' AS JSON[])) AS item
-                    FROM T_EVENTS
-                    WHERE EVENT_TYPE = 'purchase'
-                    """;
-            System.out.println("SQL: " + sql1);
-            var rs = stmt.executeQuery(sql1);
-            while (rs.next()) {
-                System.out.println("  ID: " + rs.getInt(1) + ", item: " + rs.getString(2));
-            }
-            rs.close();
-
-            // Test 2: Access properties from unnested items
-            System.out.println("\n=== Test 2: Access properties from unnested items ===");
-            String sql2 = """
-                    SELECT ID, item, item->>'price' AS price, item->>'qty' AS qty
-                    FROM (
-                        SELECT ID, UNNEST(CAST(PAYLOAD->'items' AS JSON[])) AS item
-                        FROM T_EVENTS
-                        WHERE EVENT_TYPE = 'purchase'
-                    ) AS t
-                    """;
-            System.out.println("SQL: " + sql2);
-            rs = stmt.executeQuery(sql2);
-            while (rs.next()) {
-                System.out.println("  ID: " + rs.getInt(1) + ", item: " + rs.getString(2) +
-                        ", price: " + rs.getString(3) + ", qty: " + rs.getString(4));
-            }
-            rs.close();
-
-            // Test 3: CAST and multiply
-            System.out.println("\n=== Test 3: CAST and multiply ===");
-            String sql3 = """
-                    SELECT ID, CAST(item->>'price' AS INTEGER) * CAST(item->>'qty' AS INTEGER) AS total
-                    FROM (
-                        SELECT ID, UNNEST(CAST(PAYLOAD->'items' AS JSON[])) AS item
-                        FROM T_EVENTS
-                        WHERE EVENT_TYPE = 'purchase'
-                    ) AS t
-                    """;
-            System.out.println("SQL: " + sql3);
-            rs = stmt.executeQuery(sql3);
-            while (rs.next()) {
-                System.out.println("  ID: " + rs.getInt(1) + ", total: " + rs.getInt(2));
-            }
-            rs.close();
-
-            // Test 4: list_transform with lambda (note: parens around lambda body to
-            // disambiguate)
-            System.out.println("\n=== Test 4: list_transform with lambda ===");
-            String sql4 = """
-                    SELECT ID, list_transform(CAST(PAYLOAD->'items' AS JSON[]), i -> (i->'price')) AS prices
-                    FROM T_EVENTS
-                    WHERE EVENT_TYPE = 'purchase'
-                    """;
-            System.out.println("SQL: " + sql4);
-            try {
-                rs = stmt.executeQuery(sql4);
-                while (rs.next()) {
-                    System.out.println("  ID: " + rs.getInt(1) + ", prices: " + rs.getString(2));
-                }
-                rs.close();
-            } catch (Exception e) {
-                System.out.println("  Error: " + e.getMessage());
-            }
-        }
-        assertTrue(true, "Debug test completed");
     }
 
     /**

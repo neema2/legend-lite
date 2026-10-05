@@ -126,6 +126,10 @@ class ResolveSimpleClassTest {
                 rows.add(b.toString());
             }
         }
+        // no ORDER BY: the rows' order is the database's, so compare them sorted (Bazel workplan P3-11)
+        if (!sql.toUpperCase(java.util.Locale.ROOT).contains("ORDER BY")) {
+            rows.sort(null);
+        }
         return rows;
     }
 
@@ -136,7 +140,7 @@ class ResolveSimpleClassTest {
     }
 
     private static void noJson(String sql) {
-        assertEquals(0, count(sql.toLowerCase(), "json"),
+        assertEquals(0, count(sql.toLowerCase(java.util.Locale.ROOT), "json"),
                 "map-terminal invariant: no JSON in relation-shaped SQL:\n" + sql);
     }
 

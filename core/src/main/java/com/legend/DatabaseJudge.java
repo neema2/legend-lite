@@ -224,7 +224,7 @@ final class DatabaseJudge {
      * lenient}): unjudged (counted, the assert fails with the reason), or
      * the verdict with the two framed canons as the message. */
     static ExecutionResult verdictOf(String name, boolean wantEqual, List<Object> row) {
-        if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+        if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             // the SQL dump's companion: the verdict row the statement returned
             System.err.println("[verdict] " + name + " verdict=" + row.get(0)
                     + " expected=" + row.get(1) + " actual=" + row.get(2)

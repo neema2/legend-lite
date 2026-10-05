@@ -9,7 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.legend.model.ParsedModel;
 import com.legend.parser.Dialect;
 import com.legend.parser.ElementParser;
-import com.legend.testing.Repo;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -22,14 +21,13 @@ import org.junit.jupiter.api.Test;
  *  current output, and the m3 reader prints every m3.pure class. */
 class PreludeGeneratorTest {
 
-    private static final Path OUT = CoreTree.resource("com/legend/builtin/prelude.pure");
 
     static Path engineRoot() {
-        return com.legend.testing.Upstream.engine();
+        return com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
     }
 
     static Path pureRoot() {
-        return com.legend.testing.Upstream.pure();
+        return com.legend.testing.ProgramPaths.rootOf("legend.pure.root");
     }
 
     @Test
@@ -42,7 +40,7 @@ class PreludeGeneratorTest {
     }
 
     @Test
-    @DisplayName("m3 reader: every class of m3.pure prints as a declaration (-Dprelude.m3=1 lists them)")
+    @DisplayName("m3 reader: every class of m3.pure prints as a declaration")
     void m3ReaderPrintsEveryClass() throws IOException {
         Path m3 = pureRoot().resolve(PreludeGenerator.M3_PURE);
         // never an assumption-skip (SkipCensusTest): the reference checkout is
@@ -53,9 +51,6 @@ class PreludeGeneratorTest {
             // every printed declaration parses through the platform's own door
             ParsedModel parsed = ElementParser.parse(e.getValue(), Dialect.LEGEND_PLATFORM);
             assertEquals(1, parsed.elements().size(), e.getKey());
-            if ("1".equals(System.getProperty("prelude.m3"))) {
-                System.out.println(e.getValue());
-            }
         }
         assertTrue(decls.size() >= 85, "m3.pure declares 85 classes; read " + decls.size());
     }

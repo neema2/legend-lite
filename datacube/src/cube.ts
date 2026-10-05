@@ -8,6 +8,7 @@
 // throws the refusal. What it keeps is the query side's own: the runners,
 // the guard, and the plane (snap.ts).
 
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { from, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
@@ -632,7 +633,7 @@ export class CubeController {
     if (out.kind === 'refused') {
       this.#snaps.reattach(held);
       throw new CubeRefusal(`could not go live — ${reason(out.error)}. `
-        + `Still on the snap taken at ${held.takenAt.toLocaleTimeString()}.`);
+        + `Still on the snap taken at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}.`);
     }
     await this.#snaps.discard(held);
   }

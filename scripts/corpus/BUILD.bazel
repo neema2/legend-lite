@@ -59,6 +59,12 @@ py_binary(
 )
 
 py_binary(
+    name = "differential",
+    srcs = ["differential.py"],
+    deps = [":corpus"],
+)
+
+py_binary(
     name = "dense_build",
     srcs = ["dense_build.py"],
     deps = [":corpus"],
@@ -79,7 +85,7 @@ _ENV = {
 
 # Only what the generators read (Bazel workplan P2-03): the queries, the layout, the hand-written stress files and
 # the LINKED projects, not every project. The .pure files are also passed as --inputs, the only files read.
-_LINKED = ["//projects:" + p for p in LINKED_PROJECTS]
+_LINKED = ["//projects:%s_files" % p for p in LINKED_PROJECTS]
 
 _INPUTS = [
     "queries.pure",
@@ -152,11 +158,49 @@ _GATE_ENV = {
     deps = [":corpus"],
 ) for gate in ["density", "executed", "stacking"]]
 
+# the engine-surface and function inventories' ratchets (Bazel workplan P2-04, D3 row 7): every construct the engine
+# can express is written by the corpus or recorded as blocked; every implemented function was run against the engine
+_INVENTORIES = {
+    "scoreboard": ["//docs:ENGINE_SURFACE.tsv", "//docs:SURFACE_BLOCKED.tsv"],
+    "functions": ["//docs:ENGINE_FUNCTIONS.tsv", "//docs:FUNCTIONS_EXECUTED.tsv"],
+}
+
+[py_test(
+    name = gate + "_gate",
+    size = "medium",
+    srcs = [gate + ".py"],
+    args = ["--gate"],
+    data = _GATE_DATA + docs,
+    env = _GATE_ENV,
+    main = gate + ".py",
+    deps = [":corpus"],
+) for gate, docs in _INVENTORIES.items()]
+
 # this package's hand-written .pure, for the keyword census (//scripts/parser:keyword_coverage, P2-20)
 filegroup(
     name = "pure_sources",
     srcs = glob(["**/*.pure"]),
     visibility = ["//scripts/parser:__pkg__"],
+)
+
+# THE CROSS-ENGINE DIFFERENTIAL's data (Bazel workplan P3-18, D3 row 4: wired): the oracle's answers over the
+# committed stress corpus and the seed they are computed on, as one tree, the data of //core:corpus_differential_test.
+run_binary(
+    name = "gen_differential",
+    srcs = _GATE_DATA,
+    # seed.sql a file of its own, so a test resolves IT by runfiles path and takes expected/ beside it (a directory
+    # resolves only under a runfiles tree, never by the Windows manifest: com.legend.testing.Runfile)
+    outs = ["diff/seed.sql"],
+    out_dirs = ["diff/expected"],
+    args = [
+        "--out",
+        "$(RULEDIR)/diff",
+        "--inputs",
+        "$(execpaths //core:stress_files)",
+    ] + ["$(execpaths %s)" % p for p in _LINKED],
+    env = dict(_GATE_ENV, LC_ALL = "C.UTF-8"),
+    tool = ":differential",
+    visibility = ["//core:__pkg__"],
 )
 
 guards_package()

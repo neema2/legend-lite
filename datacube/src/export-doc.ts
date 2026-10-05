@@ -18,6 +18,7 @@
 // repeated, so nothing overlaps. The header repeats on every page; the title and the notes
 // head the first.
 
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { ColumnFormat, FormatterCache } from './format.ts';
 import { cased, flatHeader, type ExportPage, type ExportStyle, type ExportTable } from './export-model.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
@@ -471,7 +472,7 @@ function dashboard(table: ExportTable, page: ExportPage | undefined, p: Prepared
       const left = x + 6 + Math.max(0, (innerW - needWidth(p, cols, size)) / 2);
       const bottom = drawTable(s, missing, table, p, { cols, left, top: innerTop, size, start: 0, count });
       if (!everything) {
-        const shown = `${count.toLocaleString()} of ${p.rows.length.toLocaleString()} rows`
+        const shown = `${count.toLocaleString(UI_LOCALE)} of ${p.rows.length.toLocaleString(UI_LOCALE)} rows`
           + (cols.length < all.length ? `, ${cols.length} of ${all.length} columns` : '');
         s.text(`0.33 0.33 0.33 rg BT /F1 ${size.toFixed(2)} Tf 1 0 0 1 ${left.toFixed(2)} ${(bottom - size - 3).toFixed(2)} Tm `);
         s.string(`Showing the first ${shown}; the whole table is in the Excel and CSV exports.`, missing);

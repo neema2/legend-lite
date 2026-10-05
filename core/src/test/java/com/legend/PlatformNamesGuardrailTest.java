@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -37,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("guardrail")
 class PlatformNamesGuardrailTest {
 
-    private static final Path MAIN = Repo.module("src/main/java/com/legend");
+    private static final String MAIN = "core/src/main/java/com/legend";
     private static final Pattern LITERAL_NAME_CHECK =
             Pattern.compile("equals\\(\"meta::");
     /** The retired runtime-shape walkers: their names may not reappear as
@@ -52,7 +52,7 @@ class PlatformNamesGuardrailTest {
     void pureNamesAreSpelledInTheCatalogOnly() throws IOException {
         int count = 0;
         StringBuilder where = new StringBuilder();
-        try (Stream<Path> files = Files.walk(MAIN)) {
+        try (Stream<Path> files = SourceFiles.under(MAIN).stream()) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java")).toList()) {
                 if (f.getFileName().toString().equals("PlatformTypes.java")) {
                     continue;
@@ -64,7 +64,7 @@ class PlatformNamesGuardrailTest {
                 }
                 if (n > 0) {
                     count += n;
-                    where.append(MAIN.relativize(f)).append('=').append(n).append(' ');
+                    where.append(SourceFiles.rel(MAIN, f).substring(1)).append('=').append(n).append(' ');
                 }
             }
         }
@@ -113,7 +113,7 @@ class PlatformNamesGuardrailTest {
     void functionFqnLiteralsOutsideTheCatalogsOnlyShrink() throws IOException {
         int count = 0;
         StringBuilder where = new StringBuilder();
-        try (Stream<Path> files = Files.walk(MAIN)) {
+        try (Stream<Path> files = SourceFiles.under(MAIN).stream()) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
                 if (CATALOG_FILES.contains(f.getFileName().toString())) {
                     continue;
@@ -131,7 +131,7 @@ class PlatformNamesGuardrailTest {
                 }
                 if (n > 0) {
                     count += n;
-                    where.append(MAIN.relativize(f)).append('=').append(n).append(' ');
+                    where.append(SourceFiles.rel(MAIN, f).substring(1)).append('=').append(n).append(' ');
                 }
             }
         }
@@ -147,13 +147,13 @@ class PlatformNamesGuardrailTest {
     void bareNameSwitchArmsOutsideTheParserOnlyShrink() throws IOException {
         int count = 0;
         StringBuilder where = new StringBuilder();
-        try (Stream<Path> files = Files.walk(MAIN)) {
+        try (Stream<Path> files = SourceFiles.under(MAIN).stream()) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
                 // path ELEMENTS, never a slash-spelled substring: Windows paths
                 // are backslash-separated (CI 2026-09-11: the parser package was
                 // not excluded there and the count read 417)
                 boolean underParser = false;
-                for (Path part : MAIN.relativize(f)) {
+                for (Path part : Path.of(SourceFiles.rel(MAIN, f).substring(1))) {
                     if (part.toString().equals("parser")) {
                         underParser = true;
                     }
@@ -174,7 +174,7 @@ class PlatformNamesGuardrailTest {
                 }
                 if (n > 0) {
                     count += n;
-                    where.append(MAIN.relativize(f)).append('=').append(n).append(' ');
+                    where.append(SourceFiles.rel(MAIN, f).substring(1)).append('=').append(n).append(' ');
                 }
             }
         }
@@ -190,7 +190,7 @@ class PlatformNamesGuardrailTest {
     @Test
     void runtimeShapesAreReadByTheOneReaderOnly() throws IOException {
         StringBuilder found = new StringBuilder();
-        try (Stream<Path> files = Files.walk(MAIN)) {
+        try (Stream<Path> files = SourceFiles.under(MAIN).stream()) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java")).toList()) {
                 if (f.endsWith("ExecutionContext.java")) {
                     continue;
@@ -198,14 +198,14 @@ class PlatformNamesGuardrailTest {
                 String text = Files.readString(f);
                 for (String w : RETIRED_WALKERS) {
                     if (text.contains(" " + w) || text.contains("." + w)) {
-                        found.append(MAIN.relativize(f)).append(':').append(w).append(' ');
+                        found.append(SourceFiles.rel(MAIN, f).substring(1)).append(':').append(w).append(' ');
                     }
                 }
             }
         }
         assertEquals("", found.toString(),
                 "a runtime-shape walker reappeared outside ExecutionContext.Reader: ");
-        assertTrue(!Files.exists(MAIN.resolve("ConnectionFlags.java")),
+        assertTrue(!SourceFiles.has(MAIN + "/ConnectionFlags.java"),
                 "ConnectionFlags is retired: its readers live in ExecutionContext.Reader");
     }
 }

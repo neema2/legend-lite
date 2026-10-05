@@ -205,8 +205,9 @@ public class FromCheckerTest extends AbstractDatabaseTest {
                     3, 30
                     #->filter(x|$x.val > 15)->from(test::TestRuntime)""");
             assertEquals(2, result.rows().size());
-            assertEquals(20, result.rows().get(0).values().get(1));
-            assertEquals(30, result.rows().get(1).values().get(1));
+            var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.values().get(1));   // no sort: by value (P3-11)
+            assertEquals(20, sorted.get(0).values().get(1));
+            assertEquals(30, sorted.get(1).values().get(1));
         }
     }
 

@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -88,7 +88,7 @@ class JavaEvalLedgerTest {
             // a runner default, evaluated nowhere in Java
             // 109 -> 110 (store types step 5, 2026-10-02): ONE call to the
             // DEBUG-ONLY census recorder (PctCaseRecorder: a no-op unless
-            // LL_PCT_CASES is set; tools/census/README.md) -- records the
+            // -Dlegend.diagnostics=pct-cases; tools/census/README.md) -- records the
             // case, evaluates nothing in Java
             // 110 -> 106 (leg P2, 2026-10-02): the database a lane runs on moved to PctBackend
             // (DuckDB, H2, Postgres), one call here
@@ -1333,7 +1333,7 @@ class JavaEvalLedgerTest {
     void verdictFilesJudgeOnly() throws IOException {
         StringBuilder drift = new StringBuilder();
         for (String f : VERDICT_FILES) {
-            Path p = Repo.path(f);
+            Path p = SourceFiles.file(f);
             String src = Files.readString(p)
                     .replaceAll("(?s)/\\*.*?\\*/", "")
                     .replaceAll("//.*", "");
@@ -1360,9 +1360,9 @@ class JavaEvalLedgerTest {
     void theFunnelPackagesAreClosedRegisters() throws IOException {
         StringBuilder drift = new StringBuilder();
         for (var e : FUNNEL_PACKAGE_REGISTERS.entrySet()) {
-            Path dir = Repo.path(e.getKey());
+            String dir = e.getKey();
             java.util.Set<String> actual = new java.util.TreeSet<>();
-            try (var s = Files.list(dir)) {
+            try (var s = SourceFiles.in(dir).stream()) {
                 s.map(p -> p.getFileName().toString())
                         .filter(n -> n.endsWith(".java"))
                         .forEach(actual::add);
@@ -1392,8 +1392,7 @@ class JavaEvalLedgerTest {
     void javaEvaluationSurfaceOnlyShrinks() throws IOException {
         StringBuilder drift = new StringBuilder();
         for (var e : EVICT_SIZE.entrySet()) {
-            Path p = Repo.path(e.getKey());
-            if (!Files.exists(p)) {
+            if (!SourceFiles.has(e.getKey())) {
                 drift.append("\n  ").append(e.getKey())
                         .append(": EVICTED WHOLE — delete this ledger row"
                                 + " (a stale row is a register lying about"
@@ -1401,7 +1400,7 @@ class JavaEvalLedgerTest {
                                 + " HostEval.java, 2026-08-19 audit)");
                 continue;
             }
-            long lines = Files.readString(p)
+            long lines = Files.readString(SourceFiles.file(e.getKey()))
                     .replaceAll("(?s)/\\*.*?\\*/", "")
                     .replaceAll("//.*", "")
                     .lines().filter(l -> !l.isBlank()).count();
@@ -1424,16 +1423,15 @@ class JavaEvalLedgerTest {
             }
         }
         for (var e : EVICT_NAMES.entrySet()) {
-            Path p = Repo.path(e.getKey());
             int pinned = (Integer) e.getValue()[1];
-            if (!Files.exists(p)) {
+            if (!SourceFiles.has(e.getKey())) {
                 if (pinned != 0) {
                     drift.append("\n  ").append(e.getKey())
                             .append(": file GONE — delete its ledger row");
                 }
                 continue;
             }
-            String src = Files.readString(p)
+            String src = Files.readString(SourceFiles.file(e.getKey()))
                     .replaceAll("//.*", "")
                     .replaceAll("(?s)/\\*.*?\\*/", "");
             Matcher m = Pattern.compile((String) e.getValue()[0]).matcher(src);

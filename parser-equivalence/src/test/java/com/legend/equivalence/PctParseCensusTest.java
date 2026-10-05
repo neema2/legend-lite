@@ -67,7 +67,7 @@ class PctParseCensusTest {
 
     private static void collect(Path root, List<Path> out) throws IOException {
         if (!Files.isDirectory(root)) {
-            return;
+            throw new IllegalStateException("PctParseCensusTest root " + root + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
         }
         try (Stream<Path> walk = Files.walk(root)) {
             for (Path f : walk.filter(p -> p.toString().endsWith(".pure"))

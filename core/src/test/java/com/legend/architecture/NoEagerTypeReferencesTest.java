@@ -61,28 +61,11 @@ class NoEagerTypeReferencesTest {
 
     @Test
     void noForbiddenTypeFieldsOutsideAllowlist() throws Exception {
-        // core's compiled classes are, since execution plan step 0c (2026-09-26),
-        // one jar per package group, `bin/core/lib<target>.jar`. Walk every
-        // main jar in the directory that holds TypedClass's jar, and count,
-        // because a walk over one jar of twenty-nine finds a fraction and a
-        // guard that checks a fraction passes (the floor below caught exactly
-        // that on the first split build: 296 of 498).
-        Path location = Paths.get(
-                TypedClass.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-        List<Path> roots = new ArrayList<>();
-        if (Files.isDirectory(location)) {
-            roots.add(location);
-        } else {
-            try (Stream<Path> siblings = Files.list(location.getParent())) {
-                siblings.filter(p -> p.getFileName().toString().matches("lib[a-z_]+\\.jar"))
-                        // the test library and the generators' rewrite of core are
-                        // not the product's main classes
-                        .filter(p -> !p.getFileName().toString().contains("tests_lib"))
-                        .filter(p -> !p.getFileName().toString().startsWith("libcore_next"))
-                        .sorted()
-                        .forEach(roots::add);
-            }
-        }
+        // core's compiled classes: the product's jars, as core/BUILD.bazel's :product_jars declares them (Bazel
+        // workplan P3-27), never a listing of the directory beside TypedClass's jar. The floor below still counts,
+        // because a walk over one jar of twenty-nine finds a fraction and a guard that checks a fraction passes.
+        List<Path> roots = com.legend.testing.Runfile.listed("legend.product.jars");
+        String location = ":product_jars";
 
         List<String> violations = new ArrayList<>();
         java.util.Set<String> seen = new java.util.TreeSet<>();
@@ -128,13 +111,16 @@ class NoEagerTypeReferencesTest {
     }
 
     private static void scanClass(String fqn, List<String> violations) {
-        Class<?> cls;
+        Field[] fields;
         try {
-            cls = Class.forName(fqn, false, NoEagerTypeReferencesTest.class.getClassLoader());
-        } catch (Throwable t) {
-            return; // unloadable — skip rather than fail the guard
+            fields = Class.forName(fqn, false, NoEagerTypeReferencesTest.class.getClassLoader()).getDeclaredFields();
+        } catch (ClassNotFoundException | LinkageError t) {
+            // a class of a declared product jar that does not load (or whose fields' types do not) is a guard that
+            // cannot see it: fail, naming it
+            violations.add(fqn + " : does not load (" + t + ") — the guard cannot check it");
+            return;
         }
-        for (Field f : cls.getDeclaredFields()) {
+        for (Field f : fields) {
             if (f.isSynthetic()) continue;
             if (FIELD_ALLOWLIST.contains(fqn + "#" + f.getName())) continue;
             Class<?> forbidden = findForbiddenIn(f.getGenericType());

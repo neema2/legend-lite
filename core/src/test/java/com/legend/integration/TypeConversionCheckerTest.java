@@ -369,7 +369,7 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
                     """);
             assertNotNull(sql);
             assertFalse(sql.isEmpty(), "SQL should not be empty");
-            assertFalse(sql.toUpperCase().contains("CAST("),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("CAST("),
                     "Relational cast is a type assertion, should not emit SQL CAST(): " + sql);
         }
 

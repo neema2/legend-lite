@@ -544,10 +544,12 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation5 | other | row-assert+constraints | Test | object-space expression node TypedGroupBy is not substitutable yet (H2 vocabulary): TypedGroupBy[sou |
 | ERROR | validation/tests | testComplexValidations.pure | validateComplexValidation6 | resolve | row-assert+constraints | Test | filtered-navigation leaf 'locationStreet' reads a join slot of 'meta::relational::validation::comple |
 
-## Declared platform gaps (@Disabled("GAP:") census — F2.6, hand-maintained)
+## Declared platform gaps (F2.6, hand-maintained)
 
-15 disabled integration tests declare platform gaps invisible to the corpus
-scoreboard (all in RelationalMappingIntegrationTest). Two more were RETIRED
+15 platform gaps invisible to the corpus scoreboard. Each was an empty
+@Disabled("GAP: ...") test in RelationalMappingIntegrationTest until 2026-10-05,
+when the stubs were deleted (Bazel workplan P3-17: an empty body asserts
+nothing); a gap closed is a test written then, not a stub un-disabled. Two more were RETIRED
 2026-08-16 — 'XStore not in grammar' and 'AggregationAware not in grammar'
 were stale (both implemented; the un-disabled tests pass). NOTE: this file's
 generated body is script-owned; this section is appended by hand until the

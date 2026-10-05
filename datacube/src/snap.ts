@@ -28,6 +28,7 @@
 //      aggregated results, so drill-through audits the same frozen data
 //      it is drilling into.
 
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { Planner } from './cube.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
@@ -215,8 +216,8 @@ export class SnapManager {
         rowCount,
         withinLimit: false,
         refusal:
-          `${rowCount.toLocaleString()} rows exceeds the ` +
-          `${MAX_SNAP_ROWS.toLocaleString()} row snap limit. ` +
+          `${rowCount.toLocaleString(UI_LOCALE)} rows exceeds the ` +
+          `${MAX_SNAP_ROWS.toLocaleString(UI_LOCALE)} row snap limit. ` +
           `Narrow the filter, or stay live.`,
       };
     }

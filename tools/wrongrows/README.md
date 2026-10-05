@@ -21,14 +21,14 @@ bazel-bin/tools/engine-runner/testable <project files in order> <stress files> \
 test's ACTUAL; the summary counts total and errored, never passed. Project files first, in
 `StressCorpus.LINKED_PROJECTS` order (model, store, mapping per project), then the stress files.
 
-Lite (`//core:stress_suites`, the same suites through `ServiceTestRunner`):
+Lite (`//core:stress_tool`, the same suites through `ServiceTestRunner`; the gate's knobs moved here, Bazel workplan
+P3-12):
 
 ```
-bazel test //core:stress_suites --nocache_test_results --sandbox_writable_path=<dir> \
-    --test_env=JAVA_TOOL_OPTIONS="-Dstress.rows=<dir> [-Dstress.data=<damaged.pure>[,<more.pure>]] [-Dstress.only=<substring>]"
+bazel run //core:stress_tool -- --rows <dir> [--data <damaged.pure>[,<more.pure>]] [--only <substring>] [--backend h2]
 ```
 
-With `-Dstress.data` the lane judges nothing (the corpus expectations describe the seeds); the rows are the output.
+With `--data` the tool judges nothing (the corpus expectations describe the seeds); the rows are the output.
 The override works because `Compiler.compileModel(List<ModelSource>)` keeps the FIRST definition of an element and
 reports the dropped one; the override files go first.
 

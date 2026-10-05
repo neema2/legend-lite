@@ -1239,7 +1239,7 @@ public final class H2Verify {
         int n = cols.size();
         String[] names = new String[n];
         for (int i = 0; i < n; i++) {
-            names[i] = cols.get(i).toLowerCase();
+            names[i] = cols.get(i).toLowerCase(java.util.Locale.ROOT);
         }
         Integer[] order = nameOrder(names);
         List<Cells> out = new java.util.ArrayList<>(rows.size() + 1);
@@ -1292,7 +1292,7 @@ public final class H2Verify {
             int n = md.getColumnCount();
             String[] names = new String[n];
             for (int i = 0; i < n; i++) {
-                names[i] = md.getColumnLabel(i + 1).toLowerCase();
+                names[i] = md.getColumnLabel(i + 1).toLowerCase(java.util.Locale.ROOT);
             }
             Integer[] order = nameOrder(names);
             out.add(header(names, order));
@@ -1367,7 +1367,7 @@ public final class H2Verify {
         }
         if (v instanceof java.time.LocalDateTime ldt) {
             String s = ldt.toLocalDate() + " "
-                    + String.format("%02d:%02d:%02d",
+                    + String.format(java.util.Locale.ROOT, "%02d:%02d:%02d",
                             ldt.getHour(), ldt.getMinute(),
                             ldt.getSecond());
             // MICROSECOND floor, same class as the float 10-digit rule

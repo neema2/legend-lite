@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -69,9 +69,8 @@ class RawSqlLedgerTest {
     @Test
     void rawSqlTranslationCallersAreLedgered() throws IOException {
         Map<String, Integer> found = new TreeMap<>();
-        for (Path root : new Path[] {Repo.module("src/main/java"),
-                Repo.module("src/test/java")}) {
-            try (Stream<Path> files = Files.walk(root)) {
+        for (String root : new String[] {"core/src/main/java", "core/src/main/duckdb", "core/src/test/java"}) {
+            try (Stream<Path> files = SourceFiles.under(root).stream()) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))
                         .filter(p -> !p.getFileName().toString()
@@ -125,9 +124,8 @@ class RawSqlLedgerTest {
     void rawSqlSourceConstructionIsQuarantined() throws IOException {
         Pattern ctor = Pattern.compile("new SqlSource\\.RawSql\\(");
         Map<String, Integer> found = new TreeMap<>();
-        for (Path root : new Path[] {Repo.module("src/main/java"),
-                Repo.module("src/test/java")}) {
-            try (Stream<Path> files = Files.walk(root)) {
+        for (String root : new String[] {"core/src/main/java", "core/src/main/duckdb", "core/src/test/java"}) {
+            try (Stream<Path> files = SourceFiles.under(root).stream()) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))
                         .filter(p -> !p.getFileName().toString()

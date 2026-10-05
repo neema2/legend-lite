@@ -7,51 +7,54 @@ load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/guards:defs.bzl", "guards_package")
 
+# the pinned compiler and the 27 modules of core_relational's closure: what the reference programs link
+_REFERENCE_JARS = [
+    "@maven_upstream//:org_eclipse_collections_eclipse_collections",
+    "@maven_upstream//:org_eclipse_collections_eclipse_collections_api",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_code_compiled_core",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_data_space_pure_metamodel",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_diagram_pure_metamodel",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_json_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_postgresSqlModel_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_postgresSqlModel_extensions_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_postgresSqlParser_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_sqlDialectTranslation_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_h2_sqlDialectTranslation_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_sqlPlanning_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_json_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_relation_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_standard_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_unclassified_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_variant_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_dsl_generation_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_core_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_dsl_service_pure",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_diagram_pure",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_graph_pure",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_mapping_pure",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_path_pure",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_store_pure",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_tds_pure",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m3_precisePrimitives",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_store_relational_pure",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m3_core",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m4",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_diagram_grammar",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_graph_grammar",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_mapping_grammar",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_path_grammar",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_store_grammar",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_tds_grammar",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_store_relational_grammar",
+    ]
+
 legend_java_library(
     name = "ref_resolutions",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
     srcs = ["RefResolutions.java"],
-    deps = [
-        "@maven_upstream//:org_eclipse_collections_eclipse_collections",
-        "@maven_upstream//:org_eclipse_collections_eclipse_collections_api",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_code_compiled_core",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_data_space_pure_metamodel",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_diagram_pure_metamodel",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_json_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_postgresSqlModel_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_postgresSqlModel_extensions_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_postgresSqlParser_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_sqlDialectTranslation_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_h2_sqlDialectTranslation_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_sqlPlanning_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_json_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_relation_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_standard_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_unclassified_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_variant_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_dsl_generation_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_core_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_dsl_service_pure",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_diagram_pure",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_graph_pure",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_mapping_pure",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_path_pure",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_store_pure",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_tds_pure",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m3_precisePrimitives",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_store_relational_pure",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m3_core",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m4",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_diagram_grammar",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_graph_grammar",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_mapping_grammar",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_path_grammar",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_store_grammar",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_tds_grammar",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_store_relational_grammar",
-    ],
+    deps = _REFERENCE_JARS,
 )
 
 # The reference dump as a BUILD OUTPUT: it depends only on the pinned jars and RefResolutions.java, so Bazel caches
@@ -78,6 +81,31 @@ java_run(
     tags = ["manual"],
     visibility = ["//spec:__pkg__"],
     deps = [":ref_resolutions"],
+)
+
+# RefImports in its own library, so editing it never reruns the reference dump
+legend_java_library(
+    name = "ref_imports_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    testonly = True,
+    srcs = ["RefImports.java"],
+    deps = _REFERENCE_JARS,
+)
+
+# Every source's implicit import group, as the reference compiler sees it (README, "The implicit import group"): a
+# report over the pinned jars alone, cached (Bazel workplan P3-17). `bazel build //tools/reference:ref_imports`
+java_run(
+    name = "ref_imports",
+    testonly = True,
+    outs = ["ref-imports.tsv"],
+    arguments = ["{OUT}"],
+    jvm_flags = ["-Xss16m"],
+    main_class = "RefImports",
+    memory_mb = 8192,
+    mnemonic = "ReferenceImports",
+    tags = ["manual"],
+    deps = [":ref_imports_lib"],
 )
 
 guards_package()

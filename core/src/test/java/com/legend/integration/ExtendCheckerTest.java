@@ -153,8 +153,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     #->extend(~total: x | $x.a + $x.b)""");
             assertEquals(2, result.rowCount());
             int idx = colIdx(result, "total");
-            assertEquals(11L, ((Number) result.rows().get(0).get(idx)).longValue());
-            assertEquals(22L, ((Number) result.rows().get(1).get(idx)).longValue());
+            var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(idx));   // no sort: by value (P3-11)
+            assertEquals(11L, ((Number) sorted.get(0).get(idx)).longValue());
+            assertEquals(22L, ((Number) sorted.get(1).get(idx)).longValue());
         }
 
         @Test
@@ -218,8 +219,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     20, 7
                     #->extend(~sum: x | $x.a + $x.b)""");
             int idx = colIdx(result, "sum");
-            assertEquals(13L, ((Number) result.rows().get(0).get(idx)).longValue());
-            assertEquals(27L, ((Number) result.rows().get(1).get(idx)).longValue());
+            var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(idx));   // no sort: by value (P3-11)
+            assertEquals(13L, ((Number) sorted.get(0).get(idx)).longValue());
+            assertEquals(27L, ((Number) sorted.get(1).get(idx)).longValue());
         }
 
         @Test
@@ -432,8 +434,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     Bob
                     #->extend(~upper: x | $x.name->toUpper())""");
             int idx = colIdx(result, "upper");
-            assertEquals("ALICE", result.rows().get(0).get(idx));
-            assertEquals("BOB", result.rows().get(1).get(idx));
+            var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(idx));   // no sort: by value (P3-11)
+            assertEquals("ALICE", sorted.get(0).get(idx));
+            assertEquals("BOB", sorted.get(1).get(idx));
         }
 
         @Test
@@ -1220,8 +1223,10 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         void testGreaterThan() throws SQLException {
             var r = executeRelation("|#TDS\na, b\n10, 5\n3, 7\n#->extend(~gt: x | $x.a > $x.b)");
             int idx = colIdx(r, "gt");
-            assertEquals(true, r.rows().get(0).get(idx));
-            assertEquals(false, r.rows().get(1).get(idx));
+            // no sort: by a (P3-11) -- (3, 7) is not greater, (10, 5) is
+            var sorted = com.legend.testing.Rows.sortedBy(r.rows(), row -> row.get(colIdx(r, "a")));
+            assertEquals(false, sorted.get(0).get(idx));
+            assertEquals(true, sorted.get(1).get(idx));
         }
 
         @Test
@@ -1525,8 +1530,9 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
                     25
                     #->filter(x | $x.val > 10)->extend(~doubled: x | $x.val * 2)""");
             assertEquals(2, r.rowCount());
-            assertEquals(30L, ((Number) r.rows().get(0).get(colIdx(r, "doubled"))).longValue());
-            assertEquals(50L, ((Number) r.rows().get(1).get(colIdx(r, "doubled"))).longValue());
+            var sorted = com.legend.testing.Rows.sortedBy(r.rows(), row -> row.get(colIdx(r, "doubled")));   // no sort: by value (P3-11)
+            assertEquals(30L, ((Number) sorted.get(0).get(colIdx(r, "doubled"))).longValue());
+            assertEquals(50L, ((Number) sorted.get(1).get(colIdx(r, "doubled"))).longValue());
         }
 
         @Test
@@ -1968,31 +1974,40 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("today() — current date literal in extend")
         void testToday() throws SQLException {
+            // against DuckDB's own date, read either side of the query (a midnight between them is either day):
+            // not the JVM's clock, whose zone need not be the database's (Bazel workplan P3-15)
+            String before = dbScalar("SELECT CAST(current_date AS VARCHAR)");
             var r = executeRelation("""
                     |#TDS
                     id
                     1
                     #->extend(~td: x | today())""");
             assertEquals(1, r.rowCount());
-            // today() should return a date containing the current year
+            String after = dbScalar("SELECT CAST(current_date AS VARCHAR)");
             String td = r.rows().get(0).get(colIdx(r, "td")).toString();
-            assertTrue(td.startsWith(String.valueOf(java.time.Year.now().getValue())),
-                    "today() should start with current year");
+            assertTrue(td.startsWith(before) || td.startsWith(after),
+                    "today() is the database's date (" + before + " .. " + after + "), got " + td);
         }
 
         @Test
         @DisplayName("now() — current datetime in extend")
         void testNow() throws SQLException {
+            // the year of DuckDB's own clock either side of the query, not the JVM's (P3-15)
+            String before = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
+            String beforeUtc = dbScalar("SELECT CAST(year(current_timestamp AT TIME ZONE 'UTC') AS VARCHAR)");
             var r = executeRelation("""
                     |#TDS
                     id
                     1
                     #->extend(~ts: x | now())""");
             assertEquals(1, r.rowCount());
-            // now() should return a datetime containing the current year
+            String after = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
+            String afterUtc = dbScalar("SELECT CAST(year(current_timestamp AT TIME ZONE 'UTC') AS VARCHAR)");
             String ts = r.rows().get(0).get(colIdx(r, "ts")).toString();
-            assertTrue(ts.startsWith(String.valueOf(java.time.Year.now().getValue())),
-                    "now() should start with current year");
+            // the value may be rendered in the session's zone or in UTC: either year, either side of the query
+            assertTrue(java.util.stream.Stream.of(before, after, beforeUtc, afterUtc).anyMatch(ts::startsWith),
+                    "now() is in the database's year (" + before + "/" + beforeUtc + " .. " + after + "/" + afterUtc
+                            + "), got " + ts);
         }
 
         @Test
@@ -2251,5 +2266,15 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         }
         throw new AssertionError("Column '" + name + "' not found in " +
                 result.columns().stream().map(c -> c.name()).toList());
+    }
+
+    /** One value the test's own DuckDB session computes. */
+    private String dbScalar(String sql) throws SQLException {
+        try (var st = connection.createStatement(); var rs = st.executeQuery(sql)) {
+            if (!rs.next()) {
+                throw new IllegalStateException("no row from " + sql);
+            }
+            return rs.getString(1);
+        }
     }
 }

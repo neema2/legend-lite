@@ -1,10 +1,8 @@
 package com.legend.equivalence.harvest;
 
-import com.legend.testing.Repo;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
-import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,8 +11,24 @@ import java.util.TreeMap;
 
 /** PROBE: pre-ingestion adjudication of the harvested engine fixtures —
  *  oracle verdict x lite verdict per fixture, byte parity where both
- *  accept. Diagnostic. */
-class ZFixtureAdjudicationProbe {
+ *  accept. Diagnostic, run on demand (Bazel workplan P3-17):
+ *  {@code bazel run //parser-equivalence:z_fixture_adjudication_probe -- --out DIR [--fixtures FILE]}; the
+ *  fixtures default to the committed snapshot (a fresh harvest is //parser-equivalence:gen_fixtures's output),
+ *  and the refused and differing sources are written into DIR. */
+final class ZFixtureAdjudicationProbe {
+
+    private ZFixtureAdjudicationProbe() {}
+
+    public static void main(String[] args) throws Exception {
+        String out = com.legend.testing.Programs.option(args, "--out");
+        if (out == null) {
+            throw new IllegalArgumentException("--out DIR: where the refused and differing sources are written");
+        }
+        Path outDir = Files.createDirectories(com.legend.testing.Programs.argument(out));
+        String fixtures = com.legend.testing.Programs.option(args, "--fixtures");
+        adjudicate(fixtures != null ? com.legend.testing.Programs.argument(fixtures)
+                : com.legend.testing.ProgramPaths.file("pe.engine.fixtures"), outDir);
+    }
 
 
     private static Throwable rootOf(Throwable t) {
@@ -25,8 +39,7 @@ class ZFixtureAdjudicationProbe {
         return r;
     }
 
-    @Test
-    void adjudicate() throws Exception {
+    private static void adjudicate(Path dump, Path outDir) throws Exception {
         PureGrammarParser oracle = PureGrammarParser.newInstance();
         ObjectMapper mapper = org.finos.legend.engine.shared.core
                 .ObjectMapperFactory
@@ -41,8 +54,10 @@ class ZFixtureAdjudicationProbe {
         // its outputs for another to read -- Bazel workplan P2-16, G-01).
         // NOTE: honest verdicts need the PRODUCTION oracle (run on the
         // ordinary test classpath, never :harvest_lib — the tests-jars alter it)
-        Path dump = Repo.module("src/test/resources/engine-grammar-fixtures.jsonl");
         for (String line : Files.readAllLines(dump)) {
+            if (line.isBlank() || line.startsWith("#")) {
+                continue;   // the snapshot's header (# engine=<version>)
+            }
             JsonNode n = json.readTree(line);
             String src = n.get("source").asText();
             String expectedJson;
@@ -85,7 +100,7 @@ class ZFixtureAdjudicationProbe {
                         .replaceAll(".*\\.", "") + " :: "
                         + (m.length() > 90 ? m.substring(0, 90) : m));
                 try {
-                    java.nio.file.Files.writeString(Repo.out("pref-" + Math.abs(src.hashCode())
+                    java.nio.file.Files.writeString(outDir.resolve("pref-" + Math.abs(src.hashCode())
                                     + ".pure"), src);
                 } catch (Exception e) {
                     // best-effort dump
@@ -140,9 +155,9 @@ class ZFixtureAdjudicationProbe {
             } else {
                 diffs++;
                 verdicts.merge("DIFF", 1, Integer::sum);
-                Files.writeString(Repo.out("diff-" + diffs + "-src.pure"), src);
-                Files.writeString(Repo.out("diff-" + diffs + "-expected.json"), expectedJson);
-                Files.writeString(Repo.out("diff-" + diffs + "-actual.json"), actual);
+                Files.writeString(outDir.resolve("diff-" + diffs + "-src.pure"), src);
+                Files.writeString(outDir.resolve("diff-" + diffs + "-expected.json"), expectedJson);
+                Files.writeString(outDir.resolve("diff-" + diffs + "-actual.json"), actual);
                 if (diffSamples.size() < 8) {
                     int i = 0;
                     int n2 = Math.min(expectedJson.length(), actual.length());

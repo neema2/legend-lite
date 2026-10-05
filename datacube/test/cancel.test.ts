@@ -65,7 +65,9 @@ describe('the epoch guard as a cancellation source', () => {
     assert.equal(guard.signal.aborted, false, 'the new one is live');
   });
 
-  it('hands a task the signal for ITS epoch, not a later one', async () => {
+  it('hands a task the signal for ITS epoch, not a later one', async (t) => {
+    // the test's own clock (Bazel workplan P3-16): the first task's delay fires when the test says, not after 20 ms
+    t.mock.timers.enable({ apis: ['setTimeout'] });
     // Reading `guard.signal` inside a task is a race: by the time the
     // line runs, a newer interaction may have swapped the controller,
     // and the task would then hold a signal that never aborts for it.
@@ -76,23 +78,26 @@ describe('the epoch guard as a cancellation source', () => {
       await new Promise((r) => setTimeout(r, 20));
       return 'first';
     });
-    await new Promise((r) => setTimeout(r, 5));
+    await Promise.resolve();   // the first task has started and holds its signal
     const second = guard.issue(async () => 'second');
 
     assert.equal(await second, 'second');
+    t.mock.timers.tick(20);
     assert.ok(isStale(await started), 'the first is superseded');
     assert.equal(captured?.aborted, true, 'and its own signal aborted');
   });
 
-  it('reports a superseded failure to telemetry, never to the caller', async () => {
+  it('reports a superseded failure to telemetry, never to the caller', async (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
     const seen: unknown[] = [];
     const guard = new EpochGuard({ onDiscardedError: (e) => seen.push(e) });
     const first = guard.issue(async (_e, signal) => {
       await new Promise((r) => setTimeout(r, 20));
       throw signal.reason ?? new Error('boom');
     });
-    await new Promise((r) => setTimeout(r, 5));
+    await Promise.resolve();   // the first task has started
     guard.advance();
+    t.mock.timers.tick(20);
 
     assert.ok(isStale(await first), 'the caller gets STALE, not a rejection');
     assert.equal(seen.length, 1);

@@ -23,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.*;
  * in-process through {@link Seed}, on the connection the server's queries then read.
  * Uses file-based DuckDB so data persists across HTTP requests.
  */
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class LegendHttpServerIntegrationTest {
 
     private static LegendHttpServer server;
@@ -162,7 +161,6 @@ class LegendHttpServerIntegrationTest {
     }
 
     @Test
-    @Order(1)
     @DisplayName("GET /health returns status ok")
     void testHealthEndpoint() throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
@@ -177,7 +175,6 @@ class LegendHttpServerIntegrationTest {
     }
 
     @Test
-    @Order(2)
     @DisplayName("POST /lsp initialize returns capabilities")
     void testLspInitialize() throws Exception {
         String body = """
@@ -202,10 +199,9 @@ class LegendHttpServerIntegrationTest {
         assertTrue(response.body().contains("legend-lite-lsp"));
     }
 
-    @Test
-    @Order(3)
-    @DisplayName("seed: the model's DuckDB file gets T_PERSON")
-    void seedPersonTable() throws Exception {
+    /** The model's DuckDB file gets T_PERSON with John Smith: each test that reads it seeds it, so any one method
+     *  runs alone (Bazel workplan P3-03; it was an @Order(3) test the @Order(7) query relied on). Idempotent. */
+    private static void seedPersonTable() throws Exception {
         Seed.sql(buildSampleModel(), "DROP TABLE IF EXISTS T_PERSON", "test::TestRuntime");
         Seed.sql(buildSampleModel(), """
                 CREATE TABLE T_PERSON (
@@ -220,7 +216,6 @@ class LegendHttpServerIntegrationTest {
     }
 
     @Test
-    @Order(4)
     @DisplayName("POST /engine/sql is gone: raw SQL is not a product surface")
     void rawSqlRouteIsGone() throws Exception {
         HttpResponse<String> response = httpClient.send(HttpRequest.newBuilder()
@@ -233,7 +228,6 @@ class LegendHttpServerIntegrationTest {
     }
 
     @Test
-    @Order(5)
     @DisplayName("a page outside the allow-list is refused, even with a preflight-free text/plain POST")
     void foreignOriginIsRefused() throws Exception {
         HttpResponse<String> response = httpClient.send(HttpRequest.newBuilder()
@@ -248,7 +242,6 @@ class LegendHttpServerIntegrationTest {
     }
 
     @Test
-    @Order(5)
     @DisplayName("a loopback page is served, and the CORS answer names it rather than *")
     void loopbackOriginIsServedAndEchoed() throws Exception {
         HttpResponse<String> response = httpClient.send(HttpRequest.newBuilder()
@@ -263,7 +256,6 @@ class LegendHttpServerIntegrationTest {
     }
 
     @Test
-    @Order(5)
     @DisplayName("the allow-list: loopback hosts on any port, listed origins, nothing that merely starts like them")
     void theAllowList() {
         LegendHttpServer.Origins loopback = LegendHttpServer.Origins.LOOPBACK;
@@ -281,7 +273,6 @@ class LegendHttpServerIntegrationTest {
     }
 
     @Test
-    @Order(6)
     @DisplayName("POST /lsp didOpen validates Pure model")
     void testLspDidOpenValidation() throws Exception {
         String validModel = """
@@ -322,9 +313,9 @@ class LegendHttpServerIntegrationTest {
     }
 
     @Test
-    @Order(7)
     @DisplayName("pure/v1 execute runs a Pure query, in the engine's TDS result shape")
     void testEngineExecutePureQuery() throws Exception {
+        seedPersonTable();
         HttpResponse<String> response = executeUpstream(buildSampleModel(),
                 "|model::Person.all()->project(~[firstName:p|$p.firstName, lastName:p|$p.lastName])",
                 "test::TestRuntime");
@@ -335,13 +326,12 @@ class LegendHttpServerIntegrationTest {
         assertEquals("tdsBuilder", result.getObj("builder").getString("_type"));
         assertEquals(List.of("firstName", "lastName"),
                 result.getObj("result").getStringArray("columns"));
-        // Data was inserted in Order 4, so we should see John/Smith
+        // seeded above: John Smith
         assertTrue(response.body().contains("{\"values\": [\"John\",\"Smith\"]}"),
                 "Expected query results: " + response.body());
     }
 
     @Test
-    @Order(8)
     @DisplayName("E2E: Full workflow - Validate Model → Seed → Pure Query")
     void testFullE2EWorkflow() throws Exception {
         // Use InMemory DuckDB (no file) to test connection caching

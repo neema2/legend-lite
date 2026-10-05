@@ -11,6 +11,7 @@
 // editor a name, a kind and the Pure, which it compiles like anything
 // typed there: this writes Pure for you, it is not a second language.
 
+import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import {
   fieldsOf,
   ShapeReader,
@@ -85,7 +86,7 @@ export function buildJsonFields(host: HTMLElement, options: JsonFieldsOptions): 
     text.textContent = message;
     note.classList.toggle('dc-jsonfields-bad', bad);
   };
-  const fmt = (n: number): string => n.toLocaleString();
+  const fmt = (n: number): string => n.toLocaleString(UI_LOCALE);
 
   /** Each field's node in the tree and its options on the right, by path. */
   const nodes = new Map<string, { readonly node: HTMLElement; readonly options: HTMLElement; readonly field: Field }>();

@@ -20,7 +20,6 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 
 /**
  * PCT CHANNEL B (One-Platform Plan Phase 4): OUR parser compiles the
@@ -103,14 +102,13 @@ public final class ChannelB {
         List<Compiler.ModelSource> sources = new ArrayList<>();
         for (int r = 0; r < modelRoots.size(); r++) {
             Path root = modelRoots.get(r);
-            try (Stream<Path> walk = Files.walk(root)) {
-                for (Path f : walk
-                        .filter(p -> p.toString().endsWith(".pure"))
-                        .toList()) {
-                    sources.add(new Compiler.ModelSource(
-                            r + ":" + slash(root.relativize(f)),
-                            Files.readString(f)));
-                }
+            // in a fixed order, by the '/'-separated relative path: a walk's order is the filesystem's, and the wall loop
+            // below drops files in the order it meets them (Bazel workplan P3-08). The order is the INPUT's, not an
+            // answer's: no verdict is compared in Java here (PctDisciplineTest)
+            for (Path f : com.legend.testing.SourceWalk.inOrder(root, ".pure")) {
+                sources.add(new Compiler.ModelSource(
+                        r + ":" + slash(root.relativize(f)),
+                        Files.readString(f)));
             }
         }
         // a storeless test executes on a declared runtime, as channel A's does (StorelessRuntime):
@@ -186,12 +184,12 @@ public final class ChannelB {
             }
             scopePrefixes.add(prefix);
         }
-        // SCOPED DEBUG RUNS (the rcorpus.only idiom): -Dchb.only=<substr>
+        // SCOPED DEBUG RUNS (the rcorpus.only idiom): -Dlegend.diagnostics=chb-only=<substr>
         // filters by test FQN. A scoped run trivially satisfies the
         // cumulative pins (fewer declines than the ceiling) and never
         // writes a scoreboard — the gate configuration is always the
         // unscoped suite.
-        String only = System.getProperty("chb.only");
+        String only = com.legend.diagnostics.Diagnostics.value("chb-only");
         List<Outcome> out = new ArrayList<>();
         for (var el : module.model().elements()) {
             if (!(el instanceof FunctionDefinition fd) || !isPctTest(fd)) {

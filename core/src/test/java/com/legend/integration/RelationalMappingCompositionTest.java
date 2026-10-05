@@ -88,7 +88,7 @@ class RelationalMappingCompositionTest {
 
     private int countLeftJoins(String sql) {
         int count = 0;
-        String upper = sql.toUpperCase();
+        String upper = sql.toUpperCase(java.util.Locale.ROOT);
         int idx = 0;
         while ((idx = upper.indexOf("LEFT OUTER JOIN", idx)) != -1) {
             count++;
@@ -98,12 +98,12 @@ class RelationalMappingCompositionTest {
     }
 
     private void assertNoTable(String sql, String tableName) {
-        assertFalse(sql.toUpperCase().contains(tableName.toUpperCase()),
+        assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains(tableName.toUpperCase(java.util.Locale.ROOT)),
                 tableName + " should not appear in SQL: " + sql);
     }
 
     private void assertHasTable(String sql, String tableName) {
-        assertTrue(sql.toUpperCase().contains(tableName.toUpperCase()),
+        assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains(tableName.toUpperCase(java.util.Locale.ROOT)),
                 tableName + " should appear in SQL: " + sql);
     }
 

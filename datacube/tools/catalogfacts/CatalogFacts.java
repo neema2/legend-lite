@@ -328,7 +328,7 @@ public final class CatalogFacts {
                 case '\t' -> out.append("\\t");
                 default -> {
                     if (ch < 0x20) {
-                        out.append(String.format("\\u%04x", (int) ch));
+                        out.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) ch));
                     } else {
                         out.append(ch);
                     }

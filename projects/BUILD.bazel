@@ -1,7 +1,129 @@
-# The Legend model projects. For now this package only EXPORTS them: core's
-# stress corpus (StressCorpus.PROJECTS) links eleven of them into its model.
-# Each project becomes a legend_library target later (plan phase 5).
+# The Legend model projects (CONTRACT.md). Each is a legend_library (tools/legend/defs.bzl): `bazel test //projects:tests`
+# compiles every project ALONE with exactly its declared dependencies, and the whole graph together (Bazel workplan
+# P3-23). Core's stress corpus (StressCorpus.LINKED_PROJECTS) links eleven of them into its model.
 load("//tools/guards:defs.bzl", "guards_package")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("//tools/legend:defs.bzl", "legend_graph_test", "legend_library")
+
+# THE DEPENDENCY GRAPH: each project and the projects it may refer to (CONTRACT.md, "Dependencies"). This is the one
+# source of truth (each MANIFEST.md's opening paragraph says the same in prose, unchecked: G17 keeps Markdown out of
+# every verdict). A project depends only on a lower layer.
+PROJECT_DEPS = {
+    # layer 0
+    "core-account": [],
+    "core-book": [],
+    "core-calendar": [],
+    "core-fx": [],
+    "core-geo": [],
+    "core-instrument": [],
+    "core-party": [],
+    "core-price": [],
+    "core-ratings": [],
+    "core-tenor": [],
+    "core-types": [],
+    "core-units": [],
+    # layer 1
+    "cash-core": ["core-account", "core-types"],
+    "client-core": ["core-geo", "core-party"],
+    "collateral-core": ["core-instrument", "core-party"],
+    "credit-core": ["core-party", "core-ratings"],
+    "custody-core": ["core-account", "core-instrument"],
+    "event-core": ["core-calendar", "core-instrument"],
+    "fee-core": ["core-tenor", "core-types"],
+    "funding-core": ["core-account", "core-tenor"],
+    "index-core": ["core-geo", "core-instrument"],
+    "legal-core": ["core-party"],
+    "limit-core": ["core-book", "core-party"],
+    "order-core": ["core-book", "core-instrument"],
+    "position-keeping": ["core-account", "core-instrument"],
+    "product-core": ["core-instrument", "core-types"],
+    "reference-data": ["core-geo", "core-instrument"],
+    "risk-core": ["core-instrument", "core-price"],
+    "settlement-core": ["core-calendar", "core-party"],
+    "static-core": ["core-types", "core-units"],
+    "trade-capture": ["core-book", "core-instrument", "core-party"],
+    "valuation-core": ["core-fx", "core-price"],
+    # layer 2
+    "client-reporting": ["client-core", "position-keeping", "valuation-core"],
+    "collateral-opt": ["collateral-core", "index-core"],
+    "credit-limits": ["credit-core", "limit-core"],
+    "custody-recon": ["custody-core", "position-keeping"],
+    "exposure-agg": ["collateral-core", "credit-core"],
+    "fee-billing": ["client-core", "fee-core"],
+    "legal-netting": ["exposure-agg", "legal-core"],
+    "liquidity-view": ["cash-core", "funding-core"],
+    "margin-calc": ["position-keeping", "risk-core"],
+    "order-execution": ["order-core", "trade-capture"],
+    "pnl-attribution": ["position-keeping", "valuation-core"],
+    "product-pricing": ["product-core", "valuation-core"],
+    "regulatory-extract": ["client-core", "reference-data", "trade-capture"],
+    "settlement-flow": ["cash-core", "settlement-core"],
+    "static-distribution": ["reference-data", "static-core"],
+    "trade-lifecycle": ["event-core", "trade-capture"],
+    # layer 3
+    "client-portal": ["client-reporting", "fee-billing"],
+    "collateral-mgmt": ["collateral-opt", "legal-netting"],
+    "firm-balance-sheet": ["exposure-agg", "liquidity-view", "pnl-attribution"],
+    "ops-control": ["custody-recon", "settlement-flow"],
+    "product-catalogue": ["product-pricing", "static-distribution"],
+    "regulatory-capital": ["exposure-agg", "margin-calc", "regulatory-extract"],
+    "risk-dashboard": ["credit-limits", "margin-calc", "pnl-attribution"],
+    "trade-surveillance": ["order-execution", "trade-lifecycle"],
+}
+
+# KNOWN legend-lite failures, each with its finding (FINDINGS.md): the project's test holds it to failing with this
+# message, and turns red the day it compiles, so the row comes out then. While quarantined, the compile stops at that
+# error, so the project's other checks (an undeclared dependency among them) wait for the fix too.
+# the view's own lifted function, named: a generic "defined more than once" would also pass for another collision
+_SCHEMA_VIEW_TWICE = "'firm_balance_sheet::Store$view$fbs.FBS_CATEGORY_TOTAL' is defined more than once"
+
+QUARANTINE = {
+    # 2026-10-05, FINDINGS.md F-L1: a view declared inside a Schema is lifted twice (ModelBuilder indexes the flat
+    # views() mirror AND the schema's views), so its function is "defined more than once"
+    "firm-balance-sheet": _SCHEMA_VIEW_TWICE,
+}
+
+[legend_library(
+    name = project,
+    srcs = glob([project + "/*.pure"]),
+    deps = [":" + d for d in deps],
+    quarantine = QUARANTINE.get(project),
+) for project, deps in PROJECT_DEPS.items()]
+
+# every project at once: the collisions between projects (a table, set id or filter declared twice) show only here.
+# A quarantined project joins it when its row comes out.
+legend_graph_test(
+    name = "graph_test",
+    libraries = [":" + project for project in PROJECT_DEPS if project not in QUARANTINE],
+)
+
+# what CONTRACT.md asks that is read off the files: no class property is mapped over a join without a set id
+filegroup(
+    name = "contract_files",
+    srcs = glob(["*/mapping.pure"]),
+)
+
+py_test(
+    name = "contract_test",
+    size = "small",
+    srcs = ["contract_test.py"],
+    data = [":contract_files"],
+    env = {
+        "PROJECT_DEPS": ";".join(["%s=%s" % (p, ",".join(d)) for p, d in PROJECT_DEPS.items()]),
+        "PROJECT_FILES": "$(rlocationpaths :contract_files)",
+    },
+    main = "contract_test.py",
+    deps = ["@rules_python//python/runfiles"],
+)
+
+# every check of the projects: each compiled alone, the graph, the contract's file checks (//gates:local, CI's checks)
+test_suite(
+    name = "tests",
+    tests = [":%s_test" % p for p in PROJECT_DEPS] + [
+        ":contract_test",
+        ":graph_test",
+    ],
+)
 
 filegroup(
     name = "srcs",
@@ -12,12 +134,19 @@ filegroup(
     ],
 )
 
-# one filegroup per project (its top-level .pure files), so a consumer declares only the projects it links
-# (//scripts/corpus's generators: core/stress.bzl's LINKED_PROJECTS; Bazel workplan P2-03)
+# one filegroup per project (its own top-level .pure files, not its dependencies'), so a consumer declares only the
+# projects it links (//scripts/corpus's generators: core/stress.bzl's LINKED_PROJECTS; Bazel workplan P2-03)
 [filegroup(
-    name = project,
+    name = project + "_files",
     srcs = glob([project + "/*.pure"]),
-    visibility = ["//scripts/corpus:__pkg__"],
-) for project in sorted({f.split("/")[0]: None for f in glob(["*/*.pure"])}.keys())]
+    # core links the stress corpus's projects into core_tests_lib as classpath resources (P3-05)
+    visibility = [
+        "//core:__pkg__",
+        "//scripts/corpus:__pkg__",
+    ],
+) for project in PROJECT_DEPS]
+
+# a project directory the graph does not name would be compiled by nothing
+[fail("projects/%s has .pure files but no PROJECT_DEPS entry: add it, with its dependencies" % d) for d in sorted({f.split("/")[0]: None for f in glob(["*/*.pure"])}.keys()) if d not in PROJECT_DEPS]
 
 guards_package()

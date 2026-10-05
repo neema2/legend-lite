@@ -17,7 +17,6 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -90,8 +89,8 @@ class PlatformNamesSpellingTest {
     void everySpellingIsDeclared() throws IOException {
         Path engine = Corpus.ENGINE_ROOT;
         Path pure = PreludeGeneratorTest.pureRoot();
-        Assumptions.assumeTrue(Files.isDirectory(engine), "legend-engine checkout not present");
-        Assumptions.assumeTrue(Files.isDirectory(pure), "legend-pure checkout not present");
+        org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(engine), "legend-engine checkout not present");
+        org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(pure), "legend-pure checkout not present");
         List<Path> roots = new ArrayList<>();
         roots.add(pure);
         for (String r : PreludeGenerator.ENGINE_SPEC_ROOTS) {

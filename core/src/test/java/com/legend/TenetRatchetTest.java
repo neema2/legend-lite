@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -73,8 +73,9 @@ class TenetRatchetTest {
     void resultSetConsumptionOnlyShrinks() throws IOException {
         List<String> sites = new ArrayList<>();
         int scanned = 0;
-        Path root = Repo.module("src/main/java");
-        try (Stream<Path> files = Files.walk(root)) {
+        // core's main sources: src/main/java and the DuckDB-only src/main/duckdb (Bazel workplan P3-27, CT-N10)
+        String root = "core/src/main/java";
+        try (Stream<Path> files = SourceFiles.under(root, "core/src/main/duckdb").stream()) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java"))
                     .toList()) {
                 scanned++;

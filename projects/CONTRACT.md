@@ -1,7 +1,7 @@
 # The project contract
 
-Every project in `projects/<name>/` must satisfy all of this. `scripts/projects/check.py`
-enforces the parts that can be checked mechanically.
+Every project in `projects/<name>/` must satisfy all of this. `bazel test //projects:tests`
+enforces the parts that can be checked mechanically (`projects/BUILD.bazel`).
 
 ## Layout
 
@@ -49,9 +49,11 @@ Refer to a dependency's elements directly -- there is no import statement in Leg
 
 All ten cross-project forms are verified in `scripts/corpus/probe_project_deps.py`.
 
-You may ONLY refer to projects listed as your dependencies. Referring to anything else is
-the undeclared-dependency defect this graph exists to detect, and `check.py` will catch it
-by compiling your project with its declared closure and nothing more.
+You may ONLY refer to projects listed as your dependencies: your row of `PROJECT_DEPS` in
+`projects/BUILD.bazel` (your MANIFEST.md's opening paragraph names them too, for a reader;
+no test reads Markdown). Referring to anything else is the
+undeclared-dependency defect this graph exists to detect, and `//projects:<name>_test` will
+catch it by compiling your project with its declared closure and nothing more.
 
 ## Data
 
@@ -69,9 +71,12 @@ One markdown table, so a downstream project can be written without reading your 
 
 ## Verify
 
-    python3 scripts/projects/check.py <name>
+    bazel test //projects:<name>_test     # alone, with exactly the declared closure
+    bazel test //projects:tests           # every project, the graph together, the file checks
 
-Must print `compiles`. That is the whole acceptance test.
+Each must pass. That is the whole acceptance test. (`scripts/projects/check.py` compiles with
+legend-engine instead and also checks each project's size band; it stays until the script
+review, P7-01.)
 
 ## Things the first wave of projects learned the hard way
 

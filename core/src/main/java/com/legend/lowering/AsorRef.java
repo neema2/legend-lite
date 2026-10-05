@@ -41,7 +41,7 @@ public final class AsorRef {
             + "\"type\":\"H2\"}";
 
     public static String seg(String v) {
-        return String.format("%010d", v.length()) + ":" + v + ":";
+        return String.format(java.util.Locale.ROOT, "%010d", v.length()) + ":" + v + ":";
     }
 
     /** The STATIC prefix — everything before the per-row pk segment. */
@@ -59,7 +59,7 @@ public final class AsorRef {
     public static String ref(String definingMapping, String rootSetId,
             String setId, String pkJson) {
         String full = prefix(definingMapping, rootSetId, setId)
-                + String.format("%0" + SEG_LEN_WIDTH + "d", pkJson.length())
+                + String.format(java.util.Locale.ROOT, "%0" + SEG_LEN_WIDTH + "d", pkJson.length())
                 + ":" + pkJson;
         return MARKER + java.util.Base64.getEncoder().withoutPadding()
                 .encodeToString(full.getBytes(

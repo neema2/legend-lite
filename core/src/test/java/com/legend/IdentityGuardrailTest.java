@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("guardrail")
 class IdentityGuardrailTest {
 
-    private static final Path MAIN = Repo.module("src/main/java/com/legend");
+    private static final String MAIN = "core/src/main/java/com/legend";
 
     /** Shape → pattern. Each is a way of identifying a function or type by its
      * NAME TEXT, or of asking a function's category. */
@@ -158,10 +158,10 @@ class IdentityGuardrailTest {
         SHAPES.keySet().forEach(k -> counts.put(k, 0));
         List<String> sites = new ArrayList<>();
         sites.add("shape\tsite\tcode");
-        try (Stream<Path> files = Files.walk(MAIN)) {
+        try (Stream<Path> files = SourceFiles.under(MAIN).stream()) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
                 String code = withoutComments(Files.readString(f));
-                String rel = Repo.rel(MAIN, f);
+                String rel = SourceFiles.rel(MAIN, f);
                 for (var shape : SHAPES.entrySet()) {
                     // the parser and the wire emitters compare PARSE PRODUCTS
                     // (grammar keywords, protocol tags), never a resolved name
@@ -179,8 +179,8 @@ class IdentityGuardrailTest {
                 }
             }
         }
-        Files.createDirectories(Repo.outDir());
-        Files.write(Repo.out("identity-sites.tsv"), sites);
+        Files.createDirectories(com.legend.testing.TestOutputs.dir());
+        Files.write(com.legend.testing.TestOutputs.file("identity-sites.tsv"), sites);
         System.out.println("[identity-guardrail] " + counts);
         List<String> grew = new ArrayList<>();
         for (var e : counts.entrySet()) {
