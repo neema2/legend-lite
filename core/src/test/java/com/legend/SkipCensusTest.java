@@ -51,52 +51,22 @@ class SkipCensusTest {
 
     /** Files permitted to carry {@code Assumptions.assume*} sites. */
     private static final List<String> ASSUMPTION_FILES = List.of(
-            // the minimal harness (2026-09-06): skips only when the engine
-            // checkout is absent — gate 4 runs it explicitly
-            "MinimalCorpusTest.java",
-            // skips when the generated expected/ dir is absent — the
-            // differential needs its oracle materialized first
+            // skips when the generated expected/ dir is absent -- the
+            // differential needs its oracle materialized first (it reads Maven's
+            // core/target/diff, so under Bazel it always skips: P3-17 wires or retires it)
             "CorpusDifferentialTest.java",
-            // the typing census (SYSTEM_PRELUDE_DESIGN §6, 2026-09-08):
-            // skips only when the legend-pure checkout is absent — it is a
-            // REPORT (target/spec-body-census.txt), not yet a pin; its
-            // numbers are recorded in docs/SPEC_BODY_CENSUS_2026_09_08.md
-            "SpecBodyCensusTest.java",
             // the manifest-world census (charter step 7 / D7, 2026-09-25): a
             // MEASUREMENT program, opt-in by -Dmanifest.census=<module>; skips
-            // in the chain by design — its numbers are the step's work list,
-            // pinned only when the corpus loader switches to the manifests
+            // in the chain by design (P3-17 makes such programs actions or binaries)
             "ManifestWorldCensusTest.java",
             // our side of the reference differential (2026-09-25): a MEASUREMENT
             // program, opt-in by -Dour.resolutions=<module>; skips in the chain
-            "OurResolutionsTest.java",
-            // batch 5 audit remainder (2026-09-11): the implicit-import sequence
-            // and the PlatformTypes spelling parity — both read the checkouts,
-            // both skip only when a checkout is absent
-            "CoreImportsParityTest.java",
-            "PlatformNamesSpellingTest.java",
-            // the upstream path manifest (upstream boundary batch 2,
-            // 2026-09-10): skips ONLY when a checkout root itself is absent
-            // (under Bazel the pinned archive is a declared input, so it is
-            // always present — the skip cannot fire in a gate); a
-            // PRESENT checkout is checked in full — 90 paths, every miss
-            // named, the count pinned
-            "UpstreamPathManifestTest.java",
-            // ---- parser-equivalence (audit-of-audits #11: the walk
-            // now covers sibling modules — these 8 carried the exact
-            // vacuous-green pattern c4386547 was written to kill,
-            // uncensused). All skip on the ORACLE CHECKOUT being
-            // absent (legend.engine/pure roots); gate 8's
-            // roots_present + skipped() detection is the loud
-            // back-stop that keeps the skip from reading as a pass.
-            "CorpusCensusTest.java",
-            "CorpusSweepTest.java",
-            "MigrationSizingTest.java",
-            "OwnDialectCensusTest.java",
-            "ParseSpeedBenchmarkTest.java",
-            // SurfaceCensusTest.java left 2026-10-04 (Bazel workplan P1-04): it reads the engine tree through
-            // Upstream, which fails when the tree is missing instead of skipping.
-            "SectionParseSentinelTest.java");
+            "OurResolutionsTest.java");
+    // LEFT 2026-10-05 (Bazel workplan P3-14): MinimalCorpusTest, SpecBodyCensusTest, CoreImportsParityTest,
+    // PlatformNamesSpellingTest, UpstreamPathManifestTest and parser-equivalence's CorpusCensusTest,
+    // CorpusSweepTest, MigrationSizingTest, OwnDialectCensusTest, ParseSpeedBenchmarkTest and
+    // SectionParseSentinelTest. Each skipped when a required input (an upstream tree, the corpus) was absent;
+    // under Bazel those are declared inputs, so each now FAILS naming the input instead of going quiet.
 
     private static final Pattern DISABLED =
             Pattern.compile("@Disabled\\(\"([^\"]*)\"\\)");
@@ -173,7 +143,7 @@ class SkipCensusTest {
                 Repo.path("parser-equivalence/src/test/java"),
                 Repo.path("pct/src/test/java"))) {
             if (!Files.isDirectory(root)) {
-                continue;
+                throw new IllegalStateException("SkipCensusTest root " + root + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
             }
             try (Stream<Path> s = Files.walk(root)) {
                 out.addAll(s.filter(p -> p.toString().endsWith(".java"))

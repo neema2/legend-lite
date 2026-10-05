@@ -4,7 +4,6 @@ import com.legend.testing.Repo;
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -51,7 +50,7 @@ class MigrationSizingTest {
     @Test
     void sizeTheUnfinishedProtocolMigration() throws Exception {
         List<Corpus.Source> sources = Corpus.all();
-        Assumptions.assumeTrue(!sources.isEmpty(),
+        org.junit.jupiter.api.Assertions.assertTrue(!sources.isEmpty(),
                 "no corpus on disk — set -Dlegend.engine.root / -Dlegend.pure.root");
 
         int both = 0;

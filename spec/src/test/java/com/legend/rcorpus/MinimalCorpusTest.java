@@ -4,7 +4,6 @@
 package com.legend.rcorpus;
 
 import com.legend.testing.Repo;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -113,7 +112,7 @@ public class MinimalCorpusTest {
 
     @Test
     void corpus() throws Exception {
-        Assumptions.assumeTrue(Corpus.available(), "legend-engine checkout not present");
+        org.junit.jupiter.api.Assertions.assertTrue(Corpus.available(), "legend-engine checkout not present");
         // the engine's scan order for the corpus goldens (the old runner's
         // setting); restored on exit so no later test in the JVM sees it
         String scanOrder = System.getProperty("legend.exec.engineScanOrder");
@@ -1059,7 +1058,9 @@ public class MinimalCorpusTest {
         java.util.Set<String> out = new java.util.HashSet<>();
         try (var in = MinimalCorpusTest.class.getResourceAsStream(resource)) {
             if (in == null) {
-                return out;
+                // a register is a committed file, empty when it holds nothing; a missing one is a misnamed or
+                // undeclared resource, never "no entries" (Bazel workplan P3-14)
+                throw new IllegalStateException("register missing on the classpath: " + resource);
             }
             for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8)
                     .split("\n")) {

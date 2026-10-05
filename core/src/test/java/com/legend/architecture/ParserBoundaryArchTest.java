@@ -161,14 +161,15 @@ class ParserBoundaryArchTest {
         List<Path> roots = new ArrayList<>();
         roots.add(Repo.module("src/main/java"));
         roots.add(Repo.module("src/test/java"));
-        // "server" names a module that no longer exists; its isDirectory check
-        // below keeps it a no-op, as it has been under Maven
-        for (String sibling : new String[] {"server/src",
-                "pct/src", "parser-equivalence/src"}) {
+        // every root this guard claims to cover must be there: a missing one fails, naming it, instead of
+        // shrinking the scan silently (Bazel workplan P3-14; the long-gone "server/src" sat here as a no-op)
+        for (String sibling : new String[] {"pct/src", "parser-equivalence/src"}) {
             Path p = Repo.path(sibling);
-            if (Files.isDirectory(p)) {
-                roots.add(p);
+            if (!Files.isDirectory(p)) {
+                throw new IllegalStateException("ParserBoundaryArchTest's root " + sibling
+                        + " is not among its inputs: declare it, or drop it from the guard with a reason");
             }
+            roots.add(p);
         }
         return roots;
     }

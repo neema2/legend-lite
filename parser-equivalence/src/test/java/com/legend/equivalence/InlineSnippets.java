@@ -58,7 +58,7 @@ final class InlineSnippets {
     static List<FileRuns> literalRunsByFile(Path root) {
         List<FileRuns> out = new ArrayList<>();
         if (!Files.isDirectory(root)) {
-            return out;
+            throw new IllegalStateException("InlineSnippets root " + root + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
         }
         try (Stream<Path> s = Files.walk(root)) {
             for (Path p : s.filter(f -> f.toString().endsWith(".java"))
@@ -88,7 +88,11 @@ final class InlineSnippets {
     static List<Corpus.Source> extract(Path root, String tier,
             Pattern candidate) {
         List<Path> javaFiles = new ArrayList<>();
-        if (Files.isDirectory(root)) {
+        if (!Files.isDirectory(root)) {
+            throw new IllegalStateException("InlineSnippets root " + root
+                    + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
+        }
+        {
             try (Stream<Path> s = Files.walk(root)) {
                 s.filter(p -> p.toString().endsWith(".java"))
                         .filter(p -> Corpus.within(root, p).contains("/src/test/"))

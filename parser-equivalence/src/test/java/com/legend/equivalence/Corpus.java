@@ -64,7 +64,7 @@ public final class Corpus {
 
     private static List<Path> filesWith(Path root, String ext) {
         if (!Files.isDirectory(root)) {
-            return List.of();
+            throw new IllegalStateException("the corpus root " + root + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
         }
         try (Stream<Path> s = Files.walk(root)) {
             return s.filter(p -> p.toString().endsWith(ext))

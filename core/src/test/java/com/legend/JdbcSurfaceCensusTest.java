@@ -174,7 +174,7 @@ class JdbcSurfaceCensusTest {
         for (String r : ROOTS) {
             Path root = Repo.path(r);
             if (!Files.isDirectory(root)) {
-                continue;
+                throw new IllegalStateException("JdbcSurfaceCensusTest root " + root + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
             }
             try (Stream<Path> s = Files.walk(root)) {
                 s.filter(p -> p.toString().endsWith(".java"))

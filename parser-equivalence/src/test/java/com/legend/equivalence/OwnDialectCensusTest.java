@@ -4,7 +4,6 @@
 package com.legend.equivalence;
 
 import com.legend.testing.Repo;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -149,7 +148,7 @@ class OwnDialectCensusTest {
             own.addAll(InlineSnippets.extract(repo.resolve(module),
                     "lite-" + module, InlineSnippets.OWN_DECL));
         }
-        Assumptions.assumeTrue(!own.isEmpty(), "no own corpus found");
+        org.junit.jupiter.api.Assertions.assertTrue(!own.isEmpty(), "no own corpus found");
 
         int platformAccepts = 0;
         int liteAccepts = 0;

@@ -151,7 +151,7 @@ public class CorpusSweepTest {
         org.junit.jupiter.api.Assertions.assertTrue(sources.size() > 7000,
                 "corpus floor: only " + sources.size() + " sources loaded —"
                         + " check -Dlegend.engine.root/-Dlegend.pure.root");
-        Assumptions.assumeTrue(!sources.isEmpty(),
+        org.junit.jupiter.api.Assertions.assertTrue(!sources.isEmpty(),
                 "no corpus on disk — set -Dlegend.engine.root / -Dlegend.pure.root");
         ObjectMapper mapper = ObjectMapperFactory
                 .getNewStandardObjectMapperWithPureProtocolExtensionSupports();

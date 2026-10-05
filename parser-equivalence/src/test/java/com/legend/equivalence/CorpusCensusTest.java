@@ -2,7 +2,6 @@ package com.legend.equivalence;
 
 import com.legend.testing.Repo;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
@@ -43,7 +42,7 @@ class CorpusCensusTest {
     @Test
     void reportWhatTheGateNeverCompares() throws Exception {
         List<Corpus.Source> sources = Corpus.all();
-        Assumptions.assumeTrue(!sources.isEmpty(),
+        org.junit.jupiter.api.Assertions.assertTrue(!sources.isEmpty(),
                 "no corpus on disk — set -Dlegend.engine.root / -Dlegend.pure.root");
 
         PureGrammarParser reference = PureGrammarParser.newInstance();

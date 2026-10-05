@@ -5,7 +5,6 @@ package com.legend.generators;
 
 import com.legend.rcorpus.Corpus;
 import com.legend.rcorpus.MinimalCorpus;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -91,8 +90,8 @@ public class UpstreamPathManifestTest {
         Path pure = PreludeGeneratorTest.pureRoot();
         // no checkout at all = nothing to check (under Bazel the pinned archive
         // is a declared input, always present); a PRESENT checkout is checked in full
-        Assumptions.assumeTrue(Files.isDirectory(engine), "legend-engine checkout not present at " + engine);
-        Assumptions.assumeTrue(Files.isDirectory(pure), "legend-pure checkout not present at " + pure);
+        org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(engine), "legend-engine checkout not present at " + engine);
+        org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(pure), "legend-pure checkout not present at " + pure);
         List<Entry> all = manifest();
         List<String> missing = new ArrayList<>();
         for (Entry e : all) {

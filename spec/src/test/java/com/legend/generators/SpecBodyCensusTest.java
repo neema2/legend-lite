@@ -11,7 +11,6 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.model.PackageableElement;
 import com.legend.model.ParsedModel;
 
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -70,7 +69,7 @@ public class SpecBodyCensusTest {
         // upstream shrank the census input and let the shrink-only pins pass
         // easier without a word (the old precheck tested root 0 only, and the
         // walk below `continue`d past the rest).
-        Assumptions.assumeTrue(Files.isDirectory(pure), "legend-pure checkout not present at " + pure);
+        org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(pure), "legend-pure checkout not present at " + pure);
         List<String> missingRoots = new ArrayList<>();
         for (String r : PLATFORM_ROOTS) {
             if (!Files.isDirectory(pure.resolve(r))) {

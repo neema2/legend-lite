@@ -51,9 +51,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag("census")
 class LegacyReachbackCensusTest {
 
+    // production sources only; parser-equivalence has none (its "src/main" root was scanned as absent and
+    // silently skipped until a missing root failed: Bazel workplan P3-14)
     private static final List<String> ROOTS = List.of(
-            "core/src/main", "pct/src/main",
-            "parser-equivalence/src/main");
+            "core/src/main", "pct/src/main");
 
     /** Coverage floor: production files scanned on 2026-08-30. Shrink
      * needs a written justification (files deleted); growth is free. */
@@ -115,7 +116,7 @@ class LegacyReachbackCensusTest {
         for (String root : ROOTS) {
             Path p = Repo.path(root);
             if (!Files.isDirectory(p)) {
-                continue;
+                throw new IllegalStateException("LegacyReachbackCensusTest root " + p + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
             }
             try (Stream<Path> files = Files.walk(p)) {
                 for (Path f : files.filter(x -> x.toString().endsWith(".java"))
