@@ -52,7 +52,7 @@ class ComposerParityTest {
     private static final Json.Config DEEP = new Json.Config(4096);
 
     /** Upstream's own lambda round-trip tests: their texts are the printer's spec too. */
-    private static final List<String> ROUNDTRIP_TESTS = List.of(
+    static final List<String> ROUNDTRIP_TESTS = List.of(
             "legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-grammar/src/test/java/org/finos/legend/engine/language/pure/grammar/test/roundtrip/TestLambdaRoundtrip.java",
             "legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-grammar/src/test/java/org/finos/legend/engine/language/pure/grammar/test/roundtrip/TestLambdaPrettyRendering.java",
             "legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-grammar/src/test/java/org/finos/legend/engine/language/pure/grammar/test/roundtrip/TestRelation.java");

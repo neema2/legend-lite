@@ -8,10 +8,12 @@ import com.legend.json.Json;
 import com.legend.parser.PmcdParser;
 import com.legend.protocol.ModelReader;
 import com.legend.protocol.ProtocolEmitter;
+import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.ProtocolUpgrade;
 import com.legend.protocol.SourceInformation;
 import com.legend.testing.Repo;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
+import org.finos.legend.engine.language.pure.grammar.from.domain.DomainParser;
 import org.finos.legend.engine.protocol.pure.m3.PackageableElement;
 import org.finos.legend.engine.protocol.pure.v1.model.context.PureModelContextData;
 import org.finos.legend.engine.shared.core.ObjectMapperFactory;
@@ -61,6 +63,8 @@ class ModelReaderParityTest {
     private static final int MIN_ENGINE_MATCHED = 38702;   // 2026-10-05 (2 more upgraded); every J2 is lite's J
     /** Whole documents matched (own, with and without source information). Up-only. */
     private static final int MIN_DOCS_MATCHED = 13514;   // 2026-10-05 (4 more upgraded)
+    /** Upstream's lambda round-trip texts read and emitted to the engine's bytes, each mode. Up-only. */
+    private static final int MIN_LAMBDAS_MATCHED = 205;   // 2026-10-05: every lambda text the engine parses
     /** Mismatches anywhere (own or engine, either mode, elements or documents). Down-only. */
     private static final int MAX_MISMATCHED = 0;
     /** Refusals anywhere: every element _type of the corpus has its reader rule. Down-only. */
@@ -117,9 +121,26 @@ class ModelReaderParityTest {
                 engine("roundtrip:" + file.getFileName(), parsed, liteDocument(run), true);
             }
         }
+        // upstream's own LAMBDA round-trip texts (the printer's spec, ComposerParityTest): the engine's
+        // lambda JSON read back as lambda records, emitted, with spans and without
+        int lambdaTexts = 0;
+        for (String rel : ComposerParityTest.ROUNDTRIP_TESTS) {
+            for (String run : InlineSnippets.literalRuns(Files.readString(Corpus.engineRoot().resolve(rel)))) {
+                String j2;
+                try {
+                    j2 = mapper.writeValueAsString(new DomainParser().parseLambda(run, "", 0, 0, true));
+                } catch (Throwable t) {
+                    continue;   // not a lambda (an expected-output text, a message)
+                }
+                lambdaTexts++;
+                judgeLambda("engine-lambdas", rel, j2, false);
+                judgeLambda("engine-lambdas-stripped", rel, SourceInformation.stripAll(j2), true);
+            }
+        }
         if (dump != null) {
             dump.close();
         }
+        System.out.println("[model-reader-parity] lambdaTexts=" + lambdaTexts);
         report(liteSources, engineSources, roundtripTexts);
         assertTrue(total("own").matched >= MIN_OWN_MATCHED, "own matched " + total("own").matched + " < " + MIN_OWN_MATCHED);
         assertTrue(total("own-stripped").matched >= MIN_OWN_STRIPPED_MATCHED,
@@ -128,6 +149,10 @@ class ModelReaderParityTest {
                 "engine matched " + total("engine").matched + " < " + MIN_ENGINE_MATCHED);
         assertTrue(total("documents").matched >= MIN_DOCS_MATCHED,
                 "documents matched " + total("documents").matched + " < " + MIN_DOCS_MATCHED);
+        assertTrue(total("engine-lambdas").matched >= MIN_LAMBDAS_MATCHED
+                        && total("engine-lambdas-stripped").matched >= MIN_LAMBDAS_MATCHED,
+                "lambdas matched " + total("engine-lambdas") + " / " + total("engine-lambdas-stripped") + " < "
+                        + MIN_LAMBDAS_MATCHED);
         assertTrue(mismatched <= MAX_MISMATCHED, "mismatched " + mismatched + " > " + MAX_MISMATCHED
                 + " -- see model-reader-diffs.txt");
         int refused = refusals.values().stream().mapToInt(Integer::intValue).sum();
@@ -200,6 +225,32 @@ class ModelReaderParityTest {
         Json.Node original = Json.parse(json, DEEP);
         Json.Node upgraded = ProtocolUpgrade.upgrade(original);
         return !upgraded.equals(original) && upgraded.equals(Json.parse(actual, DEEP));
+    }
+
+    /** One lambda: {@code ProtocolReader.lambda}, then {@code ProtocolEmitter.emitLambda}, compared. */
+    private void judgeLambda(String table, String id, String json, boolean stripped) {
+        int[] counts = tables.computeIfAbsent(table, k -> new TreeMap<>()).computeIfAbsent("lambda", k -> new int[4]);
+        String emitted;
+        try {
+            emitted = ProtocolEmitter.emitLambda(ProtocolReader.lambda(json));
+        } catch (IllegalArgumentException refused) {
+            counts[2]++;
+            refusals.merge(table + ": lambda: " + refused.getMessage(), 1, Integer::sum);
+            return;
+        } catch (RuntimeException crash) {
+            counts[1]++;
+            miss(table, id, "lambda", json, "CRASHED: " + crash);
+            return;
+        }
+        String actual = stripped ? canonical(emitted) : emitted;
+        if (actual.equals(json)) {
+            counts[0]++;
+        } else if (upgradedTo(json, actual)) {
+            counts[3]++;
+        } else {
+            counts[1]++;
+            miss(table, id, "lambda", json, actual);
+        }
     }
 
     private void judgeDocument(String id, String doc, boolean stripped) {
