@@ -87,6 +87,37 @@ final class Composing {
         return bar < 0 ? text : text.substring(0, bar) + text.substring(bar + 1);
     }
 
+    /** The lines of {@code s}, split at each newline, empty ones kept (Java's {@code split("\n", -1)}). */
+    static List<String> lines(String s) {
+        return PureComposer.lines(s);
+    }
+
+    /**
+     * {@code s} cut at each {@code sep} not preceded by {@code unlessAfter} (none when it is {@code 0}), as
+     * upstream's {@code String.split} does: no separator leaves the text whole, and trailing empty pieces
+     * are dropped. Read char by char: the protocol package parses no text with a regex.
+     */
+    static List<String> splitDroppingTrailingEmpties(String s, char sep, char unlessAfter) {
+        List<String> out = new ArrayList<>();
+        int from = 0;
+        boolean cut = false;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == sep && (unlessAfter == 0 || i == 0 || s.charAt(i - 1) != unlessAfter)) {
+                out.add(s.substring(from, i));
+                from = i + 1;
+                cut = true;
+            }
+        }
+        out.add(s.substring(from));
+        if (!cut) {
+            return out;
+        }
+        while (!out.isEmpty() && out.get(out.size() - 1).isEmpty()) {
+            out.remove(out.size() - 1);
+        }
+        return out;
+    }
+
     static List<Json.Node> items(Json.Obj o, String key) {
         Json.Node n = o.getOr(key, null);
         return n instanceof Json.Arr a ? a.items() : List.of();

@@ -815,7 +815,7 @@ public final class PureComposer {
     }
 
     /** The lines of {@code s}, split at each newline, empty ones kept. */
-    private static List<String> lines(String s) {
+    static List<String> lines(String s) {
         List<String> out = new ArrayList<>();
         int from = 0;
         int at;

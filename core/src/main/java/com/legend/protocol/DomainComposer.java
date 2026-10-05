@@ -367,7 +367,7 @@ final class DomainComposer {
         if (value.isEmpty() || value.contains("'''") || value.indexOf('\r') >= 0 || value.startsWith("\n") || value.endsWith("\n")) {
             return false;
         }
-        for (String line : value.split("\n", -1)) {
+        for (String line : Composing.lines(value)) {
             if (line.startsWith("###") || (!line.isEmpty() && Character.isWhitespace(line.charAt(line.length() - 1)))) {
                 return false;
             }
@@ -378,7 +378,7 @@ final class DomainComposer {
     /** {@code renderDocumentation}'s block. */
     private static String documentationBlock(String value, String indent) {
         StringBuilder b = new StringBuilder("'''\n");
-        for (String line : value.split("\n", -1)) {
+        for (String line : Composing.lines(value)) {
             b.append(line.isEmpty() ? "" : indent + line).append('\n');
         }
         return b.append(indent).append("'''\n").append(indent).toString();
