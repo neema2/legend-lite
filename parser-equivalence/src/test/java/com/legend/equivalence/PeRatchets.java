@@ -35,13 +35,6 @@ public final class PeRatchets {
         Map<String, Integer> out = new TreeMap<>();
         out.put("mutation.deck", MutationFuzzTest.deckSize());
         out.put("own_corpus.matched", OwnCorpusLedgerDraft.diffs().matched());
-        // the own corpus's refusal classes against the oracle (OwnCorpusConformanceTest; Bazel workplan P3-30)
-        OwnCorpusConformanceTest.measure().byClass()
-                .forEach((cls, n) -> out.put(OwnCorpusConformanceTest.CLASS_KEY + cls, n));
-        // the own corpus at legend-lite, per host (OwnDialectCensusTest; P3-30)
-        OwnDialectCensusTest.Census dialect = OwnDialectCensusTest.measure();
-        dialect.platformHosted().forEach((h, n) -> out.put(OwnDialectCensusTest.PLATFORM_KEY + h, n));
-        dialect.extensionHosted().forEach((h, n) -> out.put(OwnDialectCensusTest.EXTENSION_KEY + h, n));
         StringBuilder text = new StringBuilder("# parser-equivalence's measured ratchet values (PeRatchets) --"
                 + " regenerate: bazel run //parser-equivalence:update_ratchets\n");
         out.forEach((k, v) -> text.append(k).append('\t').append(v).append('\n'));
@@ -77,17 +70,6 @@ public final class PeRatchets {
             }
             return m;
         }
-    }
-
-    /** Every committed measured value whose key starts with {@code prefix}, by the rest of its key. */
-    static Map<String, Integer> measuredWithPrefix(String prefix) {
-        Map<String, Integer> out = new TreeMap<>();
-        Committed.VALUES.forEach((k, v) -> {
-            if (k.startsWith(prefix)) {
-                out.put(k.substring(prefix.length()), v);
-            }
-        });
-        return out;
     }
 
     /** The committed measured value for {@code key}. */
