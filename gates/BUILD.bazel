@@ -182,8 +182,8 @@ test_suite(
         "//query-store:local_test",
         "//query-store:share_test",
         "//query-store:lite_test",
-        # where queries run in the tab, shared by Studio, Query and DataCube: a model's own test data in DuckDB
-        "//engine-client:model_data_test",
+        # where queries run in the tab, shared by Studio, Query and DataCube: a model's own test data in DuckDB, Snap
+        "//engine-client:tests",
         "//studio:verify_test",
         "//query:verify_test",
         "//site:verify_test",

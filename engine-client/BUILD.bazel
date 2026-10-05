@@ -103,4 +103,26 @@ node_test(
     entry_point = "test/model-data.test.ts",
     env = {"PARTY_MODEL": "$(rlocationpath test/party-model.json)"},
 )
+
+# Snap's engine half (plan A6, moved from DataCube): freezing rows into the tab's DuckDB, the stamp, the refusals
+node_test(
+    name = "snap_test",
+    # 2 s measured on a desk (2026-10-07)
+    size = "small",
+    data = [
+        ":engine_client",
+        ":node_modules/@duckdb/duckdb-wasm",
+    ],
+    entry_point = "test/snap.test.ts",
+)
+
+# every test here: the local gate and CI's `ui` lane run it
+test_suite(
+    name = "tests",
+    tests = [
+        ":model_data_test",
+        ":snap_test",
+        ":update_generated_test",
+    ],
+)
 guards_package()

@@ -15,7 +15,7 @@ import { describe, it } from 'node:test';
 import { CubeController, type Planner } from '../src/cube.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import type { SnapTarget } from '../src/snap.ts';
+import type { SnapTarget } from '../src/cube.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { FakeEngine } from './fake-engine.ts';
