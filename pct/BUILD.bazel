@@ -10,6 +10,7 @@ load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/jars:defs.bzl", "file_list")
 
 # sources exported for the guard tests that walk every module
 filegroup(
@@ -131,13 +132,21 @@ _SUITES = [
 
 # the module's discipline guard (no comparison machinery in Java), in gate 6 (G-02)
 # its own library, so the light //gates:local does not build the PCT adapter's 4 GB PAR to run a source scan
+# the module's files, as the discipline scan reads them: a declared list (SourceFiles; Bazel workplan P3-27b)
+file_list(
+    name = "discipline_sources",
+    testonly = True,
+    srcs = [":srcs"],
+)
+
 junit_test(
     name = "pct_discipline",
     memory_mb = 768,
     size = "small",
     srcs = ["src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java"],
-    # a source scan: it reads the whole module, by the named filegroup
-    data = [":srcs"],
+    # a source scan: it reads the whole module, by its declared list (whose files ride in its runfiles)
+    data = [":discipline_sources"],
+    jvm_flags = ["-Dlegend.sources=$(rlocationpath :discipline_sources)"],
     select = ["--select-class=org.finos.legend.lite.pct.PctDisciplineTest"],
     deps = [
         "//testing",

@@ -113,7 +113,7 @@ public final class RosterGenerator {
         List<Corpus.Source> universe = new ArrayList<>(Corpus.all());
         universe.addAll(Corpus.engineFixtures());
         for (String module : new String[]{"core", "spec", "pct"}) {
-            universe.addAll(InlineSnippets.extract(Repo.path(module),
+            universe.addAll(InlineSnippets.extract(module,
                     "own-" + module, InlineSnippets.OWN_DECL));
         }
         int accepted = 0;

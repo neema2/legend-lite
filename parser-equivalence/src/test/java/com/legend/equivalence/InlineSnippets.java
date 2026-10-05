@@ -84,7 +84,8 @@ final class InlineSnippets {
     }
 
     /** {@link #extract(Path, String)} with an explicit candidate pattern —
-     *  the own-corpus surface passes {@link #OWN_DECL}. */
+     *  the own-corpus surface passes {@link #OWN_DECL}. An upstream tree (a fetched archive's directory, read as it is
+     *  on disk) is walked. */
     static List<Corpus.Source> extract(Path root, String tier,
             Pattern candidate) {
         List<Path> javaFiles = new ArrayList<>();
@@ -103,6 +104,28 @@ final class InlineSnippets {
                 throw new IllegalStateException("cannot walk " + root, e);
             }
         }
+        return extract(javaFiles, p -> Corpus.slashed(root.relativize(p)), tier, candidate);
+    }
+
+    /** {@link #extract(Path, String, Pattern)} over one of THIS repository's modules ({@code core}, {@code spec}, ...),
+     *  read as the running program may (ModuleFiles: a test's declared list, Bazel workplan P3-27b). */
+    static List<Corpus.Source> extract(String module, String tier, Pattern candidate) {
+        List<Path> javaFiles = new ArrayList<>();
+        for (Path p : ModuleFiles.under(module + "/src/test")) {
+            String rel = ModuleFiles.rel(module, p);
+            if (rel.endsWith(".java") && !rel.contains("/target/")) {
+                javaFiles.add(p);
+            }
+        }
+        if (javaFiles.isEmpty()) {
+            throw new IllegalStateException("InlineSnippets: no test sources of " + module
+                    + " among the inputs: declare them (Bazel workplan P3-14: a missing root failed silently)");
+        }
+        return extract(javaFiles, p -> ModuleFiles.rel(module, p).substring(1), tier, candidate);
+    }
+
+    private static List<Corpus.Source> extract(List<Path> javaFiles, java.util.function.Function<Path, String> id,
+            String tier, Pattern candidate) {
         // dedupe identical snippets (fixtures repeat across tests) — first occurrence wins the id
         Map<String, String> byText = new LinkedHashMap<>();
         int runs = 0;
@@ -121,8 +144,7 @@ final class InlineSnippets {
                     // slashed(): this id is matched against the census's
                     // forward-slash host rows — a platform-separator id
                     // quarantines nothing (Windows CI gate 8, 2026-09-09)
-                    byText.putIfAbsent(run,
-                            Corpus.slashed(root.relativize(p)) + "#" + idx);
+                    byText.putIfAbsent(run, id.apply(p) + "#" + idx);
                 }
                 idx++;
             }

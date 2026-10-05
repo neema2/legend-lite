@@ -7,7 +7,7 @@ load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
-load("//tools/jars:defs.bzl", "java_jars")
+load("//tools/jars:defs.bzl", "file_list", "java_jars")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
@@ -109,6 +109,22 @@ filegroup(
 
 _ENGINE_JARS_FLAG = "-Dlegend.engine.jars=$(rootpath :engine_jars)"
 
+# the repository files the parity tests read, as one declared list (ModuleFiles, SourceFiles; Bazel workplan
+# P3-27b): no test walks a directory
+file_list(
+    name = "parity_sources",
+    testonly = True,
+    srcs = [
+        ":sibling_corpus",
+        ":test_java",
+        "//core:test_java",
+        "//pct:test_java",
+        "//spec:test_java",
+    ],
+)
+
+_SOURCES_FLAG = "-Dlegend.sources=$(rlocationpath :parity_sources)"
+
 _INPUTS = [
     # what the parity tests read as files (Bazel workplan P3-07): every module's test sources (the own corpus:
     # InlineSnippets reads src/test/**/*.java), this module's sibling corpus, and the oracle pins
@@ -161,8 +177,14 @@ _DIAGNOSTICS = [
 junit_test(
     name = "parser_parity",
     memory_mb = 2816,
-    data = _INPUTS + _FILE_DATA + [":engine_jars"],
-    jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS,
+    data = _INPUTS + _FILE_DATA + [
+        ":engine_jars",
+        ":parity_sources",
+    ],
+    jvm_flags = [
+        _ENGINE_JARS_FLAG,
+        _SOURCES_FLAG,
+    ] + _FILE_FLAGS,
     exclude_tags = [],
     runtime_deps = [":pe_tests_lib"],
     select = ["--select-package=com.legend.equivalence"] + [
@@ -174,8 +196,14 @@ junit_test(
 junit_test(
     name = "diagnostics",
     memory_mb = 2048,
-    data = _INPUTS + _FILE_DATA + [":engine_jars"],
-    jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS,
+    data = _INPUTS + _FILE_DATA + [
+        ":engine_jars",
+        ":parity_sources",
+    ],
+    jvm_flags = [
+        _ENGINE_JARS_FLAG,
+        _SOURCES_FLAG,
+    ] + _FILE_FLAGS,
     runtime_deps = [":pe_tests_lib"],
     select = ["--select-class=com.legend.equivalence." + c for c in _DIAGNOSTICS],
     tags = ["manual"],

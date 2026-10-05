@@ -49,7 +49,8 @@ class SubsumedRegistryTest {
                 problems.add(s + ": platform-owned name — the corpus definition must be the typing source");
             }
             // 2. dead value: no main-tree source names the FQN outside Subsumed.java
-            try (Stream<Path> walk = Files.walk(MAIN)) {
+            // core's main sources, as spec_tests declares them (SourceFiles; Bazel workplan P3-27b)
+            try (Stream<Path> walk = com.legend.testing.SourceFiles.under("core/src/main/java").stream()) {
                 for (Path f : walk.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
                     if (f.endsWith("Subsumed.java")) {
                         continue;

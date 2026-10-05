@@ -142,10 +142,9 @@ class OwnDialectCensusTest {
 
     @Test
     void ownCorpusAtLegendLite() throws Exception {
-        Path repo = Repo.root().toAbsolutePath().normalize();
         List<Corpus.Source> own = new ArrayList<>();
         for (String module : List.of("core", "parser-equivalence", "pct")) {
-            own.addAll(InlineSnippets.extract(repo.resolve(module),
+            own.addAll(InlineSnippets.extract(module,
                     "lite-" + module, InlineSnippets.OWN_DECL));
         }
         org.junit.jupiter.api.Assertions.assertTrue(!own.isEmpty(), "no own corpus found");

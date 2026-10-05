@@ -325,19 +325,16 @@ class FixtureAdjudicationTest {
         // (deep-audit #2); batch 7b (2026-09-11) moved the corpus harness and
         // the generators — and the Pure fixtures their tests embed — to spec
         for (String module : new String[] {"core", "spec"}) {
-            Path dir = Repo.path(module, "src/test/java");
-            if (!Files.isDirectory(dir)) {
-                throw new IllegalStateException(module + " test tree missing at "
-                        + dir);
+            String dir = module + "/src/test/java";
+            List<Path> files = ModuleFiles.under(dir);
+            if (files.isEmpty()) {
+                throw new IllegalStateException(module + " test tree missing: " + dir
+                        + " is not among the inputs");
             }
-            try (Stream<Path> s = Files.walk(dir)) {
-                s.filter(f -> f.toString().endsWith(".java"))
-                        .filter(f -> !Corpus.slashed(f).contains("/target/"))
-                        .sorted(java.util.Comparator.comparing(Corpus::slashed))
-                        .forEach(out::add);
-            } catch (IOException e) {
-                throw new IllegalStateException("cannot walk " + dir, e);
-            }
+            files.stream()
+                    .filter(f -> f.toString().endsWith(".java"))
+                    .filter(f -> !ModuleFiles.rel(dir, f).contains("/target/"))
+                    .forEach(out::add);
         }
         return out;
     }
