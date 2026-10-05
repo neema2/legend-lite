@@ -6,7 +6,6 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary")
 load("//tools/js:defs.bzl", "node_test")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
-load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/browser:defs.bzl", "browser_test")
@@ -632,13 +631,6 @@ copy_to_directory(
     root_paths = ["query/demo/models"],
 )
 
-# the demo model's party rows (//fixtures/demo-data), for a saved query on the party project opened by name
-copy_file(
-    name = "party_seed",
-    src = "//fixtures/demo-data:party-seed.sql",
-    out = "demo/projects/party/party-seed.sql",
-)
-# Everything a browser fetches: pages, styles, models, bundles, runtimes.
 filegroup(
     name = "site",
     # served beside the other app from one origin (//site): they share the browser's query store
@@ -649,7 +641,7 @@ filegroup(
         "demo/*.json",
         "demo/*.pure",
         "src/**/*.css",
-    ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [":vendor", ":projects", ":party_seed"],
+    ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [":vendor", ":projects"],
 )
 
 # `bazel run //datacube:serve [-- --data FILE] [-- --open]`: the site, on loopback.

@@ -63,7 +63,7 @@ jobs:
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
             {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
             {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //datacube:verify_app_test //wasm:all //warehouse:tests //query-store:lite_test"},
-            {"key":"misc",   "name":"json, pure-protocol, query, query-store, studio", "targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test //sdlc-server:git_repository_test //sdlc-client:tests //depot-client:tests //studio:tests"},
+            {"key":"misc",   "name":"json, pure-protocol, query, query-store, studio", "targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test //sdlc-server:git_repository_test //engine-client:model_data_test //sdlc-client:tests //depot-client:tests //studio:tests"},
             {"key":"build",  "name":"bazel build //... (every target builds)", "targets":"//..."},
             {"key":"native", "name":"warehouse as a native image, and its launcher", "targets":"//warehouse:tests_native //warehouse:launcher_test //datacube:app"},
             {"key":"browser", "name":"DataCube and Studio in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test //datacube:verify_smoke_test //studio:verify_test"}

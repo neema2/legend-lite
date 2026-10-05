@@ -3,8 +3,7 @@
     "kind": "duckdb-wasm",
     "user": "me",
     "seed": [
-      "./models/trading-seed.sql",
-      "./models/party-seed.sql"
+      "./models/trading-seed.sql"
     ]
   },
   "planner": {
