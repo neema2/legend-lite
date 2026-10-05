@@ -24,6 +24,7 @@ py_library(
         "dense_store.py",
         "density.py",
         "emit.py",
+        "exactmath.py",
         "executed.py",
         "expand.py",
         "flat.py",
@@ -67,6 +68,10 @@ py_binary(
 # pinned tzdata package, and a fixed hash seed so no set order can reach the output.
 _ENV = {
     "CORPUS_ROOT": ".",
+    # the layout as core/stress.bzl gives it NOW (not the committed copy, which one update also rewrites)
+    "STRESS_LAYOUT": "$(execpath //core:stress_layout)",
+    # every text read is UTF-8 on every platform (Windows would otherwise decode as cp1252)
+    "PYTHONUTF8": "1",
     "PYTHONHASHSEED": "0",
     "PYTHONTZPATH": "",
     "LC_ALL": "C.UTF-8",
@@ -78,7 +83,7 @@ _LINKED = ["//projects:" + p for p in LINKED_PROJECTS]
 
 _INPUTS = [
     "queries.pure",
-    "//core:src/test/resources/com/legend/integration/stress-layout.json",
+    "//core:stress_layout",
     "//core:stress_sources",
 ] + _LINKED
 
@@ -131,6 +136,7 @@ _GATE_DATA = [
 
 _GATE_ENV = {
     "CORPUS_ROOT": ".",
+    "PYTHONUTF8": "1",
     "PYTHONHASHSEED": "0",
     "PYTHONTZPATH": "",
 }

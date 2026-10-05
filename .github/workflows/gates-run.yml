@@ -172,9 +172,11 @@ jobs:
           # analyzes for a platform none of them supports, the platform-specific ones skipped as incompatible
           if [ "${{ matrix.lane.key }}" = build ]; then
             S='//warehouse/... + //pct/... + //datacube/...'
+            # the list first, so a failed query fails the step (a process substitution would hide its status)
+            list=$(bazel query "($S) except tests($S) except kind(test_suite, $S)" | grep -v '\.aspect_rules_js')
+            [ -n "$list" ] || { echo "A25: the query returned no targets"; exit 1; }
             unlisted=()  # a read loop, not mapfile: macOS's bash is 3.2
-            while IFS= read -r t; do unlisted+=("$t"); done \
-              < <(bazel query "($S) except tests($S) except kind(test_suite, $S)" | grep -v '\.aspect_rules_js')
+            while IFS= read -r t; do unlisted+=("$t"); done <<< "$list"
             bazel build --nobuild --skip_incompatible_explicit_targets --platforms=//tools/platforms:unlisted_test "${flags[@]}" "${unlisted[@]}"
           fi
       - name: the browser harnesses (every //datacube, //query and //site target tagged browser-ci)

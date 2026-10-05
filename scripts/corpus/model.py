@@ -47,7 +47,11 @@ QUERIES = ROOT / "scripts/corpus/queries.pure"
 # diff-tested. GENERATED: the files build.py WRITES; DENSE_GENERATED: the files the dense generators write (inputs
 # to build.py, never to the generator that writes them). Both are outputs, never inputs: every reader of "the
 # corpus" below reads stress_sources(), so the generator's answer cannot depend on what it wrote last time.
-_LAYOUT = json.loads((ROOT / "core/src/test/resources/com/legend/integration/stress-layout.json")
+# A generator action is given the layout as core/stress.bzl makes it (STRESS_LAYOUT, the execpath of
+# //core:stress_layout), so one `bazel run //core:update_stress_corpus` regenerates from the new list; everything
+# else reads the committed copy.
+_LAYOUT = json.loads(Path(os.environ["STRESS_LAYOUT"]).read_text(encoding="utf-8") if os.environ.get("STRESS_LAYOUT")
+                     else (ROOT / "core/src/test/resources/com/legend/integration/stress-layout.json")
                      .read_text(encoding="utf-8"))
 GENERATED = frozenset(f for f, gen in _LAYOUT["generated"].items() if gen == "stress")
 DENSE_GENERATED = frozenset(f for f, gen in _LAYOUT["generated"].items() if gen == "dense")
