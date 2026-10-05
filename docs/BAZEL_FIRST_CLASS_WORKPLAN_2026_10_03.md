@@ -1755,6 +1755,8 @@ action's.
 | Risk/rollback | A mode someone relies on. The investigation table is reviewed first. |
 | Done when | Every mode a test reads is set by a target, or is gone. Guard G4 (P6-04) keeps it so. The census is produced by `bazel build`, with no testlog scraping and no env switch (A5). |
 
+**Amended 2026-10-05 (execution).** Delivered: the modes table (in the commit), `com.legend.diagnostics.Diagnostics` (one `-Dlegend.diagnostics` option, a closed vocabulary; exec and driver read it; lowering keeps its one env read until P7-14 passes the option in, because ArchitectureTest's invariant 6h keeps lowering off it), `//tools/census:lanes_diff` and `:render_census` as targets. **Moved after P3-27:** the census lanes as `java_run` actions. `//core:core_tests` reads its inputs through runfiles (`Runfile.property`), which an action does not have; P3-27's declared file lists make that possible. Until then `lanes.sh` drives the census with `--jvmopt=-Dlegend.diagnostics=dump-sql,pct-cases`, and its deletion waits on P7-01 anyway.
+
 #### P3-14 · No silent skips, no silent empties, no skipped roots
 
 | Field | Content |
@@ -2002,6 +2004,8 @@ actions (deterministic over pinned inputs). `ManifestWorldCensusTest` asserts ce
 | Size | M (2 d) |
 | Risk/rollback | None known. |
 | Done when | No test in one module pins a count of another module's sources. |
+
+**Amended 2026-10-05 (execution).** Moved after P3-27 (batch 13), which it depends on.
 
 #### P3-31 · The fixture harvest's shims cannot be shadowed by classpath order
 
