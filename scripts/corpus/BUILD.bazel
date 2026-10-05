@@ -1,6 +1,7 @@
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
+load("//core:stress.bzl", "STRESS_GENERATED")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # THE STRESS-CORPUS GENERATORS (spike S5). Ten committed files in
@@ -72,25 +73,15 @@ _ENV = {
 
 _INPUTS = [
     "queries.pure",
+    "//core:src/test/resources/com/legend/integration/stress-layout.json",
     "//core:stress_sources",
     "//projects:srcs",
 ]
 
-DENSE = [
-    "59-dense-mapping.pure",
-    "60-dense-store.pure",
-    "64-combinations.pure",
-]
+# the generators' outputs, from the one list (core/stress.bzl)
+DENSE = sorted([f for f, gen in STRESS_GENERATED.items() if gen == "dense"])
 
-STRESS = [
-    "92-services.pure",
-    "93-testdata.pure",
-    "94-fanout-services.pure",
-    "95-function-tests.pure",
-    "96-external-data.pure",
-    "97-hier-execution.pure",
-    "98-combination-execution.pure",
-]
+STRESS = sorted([f for f, gen in STRESS_GENERATED.items() if gen == "stress"])
 
 run_binary(
     name = "gen_dense",

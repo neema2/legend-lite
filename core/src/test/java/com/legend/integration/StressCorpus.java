@@ -20,12 +20,24 @@ import java.util.*;
  */
 final class StressCorpus {
 
-    /** The projects the corpus depends on, DEPENDENCIES BEFORE DEPENDENTS — the same
-     *  list and order as {@code scripts/corpus/model.py LINKED_PROJECTS}. */
-    static final List<String> LINKED_PROJECTS = List.of(
-            "core-types", "core-tenor", "core-fx", "core-ratings", "core-instrument",
-            "core-calendar", "core-units", "core-account", "core-geo", "fee-core",
-            "index-core");
+    /** The projects the corpus depends on, DEPENDENCIES BEFORE DEPENDENTS: core/stress.bzl's one list (Bazel
+     *  workplan P2-02), read from its committed JSON, stress-layout.json beside this class. */
+    static final List<String> LINKED_PROJECTS = linkedProjects();
+
+    private static List<String> linkedProjects() {
+        try (var in = StressCorpus.class.getResourceAsStream("stress-layout.json")) {
+            if (in == null) {
+                throw new IllegalStateException("stress-layout.json is not on the classpath (core/stress.bzl writes it)");
+            }
+            var layout = (com.legend.json.Json.Obj) com.legend.json.Json.parse(
+                    new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+            return layout.getArr("linked_projects").items().stream()
+                    .map(n -> ((com.legend.json.Json.Str) n).value())
+                    .toList();
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
 
     /** A project's files in SECTION order (model, store, mapping): a file with no
      *  {@code ###} header inherits the section the previous file left open. */

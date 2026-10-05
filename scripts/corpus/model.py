@@ -23,6 +23,7 @@ a signal to extend this deliberately rather than a reason to make the parser len
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -42,20 +43,14 @@ PROJECTS = ROOT / "projects"
 # of 92 itself, which made the file both the generator's input and its output.
 QUERIES = ROOT / "scripts/corpus/queries.pure"
 
-# The files scripts/corpus/build.py WRITES. They are outputs, never inputs: every reader of
-# "the corpus" below reads stress_sources(), so the generator's answer cannot depend on what
-# it wrote last time.
-GENERATED = frozenset({
-    "92-services.pure", "93-testdata.pure", "94-fanout-services.pure",
-    "95-function-tests.pure", "96-external-data.pure", "97-hier-execution.pure",
-    "98-combination-execution.pure",
-})
-
-
-# Files OTHER generators write (dense_mapping.py, dense_store.py, combos.py). They are inputs
-# to build.py but never to the generator that writes them.
-DENSE_GENERATED = frozenset({"59-dense-mapping.pure", "60-dense-store.pure",
-                             "64-combinations.pure"})
+# THE LAYOUT, ONE LIST (Bazel workplan P2-02): core/stress.bzl, committed as JSON in core's test resources and
+# diff-tested. GENERATED: the files build.py WRITES; DENSE_GENERATED: the files the dense generators write (inputs
+# to build.py, never to the generator that writes them). Both are outputs, never inputs: every reader of "the
+# corpus" below reads stress_sources(), so the generator's answer cannot depend on what it wrote last time.
+_LAYOUT = json.loads((ROOT / "core/src/test/resources/com/legend/integration/stress-layout.json")
+                     .read_text(encoding="utf-8"))
+GENERATED = frozenset(f for f, gen in _LAYOUT["generated"].items() if gen == "stress")
+DENSE_GENERATED = frozenset(f for f, gen in _LAYOUT["generated"].items() if gen == "dense")
 
 # Set by a generator to leave more files out of "the corpus" -- its own outputs.
 EXCLUDE: set[str] = set()
@@ -101,10 +96,7 @@ def stress_sources() -> list[Path]:
 # Dependencies BEFORE dependents: fee-core needs core-types and core-tenor to have been
 # parsed. core-types exports no store and no mapping at all -- it is enums and functions --
 # so it is here purely to satisfy fee-core, which is what a transitive dependency looks like.
-LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings",
-                   "core-instrument", "core-calendar", "core-units",
-                   "core-account", "core-geo",
-                   "fee-core", "index-core"]
+LINKED_PROJECTS = list(_LAYOUT["linked_projects"])  # core/stress.bzl
 
 
 # Section order within a project, not alphabetical. A .pure file with no `###` header

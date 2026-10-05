@@ -1,0 +1,27 @@
+{
+  "generated": {
+    "59-dense-mapping.pure": "dense",
+    "60-dense-store.pure": "dense",
+    "64-combinations.pure": "dense",
+    "92-services.pure": "stress",
+    "93-testdata.pure": "stress",
+    "94-fanout-services.pure": "stress",
+    "95-function-tests.pure": "stress",
+    "96-external-data.pure": "stress",
+    "97-hier-execution.pure": "stress",
+    "98-combination-execution.pure": "stress"
+  },
+  "linked_projects": [
+    "core-types",
+    "core-tenor",
+    "core-fx",
+    "core-ratings",
+    "core-instrument",
+    "core-calendar",
+    "core-units",
+    "core-account",
+    "core-geo",
+    "fee-core",
+    "index-core"
+  ]
+}
