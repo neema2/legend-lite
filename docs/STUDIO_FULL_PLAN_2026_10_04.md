@@ -108,7 +108,10 @@ Left out of this plan when it was written; the user ruled it next after A0 (2026
   line's head, author and message kept; NO_OP / UPDATED; a CONFLICT -- a file both changed, differently -- leaves the
   workspace as it was and names the files, a departure from upstream's conflict-resolution workspace), offered in
   Local Changes when the line has moved. The SDLC conformance suite covers update on the page's SDLC and the server.
-  Next: rename/move, review diff, revision history, conflict resolution, group workspaces; definition, hover and
+  Then: rename/move (one dialog, the full path; the path rewritten in the declaration and every reference by full path
+  in the workspace, not in comments or strings -- `studio/src/model/rename.ts`); the review's changes (BASE against the
+  workspace's head, each opening its diff); and a History tab (the workspace's revisions, each one's changes against
+  the revision listed before it, with diffs). Next: conflict resolution, group workspaces; definition, hover and
   completion from the compiler (core, announced first).
 - **A3 mostly done.** Run (F5) a function -- its parameters asked for as Pure, read by the compiler -- or a
   single-execution service, in the tab; RESULTS shows the rows, count, time and SQL. The SQL playground runs SQL on the

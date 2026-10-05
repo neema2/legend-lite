@@ -13,11 +13,13 @@ import type { EditorHandle } from '../../../query/src/embed.ts';
 import type { Runner, TableState } from '../backend/run.ts';
 import type { RawTable } from '../../../engine-client/src/engine.ts';
 import { isTds, type ExecutionResult } from '../../../engine-client/src/legend/wire.ts';
+import { renamePath } from '../model/rename.ts';
 import { ELEMENT_KINDS, splitPath } from '../model/templates.ts';
 import { Workspace, type OpenFile, type Problem } from '../model/workspace.ts';
 import { icon } from '../../../legend-art/src/icon.ts';
 import { typeIcon } from '../../../legend-art/src/type-icon.ts';
 import type { IconName } from '../../../legend-art/src/icons.ts';
+import { showDiff, type ElementChange } from './diff.ts';
 import { clear, dialog, h, headerAction, menu, sideHead, subPanel, toast } from './dom.ts';
 import { editorTheme, PURE } from './pure-language.ts';
 import { field } from './setup.ts';
@@ -44,9 +46,9 @@ type Activity = 'explorer' | 'changes' | 'review' | 'project';
 /** The element a file's text declares, read without the compiler (for labels while typing). */
 const DECLARES = /^\s*(?:Class|Enum|Association|Profile|function|Mapping|Runtime|Database|Service|Measure|RelationalDatabaseConnection|Data|DataSpace|Diagram)\s+(?:<<[^>]*>>\s*)?(?:\{[^}]*\}\s*)?([\w$]+(?:::[\w$]+)+)/m;
 
+/** A file's element: the path its text declares (renamed or moved, the new one), else the path it was saved at. */
 export function fileLabel(f: OpenFile): string {
-  if (f.savedPath !== undefined) return f.savedPath;
-  return DECLARES.exec(f.text.replace(/\/\/.*$/gm, ''))?.[1] ?? f.key;
+  return DECLARES.exec(f.text.replace(/\/\/.*$/gm, ''))?.[1] ?? f.savedPath ?? f.key;
 }
 
 export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promise<() => void> {
@@ -313,6 +315,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
           onclick: () => void openBuilder(active!) }, query[0])] : []),
         ...(runnable ? [h('button', { class: 'btn btn-small btn-primary tabs__run', 'data-testid': 'run-function', title: 'Run (F5)', onclick: () => void runActive() },
           icon('play', '10px'), 'Run')] : []),
+        h('button', { class: 'btn btn-small', 'data-testid': 'rename-element', title: 'Rename or move this element: its references in the workspace follow', onclick: () => void rename(active!) }, 'Rename'),
         h('button', { class: 'btn btn-small', 'data-testid': 'delete-element', title: 'Delete this element', onclick: () => void remove(active!) }, 'Delete'));
     }
   };
@@ -429,7 +432,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     else if (activity === 'changes') void renderChanges();
     else {
       const panel = {
-        client: ctx.client, depot: ctx.depot, project: ctx.project, workspace: ctx.workspace, ws, reload,
+        client: ctx.client, depot: ctx.depot, project: ctx.project, workspace: ctx.workspace, ws, reload, diff: (c: ElementChange) => showDiff(monaco, c),
         gone: (message: string) => { toast(message); ctx.back(); },
       };
       const render = activity === 'review' ? renderReview : renderProject;
@@ -527,7 +530,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     const rows = changes.map((c) => {
       const name = c.path.split('::').pop() ?? c.path;
       return h('div', { class: `side-bar__panel__item diff-item diff-item--${c.type.toLowerCase()}`, title: c.path, 'data-path': c.path,
-        onclick: () => showDiff(c.path, c.type) },
+        onclick: () => showLocalDiff(c.path, c.type) },
         h('div', { class: 'diff-item__name' }, name), h('div', { class: 'diff-item__path' }, c.path),
         h('div', { class: 'diff-item__type' }, LETTER[c.type] ?? c.type[0]));
     });
@@ -540,35 +543,10 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       ...(rows.length ? rows : [h('div', { class: 'side-bar__panel__empty' }, 'No local changes')])));
   };
 
-  /**
-   * A change, as upstream's local-changes diff shows it (plan A7): the element's text at the revision beside its text
-   * now, in Monaco's diff editor -- empty on the left for a new element, on the right for a deleted one.
-   */
-  const showDiff = (path: string, type: string): void => {
+  /** A local change's diff (plan A7): the element's text at the revision beside its text now. */
+  const showLocalDiff = (path: string, type: 'CREATE' | 'MODIFY' | 'DELETE'): void => {
     const now = type === 'DELETE' ? undefined : ws.files().find((f) => f.savedPath === path) ?? ws.files().find((f) => fileLabel(f) === path);
-    const original = monaco.editor.createModel(type === 'CREATE' ? '' : ws.savedText(path) ?? '', PURE);
-    const modified = monaco.editor.createModel(now?.text ?? '', PURE);
-    const host = h('div', { class: 'diff-view__editor' });
-    const close = (): void => {
-      diff.dispose();
-      original.dispose();
-      modified.dispose();
-      overlay.remove();
-    };
-    const overlay = h('div', { class: 'overlay', 'data-testid': 'diff-view', onkeydown: ((e: KeyboardEvent) => { if (e.key === 'Escape') close(); }) as EventListener },
-      h('div', { class: 'diff-view', role: 'dialog' },
-        h('div', { class: 'diff-view__header' },
-          h('span', { class: 'diff-view__title' }, `${path.split('::').pop() ?? path} (${{ CREATE: 'new', MODIFY: 'modified', DELETE: 'deleted' }[type] ?? type})`),
-          h('span', { class: 'diff-view__path' }, path),
-          h('button', { class: 'panel-group__action', title: 'Close (Escape)', 'data-testid': 'diff-close', onclick: close }, icon('x', '18px'))),
-        host));
-    document.body.append(overlay);
-    const diff = monaco.editor.createDiffEditor(host, {
-      theme: editorTheme(theme() === 'light'), automaticLayout: true, readOnly: true, originalEditable: false,
-      fontFamily: "'Roboto Mono'", fontSize: 14, renderSideBySide: true,
-    });
-    diff.setModel({ original, modified });
-    diff.getModifiedEditor().focus();
+    showDiff(monaco, { path, type, before: type === 'CREATE' ? undefined : ws.savedText(path), after: now?.text });
   };
 
   // ---- problems and compile ----
@@ -733,6 +711,36 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     renderSide();
     renderStatus();
     scheduleCompile();
+  };
+
+  /**
+   * Rename or move an element (plan A7; one dialog, the full path): its path rewritten wherever the workspace's text
+   * writes it (rename.ts) -- each file an undoable edit in its editor, saved as any edit is. References from other
+   * projects (they depend on a released version) are theirs to change.
+   */
+  const rename = async (key: string): Promise<void> => {
+    const f = ws.file(key);
+    if (!f) return;
+    const from = fileLabel(f);
+    const path = h('input', { class: 'input', value: from, 'data-testid': 'rename-path' });
+    const to = await dialog(`Rename ${from}`, h('div', { class: 'form' }, field('New path', path)), () => {
+      const next = path.value.trim();
+      if (!splitPath(next)) return 'A full path, like model::domain::Person (a package, then a name).';
+      if (next === from) return 'That is its path now.';
+      if (ws.files().some((x) => fileLabel(x) === next)) return `${next} already exists.`;
+      return { ok: next };
+    }, 'Rename');
+    if (to === undefined) return;
+    let changed = 0;
+    for (const file of ws.files()) {
+      const next = renamePath(file.text, from, to);
+      if (next === file.text) continue;
+      const m = modelOf(file.key);
+      m.pushEditOperations([], [{ range: m.getFullModelRange(), text: next }], () => null);
+      changed++;
+    }
+    show(key);
+    toast(`Renamed to ${to}${changed > 1 ? `: ${changed - 1} other element${changed === 2 ? '' : 's'} updated` : ''}`, 'success');
   };
 
   const reload = async (): Promise<void> => {
