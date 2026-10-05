@@ -893,8 +893,7 @@ public final class ProtocolEmitter {
             case Protocol.PServiceStoreConnection sc -> {
                 b.append("{\"_type\":\"serviceStore\",\"baseUrl\":");
                 str(b, sc.baseUrl());
-                if (sc.element() != null
-                        && sc.elementSourceInformation() != null) {
+                if (sc.element() != null) {
                     b.append(",\"element\":");
                     str(b, sc.element());
                     b.append(",\"elementSourceInformation\":");
@@ -909,8 +908,7 @@ public final class ProtocolEmitter {
                         + "{\"_type\":\"PSK\",\"psk\":");
                 str(b, dc.psk());
                 b.append('}');
-                if (dc.element() != null
-                        && dc.elementSourceInformation() != null) {
+                if (dc.element() != null) {
                     b.append(",\"element\":");
                     str(b, dc.element());
                     b.append(",\"elementSourceInformation\":");
@@ -942,8 +940,7 @@ public final class ProtocolEmitter {
                     b.append('}');
                 }
                 b.append("]}");
-                if (mc2.element() != null
-                        && mc2.elementSourceInformation() != null) {
+                if (mc2.element() != null) {
                     b.append(",\"element\":");
                     str(b, mc2.element());
                     b.append(",\"elementSourceInformation\":");
@@ -961,7 +958,7 @@ public final class ProtocolEmitter {
                 str(b, rc.databaseType());
                 b.append(",\"datasourceSpecification\":");
                 ConnectionEmitters.datasourceSpec(b, rc.datasourceSpecification());
-                if (rc.element() != null && rc.elementSourceInformation() != null) {
+                if (rc.element() != null) {
                     b.append(",\"element\":");
                     str(b, rc.element());
                     b.append(",\"elementSourceInformation\":");
