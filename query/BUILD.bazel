@@ -41,7 +41,7 @@ _BUNDLES = {
 
 [esbuild.esbuild(
     name = "bundle_" + out[len("demo/"):-len(".js")].replace("-", "_"),
-    srcs = glob(["demo/**/*.ts"]) + [":src", ":node_modules/@duckdb/duckdb-wasm"],
+    srcs = glob(["demo/**/*.ts"]) + [":src", "//engine-client:node_modules/@duckdb/duckdb-wasm"],
     outs = [out],
     args = [
         entry,
@@ -59,7 +59,7 @@ _BUNDLES = {
 copy_to_directory(
     name = "vendor",
     srcs = [
-        ":node_modules/@duckdb/duckdb-wasm",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
         # upstream Legend Query's type (legend-art _fonts.scss): Roboto, Roboto Mono, Raleway 900
         # for the type letters -- served with the site, no font CDN (OFL-1.1)
         ":node_modules/@fontsource/raleway",
@@ -161,7 +161,6 @@ filegroup(
     name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
     size = "small",
     data = [
-        ":node_modules/jsdom",
         ":src",
         # the saved-query records Query writes and DataCube reads (fixtures/saved-queries/README.md)
         "//fixtures/saved-queries:records",
@@ -193,10 +192,8 @@ typescript.tsc_test(
         "//query-store:query_store",
         "//datacube:src",
         "//engine-client:engine_client",
-        ":node_modules/@duckdb/duckdb-wasm",
-        ":node_modules/@types/jsdom",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/@types/node",
-        ":node_modules/jsdom",
     ],
 )
 
