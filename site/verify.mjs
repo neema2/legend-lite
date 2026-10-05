@@ -289,6 +289,18 @@ try {
   console.log('Studio: served from the same origin, its demo projects published and still there after a reload');
   await studio.close();
 
+  // Query lists what Studio published without loading it; opening party at HEAD from the start page puts its classes
+  // in the Classes section
+  const start = await context.newPage();
+  await start.goto(`${ORIGIN}/query/demo/index.html#/setup`);
+  const partyCard = start.locator('button[data-project="org.finos.lite.demo:party"]');
+  await partyCard.waitFor({ timeout: 120_000 });
+  await partyCard.click();
+  await start.waitForFunction(() => document.body.textContent?.includes('PartyMapping')
+    && !document.querySelector('button[data-project="org.finos.lite.demo:party"]'), undefined, { timeout: 120_000 });
+  console.log('Query: the start page lists the projects in Depot unloaded; party opened at HEAD shows its classes');
+  await start.close();
+
   // Query opens what Studio published, by name (design Phase 3): the party project at its line's HEAD (Depot's
   // master-SNAPSHOT), with its dependency on types, and runs a query on it -- the rows party-seed.sql loads
   const byName = await context.newPage();

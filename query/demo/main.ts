@@ -13,7 +13,7 @@ import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/d
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { signIn, WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { connectModelHome } from '../../depot-client/src/model-home.ts';
-import { loadByName, projectsByName, versionsOf } from '../src/app/by-name.ts';
+import { loadByName, versionsOf } from '../src/app/by-name.ts';
 import { AppContext, gavOf, type AppConfig, type CubeRows, type LoadedProject } from '../src/app/context.ts';
 import { App } from '../src/app/app.ts';
 import { BrowserEngine } from '../src/backend/browser-engine.ts';
@@ -84,16 +84,17 @@ async function boot(): Promise<void> {
     const code = (await Promise.all(p.models.map(text))).join('\n');
     return { config: p, gav: gavOf(p), context: { _type: 'text', code }, graph: new ModelGraph(await grammar.modelJson(code)) };
   }));
-  // projects by name (design Phase 3): what this origin's Depot has -- what Studio publishes -- at each line's HEAD
+  // projects by name (design Phase 3): what this origin's Depot has -- what Studio publishes -- listed, each loaded when opened
   let byName: { load: NonNullable<AppContext["byName"]>; versions: NonNullable<AppContext["versions"]> } | undefined;
+  let depotProjects: AppContext["depotProjects"] = [];
   if (config.depot) {
-    starting('Opening the projects in Depot');
+    starting('Listing the projects in Depot');
     const { depot } = await connectModelHome(config.depot);
     byName = {
       load: (g: string, a: string, v: string) => loadByName(depot, grammar, g, a, v),
       versions: (g: string, a: string) => versionsOf(depot, g, a),
     };
-    projects.push(...await projectsByName(depot, grammar));
+    depotProjects = (await depot.projects()).map((p) => ({ groupId: p.groupId, artifactId: p.artifactId }));
   }
   const isEnumeration = (t: string): boolean => projects.some((p) => p.graph.enumerations.has(t));
 
@@ -132,6 +133,7 @@ async function boot(): Promise<void> {
   const ctx = new AppContext(config, engine, store, planner, projects, user, cubeRows);
   ctx.byName = byName?.load;
   ctx.versions = byName?.versions;
+  ctx.depotProjects = depotProjects;
   // warm the planner on the first model while the person looks at the landing page
   if (planner && projects[0]) void planner.warm(projects[0].context).catch(() => undefined);
   new App(ctx, root).start();
