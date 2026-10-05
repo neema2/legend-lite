@@ -1,25 +1,19 @@
-// The compiler, in the tab: legend-lite's planner (WebAssembly) behind a port -- a worker in the page,
-// the module called directly in tests. Two questions Studio asks it: what element a file's text is
-// (its grammarToJson), and whether a whole model compiles (the server's compilation/compile).
+// The compiler Studio asks two questions (plan A1): what element a file's text is (its grammarToJson), and whether a
+// whole model compiles (compilation/compile). Whatever answers is the session's engine: the in-tab one --
+// legend-lite's planner in a worker (engine-client's WasmGrammar), the default -- or a legend server over pure/v1
+// (lite's, or legend-engine: engine-client's HttpEngine). One interface, so Studio is the same over each.
 
-import type { PlannerPort } from '../../../engine-client/src/legend/wasm-grammar.ts';
+import type { PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 
 // the port and its worker are the in-tab engine's, shared with Query (engine-client/src/legend/)
 export { WorkerPort, type PlannerPort } from '../../../engine-client/src/legend/wasm-grammar.ts';
 
-/** A refusal from the compiler: its own words. */
-export class CompilerError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'CompilerError';
-  }
-}
-
-/** An export's folded answer (`OK\n<json>` / `ERR\n<class>\n<message>`) as its value or a refusal. */
-function unfold(answer: string): string {
-  if (answer.startsWith('OK\n')) return answer.slice(3);
-  const [, kind = '', ...rest] = answer.split('\n');
-  throw new CompilerError(rest.join('\n') || kind);
+/** What Studio needs of an engine: the in-tab WasmGrammar and a server's HttpEngine both answer it. */
+export interface ModelCompiler {
+  /** `grammarToJson/model`: the elements a text declares, or the parser's refusal (thrown). */
+  modelJson(text: string): Promise<PureModelContextData>;
+  /** `compilation/compile`: [] when the model compiles; the in-tab engine answers every error, a server its one. */
+  compileErrors(code: string): Promise<string[]>;
 }
 
 /** One element read from a file's text. */
@@ -29,33 +23,28 @@ export interface ElementOf {
 }
 
 export class Compiler {
-  readonly #port: PlannerPort;
+  readonly #engine: ModelCompiler;
+  readonly #warm: (() => Promise<void>) | undefined;
 
-  constructor(port: PlannerPort) {
-    this.#port = port;
+  /** `warm`: what builds a first compile's state while the page is busy (the in-tab engine has one). */
+  constructor(engine: ModelCompiler, warm?: () => Promise<void>) {
+    this.#engine = engine;
+    this.#warm = warm;
   }
 
   /** The elements a text declares (its section index left out), or the parser's refusal. */
   async elements(text: string): Promise<ElementOf[]> {
-    const pmcd = JSON.parse(unfold(await this.#port.ask({ kind: 'modelJson', text }))) as {
-      elements: { _type: string; package: string; name: string }[];
-    };
+    const pmcd = await this.#engine.modelJson(text);
     return pmcd.elements.filter((e) => e._type !== 'sectionIndex').map((e) => ({ path: `${e.package}::${e.name}`, type: e._type }));
   }
 
-  /**
-   * The model's compile errors: [] when it compiles. The first element error stops the compile (as the
-   * server's); body errors are all collected.
-   */
-  async compile(model: string): Promise<string[]> {
-    const answer = await this.#port.ask({ kind: 'compile', model });
-    if (answer.startsWith('OK\n')) return JSON.parse(answer.slice(3)) as string[];
-    const [, kind = '', ...rest] = answer.split('\n');
-    return [rest.join('\n') || kind];
+  /** The model's compile errors: [] when it compiles. */
+  compile(model: string): Promise<string[]> {
+    return this.#engine.compileErrors(model);
   }
 
   /** Builds what a first compile needs while the page is still busy with other things. */
   async warm(): Promise<void> {
-    await this.#port.ask({ kind: 'warm', model: '' });
+    await this.#warm?.();
   }
 }
