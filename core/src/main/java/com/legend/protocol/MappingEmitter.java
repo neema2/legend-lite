@@ -128,8 +128,7 @@ final class MappingEmitter {
                         b.append(",\"relationFunction\":{\"path\":");
                         str(b, rf.relationFunction());
                         b.append(",\"sourceInformation\":");
-                        srcInfo(b, java.util.Objects.requireNonNull(
-                                rf.relationFunctionSourceInformation()));
+                        srcInfo(b, rf.relationFunctionSourceInformation());
                         b.append(",\"type\":\"FUNCTION\"}");
                     }
                     b.append(",\"root\":").append(rf.root());
@@ -153,8 +152,7 @@ final class MappingEmitter {
                                     sl.function()));
                             b.append(",\"parameters\":[],"
                                     + "\"sourceInformation\":");
-                            srcInfo(b, java.util.Objects.requireNonNull(
-                                    sl.functionSourceInformation()));
+                            srcInfo(b, sl.functionSourceInformation());
                             b.append('}');
                         }
                         b.append("],\"parameters\":[],"
@@ -1013,8 +1011,7 @@ final class MappingEmitter {
                         relationElement(b, rels.get(k));
                     }
                     b.append("],\"sourceInformation\":");
-                    srcInfo(b, java.util.Objects.requireNonNull(
-                            sd.relationAccessorSourceInformation()));
+                    srcInfo(b, sd.relationAccessorSourceInformation());
                     b.append("},\"sourceInformation\":");
                     srcInfo(b, sd.sourceInformation());
                     b.append(",\"store\":");
@@ -1049,8 +1046,7 @@ final class MappingEmitter {
                 }
                 List<Protocol.PModelData> mdl =
                         java.util.Objects.requireNonNull(sd.modelData());
-                SourceInfo msSi = java.util.Objects.requireNonNull(
-                        sd.modelStoreSourceInformation());
+                SourceInfo msSi = sd.modelStoreSourceInformation();
                 b.append("{\"data\":{\"_type\":\"modelStore\","
                         + "\"modelData\":[");
                 for (int k = 0; k < mdl.size(); k++) {
@@ -1172,8 +1168,7 @@ final class MappingEmitter {
             b.append(",\"valueFn\":{\"_type\":\"lambda\",\"body\":[");
             valueSpec(b, pm.expr());
             b.append("],\"parameters\":[],\"sourceInformation\":");
-            srcInfo(b, java.util.Objects.requireNonNull(
-                    pm.exprLambdaSourceInformation()));
+            srcInfo(b, pm.exprLambdaSourceInformation());
             b.append('}');
         }
         b.append('}');
