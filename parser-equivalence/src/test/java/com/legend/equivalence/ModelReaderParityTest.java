@@ -8,6 +8,7 @@ import com.legend.json.Json;
 import com.legend.parser.PmcdParser;
 import com.legend.protocol.ModelReader;
 import com.legend.protocol.ProtocolEmitter;
+import com.legend.protocol.ProtocolUpgrade;
 import com.legend.protocol.SourceInformation;
 import com.legend.testing.TestOutputs;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
@@ -52,15 +53,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelReaderParityTest {
 
     /** Own-JSON elements read and emitted to the same bytes, with source information. Up-only. */
-    private static final int MIN_OWN_MATCHED = 0;
+    private static final int MIN_OWN_MATCHED = 37739;   // 2026-10-05: every element of the corpus (2 more upgraded)
     /** Own-JSON elements matched without source information. Up-only. */
-    private static final int MIN_OWN_STRIPPED_MATCHED = 0;
+    private static final int MIN_OWN_STRIPPED_MATCHED = 37739;   // 2026-10-05
     /** Engine-JSON elements matched (where lite's emitter matches the engine). Up-only. */
-    private static final int MIN_ENGINE_MATCHED = 0;
+    private static final int MIN_ENGINE_MATCHED = 38191;   // 2026-10-05 (2 more upgraded)
     /** Whole documents matched (own, with and without source information). Up-only. */
-    private static final int MIN_DOCS_MATCHED = 0;
+    private static final int MIN_DOCS_MATCHED = 13514;   // 2026-10-05 (4 more upgraded)
     /** Mismatches anywhere (own or engine, either mode, elements or documents). Down-only. */
-    private static final int MAX_MISMATCHED = 1_000_000;
+    private static final int MAX_MISMATCHED = 0;
+    /** Refusals anywhere: every element _type of the corpus has its reader rule. Down-only. */
+    private static final int MAX_REFUSED = 0;
 
     private static final Json.Config DEEP = new Json.Config(4096);
 
@@ -125,6 +128,8 @@ class ModelReaderParityTest {
                 "documents matched " + total("documents").matched + " < " + MIN_DOCS_MATCHED);
         assertTrue(mismatched <= MAX_MISMATCHED, "mismatched " + mismatched + " > " + MAX_MISMATCHED
                 + " -- see model-reader-diffs.txt");
+        int refused = refusals.values().stream().mapToInt(Integer::intValue).sum();
+        assertTrue(refused <= MAX_REFUSED, "refused " + refused + " > " + MAX_REFUSED + ": " + refusals.keySet());
     }
 
     // ---------------------------------------------------------------------
@@ -159,7 +164,7 @@ class ModelReaderParityTest {
 
     /** One element: read, emit, compare (canonical JSON when stripped). */
     private void judge(String table, String id, String type, String json, boolean stripped) {
-        int[] counts = tables.computeIfAbsent(table, k -> new TreeMap<>()).computeIfAbsent(type, k -> new int[3]);
+        int[] counts = tables.computeIfAbsent(table, k -> new TreeMap<>()).computeIfAbsent(type, k -> new int[4]);
         String emitted;
         try {
             emitted = ProtocolEmitter.emitElement(ModelReader.readElement(json));
@@ -175,15 +180,29 @@ class ModelReaderParityTest {
         String actual = stripped ? canonical(emitted) : emitted;
         if (actual.equals(json)) {
             counts[0]++;
+        } else if (upgradedTo(json, actual)) {
+            counts[3]++;
         } else {
             counts[1]++;
             miss(table, id, type, json, actual);
         }
     }
 
+    /**
+     * The reader brings older wire forms current on read, as upstream's converters do
+     * ({@code ProtocolUpgrade}): where the upgrade changes J, the reader's contract is the UPGRADED model, so
+     * {@code emit(read(J))} is compared with {@code upgrade(J)} as a JSON tree (the upgrade builds its nodes in
+     * its own key order). Counted apart, as "upgraded".
+     */
+    private static boolean upgradedTo(String json, String actual) {
+        Json.Node original = Json.parse(json, DEEP);
+        Json.Node upgraded = ProtocolUpgrade.upgrade(original);
+        return !upgraded.equals(original) && upgraded.equals(Json.parse(actual, DEEP));
+    }
+
     private void judgeDocument(String id, String doc, boolean stripped) {
         int[] counts = tables.computeIfAbsent("documents", k -> new TreeMap<>())
-                .computeIfAbsent(stripped ? "stripped" : "kept", k -> new int[3]);
+                .computeIfAbsent(stripped ? "stripped" : "kept", k -> new int[4]);
         String emitted;
         try {
             emitted = ProtocolEmitter.emit(ModelReader.read(doc));
@@ -198,6 +217,8 @@ class ModelReaderParityTest {
         String actual = stripped ? canonical(emitted) : emitted;
         if (actual.equals(doc)) {
             counts[0]++;
+        } else if (upgradedTo(doc, actual)) {
+            counts[3]++;
         } else {
             counts[1]++;
             miss("documents", id, "-", doc, actual);
@@ -287,29 +308,29 @@ class ModelReaderParityTest {
                 + "\n  actual   ..." + actual.substring(from, Math.min(actual.length(), i + 200));
     }
 
-    private record Total(int matched, int mismatched, int refused) {
+    private record Total(int matched, int mismatched, int refused, int upgraded) {
     }
 
     private Total total(String table) {
-        int[] t = new int[3];
+        int[] t = new int[4];
         for (int[] c : tables.getOrDefault(table, Map.of()).values()) {
-            for (int i = 0; i < 3; i++) {
+            for (int i = 0; i < 4; i++) {
                 t[i] += c[i];
             }
         }
-        return new Total(t[0], t[1], t[2]);
+        return new Total(t[0], t[1], t[2], t[3]);
     }
 
     private void report(int liteSources, int engineSources, int roundtripTexts) throws IOException {
         StringBuilder out = new StringBuilder("[model-reader-parity] liteSources=" + liteSources + " engineSources="
                 + engineSources + " roundtripTexts=" + roundtripTexts + " mismatched=" + mismatched + "\n");
-        String row = "%-48s %9s %9s %9s%n";
+        String row = "%-48s %9s %9s %9s %9s%n";
         tables.forEach((table, byType) -> {
             out.append("[model-reader-parity] TABLE ").append(table).append('\n');
-            out.append(String.format(row, "_type", "matched", "mismatch", "refused"));
-            byType.forEach((type, c) -> out.append(String.format(row, type, c[0], c[1], c[2])));
+            out.append(String.format(row, "_type", "matched", "mismatch", "refused", "upgraded"));
+            byType.forEach((type, c) -> out.append(String.format(row, type, c[0], c[1], c[2], c[3])));
             Total t = total(table);
-            out.append(String.format(row, "TOTAL", t.matched(), t.mismatched(), t.refused()));
+            out.append(String.format(row, "TOTAL", t.matched(), t.mismatched(), t.refused(), t.upgraded()));
         });
         refusals.forEach((m, n) -> out.append("[model-reader-parity] refused ").append(n).append(" x ").append(m)
                 .append('\n'));
