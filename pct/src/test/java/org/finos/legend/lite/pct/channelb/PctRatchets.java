@@ -11,12 +11,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.TreeMap;
+import java.util.LinkedHashMap;
 
 /**
  * PCT'S MEASURED RATCHET VALUES (Bazel workplan P2-16, decision D9 (b)): each Channel B suite's discovery count, which
  * its test pinned by a hand-copied constant, measured by running the suite into {@code ratchets.tsv}
- * ({@code key<TAB>value}, sorted). {@code //pct:ratchets} runs it -- manual, like the suites' cost: it compiles the
+ * ({@code key<TAB>value}, one fixed order: the PCT module carries no comparison machinery, PctDisciplineTest). {@code //pct:ratchets} runs it -- manual, like the suites' cost: it compiles the
  * platform once per suite -- and {@code bazel run //pct:update_ratchets} writes the committed copy. Each Channel B test
  * compares its live discovery with the committed value, so gate 9 fails when the file is stale. Pass floors and
  * divergence ceilings stay hand-owned in the tests.
@@ -33,7 +33,7 @@ public final class PctRatchets {
         if (args.length != 1) {
             throw new IllegalArgumentException("usage: PctRatchets <output>");
         }
-        Map<String, Integer> out = new TreeMap<>();
+        Map<String, Integer> out = new LinkedHashMap<>();
         out.put("channel_b.essential.discovered", ChannelBEssentialTest.runSuite(new ArrayList<>()).size());
         out.put("channel_b.grammar.discovered", ChannelBGrammarTest.runSuite(new ArrayList<>()).size());
         out.put("channel_b.relation.discovered", ChannelBRelationTest.runSuite(new ArrayList<>()).size());
@@ -51,7 +51,7 @@ public final class PctRatchets {
         static final Map<String, Integer> VALUES = load();
 
         private static Map<String, Integer> load() {
-            Map<String, Integer> m = new TreeMap<>();
+            Map<String, Integer> m = new LinkedHashMap<>();
             try (InputStream in = PctRatchets.class.getResourceAsStream("ratchets.tsv")) {
                 if (in == null) {
                     throw new IllegalStateException("ratchets.tsv is not on the classpath -- bazel run //pct:update_ratchets");
