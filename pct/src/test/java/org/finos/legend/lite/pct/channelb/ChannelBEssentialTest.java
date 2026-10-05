@@ -154,8 +154,8 @@ class ChannelBEssentialTest {
                 + " B-FIXES-A=" + bFixesA + " DECLINED=" + declined);
 
         // THE FRONTIER ORACLE (third channel): the engine's OWN
-        // relational-DuckDB PCT manifest (snapshot from legend-engine
-        // 943d38b3 / 2026-08-06 — the oracle-pin discipline) names the
+        // relational-DuckDB PCT manifest (the pinned release's, read from
+        // @legend_engine_src since Bazel workplan P2-11) names the
         // tests the reference RELATIONAL executor itself cannot pass
         // (indexOf 0-vs-1-base, partial-precision dates, mixed-type Any
         // …). A wire-bug row the engine also excludes is the RELATIONAL
@@ -276,7 +276,7 @@ class ChannelBEssentialTest {
     }
 
     /** The engine's relational-DuckDB essential manifest exclusions
-     * (pinned oracle snapshot; names carry the reference suffix —
+     * (the pinned release's, from @legend_engine_src; names carry the reference suffix —
      * stripped to plain FQNs). */
     private static java.util.Set<String> engineDuckDbExclusions()
             throws java.io.IOException {
@@ -290,8 +290,8 @@ class ChannelBEssentialTest {
         }
         if (names.isEmpty()) {
             throw new IllegalStateException(
-                    "engine DuckDB manifest scan found nothing — the oracle"
-                    + " snapshot moved");
+                    "engine DuckDB manifest scan found nothing — the"
+                    + " manifest's shape moved");
         }
         return names;
     }
