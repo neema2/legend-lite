@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { relationColumns, tdsColumns } from '../src/relation-type.ts';
+import { relationColumns, tdsColumns } from '../../engine-client/src/relation-type.ts';
 
 const relation = (cols: Record<string, string>): unknown => ({
   columns: Object.entries(cols).map(([name, fullPath]) => ({ name, genericType: { rawType: { fullPath } } })),

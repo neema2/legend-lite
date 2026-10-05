@@ -1,0 +1,8 @@
+// An executed trade: who with, in what, how much.
+Class <<demo::types::Governance.certified>> demo::trading::Trade
+{
+  tradeId: Integer[1];
+  quantity: Integer[1];
+  price: Float[1];
+  notional() {$this.quantity->toFloat() * $this.price}: Float[1];
+}

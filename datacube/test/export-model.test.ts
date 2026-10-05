@@ -8,7 +8,7 @@ import { describe, it } from 'node:test';
 
 import { buildColumnModel } from '../src/grid/columns.ts';
 import { exportTable, flatHeader, REDACTED } from '../src/export-model.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { TreeRow } from '../src/tree.ts';
 
 const flat: ResultTable = {

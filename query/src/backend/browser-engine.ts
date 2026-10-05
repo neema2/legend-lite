@@ -8,8 +8,8 @@
 // whole model, generating an execution plan) is refused, naming why -- never approximated.
 
 import { findAll, isFunction, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import type { QueryEngine } from '../../../datacube/src/engine.ts';
-import type { Plan } from '../../../datacube/src/relation-type.ts';
+import type { QueryEngine } from '../../../engine-client/src/engine.ts';
+import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import type { PureModelContextData } from '../model/pmcd.ts';
 import { EngineError, type Engine } from './engine.ts';
 import type { WasmGrammar } from './wasm-grammar.ts';

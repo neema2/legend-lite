@@ -12,7 +12,7 @@
 // become REDACTED before any format sees a value, so no renderer can forget it.
 
 import type { ColumnModel, HeaderCell, LeafColumn } from './grid/columns.ts';
-import type { ResultTable, Scalar } from './result.ts';
+import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import {
   coloursFor, highlightBand, isAlternateRow, mergeAppearance, valueState,
   type CellAppearance, type GridAppearance, type TextAlign, type UnderlineVariant,

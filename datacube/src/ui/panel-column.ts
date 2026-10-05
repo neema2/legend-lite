@@ -37,7 +37,7 @@ import {
   type ColumnKind,
 } from '../snapshot.ts';
 import { takesAggregate } from '../offers.ts';
-import { defaultKind } from '../types.ts';
+import { defaultKind } from '../../../engine-client/src/types.ts';
 import type { CellAppearance, ColourSet } from '../style.ts';
 import type { PinPlacement } from '../grid/columns.ts';
 import {

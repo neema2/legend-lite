@@ -21,7 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
-import { DuckDbEngine } from '../src/duckdb.ts';
+import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { levelWithValues } from '../src/plan.ts';
 import { PlanError, UpstreamPlanner } from '../src/planner.ts';
 import { pivotValuesLambda } from '../src/query.ts';

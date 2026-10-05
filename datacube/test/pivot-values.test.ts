@@ -35,7 +35,7 @@ import {
   splitPath,
   PIVOT_SEPARATOR,
 } from '../src/grid/columns.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 
 /** How legend-lite spells a pivot column: value(s), then the measure. */
 function pivotName(values: readonly string[], measure: string): string {

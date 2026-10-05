@@ -25,6 +25,10 @@ node_test(
         "//datacube:pnpm-lock.yaml",
         "//query:package.json",
         "//query:pnpm-lock.yaml",
+        "//studio:package.json",
+        "//studio:pnpm-lock.yaml",
+        "//engine-client:package.json",
+        "//engine-client:pnpm-lock.yaml",
     ],
     entry_point = "lock-matches-package-json.test.ts",
     # other packages' sources, read as runfiles where they are (rules_js copies only its own package's to bin)
@@ -33,10 +37,14 @@ node_test(
         "//datacube:pnpm-lock.yaml",
         "//query:package.json",
         "//query:pnpm-lock.yaml",
+        "//studio:package.json",
+        "//studio:pnpm-lock.yaml",
+        "//engine-client:package.json",
+        "//engine-client:pnpm-lock.yaml",
     ],
     env = {
-        "PACKAGE_JSONS": "$(rlocationpath //datacube:package.json) $(rlocationpath //query:package.json)",
-        "PNPM_LOCKS": "$(rlocationpath //datacube:pnpm-lock.yaml) $(rlocationpath //query:pnpm-lock.yaml)",
+        "PACKAGE_JSONS": "$(rlocationpath //datacube:package.json) $(rlocationpath //query:package.json) $(rlocationpath //studio:package.json) $(rlocationpath //engine-client:package.json)",
+        "PNPM_LOCKS": "$(rlocationpath //datacube:pnpm-lock.yaml) $(rlocationpath //query:pnpm-lock.yaml) $(rlocationpath //studio:pnpm-lock.yaml) $(rlocationpath //engine-client:pnpm-lock.yaml)",
     },
 )
 

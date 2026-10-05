@@ -37,8 +37,8 @@ import {
 } from './snapshot.ts';
 import type { GroupKey, RowPath } from './tree.ts';
 import { ROOT_COLUMN, WINDOW_ALL_PREFIX } from './grid/columns.ts';
-import { PIVOT_SEPARATOR } from './generated/lite-facts.ts';
-import { isBoolean, isNumeric, isVariant, plainType } from './types.ts';
+import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
+import { isBoolean, isNumeric, isVariant, plainType } from '../../engine-client/src/types.ts';
 import { columnRef } from './calc.ts';
 
 // ---- literals: typed by the column's COMPILER type, never by the value ----

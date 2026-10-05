@@ -16,6 +16,7 @@ test_suite(
     tests = [
         "//core:update_generated_tests",
         "//datacube:update_generated_tests",
+        "//engine-client:update_generated_tests",
         "//docs:update_generated_tests",
         "//parser-equivalence:update_generated_tests",
     ],
@@ -30,6 +31,7 @@ write_source_files(
     additional_update_targets = [
         "//core:update_generated",
         "//datacube:update_generated",
+        "//engine-client:update_generated",
         "//docs:update_generated",
         "//parser-equivalence:update_generated",
     ],

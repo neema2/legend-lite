@@ -1,0 +1,150 @@
+[
+ {
+  "type": "association",
+  "classifierPath": "meta::pure::metamodel::relationship::Association"
+ },
+ {
+  "type": "authenticationDemo",
+  "classifierPath": "meta::pure::runtime::connection::authentication::demo::AuthenticationDemo"
+ },
+ {
+  "type": "bigQueryFunction",
+  "classifierPath": "meta::external::function::activator::bigQueryFunction::BigQueryFunction"
+ },
+ {
+  "type": "bigQueryFunctionConfig",
+  "classifierPath": "meta::external::function::activator::bigQueryFunction::BigQueryFunctionDeploymentConfiguration"
+ },
+ {
+  "type": "binding",
+  "classifierPath": "meta::external::format::shared::binding::Binding"
+ },
+ {
+  "type": "class",
+  "classifierPath": "meta::pure::metamodel::type::Class"
+ },
+ {
+  "type": "dataQualityRelationComparison",
+  "classifierPath": "meta::external::dataquality::DataQualityRelationComparison"
+ },
+ {
+  "type": "dataqualityRelationValidation",
+  "classifierPath": "meta::external::dataquality::DataQualityRelationValidation"
+ },
+ {
+  "type": "dataQualityValidation",
+  "classifierPath": "meta::external::dataquality::DataQuality"
+ },
+ {
+  "type": "dataSpace",
+  "classifierPath": "meta::pure::metamodel::dataSpace::DataSpace"
+ },
+ {
+  "type": "DeephavenApp",
+  "classifierPath": "meta::external::function::activator::deephavenApp::DeephavenApp"
+ },
+ {
+  "type": "deephavenStore",
+  "classifierPath": "meta::external::store::deephaven::metamodel::store::DeephavenStore"
+ },
+ {
+  "type": "diagram",
+  "classifierPath": "meta::pure::metamodel::diagram::Diagram"
+ },
+ {
+  "type": "elasticsearch7Store",
+  "classifierPath": "meta::external::store::elasticsearch::v7::metamodel::store::Elasticsearch7Store"
+ },
+ {
+  "type": "Enumeration",
+  "classifierPath": "meta::pure::metamodel::type::Enumeration"
+ },
+ {
+  "type": "executionEnvironmentInstance",
+  "classifierPath": "meta::legend::service::metamodel::ExecutionEnvironmentInstance"
+ },
+ {
+  "type": "externalFormatSchemaSet",
+  "classifierPath": "meta::external::format::shared::metamodel::SchemaSet"
+ },
+ {
+  "type": "fileGeneration",
+  "classifierPath": "meta::pure::generation::metamodel::GenerationConfiguration"
+ },
+ {
+  "type": "function",
+  "classifierPath": "meta::pure::metamodel::function::ConcreteFunctionDefinition"
+ },
+ {
+  "type": "functionJar",
+  "classifierPath": "meta::external::function::activator::functionJar::FunctionJar"
+ },
+ {
+  "type": "generationSpecification",
+  "classifierPath": "meta::pure::generation::metamodel::GenerationSpecification"
+ },
+ {
+  "type": "hostedService",
+  "classifierPath": "meta::external::function::activator::hostedService::HostedService"
+ },
+ {
+  "type": "measure",
+  "classifierPath": "meta::pure::metamodel::type::Measure"
+ },
+ {
+  "type": "memSqlFunction",
+  "classifierPath": "meta::external::function::activator::memSqlFunction::MemSqlFunction"
+ },
+ {
+  "type": "memSqlFunctionConfig",
+  "classifierPath": "meta::external::function::activator::memSqlFunction::MemSqlFunctionDeploymentConfiguration"
+ },
+ {
+  "type": "MongoDatabase",
+  "classifierPath": "meta::external::store::mongodb::metamodel::pure::MongoDatabase"
+ },
+ {
+  "type": "persistence",
+  "classifierPath": "meta::pure::persistence::metamodel::Persistence"
+ },
+ {
+  "type": "persistenceContext",
+  "classifierPath": "meta::pure::persistence::metamodel::PersistenceContext"
+ },
+ {
+  "type": "profile",
+  "classifierPath": "meta::pure::metamodel::extension::Profile"
+ },
+ {
+  "type": "relational",
+  "classifierPath": "meta::relational::metamodel::Database"
+ },
+ {
+  "type": "relationalMapper",
+  "classifierPath": "meta::relational::metamodel::RelationalMapper"
+ },
+ {
+  "type": "sectionIndex",
+  "classifierPath": "meta::pure::metamodel::section::SectionIndex"
+ },
+ {
+  "type": "service",
+  "classifierPath": "meta::legend::service::metamodel::Service"
+ },
+ {
+  "type": "serviceStore",
+  "classifierPath": "meta::external::store::service::metamodel::ServiceStore"
+ },
+ {
+  "type": "snowflakeApp",
+  "classifierPath": "meta::external::function::activator::snowflakeApp::SnowflakeApp"
+ },
+ {
+  "type": "snowflakeM2MUdf",
+  "classifierPath": "meta::external::function::activator::snowflakeM2MUdf::SnowflakeM2MUdf"
+ },
+ {
+  "type": "text",
+  "classifierPath": "meta::pure::metamodel::text::Text"
+ }
+]

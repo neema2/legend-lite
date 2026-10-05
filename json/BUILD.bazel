@@ -13,7 +13,7 @@ legend_java_library(
     name = "json",
     srcs = glob(["src/main/java/com/legend/json/*.java"]),
     deps = ["//base"],
-    visibility = ["//core:__pkg__", "//datacube:__pkg__", "//warehouse:__pkg__", "//wasm:__pkg__"],
+    visibility = ["//core:__pkg__", "//datacube:__pkg__", "//depot-server:__pkg__", "//sdlc-server:__pkg__", "//warehouse:__pkg__", "//wasm:__pkg__"],
 )
 
 junit_test(

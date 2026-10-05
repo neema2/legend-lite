@@ -16,7 +16,7 @@ import {
   withColumn,
 } from '../src/config.ts';
 import { buildColumnModel } from '../src/grid/columns.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import {
   pivotColumns,
   type PivotFacts,

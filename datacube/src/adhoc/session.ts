@@ -16,7 +16,7 @@
 
 import { STALE } from '../epoch.ts';
 import { DEFAULT_HISTORY_LIMIT, StateOwner, type StateOutcome, type StateRules } from '../state-owner.ts';
-import type { ResultTable } from '../result.ts';
+import type { ResultTable } from '../../../engine-client/src/result.ts';
 import type { LevelScope } from '../query.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import {

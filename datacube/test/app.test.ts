@@ -4,8 +4,8 @@ import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../src/app.ts';
 import type { Planner } from '../src/cube.ts';
-import type { Plan, PlanColumn } from '../src/relation-type.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { pivotTotalColumn } from '../src/snapshot.ts';

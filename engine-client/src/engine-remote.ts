@@ -14,7 +14,6 @@
 //
 // So this is not a planner. Pure in, ROWS out.
 
-import type { CubeSnapshot } from './snapshot.ts';
 import type { ResultColumn, ResultTable, Scalar } from './result.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { hostOf } from './receipt.ts';
@@ -37,7 +36,7 @@ export interface RemoteResult {
 }
 
 export interface RemoteExecutor {
-  execute(query: Lambda, snapshot: CubeSnapshot, signal?: AbortSignal): Promise<RemoteResult>;
+  execute(query: Lambda, epoch: number, signal?: AbortSignal): Promise<RemoteResult>;
   /** The compiler's type of a query's result: the engine's `lambdaRelationType`. */
   relationType(query: Lambda, signal?: AbortSignal): Promise<PlanColumn[]>;
   /** What a person typed, as its lambda: the engine's `grammarToJson`. */
@@ -125,7 +124,7 @@ export class LegendEngineExecutor implements RemoteExecutor {
     return this.#client.baseUrl;
   }
 
-  async execute(query: Lambda, snapshot: CubeSnapshot, signal?: AbortSignal): Promise<RemoteResult> {
+  async execute(query: Lambda, epoch: number, signal?: AbortSignal): Promise<RemoteResult> {
     const started = Date.now();
     const body = (await this.#client.execute(query, signal)) as TdsResponse;
     // The receipt is the response's own: the address it came back from and the SQL its
@@ -135,7 +134,7 @@ export class LegendEngineExecutor implements RemoteExecutor {
     const notes = (body.activities ?? []).map((a) => a.comment).filter((s): s is string => !!s);
     return {
       rows: {
-        ...toResultTable(body, snapshot.epoch, Date.now() - started),
+        ...toResultTable(body, epoch, Date.now() - started),
         receipt: {
           plane: 'engine',
           where: `the engine at ${hostOf(this.#client.baseUrl)}`,

@@ -8,10 +8,10 @@
 // In the browser planes the tab's planner writes the SQL and one of DataCube's engines runs it,
 // and saved queries stay in this browser (the same records and rules as a server's store).
 
-import * as duckdb from '@duckdb/duckdb-wasm';
-import { DuckDbEngine, type ArrowishConnection } from '../../datacube/src/duckdb.ts';
-import type { QueryEngine } from '../../datacube/src/engine.ts';
-import { signIn, WarehouseEngine } from '../../datacube/src/warehouse.ts';
+import * as duckdb from '../../engine-client/src/duckdb-wasm.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
+import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import { signIn, WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { AppContext, gavOf, type AppConfig, type CubeRows, type LoadedProject } from '../src/app/context.ts';
 import { App } from '../src/app/app.ts';
 import { BrowserEngine } from '../src/backend/browser-engine.ts';

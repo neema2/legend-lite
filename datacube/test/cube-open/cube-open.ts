@@ -19,7 +19,7 @@ import {
   readCube,
   type FileSource,
 } from '../../src/cube-document.ts';
-import { DuckDbEngine, type ArrowishConnection } from '../../src/duckdb.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
 import type { CubeSnapshot } from '../../src/snapshot.ts';
 import { sourceColumns } from '../../src/source-columns.ts';
 import { TreeState } from '../../src/tree.ts';

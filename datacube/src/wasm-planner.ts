@@ -28,8 +28,8 @@ import { element, fn, fromJson, lambda, readLambda, readValueSpecification, toJs
 import type { Planner } from './cube.ts';
 import type { CatalogDatabase, CatalogTable } from './catalog-model.ts';
 import { PlanError, type ModelOptions } from './planner.ts';
-import type { PrintStyle } from './pure-v1.ts';
-import { relationColumns, type Plan, type PlanColumn } from './relation-type.ts';
+import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
+import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 
 /** The subset of TeaVM's module surface this file uses. */
 interface TeavmModule {

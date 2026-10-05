@@ -1,0 +1,6 @@
+// How the demo's elements are labelled: certified or deprecated, with an owner.
+Profile demo::types::Governance
+{
+  stereotypes: [certified, deprecated];
+  tags: [owner];
+}

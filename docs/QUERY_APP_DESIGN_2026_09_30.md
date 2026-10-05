@@ -35,8 +35,8 @@ last and deferred.
   paths, `query/tools/icons.mjs`), the app bar and builder header, the resizable four-panel
   workspace with upstream's panel chrome, the explorer/fetch-structure/filter/results interiors,
   `/` as the builder and `/setup` as the setup page. Measured from legend-studio 821c74c.
-- **Next:** the gaps below (constants, milestoning, percentile/wavg,
-  relation-accessor sources, coverage, Depot) and the two compiler findings in `docs/IN_FLIGHT.md`.
+- **Next:** the open items below (relation-accessor sources, coverage G6, Depot model source,
+  UI polish), then Studio/LSP; constants, milestoning, percentile/wavg and derived-property arguments are in (2026-10-01).
 
 ---
 
@@ -133,12 +133,12 @@ Status: `[ ]` todo, `[~]` partial, `[x]` done. Section numbers are the census's.
 
 ### M2 -- the builder complete
 
-- [~] Aggregation (§5.3): count, distinct count, sum, avg, min, max, std dev, percentile, joinStrings, wavg. *(v1: all but percentile and wavg.)*
+- [x] Aggregation (§5.3): count, distinct count, sum, avg, min, max, std dev, percentile, joinStrings, wavg.
 - [x] Window / OLAP (§5.3): sum/count/min/max/avg, rank, dense rank, row number, percent rank; partition and sort.
 - [x] Post-filter (§5.3): on projection, aggregate and window columns; column-to-column.
-- [~] Derivation columns and constants (§5.3, §5.5) with inline lambda editing and type from G3. *(v1: calculated columns; constants not yet.)*
-- [ ] Derived-property arguments (§5.4).
-- [ ] Milestoning (§5.5): business/processing/bitemporal dates, all versions, in range, propagation.
+- [x] Derivation columns and constants (§5.3, §5.5): calculated columns; constants simple (typed values) and calculated (any expression), compiled before applied.
+- [x] Derived-property arguments (§5.4): typed defaults when added, edited from the column or condition (literals, relative dates, parameters, constants).
+- [~] Milestoning (§5.5): business/processing/bitemporal dates, all versions, propagation. *(Not: all versions in range -- both parsers refuse `allVersionsInRange` at 4.145.0; graph fetch through a milestoned property.)*
 - [x] graphFetch + serialize (§5.3) with JSON result view -- needs G2.
 - [x] Typeahead for string values (§5.4) and preview data on a property (§5.2).
 - [~] Property search (§5.2) with type filters and "show in tree".

@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { it } from 'node:test';
 
-import { relationColumns } from '../../src/relation-type.ts';
+import { relationColumns } from '../../../engine-client/src/relation-type.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import { MODEL, queries, RUNTIME } from './cases.ts';

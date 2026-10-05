@@ -17,9 +17,9 @@
 
 import type { EChartsOption } from 'echarts';
 import { measureName, type ChartSpec } from './chart-spec.ts';
-import type { ResultTable, Scalar } from './result.ts';
-import { numberOf } from './values.ts';
-import { isNumeric } from './types.ts';
+import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
+import { numberOf } from '../../engine-client/src/values.ts';
+import { isNumeric } from '../../engine-client/src/types.ts';
 import { TREE_COLUMN } from './treeview.ts';
 
 /** The colours a chart is drawn in, read from CSS tokens by the renderer. */

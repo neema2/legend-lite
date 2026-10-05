@@ -11,7 +11,7 @@ import { cssOf, escapeXml, toHtml } from '../src/export-rich.ts';
 import { exportTable, REDACTED, type ExportTable } from '../src/export-model.ts';
 import { argb, columnLetters, formatCode, sheetName, toXlsx } from '../src/export-xlsx.ts';
 import { buildColumnModel } from '../src/grid/columns.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 
 const rt: ResultTable = {
   columns: [

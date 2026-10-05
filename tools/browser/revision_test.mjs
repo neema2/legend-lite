@@ -4,25 +4,36 @@
 // at once, without launching or downloading anything.
 //
 // LOCKS names the pnpm locks checked, by runfiles path; each lock's package has playwright in its node_modules.
-// The list is held to the repository (G19, Bazel workplan P6-19): every pnpm-lock.yaml in the inventory
-// (INVENTORY: @repo_inventory//:files.txt) must be one of them, so a new lock cannot go unchecked.
+// LOCKS_WITHOUT_PLAYWRIGHT names the locks whose packages have no Playwright: each is checked to name no
+// playwright-core, so one that gains it fails here until it moves to LOCKS. Both lists together are held to the
+// repository (G19, Bazel workplan P6-19; G-26): every pnpm-lock.yaml in the inventory (INVENTORY:
+// @repo_inventory//:files.txt) is in one of them (LOCK_PATHS, LOCK_PATHS_WITHOUT_PLAYWRIGHT: the same locks as
+// workspace paths), so a new lock cannot go unchecked.
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { runfile, runfileFromEnv } from '../js/runfiles.mts';
 
+const list = (name) => (process.env[name] ?? '').split(' ').filter((l) => l.length > 0);
 const pin = JSON.parse(readFileSync(runfileFromEnv('PIN'), 'utf8'));
-const locks = process.env.LOCKS.split(' ').filter((l) => l.length > 0);
+const locks = list('LOCKS');
 let bad = 0;
 
 // every lock in the repository is checked
 const inventoried = readFileSync(runfileFromEnv('INVENTORY'), 'utf8').split('\n')
   .filter((f) => f === 'pnpm-lock.yaml' || f.endsWith('/pnpm-lock.yaml')).sort();
-const checked = process.env.LOCK_PATHS.split(' ').filter((l) => l.length > 0).sort();
+const checked = [...list('LOCK_PATHS'), ...list('LOCK_PATHS_WITHOUT_PLAYWRIGHT')].sort();
 if (JSON.stringify(inventoried) !== JSON.stringify(checked)) {
   bad += 1;
   console.log(`BAD the repository's pnpm locks ${JSON.stringify(inventoried)} are not the checked ${JSON.stringify(checked)}`);
+}
+
+// a lock listed without Playwright resolves none
+for (const lock of list('LOCKS_WITHOUT_PLAYWRIGHT')) {
+  const ok = !readFileSync(runfile(lock), 'utf8').includes('playwright-core');
+  bad += ok ? 0 : 1;
+  console.log(`${ok ? 'ok ' : 'BAD'} ${dirname(lock)}: ${ok ? 'no Playwright' : 'resolves playwright-core: list it in LOCKS'}`);
 }
 
 for (const lock of locks) {

@@ -8,7 +8,7 @@
 // legend-lite or legend-engine server.
 
 import { lambda, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import type { PlanColumn } from './relation-type.ts';
+import type { PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { ColumnKind, ColumnSpec } from './snapshot.ts';
 
 /** Anything that answers `lambdaRelationType`: every planner, runner and executor. */

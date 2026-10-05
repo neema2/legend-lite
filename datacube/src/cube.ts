@@ -9,8 +9,8 @@
 // the guard, and the plane (snap.ts).
 
 import { from, type Lambda } from '../../pure-protocol/src/index.ts';
-import type { QueryEngine } from './engine.ts';
-import type { PrintStyle } from './pure-v1.ts';
+import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { EpochGuard, type Stale } from './epoch.ts';
 import {
   buildColumnModel,
@@ -32,9 +32,9 @@ import {
   pivotValuesLambda,
 } from './query.ts';
 import { planPivot, typeColumns, type PivotPlan, type SchemaChange } from './plan.ts';
-import type { ResultTable } from './result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import { SnapManager, type PlaneState, type RemoteSource, type SnapTarget } from './snap.ts';
-import type { Receipt } from './receipt.ts';
+import type { Receipt } from '../../engine-client/src/receipt.ts';
 import {
   PlanThenRun,
   type QueryRunner,
@@ -43,7 +43,7 @@ import {
 import { requestKey } from './tree.ts';
 import type { LevelRequest, TreeRow, TreeState } from './tree.ts';
 import { DEFAULT_MAX_ROWS, fetchTree, takeRows } from './treeview.ts';
-import type { Plan, PlanColumn } from './relation-type.ts';
+import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
 
 /** What a run needs of the cube's state: the query and the open groups. */
 export interface RunState {

@@ -19,9 +19,9 @@ import { strToU8, zipSync } from 'fflate';
 
 import type { ColumnFormat } from './format.ts';
 import { cased, type ExportColumn, type ExportPage, type ExportTable } from './export-model.ts';
-import type { Scalar } from './result.ts';
+import type { Scalar } from '../../engine-client/src/result.ts';
 import { fontStack } from './style.ts';
-import { isNumeric, isTemporal, isTimeOfDay } from './types.ts';
+import { isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
 
 export interface XlsxOptions {
   readonly formats?: Readonly<Record<string, ColumnFormat>>;

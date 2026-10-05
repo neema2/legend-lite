@@ -1,0 +1,7 @@
+// An instrument's closing price: each version holds from one business date to the next.
+Class <<temporal.businesstemporal>> demo::instruments::Price
+{
+  ticker: String[1];
+  close: Float[1];
+  currency: demo::types::Currency[1];
+}

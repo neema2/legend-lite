@@ -8,8 +8,8 @@
 // for an Integer or a Decimal (a bigint, decimal text), within a relative tolerance only for
 // a Float. Rendered text is compared only where the claim IS the rendering.
 
-import { isBoolean, isNumeric, plainType } from '../src/types.ts';
-import { asDecimal, exactSum } from '../src/values.ts';
+import { isBoolean, isNumeric, plainType } from '../../engine-client/src/types.ts';
+import { asDecimal, exactSum } from '../../engine-client/src/values.ts';
 
 /**
  * The on-screen table, in grid order: each column's name, compiler type and exact values.

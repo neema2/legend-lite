@@ -9,7 +9,7 @@ import { JSDOM } from 'jsdom';
 import { buildColumnModel } from '../src/grid/columns.ts';
 import { DataGrid } from '../src/grid/grid.ts';
 import { FormatterCache } from '../src/format.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 
 const TABLE: ResultTable = {
   columns: [

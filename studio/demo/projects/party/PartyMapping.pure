@@ -1,0 +1,21 @@
+###Mapping
+// Parties from the party database; countries as their two-letter codes.
+Mapping demo::party::PartyMapping
+(
+  demo::types::Country: EnumerationMapping CountryCodes
+  {
+    US: 'US',
+    GB: 'GB',
+    FR: 'FR',
+    JP: 'JP'
+  }
+
+  *demo::party::Party: Relational
+  {
+    ~primaryKey ([demo::party::PartyDB] PARTY.PARTY.ID)
+    ~mainTable [demo::party::PartyDB] PARTY.PARTY
+    id: [demo::party::PartyDB] PARTY.PARTY.ID,
+    name: [demo::party::PartyDB] PARTY.PARTY.NAME,
+    country: EnumerationMapping CountryCodes: [demo::party::PartyDB] PARTY.PARTY.COUNTRY
+  }
+)

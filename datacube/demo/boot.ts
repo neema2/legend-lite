@@ -5,7 +5,7 @@
 // the SQL; DuckDB in this tab runs it. There is no fallback: a planner that does not answer is
 // said (`refusePlanner`) and the page stops.
 
-import * as duckdb from '@duckdb/duckdb-wasm';
+import * as duckdb from '../../engine-client/src/duckdb-wasm.ts';
 
 import { CubeApp, type GridSource, type HeldCopy } from '../src/app.ts';
 import {
@@ -14,7 +14,7 @@ import {
 } from '../src/config.ts';
 import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
-import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
 import { inferFormat, mountRemote, type S3Credentials } from '../src/remote.ts';
 import { catalogColumns, forgetUpload, formatOf, ingestFile, tableNameOf } from '../src/upload.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../src/ui/source-picker.ts';
@@ -77,7 +77,7 @@ import {
   WarehouseEngine,
   type CatalogObject,
   type WarehouseSession,
-} from '../src/warehouse.ts';
+} from '../../engine-client/src/warehouse.ts';
 import { makeWindow, type WindowSpec } from '../src/ui/window.ts';
 import type { MenuItem } from '../src/ui/menu.ts';
 import {

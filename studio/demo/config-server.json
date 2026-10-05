@@ -1,0 +1,5 @@
+{
+  "sdlc": "http://127.0.0.1:6100/sdlc/api",
+  "vendor": "./vendor/",
+  "worker": "./planner-worker.js"
+}

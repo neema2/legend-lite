@@ -1,0 +1,8 @@
+// Where a party is registered.
+Enum demo::types::Country
+{
+  US,
+  GB,
+  FR,
+  JP
+}

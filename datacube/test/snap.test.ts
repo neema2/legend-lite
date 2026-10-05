@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 
 /** The live source, and where a snap goes: the model would declare both. */

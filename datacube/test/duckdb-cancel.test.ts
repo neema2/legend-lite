@@ -16,7 +16,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { DuckDbEngine, type ArrowishTable } from '../src/duckdb.ts';
+import { DuckDbEngine, type ArrowishTable } from '../../engine-client/src/duckdb.ts';
 import { isSuperseded, Superseded } from '../src/epoch.ts';
 
 function batch(regions: string[], amounts: number[]): ArrowishTable {

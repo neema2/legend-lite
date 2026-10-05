@@ -9,8 +9,8 @@
 // 2026-09-27).
 
 import type { Planner } from './cube.ts';
-import { PureV1Client, type PrintStyle, type PureV1Options } from './pure-v1.ts';
-import { relationColumns, tdsColumns, type Plan, type PlanColumn } from './relation-type.ts';
+import { PureV1Client, type PrintStyle, type PureV1Options } from '../../engine-client/src/pure-v1.ts';
+import { relationColumns, tdsColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 
 export interface UpstreamPlannerOptions extends PureV1Options {

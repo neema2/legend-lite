@@ -1,0 +1,20 @@
+# Depot-lite (design S1, S22): legend-depot's read API, its RULES written once in Java
+# (com.legend.depot.Depot over an ArtifactSource) and run two ways -- in the model home's server and in
+# the page, compiled to WebAssembly with sdlc-server's rules. It never depends on sdlc-server: what it
+# serves comes through ArtifactSource (sdlc-server's version tags first, a Maven repository later), so it
+# can run as its own service.
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/java:defs.bzl", "legend_java_library")
+
+# THE RULES: TeaVM-safe by rule (no files, sockets, threads, reflection, java.security).
+legend_java_library(
+    name = "rules",
+    srcs = glob(["src/main/java/com/legend/depot/*.java"]),
+    visibility = ["//sdlc-server:__pkg__"],
+    deps = [
+        "//base",
+        "//json",
+    ],
+)
+
+guards_package()

@@ -4,10 +4,10 @@
 // duckdb-wasm handle and the browser's File object, the other half is
 // pure text-in text-out and is therefore the half worth unit testing.
 
-import type { QueryEngine } from './engine.ts';
-import type { RawTable } from './engine.ts';
-import type { DuckDbEngine } from './duckdb.ts';
-import type { Scalar } from './result.ts';
+import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import type { RawTable } from '../../engine-client/src/engine.ts';
+import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
+import type { Scalar } from '../../engine-client/src/result.ts';
 import { inferModel, type InferredModel } from './infer.ts';
 import { catalogColumnsSql, type CatalogColumn } from './catalog-model.ts';
 

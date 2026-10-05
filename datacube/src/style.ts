@@ -13,9 +13,9 @@
 // anything.
 
 import type { FontCase } from './format.ts';
-import type { Scalar } from './result.ts';
-import { isNumeric } from './types.ts';
-import { numberOf } from './values.ts';
+import type { Scalar } from '../../engine-client/src/result.ts';
+import { isNumeric } from '../../engine-client/src/types.ts';
+import { numberOf } from '../../engine-client/src/values.ts';
 
 /** Which of the four colour slots a value falls into. */
 export type ValueState = 'normal' | 'negative' | 'zero' | 'error';

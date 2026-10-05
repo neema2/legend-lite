@@ -22,14 +22,14 @@
 // the project.
 
 import type { Lambda } from '../../pure-protocol/src/index.ts';
-import type { PrintStyle } from './pure-v1.ts';
-import type { QueryEngine } from './engine.ts';
+import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
+import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import type { Planner } from './cube.ts';
-import type { RemoteExecutor } from './engine-remote.ts';
+import type { RemoteExecutor } from '../../engine-client/src/engine-remote.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import type { LevelScope } from './query.ts';
-import type { ResultTable } from './result.ts';
-import type { Plan, PlanColumn } from './relation-type.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
+import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
 
 export interface RunOutcome {
   readonly rows: ResultTable;
@@ -177,7 +177,7 @@ export class RemoteRun implements QueryRunner {
 
   async run(query: Lambda, snapshot: CubeSnapshot, _scope?: LevelScope, signal?: AbortSignal): Promise<RunOutcome> {
     try {
-      const out = await this.executor.execute(query, snapshot, signal);
+      const out = await this.executor.execute(query, snapshot.epoch, signal);
       return { rows: out.rows, sql: out.sql };
     } catch (error: unknown) {
       if (signal?.aborted) throw error;

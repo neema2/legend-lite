@@ -13,8 +13,8 @@
 // if it is stale (see `epoch` below).
 
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { PIVOT_SEPARATOR } from './generated/lite-facts.ts';
-import { defaultKind } from './types.ts';
+import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
+import { defaultKind } from '../../engine-client/src/types.ts';
 
 /**
  * What a column may be used for.

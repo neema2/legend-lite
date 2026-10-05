@@ -24,10 +24,13 @@ POOL_USERS = {
     "maven_h2_modern": ["pct"],
     # legend-engine's execution stack, for the engine runner tool only
     "maven_runner": ["tools/engine-runner"],
-    # TeaVM: the WebAssembly compiler and the class library the planner compiles against
-    "maven_teavm": ["tools/teavm", "wasm"],
-    # test tooling: JUnit, ArchUnit; for the packages with tests
-    "maven_test": ["core", "json", "parser-equivalence", "pct", "spec", "tools/bump", "tools/deps", "tools/guards", "tools/junit", "warehouse"],
+    # TeaVM: the WebAssembly compiler and the class library the planner compiles against; and sdlc-server, whose
+    # rules (with depot-server's) compile to the page's SDLC module the same way (2026-10-04, the Studio line,
+    # docs/STUDIO_DESIGN_2026_10_02.md S21: its :teavm_api and :page targets, as //wasm's)
+    "maven_teavm": ["sdlc-server", "tools/teavm", "wasm"],
+    # test tooling: JUnit, ArchUnit; for the packages with tests. sdlc-server also takes JGit from here, the judge
+    # of the git repository it writes by hand (2026-10-04, the Studio line: no host git in tests)
+    "maven_test": ["core", "json", "parser-equivalence", "pct", "sdlc-server", "spec", "tools/bump", "tools/deps", "tools/guards", "tools/junit", "warehouse"],
     # compiler plugins (NullAway), never on a classpath
     "maven_tools": ["tools/nullaway"],
     # legend-engine and legend-pure: TEST INPUTS ONLY, for the packages that referee lite against them (AGENTS.md,

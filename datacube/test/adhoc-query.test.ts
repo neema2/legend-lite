@@ -19,7 +19,7 @@ import {
   zoomIn,
   type AdHocGrid,
 } from '../src/adhoc/state.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import { levelLambda } from '../src/query.ts';
 import type { LevelScope } from '../src/query.ts';
 import { litePrint } from './lite-compiler.ts';

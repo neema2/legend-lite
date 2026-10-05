@@ -14,7 +14,7 @@
 // It runs inside the page, so it must not close over anything in Node: what it needs from
 // Node comes in as its argument (`page.evaluate(gridInvariants, TEMPORAL_TYPES)`).
 
-import { TYPE_FACTS } from '../src/generated/lite-facts.ts';
+import { TYPE_FACTS } from '../../engine-client/src/generated/lite-facts.ts';
 
 /** The temporal type names, from legend-lite's own type lattice (generated), for the page. */
 export const TEMPORAL_TYPES = [...new Set(Object.values(TYPE_FACTS)

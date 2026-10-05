@@ -14,9 +14,6 @@ importers:
       '@fontsource/roboto':
         specifier: 5.3.0
         version: 5.3.0
-      apache-arrow:
-        specifier: 17.0.0
-        version: 17.0.0
       echarts:
         specifier: 6.1.0
         version: 6.1.0

@@ -26,7 +26,7 @@ import { TEMPORAL_TYPES, gridInvariants } from './grid-invariants.mjs';
 import {
   closeTyped, compareTyped, isNegative, orderBreak, readColumn, readView, sameTyped, stamp, sumTyped,
 } from './typed-view.mjs';
-import { isNumeric } from '../src/types.ts';
+import { isNumeric } from '../../engine-client/src/types.ts';
 import { sampleCsv } from '../src/samples.ts';
 import { fileURLToPath } from 'node:url';
 import { servedPath } from './static-files.ts';
@@ -5143,7 +5143,7 @@ if (process.env.NO_WASM) {
   else console.log(`\nNO_WASM: the in-tab planner's files were never asked for (planner: ${PLANNER || 'local'})`);
 }
 // CANARY, ENGINE DEFECT S23 (docs/SEMANTICS_REGISTER.md): legend-engine types a BIT column TinyInt,
-// and DataCube reads it Boolean (src/relation-type.ts). The day engine answers Boolean itself,
+// and DataCube reads it Boolean (engine-client/src/relation-type.ts). The day engine answers Boolean itself,
 // this fails: delete the compensation and the register row.
 if (PLANNER === 'engine') {
   const { readFile } = await import('node:fs/promises');

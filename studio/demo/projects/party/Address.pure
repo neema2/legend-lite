@@ -1,0 +1,7 @@
+// Where a party is registered.
+Class demo::party::Address
+{
+  street: String[1];
+  city: String[1];
+  country: demo::types::Country[1];
+}

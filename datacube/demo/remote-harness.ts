@@ -10,9 +10,9 @@
 // a synthetic 404 for any http:// URL rather than making a request,
 // so a node test here would be green and meaningless.
 
-import * as duckdb from '@duckdb/duckdb-wasm';
+import * as duckdb from '../../engine-client/src/duckdb-wasm.ts';
 
-import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
 import { mountRemote, type RemoteSource } from '../src/remote.ts';
 
 declare global {

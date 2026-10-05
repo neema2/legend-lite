@@ -1,0 +1,6 @@
+// A tradable instrument, quoted in one currency.
+Class demo::instruments::Instrument
+{
+  ticker: String[1];
+  currency: demo::types::Currency[1];
+}

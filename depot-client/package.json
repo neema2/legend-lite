@@ -1,0 +1,6 @@
+{
+  "name": "@legend-lite/depot-client",
+  "private": true,
+  "type": "module",
+  "description": "Upstream legend-depot's read API and lite's dependency-files route: its records and one typed client over a fetch. No dependencies."
+}

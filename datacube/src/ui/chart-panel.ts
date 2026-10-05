@@ -20,7 +20,7 @@ import {
 import { chartOption, themeOf, treemapOfGrid, type GridShown, type LabelOf, type MarkKey } from '../chart-option.ts';
 // ECharts (about 218 KB gzipped) is loaded the first time a chart draws, never by a grid alone (plan F7)
 import type { ChartPicture, MountedChart } from '../chart-render.ts';
-import type { ResultTable } from '../result.ts';
+import type { ResultTable } from '../../../engine-client/src/result.ts';
 import type { AggregateFn, CubeSnapshot } from '../snapshot.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { checkbox, dropdown, field, numberInput } from './form.ts';

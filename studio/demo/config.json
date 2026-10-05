@@ -1,0 +1,5 @@
+{
+  "sdlc": "page",
+  "vendor": "./vendor/",
+  "worker": "./planner-worker.js"
+}

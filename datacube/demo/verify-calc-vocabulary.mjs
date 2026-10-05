@@ -22,7 +22,7 @@
 import { readFile } from 'node:fs/promises';
 
 import { CALC_FUNCTIONS } from '../src/calc.ts';
-import { LegendEngineExecutor } from '../src/engine-remote.ts';
+import { LegendEngineExecutor } from '../../engine-client/src/engine-remote.ts';
 import { levelLambda } from '../src/query.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
 import { WasmPlanner } from '../src/wasm-planner.ts';

@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
 
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { totalOrderSorts } from '../src/snapshot.ts';

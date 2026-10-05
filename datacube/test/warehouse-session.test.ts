@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { WarehouseEngine, connect, type WarehouseSession } from '../src/warehouse.ts';
+import { WarehouseEngine, connect, type WarehouseSession } from '../../engine-client/src/warehouse.ts';
 
 const session = (token: string, principal = 'alice'): WarehouseSession =>
   ({ baseUrl: 'https://wh.example', token, principal, expiresAt: '2099-01-01T00:00:00Z' });

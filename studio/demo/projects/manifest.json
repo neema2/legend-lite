@@ -1,0 +1,33 @@
+{
+  "groupId": "org.finos.lite.demo",
+  "steps": [
+    {
+      "artifactId": "types", "name": "Types", "message": "Currencies, countries, governance",
+      "files": ["types/Governance.pure", "types/Currency.pure", "types/Country.pure", "types/isMajor.pure"],
+      "release": "MAJOR"
+    },
+    {
+      "artifactId": "types", "message": "Add the yen",
+      "files": ["types/Currency-1.1.pure"],
+      "release": "MINOR"
+    },
+    {
+      "artifactId": "party", "name": "Party", "message": "Parties, addresses, their store and runtime",
+      "dependencies": [["types", "1.0.0"]],
+      "files": ["party/Party.pure", "party/Address.pure", "party/Party_Address.pure", "party/PartyDB.pure", "party/PartyMapping.pure", "party/Connection.pure", "party/Runtime.pure"],
+      "release": "MAJOR"
+    },
+    {
+      "artifactId": "instruments", "name": "Instruments", "message": "Instruments and their prices",
+      "dependencies": [["types", "1.1.0"]],
+      "files": ["instruments/Instrument.pure", "instruments/Price.pure"],
+      "release": "MAJOR"
+    },
+    {
+      "artifactId": "trading", "name": "Trading", "message": "Trades, across party and instruments",
+      "dependencies": [["party", "1.0.0"], ["instruments", "1.0.0"]],
+      "files": ["trading/Trade.pure", "trading/Trade_Party.pure", "trading/Trade_Instrument.pure"],
+      "release": "MAJOR"
+    }
+  ]
+}

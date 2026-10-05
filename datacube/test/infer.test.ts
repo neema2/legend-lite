@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { PIVOT_SEPARATOR } from '../src/generated/lite-facts.ts';
+import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { describe, it } from 'node:test';
 
 import { inferModel } from '../src/infer.ts';

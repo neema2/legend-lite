@@ -8,8 +8,8 @@ import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../src/app.ts';
 import type { Planner } from '../src/cube.ts';
-import type { Plan, PlanColumn } from '../src/relation-type.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { DEFAULT_SETTINGS, readSettings, type SettingValues } from '../src/settings.ts';
 import { buildSettingsPanel } from '../src/ui/settings-panel.ts';

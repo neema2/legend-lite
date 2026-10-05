@@ -22,7 +22,7 @@
 // autoload and fails. Offering it would be offering an action that
 // cannot work -- the same rule the menu follows elsewhere.
 
-import type { QueryEngine } from './engine.ts';
+import type { QueryEngine } from '../../engine-client/src/engine.ts';
 
 export type RemoteFormat = 'parquet' | 'csv' | 'iceberg';
 

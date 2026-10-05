@@ -5,7 +5,7 @@ import { FormatterCache } from '../src/format.ts';
 import { encodedWords, escapeField, exportCsv, toClipboard, toCsv, toEml } from '../src/export.ts';
 import { exportTable, REDACTED } from '../src/export-model.ts';
 import { buildColumnModel } from '../src/grid/columns.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 
 const TABLE: ResultTable = {
   columns: [

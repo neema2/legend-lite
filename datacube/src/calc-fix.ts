@@ -13,7 +13,7 @@
 import {
   fn, lit, transform, type AppliedFunction, type AppliedProperty, type Collection, type Lambda, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
-import { isNumeric, plainType } from './types.ts';
+import { isNumeric, plainType } from '../../engine-client/src/types.ts';
 
 /** The refusal, in each compiler's words (legend-lite's and legend-engine's begin alike). */
 export function isEmptyOperandRefusal(message: string): boolean {

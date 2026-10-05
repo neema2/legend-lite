@@ -43,7 +43,7 @@ import {
   type WindowFunction,
   type WindowSpec,
 } from '../snapshot.ts';
-import { defaultKind, isVariant } from '../types.ts';
+import { defaultKind, isVariant } from '../../../engine-client/src/types.ts';
 
 /** Upstream's DataCubeExtendedColumnKind. */
 export type ColumnLevel = 'measure' | 'dimension' | 'group';

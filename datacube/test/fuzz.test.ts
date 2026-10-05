@@ -31,7 +31,7 @@ import {
   type FilterNode,
   type SortSpec,
 } from '../src/snapshot.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { row } from './lite-compiler.ts';
 import { printLevel } from './lite-compiler.ts';
