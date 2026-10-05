@@ -162,7 +162,10 @@ export async function renderProject(root: HTMLElement, ctx: PanelContext): Promi
 
   if (projectTab === 'versions') {
     content.append(subPanel('Versions', { count: versions.length, testId: 'versions' },
-      ...(versions.length ? versions.map((v) => h('div', { class: 'side-bar__panel__item', title: 'See version' },
+      ...(versions.length ? versions.map((v) => h('div', {
+        class: 'side-bar__panel__item revision-item', title: 'See version', 'data-version': versionText(v.id),
+        onclick: () => { globalThis.location.hash = `#/view/${encodeURIComponent(ctx.project)}/${encodeURIComponent(versionText(v.id))}`; },
+      },
         h('div', { class: 'side-bar__panel__item__label' }, versionText(v.id)),
         h('div', { class: 'side-bar__panel__item__note' }, v.notes ?? ''))) : [h('div', { class: 'side-bar__panel__empty' }, 'This project has no version')])));
     return;

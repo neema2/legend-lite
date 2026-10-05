@@ -296,6 +296,14 @@ async function loop(browser, name, query) {
     await page.locator('[data-project-tab=overview]').click();
     await page.getByTestId('dependencies').waitFor();
     assert.match(await page.getByTestId('dependencies').textContent(), /org\.finos\.lite\.demo:party : 1\.0\.0/);
+    // upstream's project viewer (plan B5): version 1.1.0 opened read-only from Versions -- its elements, nothing to write
+    await page.locator('[data-project-tab=versions]').click();
+    await page.locator('[data-testid=versions] [data-version="1.1.0"]').click();
+    await waitStatus('viewing', /^1\.1\.0 \(read only\)$/);
+    await page.locator('[data-testid=explorer] .element[data-path="demo::trading::Desk"]').click();
+    await waitCompiled();
+    for (const id of ['new-element', 'save-status', 'rename-element', 'delete-element']) assert.equal(await page.getByTestId(id).count(), 0, `${id} is not offered`);
+    assert.equal(await page.locator('[data-activity=changes]').count(), 0, 'no local changes to view');
     // 6. a mapping executed in Query's builder (plan A5): party's own mapping, a query on the class it maps, run in the
     // tab on party's rows; closed with nothing to keep
     const toSetup = async () => {

@@ -33,6 +33,9 @@ export async function renderSetup(root: HTMLElement, ctx: SetupContext, selected
   } }, h('span', { class: 'workspace-setup__go-btn__label' }, 'Go'), icon('longArrowRight'));
   const newWorkspaceLink = h('button', { class: 'workspace-setup__new-workspace-btn', 'data-testid': 'new-workspace', disabled: true,
     title: 'Create a workspace after choosing a project', onclick: () => void newWorkspace() }, 'Need to create a new workspace?');
+  // upstream's project viewer: the project line's head, read-only (a version: the Project view's Versions)
+  const viewLink = h('button', { class: 'workspace-setup__new-workspace-btn', 'data-testid': 'view-project', disabled: true,
+    title: "View the project line's head, read-only", onclick: () => { if (project) globalThis.location.hash = `#/view/${encodeURIComponent(project)}`; } }, 'Or view it read-only');
   const workspaces = selector('workspace-selector', (w) => {
     workspace = w;
     go.disabled = !(project && workspace);
@@ -42,6 +45,7 @@ export async function renderSetup(root: HTMLElement, ctx: SetupContext, selected
     workspace = undefined;
     go.disabled = true;
     newWorkspaceLink.disabled = project === undefined;
+    viewLink.disabled = project === undefined;
     void showWorkspaces();
   });
 
@@ -137,6 +141,7 @@ export async function renderSetup(root: HTMLElement, ctx: SetupContext, selected
                 selectorRow('gitBranch', 'workspace', workspaces))),
             h('div', { class: 'workspace-setup__actions' },
               newWorkspaceLink,
+              viewLink,
               h('div', { class: 'workspace-setup__actions__button' }, go),
               h('div', { class: 'divider-with-text' }, h('div', { class: 'divider-with-text__line' }), h('div', { class: 'divider-with-text__text' }, 'OR'), h('div', { class: 'divider-with-text__line' })),
               h('div', { class: 'workspace-setup__actions__button' },

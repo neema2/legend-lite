@@ -39,6 +39,8 @@ export interface EditorContext {
   readonly monaco: typeof Monaco;
   readonly project: string;
   readonly workspace: string;
+  /** Viewing the project read-only (upstream's /view): a released version, or the line's head (undefined). */
+  readonly view?: { readonly version: string | undefined };
   back(): void;
 }
 
@@ -54,8 +56,10 @@ export function fileLabel(f: OpenFile): string {
 
 export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promise<() => void> {
   const { monaco } = ctx;
-  const ws = new Workspace(ctx.client, ctx.compiler, ctx.project, ctx.workspace, ctx.depot);
+  const ws = new Workspace(ctx.client, ctx.compiler, ctx.project, ctx.workspace, ctx.depot, ctx.view);
   await ws.load();
+  // viewing a project (a version, or its line's head): read and run, never write
+  const readOnly = ws.readOnly;
 
   const models = new Map<string, Monaco.editor.ITextModel>();
   const viewStates = new Map<string, Monaco.editor.ICodeEditorViewState | null>();
@@ -199,6 +203,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     bracketPairColorization: { enabled: false },
     fixedOverflowWidgets: true,
     renderValidationDecorations: 'on',
+    readOnly,
   });
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void save());
   editor.addCommand(monaco.KeyCode.F9, () => void compile());
@@ -324,8 +329,9 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
           onclick: () => void openBuilder(active!) }, query[0])] : []),
         ...(runnable ? [h('button', { class: 'btn btn-small btn-primary tabs__run', 'data-testid': 'run-function', title: 'Run (F5)', onclick: () => void runActive() },
           icon('play', '10px'), 'Run')] : []),
-        h('button', { class: 'btn btn-small', 'data-testid': 'rename-element', title: 'Rename or move this element: its references in the workspace follow', onclick: () => void rename(active!) }, 'Rename'),
-        h('button', { class: 'btn btn-small', 'data-testid': 'delete-element', title: 'Delete this element', onclick: () => void remove(active!) }, 'Delete'));
+        ...(readOnly ? [] : [
+          h('button', { class: 'btn btn-small', 'data-testid': 'rename-element', title: 'Rename or move this element: its references in the workspace follow', onclick: () => void rename(active!) }, 'Rename'),
+          h('button', { class: 'btn btn-small', 'data-testid': 'delete-element', title: 'Delete this element', onclick: () => void remove(active!) }, 'Delete')]));
     }
   };
 
@@ -389,7 +395,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     try {
       handle = await ctx.builder.open(body, f.text, ws.model().text, {
         title: `${isService ? 'Service query' : kindOf(f.text) === 'Mapping' ? 'Mapping execution' : 'Query'}: ${fileLabel(f)}`,
-        ...(isService ? {
+        ...(isService && !readOnly ? {
           keep: async (content: string) => {
             const current = ws.file(key);
             if (!current) throw new Error('the service is no longer in this workspace');
@@ -422,8 +428,9 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     const menuCell: HTMLButtonElement = h('button', { class: 'activity-bar__menu', title: 'Menu', 'data-testid': 'activity-menu',
       onclick: () => menu(menuCell, [
         { label: 'Back to workspace setup', run: () => ctx.back(), testId: 'menu-back' },
-        { label: 'Text mode (F8)', run: () => textMode(), testId: 'menu-text-mode' },
-        { label: 'Import model… (F2)', run: () => void importModel(), testId: 'menu-import' },
+        ...(readOnly ? [] : [
+          { label: 'Text mode (F8)', run: () => textMode(), testId: 'menu-text-mode' },
+          { label: 'Import model… (F2)', run: () => void importModel(), testId: 'menu-import' }]),
       ]) },
     icon('menu', '23px'));
     const dark = theme() === 'dark';
@@ -431,9 +438,10 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       menuCell,
       h('div', { class: 'activity-bar__items' },
         item('explorer', 'fileTray', '23px', 'Explorer (Ctrl + Shift + X)'),
-        item('changes', 'codeBranch', '20px', `Local Changes (Ctrl + Shift + G)${changed ? ` - ${changed} unpushed change${changed === 1 ? '' : 's'}` : ''}`, counter),
-        item('review', 'gitPullRequest', '23px', 'Review (Ctrl + Shift + M)'),
-        item('project', 'repo', '23px', 'Project')),
+        ...(readOnly ? [] : [
+          item('changes', 'codeBranch', '20px', `Local Changes (Ctrl + Shift + G)${changed ? ` - ${changed} unpushed change${changed === 1 ? '' : 's'}` : ''}`, counter),
+          item('review', 'gitPullRequest', '23px', 'Review (Ctrl + Shift + M)'),
+          item('project', 'repo', '23px', 'Project')])),
       h('button', { class: 'activity-bar__item', title: dark ? 'Switch to light theme' : 'Switch to dark theme', 'data-testid': 'theme-toggle',
         onclick: () => { const next = toggleTheme(); monaco.editor.setTheme(editorTheme(next === 'light')); renderActivityBar(); } },
       icon(dark ? 'sun' : 'moon', '20px')));
@@ -461,7 +469,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       h('div', { class: 'explorer__header__chip' }, 'workspace'),
       h('div', { class: 'explorer__header__title', title: ctx.workspace }, ctx.workspace),
       h('div', { class: 'panel__header__actions' },
-        h('button', { class: 'panel__header__action', 'data-testid': 'new-element', title: 'New Element... (Ctrl + Shift + N)', onclick: () => void newElement() }, icon('plus')),
+        readOnly ? null : h('button', { class: 'panel__header__action', 'data-testid': 'new-element', title: 'New Element... (Ctrl + Shift + N)', onclick: () => void newElement() }, icon('plus')),
         h('button', { class: 'panel__header__action', title: 'Collapse All', onclick: () => { for (const p of packagePaths()) collapsed.add(p); renderSide(); } }, icon('compress'))));
     const tree = h('div', { class: 'tree', 'data-testid': 'explorer' });
     const files = ws.files();
@@ -653,6 +661,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
 
   // ---- actions ----
   const save = async (): Promise<void> => {
+    if (readOnly) return;
     if (!ws.hasChanges()) {
       toast('Nothing to save.');
       return;
@@ -721,6 +730,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   };
 
   const newElement = async (): Promise<void> => {
+    if (readOnly) return;
     const kind = h('select', { class: 'input', 'data-testid': 'new-kind' }, ...ELEMENT_KINDS.map((k, i) => h('option', { value: String(i) }, k.label)));
     const path = h('input', { class: 'input', placeholder: 'model::domain::Person', 'data-testid': 'new-path' });
     const made = await dialog('New element', h('div', { class: 'form' }, field('Type', kind), field('Path', path)), () => {
@@ -834,7 +844,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
    * and stays. Discard leaves without applying.
    */
   const textMode = (): void => {
-    if (inTextMode || closeBuilder) return;
+    if (inTextMode || closeBuilder || readOnly) return;
     inTextMode = true;
     const model = monaco.editor.createModel(joinFiles(ws.files().map((f) => f.text)), PURE);
     const problem = h('div', { class: 'text-mode__problem', 'data-testid': 'text-mode-problem' });
@@ -872,7 +882,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
 
   /** Upstream's model importer (F2, plan A7): Pure text pasted, split into elements, added or replacing what is there. */
   const importModel = async (): Promise<void> => {
-    if (inTextMode || closeBuilder) return;
+    if (inTextMode || closeBuilder || readOnly) return;
     const text = h('textarea', { class: 'input import-model__text', 'data-testid': 'import-text', spellcheck: 'false', placeholder: 'Class model::Person\n{\n  name: String[1];\n}' });
     const pasted = await dialog('Import model', h('div', { class: 'form' }, h('div', {}, 'Pure text: each element is added, or replaces the element of the same path.'), text),
       () => (text.value.trim() === '' ? 'Paste the Pure text to import.' : { ok: text.value }), 'Import');
@@ -905,8 +915,11 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
           icon('codeBranch'),
           h('button', { class: 'status-bar__workspace__project', title: 'Go back to workspace setup using the specified project', onclick: () => ctx.back() }, ctx.project),
           '/',
-          h('button', { class: 'status-bar__workspace__workspace', title: 'Go back to workspace setup using the specified workspace', onclick: () => ctx.back() },
-            `${ctx.workspace}${changed ? '*' : ''}`)),
+          readOnly
+            ? h('span', { class: 'status-bar__workspace__workspace', 'data-testid': 'viewing', title: 'Viewed read-only: nothing is saved from here' },
+              `${ws.view?.version ?? 'HEAD'} (read only)`)
+            : h('button', { class: 'status-bar__workspace__workspace', title: 'Go back to workspace setup using the specified workspace', onclick: () => ctx.back() },
+              `${ctx.workspace}${changed ? '*' : ''}`)),
         h('button', { class: 'status-bar__problems', title: `Error: ${errors}, Warnings: 0`, 'data-testid': 'problems-count',
           'data-errors': errors, 'data-state': compiling ? 'compiling' : 'idle', onclick: openPanel },
         icon('error'), h('div', { class: 'status-bar__problems__count' }, String(errors)),
@@ -914,7 +927,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       h('div', { class: 'status-bar__right' },
         h('div', { class: 'status-bar__sync', 'data-testid': 'changes-count', title: ws.revision?.id ?? '' },
           changed ? `${changed} unpushed change${changed === 1 ? '' : 's'}` : 'no changes detected'),
-        h('button', { class: 'status-bar__push', title: 'Push local changes (Ctrl + S)', 'data-testid': 'save-status', disabled: changed === 0, onclick: () => void save() },
+        readOnly ? null : h('button', { class: 'status-bar__push', title: 'Push local changes (Ctrl + S)', 'data-testid': 'save-status', disabled: changed === 0, onclick: () => void save() },
           icon('cloudUpload', '16px')),
         h('button', { class: `status-bar__action${compiling ? ' status-bar__action--compiling' : ''}`, title: 'Compile (F9)', 'data-testid': 'compile', onclick: () => void compile() },
           icon('hammer')),

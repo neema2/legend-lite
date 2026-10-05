@@ -9,7 +9,7 @@
 
 import type { DepotClient } from '../../../depot-client/src/client.ts';
 import type { SdlcClient } from '../../../sdlc-client/src/client.ts';
-import type { ProjectConfiguration, PureChange, Revision } from '../../../sdlc-client/src/wire.ts';
+import type { ProjectConfiguration, PureChange, PureFile, Revision } from '../../../sdlc-client/src/wire.ts';
 import type { Compiler } from '../backend/planner.ts';
 
 /** One file in the editor. */
@@ -52,13 +52,22 @@ export class Workspace {
   /** Why the dependencies could not be read, when they could not (shown as a problem). */
   dependencyProblem: string | undefined;
   #configuration: ProjectConfiguration | undefined;
+  /** Viewing, read-only (upstream's project viewer): a released version, or the project line's head (undefined). */
+  readonly view: { readonly version: string | undefined } | undefined;
 
-  constructor(client: SdlcClient, compiler: Compiler, project: string, workspace: string, depot?: DepotClient) {
+  constructor(client: SdlcClient, compiler: Compiler, project: string, workspace: string, depot?: DepotClient,
+    view?: { readonly version: string | undefined }) {
     this.#client = client;
     this.#compiler = compiler;
     this.project = project;
     this.workspace = workspace;
     this.#depot = depot;
+    this.view = view;
+  }
+
+  /** A project viewed (a version, or the line's head), not a workspace: nothing here is saved. */
+  get readOnly(): boolean {
+    return this.view !== undefined;
   }
 
   get revision(): Revision | undefined {
@@ -71,13 +80,21 @@ export class Workspace {
 
   /** Reads the workspace's current revision: every file, as saved, and its dependencies. Local edits are dropped. */
   async load(): Promise<void> {
-    const where = { project: this.project, workspace: this.workspace };
-    const revision = await this.#client.revision(where);
-    const files = await this.#client.pure({ ...where, revision: revision.id });
-    this.#revision = revision;
+    let files: PureFile[];
+    if (this.view?.version !== undefined) {
+      // a released version: its files and configuration as released
+      files = await this.#client.versionPure(this.project, this.view.version);
+      this.#revision = undefined;
+      this.#configuration = await this.#client.versionConfiguration(this.project, this.view.version);
+    } else {
+      const where = this.view ? { project: this.project } : { project: this.project, workspace: this.workspace };
+      const revision = await this.#client.revision(where);
+      files = await this.#client.pure({ ...where, revision: revision.id });
+      this.#revision = revision;
+      this.#configuration = await this.#client.configuration({ ...where, revision: revision.id });
+    }
     this.#saved = new Map(files.map((f) => [f.path, f.pureCode]));
     this.#files = new Map(files.map((f) => [f.path, { key: f.path, savedPath: f.path, text: f.pureCode }]));
-    this.#configuration = await this.#client.configuration({ ...where, revision: revision.id });
     await this.#loadDependencies();
   }
 
@@ -202,6 +219,7 @@ export class Workspace {
    * then reads the workspace again. Answers the problems that stopped it (none when it saved).
    */
   async save(message: string): Promise<Problem[]> {
+    if (this.readOnly) throw new Error(`${this.project} is being viewed: nothing is saved from here`);
     const { changes, problems } = await this.pending();
     if (problems.length > 0) return problems;
     if (changes.length === 0) return [];
