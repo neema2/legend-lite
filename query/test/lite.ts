@@ -3,9 +3,9 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import type { PlannerPort } from '../src/backend/wasm-grammar.ts';
-import { WasmGrammar } from '../src/backend/wasm-grammar.ts';
-import type { PlannerRequest } from '../src/backend/planner-worker.ts';
+import type { PlannerPort } from '../../engine-client/src/legend/wasm-grammar.ts';
+import { WasmGrammar } from '../../engine-client/src/legend/wasm-grammar.ts';
+import type { PlannerRequest } from '../../engine-client/src/legend/planner-worker.ts';
 import { ModelGraph } from '../src/model/graph.ts';
 import type { PureModelContextText } from '../src/backend/wire.ts';
 import { runfileDirUrl, runfileNamed } from '../../tools/js/runfiles.mts';
@@ -43,6 +43,7 @@ class DirectPort implements PlannerPort {
       case 'relationType': return e.relationTypeJsonOrError!(r.model, r.lambda) as string;
       case 'plan': return e.planJsonOrError!(r.model, r.lambda, r.runtime) as string;
       case 'warm': e.warmModel!(r.model); return 'OK\n';
+      case 'compile': return e.compileOrError!(r.model) as string;
     }
   }
 }

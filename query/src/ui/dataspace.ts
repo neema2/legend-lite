@@ -4,7 +4,7 @@
 
 import { recent, type AppContext, type LoadedProject } from '../app/context.ts';
 import { formatRoute } from '../app/routes.ts';
-import type { PDataSpace, PDataSpaceExecutable } from '../model/pmcd.ts';
+import type { PDataSpace, PDataSpaceExecutable } from '../../../engine-client/src/legend/pmcd.ts';
 import { docOf, humanize, multiplicityText, simpleName } from '../model/graph.ts';
 import { h, markdown, mount, select, type Child } from './dom.ts';
 

@@ -16,10 +16,10 @@ import { connectModelHome } from '../../depot-client/src/model-home.ts';
 import { loadByName, versionsOf } from '../src/app/by-name.ts';
 import { AppContext, gavOf, type AppConfig, type CubeRows, type LoadedProject } from '../src/app/context.ts';
 import { App } from '../src/app/app.ts';
-import { BrowserEngine } from '../src/backend/browser-engine.ts';
+import { BrowserEngine } from '../../engine-client/src/legend/browser-engine.ts';
 import { HttpEngine, RoutedEngine, type Engine, type Grammar, type QueryStore } from '../src/backend/engine.ts';
 import { BrowserRecords, LOCAL_API, localQueryServer, QueryStoreClient } from '../../query-store/src/index.ts';
-import { WasmGrammar, WorkerPort } from '../src/backend/wasm-grammar.ts';
+import { WasmGrammar, WorkerPort } from '../../engine-client/src/legend/wasm-grammar.ts';
 import { ModelGraph } from '../src/model/graph.ts';
 import { h, mount } from '../src/ui/dom.ts';
 

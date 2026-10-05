@@ -9,6 +9,7 @@ interface TeavmModule {
     relationTypeJsonOrError(model: string, lambdaJson: string): string;
     planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
     warmModel(model: string): number;
+    compileOrError(model: string): string;
   };
 }
 
@@ -18,7 +19,9 @@ export type PlannerRequest =
   | { readonly kind: 'compose'; readonly lambda: string; readonly style: string }
   | { readonly kind: 'relationType'; readonly model: string; readonly lambda: string }
   | { readonly kind: 'plan'; readonly model: string; readonly lambda: string; readonly runtime: string }
-  | { readonly kind: 'warm'; readonly model: string };
+  | { readonly kind: 'warm'; readonly model: string }
+  // the whole model compiled, its errors as a list (Studio's live problems)
+  | { readonly kind: 'compile'; readonly model: string };
 
 export type PlannerMessage = PlannerRequest & { readonly id: number; readonly base: string };
 
@@ -48,6 +51,7 @@ function answer(m: TeavmModule, r: PlannerRequest): string {
     case 'relationType': return m.exports.relationTypeJsonOrError(r.model, r.lambda);
     case 'plan': return m.exports.planJsonOrError(r.model, r.lambda, r.runtime);
     case 'warm': m.exports.warmModel(r.model); return 'OK\n';
+    case 'compile': return m.exports.compileOrError(r.model);
   }
 }
 

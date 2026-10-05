@@ -4,7 +4,7 @@
 import type { ModelHomeConfig } from '../../../depot-client/src/model-home.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
 import type { Engine, QueryStore } from '../backend/engine.ts';
-import type { WasmGrammar } from '../backend/wasm-grammar.ts';
+import type { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { PureModelContextText } from '../backend/wire.ts';
 import type { ModelGraph } from '../model/graph.ts';
 
