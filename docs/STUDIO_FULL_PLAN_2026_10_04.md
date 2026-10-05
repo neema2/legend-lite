@@ -111,6 +111,11 @@ A model's mapping points at a database the browser cannot reach. Rows come, in o
 - **Done when:** `//studio:verify_test` runs a function, a service and a mapping query on the demo model and checks rows.
 
 ### A4. Tests (upstream's testable framework)
+**2026-10-05: PARKED behind the protocol program** (the user: "park 'user tests' as a big design and architecture
+program ... after getting round trip working first ... then we come back and design tests holistically end to end").
+Tests in the tab and on a server must give the same verdict, so they get one architecture before either is built; the
+questions are listed in `docs/PROTOCOL_PROGRAM_2026_10_05.md` §6. The provisional work (a JDBC-free test plan in core,
+a tab runner, a Tests panel) is kept on the branch `studio-tests-parked`, not built on. The original scope follows.
 - **Core work** (announced on `main`; the charter `docs/DEFERRED_TEST_EXECUTION.md`): `testable/runTests` with the
   engine's assertion semantics (`equalTo`, `equalToJson`, `equalToRelation`, embedded data resolution, test suites per
   mapping/service/function), a WASM export, and lite's server route. Spec by upstream's PCT/engine tests, never by
@@ -145,6 +150,11 @@ The common thread: **the full model round trip** — upstream servers speak enti
 depend on B1.
 
 ### B1. The model round trip (core; S19, S20 — design §3 pieces e, f)
+**2026-10-05: now the protocol program, `docs/PROTOCOL_PROGRAM_2026_10_05.md`** (the user: "do the protocol program
+the right way"): one typed hub -- parse, emit, read and compose all on the protocol records, each leg with an exact
+oracle. Done so far: the model printer, byte-identical with the engine's composer over the corpus (31,452 elements,
+14,383 models, 0 mismatches; branch `studio-b1`), still over untyped JSON -- the program moves it onto records after
+the model reader lands. The text below is the original scope; the program's doc governs.
 - **Model printer** (`jsonToGrammar/model`, engine-exact, byte parity with 4.145.0 goldens as for lambdas) and **model
   JSON reader** (PMCD `data` contexts → protocol records → compiler), both in core, both WASM exports, both on lite's
   server.
