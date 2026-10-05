@@ -16,6 +16,8 @@
 //   WAREHOUSE=http://127.0.0.1:8772 [WAREHOUSE_SNAP=1] PORT=8022 bazel run //datacube:verify_features
 //                                                  (the sample, LIVE on a warehouse: warehouse-source.mjs)
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
@@ -28,7 +30,7 @@ import {
 import { isNumeric } from '../../engine-client/src/types.ts';
 import { sampleCsv } from '../src/samples.ts';
 import { WAREHOUSE, openWarehouseTable } from './warehouse-source.mjs';
-import { serve, siteRoot } from './harness.mjs';
+import { frames, serve, siteRoot } from './harness.mjs';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 
 const ROOT = siteRoot();
@@ -166,18 +168,18 @@ async function reset() {
   const shut = page.locator('.dc-app-overlay:not([hidden]) .dc-overlay-close');
   for (let i = 0; i < 6 && await shut.count(); i += 1) {
     await shut.first().click().catch(() => {});
-    await page.waitForTimeout(100);
+    await settle();
   }
   for (let i = 0; i < 3; i += 1) {
     const open = await page.locator('.dc-menu, .dc-app-overlay:not([hidden])')
       .count();
     if (!open) return;
     await page.keyboard.press('Escape').catch(() => {});
-    await page.waitForTimeout(150);
+    await settle();
   }
   // Escape did not clear it; click somewhere inert.
   await page.mouse.click(5, 5).catch(() => {});
-  await page.waitForTimeout(150);
+  await settle();
 }
 
 /**
@@ -212,7 +214,24 @@ async function invariants(where) {
   return broken.length === 0;
 }
 
+// SHARDED BY SECTION under `bazel test` (Bazel workplan P4-04): shard i of n runs every n-th section, each from a
+// fresh cube, so one section can fail without hiding another; the checks before the first section run in every shard.
+const SHARDS = Number(process.env.TEST_TOTAL_SHARDS ?? 1);
+const SHARD = Number(process.env.TEST_SHARD_INDEX ?? 0);
+if (process.env.TEST_SHARD_STATUS_FILE) await writeFile(process.env.TEST_SHARD_STATUS_FILE, '');
+let sectionIndex = -1;
+let sectionOn = true;
+async function section(name) {
+  sectionIndex += 1;
+  sectionOn = sectionIndex % SHARDS === SHARD;
+  if (sectionOn && SHARDS > 1) {
+    console.log(`\n-- section ${sectionIndex}: ${name}`);
+    await freshCube();
+  }
+}
+
 async function check(name, fn) {
+  if (!sectionOn) return;
   if (ONLY && !name.toLowerCase().includes(ONLY.toLowerCase())) return;
   await reset();
   const started = Date.now();
@@ -397,7 +416,7 @@ async function menu(path, { row = 0, col = 0, requery = true } = {}) {
     const sc = document.querySelector('.dc-scroller');
     if (sc) sc.scrollLeft = 0;
   });
-  await page.waitForTimeout(80);
+  await settle();
   const cell = page.locator('.dc-row').nth(row).locator('.dc-cell').nth(col);
   // A TIMEOUT SHORTER THAN THE CHECK DEADLINE, so Playwright's own
   // explanation ("not stable", "intercepts pointer events", "outside
@@ -448,7 +467,7 @@ async function menu(path, { row = 0, col = 0, requery = true } = {}) {
     }
     if (i < path.length - 1) {
       await target.hover();
-      await page.waitForTimeout(150);
+      await settle();
     } else {
       await target.click({ timeout: 5000 });
     }
@@ -667,6 +686,7 @@ try {
   });
 
   // ---- reading the data ---------------------------------------------
+  await section('reading the data');
 
   await check('grid renders rows and headers', async () => {
     const s = await state();
@@ -678,6 +698,7 @@ try {
   });
 
   // ---- sorting --------------------------------------------------------
+  await section('sorting');
 
   await check('sort ascending', async () => {
     await menu(['Sort', 'Ascending']);
@@ -768,7 +789,7 @@ try {
     const before = (await state()).pure;
     await page.locator(`.dc-th[data-column="${a}"]`).click({ position: { x: 8, y: 8 } });
     await page.locator(`.dc-th[data-column="${b}"]`).click({ position: { x: 8, y: 8 }, modifiers: ['Shift'] });
-    await page.waitForTimeout(150);
+    await settle();
     const marked = await page.evaluate(() =>
       [...document.querySelectorAll('.dc-th.dc-th-selected')].map((e) => e.dataset.column));
     const selectedCells = await page.locator('.dc-cell.dc-selected').count();
@@ -809,7 +830,7 @@ try {
     await page.mouse.move(g.x + g.width / 2 + 40, g.y + g.height / 2, { steps: 4 });
     await page.mouse.move(g.x + g.width / 2 + 80, g.y + g.height / 2, { steps: 4 });
     await page.mouse.up();
-    await page.waitForTimeout(600);
+    await settle();
     const after = (await page.locator(`.dc-th[data-column="${name}"]`)
       .boundingBox()).width;
     if (Math.abs(after - (before + 80)) > 6) {
@@ -845,7 +866,7 @@ try {
       sc.scrollTop = 200;
       sc.dispatchEvent(new Event('scroll'));
     });
-    await page.waitForTimeout(100);
+    await settle();
     const hint = await page.evaluate(() => {
       const h = document.querySelector('.dc-scroll-hint');
       return h && !h.hidden ? h.textContent : null;
@@ -858,6 +879,7 @@ try {
   });
 
   // ---- filtering ------------------------------------------------------
+  await section('filtering');
 
   await check('add filter from a cell', async () => {
     // the clicked cell's VALUE: equal text is not equal values (a Float rounded to two
@@ -911,6 +933,7 @@ try {
   });
 
   // ---- the filter editor -------------------------------------------------
+  await section('the filter editor');
   //
   // This builds a COMPOUND filter in the editor -- two conditions,
   // then the connective flipped from all-of to any-of. Nothing runs
@@ -925,7 +948,7 @@ try {
     const create = page.locator('button', { hasText: 'Create New Filter' });
     if (await create.count()) {
       await create.first().click();
-      await page.waitForTimeout(250);
+      await settle();
     }
     const columns = page.locator('.dc-filter-column');
     if (!(await columns.count())) {
@@ -938,7 +961,7 @@ try {
     const first = ['region', 'desk', 'book'].find((n) => names.includes(n));
     if (!first) throw new Error(`no text dimension among ${names.join(',')}`);
     await columns.first().selectOption(first);
-    await page.waitForTimeout(150);
+    await settle();
     const firstValue = await page.evaluate((col) => {
       const i = [...document.querySelectorAll('.dc-th[data-column]')]
         .findIndex((e) => e.dataset.column === col);
@@ -951,7 +974,7 @@ try {
     // NOTHING RUNS UNTIL APPLY, as upstream's Filter window: an edit
     // is a draft.
     const drafted = await statusNow();
-    await page.waitForTimeout(300);
+    await settle();
     if ((await statusNow()) !== drafted) {
       throw new Error('an edit re-queried before Apply');
     }
@@ -964,14 +987,14 @@ try {
 
     // A second condition, on a different column, joined with AND.
     await page.locator('.dc-filter-ctl', { hasText: '+' }).first().click();
-    await page.waitForTimeout(250);
+    await settle();
     if ((await page.locator('.dc-filter-column').count()) < 2) {
       throw new Error('"+" did not add a second condition');
     }
     const second = ['desk', 'book', 'region'].find(
       (n) => names.includes(n) && n !== first);
     await page.locator('.dc-filter-column').nth(1).selectOption(second);
-    await page.waitForTimeout(150);
+    await settle();
     const secondValue = await page.evaluate((col) => {
       const i = [...document.querySelectorAll('.dc-th[data-column]')]
         .findIndex((e) => e.dataset.column === col);
@@ -1105,6 +1128,7 @@ try {
   });
 
   // ---- grouping and pivots --------------------------------------------
+  await section('grouping and pivots');
 
   await check('vertical pivot (row group)', async () => {
     // A LOW-CARDINALITY column, by NAME. Grouping on trade_id gives
@@ -1411,7 +1435,7 @@ try {
       (n) => dims.includes(n) && n !== groupBy);
     await menu(['Pivot', /^Horizontal Pivot on/],
       { col: await needCol(across) });
-    await page.waitForTimeout(1200);
+    await settle();
 
     const after = await byPosition();
     // The plain columns keep their order relative to one another...
@@ -1469,7 +1493,7 @@ try {
       if (!want || want.value === null) throw new Error('no grouped notional to compare');
 
       await menu(['Pivot', /^Horizontal Pivot on/], { col: await needCol(across) });
-      await page.waitForTimeout(1200);
+      await settle();
       const cols = await byPosition();
       const total = '__pivot_total____|__notional';
       const at = cols.indexOf(total);
@@ -1525,7 +1549,7 @@ try {
     const want = await cell('pnl');
     if (want.value === null) throw new Error('no grouped pnl to compare');
     await menu(['Pivot', /^Horizontal Pivot on/], { col: await needCol(across) });
-    await page.waitForTimeout(800);
+    await settle();
     const pivotedPnl = await page.evaluate(() =>
       [...document.querySelectorAll('.dc-th[data-column]')]
         .map((e) => e.dataset.column)
@@ -1533,7 +1557,7 @@ try {
     if (!pivotedPnl) throw new Error('pnl was not pivoted to begin with');
     await menu(['Pivot', /^Exclude Column pnl from Horizontal Pivot/],
       { col: await needCol(pivotedPnl) });
-    await page.waitForTimeout(800);
+    await settle();
     const got = await cell('pnl');
     if (!closeTyped(got.value, want.value, got.type)) {
       throw new Error(`pnl kept out of the pivot reads ${String(got.value)};`
@@ -1552,6 +1576,7 @@ try {
   });
 
   // ---- columns ---------------------------------------------------------
+  await section('columns');
 
   // Whatever the pivot checks left behind, the cube goes back to flat
   // detail rows here. Without this a failed pivot leaks its grouping
@@ -1653,7 +1678,7 @@ try {
     await page.evaluate(() => {
       document.querySelector('.dc-scroller').scrollLeft = 0;
     });
-    await page.waitForTimeout(150);
+    await settle();
     if (Math.abs(at300 - at0) > 2) {
       throw new Error(`the pinned column scrolled away: ${at0} -> ${at300}`);
     }
@@ -1704,16 +1729,17 @@ try {
   });
 
   // ---- the columns panel ------------------------------------------------
+  await section('the columns panel');
 
   await check('columns panel lists and searches', async () => {
     const all = await page.locator('.dc-tool-panel-row').count();
     if (!all) throw new Error('the panel lists nothing');
     await page.fill('.dc-tool-panel-search', 'zzzz');
-    await page.waitForTimeout(150);
+    await settle();
     const none = await page.locator('.dc-tool-panel-row').count();
     if (none !== 0) throw new Error(`search matched ${none} for "zzzz"`);
     await page.fill('.dc-tool-panel-search', '');
-    await page.waitForTimeout(150);
+    await settle();
     const back = await page.locator('.dc-tool-panel-row').count();
     if (back !== all) throw new Error(`clearing search left ${back}/${all}`);
     return `${all} columns`;
@@ -1730,6 +1756,7 @@ try {
   });
 
   // ---- export and clipboard ---------------------------------------------
+  await section('export and clipboard');
 
   // WHAT EACH FILE IS, not only that one arrived (2026-09-29: the old check passed a .xls that
   // was not a workbook, a PDF a strict reader refused, and every format carrying columns the
@@ -1828,7 +1855,7 @@ try {
       const text = await page.locator('.dc-alert-warning').innerText({ timeout: 3000 });
       if (!/Confirm you want to proceed with export/.test(text)) throw new Error(`warning read ${text}`);
       await answerExport('Decline');
-      await page.waitForTimeout(400);
+      await settle();
       if (downloaded) throw new Error('Decline still downloaded');
       if (await page.locator('.dc-alert').count()) throw new Error('the warning stayed open');
       return 'warned, declined, nothing sent';
@@ -1868,7 +1895,7 @@ try {
 
   await check('Pin Left is checked once the column is pinned left', async () => {
     await menu(['Pin', 'Pin Left'], { requery: false });
-    await page.waitForTimeout(250);
+    await settle();
     const own = (text) =>
       `.dc-menu-item:has(> .dc-menu-label:text-is(${JSON.stringify(text)}))`;
     await page.locator('.dc-row').first().locator('.dc-cell').first().click({ button: 'right' });
@@ -1887,7 +1914,7 @@ try {
     await menu(['Copy', /^Column .* as Plain Text$/], { requery: false });
     // the copy is asynchronous (the clipboard API is a promise): read until it lands
     let text = '';
-    for (const until = Date.now() + 5_000; Date.now() < until && !text.trim(); await page.waitForTimeout(50)) {
+    for (const until = Date.now() + 5_000; Date.now() < until && !text.trim(); await frames(page)) {
       text = await page.evaluate(() => navigator.clipboard.readText());
     }
     if (!text || !text.trim()) throw new Error('the clipboard is empty');
@@ -1895,6 +1922,7 @@ try {
   });
 
   // ---- the editor --------------------------------------------------------
+  await section('the editor');
 
   await check('the properties editor opens with its tabs', async () => {
     await menu(['Properties...'], { requery: false });
@@ -1913,7 +1941,7 @@ try {
     for (let i = 0; i < n; i += 1) {
       const name = (await tabs.nth(i).textContent())?.trim() ?? `#${i}`;
       await tabs.nth(i).click();
-      await page.waitForTimeout(150);
+      await settle();
       const body = await page.evaluate(() => {
         const panel = document.querySelector('.dc-app-overlay');
         const b = panel?.querySelector('[role=tabpanel], .dc-tab-body')
@@ -1923,12 +1951,13 @@ try {
       if (body < 20) empty.push(name);
     }
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
+    await settle();
     if (empty.length) throw new Error(`blank panels: ${empty.join(', ')}`);
     return `${n} tabs, all populated`;
   });
 
   // ---- the columns selector ----------------------------------------------
+  await section('the columns selector');
   //
   // Add, remove and REORDER, through the editor's Columns tab. This
   // was the one part of the product no harness had ever driven, and
@@ -1955,7 +1984,7 @@ try {
       throw new Error(`no ${name} tab; the editor offers ${seen.join(', ')}`);
     }
     await tab.first().click();
-    await page.waitForTimeout(250);
+    await settle();
   }
 
   async function applyEditor() {
@@ -1971,17 +2000,17 @@ try {
     await page.waitForSelector('.dc-menu', { timeout: 10_000 });
     // under View, now
     await pickEntry('Properties...');
-    await page.waitForTimeout(300);
+    await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
       .click();
-    await page.waitForTimeout(150);
+    await settle();
     const box = page.locator('.dc-check', { hasText: label })
       .locator('input');
     if (on) await box.first().check();
     else await box.first().uncheck();
     await page.locator('.dc-editor-footer button', { hasText: 'Apply' })
       .click();
-    await page.waitForTimeout(400);
+    await settle();
     await reset();
     await settle();
   };
@@ -1996,10 +2025,10 @@ try {
     await page.waitForSelector('.dc-menu', { timeout: 10_000 });
     // under View, now
     await pickEntry('Properties...');
-    await page.waitForTimeout(300);
+    await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
       .click();
-    await page.waitForTimeout(150);
+    await settle();
     // BY ITS OWN LABEL: a `.dc-field` holds several inputs, and
     // taking the first has twice now toggled a different setting.
     const box = page.locator('.dc-check', {
@@ -2009,7 +2038,7 @@ try {
     else await box.first().uncheck();
     await page.locator('.dc-editor-footer button', { hasText: 'Apply' })
       .click();
-    await page.waitForTimeout(400);
+    await settle();
     await reset();
     await settle();
   };
@@ -2070,7 +2099,7 @@ try {
     await rows.nth(2).click();
     // '‹' -- the second of the two move buttons.
     await page.locator('.dc-selector-move').nth(1).click();
-    await page.waitForTimeout(200);
+    await settle();
     await applyEditor();
     const after = await gridColumns();
     if (after.includes(removed)) {
@@ -2092,7 +2121,7 @@ try {
     const back = avail.filter({ hasText: removed ?? '' });
     await ((await back.count()) ? back.first() : avail.first()).click();
     await page.locator('.dc-selector-move').nth(0).click();
-    await page.waitForTimeout(200);
+    await settle();
     await applyEditor();
     const after = await gridColumns();
     if (!after.includes(removed)) {
@@ -2112,7 +2141,7 @@ try {
     const n = await rows.count();
     if (n < 3) throw new Error(`only ${n} columns to reorder`);
     await rows.nth(n - 1).dragTo(rows.nth(0));
-    await page.waitForTimeout(300);
+    await settle();
     await applyEditor();
     const after = await gridColumns();
     if (after.join(',') === before.join(',')) {
@@ -2130,6 +2159,7 @@ try {
   });
 
   // ---- round trips -------------------------------------------------------
+  await section('round trips');
   //
   // Do a thing, undo it, and the cube must be EXACTLY as it was.
   //
@@ -2203,7 +2233,7 @@ try {
       // a cosmetic change paints after the query settles: give it the frames it needs
       let changed = await fullState();
       for (let i = 0; i < 10 && firstDifference(before, changed) === null; i += 1) {
-        await page.waitForTimeout(100);
+        await settle();
         changed = await fullState();
       }
       if (firstDifference(before, changed) === null) {
@@ -2218,6 +2248,7 @@ try {
   }
 
   // ---- column properties -------------------------------------------------
+  await section('column properties');
 
   await check("changing a column's KIND changes how it aggregates", async () => {
     // The kind is not cosmetic: a dimension takes its unique value
@@ -2234,7 +2265,7 @@ try {
     const want = opts.find((n) => view.find((c) => c.name === n)?.type === 'Integer');
     if (!want) throw new Error(`no Integer column among ${opts.join(',')}`);
     await chooseColumn(want);
-    await page.waitForTimeout(250);
+    await settle();
     // the kind is always shown (the user, 2026-09-30): upstream's one ADVANCED setting, no
     // checkbox to open first
     if (await page.locator('.dc-check', { hasText: 'Show advanced settings?' }).count()) {
@@ -2247,7 +2278,7 @@ try {
       throw new Error(`${want} (Integer) defaults to ${await kind.inputValue()}, not measure`);
     }
     await kind.selectOption('dimension');
-    await page.waitForTimeout(200);
+    await settle();
     await applyEditor();
 
     // The panel is where a person sees it, so check there too -- but
@@ -2279,7 +2310,7 @@ try {
     const opts = await columnChoices();
     const want = opts[opts.length - 1];
     await chooseColumn(want);
-    await page.waitForTimeout(250);
+    await settle();
     const nameField = page.locator('.dc-field', { hasText: 'Display Name' })
       .first().locator('input').first();
     if (!(await nameField.count())) throw new Error('no Display Name field');
@@ -2304,11 +2335,13 @@ try {
   });
 
   // ---- saving and opening a cube -----------------------------------------
+  await section('saving and opening a cube');
   //
   // Driven end to end -- save, reload the page, open, the same typed values -- by its own
   // harness, `bazel run //datacube:verify_cubes`, which needs a fresh page per step.
 
   // ---- getting rid of a menu ---------------------------------------------
+  await section('getting rid of a menu');
   //
   // Reported for both menus: it opens, and then there is no way to
   // close it. The menu listened for Escape on ITSELF, which works
@@ -2328,7 +2361,7 @@ try {
     // the title bar's brand -- used here before -- is optional and a
     // host that wants the pixels turns it off.
     await page.locator('.dc-status-rows').click();
-    await page.waitForTimeout(200);
+    await settle();
     const left = await menuOpen();
     if (left) throw new Error(`${left} menu(s) survived a click elsewhere`);
     return 'gone';
@@ -2341,7 +2374,7 @@ try {
     // is what made Escape unreliable.
     await page.locator('.dc-tool-panel-search').focus().catch(() => {});
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
+    await settle();
     const left = await menuOpen();
     if (left) throw new Error(`${left} menu(s) survived Escape`);
     return 'gone';
@@ -2351,7 +2384,7 @@ try {
     await page.click('.dc-titlebar-menu');
     await page.waitForSelector('.dc-menu', { timeout: 5000 });
     await page.click('.dc-titlebar-menu');
-    await page.waitForTimeout(250);
+    await settle();
     const left = await menuOpen();
     if (left) {
       throw new Error(`${left} menu(s) left: pressing the button again`
@@ -2369,16 +2402,17 @@ try {
       throw new Error('no Filter control in the status bar');
     }
     await button.first().click();
-    await page.waitForTimeout(400);
+    await settle();
     const shown = await page.locator('.dc-filter-empty, .dc-filter-tree')
       .count();
     if (!shown) throw new Error('the Filter button opened nothing');
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
+    await settle();
     return 'opens the editor';
   });
 
   // ---- the dialogs are windows -------------------------------------------
+  await section('the dialogs are windows');
 
   await check('a dialog FLOATS over the grid, and does not grow the page',
     async () => {
@@ -2440,7 +2474,7 @@ try {
     // right-clicked, and ten checks timed out.
     await menu(['Properties...'], { requery: false });
     await page.locator('.dc-overlay-close').first().click();
-    await page.waitForTimeout(250);
+    await settle();
 
     // A closed window is GONE from the page, not hidden on it: several
     // can be open at once, so each is its own element and closing it
@@ -2471,7 +2505,7 @@ try {
     await menu(['Properties...'], { requery: false });
     // From the status bar: `menu()` starts by closing every window.
     await page.locator('.dc-status-filter').click();
-    await page.waitForTimeout(200);
+    await settle();
     const open = await page.evaluate(() =>
       [...document.querySelectorAll('.dc-app-overlay')]
         .map((w) => w.dataset.window));
@@ -2510,7 +2544,7 @@ try {
       await page.mouse.move(head.x + head.width / 2 - 90,
         head.y + head.height / 2 + 40, { steps: 6 });
       await page.mouse.up();
-      await page.waitForTimeout(200);
+      await settle();
       const moved = await box();
       if (moved.x === start.x && moved.y === start.y) {
         throw new Error(`dragging the title bar moved nothing:`
@@ -2523,7 +2557,7 @@ try {
       await page.mouse.down();
       await page.mouse.move(grip.x + 100, grip.y + 70, { steps: 6 });
       await page.mouse.up();
-      await page.waitForTimeout(200);
+      await settle();
       const sized = await box();
       if (sized.w <= moved.w || sized.h <= moved.h) {
         throw new Error(`the south-east grip did not resize:`
@@ -2532,7 +2566,7 @@ try {
 
       // Closed and reopened, it comes back where it was left.
       await page.locator('.dc-overlay-close').first().click();
-      await page.waitForTimeout(200);
+      await settle();
       await menu(['Properties...'], { requery: false });
       const again = await box();
       if (again.x !== sized.x || again.y !== sized.y
@@ -2542,12 +2576,13 @@ try {
           + ` ${again.x},${again.y}`);
       }
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(200);
+      await settle();
       return `moved to ${moved.x},${moved.y} and resized to`
         + ` ${sized.w}x${sized.h}`;
     });
 
   // ---- the chrome ---------------------------------------------------------
+  await section('the chrome');
 
   await check('the sidebar collapses and gives the width to the grid', async () => {
     const read = () => page.evaluate(() => ({
@@ -2582,7 +2617,7 @@ try {
       };
     });
     await page.setViewportSize({ width: 620, height: 800 });
-    await page.waitForTimeout(200);
+    await settle();
     const p0 = await probe();
     if (p0.range < 100) throw new Error('nothing to scroll; check is vacuous');
     await page.evaluate(() => {
@@ -2595,7 +2630,7 @@ try {
       document.querySelector('.dc-scroller').scrollLeft = 0;
     });
     await page.setViewportSize({ width: 1400, height: 900 });
-    await page.waitForTimeout(200);
+    await settle();
     if (Math.abs(p1.th - p1.td) > 2) {
       throw new Error(`header at ${p1.th}, its column at ${p1.td}`);
     }
@@ -2610,7 +2645,7 @@ try {
       '.dc-app-overlay:not([hidden]) .dc-overlay-close');
     for (let i = 0; i < 6 && await shut.count(); i += 1) {
       await shut.first().click().catch(() => {});
-      await page.waitForTimeout(120);
+      await settle();
     }
   };
 
@@ -3168,6 +3203,7 @@ try {
     });
 
   // ---- window columns -------------------------------------------------
+  await section('window columns');
   //
   // Every figure below is the DATABASE's, checked against an independent
   // reckoning: the grid's own measure summed in the page, or the raw
@@ -3300,6 +3336,7 @@ try {
   });
 
   // ---- child-group aggregates ------------------------------------------
+  await section('child-group aggregates');
   const addChildren = async ({ name, fn, of }) => {
     await openCalc();
     const ed = (sel) => page.locator(`.dc-coleditor ${sel}`);
@@ -3484,7 +3521,7 @@ try {
     await buffer.fill('200');
     await buffer.dispatchEvent('change');
     await page.locator('.dc-settings-ok').click();
-    await page.waitForTimeout(300);
+    await settle();
     const after = await drawn();
     // Back to the defaults, through the same window.
     await page.click('.dc-titlebar-menu');
@@ -3540,7 +3577,7 @@ try {
       const quiet = async () => {
         let seen = await page.evaluate(() => window.__dataCubeViews ?? 0);
         for (let i = 0; i < 50; i += 1) {
-          await page.waitForTimeout(100);
+          await settle();
           const now = await page.evaluate(() => window.__dataCubeViews ?? 0);
           if (now === seen && i >= 3) return;
           seen = now;
@@ -3598,10 +3635,10 @@ try {
     const year = (t) => keys.has(t);
     const [top0, second0] = await rows();
     await menu(['Pivot', 'Measures First in Column Headers'], { requery: false });
-    await page.waitForTimeout(400);
+    await settle();
     const [top1, second1] = await rows();
     await menu(['Pivot', 'Measures First in Column Headers'], { requery: false });
-    await page.waitForTimeout(400);
+    await settle();
     const [top2] = await rows();
     await menu(['Pivot', 'Clear All Horizontal Pivots']).catch(() => {});
     await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
@@ -3636,7 +3673,7 @@ try {
       dataTransfer: dt, clientX: target.x + 20, clientY: target.y + target.height * 0.8,
       bubbles: true, cancelable: true,
     });
-    await page.waitForTimeout(80);
+    await settle();
     const seen = await page.evaluate(() => {
       const zone = document.querySelector('.dc-tool-panel-zones .dc-zone-rows');
       const cs = [...(zone?.querySelectorAll('.dc-chip') ?? [])];
@@ -4428,10 +4465,10 @@ try {
     // the grid's menu, 2026-09-25.)
     await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Pivot"))')
       .hover();
-    await page.waitForTimeout(250);
+    await settle();
     const hovered = await showing();
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(150);
+    await settle();
     if (hovered.length !== 1 || hovered[0] !== 'Pivot') {
       throw new Error(`hovering Pivot showed ${hovered.length}:`
         + ` ${hovered.join(', ')}`);
@@ -4457,7 +4494,7 @@ try {
     const before = await heights();
     if (before.bar < 10) throw new Error('the zone bar is not on screen to fold');
     await page.click('.dc-zone-fold');
-    await page.waitForTimeout(200);
+    await settle();
     const after = await heights();
     if (after.bar !== 0) throw new Error('the zone bar is still on screen');
     if (after.grid <= before.grid) {
@@ -4469,7 +4506,7 @@ try {
       throw new Error('nothing in the title bar brings the zones back');
     }
     await page.click('.dc-titlebar-zones');
-    await page.waitForTimeout(200);
+    await settle();
     const back = await heights();
     if (back.bar < 10) throw new Error('the zones did not come back');
     return `grid ${before.grid} -> ${after.grid}px, and back to ${back.grid}`;
@@ -4480,7 +4517,7 @@ try {
       document.querySelector('.dc-app-middle').getBoundingClientRect().height));
     const before = await grid();
     await page.click('.dc-titlebar-fold');
-    await page.waitForTimeout(200);
+    await settle();
     if (await page.locator('.dc-titlebar-menu').count()) {
       throw new Error('the hamburger survived a folded title bar');
     }
@@ -4498,7 +4535,7 @@ try {
     const lipHeight = Math.round(await page.locator('.dc-titlebar')
       .evaluate((e) => e.getBoundingClientRect().height));
     await lip.click();
-    await page.waitForTimeout(200);
+    await settle();
     if (!(await page.locator('.dc-titlebar-menu').count())) {
       throw new Error('the lip did not bring the title bar back');
     }
@@ -4520,16 +4557,16 @@ try {
     const zoneFold = await cx('.dc-zone-fold');
     if (zoneFold === null || right - zoneFold > 20) throw new Error(`zone fold at ${zoneFold}, bar ends ${right}`);
     await page.click('.dc-zone-fold');
-    await page.waitForTimeout(150);
+    await settle();
     const back = await cx('.dc-titlebar-zones');
     const titleFold = await cx('.dc-titlebar-fold');
     await page.click('.dc-titlebar-fold');
-    await page.waitForTimeout(150);
+    await settle();
     const lip = await cx('.dc-titlebar-lip .dc-chevron-icon');
     const backFolded = await cx('.dc-titlebar-zones');
     await page.click('.dc-titlebar-zones');
     await page.click('.dc-titlebar-lip');
-    await page.waitForTimeout(150);
+    await settle();
     const near = (a, b) => a !== null && b !== null && Math.abs(a - b) <= 2;
     if (!near(back, zoneFold)) throw new Error(`zones back at ${back}, their fold was at ${zoneFold}`);
     if (!near(lip, titleFold)) throw new Error(`lip chevron at ${lip}, the title fold was at ${titleFold}`);
@@ -4557,22 +4594,22 @@ try {
     // land, so the bar returns for the length of one and folds
     // itself again afterwards.
     await page.click('.dc-zone-fold');
-    await page.waitForTimeout(200);
+    await settle();
     const shown = () => page.evaluate(() =>
       document.querySelector('.dc-zone-bar')?.hidden === false);
     if (await shown()) throw new Error('the zones did not fold');
     const head = page.locator('.dc-th[data-column]').first();
     await head.dispatchEvent('dragstart', { dataTransfer: null });
-    await page.waitForTimeout(150);
+    await settle();
     const during = await shown();
     const peeking = await page.evaluate(() =>
       document.querySelector('.dc-zone-bar')?.classList
         .contains('dc-peeking') ?? false);
     await head.dispatchEvent('dragend', { dataTransfer: null });
-    await page.waitForTimeout(150);
+    await settle();
     const afterwards = await shown();
     await page.click('.dc-titlebar-zones');
-    await page.waitForTimeout(200);
+    await settle();
     if (!during) throw new Error('a dragged column had nowhere to land');
     if (!peeking) throw new Error('the bar came back unmarked, so it reads'
       + ' as unfolded rather than as a peek');
@@ -4605,7 +4642,7 @@ try {
     });
     const before = await focused();
     await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(200);
+    await settle();
     const after = await focused();
     if (!before && !after) throw new Error('no cell ever shows focus');
     if (!before || !after) {
@@ -4640,7 +4677,7 @@ try {
     const put = async (loc, value) => {
       await loc.fill(String(value));
       await loc.dispatchEvent('change');
-      await page.waitForTimeout(80);
+      await settle();
     };
     const properties = async (tab, column) => {
       await reset();
@@ -4655,7 +4692,7 @@ try {
       const before = await statusNow();
       await page.locator(`${O} .dc-editor-footer button`, { hasText: 'OK' }).click();
       await settle(before);
-      await page.waitForTimeout(150);
+      await settle();
     };
     const general = (fn) => async () => { await properties('General Properties'); await fn(); await okEditor(); };
     const column = (name, fn) => async () => {
@@ -4871,6 +4908,7 @@ try {
   }
 
   // ---- Ad Hoc Analysis mode ----------------------------------------------
+  await section('Ad Hoc Analysis mode');
   //
   // Against the real planner and engine: every figure below is the
   // database's, and they are checked against EACH OTHER -- a member's
