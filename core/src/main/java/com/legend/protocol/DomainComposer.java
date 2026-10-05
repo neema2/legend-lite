@@ -281,6 +281,19 @@ final class DomainComposer {
      */
     static String declarationPrefix(String keyword, String indent, Json.Obj annotated) {
         List<Json.Obj> taggedValues = objs(annotated, "taggedValues");
+        return documentationOnly(taggedValues, indent)
+                + (keyword.isEmpty() ? "" : keyword + " ")
+                + annotations(objs(annotated, "stereotypes"), withoutDocumentation(taggedValues));
+    }
+
+    /** {@code renderDocumentation}: the block for the one doc tagged value to promote, or {@code ""}. */
+    static String documentationOnly(List<Json.Obj> taggedValues, String indent) {
+        Json.Obj documentation = documentation(taggedValues);
+        return documentation == null ? "" : documentationBlock(taggedValueText(documentation), indent);
+    }
+
+    /** {@code withoutDocumentation}: the tagged values less the one promoted to a block. */
+    static List<Json.Obj> withoutDocumentation(List<Json.Obj> taggedValues) {
         Json.Obj documentation = documentation(taggedValues);
         List<Json.Obj> rest = new ArrayList<>();
         for (Json.Obj tv : taggedValues) {
@@ -288,9 +301,7 @@ final class DomainComposer {
                 rest.add(tv);
             }
         }
-        return (documentation == null ? "" : documentationBlock(taggedValueText(documentation), indent))
-                + (keyword.isEmpty() ? "" : keyword + " ")
-                + annotations(objs(annotated, "stereotypes"), rest);
+        return rest;
     }
 
     /** {@code renderAnnotations}. */

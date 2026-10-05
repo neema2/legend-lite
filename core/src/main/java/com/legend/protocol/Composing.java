@@ -100,6 +100,12 @@ final class Composing {
         return out;
     }
 
+    /** A field's value, or null when absent or JSON null. */
+    static @com.legend.base.Nullable Json.Node value(Json.Obj o, String key) {
+        Json.Node v = o.getOr(key, null);
+        return v instanceof Json.Null ? null : v;
+    }
+
     /** A string field, or null when absent or JSON null. */
     static @com.legend.base.Nullable String str(Json.Obj o, String key) {
         return o.getOr(key, null) instanceof Json.Str s ? s.value() : null;
