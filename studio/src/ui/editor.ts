@@ -65,19 +65,38 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       h('div', { class: 'editor-empty__title' }, 'Essential Keyboard Shortcuts'),
       h('div', { class: 'shortcuts' },
         shortcut('Push Local Changes', ['Ctrl', 'S']), shortcut('Compile', ['F9']), shortcut('New Element', ['Ctrl', 'Shift', 'N']))));
-  const problemsPanel = h('div', { class: 'panel-body', 'data-testid': 'problems' });
-  const problemsTitle = h('div', { class: 'panel-title' }, 'Problems');
+  // upstream's panel group (census 6): closed at first; the PROBLEMS tab with its count, expand and close; opened
+  // to 300px from the status bar (its problems counts, or the terminal toggle)
+  const problemsPanel = h('div', { class: 'panel-group__content', 'data-testid': 'problems' });
+  const problemsBadge = h('div', { class: 'panel-group__badge' });
+  let panelOpen = false;
+  let panelMaximised = false;
+  const panel = h('div', { class: 'panel-group' });
+  const main = h('div', { class: 'main' });
+  const renderPanel = (): void => {
+    panel.classList.toggle('panel-group--closed', !panelOpen);
+    main.classList.toggle('main--panel-maximised', panelOpen && panelMaximised);
+    clear(panel);
+    panel.append(
+      h('div', { class: 'panel-group__header' },
+        h('div', { class: 'panel-group__tabs' }, h('button', { class: 'panel-group__tab panel-group__tab--active' }, 'Problems', problemsBadge)),
+        h('div', { class: 'panel-group__actions' },
+          h('button', { class: 'panel-group__action', title: 'Toggle expand/collapse', onclick: () => { panelMaximised = !panelMaximised; renderPanel(); } },
+            icon(panelMaximised ? 'chevronDown' : 'chevronUp', '18px')),
+          h('button', { class: 'panel-group__action', title: 'Close', onclick: () => { panelOpen = false; renderPanel(); renderStatus(); } }, icon('x', '18px')))),
+      problemsPanel);
+  };
+  const openPanel = (): void => {
+    panelOpen = true;
+    renderPanel();
+    renderStatus();
+  };
   const status = h('div', { class: 'status-bar' });
   const activityBar = h('div', { class: 'activity-bar' });
 
-  root.append(h('div', { class: 'studio' },
-    activityBar,
-    sideBar,
-    h('div', { class: 'main' },
-      tabsBar,
-      h('div', { class: 'editor-area' }, editorHost, empty),
-      h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, problemsTitle), problemsPanel)),
-    status));
+  main.append(tabsBar, h('div', { class: 'editor-area' }, editorHost, empty), panel);
+  root.append(h('div', { class: 'studio' }, activityBar, sideBar, main, status));
+  renderPanel();
 
   // upstream's options (census 5.2, CodeEditorUtils.ts:51-78); what it leaves unset (minimap, line height, scrolling
   // past the end) stays Monaco's default here too
@@ -102,6 +121,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
     if (e.key === 'F9') { e.preventDefault(); void compile(); }
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'n') { e.preventDefault(); void newElement(); }
+    if (e.ctrlKey && e.key === '`') { e.preventDefault(); panelOpen = !panelOpen; renderPanel(); renderStatus(); }
   };
   document.addEventListener('keydown', onKey);
 
@@ -323,19 +343,23 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
 
   const renderProblems = (): void => {
     clear(problemsPanel);
-    problemsTitle.textContent = compiling ? 'Problems (compiling…)' : `Problems (${problems.length})`;
-    if (problems.length === 0) problemsPanel.append(h('div', { class: 'panel-empty' }, compiling ? '' : 'No problems.'));
+    problemsBadge.textContent = String(problems.length);
+    // census 6: upstream's empty text; a row per problem -- the error icon, the message (its full text as tooltip),
+    // and where: the element and [Ln, Col] (upstream's text mode shows [Ln, Col]; lite's text is per element)
+    if (problems.length === 0) problemsPanel.append(h('div', { class: 'panel-group__empty' }, compiling ? '' : 'No problems have been detected in the workspace.'));
+    const list = h('div', { class: 'panel-group__list' });
     for (const p of problems) {
       const f = p.key ? ws.file(p.key) : undefined;
-      problemsPanel.append(h('div', { class: 'problem', onclick: () => {
+      list.append(h('button', { class: 'panel-group__problem', title: p.message, onclick: () => {
         if (!p.key) return;
         show(p.key);
         if (p.line) { editor.revealLineInCenter(p.line); editor.setPosition({ lineNumber: p.line, column: p.column ?? 1 }); }
       } },
-      h('span', { class: 'problem-icon' }, '⨯'),
-      h('span', { class: 'problem-message' }, p.message),
-      h('span', { class: 'problem-where' }, f ? `${fileLabel(f)}${p.line ? ` [Ln ${p.line}${p.column ? `, Col ${p.column}` : ''}]` : ''}` : '')));
+      h('div', { class: 'panel-group__problem__icon' }, icon('error')),
+      h('div', { class: 'panel-group__problem__message' }, p.message),
+      h('div', { class: 'panel-group__problem__source' }, f ? `${fileLabel(f)}${p.line ? ` [Ln ${p.line}${p.column ? `, Col ${p.column}` : ''}]` : ''}` : '')));
     }
+    if (problems.length > 0) problemsPanel.append(list);
   };
 
   const setProblems = (next: Problem[]): void => {
@@ -351,6 +375,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     if (compileTimer) clearTimeout(compileTimer);
     compiling = true;
     renderProblems();
+    renderStatus();
     try {
       setProblems(await ws.compile());
     } catch (e) {
@@ -453,15 +478,32 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   const renderStatus = (): void => {
     clear(status);
     const changed = ws.removed().length + ws.files().filter((f) => ws.isChanged(f.key)).length;
+    // upstream's status bar (census 7): left, the branch icon, project / workspace (a * for unpushed changes; each
+    // goes back to setup) and the problems counts (they open Problems); right, the sync text, the push button,
+    // Compile (the hammer wiggles while compiling) and the panel toggle. `data-*` are the harness's to read.
+    const errors = problems.length;
     status.append(
-      h('button', { class: 'status-item', onclick: () => ctx.back(), title: 'Back to workspace setup' }, `${ctx.project}`),
-      h('span', { class: 'status-item' }, `workspace: ${ctx.workspace}`),
-      h('span', { class: 'status-item', title: ws.revision?.id ?? '' }, `revision ${ws.revision?.id.slice(0, 8) ?? '—'}`),
-      h('span', { class: `status-item${changed ? ' warn' : ''}`, 'data-testid': 'changes-count' }, changed ? `${changed} local change${changed === 1 ? '' : 's'}` : 'no local changes'),
-      h('span', { class: `status-item${problems.length ? ' error' : ''}`, 'data-testid': 'problems-count' }, compiling ? 'compiling…' : `${problems.length} problem${problems.length === 1 ? '' : 's'}`),
-      h('div', { class: 'status-spacer' }),
-      h('button', { class: 'status-item status-action', onclick: () => void compile(), 'data-testid': 'compile' }, 'Compile (F9)'),
-      h('button', { class: 'status-item status-action primary', onclick: () => void save(), 'data-testid': 'save-status' }, 'Save (Ctrl+S)'));
+      h('div', { class: 'status-bar__left' },
+        h('div', { class: 'status-bar__workspace' },
+          icon('codeBranch'),
+          h('button', { class: 'status-bar__workspace__project', title: 'Go back to workspace setup using the specified project', onclick: () => ctx.back() }, ctx.project),
+          '/',
+          h('button', { class: 'status-bar__workspace__workspace', title: 'Go back to workspace setup using the specified workspace', onclick: () => ctx.back() },
+            `${ctx.workspace}${changed ? '*' : ''}`)),
+        h('button', { class: 'status-bar__problems', title: `Error: ${errors}, Warnings: 0`, 'data-testid': 'problems-count',
+          'data-errors': errors, 'data-state': compiling ? 'compiling' : 'idle', onclick: openPanel },
+        icon('error'), h('div', { class: 'status-bar__problems__count' }, String(errors)),
+        icon('vscWarning'), h('div', { class: 'status-bar__problems__count' }, '0'))),
+      h('div', { class: 'status-bar__right' },
+        h('div', { class: 'status-bar__sync', 'data-testid': 'changes-count', title: ws.revision?.id ?? '' },
+          changed ? `${changed} unpushed change${changed === 1 ? '' : 's'}` : 'no changes detected'),
+        h('button', { class: 'status-bar__push', title: 'Push local changes (Ctrl + S)', 'data-testid': 'save-status', disabled: changed === 0, onclick: () => void save() },
+          icon('cloudUpload', '16px')),
+        h('button', { class: `status-bar__action${compiling ? ' status-bar__action--compiling' : ''}`, title: 'Compile (F9)', 'data-testid': 'compile', onclick: () => void compile() },
+          icon('hammer')),
+        h('button', { class: `status-bar__action status-bar__toggler${panelOpen ? ' status-bar__toggler--on' : ''}`, title: 'Toggle panel (Ctrl + `)',
+          onclick: () => { panelOpen = !panelOpen; renderPanel(); renderStatus(); } },
+        icon('terminal'))));
     renderActivityBar();     // its local-change counter follows the same count
   };
 

@@ -67,7 +67,7 @@ button { font: inherit; color: inherit; }
 
 /* the editor's layout */
 /* census 2: the activity bar, then the side bar (initial 300px), then the editor */
-.studio { height: 100%; display: grid; grid-template-columns: 50px 300px 1fr; grid-template-rows: 1fr 24px; }
+.studio { height: 100%; display: grid; grid-template-columns: 50px 300px 1fr; grid-template-rows: 1fr 22px; }
 
 /* the activity bar (census 2.1, upstream _activity-bar.scss): 50px on the chrome grey; icons muted, the active
    and hovered one primary -- no bar, background or border marks the active item */
@@ -159,19 +159,42 @@ button { font: inherit; color: inherit; }
 .shortcut__label { font-weight: 500; font-size: max(12px, min(1.5vh, 1.5vw)); color: var(--color-text-link); }
 .hotkey { display: flex; align-items: center; color: var(--color-text-muted); font-size: max(8px, min(1vh, 1vw)); }
 .hotkey__key { display: flex; align-items: center; height: max(18px, min(2vh, 2vw)); margin: 0 2px; padding: 0 7px; border-radius: 3px; background: var(--color-bg-tag); color: var(--color-text-muted); font-family: var(--font-mono); font-weight: 500; font-size: max(11px, min(1.5vh, 1.5vw)); }
-.panel { height: 170px; border-top: 1px solid var(--line); display: flex; flex-direction: column; background: var(--bg-2); }
-.panel-head { padding: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); border-bottom: 1px solid var(--line); }
-.panel-body { overflow: auto; flex: 1; }
-.problem { display: flex; gap: 8px; padding: 4px 10px; cursor: pointer; }
-.problem:hover { background: var(--bg-3); }
-.problem-icon { color: var(--error); }
-.problem-message { flex: 1; font-family: var(--mono); font-size: 12px; white-space: pre-wrap; }
-.problem-where { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
-.status-bar { grid-column: 1 / -1; display: flex; align-items: stretch; background: var(--accent); color: #fff; font-size: 12px; }
-.status-item { display: flex; align-items: center; padding: 0 10px; background: none; border: none; color: #fff; }
-button.status-item { cursor: pointer; }
-button.status-item:hover { background: rgba(255, 255, 255, .15); }
-.status-item.warn { color: #ffe6b3; }
-.status-item.error { color: #ffd0d0; font-weight: 500; }
-.status-spacer { flex: 1; }
-.status-action.primary { background: rgba(0, 0, 0, .2); }
+/* the panel group (census 6): its header on the app's own background with the header shadow, a line above; the
+   PROBLEMS tab 12px / 500, the active one dim-white with a yellow underline; 300px open, or the editor's height */
+.main--panel-maximised .editor-area { display: none; }
+.panel-group { display: flex; flex-direction: column; flex: 0 0 300px; min-height: 0; border-top: 1px solid var(--color-border-default); background: var(--color-bg-app); }
+.panel-group--closed { display: none; }
+.main--panel-maximised .panel-group { flex: 1; }
+.panel-group__header { display: flex; align-items: stretch; justify-content: space-between; flex: 0 0 34px; height: 34px; padding-left: 10px; background: var(--color-bg-app); box-shadow: var(--color-shadow) 0 1px 5px 0; z-index: 1; }
+.panel-group__tabs { display: flex; }
+.panel-group__tab { display: flex; align-items: center; height: 34px; margin: 0 10px; padding: 0 5px; border: 0; border-bottom: 2px solid var(--color-bg-app); background: none; color: var(--color-text-disabled); font-size: 12px; font-weight: 500; text-transform: uppercase; cursor: pointer; }
+.panel-group__tab--active { color: var(--color-text-secondary); border-bottom-color: var(--color-status-warn); }
+.panel-group__badge { height: 16px; line-height: 16px; margin-left: 5px; padding: 0 5px; border-radius: 8px; background: var(--color-bg-tag); color: var(--color-text-secondary); font-size: 10px; font-weight: 500; }
+.panel-group__actions { display: flex; }
+.panel-group__action { display: flex; align-items: center; justify-content: center; width: 36px; border: 0; background: none; color: var(--color-text-muted); cursor: pointer; }
+.panel-group__action:hover { color: var(--color-text-primary); }
+.panel-group__content { flex: 1; overflow: auto; background: var(--color-bg-app); }
+.panel-group__empty { height: 28px; line-height: 28px; padding: 0 10px; margin: 10px 0; }
+.panel-group__list { margin: 10px 0; }
+.panel-group__problem { display: flex; align-items: center; width: 100%; height: 28px; padding: 0 10px; border: 0; background: none; text-align: left; cursor: pointer; color: var(--color-text-muted); }
+.panel-group__problem:hover { background: var(--color-bg-hover); }
+.panel-group__problem__icon { display: flex; margin: 0 10px 0 5px; color: var(--color-status-error); }
+.panel-group__problem__message { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.panel-group__problem__source { margin-left: 5px; color: var(--color-text-disabled); white-space: nowrap; }
+
+/* the status bar (census 7): 22px on the info blue, text on the accent's white */
+.status-bar { grid-column: 1 / -1; display: flex; align-items: stretch; justify-content: space-between; height: 22px; padding: 0 5px 0 10px; background: var(--color-status-info); color: var(--color-text-on-accent); }
+.status-bar button { display: flex; align-items: center; border: 0; background: none; color: inherit; cursor: pointer; }
+.status-bar__left, .status-bar__right, .status-bar__workspace { display: flex; align-items: center; cursor: default; }
+.status-bar__workspace__project, .status-bar__workspace__workspace { padding: 0 5px; }
+.status-bar__problems { height: 100%; padding: 0 5px; }
+.status-bar__problems:hover, .status-bar__action:hover { background: var(--color-state-hover-on-accent); }
+.status-bar__problems__count { padding: 0 5px; font-size: 12px; }
+.status-bar__push { height: 100%; padding: 0 5px; margin-left: 5px; }
+.status-bar__push[disabled] { color: var(--color-state-disabled-on-accent); cursor: default; }
+.status-bar__action { justify-content: center; width: 30px; height: 100%; }
+.status-bar__toggler { color: var(--color-state-disabled-on-accent) !important; }
+.status-bar__toggler--on { color: var(--color-text-on-accent) !important; }
+/* the hammer wiggles while compiling (_status-bar.scss: rotate -7deg to 10deg, 0.5s, from the bottom left) */
+.status-bar__action--compiling .icon { animation: hammer-wiggle 0.5s infinite; transform-origin: bottom left; }
+@keyframes hammer-wiggle { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(10deg); } }

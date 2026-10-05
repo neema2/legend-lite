@@ -49,7 +49,9 @@ async function loop(browser, name, query) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const shot = (n) => page.screenshot({ path: join(OUT, `${name}-${n}.png`) });
-  const statusText = (id) => page.getByTestId(id).textContent();
+  // the status bar's problems button says when the compiler is done and how many errors it found (data-state,
+  // data-errors): upstream's bar shows icons and counts, not words
+  const waitCompiled = () => page.waitForFunction(() => { const b = document.querySelector('[data-testid=problems-count]'); return b?.dataset.state === 'idle' && b.dataset.errors === '0'; }, undefined, { timeout: 120_000 });
   const waitStatus = (id, pattern) => page.waitForFunction(([id, source]) => new RegExp(source).test(document.querySelector(`[data-testid=${id}]`)?.textContent ?? ''), [id, pattern.source], { timeout: 120_000 });
   try {
     await page.goto(`${SITE}/demo/index.html${query}`);
@@ -63,7 +65,7 @@ async function loop(browser, name, query) {
     await page.locator('.dialog input').fill('dev');
     await page.locator('.dialog .btn-primary').click();
     await page.waitForSelector('[data-testid=explorer] .element');
-    await waitStatus('problems-count', /^0 problems/);
+    await waitCompiled();
     // 3. an element using a type from a dependency, then saved
     await page.getByTestId('new-element').click();
     await page.getByTestId('new-path').fill('demo::trading::Desk');
@@ -73,11 +75,15 @@ async function loop(browser, name, query) {
     // one input event, as a paste: keystroke by keystroke, Monaco's bracket auto-closing raced the typed '}' (a
     // stray second brace, 2026-10-04)
     await page.keyboard.insertText('// a trading desk, quoting in one currency\nClass demo::trading::Desk\n{\nname: String[1];\nbase: demo::types::Currency[1];\n}\n');
-    await waitStatus('problems-count', /^0 problems/);
+    await waitCompiled();
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();
-    await waitStatus('changes-count', /no local changes/);
+    await waitStatus('changes-count', /no changes detected/);
+    // the status bar's problems counts open upstream's Problems panel
+    await page.getByTestId('problems-count').click();
+    await page.getByText('No problems have been detected in the workspace.').waitFor();
     await shot('2-saved');
+    await page.locator('.panel-group__action[title=Close]').click();
     // 4. a review, committed onto the project line (the workspace closes)
     await page.locator('[data-activity=review]').click();
     await page.getByTestId('review-title').fill('Add the desk');
@@ -103,7 +109,7 @@ async function loop(browser, name, query) {
     await page.getByTestId('theme-toggle').click();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), undefined);
     assert.deepEqual(errors, []);
-    console.log(`${name}: the loop passed (${await statusText('problems-count')})`);
+    console.log(`${name}: the loop passed (${await page.getByTestId('problems-count').getAttribute('data-errors')} errors)`);
   } catch (e) {
     await shot('failed');
     throw new Error(`${name}: ${e.message}\npage errors: ${errors.join('\n')}`);
