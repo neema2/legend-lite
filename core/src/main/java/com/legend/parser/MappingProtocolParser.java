@@ -1574,20 +1574,11 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         expect(TokenType.BRACE_OPEN);
         int fqnTok = pos;
         String fqn = Protocol.unquotePath(parseQualifiedName());
-        String operation = switch (fqn) {
-            case "meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_" ->
-                    "STORE_UNION";
-            case "meta::pure::router::operations::special_union_OperationSetImplementation_1__SetImplementation_MANY_" ->
-                    "ROUTER_UNION";
-            case "meta::pure::router::operations::inheritance_OperationSetImplementation_1__SetImplementation_MANY_" ->
-                    "INHERITANCE";
-            case "merge_OperationSetImplementation_1__SetImplementation_MANY_",
-                 "meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_" ->
-                    null;   // MERGE emits NO discriminator (probe merge-op)
-            // UNKNOWN functions also emit NO discriminator (probe
-            // custom-op-fn: a__SetImplementation_MANY_())
-            default -> null;
-        };
+        // the exact router function names the discriminator (MappingOperation spells them). MERGE
+        // emits NO discriminator (probe merge-op), and neither does an UNKNOWN function (probe
+        // custom-op-fn: a__SetImplementation_MANY_())
+        com.legend.protocol.MappingOperation op = com.legend.protocol.MappingOperation.byFunction(fqn);
+        String operation = op == null || op == com.legend.protocol.MappingOperation.MERGE ? null : op.name();
         expect(TokenType.PAREN_OPEN);
         List<String> params = new ArrayList<>();
         if (peek() == TokenType.BRACKET_OPEN) {
