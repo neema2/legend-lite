@@ -263,10 +263,17 @@ it('the token refreshes: on asking, and by itself before it expires', async () =
   assert.match(await out.receipt!.check!(), /^On the warehouse's record for rita/, 'the fresh token is rita, on the server');
   await engine.close();
 
-  // BY ITSELF: a session the page believes ends in 1.5s is refreshed at 80% of that, unasked
-  const soon = new WarehouseEngine({ ...s, expiresAt: new Date(Date.now() + 1_500).toISOString() });
+  // BY ITSELF: a session the page believes ends in 1.5s is refreshed at 80% of that, unasked. The engine's clock is
+  // the test's (Bazel workplan P3-16): the timer is seen scheduled at 1.2s and fired, nobody sleeps
+  const t0 = Date.now();
+  const timers: { fn: () => void; ms: number }[] = [];
+  const clock = { now: () => t0, setTimeout: (fn: () => void, ms: number) => timers.push({ fn, ms }), clearTimeout: () => {} };
+  const soon = new WarehouseEngine({ ...s, expiresAt: new Date(t0 + 1_500).toISOString() }, 'main', clock);
   const before = soon.expiresAt;
-  await new Promise((r) => setTimeout(r, 2_000));
+  assert.equal(timers.at(-1)?.ms, 1_200, 'the refresh is scheduled at 80% of the token\'s life');
+  timers.at(-1)!.fn();
+  // the refresh is a request to the server: its answer, not a clock, ends this wait
+  for (let i = 0; i < 1_000 && soon.expiresAt === before; i++) await new Promise((r) => setTimeout(r, 10));
   assert.notEqual(soon.expiresAt, before, 'the timer swapped the token');
   assert.ok(Date.parse(soon.expiresAt) > Date.now() + 30 * 60_000, 'for one with the server\'s full life');
   assert.equal((await soon.run('SELECT 1 AS one', 0)).rowCount, 1);

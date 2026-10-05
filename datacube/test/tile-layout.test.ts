@@ -376,15 +376,11 @@ describe('invariants under random gestures (fuzz)', () => {
 });
 
 describe('scale', () => {
-  it('200 tiles: a drag step settles in well under a frame', () => {
+  // what a drag over 200 tiles must be: legal at every step. How fast it is belongs to a benchmark, not a verdict
+  // (a wall-clock budget is the machine's: Bazel workplan P3-16)
+  it('200 tiles: every drag step leaves a legal layout', () => {
     const l: Tile[] = compact(Array.from({ length: 200 }, (_, i) => T(`t${i}`, (i * 3) % 12, i, 3, 2)));
-    const start = performance.now();
-    let out: Tile[] = l;
-    for (let k = 0; k < 60; k++) out = moveTile(l, 't150', k % 10, k % 30, 12, { hold: true, swap: true });
-    const perStep = (performance.now() - start) / 60;
-    legal(out, 12);
-    assert.ok(perStep < 16, `${perStep.toFixed(2)} ms per drag step`);
-    console.log(`# 200 tiles: ${perStep.toFixed(2)} ms per drag step`);
+    for (let k = 0; k < 60; k++) legal(moveTile(l, 't150', k % 10, k % 30, 12, { hold: true, swap: true }), 12);
   });
 });
 
