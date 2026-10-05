@@ -8,7 +8,7 @@ import { startDuckDbInTab } from '../../../engine-client/src/duckdb-tab.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
 import { BrowserEngine } from '../../../engine-client/src/legend/browser-engine.ts';
 import { HttpEngine } from '../../../engine-client/src/legend/engine.ts';
-import { dataTables, loadDataTables, type DataSink } from '../../../engine-client/src/model-data.ts';
+import { TabTables } from '../../../engine-client/src/tab-data.ts';
 import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler, WorkerPort } from '../backend/planner.ts';
 import { queryBuilder, type BuilderSession } from '../backend/query-builder.ts';
@@ -101,10 +101,10 @@ function serverSession(api: string, user: string): RunSession & BuilderSession {
 /** A run in this tab: the planner writes the SQL, DuckDB here runs it on the model's own test data (plan A2, A3). */
 function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string): RunSession & BuilderSession {
   let enumerations = new Set<string>();
-  type Started = { engine: BrowserEngine; sql: QueryEngine; data: DataSink };
+  type Started = { engine: BrowserEngine; sql: QueryEngine; tables: TabTables };
   let started: Promise<Started> | undefined;
   const start = (): Promise<Started> => (started ??= startDuckDbInTab(duckdbVendor)
-    .then((tab) => ({ engine: new BrowserEngine(grammar, tab.engine, (t) => enumerations.has(t), user), sql: tab.engine, data: tab.data })));
+    .then((tab) => ({ engine: new BrowserEngine(grammar, tab.engine, (t) => enumerations.has(t), user), sql: tab.engine, tables: new TabTables(tab.data, tab.engine) })));
   return {
     modelJson: (text) => grammar.modelJson(text),
     lambdaJson: (text) => grammar.lambdaJson(text),
@@ -116,7 +116,9 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
     },
     async loadData(model) {
       enumerations = new Set(model.elements.filter((e) => e._type === 'Enumeration').map((e) => `${e.package}::${e.name}`));
-      await loadDataTables((await start()).data, dataTables(model.elements as Parameters<typeof dataTables>[0]));
+      // the model's own rows, but a table a person's file fills keeps that file's (the Data panel)
+      await (await start()).tables.load(model.elements as Parameters<TabTables['load']>[0]);
     },
+    tabTables: async () => (await start()).tables,
   };
 }

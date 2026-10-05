@@ -4,12 +4,12 @@
 
 import * as duckdb from './duckdb-wasm.ts';
 import { DuckDbEngine, type ArrowishConnection } from './duckdb.ts';
-import type { DataSink } from './model-data.ts';
+import type { FileSink } from './model-data.ts';
 
 export interface DuckDbInTab {
   readonly engine: DuckDbEngine;
-  /** Where a model's test data goes: a file named by text, and SQL on the engine's connection. */
-  readonly data: DataSink;
+  /** Where a model's test data and a person's files go: a file by name (text or bytes), and SQL on the engine's connection. */
+  readonly data: FileSink;
 }
 
 /** `vendor`: the URL of the folder holding duckdb-{mvp,eh}.wasm and their workers. */
@@ -27,6 +27,7 @@ export async function startDuckDbInTab(vendor: string): Promise<DuckDbInTab> {
     engine,
     data: {
       registerFileText: (name, text) => db.registerFileText(name, text),
+      registerFileBuffer: (name, bytes) => db.registerFileBuffer(name, bytes),
       run: (sql) => engine.run(sql, 0),
     },
   };

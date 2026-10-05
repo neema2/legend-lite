@@ -172,6 +172,23 @@ async function loop(browser, name, query) {
     await page.getByTestId('sql-status').waitFor();
     assert.match(await statusOf('sql-status'), /^1 row in \d+ ms/);
     assert.equal((await page.getByTestId('sql-rows').locator('tbody td').first().textContent())?.trim(), '5');
+    // 3g. the Data panel (plan A2): party's table from its test data (5 rows), then from a person's CSV -- which the next
+    // run keeps -- then reset to the model's own rows
+    const partyTable = page.locator('[data-testid=data-tables] tr[data-table="PARTY.PARTY"]');
+    await page.locator('[data-panel-tab=data]').click();
+    await partyTable.locator('[data-source=test]').waitFor({ timeout: 60_000 });
+    assert.equal((await partyTable.locator('.data-tables__rows').textContent())?.trim(), '5');
+    await partyTable.locator('input[type=file]').setInputFiles({ name: 'two-parties.csv', mimeType: 'text/csv',
+      buffer: Buffer.from('ID,NAME,COUNTRY\n1,Osprey Fund,NZ\n2,Wattle Capital,AU\n') });
+    await partyTable.locator('[data-source=file]').waitFor({ timeout: 60_000 });
+    assert.equal((await partyTable.locator('.data-tables__rows').textContent())?.trim(), '2');
+    await page.locator('[data-panel-tab=sql]').click();
+    await page.getByTestId('sql-run').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid=sql-rows] tbody td')?.textContent?.trim() === '2', undefined, { timeout: 60_000 });
+    await page.locator('[data-panel-tab=data]').click();
+    await partyTable.getByTestId('data-reset').click();
+    await partyTable.locator('[data-source=test]').waitFor({ timeout: 60_000 });
+    assert.equal((await partyTable.locator('.data-tables__rows').textContent())?.trim(), '5');
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();
     await waitStatus('changes-count', /no changes detected/);
