@@ -53,12 +53,14 @@ class EngineHandlersTest {
      *  engine ids the platform declares nowhere. A bump moves the numbers with
      *  its dated reason; a declaration landing lowers the undeclared count.
      *  2026-09-28: 169 -> 168, engine's string::contains(String[0..1], String[1])
-     *  (stringExtension.pure:21) declared (DataCube T5; ContainsOverloadTest). */
+     *  (stringExtension.pure:21) declared (DataCube T5; ContainsOverloadTest).
+     *  2026-10-05: 168 -> 162, engine's math::min/max over Integer, Float and Number [1..*] declared
+     *  (the reference lane: legend-pure's overload for min([a, b]); GATES 2026-10-05). */
     @Test
     void theSurfaceAndItsGapArePinned() {
         int ids = EngineHandlers.names().stream().mapToInt(n -> EngineHandlers.idsOf(n).size()).sum();
         assertEquals(404, EngineHandlers.names().size(), "names");
         assertEquals(836, ids, "engine ids");
-        assertEquals(168, EngineHandlers.undeclaredIds().size(), "undeclared engine ids");
+        assertEquals(162, EngineHandlers.undeclaredIds().size(), "undeclared engine ids");
     }
 }

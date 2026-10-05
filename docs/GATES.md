@@ -6743,3 +6743,20 @@ judge passes it, the database judge walls.
 
 **Measured.** DuckDB in process: roster unchanged (host 2,472 / 107, database 2,474 / 107). DuckDB
 through the warehouse (`//spec:corpus_warehouse`, manual): identical. H2: fail 362 → 361.
+
+## 2026-10-05 — The reference lane back in step: legend-pure's `[1..*]` overloads of `min`/`max` (the user: "fix rule to match pure")
+
+`//spec:reference_lane` had been red since `c1f9bac5b` (2026-10-01; bisected): 1515 → 1517 failed bodies. The rule that
+commit added (a list literal's elements are `[1]`) is legend-pure's and stays. The two new failures, the H2 renderers'
+`dataTypeToSqlTextH2` (`max([$MIN, min([$v.size, $MAX])])`), came from the overload: legend-pure resolves `min([a, b])`
+to `math::min(Integer[1..*]):Integer[1]`, which our catalog lacked, so we chose `min(Integer[*]):Integer[0..1]` and the
+outer literal held a `[0..1]` element. Added: the six `[1..*]` overloads legend-engine registers (`math::min`/`max`
+over `Integer`, `Float`, `Number`) to `native-membership.tsv` and `Pure.java`; their text, the `AT_MATH_MIN`/`AT_MATH_MAX`
+groups (which the reducers and scalar rules dispatch on), `native-claims.tsv` and `engine-handlers.tsv` (engine's six
+handler ids now map to our functions) regenerated. The date `[1..*]` overloads stay out: legend-engine registers none.
+
+**The reference lane moved, in the right direction** (golden re-blessed in this push, `bazel run
+//spec:update_reference_lane`): `our bodies FAILED` 1515 → 1508 (the two H2 renderers, engine's six `TestMaxMin`
+properties and `getDynaFunctionTypeInferenceMap` now type), `reference typed, we FAILED` 1336 → 1335, `AGREE` 72271 →
+73103, `OVERLOAD` 769 → 745 (the six `[1..*]` classes gone); two new `EXTRA` classes (`math::min` 6, `math::max` 1)
+fall under the `EXTRA *` reason.

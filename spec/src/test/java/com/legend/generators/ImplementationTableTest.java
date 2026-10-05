@@ -108,8 +108,9 @@ class ImplementationTableTest {
         // pin follows with its reason (Form 208 -> 217: validate owned, 9 overloads;
         // 2026-09-28 Body 2194 -> 2193, Intrinsic 664 -> 665: engine's
         // string::contains(String[0..1], String[1]) declared, beside the startsWith/endsWith
-        // [0..1] forms -- DataCube T5, ContainsOverloadTest)
-        assertEquals(Map.of("Intrinsic", 665, "Form", 217, "Refused", 20, "Body", 2193, "Unimplemented", 71),
+        // [0..1] forms -- DataCube T5, ContainsOverloadTest; 2026-10-05 Body 2193 -> 2187, Intrinsic 665 -> 671:
+        // math::min/max over Integer, Float and Number [1..*] declared -- the reference lane, GATES 2026-10-05)
+        assertEquals(Map.of("Intrinsic", 671, "Form", 217, "Refused", 20, "Body", 2187, "Unimplemented", 71),
                 kinds, "implementation kinds");
     }
 
