@@ -39,6 +39,7 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   // run; on a server, its pure/v1 execute
   const run = runner(inTab ? inTabSession(inTab, `${config.vendor}duckdb/`, config.user?.userId ?? 'local') : {
     modelJson: (text) => new HttpEngine(config.engine!).modelJson(text),
+    lambdaJson: (text) => new HttpEngine(config.engine!).lambdaJson(text),
     engine: () => Promise.resolve(new HttpEngine(config.engine!)),
   });
   let dispose: (() => void) | undefined;
@@ -88,6 +89,7 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
     .then((tab) => ({ engine: new BrowserEngine(grammar, tab.engine, (t) => enumerations.has(t), user), data: tab.data })));
   return {
     modelJson: (text) => grammar.modelJson(text),
+    lambdaJson: (text) => grammar.lambdaJson(text),
     engine: async () => (await start()).engine,
     async loadData(model) {
       enumerations = new Set(model.elements.filter((e) => e._type === 'Enumeration').map((e) => `${e.package}::${e.name}`));
