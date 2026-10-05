@@ -70,6 +70,7 @@ public final class ModelReader {
             Map.entry("connection", ConnectionReader::connection),
             Map.entry("runtime", ConnectionReader::runtime),
             Map.entry("dataElement", EmbeddedDataReader::dataElement),
+            Map.entry("mapping", MappingReader::mapping),
             Map.entry("text", TailReader::text),
             Map.entry("generationSpecification", TailReader::generationSpecification),
             Map.entry("fileGeneration", TailReader::fileGeneration),
