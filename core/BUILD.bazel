@@ -503,8 +503,8 @@ _SCALE_MEMORY_MB = {
 ) for c in _SCALE]
 
 # Gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
-# sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest. Its own
-# lane: the stress group is what gate 1 leaves out.
+# sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest (no -D modes: the knobs are
+# //core:stress_tool's). Its own lane: the stress group is what gate 1 leaves out.
 junit_test(
     name = "stress_suites",
     memory_mb = 768,
@@ -512,6 +512,42 @@ junit_test(
     data = _STRESS_READS,
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
     exclude_tags = ["heavy"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
+# Gate 10 on H2 (Bazel workplan P3-12): the same suites on H2, a fresh, freshly seeded session per test (the engine's
+# shape), held by MIN_PASS_H2 (StressServiceSuitesH2Test). Until 2026-10-05 the H2 floor was enforced by no lane.
+junit_test(
+    name = "stress_suites_h2",
+    # live peak 232 MB, 692 MB before a collection, of 1024 (measured 2026-10-05): stress_suites' 768
+    memory_mb = 768,
+    size = "enormous",
+    data = _STRESS_READS,
+    select = ["--select-class=com.legend.integration.StressServiceSuitesH2Test"],
+    exclude_tags = ["heavy"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
+# The stress corpus's measuring tool (StressTool: data overrides, row dumps, one service, a session policy):
+#   bazel run //core:stress_tool -- [--backend duckdb|h2] [--sessions fresh|shared] [--only NAME] [--data F.pure,...]
+#       [--rows DIR] [--out DIR]
+legend_java_binary(
+    name = "stress_tool",
+    testonly = True,
+    data = _STRESS_READS,
+    jvm_flags = [
+        "-Dlegend.repo.root=.",
+        "-Dlegend.repo.module=core",
+        "-Duser.timezone=GMT",
+    ],
+    main_class = "com.legend.integration.StressTool",
+    tags = ["manual"],
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",
