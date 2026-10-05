@@ -328,6 +328,11 @@ final class SpecIslandReader {
     // Paths
     // ---------------------------------------------------------------------
 
+    /** A path VALUE object alone (no classInstance wrapper), as persistence's graphFetch slots embed it. */
+    static ValueSpecification pathValue(Json.Node node) {
+        return pathLiteral(Wire.of(node, "path"));
+    }
+
     /**
      * {@code #/Root/prop#}: every span on the wire is SHIFTED RIGHT by the literal's length (the
      * engine's island re-parse): for a literal at column {@code s} of length {@code len}, the value's
