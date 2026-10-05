@@ -130,6 +130,21 @@ export class Workspace {
     return f.savedPath === undefined || this.#saved.get(f.savedPath) !== f.text;
   }
 
+  /**
+   * A change discarded (upstream's per-change discard): a saved element back to its saved text (a rename undone too),
+   * a removed one restored, a new one dropped. Answers the file's key, or undefined when the file is gone.
+   */
+  discard(key: string): string | undefined {
+    const f = this.#files.get(key);
+    if (!f) return this.restore(key);
+    if (f.savedPath === undefined) {
+      this.#files.delete(key);
+      return undefined;
+    }
+    f.text = this.#saved.get(f.savedPath) ?? f.text;
+    return key;
+  }
+
   /** A removed element back as it is saved (a delete undone before the save); its key. */
   restore(path: string): string {
     const text = this.#saved.get(path);

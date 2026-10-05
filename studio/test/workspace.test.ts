@@ -52,6 +52,16 @@ describe('a workspace in Studio', () => {
     assert.equal(ws.file('demo::Kind')!.text, saved);
     assert.equal(ws.hasChanges(), false);
     assert.throws(() => ws.restore('demo::Kind'), /is not removed/);
+    // a change discarded: an edit back to the saved text, a new file dropped, a removed one restored
+    ws.edit('demo::Kind', 'Enum demo::Kind\n{\n  X\n}\n');
+    assert.equal(ws.discard('demo::Kind'), 'demo::Kind');
+    assert.equal(ws.file('demo::Kind')!.text, saved);
+    const fresh = ws.add('Class demo::Fresh {}');
+    assert.equal(ws.discard(fresh), undefined);
+    assert.equal(ws.file(fresh), undefined);
+    ws.remove('demo::Kind');
+    assert.equal(ws.discard('demo::Kind'), 'demo::Kind');
+    assert.equal(ws.hasChanges(), false);
     ws.remove('demo::Kind');
     await ws.save('drop Kind');
     assert.deepEqual(ws.files().map((f) => f.key), ['demo::Party']);
