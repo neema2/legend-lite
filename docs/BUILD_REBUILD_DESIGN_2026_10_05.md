@@ -152,7 +152,7 @@ There are four named compile targets. Each is a `filegroup` or a suite naming ex
 
 | Tier | Contents | Rebuilds when |
 |---|---|---|
-| `//:java` | base, json, core layers, duckdb_load, core server, warehouse JVM products, sdlc/depot servers | their Java changes |
+| `//:java` | every runtime jar of the three servers (core, warehouse, SDLC with Depot's rules), computed from their dependencies, so it shrinks when D8/D9 land | their Java changes |
 | `//:web` | the 8 bundles plus TypeScript type checks as build actions (native tsc, `--noEmit`); a type error fails the build | TS changes, or the wasm planner |
 | `//:wasm` | the 3 TeaVM compiles | plan-side core changes; sdlc/depot rules after R2 is fixed |
 | `//:native` | the warehouse native image and its launchers | warehouse server changes only (it uses no core) |
@@ -390,6 +390,20 @@ throwaway CI run on all platforms.
   - It gains its own server program beside SDLC's. It stays inside the SDLC page's WebAssembly for the in-browser
     Studio, unless that is decided otherwise.
   - Done with D11, or before it as a product change. It is not build work.
+
+- **D5 (decided). DataCube's non-product files leave the shipped site** in the D10 step: the `remote_bundle` and
+  `stress` bundles and pages, and `torture.pure`.
+- **TypeScript type checking stays a test for now (decided).** Cleanup recorded: it becomes a build action of `//:web`
+  with the native tsc work (section 4.6), and the gaps the audits found are closed then. Today the sdlc-client and
+  depot-client tests and the harness scripts are unchecked, and three shared packages are checked twice under
+  different settings.
+- **D13 (open). `//warehouse:client`, the JDBC driver over the warehouse's HTTP API (`jdbc:warehouse:http://…`).**
+  - Today only tests use it: `WarehouseServerTest`; the manual warehouse leg of the relational corpus
+    (`DuckWorkspaces.java:174`); and, through the warehouse test library, `postgres_live` and the reachability-metadata
+    generator.
+  - No shipped server uses it, so it is not in `//:java`.
+  - Keep it as product, so the engine can query our database server (it would join `//core:drivers`). Or delete it,
+    with the corpus warehouse leg.
 
 ## 7. Open items the audits could not settle
 
