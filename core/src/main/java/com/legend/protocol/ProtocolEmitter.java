@@ -2958,6 +2958,9 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.CString s -> valueSpec(b, s);
             case com.legend.protocol.spec.CInteger c -> valueSpec(b, c);
             case com.legend.protocol.spec.CBoolean bo -> valueSpec(b, bo);
+            // the ordinary float literal too (the engine's own JSON of upstream's lambda round-trip texts,
+            // ModelReaderParityTest's engine-lambdas)
+            case com.legend.protocol.spec.CFloat f -> valueSpec(b, f);
             // a variable spans its NAME only here -- no dollar (probe "gft var param")
             case com.legend.protocol.spec.Variable v -> {
                 SourceInfo at = v.pos();

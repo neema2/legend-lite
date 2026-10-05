@@ -318,7 +318,7 @@ final class SpecIslandReader {
                     : new SourceInfo(at.sourceId(), at.startLine(), at.startColumn() - 1, at.endLine(),
                             at.endColumn())));
         }
-        if ("string".equals(type) || "integer".equals(type) || "boolean".equals(type)) {
+        if ("string".equals(type) || "integer".equals(type) || "boolean".equals(type) || "float".equals(type)) {
             return ProtocolReader.valueSpec(w.json());
         }
         throw Wire.refuse("no reader rule for graph-fetch argument _type '" + type + "'");
