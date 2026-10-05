@@ -4,8 +4,9 @@
 // (upstream's mapping execution) -- which run but are kept nowhere.
 
 import type { Lambda, ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import type { PClass, PMapping, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
+import type { PClass, PFunction, PMapping, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 import type { EditorHandle, EmbedHost, EmbedOptions, EmbedStart } from '../../../query/src/embed.ts';
+import { withFunctionBody } from '../model/function-body.ts';
 import { withServiceQuery } from '../model/service-query.ts';
 
 /** Where the builder's queries run, as the session has it: started the first time it is asked for. */
@@ -16,6 +17,8 @@ export interface BuilderSession {
   modelJson(text: string): Promise<PureModelContextData>;
   /** `grammarToJson/lambda`: a query's text, read as Pure. */
   lambdaJson(text: string): Promise<Lambda>;
+  /** `jsonToGrammar/lambda`: a lambda as Pure text. */
+  lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string>;
   plane(): Promise<Plane>;
   /** Puts the model's own test data where the engine reads it (the tab's DuckDB); a server needs none. */
   loadData?(model: PureModelContextData): Promise<void>;
@@ -26,6 +29,11 @@ export interface QueryBuilder {
   open(root: HTMLElement, elementText: string, modelText: string, host: EmbedHost): Promise<EditorHandle>;
   /** The service's text with its query replaced by `content`, read back to check it holds exactly that query. */
   serviceWithQuery(serviceText: string, content: string): Promise<string>;
+  /**
+   * The function's text with its body made `content`'s (a lambda with its `->from()`), read back to check: the
+   * lambda's parameters must be the function's own (its signature is edited in the text, not here).
+   */
+  functionWithQuery(functionText: string, content: string): Promise<string>;
 }
 
 export function queryBuilder(session: BuilderSession): QueryBuilder {
@@ -48,6 +56,24 @@ export function queryBuilder(session: BuilderSession): QueryBuilder {
       }
       return next;
     },
+    async functionWithQuery(functionText, content) {
+      const [want, own] = await Promise.all([session.lambdaJson(content), session.modelJson(functionText)]);
+      const f = own.elements.find((e): e is PFunction => e._type === 'function');
+      if (!f) throw new Error('this element is not a function');
+      const signature = f.parameters.map((p) => JSON.stringify(strip({ name: p.name, genericType: p.genericType, multiplicity: p.multiplicity } as never)));
+      const built = want.parameters.map((p) => JSON.stringify(strip({ name: p.name, genericType: p.genericType, multiplicity: p.multiplicity } as never)));
+      if (JSON.stringify(signature) !== JSON.stringify(built)) {
+        throw new Error("the query's parameters differ from the function's: change the function's signature in its text");
+      }
+      // each statement as Pure text: a lambda of that statement alone, its leading `|` dropped
+      const statements = await Promise.all(want.body.map(async (s) => (await session.lambdaText({ _type: 'lambda', parameters: [], body: [s] } as Lambda, 'PRETTY')).replace(/^\s*\|/, '')));
+      const next = withFunctionBody(functionText, statements);
+      const got = (await session.modelJson(next)).elements.find((e): e is PFunction => e._type === 'function');
+      if (!got || JSON.stringify(strip(got.body as never)) !== JSON.stringify(strip(want.body as never))) {
+        throw new Error('the query could not be written into the function text as it is laid out: edit it in the text');
+      }
+      return next;
+    },
   };
 }
 
@@ -61,11 +87,25 @@ function startOf(own: PureModelContextData): EmbedStart {
     }
     return { kind: 'lambda', lambda: ex.func, mapping: ex.mapping, runtime: ex.runtime.runtime };
   }
+  const f = own.elements.find((e): e is PFunction => e._type === 'function');
+  if (f) {
+    // its query's own source: the body's last expression ends ->from(mapping, runtime)
+    const last = f.body[f.body.length - 1] as ValueSpecification | undefined;
+    const from = last?._type === 'func' && /(^|::)from$/.test(last.function) ? last.parameters : undefined;
+    const ptr = (v: ValueSpecification | undefined): string | undefined => (v?._type === 'packageableElementPtr' ? (v as { fullPath: string }).fullPath : undefined);
+    const mapping = ptr(from?.[1]);
+    const runtime = ptr(from?.[2]);
+    if (!mapping || !runtime) throw new Error(`${f.package}::${f.name}'s query does not end ->from(mapping, runtime): the query builder edits that kind of function`);
+    const parameters = f.parameters.map((p) => ({
+      _type: 'var', name: p.name, ...(p.genericType ? { genericType: p.genericType } : {}), ...(p.multiplicity ? { multiplicity: p.multiplicity } : {}),
+    }));
+    return { kind: 'lambda', lambda: { _type: 'lambda', parameters, body: [...f.body] } as Lambda, mapping, runtime };
+  }
   const c = own.elements.find((e): e is PClass => e._type === 'class');
   if (c) return { kind: 'class', class: `${c.package}::${c.name}` };
   const m = own.elements.find((e): e is PMapping => e._type === 'mapping');
   if (m) return { kind: 'mapping', mapping: `${m.package}::${m.name}` };
-  throw new Error('the query builder opens on a service, a class or a mapping');
+  throw new Error('the query builder opens on a service, a function, a class or a mapping');
 }
 
 /** A lambda without where its text was (`sourceInformation`), to compare two readings of it. */

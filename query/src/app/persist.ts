@@ -9,6 +9,7 @@ import { loadLambda, parametersOf, valueOf } from '../builder/load.ts';
 import { emptyQuery, type ClassSource, type Value } from '../builder/state.ts';
 import { QUERY_PROFILE, type Query, type QueryExecutionContext, type QueryTaggedValue } from '../backend/wire.ts';
 import type { AppContext, LoadedProject } from './context.ts';
+import { executionLambda } from './run.ts';
 import { Session } from './session.ts';
 import { literalFromText } from '../ui/values.ts';
 
@@ -18,9 +19,12 @@ async function valueText(app: AppContext, v: Value): Promise<string> {
   return text.replace(/^\|/, '');
 }
 
-/** The saved query's content: the lambda without `->from()`, as Pure text. */
-export async function contentOf(app: AppContext, session: Session): Promise<string> {
-  const l: Lambda = session.text?.lambda ?? buildLambda(session.project.graph, session.query, { withFrom: false });
+/**
+ * The saved query's content: the lambda without `->from()`, as Pure text -- or, `withFrom` (a function's body, which
+ * names its own mapping and runtime), with it.
+ */
+export async function contentOf(app: AppContext, session: Session, withFrom = false): Promise<string> {
+  const l: Lambda = withFrom ? executionLambda(session, undefined) : session.text?.lambda ?? buildLambda(session.project.graph, session.query, { withFrom: false });
   return app.engine.lambdaText(l, 'PRETTY');
 }
 
