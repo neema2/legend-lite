@@ -1649,6 +1649,10 @@ action's.
 
 **Amended 2026-10-05 (execution).** Moved after P3-27 (batch 13), which it depends on (A11's exact data lists).
 
+**Amended 2026-10-05 (execution).** Done. `_CORE_READS` stays as the source set of `:guardrails_sources` (and part of
+`_CENSUS_READS`): the source guards scan core's whole tree by design, so their declared lists carry it; no test's
+`data` names a glob. The union proof is `bazel run //tools/junit:compare_testcases -- --union <before> <after>`.
+
 #### P3-06 · Core test sources split into per-package libraries
 
 | Field | Content |
@@ -1974,6 +1978,10 @@ CI proof without `--enable_runfiles` moves to P3-32, which removes the flag for 
 
 **Amended 2026-10-04 (P1-90 audit, (G)).** Also OwnCorpusConformanceTest, CoreTree and NativeSignatureGeneratorTest.
 
+**Amended 2026-10-05 (execution).** Done for every walk of this repository's files. The upstream-tree walkers keep
+whole trees (P3-07's §6.3 row) and walk the fetched archive's directory, found from its pom.xml through the runfiles
+library; their G15 allowlist rows come with P6-15.
+
 #### P3-28 · Locale-explicit product code, enforced by Error Prone
 
 | Field | Content |
@@ -2046,6 +2054,13 @@ CI proof without `--enable_runfiles` moves to P3-32, which removes the flag for 
 **Note (2026-10-04, batch 3):** `.bazelrc` sets `startup:windows --output_user_root=C:/bzl` because pyarrow's DLLs, under a test's runfiles tree, passed Windows' path limit (main's CI run 37209395985; 252-259 characters, about 85 of them the runfiles prefix). Manifest-only Windows removes that prefix: when this item lands, re-measure and drop the short root if it is no longer needed (USER: keep it for now).
 
 **Amended 2026-10-04 (P1-90 audit, (I)).** Convert the `$(rootpath)` test inputs too: `spec/BUILD.bazel:120,167`, `parser-equivalence/BUILD.bazel:85`, `query/BUILD.bazel:137-138` (manifest-only mode needs `$(rlocationpath)`).
+
+**Amended 2026-10-05 (execution): blocked on rules_js.** Repo and Upstream are gone (P3-33) and every Java, Python
+and diff test reads through a runfiles library, but rules_js needs a runfiles tree on Windows: `js_test` inherits
+`enable_runfiles` (its own e2e config keeps `common:windows --enable_runfiles`), every `node_test` preloads by a path
+relative to the (then empty) runfiles directory, and `tools/js/runfiles.mts` has no manifest mode. Options: `node_test`
+forces `enable_runfiles` on its targets by a transition (what rules_python's `py_test` does), or runfiles.mts reads the
+manifest and the preloads go by resolved path. Until then `build:windows --enable_runfiles` stays.
 
 #### P3-33 · `testing/Repo.java` and `testing/Upstream.java` are deleted; generator actions name their inputs
 

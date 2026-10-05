@@ -317,3 +317,7 @@ without a **done** entry.
 - **P3-05 done** (d2160132a): core_tests a suite of 24 per-package targets (union of 4,319 testcases identical);
   the stress corpus read from the classpath; exact data for census and guardrails; scale_* one benchmark.
 - **Main green** at 3781cbf98 after rerunning two Windows jobs (run 37297275640 attempt 2, 53/53).
+- **P3-27b done** (e14035354), **P3-33 done** (355f9bc7a): Repo.java and Upstream.java deleted; ProgramPaths names
+  every file a program reads (action exec path or test runfiles path), TestOutputs for side reports; the generators
+  byte-identical, 313/313 locally. **P3-32 held:** the audit showed rules_js needs a runfiles tree on Windows (amendment
+  in the workplan; options: a node_test transition, or a manifest-aware runfiles.mts).
