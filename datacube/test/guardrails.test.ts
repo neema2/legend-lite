@@ -64,7 +64,7 @@ describe('source guardrails', () => {
     // A row count or a clock time the app writes into a message read differently on every
     // machine: toLocaleString() takes the browser's locale. The app's words name UI_LOCALE
     // (engine-client/src/locale.ts); a column's display format names its own.
-    const bare = /\.toLocale(String|DateString|TimeString)\(\)/;
+    const bare = /\.toLocale(String|DateString|TimeString)\((\)|\s*undefined\b)/;
     const hits: string[] = [];
     for (const file of [...FILES, ...sources('demo')]) {
       SOURCES.read(file).split('\n').forEach((line, i) => {

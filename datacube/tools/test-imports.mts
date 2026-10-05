@@ -1,7 +1,9 @@
 // THE TESTS' IMPORT CLOSURES (Bazel workplan P3-34): for each test/<name>.test.ts, the files under src/ that its
 // relative imports reach (through the test helpers too), written as datacube/test_imports.bzl, which BUILD.bazel
-// gives each node_test as its data. Editing one source file re-runs only the tests that import it; a test that
-// imports a file it does not declare fails in the sandbox, and the committed list's diff test says to regenerate.
+// gives each node_test as its data. Editing one source file re-runs only the tests that import it. The list is the
+// generator's, never hand-kept: the committed copy's diff test says to regenerate, and a relative import into this
+// package that the generator cannot resolve to a declared file fails it (the sandbox alone would not catch a missed
+// TRANSITIVE import: Node resolves a source's own imports from where Bazel copied it, beside every other source).
 //
 // Usage: test-imports <out.bzl> <package> <file>...  (files by their repository paths, as $(rootpaths) gives them)
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -12,13 +14,21 @@ if (out === undefined || pkg === undefined) throw new Error('usage: test-imports
 const files = new Set(rest.flatMap((a) => a.split(' ')).filter((f) => f.length > 0));
 
 // a static import, export-from or import(): a type-only import is counted too (it costs a file, never a miss)
-const IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*)'(\.{1,2}\/[^']+)'/g;
+const IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])(\.{1,2}\/[^'"]+)\1/g;
 
 function imports(file: string): string[] {
   const found: string[] = [];
-  for (const m of readFileSync(file, 'utf8').matchAll(IMPORT)) {
-    const target = posix.normalize(posix.join(posix.dirname(file), m[1]!));
-    if (files.has(target)) found.push(target);
+  // comment lines are prose (a comment may quote an import's shape)
+  const code = readFileSync(file, 'utf8').split('\n')
+    .filter((line) => !/^\s*(\/\/|\/?\*)/.test(line)).join('\n');
+  for (const m of code.matchAll(IMPORT)) {
+    const target = posix.normalize(posix.join(posix.dirname(file), m[2]!));
+    if (files.has(target)) {
+      found.push(target);
+    } else if (target.startsWith(`${pkg}/src/`) || target.startsWith(`${pkg}/test/`)) {
+      // into src/ or test/, and not a declared .ts file: a list built without it would be wrong
+      throw new Error(`${file} imports ${m[2]}, which is no declared file (${target})`);
+    }
   }
   return found;
 }

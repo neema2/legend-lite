@@ -202,7 +202,7 @@ class WarehouseServerTest {
         }
         SqlApiBinding.Done done = (SqlApiBinding.Done) run(b, StatementRequest.of(
                 "SELECT system.main.authenticated_user(), current_user, session_user, user").inSession(session));
-        assertEquals(List.of("bob", "bob", "bob", "bob"), done.status().firstChunk().rows().get(0).stream().map(n -> str(n)).toList());
+        assertEquals(List.of("bob", "bob", "bob", "bob"), rows(b, done).get(0).stream().map(n -> str(n)).toList());
         send(API.closeSession(session, b));
     }
 

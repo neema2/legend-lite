@@ -47,6 +47,8 @@ class ContractTest(unittest.TestCase):
 
     def test_reads_every_project(self):
         self.assertGreater(len(DEPS), 50, "PROJECT_DEPS names too few projects: the scan is not looking")
+        mappings = [f for f in FILES if f.endswith("/mapping.pure")]
+        self.assertGreater(len(mappings), 50, f"only {len(mappings)} mapping files declared: the scan is not looking")
 
     def test_no_class_property_is_mapped_over_a_join_without_a_set_id(self):
         bad = []

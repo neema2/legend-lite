@@ -1,6 +1,0 @@
-###Pure
-Class r::T
-{
-  k: String[1];
-  n: Integer[1];
-}

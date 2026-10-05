@@ -27,7 +27,7 @@ const ROOTS = ['src', 'test', 'demo', 'bench'];
 const SELF = 'test/portability.test.ts';
 
 const FILES = [...ROOTS, 'tools']
-  .flatMap((r) => SOURCES.under(r, '.ts', '.mjs', '.js', '.cjs'))
+  .flatMap((r) => SOURCES.under(r, '.ts', '.mts', '.mjs', '.js', '.cjs'))
   .filter((f) => f !== SELF && !f.includes('/node_modules/'));
 
 interface Rule {

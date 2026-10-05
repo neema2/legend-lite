@@ -1,4 +1,4 @@
-# The Legend model projects (CONTRACT.md). Each is a legend_library (tools/legend/defs.bzl): `bazel test //projects:all`
+# The Legend model projects (CONTRACT.md). Each is a legend_library (tools/legend/defs.bzl): `bazel test //projects:tests`
 # compiles every project ALONE with exactly its declared dependencies, and the whole graph together (Bazel workplan
 # P3-23). Core's stress corpus (StressCorpus.LINKED_PROJECTS) links eleven of them into its model.
 load("//tools/guards:defs.bzl", "guards_package")
@@ -72,8 +72,10 @@ PROJECT_DEPS = {
 }
 
 # KNOWN legend-lite failures, each with its finding (FINDINGS.md): the project's test holds it to failing with this
-# message, and turns red the day it compiles, so the row comes out then.
-_SCHEMA_VIEW_TWICE = "is defined more than once with the same signature"
+# message, and turns red the day it compiles, so the row comes out then. While quarantined, the compile stops at that
+# error, so the project's other checks (an undeclared dependency among them) wait for the fix too.
+# the view's own lifted function, named: a generic "defined more than once" would also pass for another collision
+_SCHEMA_VIEW_TWICE = "'firm_balance_sheet::Store$view$fbs.FBS_CATEGORY_TOTAL' is defined more than once"
 
 QUARANTINE = {
     # 2026-10-05, FINDINGS.md F-L1: a view declared inside a Schema is lifted twice (ModelBuilder indexes the flat

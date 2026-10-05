@@ -110,7 +110,7 @@ corrections rather than quietly dropping:
   in position-keeping and `VARCHAR(20)` in valuation-core; the join across them compiles.
   Whichever side is narrower is the one that truncates, and nothing says so at compile time.
 
-## legend-lite, found by `bazel test //projects:all` (Bazel workplan P3-23)
+## legend-lite, found by `bazel test //projects:tests` (Bazel workplan P3-23)
 
 Every project is compiled by legend-lite alone with its declared closure, and the graph together
 (`tools/legend/defs.bzl`). A failure is quarantined in `projects/BUILD.bazel` (`QUARANTINE`) with
