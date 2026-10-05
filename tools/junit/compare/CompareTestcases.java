@@ -20,7 +20,7 @@ import org.w3c.dom.NodeList;
  * {@code test.outputs/junit/TEST-*.xml} or, without them, the target's {@code test.xml} (every shard's),
  * and prints the sorted {@code classname#name} testcases only one side has: {@code -} the first, {@code +}
  * the second. A target only one side ran is named as such. Nothing printed: identical selection. Exits 1
- * on any difference. The prerun's own reports ({@code test.outputs/prerun}) are not the lane's verdict.
+ * on any difference.
  *
  * <pre>bazel run //tools/junit:compare_testcases -- &lt;baseline-dir&gt; &lt;after-dir&gt;</pre>
  */

@@ -67,8 +67,8 @@ public class MinimalCorpusTest {
     /** The ENGINE-ORDER registers (leg 3.4 step 2, user ruling 2026-09-20):
      * "engine-order <test>" per test at least one of whose statements the
      * TEST-LANE scan-order emulation ({@code StableScanOrder}, behind
-     * {@code legend.exec.engineScanOrder} — set here and nowhere in
-     * product) CHANGED. Product SQL never carries an order it did not ask
+     * {@code legend.exec.engineScanOrder} — set by the corpus lanes' build
+     * flags, spec/corpus.bzl, and nowhere in product) CHANGED. Product SQL never carries an order it did not ask
      * for; the tests that lean on H2's insertion order are named here so
      * the test-only feature is never dropped by accident. Pinned EXACT per
      * lane and per judge mode (database mode sends one statement per body,
@@ -113,19 +113,12 @@ public class MinimalCorpusTest {
     @Test
     void corpus() throws Exception {
         org.junit.jupiter.api.Assertions.assertTrue(Corpus.available(), "legend-engine checkout not present");
-        // the engine's scan order for the corpus goldens (the old runner's
-        // setting); restored on exit so no later test in the JVM sees it
-        String scanOrder = System.getProperty("legend.exec.engineScanOrder");
-        System.setProperty("legend.exec.engineScanOrder", "true");
-        try {
-            run();
-        } finally {
-            if (scanOrder == null) {
-                System.clearProperty("legend.exec.engineScanOrder");
-            } else {
-                System.setProperty("legend.exec.engineScanOrder", scanOrder);
-            }
+        // the engine's scan order for the corpus goldens is the lane's -Dlegend.exec.engineScanOrder (spec/corpus.bzl),
+        // set for the whole JVM by the build, never flipped here (Bazel workplan P3-01)
+        if ("database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+            JudgeLedger.requireHostPassed();
         }
+        run();
     }
 
     private static void run() throws Exception {
@@ -446,15 +439,13 @@ public class MinimalCorpusTest {
      * disagreements and one-sided adjudications pinned at ZERO; the database judge's
      * declines pinned by {@code rcorpus/<lane>-judge-unjudged-ceiling.txt}. */
     private static void pinJudgeDifferential(String only) throws java.io.IOException {
-        String h = System.getProperty("legend.judge.ledger.host", "").trim();
-        String d = System.getProperty(JudgeLedger.PROPERTY, "").trim();
-        if (h.isEmpty() || d.isEmpty() || !only.isEmpty()
-                || !"database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
+        if (!only.isEmpty() || !"database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))) {
             return;
         }
         String lane = MinimalCorpus.H2_BACKEND ? "h2" : "duckdb";
         JudgeLedger.Differential x = JudgeLedger.diff(
-                JudgeLedger.read(java.nio.file.Path.of(h)), JudgeLedger.read(java.nio.file.Path.of(d)));
+                JudgeLedger.read(com.legend.testing.Runfile.property("legend.judge.ledger.host")),
+                JudgeLedger.read(JudgeLedger.path()));
         java.util.Set<String> registered = new java.util.HashSet<>();
         // "differential": a test that FAILS in both modes for the same reason but
         // whose per-assert ledgers differ in WHERE the failure lands — since one

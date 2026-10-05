@@ -10,6 +10,14 @@ load("//tools/platforms:defs.bzl", "PLATFORMS", "compatible_with")
 load(":classpath.bzl", "classpath_report")
 load(":markdown.bzl", "markdown_report")
 
+# The macros that make a JVM test: junit_test, and the macros that call it (a rule's generator_function is its
+# OUTERMOST macro). Each listed wrapper makes its tests only through junit_test.
+_JUNIT_MACROS = [
+    "junit_test",
+    # spec/corpus.bzl: a corpus lane's host-judge action and its test (Bazel workplan P3-01)
+    "corpus_lane",
+]
+
 def _check_tests():
     # G16 (Bazel workplan P6-16): every JVM test is a junit_test (tools/junit/defs.bzl), run by its JUnitMain:
     # one runner, one set of pinned settings, Bazel's test protocol. guards_package() is the LAST call of every BUILD
@@ -17,7 +25,7 @@ def _check_tests():
     # every rule of the package, manual ones included.
     for rule in native.existing_rules().values():
         if rule["kind"] == "java_test" and (
-            rule.get("generator_function") != "junit_test" or rule.get("main_class") != "com.legend.tools.junit.JUnitMain"
+            rule.get("generator_function") not in _JUNIT_MACROS or rule.get("main_class") != "com.legend.tools.junit.JUnitMain"
         ):
             fail("//%s:%s is a java_test not made by junit_test (tools/junit/defs.bzl): every JVM test is a junit_test (G16)" %
                  (native.package_name(), rule["name"]))

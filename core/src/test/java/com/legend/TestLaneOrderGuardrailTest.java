@@ -25,7 +25,8 @@ import org.junit.jupiter.api.Tag;
  * order (the {@code StableScanOrder} pass threading a scan ordinal through
  * frames, positional reads and order-sensitive string joins) is a
  * TEST-LANE FEATURE: it exists, it is never dropped, and it is switched on
- * ONLY by the corpus runner through {@code legend.exec.engineScanOrder}.
+ * ONLY by the corpus lanes' build flags (spec/corpus.bzl) through
+ * {@code legend.exec.engineScanOrder}.
  *
  * <p>Three pins, each an exact set so a drift in either direction is loud:
  * <ol>
@@ -74,8 +75,8 @@ class TestLaneOrderGuardrailTest {
                 filesMatching(PASS_INSTALL), "StableScanOrder is installed outside DuckDb's pass list");
         assertEquals(new TreeSet<>(List.of("com/legend/sql/dialect/DuckDb.java")),
                 filesMatching(SWITCH_LITERAL),
-                "legend.exec.engineScanOrder is named outside DuckDb: only the corpus runner"
-                + " (spec tests) sets it, only DuckDb's pass list reads it");
+                "legend.exec.engineScanOrder is named outside DuckDb: only the corpus lanes'"
+                + " build flags (spec/corpus.bzl) set it, only DuckDb's pass list reads it");
         String duck = Files.readString(Runfile.property("core.duckdb_dialect"));
         assertEquals(1, count(SWITCH_READ, duck), "the switch is read exactly once");
         assertEquals(1, count(PASS_INSTALL, duck), "the pass is installed exactly once");

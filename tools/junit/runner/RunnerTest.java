@@ -20,8 +20,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * JUnitMain against Bazel's test protocol (Bazel workplan P1-01), on fixtures a real lane cannot show:
  * an empty selection, a filter that matches nothing, the premature-exit file, the shard split's union on
- * Jupiter and on a flat JUnit 3 suite, and the overrun guard on a PCT-shaped one. Each case runs the
- * runner in this JVM with its own environment, as Bazel would set it.
+ * Jupiter and on a flat JUnit 3 suite, and the overrun guard on a PCT-shaped one; and JUnitAction, a run as a
+ * build action (P3-01). Each case runs the runner in this JVM with its own environment, as Bazel would set it.
  */
 class RunnerTest {
 
@@ -57,6 +57,28 @@ class RunnerTest {
         assertEquals(9, ids.size(), "5 tests, 3 parameterized invocations, the exit-file probe: " + ids);
         assertFalse(Files.readString(dir.resolve("all.xml")).contains("<properties"),
                 "test.xml carries no system-property table (it names the machine)");
+    }
+
+    @Test
+    void anActionRecordsAFailingPassAndSucceeds() throws Exception {
+        Path verdict = dir.resolve("verdict.txt");
+        Path log = dir.resolve("pass.log");
+        Path ledger = dir.resolve("ledger.tsv");
+        JUnitAction.run(new String[] {verdict.toString(), log.toString(), ledger.toString(), "--",
+                "--select-class=" + FIXTURES + "FailingTest", "--fail-if-no-tests"});
+        assertEquals("1", Files.readString(verdict).trim(), "JUnitMain's exit code for a failed test");
+        String text = Files.readString(log);
+        assertTrue(text.contains("Failures (1)") && text.contains("the fixture's planted failure"),
+                "the log keeps the failure summary its consumer quotes: " + text);
+        assertTrue(Files.exists(ledger), "an output the pass did not write is created empty");
+    }
+
+    @Test
+    void anActionRecordsAPassingPass() throws Exception {
+        Path verdict = dir.resolve("verdict.txt");
+        JUnitAction.run(new String[] {verdict.toString(), dir.resolve("pass.log").toString(), "--",
+                "--select-class=" + FIXTURES + "ProbeTest", "--fail-if-no-tests"});
+        assertEquals("0", Files.readString(verdict).trim());
     }
 
     @Test

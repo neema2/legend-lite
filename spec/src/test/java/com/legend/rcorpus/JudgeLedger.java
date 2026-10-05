@@ -3,6 +3,8 @@
 package com.legend.rcorpus;
 
 import com.legend.test.PureTestRunner;
+import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -33,10 +35,41 @@ final class JudgeLedger {
     record Row(String test, int ordinal, String family, String verdict) {
     }
 
-    /** Append the test's verdict rows when a ledger path is configured. */
-    static void record(String test, PureTestRunner.Result r) {
+    /** Where this pass writes its ledger: {@code -Dlegend.judge.ledger} when set (the host pass names its declared
+     *  output), else, in database mode, {@code judge-database.tsv} in the test's outputs; null for neither. */
+    static Path path() {
         String path = System.getProperty(PROPERTY, "").trim();
-        if (path.isEmpty()) {
+        if (!path.isEmpty()) {
+            return Path.of(path);
+        }
+        return "database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))
+                ? Repo.out("judge-database.tsv") : null;
+    }
+
+    /** The host-judge pass, a build action ({@code //spec:judge_host_<lane>}, spec/corpus.bzl), must have passed
+     *  before the database pass means anything: its verdict file holds JUnitMain's exit code, and a failure is
+     *  reported here with the pass's own log, from its failure summary on. */
+    static void requireHostPassed() throws IOException {
+        String code = Files.readString(Runfile.property("legend.judge.host.verdict"), StandardCharsets.UTF_8).trim();
+        if (code.equals("0")) {
+            return;
+        }
+        List<String> log = Files.readAllLines(Runfile.property("legend.judge.host.log"), StandardCharsets.UTF_8);
+        int from = Math.max(0, log.size() - 200);
+        for (int i = 0; i < log.size(); i++) {
+            if (log.get(i).startsWith("Failures (")) {
+                from = i;
+                break;
+            }
+        }
+        throw new AssertionError("the host-judge pass failed (JUnit exit " + code + "); its log from line "
+                + (from + 1) + ":\n" + String.join("\n", log.subList(from, Math.min(log.size(), from + 300))));
+    }
+
+    /** Append the test's verdict rows when this pass keeps a ledger ({@link #path}). */
+    static void record(String test, PureTestRunner.Result r) {
+        Path path = path();
+        if (path == null) {
             return;
         }
         StringBuilder sb = new StringBuilder();
@@ -49,7 +82,7 @@ final class JudgeLedger {
                     .append('\t').append(verdict).append('\n');
         }
         try {
-            Files.writeString(Path.of(path), sb, StandardCharsets.UTF_8,
+            Files.writeString(path, sb, StandardCharsets.UTF_8,
                     StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException e) {
             throw new IllegalStateException("judge ledger " + path, e);

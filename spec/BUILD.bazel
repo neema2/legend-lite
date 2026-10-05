@@ -6,6 +6,7 @@ load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
+load(":corpus.bzl", "corpus_lane")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # spec's sources, exported for core's guard tests that walk every module.
@@ -100,27 +101,17 @@ junit_test(
     upstream = True,
 )
 
-# Maven gates 4 and 11, ONE target: the relational corpus against DuckDB under
-# the HOST judge (gate 4) — run as the prerun, a child JVM, writing its per-assert
-# ledger — then under the DATABASE judge, which joins the two per assert in the
-# lane itself (MinimalCorpusTest.pinJudgeDifferential; gate 11). The host pass
-# carries every gate-4 assertion (the judge mode defaults to host; the ledger is a
-# write-only side effect), and a failing host pass fails the target before the
-# database pass runs. Until 2026-09-23 gate 4 was also its own target, so every
-# chain ran the host pass twice.
-junit_test(
+# Maven gates 4 and 11: the relational corpus against DuckDB under the HOST judge (gate 4; the build action
+# :judge_host_duckdb, writing its per-assert ledger), then under the DATABASE judge, which joins the two per assert in
+# the lane itself (MinimalCorpusTest.pinJudgeDifferential; gate 11). The host pass carries every gate-4 assertion; a
+# failing host pass fails this target, quoting its log, before the database pass runs (spec/corpus.bzl).
+# host_memory_mb 1024: java_run's smallest size, above the test's 768.
+corpus_lane(
     name = "corpus_duckdb",
     memory_mb = 768,
+    host_memory_mb = 1024,
     data = _INPUTS,
-    jvm_flags = [
-        "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
-        "-Dlegend.judge.mode=database",
-        "-Dlegend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-database.tsv",
-        "-Dlegend.judge.ledger.host=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
-    ],
     runtime_deps = [":spec_tests_lib"],
-    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
-    upstream = True,
 )
 
 # W1c (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md): :corpus_duckdb with every
@@ -128,50 +119,40 @@ junit_test(
 # harness starts the server (its deploy jar: DuckDB 1.5.5.1, its own classpath)
 # as a child process. Not in the chain yet: its differences from :corpus_duckdb
 # are the leg's rows.
-junit_test(
+corpus_lane(
     name = "corpus_warehouse",
     memory_mb = 768,
-    # the warehouse it starts finds DuckDB's library in these runfiles (Bazel workplan P1-16)
+    host_memory_mb = 1024,
     data = _INPUTS + [
         "//warehouse:duckdb_library",
         "//warehouse:server_deploy.jar",
     ],
-    jvm_flags = [
-        "-Drcorpus.warehouse.server=$(rootpath //warehouse:server_deploy.jar)",
-        "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
-        "-Dlegend.judge.mode=database",
-        "-Dlegend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-database.tsv",
-        "-Dlegend.judge.ledger.host=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
+    # the test's warehouse finds DuckDB's library in its runfiles (Bazel workplan P1-16); the host pass, a build
+    # action with none, names it
+    host_jvm_flags = [
+        "-Drcorpus.warehouse.server=$(execpath //warehouse:server_deploy.jar)",
+        "-Drcorpus.warehouse.library=$(execpath //warehouse:duckdb_library)",
     ],
     runtime_deps = [
         ":spec_tests_lib",
         "//warehouse:client",
     ],
-    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
     tags = ["manual"],
-    upstream = True,
+    test_jvm_flags = ["-Drcorpus.warehouse.server=$(rootpath //warehouse:server_deploy.jar)"],
 )
 
-# Maven gate 5, the same two passes on H2: the corpus under the HOST judge (the
-# prerun, writing its ledger), then under the DATABASE judge, joined per assert —
-# :corpus_duckdb's shape. The database pass was its own target until 2026-09-23,
-# which ran the H2 database judge but never the join.
+# Maven gate 5, the same two passes on H2: the corpus under the HOST judge (:judge_host_h2, writing its ledger), then
+# under the DATABASE judge, joined per assert: :corpus_duckdb's shape.
 # memory_mb 4096, not the rule's 4864 (live peak 3235 MB, measured 2026-10-04): CI's 7 GB macOS runner runs this
-# lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
-junit_test(
+# lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21). The host pass, an action,
+# takes the same heap; the two never run at once (the test waits for the action).
+corpus_lane(
     name = "corpus_h2",
     memory_mb = 4096,
+    host_memory_mb = 4096,
     data = _INPUTS,
-    jvm_flags = [
-        "-Drcorpus.backend=h2",
-        "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
-        "-Dlegend.judge.mode=database",
-        "-Dlegend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-database.tsv",
-        "-Dlegend.judge.ledger.host=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
-    ],
+    jvm_flags = ["-Drcorpus.backend=h2"],
     runtime_deps = [":spec_tests_lib"],
-    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
-    upstream = True,
 )
 
 # THE REFERENCE LANE (execution plan W1.1): legend-pure's own compiler, from the pinned jars, against ours, call by

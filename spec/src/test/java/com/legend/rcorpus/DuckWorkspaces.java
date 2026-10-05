@@ -73,6 +73,11 @@ final class DuckWorkspaces {
     private static final @com.legend.base.Nullable String WAREHOUSE_JAR =
             System.getProperty("rcorpus.warehouse.server");
 
+    /** DuckDB's library for that warehouse, named when it has no runfiles to find it in (the host pass, a build
+     *  action: spec/corpus.bzl); unset, the server finds it in its runfiles (Bazel workplan P1-16). */
+    private static final @com.legend.base.Nullable String WAREHOUSE_LIBRARY =
+            System.getProperty("rcorpus.warehouse.library");
+
     /** The instance's root connection: in process, the DuckDB connection the
      *  others duplicate; on a warehouse, a session of its own. */
     private static Connection root;
@@ -139,9 +144,14 @@ final class DuckWorkspaces {
             java.nio.file.Path data = keep != null ? java.nio.file.Files.createDirectories(java.nio.file.Path.of(keep))
                     : java.nio.file.Files.createTempDirectory("rcorpus-warehouse");
             String launcher = java.nio.file.Path.of(System.getProperty("java.home"), "bin", "java").toString();
-            Process p = new ProcessBuilder(launcher, "--enable-native-access=ALL-UNNAMED", "-jar", jar,
+            java.util.List<String> command = new java.util.ArrayList<>(java.util.List.of(launcher,
+                    "--enable-native-access=ALL-UNNAMED", "-jar", jar,
                     "--port", "0", "--data", data.toString(), "--user", "rcorpus:rcorpus", "--owner", "rcorpus",
-                    "--concurrency", "4")
+                    "--concurrency", "4"));
+            if (WAREHOUSE_LIBRARY != null) {
+                command.addAll(java.util.List.of("--duckdb-library", WAREHOUSE_LIBRARY));
+            }
+            Process p = new ProcessBuilder(command)
                     .redirectOutput(ProcessBuilder.Redirect.INHERIT)
                     .start();
             Runtime.getRuntime().addShutdownHook(new Thread(p::destroy));

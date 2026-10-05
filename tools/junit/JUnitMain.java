@@ -102,34 +102,17 @@ import org.w3c.dom.Element;
  * one target per class (Bazel workplan D2). Under {@code --test_filter} it is only a warning:
  * running more than asked is harmless.
  *
- * <p>OUTPUT PATHS. A system property may name {@code ${TEST_UNDECLARED_OUTPUTS_DIR}};
- * it is replaced here, portably, by the directory Bazel collects into
- * {@code bazel-testlogs/.../test.outputs} (no shell expands jvm_flags on Windows).
- *
- * <p>THE PRERUN (deleted by Bazel workplan P3-01). With {@code -Dlegend.prerun=k=v,k=v} the same
- * selection first runs in a CHILD JVM — same classpath, same JVM flags, plus those properties — and
- * must pass before this JVM runs it. The child reports nothing to Bazel: the second pass owns
- * {@code XML_OUTPUT_FILE} and the premature-exit file.
+ * <p>OUTPUTS. A test writes its own outputs under {@code TEST_UNDECLARED_OUTPUTS_DIR}, read from its environment;
+ * one pass that hands another its output is a build action ({@link JUnitAction}), never a child JVM of this one
+ * (Bazel workplan P3-01).
  */
 public final class JUnitMain {
 
     private JUnitMain() {}
 
-    private static final String OUTPUTS_TOKEN = "${TEST_UNDECLARED_OUTPUTS_DIR}";
-
     public static void main(String[] args) throws Exception {
         pinTempDirectory();
         watchHeap();
-        String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
-        expandOutputs(outputs);
-        String prerun = System.getProperty("legend.prerun");
-        if (prerun != null) {
-            int code = prerun(prerun, args, outputs);
-            if (code != 0) {
-                System.err.println("[prerun] the first pass failed (exit " + code + ") — the second is not run");
-                System.exit(code);
-            }
-        }
         int code = 4;
         try {
             code = protocol(args, System::getenv);
@@ -506,53 +489,5 @@ public final class JUnitMain {
             Files.createFile(p);
         }
         return p;
-    }
-
-    /** Replaces the outputs token in every system property. Outside Bazel there is
-     *  no outputs directory, and a property that names one is an error. */
-    private static void expandOutputs(String outputs) {
-        for (String key : System.getProperties().stringPropertyNames()) {
-            String value = System.getProperty(key);
-            if (value != null && value.contains(OUTPUTS_TOKEN)) {
-                if (outputs == null) {
-                    throw new IllegalStateException("-D" + key + " names " + OUTPUTS_TOKEN
-                            + ", which only a Bazel test has");
-                }
-                System.setProperty(key, value.replace(OUTPUTS_TOKEN, outputs));
-            }
-        }
-    }
-
-    private static int prerun(String spec, String[] args, String outputs)
-            throws IOException, InterruptedException {
-        List<String> command = new ArrayList<>();
-        command.add(Path.of(System.getProperty("java.home"), "bin", "java").toString());
-        for (String flag : ManagementFactory.getRuntimeMXBean().getInputArguments()) {
-            if (!flag.startsWith("-Dlegend.prerun=")) {
-                command.add(flag.contains(OUTPUTS_TOKEN) && outputs != null
-                        ? flag.replace(OUTPUTS_TOKEN, outputs) : flag);
-            }
-        }
-        for (String pair : spec.split(",")) {
-            String p = outputs != null ? pair.replace(OUTPUTS_TOKEN, outputs) : pair;
-            command.add("-D" + p.trim());
-        }
-        command.add("-cp");
-        command.add(System.getProperty("java.class.path"));
-        command.add(JUnitMain.class.getName());
-        command.addAll(List.of(args));
-        System.out.println("[prerun] " + spec);
-        ProcessBuilder builder = new ProcessBuilder(command).inheritIO();
-        // the first pass reports nothing to Bazel: the second pass owns the XML and exit file
-        builder.environment().remove("XML_OUTPUT_FILE");
-        builder.environment().remove("TEST_PREMATURE_EXIT_FILE");
-        if (outputs != null) {
-            // the first pass's own outputs land beside, not over, the second's: test.outputs/prerun/...
-            Path own = Path.of(outputs, "prerun");
-            Files.createDirectories(own);
-            builder.environment().put("TEST_UNDECLARED_OUTPUTS_DIR", own.toString());
-        }
-        Process child = builder.start();
-        return child.waitFor();
     }
 }
