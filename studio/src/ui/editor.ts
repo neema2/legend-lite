@@ -14,7 +14,7 @@ import { icon } from '../../../legend-art/src/icon.ts';
 import { typeIcon } from '../../../legend-art/src/type-icon.ts';
 import type { IconName } from '../../../legend-art/src/icons.ts';
 import { clear, dialog, h, menu, toast } from './dom.ts';
-import { PURE } from './pure-language.ts';
+import { editorTheme, PURE } from './pure-language.ts';
 import { field } from './setup.ts';
 import { renderProject, renderReview } from './sdlc-panels.ts';
 import { theme, toggleTheme } from './theme.ts';
@@ -79,15 +79,22 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       h('div', { class: 'panel' }, h('div', { class: 'panel-head' }, problemsTitle), problemsPanel)),
     status));
 
+  // upstream's options (census 5.2, CodeEditorUtils.ts:51-78); what it leaves unset (minimap, line height, scrolling
+  // past the end) stays Monaco's default here too
   const editor = monaco.editor.create(editorHost, {
     model: null,
-    theme: theme() === 'light' ? 'vs' : 'vs-dark',
+    theme: editorTheme(theme() === 'light'),
     automaticLayout: true,
-    fontFamily: "'Roboto Mono', monospace",
-    fontSize: 13,
-    minimap: { enabled: false },
+    fontFamily: "'Roboto Mono'",
+    fontSize: 14,
+    fontLigatures: true,
     tabSize: 2,
-    scrollBeyondLastLine: false,
+    detectIndentation: false,
+    contextmenu: false,
+    copyWithSyntaxHighlighting: false,
+    bracketPairColorization: { enabled: false },
+    fixedOverflowWidgets: true,
+    renderValidationDecorations: 'on',
   });
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void save());
   editor.addCommand(monaco.KeyCode.F9, () => void compile());
@@ -206,7 +213,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
         item('review', 'gitPullRequest', '23px', 'Review (Ctrl + Shift + M)'),
         item('project', 'repo', '23px', 'Project')),
       h('button', { class: 'activity-bar__item', title: dark ? 'Switch to light theme' : 'Switch to dark theme', 'data-testid': 'theme-toggle',
-        onclick: () => { const next = toggleTheme(); monaco.editor.setTheme(next === 'light' ? 'vs' : 'vs-dark'); renderActivityBar(); } },
+        onclick: () => { const next = toggleTheme(); monaco.editor.setTheme(editorTheme(next === 'light')); renderActivityBar(); } },
       icon(dark ? 'sun' : 'moon', '20px')));
   };
 

@@ -4,4 +4,5 @@
 @font-face { font-family: 'Roboto'; font-style: normal; font-display: swap; font-weight: 500; src: url(vendor/fonts/roboto-latin-500-normal.woff2) format('woff2'); }
 @font-face { font-family: 'Roboto'; font-style: normal; font-display: swap; font-weight: 700; src: url(vendor/fonts/roboto-latin-700-normal.woff2) format('woff2'); }
 @font-face { font-family: 'Roboto Mono'; font-style: normal; font-display: swap; font-weight: 400; src: url(vendor/fonts/roboto-mono-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Roboto Mono'; font-style: normal; font-display: swap; font-weight: 700; src: url(vendor/fonts/roboto-mono-latin-700-normal.woff2) format('woff2'); }
 @font-face { font-family: 'Raleway'; font-style: normal; font-display: swap; font-weight: 900; src: url(vendor/fonts/raleway-latin-900-normal.woff2) format('woff2'); }
