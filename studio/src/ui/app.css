@@ -348,6 +348,14 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .search-modal__name { white-space: nowrap; }
 .search-modal__path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); font-size: 12px; }
 .search-modal__empty { padding: 8px 10px; color: var(--color-text-muted); }
+/* the tests (plan A4): a bar with the counts and Run all, then a row per atomic test */
+.tests-panel { overflow: auto; }
+.tests-panel__bar { display: flex; align-items: center; justify-content: space-between; }
+.tests-panel__status { font-weight: 500; }
+.tests-panel__status--pass { color: var(--color-status-success); }
+.tests-panel__status--fail { color: var(--color-status-error); }
+.tests-panel__status--skipped { color: var(--color-text-muted); }
+.tests-panel__reason { max-width: 600px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* the Data panel (plan A2): a table per declared table, its source, its rows, its actions */
 .data-tables { overflow: auto; }
 .data-tables__rows { text-align: right; }

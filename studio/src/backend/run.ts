@@ -9,8 +9,9 @@ import type { Engine } from '../../../engine-client/src/legend/engine.ts';
 import type { PFunction, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 import type { ExecutionResult, ParameterValue } from '../../../engine-client/src/legend/wire.ts';
 import type { TableState, TabTables } from '../../../engine-client/src/tab-data.ts';
+import { runServiceTests, type TestHost, type TestResult } from '../../../engine-client/src/legend/testable.ts';
 
-export type { TableState };
+export type { TableState, TestResult };
 
 /** A function's parameter, as Run asks for it: its name, type and multiplicity, as the signature declares them. */
 export interface RunParameter {
@@ -35,6 +36,13 @@ export interface Runner {
   putTable(modelText: string, schema: string, table: string, file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void>;
   /** A table back to the model's own rows. */
   resetTable(modelText: string, schema: string, table: string): Promise<void>;
+  /** Every service with test suites in the model: their paths, for the global test runner (plan A4). */
+  testables(modelText: string): Promise<string[]>;
+  /**
+   * A service's test suites run (plan A4): in the tab, each test on its own rows in DuckDB, judged by core's rules;
+   * the model's own rows are put back after.
+   */
+  tests(service: string, modelText: string): Promise<TestResult[]>;
 }
 
 /** What a run needs of the session: the grammar (to read the element), the engine, and the in-tab data step. */
@@ -50,6 +58,8 @@ export interface RunSession {
   loadData?(model: PureModelContextData): Promise<void>;
   /** The tab's tables and where their rows are from (plan A2); a server has its own data. */
   tabTables?(): Promise<TabTables>;
+  /** What a test run in the tab needs: core's plan and judgment, the in-tab engine, the tab's DuckDB (plan A4). */
+  testHost?(): Promise<TestHost>;
 }
 
 /** A multiplicity as Pure writes it: [1], [0..1], [*], [1..*]. */
@@ -123,6 +133,23 @@ export function runner(session: RunSession): Runner {
     async resetTable(modelText, schema, table) {
       const { tabs, model } = await tablesOf(modelText);
       await tabs.reset(model.elements, schema, table);
+    },
+    async testables(modelText) {
+      const model = await session.modelJson(modelText);
+      return (model.elements as unknown as { _type: string; package: string; name: string; testSuites?: unknown[] }[])
+        .filter((e) => e._type === 'service' && (e.testSuites?.length ?? 0) > 0)
+        .map((e) => `${e.package}::${e.name}`).sort();
+    },
+    async tests(service, modelText) {
+      if (!session.testHost || !session.loadData) throw new Error('tests run in this tab for now; this session runs on a server');
+      const model = await session.modelJson(modelText);
+      await session.loadData(model);
+      try {
+        return await runServiceTests(await session.testHost(), modelText, model, service);
+      } finally {
+        // each test loaded its own rows: the model's own go back
+        await session.loadData(model);
+      }
     },
   };
 

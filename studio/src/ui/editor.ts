@@ -11,7 +11,7 @@ import type { PureChange } from '../../../sdlc-client/src/wire.ts';
 import type { Compiler } from '../backend/planner.ts';
 import type { QueryBuilder } from '../backend/query-builder.ts';
 import type { EditorHandle } from '../../../query/src/embed.ts';
-import type { Runner, TableState } from '../backend/run.ts';
+import type { Runner, TableState, TestResult } from '../backend/run.ts';
 import type { RawTable } from '../../../engine-client/src/engine.ts';
 import { isTds, type ExecutionResult } from '../../../engine-client/src/legend/wire.ts';
 import { renamePath } from '../model/rename.ts';
@@ -154,9 +154,42 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       h('thead', {}, h('tr', {}, h('th', {}, 'Table'), h('th', {}, 'Rows from'), h('th', {}, 'Rows'), h('th', {}, ''))),
       h('tbody', {}, ...rows)));
   };
+  // the tests (plan A4; upstream's test runner): a service's suites, or every one in the workspace, run in the tab and
+  // judged by core's rules -- each atomic test passed, failed (the first difference) or skipped (why)
+  const testsPanel = h('div', { class: 'panel-group__content tests-panel', 'data-testid': 'tests' });
+  const runTests = async (services?: readonly string[]): Promise<void> => {
+    panelTab = 'tests';
+    panelOpen = true;
+    renderPanel();
+    renderStatus();
+    clear(testsPanel);
+    testsPanel.append(h('div', { class: 'panel-group__empty', 'data-testid': 'test-summary' }, 'Running the tests…'));
+    const results: TestResult[] = [];
+    try {
+      const model = ws.model().text;
+      for (const s of services ?? await ctx.run.testables(model)) results.push(...await ctx.run.tests(s, model));
+    } catch (e) {
+      clear(testsPanel);
+      testsPanel.append(h('div', { class: 'panel-group__run-error', 'data-testid': 'test-summary' }, icon('error'), h('span', {}, e instanceof Error ? e.message : String(e))));
+      return;
+    }
+    const count = (s: string): number => results.filter((r) => r.status === s).length;
+    clear(testsPanel);
+    testsPanel.append(
+      h('div', { class: 'run-result__bar tests-panel__bar' },
+        h('span', { 'data-testid': 'test-summary' }, results.length === 0 ? 'No tests in this workspace'
+          : `${count('PASS')} passed, ${count('FAIL')} failed, ${count('SKIPPED')} skipped`),
+        h('button', { class: 'btn btn-small', 'data-testid': 'run-all-tests', title: 'Run every test suite in this workspace', onclick: () => void runTests() }, icon('play', '10px'), 'Run all tests')),
+      h('table', { class: 'run-result__table', 'data-testid': 'test-results' },
+        h('thead', {}, h('tr', {}, ...['Element', 'Suite', 'Test', 'Result', '', 'ms'].map((c) => h('th', {}, c)))),
+        h('tbody', {}, ...results.map((r) => h('tr', { 'data-test': `${r.suite}.${r.test}`, 'data-status': r.status },
+          h('td', {}, r.element), h('td', {}, r.suite), h('td', {}, r.test),
+          h('td', { class: `tests-panel__status tests-panel__status--${r.status.toLowerCase()}` }, r.status),
+          h('td', { class: 'tests-panel__reason', title: r.reason }, r.reason), h('td', {}, String(r.ms)))))));
+  };
   let panelOpen = false;
   let panelMaximised = false;
-  let panelTab: 'problems' | 'results' | 'sql' | 'data' = 'problems';
+  let panelTab: 'problems' | 'results' | 'sql' | 'data' | 'tests' = 'problems';
   const panel = h('div', { class: 'panel-group' });
   const main = h('div', { class: 'main' });
   const renderPanel = (): void => {
@@ -168,12 +201,12 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
         onclick: () => { panelTab = t; renderPanel(); if (t === 'data') void renderData(); } }, label, badge);
     panel.append(
       h('div', { class: 'panel-group__header' },
-        h('div', { class: 'panel-group__tabs' }, tab('problems', 'Problems', problemsBadge), tab('results', 'Results'), tab('sql', 'SQL Playground'), tab('data', 'Data')),
+        h('div', { class: 'panel-group__tabs' }, tab('problems', 'Problems', problemsBadge), tab('results', 'Results'), tab('sql', 'SQL Playground'), tab('data', 'Data'), tab('tests', 'Tests')),
         h('div', { class: 'panel-group__actions' },
           h('button', { class: 'panel-group__action', title: 'Toggle expand/collapse', onclick: () => { panelMaximised = !panelMaximised; renderPanel(); } },
             icon(panelMaximised ? 'chevronDown' : 'chevronUp', '18px')),
           h('button', { class: 'panel-group__action', title: 'Close', onclick: () => { panelOpen = false; renderPanel(); renderStatus(); } }, icon('x', '18px')))),
-      panelTab === 'problems' ? problemsPanel : panelTab === 'results' ? resultsPanel : panelTab === 'sql' ? sqlPanel : dataPanel);
+      panelTab === 'problems' ? problemsPanel : panelTab === 'results' ? resultsPanel : panelTab === 'sql' ? sqlPanel : panelTab === 'data' ? dataPanel : testsPanel);
   };
   const openPanel = (): void => {
     panelTab = 'problems';
@@ -329,6 +362,9 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       tabsBar.append(h('div', { class: 'tabs-spacer' }),
         ...(query ? [h('button', { class: 'btn btn-small', 'data-testid': 'open-query-builder', title: query[1],
           onclick: () => void openBuilder(active!) }, query[0])] : []),
+        // a service with test suites (plan A4): its tests, run in the tab
+        ...(kind === 'Service' && /\btestSuites\s*:/.test(ws.file(active)!.text) ? [h('button', { class: 'btn btn-small', 'data-testid': 'run-tests',
+          title: "Run this service's test suites", onclick: () => void runTests([fileLabel(ws.file(active!)!)]) }, 'Run Tests')] : []),
         ...(runnable ? [h('button', { class: 'btn btn-small btn-primary tabs__run', 'data-testid': 'run-function', title: 'Run (F5)', onclick: () => void runActive() },
           icon('play', '10px'), 'Run')] : []),
         ...(readOnly ? [] : [

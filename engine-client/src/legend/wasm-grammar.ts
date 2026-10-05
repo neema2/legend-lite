@@ -7,6 +7,7 @@ import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, type Grammar } from './engine.ts';
 import type { PlannerRequest, PlannerResponse } from './planner-worker.ts';
+import type { PlannedTest } from './testable.ts';
 import type { PureModelContext, RelationTypeAnswer } from './wire.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
@@ -117,5 +118,16 @@ export class WasmGrammar implements Grammar {
     if (answer.startsWith('OK\n')) return JSON.parse(answer.slice(3)) as string[];
     const [, kind = '', ...rest] = answer.split('\n');
     return [rest.join('\n') || kind];
+  }
+
+  /** A service's tests planned without a database (core's TestPlan): each test's tables, runtime, format, assertions. */
+  async testPlan(code: string, service: string): Promise<PlannedTest[]> {
+    return JSON.parse(unfold(await this.#port.ask({ kind: 'testPlan', model: code, service }))) as PlannedTest[];
+  }
+
+  /** An EqualToJson judged by core's rules: undefined when equal, else the difference (TestHost.judge). */
+  async judge(expectedJson: string, actual: unknown): Promise<string | undefined> {
+    const diff = unfold(await this.#port.ask({ kind: 'judge', expected: expectedJson, actual: JSON.stringify(actual) }));
+    return diff === '' ? undefined : diff;
   }
 }

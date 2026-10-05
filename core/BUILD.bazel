@@ -173,10 +173,18 @@ legend_java_library(
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":lexer", ":model", ":parser"])
+# a service's tests planned without a database (Studio plan A4): the provisioning, runtime, format and assertions of
+# each atomic test, by the engine's rules -- the plan side, so the WebAssembly planner hands it to the browser, and
+# :test's runners execute it on a session
+legend_java_library(
+    name = "testable",
+    srcs = glob(["src/main/java/com/legend/testable/*.java"]),
+    deps = ["//base", ":compiler", ":model", ":protocol"],
+)
 legend_java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
-    deps = ["//base", ":compiler", ":driver", ":error", ":exec", ":model", ":planner", ":protocol", ":sql", ":values"],
+    deps = ["//base", ":compiler", ":driver", ":error", ":exec", ":model", ":planner", ":protocol", ":sql", ":testable", ":values"],
 )
 legend_java_library(
     name = "server_lib",
@@ -188,7 +196,7 @@ _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":exec", ":probe", ":testdatagen",
-    ":planner", ":driver", ":ide", ":test", ":server_lib",
+    ":planner", ":driver", ":ide", ":testable", ":test", ":server_lib",
 ]
 
 # THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it
@@ -197,7 +205,7 @@ _CORE_TARGETS = [
 _PLAN_SIDE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":planner",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":planner", ":testable",
 ]
 
 legend_java_library(

@@ -234,6 +234,33 @@ public final class Wasm {
     }
 
     /**
+     * Studio's tests in the tab (plan A4): a service's test suites planned without a database --
+     * for each atomic test the tables its runtime is provisioned with, the runtime, the
+     * serialization format and the assertions ({@link com.legend.testable.TestPlan}), the rules
+     * {@code ServiceTestRunner} uses on a server. The browser loads the tables into its DuckDB and
+     * runs the service's query there. {@code "OK\n" + [plan]} or the folded refusal.
+     */
+    @org.teavm.jso.JSExport
+    public static String testPlanOrError(String model, String service) {
+        try {
+            com.legend.model.ParsedModel parsed = com.legend.Compiler.parseModel(model);
+            com.legend.model.ServiceDefinition svc = null;
+            for (Object e : parsed.elements()) {
+                if (e instanceof com.legend.model.ServiceDefinition s && s.qualifiedName().equals(service)) {
+                    svc = s;
+                }
+            }
+            if (svc == null) {
+                throw new IllegalArgumentException("no service " + service + " in the model");
+            }
+            return "OK\n" + com.legend.json.Json.toCompact(com.legend.testable.TestPlan.toJson(
+                    com.legend.testable.TestPlan.of(com.legend.Compiler.buildModel(parsed), svc)));
+        } catch (RuntimeException | StackOverflowError e) {
+            return folded(e);
+        }
+    }
+
+    /**
      * E2's twin: a model's text to its PMCD JSON ({@code {"_type":"data","elements":[...]}}),
      * without source information -- the same {@code PmcdParser.parseDocument} the server's
      * {@code grammar/grammarToJson/model} calls. How a browser app browses a model's classes,

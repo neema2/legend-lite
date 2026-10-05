@@ -99,13 +99,6 @@ public final class ServiceTestRunner implements AutoCloseable {
         }
     }
 
-    /** A test the runner cannot judge: the reason travels as the result. */
-    private static final class Skip extends RuntimeException {
-        Skip(String why) {
-            super(why);
-        }
-    }
-
     private final PureModelContext ctx;
     private final PureTestRunner.Sessions opener;
     private final Sessions policy;
@@ -170,15 +163,13 @@ public final class ServiceTestRunner implements AutoCloseable {
         this.sessionType = sessionType;
     }
 
-    /** One provisioning unit: the store and the CSV data that seeds it. */
-    private record Provision(String store, Protocol.PRelationalCsvData data) {
-        ProvisionKey key() {
-            List<CsvTableKey> tables = new java.util.ArrayList<>(data.tables().size());
-            for (Protocol.PRelationalCsvTable t : data.tables()) {
-                tables.add(new CsvTableKey(t.schema(), t.table(), t.values()));
-            }
-            return new ProvisionKey(store, List.copyOf(tables));
+    /** A provisioning unit (the plan's: {@link TestPlan#provisions}) by value. */
+    private static ProvisionKey key(com.legend.testable.TestPlan.Provision p) {
+        List<CsvTableKey> tables = new java.util.ArrayList<>(p.data().tables().size());
+        for (Protocol.PRelationalCsvTable t : p.data().tables()) {
+            tables.add(new CsvTableKey(t.schema(), t.table(), t.values()));
         }
+        return new ProvisionKey(p.store(), List.copyOf(tables));
     }
 
     // ---- RUN -----------------------------------------------------------------
@@ -196,7 +187,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 Result r;
                 try {
                     r = runOne(svc, suite, test);
-                } catch (Skip s) {
+                } catch (com.legend.testable.TestPlan.Skip s) {
                     r = new Result(svc.qualifiedName(), suite.id(), test.id(), Status.SKIPPED,
                             String.valueOf(s.getMessage()), 0);
                 } catch (RuntimeException | SQLException e) {
@@ -213,10 +204,10 @@ public final class ServiceTestRunner implements AutoCloseable {
 
     private Result runOne(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
             Protocol.PServiceTestSuite.PSuiteTest test) throws SQLException {
-        String runtimeFqn = runtimeOf(svc);
+        String runtimeFqn = com.legend.testable.TestPlan.runtimeOf(svc);
         RuntimeDefinition runtime = ctx.findRuntime(runtimeFqn).orElseThrow(
-                () -> new Skip("runtime '" + runtimeFqn + "' is not in the model"));
-        List<Provision> provisions = provisions(suite, runtime);
+                () -> new com.legend.testable.TestPlan.Skip("runtime '" + runtimeFqn + "' is not in the model"));
+        List<com.legend.testable.TestPlan.Provision> provisions = com.legend.testable.TestPlan.provisions(ctx, suite, runtime);
         TestRuntime rt = testRuntime(runtime, provisions);
 
         // the program: parameters as let-bound variables, then the body
@@ -274,17 +265,6 @@ public final class ServiceTestRunner implements AutoCloseable {
         return new Result(svc.qualifiedName(), suite.id(), test.id(), Status.FAIL, reason, 0);
     }
 
-    private static String runtimeOf(ServiceDefinition svc) {
-        if (svc.runtimeRef() != null) {
-            return svc.runtimeRef();
-        }
-        if (svc.multiExecution() != null) {
-            throw new Skip("multi-execution service: the test's keys select an environment,"
-                    + " which this runner does not bind yet");
-        }
-        throw new Skip("service names no runtime");
-    }
-
     private static List<ValueSpecification> body(ValueSpecification fb) {
         return fb instanceof LambdaFunction lf && lf.parameters().isEmpty()
                 ? lf.body() : List.of(fb);
@@ -292,87 +272,14 @@ public final class ServiceTestRunner implements AutoCloseable {
 
     // ---- PROVISIONING → THE TEST RUNTIME -----------------------------------------
 
-    private List<Provision> provisions(Protocol.PServiceTestSuite suite, RuntimeDefinition runtime) {
-        List<Provision> out = new ArrayList<>();
-        Protocol.PServiceTestSuite.PSuiteData data = suite.testData();
-        if (data == null) {
-            return out;
-        }
-        for (Protocol.PServiceTestSuite.PSuiteConnData cd : data.connectionsTestData()) {
-            String store = runtime.connectionIds().get(cd.id());
-            if (store == null) {
-                if (runtime.connectionBindings().size() == 1) {
-                    store = runtime.connectionBindings().keySet().iterator().next();
-                } else {
-                    throw new Skip("connection id '" + cd.id() + "' is not bound by runtime '"
-                            + runtime.qualifiedName() + "'");
-                }
-            }
-            addProvision(out, store, cd.data());
-        }
-        if (data.serviceTestData() != null) {
-            for (Protocol.PServiceTestSuite.PResolverData rd : data.serviceTestData()) {
-                if (rd.data() != null) {
-                    addProvision(out, rd.elementPath(), rd.data());
-                } else {
-                    // referenceDataResolver: the element's own resolvers name the stores
-                    DataDefinition dd = ctx.findData(rd.elementPath()).orElseThrow(
-                            () -> new Skip("data element '" + rd.elementPath()
-                                    + "' is not in the model"));
-                    addResolvers(out, dd);
-                }
-            }
-        }
-        return out;
-    }
-
-    private void addResolvers(List<Provision> out, DataDefinition dd) {
-        if (dd.body().resolvers().isEmpty()) {
-            throw new Skip("data element '" + dd.qualifiedName()
-                    + "' names no store to provision (no resolvers)");
-        }
-        for (Protocol.PDataResolver r : dd.body().resolvers()) {
-            if (r.data() == null) {
-                DataDefinition inner = ctx.findData(r.elementPointer().path()).orElseThrow(
-                        () -> new Skip("data element '" + r.elementPointer().path()
-                                + "' is not in the model"));
-                addResolvers(out, inner);
-            } else {
-                addProvision(out, r.elementPointer().path(), r.data());
-            }
-        }
-    }
-
-    /** Resolves references down to a concrete value and records it. */
-    private void addProvision(List<Provision> out, String store, Protocol.PEmbeddedDataValue v) {
-        Protocol.PEmbeddedDataValue value = v;
-        while (value instanceof Protocol.PDataReference ref) {
-            String path = ref.dataElement().path();
-            DataDefinition dd = ctx.findData(path).orElseThrow(
-                    () -> new Skip("data element '" + path + "' is not in the model"));
-            if (dd.body().value() == null) {
-                // a resolver-form element: its own store keys apply
-                addResolvers(out, dd);
-                return;
-            }
-            value = dd.body().value();
-        }
-        if (!(value instanceof Protocol.PRelationalCsvData csv)) {
-            throw new Skip("embedded data kind '"
-                    + value.getClass().getSimpleName().substring(1)
-                    + "' is not provisioned by this runner");
-        }
-        out.add(new Provision(store, csv));
-    }
-
     /** The suite's TEST RUNTIME: the service runtime's mappings, its one
      *  provisioned store bound to a connection carrying the CSV as declared
      *  test data (the {@code LocalH2 { testDataSetupCSV }} shape the platform
      *  seeds on establishment). One per distinct provisioning; overlays are
      *  allocation-cheap views of the compiled model. */
-    private TestRuntime testRuntime(RuntimeDefinition runtime, List<Provision> provisions) {
+    private TestRuntime testRuntime(RuntimeDefinition runtime, List<com.legend.testable.TestPlan.Provision> provisions) {
         RuntimeKey key = new RuntimeKey(runtime.qualifiedName(),
-                provisions.stream().map(Provision::key).toList());
+                provisions.stream().map(ServiceTestRunner::key).toList());
         TestRuntime cached = runtimes.get(key);
         if (cached != null) {
             return cached;
@@ -383,17 +290,17 @@ public final class ServiceTestRunner implements AutoCloseable {
             return plain;
         }
         String store = provisions.get(0).store();
-        for (Provision p : provisions) {
+        for (com.legend.testable.TestPlan.Provision p : provisions) {
             if (!p.store().equals(store)) {
-                throw new Skip("provisioning spans several stores (" + store + ", " + p.store()
+                throw new com.legend.testable.TestPlan.Skip("provisioning spans several stores (" + store + ", " + p.store()
                         + "); the test runtime binds one");
             }
         }
         if (ctx.findDatabase(store).isEmpty()) {
-            throw new Skip("store '" + store + "' is not a database in the model");
+            throw new com.legend.testable.TestPlan.Skip("store '" + store + "' is not a database in the model");
         }
         StringBuilder csv = new StringBuilder();
-        for (Provision p : provisions) {
+        for (com.legend.testable.TestPlan.Provision p : provisions) {
             for (Protocol.PRelationalCsvTable t : p.data().tables()) {
                 if (csv.length() > 0) {
                     csv.append("\n-\n");
@@ -448,7 +355,7 @@ public final class ServiceTestRunner implements AutoCloseable {
             }
             case ExecutionResult.Tabular t -> {
                 if (!fmt.equals("PURE_TDSOBJECT") && !fmt.equals("RAW")) {
-                    throw new Skip("serialization format " + fmt
+                    throw new com.legend.testable.TestPlan.Skip("serialization format " + fmt
                             + " of a tabular result is not rendered by this runner");
                 }
                 List<Object> rows = new ArrayList<>(t.rows().size());
@@ -467,7 +374,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 c.values().forEach(v -> vs.add(cell(v)));
                 yield vs;
             }
-            case ExecutionResult.TdsText tt -> throw new Skip(
+            case ExecutionResult.TdsText tt -> throw new com.legend.testable.TestPlan.Skip(
                     "a TDS-text result is not rendered by this runner");
         };
     }
@@ -497,25 +404,25 @@ public final class ServiceTestRunner implements AutoCloseable {
 
     private static @com.legend.base.Nullable String judge(Protocol.PTestAssertion a,
             @com.legend.base.Nullable Object actual) {
-        return switch (a.expected()) {
-            case Protocol.PExternalFormatData ef -> {
-                if (!"application/json".equalsIgnoreCase(ef.contentType())) {
-                    throw new Skip("assertion '" + a.id() + "': content type '"
-                            + ef.contentType() + "' is not judged by this runner");
-                }
-                Object expected;
-                try {
-                    expected = com.legend.sql.Json.parse(ef.data());
-                } catch (RuntimeException e) {
-                    yield "expected JSON does not parse: " + e.getMessage();
-                }
-                yield TestAssertions.equalToJson(expected, actual);
-            }
-            case Protocol.PEqualToValue eq -> throw new Skip("assertion '" + a.id()
-                    + "': EqualTo (a spec value) is not judged by this runner");
-            case Protocol.PRelationElement rel -> throw new Skip("assertion '" + a.id()
-                    + "': a Relation assertion is not judged by this runner");
-        };
+        // the plan's reading of the assertion: its expected JSON, or why this kind is not judged
+        com.legend.testable.TestPlan.Assertion planned = com.legend.testable.TestPlan.assertion(a);
+        String expectedJson = planned.expectedJson();
+        if (expectedJson == null) {
+            throw new com.legend.testable.TestPlan.Skip(String.valueOf(planned.skipped()));
+        }
+        return judgeJson(expectedJson, actual);
+    }
+
+    /** {@code EqualToJson}, the expected side as its text: null when equal, else the difference. */
+    public static @com.legend.base.Nullable String judgeJson(String expectedJson, @com.legend.base.Nullable Object actual) {
+        Object expected = null;
+        String unreadable = null;
+        try {
+            expected = com.legend.sql.Json.parse(expectedJson);
+        } catch (RuntimeException e) {
+            unreadable = "expected JSON does not parse: " + e.getMessage();
+        }
+        return unreadable != null ? unreadable : TestAssertions.equalToJson(expected, actual);
     }
 
     // ---- SESSIONS -------------------------------------------------------------

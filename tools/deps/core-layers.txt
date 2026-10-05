@@ -12,6 +12,8 @@
 # its cache key reads the compiled model's databases) reach database; server_lib reaches compiler.
 # 2026-10-04 C2a: `planner` (Compiler, CrossStoreGuard, ProgramFacts) -- the root package's plan side, NO exec and
 # NO testdatagen; driver, test and server_lib reach it.
+# 2026-10-05 Studio plan A4 (docs/STUDIO_FULL_PLAN_2026_10_04.md; IN_FLIGHT 458c98fe4): `testable`, a service's tests
+# planned without a database (the plan side: the WebAssembly planner hands it to the browser); test reaches it.
 spi	
 cache	base
 values	base
@@ -39,5 +41,6 @@ testdatagen	base builtin compiler compiler_element_type error exec lineage model
 planner	base builtin cache compiler compiler_element_type database error lineage lowering model normalizer parser plan platform protocol resolver sql sql_dialect validation values
 driver	base builtin cache compiler compiler_element_type database error exec lineage lowering model normalizer parser plan planner platform protocol resolver sql sql_dialect testdatagen validation values
 ide	base lexer model parser
-test	base compiler driver error exec model planner protocol sql values
+testable	base compiler model protocol
+test	base compiler driver error exec model planner protocol sql testable values
 server_lib	base cache compiler compiler_element_type database driver error exec json lowering model parser plan planner protocol sql_dialect

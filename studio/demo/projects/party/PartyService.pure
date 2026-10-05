@@ -11,4 +11,77 @@ Service demo::party::PartyService
     mapping: demo::party::PartyMapping;
     runtime: demo::party::Runtime;
   }
+  // its tests, the engine's testable framework: on the project's own rows, and on one row of its own
+  testSuites:
+  [
+    projectRows:
+    {
+      data:
+      [
+        connections:
+        [
+          db:
+            Reference
+            #{
+              demo::party::PartyData
+            }#
+        ]
+      ]
+      tests:
+      [
+        everyParty:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            fiveParties:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"name":"Meridian Capital","country":"US"},{"name":"Halberd Securities","country":"GB"},{"name":"Kestrel Partners","country":"JP"},{"name":"Northgate Asset Management","country":"US"},{"name":"Banque Lumière","country":"FR"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    },
+    oneRow:
+    {
+      data:
+      [
+        connections:
+        [
+          db:
+            Relational
+            #{
+              PARTY.PARTY:
+                'ID,NAME,COUNTRY\n7,Osprey Fund,NZ\n';
+            }#
+        ]
+      ]
+      tests:
+      [
+        osprey:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            onlyOsprey:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"name":"Osprey Fund","country":"NZ"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
 }

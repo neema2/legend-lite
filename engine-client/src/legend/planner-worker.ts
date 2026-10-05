@@ -10,6 +10,8 @@ interface TeavmModule {
     planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
     warmModel(model: string): number;
     compileOrError(model: string): string;
+    testPlanOrError(model: string, service: string): string;
+    judgeJsonOrError(expectedJson: string, actualJson: string): string;
   };
 }
 
@@ -21,7 +23,11 @@ export type PlannerRequest =
   | { readonly kind: 'plan'; readonly model: string; readonly lambda: string; readonly runtime: string }
   | { readonly kind: 'warm'; readonly model: string }
   // the whole model compiled, its errors as a list (Studio's live problems)
-  | { readonly kind: 'compile'; readonly model: string };
+  | { readonly kind: 'compile'; readonly model: string }
+  // a service's tests planned without a database (core's TestPlan; Studio's tests in the tab)
+  | { readonly kind: 'testPlan'; readonly model: string; readonly service: string }
+  // an EqualToJson judged by core's rules (the testable framework's, written once)
+  | { readonly kind: 'judge'; readonly expected: string; readonly actual: string };
 
 export type PlannerMessage = PlannerRequest & { readonly id: number; readonly base: string };
 
@@ -52,6 +58,8 @@ function answer(m: TeavmModule, r: PlannerRequest): string {
     case 'plan': return m.exports.planJsonOrError(r.model, r.lambda, r.runtime);
     case 'warm': m.exports.warmModel(r.model); return 'OK\n';
     case 'compile': return m.exports.compileOrError(r.model);
+    case 'testPlan': return m.exports.testPlanOrError(r.model, r.service);
+    case 'judge': return m.exports.judgeJsonOrError(r.expected, r.actual);
   }
 }
 
