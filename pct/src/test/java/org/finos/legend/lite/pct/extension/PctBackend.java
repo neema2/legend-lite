@@ -71,9 +71,14 @@ final class PctBackend {
         };
     }
 
-    /** The database this lane runs on: what its storeless runtime declares. */
-    static DatabaseType databaseType() {
-        return lane().type;
+    /** {@code model} with this lane's storeless runtime declared beside it: the session {@link #connect} opens. */
+    static String withStorelessRuntime(String model) {
+        Lane lane = lane();
+        return switch (lane) {
+            case DUCKDB, H2 -> com.legend.test.StorelessRuntime.with(model, lane.type);
+            case POSTGRES -> com.legend.test.StorelessRuntime.onServer(model, lane.type, "127.0.0.1",
+                    EmbeddedPostgres.shared().port(), "postgres");
+        };
     }
 
     /** A session on this lane's database. */

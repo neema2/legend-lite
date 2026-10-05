@@ -61,7 +61,7 @@ public class H2 extends AnsiSqlRenderer {
     }
 
     public H2() {
-        super("H2", Lexicon.H2, TypeNames.H2, Spellings.H2);
+        super(Lexicon.H2, TypeNames.H2, Spellings.H2);
     }
 
     @Override

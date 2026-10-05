@@ -199,7 +199,7 @@ class ConnectionLeaseTest {
         // showed as an undeletable file, and says what we actually mean.
         Connection owned;
         try (ConnectionResolver.Lease lease =
-                ConnectionResolver.resolve(duckModel, "test::TestRuntime")) {
+                ConnectionResolver.lease(com.legend.Compiler.compileModel(duckModel), "test::TestRuntime")) {
             owned = lease.connection();
             assertTrue(!owned.isClosed(), "a lease must hand out a live connection");
         }
@@ -210,7 +210,7 @@ class ConnectionLeaseTest {
 
         Connection borrowed;
         try (ConnectionResolver.Lease lease =
-                ConnectionResolver.resolve(memModel, "test::TestRuntime")) {
+                ConnectionResolver.lease(com.legend.Compiler.compileModel(memModel), "test::TestRuntime")) {
             borrowed = lease.connection();
         }
         assertTrue(!borrowed.isClosed(),

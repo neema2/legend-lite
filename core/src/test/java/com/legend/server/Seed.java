@@ -18,7 +18,7 @@ final class Seed {
     }
 
     static void sql(String model, String sql, String runtimeName) throws SQLException {
-        try (ConnectionResolver.Lease lease = ConnectionResolver.resolve(model, runtimeName);
+        try (ConnectionResolver.Lease lease = ConnectionResolver.lease(com.legend.Compiler.compileModel(model), runtimeName);
                 Statement stmt = lease.connection().createStatement()) {
             stmt.execute(sql);
         }

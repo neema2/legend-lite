@@ -65,15 +65,18 @@ class DialectBoundaryTest {
     // docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): every per-database decision on the plan side
     // has ONE owner, com.legend.database.Databases — except legend-engine's golden text, whose renderers are
     // root-layer only (invariant 4d), so its one owner is com.legend.EngineText; the names left are platform facts
+    // Sessions.java 0 -> 1 (2026-10-04, C3b): the execution side's one session owner names the in-process
+    // databases it keeps a connection for (an in-memory DuckDB; SQLite, which this census does not count)
     private static final Map<String, Integer> DATABASE_TYPE_DECISIONS = Map.of(
             "Databases.java", 2,            // PLATFORM (S27), REPLAY_ORACLE
-            "EngineText.java", 1);          // ENGINE_TEST_DATABASE
+            "EngineText.java", 1,           // ENGINE_TEST_DATABASE
+            "Sessions.java", 1);            // Opening.Held for an in-memory DuckDB
 
     /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
      *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */
+    // SystemDatabase.java 3 -> 0 (2026-10-04, C3b): it opens by the declared type through Sessions
     private static final Map<String, Integer> DATABASE_NAME_DECISIONS = Map.of(
-            "ConnectionSectionGrammar.java", 3,   // the grammar: a specification keyword parses per database, as upstream's
-            "SystemDatabase.java", 3);            // C3b: the execution-side owner opens sessions by the declared type
+            "ConnectionSectionGrammar.java", 3);  // the grammar: a specification keyword parses per database, as upstream's
 
     @Test
     void targetsAreDecidedInsideTheDialect() throws IOException {

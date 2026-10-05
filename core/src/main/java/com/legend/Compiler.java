@@ -600,6 +600,10 @@ public final class Compiler {
                 .anyTemporalGetAll(body, ctx);
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtime);                          // Phase H
+        // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by
+        // name), then every store the query touches must be bound to it (C3b)
+        executesOn(ctx, runtime);
+        CrossStoreGuard.check(body, ctx, runtime);
         TypedSpec root = body.get(body.size() - 1);
         com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
@@ -624,7 +628,23 @@ public final class Compiler {
     public static void executeStreaming(String model, String query,
             @com.legend.base.Nullable String runtimeFqn, java.sql.Connection connection,
             java.io.Writer out) throws java.io.IOException {
+        executeStreaming(model, query, runtimeFqn, com.legend.exec.Sessions.given(connection), out);
+    }
+
+    /** {@link #executeStreaming(String, String, String, java.sql.Connection, java.io.Writer)} on the session
+     *  {@code sessions} opens for the target this query's runtime declares ({@link #executesOn}): the
+     *  connection is decided from the compiled model, then opened (C3b). */
+    public static void executeStreaming(String model, String query,
+            @com.legend.base.Nullable String runtimeFqn, com.legend.exec.Sessions.Source sessions,
+            java.io.Writer out) throws java.io.IOException {
         Lowered l = lowerQuery(model, query, runtimeFqn, true);
+        try (com.legend.exec.Sessions.Session session = sessions.open(executesOn(l.ctx(), runtimeFqn), l.ctx())) {
+            streamOn(l, runtimeFqn, session.connection(), out);
+        }
+    }
+
+    private static void streamOn(Lowered l, @com.legend.base.Nullable String runtimeFqn,
+            java.sql.Connection connection, java.io.Writer out) throws java.io.IOException {
         com.legend.sql.dialect.SqlDialect dialect =
                 dialectOf(l.ctx(), runtimeFqn, connection);
         switch (com.legend.plan.ResultShape.of(l.root())) {
@@ -659,7 +679,25 @@ public final class Compiler {
             java.sql.Connection connection,
             com.legend.lowering.WireRender.Format format, java.io.Writer out)
             throws java.io.IOException {
+        return executeWire(model, query, runtimeFqn, com.legend.exec.Sessions.given(connection), format, out);
+    }
+
+    /** {@link #executeWire(String, String, String, java.sql.Connection, com.legend.lowering.WireRender.Format,
+     *  java.io.Writer)} on the session {@code sessions} opens for the target the query's runtime declares (C3b). */
+    public static java.util.List<String> executeWire(String model,
+            String query, @com.legend.base.Nullable String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions,
+            com.legend.lowering.WireRender.Format format, java.io.Writer out)
+            throws java.io.IOException {
         Lowered l = lowerQuery(model, query, runtimeFqn, false);
+        try (com.legend.exec.Sessions.Session session = sessions.open(executesOn(l.ctx(), runtimeFqn), l.ctx())) {
+            return wireOn(l, runtimeFqn, session.connection(), format, out);
+        }
+    }
+
+    private static java.util.List<String> wireOn(Lowered l, @com.legend.base.Nullable String runtimeFqn,
+            java.sql.Connection connection, com.legend.lowering.WireRender.Format format, java.io.Writer out)
+            throws java.io.IOException {
         com.legend.sql.dialect.SqlDialect dialect =
                 dialectOf(l.ctx(), runtimeFqn, connection);
         com.legend.plan.ResultShape shape =
@@ -695,7 +733,22 @@ public final class Compiler {
     public static com.legend.plan.QueryPlan executeWire(String model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
             java.sql.Connection connection, java.io.Writer out) throws java.io.IOException {
+        return executeWire(model, query, runtimeFqn, com.legend.exec.Sessions.given(connection), out);
+    }
+
+    /** {@link #executeWire(String, com.legend.protocol.spec.ValueSpecification, String, java.sql.Connection,
+     *  java.io.Writer)} on the session {@code sessions} opens for the target the query's runtime declares (C3b). */
+    public static com.legend.plan.QueryPlan executeWire(String model,
+            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
         Lowered l = lowerParsed(model, query, runtimeFqn, false);
+        try (com.legend.exec.Sessions.Session session = sessions.open(executesOn(l.ctx(), runtimeFqn), l.ctx())) {
+            return wireOn(l, runtimeFqn, session.connection(), out);
+        }
+    }
+
+    private static com.legend.plan.QueryPlan wireOn(Lowered l, String runtimeFqn, java.sql.Connection connection,
+            java.io.Writer out) throws java.io.IOException {
         com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(l.root());
         if (shape == com.legend.plan.ResultShape.GRAPH) {
             // a graph fetch: the database renders the objects' JSON array, as the text
@@ -740,19 +793,16 @@ public final class Compiler {
      * THE dialect of a query that executes on {@code connection}: the database its runtime executes on
      * ({@link #executesOn}, upstream's {@code createDbConfig(connection.type)}), refined by the server's
      * version ({@code SqlDialect.forServer}), with its session setup run once. The session is only
-     * CHECKED: connected to another database than the one declared is refused, never reinterpreted.
+     * CHECKED ({@code Sessions.check}): connected to another database than the one declared is refused,
+     * never reinterpreted.
      */
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection) {
-        com.legend.model.ConnectionDefinition.DatabaseType declared = executesOn(ctx, runtimeFqn);
-        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(declared);
-        String session = metadata(connection, true);
-        if (!dialect.jdbcProduct().equals(session)) {
-            throw new com.legend.error.NotImplementedException("runtime '" + runtimeFqn + "' executes on " + declared
-                    + " but the session is " + session + " — dialect/connection mismatch");
-        }
-        dialect = dialect.forServer(metadata(connection, false));
+        com.legend.model.ConnectionDefinition.DatabaseType declared = executesOn(ctx, runtimeFqn).type();
+        com.legend.exec.Sessions.check(connection, declared);
+        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(declared)
+                .forServer(com.legend.exec.Sessions.version(connection));
         // B6: session setup rides the connection-dialect resolution -- the ONE seam every
         // connection-bearing entry passes through; the dialect states the FACTS, the exec funnel executes
         for (String s : dialect.sessionSetup()) {
@@ -763,18 +813,10 @@ public final class Compiler {
         return dialect;
     }
 
-    /** The driver's ONE metadata read, at the JDBC boundary
-     * ({@link com.legend.exec.JdbcMetadata}): no java.sql catch clause here,
-     * so this class &mdash; the plan surface &mdash; loads without java.sql. */
-    private static String metadata(java.sql.Connection connection,
-            boolean product) {
-        return com.legend.exec.JdbcMetadata.read(connection, product);
-    }
-
     /** THE dialect of a query planned without a session: the database its runtime executes on. */
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn) {
-        return com.legend.database.Databases.dialect(executesOn(ctx, runtimeFqn));
+        return com.legend.database.Databases.dialect(executesOn(ctx, runtimeFqn).type());
     }
 
     /** A query given no runtime: where it executes is undeclared. */
@@ -794,7 +836,7 @@ public final class Compiler {
      * No runtime, an undefined runtime, a runtime binding no connection at all, and a runtime mixing
      * databases are refused, by name.
      */
-    static com.legend.model.ConnectionDefinition.DatabaseType executesOn(ModelContext ctx,
+    public static com.legend.database.Target executesOn(ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn) {
         if (runtimeFqn == null) {
             throw new com.legend.error.MappingResolutionException(NO_RUNTIME);
@@ -803,14 +845,17 @@ public final class Compiler {
                 "runtime '" + runtimeFqn + "' is not defined", runtimeFqn));
         // EVERY binding is inspected, in sorted (deterministic) order -- connection bindings are an
         // unordered map, and first-match-wins was nondeterministic (audit)
-        var types = new java.util.TreeMap<String, com.legend.model.ConnectionDefinition.DatabaseType>();
-        boolean modelData = false;
+        var connections = new java.util.TreeMap<String, com.legend.model.ConnectionDefinition>();
+        // a ModelStore's inline JsonModelConnections are model data too: the parser keeps them on the runtime
+        // (jsonConnections), not among its connection bindings (C3b: a JSON-only runtime was refused as
+        // "binds no connection")
+        boolean modelData = !rt.jsonConnections().isEmpty();
         var bound = new java.util.TreeSet<String>();
         rt.connectionBindings().values().forEach(bound::addAll);
         for (String connFqn : bound) {
             var conn = ctx.findConnection(connFqn);
             if (conn.isPresent()) {
-                types.put(connFqn, conn.get().databaseType());
+                connections.put(connFqn, conn.get());
             } else if (ctx.isModelConnection(connFqn)) {
                 modelData = true;
             } else {
@@ -818,16 +863,19 @@ public final class Compiler {
                         "connection '" + connFqn + "' of runtime '" + runtimeFqn + "' is not defined", runtimeFqn);
             }
         }
+        var types = new java.util.TreeMap<String, com.legend.model.ConnectionDefinition.DatabaseType>();
+        connections.forEach((f, c) -> types.put(f, c.databaseType()));
         var distinct = new java.util.TreeSet<>(types.values());
         if (distinct.size() > 1) {
             throw new com.legend.error.NotImplementedException("runtime '" + runtimeFqn + "' mixes databases "
                     + types + " — one database per query is supported");
         }
         if (!distinct.isEmpty()) {
-            return distinct.first();
+            return new com.legend.database.Target.Declared(distinct.first(),
+                    java.util.List.copyOf(connections.values()));
         }
         if (modelData) {
-            return com.legend.database.Databases.PLATFORM;
+            return new com.legend.database.Target.Platform();
         }
         throw new com.legend.error.NotImplementedException("runtime '" + runtimeFqn
                 + "' binds no connection: a query executes on a runtime's declared connection");
@@ -929,6 +977,24 @@ public final class Compiler {
                         imports == null ? new com.legend.model.ImportScope(java.util.List.of())
                                 : imports, ctx),
                 ctx, runtimeFqn, connection, null, null, options);
+    }
+
+    /** {@link #execute(String, String, com.legend.model.ImportScope, String, java.sql.Connection, ExecuteOptions)}
+     *  on the session {@code sessions} opens for the target the query's runtime declares ({@link #executesOn}):
+     *  the model compiled once, the connection decided from it, then opened (C3b). */
+    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
+            String model, String query, @com.legend.base.Nullable String runtimeFqn,
+            com.legend.exec.Sessions.Source sessions, ExecuteOptions options) {
+        ModelContext ctx = compileModel(model);
+        com.legend.protocol.spec.ValueSpecification parsed = SpecParser.parse(query,
+                com.legend.parser.Dialect.LEGEND_LITE);
+        java.util.List<com.legend.protocol.spec.ValueSpecification> statements =
+                parsed instanceof com.legend.protocol.spec.LambdaFunction lf
+                        && lf.parameters().isEmpty() ? lf.body() : java.util.List.of(parsed);
+        var resolved = resolveQuery(statements, new com.legend.model.ImportScope(java.util.List.of()), ctx);
+        try (com.legend.exec.Sessions.Session session = sessions.open(executesOn(ctx, runtimeFqn), ctx)) {
+            return executeResolved(resolved, ctx, runtimeFqn, session.connection(), null, null, options);
+        }
     }
 
     /**
@@ -1154,6 +1220,7 @@ public final class Compiler {
                 .anyTemporalGetAll(body, ctx);
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtimeFqn, explicitMappingFqn);
+        CrossStoreGuard.check(body, ctx, runtimeFqn);
         if (relationalRootForm) {
             body = com.legend.resolver.RelationalRootForm.apply(body, ctx);
         }

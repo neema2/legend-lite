@@ -75,10 +75,8 @@ public class QueryService {
     public ExecutionResult execute(String pureSource, String query, String runtimeName)
             throws SQLException {
 
-        try (ConnectionResolver.Lease lease =
-                ConnectionResolver.resolve(pureSource, runtimeName)) {
-            return execute(pureSource, query, runtimeName, lease.connection());
-        }
+        return Objects.requireNonNull(com.legend.Compiler.execute(pureSource, query, runtimeName,
+                ConnectionResolver.SOURCE, com.legend.ExecuteOptions.NONE), "query produced no result");
     }
 
     /**
@@ -115,10 +113,8 @@ public class QueryService {
      */
     public com.legend.plan.QueryPlan executeUpstream(String model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeName, Writer rows) {
-        try (ConnectionResolver.Lease lease = ConnectionResolver.resolve(model, runtimeName)) {
-            return com.legend.Compiler.executeWire(model, query, runtimeName, lease.connection(), rows);
-        } catch (SQLException e) {
-            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        try {
+            return com.legend.Compiler.executeWire(model, query, runtimeName, ConnectionResolver.SOURCE, rows);
         } catch (IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
@@ -132,10 +128,13 @@ public class QueryService {
             OutputStream out, OutputFormat format)
             throws SQLException, IOException {
 
-        try (ConnectionResolver.Lease lease =
-                ConnectionResolver.resolve(pureSource, runtimeName)) {
-            execute(pureSource, query, runtimeName, lease.connection(), out, format);
-        }
+        Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
+        com.legend.Compiler.executeWire(pureSource, query, runtimeName, ConnectionResolver.SOURCE,
+                format == OutputFormat.CSV
+                        ? com.legend.lowering.WireRender.Format.CSV
+                        : com.legend.lowering.WireRender.Format.JSON,
+                writer);
+        writer.flush();
     }
 
     /**
@@ -172,10 +171,9 @@ public class QueryService {
             OutputStream out)
             throws SQLException, IOException {
 
-        try (ConnectionResolver.Lease lease =
-                ConnectionResolver.resolve(pureSource, runtimeName)) {
-            stream(pureSource, query, runtimeName, lease.connection(), out);
-        }
+        Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
+        com.legend.Compiler.executeStreaming(pureSource, query, runtimeName, ConnectionResolver.SOURCE, writer);
+        writer.flush();
     }
 
 }

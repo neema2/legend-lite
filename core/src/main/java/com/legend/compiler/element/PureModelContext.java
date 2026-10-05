@@ -617,6 +617,11 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.stream.Stream<com.legend.model.DatabaseDefinition> databases() {
+        return model.databases();
+    }
+
+    @Override
     public java.util.Optional<com.legend.model.AssociationDefinition> findAssociationOf(
             String ownerClassFqn, String propName) {
         return model.findAssociationOf(ownerClassFqn, propName);

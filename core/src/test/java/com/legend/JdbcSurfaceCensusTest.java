@@ -95,9 +95,11 @@ class JdbcSurfaceCensusTest {
             // statements and rows, through Executor.executeRaw / Executor.load under the SEED
             // origin; a Connection in, the database executes (moved from StatementExecutor)
             "core/src/main/java/com/legend/exec/CsvSeed.java",
-            // the driver's one metadata read, moved from Compiler: a java.sql
-            // catch clause there made the plan surface need java.sql (2026-09-23)
-            "core/src/main/java/com/legend/exec/JdbcMetadata.java",
+            // the execution side's ONE session owner (C3b, 2026-10-04; it absorbed JdbcMetadata, the
+            // driver's one metadata read kept out of Compiler so the plan surface needs no java.sql):
+            // the product/version read a handed session is checked by, and opening a declared
+            // connection or a private in-memory database. It opens sessions; it executes nothing
+            "core/src/main/java/com/legend/exec/Sessions.java",
             "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
             "core/src/main/java/com/legend/exec/VerdictBatch.java",
             "core/src/main/java/com/legend/StatementExecutor.java",

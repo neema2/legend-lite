@@ -352,10 +352,7 @@ final class StatementExecutor {
         }
         com.legend.resolver.StoreResolver resolver =
                 resolver(specs, env);
-        body = resolver.resolve(body, env.runtimeFqn());              // Phase H
-        // C2.2: stores bound to DIFFERENT connections cannot share
-        // the one session connection — wall, never wrong-database rows
-        CrossStoreGuard.check(body, env.ctx(), env.runtimeFqn());
+        body = resolvedToExecute(resolver, body, env);              // Phase H
         // the statement's env is widened LAST, after resolution — the loop's own order
         // (computing it before resolution changed a lowering: an order dependence
         // in the shared state the inliner touches, measured 2026-09-21, owed)
@@ -1440,8 +1437,8 @@ final class StatementExecutor {
                         resolver(specs, env);
                 try (var __o = com.legend.exec.StatementOrigin.enter(resultNeeded
                         ? com.legend.exec.StatementOrigin.VALUE : com.legend.exec.StatementOrigin.LET)) {
-                lqRun = executeTyped(lqResolver.resolve(
-                        java.util.List.of(lqChain.chain()), env.runtimeFqn()),
+                lqRun = executeTyped(resolvedToExecute(lqResolver,
+                        java.util.List.of(lqChain.chain()), env),
                         env);
                 }
             }
@@ -1491,8 +1488,8 @@ final class StatementExecutor {
             // resolver's let env resolves them (engine inScopeVars)
             com.legend.resolver.StoreResolver chainResolver =
                     resolver(specs, env);
-            java.util.List<TypedSpec> body = chainResolver.resolve(
-                    java.util.List.of(assembled.chain()), env.runtimeFqn());
+            java.util.List<TypedSpec> body = resolvedToExecute(chainResolver,
+                    java.util.List.of(assembled.chain()), env);
             try (var __o = com.legend.exec.StatementOrigin.enter(resultNeeded
                     ? com.legend.exec.StatementOrigin.VALUE : com.legend.exec.StatementOrigin.LET)) {
             run = executeTyped(body, env);
@@ -2129,7 +2126,7 @@ final class StatementExecutor {
                         + " not in the model — injection regressed"));
         ModelContext ctx = env.ctx();
         return env.withConnection(com.legend.exec.SystemDatabase.of(ctx)
-                .connectionFor(env.connection(), env.dialect(), store,
+                .connectionFor(Compiler.executesOn(ctx, env.runtimeFqn()).type(), env.dialect(), store,
                         table -> MetamodelSeeds.rows(table, ctx)));
     }
 
@@ -2318,7 +2315,19 @@ final class StatementExecutor {
         final java.util.List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
                 .stage(b, stageEnv, nativeRoutines(specs, env)));
-        return resolver(specs, env).resolve(body, env.runtimeFqn());
+        return resolvedToExecute(resolver(specs, env), body, env);
+    }
+
+    /** Phase H for a body that EXECUTES on the env's session: resolved, then every store it touches checked
+     *  against the runtime's connections (CrossStoreGuard — one session per query; a store the runtime does
+     *  not bind refused). Every execution path resolves through here (C3b: four of the five ran unchecked). */
+    private static java.util.List<TypedSpec> resolvedToExecute(com.legend.resolver.StoreResolver resolver,
+            java.util.List<TypedSpec> body, ExecEnv env) {
+        java.util.List<TypedSpec> resolved = resolver.resolve(body, env.runtimeFqn());
+        // C2.2: stores bound to DIFFERENT connections cannot share
+        // the one session connection — wall, never wrong-database rows
+        CrossStoreGuard.check(resolved, env.ctx(), env.runtimeFqn());
+        return resolved;
     }
 
     static ExecutionResult executeTyped(

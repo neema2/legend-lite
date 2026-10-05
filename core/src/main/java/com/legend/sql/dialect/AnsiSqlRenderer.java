@@ -38,25 +38,14 @@ import java.util.stream.Collectors;
  */
 public class AnsiSqlRenderer implements SqlDialect {
 
-    private final String jdbcProduct;
     private final Lexicon lexicon;
     private final TypeNames typeNames;
     private final Spellings spellings;
 
-    /**
-     * @param jdbcProduct the product name the JDBC driver of the database this SQL is written for reports
-     *                    ({@code DatabaseMetaData.getDatabaseProductName}): what a session is checked against
-     */
-    public AnsiSqlRenderer(String jdbcProduct, Lexicon lexicon, TypeNames typeNames, Spellings spellings) {
-        this.jdbcProduct = java.util.Objects.requireNonNull(jdbcProduct, "jdbcProduct");
+    public AnsiSqlRenderer(Lexicon lexicon, TypeNames typeNames, Spellings spellings) {
         this.lexicon = java.util.Objects.requireNonNull(lexicon, "lexicon");
         this.typeNames = java.util.Objects.requireNonNull(typeNames, "typeNames");
         this.spellings = java.util.Objects.requireNonNull(spellings, "spellings");
-    }
-
-    @Override
-    public String jdbcProduct() {
-        return jdbcProduct;
     }
 
     private static final Pattern PLAIN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");

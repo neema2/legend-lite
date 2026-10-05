@@ -23,10 +23,6 @@ public interface SqlDialect {
         return java.util.List.of();
     }
 
-    /** The product name the JDBC driver of this dialect's database reports
-     *  ({@code DatabaseMetaData.getDatabaseProductName}): a session on another database is refused. */
-    String jdbcProduct();
-
     /** This dialect for the server version a session reports ({@code DatabaseMetaData}'s product version):
      *  a dialect whose SQL differs by version says how. Default: every version is spelled alike. */
     default SqlDialect forServer(String version) {

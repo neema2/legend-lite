@@ -486,17 +486,46 @@ run, and are removed before any commit.
        the runtime. So the rule's "no runtime" must mean neither the caller nor the query declares one; until C4 reads
        the query's runtime, a store read under an in-query runtime with no caller runtime stays REFUSED by name (as
        today, via `NO_RUNTIME`) — never sent to the platform DuckDB.
-    3. **`CrossStoreGuard` is blind to class queries.** It sees only `TypedTableReference`, which only relation
-       ACCESSORS produce (`TableReferenceChecker.java:128`); a resolved class query names its tables in other nodes.
-       In the corpus it saw a store in 35 of ~256,000 statements. **Fix:** the per-statement check reads the stores a
-       resolved statement touches from every node that names one (accessor AND mapped class), or it is not a check.
+    3. **`CrossStoreGuard` ran on ONE of five execution paths** (CORRECTED 2026-10-04 — first recorded as "blind to
+       class queries", which was wrong: a resolved class query names its tables in `TypedTableReference`s built from
+       the mapping, and a probe on `RelationalMappingIntegrationTest` saw `store::DB` in 248 statements). Queries
+       resolve for execution at five sites: the statement path (`StatementExecutor` prepare — checked), `execute()`
+       frames, legend-query frames, staged assertion sides, and the compiler's own `lowerParsed`/`lowerResolved`
+       (the server's wire/streaming/plan paths) — those four unchecked. The corpus runs its class queries through
+       `execute()` frames, hence 35 of ~256,000. **Fix (done in C3b):** one helper, `resolvedToExecute`, resolves
+       and checks for every `StatementExecutor` execution path; `lowerParsed`/`lowerResolved` decide the runtime
+       (`executesOn`) and then check.
     5. **(found 2026-10-04) `Compiler.target(model, query)` already reads a query's own `->from(.., runtime)`** (its
        typed `TypedFrom.runtime()`), taking the FIRST found. A starting point for the in-query runtime, not an answer:
        first-match is the shape this line removes; C4 owns reading it fully.
-    4. **The one "unbound store" case is the platform's own metamodel store** (`meta::lite::metamodel::MetamodelStore`,
+    4. **The one "unbound store" case seen is the platform's own metamodel store** (`meta::lite::metamodel::MetamodelStore`,
        73 statements, core tests, `storeless::Runtime`): routed to `SystemDatabase`, legitimately bound by no runtime.
        **Fix:** exempted by identity, with its reason — not a silent pass.
 
+- **C3b — DONE 2026-10-04** (full chain `runs/c3b-full.log`). `exec/Sessions` owns the session side: the JDBC product
+  per type and the check of a handed session (moved off the dialects: `SqlDialect.jdbcProduct` and the
+  `AnsiSqlRenderer` constructor argument DELETED), opening a declared connection (`openingFor`: every type ×
+  specification and every authentication listed — the in-memory folds of unknown specifications and the silent
+  "nothing to apply" for unhandled authentications are gone, refused by name), a named (H2) vs held (DuckDB, SQLite)
+  in-memory database, and private instances (`openPrivate`, Postgres refused by name); `exec/JdbcMetadata` deleted
+  into it. `Compiler.executesOn` is public and returns the `com.legend.database.Target` (`Declared` with the
+  connection definitions, or `Platform`); it now also reads a ModelStore's inline `JsonModelConnection`s as model
+  data (found by the new JSON-only server test: such a runtime was refused, "binds no connection"). The server opens
+  the compiler's target: four `Compiler` entries take a `Sessions.Source` (the connection overloads wrap
+  `Sessions.given`, checked); `ConnectionResolver.resolve` and its first-binding pick and short-name match are DELETED;
+  it is the server's source (`SOURCE`, `lease(ctx, runtime)`), refusing two different connection definitions by name,
+  its cache key read from the compiled model (`ModelContext.databases()`, new). `SystemDatabase` opens by the declared
+  type. `CrossStoreGuard`: its no-runtime / undefined-runtime passes are hard failures (unreached); a touched store the
+  runtime does not bind is refused by name, a store INCLUDED by a bound database counting as bound (the stress suites'
+  `store::DB` includes ten domain stores — the first full run refused them), the metamodel store exempt by identity;
+  and every execution path now runs it (`StatementExecutor.resolvedToExecute`; `lowerParsed`/`lowerResolved` decide
+  the runtime first). `ModelContext.isModelConnection` has no default. `StorelessRuntime.onServer` declares a server's
+  real coordinates (`PctBackend.withStorelessRuntime`: the embedded Postgres port). Tests: `ServerSessionsTest` (a
+  JSON-only runtime on the platform DuckDB, an unbuilt specification refused, two connections refused); the server
+  test helpers lease through `ConnectionResolver.lease`. Guards: `DialectBoundaryTest` (Sessions 1; SystemDatabase's
+  name decisions 3 → 0), `JdbcSurfaceCensusTest` and `JavaEvalLedgerTest` (JdbcMetadata → Sessions; StatementExecutor
+  2377 → 2382, PctExecuteNative 106 → 105), the Postgres PCT roster's one message, `core-layers.txt` (exec,
+  server_lib reach database; server_lib reaches compiler), SEMANTICS_REGISTER S27.
 - **C4. The reader fix.** The static `ExecutionContext` reader follows `->from(m, ^Runtime(connectionStores =
   helper()))`, `toSQLString`'s runtime forms and helper bodies; the four `"H2"` defaults (§3.2) are DELETED; a context
   that truly cannot be read is refused by name. Gate: the 21 corpus tests pass reading their real declarations.
