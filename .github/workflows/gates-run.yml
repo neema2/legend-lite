@@ -210,5 +210,6 @@ jobs:
             bazel-bin/spec/judge_host_*/verdict.txt
             bazel-bin/spec/judge_database_*/database.log
             bazel-bin/spec/judge_database_*/verdict.txt
+            bazel-bin/spec/judge_*/*-*.txt
             harness-logs/**
           if-no-files-found: ignore

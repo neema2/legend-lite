@@ -144,7 +144,7 @@ corpus_lane(
 # connection a session on the warehouse, spoken to through its JDBC driver. The
 # harness starts the server (its deploy jar: DuckDB 1.5.5.1, its own classpath)
 # as a child process. Not in the chain yet: its differences from :corpus_duckdb
-# are the leg's rows, so its rosters are measured against DuckDB's, never committed.
+# are the leg's rows. It commits no rosters of its own: its passes check exactly against DuckDB's committed ones.
 corpus_lane(
     name = "corpus_warehouse",
     golden = False,
@@ -196,6 +196,8 @@ legend_java_binary(
         "-Duser.language=en",
         "-Duser.country=US",
         "-Dfile.encoding=UTF-8",
+        # the larger lane's heap (H2's pass)
+        "-Xmx4096m",
     ],
     main_class = "com.legend.rcorpus.CorpusOne",
     tags = ["manual"],

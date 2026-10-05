@@ -70,7 +70,8 @@ class RunnerTest {
         String text = Files.readString(log);
         assertTrue(text.contains("Failures (1)") && text.contains("the fixture's planted failure"),
                 "the log keeps the failure summary its consumer quotes: " + text);
-        assertTrue(Files.exists(ledger), "an output the pass did not write is created empty");
+        assertTrue(Files.readString(ledger).startsWith("UNMEASURED: "),
+                "an output the pass did not write says so, never a blank file");
     }
 
     @Test

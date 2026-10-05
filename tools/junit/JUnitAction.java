@@ -10,13 +10,14 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 /**
- * A JUnit run as a BUILD ACTION (Bazel workplan P3-01): one test pass whose output another lane reads (the corpus's
- * host-judge pass, whose per-assert ledger the database-judge lane joins) becomes a cached build output, instead of a
+ * A JUnit run as a BUILD ACTION (Bazel workplan P3-01): one test pass whose output another reads (the corpus's
+ * host-judge pass, whose per-assert ledger the database-judge pass joins) becomes a cached build output, instead of a
  * child JVM the test starts.
  *
  * <p>Arguments: {@code <verdict> <log> [<output> ...] --}, then {@link JUnitMain}'s own. The run's output goes to
  * {@code <log>}; its exit code (JUnitMain's: 0 when every selected test passed) to {@code <verdict>}; each
- * {@code <output>} the run did not write is created empty. A pass whose tests failed (exit 1) is still a successful
+ * {@code <output>} the run did not write is created holding one UNMEASURED line, so a diff against it says why
+ * rather than showing a blank file (and re-blessing it would put that line in the tree for review to see). A pass whose tests failed (exit 1) is still a successful
  * action: a fact its consumer reports, as a test failure quoting the log, never a build error with no test result. It is
  * cached like any output, until an input changes ({@code bazel clean} forces a rerun). Anything else (nothing selected,
  * a runner error, a log or verdict it cannot write) fails the action, so a broken run is never cached as a verdict.
@@ -67,7 +68,8 @@ public final class JUnitAction {
         for (int i = 2; i < split; i++) {
             Path p = Path.of(args[i]);
             if (!Files.exists(p)) {
-                Files.createFile(p);
+                Files.writeString(p, "UNMEASURED: the pass did not write this file (JUnit exit " + code
+                        + "; its log says why)\n", StandardCharsets.UTF_8);
             }
         }
         Files.writeString(verdict, code + "\n", StandardCharsets.UTF_8);

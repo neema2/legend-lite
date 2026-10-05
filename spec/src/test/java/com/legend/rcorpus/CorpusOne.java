@@ -21,6 +21,11 @@ public final class CorpusOne {
         if (args.length < 2 || args.length > 3 || !args[0].matches("duckdb|h2") || !args[1].matches("host|database")) {
             throw new IllegalArgumentException("corpus_one <duckdb|h2> <host|database> [<test fqn>]");
         }
+        if (args[1].equals("database") && args.length == 2) {
+            throw new IllegalArgumentException("a whole database pass needs the host pass's outputs: bazel test"
+                    + " //spec:corpus_" + args[0] + " (its passes are the actions judge_host_" + args[0]
+                    + " and judge_database_" + args[0] + "); corpus_one runs the database judge scoped to a test");
+        }
         if (args[0].equals("h2")) {
             System.setProperty("rcorpus.backend", "h2");
         }

@@ -18,13 +18,12 @@ _HOST_MEASURED = ["fail-roster", "skipped-roster", "unordered-register", "engine
 
 _DATABASE_MEASURED = ["database-engine-order-register"]
 
-def _pass_flags():
+def _pass_flags(golden):
     return program_jvm_flags("spec") + [
         # DuckDB's JDBC driver loads its library: allowed, so the JDK prints no warning on the build's console
         "--enable-native-access=ALL-UNNAMED",
         _SCAN_ORDER,
-        "-Drcorpus.measured.out={OUT_DIR}",
-    ]
+    ] + (["-Drcorpus.measured.out={OUT_DIR}"] if golden else [])
 
 def corpus_lane(
         name,
@@ -53,26 +52,31 @@ def corpus_lane(
       jvm_flags: flags both passes take (the backend).
       host_jvm_flags: flags the passes take that name a file ($(execpath) forms).
       host_srcs: files only those flags name.
-      golden: whether the lane's measured rosters are committed (and diff-tested).
+      golden: whether the lane's measured rosters are committed (generated and diff-tested). A lane without its
+        own (the warehouse's) keeps the passes' exact checks, against the committed copies of `rosters`.
       tags: every target's tags.
     """
     lane = name.removeprefix("corpus_")
     host = "judge_host_" + lane
     database = "judge_database_" + lane
-    host_measured = ["%s/%s-%s.txt" % (host, rosters, m) for m in _HOST_MEASURED]
+    host_measured = ["%s/%s-%s.txt" % (host, rosters, m) for m in _HOST_MEASURED] if golden else []
+    committed = [] if golden else [
+        "src/test/resources/rcorpus/%s-%s.txt" % (rosters, m)
+        for m in _HOST_MEASURED + _DATABASE_MEASURED
+    ]
     database_roots = dict(UPSTREAM_ROOTS)
     database_roots[":%s/verdict.txt" % host] = "{HOST_DIR}"
-    database_measured = ["%s/%s-%s.txt" % (database, rosters, m) for m in _DATABASE_MEASURED]
+    database_measured = ["%s/%s-%s.txt" % (database, rosters, m) for m in _DATABASE_MEASURED] if golden else []
     java_run(
         name = host,
         testonly = True,
-        srcs = data + UPSTREAM_TREES + host_srcs,
+        srcs = data + UPSTREAM_TREES + host_srcs + committed,
         roots = UPSTREAM_ROOTS,
         outs = [host + "/judge-host.tsv", host + "/verdict.txt", host + "/host.log"] + host_measured,
         arguments = ["{OUT_DIR}/verdict.txt", "{OUT_DIR}/host.log", "{OUT_DIR}/judge-host.tsv"] +
                     ["{OUT_DIR}/" + f.split("/")[-1] for f in host_measured] + ["--"] +
                     _SELECT + ["--fail-if-no-tests"],
-        jvm_flags = _pass_flags() + [
+        jvm_flags = _pass_flags(golden) + [
             "-Dlegend.judge.mode=host",
             "-Dlegend.judge.ledger={OUT_DIR}/judge-host.tsv",
         ] + jvm_flags + host_jvm_flags,
@@ -85,14 +89,14 @@ def corpus_lane(
     java_run(
         name = database,
         testonly = True,
-        srcs = data + UPSTREAM_TREES + host_srcs + [":" + host],
+        srcs = data + UPSTREAM_TREES + host_srcs + committed + [":" + host],
         roots = database_roots,
         outs = [database + "/judge-database.tsv", database + "/verdict.txt", database + "/database.log"] +
                database_measured,
         arguments = ["{OUT_DIR}/verdict.txt", "{OUT_DIR}/database.log", "{OUT_DIR}/judge-database.tsv"] +
                     ["{OUT_DIR}/" + f.split("/")[-1] for f in database_measured] + ["--"] +
                     _SELECT + ["--fail-if-no-tests"],
-        jvm_flags = _pass_flags() + [
+        jvm_flags = _pass_flags(golden) + [
             "-Dlegend.judge.mode=database",
             "-Dlegend.judge.ledger={OUT_DIR}/judge-database.tsv",
             # the host pass's outputs: its verdict (the database pass means nothing without it), its ledger (the
@@ -100,8 +104,7 @@ def corpus_lane(
             "-Dlegend.judge.host.verdict={HOST_DIR}/verdict.txt",
             "-Dlegend.judge.host.log={HOST_DIR}/host.log",
             "-Dlegend.judge.ledger.host={HOST_DIR}/judge-host.tsv",
-            "-Drcorpus.host.measured={HOST_DIR}",
-        ] + jvm_flags + host_jvm_flags,
+        ] + (["-Drcorpus.host.measured={HOST_DIR}"] if golden else []) + jvm_flags + host_jvm_flags,
         main_class = "com.legend.tools.junit.JUnitAction",
         memory_mb = memory_mb,
         mnemonic = "CorpusDatabasePass",

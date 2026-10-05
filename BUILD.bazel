@@ -45,6 +45,9 @@ test_suite(
 # EVERY generated file in the repository, written into the checkout from the pinned
 # upstream release: `bazel run //:update_generated`. Each package's own list is
 # the source of truth; this only runs them all.
+# One exception: the corpus rosters (//spec:update_rcorpus_duckdb, //spec:update_rcorpus_h2) are re-blessed only
+# deliberately, lane by lane, never as a side effect of regenerating something else: a newly failing test must be a
+# decision (Bazel workplan P2-15, D9). Their diff tests run in the corpus lanes, not in //:generated.
 write_source_files(
     name = "update_generated",
     testonly = True,
@@ -62,9 +65,6 @@ write_source_files(
         "//query:update_generated",
         "//scripts/parser:update_keyword_coverage",
         "//spec:update_ratchets",
-        # the corpus rosters: runs both corpus lanes (minutes; H2's pass takes 4 GB)
-        "//spec:update_rcorpus_duckdb",
-        "//spec:update_rcorpus_h2",
         "//tools/engine-runner:update_vocab",
         "//warehouse:update_reachability_metadata",
     ],

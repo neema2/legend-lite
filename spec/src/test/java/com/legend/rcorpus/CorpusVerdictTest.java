@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
  * A corpus lane's verdict (Bazel workplan P2-15): both passes are build actions (spec/corpus.bzl), the host judge's
  * and the database judge's (which joins the two per assert), each a cached output with its JUnit exit code and log.
  * This test is the lane's red or green: it fails, quoting the failing pass's log, unless both passed. Their measured
- * rosters are held to the committed copies by //spec:update_rcorpus_test.
+ * rosters are held to the committed copies by the diff tests of //spec:update_rcorpus_<lane>.
  */
 @Tag("heavy")
 class CorpusVerdictTest {
