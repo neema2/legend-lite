@@ -227,6 +227,7 @@ test_suite(
         ":engine_test",
         ":query_builder_test",
         ":rename_test",
+        ":split_test",
         ":typecheck_test",
         ":workspace_test",
     ],

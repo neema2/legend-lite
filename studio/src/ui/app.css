@@ -317,6 +317,14 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .sql-playground__editor { display: flex; align-items: flex-start; gap: 8px; padding: 10px; }
 .sql-playground__text { flex: 1; height: 72px; font-family: var(--font-mono); font-size: 13px; }
 .sql-playground__out { flex: 1; overflow: auto; }
+/* whole-project text mode (F8, plan A7): one editor over the whole workspace, full screen */
+.text-mode { position: fixed; inset: 0; z-index: 90; display: flex; flex-direction: column; background: var(--color-bg-app); }
+.text-mode__header { display: flex; align-items: center; gap: 10px; flex: 0 0 34px; padding: 0 10px; background: var(--color-bg-panel-header); }
+.text-mode__title { color: var(--color-text-primary); font-weight: 500; }
+.text-mode__hint { color: var(--color-text-muted); font-size: 12px; }
+.text-mode__problem { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-status-error); font-size: 12px; }
+.text-mode__editor { flex: 1; min-height: 0; }
+.import-model__text { height: 280px; font-family: var(--font-mono); font-size: 13px; }
 /* a local change's diff (plan A7): Monaco's diff editor under the element's name and path */
 .diff-view { display: flex; flex-direction: column; width: calc(100vw - 80px); height: calc(100vh - 100px); background: var(--color-bg-panel); box-shadow: var(--color-shadow) 0 1px 5px 0; }
 .diff-view__header { display: flex; align-items: center; gap: 10px; flex: 0 0 34px; padding: 0 0 0 10px; background: var(--color-bg-panel-header); }

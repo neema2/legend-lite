@@ -111,8 +111,11 @@ Left out of this plan when it was written; the user ruled it next after A0 (2026
   Then: rename/move (one dialog, the full path; the path rewritten in the declaration and every reference by full path
   in the workspace, not in comments or strings -- `studio/src/model/rename.ts`); the review's changes (BASE against the
   workspace's head, each opening its diff); and a History tab (the workspace's revisions, each one's changes against
-  the revision listed before it, with diffs). Next: conflict resolution, group workspaces; definition, hover and
-  completion from the compiler (core, announced first).
+  the revision listed before it, with diffs). Then: discard per local change; approvals on the review (approve /
+  revoke); whole-project text mode (F8: the workspace as one text, split back into one file per element on leaving --
+  `studio/src/model/split.ts`, every file read by the compiler first, nothing applied unless each holds one element);
+  the model importer (F2: Pure text pasted, each element added or replacing its path). Next: conflict resolution, group
+  workspaces, a version viewer; definition, hover and completion from the compiler (core, announced first).
 - **A3 mostly done.** Run (F5) a function -- its parameters asked for as Pure, read by the compiler -- or a
   single-execution service, in the tab; RESULTS shows the rows, count, time and SQL. The SQL playground runs SQL on the
   tab's DuckDB with the model's rows. `//studio:verify_test` runs a function, a service, a parameterised function and
