@@ -17,6 +17,9 @@ with the compiler's plan/execution split**, in this order:
    test sources the guards and censuses read (declared file lists, P3-27/P3-05). Not fixed by this program: F-L1 in
    `projects/FINDINGS.md` (a view inside a Schema is lifted twice; one line in `ModelBuilder`), for the compiler's owner. **Announced 2026-10-05 (P4-18):** `core/.../server/LegendHttpServer.java` and the warehouse server gain
    `--exit-with-parent` (exit when stdin reaches EOF; only tests set it), so no test stops a server with `taskkill`.
+   **Announced 2026-10-05 (the build rebuild, `docs/BUILD_REBUILD_DESIGN_2026_10_05.md` on the plan branch):** a
+   root `//:java` target naming every Java program we ship. Each one's BUILD file gains `//:__pkg__` visibility: one line
+   in `core/BUILD.bazel` (`//core:server`), plus `warehouse/`, `sdlc-server/` and `depot-server/`. No source edits.
 2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; PR #24 `studio-m1`, then `query-by-name`): `studio/`,
    `legend-art/`, `query/`, `datacube/` (imports and labels; the Snap move, A6), `site/`, a `@fontsource` block in
    `MODULE.bazel`; then, on `studio-engine`, core's test runner and model printer (A4, B1: files in the fifth line's
