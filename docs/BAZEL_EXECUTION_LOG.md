@@ -142,3 +142,17 @@ without a **done** entry.
 - **Batch 7 audit: not ready** -- the oracle used the platform libm (cbrt/log/sin in 98 would differ on Linux/Windows);
   fixed with exactmath.py (correctly rounded, decimal at 60 digits; the committed corpus unchanged); PYTHONUTF8; the live
   layout; a CI query that could fail silently. Throwaway CI on all platforms (checks, build): running.
+- **Batch 7 throwaway 37248685802:** the stress corpus is byte-identical on Linux, macOS and Windows; the build lane
+  (bazel10 analysis + A25) green everywhere; red only on corpus-gate TIMEOUTs (executed 300 s on Linux and Windows,
+  stacking on Windows). Profiled: 99% in aggregates.usable_ends, asked 2,054 times with the same arguments; memoised
+  (144 s -> 5 s, corpus byte-identical).
+- **Batch 8 so far:** P2-12 (layer queries made from core's libraries by core/layers.bzl, checked both ways), P2-08
+  **amended** (the tool reads the live vocabulary, which grows: p1 predates the treemap mark, so a diff test of tool vs
+  p1 would always be red; p1 stays frozen by its hash pin; the next version is a build output and is cut by `bazel run
+  //datacube:cut_link_dictionary`), P2-07 (@react_icons by the registry's sha512; icons.ts byte-identical but for its
+  header), P2-17 (natives.dump -> //spec:native_declarations output; natives.bootstrap -> //core:draft_native_membership).
+- USER asked to check the UI consolidation: the Studio session (neema-9f) has it on local branch studio-m1, unpushed,
+  and will merge main after us; nothing it touches overlaps. Agreed: legend-art's icon generator moves onto @react_icons
+  (one pin, one generator) and Query then uses legend-art's output.
+- Rebased onto 6f86c86dd (the Studio merge); throwaway 37251203524 (checks, build, all platforms) and the local gate:
+  running.
