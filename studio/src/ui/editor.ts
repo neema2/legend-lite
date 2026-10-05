@@ -22,6 +22,7 @@ import { clear, dialog, h, headerAction, menu, sideHead, subPanel, toast } from 
 import { editorTheme, PURE } from './pure-language.ts';
 import { field } from './setup.ts';
 import { renderProject, renderReview } from './sdlc-panels.ts';
+import { openSearch } from './search.ts';
 import { theme, toggleTheme } from './theme.ts';
 
 export interface EditorContext {
@@ -73,7 +74,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     h('div', { class: 'editor-empty__content' },
       h('div', { class: 'editor-empty__title' }, 'Essential Keyboard Shortcuts'),
       h('div', { class: 'shortcuts' },
-        shortcut('Push Local Changes', ['Ctrl', 'S']), shortcut('Compile', ['F9']), shortcut('New Element', ['Ctrl', 'Shift', 'N']))));
+        shortcut('Search for Element', ['Ctrl', 'P']), shortcut('Push Local Changes', ['Ctrl', 'S']), shortcut('Compile', ['F9']), shortcut('New Element', ['Ctrl', 'Shift', 'N']))));
   // upstream's panel group (census 6): closed at first; the PROBLEMS tab with its count, expand and close; opened
   // to 300px from the status bar (its problems counts, or the terminal toggle)
   const problemsPanel = h('div', { class: 'panel-group__content', 'data-testid': 'problems' });
@@ -199,6 +200,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void save());
   editor.addCommand(monaco.KeyCode.F9, () => void compile());
   editor.addCommand(monaco.KeyCode.F5, () => void runActive());
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP, () => search());
   // the query builder, while open, has the keys (its own Ctrl+S is Save Query)
   let closeBuilder: (() => void) | undefined;
   const onKey = (e: KeyboardEvent): void => {
@@ -206,10 +208,17 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
     if (e.key === 'F9') { e.preventDefault(); void compile(); }
     if (e.key === 'F5') { e.preventDefault(); void runActive(); }
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'p') { e.preventDefault(); search(); }
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'n') { e.preventDefault(); void newElement(); }
     if (e.ctrlKey && e.key === '`') { e.preventDefault(); panelOpen = !panelOpen; renderPanel(); renderStatus(); }
   };
   document.addEventListener('keydown', onKey);
+
+  /** Upstream's element search (Ctrl + P): every element of the workspace by its path. */
+  const search = (): void => {
+    if (closeBuilder || document.querySelector('.search-modal')) return;
+    openSearch(ws.files().map((f) => ({ key: f.key, path: fileLabel(f), kind: kindOf(f.text) })), (key) => show(key));
+  };
 
   // ---- models ----
   const modelOf = (key: string): Monaco.editor.ITextModel => {
@@ -475,7 +484,14 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       }
     };
     draw(rootNode, '', 0);
-    for (const path of ws.removed()) tree.append(row(0, 'element removed', undefined, icon('trash'), path, `${path} (removed, not yet saved)`));
+    // a delete is undone before the save by clicking the removed element (plan A7)
+    for (const path of ws.removed()) {
+      tree.append(row(0, 'element removed', undefined, icon('trash'), path, `${path} (removed, not yet saved): click to restore it`, () => {
+        show(ws.restore(path));
+        renderStatus();
+        scheduleCompile();
+      }, path));
+    }
     sideBar.append(head, h('div', { class: 'explorer' }, subHead, tree));
   };
 
@@ -494,13 +510,24 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     // change: the name, the path in grey, upstream's letter (N new, M modified, D deleted) in its colour. A change
     // the compiler refuses (lite's: it cannot be saved yet) shows its message.
     const changesBody = h('div', { class: 'side-bar__body' });
-    sideBar.append(sideHead('Local Changes', headerAction('cloudUpload', 'Push local changes (Ctrl + S)', ws.hasChanges() ? () => void save() : undefined, { 'data-testid': 'save' })), changesBody);
-    const { changes, problems: blocked } = ws.hasChanges() ? await ws.pending() : { changes: [], problems: [] };
+    sideBar.append(sideHead('Local Changes',
+      headerAction('cloudDownload', 'Update workspace: rebase it onto the project line', () => void updateWorkspace(), { 'data-testid': 'update-workspace' }),
+      headerAction('cloudUpload', 'Push local changes (Ctrl + S)', ws.hasChanges() ? () => void save() : undefined, { 'data-testid': 'save' })), changesBody);
+    const [{ changes, problems: blocked }, outdated] = await Promise.all([
+      ws.hasChanges() ? ws.pending() : { changes: [], problems: [] },
+      ctx.client.outdated(ctx.project, ctx.workspace).catch(() => false),
+    ]);
     if (activity !== 'changes') return;
+    // the project line has moved on since the workspace was made (plan A7): upstream's update, here
+    if (outdated) {
+      changesBody.append(h('div', { class: 'side-bar__notice', 'data-testid': 'workspace-outdated' },
+        'The project line has new revisions. ', h('button', { class: 'btn btn-small', onclick: () => void updateWorkspace() }, 'Update workspace')));
+    }
     const LETTER: Record<string, string> = { CREATE: 'N', MODIFY: 'M', DELETE: 'D' };
     const rows = changes.map((c) => {
       const name = c.path.split('::').pop() ?? c.path;
-      return h('div', { class: `side-bar__panel__item diff-item diff-item--${c.type.toLowerCase()}`, title: c.path },
+      return h('div', { class: `side-bar__panel__item diff-item diff-item--${c.type.toLowerCase()}`, title: c.path, 'data-path': c.path,
+        onclick: () => showDiff(c.path, c.type) },
         h('div', { class: 'diff-item__name' }, name), h('div', { class: 'diff-item__path' }, c.path),
         h('div', { class: 'diff-item__type' }, LETTER[c.type] ?? c.type[0]));
     });
@@ -511,6 +538,37 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     }
     changesBody.append(subPanel('Changes', { info: 'All local changes that have not been yet pushed with the server', count: changes.length, testId: 'changes' },
       ...(rows.length ? rows : [h('div', { class: 'side-bar__panel__empty' }, 'No local changes')])));
+  };
+
+  /**
+   * A change, as upstream's local-changes diff shows it (plan A7): the element's text at the revision beside its text
+   * now, in Monaco's diff editor -- empty on the left for a new element, on the right for a deleted one.
+   */
+  const showDiff = (path: string, type: string): void => {
+    const now = type === 'DELETE' ? undefined : ws.files().find((f) => f.savedPath === path) ?? ws.files().find((f) => fileLabel(f) === path);
+    const original = monaco.editor.createModel(type === 'CREATE' ? '' : ws.savedText(path) ?? '', PURE);
+    const modified = monaco.editor.createModel(now?.text ?? '', PURE);
+    const host = h('div', { class: 'diff-view__editor' });
+    const close = (): void => {
+      diff.dispose();
+      original.dispose();
+      modified.dispose();
+      overlay.remove();
+    };
+    const overlay = h('div', { class: 'overlay', 'data-testid': 'diff-view', onkeydown: ((e: KeyboardEvent) => { if (e.key === 'Escape') close(); }) as EventListener },
+      h('div', { class: 'diff-view', role: 'dialog' },
+        h('div', { class: 'diff-view__header' },
+          h('span', { class: 'diff-view__title' }, `${path.split('::').pop() ?? path} (${{ CREATE: 'new', MODIFY: 'modified', DELETE: 'deleted' }[type] ?? type})`),
+          h('span', { class: 'diff-view__path' }, path),
+          h('button', { class: 'panel-group__action', title: 'Close (Escape)', 'data-testid': 'diff-close', onclick: close }, icon('x', '18px'))),
+        host));
+    document.body.append(overlay);
+    const diff = monaco.editor.createDiffEditor(host, {
+      theme: editorTheme(theme() === 'light'), automaticLayout: true, readOnly: true, originalEditable: false,
+      fontFamily: "'Roboto Mono'", fontSize: 14, renderSideBySide: true,
+    });
+    diff.setModel({ original, modified });
+    diff.getModifiedEditor().focus();
   };
 
   // ---- problems and compile ----
@@ -619,6 +677,32 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     renderStatus();
     toast(`Saved: ${ws.revision?.id.slice(0, 8) ?? ''}`, 'success');
     void compile();
+  };
+
+  /**
+   * Upstream's workspace update (plan A7): the workspace rebased onto the project line's head by the SDLC, then read
+   * again. Local changes are pushed first (they would be lost in the reload). lite's SDLC refuses a conflict -- the line
+   * changed an element this workspace changed, differently -- and names those elements; the workspace is left as it was.
+   */
+  const updateWorkspace = async (): Promise<void> => {
+    if (ws.hasChanges()) {
+      toast('Push your local changes before updating the workspace.', 'error');
+      return;
+    }
+    try {
+      const r = await ctx.client.updateWorkspace(ctx.project, ctx.workspace);
+      if (r.status === 'CONFLICT') {
+        const elements = (r.conflicts ?? []).map((f) => f.replace(/\.pure$/, '').split('/').join('::'));
+        toast(`Not updated: the project line changed ${elements.join(', ')} differently from this workspace.`, 'error');
+      } else if (r.status === 'NO_OP') {
+        toast('The workspace already has the latest revision of the project line.');
+      } else {
+        await reload();
+        toast("Workspace updated to the project line's latest revision", 'success');
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'error');
+    }
   };
 
   const newElement = async (): Promise<void> => {

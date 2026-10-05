@@ -44,8 +44,15 @@ describe('a workspace in Studio', () => {
       [['MODIFY', 'demo::Kind'], ['DELETE', 'demo::Person'], ['CREATE', 'demo::Party']]);
     await ws.save('rename');
     assert.deepEqual(ws.files().map((f) => f.key), ['demo::Kind', 'demo::Party']);
+    // a delete undone before the save: the element back as saved, nothing to save
+    const saved = ws.file('demo::Kind')!.text;
     ws.remove('demo::Kind');
     assert.deepEqual(ws.removed(), ['demo::Kind']);
+    assert.equal(ws.restore('demo::Kind'), 'demo::Kind');
+    assert.equal(ws.file('demo::Kind')!.text, saved);
+    assert.equal(ws.hasChanges(), false);
+    assert.throws(() => ws.restore('demo::Kind'), /is not removed/);
+    ws.remove('demo::Kind');
     await ws.save('drop Kind');
     assert.deepEqual(ws.files().map((f) => f.key), ['demo::Party']);
   });
