@@ -1,0 +1,16 @@
+###Data
+// The parties the demo runs on: rows for demo::party::PartyDB, loaded into DuckDB in the tab by every app that opens
+// this project (engine-client/src/model-data.ts).
+Data demo::party::PartyData
+{
+  Relational
+  #{
+    PARTY.PARTY:
+      'ID,NAME,COUNTRY\n'+
+      '1,Meridian Capital,US\n'+
+      '2,Halberd Securities,GB\n'+
+      '3,Kestrel Partners,JP\n'+
+      '4,Northgate Asset Management,US\n'+
+      '5,Banque Lumière,FR\n';
+  }#
+}

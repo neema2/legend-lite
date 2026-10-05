@@ -5,6 +5,7 @@
 # `npm_engine_client`): Apache Arrow, for the warehouse's result chunks.
 load("//tools/guards:defs.bzl", "guards_package")
 load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("//tools/js:defs.bzl", "node_test")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@npm_engine_client//:defs.bzl", "npm_link_all_packages")
 load("//tools/java:defs.bzl", "legend_java_library")
@@ -61,4 +62,16 @@ write_source_files(
     visibility = ["//:__pkg__"],
 )
 
+# a model's test data in DuckDB (model-data.ts, plan A2): lite's own model JSON for a Database and a Data element
+node_test(
+    name = "model_data_test",
+    size = "medium",
+    data = [
+        ":engine_client",
+        ":node_modules/@duckdb/duckdb-wasm",
+        "test/party-model.json",
+    ],
+    entry_point = "test/model-data.test.ts",
+    env = {"PARTY_MODEL": "$(rlocationpath test/party-model.json)"},
+)
 guards_package()

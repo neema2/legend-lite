@@ -1425,8 +1425,6 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       const model = await once(projectModels, key, async () => (project
         ? (await Promise.all(project.models.map(fetchText))).join('\n')
         : (await import('../../depot-client/src/model-text.ts')).modelText((await modelHome(byName!)).depot, q.groupId, q.artifactId, q.versionId)));
-      const seeds = project ? project.seed : byName!.seed;
-      const seedKey = project ? key : 'depot';
       const elements = await local.elements(model) as ModelElement[];
       const context = contextOf(q, elements);
       const lambdaOf = await planner.parse(q.content);
@@ -1436,8 +1434,15 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         if (parsed.body[0]) values.set(v.name, parsed.body[0]);
       }
       let source = sourceOf(lambdaOf, values);
-      await once(seeded, seedKey, async () => {
-        for (const url of seeds) {
+      await once(seeded, key, async () => {
+        if (!project) {
+          // a project opened by name brings its own rows: its Data elements' tables (plan A2, model-data.ts)
+          const { dataTables, loadDataTables } = await import('../../engine-client/src/model-data.ts');
+          await loadDataTables({ registerFileText: (n, t) => db.registerFileText(n, t), run: (sql) => engine.run(sql, 0) },
+            dataTables(elements as Parameters<typeof dataTables>[0]));
+          return;
+        }
+        for (const url of project.seed) {
           for (const line of (await fetchText(url)).split('\n')) {
             const sql = line.trim();
             if (sql && !sql.startsWith('--')) await engine.run(sql, 0);
