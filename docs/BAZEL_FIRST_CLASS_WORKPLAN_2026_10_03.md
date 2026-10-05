@@ -1544,6 +1544,15 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | A judge-ledger difference changes verdicts. Compare the old and new rosters before merging. |
 | Done when | No test launches a child JVM of itself, and no test flips a process-wide property. |
 
+**Amended 2026-10-05 (P3-01's investigation).** The host-judge pass is *not* independent of the lane: it runs on the
+lane's backend (`-Drcorpus.backend=h2` reached the prerun's child JVM) and pins registers per lane and per judge mode.
+So there is one action per lane, `//spec:judge_host_duckdb`, `judge_host_h2` and `judge_host_warehouse`, made with the
+lane's test by `corpus_lane` (`spec/corpus.bzl`). The action runs the pass through `//tools/junit:JUnitAction`; the
+ledger, the log and JUnit's exit code are its outputs, and it succeeds whatever the pass's verdict. The database-judge
+test fails first, quoting the host pass's failure summary, when the host pass failed, so a failing gate 4 is still a red
+test and never a build error. Consequence: a failing host pass is a cached output until an input changes, like any
+action's.
+
 #### P3-02 · `StressCorpus.EXCLUDED` without a `Repo` static; `:duckdb_load` declared and tested
 
 | Field | Content |
