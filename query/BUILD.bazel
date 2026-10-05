@@ -29,6 +29,8 @@ js_library(
     name = "src",
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
     deps = [
+        # projects opened by name: the model home (the page's SDLC and Depot, or servers) and its Depot (by-name.ts)
+        "//depot-client:depot_client",
         # upstream Legend's icons, shared with Studio (legend-art/src/icons.ts)
         "//legend-art:legend_art",
         "//pure-protocol:pure_protocol",
@@ -81,12 +83,15 @@ copy_to_directory(
         # for the type letters -- from legend-art (the pinned @fontsource), served with the site, no font CDN (OFL-1.1)
         "//legend-art:fonts",
         "//legend-art:styles",
+        "//sdlc-server:page",
         "//wasm:planner",
     ],
     out = "demo/vendor",
     include_srcs_patterns = [
         "wasm/planner/classes.wasm",
         "wasm/planner/wasm-gc-module-runtime.js",
+        "sdlc-server/page/classes.wasm",
+        "sdlc-server/page/wasm-gc-module-runtime.js",
         "**/dist/duckdb-mvp.wasm",
         "**/dist/duckdb-eh.wasm",
         "**/dist/duckdb-browser-mvp.worker.js",
@@ -104,6 +109,7 @@ copy_to_directory(
     ],
     replace_prefixes = {
         "wasm/planner/": "",
+        "sdlc-server/page/": "sdlc/",
         "**/dist/": "",
         "legend-art/fonts/": "fonts/",
         "legend-art/src/": "legend-art/",
@@ -261,7 +267,9 @@ typescript.tsc_test(
         "//query-store:query_store",
         "//datacube:src",
         "//engine-client:engine_client",
+        "//depot-client:depot_client",
         "//legend-art:legend_art",
+        "//sdlc-client:sdlc_client",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/@types/node",
     ],

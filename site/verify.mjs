@@ -288,6 +288,26 @@ try {
   if (!/org\.finos\.lite\.demo:trading/.test(kept ?? '')) throw new Error(`Studio's projects did not survive a reload on this origin: ${kept}`);
   console.log('Studio: served from the same origin, its demo projects published and still there after a reload');
   await studio.close();
+
+  // Query opens what Studio published, by name (design Phase 3): the party project at its line's HEAD (Depot's
+  // master-SNAPSHOT), with its dependency on types, and runs a query on it -- the rows party-seed.sql loads
+  const byName = await context.newPage();
+  const partyGav = enc('org.finos.lite.demo:party:master-SNAPSHOT');
+  await byName.goto(`${ORIGIN}/query/demo/index.html#/create/manual/${partyGav}/${enc('demo::party::PartyMapping')}/${enc('demo::party::Runtime')}?class=${enc('demo::party::Party')}`);
+  await byName.waitForSelector('.q-node', { timeout: 120_000 });
+  for (const p of ['Name', 'Country']) await byName.dblclick(`.q-node:has-text('${p}')`);
+  await byName.click('button.q-run');
+  await byName.waitForFunction(() => document.querySelector('.q-error-box')
+    || /\d+ rows? in \d+ ms/.test(document.querySelector('.q-results-bar')?.textContent ?? ''), undefined, { timeout: 120_000 });
+  const refused = await byName.$('.q-error-box');
+  if (refused) throw new Error(`Query on Studio's party project, by name, refused the run: ${await refused.textContent()}`);
+  const parties = await byName.locator('.q-results-bar').textContent();
+  if (!/(^|\D)5 rows? in/.test(parties ?? '')) throw new Error(`Query on Studio's party project, by name, did not show its 5 rows: "${parties}"`);
+  const names = await byName.$$eval('.q-grid tbody tr', (trs) => trs.map((tr) => tr.textContent ?? ''));
+  if (!names.some((n) => n.includes('Banque Lumière'))) throw new Error(`the party rows are not the seeded ones: ${names.join(' | ')}`);
+  const shown = (parties ?? '').match(/\d+ rows? in \d+ ms/)?.[0];
+  console.log(`Query: Studio's party project opened by name at HEAD (master-SNAPSHOT), with its dependencies -- ${shown}`);
+  await byName.close();
 } catch (e) {
   failed = true;
   console.log(`FAIL: ${String(e.message ?? e).split('\n')[0]}`);
@@ -299,5 +319,5 @@ if (errors.length) {
   failed = true;
   console.log(`page errors: ${errors.join(' | ')}`);
 }
-console.log(failed ? '\n!!! the apps do not share their stores !!!' : '\n*** saved in Query, opened in DataCube, the Studio projects kept beside them: one origin, no server ***');
+console.log(failed ? '\n!!! the apps do not share their stores !!!' : '\n*** saved in Query, opened in DataCube; Studio publishes, Query opens it by name: one origin, no server ***');
 process.exit(failed ? 1 : 0);
