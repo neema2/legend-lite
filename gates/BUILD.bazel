@@ -20,6 +20,7 @@ test_suite(
         "//tools/deps:pools_list_test",
         "//tools/deps:warehouse_closure_test",
         "//tools/guards:classpath_test",
+        "//tools/guards:compile_only_test",
         "//tools/guards:inventory_test",
         "//tools/guards:locks_test",
         "//tools/guards:markdown_inputs_test",

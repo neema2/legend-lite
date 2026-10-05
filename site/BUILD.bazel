@@ -18,6 +18,7 @@ copy_to_directory(
         "//studio:site",
     ],
     out = "dist",
+    visibility = ["//:__pkg__"],
 )
 
 # `bazel run //site:serve [-- --port 8200] [-- --host 0.0.0.0]`: that folder, on loopback.

@@ -279,7 +279,7 @@ legend_java_binary(
         ":core",
         ":drivers",
     ],
-    visibility = ["//fixtures/saved-queries:__pkg__", "//query:__pkg__", "//query-store:__pkg__"],
+    visibility = ["//:__pkg__", "//fixtures/saved-queries:__pkg__", "//query:__pkg__", "//query-store:__pkg__"],
 )
 
 # every file a core test reads by path, declared, so it exists in runfiles and

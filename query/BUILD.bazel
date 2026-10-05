@@ -59,6 +59,16 @@ _BUNDLES = {
     chdir = package_name(),
 ) for entry, out in _BUNDLES.items()]
 
+# THE BUNDLES QUERY SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the app and the planner's worker.
+filegroup(
+    name = "bundles",
+    srcs = [
+        ":bundle_bundle",
+        ":bundle_planner_worker",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
 # The two WebAssembly runtimes the page loads from ./vendor/: legend-lite's planner (grammar,
 # typing, SQL in the tab) and DuckDB's (where queries run in the browser).
 copy_to_directory(

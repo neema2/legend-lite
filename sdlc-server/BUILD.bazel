@@ -40,6 +40,7 @@ legend_java_binary(
     name = "server",
     main_class = "com.legend.sdlc.server.SdlcServer",
     visibility = [
+        "//:__pkg__",
         "//depot-client:__pkg__",
         "//sdlc-client:__pkg__",
         "//studio:__pkg__",
@@ -76,6 +77,7 @@ teavm_wasm(
     name = "page",
     main_class = "com.legend.sdlc.page.SdlcPage",
     visibility = [
+        "//:__pkg__",
         "//depot-client:__pkg__",
         "//sdlc-client:__pkg__",
         "//studio:__pkg__",
