@@ -37,13 +37,11 @@ class ZFixtureAdjudicationProbe {
         int diffs = 0;
         java.util.List<String> diffSamples = new java.util.ArrayList<>();
         java.util.List<String> refuseSamples = new java.util.ArrayList<>();
-        // fresh harvest dump if present, else the committed snapshot —
+        // the committed snapshot (a fresh harvest is //parser-equivalence:gen_fixtures's output; no test leaves one in
+        // its outputs for another to read -- Bazel workplan P2-16, G-01).
         // NOTE: honest verdicts need the PRODUCTION oracle (run on the
         // ordinary test classpath, never :harvest_lib — the tests-jars alter it)
-        Path dump = Files.exists(Repo.out("engine-fixtures.jsonl"))
-                ? Repo.out("engine-fixtures.jsonl")
-                : Repo.module("src/test/resources/"
-                        + "engine-grammar-fixtures.jsonl");
+        Path dump = Repo.module("src/test/resources/engine-grammar-fixtures.jsonl");
         for (String line : Files.readAllLines(dump)) {
             JsonNode n = json.readTree(line);
             String src = n.get("source").asText();
