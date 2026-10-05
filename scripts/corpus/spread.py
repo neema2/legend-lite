@@ -397,8 +397,20 @@ def _evaluable(c: model.Corpus, spec: Spec, tables) -> bool:
         return False
 
 
+# build.py and executed.all_specs ask for the same cover (Bazel workplan P2-05): computed once per corpus, seed set
+# and baseline.
+_BUILT: dict[tuple, list] = {}
+
+
 def build(c: model.Corpus, seeded: set[str], existing, tables=None) -> list[Spec]:
     """Greedy set-cover over the pairs and triples the corpus does not yet execute."""
+    key = (id(c), frozenset(seeded), id(existing), id(tables))
+    if key not in _BUILT:
+        _BUILT[key] = _build(c, seeded, existing, tables)
+    return _BUILT[key]
+
+
+def _build(c: model.Corpus, seeded: set[str], existing, tables=None) -> list[Spec]:
     import quarantine
 
     q = set(quarantine.ENGINE_QUARANTINE) | set(quarantine.HANGS)
