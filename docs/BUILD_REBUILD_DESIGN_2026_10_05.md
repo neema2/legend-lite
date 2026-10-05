@@ -445,6 +445,42 @@ jar's manifest (10.4 s), then makes a full compile-only copy (7.0 s), before `//
 - The new user rule refuses a package not in a jar's users: tested by giving `//json` a Postgres dependency.
 - Windows is unproven until its own throwaway CI run, after step 1 lands.
 
+## 5c. Fewer moving parts in the product build (2026-10-05, branch `build/rebuild`)
+
+**`//:web` without Node** (commit `a9ce99836`).
+- Every bundle used to run through a bash launcher (`js_binary`), Node, and esbuild's JavaScript launcher, before
+  the Go binary did the work.
+- `tools/js/esbuild.bzl` (`esbuild_bundle`) now runs the native binary directly:
+  - the binary is the npm registry's `@esbuild/<platform>` tarball, pinned by the pnpm lock's sha512;
+  - the working directory is set by bazel_lib's hermetic coreutils (`env -C`);
+  - its inputs come from rules_js's own helper;
+  - its outputs are output labels plus `JsInfo`, as before.
+- rules_js stays only for fetching and laying out the npm packages, which runs no Node.
+
+**Proof:**
+- All 19 outputs are byte-for-byte identical to the Node route's.
+- The DataCube, Query, Studio and site suites pass (114).
+- The guard now refuses any `js_binary` in a build target, which was tested by putting one in.
+- A clean `//:web` runs 354 actions instead of 412 (4.8 s instead of 6.2 s).
+
+**Stamping off** (commit `669b39ad1`): `.bazelrc` sets `--@rules_jvm_external//settings:stamp_manifest=False`.
+- A clean `//:java` runs 99 actions instead of 118; a clean `//:wasm` runs 198 instead of 257.
+- The time is unchanged, about 12 s and 30 s, because stamping was off the critical path.
+- The guard no longer allows `StampJarManifest`.
+- `//gates:local` is green: 289 tests pass, 169 executed.
+
+**Found and not yet fixed: the shipped bundles leak build paths.**
+- `datacube/demo/bundle.js` carries 225 module comments like
+  `// ../../../../../../../../../execroot/_main/bazel-out/darwin_arm64-fastbuild/bin/engine-client/src/locale.ts`.
+- The cause: esbuild follows the sandbox's input symlinks out to Bazel's real execroot, and its module comments
+  are relative to its working directory.
+- So the bundle bytes depend on the sandbox and the platform. This was true on the Node route too, so the
+  byte-identical proof kept it.
+- To decide (D15):
+  - minify whitespace, which drops the comments and shrinks the download;
+  - run esbuild unsandboxed, which gives stable relative paths but loses the sandbox's undeclared-input check;
+  - or another esbuild setting, to be found.
+
 ## 6. Decisions for the user
 
 - **D1. Error Prone.**
@@ -508,6 +544,9 @@ jar's manifest (10.4 s), then makes a full compile-only copy (7.0 s), before `//
   - No shipped server uses it, so it is not in `//:java`.
   - Keep it as product, so the engine can query our database server (it would join `//core:drivers`). Or delete it,
     with the corpus warehouse leg.
+
+- **D15 (open). The shipped bundles' build-path comments** (section 5c): minify whitespace, unsandboxed esbuild,
+  or another way.
 
 ## 7. Open items the audits could not settle
 
