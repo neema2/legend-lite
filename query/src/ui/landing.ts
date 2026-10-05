@@ -30,7 +30,8 @@ export function renderLanding(root: HTMLElement, app: AppContext): void {
       dataSpaceSection(app, term),
       savedSection(app, term, saved),
       classSection(app, term),
-      serviceSection(app, term));
+      serviceSection(app, term),
+      depotSection(app, term, draw));
   };
 
   mount(root, h('div', { class: 'q-landing' },
@@ -160,4 +161,38 @@ function serviceSection(app: AppContext, term: string): Child {
   }
   if (rows.length === 0) return null;
   return [h('h2', null, 'Services'), h('div', { class: 'q-list' }, rows)];
+}
+
+/**
+ * The projects in Depot not opened yet (design Phase 3): listed by name -- none is loaded at start -- and opened at
+ * HEAD, the project line's snapshot; their data spaces, classes and services then join the sections above.
+ */
+function depotSection(app: AppContext, term: string, redraw: () => void): Child {
+  const unopened = app.depotProjects.filter((p) => !app.projects.some((l) => l.config.groupId === p.groupId && l.config.artifactId === p.artifactId)
+    && matches(`${p.groupId}:${p.artifactId}`, term));
+  if (unopened.length === 0) return null;
+  return [
+    h('h2', null, 'Projects in Depot'),
+    h('div', { class: 'q-cards' }, unopened.map((p) => {
+      const name = `${p.groupId}:${p.artifactId}`;
+      const open = h('button', { class: 'q-btn', 'data-project': name, onclick: async () => {
+        open.disabled = true;
+        open.textContent = 'Opening…';
+        try {
+          await app.ensure(`${name}:master-SNAPSHOT`);
+        } catch (e) {
+          open.disabled = false;
+          open.textContent = 'Open at HEAD';
+          open.title = e instanceof Error ? e.message : String(e);
+          return;
+        }
+        redraw();
+      } }, 'Open at HEAD');
+      return h('div', { class: 'q-card' },
+        h('div', { class: 'title' }, p.artifactId),
+        h('div', { class: 'path' }, name),
+        h('div', { class: 'desc' }, 'In Depot: opens at HEAD, the latest on its project line'),
+        open);
+    })),
+  ];
 }
