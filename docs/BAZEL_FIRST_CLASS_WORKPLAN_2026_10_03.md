@@ -1447,6 +1447,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | An allowance moved into a golden would launder regressions. The classification table is reviewed first. |
 | Done when | No roster is edited by hand, and no register moves without a dated row. |
 
+**Amended 2026-10-05 (execution).** Moved after P3-01, which it depends on (the database pass as a `java_run` chain): it leaves batch 9 for Phase 3's batch.
+
 #### P2-16 · Pins that a generated file already determines are computed; measurement reports are generated (D9)
 
 | Field | Content |
@@ -1459,6 +1461,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | M (3 d: 2 d, plus 1 d for core's families and the `Repo.out` table) |
 | Risk/rollback | None known. Each PR stands alone. |
 | Done when | Every hand number is either computed or a dated policy value beside a generated measurement. Core has no hand-copied measurement (A10), and no committed file is refreshed from test outputs by hand (G-01). |
+
+**Amended 2026-10-05 (execution).** (a) done: `EngineHandlersTest` parses the generated `engine-handlers.tsv` and requires the API to report every row (no hand counts); `NativeFunctionTest`'s class count was redundant with its name check. (b) A read-only classification of every family named here found most "exact" pins in core (`SqlTextRatchet` REGISTER, `LegacyReachback` REGISTER, `Fallback` FUNNEL, `JavaEvalLedger` EVICT_*) and parser-equivalence's per-host/per-file pins are **registers with a dated justification per row**: POLICY under D9, and moving them into a generated file would let `update_generated` accept a regression unexplained, the very thing D9 forbids. They stay. The hand-copied MEASUREMENTS became generated reports: `spec/.../ratchets.tsv` (corpus census, unsupported dynafunctions, implementation kinds, upstream paths; `//spec:update_ratchets`), `parser-equivalence/.../ratchets.tsv` (own-corpus matched, the mutant deck; `//parser-equivalence:update_ratchets`), `pct/.../ratchets.tsv` (Channel B discovery per suite; `//pct:update_ratchets`, manual like the suites, the tests holding gate 9 to it). Tests compare live values with the committed file; ceilings and floors stay in Java. G-01: all 23 `Repo.out` writers are diagnostic; `docs/refusal-asymmetry.tsv` (an orphaned hand copy) deleted. Found: core's `CorpusDifferentialTest` always skips under Bazel (it reads Maven's `core/target/diff`): a Phase 3 item.
 
 #### P2-17 · `natives.bootstrap` and `natives.dump` stop writing into the tree
 
