@@ -7,6 +7,7 @@ import com.legend.json.Json;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CByteArray;
 import com.legend.protocol.spec.CDate;
 import com.legend.protocol.spec.CDecimal;
 import com.legend.protocol.spec.CFloat;
@@ -14,10 +15,7 @@ import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CLatestDate;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.CTime;
-import com.legend.protocol.spec.ColSpec;
-import com.legend.protocol.spec.ColSpecArray;
 import com.legend.protocol.spec.EnumValue;
-import com.legend.protocol.spec.GraphFetchLiteral;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.PackageableElementPtr;
 import com.legend.protocol.spec.PureCollection;
@@ -28,25 +26,27 @@ import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
 
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 /**
- * Engine lambda protocol JSON &rarr; the protocol records the parser produces &mdash;
- * the MIRROR of {@link ProtocolEmitter}'s value-specification rules, so an upstream
- * {@code pure/v1} request (a {@code function} or {@code lambda} field) compiles exactly
- * as the same query written in text (docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md, U1).
+ * Protocol JSON &rarr; the value-specification records the parser produces &mdash; the MIRROR of
+ * {@link ProtocolEmitter}'s value-specification rules, so an upstream {@code pure/v1} request (a
+ * {@code function} or {@code lambda} field) compiles exactly as the same query written in text
+ * (docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md, U1), and so every value specification inside a model
+ * reads back to records that emit the same bytes ({@link ModelReader}, the protocol program's read leg).
  *
- * <p>Every wire quirk the emitter reproduces is undone here, rule for rule: an enum
- * value arrives as a {@code property} on a {@code packageableElementPtr}; a
- * {@code receiver.name(args)} call as a {@code property} with its arguments after the
- * receiver; {@code #>{db.schema.T}#} as a {@code classInstance} of type {@code ">"}
- * with a path; the root package as a literal {@code null}. A {@code _type} (or
- * {@code classInstance} type) with no rule here is REFUSED, naming it &mdash; never
- * skipped, never guessed. Positions come from {@code sourceInformation} when the
- * request carries it, and are absent otherwise.
+ * <p>Every wire quirk the emitter reproduces is undone here, rule for rule: an enum value arrives as a
+ * {@code property} on a {@code packageableElementPtr}; a {@code receiver.name(args)} call as a
+ * {@code property} with its arguments after the receiver; {@code ^X(k=v)} as a {@code func new} over a
+ * {@code Class<X>} type instance; {@code #>{db.schema.T}#} as a {@code classInstance} of type {@code ">"}
+ * with a path; the root package as a literal {@code null}. A {@code _type} (or {@code classInstance}
+ * type) with no rule here is REFUSED, naming it &mdash; never skipped, never guessed; so is a field no
+ * rule takes ({@link Wire}). Positions come from {@code sourceInformation} when the JSON carries it, and
+ * are absent otherwise. Islands and literals with a shape of their own read in {@link SpecIslandReader}.
  */
 public final class ProtocolReader {
 
@@ -63,105 +63,132 @@ public final class ProtocolReader {
      * as upstream reads them ({@link ProtocolUpgrade}).
      */
     public static LambdaFunction lambda(Json.Obj o) {
-        return readLambda(ProtocolUpgrade.upgrade(o));
+        return lambdaNode(ProtocolUpgrade.upgrade(o));
     }
 
-    private static LambdaFunction readLambda(Json.Obj o) {
-        String type = o.getStringOr("_type", "");
+    /** A lambda node, already upgraded. */
+    static LambdaFunction lambdaNode(Json.Node node) {
+        Wire w = Wire.of(node, "lambda");
+        String type = w.type();
         if (!"lambda".equals(type)) {
-            throw refused("expected a lambda, got _type '" + type + "'");
+            throw Wire.refuse("expected a lambda, got _type '" + type + "'");
         }
-        List<Variable> params = new ArrayList<>();
-        for (Json.Node p : arrOrEmpty(o, "parameters")) {
-            params.add(variable(asObj(p, "lambda parameter")));
-        }
-        List<ValueSpecification> body = new ArrayList<>();
-        for (Json.Node n : arrOrEmpty(o, "body")) {
-            body.add(valueSpec(n));
-        }
-        return new LambdaFunction(params, body, pos(o));
+        return readLambda(w);
     }
 
-    /** One value specification node. */
+    /** One value specification node (already upgraded). */
     public static ValueSpecification valueSpec(Json.Node node) {
         if (node instanceof Json.Null) {
             // the ROOT PACKAGE spelled '::' is a literal null on the wire
             return new PackageableElementPtr("::");
         }
-        Json.Obj o = asObj(node, "value specification");
-        String type = o.getStringOr("_type", null);
-        if (type == null) {
-            throw refused("a value specification has no _type");
-        }
-        @com.legend.base.Nullable SourceInfo pos = pos(o);
-        return switch (type) {
-            case "lambda" -> readLambda(o);
-            case "var" -> variable(o);
-            case "func" -> func(o, pos);
-            case "property" -> property(o, pos);
-            case "collection" -> new PureCollection(values(o, "values"), pos);
-            case "string" -> new CString(o.getString("value"), pos,
-                    o.getBoolOr("multiLine", false));
-            case "boolean" -> new CBoolean(o.getBool("value"), pos);
-            case "integer" -> integer(o, pos);
-            case "float" -> floating(o, pos);
-            case "decimal" -> new CDecimal(exact(o, "value"), null, pos);
-            case "strictDate", "dateTime" -> date(o.getString("value"), pos);
-            case "latestDate" -> new CLatestDate(pos);
-            case "strictTime" -> {
-                String written = o.getString("value");
-                yield new CTime(PureTimeLiteral.parse(written), written, pos);
-            }
-            case "packageableElementPtr", "unitType" ->
-                    new PackageableElementPtr(o.getString("fullPath"), pos);
-            case "enumValue" -> new EnumValue(o.getString("fullPath"), o.getString("value"),
-                    null, pos);
-            case "classInstance" -> classInstance(o, pos);
-            case "genericTypeInstance" -> new TypeAnnotation.Named(
-                    genericType(o.getObj("genericType")), pos);
-            default -> throw refused("no reader rule for value specification _type '"
-                    + type + "' -- add the rule, do not drop it");
-        };
+        Wire w = Wire.of(node, "value specification");
+        String type = w.type();
+        return w.done(Wire.rule(SPECS, type, "value specification").apply(w));
     }
 
+    /** The reader rule for each value-specification {@code _type} on the wire. */
+    private static final Map<String, Function<Wire, ValueSpecification>> SPECS = Map.ofEntries(
+            Map.entry("lambda", ProtocolReader::readLambda),
+            Map.entry("var", ProtocolReader::variableRef),
+            Map.entry("func", ProtocolReader::func),
+            Map.entry("property", ProtocolReader::property),
+            Map.entry("collection", w -> new PureCollection(w.list("values", ProtocolReader::valueSpec),
+                    collectionSpan(w))),
+            Map.entry("string", ProtocolReader::string),
+            Map.entry("boolean", w -> new CBoolean(w.bool("value"), w.span())),
+            Map.entry("integer", w -> integer(w.take("value"), w.span())),
+            Map.entry("float", w -> floating(w.decimal("value"), w.span())),
+            Map.entry("decimal", w -> new CDecimal(w.decimal("value"), null, w.span())),
+            Map.entry("strictDate", w -> date(w, true)),
+            Map.entry("dateTime", w -> date(w, false)),
+            Map.entry("latestDate", w -> new CLatestDate(w.span())),
+            Map.entry("strictTime", ProtocolReader::time),
+            Map.entry("packageableElementPtr", w -> pointer(w, false)),
+            Map.entry("unitType", w -> pointer(w, true)),
+            Map.entry("enumValue", w -> new EnumValue(w.str("fullPath"), w.str("value"), null, w.span(), true)),
+            Map.entry("byteArray", w -> new CByteArray(w.str("value"), w.span())),
+            Map.entry("classInstance", SpecIslandReader::classInstance),
+            Map.entry("genericTypeInstance", SpecIslandReader::typeInstance));
+
     // ---------------------------------------------------------------------
-    // Nodes
+    // Lambdas and variables
     // ---------------------------------------------------------------------
 
-    private static Variable variable(Json.Obj o) {
-        if (!"var".equals(o.getStringOr("_type", ""))) {
-            throw refused("expected a var, got _type '" + o.getStringOr("_type", "") + "'");
-        }
-        Json.Obj gt = o.getObjOr("genericType", null);
-        if (gt == null) {
-            return new Variable(o.getString("name"), null, null, pos(o));
-        }
-        Json.Obj m = o.getObjOr("multiplicity", null);
-        if (m == null) {
-            throw refused("a typed lambda parameter has no multiplicity: " + o.getString("name"));
-        }
-        return new Variable(o.getString("name"), genericType(gt), multiplicity(m), pos(o));
-    }
-
-    private static ValueSpecification func(Json.Obj o, @com.legend.base.Nullable SourceInfo pos) {
-        return new AppliedFunction(o.getString("function"), values(o, "parameters"),
-                List.of(), pos);
+    private static LambdaFunction readLambda(Wire w) {
+        List<Variable> params = w.list("parameters", ProtocolReader::lambdaParameter);
+        List<ValueSpecification> body = w.list("body", ProtocolReader::valueSpec);
+        return w.done(new LambdaFunction(params, body, w.span()));
     }
 
     /**
-     * A {@code property} node is one of three things on the wire (the emitter's
-     * rules): an ENUM value (one parameter, a {@code packageableElementPtr}), a
-     * {@code receiver.name(args)} call (arguments after the receiver), or a plain
-     * property access.
+     * A lambda parameter: an UNTYPED one is the bare {@code {"_type":"var","name":...}} (no span, no
+     * multiplicity); a TYPED one carries its type, multiplicity and the span of its declaration.
      */
-    private static ValueSpecification property(Json.Obj o, @com.legend.base.Nullable SourceInfo pos) {
-        List<ValueSpecification> params = values(o, "parameters");
-        String name = o.getString("property");
+    private static Variable lambdaParameter(Json.Node node) {
+        Wire w = Wire.of(node, "lambda parameter");
+        expectVar(w);
+        Json.Node gt = w.opt("genericType");
+        if (gt == null) {
+            return w.done(new Variable(w.str("name")));
+        }
+        return w.done(new Variable(w.str("name"), genericType(gt), multiplicity(w.take("multiplicity")),
+                w.span()));
+    }
+
+    private static void expectVar(Wire w) {
+        String type = w.type();
+        if (!"var".equals(type)) {
+            throw Wire.refuse("expected a var, got _type '" + type + "'");
+        }
+    }
+
+    /** A variable REFERENCE ({@code $x}): name and span, never a type. */
+    private static ValueSpecification variableRef(Wire w) {
+        return new Variable(w.str("name"), null, null, w.span());
+    }
+
+    // ---------------------------------------------------------------------
+    // Applications
+    // ---------------------------------------------------------------------
+
+    /**
+     * A {@code func}. Two spellings come back to the record the grammar builds: {@code ^X(...)} (a
+     * {@code new} over a {@code Class<X>} type instance, {@link SpecIslandReader#newInstance}), and every
+     * other call, kept as written ({@code let}'s name string, the caret specials {@code pair}/{@code col}
+     * the engine desugars to, a table reference spelled as a call).
+     */
+    private static ValueSpecification func(Wire w) {
+        String function = w.str("function");
+        List<Json.Node> raw = w.arr("parameters");
+        SourceInfo pos = w.span();
+        if (AppliedFunction.NEW.equals(function)) {
+            ValueSpecification ni = SpecIslandReader.newInstance(raw, pos);
+            if (ni != null) {
+                return ni;
+            }
+        }
+        List<ValueSpecification> params = new ArrayList<>(raw.size());
+        for (Json.Node p : raw) {
+            params.add(valueSpec(p));
+        }
+        return new AppliedFunction(function, params, List.of(), pos);
+    }
+
+    /**
+     * A {@code property} node is one of three things on the wire (the emitter's rules): an ENUM value
+     * (one parameter, a {@code packageableElementPtr}), a {@code receiver.name(args)} call (arguments
+     * after the receiver), or a plain property access.
+     */
+    private static ValueSpecification property(Wire w) {
+        List<ValueSpecification> params = w.list("parameters", ProtocolReader::valueSpec);
+        String name = w.str("property");
+        SourceInfo pos = w.span();
         if (params.isEmpty()) {
-            throw refused("a property node has no receiver: " + name);
+            throw Wire.refuse("a property node has no receiver: " + name);
         }
         if (params.size() == 1 && params.get(0) instanceof PackageableElementPtr ptr) {
-            return new EnumValue(ptr.fullPath(), name, ptr.pos(), pos);
+            return new EnumValue(ptr.fullPath(), name, ptr.pos(), pos, false);
         }
         if (params.size() > 1) {
             return new AppliedFunction(name, params, List.of(), pos, true, false);
@@ -169,250 +196,176 @@ public final class ProtocolReader {
         return new AppliedProperty(params.get(0), name, pos);
     }
 
-    /** The reader rule for each classInstance {@code type} on the wire. */
-    private static final Map<String, BiFunction<Json.Obj, SourceInfo, ValueSpecification>> CLASS_INSTANCES = Map.of(
-            ">", ProtocolReader::tableReference,
-            "rootGraphFetchTree", ProtocolReader::graphFetchTree,
-            "colSpec", (value, pos) -> colSpec(value),
-            "colSpecArray", ProtocolReader::colSpecArray);
+    /** A collection's multiplicity is its size, written twice; anything else has no record. */
+    private static @com.legend.base.Nullable SourceInfo collectionSpan(Wire w) {
+        int size = w.arr("values").size();
+        multiplicityOfSize(w.take("multiplicity"), size, "collection");
+        return w.span();
+    }
 
-    private static ValueSpecification classInstance(Json.Obj o, @com.legend.base.Nullable SourceInfo pos) {
-        String type = o.getString("type");
-        BiFunction<Json.Obj, SourceInfo, ValueSpecification> rule = CLASS_INSTANCES.get(type);
-        if (rule == null) {
-            throw refused("no reader rule for classInstance type '" + type
-                    + "' -- add the rule, do not drop it");
+    /** {@code {"lowerBound":n,"upperBound":n}} where {@code n} is a collection's size. */
+    static void multiplicityOfSize(Json.Node m, int size, String what) {
+        Multiplicity read = multiplicity(m);
+        if (!(read instanceof Multiplicity.Concrete c) || c.lowerBound() != size || c.upperBound() == null
+                || c.upperBound() != size) {
+            throw Wire.refuse(what + " multiplicity " + read + " is not its size " + size);
         }
-        return rule.apply(o.getObj("value"), pos);
-    }
-
-    /**
-     * {@code #>{db.schema.T}#}: the database, then the rest of the path as the pos-less
-     * table-name string the island parse synthesises (the emitter's discriminator).
-     */
-    private static ValueSpecification tableReference(Json.Obj value, @com.legend.base.Nullable SourceInfo pos) {
-        List<String> path = value.getStringArray("path");
-        if (path.isEmpty()) {
-            throw refused("a table reference with an empty path");
-        }
-        return AppliedFunction.tableReference(path.get(0), path.size() == 1 ? null
-                : String.join(".", path.subList(1, path.size())), pos);
-    }
-
-    private static ValueSpecification colSpecArray(Json.Obj value, @com.legend.base.Nullable SourceInfo pos) {
-        List<ColSpec> specs = new ArrayList<>();
-        for (Json.Node n : arrOrEmpty(value, "colSpecs")) {
-            specs.add(colSpec(asObj(n, "colSpec")));
-        }
-        return new ColSpecArray(specs, pos);
-    }
-
-    /**
-     * {@code #{Class{a, b{c}}}#} on the wire: the tree of {@code propertyGraphFetchTree} and
-     * {@code subTypeGraphFetchTree} nodes, read into the same {@link GraphFetchLiteral} the
-     * grammar gives. The wire cannot tell {@code prop()} from {@code prop} (both carry no
-     * parameters), so a node is parenthesized exactly when it has arguments.
-     */
-    private static ValueSpecification graphFetchTree(Json.Obj root, @com.legend.base.Nullable SourceInfo pos) {
-        return new GraphFetchLiteral(root.getString("class"), graphNodes(arrOrEmpty(root, "subTrees")),
-                graphSubTypes(arrOrEmpty(root, "subTypeTrees")), pos);
-    }
-
-    private static List<GraphFetchLiteral.Node> graphNodes(List<Json.Node> trees) {
-        List<GraphFetchLiteral.Node> out = new ArrayList<>();
-        for (Json.Node t : trees) {
-            Json.Obj n = asObj(t, "graph fetch tree");
-            String type = n.getStringOr("_type", "");
-            if (!"propertyGraphFetchTree".equals(type)) {
-                throw refused("no reader rule for a graph fetch subtree of _type '" + type + "' -- add the rule, do not drop it");
-            }
-            if (!arrOrEmpty(n, "subTypeTrees").isEmpty()) {
-                // the engine's grammar refuses ->subType below the root; so does lite's
-                throw refused("a ->subType() below the root -- supported only at root level");
-            }
-            List<ValueSpecification> args = new ArrayList<>();
-            for (Json.Node a : arrOrEmpty(n, "parameters")) {
-                args.add(graphArg(valueSpec(a)));
-            }
-            out.add(new GraphFetchLiteral.Node(n.getString("property"), pos(n), args, !args.isEmpty(),
-                    n.getStringOr("alias", null), n.getStringOr("subType", null),
-                    graphNodes(arrOrEmpty(n, "subTrees"))));
-        }
-        return out;
-    }
-
-    /**
-     * A graph node's call argument, back to the expression the grammar parses: read as any
-     * value, then the graph-position spans undone -- the mirror of the emitter's
-     * {@code gftParam} (an enum spans its whole dotted path, a variable its name without the
-     * dollar; a date's {@code %} the date reader already strips).
-     */
-    private static ValueSpecification graphArg(ValueSpecification v) {
-        return switch (v) {
-            case EnumValue e when e.pos() != null && e.enumerationPos() == null -> {
-                SourceInfo at = e.pos();
-                yield new EnumValue(e.fullPath(), e.value(),
-                        new SourceInfo(at.sourceId(), at.startLine(), at.startColumn(),
-                                at.startLine(), at.startColumn() + e.fullPath().length() - 1),
-                        new SourceInfo(at.sourceId(), at.endLine(),
-                                at.endColumn() - e.value().length() + 1, at.endLine(), at.endColumn()));
-            }
-            case Variable var when var.pos() != null -> new Variable(var.name(), var.type(), var.multiplicity(),
-                    new SourceInfo(var.pos().sourceId(), var.pos().startLine(), var.pos().startColumn() - 1,
-                            var.pos().endLine(), var.pos().endColumn()));
-            case PureCollection c -> new PureCollection(
-                    c.values().stream().map(ProtocolReader::graphArg).toList(), c.pos());
-            default -> v;
-        };
-    }
-
-    /** A level's {@code ->subType(@X){...}} entries. */
-    private static List<GraphFetchLiteral.SubTypeNode> graphSubTypes(List<Json.Node> trees) {
-        List<GraphFetchLiteral.SubTypeNode> out = new ArrayList<>();
-        for (Json.Node t : trees) {
-            Json.Obj n = asObj(t, "graph fetch subtype tree");
-            String type = n.getStringOr("_type", "");
-            if (!"subTypeGraphFetchTree".equals(type)) {
-                throw refused("no reader rule for a graph fetch subtype tree of _type '" + type + "' -- add the rule, do not drop it");
-            }
-            if (!arrOrEmpty(n, "subTypeTrees").isEmpty()) {
-                throw refused("a ->subType() below the root -- supported only at root level");
-            }
-            out.add(new GraphFetchLiteral.SubTypeNode(n.getString("subTypeClass"), pos(n),
-                    graphNodes(arrOrEmpty(n, "subTrees"))));
-        }
-        return out;
-    }
-
-    private static ColSpec colSpec(Json.Obj v) {
-        LambdaFunction f1 = v.has("function1") ? readLambda(v.getObj("function1")) : null;
-        LambdaFunction f2 = v.has("function2") ? readLambda(v.getObj("function2")) : null;
-        TypeExpression colType = v.has("genericType") ? genericType(v.getObj("genericType")) : null;
-        Multiplicity colMult = v.has("multiplicity") ? multiplicity(v.getObj("multiplicity")) : null;
-        if (v.has("stereotypes") || v.has("taggedValues")) {
-            throw refused("no reader rule for column-spec stereotypes or tagged values: "
-                    + v.getString("name"));
-        }
-        return new ColSpec(v.getString("name"), f1, f2, null, List.of(), false, pos(v),
-                colType, colMult);
     }
 
     // ---------------------------------------------------------------------
     // Literals
     // ---------------------------------------------------------------------
 
-    private static CInteger integer(Json.Obj o, @com.legend.base.Nullable SourceInfo pos) {
-        Json.Node v = o.get("value");
-        if (!(v instanceof Json.Num n) || !isIntegral(n)) {
-            throw refused("an integer literal whose value is not an integer: " + v);
+    private static ValueSpecification string(Wire w) {
+        Boolean multiLine = w.optBool("multiLine");
+        if (multiLine != null && !multiLine) {
+            throw Wire.refuse("a string with multiLine:false -- the wire never spells it");
         }
-        return n.decimalValue() != null
-                ? new CInteger(n.decimalValue().toBigIntegerExact(), pos)
-                : new CInteger(n.longValue(), pos);
+        return new CString(w.str("value"), w.span(), multiLine != null);
     }
 
-    private static CFloat floating(Json.Obj o, @com.legend.base.Nullable SourceInfo pos) {
-        BigDecimal exact = exact(o, "value");
+    static CInteger integer(Json.Node v, @com.legend.base.Nullable SourceInfo pos) {
+        BigDecimal d = Wire.exact(v, "integer literal");
+        BigInteger i;
+        if (d.scale() > 0 && d.stripTrailingZeros().scale() > 0) {
+            throw Wire.refuse("an integer literal whose value is not an integer: " + d);
+        }
+        i = d.toBigIntegerExact();
+        return i.bitLength() <= 63 ? new CInteger(i.longValue(), pos) : new CInteger(i, pos);
+    }
+
+    private static CFloat floating(BigDecimal exact, @com.legend.base.Nullable SourceInfo pos) {
         return new CFloat(exact.doubleValue(), exact, pos);
     }
 
-    /** A number's exact value: the decimal token when the parser kept one. */
-    private static BigDecimal exact(Json.Obj o, String key) {
-        Json.Node v = o.get(key);
-        if (!(v instanceof Json.Num n)) {
-            throw refused("a numeric literal whose value is not a number: " + v);
-        }
-        if (n.decimalValue() != null) {
-            return n.decimalValue();
-        }
-        return n.isInteger() ? BigDecimal.valueOf(n.longValue())
-                : new BigDecimal(Double.toString(n.doubleValue()));
-    }
-
-    private static boolean isIntegral(Json.Num n) {
-        if (n.isInteger()) {
-            return true;
-        }
-        BigDecimal d = n.decimalValue();
-        return d != null && d.stripTrailingZeros().scale() <= 0;
-    }
-
     /**
-     * A date literal. The wire carries the source spelling verbatim; a MONTH-precision
-     * value keeps a leading {@code %} (the emitter's quirk), undone here.
+     * A date literal. The wire carries the source spelling verbatim; a MONTH-precision value keeps a
+     * leading {@code %} (the emitter's quirk), undone here. DAY precision is {@code strictDate}, every
+     * other precision {@code dateTime}: a value on the other tag has no record that emits it.
      */
-    private static CDate date(String written, @com.legend.base.Nullable SourceInfo pos) {
+    private static ValueSpecification date(Wire w, boolean strict) {
+        String written = w.str("value");
         String body = written.startsWith("%") ? written.substring(1) : written;
-        return new CDate(PureDateLiteral.parse(body), body, pos);
+        PureDateLiteral value = PureDateLiteral.parse(body);
+        boolean day = value.precision() == PureDateLiteral.Precision.DAY;
+        boolean month = value.precision() == PureDateLiteral.Precision.MONTH;
+        if (day != strict || month != written.startsWith("%")) {
+            throw Wire.refuse("date literal '" + written + "' on the wrong tag for its precision");
+        }
+        return new CDate(value, body, w.span());
+    }
+
+    /** {@code %10:10:10} -- the value verbatim without the {@code %}; an out-of-range time keeps its text. */
+    private static ValueSpecification time(Wire w) {
+        String written = w.str("value");
+        return new CTime(timeOrNull(written), written, w.span());
+    }
+
+    private static @com.legend.base.Nullable PureTimeLiteral timeOrNull(String written) {
+        try {
+            return PureTimeLiteral.parse(written);
+        } catch (IllegalArgumentException outOfRange) {
+            return null;
+        }
+    }
+
+    /** A {@code packageableElementPtr}, or a {@code unitType} -- the same pointer, a {@code ~} in its path. */
+    private static ValueSpecification pointer(Wire w, boolean unit) {
+        String path = w.str("fullPath");
+        if ((path.indexOf('~') >= 0) != unit) {
+            throw Wire.refuse("pointer '" + path + "' on the wrong tag (a unit path has '~' and only a unit has)");
+        }
+        return new PackageableElementPtr(path, w.span());
     }
 
     // ---------------------------------------------------------------------
     // Types
     // ---------------------------------------------------------------------
 
-    private static TypeExpression genericType(Json.Obj gt) {
-        Json.Obj raw = gt.getObj("rawType");
-        String rawType = raw.getStringOr("_type", "");
+    /**
+     * The wire's {@code genericType}: a named type, a generic application (type arguments,
+     * multiplicity arguments, type-variable values), or a relation type. The engine's backward-compat
+     * {@code Result} -- written {@code Result<Any|1..*>} with a span-less {@code Any} -- is the bare
+     * {@code Result} the grammar parsed.
+     */
+    static TypeExpression genericType(Json.Node node) {
+        Wire gt = Wire.of(node, "genericType");
+        List<Json.Node> multArgs = gt.arr("multiplicityArguments");
+        Wire raw = gt.obj("rawType");
+        List<Json.Node> typeArgs = gt.arr("typeArguments");
+        List<ValueSpecification> tvv = new ArrayList<>();
+        for (Json.Node v : gt.arr("typeVariableValues")) {
+            tvv.add(valueSpec(v));
+        }
+        String rawType = raw.type();
+        if ("relationType".equals(rawType)) {
+            if (!multArgs.isEmpty() || !typeArgs.isEmpty() || !tvv.isEmpty()) {
+                throw Wire.refuse("a relation type with type, multiplicity or value arguments");
+            }
+            TypeExpression rt = new TypeExpression.RelationType(raw.list("columns", ProtocolReader::column));
+            raw.done(rt);
+            return gt.done(rt);
+        }
         if (!"packageableType".equals(rawType)) {
-            throw refused("no reader rule for a generic type whose rawType is '" + rawType
+            throw Wire.refuse("no reader rule for a generic type whose rawType is '" + rawType
                     + "' -- add the rule, do not drop it");
         }
-        String path = raw.getString("fullPath");
-        List<TypeExpression> args = new ArrayList<>();
-        for (Json.Node a : arrOrEmpty(gt, "typeArguments")) {
-            args.add(genericType(asObj(a, "type argument")));
+        String path = raw.str("fullPath");
+        SourceInfo pos = raw.span();
+        raw.done(path);
+        if (isBareResult(path, multArgs, typeArgs, tvv)) {
+            return gt.done(new TypeExpression.NameRef(path, pos));
         }
-        List<ValueSpecification> typeVariableValues = values(gt, "typeVariableValues");
-        if (!arrOrEmpty(gt, "multiplicityArguments").isEmpty()) {
-            throw refused("no reader rule for multiplicity arguments on type " + path);
+        List<TypeExpression> args = new ArrayList<>(typeArgs.size());
+        for (Json.Node a : typeArgs) {
+            args.add(genericType(a));
         }
-        SourceInfo pos = pos(raw);
-        return args.isEmpty() && typeVariableValues.isEmpty()
+        List<String> mults = new ArrayList<>(multArgs.size());
+        for (Json.Node m : multArgs) {
+            mults.add(multiplicityText(multiplicity(m)));
+        }
+        return gt.done(args.isEmpty() && mults.isEmpty() && tvv.isEmpty()
                 ? new TypeExpression.NameRef(path, pos)
-                : new TypeExpression.Generic(path, args, List.of(), typeVariableValues, pos);
+                : new TypeExpression.Generic(path, args, mults, tvv, pos));
     }
 
-    private static Multiplicity multiplicity(Json.Obj m) {
-        Json.Node upper = m.getOr("upperBound", null);
-        return new Multiplicity.Concrete(m.getIntOr("lowerBound", 0),
-                upper instanceof Json.Num n ? Integer.valueOf((int) n.longValue()) : null);
-    }
-
-    // ---------------------------------------------------------------------
-    // Plumbing
-    // ---------------------------------------------------------------------
-
-    private static List<ValueSpecification> values(Json.Obj o, String key) {
-        List<ValueSpecification> out = new ArrayList<>();
-        for (Json.Node n : arrOrEmpty(o, key)) {
-            out.add(valueSpec(n));
+    /** {@code Result} with exactly the engine's synthesized {@code <Any|1..*>} (a span-less Any). */
+    private static boolean isBareResult(String path, List<Json.Node> multArgs, List<Json.Node> typeArgs,
+            List<ValueSpecification> tvv) {
+        if (!"Result".equals(path) || multArgs.size() != 1 || typeArgs.size() != 1 || !tvv.isEmpty()) {
+            return false;
         }
-        return out;
+        Multiplicity m = multiplicity(multArgs.get(0));
+        TypeExpression any = genericType(typeArgs.get(0));
+        return m.equals(new Multiplicity.Concrete(1, null)) && any instanceof TypeExpression.NameRef n
+                && n.name().equals("meta::pure::metamodel::type::Any") && n.pos() == null;
     }
 
-    private static List<Json.Node> arrOrEmpty(Json.Obj o, String key) {
-        Json.Arr a = o.getArrOr(key, null);
-        return a == null ? List.of() : a.items();
+    /** A relation-type column: always spelled with its multiplicity on the wire. */
+    private static TypeExpression.Column column(Json.Node node) {
+        Wire c = Wire.of(node, "relation column");
+        return c.done(new TypeExpression.Column(c.str("name"), genericType(c.take("genericType")),
+                multiplicity(c.take("multiplicity")), true, c.span()));
     }
 
-    private static Json.Obj asObj(Json.Node n, String what) {
-        if (n instanceof Json.Obj o) {
-            return o;
+    /** {@code {"lowerBound":n,"upperBound":m}}; an absent upper bound is {@code *}. */
+    static Multiplicity multiplicity(Json.Node node) {
+        Wire m = Wire.of(node, "multiplicity");
+        return m.done(new Multiplicity.Concrete(m.integer("lowerBound"), m.optInt("upperBound")));
+    }
+
+    /** A multiplicity argument as the grammar spells it ({@code *}, {@code 1}, {@code 0..1}, {@code 1..*}). */
+    static String multiplicityText(Multiplicity m) {
+        Multiplicity.Concrete c = (Multiplicity.Concrete) m;
+        if (c.upperBound() == null) {
+            return c.lowerBound() == 0 ? "*" : c.lowerBound() + "..*";
         }
-        throw refused(what + " is not a JSON object: " + n);
+        return c.lowerBound() == c.upperBound() ? String.valueOf(c.lowerBound())
+                : c.lowerBound() + ".." + c.upperBound();
     }
 
-    private static @com.legend.base.Nullable SourceInfo pos(Json.Obj o) {
-        Json.Obj s = o.getObjOr("sourceInformation", null);
-        if (s == null) {
-            return null;
-        }
-        String sourceId = s.getStringOr("sourceId", "");
-        return new SourceInfo(sourceId == null ? "" : sourceId, s.getInt("startLine"),
-                s.getInt("startColumn"), s.getInt("endLine"), s.getInt("endColumn"));
-    }
-
-    private static IllegalArgumentException refused(String why) {
-        return new IllegalArgumentException("lambda JSON: " + why);
+    /** A {@code @Type} annotation's record: a unit type keeps its name span on the annotation. */
+    static TypeAnnotation.Named named(TypeExpression type, @com.legend.base.Nullable SourceInfo pos) {
+        return new TypeAnnotation.Named(type, pos);
     }
 }

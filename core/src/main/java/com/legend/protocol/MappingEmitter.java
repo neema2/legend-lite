@@ -571,7 +571,7 @@ final class MappingEmitter {
      *  the EXPRESSION's own token range, threaded from the parse. */
     private static void transformLambda(StringBuilder b,
             com.legend.protocol.spec.ValueSpecification expr,
-            com.legend.protocol.SourceInfo span) {
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo span) {
         b.append("{\"_type\":\"lambda\",\"body\":[");
         valueSpec(b, expr);
         b.append("],\"parameters\":[],\"sourceInformation\":");

@@ -907,8 +907,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         };
     }
 
-    private static SourceInfo stretch(SourceInfo base, SourceInfo end) {
-        return new SourceInfo("", base.startLine(), base.startColumn(),
+    /** {@code base} stretched to {@code end}'s end; the parser's own nodes always carry spans (only
+     *  records read from JSON without source information have none). */
+    private static SourceInfo stretch(@com.legend.base.Nullable SourceInfo base, SourceInfo end) {
+        SourceInfo b = java.util.Objects.requireNonNull(base, "a parsed node's span");
+        return new SourceInfo("", b.startLine(), b.startColumn(),
                 end.endLine(), end.endColumn());
     }
 
@@ -1075,10 +1078,8 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 this.pos = p.pos;
                 SourceInfo br = spanOf(s, s);
                 return new Protocol.PDynaFunc(f.funcName(), f.parameters(),
-                        new SourceInfo("", br.startLine(),
-                                br.startColumn(),
-                                f.sourceInformation().endLine(),
-                                f.sourceInformation().endColumn()));
+                        stretch(br, java.util.Objects.requireNonNull(f.sourceInformation(),
+                                "a parsed node's span")));
             }
             if (scope != null && peek() == TokenType.VALID_STRING
                     && peek(1) != TokenType.DOT) {

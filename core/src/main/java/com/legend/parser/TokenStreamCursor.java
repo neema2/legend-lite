@@ -1186,8 +1186,9 @@ public interface TokenStreamCursor {
             if (DOC_TAG.equals(tv.tag().value())
                     && (DOC_TAG.equals(tv.tag().profile()) || DOC_PROFILE_PATH.equals(tv.tag().profile()))) {
                 throw new ParseException("Element has both documentation and an explicit doc.doc"
-                        + " tagged value. Use one.", tv.sourceInformation().startLine(),
-                        tv.sourceInformation().startColumn());
+                        + " tagged value. Use one.",
+                        com.legend.protocol.SourceInfo.parsed(tv.sourceInformation()).startLine(),
+                        com.legend.protocol.SourceInfo.parsed(tv.sourceInformation()).startColumn());
             }
         }
         java.util.List<com.legend.protocol.Protocol.PTaggedValue> out =

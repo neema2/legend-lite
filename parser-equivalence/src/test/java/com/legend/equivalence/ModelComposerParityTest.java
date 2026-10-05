@@ -277,8 +277,9 @@ class ModelComposerParityTest {
         return out;
     }
 
-    /** Every grammar round-trip test of the reference checkout: their texts are the printer's spec. */
-    private static List<Path> roundtripTestFiles() throws IOException {
+    /** Every grammar round-trip test of the reference checkout: their texts are the printer's spec (and the
+     *  model reader's, ModelReaderParityTest). */
+    static List<Path> roundtripTestFiles() throws IOException {
         Path root = Corpus.engineRoot();
         try (Stream<Path> s = Files.walk(root)) {
             return s.filter(p -> p.toString().endsWith(".java"))
