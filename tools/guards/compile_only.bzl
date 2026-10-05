@@ -3,7 +3,8 @@
 For each build target (//:java, //:web, //:wasm, //:native), it walks the target and everything it depends on, through
 an aspect over every attribute. That includes the rule that generates a file named by its output label
 (apply_to_generating_rules). It lists each action those targets register as
-`<tier>\\t<mnemonic>\\t<rule kind>\\t<target>`, and each validation action Bazel would run as
+`<tier>\\t<mnemonic>\\t<rule kind>\\t<target>\\t<program|none>` (whether the action runs a program: it has a command
+line), and each validation action Bazel would run as
 `<tier>\\tValidation\\t<rule kind>\\t<target>`. //tools/guards:compile_only_test holds every (rule kind, mnemonic) pair to
 a per-tier allowlist. A generator, a test or a measurement can then never become part of the build again, whatever
 mnemonic it gives itself.
@@ -24,7 +25,7 @@ graph changes.
 _ActionKindsInfo = provider(
     doc = "What a target and its dependencies would run.",
     fields = {
-        "kinds": "depset of '<mnemonic>\\t<rule kind>\\t<target>': actions on the walked edges",
+        "kinds": "depset of '<mnemonic>\\t<rule kind>\\t<target>\\t<program|none>': actions on the walked edges",
         "validations": "depset of '<rule kind>\\t<target>': targets with validation actions, on every edge",
         "exec_skipped": "depset of exec-configuration target labels the walk stopped at",
     },
@@ -60,7 +61,9 @@ def _action_kinds_aspect_impl(target, ctx):
     if _is_exec(ctx):
         return [_ActionKindsInfo(kinds = depset(), validations = depset(), exec_skipped = depset([str(target.label)]))]
     kind = ctx.rule.kind
-    own = ["%s\t%s\t%s" % (a.mnemonic, kind, target.label) for a in target.actions]
+    # an action that runs a program has a command line (argv); Bazel's own writes, links and trees have none. The
+    # mnemonic is the target's to choose, this is not.
+    own = ["%s\t%s\t%s\t%s" % (a.mnemonic, kind, target.label, "program" if a.argv else "none") for a in target.actions]
     walked = _JAVA_BINARY_EDGES if kind == "java_binary" else dir(ctx.rule.attr)
     kinds, validations, skipped = [], [], []
     for name in dir(ctx.rule.attr):
