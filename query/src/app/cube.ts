@@ -10,7 +10,7 @@
 import { findAll, functionsCalled, isFunction, isLambda, transform, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, RemoteRun, sourceColumns, type CubeAppOptions, type CubeSnapshot, type CubeView } from '../../../datacube/src/embed.ts';
 import { LegendEngineExecutor } from '../../../engine-client/src/engine-remote.ts';
-import { runtimeOf } from '../backend/browser-engine.ts';
+import { runtimeOf } from '../../../engine-client/src/legend/browser-engine.ts';
 import { CubePlanner } from '../backend/cube-planner.ts';
 import type { ParameterValue } from '../backend/wire.ts';
 import type { AppContext } from './context.ts';

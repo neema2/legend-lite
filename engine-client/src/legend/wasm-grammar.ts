@@ -4,7 +4,7 @@
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
-import type { PureModelContextData } from '../model/pmcd.ts';
+import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, type Grammar } from './engine.ts';
 import type { PlannerRequest, PlannerResponse } from './planner-worker.ts';
 import type { PureModelContext, RelationTypeAnswer } from './wire.ts';

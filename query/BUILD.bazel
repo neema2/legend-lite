@@ -47,7 +47,7 @@ js_library(
 # entry point -> bundle
 _BUNDLES = {
     "demo/main.ts": "demo/bundle.js",
-    "src/backend/planner-worker.ts": "demo/planner-worker.js",
+    "../engine-client/src/legend/planner-worker.ts": "demo/planner-worker.js",
 }
 
 [esbuild_bundle(

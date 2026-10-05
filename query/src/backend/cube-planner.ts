@@ -10,7 +10,7 @@ import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import type { Planner } from '../../../datacube/src/embed.ts';
 import type { PrintStyle } from '../../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../../engine-client/src/relation-type.ts';
-import type { WasmGrammar } from './wasm-grammar.ts';
+import type { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { PureModelContext } from './wire.ts';
 
 interface RelationTypeJson {
