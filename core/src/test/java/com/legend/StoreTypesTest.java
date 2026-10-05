@@ -59,14 +59,14 @@ class StoreTypesTest {
     @Test
     void aTableHoldingAnOtherColumnCompilesThroughTheAccessor() {
         // step 0 pinned "has no scalar Pure type" here, for a query that never read ADDR
-        assertTrue(Compiler.plan(MODEL, "#>{s::DB.HOSTS}#->select(~[ID])", "s::RT").sql().contains("ID"));
+        assertTrue(Compiler.query(Compiler.compileModel(MODEL), "#>{s::DB.HOSTS}#->select(~[ID])").plan("s::RT").sql().contains("ID"));
     }
 
     @Test
     void aTableHoldingAnOtherColumnCompilesThroughAClassMapping() {
-        assertTrue(Compiler.plan(MODEL, "s::Host.all()->project(~[id: h|$h.id])", "s::RT").sql().contains("ID"));
+        assertTrue(Compiler.query(Compiler.compileModel(MODEL), "s::Host.all()->project(~[id: h|$h.id])").plan("s::RT").sql().contains("ID"));
         // and a property mapped TO it is a String property, as declared
-        assertTrue(Compiler.plan(MODEL, "s::Host.all()->project(~[addr: h|$h.addr])", "s::RT").sql().contains("ADDR"));
+        assertTrue(Compiler.query(Compiler.compileModel(MODEL), "s::Host.all()->project(~[addr: h|$h.addr])").plan("s::RT").sql().contains("ADDR"));
     }
 
     @Test
@@ -156,7 +156,7 @@ class StoreTypesTest {
     }
 
     private static String sql(String model, String query) {
-        return Compiler.plan(model, query, "s::RT").sql();
+        return Compiler.query(Compiler.compileModel(model), query).plan("s::RT").sql();
     }
 
     private static String on(String type) {
@@ -277,7 +277,7 @@ class StoreTypesTest {
     }
 
     private static Map<String, String> columnTypes(String model, String query) {
-        Type.RelationType rt = Type.schemaView(Compiler.compileQuery(model, query).info().type());
+        Type.RelationType rt = Type.schemaView(Compiler.query(Compiler.compileModel(model), query).expression().info().type());
         Map<String, String> out = new LinkedHashMap<>();
         for (Type.Column c : rt.columns()) {
             out.put(c.name(), c.type() instanceof Type.ClassType ct ? ct.fqn().replaceAll(".*::", "")

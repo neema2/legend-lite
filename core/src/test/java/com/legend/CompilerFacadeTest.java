@@ -39,8 +39,7 @@ class CompilerFacadeTest {
 
     @Test
     void compileQueryCarriesAQueryThroughPhaseG() {
-        TypedSpec typed = Compiler.compileQuery(MODEL,
-                "#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 30)->select(~NAME)");
+        TypedSpec typed = Compiler.query(Compiler.compileModel(MODEL), "#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 30)->select(~NAME)").expression();
         Type.RelationType rt = Type.requireRelationSchema(typed.info().type());
         assertEquals(1, rt.columns().size());
         assertEquals("NAME", rt.columns().get(0).name());
@@ -49,8 +48,7 @@ class CompilerFacadeTest {
 
     @Test
     void compileQueryTypesClassQueriesToo() {
-        TypedSpec typed = Compiler.compileQuery(MODEL,
-                "test::Person.all()->filter(p|$p.age > 30)");
+        TypedSpec typed = Compiler.query(Compiler.compileModel(MODEL), "test::Person.all()->filter(p|$p.age > 30)").expression();
         assertEquals("test::Person", ((Type.ClassType) typed.info().type()).fqn());
     }
 
@@ -58,9 +56,8 @@ class CompilerFacadeTest {
     void queryResolvesPreludeNamesBare() {
         // Real legend's sectionless-lambda scope: META_IMPORTS always apply, so
         // platform enums resolve without qualification.
-        TypedSpec typed = Compiler.compileQuery(MODEL,
-                "#>{test::DB.T_PERSON}#->join(#>{test::DB.T_PERSON}#,"
-                        + " JoinKind.INNER, {a, b | $a.AGE == $b.AGE}, 'r_')");
+        TypedSpec typed = Compiler.query(Compiler.compileModel(MODEL), "#>{test::DB.T_PERSON}#->join(#>{test::DB.T_PERSON}#,"
+                        + " JoinKind.INNER, {a, b | $a.AGE == $b.AGE}, 'r_')").expression();
         assertEquals(4, Type.requireRelationSchema(typed.info().type())
                         .columns().size(),
                 "NAME, AGE + prefixed r_NAME, r_AGE");
@@ -71,7 +68,7 @@ class CompilerFacadeTest {
         // A UNIQUE bare name resolves by simple name (engine leniency);
         // an unknown one still says how to fix it.
         Exception ex = assertThrows(Exception.class,
-                () -> Compiler.compileQuery(MODEL, "Nobody.all()"));
+                () -> Compiler.query(Compiler.compileModel(MODEL), "Nobody.all()").expression());
         assertTrue(String.valueOf(ex.getMessage()).contains("fully qualified"),
                 "the error must say how to fix it; got: " + ex.getMessage());
     }
@@ -90,13 +87,11 @@ class CompilerFacadeTest {
                 ###Runtime
                 Runtime test::RT { mappings: [test::M]; connections: [ test::DB: [ c0: test::DBDuckDB ] ]; }
                 """;
-        com.legend.plan.QueryPlan plan = Compiler.plan(planModel,
-                "test::Person.all()->project(~[name: p|$p.name])", "test::RT");
+        com.legend.plan.QueryPlan plan = Compiler.query(Compiler.compileModel(planModel), "test::Person.all()->project(~[name: p|$p.name])").plan("test::RT");
         assertEquals("SELECT t0.NAME AS name\nFROM T_PERSON AS t0", plan.sql());
         assertEquals(com.legend.plan.ResultShape.TABULAR, plan.shape(),
                 "the plan carries the REAL shape — bridges re-wrap, never invent");
-        assertEquals(plan.sql(), Compiler.compile(planModel,
-                "test::Person.all()->project(~[name: p|$p.name])", "test::RT"));
+        assertEquals(plan.sql(), Compiler.query(Compiler.compileModel(planModel), "test::Person.all()->project(~[name: p|$p.name])").plan("test::RT").sql());
     }
 
     @Test
@@ -119,9 +114,7 @@ class CompilerFacadeTest {
                 """;
         com.legend.error.NotImplementedException ex =
                 assertThrows(com.legend.error.NotImplementedException.class,
-                        () -> Compiler.compile(sfModel,
-                                "test::Person.all()->project(~[name: p|$p.name])",
-                                "test::RT"));
+                        () -> Compiler.query(Compiler.compileModel(sfModel), "test::Person.all()->project(~[name: p|$p.name])").plan("test::RT").sql());
         assertTrue(String.valueOf(ex.getMessage()).contains("Snowflake"),
                 "the error must name the undeclared dialect: " + ex.getMessage());
     }

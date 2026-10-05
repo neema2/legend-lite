@@ -131,8 +131,8 @@ user-visible error carries one of these eight.
 | `Compiler.compileModel(String)` | A→F | **STRICT** — first error aborts |
 | `Compiler.buildModule(ParsedModel)` | A→F | **TOLERANT** — poison-don't-drop, returns a wall map |
 | `Compiler.compileAllBodies(ctx)` | eager G over all bodies | **never throws**, returns walls |
-| `Compiler.compileQuery(model, query)` | frontend + G | STRICT |
-| `Compiler.plan(...)` | frontend → J | STRICT — **the production seam** |
+| `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
+| `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
 | `Execution.execute(...)` | A→K | STRICT — **the production seam** |
 | `Execution.executeResolved(...)` | G½→K, the one back-half sequence | STRICT |
 

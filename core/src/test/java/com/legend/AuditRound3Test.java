@@ -34,7 +34,7 @@ class AuditRound3Test {
     }
 
     private static Exception rejects(String query) {
-        return assertThrows(Exception.class, () -> Compiler.compileQuery(MODEL, query));
+        return assertThrows(Exception.class, () -> Compiler.query(Compiler.compileModel(MODEL), query).expression());
     }
 
     // ---- kernel / checkers ----
@@ -111,10 +111,10 @@ class AuditRound3Test {
         // no import section, so a bare user name is unresolvable, LOUD,
         // with the qualification hint; the FQN spelling works.
         var ex = assertThrows(Exception.class,
-                () -> Compiler.compileQuery(MODEL, "A.all()"));
+                () -> Compiler.query(Compiler.compileModel(MODEL), "A.all()").expression());
         assertTrue(String.valueOf(ex.getMessage()).contains("fully qualified"),
                 ex.getMessage());
-        var typed = Compiler.compileQuery(MODEL, "test::A.all()");
+        var typed = Compiler.query(Compiler.compileModel(MODEL), "test::A.all()").expression();
         assertEquals("test::A", typed.info().type().typeName());
     }
 

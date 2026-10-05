@@ -35,7 +35,7 @@ public final class Probe {
 
         // ---- Phase G ----
         try {
-            TypedSpec root = Compiler.compileQuery(model, query);
+            TypedSpec root = Compiler.query(Compiler.compileModel(model), query).expression();
             System.out.println("[G] rootClass=" + root.getClass().getSimpleName());
             System.out.println("[G] type=" + root.info().type().typeName()
                     + " mult=" + root.info().multiplicity().text());
@@ -49,7 +49,7 @@ public final class Probe {
         // ---- Plan ----
         String sql = null;
         try {
-            var plan = Compiler.plan(model, query, runtime);
+            var plan = Compiler.query(Compiler.compileModel(model), query).plan(runtime);
             sql = plan.sql();
             System.out.println("[PLAN] " + sql);
             System.out.println("[PLAN] rootType=" + plan.rootType().type().typeName()

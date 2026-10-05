@@ -37,7 +37,7 @@ public final class Execution {
     public static void executeStreaming(String model, String query,
             @com.legend.base.Nullable String runtimeFqn, com.legend.exec.Sessions.Source sessions,
             java.io.Writer out) throws java.io.IOException {
-        Compiler.LoweredQuery l = Compiler.lower(model, query, runtimeFqn, true);
+        Compiler.LoweredQuery l = Compiler.query(Compiler.compileModel(model), query).lower(runtimeFqn, true);
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn), l.ctx())) {
             streamOn(l, runtimeFqn, session.connection(), out);
         }
@@ -89,7 +89,7 @@ public final class Execution {
             com.legend.exec.Sessions.Source sessions,
             com.legend.lowering.WireRender.Format format, java.io.Writer out)
             throws java.io.IOException {
-        Compiler.LoweredQuery l = Compiler.lower(model, query, runtimeFqn, false);
+        Compiler.LoweredQuery l = Compiler.query(Compiler.compileModel(model), query).lower(runtimeFqn, false);
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn), l.ctx())) {
             return wireOn(l, runtimeFqn, session.connection(), format, out);
         }
@@ -141,7 +141,7 @@ public final class Execution {
     public static com.legend.plan.QueryPlan executeWire(String model,
             com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
             com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
-        Compiler.LoweredQuery l = Compiler.lower(model, query, runtimeFqn, false);
+        Compiler.LoweredQuery l = Compiler.query(Compiler.compileModel(model), query).lower(runtimeFqn, false);
         try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn), l.ctx())) {
             return wireOn(l, runtimeFqn, session.connection(), out);
         }

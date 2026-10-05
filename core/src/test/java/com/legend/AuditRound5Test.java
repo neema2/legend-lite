@@ -105,8 +105,7 @@ class AuditRound5Test {
     @Test
     @DisplayName("audit: ^$var(...) validates multiplicity subsumption like construction")
     void copyValidatesMultiplicity() {
-        Exception e = assertThrows(Exception.class, () -> Compiler.compileQuery(MODEL,
-                "|let p = ^test::P(name='a'); ^$p(name = ['x', 'y']);"));
+        Exception e = assertThrows(Exception.class, () -> Compiler.query(Compiler.compileModel(MODEL), "|let p = ^test::P(name='a'); ^$p(name = ['x', 'y']);").expression());
         assertTrue(String.valueOf(e.getMessage()).contains("multiplicity"), e.getMessage());
     }
 
@@ -137,8 +136,7 @@ class AuditRound5Test {
         assertEquals(false, scalar("|test::GT.CITY == 1"));
         // ...but an Any operand is undecided: the lowering must not fold it
         // (LOUD or genuinely compared are both acceptable; false-by-fiat is not)
-        String sql = Compiler.compile(com.legend.test.StorelessRuntime.with(MODEL, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB), "|[test::GT.CITY, 'x']->first() == test::GT.CITY",
-                com.legend.test.StorelessRuntime.RUNTIME);
+        String sql = Compiler.query(Compiler.compileModel(com.legend.test.StorelessRuntime.with(MODEL, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB)), "|[test::GT.CITY, 'x']->first() == test::GT.CITY").plan(com.legend.test.StorelessRuntime.RUNTIME).sql();
         assertTrue(!sql.contains("SELECT FALSE") && !sql.contains("SELECT false"),
                 "enum-vs-Any must not constant-fold: " + sql);
     }

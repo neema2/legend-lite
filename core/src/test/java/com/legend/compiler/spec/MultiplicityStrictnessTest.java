@@ -36,7 +36,7 @@ class MultiplicityStrictnessTest {
 
     private static Exception rejects(String query) {
         return assertThrows(Exception.class,
-                () -> Compiler.compileQuery(MODEL, query));
+                () -> Compiler.query(Compiler.compileModel(MODEL), query).expression());
     }
 
     @Test
@@ -60,8 +60,7 @@ class MultiplicityStrictnessTest {
         assertTrue(e.getMessage().contains("Collection element must have a multiplicity [1], found [0..1]"),
                 e.getMessage());
         // the toOne() spelling says what is meant
-        TypedSpec ok = Compiler.compileQuery(MODEL,
-                "m::Person.all()->map(p|$p.middleName->toOne() + '!')");
+        TypedSpec ok = Compiler.query(Compiler.compileModel(MODEL), "m::Person.all()->map(p|$p.middleName->toOne() + '!')").expression();
         assertEquals("[*]", ok.info().multiplicity().text());
     }
 
@@ -200,7 +199,6 @@ class MultiplicityStrictnessTest {
     void lambdaResultLowerBoundIsCovariant() {
         // the reference's own corpus compiles sortBy over optional
         // association paths; only the VALUE slots are strict
-        Compiler.compileQuery(MODEL,
-                "m::Person.all()->sortBy(p|$p.middleName)");
+        Compiler.query(Compiler.compileModel(MODEL), "m::Person.all()->sortBy(p|$p.middleName)").expression();
     }
 }

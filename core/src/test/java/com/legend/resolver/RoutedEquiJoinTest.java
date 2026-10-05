@@ -112,7 +112,7 @@ class RoutedEquiJoinTest {
     @Test
     @DisplayName("the routed join is one equality, not an OR per pair")
     void rectangleIsOneEquality() {
-        String sql = Compiler.plan(MODEL, QUERY.substring(1), "x::RT").sql();
+        String sql = Compiler.query(Compiler.compileModel(MODEL), QUERY.substring(1)).plan("x::RT").sql();
         assertFalse(sql.contains(" OR "), "a routed join over one shared condition must be"
                 + " one equality (hashable), not an OR per (arm, target set) pair:\n" + sql);
     }

@@ -110,15 +110,15 @@ class PostgresCatalogTest {
         assertEquals(List.of("by"), db.excluded());
         assertEquals(List.of(new CatalogModel.Conversion("tstz", "CAST(timezone('UTC', \"tstz\") AS TIMESTAMP)")),
                 db.conversions());
-        ExprType root = com.legend.Compiler.resultType(db.text() + WRAPPER, db.accessor());
+        ExprType root = com.legend.Compiler.query(com.legend.Compiler.compileModel(db.text() + WRAPPER), db.accessor()).resultType();
         Map<String, String> types = new LinkedHashMap<>();
         UpstreamRelationType.columns(root).forEach(c -> types.put(c.name(), UpstreamRelationType.typePath(c.type())));
         assertEquals("String", types.get("ip"));
         assertEquals("String", types.get("ia"));
         assertEquals(com.legend.compiler.element.type.PlatformTypes.VARIANT, types.get("jb"));
         assertEquals("Decimal", types.get("dom"));
-        String sql = com.legend.Compiler.plan(db.text() + WRAPPER, db.accessor()
-                + "->filter(x|$x.ip->toOne()->contains('10.'))->select(~[id, ip, ia, j])", "t::RT").sql();
+        String sql = com.legend.Compiler.query(com.legend.Compiler.compileModel(db.text() + WRAPPER), db.accessor()
+                + "->filter(x|$x.ip->toOne()->contains('10.'))->select(~[id, ip, ia, j])").plan("t::RT").sql();
         // every Postgres type has a text form: an inet is searched as text, an array is shown as text,
         // and json is read as jsonb -- never cast an array to jsonb
         assertTrue(sql.contains("strpos(CAST(\"t0\".\"ip\" AS VARCHAR), '10.')"), sql);

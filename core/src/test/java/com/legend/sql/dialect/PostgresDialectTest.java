@@ -32,7 +32,7 @@ class PostgresDialectTest {
             """;
 
     private static String plan(String query) {
-        String sql = Compiler.plan(MODEL, "#>{pg::DB.trades}#" + query, "pg::RT").sql();
+        String sql = Compiler.query(Compiler.compileModel(MODEL), "#>{pg::DB.trades}#" + query).plan("pg::RT").sql();
         // the product splices the plan into COPY (SELECT … FROM (<sql>) sub): one statement
         assertFalse(sql.strip().endsWith(";"), "a plan must not end in ';': " + sql);
         return sql;
@@ -77,8 +77,7 @@ class PostgresDialectTest {
         // DataCube's "the group's one value" over a Variant column, read as jsonb: Postgres has no
         // max(jsonb), though jsonb is ordered (found driving DataCube Live on Postgres, 2026-10-02)
         String model = MODEL.replace("f8 DOUBLE)", "f8 DOUBLE, doc SEMISTRUCTURED)");
-        String sql = Compiler.plan(model, "#>{pg::DB.trades}#->groupBy(~[sym], ~[u: r|$r.doc : y|$y->uniqueValueOnly()])",
-                "pg::RT").sql();
+        String sql = Compiler.query(Compiler.compileModel(model), "#>{pg::DB.trades}#->groupBy(~[sym], ~[u: r|$r.doc : y|$y->uniqueValueOnly()])").plan("pg::RT").sql();
         assertTrue(sql.contains("(array_agg(CAST(\"t0\".\"doc\" AS JSONB) ORDER BY CAST(\"t0\".\"doc\" AS JSONB) DESC NULLS LAST))[1]"), sql);
         assertFalse(sql.contains("MAX(CAST("), sql);
     }
@@ -208,8 +207,7 @@ class PostgresDialectTest {
     @Test
     void theOtherDialectsAreUntouched() {
         // the same query on a DuckDB runtime: bare identifiers, DuckDB's ROUND_EVEN
-        String duck = Compiler.plan(MODEL.replace("type: Postgres", "type: DuckDB"),
-                "#>{pg::DB.trades}#->extend(~[r: r|$r.f8->toOne()->round()])->select(~[id, r])", "pg::RT").sql();
+        String duck = Compiler.query(Compiler.compileModel(MODEL.replace("type: Postgres", "type: DuckDB")), "#>{pg::DB.trades}#->extend(~[r: r|$r.f8->toOne()->round()])->select(~[id, r])").plan("pg::RT").sql();
         assertEquals("""
                 SELECT t0.id, CAST(ROUND_EVEN(t0.f8, 0) AS BIGINT) AS r
                 FROM trades AS t0""", duck);

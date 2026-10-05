@@ -87,7 +87,7 @@ class RelationalMappingIntegrationTest {
 
     /** Generate SQL without executing. */
     private String planSql(String model, String query) {
-        return com.legend.Compiler.plan(model, query, "test::RT").sql();
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).plan("test::RT").sql();
     }
 
     /** Convenience: single-table model with given class, db, mapping, columns. */

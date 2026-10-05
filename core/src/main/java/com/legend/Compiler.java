@@ -8,7 +8,6 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.normalizer.ModelNormalizer;
-import com.legend.parser.SpecParser;
 import com.legend.model.NormalizedModel;
 import com.legend.parser.ElementParser;
 import com.legend.model.ParsedModel;
@@ -442,93 +441,9 @@ public final class Compiler {
         }
     }
 
-    /**
-     * Compile a Pure model + query against a runtime to a SQL execution plan.
-     * The plan half of {@code Execution.execute(String, String, String, java.sql.Connection)}:
-     * the same pipeline (frontend &rarr; G &rarr; H resolve against the
-     * driver-supplied runtime &rarr; lower &rarr; render) WITHOUT executing
-     * &mdash; the {@code planSql} seam for SQL-shape assertions and plan
-     * inspection.
-     *
-     * @param model      Pure model source (classes, mappings, stores, runtimes, ...).
-     * @param query      Pure query expression (a {@code ValueSpecification} in legacy terms).
-     * @param runtime    FQN of the runtime to compile against.
-     * @return rendered SQL in the runtime's dialect.
-     */
-    public static String compile(String model, String query, String runtime) {
-        return plan(model, query, runtime).sql();
-    }
-
-    /**
-     * {@link #compile} with the full plan contract: rendered SQL plus the
-     * root's {@link com.legend.compiler.element.type.ExprType} and
-     * {@link com.legend.plan.ResultShape} &mdash; exactly what
-     * {@link com.legend.exec.Executor} would consume, minus execution.
-     * Bridges re-wrap these fields verbatim (no invented metadata).
-     */
-    /** {@link #plan} with the STREAMING graph root
-     *  ({@code Lowerer#withStreamingGraphRoot}): one json_object per JDBC
-     *  row so a streaming executor stays O(one row) — the core home of the
-     *  capability the legacy engine-lite Mode.STREAMING provided. */
-    public static com.legend.plan.QueryPlan planStreaming(String model,
-            String query, String runtime) {
-        return plan(model, query, runtime, true);
-    }
-
-    public static com.legend.plan.QueryPlan plan(String model, String query, String runtime) {
-        return plan(model, query, runtime, false);
-    }
-
-    private static com.legend.plan.QueryPlan plan(String model, String query,
-            String runtime, boolean streaming) {
-        LoweredQuery l = lower(model, query, runtime, streaming);
-        String sql = dialectOf(l.ctx(), runtime).render(l.plan());
-        return new com.legend.plan.QueryPlan(sql, l.root().info(),
-                com.legend.plan.ResultShape.of(l.root()));
-    }
-
-    /** The lowered plan plus what result shaping needs — shared by the plan
-     *  surface and {@link #executeStreaming} (ONE phase sequence, audit 15). */
     /** A query lowered for a runtime: its SQL tree, its typed (resolved) root, and the compiled model it was planned
      *  against — what execution renders with the session's dialect and runs ({@code Execution}). */
     public record LoweredQuery(com.legend.sql.SqlQuery plan, TypedSpec root, ModelContext ctx) {
-    }
-
-    /** {@code query} (text) of {@code model} lowered for {@code runtime}: compiled, typed, inlined, resolved and lowered
-     *  — every planning step, no database. */
-    public static LoweredQuery lower(String model, String query,
-            @com.legend.base.Nullable String runtime, boolean streaming) {
-        return lower(model, SpecParser.parse(query,
-                com.legend.parser.Dialect.LEGEND_LITE), runtime, streaming);
-    }
-
-    /**
-     * {@link #plan} for a query that arrives ALREADY PARSED &mdash; an upstream
-     * {@code pure/v1} request's lambda, read by {@link com.legend.protocol.ProtocolReader}
-     * (docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md, U2). The same phase sequence as
-     * the text path from name resolution on; nothing is re-spelled as text.
-     */
-    public static com.legend.plan.QueryPlan plan(String model,
-            com.legend.protocol.spec.ValueSpecification query,
-            @com.legend.base.Nullable String runtime) {
-        LoweredQuery l = lower(model, query, runtime, false);
-        String sql = dialectOf(l.ctx(), runtime).render(l.plan());
-        return new com.legend.plan.QueryPlan(sql, l.root().info(),
-                com.legend.plan.ResultShape.of(l.root()));
-    }
-
-    /**
-     * The TYPE of a query's result, compile-only &mdash; upstream
-     * {@code pure/v1/compilation/lambdaRelationType}'s fact (U2): the query's
-     * statements typed as a query body, the last one's type. No runtime, no store
-     * resolution, no lowering.
-     */
-    public static com.legend.compiler.element.type.ExprType resultType(String model,
-            com.legend.protocol.spec.ValueSpecification query) {
-        ModelContext ctx = compileModel(model);
-        java.util.List<TypedSpec> body = new SpecCompiler(ctx).typeQueryBody(
-                NameResolver.resolveQuery(query));
-        return body.get(body.size() - 1).info();
     }
 
     /**
@@ -541,82 +456,21 @@ public final class Compiler {
             @com.legend.base.Nullable String store) {
     }
 
-    /** {@link Target} for an already-parsed query: typed, not lowered. */
-    public static Target target(String model,
-            com.legend.protocol.spec.ValueSpecification query) {
-        ModelContext ctx = compileModel(model);
-        String runtime = null;
-        String store = null;
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(
-                new SpecCompiler(ctx).typeQueryBody(NameResolver.resolveQuery(query)));
-        while (!work.isEmpty()) {
-            TypedSpec n = work.poll();
-            if (runtime == null && n instanceof com.legend.compiler.spec.typed.TypedFrom f
-                    && f.runtime().isPresent()) {
-                runtime = f.runtime().get().fullPath();
-            }
-            if (store == null
-                    && n instanceof com.legend.compiler.spec.typed.TypedTableReference r) {
-                store = r.store();
-            }
-            work.addAll(n.children());
-        }
-        return new Target(runtime, store);
+    /**
+     * THE QUERY STEP of the compile-once API (C2b, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md):
+     * {@code query}'s text against the compiled model {@code ctx} — parsed at the product level, its names resolved,
+     * typed once. Its type, its named target, its plan and its lowering all come off the one {@link TypedQuery}; the
+     * model is compiled once ({@link #compileModel}) and never again per question.
+     */
+    public static TypedQuery query(ModelContext ctx, String query) {
+        return query(ctx, parseQuery(query));
     }
 
-    /** {@link #resultType(String, com.legend.protocol.spec.ValueSpecification)} for a
-     *  query's TEXT, read as {@link #plan} reads it (the browser planner's relation type). */
-    public static com.legend.compiler.element.type.ExprType resultType(String model, String query) {
-        return resultType(model, SpecParser.parse(query, com.legend.parser.Dialect.LEGEND_LITE));
+    /** {@link #query(ModelContext, String)} for a query that arrives ALREADY PARSED — an upstream {@code pure/v1}
+     *  request's lambda (docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md, U2): nothing is re-spelled as text. */
+    public static TypedQuery query(ModelContext ctx, com.legend.protocol.spec.ValueSpecification query) {
+        return new TypedQuery(ctx, NameResolver.resolveQuery(query));
     }
-
-    /** {@link #compileQuery(String, String)} for an already-parsed query (U2). */
-    public static TypedSpec compileQuery(String model,
-            com.legend.protocol.spec.ValueSpecification query) {
-        ModelContext ctx = compileModel(model);
-        return new SpecCompiler(ctx).typeExpression(NameResolver.resolveQuery(query));
-    }
-
-    /** {@code parsed} (a parsed query) of {@code model} lowered for {@code runtime}. */
-    public static LoweredQuery lower(String model,
-            com.legend.protocol.spec.ValueSpecification parsed,
-            @com.legend.base.Nullable String runtime, boolean streaming) {
-        ModelContext ctx = compileModel(model);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        java.util.List<TypedSpec> body = specs.typeQueryBody(
-                NameResolver.resolveQuery(parsed));
-        body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);   // Phase G½
-        boolean temporalRoot = com.legend.compiler.element.Temporal
-                .anyTemporalGetAll(body, ctx);
-        body = new com.legend.resolver.StoreResolver(ctx, specs)
-                .resolve(body, runtime);                          // Phase H
-        // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by
-        // name), then every store the query touches must be bound to it (C3b)
-        executesOn(ctx, runtime);
-        CrossStoreGuard.check(body, ctx, runtime);
-        TypedSpec root = body.get(body.size() - 1);
-        com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent(), ctx.implementations());
-        if (!temporalRoot) {
-            planLw = planLw.withEngineExistsJoinForm();
-        }
-        if (streaming) {
-            planLw = planLw.withStreamingGraphRoot();
-        }
-        return new LoweredQuery(planLw.lower(body), root, ctx);
-    }
-
-
-
-
-
-
-
-
-
-
-
 
     /** THE dialect of a query planned without a session: the database its runtime executes on. */
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
@@ -899,27 +753,4 @@ public final class Compiler {
         return walls;
     }
 
-    /**
-     * Frontend + Phase G for a standalone query: Pure model source + query
-     * expression &rarr; the query's typed HIR (the FRONT half only; use
-     * {@code Execution.execute} for the full pipeline).
-     *
-     * <p>The query is parsed by {@link SpecParser}, name-resolved under real
-     * legend-engine's <em>sectionless-lambda</em> scope
-     * ({@link NameResolver#resolveQuery}: the platform prelude is always in
-     * scope &mdash; {@code JoinKind.INNER} works bare &mdash; while user
-     * elements require full paths, e.g. {@code test::Person.all()}), then
-     * type-checked against the compiled model snapshot.
-     *
-     * @param model Pure model source.
-     * @param query Pure query expression (user elements fully qualified).
-     * @return the type-checked query (schema/type on {@link TypedSpec#info()}).
-     */
-    public static TypedSpec compileQuery(String model, String query) {
-        Objects.requireNonNull(query, "query");
-        ModelContext ctx = compileModel(model);
-        return new SpecCompiler(ctx).typeExpression(
-                NameResolver.resolveQuery(SpecParser.parse(query,
-                        com.legend.parser.Dialect.LEGEND_LITE)));
-    }
 }

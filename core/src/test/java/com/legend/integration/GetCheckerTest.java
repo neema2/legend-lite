@@ -126,7 +126,7 @@ public class GetCheckerTest {
     }
 
     private String sql(String pureQuery) {
-        return com.legend.Compiler.plan(pureModel(), pureQuery, "test::TestRuntime").sql();
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(pureModel()), pureQuery).plan("test::TestRuntime").sql();
     }
 
     // ==================== Field access: get('key') ====================

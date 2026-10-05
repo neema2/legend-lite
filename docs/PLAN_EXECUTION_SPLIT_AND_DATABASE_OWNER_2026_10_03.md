@@ -560,9 +560,18 @@ run, and are removed before any commit.
   Execution took its place) and its library map, `JdbcSurfaceCensusTest` and `JavaEvalLedgerTest` (Execution
   registered), `core-layers.txt` (a `planner` line), `not_layers` (`plan_side`), AGENTS.md's pipeline text and
   entry-point table.
-- **C2b — the compile-once API: NEXT.** `Planner.compile(...)` → compiled model → query → plan, replacing `Compiler`'s
-  string-recompiling plan statics (~290 calls: `compileModel` 138, `plan` 35, `compileQuery` 30, `parseSources` 29,
-  `buildModel` 20, ...).
+- **C2b — the compile-once API, DONE 2026-10-05.** The compiled model is the `ModelContext` `compileModel` returns (no
+  wrapper); `Compiler.query(ctx, text | spec)` parses, resolves names and types the query ONCE into a `TypedQuery`
+  (planner library), off which `resultType()`, `target()`, `expression()`, `lower(runtime, streaming)`, `plan(runtime)`
+  and `planStreaming(runtime)` come. DELETED, every `Compiler` static that took the model as TEXT and recompiled it per
+  question: `plan` ×2, `planStreaming`, `compile`, `resultType` ×2, `target`, `compileQuery` ×2, `lower` ×2 — 93 calls
+  rewritten (an argument-aware rewriter; legend-engine's own `Compiler.compile` in `tools/engine-runner` untouched).
+  Where one request asked several questions of one model it now compiles once: `PureV1Api.generatePlan` (target + plan),
+  `OfferFacts` (its compiled model reused for every probe; `calc`'s type and expression off one typed query). Kept, as
+  compile steps rather than wrappers: `compileModel` (text and sources), `parseSources`, `buildModel`, `buildModule`,
+  `compileAllBodies`, `resolveQuery`, `lowerResolved`. Not done: `PureV1Api.execute` still compiles for its target and
+  again inside `Execution.executeWire` (the execution front door takes model text; a `TypedQuery`-taking entry is the
+  next refinement).
 - **C4. The reader fix.** The static `ExecutionContext` reader follows `->from(m, ^Runtime(connectionStores =
   helper()))`, `toSQLString`'s runtime forms and helper bodies; the four `"H2"` defaults (§3.2) are DELETED; a context
   that truly cannot be read is refused by name. Gate: the 21 corpus tests pass reading their real declarations.
@@ -610,6 +619,15 @@ run, and are removed before any commit.
     did), activity-SQL and setup-DDL text asserts, the DuckDB lane (same oracle, expected identical), and whether a
     test-side printer can reach the Lowerer's engine options without a hook in main.
   - **Order:** after C3 (C3b, C3c, the guard); `EngineText` stays until then, labelled test-only-to-be.
+  - **Scope found 2026-10-05 (before any C6 code): the engine text is not one surface but about EIGHT user-callable Pure
+    functions** — `toSQLString` (plain, pretty, non-executable), `executionPlan` / `planToString` (formatted and not)
+    and an executed plan, `generateTestData`, `setUpDataSQLs` (two versions), and an `execute()` result's activity SQL
+    — produced through `plan/PlanText`, `PlanEnvelope`, `PlanAllocations`, `plan/InProtocol`, `SeedSqlForms`/`exec/Ddl`
+    and `testdatagen/TestDataGenerator`. Each family has its own verdict path (rows replay for SQL text, plan replay for
+    plan text, the fetch-text verdict for test-data generation). The measurement above covers the `toSQLString` family
+    only. **C6 is staged per family:** measure each (what the product would print with the real dialect; which tests
+    rest on exact text; whether rows / plan replay can judge them), then bring the user the per-family numbers BEFORE
+    any product output changes.
 
 ## 5. Other open work (recorded so it is not lost; NOT in this plan)
 

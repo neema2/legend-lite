@@ -149,6 +149,7 @@ _PLANNER_SRCS = [
     "src/main/java/com/legend/Compiler.java",
     "src/main/java/com/legend/CrossStoreGuard.java",
     "src/main/java/com/legend/ProgramFacts.java",
+    "src/main/java/com/legend/TypedQuery.java",
 ]
 
 legend_java_library(

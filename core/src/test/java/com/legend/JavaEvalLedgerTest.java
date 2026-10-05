@@ -1197,6 +1197,10 @@ class JavaEvalLedgerTest {
                     // opened, the planned query run through StatementExecutor; it
                     // sequences, it evaluates nothing
                     "Execution.java",
+                    // C2b (2026-10-05): a query typed once against a compiled model; its
+                    // type, target, lowering and plan off the one object (the planner's
+                    // text-recompiling statics replaced). Planning only, no evaluation
+                    "TypedQuery.java",
                     "ConnectionLets.java",
                     // audit §4y (2026-09-20): pure's equality KIND CLASSES
                     // over stamps as a CLOSED type (the stringly "numeric" /

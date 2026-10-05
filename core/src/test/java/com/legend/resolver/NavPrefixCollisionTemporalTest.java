@@ -81,7 +81,7 @@ class NavPrefixCollisionTemporalTest {
     @Test
     void datedNavigationFiltersTargetVersions() throws Exception {
         String m = model("");
-        String sql = Compiler.compile(m, QUERY, "c::RT");
+        String sql = Compiler.query(Compiler.compileModel(m), QUERY).plan("c::RT").sql();
         assertTrue(sql.contains("from_z <= DATE '2015-06-01'"), sql);
         assertEquals(List.of("1|new"), rows(m));
     }
@@ -92,7 +92,7 @@ class NavPrefixCollisionTemporalTest {
             + " dated navigation is stamped as a physical slot with the empty root context")
     void datedNavigationFiltersTargetVersionsWhenPrefixCollides() throws Exception {
         String m = model(", product_name VARCHAR(64)");
-        String sql = Compiler.compile(m, QUERY, "c::RT");
+        String sql = Compiler.query(Compiler.compileModel(m), QUERY).plan("c::RT").sql();
         assertTrue(sql.contains("from_z <= DATE '2015-06-01'"), sql);
         assertEquals(List.of("1|new"), rows(m));
     }
