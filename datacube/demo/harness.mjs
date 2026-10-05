@@ -127,3 +127,12 @@ export function checks() {
     },
   };
 }
+
+/** `n` animation frames in `page`: what a layout change (a resized viewport, a re-render) needs before it is
+ *  measured. An awaited condition, never a fixed sleep (G-11). */
+export async function frames(page, n = 2) {
+  await page.evaluate((k) => new Promise((resolve) => {
+    const step = (i) => (i === 0 ? resolve() : requestAnimationFrame(() => step(i - 1)));
+    step(k);
+  }), n);
+}

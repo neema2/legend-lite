@@ -13,10 +13,12 @@
 //
 //   bazel run //datacube:verify_wasm_browser
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { chromium } from 'playwright';
-import { serve, siteRoot } from './harness.mjs';
+import { frames, serve, siteRoot } from './harness.mjs';
 
 // Serve the datacube/ directory, not demo/: index.html links its
 // stylesheets as ../src/*.css, so a demo-rooted server 404s them
@@ -131,7 +133,6 @@ try {
   await page.waitForSelector('.dc-menu', { timeout: 10_000 });
   await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Pivot"))')
     .hover();
-  await page.waitForTimeout(200);
   await page.locator('.dc-menu-item:has(> .dc-menu-label'
     + ':text-is("Clear All Horizontal Pivots"))').click();
   await page.waitForFunction(
@@ -139,7 +140,7 @@ try {
       .some((e) => (e.dataset.column ?? '').includes('__|__')),
     { timeout: 60_000 },
   ).catch(() => {});
-  await page.waitForTimeout(500);
+  await frames(page);
 
   const flat = await columnsNow();
   const panel = await panelNow();

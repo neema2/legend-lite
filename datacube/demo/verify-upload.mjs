@@ -13,10 +13,12 @@
 //   DATA=/abs/path/trades.csv EXPECT_ROWS=50000 bazel run //datacube:verify_upload
 //   bazel run //datacube:verify_upload        (no DATA: the product's own sample, 50,000 rows)
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { chromium } from 'playwright';
-import { serve, siteRoot } from './harness.mjs';
+import { frames, serve, siteRoot, tmpDir } from './harness.mjs';
 
 const ROOT = siteRoot();
 
@@ -38,7 +40,7 @@ async function sampleFile() {
   const { mkdtemp, writeFile } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
   const { join } = await import('node:path');
-  const file = join(await mkdtemp(join(tmpdir(), 'dc-upload-')), 'sample-trades.csv');
+  const file = join(await tmpDir('dc-upload-'), 'sample-trades.csv');
   await writeFile(file, sampleCsv({ rows: SAMPLE_ROWS, seed: 20260920 }), 'utf8');
   console.log(`no DATA: the product's sample, ${SAMPLE_ROWS.toLocaleString('en-US')} rows -> ${file}`);
   return file;
@@ -73,11 +75,12 @@ try {
   await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
-  await page.waitForTimeout(400);
 
   // The picker must be VISIBLE, not merely present: an upload
   // feature nobody can reach is not a feature.
-  const visible = await page.isVisible('.dc-picker .dc-picker-drop');
+  // awaited (G-11): the picker opens on the click's next render, so a bare isVisible raced it
+  const visible = await page.locator('.dc-picker .dc-picker-drop').waitFor({ state: 'visible', timeout: 10_000 })
+    .then(() => true, () => false);
   if (!visible) {
     console.log('FAIL: the source picker\'s file section is not visible');
     failed = true;
@@ -187,7 +190,7 @@ try {
   // and the overflow is asserted -- a check that silently finds
   // nothing to scroll proves nothing.
   await page.setViewportSize({ width: 620, height: 720 });
-  await page.waitForTimeout(150);
+  await frames(page);
 
   const hProbe = () => page.evaluate(() => {
     const sc = document.querySelector('.dc-scroller');
@@ -241,7 +244,7 @@ try {
   // the column model is the second place the header can fall out of
   // step with the body, and it is checked after the drag.
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.waitForTimeout(150);
+  await frames(page);
 
   // A date column must render as a DATE. It arrives as epoch
   // milliseconds and the formatter only date-formats a Date

@@ -4,10 +4,12 @@
 //
 //   bazel run //datacube:verify_charts            (SHOTS=<dir> also saves a screenshot)
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { chromium } from 'playwright';
-import { serve, siteRoot } from './harness.mjs';
+import { frames, outPath, serve, siteRoot } from './harness.mjs';
 
 
 const ROOT = siteRoot();
@@ -118,10 +120,10 @@ try {
     const want = [frozen.x, ...(frozen.split ? [frozen.split] : [])];
     if (JSON.stringify(await chipsIn()) !== JSON.stringify(want)) throw new Error(`editing grid grouped ${await chipsIn()}, want ${want}`);
     if (JSON.stringify(await rows()) !== JSON.stringify(rowsBefore)) throw new Error('the cube\'s grid changed');
-    if (process.env.SHOTS) { await page.waitForTimeout(1500); await page.screenshot({ path: `${process.env.SHOTS}/charts-editing.png` }); }
+    if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('charts-editing.png') }); }
     // re-group in the editing grid, then update the chart
     await editing.locator(`.dc-zone-rows .dc-chip[data-column="${frozen.split}"] .dc-chip-remove`).first().click();
-    await page.waitForTimeout(500);
+    await editing.locator(`.dc-zone-rows .dc-chip[data-column="${frozen.split}"]`).first().waitFor({ state: 'detached' });
     await button(`edit-${frozen.id}`, `Update ${frozen.title}`).click();
     await settle();
     const after = (await charts()).find((c) => c.id === frozen.id);
@@ -145,7 +147,7 @@ try {
     const ids = await page.locator('[data-tile^="chart-"]').evaluateAll((els) => els.map((e) => e.dataset.tile));
     const [frozenId, followingId] = ids.slice(-2);
     await pill(frozenId).click();
-    if (process.env.SHOTS) { await page.waitForTimeout(1500); await page.screenshot({ path: `${process.env.SHOTS}/grids.png` }); }
+    if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('grids.png') }); }
     await page.locator(`[data-tile="${gridId}"] .dc-tile-remove`).click();
     await settle();
     if (await page.locator(`[data-tile="${gridId}"]`).count()) throw new Error('the grid is still there');

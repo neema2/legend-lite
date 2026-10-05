@@ -10,19 +10,22 @@
 //
 //   bazel run //datacube:verify_cubes
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { chromium } from 'playwright';
 
 import { readView, sameTyped, stamp } from './typed-view.mjs';
-import { serve, siteRoot } from './harness.mjs';
+import { frames, serve, siteRoot, tmpDir } from './harness.mjs';
 
 const ROOT = siteRoot();
 const { port, close: closeServer } = await serve(ROOT);
 const URL_BASE = `http://127.0.0.1:${port}`;
 
-const dir = await mkdtemp(join(tmpdir(), 'dc-cubes-'));
+// the CSVs it picks, in the test's own temp directory (harness.tmpDir)
+const dir = await tmpDir('dc-cubes-');
 const csv = join(dir, 'trades.csv');
 const lossy = join(dir, 'trades-no-notional.csv');
 // a LARGE file picked first and a small one straight after (P2-330): the small one must win
@@ -64,7 +67,7 @@ async function landed(before) {
     const line = document.querySelector('.dc-status-timing')?.textContent ?? '';
     return line !== was && /rows/.test(line) && document.querySelectorAll('.dc-row').length > 0;
   }, before, { timeout: 60_000 });
-  await page.waitForTimeout(300);
+  await frames(page);
 }
 async function load() {
   await page.goto(`${URL_BASE}/demo/index.html`);
@@ -399,7 +402,10 @@ try {
       if (!/Reading big-trades/.test(said)) throw new Error(`while reading, the window says "${said}"`);
       await page.setInputFiles('.dc-picker-file', small);
       await page.locator('.dc-picker').waitFor({ state: 'detached', timeout: 120_000 });
-      await page.waitForTimeout(1000);
+      // the file's cube on screen: rows and a status line saying so
+      await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0
+        && /rows/.test(document.querySelector('.dc-status-timing')?.textContent ?? ''), null, { timeout: 60_000 });
+      await frames(page, 4);
     } finally {
       page.off('dialog', answer);
     }
@@ -411,11 +417,14 @@ try {
   await check('choosing another plane with a file open asks first; No stays (P2-337)', async () => {
     const here = page.url();
     let asked = '';
-    page.once('dialog', (d) => { asked = d.message(); void d.dismiss(); });
+    // the question, awaited (G-11): it comes or the wait ends, never a fixed sleep
+    const question = page.waitForEvent('dialog', { timeout: 10_000 })
+      .then(async (d) => { asked = d.message(); await d.dismiss(); }).catch(() => {});
     // where the planner runs is chosen from the status bar's readout
     await page.click('.dc-status-host-pick');
     await page.locator('.dc-menu .dc-menu-item', { hasText: 'Plan remote' }).first().click();
-    await page.waitForTimeout(1500);
+    await question;
+    await frames(page);
     if (!asked) throw new Error('it navigated away without asking: the opened file would be lost');
     if (page.url() !== here) throw new Error(`it left for ${page.url()} after No`);
     return `asked: "${asked.slice(0, 60)}…", stayed`;

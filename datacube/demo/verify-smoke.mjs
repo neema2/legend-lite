@@ -28,7 +28,7 @@ import { chromium } from 'playwright';
 import { SAMPLES, sampleFileName } from '../src/samples.ts';
 import { kindOf } from '../src/snapshot.ts';
 import { TEMPORAL_TYPES, gridInvariants } from './grid-invariants.mjs';
-import { serve, siteRoot } from './harness.mjs';
+import { frames, outPath, serve, siteRoot, tmpDir } from './harness.mjs';
 
 const ROOT = siteRoot();
 const ONLY = process.env.ONLY;
@@ -57,10 +57,13 @@ if (ROWS !== undefined && ROWS < 20_000) {
 const { port, close: closeServer } = await serve(ROOT);
 
 // under a test, Bazel's own per-test temp directory, never the host's shared one
-const dir = await mkdtemp(join(process.env.TEST_TMPDIR ?? tmpdir(), 'dc-smoke-'));
-// a test's artifacts (the summary, a screenshot of a failing shape) go where Bazel keeps them
-const OUT = process.env.TEST_UNDECLARED_OUTPUTS_DIR;
-const wanted = SAMPLES.filter((s) => !ONLY || s.id.includes(ONLY));
+const dir = await tmpDir('dc-smoke-');
+// a test's artifacts (the summary, a screenshot of a failing shape) go where Bazel keeps them (harness.outPath)
+// SHARDED by sample under `bazel test` (shard_count): shard i of n takes every n-th sample, and says it shards
+const SHARDS = Number(process.env.TEST_TOTAL_SHARDS ?? 1);
+const SHARD = Number(process.env.TEST_SHARD_INDEX ?? 0);
+if (process.env.TEST_SHARD_STATUS_FILE) await writeFile(process.env.TEST_SHARD_STATUS_FILE, '');
+const wanted = SAMPLES.filter((s, i) => (!ONLY || s.id.includes(ONLY)) && i % SHARDS === SHARD);
 if (!wanted.length) {
   console.error(`no sample matches ${ONLY}; have`
     + ` ${SAMPLES.map((s) => s.id).join(', ')}`);
@@ -140,7 +143,7 @@ try {
       },
       before, { timeout: 90_000 },
     ).catch(() => {});
-    await page.waitForTimeout(400);
+    await frames(page);
 
     const loaded = await page.evaluate(() => ({
       status: `${document.querySelector('.dc-status-timing')?.textContent ?? ''}`
@@ -187,7 +190,10 @@ try {
     if (groupable && await groupable.count()) {
       const name = dimension.name;
       await groupable.first().dblclick();
-      await page.waitForTimeout(900);
+      // grouped: the view's first level has landed (an awaited condition, G-11)
+      await page.waitForFunction(() => (window.__dataCube.view?.treeRows ?? []).some((r) => r.level === 1),
+        null, { timeout: 30_000 }).catch(() => {});
+      await frames(page);
       // the group KEYS as the database returned them (each first-level row's path), not the
       // cells' rendered text: two values a format shows alike are still two groups
       const grouped = await page.evaluate(() => {
@@ -244,13 +250,13 @@ try {
     // the header collapse only showed on a tall result, and the
     // sidebar rail only broke the page once it had room to.
     await page.setViewportSize({ width: 640, height: 720 });
-    await page.waitForTimeout(250);
+    await frames(page);
     await invariants(sample.id, 'a 640px window');
     await page.setViewportSize({ width: 1400, height: 900 });
-    await page.waitForTimeout(150);
+    await frames(page);
 
     const broke = failures.filter((f) => f.sample === sample.id).length;
-    if (broke && OUT) await page.screenshot({ path: join(OUT, `${sample.id}.png`) });
+    if (broke) await page.screenshot({ path: outPath(`${sample.id}.png`) });
     summary.push({ id: sample.id, ok: broke === 0 });
   }
 } catch (e) {
@@ -260,10 +266,7 @@ try {
   closeServer();
 }
 
-if (OUT) {
-  await writeFile(join(OUT, 'summary.json'),
-    JSON.stringify({ summary, failures }, null, 2), 'utf8');
-}
+await writeFile(outPath('summary.json'), JSON.stringify({ summary, failures }, null, 2), 'utf8');
 console.log('\n---');
 for (const s of summary) {
   console.log(`  ${s.ok ? 'ok  ' : 'BAD '} ${s.id}`);

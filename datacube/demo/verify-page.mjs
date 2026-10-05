@@ -4,6 +4,8 @@
 //
 //   bazel run //datacube:verify_page            (SHOTS=<dir> also saves a screenshot)
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { chromium } from 'playwright';
@@ -35,21 +37,22 @@ const B = 'by-desk';
 const tile = (id) => `[data-tile="${id}"]`;
 const rowsOf = (id) => page.evaluate((t) => window.__page.cubes[t]?.snapshot.rows ?? null, id);
 
-/** Until no cube is busy and no cube has told the page of a change for a moment. */
+/** Until no cube is busy and no cube has told the page of a change for a moment: an awaited condition, measured in
+ *  the page (G-11), never a sleep in the harness. */
 async function settle() {
-  let last = '';
-  let since = Date.now();
-  const deadline = Date.now() + 30_000;
-  while (Date.now() < deadline) {
-    const now = await page.evaluate(() => JSON.stringify([
+  await page.waitForFunction((quietMs) => {
+    const state = JSON.stringify([
       window.__page.changes,
       Object.values(window.__page.cubes).map((c) => c.busy),
-    ]));
-    if (now !== last) { last = now; since = Date.now(); }
-    else if (!now.includes('true') && Date.now() - since > 300) return;
-    await page.waitForTimeout(50);
-  }
-  throw new Error('the page did not settle');
+    ]);
+    const now = performance.now();
+    if (window.__settleState !== state) {
+      window.__settleState = state;
+      window.__settleSince = now;
+      return false;
+    }
+    return !state.includes('true') && now - window.__settleSince > quietMs;
+  }, 300, { timeout: 30_000, polling: 50 }).catch(() => { throw new Error('the page did not settle'); });
 }
 
 /** Drag a column from `from`'s columns list into `to`'s Row Groups. */

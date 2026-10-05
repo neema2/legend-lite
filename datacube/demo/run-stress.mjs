@@ -1,8 +1,10 @@
 // Drive the stress page and report what broke.
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { chromium } from 'playwright';
-import { serve, siteRoot } from './harness.mjs';
+import { outPath, serve, siteRoot } from './harness.mjs';
 
 const ROOT = siteRoot();
 const { port, close: closeServer } = await serve(ROOT);
@@ -77,10 +79,9 @@ if (pageErrs.length) {
   for (const e of [...new Set(pageErrs)].slice(0, 10)) console.log(`  ${e}`);
 }
 
-// `bazel run` starts this in its runfiles; the results are for a person,
-// so they go to the directory the run was started from.
-const RESULTS = join(process.env.BUILD_WORKING_DIRECTORY ?? process.cwd(),
-  'stress-results.json');
+// a test's artifact (bazel-testlogs/.../test.outputs/stress-results.json); under `bazel run`, a scratch file the
+// run prints (harness.outPath), never the working directory
+const RESULTS = outPath('stress-results.json');
 await writeFile(RESULTS, JSON.stringify(results, null, 2));
 console.log(`\nfull results: ${RESULTS}`);
 

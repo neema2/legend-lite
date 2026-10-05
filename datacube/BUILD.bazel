@@ -856,6 +856,17 @@ _CI_HARNESSES = [
     "verify-wasm-browser",
 ]
 
+# THE MECHANICAL HARNESSES AS TESTS (Bazel workplan P4-02): each against the pinned Chromium, with a result and a
+# timeout; no fixed sleep in any of them (G-11). run-stress is the long one.
+_BROWSER_TESTS = {
+    "run-stress": "enormous",
+    "verify-charts": "large",
+    "verify-cubes": "large",
+    "verify-page": "large",
+    "verify-upload": "large",
+    "verify-wasm-browser": "large",
+}
+
 [js_binary(
     name = h.replace("-", "_"),
     data = _HARNESS_HELPERS + [
@@ -868,7 +879,7 @@ _CI_HARNESSES = [
         "//tools/js:runfiles",
     ] + (["//fixtures/saved-queries:records"] if h == "verify-features" else []) + (
         # it imports pinned-chromium.mjs first, a no-op under bazel run
-        ["//tools/browser:pinned_chromium"] if h == "verify-smoke" else []
+        ["//tools/browser:pinned_chromium"] if h == "verify-smoke" or h in _BROWSER_TESTS else []
     ),
     entry_point = "demo/" + h + ".mjs",
     env = _SITE_ENV | ({"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"} if h == "verify-features" else {}),
@@ -886,6 +897,8 @@ _CI_HARNESSES = [
 browser_test(
     name = "verify_smoke_test",
     size = "large",
+    # sharded by sample (verify-smoke.mjs: shard i takes every n-th): 16 samples, 4 each (P4-02)
+    shard_count = 4,
     data = _HARNESS_HELPERS + [
         # named itself: SITE is its runfiles path
         "demo/index.html",
@@ -896,6 +909,26 @@ browser_test(
     entry_point = "demo/verify-smoke.mjs",
     env = _SITE_ENV,
     wasm = True,
+)
+
+[browser_test(
+    name = h.replace("-", "_") + "_test",
+    size = size,
+    data = _HARNESS_HELPERS + [
+        "demo/index.html",
+        ":node_modules/playwright",
+        ":site",
+        ":src",
+    ],
+    entry_point = "demo/" + h + ".mjs",
+    env = _SITE_ENV,
+    wasm = True,
+) for h, size in _BROWSER_TESTS.items()]
+
+# every browser test of this package (P4-09's //:browser names it)
+test_suite(
+    name = "browser",
+    tests = [":verify_smoke_test"] + [":" + h.replace("-", "_") + "_test" for h in _BROWSER_TESTS],
 )
 
 # `bazel run //datacube:verify_app` (manual; see demo/verify-app.mjs for its Postgres): the single-user app
