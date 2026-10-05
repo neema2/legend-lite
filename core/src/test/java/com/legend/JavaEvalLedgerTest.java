@@ -1016,6 +1016,10 @@ class JavaEvalLedgerTest {
                     // seam an engine's own bulk API joins through. Egress
                     // only: nothing is typed, produced or compared here
                     "RowLoad.java", "BulkLoad.java",
+                    // C3c (2026-10-04): a driver's own cell types, found beside the
+                    // driver as BulkLoad is (DuckDB's JSON node to its text); the
+                    // executor names no driver class. Carriage only
+                    "DriverCells.java",
                     // C3b (2026-10-04): the execution side's ONE session owner, which
                     // absorbed JdbcMetadata (the driver's one metadata read, kept out of
                     // Compiler so the plan surface loads without java.sql): a handed

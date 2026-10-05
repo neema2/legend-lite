@@ -23,6 +23,11 @@ public interface SqlDialect {
         return java.util.List.of();
     }
 
+    /** A STORED name — a table, schema or column as its database holds it, or a quote-bearing declaration
+     *  ({@code "date"}) that is its own spelling — as this dialect's queries reference it: a seed writing the
+     *  table and a query reading it spell one name (C3c). */
+    String physicalName(String name);
+
     /** This dialect for the server version a session reports ({@code DatabaseMetaData}'s product version):
      *  a dialect whose SQL differs by version says how. Default: every version is spelled alike. */
     default SqlDialect forServer(String version) {

@@ -151,6 +151,12 @@ public class H2 extends AnsiSqlRenderer {
         };
     }
 
+    /** A stored name as this dialect's queries reference a physical column or table part. */
+    @Override
+    public String physicalName(String name) {
+        return execPart(name);
+    }
+
     private String execPart(String part) {
         if (part.length() > 1 && part.charAt(0) == '"'
                 && part.endsWith("\"")) {

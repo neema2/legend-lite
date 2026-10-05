@@ -90,6 +90,9 @@ class JdbcSurfaceCensusTest {
             // every cell as TEXT and one INSERT ... SELECT casts: the DATABASE
             // types each value, exactly as the text path's quoted literals
             "core/src/main/duckdb/com/legend/exec/DuckDbAppenderLoad.java",
+            // C3c (2026-10-04): DuckDB's own JSON cell type, recognised beside its driver (DriverCells) — it
+            // moved out of Executor, which matched the class by name; carriage only (the node's text)
+            "core/src/main/duckdb/com/legend/exec/DuckDbCells.java",
             "core/src/main/java/com/legend/exec/BulkLoad.java",   // the seam it joins: a Connection in, no SQL of its own
             // 2026-09-27: CsvSeed.run establishes a connection -- its declared setup
             // statements and rows, through Executor.executeRaw / Executor.load under the SEED

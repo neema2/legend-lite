@@ -1375,6 +1375,11 @@ public class AnsiSqlRenderer implements SqlDialect {
         return ", ";
     }
 
+    @Override
+    public String physicalName(String name) {
+        return ident(name);
+    }
+
     protected String ident(String name) {
         if (PLAIN.matcher(name).matches() && !reservedWords().contains(name.toLowerCase())) {
             return name;

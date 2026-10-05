@@ -115,7 +115,7 @@ public final class CsvSeed {
             out.add(new Step.Sql(dialect.render(Ddl.createTable(def.get(), defaultSchema ? null : schema))));
         } else {
             out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDml.DeleteAll(
-                    defaultSchema ? null : ident(schema), ident(table)))));
+                    defaultSchema ? null : dialect.physicalName(schema), dialect.physicalName(table)))));
         }
         // F7.5: ONE multi-row INSERT per block — the statement count is
         // the seed cost (task #14: per-statement parse+plan+JNI), and
@@ -126,36 +126,10 @@ public final class CsvSeed {
                 rows.add(cells(lines[i]));
             }
         }
-        RowLoad load = rowLoad(defaultSchema ? null : ident(schema), ident(table), cols, rows);
+        RowLoad load = rowLoad(dialect, defaultSchema ? null : schema, table, cols, rows);
         if (load != null) {
             out.add(new Step.Rows(load));
         }
-    }
-
-    /** Words either target dialect reserves — quoted here as the query
-     *  renderers quote them ({@code AnsiSqlRenderer.ident}, {@code H2.execPart}),
-     *  so the seeded table and the query spell one name. */
-    private static final java.util.Set<String> RESERVED;
-
-    static {
-        java.util.Set<String> all = new java.util.HashSet<>(
-                com.legend.sql.dialect.Lexicon.DUCKDB.reservedWords());
-        all.addAll(com.legend.sql.dialect.Lexicon.H2.reservedWords());
-        RESERVED = java.util.Set.copyOf(all);
-    }
-
-    /** An identifier as DDL spells it: bare when plain and unreserved,
-     *  double-quoted otherwise (a quoted store declaration is its own
-     *  spelling already). */
-    static String ident(String name) {
-        if (name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")) {
-            return name;
-        }
-        if (name.matches("[A-Za-z_][A-Za-z0-9_$]*")
-                && !RESERVED.contains(name.toLowerCase(java.util.Locale.ROOT))) {
-            return name;
-        }
-        return '"' + name + '"';
     }
 
     /** One CSV line's cells. A bare line splits on commas; a cell wrapped
@@ -195,19 +169,19 @@ public final class CsvSeed {
         return out.toArray(String[]::new);
     }
 
-    /** CSV cells as rows for {@code [schema.]table} (both spelled as SQL names
-     * them) &mdash; the seed's rows, shared with the loadCsvToDbTable arm
+    /** CSV cells as rows for {@code [schema.]table} &mdash; the stored names, spelled here as {@code dialect}'s
+     * queries reference them ({@link com.legend.sql.dialect.SqlDialect#physicalName}) &mdash; the seed's rows, shared with the loadCsvToDbTable arm
      * (batch 85): every value rides as TEXT and the DATABASE casts it to the
      * column's type (F7.2); an empty or {@code ---null---} cell, or one past
      * the row's end, is NULL. Null when no rows. */
-    public static @com.legend.base.Nullable RowLoad rowLoad(@com.legend.base.Nullable String schema,
-            String table, String[] cols, List<String[]> rows) {
+    public static @com.legend.base.Nullable RowLoad rowLoad(com.legend.sql.dialect.SqlDialect dialect,
+            @com.legend.base.Nullable String schema, String table, String[] cols, List<String[]> rows) {
         if (rows.isEmpty()) {
             return null;
         }
         List<String> names = new ArrayList<>(cols.length);
         for (String c : cols) {
-            names.add(ident(c.strip()));
+            names.add(dialect.physicalName(c.strip()));
         }
         List<List<String>> out = new ArrayList<>(rows.size());
         for (String[] vals : rows) {
@@ -218,7 +192,8 @@ public final class CsvSeed {
             }
             out.add(row);
         }
-        return new RowLoad(schema, table, names, cols.length, out);
+        return new RowLoad(schema == null ? null : dialect.physicalName(schema), dialect.physicalName(table),
+                names, cols.length, out);
     }
 
     /** The from() node's {@code testDataSetupCsv} FACTS as seed SQL — the

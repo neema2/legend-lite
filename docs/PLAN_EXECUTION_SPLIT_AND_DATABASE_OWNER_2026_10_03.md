@@ -526,6 +526,18 @@ run, and are removed before any commit.
   name decisions 3 → 0), `JdbcSurfaceCensusTest` and `JavaEvalLedgerTest` (JdbcMetadata → Sessions; StatementExecutor
   2377 → 2382, PctExecuteNative 106 → 105), the Postgres PCT roster's one message, `core-layers.txt` (exec,
   server_lib reach database; server_lib reaches compiler), SEMANTICS_REGISTER S27.
+- **C3c — DONE 2026-10-04** (full chain `runs/c3c-full.log`: 187/189 — `//datacube:live_snap_test` reset a
+  warehouse sign-in under two parallel heavy builds and passes alone 6/6). (1) A seed spells its stored names as the
+  SESSION's dialect references them: new `SqlDialect.physicalName` (the base's identifier rule; H2's `execPart`;
+  Postgres quotes every name), used by `CsvSeed` and `CsvSeed.rowLoad` (now taking the dialect, spelling schema and
+  table itself: the `loadCsvToDbTable` path passed them raw). `CsvSeed`'s union of DuckDB's and H2's reserved words is
+  DELETED. Test: `SeedSpellingTest`. (2) The DuckDB driver's JSON node: audit point 8 proposed `DuckDb.normalize`;
+  measured otherwise — a dialect file naming a driver class becomes JDBC surface (the census counts the file's every
+  accessor), and converting the node in `normalize` would change what a Variant root and an untyped array element
+  carry. Done instead as `BulkLoad` is: an `exec.DriverCells` SPI (`jsonText(cell)`), DuckDB's implementation
+  `DuckDbCells` in `:duckdb_load` beside the driver with a real `instanceof`, found by `ServiceLoader`;
+  `Executor.decodeAny` names no driver class; behaviour unchanged. Registers: `JdbcSurfaceCensusTest` (DuckDbCells),
+  `JavaEvalLedgerTest`'s funnel register (DriverCells).
 - **C4. The reader fix.** The static `ExecutionContext` reader follows `->from(m, ^Runtime(connectionStores =
   helper()))`, `toSQLString`'s runtime forms and helper bodies; the four `"H2"` defaults (§3.2) are DELETED; a context
   that truly cannot be read is refused by name. Gate: the 21 corpus tests pass reading their real declarations.
