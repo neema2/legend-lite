@@ -61,11 +61,12 @@ esbuild.esbuild(
     ("editor_worker", "src/backend/editor-worker.ts", "editor.worker.js"),
 ]]
 
-# The WebAssembly modules the page loads from ./vendor/: the compiler (vendor/planner/) and the SDLC
-# (vendor/sdlc/), and the fonts.
+# The WebAssembly modules the page loads from ./vendor/: the compiler (vendor/planner/), the SDLC (vendor/sdlc/),
+# DuckDB for running functions in the tab (vendor/duckdb/, engine-client's copy) and the fonts.
 copy_to_directory(
     name = "vendor",
     srcs = [
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
         "//legend-art:fonts",
         "//legend-art:styles",
         "//sdlc-server:page",
@@ -77,6 +78,10 @@ copy_to_directory(
         "wasm/planner/wasm-gc-module-runtime.js",
         "sdlc-server/page/classes.wasm",
         "sdlc-server/page/wasm-gc-module-runtime.js",
+        "**/dist/duckdb-mvp.wasm",
+        "**/dist/duckdb-eh.wasm",
+        "**/dist/duckdb-browser-mvp.worker.js",
+        "**/dist/duckdb-browser-eh.worker.js",
         "legend-art/fonts/roboto-latin-400-normal.woff2",
         "legend-art/fonts/roboto-latin-500-normal.woff2",
         "legend-art/fonts/roboto-latin-700-normal.woff2",
@@ -89,6 +94,7 @@ copy_to_directory(
     replace_prefixes = {
         "wasm/planner/": "planner/",
         "sdlc-server/page/": "sdlc/",
+        "**/dist/": "duckdb/",
         "legend-art/fonts/": "fonts/",
         "legend-art/src/": "legend-art/",
     },

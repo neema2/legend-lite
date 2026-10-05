@@ -1,0 +1,7 @@
+// Every party, its name and country: a function the demo runs in the tab, on the party rows (PartyData).
+function demo::party::allParties(): meta::pure::metamodel::relation::Relation<Any>[1]
+{
+  demo::party::Party.all()
+    ->project(~[name: p | $p.name, country: p | $p.country])
+    ->from(demo::party::PartyMapping, demo::party::Runtime)
+}
