@@ -283,6 +283,36 @@ write_source_files(
     visibility = ["//visibility:public"],
 )
 
+# PARSER-EQUIVALENCE'S MEASURED RATCHET VALUES (PeRatchets; Bazel workplan P2-16, D9): the own-corpus elements that
+# match the oracle and the mutant deck's size, measured into ratchets.tsv; the tests compare their live values with the
+# committed copy.
+java_run(
+    name = "ratchets",
+    testonly = True,
+    srcs = UPSTREAM_TREES + [
+        ":srcs",
+        "//core:srcs",
+        "//pct:srcs",
+        "//spec:srcs",
+        "//tools:oracle-pins.env",
+    ],
+    outs = ["generated/ratchets.tsv"],
+    arguments = ["{OUT}"],
+    jvm_flags = program_jvm_flags("parser-equivalence") + [_PINS_ACTION_FLAG],
+    main_class = "com.legend.equivalence.PeRatchets",
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
+    deps = [":pe_tests_lib"],
+)
+
+write_source_files(
+    name = "update_ratchets",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA measured parser-equivalence ratchet moved -- bazel run //parser-equivalence:update_ratchets, and give the reason in the commit",
+    files = {"src/test/resources/com/legend/equivalence/ratchets.tsv": ":ratchets"},
+    visibility = ["//:__pkg__"],
+)
+
 # a DRAFT of docs/own-corpus-protocol-diffs.tsv (//docs:draft_own_corpus_ledger):
 # current diffs, reasons kept, new rows marked for a human
 java_run(
