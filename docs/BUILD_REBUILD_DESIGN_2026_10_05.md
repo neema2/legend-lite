@@ -431,6 +431,20 @@ jar's manifest (10.4 s), then makes a full compile-only copy (7.0 s), before `//
     annotations whose classes are missing are ignored at run time.
 - With no product jar left in the plugin, stamping (experiment E1) needs no change.
 
+**Prototype result (2026-10-05, branch `build/http-jars`, commit `f6cffc6f9`, local macOS):**
+- **A clean `//:java` build: 12.4 s, 12.3 s, 12.4 s** (was 22.6 to 23.1 s). The critical path is 7.7 s (was 19.7).
+- **The product jars' interface jars took 0.03 s in all.** The plugin's stamping and copying took 17.4 s.
+- The critical path is now our own code: the longest compile is `core/libcompiler.jar`, 214 files in 5.0 s.
+- **Postgres 42.7.13 without checker-qual passes every test that uses it:** `postgres_arm_test` (1) and the PCT
+  Postgres suites (345, 137, 469, 205, 93: 1,249 tests).
+- **The other moved jars pass too:** PCT on the modern H2 (469), the warehouse on DuckDB 1.5.5 (103), `duckdb_load`
+  (6), `spec_tests` (20), and core's suite.
+- All 9 guards pass. Two guard fixes came with it:
+  - `LocksTest` now checks the pools against `pools.bzl` exactly, not "at least 8";
+  - the closure queries see `java_import` as well as `jvm_import`, so they cannot pass without looking.
+- The new user rule refuses a package not in a jar's users: tested by giving `//json` a Postgres dependency.
+- Windows is unproven until its own throwaway CI run, after step 1 lands.
+
 ## 6. Decisions for the user
 
 - **D1. Error Prone.**
