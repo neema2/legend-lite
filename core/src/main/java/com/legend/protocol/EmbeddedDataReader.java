@@ -112,6 +112,27 @@ final class EmbeddedDataReader {
         return new Protocol.PRelationElement(r.columns(), r.paths(), r.rows(), r.sourceInformation());
     }
 
+    /**
+     * One named test assertion (mapping, service and data-quality tests alike): {@code equalToJson} over
+     * external format, {@code equalToRelation} over a relation element, {@code equalTo} over a value.
+     */
+    static Protocol.PTestAssertion assertion(Json.Node node) {
+        Wire a = Wire.of(node, "test assertion");
+        String type = a.type();
+        Json.Node expected = a.take("expected");
+        Protocol.PAssertionValue value;
+        if ("equalToJson".equals(type)) {
+            value = externalFormat(expected);
+        } else if ("equalToRelation".equals(type)) {
+            value = relationElement(expected);
+        } else if ("equalTo".equals(type)) {
+            value = new Protocol.PEqualToValue(ProtocolReader.valueSpec(expected));
+        } else {
+            throw Wire.refuse("no reader rule for test assertion _type '" + type + "'");
+        }
+        return a.done(new Protocol.PTestAssertion(a.str("id"), value, a.span()));
+    }
+
     // ---------------------------------------------------------------------
     // Service-store stubs
     // ---------------------------------------------------------------------
