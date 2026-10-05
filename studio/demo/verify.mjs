@@ -177,6 +177,27 @@ async function loop(browser, name, query) {
     if (!/^5 rows in \d+ ms/.test(ran)) throw new Error(`the function's run said: ${ran}`);
     assert.ok((await page.getByTestId('run-rows').textContent()).includes('Banque Lumière'), 'the run shows the party rows');
     await shot('2b-ran');
+    // 3b'. the function's query in Query's builder (plan A5): its two columns, one removed, saved into its body (with
+    // its ->from()), and run again
+    await page.getByTestId('open-query-builder').click();
+    await page.waitForSelector('[data-testid=query-builder] .q-col >> nth=1', { timeout: 120_000 });
+    await page.click('[data-testid=query-builder] .q-col >> nth=1 >> .q-col__remove');
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid=query-builder] .q-col').length === 1);
+    await page.getByTestId('builder-keep').click();
+    await page.waitForFunction(() => !document.querySelector('[data-testid=query-builder] .q-chip--status'), undefined, { timeout: 60_000 });
+    await page.getByTestId('builder-close').click();
+    await page.waitForSelector('[data-testid=query-builder]', { state: 'detached' });
+    const body = (await page.locator('.monaco-editor .view-lines').textContent()).replace(/\s+/g, ' ');
+    assert.match(body, /function demo::trading::parties\(\)/, 'the signature as written');
+    assert.match(body, /->\s*from\(\s*demo::party::PartyMapping,\s*demo::party::Runtime\s*\)/, `the body keeps its from(): ${body}`);
+    assert.doesNotMatch(body, /country/, 'the removed column is gone');
+    await waitCompiled();
+    const ranBefore = await page.getByTestId('run-status').elementHandle();
+    await page.getByTestId('run-function').click();
+    await page.waitForFunction((old) => !old.isConnected
+      && !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), ranBefore, { timeout: 120_000 });
+    assert.match(await statusOf('run-status'), /^5 rows in \d+ ms/);
+    assert.equal(await page.getByTestId('run-rows').locator('thead th').count(), 1, 'one column now');
     // 3c. a service, run in the tab: its query, with its mapping and runtime (plan A3)
     await page.getByTestId('new-element').click();
     await page.getByTestId('new-kind').selectOption({ label: 'Service' });

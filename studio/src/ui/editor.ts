@@ -322,6 +322,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       // on a mapping (its execution)
       const query = ({
         Service: ['Edit Query', "Edit the service's query in the query builder"],
+        function: ['Edit Query', "Edit the function's query in the query builder"],
         Class: ['Query…', 'Query this class in the query builder'],
         Mapping: ['Execute…', 'Execute a query on this mapping in the query builder'],
       } as Record<string, [string, string]>)[kind];
@@ -382,7 +383,10 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   const openBuilder = async (key: string): Promise<void> => {
     const f = ws.file(key);
     if (!f || closeBuilder) return;
-    const isService = kindOf(f.text) === 'Service';
+    const kind = kindOf(f.text);
+    const isService = kind === 'Service';
+    // what Save Query writes into: a service's query, or a function's body (with its ->from())
+    const keeps = (isService || kind === 'function') && !readOnly;
     const body = h('div', { class: 'query-builder-dialog__body' }, h('div', { class: 'loading' }, 'Opening the query builder…'));
     const overlay = h('div', { class: 'query-builder-dialog', 'data-testid': 'query-builder' }, body);
     document.body.append(overlay);
@@ -395,12 +399,13 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     };
     try {
       handle = await ctx.builder.open(body, f.text, ws.model().text, {
-        title: `${isService ? 'Service query' : kindOf(f.text) === 'Mapping' ? 'Mapping execution' : 'Query'}: ${fileLabel(f)}`,
-        ...(isService && !readOnly ? {
+        title: `${isService ? 'Service query' : kind === 'function' ? 'Function query' : kind === 'Mapping' ? 'Mapping execution' : 'Query'}: ${fileLabel(f)}`,
+        ...(keeps ? {
+          keepWithFrom: !isService,
           keep: async (content: string) => {
             const current = ws.file(key);
-            if (!current) throw new Error('the service is no longer in this workspace');
-            const next = await ctx.builder.serviceWithQuery(current.text, content);
+            if (!current) throw new Error('the element is no longer in this workspace');
+            const next = isService ? await ctx.builder.serviceWithQuery(current.text, content) : await ctx.builder.functionWithQuery(current.text, content);
             // through the editor's model, so the change is undoable there and recompiled as typing is
             const m = modelOf(key);
             m.pushEditOperations([], [{ range: m.getFullModelRange(), text: next }], () => null);

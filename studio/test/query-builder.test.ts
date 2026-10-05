@@ -18,8 +18,10 @@ const serviceText = (): Promise<string> => readFile(join(PROJECTS, 'party', 'Par
 const builder = queryBuilder({
   modelJson: (t) => grammar.modelJson(t),
   lambdaJson: (t) => grammar.lambdaJson(t),
+  lambdaText: (l, style) => grammar.lambdaText(l, style),
   plane: () => Promise.reject(new Error('no plane: Save Query only reads text')),
 });
+const functionText = (): Promise<string> => readFile(join(PROJECTS, 'party', 'allParties.pure'), 'utf8');
 
 describe("a service's query in its text", () => {
   it('is the lambda after query:, to its closing semicolon', async () => {
@@ -51,6 +53,22 @@ describe('Save Query', () => {
     assert.ok(next.includes('    mapping: demo::party::PartyMapping;\n    runtime: demo::party::Runtime;\n'));
     const s = (await grammar.modelJson(next)).elements.find((e): e is PService => e._type === 'service')!;
     assert.equal(await grammar.lambdaText(s.execution.func!, 'STANDARD'), await grammar.lambdaText(await grammar.lambdaJson(query), 'STANDARD'));
+  });
+
+  it("writes a function's query into its body, the signature and comment as written, read back as that query", async () => {
+    const text = await functionText();
+    const query = await grammar.lambdaText(await grammar.lambdaJson(
+      "|demo::party::Party.all()->filter(p | $p.country == 'GB')->project(~[name: p | $p.name])->from(demo::party::PartyMapping, demo::party::Runtime)"), 'PRETTY');
+    const next = await builder.functionWithQuery(text, query);
+    assert.ok(next.startsWith('// Every party, its name and country: a function the demo runs in the tab, on the party rows (PartyData).\nfunction demo::party::allParties(): meta::pure::metamodel::relation::Relation<Any>[1]\n{\n'));
+    const f = (await grammar.modelJson(next)).elements.find((e) => e._type === 'function') as unknown as { body: never[] };
+    assert.equal(await grammar.lambdaText({ _type: 'lambda', parameters: [], body: f.body } as never, 'STANDARD'),
+      await grammar.lambdaText({ ...(await grammar.lambdaJson(query)), parameters: [] }, 'STANDARD'));
+  });
+
+  it("refuses a function query whose parameters are not the function's", async () => {
+    await assert.rejects(builder.functionWithQuery(await functionText(), "{x: String[1]|demo::party::Party.all()->project(~[name: p | $p.name])->from(demo::party::PartyMapping, demo::party::Runtime)}"),
+      /parameters differ from the function's/);
   });
 
   it('refuses a service with no query: to replace', async () => {

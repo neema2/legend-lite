@@ -97,6 +97,7 @@ function serverSession(api: string, user: string): RunSession & BuilderSession {
   return {
     modelJson: (text) => http.modelJson(text),
     lambdaJson: (text) => http.lambdaJson(text),
+    lambdaText: (lambda, style) => http.lambdaText(lambda, style),
     engine: () => Promise.resolve(http),
     plane: () => Promise.resolve({
       execution: { kind: 'server', engine: api }, engine: http, planner: undefined, user,
@@ -116,6 +117,7 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
   return {
     modelJson: (text) => grammar.modelJson(text),
     lambdaJson: (text) => grammar.lambdaJson(text),
+    lambdaText: (lambda, style) => grammar.lambdaText(lambda, style),
     engine: async () => (await start()).engine,
     sqlEngine: async () => (await start()).sql,
     plane: async () => {
