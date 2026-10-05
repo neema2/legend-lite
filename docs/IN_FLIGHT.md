@@ -309,8 +309,13 @@ test exports is being changed; the provisional work sits unmerged on `studio-tes
 program** (`docs/PROTOCOL_PROGRAM_2026_10_05.md`, branch `protocol`): parse, emit, read and compose all on the typed
 protocol records. Files: `core/src/main/java/com/legend/protocol/` (a model reader beside `ProtocolReader`, the
 composers -- `PureComposer` and the element composers -- moved from JSON onto records, one public face),
-`PureV1Api.java`'s `grammar/*` routes, `Wasm.java`'s grammar exports, and the oracles in `parser-equivalence/`. The
-parser and the emitter are read, not reshaped. A6 proceeds as announced.
+`PureV1Api.java`'s `grammar/*` routes, `Wasm.java`'s grammar exports, and the oracles in `parser-equivalence/`. A6
+proceeds as announced. **Correction, the reader leg (on `protocol`, not `main`):** the parser and the emitter changed
+too, mechanically -- every `SourceInfo` in `Protocol`'s records is nullable (JSON without spans reads back), the
+emitter omits an absent span as the engine's `NON_NULL` does, `PmcdParser.parseModel` returns the records
+(`parseDocument` is its emit), and two shape flags (`EnumValue`, a connection's `element`) replace span-presence tests.
+Gate 8 holds the emitter byte-identical with the engine through it. A session editing `Protocol.java`, the emitters or
+the protocol parsers should expect to merge with `protocol` when it lands.
 
 ## Rules between sessions
 
