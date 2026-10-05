@@ -35,8 +35,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ImplementationTableTest {
 
-    @Test
-    void theTableIsTotalAndEveryRegistrationResolves() throws IOException {
+    /** The table over the catalog, the pinned standard library and every upstream overload at a registered FQN. */
+    record Built(DeclarationTable table, ImplementationTable impl, int stdlib, int atCatalogFqns) {
+    }
+
+    static Built build() throws IOException {
         UpstreamDeclarations upstream = UpstreamDeclarations.load();
         // THE ENGINE SURFACE the platform takes on is exactly what its
         // registrations name: the catalog's FQNs, and every FQN a form, a wall,
@@ -66,8 +69,27 @@ class ImplementationTableTest {
             }
         }
         DeclarationTable table = DeclarationTable.of(declarations);
+        return new Built(table, ImplementationTable.build(table, com.legend.lowering.PlatformRegistrations.current()),
+                stdlib, atCatalogFqns);
+    }
+
+    /** Rows per implementation kind (Intrinsic, Form, Body, ...): a measurement, in spec's ratchets.tsv. */
+    static Map<String, Integer> kindsOf(ImplementationTable impl) {
+        Map<String, Integer> kinds = new java.util.TreeMap<>();
+        for (Implementation i : impl.rows().values()) {
+            kinds.merge(i.getClass().getSimpleName(), 1, Integer::sum);
+        }
+        return kinds;
+    }
+
+    @Test
+    void theTableIsTotalAndEveryRegistrationResolves() throws IOException {
+        Built built = build();
+        DeclarationTable table = built.table();
         assertEquals(List.of(), table.duplicates(), "two different bodies under one id");
-        ImplementationTable impl = ImplementationTable.build(table, com.legend.lowering.PlatformRegistrations.current());
+        ImplementationTable impl = built.impl();
+        int stdlib = built.stdlib();
+        int atCatalogFqns = built.atCatalogFqns();
 
         Map<String, Integer> kinds = new LinkedHashMap<>();
         List<String> rows = new ArrayList<>();
@@ -102,16 +124,11 @@ class ImplementationTableTest {
         // every registration names something declared; none contradicts another
         assertEquals(List.of(), impl.dangling(), "registrations naming nothing declared");
         assertEquals(List.of(), impl.conflicts(), "contradicting registrations");
-        // THE KINDS, pinned EXACTLY (audit 2026-09-25: totality alone lets an empty
-        // registration set pass) — engine 4.145.0 / pure 5.99.0; a registration
-        // that lands moves a row from Body/Unimplemented to Intrinsic/Form, and the
-        // pin follows with its reason (Form 208 -> 217: validate owned, 9 overloads;
-        // 2026-09-28 Body 2194 -> 2193, Intrinsic 664 -> 665: engine's
-        // string::contains(String[0..1], String[1]) declared, beside the startsWith/endsWith
-        // [0..1] forms -- DataCube T5, ContainsOverloadTest; 2026-10-05 Body 2193 -> 2187, Intrinsic 665 -> 671:
-        // math::min/max over Integer, Float and Number [1..*] declared -- the reference lane, GATES 2026-10-05)
-        assertEquals(Map.of("Intrinsic", 671, "Form", 217, "Refused", 20, "Body", 2187, "Unimplemented", 71),
-                kinds, "implementation kinds");
+        // THE KINDS, checked against the generated report (audit 2026-09-25: totality alone lets an empty
+        // registration set pass). The measured counts live in ratchets.tsv (//spec:update_ratchets, diff-tested in
+        // //:generated), so a registration that lands moves them there, as a reviewed diff (Bazel workplan P2-16, D9)
+        assertEquals(SpecRatchets.measuredWithPrefix("implementation.kinds."), new java.util.TreeMap<>(kinds),
+                "implementation kinds");
     }
 
     private static String detail(Implementation i) {

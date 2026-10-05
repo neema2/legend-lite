@@ -35,6 +35,7 @@ test_suite(
         "//parser-equivalence:update_generated_tests",
         "//query:update_generated_tests",
         "//scripts/parser:update_keyword_coverage_tests",
+        "//spec:update_ratchets_tests",
         "//tools/engine-runner:update_vocab_tests",
     ],
 )
@@ -56,6 +57,7 @@ write_source_files(
         "//parser-equivalence:update_generated",
         "//query:update_generated",
         "//scripts/parser:update_keyword_coverage",
+        "//spec:update_ratchets",
         "//tools/engine-runner:update_vocab",
     ],
 )

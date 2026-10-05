@@ -336,6 +336,30 @@ java_run(
     deps = [":generators"],
 )
 
+# SPEC'S MEASURED RATCHET VALUES (SpecRatchets; Bazel workplan P2-16, D9): counts tests used to pin by hand -- the
+# corpus census, the unsupported dynafunctions, the implementation table's kinds, the hardcoded upstream paths --
+# measured into ratchets.tsv; the tests compare their live values with the committed copy, ceilings stay in Java.
+java_run(
+    name = "ratchets",
+    testonly = True,
+    srcs = UPSTREAM_TREES,
+    outs = ["generated/ratchets.tsv"],
+    arguments = ["{OUT}"],
+    jvm_flags = program_jvm_flags("spec"),
+    main_class = "com.legend.generators.SpecRatchets",
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
+    deps = [":spec_tests_lib"],
+)
+
+write_source_files(
+    name = "update_ratchets",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA measured spec ratchet moved -- bazel run //spec:update_ratchets, and give the reason in the commit (a ceiling that should follow is a dated Java constant)",
+    files = {"src/test/resources/com/legend/generators/ratchets.tsv": ":ratchets"},
+    visibility = ["//:__pkg__"],
+)
+
 # Every upstream declaration of a membership FQN (fqn, key, text, source file): what a re-keying leg reads.
 # A build output (bazel build //spec:native_declarations), never a file in the tree (P2-17).
 java_run(

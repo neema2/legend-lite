@@ -45,13 +45,9 @@ public class UpstreamPathManifestTest {
     record Entry(String site, String repo, Path path, boolean dir) {
     }
 
-    /** 90 = 3 rcorpus roots (RELATIONAL, CORE_PURE, M2M_TESTS) + 6 LIBRARY_FILES
-     *  + 64 SHAPE_FILES + 1 ENGINE_IMPLEMENTATION_FILES key + 1 graphFetch domain
-     *  + 9 SpecBodyCensusTest.PLATFORM_ROOTS + 3 prelude ENGINE_SPEC_ROOTS
-     *  + 1 prelude CORPUS_ROOT + 1 m3.pure + 1 pure checkout root (indexed whole)
-     *  + 1 CompileContext.java (91, batch 5 audit).
-     *  Measured 2026-09-10 (batch 2). */
-    static final int PINNED_COUNT = 91;
+    // The count (91 on 2026-10-05: 3 rcorpus roots + 6 LIBRARY_FILES + 64 SHAPE_FILES + 1 ENGINE_IMPLEMENTATION_FILES
+    // key + 1 graphFetch domain + 9 PLATFORM_ROOTS + 3 prelude ENGINE_SPEC_ROOTS + 1 CORPUS_ROOT + 1 m3.pure + 1 pure
+    // root + 1 CompileContext.java) is spec's ratchets.tsv's "upstream.paths", generated (P2-16, D9).
 
     static List<Entry> manifest() {
         Path engine = Corpus.ENGINE_ROOT;
@@ -110,8 +106,8 @@ public class UpstreamPathManifestTest {
         assertEquals(List.of(), missing,
                 "hardcoded upstream paths that do not resolve — upstream moved them, or the pin"
                 + " moved under them; fix the constant, never let the input shrink silently");
-        assertEquals(PINNED_COUNT, all.size(),
-                "the number of hardcoded upstream paths moved — a new (or removed) upstream"
-                + " dependency is a reviewed event: re-pin PINNED_COUNT with the arithmetic");
+        assertEquals(SpecRatchets.measured("upstream.paths"), all.size(),
+                "the hardcoded upstream path count moved: a new upstream dependency is a reviewed event --"
+                + " bazel run //spec:update_ratchets, and say why in the commit");
     }
 }

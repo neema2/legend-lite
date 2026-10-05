@@ -97,7 +97,9 @@ class DynaFnRegistryTest {
         }
         int unsupported = DynaFn.withResolution(DynaFn.Resolution.UNSUPPORTED).size();
         assertTrue(unsupported <= UNSUPPORTED_MAX, "UNSUPPORTED dynafunctions grew: " + unsupported + " > " + UNSUPPORTED_MAX);
-        assertTrue(unsupported == UNSUPPORTED_MAX, "UNSUPPORTED shrank to " + unsupported + " — re-pin UNSUPPORTED_MAX (headroom is not a pin)");
+        // the measured count is ratchets.tsv's (generated, diff-tested); UNSUPPORTED_MAX stays the ceiling (D9)
+        assertEquals(SpecRatchets.measured("dynafn.unsupported"), unsupported, "UNSUPPORTED dynafunctions moved"
+                + " -- bazel run //spec:update_ratchets (and lower UNSUPPORTED_MAX when it shrank: headroom is not a pin)");
     }
 
     @Test
