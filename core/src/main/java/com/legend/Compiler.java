@@ -1014,8 +1014,9 @@ public final class Compiler {
     /**
      * COMPILED-STATE effect query over a resolved statement body: does
      * executing it WRITE (DDL/executeInDb, transitively through compiled
-     * user-function bodies — owner: {@link StatementExecutor}'s effect
-     * scan over {@code PlatformTypes}' exact-FQN catalog)? TDG
+     * user-function bodies — owner: the compiler's
+     * {@link com.legend.compiler.spec.StatementEffects} scan over the
+     * native catalog)? TDG
      * generators count as effectful here: their carrier materializes
      * temp tables. The flip probe's re-run safety fact — derived from
      * the program, never from harness heuristics.
@@ -1044,9 +1045,9 @@ public final class Compiler {
         for (int i = 0; i < body.size(); i++) {
             TypedSpec s = body.get(i);
             java.util.List<TypedSpec> preceding = body.subList(0, i);
-            boolean effect = StatementExecutor.containsEffect(s, specs, memo)
-                    || containsTdgGenerator(s);
-            boolean verdict = callsVerdict(s, specs, verdictMemo);
+            boolean effect = com.legend.compiler.spec.StatementEffects.containsEffect(s, specs, memo)
+                    || com.legend.compiler.spec.StatementEffects.containsTdgGenerator(s);
+            boolean verdict = com.legend.compiler.spec.StatementEffects.callsVerdict(s, specs, verdictMemo);
             shape.append(statementKind(s, effect, verdict));
             effects |= effect;
             stores.addAll(com.legend.compiler.spec.SeededStores.of(s, specs, storeMemo));
@@ -1080,73 +1081,6 @@ public final class Compiler {
             return effect ? 'E' : 'L';
         }
         return verdict ? 'A' : effect ? 'E' : 'O';
-    }
-
-    /** Does the program REACH a verdict function — directly, or through
-     * the compiled body of a user function it calls (the same descent as
-     * {@link StatementExecutor#containsEffect}: memoized by signature,
-     * cycles and un-typeable callees score false)? Phase 0.3: a test
-     * whose program reaches no verdict is no pass — the runner classifies
-     * it SKIPPED (no assertion reachable) instead of scoring a body that
-     * merely did not throw. */
-    private static boolean callsVerdict(TypedSpec n, SpecCompiler specs,
-            java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
-        String callee = n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                ? nc.callee().qualifiedName()
-                : n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
-                        ? uc.callee().qualifiedName() : null;
-        if (callee != null && com.legend.compiler.element.type.PlatformTypes
-                .isVerdictFunction(callee)) {
-            return true;
-        }
-        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
-            com.legend.model.FunctionId key = uc.callee().id();
-            Boolean known = memo.get(key);
-            if (known == null) {
-                memo.put(key, false);   // in-progress: cycles score false
-                boolean reaches = false;
-                try {
-                    for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
-                        if (callsVerdict(stmt, specs, memo)) {
-                            reaches = true;
-                            break;
-                        }
-                    }
-                } catch (com.legend.compiler.spec.TypeInferenceException e) {
-                    // an un-typeable callee cannot execute in either
-                    // channel; this reachability scan does not decide on it
-                }
-                memo.put(key, reaches);
-                known = reaches;
-            }
-            if (known) {
-                return true;
-            }
-        }
-        for (TypedSpec c : n.children()) {
-            if (callsVerdict(c, specs, memo)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static boolean containsTdgGenerator(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && (com.legend.compiler.element.type.PlatformTypes
-                        .GENERATE_TEST_DATA.equals(
-                                nc.callee().qualifiedName())
-                    || com.legend.compiler.element.type.PlatformTypes
-                        .GENERATE_SEED_DATA_STRING.equals(
-                                nc.callee().qualifiedName()))) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (containsTdgGenerator(c)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** Listener overload — the runner's scoring seam: observes each
