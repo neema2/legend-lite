@@ -264,3 +264,43 @@ without a **done** entry.
 - **P2-90 done** (independent): 16 of 20 met; P2-04 reopened, NEW P2-21 (core ratchets), NEW P2-22 (false "generated"
   claims), amendments to P2-09, P2-10, P3-12; process gaps recorded in §6.5.
 - **Moved:** P3-05 and P3-30 after P3-27 (they depend on its lists). P3-06 stays deferred (§6.3) unless the user chooses.
+
+## Batch 12: diagnostics, robust test infrastructure, locales, projects
+
+- **Pushed to main: 3781cbf98** (batch 11: P3-08, P3-09, P3-12, P3-18, P3-07 and the oracle follow-ups). Throwaway
+  37290407740 52/52. Main CI 37297275640: two Windows-only reds on a tree the throwaway passed. (1)
+  `WarehouseServerTest.anAclViewShowsEachUserTheirOwnRows` (native lane): the test assumed a finished statement always
+  carries its first chunk; one finished by a poll does not. A real test bug, fixed (c8e3d4339). (2)
+  `//core:postgres_arm_test` (7P): pgjdbc's SSL request timed out after 10 s against the embedded Postgres 16 while
+  three PCT Postgres suites started their own clusters. A slow-runner flake, rerun; recorded here, not changed.
+- **Committed on bazel/exec** (each with its own proof; local gate plus PCT and the three corpus lanes 228/228 before
+  the audit fixes):
+  - P2-04 (reopened: the inventories' gates are tests), P2-22 (no false "generated" claims).
+  - P3-13: one diagnostics switchboard (`-Dlegend.diagnostics=`; lowering keeps its env read, invariant 6h); the
+    census diff a Bazel binary.
+  - P3-10 (JS tests restore what they change; the TZ lanes prove their zone), P3-16 (JS tests on their own clocks).
+  - P3-19 (no test starts a JVM of itself; //core:planner_on_java_base_test, G16's one allowlisted java_test),
+    P3-20 (EmbeddedPostgres a child of the test, retried on a taken port, in TEST_TMPDIR only), P3-21 (the native lane
+    judges the binary only), P3-22 (the live Postgres tests ordinary tests), and their audit's follow-ups.
+  - P3-26 (engine-runner smoke tests), P3-24 (//warehouse:sqlapi compiled by TeaVM in the gate chain), P3-31 (the
+    harvest's shims first on their own classpath).
+  - P3-28: StringCaseLocaleUsage and DefaultLocale as errors on every first-party compile. **Found while proving it:**
+    NullAway's `-XepDisableAllChecks` came after the shared options and switched them off in every null-gated
+    library; the shared options now come last. ~200 sites say Locale.ROOT. A19: guards_package() fails a java_library
+    not made by legend_java_library, and a java_binary or java_test with sources not made by legend_java_binary or a
+    junit_test macro. **Audit (4 commits): two Medium on P3-28** (junit_test's own sources did not get the options; A19
+    saw only java_library), one Medium on P3-24 (the WASM entry reached 3 of the API's methods; TeaVM compiles only
+    what is reachable), lows (the smoke test in no lane; a stale comment). All fixed (e4a85859e).
+  - P3-29: UI_LOCALE for the apps' own words, with a guardrail; the six scanners read `_SCANNED`'s declared lists
+    through //tools/js:runfiles' Sources; the last test chdir is gone.
+  - P3-34: the investigation found directory cycles but one 8-file cycle at file level; each node_test's data is its
+    generated import closure (datacube/test_imports.bzl, diff-tested). A touch of src/share/link.ts re-runs 16 of 107.
+  - P3-23: legend_library (tools/legend) and //projects:tests (56 projects alone, the graph, the set-id rule).
+    **Found F-L1** (projects/FINDINGS.md): legend-lite lifts a view declared inside a Schema twice, so
+    firm-balance-sheet does not compile; quarantined with a test that turns red when it compiles. The fix is one line
+    in ModelBuilder (walk defaultSchemaViews()), outside this program's files: for the compiler's owner. The plan's
+    manifest-equals-BUILD guard contradicts G17 (no test reads Markdown; CI skips Markdown-only changes): BUILD's
+    PROJECT_DEPS is the truth, the manifests agree today, unchecked. check.py stays until P7-01 (it also checks size
+    bands, with legend-engine).
+- **Waiting on the user:** P3-25 depends on D18 (still OPEN; recommended (a), the Python probes as py_binaries over one
+  launch()).
