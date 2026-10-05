@@ -35,7 +35,6 @@ class CompileOnlyTest {
             "java_library JavaSourceJar", "a library's source jar, registered beside its compile",
             "java_library JavaResourceJar", "a library's resources, packed into its jar",
             "java_import JavaIjar", "Bazel's interface jar of a product jar (tools/deps/jars.bzl, http_jar)",
-            "jvm_import StampJarManifest", "rules_jvm_external labels a Maven jar's manifest (its runtime jar)",
             "jvm_import CreateCompileJar", "rules_jvm_external's compile-only copy of a Maven jar");
 
     /** Tier -> "rule kind mnemonic" -> why it belongs in a build. Only actions that run a program are listed. */
