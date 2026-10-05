@@ -346,24 +346,25 @@ java_run(
     deps = ["//tools/gunzip"],
 )
 
-# THE NATIVE IMAGE'S FFM METADATA, from the code that makes the calls (ForeignMetadata over Duck.DOWNCALLS and
-# AuthenticatedUser.UPCALLS; Bazel workplan P2-09): its own metadata directory, so a new signature fails //:generated
-# until `bazel run //warehouse:update_foreign_metadata` writes it.
+# THE NATIVE IMAGE'S REACHABILITY METADATA, generated whole (ReachabilityMetadata; Bazel workplan P2-09, A23): the FFM
+# section from Duck.DOWNCALLS and AuthenticatedUser.UPCALLS, the callbacks' reflection from the same table, and the JDK
+# services and resources the server reaches by name, declared with why. A new signature or service fails //:generated
+# until `bazel run //warehouse:update_reachability_metadata` writes it.
 java_run(
-    name = "foreign_metadata",
+    name = "reachability_metadata",
     testonly = True,
-    outs = ["generated/foreign-metadata.json"],
+    outs = ["generated/reachability-metadata.json"],
     arguments = ["{OUT}"],
-    main_class = "com.legend.warehouse.server.duck.ForeignMetadata",
+    main_class = "com.legend.warehouse.server.duck.ReachabilityMetadata",
     mnemonic = "Generate",
     deps = [":tests_lib"],
 )
 
 write_source_files(
-    name = "update_foreign_metadata",
+    name = "update_reachability_metadata",
     testonly = True,
-    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nan FFM signature changed -- bazel run //warehouse:update_foreign_metadata",
-    files = {"src/main/resources/META-INF/native-image/com.legend/warehouse-foreign/reachability-metadata.json": ":foreign_metadata"},
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe native image's metadata moved (an FFM signature, or a declared JDK service) -- bazel run //warehouse:update_reachability_metadata",
+    files = {"src/main/resources/META-INF/native-image/com.legend/warehouse/reachability-metadata.json": ":reachability_metadata"},
     visibility = ["//:__pkg__"],
 )
 
