@@ -203,6 +203,7 @@ test_suite(
     name = "tests",
     tests = [
         ":demo_test",
+        ":engine_test",
         ":typecheck_test",
         ":workspace_test",
     ],

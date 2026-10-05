@@ -112,6 +112,17 @@ export class HttpEngine implements Engine {
     return this.#json('POST', '/pure/v1/compilation/compile', model);
   }
 
+  /** `compile` as a list of errors ([] when it compiles): a server answers its one refusal (the in-tab twin, all). */
+  async compileErrors(code: string): Promise<string[]> {
+    try {
+      await this.compile({ _type: 'text', code });
+      return [];
+    } catch (e) {
+      if (e instanceof EngineError && e.status < 500) return [e.message];
+      throw e;
+    }
+  }
+
   async returnType(model: PureModelContext, lambda: Lambda): Promise<string> {
     return (await this.#json<{ returnType: string }>('POST', '/pure/v1/compilation/lambdaReturnType', { model, lambda })).returnType;
   }
