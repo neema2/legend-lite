@@ -1510,7 +1510,7 @@ final class TailEmitter {
             }
             var v = a.parametersValues().get(i);
             if (v instanceof com.legend.protocol.spec.AppliedFunction af
-                    && "list".equals(af.function())
+                    && com.legend.protocol.spec.AppliedFunction.LIST.equals(af.function())
                     && af.parameters().size() == 1
                     && af.parameters().get(0)
                             instanceof com.legend.protocol.spec.PureCollection pc) {

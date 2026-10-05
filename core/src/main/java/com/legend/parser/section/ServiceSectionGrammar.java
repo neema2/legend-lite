@@ -343,9 +343,7 @@ public final class ServiceSectionGrammar
                 && ts.type(c.pos() - 1) == TokenType.PAREN_CLOSE) {
             com.legend.protocol.spec.ValueSpecification inner =
                     com.legend.parser.SpecParser.parse(c.tokens().slice(from + 2, c.pos() - 1), c.dialect());
-            return new com.legend.protocol.spec.AppliedFunction("list",
-                    java.util.List.of(foldSignedLiterals(inner)),
-                    java.util.List.of(),
+            return com.legend.protocol.spec.AppliedFunction.list(foldSignedLiterals(inner),
                     c.spanOf(from, c.pos() - 1));
         }
         return foldSignedLiterals(com.legend.parser.SpecParser.parse(c.tokens().slice(from, c.pos()), c.dialect()));
