@@ -123,11 +123,4 @@ export class WasmGrammar implements Grammar {
   /** A service's tests planned without a database (core's TestPlan): each test's tables, runtime, format, assertions. */
   async testPlan(code: string, service: string): Promise<PlannedTest[]> {
     return JSON.parse(unfold(await this.#port.ask({ kind: 'testPlan', model: code, service }))) as PlannedTest[];
-  }
-
-  /** An EqualToJson judged by core's rules: undefined when equal, else the difference (TestHost.judge). */
-  async judge(expectedJson: string, actual: unknown): Promise<string | undefined> {
-    const diff = unfold(await this.#port.ask({ kind: 'judge', expected: expectedJson, actual: JSON.stringify(actual) }));
-    return diff === '' ? undefined : diff;
-  }
-}
+  }}

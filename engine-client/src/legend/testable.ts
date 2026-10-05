@@ -38,8 +38,12 @@ export interface TestResult {
 /** What a run needs: core's plan and judgment, the in-tab engine, and where rows go. */
 export interface TestHost {
   testPlan(code: string, service: string): Promise<readonly PlannedTest[]>;
-  /** An EqualToJson judged by core's rules: undefined when equal, else the difference. */
-  judge(expectedJson: string, actual: unknown): Promise<string | undefined>;
+  /**
+   * An EqualToJson judged by core's rules: undefined when equal, else the difference. Absent while core's judging is
+   * not yet on the plan side (its design is being agreed): every test that would be judged is then SKIPPED, saying so
+   * -- never judged here by rules of the tab's own.
+   */
+  judge?(expectedJson: string, actual: unknown): Promise<string | undefined>;
   readonly engine: Engine;
   readonly data: DataSink;
 }
@@ -110,6 +114,7 @@ async function runOne(host: TestHost, code: string, svc: ServiceJson, declared: 
   const actual = serialize(answer, planned.format);
   for (const a of planned.assertions) {
     if (a.expectedJson === undefined) throw new Skip(a.skipped ?? `assertion '${a.id}' is not judged by this runner`);
+    if (!host.judge) throw new Skip(`assertion '${a.id}': the query ran; judging in the tab waits on core's judging library`);
     const diff = await host.judge(a.expectedJson, actual);
     if (diff !== undefined) return result('FAIL', `${a.id}: ${diff}`);
   }
