@@ -2,40 +2,10 @@
 // the module called directly in tests. Two questions Studio asks it: what element a file's text is
 // (its grammarToJson), and whether a whole model compiles (the server's compilation/compile).
 
-import type { PlannerRequest, PlannerResponse } from './planner-worker.ts';
+import type { PlannerPort } from '../../../engine-client/src/legend/wasm-grammar.ts';
 
-/** Where a request goes: a worker, or (in tests) the module called directly. */
-export interface PlannerPort {
-  ask(request: PlannerRequest): Promise<string>;
-}
-
-/** A worker running planner-worker.ts; `base` is where classes.wasm and its runtime live. */
-export class WorkerPort implements PlannerPort {
-  readonly #worker: Worker;
-  readonly #base: string;
-  readonly #pending = new Map<number, { resolve(a: string): void; reject(e: Error): void }>();
-  #next = 1;
-
-  constructor(workerUrl: string | URL, base: string) {
-    this.#worker = new Worker(workerUrl, { type: 'module' });
-    this.#base = new URL(base, globalThis.location?.href).href;
-    this.#worker.onmessage = (e: MessageEvent<PlannerResponse>) => {
-      const p = this.#pending.get(e.data.id);
-      if (!p) return;
-      this.#pending.delete(e.data.id);
-      if (e.data.ok) p.resolve(e.data.answer);
-      else p.reject(new Error(`the compiler could not load: ${e.data.error}`));
-    };
-  }
-
-  ask(request: PlannerRequest): Promise<string> {
-    const id = this.#next++;
-    return new Promise((resolve, reject) => {
-      this.#pending.set(id, { resolve, reject });
-      this.#worker.postMessage({ ...request, id, base: this.#base });
-    });
-  }
-}
+// the port and its worker are the in-tab engine's, shared with Query (engine-client/src/legend/)
+export { WorkerPort, type PlannerPort } from '../../../engine-client/src/legend/wasm-grammar.ts';
 
 /** A refusal from the compiler: its own words. */
 export class CompilerError extends Error {

@@ -9,7 +9,7 @@ import { MemoryRecords } from '../../sdlc-client/src/records.ts';
 import { SdlcClient } from '../../sdlc-client/src/client.ts';
 import { WASM_API, WASM_DEPOT_API, wasmSdlcServer, type SdlcModule } from '../../sdlc-client/src/wasm-server.ts';
 import { Compiler, type PlannerPort } from '../src/backend/planner.ts';
-import type { PlannerRequest } from '../src/backend/planner-worker.ts';
+import type { PlannerRequest } from '../../engine-client/src/legend/planner-worker.ts';
 import { runfileDirUrl } from '../../tools/js/runfiles.mts';
 
 async function load<T>(dir: URL): Promise<T> {
@@ -37,6 +37,10 @@ class DirectPort implements PlannerPort {
     switch (r.kind) {
       case 'modelJson': return e.modelJsonOrError!(r.text) as string;
       case 'compile': return e.compileOrError!(r.model) as string;
+      case 'lambdaJson': return e.lambdaJsonOrError!(r.text) as string;
+      case 'compose': return e.composeLambdaOrError!(r.lambda, r.style) as string;
+      case 'relationType': return e.relationTypeJsonOrError!(r.model, r.lambda) as string;
+      case 'plan': return e.planJsonOrError!(r.model, r.lambda, r.runtime) as string;
       case 'warm': e.warmModel!(r.model); return 'OK\n';
     }
   }

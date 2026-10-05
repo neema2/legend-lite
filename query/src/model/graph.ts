@@ -11,7 +11,7 @@ import {
   type Annotated, type PAssociation, type PClass, type PDataSpace, type PElement, type PEnumeration,
   type PFunction, type PMapping, type PProfile, type PProperty, type PQualifiedProperty, type PRuntime,
   type PService, type PureModelContextData, type TaggedValue,
-} from './pmcd.ts';
+} from '../../../engine-client/src/legend/pmcd.ts';
 
 export const DOC_PROFILE = 'meta::pure::profiles::doc';
 const TEMPORAL_PROFILE = 'meta::pure::profiles::temporal';
