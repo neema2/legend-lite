@@ -30,7 +30,7 @@ D1 is the **full experience**; D2 is **drop-in**. Plus **feature parity**: every
 
 ## 1. Where we are (2026-10-04, branch `studio`)
 
-Works, tested at both levels (page alone; model home over git), `//studio:verify` in Chromium:
+Works, tested at both levels (page alone; model home over git), `//studio:verify_test` in Chromium:
 - **write** any element lite compiles, as text, one per file, comments kept (no imports: v0);
 - **compile** live in the tab (WebAssembly), with dependencies' released text from Depot;
 - **save** with upstream's revision lock; **review → merge commit** (workspace closes); **release** (compile-gated);
@@ -60,7 +60,7 @@ What exists to build on:
   (react-icons 5.5.0 paths, upstream's `Icon.ts` names), used by Query, Studio and later DataCube.
 - Re-skin Studio from `UPSTREAM_STUDIO_LOOK.md`: setup page, activity bar, explorer per-type icons/colours, tabs,
   Monaco's Pure theme (upstream's token rules), Problems, status bar (22px, `#007acc`), dialogs, toasts, react-select
-  look. Screenshot per screen in `//studio:verify`.
+  look. Screenshot per screen in `//studio:verify_test`.
 - **Done when:** side-by-side screenshots against the census show no unexplained difference.
 
 ### A1. One in-tab engine for every app
@@ -94,7 +94,7 @@ A model's mapping points at a database the browser cannot reach. Rows come, in o
   parameters as query variables (bound, never string-substituted — the deleted invention).
 - **Mapping execution**: a query on a mapped class (the embedded query builder, §A5), against the runtime of choice.
 - **Execute SQL** on a connection (upstream's SQL playground) — in-tab DuckDB only.
-- **Done when:** `//studio:verify` runs a function, a service and a mapping query on the demo model and checks rows.
+- **Done when:** `//studio:verify_test` runs a function, a service and a mapping query on the demo model and checks rows.
 
 ### A4. Tests (upstream's testable framework)
 - **Core work** (announced on `main`; the charter `docs/DEFERRED_TEST_EXECUTION.md`): `testable/runTests` with the

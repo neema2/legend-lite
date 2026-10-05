@@ -63,10 +63,10 @@ jobs:
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
             {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
             {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //datacube:verify_app_test //wasm:all //warehouse:tests //query-store:lite_test"},
-            {"key":"misc",   "name":"json, pure-protocol, query, query-store, studio", "targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test //sdlc-client:tests //depot-client:tests //studio:tests"},
+            {"key":"misc",   "name":"json, pure-protocol, query, query-store, studio", "targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test //sdlc-server:git_repository_test //sdlc-client:tests //depot-client:tests //studio:tests"},
             {"key":"build",  "name":"bazel build //... (every target builds)", "targets":"//..."},
             {"key":"native", "name":"warehouse as a native image, and its launcher", "targets":"//warehouse:tests_native //warehouse:launcher_test //datacube:app"},
-            {"key":"browser", "name":"DataCube in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test //datacube:verify_smoke_test"}
+            {"key":"browser", "name":"DataCube and Studio in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test //datacube:verify_smoke_test //studio:verify_test"}
           ]')
           # the browser lane runs on Linux only: its harnesses drive DuckDB-WASM in Chromium, the same on
           # every platform, and live-vs-snap compares the native warehouse on x86_64 with the arm64 laptops'
@@ -168,7 +168,7 @@ jobs:
           bazel "$cmd" "${flags[@]}" "${targets[@]}"
           # G14 (Bazel workplan P6-14): every target still analyzes under Bazel 10's incompatible flags (.bazelrc)
           if [ "${{ matrix.lane.key }}" = build ]; then bazel build --nobuild --config=bazel10 "${flags[@]}" //...; fi
-      - name: the browser harnesses (every //datacube, //query, //site and //studio target tagged browser-ci)
+      - name: the browser harnesses (every //datacube, //query and //site target tagged browser-ci)
         if: matrix.lane.key == 'browser'
         run: |
           set -euo pipefail
@@ -176,7 +176,7 @@ jobs:
           mkdir -p harness-logs
           failed=()
           # the list first, so a failed query fails the step instead of running no harness at all
-          harnesses=$(bazel query --repository_cache="$HOME/.cache/bazel-repo" 'attr(tags, "browser-ci", //datacube:* + //query:* + //site:* + //studio:*)')
+          harnesses=$(bazel query --repository_cache="$HOME/.cache/bazel-repo" 'attr(tags, "browser-ci", //datacube:* + //query:* + //site:*)')
           [ -n "$harnesses" ] || { echo "::error ::no browser-ci harness found"; exit 1; }
           # one at a time: each serves the site and drives its own browser
           for t in $harnesses; do

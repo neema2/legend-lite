@@ -6,6 +6,7 @@
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
+load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/teavm:defs.bzl", "teavm_wasm")
 
 # THE RULES: TeaVM-safe by rule (no files, sockets, threads, reflection, java.security), so the same
@@ -83,6 +84,23 @@ teavm_wasm(
         ":page_boundary",
         "@maven_teavm//:org_teavm_teavm_classlib",
         "@maven_teavm//:org_teavm_teavm_jso",
+    ],
+)
+
+# The repository the server writes by hand is git's: JGit (legend-sdlc's own git library, from the test pool)
+# reads back every object, ref, history and file -- never the machine's git (no host program in a test).
+junit_test(
+    name = "git_repository_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["src/test/java/com/legend/sdlc/server/GitRepositoryTest.java"],
+    select = ["--select-class=com.legend.sdlc.server.GitRepositoryTest"],
+    deps = [
+        ":rules",
+        ":server_lib",
+        "//json",
+        "@maven_test//:org_eclipse_jgit_org_eclipse_jgit",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
 

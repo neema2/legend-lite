@@ -9,7 +9,7 @@ bazel run //studio:serve                      # http://127.0.0.1:8200/demo/index
 bazel run //sdlc-server:server -- --port 6100 --repo /path/to/repo   # the model home (level 1)
 #   then http://127.0.0.1:8200/demo/index.html?config=./config-server.json
 bazel test //studio:all //sdlc-client:all //depot-client:all
-bazel run //studio:verify                     # the whole loop in Chromium, at level 0 and level 1
+bazel test //studio:verify_test               # the whole loop in the pinned Chromium, at level 0 and level 1
 ```
 
 ## What runs where
@@ -49,7 +49,7 @@ only configuration (`demo/config.json`: `"sdlc": "page"`; `config-server.json`: 
   the save diff, renames, the lock, and errors mapped to file and line.
 - `//studio:demo_test`: the dogfood model published through every gate. The diamond resolves
   nearest-wins, and a trading workspace compiles in the tab with its dependencies.
-- `//studio:verify`: the loop in Chromium, at level 0 and against the model home.
+- `//studio:verify_test`: the loop in Chromium, at level 0 and against the model home.
 - `//sdlc-client:all`, `//depot-client:all`: one conformance suite each, run against the page's
   module and the server over HTTP.
 

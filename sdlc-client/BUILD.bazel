@@ -48,15 +48,21 @@ executable_of(
     name = "sdlc_server",
     testonly = True,
     binary = "//sdlc-server:server",
-    visibility = ["//depot-client:__pkg__"],
+    visibility = [
+        "//depot-client:__pkg__",
+        "//studio:__pkg__",
+    ],
 )
 
-# Starting and stopping that server in a test: here and depot-client's server_test
+# Starting and stopping that server in a test: here, depot-client's server_test and studio's verify_test
 js_library(
     name = "server_helper",
     testonly = True,
     srcs = ["test/sdlc-server.ts"],
-    visibility = ["//depot-client:__pkg__"],
+    visibility = [
+        "//depot-client:__pkg__",
+        "//studio:__pkg__",
+    ],
 )
 
 # every test here: the local gate and CI run it (gates/BUILD.bazel)

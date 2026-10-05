@@ -1,9 +1,8 @@
 // sdlc-server over HTTP (`//sdlc-server:server`, a git repository on disk), held to the one suite -- the
-// SDLC the page runs compiled to WebAssembly is the SDLC a server answers. Then git itself checks the
-// repository the server wrote: real objects, real refs.
+// SDLC the page runs compiled to WebAssembly is the SDLC a server answers. That the repository it writes is
+// git's is //sdlc-server:git_repository_test's (JGit reads it back; no host git in a test).
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { basename, join } from 'node:path';
@@ -68,25 +67,5 @@ describe('sdlc-server: who may call it (review findings 1, 2)', () => {
       assert.equal((await request(path, 'DELETE', {})).status, 400, path);
     }
     assert.equal(readFileSync(canary, 'utf8'), 'still here');
-  });
-});
-
-/** git itself, over the server's repository: its output, or the failure in full (one that never ran, too). */
-function git(...args: string[]): string {
-  const r = spawnSync('git', ['--git-dir', repo, ...args], { encoding: 'utf8' });
-  if (r.error) throw new Error(`git ${args[0]} did not run: ${r.error.message}`);
-  assert.equal(r.status, 0, `git ${args.join(' ')}:\n${r.stdout}${r.stderr}`);
-  return r.stdout;
-}
-
-describe('sdlc-server: the repository it writes is git\'s', () => {
-  it('passes git fsck, and git reads the history the suite saved', async () => {
-    git('fsck', '--strict', '--no-dangling');
-    const refs = git('for-each-ref', '--format=%(refname)');
-    const workspace = refs.split('\n').find((r) => r.endsWith('/workspace/local/w1'));
-    assert.ok(workspace, refs);
-    assert.deepEqual(git('log', '--format=%s', workspace).trim().split('\n'), ['drop', 'email', 'add the party', 'Build project structure']);
-    // git on Windows may write CRLF: the file's own text is compared, line ends aside
-    assert.match(git('show', `${workspace}:demo/party/Person.pure`).replace(/\r\n/g, '\n'), /^\/\/ a person, as the demo writes one\nClass demo::party::Person/);
   });
 });

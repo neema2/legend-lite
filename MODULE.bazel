@@ -176,6 +176,13 @@ _TEST_ARTIFACTS = [
     "org.junit.platform:junit-platform-suite-engine:1.11.3",
     "org.junit.vintage:junit-vintage-engine:5.11.3",
     "com.tngtech.archunit:archunit-junit5:1.3.0",
+    # sdlc-server's judge of the git repository it writes by hand (Git.java): read back by JGit, at the version
+    # legend-sdlc's own file-system backend uses (legend-sdlc-server-fs/pom.xml), never the machine's git
+    # (2026-10-04, the Studio line; the Bazel program session's ruling: no host programs in tests)
+    "org.eclipse.jgit:org.eclipse.jgit:6.3.0.202209071007-r",
+    # held at the version the pool had before JGit (ArchUnit's): JGit 6.3 asks for 1.7.30, and the resolver's
+    # nearest-wins would otherwise move the whole pool down to it (slf4j 2's API serves a 1.7 caller)
+    "org.slf4j:slf4j-api:2.0.12",
 
     # USED DIRECTLY by BUILD files, so declared: strict_visibility (Bazel workplan P1-25) makes an
     # undeclared transitive artifact invisible.

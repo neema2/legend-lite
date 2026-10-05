@@ -42,15 +42,16 @@ js_library(
 
 # Every locked Playwright expects the pinned revision and version: a Playwright bump that moves either fails
 # here, without launching or downloading anything (it reads the pin, @chromium_pin//:pin.json). A new lock
-# with Playwright is added to LOCKS and data.
+# with Playwright is added to LOCKS and data; one without, to LOCKS_WITHOUT_PLAYWRIGHT.
 node_test(
     name = "revision_test",
     data = [
         "//datacube:node_modules/playwright",
         "//datacube:pnpm-lock.yaml",
+        "//engine-client:pnpm-lock.yaml",
         "//query:node_modules/playwright",
-        "//studio:node_modules/playwright",
         "//query:pnpm-lock.yaml",
+        "//studio:node_modules/playwright",
         "//studio:pnpm-lock.yaml",
         "@chromium_pin//:pin.json",
         "@repo_inventory//:files.txt",
@@ -59,13 +60,17 @@ node_test(
     env = {
         "INVENTORY": "$(rlocationpath @repo_inventory//:files.txt)",
         "LOCKS": "$(rlocationpath //datacube:pnpm-lock.yaml) $(rlocationpath //query:pnpm-lock.yaml) $(rlocationpath //studio:pnpm-lock.yaml)",
+        # the locks whose packages have no Playwright: each checked to resolve none (G-26)
+        "LOCKS_WITHOUT_PLAYWRIGHT": "$(rlocationpath //engine-client:pnpm-lock.yaml)",
         # the same locks as workspace paths, to hold against the inventory
         "LOCK_PATHS": "$(rootpath //datacube:pnpm-lock.yaml) $(rootpath //query:pnpm-lock.yaml) $(rootpath //studio:pnpm-lock.yaml)",
+        "LOCK_PATHS_WITHOUT_PLAYWRIGHT": "$(rootpath //engine-client:pnpm-lock.yaml)",
         "PIN": "$(rlocationpath @chromium_pin//:pin.json)",
     },
     # external files and other packages' sources: rules_js takes them as runfiles, not copies into bazel-bin
     no_copy_to_bin = [
         "//datacube:pnpm-lock.yaml",
+        "//engine-client:pnpm-lock.yaml",
         "//query:pnpm-lock.yaml",
         "//studio:pnpm-lock.yaml",
         "@chromium_pin//:pin.json",

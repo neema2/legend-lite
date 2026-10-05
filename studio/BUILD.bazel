@@ -3,6 +3,7 @@
 # `npm_studio`). The SDLC and the compiler run in the page as WebAssembly (level 0) or on servers.
 load("//tools/guards:defs.bzl", "guards_package")
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
+load("//tools/browser:defs.bzl", "browser_test")
 load("//tools/js:defs.bzl", "node_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_studio//:defs.bzl", "npm_link_all_packages")
@@ -104,17 +105,20 @@ js_binary(
     entry_point = "demo/serve.mjs",
 )
 
-# `bazel run //studio:verify`: the whole loop in Chromium, in the page alone and against the model
-# home's server (needs Playwright's Chromium, installed once).
-js_binary(
-    name = "verify",
+# The whole loop in the pinned Chromium (//tools/browser), in the page alone and against the model home's
+# server: CI's browser lane (gates-run.yml), and `bazel test //studio:verify_test` here.
+browser_test(
+    name = "verify_test",
+    size = "large",
     data = [
         ":site",
         ":node_modules/playwright",
+        "//sdlc-client:sdlc_server",
+        "//sdlc-client:server_helper",
         "//sdlc-server:server",
     ],
     entry_point = "demo/verify.mjs",
-    tags = ["browser-ci"],
+    env = {"SDLC_SERVER": "$(rlocationpath //sdlc-client:sdlc_server)"},
 )
 
 # Studio's model over the real WebAssembly modules: the compiler (WASM_PLANNER) and the SDLC (SDLC_PAGE).
