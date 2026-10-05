@@ -1,4 +1,5 @@
 load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # Test support shared by every module's tests: Runfile, a declared input found through Bazel's
 # runfiles library (Bazel workplan P1-03), and Repo/Upstream, which P1-05 and P3-33 retire.
@@ -11,3 +12,5 @@ legend_java_library(
     visibility = ["//visibility:public"],
     deps = ["@rules_java//java/runfiles"],
 )
+
+guards_package()

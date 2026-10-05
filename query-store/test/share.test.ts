@@ -6,8 +6,9 @@ import { describe, it } from 'node:test';
 
 import { isQueryFragment, queryFragment, readQueryFragment } from '../src/share.ts';
 import type { Query } from '../src/wire.ts';
+import { runfileNamed } from '../../tools/js/runfiles.mts';
 
-const fixture = (name: string): Query => JSON.parse(readFileSync(`../fixtures/saved-queries/${name}.json`, 'utf8')) as Query;
+const fixture = (name: string): Query => JSON.parse(readFileSync(runfileNamed('SAVED_QUERIES', `${name}.json`), 'utf8')) as Query;
 
 describe('a saved query share link', () => {
   for (const name of ['explicit-context', 'data-space-context', 'default-parameter-values', 'graph-fetch']) {

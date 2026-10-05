@@ -27,8 +27,9 @@ import { familyOf } from '../../../engine-client/src/types.ts';
 import { toCsv } from '../../src/export.ts';
 import { selectionStats } from '../../src/selection.ts';
 import { accessor, col, fn, lambda, lit, times, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
 
-const MODULE_DIR = new URL('../../../wasm/planner/', import.meta.url).href;
+const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
 const MODEL = `###Relational
 Database typed::DB

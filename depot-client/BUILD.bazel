@@ -1,7 +1,9 @@
 # The Depot client (README.md): upstream legend-depot's records and lite's dependency-files route, ONE typed
 # client over a fetch. Plain TypeScript, no npm dependency. Its Depot is depot-server's rules: in the page
 # (compiled to WebAssembly with sdlc-server's, sdlc-client/src/wasm-server.ts) or in the model home's server.
-load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+load("//tools/guards:defs.bzl", "guards_package")
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("//tools/js:defs.bzl", "node_test")
 
 js_library(
     name = "depot_client",
@@ -10,44 +12,37 @@ js_library(
     deps = ["//sdlc-client:sdlc_client"],
 )
 
-_NODE_OPTIONS = [
-    "--experimental-strip-types",
-    "--experimental-wasm-exnref",
-    "--disable-warning=ExperimentalWarning",
-    "--test-reporter=spec",
-    "--test-reporter-destination=stdout",
-]
-
 # The one suite against the page's Depot (depot-server's rules in WebAssembly).
-js_test(
+node_test(
     name = "wasm_test",
     size = "small",
-    chdir = package_name(),
     data = [
         ":depot_client",
         "test/conformance.ts",
         "test/wasm.test.ts",
         "//sdlc-client:sdlc_client",
-        "//sdlc-server:page",
+        "//sdlc-server:page_dir",
     ],
     entry_point = "test/wasm.test.ts",
-    node_options = _NODE_OPTIONS,
+    env = {"SDLC_PAGE": "$(rlocationpath //sdlc-server:page_dir)"},
+    node_options = ["--experimental-wasm-exnref"],  # the flag only: this test loads the SDLC page, not the planner
 )
 
 # The same suite against the model home's server over HTTP.
-js_test(
+node_test(
     name = "server_test",
     size = "medium",
-    chdir = package_name(),
     data = [
         ":depot_client",
         "test/conformance.ts",
         "test/server.test.ts",
         "//sdlc-client:sdlc_client",
+        "//sdlc-client:sdlc_server",
+        "//sdlc-client:server_helper",
         "//sdlc-server:server",
     ],
     entry_point = "test/server.test.ts",
-    node_options = _NODE_OPTIONS,
+    env = {"SDLC_SERVER": "$(rlocationpath //sdlc-client:sdlc_server)"},
 )
 
 # every test here: the local gate and CI run it (gates/BUILD.bazel)
@@ -58,3 +53,5 @@ test_suite(
         ":wasm_test",
     ],
 )
+
+guards_package()

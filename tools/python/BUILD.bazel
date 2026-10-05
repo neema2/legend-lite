@@ -1,5 +1,6 @@
 load("@rules_python//python:pip.bzl", "compile_pip_requirements")
 load("@rules_python//python:py_test.bzl", "py_test")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # THE PYTHON DEPENDENCIES (Bazel workplan P1-07): requirements.in names them; requirements_lock.txt pins
 # every one with its hashes. `bazel run //tools/python:requirements.update` is the only way the lock
@@ -27,3 +28,5 @@ py_test(
     ],
     deps = ["@rules_python//python/runfiles"],
 )
+
+guards_package()

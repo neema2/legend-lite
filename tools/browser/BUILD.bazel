@@ -1,9 +1,11 @@
 # THE PINNED BROWSER (Bazel workplan P1-14, spike S4): this platform's chromium-headless-shell, fetched by
 # Bazel (tools/browser/extensions.bzl, pinned in MODULE.bazel), and browser_test (defs.bzl), which runs a
 # Playwright harness as a hermetic test against it.
-load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("//tools/js:defs.bzl", "node_test")
 load("//tools/platforms:defs.bzl", "platform_select")
 load(":defs.bzl", "CHROMIUM_COMPATIBLE", "CHROMIUM_PLATFORMS")
+load("//tools/guards:defs.bzl", "guards_package")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -41,18 +43,34 @@ js_library(
 # Every locked Playwright expects the pinned revision and version: a Playwright bump that moves either fails
 # here, without launching or downloading anything (it reads the pin, @chromium_pin//:pin.json). A new lock
 # with Playwright is added to LOCKS and data.
-js_test(
+node_test(
     name = "revision_test",
     data = [
         "//datacube:node_modules/playwright",
+        "//datacube:pnpm-lock.yaml",
         "//query:node_modules/playwright",
+        "//studio:node_modules/playwright",
+        "//query:pnpm-lock.yaml",
+        "//studio:pnpm-lock.yaml",
         "@chromium_pin//:pin.json",
+        "@repo_inventory//:files.txt",
     ],
     entry_point = "revision_test.mjs",
     env = {
-        "LOCKS": "datacube query",
+        "INVENTORY": "$(rlocationpath @repo_inventory//:files.txt)",
+        "LOCKS": "$(rlocationpath //datacube:pnpm-lock.yaml) $(rlocationpath //query:pnpm-lock.yaml) $(rlocationpath //studio:pnpm-lock.yaml)",
+        # the same locks as workspace paths, to hold against the inventory
+        "LOCK_PATHS": "$(rootpath //datacube:pnpm-lock.yaml) $(rootpath //query:pnpm-lock.yaml) $(rootpath //studio:pnpm-lock.yaml)",
         "PIN": "$(rlocationpath @chromium_pin//:pin.json)",
     },
-    # an external file: rules_js takes it as a runfile, not a copy into bazel-bin
-    no_copy_to_bin = ["@chromium_pin//:pin.json"],
+    # external files and other packages' sources: rules_js takes them as runfiles, not copies into bazel-bin
+    no_copy_to_bin = [
+        "//datacube:pnpm-lock.yaml",
+        "//query:pnpm-lock.yaml",
+        "//studio:pnpm-lock.yaml",
+        "@chromium_pin//:pin.json",
+        "@repo_inventory//:files.txt",
+    ],
 )
+
+guards_package()

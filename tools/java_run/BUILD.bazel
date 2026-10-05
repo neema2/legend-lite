@@ -3,6 +3,7 @@ load("@bazel_lib//lib:diff_test.bzl", "diff_test")
 load("//tools/java:defs.bzl", "legend_java_library")
 
 load(":defs.bzl", "java_run")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # What a java_run action sees, held to pins.expected (Bazel workplan P0-10): removing a pin from
 # defs.bzl changes the output, and the diff test fails.
@@ -26,3 +27,5 @@ diff_test(
     file1 = ":pins",
     file2 = "pins/pins.expected",
 )
+
+guards_package()

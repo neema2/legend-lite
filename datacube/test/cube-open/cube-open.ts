@@ -26,8 +26,9 @@ import { TreeState } from '../../src/tree.ts';
 import { ingestFile, type DuckDbFiles } from '../../src/upload.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
 import { col, fn, lambda, lit, times, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
+import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
 
-const MODULE_DIR = new URL('../../../wasm/planner/', import.meta.url).href;
+const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
 /** A model to start the planner on; each file read replaces it (`useModel`). */
 const START = `###Relational

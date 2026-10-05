@@ -28,7 +28,6 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
 
 import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
 import { inferModel } from '../../src/infer.ts';
@@ -40,9 +39,9 @@ import { WasmPlanner } from '../../src/wasm-planner.ts';
 import { levelLambda } from '../../src/query.ts';
 import { accessor, from } from '../../../pure-protocol/src/index.ts';
 import { CASES, MODEL, queries, RUNTIME } from '../wasm-differential/cases.ts';
+import { runfileDirUrl, runfileFromEnv } from '../../../tools/js/runfiles.mts';
 
-const RUNFILES = fileURLToPath(new URL('../../../', import.meta.url));
-const MODULE_DIR = new URL('../../../wasm/planner/', import.meta.url).href;
+const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 const SOURCE = accessor('trades::DB', 'TRADES');
 const COLUMNS = ['region', 'desk', 'book', 'year', 'qtr', 'notional', 'pnl', 'qty'];
 
@@ -82,8 +81,8 @@ async function asOwner(sql: string, token: string): Promise<void> {
 }
 
 before(async () => {
-  const binary = path.join(RUNFILES, process.env['WAREHOUSE_BINARY'] ?? '');
-  const library = path.join(RUNFILES, process.env['WAREHOUSE_DUCKDB_LIBRARY'] ?? '');
+  const binary = runfileFromEnv('WAREHOUSE_BINARY');
+  const library = runfileFromEnv('WAREHOUSE_DUCKDB_LIBRARY');
   const data = mkdtempSync(path.join(tmpdir(), 'live-snap-'));
   server = spawn(binary, ['--port', '0', '--data', data, '--user', 'alice:alice-pw', '--user', 'rita:rita-pw',
     '--owner', 'alice', '--duckdb-library', library], { stdio: ['ignore', 'ignore', 'pipe'] });

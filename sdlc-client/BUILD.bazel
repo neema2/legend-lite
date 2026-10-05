@@ -1,7 +1,10 @@
 # The SDLC client (README.md): upstream legend-sdlc's records and lite's text routes (design S15), ONE
 # typed client over a fetch, and the page's SDLC (design S21, level 0): sdlc-server's Java rules compiled
 # to WebAssembly, behind an adapter that persists to IndexedDB. Plain TypeScript, no npm dependency.
-load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/js:defs.bzl", "node_test")
+load("//tools/runfiles:defs.bzl", "executable_of")
 
 js_library(
     name = "sdlc_client",
@@ -9,47 +12,51 @@ js_library(
     visibility = ["//visibility:public"],
 )
 
-# The same suite against sdlc-server over HTTP, its repository then checked by git itself.
-js_test(
+# The same suite against sdlc-server over HTTP, started here over a fresh repository.
+node_test(
     name = "server_test",
     size = "medium",
-    chdir = package_name(),
     data = [
         ":sdlc_client",
+        ":sdlc_server",
+        ":server_helper",
         "test/conformance.ts",
         "test/server.test.ts",
         "//sdlc-server:server",
     ],
     entry_point = "test/server.test.ts",
-    # the repository check runs the machine's own git, found on the caller's PATH (Bazel's test PATH is trimmed)
-    env_inherit = ["PATH"],
-    node_options = [
-        "--experimental-strip-types",
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-    ],
+    env = {"SDLC_SERVER": "$(rlocationpath :sdlc_server)"},
 )
 
 # The one suite against the page's SDLC: sdlc-server's rules in WebAssembly (//sdlc-server:page).
-js_test(
+node_test(
     name = "wasm_test",
     size = "small",
-    chdir = package_name(),
     data = [
         ":sdlc_client",
         "test/conformance.ts",
         "test/wasm.test.ts",
-        "//sdlc-server:page",
+        "//sdlc-server:page_dir",
     ],
     entry_point = "test/wasm.test.ts",
-    node_options = [
-        "--experimental-strip-types",
-        "--experimental-wasm-exnref",
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-    ],
+    env = {"SDLC_PAGE": "$(rlocationpath //sdlc-server:page_dir)"},
+    node_options = ["--experimental-wasm-exnref"],  # the flag only: this test loads the SDLC page, not the planner
+)
+
+# sdlc-server's launcher, exactly one file, for a test to start by runfiles path (SDLC_SERVER; Bazel workplan P1-24)
+executable_of(
+    name = "sdlc_server",
+    testonly = True,
+    binary = "//sdlc-server:server",
+    visibility = ["//depot-client:__pkg__"],
+)
+
+# Starting and stopping that server in a test: here and depot-client's server_test
+js_library(
+    name = "server_helper",
+    testonly = True,
+    srcs = ["test/sdlc-server.ts"],
+    visibility = ["//depot-client:__pkg__"],
 )
 
 # every test here: the local gate and CI run it (gates/BUILD.bazel)
@@ -60,3 +67,5 @@ test_suite(
         ":wasm_test",
     ],
 )
+
+guards_package()

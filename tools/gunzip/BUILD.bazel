@@ -1,4 +1,5 @@
 load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # A gunzip for build actions (java_run), on the JDK alone: no shell, no host gzip (Bazel workplan P1-17).
 legend_java_library(
@@ -8,3 +9,5 @@ legend_java_library(
     srcs = ["Gunzip.java"],
     visibility = ["//visibility:public"],
 )
+
+guards_package()

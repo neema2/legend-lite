@@ -108,7 +108,11 @@ def _java_run_impl(ctx):
         progress_message = "%s %%{label}" % ctx.attr.mnemonic,
         resource_set = _RESOURCE_SETS[memory] if memory else None,
     )
-    return [DefaultInfo(files = depset(ctx.outputs.outs))]
+    return [
+        DefaultInfo(files = depset(ctx.outputs.outs)),
+        # the program's runtime classpath, as a java_binary reports its own (//tools/guards:classpath_test, G11)
+        java_common.JavaRuntimeClasspathInfo(runtime_classpath = jars),
+    ]
 
 _java_run = rule(
     implementation = _java_run_impl,

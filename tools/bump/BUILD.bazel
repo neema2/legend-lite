@@ -1,5 +1,6 @@
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/guards:defs.bzl", "guards_package")
 
 legend_java_library(
     name = "bump_lib",
@@ -39,3 +40,5 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
+
+guards_package()

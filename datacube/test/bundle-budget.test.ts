@@ -8,8 +8,10 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { gzipSync } from 'node:zlib';
+import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 
-const DEMO = 'demo';
+// the bundle and its chunk directory, side by side as esbuild wrote them (BUILD.bazel names bundle.js in BUNDLE)
+const DEMO = dirname(runfileFromEnv('BUNDLE'));
 const CHUNKS = join(DEMO, 'chunks-bundle');
 
 /** What `file` imports statically: `import ... from "./x.js"` and bare `import "./x.js"`, resolved. */

@@ -91,7 +91,7 @@ class StressServiceSuitesTest {
         List<ServiceTestRunner.Result> slow = new ArrayList<>();
         Files.createDirectories(Repo.outDir());
         // per-test progress, flushed as it happens, so a long run can be
-        // watched: `tail -f core/target/stress-suites-progress.txt`
+        // watched: `tail -f` this file in the test's undeclared outputs (Repo.out)
         Path progressPath = Repo.out("stress-suites-progress" + (h2 ? "-h2" : "") + ".txt");
         int done = 0;
         long lastReport = System.nanoTime();

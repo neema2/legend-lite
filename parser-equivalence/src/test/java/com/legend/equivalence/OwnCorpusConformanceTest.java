@@ -40,7 +40,7 @@ class OwnCorpusConformanceTest {
      * {@link Sectionize} plan IS the violation — the engine binds element
      * kinds to sections, so a headerless one is a lite-only convenience
      * the strict flip would have to refuse. Normalized 2026-08-11 by
-     * {@link ZSectionNormalizeRewrite} (579 snippets, 1170 headers, two
+     * a one-off header-inserting rewrite, since deleted (579 snippets, 1170 headers, two
      * passes: PURE_DECL then the widened OWN_DECL population) plus hand
      * edits for the formatted/generated models (union probes, stress
      * generators); this pin keeps the population at ZERO.

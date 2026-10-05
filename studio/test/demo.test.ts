@@ -5,12 +5,15 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { describe, it } from 'node:test';
+import { pathToFileURL } from 'node:url';
 
 import { loadDemoProjects, type Manifest } from '../src/app/demo-projects.ts';
 import { Workspace } from '../src/model/workspace.ts';
 import { compiler, pageSdlcAndDepot } from './modules.ts';
+import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 
-const dir = new URL('../demo/projects/', import.meta.url);
+// the projects' directory: the one beside their manifest, which the BUILD file names (Bazel workplan P1-24)
+const dir = new URL('./', pathToFileURL(runfileFromEnv('STUDIO_PROJECTS_MANIFEST')));
 const manifest = JSON.parse(await readFile(new URL('manifest.json', dir), 'utf8')) as Manifest;
 const read = (file: string): Promise<string> => readFile(new URL(file, dir), 'utf8');
 

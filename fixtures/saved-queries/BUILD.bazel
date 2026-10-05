@@ -1,4 +1,5 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # Saved queries as legend-lite's /api/pure/v1/query answers GET: the one contract Query writes and
 # DataCube reads (README.md). Both lines test against these records. A js_library, so a js_test in
@@ -12,3 +13,5 @@ js_library(
         "//query-store:__pkg__",
     ],
 )
+
+guards_package()

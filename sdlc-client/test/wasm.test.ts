@@ -9,8 +9,9 @@ import { SdlcClient } from '../src/client.ts';
 import { MemoryRecords, type Guard } from '../src/records.ts';
 import { WASM_API, wasmSdlcServer, type SdlcModule } from '../src/wasm-server.ts';
 import { conformance } from './conformance.ts';
+import { runfileDirUrl } from '../../tools/js/runfiles.mts';
 
-const DIR = new URL('../../sdlc-server/page/', import.meta.url);
+const DIR = runfileDirUrl('SDLC_PAGE');
 
 async function load(): Promise<SdlcModule> {
   const runtime = await import(new URL('wasm-gc-module-runtime.js', DIR).href) as {

@@ -3,63 +3,26 @@
 // repository the server wrote: real objects, real refs.
 
 import assert from 'node:assert/strict';
-import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
-import { createServer } from 'node:net';
-import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 import { conformance } from './conformance.ts';
+import { startSdlcServer, type RunningServer } from './sdlc-server.ts';
 
-const RUNFILES = process.env['RUNFILES_DIR'] ?? process.env['TEST_SRCDIR'] ?? '';
-const SERVER = join(RUNFILES, '_main', 'sdlc-server', 'server');
-
-const freePort = (): Promise<number> => new Promise((resolve, reject) => {
-  const s = createServer();
-  s.once('error', reject);
-  s.listen(0, '127.0.0.1', () => {
-    const port = (s.address() as { port: number }).port;
-    s.close(() => resolve(port));
-  });
-});
-
-let server: ChildProcess | undefined;
+let server: RunningServer | undefined;
 let api = '';
-let log = '';
-const repo = mkdtempSync(join(process.env['TEST_TMPDIR'] ?? tmpdir(), 'sdlc-repo-'));
+let repo = '';
 
 before(async () => {
-  const port = await freePort();
-  server = spawn(SERVER, ['--port', String(port), '--repo', repo, '--user', 'local:Local User'], {
-    env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  server.stdout?.on('data', (d) => { log += d; });
-  server.stderr?.on('data', (d) => { log += d; });
-  const until = Date.now() + 60_000;
-  for (;;) {
-    const up = await fetch(`http://127.0.0.1:${port}/health`).then((r) => r.ok, () => false);
-    if (up) break;
-    if (Date.now() > until || server.exitCode !== null) throw new Error(`sdlc-server did not start:\n${log.slice(-2000)}`);
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  api = `http://127.0.0.1:${port}/sdlc/api`;
+  server = await startSdlcServer('sdlc');
+  api = `${server.base}/sdlc/api`;
+  repo = server.repo;
 });
 
-after(() => {
-  if (server?.pid === undefined) return;
-  // On Windows the server is Bazel's launcher, whose child is the JVM: taskkill /T takes the tree
-  // (query-store/test/lite.test.ts has the history).
-  if (process.platform === 'win32') {
-    if (server.exitCode === null && server.signalCode === null) {
-      const r = spawnSync('taskkill', ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
-      if (r.error) throw new Error(`taskkill did not run: ${r.error.message}`);
-      if (r.status !== 0) throw new Error(`taskkill did not stop the server (status ${r.status}): ${r.stdout}${r.stderr}`.trim());
-    }
-  } else server.kill();
-});
+after(() => server?.stop());
 
 conformance('sdlc-server over HTTP', () => ({ api, fetch: globalThis.fetch.bind(globalThis), user: 'local' }));
 

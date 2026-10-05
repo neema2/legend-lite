@@ -5,6 +5,7 @@ load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES")
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # spec's sources, exported for core's guard tests that walk every module.
 filegroup(
@@ -343,3 +344,4 @@ java_run(
     deps = [":claims_generator_lib"],
 )
 
+guards_package()
