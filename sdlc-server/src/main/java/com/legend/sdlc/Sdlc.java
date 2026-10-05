@@ -212,8 +212,9 @@ public final class Sdlc {
                         return ok(createWorkspace(p, w));
                     }
                     case "DELETE" -> {
-                        // upstream: deleting what is not there succeeds (contract quirk 3)
+                        // upstream: deleting what is not there succeeds (contract quirk 3); its conflict resolution goes too
                         storage.delete(workspaceRef(p, w));
+                        storage.delete(conflictRef(p, w));
                         return new Response(204, null);
                     }
                     default -> throw new Refusal("HTTP 405 Method Not Allowed", 405);
@@ -227,9 +228,10 @@ public final class Sdlc {
             if (sub.size() == 1 && method.equals("POST") && sub.get(0).equals("update")) {
                 return ok(updateWorkspace(p, w));
             }
+            if (sub.get(0).equals("conflictResolution")) return conflictResolution(method, p, w, sub.subList(1, sub.size()), q, body);
             if (sub.size() == 1 && method.equals("GET") && sub.get(0).equals("inConflictResolutionMode")) {
                 workspaceHead(p, w, wsOf(p, w));
-                return ok(Boolean.FALSE);
+                return ok(storage.get(conflictRef(p, w)) != null);
             }
             if (sub.size() == 1 && method.equals("POST") && sub.get(0).equals("pureChanges")) {
                 return pureChanges(p, w, parse(body));
@@ -324,6 +326,12 @@ public final class Sdlc {
     private String workspaceRef(String p, String w) {
         if (!WORKSPACE_ID.matcher(w).matches()) throw invalidWorkspace(w);
         return "ref/" + checked(p) + "/workspace/" + userId + "/" + w;
+    }
+
+    /** A workspace's conflict resolution (upstream's CONFLICT_RESOLUTION access type): its own head while it lasts. */
+    private String conflictRef(String p, String w) {
+        if (!WORKSPACE_ID.matcher(w).matches()) throw invalidWorkspace(w);
+        return "ref/" + checked(p) + "/conflictResolution/" + userId + "/" + w;
     }
 
     private Json.Obj project(String p) {
@@ -882,18 +890,35 @@ public final class Sdlc {
      * Upstream's workspace update ({@code POST …/workspaces/{w}/update}, WorkspaceApi.updateWorkspace): the workspace
      * rebased onto the project line's head -- each of its commits replayed there, file by file, with its author and
      * message -- reported as {@code {status, workspaceMergeBaseRevisionId, workspaceRevisionId}}: NO_OP when the
-     * workspace already has the line's head, UPDATED when it was rebased. DEPARTURE (lite): a CONFLICT -- a file
-     * the line and the workspace both changed, differently -- leaves the workspace as it was and names those files in
-     * {@code conflicts}; upstream opens a conflict-resolution workspace instead, which lite does not have yet.
+     * workspace already has the line's head, UPDATED when it was rebased, CONFLICT when the line and the workspace both
+     * changed a file, differently: then, as upstream (GitLabWorkspaceApi.createConflictResolution), a conflict-resolution
+     * workspace is made -- the line's head with the workspace's own changes over it, the workspace's text winning -- and
+     * the workspace itself is left as it was until the resolution is accepted or discarded. lite's report also names the
+     * conflicting files ({@code conflicts}).
      */
     private Map<String, Object> updateWorkspace(String p, String w) {
         String head = workspaceHead(p, w, wsOf(p, w));
         String line = lineHead(p);
         if (head.equals(line) || isAncestor(line, head)) return updateReport("NO_OP", line, head, List.of());
         String base = mergeBase(line, head);
-        Merged merged = merge3(git.readTree(git.readCommit(base).tree()), git.readTree(git.readCommit(line).tree()),
-                git.readTree(git.readCommit(head).tree()));
-        if (!merged.conflicts().isEmpty()) return updateReport("CONFLICT", base, head, merged.conflicts());
+        Map<String, String> baseTree = git.readTree(git.readCommit(base).tree());
+        Map<String, String> headTree = git.readTree(git.readCommit(head).tree());
+        Merged merged = merge3(baseTree, git.readTree(git.readCommit(line).tree()), headTree);
+        if (!merged.conflicts().isEmpty()) {
+            Map<String, String> tree = git.readTree(git.readCommit(line).tree());
+            Set<String> paths = new java.util.TreeSet<>(baseTree.keySet());
+            paths.addAll(headTree.keySet());
+            for (String path : paths) {
+                String b = baseTree.get(path);
+                String o = headTree.get(path);
+                if (java.util.Objects.equals(b, o)) continue;
+                if (o == null) tree.remove(path);
+                else tree.put(path, o);
+            }
+            String resolution = commit(List.of(line), tree, "Conflict resolution of " + wsOf(p, w));
+            storage.put(conflictRef(p, w), resolution);
+            return updateReport("CONFLICT", line, resolution, merged.conflicts());
+        }
         // the workspace's own commits, oldest first (its history is a line from base: each save is one commit on the last)
         List<String> own = new ArrayList<>();
         for (String at = head; !at.equals(base); ) {
@@ -923,6 +948,49 @@ public final class Sdlc {
         if (!tree.equals(merged.tree())) throw new IllegalStateException("replaying workspace " + w + " of project " + p + " did not give its merge");
         storage.put(workspaceRef(p, w), at);
         return updateReport("UPDATED", line, at, List.of());
+    }
+
+    /**
+     * Upstream's conflict resolution of a user workspace ({@code …/workspaces/{w}/conflictResolution}, made by a CONFLICT
+     * update): read it (GET, and its {@code pure}, {@code entities}, {@code configuration}); whether the line has moved
+     * on since ({@code outdated}); discard it (DELETE: the workspace stays as it was); discard the workspace's changes
+     * ({@code discardChanges}: the workspace becomes the line's head); or accept it ({@code accept}: the resolution, with
+     * the changes given, becomes the workspace). DEPARTURE (lite): accept takes text changes ({@code changes}, as
+     * {@code pureChanges} does); upstream's {@code entityChanges} are refused until the model printer exists (S20), as
+     * on the workspace's own route.
+     */
+    private Response conflictResolution(String method, String p, String w, List<String> sub, Map<String, List<String>> q, @Nullable String body) {
+        workspaceHead(p, w, wsOf(p, w));
+        String desc = "conflict resolution of " + wsOf(p, w);
+        String head = storage.get(conflictRef(p, w));
+        if (head == null) throw new Refusal("Unknown: " + desc, 404);
+        String what = sub.isEmpty() ? "" : sub.get(0);
+        if (sub.isEmpty() && method.equals("GET")) return ok(workspaceView(p, w));
+        if (sub.isEmpty() && method.equals("DELETE")) {
+            storage.delete(conflictRef(p, w));
+            return new Response(204, null);
+        }
+        if (what.equals("outdated") && sub.size() == 1 && method.equals("GET")) {
+            String line = lineHead(p);
+            return ok(!head.equals(line) && !isAncestor(line, head));
+        }
+        if (what.equals("discardChanges") && sub.size() == 1 && method.equals("POST")) {
+            storage.put(workspaceRef(p, w), lineHead(p));
+            storage.delete(conflictRef(p, w));
+            return new Response(204, null);
+        }
+        if (what.equals("accept") && sub.size() == 1 && method.equals("POST")) {
+            if (!(parse(body) instanceof Json.Obj cmd)) throw new Refusal("Input required to accept conflict resolution", 400);
+            if (cmd.getOr("entityChanges", null) instanceof Json.Arr ec && !ec.items().isEmpty()) throw new Unsupported("ENTITY_CHANGES");
+            String message = messageOf(cmd);
+            List<PureOp> ops = pureOps(cmd);
+            String next = ops.isEmpty() ? null : applyPure(head, ops, message);
+            storage.put(workspaceRef(p, w), next == null ? head : next);
+            storage.delete(conflictRef(p, w));
+            return new Response(204, null);
+        }
+        if (method.equals("GET") && (what.equals("pure") || what.equals("entities") || what.equals("configuration"))) return readsAt(head, desc, sub, q);
+        throw new Refusal("HTTP 404 Not Found", 404);
     }
 
     private static Map<String, Object> updateReport(String status, String mergeBase, String revision, List<String> conflicts) {
@@ -1376,17 +1444,42 @@ public final class Sdlc {
      * against the stale state first, so a stale save may answer 500, quirk 8); two changes to one path are
      * refused (quirk 10).
      */
+    /** One text change of a pure-changes command, read and checked. */
+    private record PureOp(String type, String path, @Nullable String text) {}
+
     private Response pureChanges(String p, String w, Json.@Nullable Node body) {
         if (!(body instanceof Json.Obj cmd)) throw new Refusal("Input required to perform entity changes", 400);
+        // upstream's order of refusals: the changes' shape, the message, then each change
+        if (!(cmd.getOr("changes", Json.arr()) instanceof Json.Arr)) throw new Refusal("Unable to process JSON", 400, "changes must be an array");
+        String message = messageOf(cmd);
+        List<PureOp> parsed = pureOps(cmd);
+        if (parsed.isEmpty()) return new Response(204, null);
+
+        String head = workspaceHead(p, w, wsIn(p, w));
+        Json.Node revisionId = cmd.getOr("revisionId", null);
+        if (revisionId != null && !shown(revisionId).equals(head)) {
+            String r = shown(revisionId);
+            throw new Refusal("Expected revision " + r + " of " + wsOf(p, w) + " to be at revision " + r
+                    + "; instead it was at revision " + head, 409);
+        }
+        String next = applyPure(head, parsed, message);
+        if (next == null) return new Response(204, null);
+        storage.put(workspaceRef(p, w), next);
+        return ok(revisionView(next));
+    }
+
+    private static String messageOf(Json.Obj cmd) {
+        if (!(cmd.getOr("message", null) instanceof Json.Str messageNode)) throw new Refusal("message may not be null", 400);
+        return messageNode.value();
+    }
+
+    /** A command's text changes, each read for its one element; every problem refused at once, in upstream's layout. */
+    private List<PureOp> pureOps(Json.Obj cmd) {
         Json.Node changesNode = cmd.getOr("changes", Json.arr());
         if (!(changesNode instanceof Json.Arr changes)) throw new Refusal("Unable to process JSON", 400, "changes must be an array");
-        if (!(cmd.getOr("message", null) instanceof Json.Str messageNode)) throw new Refusal("message may not be null", 400);
-        String message = messageNode.value();
-
         List<String> problems = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        record Change(String type, String path, @Nullable String text) {}
-        List<Change> parsed = new ArrayList<>();
+        List<PureOp> parsed = new ArrayList<>();
         int i = 0;
         for (Json.Node raw : changes.items()) {
             i++;
@@ -1410,7 +1503,7 @@ public final class Sdlc {
                 if (("CREATE".equals(t) || "MODIFY".equals(t)) && !(code instanceof Json.Str)) errors.add("Missing Pure code");
                 String text = code instanceof Json.Str cs ? cs.value() : null;
                 if (errors.isEmpty() && text != null && !"DELETE".equals(t)) errors.addAll(read(shown(path), text).errors());
-                if (errors.isEmpty()) parsed.add(new Change(String.valueOf(t), shown(path), text));
+                if (errors.isEmpty()) parsed.add(new PureOp(String.valueOf(t), shown(path), text));
             }
             if (!errors.isEmpty()) {
                 StringBuilder sb = new StringBuilder("\tEntity change #").append(i).append(' ').append(header).append(':');
@@ -1419,18 +1512,14 @@ public final class Sdlc {
             }
         }
         if (!problems.isEmpty()) throw new Refusal("There are entity change errors:\n" + String.join("\n", problems), 400);
-        if (parsed.isEmpty()) return new Response(204, null);
+        return parsed;
+    }
 
-        String head = workspaceHead(p, w, wsIn(p, w));
-        Json.Node revisionId = cmd.getOr("revisionId", null);
-        if (revisionId != null && !shown(revisionId).equals(head)) {
-            String r = shown(revisionId);
-            throw new Refusal("Expected revision " + r + " of " + wsOf(p, w) + " to be at revision " + r
-                    + "; instead it was at revision " + head, 409);
-        }
+    /** The changes as one commit on {@code head}, with upstream's operation rules; null when they change nothing. */
+    private @Nullable String applyPure(String head, List<PureOp> parsed, String message) {
         Map<String, String> tree = new TreeMap<>(git.readTree(git.readCommit(head).tree()));
         boolean changed = false;
-        for (Change change : parsed) {
+        for (PureOp change : parsed) {
             String operation = "<PureChange type=" + change.type() + " path=" + change.path() + ">";
             String file = filePathOf(change.path());
             boolean exists = tree.containsKey(file);
@@ -1450,10 +1539,7 @@ public final class Sdlc {
             tree.put(file, blob);
             changed = true;
         }
-        if (!changed) return new Response(204, null);
-        String next = commit(List.of(head), tree, message);
-        storage.put(workspaceRef(p, w), next);
-        return ok(revisionView(next));
+        return changed ? commit(List.of(head), tree, message) : null;
     }
 
     // =====================================================================================================

@@ -5,7 +5,7 @@
 
 import type {
   CreateProjectCommand, CreateReviewCommand, CreateVersionCommand, Entity, ErrorMessage, PerformChangesCommand,
-  PerformPureChangesCommand, Project, ProjectConfiguration, PureFile, Review, ReviewState, Revision,
+  PerformPureChangesCommand, Project, ProjectConfiguration, PureChange, PureFile, Review, ReviewState, Revision,
   UpdateProjectConfigurationCommand, User, Version, Workspace, WorkspaceUpdateReport,
 } from './wire.ts';
 
@@ -139,6 +139,33 @@ export class SdlcClient {
 
   inConflictResolutionMode(project: string, workspace: string): Promise<boolean> {
     return this.#json('GET', `${base({ project, workspace })}/inConflictResolutionMode`);
+  }
+
+  // ---- conflict resolution (upstream's, made by a CONFLICT update) ----
+
+  /** The resolution's files: the line's head with the workspace's changes over it, as resolved so far. */
+  conflictResolutionPure(project: string, workspace: string): Promise<PureFile[]> {
+    return this.#json('GET', `${base({ project, workspace })}/conflictResolution/pure`);
+  }
+
+  /** Has the project line moved on since the resolution was made from it? */
+  conflictResolutionOutdated(project: string, workspace: string): Promise<boolean> {
+    return this.#json('GET', `${base({ project, workspace })}/conflictResolution/outdated`);
+  }
+
+  /** `POST …/conflictResolution/accept`: the resolution, with these text changes, becomes the workspace (lite's text form). */
+  async acceptConflictResolution(project: string, workspace: string, command: { readonly message: string; readonly changes: readonly PureChange[] }): Promise<void> {
+    await this.#call('POST', `${base({ project, workspace })}/conflictResolution/accept`, command);
+  }
+
+  /** `DELETE …/conflictResolution`: the resolution dropped; the workspace stays as it was. */
+  async discardConflictResolution(project: string, workspace: string): Promise<void> {
+    await this.#call('DELETE', `${base({ project, workspace })}/conflictResolution`);
+  }
+
+  /** `POST …/conflictResolution/discardChanges`: the workspace's changes dropped; it becomes the line's head. */
+  async discardConflictResolutionChanges(project: string, workspace: string): Promise<void> {
+    await this.#call('POST', `${base({ project, workspace })}/conflictResolution/discardChanges`);
   }
 
   // ---- revisions ----

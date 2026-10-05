@@ -95,8 +95,12 @@ export class Workspace {
     }
     this.#saved = new Map(files.map((f) => [f.path, f.pureCode]));
     this.#files = new Map(files.map((f) => [f.path, { key: f.path, savedPath: f.path, text: f.pureCode }]));
+    this.inConflictResolution = this.view ? false : await this.#client.inConflictResolutionMode(this.project, this.workspace);
     await this.#loadDependencies();
   }
+
+  /** An update met a conflict and opened a resolution (upstream's conflict resolution mode), not yet accepted or discarded. */
+  inConflictResolution = false;
 
   /** The dependencies' files, as Depot resolves them (the same closure the SDLC's gates compile with). */
   async #loadDependencies(): Promise<void> {
