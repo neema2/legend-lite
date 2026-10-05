@@ -3014,10 +3014,7 @@ public final class SpecParser implements TokenStreamCursor {
         }
         String inner = open >= 0 && close > open
                 ? raw.substring(open + 1, close) : raw;
-        return new com.legend.protocol.spec.TdsLiteral(inner,
-                new AppliedFunction("meta::legend::lite::tds",
-                        List.of(new CString("TDS"), new CString(raw))),
-                spanOf(tok, tok));
+        return com.legend.protocol.spec.TdsLiteral.of(inner, raw, spanOf(tok, tok));
     }
 
     // -------------------------------------------------------------------

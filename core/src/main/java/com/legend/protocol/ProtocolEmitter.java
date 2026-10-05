@@ -51,7 +51,7 @@ public final class ProtocolEmitter {
             }
             element(b, els.get(i));
         }
-        return b.append("]}").toString();
+        return finish(b.append("]}"));
     }
 
     /**
@@ -61,7 +61,7 @@ public final class ProtocolEmitter {
     public static String emitElement(Element e) {
         StringBuilder b = new StringBuilder(512);
         element(b, e);
-        return b.toString();
+        return finish(b);
     }
 
     /** Exhaustive over {@link Element}. No {@code default} arm — a new variant must land here. */
@@ -1060,8 +1060,8 @@ public final class ProtocolEmitter {
     }
 
     private static void modelConnection(StringBuilder b, String type,
-            String className, SourceInfo classSpan,
-            @com.legend.base.Nullable String element, String url, SourceInfo span) {
+            String className, @com.legend.base.Nullable SourceInfo classSpan,
+            @com.legend.base.Nullable String element, String url, @com.legend.base.Nullable SourceInfo span) {
         b.append("{\"_type\":\"").append(type).append("\",\"class\":");
         str(b, className);
         b.append(",\"classSourceInformation\":");
@@ -1235,9 +1235,7 @@ public final class ProtocolEmitter {
             com.legend.protocol.spec.SqlIsland si,
             @com.legend.base.Nullable SourceInfo span) {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
-        srcInfo(b, span != null ? span
-                : java.util.Objects.requireNonNull(si.pos(),
-                        "SqlIsland always parses with a span"));
+        srcInfo(b, span != null ? span : si.pos());
         b.append(",\"type\":\"SQL\",\"value\":{\"sql\":");
         str(b, si.sql());
         b.append("}}");
@@ -1249,9 +1247,7 @@ public final class ProtocolEmitter {
             com.legend.protocol.spec.TdsLiteral tl,
             @com.legend.base.Nullable SourceInfo span) {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
-        srcInfo(b, span != null ? span
-                : java.util.Objects.requireNonNull(tl.pos(),
-                        "TdsLiteral always parses with a span"));
+        srcInfo(b, span != null ? span : tl.pos());
         b.append(",\"type\":\"TDS\",\"value\":{\"tdsString\":");
         str(b, tl.tdsString());
         b.append("}}");
@@ -1850,11 +1846,6 @@ public final class ProtocolEmitter {
                                       List<String> multArgs,
                                       List<com.legend.protocol.spec.ValueSpecification> typeVarValues,
                                       com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
-        if (pos == null) {
-            throw new UnsupportedOperationException(
-                    "ProtocolEmitter needs a source position for type " + path
-                            + " and the parser did not thread one — fix the parse site, do not default it.");
-        }
         // engine backward-compat (DomainParseTreeWalker.processType; probe "bare result
         // type"): a bare 'Result' defaults to <meta::pure::metamodel::type::Any|1> — the
         // synthesized Any carries NO span, the multiplicity no upper bound
@@ -1913,11 +1904,6 @@ public final class ProtocolEmitter {
     private static void constraint(StringBuilder b, com.legend.protocol.ConstraintDefinition c) {
         List<com.legend.protocol.spec.ValueSpecification> cbody = realizationBody(
                 c.realization(), "constraint " + c.name());
-        if (c.pos() == null) {
-            throw new UnsupportedOperationException(
-                    "ProtocolEmitter needs a source position for constraint " + c.name()
-                            + " and the parser did not thread one — fix the parse site.");
-        }
         b.append('{');
         if (c.enforcementLevel() != null) {
             // Alphabetically FIRST among the constraint's fields (ProbeWireShapes cLevel).
@@ -2104,7 +2090,7 @@ public final class ProtocolEmitter {
                 b.append('}');
             }
             case com.legend.protocol.spec.EnumValue e -> {
-                if (e.enumerationPos() == null) {
+                if (e.node()) {
                     // legacy-test PARAMETER position (harvest
                     // testServiceTestParameters): a REAL enumValue node —
                     // fullPath + value, one span
@@ -2266,7 +2252,7 @@ public final class ProtocolEmitter {
     public static String emitLambda(com.legend.protocol.spec.LambdaFunction lam) {
         StringBuilder b = new StringBuilder();
         lambda(b, lam);
-        return b.toString();
+        return finish(b);
     }
 
     /**
@@ -2325,7 +2311,7 @@ public final class ProtocolEmitter {
      */
     private static void valueSpecWithSpan(StringBuilder b,
                                           com.legend.protocol.spec.ValueSpecification v,
-                                          SourceInfo span) {
+                                          @com.legend.base.Nullable SourceInfo span) {
         switch (v) {
             case com.legend.protocol.spec.CBoolean c ->
                     valueSpec(b, new com.legend.protocol.spec.CBoolean(c.value(), span));
@@ -2353,7 +2339,7 @@ public final class ProtocolEmitter {
                             pr.receiver(), pr.property(), span));
             case com.legend.protocol.spec.EnumValue e ->
                     valueSpec(b, new com.legend.protocol.spec.EnumValue(
-                            e.fullPath(), e.value(), e.enumerationPos(), span));
+                            e.fullPath(), e.value(), e.enumerationPos(), span, e.node()));
             case com.legend.protocol.spec.PackageableElementPtr ptr ->
                     valueSpec(b, new com.legend.protocol.spec.PackageableElementPtr(
                             ptr.fullPath(), span));
@@ -2730,31 +2716,32 @@ public final class ProtocolEmitter {
      *  its SHIFTED spans unchanged (probe "path in let" — same rule as graph fetch). */
     private static void pathLiteral(StringBuilder b, com.legend.protocol.spec.PathLiteral pl,
             @com.legend.base.Nullable SourceInfo outerOverride) {
-        SourceInfo lit = requirePos(pl.pos(), "path literal");
-        require(lit.startLine() == lit.endLine(), "multi-line path literal", pl.startType());
-        int s = lit.startColumn();
-        int len = pl.literalLength();
-        int line = lit.startLine();
-        SourceInfo outer = new SourceInfo(lit.sourceId(), line, s + len, line, s + 2 * len + 2);
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
-        srcInfo(b, outerOverride != null ? outerOverride : outer);
+        srcInfo(b, outerOverride != null ? outerOverride
+                : shifted(pl, 0, pl.literalLength() + 2));
         b.append(",\"type\":\"path\",\"value\":");
         pathValue(b, pl);
         b.append('}');
+    }
+
+    /** A span on the literal's line, {@code from..to} columns past {@code s+len} (the shift); none
+     *  when the literal has no position. */
+    private static @com.legend.base.Nullable SourceInfo shifted(com.legend.protocol.spec.PathLiteral pl,
+            int from, int to) {
+        SourceInfo lit = pl.pos();
+        if (lit == null) {
+            return null;
+        }
+        require(lit.startLine() == lit.endLine(), "multi-line path literal", pl.startType());
+        int base = lit.startColumn() + pl.literalLength();
+        return new SourceInfo(lit.sourceId(), lit.startLine(), base + from, lit.startLine(), base + to);
     }
 
     /** The path VALUE object alone (no classInstance wrapper) — shifted
      *  spans as above; persistence graphFetch slots embed this directly. */
     static void pathValue(StringBuilder b,
             com.legend.protocol.spec.PathLiteral pl) {
-        SourceInfo lit = requirePos(pl.pos(), "path literal");
-        require(lit.startLine() == lit.endLine(), "multi-line path literal",
-                pl.startType());
-        int s = lit.startColumn();
-        int len = pl.literalLength();
-        int line = lit.startLine();
-        SourceInfo outer = new SourceInfo(lit.sourceId(), line, s + len,
-                line, s + 2 * len + 2);
+        SourceInfo outer = shifted(pl, 0, pl.literalLength() + 2);
         b.append('{');
         if (pl.alias() != null) {
             // the !alias becomes the path's NAME, alphabetically first in the value
@@ -2771,13 +2758,11 @@ public final class ProtocolEmitter {
             require(!seg.unsupportedArg(),
                     "dated path segment with a non-%latest argument", seg.name());
             b.append("{\"_type\":\"propertyPath\",\"parameters\":[");
-            pathArgs(b, seg.args(), lit, s, len, line);
+            pathArgs(b, seg.args(), pl);
             b.append("],\"property\":");
             str(b, seg.name());
             b.append(",\"sourceInformation\":");
-            srcInfo(b, new SourceInfo(lit.sourceId(),
-                    line, s + len + seg.innerStart() - 2,
-                    line, s + len + seg.innerEnd() - 1));
+            srcInfo(b, shifted(pl, seg.innerStart() - 2, seg.innerEnd() - 1));
             b.append('}');
         }
         b.append("],\"sourceInformation\":");
@@ -2791,7 +2776,7 @@ public final class ProtocolEmitter {
     /** Dated-segment arguments under the shifted-span rules; collections recurse. */
     private static void pathArgs(StringBuilder b,
             List<com.legend.protocol.spec.PathLiteral.PathArg> args,
-            SourceInfo lit, int s, int len, int line) {
+            com.legend.protocol.spec.PathLiteral pl) {
         for (int a = 0; a < args.size(); a++) {
             if (a > 0) {
                 b.append(',');
@@ -2799,16 +2784,12 @@ public final class ProtocolEmitter {
             switch (args.get(a)) {
                 case com.legend.protocol.spec.PathLiteral.PathArg.Latest r -> {
                     b.append("{\"_type\":\"latestDate\",\"sourceInformation\":");
-                    srcInfo(b, new SourceInfo(lit.sourceId(),
-                            line, s + len + r.start() - 1,
-                            line, s + len + r.end() - 1));
+                    srcInfo(b, shifted(pl, r.start() - 1, r.end() - 1));
                     b.append('}');
                 }
                 case com.legend.protocol.spec.PathLiteral.PathArg.DateArg r -> {
                     b.append("{\"_type\":\"dateTime\",\"sourceInformation\":");
-                    srcInfo(b, new SourceInfo(lit.sourceId(),
-                            line, s + len + r.start() - 1,
-                            line, s + len + r.end() - 1));
+                    srcInfo(b, shifted(pl, r.start() - 1, r.end() - 1));
                     b.append(",\"value\":");
                     str(b, r.value());
                     b.append('}');
@@ -2822,16 +2803,12 @@ public final class ProtocolEmitter {
                 }
                 case com.legend.protocol.spec.PathLiteral.PathArg.IntArg n -> {
                     b.append("{\"_type\":\"integer\",\"sourceInformation\":");
-                    srcInfo(b, new SourceInfo(lit.sourceId(),
-                            line, s + len + n.start() - 1,
-                            line, s + len + n.end() - 1));
+                    srcInfo(b, shifted(pl, n.start() - 1, n.end() - 1));
                     b.append(",\"value\":").append(n.value()).append('}');
                 }
                 case com.legend.protocol.spec.PathLiteral.PathArg.StrArg st -> {
                     b.append("{\"_type\":\"string\",\"sourceInformation\":");
-                    srcInfo(b, new SourceInfo(lit.sourceId(),
-                            line, s + len + st.start() - 1,
-                            line, s + len + st.end() - 1));
+                    srcInfo(b, shifted(pl, st.start() - 1, st.end() - 1));
                     b.append(",\"value\":");
                     str(b, st.value());
                     b.append('}');
@@ -2842,7 +2819,7 @@ public final class ProtocolEmitter {
                     b.append("{\"_type\":\"collection\",\"multiplicity\":{\"lowerBound\":")
                             .append(col.elements().size()).append(",\"upperBound\":")
                             .append(col.elements().size()).append("},\"values\":[");
-                    pathArgs(b, col.elements(), lit, s, len, line);
+                    pathArgs(b, col.elements(), pl);
                     b.append("]}");
                 }
             }
@@ -2959,10 +2936,11 @@ public final class ProtocolEmitter {
                 str(b, e.fullPath());
                 b.append(",\"sourceInformation\":");
                 // the whole dotted path: the enumeration's start to the value's end
-                SourceInfo value = requirePos(e.pos(), "graph-fetch enum argument");
+                SourceInfo value = e.pos();
                 SourceInfo enumeration = e.enumerationPos() != null ? e.enumerationPos() : value;
-                srcInfo(b, new SourceInfo(value.sourceId(), enumeration.startLine(),
-                        enumeration.startColumn(), value.endLine(), value.endColumn()));
+                srcInfo(b, value == null || enumeration == null ? null
+                        : new SourceInfo(value.sourceId(), enumeration.startLine(),
+                                enumeration.startColumn(), value.endLine(), value.endColumn()));
                 b.append(",\"value\":");
                 str(b, e.value());
                 b.append('}');
@@ -2986,9 +2964,9 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.CBoolean bo -> valueSpec(b, bo);
             // a variable spans its NAME only here -- no dollar (probe "gft var param")
             case com.legend.protocol.spec.Variable v -> {
-                SourceInfo at = requirePos(v.pos(), "graph-fetch variable argument");
+                SourceInfo at = v.pos();
                 valueSpec(b, new com.legend.protocol.spec.Variable(v.name(), v.type(), v.multiplicity(),
-                        new SourceInfo(at.sourceId(), at.startLine(), at.startColumn() + 1,
+                        at == null ? null : new SourceInfo(at.sourceId(), at.startLine(), at.startColumn() + 1,
                                 at.endLine(), at.endColumn())));
             }
             default -> throw new UnsupportedOperationException(
@@ -3056,7 +3034,7 @@ public final class ProtocolEmitter {
     }
 
     private static void colSpecValue(StringBuilder b, com.legend.protocol.spec.ColSpec cs,
-                                     SourceInfo pos) {
+                                     @com.legend.base.Nullable SourceInfo pos) {
         b.append('{');
         if (cs.function1() != null) {
             b.append("\"function1\":");
@@ -3208,13 +3186,17 @@ public final class ProtocolEmitter {
     }
 
     /** One span running from {@code from}'s start to {@code to}'s end. */
-    private static SourceInfo joinSpans(SourceInfo from, SourceInfo to) {
+    private static @com.legend.base.Nullable SourceInfo joinSpans(@com.legend.base.Nullable SourceInfo from,
+            @com.legend.base.Nullable SourceInfo to) {
+        if (from == null || to == null) {
+            return null;
+        }
         return new SourceInfo(from.sourceId(), from.startLine(),
                 from.startColumn(), to.endLine(), to.endColumn());
     }
 
     private static void enumValueNode(StringBuilder b, String fullPath,
-            String value, SourceInfo span) {
+            String value, @com.legend.base.Nullable SourceInfo span) {
         b.append("{\"_type\":\"enumValue\",\"fullPath\":");
         str(b, fullPath);
         b.append(",\"sourceInformation\":");
@@ -3310,23 +3292,19 @@ public final class ProtocolEmitter {
         b.append("]}]}");
     }
 
-    private static SourceInfo requirePos(@com.legend.base.Nullable SourceInfo pos, String what) {
-        if (pos == null) {
-            throw new UnsupportedOperationException(
-                    "ProtocolEmitter needs a source position for " + what
-                            + " and the parser did not thread one — fix the parse site.");
-        }
+    /**
+     * A node's span, which may be ABSENT: protocol read without source information (the engine's
+     * {@code returnSourceInformation=false}, entity JSON) has none, and the wire then omits the key, as
+     * the engine's {@code NON_NULL} does ({@link #srcInfo}). {@code what} names the node for the reader.
+     */
+    private static @com.legend.base.Nullable SourceInfo requirePos(@com.legend.base.Nullable SourceInfo pos,
+            String what) {
         return pos;
     }
 
     /** {@code {"_type":…,"sourceInformation":…,"value":…}} — {@code rendered} is emitted verbatim. */
     private static void literal(StringBuilder b, String type, String rendered,
                                 com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
-        if (pos == null) {
-            throw new UnsupportedOperationException(
-                    "ProtocolEmitter needs a source position for a " + type
-                            + " literal and the parser did not thread one — fix the parse site.");
-        }
         b.append("{\"_type\":\"").append(type).append("\",\"sourceInformation\":");
         srcInfo(b, pos);
         b.append(",\"value\":").append(rendered).append('}');
@@ -3394,13 +3372,51 @@ public final class ProtocolEmitter {
         b.append('}');
     }
 
-    static void srcInfo(StringBuilder b, SourceInfo s) {
+    /**
+     * A span, or the ABSENT mark when there is none: a record read from JSON without source information
+     * carries no spans, and the wire then omits each span's key, as the engine's {@code NON_NULL} omits a
+     * null field. The mark (a NUL character, which the string escaper never writes raw) is taken out
+     * with its key and one comma by {@link #finish}, the last step of every public entry point.
+     */
+    static void srcInfo(StringBuilder b, @com.legend.base.Nullable SourceInfo s) {
+        if (s == null) {
+            b.append(ABSENT);
+            return;
+        }
         b.append("{\"endColumn\":").append(s.endColumn())
                 .append(",\"endLine\":").append(s.endLine())
                 .append(",\"sourceId\":");
         str(b, s.sourceId());
         b.append(",\"startColumn\":").append(s.startColumn())
                 .append(",\"startLine\":").append(s.startLine()).append('}');
+    }
+
+    /** The absent-span mark ({@link #srcInfo}). */
+    private static final char ABSENT = '\u0000';
+
+    /** The written wire with every absent span's {@code "key":} and one adjacent comma taken out. */
+    static String finish(StringBuilder b) {
+        if (b.indexOf(String.valueOf(ABSENT)) < 0) {
+            return b.toString();
+        }
+        StringBuilder out = new StringBuilder(b.length());
+        for (int i = 0; i < b.length(); i++) {
+            char c = b.charAt(i);
+            if (c != ABSENT) {
+                out.append(c);
+                continue;
+            }
+            // out ends with "key": -- keys are plain identifiers, so the key's opening quote is the
+            // last quote before its closing one
+            int open = out.lastIndexOf("\"", out.length() - 3);
+            out.setLength(open);
+            if (out.length() > 0 && out.charAt(out.length() - 1) == ',') {
+                out.setLength(out.length() - 1);
+            } else if (i + 1 < b.length() && b.charAt(i + 1) == ',') {
+                i++;
+            }
+        }
+        return out.toString();
     }
 
     /**
