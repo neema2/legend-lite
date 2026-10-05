@@ -98,8 +98,7 @@ public final class ProtocolReader {
             Map.entry("string", ProtocolReader::string),
             Map.entry("boolean", w -> new CBoolean(w.bool("value"), w.span())),
             Map.entry("integer", w -> integer(w.take("value"), w.span())),
-            Map.entry("float", w -> new CFloat(Wire.asDouble(w.take("value"), "float literal"),
-                    w.decimal("value"), w.span())),
+            Map.entry("float", ProtocolReader::floating),
             Map.entry("decimal", w -> new CDecimal(w.decimal("value"), null, w.span())),
             Map.entry("strictDate", w -> date(w, true)),
             Map.entry("dateTime", w -> date(w, false)),
@@ -233,6 +232,17 @@ public final class ProtocolReader {
         }
         i = d.toBigIntegerExact();
         return i.bitLength() <= 63 ? new CInteger(i.longValue(), pos) : new CInteger(i, pos);
+    }
+
+    /**
+     * A float literal: the double the wire carries, and its exact digits only where they do not survive the
+     * double (the parser's rule, NumberLiterals.floating) -- never for JSON the emitter wrote, whose float is a
+     * double's own spelling.
+     */
+    private static ValueSpecification floating(Wire w) {
+        double d = Wire.asDouble(w.take("value"), "float literal");
+        BigDecimal exact = w.decimal("value");
+        return new CFloat(d, exact.compareTo(BigDecimal.valueOf(d)) != 0 ? exact : null, w.span());
     }
 
     /**

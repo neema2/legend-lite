@@ -37,7 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <ol>
  *   <li><b>Own JSON.</b> For every corpus source lite parses, J is lite's own document
  *       ({@code PmcdParser.parseDocument}): {@code emit(read(J))} is J byte for byte, element by element and
- *       as a whole, with its source information and without it ({@code SourceInformation.strip}).</li>
+ *       as a whole, with its source information and without any of it, named spans included
+ *       ({@code SourceInformation.stripAll}).</li>
  *   <li><b>The engine's JSON.</b> For every corpus source the engine's parser accepts (with source
  *       information) and every text of upstream's grammar round-trip tests (without), J2 is the engine's
  *       serialized model: where lite's own emit of lite's parse is J2 (lite's emitter already matches the
@@ -57,7 +58,7 @@ class ModelReaderParityTest {
     /** Own-JSON elements matched without source information. Up-only. */
     private static final int MIN_OWN_STRIPPED_MATCHED = 37739;   // 2026-10-05
     /** Engine-JSON elements matched (where lite's emitter matches the engine). Up-only. */
-    private static final int MIN_ENGINE_MATCHED = 38191;   // 2026-10-05 (2 more upgraded)
+    private static final int MIN_ENGINE_MATCHED = 38702;   // 2026-10-05 (2 more upgraded); every J2 is lite's J
     /** Whole documents matched (own, with and without source information). Up-only. */
     private static final int MIN_DOCS_MATCHED = 13514;   // 2026-10-05 (4 more upgraded)
     /** Mismatches anywhere (own or engine, either mode, elements or documents). Down-only. */
@@ -143,17 +144,17 @@ class ModelReaderParityTest {
             String type = typeOf(element);
             record("lite", id, type, element);
             judge("own", id, type, element, false);
-            judge("own-stripped", id, type, SourceInformation.strip(element), true);
+            judge("own-stripped", id, type, SourceInformation.stripAll(element), true);
         }
         judgeDocument(id, doc, false);
-        judgeDocument(id + " (stripped)", SourceInformation.strip(doc), true);
+        judgeDocument(id + " (stripped)", SourceInformation.stripAll(doc), true);
     }
 
     /** The engine's model: compared where lite's emit of lite's parse is the same JSON. */
     private void engine(String id, PureModelContextData parsed, String lite, boolean stripped) throws IOException {
         String j2 = mapper.writeValueAsString(parsed);
         boolean liteMatches = lite != null
-                && (stripped ? SourceInformation.strip(lite).equals(canonical(j2)) : lite.equals(j2));
+                && (stripped ? SourceInformation.stripAll(lite).equals(canonical(j2)) : lite.equals(j2));
         String table = liteMatches ? "engine" : "engine-only";
         for (PackageableElement e : parsed.getElements()) {
             String element = mapper.writeValueAsString(e);
@@ -288,7 +289,7 @@ class ModelReaderParityTest {
     }
 
     private static String canonical(String json) {
-        return SourceInformation.strip(json);
+        return SourceInformation.stripAll(json);
     }
 
     private void record(String side, String id, String type, String json) throws IOException {

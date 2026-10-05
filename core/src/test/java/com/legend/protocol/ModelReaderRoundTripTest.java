@@ -1,0 +1,181 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.protocol;
+
+import com.legend.parser.PmcdParser;
+import com.legend.protocol.Protocol.Element;
+import com.legend.protocol.Protocol.PureModelContextData;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.RecordComponent;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * The MODEL READER is the emitter's inverse on representative models (docs/PROTOCOL_PROGRAM_2026_10_05.md, the
+ * read leg): text, parsed to the typed records, emitted to JSON and read back, gives the same RECORDS (source
+ * information aside: compared with every span taken out) and the same JSON, byte for byte -- with the spans and
+ * without them. The whole corpus is pinned by parser-equivalence's ModelReaderParityTest.
+ */
+class ModelReaderRoundTripTest {
+
+    static Stream<String> models() {
+        return Stream.concat(ModelComposerRoundTripTest.models(), Stream.of(
+                // a function with a test suite, a persistence, a data-quality validation and activators
+                """
+                ###Pure
+                Class my::P
+                {
+                  name: String[1];
+                  age: Integer[0..1];
+                }
+
+                function my::double(x: Integer[1]): Integer[1]
+                {
+                  $x * 2
+                }
+                {
+                  myTest
+                  (
+                    t1 | double(2) => 4;
+                    t2 | double(3) => 6;
+                  )
+                }
+
+                ###DataQualityValidation
+                DataQualityValidation my::Check
+                {
+                  context: fromMappingAndRuntime(my::M, my::R);
+                  validationTree: $[
+                    my::P<mustBeNamed>{
+                      name
+                    }
+                  ]$;
+                  filter: p: my::P[1]|$p.name == 'John';
+                }
+
+                ###Snowflake
+                SnowflakeApp my::App
+                {
+                  applicationName: 'app';
+                  function: my::double(Integer[1]): Integer[1];
+                  ownership: Deployment { identifier: 'owner' };
+                  description: 'an app';
+                }
+                """));
+    }
+
+    /** text -> records -> JSON -> records: the same records, spans aside; the same JSON, with and without spans. */
+    @ParameterizedTest
+    @MethodSource("models")
+    void readsBackWhatTheParserProduced(String text) {
+        PureModelContextData parsed = PmcdParser.parseModel(text);
+        String json = ProtocolEmitter.emit(parsed);
+        assertEquals(PmcdParser.parseDocument(text), json, "parseDocument is the parsed records, emitted");
+
+        PureModelContextData read = ModelReader.read(json);
+        assertEquals(json, ProtocolEmitter.emit(read), "emit(read(J)) is J");
+        assertEquals(parsed.elements().size(), read.elements().size());
+        for (int i = 0; i < parsed.elements().size(); i++) {
+            Element expected = parsed.elements().get(i);
+            assertEquals(withoutSpans(expected), withoutSpans(read.elements().get(i)),
+                    "read back as parsed: " + expected.getClass().getSimpleName());
+        }
+
+        String stripped = SourceInformation.stripAll(json);
+        PureModelContextData spanless = ModelReader.read(stripped);
+        assertEquals(stripped, SourceInformation.stripAll(ProtocolEmitter.emit(spanless)),
+                "without source information too");
+        for (int i = 0; i < parsed.elements().size(); i++) {
+            assertEquals(withoutSpans(parsed.elements().get(i)), spanless.elements().get(i),
+                    "spanless JSON reads as the parsed records, spans aside");
+        }
+    }
+
+    /** A field no rule takes, and a _type no rule knows, are refused by name -- never dropped. */
+    @Test
+    void refusesWhatItCannotCarry_namingIt() {
+        String cls = "{\"_type\":\"class\",\"constraints\":[],\"name\":\"C\",\"originalMilestonedProperties\":[],"
+                + "\"package\":\"p\",\"properties\":[],\"qualifiedProperties\":[],\"stereotypes\":[],"
+                + "\"superTypes\":[],\"taggedValues\":[]";
+        assertEquals(cls + "}", ProtocolEmitter.emitElement(ModelReader.readElement(cls + "}")));
+        IllegalArgumentException extra = assertThrows(IllegalArgumentException.class,
+                () -> ModelReader.readElement(cls + ",\"somethingNew\":1}"));
+        assertTrue(extra.getMessage().contains("somethingNew"), extra.getMessage());
+        IllegalArgumentException unknown = assertThrows(IllegalArgumentException.class,
+                () -> ModelReader.read("{\"_type\":\"data\",\"elements\":[{\"_type\":\"aNewElement\"}]}"));
+        assertTrue(unknown.getMessage().contains("aNewElement"), unknown.getMessage());
+        IllegalArgumentException constant = assertThrows(IllegalArgumentException.class,
+                () -> ModelReader.readElement(cls.replace("\"originalMilestonedProperties\":[]",
+                        "\"originalMilestonedProperties\":[{}]") + "}"));
+        assertTrue(constant.getMessage().contains("originalMilestonedProperties"), constant.getMessage());
+    }
+
+    /** Numbers stay exact: a decimal keeps its digits as written. */
+    @Test
+    void keepsExactDecimals() {
+        String text = """
+                function my::f(): Decimal[1]
+                {
+                  10.10D->divide(2.1D, 1)
+                }
+                """;
+        String json = PmcdParser.parseDocument(text);
+        assertTrue(json.contains("\"value\":10.10"), json);
+        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(json)));
+    }
+
+    // ---------------------------------------------------------------------
+    // Records with every span taken out (test-side reflection over the record components)
+    // ---------------------------------------------------------------------
+
+    /** {@code value} with every {@link SourceInfo} replaced by {@code null}, rebuilt through each canonical constructor. */
+    static Object withoutSpans(Object value) {
+        if (value == null || value instanceof SourceInfo) {
+            return null;
+        }
+        if (value instanceof List<?> list) {
+            List<Object> out = new ArrayList<>(list.size());
+            for (Object o : list) {
+                out.add(withoutSpans(o));
+            }
+            return out;
+        }
+        if (value instanceof Map.Entry<?, ?> e) {
+            return Map.entry(e.getKey(), withoutSpans(e.getValue()));
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<Object, Object> out = new LinkedHashMap<>();
+            map.forEach((k, v) -> out.put(k, withoutSpans(v)));
+            return map instanceof LinkedHashMap ? out : Map.copyOf(out);
+        }
+        if (!value.getClass().isRecord()) {
+            return value;
+        }
+        RecordComponent[] components = value.getClass().getRecordComponents();
+        Object[] args = new Object[components.length];
+        Class<?>[] types = new Class<?>[components.length];
+        try {
+            for (int i = 0; i < components.length; i++) {
+                types[i] = components[i].getType();
+                args[i] = withoutSpans(components[i].getAccessor().invoke(value));
+            }
+            Constructor<?> canonical = value.getClass().getDeclaredConstructor(types);
+            canonical.setAccessible(true);
+            return canonical.newInstance(args);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("cannot rebuild " + value.getClass(), e);
+        }
+    }
+}
