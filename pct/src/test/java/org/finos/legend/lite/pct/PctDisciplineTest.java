@@ -24,6 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Pure with both sides in Pure's own value domain; row order is the
  * database's. Zero sort/dedupe/tolerance spellings in this module;
  * stays zero.
+ *
+ * <p>ONE sanctioned indirection: {@code com.legend.testing.SourceWalk.inOrder} sorts the INPUT files Channel B
+ * loads (Bazel workplan P3-08), so a load is the same on every filesystem; it compares no verdict. Any other call
+ * from this module into a helper that sorts, dedupes or tolerates is the dodge this guard exists to stop.
  */
 class PctDisciplineTest {
 
@@ -68,7 +72,7 @@ class PctDisciplineTest {
         List<String> bad = new ArrayList<>();
         int javaScanned = 0;
         int pureScanned = 0;
-        try (Stream<Path> files = Files.walk(com.legend.testing.Repo.module("src"))) {
+        try (Stream<Path> files = com.legend.testing.SourceFiles.under("pct/src").stream()) {
             for (Path f : files
                     .filter(p -> p.toString().endsWith(".java")
                             || p.toString().endsWith(".pure"))

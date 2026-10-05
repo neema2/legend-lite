@@ -505,7 +505,7 @@ final class ElementParserTest {
         // became a supported element — see measureElementParses.)
         ParseException e = assertThrows(ParseException.class,
                 () -> com.legend.testing.Platform.model("Persistence my::P ( )"));
-        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("unsupported"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("unsupported"),
                 () -> "expected 'unsupported' in message, got: " + e.getMessage());
         assertTrue(e.getMessage().contains("Persistence"),
                 () -> "error should name the offending text, got: " + e.getMessage());
@@ -1200,9 +1200,9 @@ final class ElementParserTest {
         ParseException ex = assertThrows(ParseException.class,
                 () -> com.legend.testing.Platform.model(
                         "native function my::oops(x: Integer[1]): Integer[1]"));
-        assertTrue(String.valueOf(ex.getMessage()).toLowerCase().contains("semi")
+        assertTrue(String.valueOf(ex.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("semi")
                         || ex.getMessage().contains(";")
-                        || ex.getMessage().toLowerCase().contains("expected"),
+                        || ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("expected"),
                 () -> "expected diagnostic to reference missing ';' but got: " + ex.getMessage());
     }
 
@@ -1381,7 +1381,7 @@ final class ElementParserTest {
                 }
                 """));
         assertTrue(String.valueOf(ex.getMessage()).contains("futureKey")
-                        && ex.getMessage().toLowerCase().contains("unknown"),
+                        && ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("unknown"),
                 () -> "should name the offending key, got: " + ex.getMessage());
     }
 
@@ -2610,7 +2610,7 @@ final class ElementParserTest {
         ParseException e = assertThrows(ParseException.class, () ->
                 com.legend.testing.Platform.model(
                         "Mapping my::M ( *model::P: SomethingElse { x: 1 } )"));
-        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("unsupported"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("unsupported"),
                 () -> "expected 'unsupported' message, got: " + e.getMessage());
     }
 
@@ -2689,7 +2689,7 @@ final class ElementParserTest {
                 com.legend.testing.Platform.model(
                         "Mapping my::M ( my::A: Relational { AssociationMapping ( "
                         + "firm: BARE_NAME ) } )"));
-        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("missing table or alias"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("missing table or alias"),
                 () -> "expected bare-id rejection, got: " + e.getMessage());
     }
 
@@ -2798,7 +2798,7 @@ final class ElementParserTest {
                 com.legend.testing.Platform.model(
                         "Mapping my::M ( my::A: Relational { AssociationMapping ( "
                         + "firm: @SomeJoin ) } )"));
-        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("requires a database"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("requires a database"),
                 () -> "expected db-required error, got: " + e.getMessage());
     }
 
@@ -2945,7 +2945,7 @@ final class ElementParserTest {
                 com.legend.testing.Platform.model(
                         "Mapping my::M ( "
                         + "model::S: EnumerationMapping Mid { X: [] } )"));
-        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("at least one source value"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("at least one source value"),
                 () -> "expected empty-brackets error, got: " + e.getMessage());
     }
 
@@ -3189,7 +3189,7 @@ final class ElementParserTest {
                         + "~src model::Raw "
                         + "name: , other: $src.x "
                         + "} )"));
-        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("empty body"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("empty body"),
                 () -> "expected empty-body error, got: " + e.getMessage());
     }
 
@@ -3468,7 +3468,7 @@ final class ElementParserTest {
                         + PERSON_SUITE
                         + PERSON_SUITE
                         + ")"));
-        assertTrue(String.valueOf(e.getMessage()).toLowerCase().contains("duplicate"),
+        assertTrue(String.valueOf(e.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("duplicate"),
                 () -> "expected duplicate-testSuites error, got: " + e.getMessage());
     }
 

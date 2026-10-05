@@ -3,7 +3,7 @@
 
 package com.legend.parser;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -56,9 +56,9 @@ class PlatformSurfaceGuardrailTest {
 
     @Test
     void platformSurfaceCallersAreWhitelisted() throws IOException {
-        Path root = Repo.module("src/main/java");
+        String root = "core/src/main/java";
         List<String> offenders;
-        try (Stream<Path> files = Files.walk(root)) {
+        try (Stream<Path> files = SourceFiles.under(root).stream()) {
             offenders = files
                     .filter(p -> p.toString().endsWith(".java"))
                     .filter(p -> {
@@ -74,7 +74,7 @@ class PlatformSurfaceGuardrailTest {
                     // on Windows (com\legend\...) NOTHING matches and every
                     // legitimate caller reads as a new offender (Windows CI,
                     // 2026-09-09).
-                    .map(p -> root.relativize(p).toString().replace(java.io.File.separatorChar, '/'))
+                    .map(p -> SourceFiles.rel(root, p).substring(1))
                     .filter(p -> !WHITELIST.contains(p))
                     .toList();
         }

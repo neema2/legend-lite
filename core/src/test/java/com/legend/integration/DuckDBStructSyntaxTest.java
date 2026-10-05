@@ -22,7 +22,8 @@ public class DuckDBStructSyntaxTest {
                 "SELECT * FROM (VALUES ({'name': 'Alice', 'age': 30})) AS t(details)"
             );
             assertTrue(rs.next());
-            System.out.println("JSON-style Result: " + rs.getObject(1));
+            assertEquals(java.util.List.of("Alice", 30),
+                    java.util.List.of(((java.sql.Struct) rs.getObject(1)).getAttributes()));
         }
     }
     

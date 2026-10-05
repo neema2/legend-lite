@@ -48,7 +48,7 @@ builds). Four real gaps, five files:
 | 71-mapping-surface2.pure | M2M explosion `part*:` refused by the normalizer |
 | 75-surface-gaps.pure | M2M local property `+localTag` colliding with a declared property refused |
 
-Each has an executable case in `LegendLiteGapTest`, and `StressCorpus.EXCLUDED`
+Each has an executable case in `LegendLiteGapTest`, and `StressExclusions.EXCLUDED`
 carries the reason. Removing one is a deliberate act that the gap test forces.
 
 **Timing, lowering only** (`StressDomainTest`, 228 files, 13.2 MB, 7,608 elements):

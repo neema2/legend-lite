@@ -2061,7 +2061,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             }
             Set<String> parentCols = new LinkedHashSet<>();
             for (Type.Column c : cs.rowType().columns()) {
-                parentCols.add(c.name().toLowerCase());
+                parentCols.add(c.name().toLowerCase(java.util.Locale.ROOT));
             }
             // a sub reading columns outside the parent row is not servable
             // same-source — SKIP (not throw): the cast may sit in a NAV
@@ -2070,7 +2070,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             // read site
             boolean sameSource = true;
             for (String col : cols) {
-                if (!parentCols.contains(col.toLowerCase())) {
+                if (!parentCols.contains(col.toLowerCase(java.util.Locale.ROOT))) {
                     sameSource = false;
                     break;
                 }

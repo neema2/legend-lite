@@ -96,7 +96,7 @@ class PostgresCatalogTest {
         assertEquals("SELECT * FROM postgres_query('attached', 'SELECT pg_cancel_backend(pid) FROM pg_stat_activity"
                 + " WHERE strpos(query, ''/* wh:" + ID + " */'') > 0"
                 + " AND pid <> pg_backend_pid() AND usename = current_user')", Postgres.cancel(ID));
-        for (String bad : List.of("x", "%", "' OR true --", ID + "'", ID.toUpperCase(), ID + " */")) {
+        for (String bad : List.of("x", "%", "' OR true --", ID + "'", ID.toUpperCase(java.util.Locale.ROOT), ID + " */")) {
             assertThrows(IllegalArgumentException.class, () -> Postgres.cancel(bad), bad);
             assertThrows(IllegalArgumentException.class, () -> Postgres.query("SELECT 1", bad), bad);
         }

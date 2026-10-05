@@ -119,7 +119,7 @@ public class WriteCheckerTest extends AbstractDatabaseTest {
                       ->filter(p|$p.age > 30)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
             assertNotNull(sql);
-            assertTrue(sql.toUpperCase().contains("WHERE"), "Filter generates WHERE clause");
+            assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("WHERE"), "Filter generates WHERE clause");
         }
 
         @Test
@@ -131,7 +131,7 @@ public class WriteCheckerTest extends AbstractDatabaseTest {
                       ->limit(2)
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
             assertNotNull(sql);
-            assertTrue(sql.toUpperCase().contains("LIMIT"), "Limit preserved in SQL");
+            assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("LIMIT"), "Limit preserved in SQL");
         }
     }
 

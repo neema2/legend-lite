@@ -338,11 +338,14 @@ core changes). Linux, macOS and, since 2026-10-02, Windows (docs/WINDOWS_APP_DES
 
 - **Metadata** (`META-INF/native-image/com.legend/warehouse/reachability-metadata.json`, in the
   server jar, so native-image reads it with no flags): 39 FFM call shapes, the identity function's 3
-  upcalls, the JDK's HTTP server and crypto providers, time-zone data. Recorded by GraalVM's agent while
-  the whole suite runs against the JVM server (one agent directory per process, merged); re-recording
-  reproduced the committed file byte for byte. **Owed:** re-recording as a Bazel target (the suite
-  under the agent, then `bazel run` writing the merged file back, as `//:update_generated` does);
-  the script that did it is gone. Needed only when the server's FFM or reflection use changes.
+  upcalls, the JDK's HTTP server and crypto providers, time-zone data. First recorded by GraalVM's agent
+  while the whole suite ran against the JVM server. **Since 2026-10-05 (Bazel workplan P2-09) it is
+  generated, not recorded:** `//warehouse:reachability_metadata` (`ReachabilityMetadata`) renders the FFM
+  section from `Duck.DOWNCALLS` and `AuthenticatedUser.UPCALLS`, the callbacks' reflection from the same
+  table, and the JDK services and resources from declared lists (each with why); `bazel run
+  //warehouse:update_reachability_metadata` writes it and `//:generated` fails when it is stale. An
+  agent's recording names the recording host's locale bundles and platform providers, so it could not be
+  one golden for three platforms; the generated file equals the recorded one entry for entry.
 - **`GET /sql/v1/history`:** the caller's own statements, newest first (the history test reads it
   through the API, so it judges the binary too; another user's statements are not in yours).
 - **CI:** the `native` lane (Linux, macOS and, since 2026-10-02, Windows; Linux arm64 since 2026-10-04) runs

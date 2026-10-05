@@ -42,8 +42,8 @@ final class UpstreamDeclarations {
     }
 
     static UpstreamDeclarations load() throws IOException {
-        Path pure = com.legend.testing.Upstream.pure();
-        Path engine = com.legend.testing.Upstream.engine();
+        Path pure = com.legend.testing.ProgramPaths.rootOf("legend.pure.root");
+        Path engine = com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
         // the pinned trees are declared inputs: absence is an error, never a skip
         org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(pure) && Files.isDirectory(engine),
                 "pinned upstream trees not present: " + pure + ", " + engine);

@@ -1,5 +1,9 @@
 # Construct coverage taxonomy — real legend-engine core_relational
 
+> **History, not a live report** (Bazel workplan P2-22): a snapshot from the Maven-era sweep (last written 2026-09-06);
+> nothing regenerates it. The live corpus measurements are the corpus lanes' generated rosters
+> (`//spec:corpus_duckdb`, `//spec:corpus_h2`; `spec/src/test/resources/rcorpus/`).
+
 Generated from the sweep scoreboard (denominator 2489) plus the eager-G census
 (`Compiler.compileAllBodies`: 6741 corpus functions, 4909 walls). Classification
 is judgment-tagged from normalized failure reasons — `BUG?` means *suspected*

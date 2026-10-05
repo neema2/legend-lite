@@ -196,7 +196,7 @@ public class PhaseHCensusTest {
         System.out.println("=== PHASE H CENSUS: " + green + "/" + total
                 + " synthesized bodies type-check ===");
         buckets.forEach((k, v) -> {
-            System.out.println(String.format("%4d  %s", v, k));
+            System.out.println(String.format(java.util.Locale.ROOT, "%4d  %s", v, k));
             System.out.println("      e.g. " + sample.get(k));
         });
 

@@ -11,6 +11,7 @@
 // renders this and nothing else. Redaction happens here too, once: a blurred column's cells
 // become REDACTED before any format sees a value, so no renderer can forget it.
 
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { ColumnModel, HeaderCell, LeafColumn } from './grid/columns.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import {
@@ -213,7 +214,7 @@ export function exportTable(source: ExportSource): ExportTable {
   }
   if (source.truncated) {
     notes.push(source.maxRows !== undefined
-      ? `Truncated: showing the first ${source.maxRows.toLocaleString()} rows of a level, as the grid does.`
+      ? `Truncated: showing the first ${source.maxRows.toLocaleString(UI_LOCALE)} rows of a level, as the grid does.`
       : 'Truncated at the row limit, as the grid is.');
   }
   const g = source.appearance ?? {};

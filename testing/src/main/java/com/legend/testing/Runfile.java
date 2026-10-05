@@ -60,6 +60,19 @@ public final class Runfile {
         return Holder.RUNFILES.unmapped().getEnvVars();
     }
 
+    /** The files a declared list names (java_jars with {@code rlocation_paths}, or file_list): the list is the file
+     *  whose runfiles path {@code -D<property>} holds, and each line is a runfiles path, resolved like any other
+     *  (Bazel workplan P3-27). The build says which files; nothing is discovered. */
+    public static java.util.List<Path> listed(String property) {
+        Path list = property(property);
+        try {
+            return Files.readAllLines(list, java.nio.charset.StandardCharsets.UTF_8).stream()
+                    .filter(line -> !line.isBlank()).map(Runfile::of).toList();
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException("cannot read the declared list " + list, e);
+        }
+    }
+
     /** Loaded on first use; a JVM without runfiles fails that use with the reason (and every later one
      *  with NoClassDefFoundError naming this holder). */
     private static final class Holder {

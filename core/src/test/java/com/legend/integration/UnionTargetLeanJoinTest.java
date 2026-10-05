@@ -124,7 +124,7 @@ class UnionTargetLeanJoinTest {
             assertEquals(1, sql.split(" ON ").length - 1, "one join: " + sql);
             String on = sql.substring(sql.indexOf(" ON ") + 4).split("\\n")[0];
             assertEquals(false, on.contains(" OR "), "no OR in: " + on);
-            assertEquals(false, on.toLowerCase().contains("coalesce"), "no coalesce in: " + on);
+            assertEquals(false, on.toLowerCase(java.util.Locale.ROOT).contains("coalesce"), "no coalesce in: " + on);
             assertEquals(true, on.matches("t0\\.ID = t\\d+\\.__route0_0"), "one equality on the route key the arms project: " + on);
         }
     }

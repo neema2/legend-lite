@@ -134,7 +134,7 @@ class StressTestChaotic {
                 String sqlType = TYPE_MAP[typeIdx][1];
                 String stem = PROP_STEMS[hash(i * 50 + p * 7) % PROP_STEMS.length];
                 String propName = stem + p;
-                String colName = stem.toUpperCase() + p;
+                String colName = stem.toUpperCase(java.util.Locale.ROOT) + p;
                 props.add(propName);
                 pureTypes.add(pureType);
                 sqlCols.add(colName + " " + sqlType);

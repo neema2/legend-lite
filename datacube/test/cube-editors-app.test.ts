@@ -2,17 +2,18 @@
 // an audit entry reproduced the way a person meets it, over the fixture's gated engine.
 
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { CubeController } from '../src/cube.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import { GateEngine, SNAPSHOT, StubPlanner } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, tearDown } from './cube-fixture.ts';
 import {
   app, dom, menu, root, settle, setUp,
 } from './cube-fixture.ts';
 
 beforeEach(setUp);
+afterEach(tearDown);
 
 describe('a compile refusal is RETURNED, never thrown (B4, P2-152)', () => {
   it('pivoting on a JSON column: compile answers with the refusal', async () => {

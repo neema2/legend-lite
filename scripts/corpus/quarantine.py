@@ -254,6 +254,14 @@ HANGS = {
         ("F15", "hangs rather than failing; see repro/xstore/"),
 }
 
+# F58 (2026-10-05): dateDiff in HOURS, MINUTES or SECONDS is ELAPSED time with the remainder dropped (legend-pure's
+# m4 DateDiff); legend-engine's relational SQL counts unit boundaries (DATEDIFF), which differs whenever the start is off
+# a boundary. The oracle followed the engine until 2026-10-05; these five services' expectations moved with it. To be
+# confirmed by run.py when it runs again (Bazel workplan P3-25). repro/datediff-hours-off-boundary/
+for _svc in ("stress::MO2_Confirmations", "stress::DSLocal_MiddleofficeConfirmation", "stress::REGX_All",
+             "stress::REGX_LiquidityCoverageReport", "stress::DSLocal_RegulatorySubmission"):
+    ENGINE_QUARANTINE[_svc] = ("F58", "dateDiff HOURS counts boundaries in SQL; Pure measures elapsed time")
+
 ENGINE_QUARANTINE["stress::F32_TradeRollupEverything"] = (
     "F14", "groupBy on an enum-mapped column groups by the source code, not the value")
 

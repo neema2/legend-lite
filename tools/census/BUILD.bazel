@@ -1,0 +1,25 @@
+# THE RENDER CENSUS (README.md): every recorded case lowered once and rendered by each dialect, as a program over
+# this checkout's core (Bazel workplan P3-17). One side of a comparison:
+#   bazel run //tools/census:render_census -- <out.tsv> <cases.tsv>...
+# run at each of two commits over the same cases, then diff the two outputs.
+
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//tools/java:defs.bzl", "legend_java_binary")
+load("//tools/guards:defs.bzl", "guards_package")
+
+legend_java_binary(
+    name = "render_census",
+    srcs = ["RenderCensus.java"],
+    jvm_flags = ["-Xss16m"],
+    main_class = "RenderCensus",
+    deps = ["//core"],
+)
+
+# The execution census, compared (README.md): two runs' lane logs as multisets of lines after removing run-to-run noise.
+#   bazel run //tools/census:lanes_diff -- <base dir> <head dir> [examples]
+py_binary(
+    name = "lanes_diff",
+    srcs = ["lanes_diff.py"],
+)
+
+guards_package()

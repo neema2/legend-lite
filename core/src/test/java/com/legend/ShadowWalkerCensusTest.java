@@ -4,7 +4,7 @@
 package com.legend;
 
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 @Tag("guardrail")
 class ShadowWalkerCensusTest {
 
-    private static final Path NORMALIZER = Repo.module("src/main/java/com/legend/normalizer");
+    private static final String NORMALIZER = "core/src/main/java/com/legend/normalizer";
 
     private static final Map<String, Integer> REGISTER = new TreeMap<>(Map.ofEntries(
             // The live shadows, at their call-site counts. The retired families (subtype,
@@ -58,7 +58,7 @@ class ShadowWalkerCensusTest {
         Map<String, Integer> actual = new TreeMap<>();
         REGISTER.keySet().forEach(k -> actual.put(k, 0));
         List<Path> files;
-        try (Stream<Path> s = Files.walk(NORMALIZER)) {
+        try (Stream<Path> s = SourceFiles.under(NORMALIZER).stream()) {
             files = s.filter(p -> p.toString().endsWith(".java")).toList();
         }
         // the scope must not rot (audit 2026-09-15 P5-7): the walk found

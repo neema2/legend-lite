@@ -3,7 +3,6 @@
 
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -43,7 +42,7 @@ class OwnCorpusParityTest {
     /** The ledger, as the BUILD file passes it (-Dledger.own-corpus-protocol-diffs); read lazily, so a program that
      *  only calls {@link #readLedger(Path)} (OwnCorpusLedgerDraft, given the path) needs no such flag. */
     static Path ledger() {
-        return com.legend.testing.Runfile.property("ledger.own-corpus-protocol-diffs");
+        return com.legend.testing.ProgramPaths.file("ledger.own-corpus-protocol-diffs");
     }
     // The MATCHED elements are MEASURED (OwnCorpusLedgerDraft.diffs) into this package's generated ratchets.tsv
     // (own_corpus.matched; //parser-equivalence:update_ratchets, diff-tested in //:generated): a test model joining the
@@ -59,10 +58,10 @@ class OwnCorpusParityTest {
         Map<String, String> diffs = pass.diffs();
         int matched = pass.matched();
         System.out.println("[own-parity] " + kinds + " matched=" + matched + " diffs=" + diffs.size());
-        Files.createDirectories(Repo.outDir());
+        Files.createDirectories(com.legend.testing.TestOutputs.dir());
         StringBuilder report = new StringBuilder();
         diffs.forEach((k, d) -> report.append(k).append('\t').append(d).append('\n'));
-        Files.writeString(Repo.out("own-corpus-protocol-diffs.txt"), report.toString());
+        Files.writeString(com.legend.testing.TestOutputs.file("own-corpus-protocol-diffs.txt"), report.toString());
         Map<String, String> ledger = readLedger();
         List<String> unledgered = new ArrayList<>();
         diffs.forEach((k, d) -> {

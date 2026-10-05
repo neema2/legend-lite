@@ -4,10 +4,10 @@
 // touched -- and Update writes it back.
 
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import type { ChartView } from '../src/page-document.ts';
-import { app, dom, GateEngine, remount, root, settle, setUp, SNAPSHOT, StubPlanner } from './cube-fixture.ts';
+import { app, dom, GateEngine, remount, root, settle, setUp, SNAPSHOT, StubPlanner, tearDown } from './cube-fixture.ts';
 
 // The fixture's cube is grouped by region, then desk: a following chart is region across, split
 // by desk; taking desk out of the row groups is a pivot it follows.
@@ -23,6 +23,8 @@ beforeEach(async () => {
   (dom.window.HTMLCanvasElement.prototype as unknown as { getContext: () => unknown }).getContext =
     () => new Proxy({}, inert);
 });
+afterEach(tearDown);
+
 
 const charts = (): ChartView[] => app.pageViews().views.filter((v): v is ChartView => v.kind === 'chart');
 const chart = (id: string): ChartView => charts().find((c) => c.id === id)!;

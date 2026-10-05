@@ -216,7 +216,7 @@ describe('the source picker', () => {
         open: async (id) => `query ${id}`,
       } },
     });
-    await new Promise((r) => setTimeout(r, 300));
+    // the first search runs at once (only typing is debounced): its answer, not a clock, is awaited
     await settle();
     const rows = [...doc.querySelectorAll<HTMLButtonElement>('.dc-picker-row')];
     assert.equal(rows.length, 2);
@@ -237,7 +237,7 @@ describe('the source picker', () => {
         copyLink: async (id) => { asked.push(id); return 'Link copied (500 characters)'; },
       } },
     });
-    await new Promise((r) => setTimeout(r, 300));
+    // the first search runs at once (only typing is debounced): its answer, not a clock, is awaited
     await settle();
     assert.match($('.dc-picker-panel').textContent ?? '', /Saved in this browser/);
     $<HTMLButtonElement>('.dc-picker-row-link[data-query-link="1"]').click();

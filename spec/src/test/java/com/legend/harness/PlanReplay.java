@@ -394,7 +394,7 @@ final class PlanReplay {
         String pattern = norm.contains(".") ? "yyyy-MM-dd HH:mm:ss.SSS"
                 : norm.length() > 10 ? "yyyy-MM-dd HH:mm:ss" : "yyyy-MM-dd";
         java.time.format.DateTimeFormatter f =
-                java.time.format.DateTimeFormatter.ofPattern(pattern);
+                java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.ROOT);
         java.time.LocalDateTime gmt = pattern.equals("yyyy-MM-dd")
                 ? java.time.LocalDate.parse(norm, f).atStartOfDay()
                 : java.time.LocalDateTime.parse(norm, f);

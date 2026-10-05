@@ -17,7 +17,7 @@ import java.util.Map;
  *
  * <pre>
  *   ManifestGenerator &lt;output&gt;
- *     -Dlegend.engine.root / -Dlegend.pure.root, -Dlegend.repo.root / -Dlegend.repo.module
+ *     -Dlegend.engine.root / -Dlegend.pure.root (each tree by the file at its root: ProgramPaths)
  * </pre>
  */
 public final class ManifestGenerator {
@@ -28,10 +28,11 @@ public final class ManifestGenerator {
         if (args.length != 1) {
             throw new IllegalArgumentException("usage: ManifestGenerator <output>");
         }
-        Map<String, String> rows = rows(Corpus.all());
+        Corpus.Loaded corpus = Corpus.load();
+        Map<String, String> rows = rows(corpus.sources());
         Files.writeString(Path.of(args[0]), text(rows), StandardCharsets.UTF_8);
-        System.out.println("[manifest] " + rows.size() + " sources, " + Corpus.DEDUPED.get()
-                + " exact-text duplicates dropped, " + Corpus.UNREADABLE.size() + " unreadable files");
+        System.out.println("[manifest] " + rows.size() + " sources, " + corpus.deduped()
+                + " exact-text duplicates dropped, " + corpus.unreadable().size() + " unreadable files");
     }
 
     /** id → "sha256 \t tier", in corpus order. */

@@ -430,7 +430,7 @@ public final class ScanRelations {
                 new RelationalOperation.TargetColumnRef(r));
         right.labelOverride = "equal_\"joinleft_\"\"" + lAlias
                 + "\"_\"joinright_\"\"" + rAlias + "\"";
-        parent.children.put(String.format("%03d", 999 - parent.children.size())
+        parent.children.put(String.format(java.util.Locale.ROOT, "%03d", 999 - parent.children.size())
                 + right.table + "(tds_join)", right);
     }
 
@@ -462,7 +462,7 @@ public final class ScanRelations {
         if (body instanceof com.legend.protocol.spec.CBoolean cb && cb.value()) {
             Node parent = roots.get(roots.size() - 1);
             right.labelOverride = "tdsJoin";
-            parent.children.put(String.format("%03d", 999 - parent.children.size())
+            parent.children.put(String.format(java.util.Locale.ROOT, "%03d", 999 - parent.children.size())
                     + right.table + "(tds_join)", right);
             return;
         }

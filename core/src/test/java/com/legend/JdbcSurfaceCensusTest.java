@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -172,11 +172,11 @@ class JdbcSurfaceCensusTest {
     void jdbcSurfaceIsRegistered() throws IOException {
         List<Path> files = new ArrayList<>();
         for (String r : ROOTS) {
-            Path root = Repo.path(r);
-            if (!Files.isDirectory(root)) {
-                continue;
+            String root = r;
+            if (SourceFiles.under(root).isEmpty()) {
+                throw new IllegalStateException("JdbcSurfaceCensusTest root " + root + " is not among its inputs: declare it (Bazel workplan P3-14: a missing root failed silently)");
             }
-            try (Stream<Path> s = Files.walk(root)) {
+            try (Stream<Path> s = SourceFiles.under(root).stream()) {
                 s.filter(p -> p.toString().endsWith(".java"))
                         .forEach(files::add);
             }
@@ -193,9 +193,7 @@ class JdbcSurfaceCensusTest {
                     .replaceAll("//.*", "")
                     .replaceAll("(?s)/\\*.*?\\*/", "");
             if (JDBC.matcher(src).find()) {
-                String rel = Repo.root().toAbsolutePath().normalize()
-                        .relativize(p.toAbsolutePath().normalize())
-                        .toString().replace(java.io.File.separatorChar, '/');
+                String rel = SourceFiles.path(p);
                 if (rel.contains("/main/")) {
                     mainHits.add(rel);
                 }

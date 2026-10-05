@@ -528,7 +528,7 @@ class UserFunctionIntegrationTest {
                     """);
             var ex = assertThrows(RuntimeException.class, () ->
                     plan(model, "|model::Person.all()->project([x|test::oneArg($x.age, $x.age)], ['val'])"));
-            assertTrue(ex.getMessage().toLowerCase().contains("no overload"), "Should report arity mismatch: " + ex.getMessage());
+            assertTrue(ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("no overload"), "Should report arity mismatch: " + ex.getMessage());
         }
 
         @Test
@@ -548,7 +548,7 @@ class UserFunctionIntegrationTest {
             var ex = assertThrows(RuntimeException.class, () ->
                     plan(model, "|model::Person.all()->project([x|test::recurse($x.age)], ['val'])"));
             assertTrue(ex.getMessage().contains("test::recurse/1")
-                            && ex.getMessage().toLowerCase().contains("cycl"),
+                            && ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("cycl"),
                     "Should report recursion cycle involving test::recurse/1: " + ex.getMessage());
         }
 
@@ -675,7 +675,7 @@ class UserFunctionIntegrationTest {
                     """);
             var ex = assertThrows(RuntimeException.class, () ->
                     plan(model, "|model::Person.all()->project([p|test::dup($p.age)], ['val'])"));
-            assertTrue(ex.getMessage().toLowerCase().contains("ambiguous"),
+            assertTrue(ex.getMessage().toLowerCase(java.util.Locale.ROOT).contains("ambiguous"),
                     "Should report ambiguous overload: " + ex.getMessage());
         }
     }

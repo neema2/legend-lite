@@ -46,3 +46,19 @@ stress_layout = rule(
     implementation = _stress_layout_impl,
     doc = "STRESS_GENERATED and LINKED_PROJECTS as <name>.json, for the readers that are not Starlark.",
 )
+
+def _stress_index_impl(ctx):
+    # the stress files' names, one per line, sorted: what StressCorpus reads from the classpath instead of listing a
+    # directory (Bazel workplan P3-05, A11)
+    out = ctx.actions.declare_file(ctx.attr.out)
+    ctx.actions.write(out, "".join([f.basename + "\n" for f in sorted(ctx.files.srcs, key = lambda f: f.basename)]))
+    return [DefaultInfo(files = depset([out]))]
+
+stress_index = rule(
+    implementation = _stress_index_impl,
+    attrs = {
+        "out": attr.string(mandatory = True),
+        "srcs": attr.label_list(allow_files = [".pure"], mandatory = True),
+    },
+    doc = "The names of srcs, one per line, as the file `out`: a classpath resource's table of contents.",
+)

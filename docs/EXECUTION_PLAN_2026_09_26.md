@@ -81,12 +81,13 @@ GenericTypeMatch, MultiplicityMatch (under `legend-pure-m3-core/.../m3/`). *E.6*
    push, with the reason in the GATES entry. `docs/RELATIONAL_CORPUS.md` is a Maven-era scoreboard the Bazel chain does
    not regenerate: judge by the roster files. `//parser-equivalence:diagnostics` runs only on its triggers (a pin bump, a
    parser/lexer/protocol change, a corpus manifest change). Manual lanes (`//spec:reference_lane`,
-   `//core:scale_stresstest100k`) never run inside `//...`: run them by name when an item's gate names them.
+   `bazel run //core:scale -- 100k`, a program since Bazel workplan P3-05) never run inside `//...`: run them by name when an item's gate names them.
 7. One test class: `//core:core_tests` is one package-wide `junit_test` and ignores `--test_filter`
    (`tools/junit/defs.bzl:25-61`); run the target, or drive the jars in `bazel-bin/core/core_tests.runfiles` from jshell
    (`"$(bazel info output_base)/external/rules_java++toolchains+remotejdk25_macos_aarch64/bin/jshell" --class-path
    "$(find -L bazel-bin/core/core_tests.runfiles -name '*.jar' | tr '\n' ':')"`, after one `bazel build //core:core_tests`). One corpus test:
-   `--test_env=JAVA_TOOL_OPTIONS=-Drcorpus.test=<fqn>`. A PASSING `@KnownDefect` test means the defect is still present.
+   `bazel run //spec:corpus_one -- <duckdb|h2> <host|database> <fqn>` (the lanes' passes are cached build actions,
+   `//spec:judge_host_<lane>` and `//spec:judge_database_<lane>`, over the whole corpus). A PASSING `@KnownDefect` test means the defect is still present.
 8. A timing is a lane run alone with `--nocache_test_results`, `uptime` load under 3 at the start, nothing else
    building. A lane's time inside `bazel test //...` is not a timing.
 9. Commit: write the message to a file, then `git -c user.name=neema2 -c user.email=neema2@gmail.com commit -F <file>`;
@@ -204,7 +205,7 @@ program runs).
 | 1 | no known wrong answers; we know where the remaining ones are; the middle's design decided | open wrong-results defects 14 → 0; engine-row disagreements on mutated fixtures, found and attributed |
 | 2 | changes can be proven safe cheaply; the IDE shows positioned diagnostics | SQL snapshot and dumps in place; per-push red-chain rate down; positioned diagnostics % |
 | 3 | routing, joins, milestoning and SQL proved on adversarial data; the middle smaller | engine-row disagreements → 0 or registered; resolver lines 35,925 → down; lowering lines → down |
-| 4 | overload picks and types match legend-pure by our own solver; names bound by id | OVERLOAD rows 769 → pinned residue; "reference typed, we FAILED" bodies 1,342 → shrinking; heap after resolve on `//core:scale_stresstest100k` |
+| 4 | overload picks and types match legend-pure by our own solver; names bound by id | OVERLOAD rows 769 → pinned residue; "reference typed, we FAILED" bodies 1,342 → shrinking; heap after resolve on `bazel run //core:scale -- 100k` |
 | 5 | a thin runner; a multi-request-safe server; dialect breadth | request-reachable static state → 0 (W0.7 starts it); PCT fail rosters by class |
 | every phase | less code, faster | net product lines (229k at `89dc45871`) → down (rule 0b.17); plan latency p50/p95; WASM bytes; `//wasm` cold start; 100K-model build time (15.1 s measured at `327d43365`, GATES "Rebuild W0.6 push 1"; an earlier 2.7 s on this page was not reproduced on this branch; W1.0b prints the baseline) and heap |
 
@@ -469,7 +470,7 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
   package (`wc` over `*/src/main`); plan latency p50/p95 over `wasm/corpus/queries.tsv` (69 DataCube-shaped queries, model
   `wasm/corpus/model.pure`, JVM side `wasm/src/main/java/planner/JvmMain.java`), compile only, alone and quiet; `//wasm:planner`'s
   `classes.wasm` bytes (a `stat` on the declared output, `tools/teavm/defs.bzl`) and `//wasm:startup`'s cold start by
-  phase (`wasm/startup.mjs`); `//core:scale_stresstest100k` (manual) build time plus a heap-after-GC read added to
+  phase (`wasm/startup.mjs`); `bazel run //core:scale -- 100k` build time plus a heap-after-GC read added to
   `StressTest100K.java` (:209-212 prints parse+build only); reference-lane buckets read from the last
   `bazel-testlogs/spec/reference_lane/test.log` (never re-run for metrics: 8 GB); the fail-roster sizes. Gate: the output
   pinned in GATES with its receipt. Budgets are set from it at C1. Size 1–2.

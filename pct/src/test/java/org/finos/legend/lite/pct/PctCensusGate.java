@@ -13,17 +13,12 @@ import junit.framework.Test;
  * this hook nothing ASSERTED them there — the suites measured and
  * discarded. Each PCT suite's teardown now pins the lane.
  *
- * <p>Counters are CUMULATIVE PER JVM (the trap roster: measure lanes
- * whole, never per-suite), and one JVM (the lane's junit_test) runs every pct test
- * class in file order — so per-suite deltas are meaningless and only
- * ORDER-SAFE facts are asserted at each teardown: never-happens
- * invariants ({@code mismatch == 0} — a label lie escaped
- * reconciliation) and whole-JVM ceilings (a teardown observes a prefix
- * of the JVM's traffic, so a prefix exceeding the JVM ceiling is
- * already a regression). Ceilings are MEASURED per lane (2026-08-25)
- * and ratchet DOWN as families burn; the h2 lane (G7,
- * {@code LEGENDLITE_PCT_BACKEND=h2}) is its own JVM with its own
- * numbers.
+ * <p>Each suite is judged on ITS OWN traffic (Bazel workplan P3-09): the counters are process-wide and
+ * cumulative, so the gate snapshots them at the suite's start and checks the difference at its end, against the
+ * suite's own ceiling, measured on its own target. A suite's verdict no longer depends on which suites shared its JVM
+ * (until 2026-10-05 the ceilings were whole-JVM, measured on the five-suite composite lane). Never-happens invariants
+ * ({@code mismatch == 0} — a label lie escaped reconciliation) hold everywhere; the ceilings ratchet DOWN as families
+ * burn; each backend (DuckDB, H2 {@code LEGENDLITE_PCT_BACKEND=h2}, Postgres) has its own numbers.
  */
 public final class PctCensusGate {
 
@@ -127,6 +122,7 @@ public final class PctCensusGate {
     // leg P4). Its driver's own spellings (int8, text, bool ...) are names, not divergence
     // (SqlTypeCensus.normalizeMeta). Every other pin holds at its DuckDB/H2 value on this lane too.
     private static final boolean POSTGRES = "postgres".equals(System.getenv("LEGENDLITE_PCT_BACKEND"));
+    private static final boolean H2 = "h2".equals(System.getenv("LEGENDLITE_PCT_BACKEND"));
     // 53 -> 57 (2026-10-02, tier 1: multi-column pivots, whole-partition medians, half-even rounding to a
     // scale and calendar buckets now RUN on Postgres): the same classes, more of their plans -- a decimal
     // rounded exactly is a computed numeric with no declared precision
@@ -139,7 +135,18 @@ public final class PctCensusGate {
     // (RootNumericTypes), whose precision the census now reads where the driver's type name has none; a
     // literal sum's fold keeps its HUGEINT. Left: a struct, jsonb on Postgres by design (STRUCT <- JSON,
     // 13), or text (STRUCT <- VARCHAR, 3)
-    private static final long MAX_WIRE_DIVERGE = POSTGRES ? 16 : 0;
+    // PER SUITE since 2026-10-05 (Bazel workplan P3-09): each suite is judged on its own traffic, measured on its own
+    // target: Postgres's 16 are Essential's 12 and Grammar's 4
+    private static long maxWireDiverge(String suite) {
+        if (!POSTGRES) {
+            return 0;
+        }
+        return switch (suite) {
+            case "Essential" -> 12;
+            case "Grammar" -> 4;
+            default -> 0;
+        };
+    }
     private static final long MAX_ADOPT_PENDING = 0;
     // THE NULLABILITY LEDGER (§4bZ-V E, 2026-08-26 — §4Z ledger #4):
     // this lane carried 6 literal-NullLit DOUBLE value-frames (the
@@ -173,7 +180,19 @@ public final class PctCensusGate {
     // bucket instead of the unrefined Number's — a label move on empty
     // results, not a typed-column degradation (cumulative per JVM:
     // 230 Unclassified / 231 Grammar).
-    private static final long MAX_INT_NULL_EMPTY = 231;
+    // PER SUITE since 2026-10-05 (Bazel workplan P3-09), each suite's own traffic on its own target: DuckDB's
+    // Essential 20, Standard 20, Unclassified 4 (44 in all; the whole-lane 231 was measured on Maven's one JVM, which
+    // also carried channel B's traffic); 0 on H2 and Postgres
+    private static long maxIntNullEmpty(String suite) {
+        if (POSTGRES || H2) {
+            return 0;
+        }
+        return switch (suite) {
+            case "Essential", "Standard" -> 20;
+            case "Unclassified" -> 4;
+            default -> 0;
+        };
+    }
     // E2E-audit converse census (TYPE_E2E_AUDIT §3): wire NULL under
     // an always-present label — 49 on this lane (46 HUGEINT
     // empty-group sums + 3 DOUBLE float aggregates). Ceiling;
@@ -189,43 +208,58 @@ public final class PctCensusGate {
     // a pair matching no named relation now lands in MISMATCH (pinned
     // 0 below) — strictly louder than any ceiling here could be.
 
+    /** The counters a suite is judged on, in {@link #check}'s order: a snapshot, so a suite's own traffic is the
+     *  difference between its start and its end (Bazel workplan P3-09: measured per suite, whatever shares the JVM). */
+    private static long[] counts() {
+        return new long[] {
+            SqlTypeCensus.mismatchCount(),
+            SqlTypeCensus.wireAdoptPendingCount(),
+            SqlTypeCensus.wireDivergeCount(),
+            SqlTypeCensus.untypedCount(),
+            SqlTypeCensus.bottomMultCount(),
+            SqlTypeCensus.wireUnknownCount(),
+            SqlTypeCensus.wireIntOrNullEmptyCount(),
+            SqlTypeCensus.nullBreachCount(),
+        };
+    }
+
     public static Test wrap(String suite, Test t) {
         return new TestSetup(t) {
+            private long[] start = new long[8];
+
+            @Override
+            protected void setUp() {
+                start = counts();
+            }
+
             @Override
             protected void tearDown() {
+                long[] end = counts();
+                long[] d = new long[end.length];
+                for (int i = 0; i < d.length; i++) {
+                    d[i] = end[i] - start[i];
+                }
+                System.out.println("[pct-census] " + suite + " (its own traffic): mismatch=" + d[0]
+                        + " adopt-pending=" + d[1] + " diverge=" + d[2] + " untyped=" + d[3] + " bottom-mult=" + d[4]
+                        + " wire-unknown=" + d[5] + " int-null-empty=" + d[6] + " null-breach=" + d[7]);
                 System.out.println("[pct-census] after " + suite + ": "
                         + SqlTypeCensus.summary());
-                // the untyped DECOMPOSITION (the corpus lane's census
-                // display, brought to the pct lane 2026-08-25 — no
-                // silent caps: the ceiling is only adjudicable when
-                // every class is visible with witnesses; 40 -> 100 at
-                // N0's bottom-mult SHAPE split, §4bZ-V E)
                 SqlTypeCensus.classes(100).forEach(c -> System.out
                         .println("[pct-census] class: " + c));
                 SqlTypeCensus.allSamples().forEach((cls, ws) ->
                         ws.forEach(w -> System.out.println(
                                 "[pct-census] witness: " + cls + " :: "
                                         + w)));
-                check(suite, "label lie escaped reconciliation (mismatch)",
-                        SqlTypeCensus.mismatchCount(), 0);
-                check(suite, "wire adopt-pending grew",
-                        SqlTypeCensus.wireAdoptPendingCount(),
-                        MAX_ADOPT_PENDING);
-                check(suite, "wire divergence grew",
-                        SqlTypeCensus.wireDivergeCount(), MAX_WIRE_DIVERGE);
+                check(suite, "label lie escaped reconciliation (mismatch)", d[0], 0);
+                check(suite, "wire adopt-pending grew", d[1], MAX_ADOPT_PENDING);
+                check(suite, "wire divergence grew", d[2], maxWireDiverge(suite));
                 check(suite, "untyped projection roots grew — a missing"
-                                + " rule or an unstamped leaf",
-                        SqlTypeCensus.untypedCount(), MAX_UNTYPED);
+                                + " rule or an unstamped leaf", d[3], MAX_UNTYPED);
                 check(suite, "computed NULL under a required-multiplicity"
-                                + " label (bottom-mult)",
-                        SqlTypeCensus.bottomMultCount(), MAX_BOTTOM_MULT);
-                check(suite, "unadjudicated wire probes appeared",
-                        SqlTypeCensus.wireUnknownCount(), MAX_WIRE_UNKNOWN);
-                check(suite, "proven-empty int-or-null columns grew",
-                        SqlTypeCensus.wireIntOrNullEmptyCount(),
-                        MAX_INT_NULL_EMPTY);
-                check(suite, "null-under-required-label breaches grew",
-                        SqlTypeCensus.nullBreachCount(), MAX_NULL_BREACH);
+                                + " label (bottom-mult)", d[4], MAX_BOTTOM_MULT);
+                check(suite, "unadjudicated wire probes appeared", d[5], MAX_WIRE_UNKNOWN);
+                check(suite, "proven-empty int-or-null columns grew", d[6], maxIntNullEmpty(suite));
+                check(suite, "null-under-required-label breaches grew", d[7], MAX_NULL_BREACH);
             }
         };
     }

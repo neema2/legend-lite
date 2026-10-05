@@ -41,7 +41,9 @@ const base = (more: Partial<SaveDialogOptions> = {}): SaveDialogOptions => ({
 
 describe('the Save window', () => {
   it('Save over the copy this was opened from, saying so -- or Save as new', async () => {
-    const done = saveDialog(doc, base({ over: { name: 'Trades by region', savedAt: Date.now() - 2 * 3600_000 } }));
+    // the dialog's clock is the test's: "2 hours ago" is a fact of the two times, not of when the test runs
+    const now = Date.parse('2026-10-05T12:00:00Z');
+    const done = saveDialog(doc, base({ over: { name: 'Trades by region', savedAt: now - 2 * 3600_000 }, now: () => now }));
     assert.equal($('.dc-picker-title').textContent, 'Save');
     assert.match($('.dc-save-where').textContent ?? '', /Saves over “Trades by region”, saved 2 hours ago/);
     assert.deepEqual([...doc.querySelectorAll('.dc-save-keep')].map((l) => l.textContent),

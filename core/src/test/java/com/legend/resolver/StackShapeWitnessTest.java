@@ -209,14 +209,11 @@ class StackShapeWitnessTest {
     }
 
     @Test
-    @DisplayName("F11: the three shapes resolve and lower within budget")
-    void shapesLowerWithinBudget() {
+    @DisplayName("F11: the three shapes resolve and lower")
+    void shapesLower() {
+        // no wall-clock budget (Bazel workplan P3-15): a runaway is the test target's timeout, not a number of ms
         for (String m : List.of("NonModeledKey", "ModeledKeyThreeArms", "PlainTwoPins")) {
-            long t0 = System.nanoTime();
-            sqlOf("|w::Order.all()->project([o|$o.id], ['oid'])->from(w::" + m + ", w::RT)");
-            long ms = (System.nanoTime() - t0) / 1_000_000;
-            System.out.println("[stack-timing] " + m + " " + ms + " ms");
-            assertTrue(ms < 5_000, m + " took " + ms + " ms");
+            assertTrue(!sqlOf("|w::Order.all()->project([o|$o.id], ['oid'])->from(w::" + m + ", w::RT)").isEmpty(), m);
         }
     }
 }

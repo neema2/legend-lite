@@ -12,7 +12,10 @@ legend_java_library(
     testonly = True,
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
-    srcs = ["JUnitMain.java"],
+    srcs = [
+        "JUnitAction.java",
+        "JUnitMain.java",
+    ],
     visibility = ["//visibility:public"],
     runtime_deps = [
         "@maven_test//:org_junit_jupiter_junit_jupiter_engine",

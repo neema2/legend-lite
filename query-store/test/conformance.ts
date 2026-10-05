@@ -36,10 +36,15 @@ const query = (id: string, over: Partial<Query> = {}): Query => ({
   ...over,
 });
 
+/** How many suites this process has run: each suite's ids are its own (Bazel workplan P3-16: a count, not the clock
+ *  and a random number; every target starts on a fresh store, the page's in memory, legend-lite's in a new
+ *  directory, so ids need only differ within a process). */
+let suites = 0;
+
 export function conformance(name: string, target: () => Target): void {
   describe(`the query store: ${name}`, () => {
-    // each run its own ids: a server's store may hold an earlier run's
-    const run = `c${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+    suites += 1;
+    const run = `c${suites}`;
     const id = (n: string): string => `${run}-${n}`;
     const raw = async (method: string, path: string, body?: unknown): Promise<{ status: number; json: unknown; text: string }> => {
       const t = target();
@@ -170,6 +175,7 @@ export function conformance(name: string, target: () => Target): void {
 
     it('sorts by last update, newest first', async () => {
       await raw('POST', '', query(id('s1'), { name: `Sort ${run} one` }));
+      // the update times are the SERVER's: no clock of this test's reaches it, so the two saves are 5 ms apart
       await new Promise((r) => setTimeout(r, 5));
       await raw('POST', '', query(id('s2'), { name: `Sort ${run} two` }));
       const r = (await raw('POST', '/search', { searchTermSpecification: { searchTerm: `sort ${run}` }, sortByOption: 'SORT_BY_UPDATE' })).json as Record<string, unknown>[];

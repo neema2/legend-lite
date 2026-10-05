@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
@@ -249,8 +249,9 @@ class CodeShapeGuardrailTest {
     }
 
     private static List<Path> mainSources() throws IOException {
-        Path root = Repo.module("src/main/java");
-        try (Stream<Path> s = Files.walk(root)) {
+        // core's main sources: src/main/java and the DuckDB-only src/main/duckdb (Bazel workplan P3-27, CT-N10)
+        String root = "core/src/main/java";
+        try (Stream<Path> s = SourceFiles.under(root, "core/src/main/duckdb").stream()) {
             List<Path> out = s.filter(p -> p.toString().endsWith(".java"))
                     .toList();
             GuardCoverage.assertFloor(/* 499->498: HostEval DELETED, Phase 1 batch 2 */ "CodeShapeGuardrailTest",

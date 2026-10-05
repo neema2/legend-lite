@@ -389,7 +389,8 @@ gate (including all four census tests, whose ratchets already exist). Either mak
 its claim** at `:16-19` to be "the third assertion mechanism."
 
 **Why:** the strongest verifiers in the tree are dark in every build. `CorpusDifferentialTest`
-`Assumptions`-skips because `core/target/diff` never exists. Audit §7 T15, T18.
+`Assumptions`-skips because `core/target/diff` never exists. Audit §7 T15, T18. **Done 2026-10-05 (Bazel workplan
+P3-18): `//core:corpus_differential_test` runs it on every build over `//scripts/corpus:gen_differential`'s data.**
 
 **Acceptance:** `allgates.sh`'s ran-verification loop names every added class; a rename goes red.
 
@@ -1470,7 +1471,7 @@ resolution, DuckDB-upgrade txn revisit).
   server/Json's generic Array.get serialization (replace with typed
   array arms). Frozen shrink-only in ArchitectureTest; no new
   reflection compiles.
-- **CorpusDifferentialTest gate wiring (F1.9 residue):** run
+- **CorpusDifferentialTest gate wiring (F1.9 residue): DONE 2026-10-05 (Bazel workplan P3-18).** Was: run
   `scripts/corpus/differential.py` as a gate step so the Assumptions-skip
   stops firing — a python + oracle-checkout moving part deliberately not
   added mid-pause; its javadoc now states the truth (dark in every build).

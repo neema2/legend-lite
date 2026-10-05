@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * What legend-lite does NOT yet support, as executable statements rather than comments.
  *
  * <p>Every gap here was found by building the stress corpus, and each was previously
- * recorded only as an exclusion ({@link StressCorpus#EXCLUDED},
+ * recorded only as an exclusion ({@link StressExclusions#EXCLUDED},
  * {@code the stress suites test's fail reasons (runtime binding)}) or as prose in
  * {@code docs/UPSTREAM_FINDINGS.md}. An exclusion tells you a thing is skipped; it does
  * not let you SEE the behaviour, and it does not tell you when the gap closes. This does
@@ -145,8 +145,8 @@ class LegendLiteGapTest {
         // closed when legend-lite's lattice gained legend-pure's precise primitives
         Set<String> documented = Set.of("29-money.pure", "55-canonical-store.pure",
                 "71-mapping-surface2.pure", "75-surface-gaps.pure");
-        assertEquals(documented, StressCorpus.EXCLUDED.keySet(),
-                "StressCorpus.EXCLUDED changed. Every excluded file must have a case in "
+        assertEquals(documented, StressExclusions.EXCLUDED.keySet(),
+                "StressExclusions.EXCLUDED changed. Every excluded file must have a case in "
                         + "this test showing WHY legend-lite cannot load it — an exclusion "
                         + "without executable evidence is just a comment.");
     }

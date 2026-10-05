@@ -8,7 +8,6 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -48,23 +47,28 @@ final class AuthenticatedUser {
 
     private static volatile @Nullable Stubs stubs;
 
+    /** One callback DuckDB calls: the Java method and its C signature. */
+    record Upcall(String method, FunctionDescriptor descriptor) {
+    }
+
+    static final Upcall ON_BIND = new Upcall("onBind", FunctionDescriptor.ofVoid(ADDRESS));
+    static final Upcall ON_EXECUTE = new Upcall("onExecute", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS));
+    static final Upcall ON_COPY = new Upcall("onCopy", FunctionDescriptor.of(ADDRESS, ADDRESS));
+    /** The callbacks, for the native image's FFM metadata (//warehouse:reachability_metadata; Bazel workplan P2-09). */
+    static final java.util.List<Upcall> UPCALLS = java.util.List.of(ON_BIND, ON_EXECUTE, ON_COPY);
+
+    private static MemorySegment stub(Upcall u) throws ReflectiveOperationException {
+        return Duck.LINKER.upcallStub(MethodHandles.lookup().findStatic(AuthenticatedUser.class, u.method(),
+                u.descriptor().toMethodType()), u.descriptor(), Arena.global());
+    }
+
     private static Stubs stubs() throws ReflectiveOperationException {
         Stubs s = stubs;
         if (s != null) return s;
         synchronized (AuthenticatedUser.class) {
             s = stubs;
             if (s == null) {
-                MethodHandles.Lookup here = MethodHandles.lookup();
-                s = new Stubs(
-                        Duck.LINKER.upcallStub(here.findStatic(AuthenticatedUser.class, "onBind",
-                                MethodType.methodType(void.class, MemorySegment.class)),
-                                FunctionDescriptor.ofVoid(ADDRESS), Arena.global()),
-                        Duck.LINKER.upcallStub(here.findStatic(AuthenticatedUser.class, "onExecute",
-                                MethodType.methodType(void.class, MemorySegment.class, MemorySegment.class, MemorySegment.class)),
-                                FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS), Arena.global()),
-                        Duck.LINKER.upcallStub(here.findStatic(AuthenticatedUser.class, "onCopy",
-                                MethodType.methodType(MemorySegment.class, MemorySegment.class)),
-                                FunctionDescriptor.of(ADDRESS, ADDRESS), Arena.global()));
+                s = new Stubs(stub(ON_BIND), stub(ON_EXECUTE), stub(ON_COPY));
                 stubs = s;
             }
         }

@@ -120,7 +120,7 @@ public sealed interface RelationalDataType permits
      * @throws IllegalArgumentException if {@code name} is not a known type
      */
     static RelationalDataType fromName(String name) {
-        return switch (name.toUpperCase()) {
+        return switch (name.toUpperCase(java.util.Locale.ROOT)) {
             case "BIGINT"         -> new BigInt();
             case "SMALLINT"       -> new SmallInt();
             case "TINYINT"        -> new TinyInt();

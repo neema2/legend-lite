@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.testing.Repo;
+import com.legend.testing.SourceFiles;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -47,7 +47,7 @@ import org.junit.jupiter.api.Tag;
 @Tag("guardrail")
 class FallbackLedgerTest {
 
-    private static final Path PACKAGE = Repo.module("src/main/java/com/legend/normalizer");
+    private static final String PACKAGE = "core/src/main/java/com/legend/normalizer";
 
     /** file &rarr; censused empty-answer sites ({@code MissProbe::miss},
      * {@code MissProbe.miss()}, {@code MissProbe.knownMiss(}). Measured
@@ -123,7 +123,7 @@ class FallbackLedgerTest {
     }
 
     private static List<Path> sources() throws IOException {
-        try (Stream<Path> s = Files.walk(PACKAGE)) {
+        try (Stream<Path> s = SourceFiles.under(PACKAGE).stream()) {
             List<Path> out = s.filter(p -> p.toString().endsWith(".java")).toList();
             GuardCoverage.assertFloor("FallbackLedgerTest", out.size(), 20);
             return out;

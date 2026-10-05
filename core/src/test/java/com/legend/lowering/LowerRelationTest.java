@@ -3,8 +3,6 @@ package com.legend.lowering;
 import com.legend.Compiler;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.DuckDb;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -45,10 +43,11 @@ class LowerRelationTest {
             )
             """;
 
-    private static Connection conn;
+    // one connection per method: nothing a test writes reaches the next (Bazel workplan P3-04)
+    private Connection conn;
 
-    @BeforeAll
-    static void setUp() throws SQLException {
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() throws SQLException {
         conn = DriverManager.getConnection("jdbc:duckdb:");
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE T_PERSON (NAME VARCHAR NOT NULL, AGE INTEGER NOT NULL,"
@@ -69,8 +68,8 @@ class LowerRelationTest {
         }
     }
 
-    @AfterAll
-    static void tearDown() throws SQLException {
+    @org.junit.jupiter.api.AfterEach
+    void tearDown() throws SQLException {
         conn.close();
     }
 
@@ -86,6 +85,14 @@ class LowerRelationTest {
                 com.legend.compiler.NameResolver.resolveQuery(
                         com.legend.testing.Own.spec(query)));
         return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(body));
+    }
+
+    /** {@link #exec}'s rows sorted: for a relation queried with no ORDER BY, whose row order is the database's
+     *  (Bazel workplan P3-11). A collection keeps its order: use {@link #exec}. */
+    private List<String> execUnordered(String sql) throws SQLException {
+        List<String> rows = new ArrayList<>(exec(sql));
+        rows.sort(null);
+        return rows;
     }
 
     /** Execute; return rows as "cell|cell" strings. */
@@ -177,7 +184,7 @@ class LowerRelationTest {
                 SELECT t0.NAME AS FULL_NAME, t0.AGE, t0.FIRM
                 FROM T_PERSON AS t0""", sql);
         assertEquals(List.of("Ann|25|ACME", "Bob|35|ACME", "Cat|45|Widget", "Dan|55|null"),
-                exec(sql));
+                execUnordered(sql));
     }
 
     @Test
@@ -354,7 +361,7 @@ class LowerRelationTest {
         assertEquals("""
                 SELECT t0.NAME AS who, t0.AGE + 10 AS older
                 FROM T_PERSON AS t0""", sql);
-        assertEquals(List.of("Ann|35", "Bob|45", "Cat|55", "Dan|65"), exec(sql));
+        assertEquals(List.of("Ann|35", "Bob|45", "Cat|55", "Dan|65"), execUnordered(sql));
     }
 
     @Test

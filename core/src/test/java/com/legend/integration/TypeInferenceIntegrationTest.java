@@ -1917,7 +1917,7 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
                 assertTrue(result.rows().size() > 0, "Should have rows");
         }
 
-
+        @Test
         void testContainsPrimitive() throws SQLException {
                 // PCT: |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->contains(1) -> true
                 var result = queryService.execute(

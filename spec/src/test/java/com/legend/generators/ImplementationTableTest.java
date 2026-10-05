@@ -10,7 +10,6 @@ import com.legend.platform.DeclarationTable;
 import com.legend.model.FunctionId;
 import com.legend.platform.Implementation;
 import com.legend.platform.ImplementationTable;
-import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -109,8 +108,8 @@ class ImplementationTableTest {
         out.add("# conflicts " + impl.conflicts().size() + " " + impl.conflicts());
         out.add("# walled class-member bodies (not function rows) " + impl.memberWalls().size());
         out.addAll(rows);
-        Files.createDirectories(Repo.outDir());
-        Files.write(Repo.out("implementation-table.tsv"), out);
+        Files.createDirectories(com.legend.testing.TestOutputs.dir());
+        Files.write(com.legend.testing.TestOutputs.file("implementation-table.tsv"), out);
         out.subList(0, 6).forEach(System.out::println);
 
         // TOTAL: one row per declaration

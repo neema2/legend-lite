@@ -116,12 +116,12 @@ interface Opened {
   readonly errors: string[];
 }
 
-async function openCube(snapshot: CubeSnapshot): Promise<Opened> {
+async function openCube(snapshot: CubeSnapshot, connection: ArrowishConnection = conn): Promise<Opened> {
   const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
   (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame =
     (fn: () => void) => { fn(); return 0; };
   const root = dom.window.document.getElementById('r') as HTMLElement;
-  const engine = new Watched(new DuckDbEngine(conn));
+  const engine = new Watched(new DuckDbEngine(connection));
   const errors: string[] = [];
   const app = new CubeApp(root, snapshot, {
     engine,
@@ -215,7 +215,9 @@ Promise<void> {
   }
 }
 
-before(async () => {
+/** A fresh in-memory DuckDB holding the seed TRADES: the suite's, and a test's own when it writes (Bazel workplan
+ *  P3-10: no test changes rows another test reads). */
+async function seededConnection(): Promise<ArrowishConnection> {
   const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
   const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
   const db = await duckdb.createDuckDB({
@@ -223,11 +225,16 @@ before(async () => {
     eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },
   }, new duckdb.VoidLogger(), duckdb.NODE_RUNTIME);
   await db.instantiate();
-  conn = db.connect() as ArrowishConnection;
-  const local = new DuckDbEngine(conn);
+  const connection = db.connect() as ArrowishConnection;
+  const local = new DuckDbEngine(connection);
   await local.run(`CREATE TABLE TRADES (region VARCHAR(32), desk VARCHAR(32), book VARCHAR(32),
     year INTEGER, qtr VARCHAR(8), notional DOUBLE, pnl DOUBLE, qty INTEGER)`, 0);
   await local.run(`INSERT INTO TRADES VALUES ${ROWS}`, 0);
+  return connection;
+}
+
+before(async () => {
+  conn = await seededConnection();
   planner = new WasmPlanner({ model: MODEL, runtime: RUNTIME, assetBaseUrl: MODULE_DIR, cache: false });
 });
 
@@ -322,12 +329,13 @@ describe('a grouped pivot, judged by rows', () => {
     }
   });
 
-  // LAST: it inserts rows every check above would see.
+  // its own database: the 600 rows it inserts reach no other test
   it('R9: more pivot values than the cap is refused, with a message', async () => {
-    await new DuckDbEngine(conn).run(`INSERT INTO TRADES
+    const own = await seededConnection();
+    await new DuckDbEngine(own).run(`INSERT INTO TRADES
       SELECT 'ZZ', 'Rates', 'Bx' || i, 2023, 'Q1', 1, 1, 1000 + i FROM range(600) t(i)`, 0);
     const o = await openCube({ ...CUBE, rows: ['region'], pivotOn: ['book'],
-      measures: [{ name: 'cnt_q', column: 'qty', fn: 'count' }] });
+      measures: [{ name: 'cnt_q', column: 'qty', fn: 'count' }] }, own);
     assert.equal(o.errors.some((e) => /book/.test(e) && /values/.test(e)), true,
       `refused naming the column: ${o.errors.join(' | ')}`);
     assert.equal(o.app.view, null, 'no 600-column grid was drawn');

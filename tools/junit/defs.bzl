@@ -8,7 +8,8 @@ file) with the same settings, so no target sets them on its own:
   * counts always printed, and a run that finds no tests FAILS — a PASSED line
     cannot otherwise tell a full suite from an empty one;
   * the upstream source trees, when asked for, as declared inputs with the
-    legend.engine.root / legend.pure.root properties pointing at them;
+    legend.engine.root.rlocation / legend.pure.root.rlocation properties naming the file at each root
+    (ProgramPaths.rootOf);
   * ONE number for memory, `memory_mb` (Bazel workplan P1-21): the scheduler's
     `resources:memory:<n>` tag and the JVM's -Xmx<n>m, so Bazel packs tests by what
     each JVM may actually use, and CI and the desk run the same command line (and
@@ -23,6 +24,7 @@ JUnitMain lists every one it accepts, and any other argument fails the run.
 
 load("@rules_java//java:defs.bzl", "java_test")
 load("//tools/deps:pools.bzl", "check_pool_use")
+load("//tools/java:defs.bzl", "LEGEND_JAVACOPTS")
 
 def junit_test(
         name,
@@ -63,8 +65,8 @@ def junit_test(
             "@legend_pure_src//:pom.xml",
         ]
         flags += [
-            "-Dlegend.engine.root=$(rlocationpath @legend_engine_src//:pom.xml)",
-            "-Dlegend.pure.root=$(rlocationpath @legend_pure_src//:pom.xml)",
+            "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
+            "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         ]
     java_test(
         name = name,
@@ -77,5 +79,7 @@ def junit_test(
         data = inputs,
         deps = deps,
         runtime_deps = runtime_deps + ["//tools/junit"],
+        # a test's own sources take the shared javacopts too: the locale checks (P3-28) hold in test code
+        javacopts = LEGEND_JAVACOPTS + kwargs.pop("javacopts", []),
         **kwargs
     )

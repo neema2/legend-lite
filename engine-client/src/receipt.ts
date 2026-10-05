@@ -11,6 +11,8 @@
 // Every plane issues one, the tab's DuckDB included, so "nothing remote ran"
 // is stated rather than left to be inferred from a missing badge.
 
+import { UI_LOCALE } from './locale.ts';
+
 export type ReceiptPlane = 'tab' | 'warehouse' | 'engine';
 
 export interface Receipt {
@@ -46,7 +48,7 @@ export function hostOf(url: string): string {
 
 /** One short line: the status bar's chip. */
 export function receiptLabel(r: Receipt): string {
-  if (r.copy) return `this tab's copy (${r.copy.takenAt.toLocaleTimeString()})`;
+  if (r.copy) return `this tab's copy (${r.copy.takenAt.toLocaleTimeString(UI_LOCALE)})`;
   switch (r.plane) {
     case 'warehouse':
       return [r.where, r.as, r.statementId ? `#${r.statementId.slice(0, 8)}` : undefined]
@@ -64,13 +66,13 @@ export function receiptLabel(r: Receipt): string {
 export function receiptLines(r: Receipt): string[] {
   const lines = [`Ran on ${r.where}${r.as ? ` as ${r.as}` : ''}.`];
   if (r.statementId) lines.push(`Server statement id: ${r.statementId}`);
-  if (r.serverRows !== undefined) lines.push(`Rows, as the server counted them: ${r.serverRows.toLocaleString()}`);
+  if (r.serverRows !== undefined) lines.push(`Rows, as the server counted them: ${r.serverRows.toLocaleString(UI_LOCALE)}`);
   if (r.reading && r.reading.length > 0) lines.push(`Read over HTTP: ${r.reading.join(', ')}`);
   if (r.serverSql) lines.push(`SQL the server reports running: ${r.serverSql}`);
   if (r.serverNote) lines.push(`The server's note: ${r.serverNote}`);
   if (r.copy) {
     const from = r.copy.from;
-    lines.push(`Read from the snap copied into this tab at ${r.copy.takenAt.toLocaleTimeString()}`
+    lines.push(`Read from the snap copied into this tab at ${r.copy.takenAt.toLocaleTimeString(UI_LOCALE)}`
       + (from ? `, pulled from ${from.where}${from.as ? ` as ${from.as}` : ''}`
         + (from.statementId ? ` (statement ${from.statementId})` : '') : '')
       + '. Nothing was sent to a server for this query.');

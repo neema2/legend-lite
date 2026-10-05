@@ -142,7 +142,7 @@ public class PctExecuteNative extends NativeFunction {
                 System.out.println("[LegendLite PCT] Injected model:\n" + defs);
             }
             String model = defs.toString();
-            PctCaseRecorder.record(model, pureExpression);   // debug only: LL_PCT_CASES
+            PctCaseRecorder.record(model, pureExpression);   // debug only: -Dlegend.diagnostics=pct-cases
 
             // E1 (JAVA_EVICTION_PLAN): relation-rooted queries render
             // their PCT wire text IN THE PLAN (Lowerer PCT-TDS root

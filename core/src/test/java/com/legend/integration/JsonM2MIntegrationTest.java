@@ -146,9 +146,9 @@ class JsonM2MIntegrationTest {
         assertTrue(colNames.contains("fullName"), "Should have fullName column");
         assertTrue(colNames.contains("age"), "Should have age column");
 
-        // Check first row
-        var firstRow = tabular.rows().get(0);
-        assertEquals("John Smith", firstRow.get(colNames.indexOf("fullName")));
+        // some row is John Smith's (no sort: not "the first", P3-11)
+        assertTrue(tabular.rows().stream().anyMatch(r -> "John Smith".equals(r.get(colNames.indexOf("fullName")))),
+                "a row with fullName John Smith: " + tabular.rows());
     }
 
     @Test

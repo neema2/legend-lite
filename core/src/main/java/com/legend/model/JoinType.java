@@ -27,7 +27,7 @@ public enum JoinType {
      *         the documented spellings
      */
     public static JoinType fromIdentifier(String identifier) {
-        return switch (identifier.toUpperCase()) {
+        return switch (identifier.toUpperCase(java.util.Locale.ROOT)) {
             case "INNER"                   -> INNER;
             case "LEFT", "LEFT_OUTER"      -> LEFT_OUTER;
             case "RIGHT", "RIGHT_OUTER"    -> RIGHT_OUTER;

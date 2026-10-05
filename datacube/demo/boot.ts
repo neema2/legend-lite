@@ -5,6 +5,7 @@
 // the SQL; DuckDB in this tab runs it. There is no fallback: a planner that does not answer is
 // said (`refusePlanner`) and the page stops.
 
+import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import * as duckdb from '../../engine-client/src/duckdb-wasm.ts';
 
 import { CubeApp, type GridSource, type HeldCopy } from '../src/app.ts';
@@ -428,7 +429,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     status.textContent = `reading ${remote}`;
   } else if (start.kind === 'sample') {
 
-  status.textContent = `generating ${ROWS.toLocaleString()} rows…`;
+  status.textContent = `generating ${ROWS.toLocaleString(UI_LOCALE)} rows…`;
   await generateTrades(engine);
   generated = { label: 'trades (generated in this tab)', takenAt: new Date(), rowCount: ROWS };
   }
@@ -1226,7 +1227,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
             : src?._type === 'remoteFile'
               ? `Not the rows, and not its keys: opening it reads ${src.name} again from its URL.`
           : src?.sample
-            ? `Not the rows: the example (${src.sample.rows.toLocaleString()} rows) is generated again when it opens.`
+            ? `Not the rows: the example (${src.sample.rows.toLocaleString(UI_LOCALE)} rows) is generated again when it opens.`
             : `Not the rows: opening it reads ${src?.name ?? 'its file'} again, from your computer.`;
         await saveDialog(document, {
           purpose: asNew ? 'saveAs' : 'save',
@@ -1295,8 +1296,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
           return;
         }
         note.textContent = link.long
-          ? `Copied, but it is long (${link.length.toLocaleString()} characters): some mail and chat tools cut links this long. ${about}`
-          : `Copied to the clipboard (${link.length.toLocaleString()} characters). ${about}`;
+          ? `Copied, but it is long (${link.length.toLocaleString(UI_LOCALE)} characters): some mail and chat tools cut links this long. ${about}`
+          : `Copied to the clipboard (${link.length.toLocaleString(UI_LOCALE)} characters). ${about}`;
         note.className = link.long ? 'sharenote warn' : 'sharenote';
       };
       copy.onclick = () => void put();
@@ -1308,7 +1309,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     // said in plain words rather than guessed at with a ceiling here.
     const tooBig = (e: unknown, rows: number): string =>
       e instanceof RangeError
-        ? `${rows.toLocaleString()} rows is more than this tab can hold as one file -- try fewer`
+        ? `${rows.toLocaleString(UI_LOCALE)} rows is more than this tab can hold as one file -- try fewer`
         : e instanceof Error ? e.message : String(e);
     const mimeOf = (s: Sample): string =>
       s.format === 'jsonl' ? 'application/x-ndjson' : 'text/csv';
@@ -1633,7 +1634,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
               id: q.id,
               name: q.name,
               ...(q.owner ? { owner: q.owner } : {}),
-              ...(q.lastUpdatedAt ? { modified: new Date(q.lastUpdatedAt).toLocaleDateString() } : {}),
+              ...(q.lastUpdatedAt ? { modified: new Date(q.lastUpdatedAt).toLocaleDateString(UI_LOCALE) } : {}),
               project: project?.title ?? `${q.groupId}:${q.artifactId}:${q.versionId}`,
               ...(project ? {} : { unusable: 'This page has no model for its project' }),
             };
@@ -1644,7 +1645,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
             const [store, { queryFragment }] = await Promise.all([queryStore(config).store, queryStores()]);
             const link = `${location.origin}${location.pathname}${location.search}#${await queryFragment(await store.get(id))}`;
             await navigator.clipboard.writeText(link);
-            return `Link copied (${link.length.toLocaleString()} characters): it opens the query as the cube’s source, and holds the query, never its rows.`;
+            return `Link copied (${link.length.toLocaleString(UI_LOCALE)} characters): it opens the query as the cube’s source, and holds the query, never its rows.`;
           },
         },
         database: databaseSection(config, (session, object) => act({ kind: 'table', session, object })),
