@@ -8,6 +8,8 @@ import type { DepotClient } from '../../../depot-client/src/client.ts';
 import type { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import { SdlcError } from '../../../sdlc-client/src/client.ts';
 import type { Compiler } from '../backend/planner.ts';
+import type { QueryBuilder } from '../backend/query-builder.ts';
+import type { EditorHandle } from '../../../query/src/embed.ts';
 import type { Runner } from '../backend/run.ts';
 import type { RawTable } from '../../../engine-client/src/engine.ts';
 import { isTds, type ExecutionResult } from '../../../engine-client/src/legend/wire.ts';
@@ -28,6 +30,8 @@ export interface EditorContext {
   readonly compiler: Compiler;
   /** Runs a function on the session's engine (plan A3). */
   readonly run: Runner;
+  /** Query's builder on a service's query or a class (plan A5). */
+  readonly builder: QueryBuilder;
   readonly monaco: typeof Monaco;
   readonly project: string;
   readonly workspace: string;
@@ -152,7 +156,10 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void save());
   editor.addCommand(monaco.KeyCode.F9, () => void compile());
   editor.addCommand(monaco.KeyCode.F5, () => void runActive());
+  // the query builder, while open, has the keys (its own Ctrl+S is Save Query)
+  let closeBuilder: (() => void) | undefined;
   const onKey = (e: KeyboardEvent): void => {
+    if (closeBuilder) return;
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
     if (e.key === 'F9') { e.preventDefault(); void compile(); }
     if (e.key === 'F5') { e.preventDefault(); void runActive(); }
@@ -240,8 +247,18 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       h('button', { class: 'tab__close', title: 'Close', onclick: (e: Event) => { e.stopPropagation(); close(key); } }, icon('times', '12px'))));
     }
     if (active !== undefined && ws.file(active)) {
-      const runnable = ['function', 'Service'].includes(kindOf(ws.file(active)!.text) ?? '');
+      const kind = kindOf(ws.file(active)!.text) ?? '';
+      const runnable = ['function', 'Service'].includes(kind);
+      // the query builder (plan A5): a service's query (upstream's "Edit Query"), a new query on a class ("Query…") or
+      // on a mapping (its execution)
+      const query = ({
+        Service: ['Edit Query', "Edit the service's query in the query builder"],
+        Class: ['Query…', 'Query this class in the query builder'],
+        Mapping: ['Execute…', 'Execute a query on this mapping in the query builder'],
+      } as Record<string, [string, string]>)[kind];
       tabsBar.append(h('div', { class: 'tabs-spacer' }),
+        ...(query ? [h('button', { class: 'btn btn-small', 'data-testid': 'open-query-builder', title: query[1],
+          onclick: () => void openBuilder(active!) }, query[0])] : []),
         ...(runnable ? [h('button', { class: 'btn btn-small btn-primary tabs__run', 'data-testid': 'run-function', title: 'Run (F5)', onclick: () => void runActive() },
           icon('play', '10px'), 'Run')] : []),
         h('button', { class: 'btn btn-small', 'data-testid': 'delete-element', title: 'Delete this element', onclick: () => void remove(active!) }, 'Delete'));
@@ -284,6 +301,45 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     } catch (e) {
       clear(resultsPanel);
       resultsPanel.append(h('div', { class: 'panel-group__run-error', 'data-testid': 'run-status' }, icon('error'), h('span', {}, e instanceof Error ? e.message : String(e))));
+    }
+  };
+
+  /**
+   * Query's builder over the workspace's model (plan A5), a full-screen dialog as upstream's embedded builder is. On a
+   * service, Save Query writes the query into the service's text: an edit like any other, pushed with the workspace.
+   */
+  const openBuilder = async (key: string): Promise<void> => {
+    const f = ws.file(key);
+    if (!f || closeBuilder) return;
+    const isService = kindOf(f.text) === 'Service';
+    const body = h('div', { class: 'query-builder-dialog__body' }, h('div', { class: 'loading' }, 'Opening the query builder…'));
+    const overlay = h('div', { class: 'query-builder-dialog', 'data-testid': 'query-builder' }, body);
+    document.body.append(overlay);
+    let handle: EditorHandle | undefined;
+    const close = closeBuilder = (): void => {
+      handle?.dispose();
+      overlay.remove();
+      closeBuilder = undefined;
+      editor.focus();
+    };
+    try {
+      handle = await ctx.builder.open(body, f.text, ws.model().text, {
+        title: `${isService ? 'Service query' : kindOf(f.text) === 'Mapping' ? 'Mapping execution' : 'Query'}: ${fileLabel(f)}`,
+        ...(isService ? {
+          keep: async (content: string) => {
+            const current = ws.file(key);
+            if (!current) throw new Error('the service is no longer in this workspace');
+            const next = await ctx.builder.serviceWithQuery(current.text, content);
+            // through the editor's model, so the change is undoable there and recompiled as typing is
+            const m = modelOf(key);
+            m.pushEditOperations([], [{ range: m.getFullModelRange(), text: next }], () => null);
+          },
+        } : {}),
+        close,
+      });
+    } catch (e) {
+      close();
+      toast(e instanceof Error ? e.message : String(e), 'error');
     }
   };
 
@@ -601,6 +657,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   void compile();
 
   return () => {
+    closeBuilder?.();
     document.removeEventListener('keydown', onKey);
     if (compileTimer) clearTimeout(compileTimer);
     editor.dispose();

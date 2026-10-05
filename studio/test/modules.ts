@@ -47,7 +47,9 @@ class DirectPort implements PlannerPort {
   }
 }
 
-export const compiler = new Compiler(new WasmGrammar(new DirectPort()));
+/** legend-lite's planner, in this process: the grammar Studio reads elements and queries with. */
+export const grammar = new WasmGrammar(new DirectPort());
+export const compiler = new Compiler(grammar);
 
 /** A fresh in-page SDLC (its own module, its own records) and a client over it. */
 export async function pageSdlc(): Promise<SdlcClient> {

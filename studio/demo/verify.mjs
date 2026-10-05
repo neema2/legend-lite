@@ -43,6 +43,7 @@ const site = createServer(async (req, res) => {
 const SITE = await new Promise((resolve) => site.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${site.address().port}`)));
 
 const TRADING = 'org.finos.lite.demo:trading';
+const PARTY = 'org.finos.lite.demo:party';
 
 async function loop(browser, name, query) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -119,6 +120,35 @@ async function loop(browser, name, query) {
     await page.waitForFunction(() => !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), undefined, { timeout: 120_000 });
     const served = await statusOf('run-status');
     if (!/^5 rows in \d+ ms/.test(served)) throw new Error(`the service's run said: ${served}`);
+    // 3f. the service's query in Query's builder (plan A5): opened on its one column, a column added in the form and run
+    // there, saved into the service's text (Save Query), and that text run
+    await page.getByTestId('open-query-builder').click();
+    await page.waitForSelector('[data-testid=query-builder] .q-col', { timeout: 120_000 });
+    assert.equal(await page.locator('[data-testid=query-builder] .q-col').count(), 1, "the builder shows the service's one column");
+    await page.dblclick("[data-testid=query-builder] .q-node:has-text('Country')");
+    await page.locator('[data-testid=query-builder] .q-col').nth(1).waitFor();
+    await page.click('[data-testid=query-builder] button.q-run');
+    await page.waitForFunction(() => document.querySelector('[data-testid=query-builder] .q-error-box')
+      || /(^|\D)5 rows? in \d+ ms/.test(document.querySelector('[data-testid=query-builder] .q-results-bar')?.textContent ?? ''), undefined, { timeout: 120_000 });
+    const built = await page.$('[data-testid=query-builder] .q-error-box');
+    if (built) throw new Error(`the builder's run on the service's query said: ${await built.textContent()}`);
+    await shot('2c-builder');
+    await page.getByTestId('builder-keep').click();
+    await page.waitForFunction(() => !document.querySelector('[data-testid=query-builder] .q-chip--status'), undefined, { timeout: 60_000 });
+    await page.getByTestId('builder-close').click();
+    await page.waitForSelector('[data-testid=query-builder]', { state: 'detached' });
+    const kept = (await page.locator('.monaco-editor .view-lines').textContent()).replace(/\s+/g, ' ');
+    assert.match(kept, /query: \|demo::party::Party\.all\(\).*\$\w+\.country/, `the service's text holds the built query: ${kept}`);
+    assert.match(kept, /mapping: demo::party::PartyMapping;/, "the rest of the service's text is as written");
+    await waitCompiled();
+    // 3c's result is still shown (5 rows too): wait for this run's to replace it
+    const before = await page.getByTestId('run-status').elementHandle();
+    await page.getByTestId('run-function').click();
+    await page.waitForFunction((old) => !old.isConnected
+      && !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), before, { timeout: 120_000 });
+    const rebuilt = await statusOf('run-status');
+    if (!/^5 rows in \d+ ms/.test(rebuilt)) throw new Error(`the service's run, its query from the builder, said: ${rebuilt}`);
+    assert.equal(await page.getByTestId('run-rows').locator('thead th').count(), 2, 'the run shows the two columns built');
     // 3d. a function with a parameter: Run asks for its value, as Pure, and binds it (plan A3)
     await page.getByTestId('new-element').click();
     await page.getByTestId('new-kind').selectOption({ label: 'Function' });
@@ -170,6 +200,29 @@ async function loop(browser, name, query) {
     await page.locator('[data-project-tab=overview]').click();
     await page.getByTestId('dependencies').waitFor();
     assert.match(await page.getByTestId('dependencies').textContent(), /org\.finos\.lite\.demo:party : 1\.0\.0/);
+    // 6. a mapping executed in Query's builder (plan A5): party's own mapping, a query on the class it maps, run in the
+    // tab on party's rows; closed with nothing to keep
+    await page.getByTestId('activity-menu').click();
+    await page.getByTestId('menu-back').click();
+    await page.getByTestId('project-selector').click();
+    await page.locator(`[data-testid=project-selector-menu] [data-id="${PARTY}"]`).click();
+    await page.getByTestId('new-workspace').click();
+    await page.locator('.dialog input').fill('exec');
+    await page.locator('.dialog .btn-primary').click();
+    await page.locator('[data-testid=explorer] .element[data-path="demo::party::PartyMapping"]').click();
+    await waitCompiled();
+    await page.getByTestId('open-query-builder').click();
+    await page.waitForSelector('[data-testid=query-builder] .q-node', { timeout: 120_000 });
+    assert.match(await page.locator('[data-testid=query-builder] .q-builder__title').textContent(), /^Mapping execution: demo::party::PartyMapping$/);
+    for (const p of ['Name', 'Country']) await page.dblclick(`[data-testid=query-builder] .q-node:has-text('${p}')`);
+    await page.click('[data-testid=query-builder] button.q-run');
+    await page.waitForFunction(() => document.querySelector('[data-testid=query-builder] .q-error-box')
+      || /(^|\D)5 rows? in \d+ ms/.test(document.querySelector('[data-testid=query-builder] .q-results-bar')?.textContent ?? ''), undefined, { timeout: 120_000 });
+    const executed = await page.$('[data-testid=query-builder] .q-error-box');
+    if (executed) throw new Error(`the mapping's execution said: ${await executed.textContent()}`);
+    assert.equal(await page.locator('[data-testid=query-builder] [data-testid=builder-keep]').count(), 0, 'a mapping execution keeps nothing');
+    await page.getByTestId('builder-close').click();
+    await page.waitForSelector('[data-testid=query-builder]', { state: 'detached' });
     // the activity bar's sun/moon switch: upstream's default-light, kept, and back
     await page.getByTestId('theme-toggle').click();
     assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'default-light');

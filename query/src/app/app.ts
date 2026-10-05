@@ -1,20 +1,18 @@
 // The app: the header, and the screen the address names -- landing, a data space, or the editor
 // on a new, curated, service or saved query. Leaving a query with unsaved changes asks first.
 
-import { loadLambda, parametersOf } from '../builder/load.ts';
 import { queryOn } from '../builder/milestoning.ts';
-import { emptyQuery, type ClassSource } from '../builder/state.ts';
+import { type ClassSource } from '../builder/state.ts';
 import { renderDataSpace } from '../ui/dataspace.ts';
 import { h, icon, menuButton, mount, confirmDialog } from '../ui/dom.ts';
 import { renderEditor, type EditorHandle } from '../ui/editor.ts';
 import { renderLanding } from '../ui/landing.ts';
 import { renderStart } from '../ui/start.ts';
 import { openQueryDialog } from '../ui/queries.ts';
-import { recent, type AppContext, type LoadedProject } from './context.ts';
-import { openQuery } from './persist.ts';
+import { recent, type AppContext } from './context.ts';
+import { openQuery, sessionFrom } from './persist.ts';
 import { formatRoute, parseRoute, type Route } from './routes.ts';
 import { Session } from './session.ts';
-import { findAll, isFunction, type Lambda } from '../../../pure-protocol/src/index.ts';
 import { readQueryFragment } from '../../../query-store/src/share.ts';
 import { followTheme, theme, toggleTheme } from '../ui/theme.ts';
 
@@ -127,7 +125,7 @@ export class App {
         if (!ds || !e || e._type !== 'dataSpaceTemplateExecutable') throw new Error(`no curated query '${r.template}' in ${r.path}`);
         const ctxName = e.executionContextKey ?? ds.defaultExecutionContext;
         const ec = ds.executionContexts.find((c) => c.name === ctxName)!;
-        this.#edit(this.#sessionFrom(p, e.query, { mapping: ec.mapping!.path, runtime: ec.defaultRuntime!.path, dataSpace: { path: r.path, context: ctxName } }));
+        this.#edit(sessionFrom(p, e.query, { mapping: ec.mapping!.path, runtime: ec.defaultRuntime!.path, dataSpace: { path: r.path, context: ctxName } }));
         return;
       }
       case 'manual': {
@@ -142,7 +140,7 @@ export class App {
         const svc = p.graph.services.get(r.service);
         const ex = svc?.execution;
         if (!svc || !ex?.func || !ex.mapping || !ex.runtime?.runtime) throw new Error(`the service ${r.service} has no single execution with a mapping and runtime`);
-        this.#edit(this.#sessionFrom(p, ex.func, { mapping: ex.mapping, runtime: ex.runtime.runtime }));
+        this.#edit(sessionFrom(p, ex.func, { mapping: ex.mapping, runtime: ex.runtime.runtime }));
         return;
       }
       case 'shared': {
@@ -158,17 +156,6 @@ export class App {
         return;
       }
     }
-  }
-
-  /** A curated or service query opened in the form, or as text when the form cannot show it. */
-  #sessionFrom(p: LoadedProject, lambda: Lambda, ctx: { mapping: string; runtime: string; dataSpace?: ClassSource['dataSpace'] }): Session {
-    const loaded = loadLambda(p.graph, lambda, ctx);
-    if (loaded.ok) return new Session(p, loaded.query);
-    const getAll = findAll(lambda, isFunction).find((f) => f.function === 'getAll' || f.function.endsWith('::getAll'));
-    const target = getAll?.parameters[0];
-    const cls = target?._type === 'packageableElementPtr' ? target.fullPath : '';
-    const source: ClassSource = { kind: 'class', class: cls, mapping: ctx.mapping, runtime: ctx.runtime, ...(ctx.dataSpace ? { dataSpace: ctx.dataSpace } : {}) };
-    return new Session(p, { ...emptyQuery(source), parameters: parametersOf(lambda) }, undefined, { lambda, reason: loaded.reason });
   }
 }
 

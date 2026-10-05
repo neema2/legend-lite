@@ -29,6 +29,8 @@ exports_files(
 js_library(
     name = "src",
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
+    # Studio embeds the query builder (src/embed.ts, plan A5), as upstream Studio embeds legend-query-builder
+    visibility = ["//studio:__pkg__"],
     deps = [
         # projects opened by name: the model home (the page's SDLC and Depot, or servers) and its Depot (by-name.ts)
         "//depot-client:depot_client",
@@ -118,12 +120,21 @@ copy_to_directory(
     },
 )
 
-# DataCube's stylesheets, as ./cube/: the results grid is a CubeApp (theme.css, grid/grid.css, app.css).
+# DataCube's stylesheets, as ./cube/: the results grid is a CubeApp (theme.css, grid/grid.css, app.css). Studio serves
+# them too, for the builder it embeds.
 copy_to_directory(
     name = "cube_styles",
     srcs = ["//datacube:styles"],
     out = "demo/cube",
     root_paths = ["datacube/src"],
+    visibility = ["//studio:__pkg__"],
+)
+
+# the builder's stylesheet, for Studio's page (the embedded builder: src/embed.ts)
+filegroup(
+    name = "styles",
+    srcs = ["src/ui/app.css"],
+    visibility = ["//studio:__pkg__"],
 )
 
 # Everything a browser fetches.
