@@ -1145,8 +1145,7 @@ public final class ProtocolEmitter {
             // memSql/bigQuery composers drop it (corpus DIFF-pinned)
             if (fa.kind().startsWith("Snowflake")) {
                 b.append(",\"sourceInformation\":");
-                srcInfo(b, java.util.Objects.requireNonNull(
-                        fa.activationConnectionSpan()));
+                srcInfo(b, fa.activationConnectionSpan());
             }
             b.append("}}");
         }
