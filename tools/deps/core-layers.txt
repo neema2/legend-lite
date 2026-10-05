@@ -12,6 +12,7 @@
 # its cache key reads the compiled model's databases) reach database; server_lib reaches compiler.
 # 2026-10-05 (Bazel workplan P3-13): `diagnostics`, the -Dlegend.diagnostics switchboard; exec and driver reach it
 # (lowering's one SQL-dump read stays an env read until P7-14 passes Diagnostics in: invariant 6h).
+# 2026-10-05: `execution_plan` (the plan records and the lite plan format; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md).
 # 2026-10-04 C2a: `planner` (Compiler, CrossStoreGuard, ProgramFacts) -- the root package's plan side, NO exec and
 # NO testdatagen; driver, test and server_lib reach it.
 spi	
@@ -39,6 +40,7 @@ resolver	base builtin compiler compiler_element_type error lowering model plan p
 exec	base compiler compiler_element_type database diagnostics error lowering model plan platform sql sql_dialect values
 probe	base builtin lowering model platform
 testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver sql_dialect values
+execution_plan	base json model sql
 planner	base builtin cache compiler compiler_element_type database error lineage lowering model normalizer parser plan platform protocol resolver sql sql_dialect validation values
 driver	base builtin cache compiler compiler_element_type database diagnostics error exec lineage lowering model normalizer parser plan planner platform protocol resolver sql sql_dialect testdatagen validation values
 ide	base lexer model parser

@@ -215,6 +215,13 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    the JSON), `Sql` (statement text with bind placeholders, ordered typed slots, result columns, the typed SQL tree as
    metadata, the target connection with its setup statements and in-memory identity), result types. The lite JSON
    format, with round-trip tests. No behaviour change.
+   **Step 1 DONE 2026-10-05:** `com.legend.executionplan.ExecutionPlan` (records) and `PlanJson` (the lite format,
+   `{"format":"legend-lite-plan","version":1,…}`), deps `//base`, `//json`, `:model`, `:sql`. The connection is lite's
+   own `ConnectionDefinition` (database type, 9 specification and 12 authentication records), not upstream's protocol
+   shape — that shape belongs to the compatibility mode (phase 4), and reading upstream connection JSON to phase 2.
+   Every `_type` is an enum constant shared by writer and reader, read by an exhaustive switch, an unknown tag refused
+   by name. The typed SQL tree is held in memory and not written yet (its serializer is a later step). `PlanJsonTest`:
+   every node kind, parameters with enum values, all 10 × 12 specification/authentication pairs read back equal.
 2. **The planner makes plans** — `TypedQuery.executionPlan(runtime, output)` (`output`: JSON, CSV, streamed JSON —
    the wire statement the database builds, `lowering.WireRender`). Each dialect renders `PlanParam` as a bind placeholder
    and returns the slots in order; a list slot in the target's array form (`= ANY(?)`, a list parameter, H2's array);

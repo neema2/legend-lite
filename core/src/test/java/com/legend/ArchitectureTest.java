@@ -82,6 +82,7 @@ final class ArchitectureTest {
             java.util.Map.entry("exec", "com.legend.exec.Executor"),
             java.util.Map.entry("probe", "com.legend.probe.Shadow"),
             java.util.Map.entry("testdatagen", "com.legend.testdatagen.TestDataGenerationNatives"),
+            java.util.Map.entry("execution_plan", "com.legend.executionplan.ExecutionPlan"),
             java.util.Map.entry("planner", "com.legend.Compiler"),
             java.util.Map.entry("driver", "com.legend.Execution"),
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
