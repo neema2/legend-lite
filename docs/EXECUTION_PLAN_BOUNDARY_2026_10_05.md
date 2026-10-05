@@ -116,8 +116,33 @@ connection.
    plans use (interpolations, built-ins such as `?replace` `?c` `?number`, `!` defaults, `<#if>` `<#list>`
    `<#function>` `<#assign>` `<#return>`, the plan functions `renderCollection` `collectionSize` `instanceOf`) — the
    compatibility subset's exact size.
-2. lite's plan-text (`executionPlan()` Pure function, `PlanNode`) and this JSON plan: one model or two? (The text is a
-   printing of the same tree upstream.)
+   **DONE 2026-10-05 (`runs/plans/fm/`).** Sources: all 201 template texts in legend-engine's 22 fixture plans plus
+   the 13 plans of §3, and every `.pure` file in legend-engine that writes templates (70 files: relational and its
+   database extensions, core, service, Mongo, Elasticsearch — the upper bound a legacy plan can contain). The subset is
+   a small FreeMarker INTERPRETER, not a function list — the standard functions are themselves FreeMarker:
+   - **directives:** `<#function>`/`<#return>`, `<#assign>`, `<#if>`/`<#elseif>`/`<#else>`, `<#list x as v>` and the
+     hash form `<#list m as k, v>`;
+   - **expressions:** `${…}` interpolation; string, number and boolean literals; sequence literals and concatenation
+     (`[a] + result`); `+` (strings and numbers), `==` `!=` `>` `<` `&&` `||` `!`; the default operator `x!` / `x![]`;
+     calls of template functions;
+   - **built-ins:** `?number`, `?replace`, `?c`, `?json_string`, `?then`, `?join`, `?map`, `?size`, `?has_content`,
+     `?is_string`, `?is_enumerable`, `?is_sequence`, `?split`, `?reverse`, `?sort`, `?date`, `?eval`;
+   - **the standard template functions** (each plan's `templateFunctions`; lite already emits their text,
+     `plan.PlanSupportFunctions`): `renderCollection`, `collectionSize`, `varPlaceHolderToString`,
+     `optionalVarPlaceHolderOperationSelector`, `equalEnumOperationSelector`, `GMTtoTZ`, `renderCollectionWithTz`;
+     plus PER-PLAN generated functions (`enumMap_<mapping>_<enum>`, an enum parameter's value-to-source map) and
+     user templates such as `roleSpecificTable` — so the interpreter runs whatever a plan defines, not a fixed list;
+   - **two Java-registered extras** in legend-engine's executor: the method `instanceOf(x, "Stream")`
+     (`FreemarkerInstanceOfMethod`) and the custom date format `?date.@alloyDate` (used by `GMTtoTZ`).
+2. lite's plan-text and this JSON plan: one model or two? **DONE 2026-10-05: today lite has THREE representations
+   of a plan** — `plan.PlanText` (1,136 lines) builds the `executionPlan()`/`planToString` TEXT directly as strings
+   (it does not use `PlanNode`); `plan.PlanNode` is a loosely typed node model (kinds as strings) behind the Pure
+   plan-navigation rows (`PlanRows`: `$plan.rootExecutionNode->allNodes(...)`), whose own javadoc says it was meant to
+   feed "later, the JSON wire serializer"; and `PureV1Api.executionPlan` builds the JSON as raw maps. Upstream prints
+   ONE plan object both ways (`planToString` over the same tree `generatePlan` serialises). **Recommendation:** the
+   P1 typed plan records are the one tree; the JSON serialiser, the text printer (`planToString`, whose engine-exact
+   SQL spelling belongs to C6's per-family decision) and the plan-navigation rows all read it; `PlanNode` and the map
+   builder are deleted, `PlanText` becomes a printer of the tree.
 3. Which corpus and showcase queries produce which node kinds under legend-engine (the §3 harness over the corpus), to
    order phase 2.
 
