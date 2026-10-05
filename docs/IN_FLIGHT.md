@@ -21,7 +21,9 @@ with the compiler's plan/execution split**, in this order:
    `legend-art/`, `query/`, `datacube/` (imports and labels; the Snap move, A6), `site/`, a `@fontsource` block in
    `MODULE.bazel`; then, on `studio-engine`, core's test runner and model printer (A4, B1: files in the fifth line's
    2026-10-05 note). Lands on the user's merge; `MODULE.bazel` is shared with the Bazel program (the second to land rebases).
-3. **The database owner** (the fourth line below; `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md`): C3c
+3. **The database owner** (the fourth line below; `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md`; since
+   2026-10-05 also the execution plan boundary, `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`, which takes the rebuild's
+   W6.1 and W6.2): C3c
    now (no shared files); **C1/C2, the plan/execution split, starts only after the Bazel program's batch 8 is on
    `main`** (both touch `core/BUILD.bazel` and `tools/deps`), announced to the other lines first.
 

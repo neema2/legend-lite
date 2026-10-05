@@ -945,6 +945,9 @@ If C3 chooses "stop the middle rebuild", W5.1c is dropped and W5.2's determinism
   *Update 2026-10-04 (user): the STRUCTURAL split moves to the database-owner line* (its C1 then C2, after C3): the
   effect analysis into the compiler, the `planner` library with a compile-once API, the `Execution` front door, the
   ~127 callers moved. W6.2 keeps the runner rewrite only. B2/B3 and C4 stay here.
+  *Update 2026-10-05 (user): W6.1 (the staged plan IR) and W6.2 (the runner) move to the database-owner line too*, as
+  the execution plan boundary: docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md (legend-engine's plan protocol as the format,
+  typed parameter slots, a pure executor, `executePlan` for upstream plans). B2/B3 and C4 stay here.
 - **W6.4 Periphery**: lineage over the typed HIR plus H's binding map; test-data generation through the MIR; the server a
   thin adapter; test runners and the probe out of the product jar. Gate: the product jar's contents list.
 
