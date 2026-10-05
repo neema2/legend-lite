@@ -8,6 +8,7 @@ load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/guards:defs.bzl", "guards_package")
 load(":layers.bzl", "core_layer_queries")
 load(":stress.bzl", "STRESS_GENERATED", "stress_layout")
@@ -506,6 +507,46 @@ write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThis file is generated from the pinned upstream release — regenerate: bazel run //:update_generated",
     files = _GENERATED,
+    visibility = ["//:__pkg__"],
+)
+
+# THE LEAN SQL LADDER's current emission (P2-13): LadderRender runs each rung in database mode on DuckDB and writes
+# what it sent; the pins in src/test/resources/ladder change only through `bazel run //core:update_ladder`, and
+# //core:update_ladder_test (in //:generated) fails when the emission moves. The <rung>.lean.sql beside them are
+# hand-written targets. LadderRender checks this list against the model's rungs.
+_LADDER_RUNGS = [
+    "r01_constant",
+    "r02_literalListSize",
+    "r03_stringConstant",
+    "r04_countNoLet",
+    "r05_countOneLet",
+    "r06_columnVsList",
+    "r07_projectRows",
+    "r08_positionalCell",
+    "r09_twoAssertsOneLet",
+    "r10_twoLets",
+    "r11_floatLeniency",
+    "r12_classLetManyReaders",
+]
+
+java_run(
+    name = "ladder_report",
+    testonly = True,
+    outs = ["ladder/%s.current.sql" % r for r in _LADDER_RUNGS],
+    arguments = ["{OUT_DIR}"] + _LADDER_RUNGS,
+    main_class = "com.legend.ladder.LadderRender",
+    mnemonic = "Generate",
+    deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
+write_source_files(
+    name = "update_ladder",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe lean SQL ladder's emission moved -- if the shape change is deliberate, re-pin: bazel run //core:update_ladder, and review the diff",
+    files = {"src/test/resources/ladder/%s.current.sql" % r: ":ladder/%s.current.sql" % r for r in _LADDER_RUNGS},
     visibility = ["//:__pkg__"],
 )
 

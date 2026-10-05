@@ -59,6 +59,11 @@ def _java_run_impl(ctx):
         s = ctx.expand_location(s, targets = targets)
         for token, d in dirs.items():
             s = s.replace(token, d)
+        if "{OUT_DIR}" in s:
+            out_dirs = {o.dirname: None for o in ctx.outputs.outs}
+            if len(out_dirs) != 1:
+                fail("{OUT_DIR} names the one directory every output is in; these are in %s" % sorted(out_dirs))
+            s = s.replace("{OUT_DIR}", ctx.outputs.outs[0].dirname)
         if "{OUT}" in s:
             if len(ctx.outputs.outs) != 1:
                 fail("{OUT} names the single output; this rule has %d" % len(ctx.outputs.outs))
