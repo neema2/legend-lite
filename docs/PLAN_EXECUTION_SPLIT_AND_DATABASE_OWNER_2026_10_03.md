@@ -538,6 +538,13 @@ run, and are removed before any commit.
   `DuckDbCells` in `:duckdb_load` beside the driver with a real `instanceof`, found by `ServiceLoader`;
   `Executor.decodeAny` names no driver class; behaviour unchanged. Registers: `JdbcSurfaceCensusTest` (DuckDbCells),
   `JavaEvalLedgerTest`'s funnel register (DriverCells).
+- **The guard at zero — DONE 2026-10-04.** `DialectBoundaryTest.eachDatabaseDecisionHasOneOwner` pins three more
+  shapes to the owners, measured over `core/src/main/java` outside `sql/dialect`: dialect construction (only
+  `Databases` 4, `EngineText` 5), JDBC URLs (only `Sessions` 9), driver class names (none). With the type and name
+  censuses (`Databases` 2, `EngineText` 1, `Sessions` 1; the connection grammar 3, by reason) no per-database decision
+  is left outside an owner in core's product code. Out of scope by reading (§C3's sweep): the lexer's `H2` keyword,
+  `PureAsserts`' Pure type names, protocol node kinds, the warehouse's own catalog, test and tool support
+  (`tools/census/RenderCensus` renders every dialect by design).
 - **C4. The reader fix.** The static `ExecutionContext` reader follows `->from(m, ^Runtime(connectionStores =
   helper()))`, `toSQLString`'s runtime forms and helper bodies; the four `"H2"` defaults (§3.2) are DELETED; a context
   that truly cannot be read is refused by name. Gate: the 21 corpus tests pass reading their real declarations.

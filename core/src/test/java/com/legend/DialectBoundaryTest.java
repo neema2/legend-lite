@@ -40,6 +40,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * A new ternary, a new enum of targets, or a new {@code DatabaseType}
  * comparison anywhere else fails here: the fix is a dialect method, never
  * a pin bump.
+ *
+ * <p>Since C3 (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md, the guard at zero 2026-10-04) every
+ * per-database decision has one owner, and the censuses below pin each shape to it: a declared type becomes a dialect
+ * in {@code com.legend.database.Databases} (legend-engine's golden text in {@code com.legend.EngineText}, root layer
+ * only); a session is checked and opened in {@code com.legend.exec.Sessions}; a driver's own types live beside the
+ * driver ({@code exec.DriverCells}). What remains outside them is named with its reason: the connection grammar
+ * parses a specification keyword per database, as upstream's grammar does.
  */
 @Tag("guardrail")
 class DialectBoundaryTest {
@@ -77,6 +84,29 @@ class DialectBoundaryTest {
     // SystemDatabase.java 3 -> 0 (2026-10-04, C3b): it opens by the declared type through Sessions
     private static final Map<String, Integer> DATABASE_NAME_DECISIONS = Map.of(
             "ConnectionSectionGrammar.java", 3);  // the grammar: a specification keyword parses per database, as upstream's
+
+    /** Lines CONSTRUCTING a dialect outside the dialect package, by file: the one owner per side picks it
+     *  (C3, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md; the guard at zero, 2026-10-04). */
+    private static final Map<String, Integer> DIALECT_CONSTRUCTIONS = Map.of(
+            "Databases.java", 4,            // the plan side's owner: DuckDB, H2, Postgres, SQLite
+            "EngineText.java", 5);          // legend-engine's text printers, root layer only (invariant 4d)
+
+    /** Lines spelling a JDBC URL, by file: only the execution side's session owner opens a database (C3b). */
+    private static final Map<String, Integer> JDBC_URLS = Map.of(
+            "Sessions.java", 9);            // the declared specifications' URLs and the in-memory instances
+
+    @Test
+    void eachDatabaseDecisionHasOneOwner() throws IOException {
+        assertEquals(new TreeMap<>(DIALECT_CONSTRUCTIONS),
+                census(Pattern.compile("\\bnew\\s+(com\\.legend\\.sql\\.dialect\\.)?(H2|H2Modern|DuckDb|Postgres"
+                        + "|AnsiSqlRenderer|EngineStyleH2|EngineStyleDB2|EngineStyleComposite)\\s*\\(")),
+                "a dialect constructed outside its owner — ask com.legend.database.Databases (the SQL a"
+                        + " query runs) or com.legend.EngineText (legend-engine's golden text)");
+        assertEquals(new TreeMap<>(JDBC_URLS), census(Pattern.compile("\"jdbc:")),
+                "a JDBC URL outside com.legend.exec.Sessions — it opens every session");
+        assertEquals(new TreeMap<>(), census(Pattern.compile("\"org\\.(duckdb|h2|postgresql|sqlite)\\.")),
+                "a driver class named in core — a driver's own types live beside it (exec.DriverCells, :duckdb_load)");
+    }
 
     @Test
     void targetsAreDecidedInsideTheDialect() throws IOException {
