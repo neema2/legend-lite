@@ -1895,6 +1895,13 @@ actions (deterministic over pinned inputs). `ManifestWorldCensusTest` asserts ce
 | Risk/rollback | Some projects may not compile today: the contract was unchecked. Each failure is a finding, with a dated quarantine row if not fixed in the PR. |
 | Done when | The contract in `projects/CONTRACT.md` is enforced by `bazel test //...`. |
 
+**Amended 2026-10-05 (execution).** Done with these differences. One `projects/BUILD.bazel` with a `legend_library` per
+project (no per-project packages: the consumers' filegroups stay in one package, as `<project>_files`). The
+manifest-equals-BUILD guard is dropped: it contradicts G17 (no test reads Markdown; CI skips Markdown-only changes);
+`PROJECT_DEPS` in BUILD is the truth and the manifests' prose agrees today. `check.py` stays until P7-01 for what
+`//projects:tests` does not cover (legend-engine's compile, the size bands), so the Done-when holds for legend-lite's
+compile and the set-id rule. F-L1 (a schema view lifted twice) quarantines firm-balance-sheet.
+
 #### P3-24 · `//warehouse:sqlapi` is compiled to WebAssembly in the gate chain
 
 | Field | Content |
@@ -1948,6 +1955,9 @@ actions (deterministic over pinned inputs). `ManifestWorldCensusTest` asserts ce
 | Done when | `git grep -n "Files.walk\|Files.list" -- core/src/test` shows no walk over a `Repo` root. No `jvm_flags` value carries a file set, and no guard derives class locations from the classpath (A4). |
 
 **Amended 2026-10-04 (P1-90 audit, (G)).** Its residual owners (P1-05's amendment): the 24 Repo.path/module classes named there, not "29 classes".
+
+**Amended 2026-10-05 (execution).** Done; proved locally with `--noenable_runfiles --spawn_strategy=local`. The Windows
+CI proof without `--enable_runfiles` moves to P3-32, which removes the flag for every lane at once.
 
 #### P3-27b · The walker rule applied outside core: spec, pe and pct read declared lists
 
@@ -2062,6 +2072,12 @@ actions (deterministic over pinned inputs). `ManifestWorldCensusTest` asserts ce
 | Size | M (1.5 d) |
 | Risk/rollback | Import cycles may forbid the split; the investigation answers that before any BUILD change. |
 | Done when | The touch test re-runs a strict subset, or §6.3 records why not. |
+
+**Amended 2026-10-05 (execution).** The investigation found directory-level cycles (the top level with adhoc, grid and
+ui) but one 8-file cycle at file level, so the split is per file, not per directory: each `node_test`'s data is its
+import closure, generated (`datacube/tools/test-imports.mts` -> `datacube/test_imports.bzl`, diff-tested). Proof: a
+touch of `src/share/link.ts` re-runs 16 of 107. The generator, not the sandbox, guarantees the closure (Node resolves a
+source's own imports beside its bin copy).
 
 #### P3-90 · Phase 3 audit: done-criteria checked against the coverage table (C4)
 

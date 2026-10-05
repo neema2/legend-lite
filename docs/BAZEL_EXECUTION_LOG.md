@@ -304,3 +304,16 @@ without a **done** entry.
     bands, with legend-engine).
 - **Waiting on the user:** P3-25 depends on D18 (still OPEN; recommended (a), the Python probes as py_binaries over one
   launch()).
+- **Audit (P3-29, P3-34, P3-23, the warehouse fix): one High, my mistake** — the F-L1 investigation's scratch package
+  (`warehouse/negscratch`) was committed; removed. Mediums: the same firstChunk race in a second warehouse test;
+  P3-34's generator, not the sandbox, guarantees closures (now it fails on an unresolvable import); the quarantine
+  message pinned to firm-balance-sheet's own view. Lows fixed. Workplan amendments for P3-23, P3-34 (c6cf0c257).
+- **Windows JavaScript tests ran in the machine's zone** (found by P3-10's zone check on its first Windows run): MSYS
+  bash, rules_js's Windows launcher, drops TZ. node_test passes LEGEND_TZ, applied by a preload (8e8790126).
+- **P3-27 done** (77694fb38): SourceFiles over declared lists; 25 guards converted; src/main/duckdb in the roots;
+  ArchitectureTest and NoEagerTypeReferencesTest over declared jars. **Audit: I had exempted a real defect** —
+  DuckDbAppenderLoad's finally replaced an unchecked in-flight error. Fixed in the product (the drop is a
+  try-with-resources resource), exemption removed, announced in IN_FLIGHT on main (7b5341ea7) (57f0115f6).
+- **P3-05 done** (d2160132a): core_tests a suite of 24 per-package targets (union of 4,319 testcases identical);
+  the stress corpus read from the classpath; exact data for census and guardrails; scale_* one benchmark.
+- **Main green** at 3781cbf98 after rerunning two Windows jobs (run 37297275640 attempt 2, 53/53).
