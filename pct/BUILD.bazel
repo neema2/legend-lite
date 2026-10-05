@@ -6,6 +6,8 @@
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/guards:defs.bzl", "guards_package")
 
@@ -240,6 +242,35 @@ junit_test(
         ":pct_tests_lib",
         "//core:drivers",
     ],
+)
+
+# PCT'S MEASURED RATCHET VALUES (PctRatchets; Bazel workplan P2-16, D9): each Channel B suite's discovery count,
+# measured by running the suite into ratchets.tsv. Manual, at the suites' cost (the platform compiled per suite); the
+# Channel B tests compare their live discovery with the committed copy, so gate 9 fails when it is stale.
+java_run(
+    name = "ratchets",
+    testonly = True,
+    srcs = UPSTREAM_TREES,
+    outs = ["generated/ratchets.tsv"],
+    arguments = ["{OUT}"],
+    jvm_flags = program_jvm_flags("pct"),
+    main_class = "org.finos.legend.lite.pct.channelb.PctRatchets",
+    memory_mb = 2048,
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
+    tags = ["manual"],
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+)
+
+write_source_files(
+    name = "update_ratchets",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA Channel B discovery count moved -- bazel run //pct:update_ratchets, with the reason in the commit",
+    files = {"src/test/resources/org/finos/legend/lite/pct/channelb/ratchets.tsv": ":ratchets"},
+    tags = ["manual"],
 )
 
 guards_package()

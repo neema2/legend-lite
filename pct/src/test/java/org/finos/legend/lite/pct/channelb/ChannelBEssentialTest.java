@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.EnumMap;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -26,14 +27,19 @@ class ChannelBEssentialTest {
         return com.legend.testing.Upstream.pure();
     }
 
-    @Test
-    void essentialCensus() throws Exception {
+    /** This suite's run: its model roots and discovery scope (PctRatchets measures its discovery the same way). */
+    static List<ChannelB.Outcome> runSuite(java.util.List<String> walls) throws Exception {
         Path modelRoot = pureRoot().resolve(
                 "legend-pure-core/legend-pure-m3-core/src/main/resources"
                         + "/platform/pure");
         Path scope = modelRoot.resolve("essential");
+        return ChannelB.run(modelRoot, List.of(scope), walls);
+    }
+
+    @Test
+    void essentialCensus() throws Exception {
         java.util.List<String> walls = new java.util.ArrayList<>();
-        List<ChannelB.Outcome> out = ChannelB.run(modelRoot, List.of(scope), walls);
+        List<ChannelB.Outcome> out = runSuite(walls);
         walls.forEach(w -> System.out.println("[chB-wall] " + w));
         System.out.println("[chB] walls=" + walls.size());
         // audit-of-audits #12: the wall count is ASSERTED shrink-only —
@@ -57,8 +63,7 @@ class ChannelBEssentialTest {
         // 327 -> 345 at the 4.145.0 bump (batch 8): the drift read's 18 new
         // PCT.test functions in the 6 new platform files (binFloor, left,
         // right, substr, elementPath, lenientPathToElement)
-        assertTrue(out.size() == 345,
-                "essential discovery moved: " + out.size() + " != 345");
+        assertEquals(PctRatchets.measured("channel_b.essential.discovered"), out.size(), "essential discovery moved -- an upstream move or a discovery-rule change: bazel run //pct:update_ratchets, with the reason in the commit");
         int pass = census.getOrDefault(ChannelB.Status.PASS, 0);
         // 293 (slice 11): exists ×2 (adapter shadow-stop), concatenate
         // (type() sig [1]→[*] per real type.pure:18), + the is/assertIs
