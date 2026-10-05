@@ -176,13 +176,23 @@ public final class ModelComposer {
 
         static {
             Family domain = new Family(DEFAULT_SECTION, true, DomainComposer::element);
+            Family mapping = new Family("Mapping", true, MappingComposer::mapping);
+            Family relational = new Family("Relational", false, DatabaseComposer::database);
+            Family relationalMapper = new Family("QueryPostProcessor", false, DatabaseComposer::relationalMapper);
             Map<String, Family> m = new LinkedHashMap<>();
             for (String t : DomainComposer.TYPES) {
                 m.put(t, domain);
             }
+            Family connection = new Family("Connection", true, ConnectionComposer::connection);
+            Family runtime = new Family("Runtime", true, RuntimeComposer::runtime);
+            m.put("mapping", mapping);
+            m.put("connection", connection);
+            m.put("runtime", runtime);
+            m.put("relational", relational);
+            m.put("relationalMapper", relationalMapper);
             BY_TYPE = Map.copyOf(m);
-            FREE_SECTION_ORDER = List.of();
-            CORE_SECTION_ORDER = List.of(domain);
+            FREE_SECTION_ORDER = List.of(relational, relationalMapper);
+            CORE_SECTION_ORDER = List.of(domain, mapping, connection, runtime);
         }
 
         boolean printsIn(String sectionParser) {
