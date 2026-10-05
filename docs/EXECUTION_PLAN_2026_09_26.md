@@ -86,9 +86,8 @@ GenericTypeMatch, MultiplicityMatch (under `legend-pure-m3-core/.../m3/`). *E.6*
    (`tools/junit/defs.bzl:25-61`); run the target, or drive the jars in `bazel-bin/core/core_tests.runfiles` from jshell
    (`"$(bazel info output_base)/external/rules_java++toolchains+remotejdk25_macos_aarch64/bin/jshell" --class-path
    "$(find -L bazel-bin/core/core_tests.runfiles -name '*.jar' | tr '\n' ':')"`, after one `bazel build //core:core_tests`). One corpus test:
-   `--test_env=JAVA_TOOL_OPTIONS=-Drcorpus.test=<fqn>`, which scopes the lane's database judge only (the host judge is
-   the cached action `//spec:judge_host_<lane>`, the whole corpus); the host judge on one test:
-   `--test_env=JAVA_TOOL_OPTIONS='-Drcorpus.test=<fqn> -Dlegend.judge.mode=host'`. A PASSING `@KnownDefect` test means the defect is still present.
+   `bazel run //spec:corpus_one -- <duckdb|h2> <host|database> <fqn>` (the lanes' passes are cached build actions,
+   `//spec:judge_host_<lane>` and `//spec:judge_database_<lane>`, over the whole corpus). A PASSING `@KnownDefect` test means the defect is still present.
 8. A timing is a lane run alone with `--nocache_test_results`, `uptime` load under 3 at the start, nothing else
    building. A lane's time inside `bazel test //...` is not a timing.
 9. Commit: write the message to a file, then `git -c user.name=neema2 -c user.email=neema2@gmail.com commit -F <file>`;

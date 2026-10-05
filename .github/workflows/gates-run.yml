@@ -208,5 +208,7 @@ jobs:
             bazel-testlogs/**/test.outputs/**
             bazel-bin/spec/judge_host_*/host.log
             bazel-bin/spec/judge_host_*/verdict.txt
+            bazel-bin/spec/judge_database_*/database.log
+            bazel-bin/spec/judge_database_*/verdict.txt
             harness-logs/**
           if-no-files-found: ignore

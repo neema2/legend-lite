@@ -62,6 +62,9 @@ write_source_files(
         "//query:update_generated",
         "//scripts/parser:update_keyword_coverage",
         "//spec:update_ratchets",
+        # the corpus rosters: runs both corpus lanes (minutes; H2's pass takes 4 GB)
+        "//spec:update_rcorpus_duckdb",
+        "//spec:update_rcorpus_h2",
         "//tools/engine-runner:update_vocab",
         "//warehouse:update_reachability_metadata",
     ],

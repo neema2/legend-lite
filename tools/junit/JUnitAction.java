@@ -39,9 +39,9 @@ public final class JUnitAction {
         }
     }
 
-    /** The action's work, in this JVM (RunnerTest calls it): the pass, its log, its verdict, its outputs; returns
-     *  JUnitMain's exit code. */
-    static int run(String[] args) throws Exception {
+    /** The action's work, in this JVM (RunnerTest and spec's CorpusOne call it): the pass, its log, its verdict, its
+     *  outputs; returns JUnitMain's exit code. */
+    public static int run(String[] args) throws Exception {
         int split = Arrays.asList(args).indexOf("--");
         if (split < 2) {
             throw new IllegalArgumentException("JUnitAction <verdict> <log> [<output> ...] -- <JUnitMain arguments>");
