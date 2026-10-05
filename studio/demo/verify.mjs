@@ -46,6 +46,9 @@ const TRADING = 'org.finos.lite.demo:trading';
 
 async function loop(browser, name, query) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  // generous waits: under a full gate run the machine is loaded, and the in-tab compile and the page's SDLC take
+  // longer than Playwright's 30 s default (//studio:verify_test failed only then, 2026-10-05)
+  page.setDefaultTimeout(120_000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const shot = (n) => page.screenshot({ path: join(OUT, `${name}-${n}.png`) });
