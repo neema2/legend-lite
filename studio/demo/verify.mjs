@@ -55,6 +55,7 @@ async function loop(browser, name, query) {
   // the status bar's problems button says when the compiler is done and how many errors it found (data-state,
   // data-errors): upstream's bar shows icons and counts, not words
   const waitCompiled = () => page.waitForFunction(() => { const b = document.querySelector('[data-testid=problems-count]'); return b?.dataset.state === 'idle' && b.dataset.errors === '0'; }, undefined, { timeout: 120_000 });
+  const statusOf = async (id) => ((await page.getByTestId(id).textContent()) ?? '').trim();
   const waitStatus = (id, pattern) => page.waitForFunction(([id, source]) => new RegExp(source).test(document.querySelector(`[data-testid=${id}]`)?.textContent ?? ''), [id, pattern.source], { timeout: 120_000 });
   try {
     await page.goto(`${SITE}/demo/index.html${query}`);
@@ -88,6 +89,26 @@ async function loop(browser, name, query) {
     await page.getByTestId('problems-count').click();
     await page.getByText('No problems have been detected in the workspace.').waitFor();
     await shot('2-saved');
+    await page.locator('.panel-group__action[title=Close]').click();
+    // 3b. a function, run in the tab (plan A3): the planner writes its SQL, DuckDB here runs it on party's own rows --
+    // its Data element, which trading has through its dependency (plan A2)
+    await page.getByTestId('new-element').click();
+    await page.getByTestId('new-kind').selectOption({ label: 'Function' });
+    await page.getByTestId('new-path').fill('demo::trading::parties');
+    await page.locator('.dialog .btn-primary').click();
+    await page.locator('.monaco-editor .view-lines').click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.insertText('// every party, by name: run in the tab\nfunction demo::trading::parties(): meta::pure::metamodel::relation::Relation<Any>[1]\n{\ndemo::party::Party.all()->project(~[name: p | $p.name, country: p | $p.country])->from(demo::party::PartyMapping, demo::party::Runtime)\n}\n');
+    await waitCompiled();
+    await page.getByTestId('run-function').click();
+    await page.waitForFunction(() => !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), undefined, { timeout: 120_000 });
+    const ran = await statusOf('run-status');
+    if (!/^5 rows in \d+ ms/.test(ran)) throw new Error(`the function's run said: ${ran}`);
+    assert.ok((await page.getByTestId('run-rows').textContent()).includes('Banque Lumière'), 'the run shows the party rows');
+    await shot('2b-ran');
+    await page.getByTestId('save-status').click();
+    await page.locator('.dialog .btn-primary').click();
+    await waitStatus('changes-count', /no changes detected/);
     await page.locator('.panel-group__action[title=Close]').click();
     // 4. a review, committed onto the project line (the workspace closes)
     await page.locator('[data-activity=review]').click();

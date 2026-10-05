@@ -8,6 +8,8 @@ import type { DepotClient } from '../../../depot-client/src/client.ts';
 import type { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import { SdlcError } from '../../../sdlc-client/src/client.ts';
 import type { Compiler } from '../backend/planner.ts';
+import type { Runner } from '../backend/run.ts';
+import { isTds, type ExecutionResult } from '../../../engine-client/src/legend/wire.ts';
 import { ELEMENT_KINDS, splitPath } from '../model/templates.ts';
 import { Workspace, type OpenFile, type Problem } from '../model/workspace.ts';
 import { icon } from '../../../legend-art/src/icon.ts';
@@ -23,6 +25,8 @@ export interface EditorContext {
   readonly client: SdlcClient;
   readonly depot: DepotClient;
   readonly compiler: Compiler;
+  /** Runs a function on the session's engine (plan A3). */
+  readonly run: Runner;
   readonly monaco: typeof Monaco;
   readonly project: string;
   readonly workspace: string;
@@ -69,24 +73,32 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   // to 300px from the status bar (its problems counts, or the terminal toggle)
   const problemsPanel = h('div', { class: 'panel-group__content', 'data-testid': 'problems' });
   const problemsBadge = h('div', { class: 'panel-group__badge' });
+  // a function's run (plan A3): its rows, or what refused it
+  const resultsPanel = h('div', { class: 'panel-group__content', 'data-testid': 'results' },
+    h('div', { class: 'panel-group__empty' }, 'Run a function to see its result here.'));
   let panelOpen = false;
   let panelMaximised = false;
+  let panelTab: 'problems' | 'results' = 'problems';
   const panel = h('div', { class: 'panel-group' });
   const main = h('div', { class: 'main' });
   const renderPanel = (): void => {
     panel.classList.toggle('panel-group--closed', !panelOpen);
     main.classList.toggle('main--panel-maximised', panelOpen && panelMaximised);
     clear(panel);
+    const tab = (t: 'problems' | 'results', label: string, badge?: HTMLElement): HTMLElement =>
+      h('button', { class: `panel-group__tab${panelTab === t ? ' panel-group__tab--active' : ''}`, 'data-panel-tab': t,
+        onclick: () => { panelTab = t; renderPanel(); } }, label, badge);
     panel.append(
       h('div', { class: 'panel-group__header' },
-        h('div', { class: 'panel-group__tabs' }, h('button', { class: 'panel-group__tab panel-group__tab--active' }, 'Problems', problemsBadge)),
+        h('div', { class: 'panel-group__tabs' }, tab('problems', 'Problems', problemsBadge), tab('results', 'Results')),
         h('div', { class: 'panel-group__actions' },
           h('button', { class: 'panel-group__action', title: 'Toggle expand/collapse', onclick: () => { panelMaximised = !panelMaximised; renderPanel(); } },
             icon(panelMaximised ? 'chevronDown' : 'chevronUp', '18px')),
           h('button', { class: 'panel-group__action', title: 'Close', onclick: () => { panelOpen = false; renderPanel(); renderStatus(); } }, icon('x', '18px')))),
-      problemsPanel);
+      panelTab === 'problems' ? problemsPanel : resultsPanel);
   };
   const openPanel = (): void => {
+    panelTab = 'problems';
     panelOpen = true;
     renderPanel();
     renderStatus();
@@ -117,9 +129,11 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   });
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => void save());
   editor.addCommand(monaco.KeyCode.F9, () => void compile());
+  editor.addCommand(monaco.KeyCode.F5, () => void runActive());
   const onKey = (e: KeyboardEvent): void => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
     if (e.key === 'F9') { e.preventDefault(); void compile(); }
+    if (e.key === 'F5') { e.preventDefault(); void runActive(); }
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'n') { e.preventDefault(); void newElement(); }
     if (e.ctrlKey && e.key === '`') { e.preventDefault(); panelOpen = !panelOpen; renderPanel(); renderStatus(); }
   };
@@ -204,8 +218,32 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       h('button', { class: 'tab__close', title: 'Close', onclick: (e: Event) => { e.stopPropagation(); close(key); } }, icon('times', '12px'))));
     }
     if (active !== undefined && ws.file(active)) {
+      const fn = kindOf(ws.file(active)!.text) === 'function';
       tabsBar.append(h('div', { class: 'tabs-spacer' }),
+        ...(fn ? [h('button', { class: 'btn btn-small btn-primary tabs__run', 'data-testid': 'run-function', title: 'Run this function (F5)', onclick: () => void runActive() },
+          icon('play', '10px'), 'Run')] : []),
         h('button', { class: 'btn btn-small', 'data-testid': 'delete-element', title: 'Delete this element', onclick: () => void remove(active!) }, 'Delete'));
+    }
+  };
+
+  /** Runs the open function on the session's engine (plan A3): its rows in RESULTS, or what refused it. */
+  const runActive = async (): Promise<void> => {
+    const f = active === undefined ? undefined : ws.file(active);
+    if (!f || kindOf(f.text) !== 'function') return;
+    panelTab = 'results';
+    panelOpen = true;
+    clear(resultsPanel);
+    resultsPanel.append(h('div', { class: 'panel-group__empty', 'data-testid': 'run-status' }, 'Running…'));
+    renderPanel();
+    renderStatus();
+    const started = performance.now();
+    try {
+      const result = await ctx.run.run(f.text, ws.model().text);
+      clear(resultsPanel);
+      resultsPanel.append(resultView(result, Math.round(performance.now() - started)));
+    } catch (e) {
+      clear(resultsPanel);
+      resultsPanel.append(h('div', { class: 'panel-group__run-error', 'data-testid': 'run-status' }, icon('error'), h('span', {}, e instanceof Error ? e.message : String(e))));
     }
   };
 
@@ -543,4 +581,18 @@ function shortcut(label: string, keys: readonly string[]): HTMLElement {
 /** The keyword an element's text declares it with (`Class`, `function`, ...), for its type icon. */
 function kindOf(text: string): string | undefined {
   return DECLARES.exec(text.replace(/\/\/.*$/gm, ''))?.[0]?.trim().split(/\s/)[0];
+}
+
+/** A run's answer: a TDS as a table -- how many rows, how long, the SQL the tab ran -- else its JSON. */
+function resultView(r: ExecutionResult, ms: number): HTMLElement {
+  if (!isTds(r)) return h('pre', { class: 'run-result__json' }, JSON.stringify(r, null, 2));
+  const sql = r.activities?.find((a) => a.sql)?.sql;
+  const rows = r.result.rows;
+  return h('div', { class: 'run-result' },
+    h('div', { class: 'run-result__bar', 'data-testid': 'run-status' },
+      `${rows.length} row${rows.length === 1 ? '' : 's'} in ${ms} ms`,
+      sql ? h('span', { class: 'run-result__sql', title: sql }, 'SQL') : null),
+    h('table', { class: 'run-result__table', 'data-testid': 'run-rows' },
+      h('thead', {}, h('tr', {}, ...r.result.columns.map((c) => h('th', {}, c)))),
+      h('tbody', {}, ...rows.map((row) => h('tr', {}, ...row.values.map((v) => h('td', {}, v === null || v === undefined ? '' : String(v))))))));
 }

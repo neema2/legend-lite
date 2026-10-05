@@ -14,7 +14,7 @@
     {
       "artifactId": "party", "name": "Party", "message": "Parties, addresses, their store, runtime and rows",
       "dependencies": [["types", "1.0.0"]],
-      "files": ["party/Party.pure", "party/Address.pure", "party/Party_Address.pure", "party/PartyDB.pure", "party/PartyMapping.pure", "party/Connection.pure", "party/Runtime.pure", "party/PartyData.pure"],
+      "files": ["party/Party.pure", "party/Address.pure", "party/Party_Address.pure", "party/PartyDB.pure", "party/PartyMapping.pure", "party/Connection.pure", "party/Runtime.pure", "party/PartyData.pure", "party/allParties.pure"],
       "release": "MAJOR"
     },
     {
