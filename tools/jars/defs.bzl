@@ -26,6 +26,8 @@ def _java_jars_impl(ctx):
         # the targets' own jars, in the order the deps are given
         jars = [j for d in ctx.attr.deps for j in d[JavaInfo].runtime_output_jars]
     out = ctx.actions.declare_file(ctx.label.name + ".jars")
+    if ctx.attr.exec_paths and ctx.attr.rlocation_paths:
+        fail("%s: exec_paths and rlocation_paths are two formats; set one" % ctx.label)
     if ctx.attr.exec_paths:
         lines = [j.path for j in jars]
     elif ctx.attr.rlocation_paths:

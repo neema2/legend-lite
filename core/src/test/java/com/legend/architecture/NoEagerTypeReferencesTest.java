@@ -111,15 +111,16 @@ class NoEagerTypeReferencesTest {
     }
 
     private static void scanClass(String fqn, List<String> violations) {
-        Class<?> cls;
+        Field[] fields;
         try {
-            cls = Class.forName(fqn, false, NoEagerTypeReferencesTest.class.getClassLoader());
+            fields = Class.forName(fqn, false, NoEagerTypeReferencesTest.class.getClassLoader()).getDeclaredFields();
         } catch (ClassNotFoundException | LinkageError t) {
-            // a class of a declared product jar that does not load is a guard that cannot see it: fail, naming it
+            // a class of a declared product jar that does not load (or whose fields' types do not) is a guard that
+            // cannot see it: fail, naming it
             violations.add(fqn + " : does not load (" + t + ") — the guard cannot check it");
             return;
         }
-        for (Field f : cls.getDeclaredFields()) {
+        for (Field f : fields) {
             if (f.isSynthetic()) continue;
             if (FIELD_ALLOWLIST.contains(fqn + "#" + f.getName())) continue;
             Class<?> forbidden = findForbiddenIn(f.getGenericType());
