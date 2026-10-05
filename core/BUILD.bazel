@@ -25,6 +25,22 @@ filegroup(
     visibility = ["//parser-equivalence:__pkg__", "//spec:__pkg__"],
 )
 
+# the main sources and resources as files: what spec's parity tests read (CoreTree; Bazel workplan P3-07)
+filegroup(
+    name = "main_srcs",
+    srcs = glob(["src/main/**"], exclude = ["**/*.md"]),
+    visibility = ["//spec:__pkg__"],
+)
+
+# the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
+# src/test/**/*.java and nothing else; Bazel workplan P3-07)
+filegroup(
+    name = "test_java",
+    srcs = glob(["src/test/**/*.java"]),
+    visibility = ["//parser-equivalence:__pkg__"],
+)
+
+
 # THE NULL GATE: every library is a legend_java_library (//tools/java, Bazel workplan P1-20), which adds
 # NullAway's plugin and flags (//tools/nullaway) unless the target says `nullaway = False`.
 

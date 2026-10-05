@@ -10,6 +10,19 @@ load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/jars:defs.bzl", "java_jars")
 load("//tools/guards:defs.bzl", "guards_package")
 
+# the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
+# src/test/**/*.java and nothing else; Bazel workplan P3-07)
+filegroup(
+    name = "test_java",
+    srcs = glob(["src/test/**/*.java"]),
+)
+
+# the sibling parser's fixtures, listed as files (FixtureCorpusParityTest, MutationFuzzTest)
+filegroup(
+    name = "sibling_corpus",
+    srcs = glob(["src/test/resources/sibling-corpus/**"]),
+)
+
 # sources exported for core's guard tests that walk every module
 filegroup(
     name = "srcs",
@@ -85,10 +98,13 @@ filegroup(
 _ENGINE_JARS_FLAG = "-Dlegend.engine.jars=$(rootpath :engine_jars)"
 
 _INPUTS = [
-    ":srcs",
-    "//core:srcs",
-    "//pct:srcs",
-    "//spec:srcs",
+    # what the parity tests read as files (Bazel workplan P3-07): every module's test sources (the own corpus:
+    # InlineSnippets reads src/test/**/*.java), this module's sibling corpus, and the oracle pins
+    ":sibling_corpus",
+    ":test_java",
+    "//core:test_java",
+    "//pct:test_java",
+    "//spec:test_java",
     "//tools:oracle-pins.env",
 ]
 

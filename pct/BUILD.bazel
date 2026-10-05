@@ -18,6 +18,14 @@ filegroup(
     visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__"],
 )
 
+# the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
+# src/test/**/*.java and nothing else; Bazel workplan P3-07)
+filegroup(
+    name = "test_java",
+    srcs = glob(["src/test/**/*.java"]),
+    visibility = ["//parser-equivalence:__pkg__"],
+)
+
 # THE ADAPTER'S PAR: the Pure adapter compiled against the engine's platform, the
 # form the interpreted runtime loads it in (it refuses to start without it). What
 # legend-pure-maven-generation-par's build-pure-jar goal did, by the same call —
@@ -114,7 +122,6 @@ _SUITES = [
 [junit_test(
     name = "pct_duckdb_" + s.lower(),
     memory_mb = 4096,
-    data = glob(["src/**"]),
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s],
     runtime_deps = [
         ":pct_tests_lib",
@@ -129,7 +136,8 @@ junit_test(
     memory_mb = 768,
     size = "small",
     srcs = ["src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java"],
-    data = glob(["src/**"]),
+    # a source scan: it reads the whole module, by the named filegroup
+    data = [":srcs"],
     select = ["--select-class=org.finos.legend.lite.pct.PctDisciplineTest"],
     deps = [
         "//testing",
@@ -210,7 +218,11 @@ _ENGINE_MANIFEST = "@legend_engine_src//:legend-engine-xts-relationalStore/legen
 [junit_test(
     name = "pct_channel_b_" + s.lower(),
     memory_mb = 768,
-    data = glob(["src/**"]) + [_ENGINE_MANIFEST % s],
+    # exactly what it reads as files: its suite's PCT class and oracle manifest (Bazel workplan P3-07)
+    data = [
+        "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java" % s,
+        _ENGINE_MANIFEST % s,
+    ],
     # its suite's PCT class and oracle manifest, by runfiles path (Bazel workplan P1-05)
     jvm_flags = [
         "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),

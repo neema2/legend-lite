@@ -26,6 +26,14 @@ filegroup(
     srcs = glob(["src/**"], exclude = _MEASURED_ROSTERS),
 )
 
+# the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
+# src/test/**/*.java and nothing else; Bazel workplan P3-07)
+filegroup(
+    name = "test_java",
+    srcs = glob(["src/test/**/*.java"]),
+    visibility = ["//parser-equivalence:__pkg__"],
+)
+
 # spec's sources, exported for core's guard tests that walk every module.
 filegroup(
     name = "srcs",
@@ -119,7 +127,9 @@ _CORPUS_INPUTS = [
 junit_test(
     name = "spec_tests",
     memory_mb = 1024,
-    data = _INPUTS,
+    # what its tests read as files: core's main sources and resources (CoreTree); the rest is classpath and the
+    # upstream trees (Bazel workplan P3-07)
+    data = ["//core:main_srcs"],
     exclude_tags = ["heavy"],
     runtime_deps = [":spec_tests_lib"],
     select = ["--select-package=com.legend"],
