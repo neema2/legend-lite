@@ -7,6 +7,7 @@ import type { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import { versionText, type NewVersionType, type Review } from '../../../sdlc-client/src/wire.ts';
 import type { Workspace } from '../model/workspace.ts';
 import { icon } from '../../../legend-art/src/icon.ts';
+import { changesBetween, type ElementChange } from './diff.ts';
 import { ago, clear, dialog, h, headerAction, sideHead, subPanel, toast } from './dom.ts';
 import { field } from './setup.ts';
 
@@ -20,6 +21,8 @@ export interface PanelContext {
   reload(): Promise<void>;
   /** The workspace no longer exists (its review was committed). */
   gone(message: string): void;
+  /** Shows a change's diff (diff.ts). */
+  diff(change: ElementChange): void;
 }
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -80,9 +83,20 @@ export async function renderReview(root: HTMLElement, ctx: PanelContext): Promis
         }
       } }, icon('gitMergeShort', '17px'))),
     h('div', { class: 'workspace-review__status' }, `created ${ago(review.createdAt)} ago`));
+  // upstream's review CHANGES (plan A7): what the review brings -- the workspace's saved text against where it was made
+  // from (BASE) -- each opening its diff
+  const where = { project: ctx.project, workspace: ctx.workspace };
+  const [base, head] = await Promise.all([ctx.client.pure({ ...where, revision: 'BASE' }), ctx.client.pure(where)]);
+  const changes = changesBetween(new Map(base.map((f) => [f.path, f.pureCode])), new Map(head.map((f) => [f.path, f.pureCode])));
+  const LETTER = { CREATE: 'N', MODIFY: 'M', DELETE: 'D' } as const;
+  body.append(subPanel('Changes', { info: 'What the review brings onto the project line', count: changes.length, testId: 'review-changes' },
+    ...(changes.length ? changes.map((c) => h('div', {
+      class: `side-bar__panel__item diff-item diff-item--${c.type.toLowerCase()}`, title: c.path, 'data-path': c.path, onclick: () => ctx.diff(c),
+    }, h('div', { class: 'diff-item__name' }, c.path.split('::').pop() ?? c.path), h('div', { class: 'diff-item__path' }, c.path),
+    h('div', { class: 'diff-item__type' }, LETTER[c.type]))) : [h('div', { class: 'side-bar__panel__empty' }, 'No changes')])));
 }
 
-type ProjectTab = 'overview' | 'release' | 'versions';
+type ProjectTab = 'overview' | 'release' | 'versions' | 'history';
 /** The Project view's tab, kept while the view is drawn again. */
 let projectTab: ProjectTab = 'overview';
 
@@ -105,8 +119,13 @@ export async function renderProject(root: HTMLElement, ctx: PanelContext): Promi
     onclick: () => { projectTab = t; void renderProject(root, ctx); },
   }, t.toUpperCase());
   root.append(sideHead('Project'), h('div', { class: 'project-overview' },
-    h('div', { class: 'project-overview__activity-bar' }, tab('overview', 'Overview'), tab('release', 'Release'), tab('versions', 'Versions')),
+    h('div', { class: 'project-overview__activity-bar' }, tab('overview', 'Overview'), tab('release', 'Release'), tab('versions', 'Versions'), tab('history', 'History')),
     content));
+
+  if (projectTab === 'history') {
+    await renderHistory(content, ctx);
+    return;
+  }
 
   if (projectTab === 'overview') {
     const deps = config.projectDependencies.map((d) => h('div', { class: 'side-bar__panel__item' },
@@ -164,6 +183,37 @@ export async function renderProject(root: HTMLElement, ctx: PanelContext): Promi
         h('div', { class: 'side-bar__panel__item__label' }, versionText(latest.id)),
         h('div', { class: 'side-bar__panel__item__note' }, latest.notes ?? ''))
       : h('div', { class: 'side-bar__panel__empty' }, 'This project has no release')));
+}
+
+/**
+ * The workspace's history (plan A7, lite's revision browser): its revisions newest first -- message, author, when --
+ * and a revision chosen, what it changed against the one before it, each opening its diff.
+ */
+async function renderHistory(content: HTMLElement, ctx: PanelContext): Promise<void> {
+  const where = { project: ctx.project, workspace: ctx.workspace };
+  const revisions = await ctx.client.revisions(where);
+  const changesOf = h('div', { 'data-testid': 'revision-changes' });
+  const LETTER = { CREATE: 'N', MODIFY: 'M', DELETE: 'D' } as const;
+  const choose = async (i: number): Promise<void> => {
+    for (const [n, el] of rows.entries()) el.classList.toggle('side-bar__panel__item--selected', n === i);
+    const r = revisions[i]!;
+    const before = revisions[i + 1];
+    const [now, then] = await Promise.all([
+      ctx.client.pure({ ...where, revision: r.id }),
+      before ? ctx.client.pure({ ...where, revision: before.id }) : Promise.resolve([]),
+    ]);
+    const changes = changesBetween(new Map(then.map((f) => [f.path, f.pureCode])), new Map(now.map((f) => [f.path, f.pureCode])));
+    clear(changesOf);
+    changesOf.append(subPanel(`Changes in ${r.id.slice(0, 8)}`, { count: changes.length },
+      ...(changes.length ? changes.map((c) => h('div', {
+        class: `side-bar__panel__item diff-item diff-item--${c.type.toLowerCase()}`, title: c.path, 'data-path': c.path, onclick: () => ctx.diff(c),
+      }, h('div', { class: 'diff-item__name' }, c.path.split('::').pop() ?? c.path), h('div', { class: 'diff-item__path' }, c.path),
+      h('div', { class: 'diff-item__type' }, LETTER[c.type]))) : [h('div', { class: 'side-bar__panel__empty' }, 'No element changed')])));
+  };
+  const rows = revisions.map((r, i) => h('div', { class: 'side-bar__panel__item revision-item', title: r.id, 'data-revision': r.id, onclick: () => void choose(i).catch((e: unknown) => toast(message(e), 'error')) },
+    h('div', { class: 'side-bar__panel__item__label' }, r.message),
+    h('div', { class: 'side-bar__panel__item__note' }, `${r.authorName}, ${ago(r.committedTimestamp)} ago`)));
+  content.append(subPanel('Revisions', { info: 'The workspace\'s history, newest first', count: revisions.length, testId: 'revisions' }, ...rows), changesOf);
 }
 
 async function addDependency(ctx: PanelContext): Promise<void> {
