@@ -62,7 +62,7 @@ class CompileOnlyTest {
                     "cc_library CppLink", "zlib's shared library: registered on Linux and Windows, unused",
                     "cc_library DefParser", "zlib's DLL export list: registered on Windows (MSVC), unused")),
             "web", Map.of(
-                    "_run_binary Esbuild", "bundles TypeScript for the browser",
+                    "_esbuild_bundle Esbuild", "esbuild's native binary bundles TypeScript (tools/js/esbuild.bzl)",
                     "_copy_to_bin CopyFile", "a source file copied into the output tree for esbuild",
                     "js_library CopyFile", "a source file copied into the output tree",
                     "npm_package_store_internal NpmPackageExtract", "an npm package unpacked from its tarball"),
@@ -74,7 +74,7 @@ class CompileOnlyTest {
     /** Tier -> the compile it must show, so an empty or broken report cannot pass. */
     private static final Map<String, String> SIGNATURE = Map.of(
             "java", "java_library Javac",
-            "web", "_run_binary Esbuild",
+            "web", "_esbuild_bundle Esbuild",
             "wasm", "_teavm_wasm TeaVM",
             "native", "_native_image NativeImage");
 
@@ -148,11 +148,15 @@ class CompileOnlyTest {
                 problems.add(tier + " did not stop at the tool " + tool + ": the exec test no longer matches");
             }
         });
-        // the walk must never take the product for a tool: every first-party target it skipped is under //tools, or
-        // a bundle's esbuild launcher (js_run_binary's <name>__js_binary, the npm route's tool)
+        // the walk must never take the product for a tool: every first-party target it skipped is under //tools
         report.skipped.forEach((tier, labels) -> labels.stream()
-                .filter(l -> l.startsWith("//") && !l.startsWith("//tools/") && !l.endsWith("__js_binary"))
+                .filter(l -> l.startsWith("//") && !l.startsWith("//tools/"))
                 .forEach(l -> problems.add(tier + " skipped " + l + " as an exec-configuration tool")));
+        // NO NODE IN THE BUILD: esbuild runs natively (tools/js/esbuild.bzl). A js_binary is Node's launcher, so any
+        // rule of that kind in a build target means Node is back. Node run as some allowlisted kind's exec tool would
+        // not show here, but an unlisted kind is an offender anyway.
+        report.seen.forEach((tier, pairs) -> pairs.stream().filter(p -> p.startsWith("js_binary "))
+                .forEach(p -> problems.add(tier + " runs Node: " + p)));
         // a java_binary is walked only to its runtime classpath (compile_only.bzl), which is what //:java takes; in
         // another tier its data and launcher would go unchecked
         report.seen.forEach((tier, pairs) -> pairs.stream()

@@ -1,6 +1,24 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load(":defs.bzl", "node_test")
 load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/platforms:defs.bzl", "platform_select")
+
+# esbuild's native binary for the platform a bundle action runs on (tools/js/esbuild.bzl takes it in the exec
+# configuration, so this select picks the exec platform's)
+_ESBUILD, _ = platform_select({
+    "linux_aarch64": "@esbuild_linux_arm64//:bin/esbuild",
+    "linux_x86_64": "@esbuild_linux_x64//:bin/esbuild",
+    "macos_arm64": "@esbuild_darwin_arm64//:bin/esbuild",
+    "macos_x86_64": "@esbuild_darwin_x64//:bin/esbuild",
+    "windows_aarch64": "@esbuild_windows_arm64//:esbuild.exe",
+    "windows_x86_64": "@esbuild_windows_x64//:esbuild.exe",
+}, "esbuild binary")
+
+alias(
+    name = "esbuild",
+    actual = _ESBUILD,
+    visibility = ["//visibility:public"],
+)
 
 # node_test's exit-code reporter (defs.bzl): every JavaScript test target runs it beside `spec`.
 js_library(

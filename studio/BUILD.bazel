@@ -7,7 +7,7 @@ load("//tools/browser:defs.bzl", "browser_test")
 load("//tools/js:defs.bzl", "node_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_studio//:defs.bzl", "npm_link_all_packages")
-load("@npm_studio//studio:esbuild/package_json.bzl", esbuild = "bin")
+load("//tools/js:esbuild.bzl", "esbuild_bundle")
 load("@npm_studio//studio:typescript/package_json.bzl", typescript = "bin")
 
 npm_link_all_packages(name = "node_modules")
@@ -25,7 +25,7 @@ js_library(
 )
 
 # the page and its two workers: Studio (with Monaco and its stylesheet), legend-lite's compiler, Monaco's
-esbuild.esbuild(
+esbuild_bundle(
     name = "bundle",
     srcs = glob(["demo/**/*.ts"]) + [":src", ":node_modules/monaco-editor"],
     outs = ["demo/bundle.js", "demo/bundle.css"],
@@ -38,10 +38,9 @@ esbuild.esbuild(
         "--log-level=warning",
         "--outfile=demo/bundle.js",
     ],
-    chdir = package_name(),
 )
 
-[esbuild.esbuild(
+[esbuild_bundle(
     name = "bundle_" + name,
     srcs = [":src", ":node_modules/monaco-editor"],
     outs = ["demo/" + out],
@@ -53,7 +52,6 @@ esbuild.esbuild(
         "--log-level=warning",
         "--outfile=demo/" + out,
     ],
-    chdir = package_name(),
 ) for name, entry, out in [
     ("planner_worker", "src/backend/planner-worker.ts", "planner-worker.js"),
     ("editor_worker", "src/backend/editor-worker.ts", "editor.worker.js"),

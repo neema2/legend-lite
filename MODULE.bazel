@@ -326,6 +326,24 @@ http_archive(
     urls = ["https://registry.npmjs.org/react-icons/-/react-icons-5.5.0.tgz"],
 )
 
+# ESBUILD'S NATIVE BINARY (tools/js/esbuild.bzl): the npm registry's @esbuild/<platform> tarball for esbuild 0.28.2,
+# pinned by the registry's own sha512. The bundles run it directly, with no Node. This is esbuild's one version: no
+# package.json names esbuild.
+[http_archive(
+    name = "esbuild_" + name,
+    build_file_content = 'exports_files(["%s"])' % binary,
+    integrity = sha512,
+    strip_prefix = "package",
+    urls = ["https://registry.npmjs.org/@esbuild/%s/-/%s-0.28.2.tgz" % (npm, npm)],
+) for name, npm, binary, sha512 in [
+    ("darwin_arm64", "darwin-arm64", "bin/esbuild", "sha512-n4KqkOQrraxHJcgjM1RvwbigfQKIKJVpM7xp+KsxiyUSrRdIXnt73VhrPAx0fV44hgfmIVKjxMN9J1t5jySVkw=="),
+    ("darwin_x64", "darwin-x64", "bin/esbuild", "sha512-uq6suIWYP37qzGddBKPw5QEQPi6HiLGsO7UmkpfyaYNQ3D+rN6w6WfwH+nuqcGXWvawGwxOEroO4YGnFh95azw=="),
+    ("linux_arm64", "linux-arm64", "bin/esbuild", "sha512-pW4AC0P3it8c7do9MVM4p51FzHzdM/TZrerurgRcHJ2WTa1VQ1CIq18xncfpBJw4ojkiZZrKW2yIBWBP92j6Ug=="),
+    ("linux_x64", "linux-x64", "bin/esbuild", "sha512-4xTZr1FUmSoQW4XIWmit3tzQrUTZM+N3P0XV8xROKYF50XfI7xeO90+1bZvNwxIufQ9hDQVRJH5YhgPVF8A/HQ=="),
+    ("windows_arm64", "win32-arm64", "esbuild.exe", "sha512-PIhhEkE9uPBleRBrQEJpUn7MBnibZzbGzYWPmY3x+YoVg/95zbjB4CxPPOQ8l5tYYM4mMaCthF8/1DIfBQQyWQ=="),
+    ("windows_x64", "win32-x64", "esbuild.exe", "sha512-5ebpxr3nWMzrL/rnUI755Jkuee0bHL/Gq0WTF9lvcpv73wAp5eu8MfBUgWK9bhWvZjj7yX8etf/8tI8Ney695g=="),
+]]
+
 # Upstream Legend's type (legend-art _fonts.scss): Roboto, Roboto Mono and Raleway, at the @fontsource version the
 # apps used to take from npm (5.3.0), each pinned by the registry's own sha512. //legend-art:fonts serves the files
 # the apps use (OFL-1.1, the LICENSE beside them); no font is checked in.
