@@ -301,6 +301,38 @@ java_run(
     deps = [":generators"],
 )
 
+# Every upstream declaration of a membership FQN (fqn, key, text, source file): what a re-keying leg reads.
+# A build output (bazel build //spec:native_declarations), never a file in the tree (P2-17).
+java_run(
+    name = "native_declarations",
+    srcs = UPSTREAM_TREES + [
+        "//core:src/main/resources/com/legend/builtin/native-membership.tsv",
+    ],
+    outs = ["generated/native-declarations.tsv"],
+    arguments = [
+        "{ENGINE_ROOT}",
+        "{PURE_ROOT}",
+        "$(execpath //core:src/main/resources/com/legend/builtin/native-membership.tsv)",
+        "{OUT}",
+    ],
+    main_class = "com.legend.generators.NativeDeclarations",
+    mnemonic = "Generate",
+    roots = _ROOTS,
+    deps = [":generators"],
+)
+
+# A DRAFT of the hand-owned native-membership.tsv from Pure.java's compiled constants, for a person to finish:
+# //core:draft_native_membership writes it (P2-17).
+java_run(
+    name = "native_membership_draft",
+    outs = ["generated/native-membership.draft.tsv"],
+    arguments = ["{OUT}"],
+    main_class = "com.legend.generators.NativeMembershipDraft",
+    mnemonic = "Generate",
+    visibility = ["//core:__pkg__"],
+    deps = [":generators"],
+)
+
 # prelude.pure: the spec shapes the platform and the corpus name. It reads core's
 # Java SOURCES with Pure.java as :gen_natives wrote it (the chain: natives, then
 # prelude), and runs on core as committed.
