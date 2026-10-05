@@ -12,6 +12,7 @@ import { contextOf } from '../src/app/persist.ts';
 import type { LoadedProject } from '../src/app/context.ts';
 import type { Query } from '../src/backend/wire.ts';
 import { demoModel, grammar } from './lite.ts';
+import { runfileNamed } from '../../tools/js/runfiles.mts';
 
 const { context, graph } = await demoModel();
 const project = {
@@ -20,7 +21,7 @@ const project = {
 } as LoadedProject;
 
 const record = (file: string): Query =>
-  JSON.parse(readFileSync(new URL(`../../fixtures/saved-queries/${file}.json`, import.meta.url), 'utf8')) as Query;
+  JSON.parse(readFileSync(runfileNamed('SAVED_QUERIES', `${file}.json`), 'utf8')) as Query;
 
 const EXPECTED: Readonly<Record<string, { mapping: string; runtime: string; parameters: string[]; objects: boolean }>> = {
   'explicit-context': { mapping: 'demo::trading::TradingMapping', runtime: 'demo::trading::Runtime', parameters: [], objects: false },

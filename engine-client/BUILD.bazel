@@ -3,6 +3,7 @@
 # executor, DuckDB in the tab, and the warehouse. Moved out of datacube/ (2026-10-04) so DataCube, Query
 # and Studio share it instead of reaching into one another. Its npm packages are its own lock (MODULE.bazel
 # `npm_engine_client`): Apache Arrow, for the warehouse's result chunks.
+load("//tools/guards:defs.bzl", "guards_package")
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("@npm_engine_client//:defs.bzl", "npm_link_all_packages")
@@ -59,3 +60,5 @@ write_source_files(
     },
     visibility = ["//:__pkg__"],
 )
+
+guards_package()

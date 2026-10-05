@@ -5,9 +5,10 @@ import { fileURLToPath } from 'node:url';
 
 import { MemoryRecords } from '../../sdlc-client/src/records.ts';
 import { WASM_API, WASM_DEPOT_API, wasmSdlcServer, type SdlcModule } from '../../sdlc-client/src/wasm-server.ts';
+import { runfileDirUrl } from '../../tools/js/runfiles.mts';
 import { conformance } from './conformance.ts';
 
-const DIR = new URL('../../sdlc-server/page/', import.meta.url);
+const DIR = runfileDirUrl('SDLC_PAGE');
 const runtime = await import(new URL('wasm-gc-module-runtime.js', DIR).href) as { load(src: string, options: unknown): Promise<SdlcModule> };
 const module = await runtime.load(fileURLToPath(new URL('classes.wasm', DIR)), {
   stackDeobfuscator: { enabled: false },

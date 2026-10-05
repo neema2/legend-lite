@@ -8,12 +8,13 @@ import { WasmGrammar } from '../src/backend/wasm-grammar.ts';
 import type { PlannerRequest } from '../src/backend/planner-worker.ts';
 import { ModelGraph } from '../src/model/graph.ts';
 import type { PureModelContextText } from '../src/backend/wire.ts';
+import { runfileDirUrl, runfileNamed } from '../../tools/js/runfiles.mts';
 
 interface Module {
   readonly exports: Record<string, (...args: string[]) => string | number>;
 }
 
-const DIR = new URL('../../wasm/planner/', import.meta.url);
+const DIR = new URL(runfileDirUrl('WASM_PLANNER'));
 
 let loaded: Promise<Module> | undefined;
 
@@ -51,7 +52,7 @@ export const grammar = new WasmGrammar(new DirectPort());
 /** The demo project's model (the domain, and its DuckDB runtime): its text, its model context, and its graph. */
 export async function demoModel(): Promise<{ text: string; context: PureModelContextText; graph: ModelGraph }> {
   const text = ['trading.pure', 'runtime-duckdb.pure']
-    .map((f) => readFileSync(fileURLToPath(new URL(`../demo/models/${f}`, import.meta.url)), 'utf8'))
+    .map((f) => readFileSync(runfileNamed('QUERY_MODELS', f), 'utf8'))
     .join('\n');
   return { text, context: { _type: 'text', code: text }, graph: new ModelGraph(await grammar.modelJson(text)) };
 }

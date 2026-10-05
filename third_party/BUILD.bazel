@@ -1,2 +1,5 @@
 # Build files for external source archives (the upstream oracle sources), and patches Bazel applies
 # to third-party modules (MODULE.bazel names each where it is applied).
+load("//tools/guards:defs.bzl", "guards_package")
+
+guards_package()

@@ -3,7 +3,8 @@
 # Its npm packages come from pnpm-lock.yaml through rules_js (MODULE.bazel), with
 # Node pinned there. Every test file is its own target — cached and run in
 # parallel on its own, and `bazel test //datacube:<name>_test` runs one.
-load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary")
+load("//tools/js:defs.bzl", "node_test")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
@@ -16,18 +17,19 @@ load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/guards:defs.bzl", "guards_package")
 
 npm_link_all_packages(name = "node_modules")
 
-# the exit-code reporter, shared with the pure-protocol package's tests
-js_library(
-    name = "strict_reporter",
-    srcs = ["test/strict-reporter.mjs"],
+# for //tools/js:lock_matches_package_json_test (P1-26) and //tools/browser:revision_test (P6-19)
+exports_files(
+    ["package.json", "pnpm-lock.yaml"],
     visibility = [
-        "//pure-protocol:__pkg__",
-        "//query-store:__pkg__",
+        "//tools/browser:__pkg__",
+        "//tools/js:__pkg__",
     ],
 )
+
 
 # the app's sources as the tests read them; package.json carries
 # "type": "module" (the sources are ES modules)
@@ -66,11 +68,29 @@ filegroup(
 
 _TESTS = glob(["test/*.test.ts"])
 
+# The tests that scan this package's own sources run from the package directory (chdir) until P3-29 gives them
+# their files as declared inputs; every other test finds its inputs through //tools/js:runfiles (P1-24).
+_SCANNERS = ["config-readers", "guardrails", "menu-ids", "portability", "state-guardrail", "wasm-flag"]
+
+# Each test's inputs by runfiles path ($(rlocationpath); tools/js/runfiles.mts), beside _EXTRA_DATA.
+_EXTRA_ENV = {
+    "bundle-budget": {"BUNDLE": "$(rlocationpath :demo/bundle.js)"},
+    "saved-queries": {
+        "SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)",
+        "TRADING_PROJECT": "$(rlocationpath :projects)",
+    },
+}
+
+# DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
+_DUCKDB_USERS = ["duckdb", "group-derived", "saved-queries", "snap", "sorting", "treeview", "upload"]
+
 # What a test reads from disk beyond src/: the guardrails scan the demo
 # entry points too (they ship), so they are declared, not assumed.
 _EXTRA_DATA = {
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
-    "bundle-budget": [":bundle_bundle"],
+    "bundle-budget": [":bundle_bundle", ":demo/bundle.js"],
+    # the WASM list against the files that load the planner (A28)
+    "wasm-flag": ["BUILD.bazel"] + glob(["test/*.test.ts"]),
     # legend-lite's own answers for the TypeScript Database writer to match
     "catalog-model": ["test/generated/catalog-corpus.ts"],
     # the saved queries Query writes, and the project they compile against
@@ -98,10 +118,9 @@ _EXTRA_DATA = {
         "bench/**/*",
         "demo/**/*.mjs",
         "demo/**/*.ts",
-        "test/**/*.mjs",
         "test/**/*.ts",
         "tools/**/*",
-    ], exclude = ["**/*.md", "test/fake-engine.ts", "test/fake-planner.ts", "test/strict-reporter.mjs"]),
+    ], exclude = ["**/*.md", "test/fake-engine.ts", "test/fake-planner.ts"]),
 }
 
 # the tests that write a model from a table's columns ask the compiler (T2): legend-lite's
@@ -131,36 +150,30 @@ _WASM_TESTS = [
     "saved-queries",
 ]
 
-# node:test files run TypeScript directly (--experimental-strip-types), from the
-# package directory (a guardrail test walks src/ relative to it). Two
-# reporters: spec for the log, and strict-reporter.mjs for the EXIT CODE —
-# Node 22 counts a suite whose body throws as `# fail 0` and exits 0.
-[js_test(
+# node:test files, each its own node_test (tools/js/defs.bzl: types stripped, the spec and strict reporters, a
+# pinned locale and clock). Each finds its inputs through //tools/js:runfiles; only _SCANNERS run from the
+# package directory.
+[node_test(
     name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
     # The tests that load the WebAssembly planner compile it first: seconds on a desk (infer: 6 s), but past
     # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
     # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
     size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else "small",
-    chdir = package_name(),
     data = [
         ":node_modules/jsdom",
         ":src",
         "test/fake-engine.ts",
         "test/fake-planner.ts",
-        "test/strict-reporter.mjs",
     ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + (
-        ["test/catalog-builder.ts", "test/lite-compiler.ts", "//pure-protocol:typescript_sources", "//wasm:planner"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []
+        [":node_modules/@duckdb/duckdb-wasm"] if t[len("test/"):-len(".test.ts")] in _DUCKDB_USERS else []
+    ) + (
+        ["test/catalog-builder.ts", "test/lite-compiler.ts", "//pure-protocol:typescript_sources"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []
     ),
     entry_point = t,
-    node_options = [
-        "--experimental-strip-types",
-    ] + (["--experimental-wasm-exnref"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []) + [
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-        "--test-reporter=./test/strict-reporter.mjs",
-        "--test-reporter-destination=stderr",
-    ],
+    env = _EXTRA_ENV.get(t[len("test/"):-len(".test.ts")], {}),
+    wasm = t[len("test/"):-len(".test.ts")] in _WASM_TESTS,
+    # "" is rules_js's default: the runfiles tree's main-repository directory under bazel test and run
+    chdir = package_name() if t[len("test/"):-len(".test.ts")] in _SCANNERS else "",
 ) for t in _TESTS]
 
 test_suite(
@@ -185,8 +198,7 @@ test_suite(
 typescript.tsc_test(
     name = "typecheck_test",
     size = "small",
-    args = ["-p", "tsconfig.json"],
-    chdir = package_name(),
+    args = ["-p", package_name() + "/tsconfig.json"],
     data = glob([
         "src/**/*.ts",
         "test/**/*.ts",
@@ -197,6 +209,7 @@ typescript.tsc_test(
         "tsconfig.json",
         "//engine-client:engine_client",
         "//pure-protocol:typescript_sources",
+        "//tools/js:runfiles",
         "//query-store:typescript_sources",
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/@types/jsdom",
@@ -372,220 +385,133 @@ java_run(
     deps = ["//wasm:jvm_main"],
 )
 
-js_test(
+node_test(
     name = "wasm_differential_test",
+    wasm = True,
     # loads the WebAssembly planner, as _WASM_TESTS do: medium for the same reason (main's CI run 37214692462)
     size = "medium",
-    chdir = package_name(),
     data = [
-        "test/strict-reporter.mjs",
         "test/wasm-differential/cases.ts",
         ":cube_jvm_answers",
         ":src",
-        "//wasm:planner",
     ],
     entry_point = "test/wasm-differential/compare.ts",
-    node_options = [
-        "--experimental-strip-types",
-        "--experimental-wasm-exnref",
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-        "--test-reporter=./test/strict-reporter.mjs",
-        "--test-reporter-destination=stderr",
-    ],
+    env = {"CUBE_JVM_ANSWERS": "$(rlocationpath :cube_jvm_answers)"},
 )
 
 # PIVOTS JUDGED BY ROWS (docs/DATACUBE_CUBE_PLAN_DESIGN_2026_09_27.md): the real
 # app over the real WASM planner and DuckDB-WASM, every pivot cell compared with
 # a GROUP BY that does not pivot.
-js_test(
+node_test(
     name = "pivot_rows_test",
+    wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/pivot-rows/pivot-rows.ts",
-        "test/strict-reporter.mjs",
         "test/wasm-differential/cases.ts",
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
-        "//wasm:planner",
     ],
     entry_point = "test/pivot-rows/pivot-rows.ts",
-    node_options = [
-        "--experimental-strip-types",
-        "--experimental-wasm-exnref",
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-        "--test-reporter=./test/strict-reporter.mjs",
-        "--test-reporter-destination=stderr",
-    ],
 )
 
 # READING A JSON COLUMN: a sample, then every row in one streamed pass -- the real
 # app over the real WASM planner and DuckDB-WASM.
-js_test(
+node_test(
     name = "json_read_test",
+    wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/json-read/json-read.ts",
-        "test/strict-reporter.mjs",
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
-        "//wasm:planner",
     ],
     entry_point = "test/json-read/json-read.ts",
-    node_options = [
-        "--experimental-strip-types",
-        "--experimental-wasm-exnref",
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-        "--test-reporter=./test/strict-reporter.mjs",
-        "--test-reporter-destination=stderr",
-    ],
 )
 
 # SAVE A CUBE, OPEN IT IN A FRESH APP (docs/DATACUBE_SAVE_SHARE_2026_09_28.md): the real
 # app over the real WASM planner and DuckDB-WASM, a file read the way the page reads one.
-js_test(
+node_test(
     name = "cube_open_test",
+    wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/cube-open/cube-open.ts",
-        "test/strict-reporter.mjs",
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
-        "//wasm:planner",
     ],
     entry_point = "test/cube-open/cube-open.ts",
-    node_options = [
-        "--experimental-strip-types",
-        "--experimental-wasm-exnref",
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-        "--test-reporter=./test/strict-reporter.mjs",
-        "--test-reporter-destination=stderr",
-    ],
 )
 
 # TYPES FROM THE COMPILER (docs/DATACUBE_TYPED_VALUES_DESIGN_2026_09_27.md): the
 # real app over the real WASM planner and DuckDB-WASM; a column's type is the
 # compiler's, never an engine's wire type or one learned from a result.
-js_test(
+node_test(
     name = "typed_values_test",
+    wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
-        "test/strict-reporter.mjs",
         "test/typed-values/typed-values.ts",
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
-        "//wasm:planner",
     ],
     entry_point = "test/typed-values/typed-values.ts",
-    node_options = [
-        "--experimental-strip-types",
-        "--experimental-wasm-exnref",
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-        "--test-reporter=./test/strict-reporter.mjs",
-        "--test-reporter-destination=stderr",
-    ],
 )
 
 # the same file east / west of UTC (T3): a date must be its own day everywhere
-js_test(
+node_test(
     env = {"TZ": "Asia/Tokyo"},
     name = "typed_values_tokyo_test",
+    wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
-        "test/strict-reporter.mjs",
         "test/typed-values/typed-values.ts",
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
-        "//wasm:planner",
     ],
     entry_point = "test/typed-values/typed-values.ts",
-    node_options = [
-        "--experimental-strip-types",
-        "--experimental-wasm-exnref",
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-        "--test-reporter=./test/strict-reporter.mjs",
-        "--test-reporter-destination=stderr",
-    ],
 )
 
 # the same file east / west of UTC (T3): a date must be its own day everywhere
-js_test(
+node_test(
     env = {"TZ": "America/New_York"},
     name = "typed_values_new_york_test",
+    wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
-        "test/strict-reporter.mjs",
         "test/typed-values/typed-values.ts",
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
-        "//wasm:planner",
     ],
     entry_point = "test/typed-values/typed-values.ts",
-    node_options = [
-        "--experimental-strip-types",
-        "--experimental-wasm-exnref",
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-        "--test-reporter=./test/strict-reporter.mjs",
-        "--test-reporter-destination=stderr",
-    ],
 )
 
 # LIVE VERSUS SNAP over a real warehouse (docs/WAREHOUSE_D1_DESIGN_2026_09_26.md):
 # every cube case live on the Bazel-built native warehouse as a reader, then
 # snapped into DuckDB-WASM, the answers compared.
-js_test(
+node_test(
     name = "live_snap_test",
+    wasm = True,
     size = "medium",
-    chdir = package_name(),
     data = [
         "test/live-snap/live-snap.ts",
-        "test/strict-reporter.mjs",
         "test/wasm-differential/cases.ts",
         ":node_modules/@duckdb/duckdb-wasm",
         ":src",
         "//warehouse:duckdb_library",
         "//warehouse:server_native",
-        "//wasm:planner",
     ],
     entry_point = "test/live-snap/live-snap.ts",
     env = {
-        "WAREHOUSE_BINARY": "$(rootpath //warehouse:server_native)",
-        "WAREHOUSE_DUCKDB_LIBRARY": "$(rootpath //warehouse:duckdb_library)",
+        "WAREHOUSE_BINARY": "$(rlocationpath //warehouse:server_native)",
+        "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath //warehouse:duckdb_library)",
     },
-    node_options = [
-        "--experimental-strip-types",
-        "--experimental-wasm-exnref",
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-        "--test-reporter=./test/strict-reporter.mjs",
-        "--test-reporter-destination=stderr",
-    ],
 )
 
 # ── THE DEMO SITE ───────────────────────────────────────────────────────────────
@@ -819,11 +745,7 @@ browser_test(
         ":src",
     ],
     entry_point = "demo/verify-smoke.mjs",
-    node_options = [
-        "--experimental-strip-types",
-        "--experimental-wasm-exnref",
-        "--disable-warning=ExperimentalWarning",
-    ],
+    wasm = True,
 )
 
 # `bazel run //datacube:verify_app` (manual; see demo/verify-app.mjs for its Postgres): the single-user app
@@ -898,3 +820,5 @@ js_binary(
     data = [":node_modules/playwright"],
     entry_point = "demo/install-browser.mjs",
 )
+
+guards_package()

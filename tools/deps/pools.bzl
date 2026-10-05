@@ -2,10 +2,10 @@
 
 What may never SHIP: @maven_upstream (legend-engine, legend-pure), @maven_runner and @maven_test are testonly as a
 whole (TESTONLY_POOLS; MODULE.bazel amends every listed jar testonly, and
-third_party/rules_jvm_external_testonly_closure.patch marks whatever only they reach), so Bazel refuses any non-test
-RULE that depends on one of their jars, directly or transitively. Bazel does not check generated files (a filegroup
-over a testonly binary's deploy jar passes), so //tools/deps:product_closure_test holds every shipped root clear of
-those pools by any path; //tools/deps:pools_list_test keeps each of them testonly as a whole.
+third_party/rules_jvm_external_testonly_closure.patch marks whatever only they reach), and .bazelrc's
+--incompatible_check_testonly_for_output_files extends Bazel's testonly check to generated files, so Bazel refuses
+any non-test target that reaches one of their jar targets. //tools/deps:pools_list_test keeps each of those
+pools testonly as a whole.
 
 What this file adds is which TEST code may use which pool: POOL_USERS names, for each pool, the packages (or single
 targets, "package:name") that may depend on its jars, so, for example, core's own tests never use legend-engine
@@ -28,8 +28,9 @@ POOL_USERS = {
     # rules (with depot-server's) compile to the page's SDLC module the same way (2026-10-04, the Studio line,
     # docs/STUDIO_DESIGN_2026_10_02.md S21: its :teavm_api and :page targets, as //wasm's)
     "maven_teavm": ["sdlc-server", "tools/teavm", "wasm"],
-    # test tooling: JUnit, ArchUnit; for the packages with tests
-    "maven_test": ["core", "json", "parser-equivalence", "pct", "spec", "tools/bump", "tools/deps", "tools/junit", "warehouse"],
+    # test tooling: JUnit, ArchUnit; for the packages with tests. sdlc-server also takes JGit from here, the judge
+    # of the git repository it writes by hand (2026-10-04, the Studio line: no host git in tests)
+    "maven_test": ["core", "json", "parser-equivalence", "pct", "sdlc-server", "spec", "tools/bump", "tools/deps", "tools/guards", "tools/junit", "warehouse"],
     # compiler plugins (NullAway), never on a classpath
     "maven_tools": ["tools/nullaway"],
     # legend-engine and legend-pure: TEST INPUTS ONLY, for the packages that referee lite against them (AGENTS.md,
@@ -43,7 +44,7 @@ POOL_USERS = {
 POOLS = sorted(POOL_USERS.keys())
 
 # The pools that are testonly as a whole (MODULE.bazel: every listed jar amended testonly, and the closure patch).
-# //tools/deps:pools_list_test holds MODULE.bazel to it; //tools/deps:product_closure_test keeps them out of what ships.
+# //tools/deps:pools_list_test holds MODULE.bazel to it.
 TESTONLY_POOLS = ["maven_runner", "maven_test", "maven_upstream"]
 
 def _pool_of_label(label):

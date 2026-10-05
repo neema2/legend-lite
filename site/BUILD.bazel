@@ -4,6 +4,7 @@
 # ones DataCube opens. A browser keeps storage per origin: two ports would be two stores.
 load("@aspect_rules_js//js:defs.bzl", "js_binary")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # `bazel build //site:dist`: the folder for any static host -- both apps, no backend.
 copy_to_directory(
@@ -33,3 +34,5 @@ js_binary(
     entry_point = "verify.mjs",
     tags = ["browser-ci"],
 )
+
+guards_package()

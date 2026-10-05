@@ -1,1 +1,4 @@
 # legend_java_library (defs.bzl): every first-party java_library, with the null gate built in (Bazel workplan P1-20).
+load("//tools/guards:defs.bzl", "guards_package")
+
+guards_package()

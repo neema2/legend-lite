@@ -21,8 +21,9 @@ import type { ResultTable } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../../src/snapshot.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
 import { accessor } from '../../../pure-protocol/src/index.ts';
+import { runfileDirUrl } from '../../../tools/js/runfiles.mts';
 
-const MODULE_DIR = new URL('../../../wasm/planner/', import.meta.url).href;
+const MODULE_DIR = runfileDirUrl('WASM_PLANNER');
 
 const MODEL = `###Relational
 Database j::DB ( Table T ( id INTEGER, doc SEMISTRUCTURED ) Table O ( id INTEGER, doc SEMISTRUCTURED ) )

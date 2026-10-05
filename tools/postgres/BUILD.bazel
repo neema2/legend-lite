@@ -1,0 +1,3 @@
+load("//tools/guards:defs.bzl", "guards_package")
+
+guards_package()

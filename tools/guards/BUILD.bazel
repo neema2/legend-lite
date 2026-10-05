@@ -1,0 +1,93 @@
+# THE GUARDS (Bazel workplan Phase 6): tests over the repository itself. inventory.bzl lists every file and package
+# (@repo_inventory); defs.bzl's guards_package gives each package an `all_files` the content guards read.
+load("@repo_inventory//:packages.bzl", "PACKAGES")
+load(":defs.bzl", "guards_package")
+load("//tools/junit:defs.bzl", "junit_test")
+
+# Every package's files (guards_package), from the inventory's package list: a package without guards_package()
+# fails analysis here (G0, Bazel workplan P6-00).
+filegroup(
+    name = "repository_files",
+    srcs = ["//%s:all_files" % p for p in PACKAGES],
+)
+
+# G0: the inventory is complete, and every file in it is in some package's all_files (Bazel workplan P6-00)
+junit_test(
+    name = "inventory_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["InventoryTest.java"],
+    data = [
+        ":repository_files",
+        "@repo_inventory//:files.txt",
+    ],
+    jvm_flags = ["-Dinventory.files=$(rlocationpath @repo_inventory//:files.txt)"],
+    select = ["--select-class=com.legend.tools.guards.InventoryTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# G10: every jar pool is locked (fail_if_repin_required) and strict (strict_visibility) (Bazel workplan P6-10)
+junit_test(
+    name = "locks_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["LocksTest.java"],
+    data = ["//:MODULE.bazel"],
+    jvm_flags = ["-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)"],
+    select = ["--select-class=com.legend.tools.guards.LocksTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# G17 (Bazel workplan P6-17): no Markdown file of this repository is a test input, so prose cannot change a verdict
+# (and CI's paths-ignore of **/*.md stays true): every package's guard_markdown report (guards_package), but this
+# one's (the guards read every file by design).
+filegroup(
+    name = "markdown_reports",
+    testonly = True,
+    srcs = ["//%s:guard_markdown" % p for p in PACKAGES if p != "tools/guards"],
+)
+
+junit_test(
+    name = "markdown_inputs_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["MarkdownInputsTest.java"],
+    data = [":markdown_reports"],
+    env = {"MARKDOWN_REPORTS": "$(rlocationpaths :markdown_reports)"},
+    select = ["--select-class=com.legend.tools.guards.MarkdownInputsTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# G11 (Bazel workplan P6-11): no runtime classpath holds two versions of one Maven coordinate; every package's
+# guard_classpaths report (guards_package) from the inventory's package list. Replaces pools_are_disjoint.
+filegroup(
+    name = "classpath_reports",
+    testonly = True,
+    srcs = ["//%s:guard_classpaths" % p for p in PACKAGES if p != "tools/guards"],  # the guards: no cycle
+)
+
+junit_test(
+    name = "classpath_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["ClasspathTest.java"],
+    data = [":classpath_reports"],
+    # a list: an environment variable keeps it one value (in jvm_flags it would split into JVM arguments)
+    env = {"CLASSPATH_REPORTS": "$(rlocationpaths :classpath_reports)"},
+    select = ["--select-class=com.legend.tools.guards.ClasspathTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+guards_package()

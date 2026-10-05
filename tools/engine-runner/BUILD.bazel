@@ -1,4 +1,5 @@
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # The engine runner (README.md): the real legend-engine over .pure sources, beside
 # legend-lite's core. Its jars are its own pool, @maven_runner (MODULE.bazel).
@@ -51,3 +52,5 @@ legend_java_library(
     ("lite_parse", "LiteParseMain"),
     ("token_dump", "TokenDump"),
 ]]
+
+guards_package()

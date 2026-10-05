@@ -146,9 +146,22 @@ public final class GitStorage implements Storage {
 
     // ---- key ↔ file ----
 
+    /** A key's file, refused unless it stays inside the repository (the rules check ids first; this is the backstop). */
     private Path file(String key) {
+        Path root = dir.toAbsolutePath().normalize();
+        Path f = unchecked(key).toAbsolutePath().normalize();
+        if (!f.startsWith(root) || f.equals(root) || key.contains("\\") || key.contains("\0")) {
+            throw new IllegalArgumentException("not a key of the SDLC's storage: " + key);
+        }
+        return f;
+    }
+
+    private static final java.util.regex.Pattern OBJECT_ID = java.util.regex.Pattern.compile("^[0-9a-f]{40}$");
+
+    private Path unchecked(String key) {
         if (key.startsWith("obj/")) {
             String id = key.substring(4);
+            if (!OBJECT_ID.matcher(id).matches()) throw new IllegalArgumentException("not a git object id: " + id);
             return dir.resolve("objects").resolve(id.substring(0, 2)).resolve(id.substring(2));
         }
         if (key.startsWith("ref/")) {
@@ -262,9 +275,18 @@ public final class GitStorage implements Storage {
         return out.toByteArray();
     }
 
-    private static void write(Path file, byte[] bytes) throws IOException {
+    private static final java.util.concurrent.atomic.AtomicLong STAGED = new java.util.concurrent.atomic.AtomicLong();
+
+    /**
+     * Writes through a staging file in {@code <dir>/legend/staging/} under a name no ref or record can have, then moves
+     * it into place (atomically: the same file system). Staging beside the target as `<file>.tmp` could collide with a
+     * real ref of that name.
+     */
+    private void write(Path file, byte[] bytes) throws IOException {
         Files.createDirectories(file.getParent());
-        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
+        Path staging = dir.resolve("legend/staging");
+        Files.createDirectories(staging);
+        Path tmp = staging.resolve(System.nanoTime() + "-" + STAGED.incrementAndGet() + ".staged");
         Files.write(tmp, bytes);
         Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }

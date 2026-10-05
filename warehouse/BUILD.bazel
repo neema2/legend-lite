@@ -11,6 +11,7 @@ load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/platforms:defs.bzl", "compatible_with", "platform_select")
 load(":defs.bzl", "POSTGRES_EXTENSION", "POSTGRES_EXTENSION_COMPATIBLE", "jar_entry", "warehouse_run")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # DuckDB's native library for this platform, out of its JDBC jar (//tools/platforms; Bazel workplan P1-19)
 _DUCKDB_LIBRARY, _DUCKDB_LIBRARY_COMPATIBLE = platform_select({
@@ -343,3 +344,5 @@ java_run(
     target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
     deps = ["//tools/gunzip"],
 )
+
+guards_package()

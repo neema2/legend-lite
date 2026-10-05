@@ -1,11 +1,13 @@
 # Legend Query, rebuilt light (docs/QUERY_APP_DESIGN_2026_09_30.md): plain TypeScript and DOM,
 # bundled by esbuild, tested with node's own runner. Its npm packages are its own lock
 # (MODULE.bazel `npm_query`), so DataCube's lock never moves for it.
-load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_test")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
+load("//tools/js:defs.bzl", "node_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_query//:defs.bzl", "npm_link_all_packages")
 load("@npm_query//query:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm_query//query:typescript/package_json.bzl", typescript = "bin")
+load("//tools/guards:defs.bzl", "guards_package")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -149,41 +151,42 @@ _WASM_TESTS = [
     "saved-queries",
 ]
 
-[js_test(
+# the demo's models, by runfiles path for the tests that read them (QUERY_MODELS; Bazel workplan P1-24)
+filegroup(
+    name = "demo_models",
+    srcs = glob(["demo/models/*.pure"]),
+)
+
+[node_test(
     name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
     size = "small",
-    chdir = package_name(),
     data = [
         ":node_modules/jsdom",
         ":src",
-        "test/strict-reporter.mjs",
         # the saved-query records Query writes and DataCube reads (fixtures/saved-queries/README.md)
         "//fixtures/saved-queries:records",
-    ] + glob(["test/*.ts"], exclude = ["test/*.test.ts"]) + glob(["demo/models/*.pure"]) + (
-        ["//pure-protocol:pure_protocol", "//query-store:query_store", "//wasm:planner"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []
+        ":demo_models",
+    ] + glob(["test/*.ts"], exclude = ["test/*.test.ts"]) + (
+        ["//pure-protocol:pure_protocol", "//query-store:query_store"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []
     ),
     entry_point = t,
-    node_options = [
-        "--experimental-strip-types",
-    ] + (["--experimental-wasm-exnref"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []) + [
-        "--disable-warning=ExperimentalWarning",
-        "--test-reporter=spec",
-        "--test-reporter-destination=stdout",
-        "--test-reporter=./test/strict-reporter.mjs",
-        "--test-reporter-destination=stderr",
-    ],
+    env = {
+        "QUERY_MODELS": "$(rlocationpaths :demo_models)",
+        "SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)",
+    },
+    wasm = t[len("test/"):-len(".test.ts")] in _WASM_TESTS,
 ) for t in _TESTS]
 
 typescript.tsc_test(
     name = "typecheck_test",
     size = "small",
-    args = ["-p", "tsconfig.json"],
-    chdir = package_name(),
+    args = ["-p", package_name() + "/tsconfig.json"],
     data = glob([
         "src/**/*.ts",
         "test/**/*.ts",
         "demo/**/*.ts",
     ]) + [
+        "//tools/js:runfiles",
         "package.json",
         "tsconfig.json",
         "//pure-protocol:pure_protocol",
@@ -201,3 +204,5 @@ test_suite(
     name = "tests",
     tests = [t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in _TESTS] + [":typecheck_test"],
 )
+
+guards_package()

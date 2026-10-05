@@ -149,6 +149,14 @@ export function conformance(name: string, target: () => Target): void {
       assert.deepEqual(await client().revision({ project: p, workspace: 'w1' }), line);
     });
 
+    it('keeps ids differing only in case as one: a repository on macOS or Windows would (re-review D)', async () => {
+      await refused('POST', `/projects/${P}/workspaces/W1`, undefined, 409,
+        `Error creating user workspace W1 of project ${p}: workspace w1 already exists, and ids differing only in case are one`);
+      const upper = groupId.replace(/^org/, 'Org');
+      await refused('POST', '/projects', { name: 'Shout', description: '', groupId: upper, artifactId: run }, 409,
+        `Failed to create project: Shout: a project with coordinates ${p} already exists`);
+    });
+
     let saved: Revision;
 
     it('saves text: one element per file, comments kept, the new revision answered', async () => {
@@ -412,6 +420,48 @@ export function conformance(name: string, target: () => Target): void {
       assert.equal(committed.status, 200, committed.text);
       const v = await raw('POST', `/projects/${encodeURIComponent(P3)}/versions`, { versionType: 'MAJOR' });
       assert.deepEqual((v.json as { id: unknown }).id, { majorVersion: 1, minorVersion: 0, patchVersion: 0 });
+    });
+
+    it('commits a review against the MERGED project.json: the line\'s new dependency counts (review finding 5)', async () => {
+      const P4 = `${groupId}:${run}-merge`;
+      const E4 = encodeURIComponent(P4);
+      await client().createProject({ name: 'Merge', description: '', groupId, artifactId: `${run}-merge` });
+      // B is made first, from the line before A's dependency
+      await client().createWorkspace(P4, 'b');
+      await client().createWorkspace(P4, 'a');
+      await raw('POST', `/projects/${E4}/workspaces/a/configuration`, { message: 'dep', projectDependenciesToAdd: [{ projectId: P2, versionId: '0.1.1' }] });
+      await client().performPureChanges(P4, 'a', { message: 'use', changes: [create('demo::m::UsesCountry', 'Class demo::m::UsesCountry\n{\n  c: demo::types::Country[1];\n}\n')] });
+      const a = String(((await raw('POST', `/projects/${E4}/reviews`, { workspaceId: 'a', title: 'a', description: '' })).json as { id: string }).id);
+      assert.equal((await raw('POST', `/projects/${E4}/reviews/${a}/commit`, { message: 'a' })).status, 200);
+      await client().performPureChanges(P4, 'b', { message: 'other', changes: [create('demo::m::Other', 'Class demo::m::Other\n{\n  n: String[1];\n}\n')] });
+      const b = String(((await raw('POST', `/projects/${E4}/reviews`, { workspaceId: 'b', title: 'b', description: '' })).json as { id: string }).id);
+      const committed = await raw('POST', `/projects/${E4}/reviews/${b}/commit`, { message: 'b' });
+      assert.equal(committed.status, 200, committed.text);
+      assert.deepEqual((await client().pure({ project: P4 })).map((f) => f.path), ['demo::m::Other', 'demo::m::UsesCountry']);
+    });
+
+    it('refuses ids that are not ids before they reach storage (review finding 1)', async () => {
+      // a project id must be groupId:artifactId; anything else -- separators, `..` -- is refused, never looked up
+      // (a bare `..` segment, even escaped, is resolved by the URL itself before it is sent)
+      for (const bad of ['..%2F..%2Fx:y', 'a%2Fb:c', 'x:..%2F..', '..%5C..%5Cx:y']) {
+        const r = await raw('GET', `/projects/${bad}`);
+        assert.equal(r.status, 400, `${bad}: ${r.text}`);
+        assert.match(String((r.json as { message: string }).message), /^Invalid project id: "/);
+        assert.equal((await raw('DELETE', `/projects/${bad}/workspaces/w`)).status, 400, bad);
+      }
+      // a workspace id is checked on every route, the delete included; git's `.lock` and staging's `.tmp` are refused
+      for (const bad of ['..%2F..%2Fx', 'a%2Fb', 'x.lock', 'x.tmp']) {
+        const r = await raw('DELETE', `/projects/${E2}/workspaces/${bad}`);
+        assert.equal(r.status, 400, `${bad}: ${r.text}`);
+        assert.match(String((r.json as { message: string }).message), /^Invalid workspace id: "/);
+      }
+      await refused('POST', `/projects/${E2}/workspaces/x.lock`, undefined, 400,
+        'Invalid workspace id: "x.lock". A workspace id must be a non-empty string consisting of characters from the following set: {a-z, A-Z, 0-9, _, ., -}. The id may not contain ".." and may not start or end with \'.\' or \'-\'.');
+      // a revision is an alias or a commit id
+      await refused('GET', `/projects/${E2}/revisions/..%2F..%2Fx`, undefined, 404, `Revision ../../x is unknown for project ${P2}`);
+      await refused('GET', `/projects/${E2}/revisions/a`, undefined, 404, `Revision a is unknown for project ${P2}`);
+      // a malformed escape is the client's error
+      assert.equal((await raw('GET', `/projects/${E2}%zz`)).status, 400);
     });
 
     it('lists a history newest first, with upstream\'s limit rules', async () => {

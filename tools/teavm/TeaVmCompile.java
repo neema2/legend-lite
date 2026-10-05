@@ -28,8 +28,8 @@ import java.util.List;
  * <p>Usage: {@code TeaVmCompile <out-dir> <main-class> @<classpath-file>}, the file
  * one jar per line (a Bazel param file — a class path outgrows a command line).
  *
- * <p>The settings are the ones {@code research/wasm/pom.xml} gave the TeaVM Maven
- * plugin (the plugin is a thin wrapper over {@link TeaVMTool}): ADVANCED
+ * <p>The settings are the ones the WebAssembly spike gave TeaVM's Maven plugin (a thin
+ * wrapper over {@link TeaVMTool}): ADVANCED
  * optimization, minified, no debug information, no incremental cache — an action
  * starts clean, and its output is a function of its inputs alone. The runtime is
  * the MODULAR, unminified {@code wasm-gc-module-runtime.js}, the one DataCube's

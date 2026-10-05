@@ -90,18 +90,17 @@ maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 # NEVER SHIPPED: @maven_upstream, @maven_runner and @maven_test are testonly as a
 # whole (every listed jar is amended testonly below, and the testonly-closure patch
 # marks whatever only they reach), so Bazel refuses any non-test RULE that depends on
-# one of their jars, in any package. Bazel does not check a generated file (a
-# filegroup over a testonly binary's deploy jar passes), so
-# //tools/deps:product_closure_test holds every shipped root clear of the three pools
-# by any path, and //tools/deps:pools_list_test keeps each pool testonly as a whole.
+# one of their jars, in any package, and .bazelrc's
+# --incompatible_check_testonly_for_output_files extends that to generated files (a
+# filegroup over a testonly binary's deploy jar), so nothing that ships can reach
+# them through the pools' jar targets. //tools/deps:pools_list_test keeps each pool testonly as a whole.
 # WHO MAY USE EACH POOL, test
 # code included, is tools/deps/pools.bzl (Bazel workplan P1-25). Every pool has
 # strict_visibility, so a BUILD file may name only the jars its pool LISTS below; a
 # transitive jar is invisible until it is listed. Core reaches no outside jar at all
 # (//tools/deps:core_closure_test). Pools may share coordinates (each
-# resolves its own versions); //tools/deps:pools_are_disjoint holds core, h2_modern,
-# test and upstream apart, with two named overlaps (P6-11 replaces it with a check
-# per runtime classpath).
+# resolves its own versions); //tools/guards:classpath_test fails on any runtime
+# classpath that holds one coordinate at two versions (Bazel workplan P6-11).
 #
 #   @maven_core      core's JDBC drivers (the warehouse adds @maven_warehouse, the planner TeaVM's classlib)
 #   @maven_warehouse DuckDB's JDBC driver, for the warehouse and the app on it
@@ -145,7 +144,7 @@ maven.install(
 )
 
 # THE MODERN H2, for the one lane that runs on it: pct's gate 7 (PCT relation on
-# H2 2.4.240, pct/pom.xml's -Dh2.version profile). An ALTERNATIVE to core's
+# H2 2.4.240, the version the engine's own PCT H2 profile used). An ALTERNATIVE to core's
 # 2.1.214, never beside it — the target that takes this one is given no other H2.
 maven.install(
     name = "maven_h2_modern",
@@ -177,6 +176,13 @@ _TEST_ARTIFACTS = [
     "org.junit.platform:junit-platform-suite-engine:1.11.3",
     "org.junit.vintage:junit-vintage-engine:5.11.3",
     "com.tngtech.archunit:archunit-junit5:1.3.0",
+    # sdlc-server's judge of the git repository it writes by hand (Git.java): read back by JGit, at the version
+    # legend-sdlc's own file-system backend uses (legend-sdlc-server-fs/pom.xml), never the machine's git
+    # (2026-10-04, the Studio line; the Bazel program session's ruling: no host programs in tests)
+    "org.eclipse.jgit:org.eclipse.jgit:6.3.0.202209071007-r",
+    # held at the version the pool had before JGit (ArchUnit's): JGit 6.3 asks for 1.7.30, and the resolver's
+    # nearest-wins would otherwise move the whole pool down to it (slf4j 2's API serves a 1.7 caller)
+    "org.slf4j:slf4j-api:2.0.12",
 
     # USED DIRECTLY by BUILD files, so declared: strict_visibility (Bazel workplan P1-25) makes an
     # undeclared transitive artifact invisible.
@@ -202,8 +208,8 @@ maven.install(
     repositories = ["https://repo1.maven.org/maven2"],
 )
 # TEST ONLY: every jar this pool lists is testonly, and with the testonly-closure patch (above) so is every
-# jar only they reach, which is the whole pool: Bazel refuses any non-test rule that depends on one, and
-# //tools/deps:product_closure_test covers generated files (test tooling never ships).
+# jar only they reach, which is the whole pool: Bazel refuses any non-test target that depends on one, or on a
+# file generated from one (.bazelrc: --incompatible_check_testonly_for_output_files) (test tooling never ships).
 [maven.amend_artifact(
     name = "maven_test",
     coordinates = coordinates,
@@ -217,7 +223,7 @@ _UPSTREAM_ARTIFACTS = [
     "junit:junit:4.13.1",
 
     # parser-equivalence: the reference parser and EVERY section grammar the
-    # engine ships (parser-equivalence/pom.xml says why all of them), test only
+    # engine ships (the parser differential compares every section, so it needs them all), test only
     "org.finos.legend.engine:legend-engine-language-pure-grammar:" + LEGEND_ENGINE_RELEASE,
     "org.finos.legend.engine:legend-engine-xt-relationalStore-grammar:" + LEGEND_ENGINE_RELEASE,
     "org.finos.legend.engine:legend-engine-xt-diagram-grammar:" + LEGEND_ENGINE_RELEASE,
@@ -230,7 +236,7 @@ _UPSTREAM_ARTIFACTS = [
     "org.finos.legend.pure:legend-pure-m3-core:" + LEGEND_PURE_RELEASE,
 
     # pct: the engine's PCT framework, the three function universes it runs,
-    # and the interpreted runtime with their native extensions (pct/pom.xml);
+    # and the interpreted runtime with their native extensions;
     # compiled-core and the TDS DSL are also the PAR generator's classpath
     "org.finos.legend.engine:legend-engine-test-framework:" + LEGEND_ENGINE_RELEASE,
     "org.finos.legend.engine:legend-engine-pure-code-compiled-core:" + LEGEND_ENGINE_RELEASE,
@@ -258,7 +264,7 @@ _UPSTREAM_ARTIFACTS = [
     "org.eclipse.collections:eclipse-collections-api:10.2.0",
 
     # INV-5: the third-party versions the ENGINE release's own root pom manages
-    # (root pom.xml dependencyManagement says why) — listed so `pinned` holds them
+    # (its dependencyManagement; //tools/bump reads them from the release's pom) — listed so `pinned` holds them
     "com.zaxxer:HikariCP:7.0.2",
     "org.apache.commons:commons-lang3:3.18.0",
     "org.apache.httpcomponents:httpcore:4.4.13",
@@ -317,7 +323,7 @@ maven.install(
     # imported as a BOM, so a third-party artifact here (guava, slf4j, snakeyaml,
     # the jackson family, ...) resolves at the version the engine's reactor — the
     # PCT framework included — builds and runs with. Derived from the release,
-    # never chosen here (root pom.xml, INV-5). BOM import needs the maven resolver.
+    # never chosen here (INV-5). BOM import needs the maven resolver.
     boms = ["org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE],
     resolver = "maven",
     # Jars another pool owns are left out, so a test that uses both pools gets
@@ -344,8 +350,8 @@ maven.install(
     repositories = ["https://repo1.maven.org/maven2"],
 )
 # TEST ONLY: every jar this pool lists is testonly, and with the testonly-closure patch (above) so is every
-# jar only they reach, which is the whole pool: Bazel refuses any non-test rule that depends on one, and
-# //tools/deps:product_closure_test covers generated files (legend-engine and legend-pure are test inputs: AGENTS.md, reference-checkout tenet).
+# jar only they reach, which is the whole pool: Bazel refuses any non-test target that depends on one, or on a
+# file generated from one (.bazelrc: --incompatible_check_testonly_for_output_files) (legend-engine and legend-pure are test inputs: AGENTS.md, reference-checkout tenet).
 [maven.amend_artifact(
     name = "maven_upstream",
     coordinates = coordinates,
@@ -398,8 +404,8 @@ maven.install(
     repositories = ["https://repo1.maven.org/maven2"],
 )
 # TEST ONLY: every jar this pool lists is testonly, and with the testonly-closure patch (above) so is every
-# jar only they reach, which is the whole pool: Bazel refuses any non-test rule that depends on one, and
-# //tools/deps:product_closure_test covers generated files (the engine runner is a test tool).
+# jar only they reach, which is the whole pool: Bazel refuses any non-test target that depends on one, or on a
+# file generated from one (.bazelrc: --incompatible_check_testonly_for_output_files) (the engine runner is a test tool).
 [maven.amend_artifact(
     name = "maven_runner",
     coordinates = coordinates,
@@ -540,6 +546,12 @@ sysroot_archive(
 # starts the server with the caller's arguments intact -- where a .bat and Bazel's bash launcher
 # split a Postgres URL at '&'. Released stubs: no Rust toolchain.
 bazel_dep(name = "hermetic_launcher", version = "0.0.16")
+
+# ── THE REPOSITORY INVENTORY ─────────────────────────────────────────────────────
+# Every file and package of this repository, for the guards (tools/guards; Bazel workplan P6-00).
+repo_inventory = use_repo_rule("//tools/guards:inventory.bzl", "repo_inventory")
+
+repo_inventory(name = "repo_inventory")
 
 # ── THE UPSTREAM SOURCES ────────────────────────────────────────────────────────
 # legend-engine / legend-pure at ONE release, pinned by content. Tests read these

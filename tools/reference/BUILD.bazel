@@ -5,6 +5,7 @@
 
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/guards:defs.bzl", "guards_package")
 
 legend_java_library(
     name = "ref_resolutions",
@@ -78,3 +79,5 @@ java_run(
     visibility = ["//spec:__pkg__"],
     deps = [":ref_resolutions"],
 )
+
+guards_package()

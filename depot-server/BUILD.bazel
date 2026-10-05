@@ -3,6 +3,7 @@
 # the page, compiled to WebAssembly with sdlc-server's rules. It never depends on sdlc-server: what it
 # serves comes through ArtifactSource (sdlc-server's version tags first, a Maven repository later), so it
 # can run as its own service.
+load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/java:defs.bzl", "legend_java_library")
 
 # THE RULES: TeaVM-safe by rule (no files, sockets, threads, reflection, java.security).
@@ -15,3 +16,5 @@ legend_java_library(
         "//json",
     ],
 )
+
+guards_package()

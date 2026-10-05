@@ -5,6 +5,7 @@
 
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/guards:defs.bzl", "guards_package")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -27,3 +28,5 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
     ],
 )
+
+guards_package()

@@ -53,7 +53,11 @@ public final class Sdlc {
     private static final String LINE = "master";
 
     private static final Pattern ENTITY_PATH = Pattern.compile("^(?!meta::)[A-Za-z0-9_]+(::[A-Za-z0-9_]+)*::[A-Za-z0-9_$]+$");
-    private static final Pattern WORKSPACE_ID = Pattern.compile("^([A-Za-z0-9_]([A-Za-z0-9_-]|\\.(?!\\.))*[A-Za-z0-9_]|[A-Za-z0-9_])$");
+    // upstream's rule (GitLabWorkspaceApi.java:1140-1180); and, lite's, no `.lock` (git refuses such ref names) or
+    // `.tmp` suffix (a storage's staging name) -- a workspace id becomes a ref name and a file name
+    private static final Pattern WORKSPACE_ID = Pattern.compile("^(?!.*\\.(lock|tmp)$)([A-Za-z0-9_]([A-Za-z0-9_-]|\\.(?!\\.))*[A-Za-z0-9_]|[A-Za-z0-9_])$");
+    /** A commit id as git writes it: what a literal revision in a URL or a body must be before it is looked up. */
+    private static final Pattern COMMIT_ID = Pattern.compile("^[0-9a-f]{40}$");
     // ProjectStructure.java:93, and SourceVersion.isName (dotted Java identifiers, keywords excluded)
     private static final Pattern ARTIFACT_ID = Pattern.compile("^[a-z][a-z\\d_]*(-[a-z][a-z\\d_]*)*$");
     private static final Pattern JAVA_IDENTIFIER = Pattern.compile("^[A-Za-z_$][A-Za-z\\d_$]*$");
@@ -171,6 +175,8 @@ public final class Sdlc {
         }
 
         String p = b;
+        // every segment that becomes a storage key is checked first: a decoded segment may hold anything
+        if (!isProjectId(p)) throw new Refusal("Invalid project id: \"" + p + "\"", 400);
         List<String> rest = parts.subList(2, parts.size());
         if (rest.isEmpty()) {
             if (!method.equals("GET")) throw new Refusal("HTTP 405 Method Not Allowed", 405);
@@ -194,6 +200,7 @@ public final class Sdlc {
                 return ok(out);
             }
             String w = rest.get(1);
+            if (!WORKSPACE_ID.matcher(w).matches()) throw invalidWorkspace(w);
             List<String> sub = rest.subList(2, rest.size());
             if (sub.isEmpty()) {
                 switch (method) {
@@ -295,16 +302,29 @@ public final class Sdlc {
         return "user workspace " + w + " in project " + p;
     }
 
+    // THE KEYS. Every key built from outside data (a URL, a body, a project.json) is built here, and each builder
+    // refuses an id that is not one -- so no path, separator or `..` can reach a Storage, whatever route it came by.
+
+    private static String checked(String p) {
+        if (!isProjectId(p)) throw new Refusal("Invalid project id: \"" + p + "\"", 400);
+        return p;
+    }
+
     private String lineRef(String p) {
-        return "ref/" + p + "/" + LINE;
+        return "ref/" + checked(p) + "/" + LINE;
+    }
+
+    private String projectKey(String p) {
+        return "project/" + checked(p);
     }
 
     private String workspaceRef(String p, String w) {
-        return "ref/" + p + "/workspace/" + userId + "/" + w;
+        if (!WORKSPACE_ID.matcher(w).matches()) throw invalidWorkspace(w);
+        return "ref/" + checked(p) + "/workspace/" + userId + "/" + w;
     }
 
     private Json.Obj project(String p) {
-        String record = storage.get("project/" + p);
+        String record = storage.get(projectKey(p));
         if (record == null) throw new Refusal("Unknown project: " + p, 404);
         return Json.parseObject(record);
     }
@@ -325,10 +345,20 @@ public final class Sdlc {
     }
 
     private List<String> workspaceIds(String p) {
-        String prefix = "ref/" + p + "/workspace/" + userId + "/";
+        String prefix = "ref/" + checked(p) + "/workspace/" + userId + "/";
         List<String> out = new ArrayList<>();
         for (String k : storage.keys(prefix)) out.add(k.substring(prefix.length()));
         return out;
+    }
+
+    /**
+     * DEPARTURE (lite): the one of {@code ids} equal to {@code id} ignoring case, or null. Ids differing only in
+     * case are one id here (upstream's GitLab branches are not), since a repository on macOS or Windows keeps
+     * them as one file: two of them would silently share one ref.
+     */
+    private static @Nullable String sameIgnoringCase(List<String> ids, String id) {
+        for (String i : ids) if (i.equalsIgnoreCase(id)) return i;
+        return null;
     }
 
     private boolean isAncestor(String ancestor, String of) {
@@ -360,7 +390,9 @@ public final class Sdlc {
         if (alias.equals("base")) return w == null ? root(head) : mergeBase(lineHead(p), head);
         if (alias.equals("head") || alias.equals("current") || alias.equals("latest")) return head;
         String desc = w == null ? "project " + p : wsIn(p, w);
-        if (!git.isCommit(r) || !isAncestor(r, head)) throw new Refusal("Revision " + r + " is unknown for " + desc, 404);
+        if (!COMMIT_ID.matcher(r).matches() || !git.isCommit(r) || !isAncestor(r, head)) {
+            throw new Refusal("Revision " + r + " is unknown for " + desc, 404);
+        }
         return r;
     }
 
@@ -460,8 +492,9 @@ public final class Sdlc {
         // DEPARTURE (lite): a project is named by its coordinates, `groupId:artifactId` -- the id upstream's
         // own project.json uses for a dependency -- not a GitLab number; one project per coordinates.
         String projectId = groupId + ":" + artifactId;
-        if (storage.get("project/" + projectId) != null) {
-            throw new Refusal("Failed to create project: " + name + ": a project with coordinates " + projectId + " already exists", 409);
+        String same = sameIgnoringCase(storage.keys("project/"), "project/" + projectId);
+        if (same != null) {
+            throw new Refusal("Failed to create project: " + name + ": a project with coordinates " + same.substring("project/".length()) + " already exists", 409);
         }
         List<String> tags = new ArrayList<>();
         Json.Arr tagArr = c.getArrOr("tags", null);
@@ -481,16 +514,29 @@ public final class Sdlc {
         String first = commit(List.of(), files, "Build project structure");
 
         Map<String, Object> record = map("projectId", projectId, "name", name, "description", description, "tags", tags);
-        storage.put("project/" + projectId, Json.toCompact(record));
+        storage.put(projectKey(projectId), Json.toCompact(record));
         storage.put(lineRef(projectId), first);
         return projectView(Json.parseObject(Json.toCompact(record)));
     }
 
+    /** upstream's refusal of a workspace id (GitLabWorkspaceApi.java:1140-1180), now asked on every route. */
+    private static Refusal invalidWorkspace(String w) {
+        return new Refusal("Invalid workspace id: \"" + w + "\". A workspace id must be a non-empty string consisting of characters from the following set: {a-z, A-Z, 0-9, _, ., -}. The id may not contain \"..\" and may not start or end with '.' or '-'.", 400);
+    }
+
+    /** A project id here is {@code groupId:artifactId}, by the rules a project is created with. */
+    static boolean isProjectId(String p) {
+        int colon = p.indexOf(':');
+        return colon > 0 && isJavaName(p.substring(0, colon)) && ARTIFACT_ID.matcher(p.substring(colon + 1)).matches();
+    }
+
     private Map<String, Object> createWorkspace(String p, String w) {
-        if (!WORKSPACE_ID.matcher(w).matches()) {
-            throw new Refusal("Invalid workspace id: \"" + w + "\". A workspace id must be a non-empty string consisting of characters from the following set: {a-z, A-Z, 0-9, _, ., -}. The id may not contain \"..\" and may not start or end with '.' or '-'.", 400);
-        }
+        if (!WORKSPACE_ID.matcher(w).matches()) throw invalidWorkspace(w);
         String line = lineHead(p);
+        String same = sameIgnoringCase(workspaceIds(p), w);
+        if (same != null && !same.equals(w)) {
+            throw new Refusal("Error creating " + wsOf(p, w) + ": workspace " + same + " already exists, and ids differing only in case are one", 409);
+        }
         String existing = storage.get(workspaceRef(p, w));
         // upstream: already there AT the line's head is a no-op; elsewhere, GitLab's "Branch already exists" as a 500
         if (existing != null && !existing.equals(line)) {
@@ -535,7 +581,8 @@ public final class Sdlc {
     private static final Pattern REVIEW_ID = Pattern.compile("^\\d+$");
 
     private String reviewKey(String p, String id) {
-        return "review/" + p + "/" + id;
+        if (!REVIEW_ID.matcher(id).matches()) throw new Refusal("Invalid id: " + id, 400);
+        return "review/" + checked(p) + "/" + id;
     }
 
     private Response reviews(String method, String p, List<String> sub, Map<String, List<String>> q, @Nullable String body) {
@@ -622,6 +669,7 @@ public final class Sdlc {
         String w = string(c, "workspaceId");
         // DEPARTURE: upstream answers a missing workspaceId with a 500 NPE (slice 2 quirk 3)
         if (w == null) throw new Refusal("id may not be null", 400);
+        if (!WORKSPACE_ID.matcher(w).matches()) throw invalidWorkspace(w);
         String type = string(c, "workspaceType");
         if (type != null && !type.equalsIgnoreCase("USER")) throw new Refusal("Unknown: group workspace " + w + " of project " + p, 404);
         String title = string(c, "title");
@@ -636,7 +684,7 @@ public final class Sdlc {
                         + field(other, "id"), 409);
             }
         }
-        String seqKey = "seq/" + p + "/review";
+        String seqKey = "seq/" + checked(p) + "/review";
         String last = storage.get(seqKey);
         String id = String.valueOf(last == null ? 1 : Long.parseLong(last.trim()) + 1);
         storage.put(seqKey, id);
@@ -665,7 +713,7 @@ public final class Sdlc {
 
     private List<Map<String, Object>> allReviews(String p) {
         List<Map<String, Object>> out = new ArrayList<>();
-        for (String key : storage.keys("review/" + p + "/")) {
+        for (String key : storage.keys("review/" + checked(p) + "/")) {
             out.add(new LinkedHashMap<>(Json.parseObject(String.valueOf(storage.get(key))).fields()));
         }
         // newest first, as GitLab lists merge requests
@@ -752,7 +800,15 @@ public final class Sdlc {
         if (head == null) {
             throw new Refusal("Review " + id + " in project " + p + " is not in a committable state: its workspace no longer exists", 409);
         }
-        Json.Obj config = config(head);
+        String line = lineHead(p);
+        String base = mergeBase(line, head);
+        Map<String, String> merged = merge(git.readTree(git.readCommit(base).tree()), git.readTree(git.readCommit(line).tree()),
+                git.readTree(git.readCommit(head).tree()), id, p);
+        // what lands is the MERGED tree: its project.json (the line's dependencies may have moved since the workspace was
+        // made) is what the dependency rule and the gate read
+        String mergedConfig = merged.get("project.json");
+        if (mergedConfig == null) throw new IllegalStateException("review " + id + " would land a tree without project.json");
+        Json.Obj config = Json.parseObject(git.readBlob(mergedConfig));
         List<String> improper = new ArrayList<>();
         for (Json.Node d : dependencies(config)) {
             Json.Obj dep = (Json.Obj) d;
@@ -763,11 +819,6 @@ public final class Sdlc {
             }
         }
         if (!improper.isEmpty()) throw new Refusal("Cannot create a review with the following dependencies: " + String.join(", ", improper), 409);
-
-        String line = lineHead(p);
-        String base = mergeBase(line, head);
-        Map<String, String> merged = merge(git.readTree(git.readCommit(base).tree()), git.readTree(git.readCommit(line).tree()),
-                git.readTree(git.readCommit(head).tree()), id, p);
         List<String> errors = grammar.compile(model(merged, config));
         if (!errors.isEmpty()) {
             throw new Refusal("Review " + id + " in project " + p + " is not in a committable state: the project would not compile: "
@@ -775,12 +826,16 @@ public final class Sdlc {
         }
         List<String> commits = commitsOf(p, review);
         String mergeCommit = commit(List.of(line, head), merged, message);
-        storage.put(lineRef(p), mergeCommit);
-        storage.delete(workspaceRef(p, w));
         review.put("state", "COMMITTED");
         review.put("committedAt", now);
+        review.put("lastUpdatedAt", now);
         review.put("commitRevisionId", mergeCommit);
         review.put("commits", commits);
+        // in an order a crash between any two steps can be recovered from: the line moves, the review says so, and
+        // only then does the workspace go (a leftover workspace can be deleted; a lost review cannot be rebuilt)
+        storage.put(lineRef(p), mergeCommit);
+        storage.put(reviewKey(p, id), Json.toCompact(review));
+        storage.delete(workspaceRef(p, w));
     }
 
     /** Three-way, file by file: a file changed on one side only takes that side; changed on both, differently, is a conflict. */
@@ -843,7 +898,18 @@ public final class Sdlc {
     }
 
     private String versionRef(String p, String v) {
-        return "ref/" + p + "/version/" + v;
+        if (!VERSION.matcher(v).matches()) throw new Refusal("Invalid version string: \"" + v + "\"", 400);
+        return "ref/" + checked(p) + "/version/" + v;
+    }
+
+    private String noteKey(String p, String v) {
+        if (!VERSION.matcher(v).matches()) throw new Refusal("Invalid version string: \"" + v + "\"", 400);
+        return "note/" + checked(p) + "/" + v;
+    }
+
+    /** The commit a version names, or null when the project or version is unknown -- or not an id at all (a dependency's). */
+    private @Nullable String versionCommit(String p, String v) {
+        return isProjectId(p) && VERSION.matcher(v).matches() ? storage.get(versionRef(p, v)) : null;
     }
 
     private static int[] parseVersion(String v) {
@@ -857,7 +923,7 @@ public final class Sdlc {
 
     /** A project's versions, newest first, filtered component by component as upstream does (slice 2 §2.4). */
     private List<int[]> versionsOf(String p, Map<String, List<String>> q) {
-        String prefix = "ref/" + p + "/version/";
+        String prefix = "ref/" + checked(p) + "/version/";
         List<int[]> out = new ArrayList<>();
         String[][] bounds = {{"major", "minMajor", "maxMajor"}, {"minor", "minMinor", "maxMinor"}, {"patch", "minPatch", "maxPatch"}};
         for (String key : storage.keys(prefix)) {
@@ -880,7 +946,7 @@ public final class Sdlc {
 
     private Map<String, Object> versionView(String p, int[] v) {
         String text = versionText(v);
-        String notes = storage.get("note/" + p + "/" + text);
+        String notes = storage.get(noteKey(p, text));
         return map("id", map("majorVersion", v[0], "minorVersion", v[1], "patchVersion", v[2]),
                 "projectId", p, "revisionId", String.valueOf(storage.get(versionRef(p, text))),
                 "notes", notes == null ? Json.nil() : notes);
@@ -912,7 +978,7 @@ public final class Sdlc {
         String v = versionText(next);
         String revision = string(cmd, "revisionId");
         String commit = revision == null ? line : revision;
-        if (revision != null && (!git.isCommit(revision) || !isAncestor(revision, line))) {
+        if (revision != null && (!COMMIT_ID.matcher(revision).matches() || !git.isCommit(revision) || !isAncestor(revision, line))) {
             throw new Refusal("Revision " + revision + " is unknown in project " + p, 400);
         }
         Json.Obj config = config(commit);
@@ -922,7 +988,7 @@ public final class Sdlc {
         }
         storage.put(versionRef(p, v), commit);
         String notes = string(cmd, "notes");
-        if (notes != null) storage.put("note/" + p + "/" + v, notes);
+        if (notes != null) storage.put(noteKey(p, v), notes);
         return versionView(p, next);
     }
 
@@ -999,7 +1065,7 @@ public final class Sdlc {
     private List<String> dependencyCommits(Json.Obj config) {
         List<String> commits = new ArrayList<>();
         for (ArtifactSource.Dependency d : Resolver.closure(declaredOf(config), this::declared)) {
-            String commit = storage.get(versionRef(d.key(), d.versionId()));
+            String commit = versionCommit(d.key(), d.versionId());
             if (commit == null) {
                 throw new Refusal("Unknown dependency: version " + d.versionId() + " of project " + d.key(), 409);
             }
@@ -1009,7 +1075,7 @@ public final class Sdlc {
     }
 
     private @Nullable List<ArtifactSource.Dependency> declared(ArtifactSource.Dependency d) {
-        String commit = storage.get(versionRef(d.key(), d.versionId()));
+        String commit = versionCommit(d.key(), d.versionId());
         return commit == null ? null : declaredOf(config(commit));
     }
 
@@ -1049,19 +1115,21 @@ public final class Sdlc {
             @Override
             public List<String> versions(String groupId, String artifactId) {
                 List<String> out = new ArrayList<>();
+                if (!isProjectId(groupId + ":" + artifactId)) return out;
                 for (int[] v : versionsOf(groupId + ":" + artifactId, Map.of())) out.add(versionText(v));
                 return out;
             }
 
             @Override
             public boolean hasSnapshot(String groupId, String artifactId) {
-                return storage.get(lineRef(groupId + ":" + artifactId)) != null;
+                return isProjectId(groupId + ":" + artifactId) && storage.get(lineRef(groupId + ":" + artifactId)) != null;
             }
 
             @Override
             public @Nullable Release release(String groupId, String artifactId, String versionId) {
                 String p = groupId + ":" + artifactId;
-                String commit = versionId.equals(Depot.SNAPSHOT) ? storage.get(lineRef(p)) : storage.get(versionRef(p, versionId));
+                if (!isProjectId(p)) return null;
+                String commit = versionId.equals(Depot.SNAPSHOT) ? storage.get(lineRef(p)) : versionCommit(p, versionId);
                 if (commit == null) return null;
                 Map<String, String> files = entityFiles(git.readTree(git.readCommit(commit).tree()));
                 List<Object> texts = new ArrayList<>();
@@ -1441,7 +1509,9 @@ public final class Sdlc {
         while (i < s.length()) {
             char ch = s.charAt(i);
             if (ch == '%' && i + 2 < s.length()) {
-                bytes.write(Integer.parseInt(s.substring(i + 1, i + 3), 16));
+                String hex = s.substring(i + 1, i + 3);
+                if (!hex.matches("[0-9A-Fa-f]{2}")) throw new Refusal("HTTP 400 Bad Request", 400);
+                bytes.write(Integer.parseInt(hex, 16));
                 i += 3;
             } else if (ch == '+' && plusIsSpace) {
                 bytes.write(' ');

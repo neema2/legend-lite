@@ -1,5 +1,6 @@
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load(":defs.bzl", "junit_test")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # The JUnit entry point every test target in the repository runs: the Platform Launcher,
 # speaking Bazel's test protocol (Bazel workplan P1-01). It compiles against the launcher
@@ -59,3 +60,5 @@ legend_java_binary(
     srcs = ["compare/CompareTestcases.java"],
     main_class = "com.legend.tools.junit.compare.CompareTestcases",
 )
+
+guards_package()

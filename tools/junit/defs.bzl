@@ -4,8 +4,7 @@ Every JUnit suite runs through tools/junit/JUnitMain (the JUnit Platform Launche
 speaking Bazel's test protocol: test.xml, --test_filter, sharding, the premature-exit
 file) with the same settings, so no target sets them on its own:
 
-  * the engine's test clock, -Duser.timezone=GMT (the root pom's surefire argLine:
-    legend-engine minted its goldens in GMT);
+  * the engine's test clock, -Duser.timezone=GMT (legend-engine minted its goldens in GMT);
   * counts always printed, and a run that finds no tests FAILS — a PASSED line
     cannot otherwise tell a full suite from an empty one;
   * the upstream source trees, when asked for, as declared inputs with the
