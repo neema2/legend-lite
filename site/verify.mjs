@@ -302,7 +302,7 @@ try {
   await start.close();
 
   // Query opens what Studio published, by name (design Phase 3): the party project at its line's HEAD (Depot's
-  // master-SNAPSHOT), with its dependency on types, and runs a query on it -- the rows party-seed.sql loads
+  // master-SNAPSHOT), with its dependency on types, and runs a query on it -- the rows of its own Data element (plan A2)
   const byName = await context.newPage();
   const partyGav = enc('org.finos.lite.demo:party:master-SNAPSHOT');
   await byName.goto(`${ORIGIN}/query/demo/index.html#/create/manual/${partyGav}/${enc('demo::party::PartyMapping')}/${enc('demo::party::Runtime')}?class=${enc('demo::party::Party')}`);

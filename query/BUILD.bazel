@@ -6,7 +6,6 @@ load("//tools/js:defs.bzl", "node_test")
 load("//tools/browser:defs.bzl", "browser_test")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_query//:defs.bzl", "npm_link_all_packages")
 load("//tools/js:esbuild.bzl", "esbuild_bundle")
@@ -137,14 +136,7 @@ filegroup(
         "demo/models/*.pure",
         "demo/models/*.sql",
         "src/**/*.css",
-    ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [":vendor", ":cube_styles", ":party_seed"],
-)
-
-# the demo model's party rows (//fixtures/demo-data), beside the demo's own seeds, for the party project opened by name
-copy_file(
-    name = "party_seed",
-    src = "//fixtures/demo-data:party-seed.sql",
-    out = "demo/models/party-seed.sql",
+    ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [":vendor", ":cube_styles"],
 )
 
 # `bazel run //query:serve [-- --port 8100]`: the site, on loopback. A hand tool: manual (2026-10-07, PHASE_8.md

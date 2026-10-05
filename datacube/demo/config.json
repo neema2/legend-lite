@@ -21,9 +21,6 @@
   ],
   "depot": {
     "sdlc": "page",
-    "vendor": "./vendor/",
-    "seed": [
-      "./projects/party/party-seed.sql"
-    ]
+    "vendor": "./vendor/"
   }
 }
