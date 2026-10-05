@@ -47,23 +47,6 @@ final class StressCorpus {
     static final Path STRESS = Repo.module("src/test/resources/stress");
     static final Path PROJECTS = Repo.path("projects");
 
-    /** file name -> why legend-lite cannot build a model from it (census 2026-09-16). */
-    static final Map<String, String> EXCLUDED = Map.of(
-            "29-money.pure",
-            "Measure/Unit: 'Unknown type: stress::Money~USD is not a known primitive, "
-                    + "class, or enum'. A Measure parses, but its unit types never "
-                    + "register as resolvable types.",
-            "55-canonical-store.pure",
-            "declares canonical::MonetaryTrade over stress::Money~USD, so it falls "
-                    + "with 29-money.pure. It also holds the M2M mapping and the "
-                    + "ModelChainConnection runtimes.",
-            "71-mapping-surface2.pure",
-            "M2M explosion 'part*' (one target instance per source collection element) "
-                    + "is refused by the mapping normalizer.",
-            "75-surface-gaps.pure",
-            "M2M local mapping property '+localTag' colliding with a declared property "
-                    + "of the target class is refused by the mapping normalizer.");
-
     private StressCorpus() {
     }
 
@@ -81,7 +64,7 @@ final class StressCorpus {
         try (var s = Files.list(STRESS)) {
             for (Path p : s.sorted().toList()) {
                 if (!p.toString().endsWith(".pure")
-                        || EXCLUDED.containsKey(p.getFileName().toString())) {
+                        || StressExclusions.EXCLUDED.containsKey(p.getFileName().toString())) {
                     continue;
                 }
                 out.add(p);
@@ -114,7 +97,7 @@ final class StressCorpus {
     }
 
     static void reportExclusions() {
-        EXCLUDED.forEach((f, why) ->
+        StressExclusions.EXCLUDED.forEach((f, why) ->
                 System.out.println("  EXCLUDED " + f + ": " + why));
     }
 }

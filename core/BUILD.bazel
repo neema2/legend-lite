@@ -294,7 +294,11 @@ legend_java_library(
             "src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe",
         ],
     ),
-    runtime_deps = [":shadow_binding"],
+    # :duckdb_load: the bulk-load path RowLoadTest judges, declared, not borrowed from :drivers (P3-02)
+    runtime_deps = [
+        ":duckdb_load",
+        ":shadow_binding",
+    ],
     deps = [
         ":core",
         "//testing",
@@ -340,6 +344,19 @@ junit_test(
         ":drivers",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# THE BULK-LOAD PATH, on its own (Bazel workplan P3-02): DuckDB's Appender is found through ServiceLoader
+# (:duckdb_load) and lands exactly the rows the insert text lands; RowLoadTest asserts the Appender ran.
+junit_test(
+    name = "duckdb_load_test",
+    memory_mb = 768,
+    size = "small",
+    select = ["--select-class=com.legend.exec.RowLoadTest"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
 )
 
 # THE SERVER'S POSTGRES ARM (Bazel workplan P0-08): a type: Postgres connection resolves through

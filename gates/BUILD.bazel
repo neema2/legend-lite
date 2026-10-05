@@ -36,6 +36,7 @@ test_suite(
         "//scripts/corpus:stacking_gate",
         # gate 1, gate 3
         "//core:core_tests",
+        "//core:duckdb_load_test",
         "//spec:spec_tests",
         # the server's Postgres arm: one query against the embedded Postgres 16
         "//core:postgres_arm_test",
