@@ -192,6 +192,8 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .side-bar__panel__item:hover .side-bar__panel__item__action { visibility: visible; }
 .side-bar__panel__item__action:hover { color: var(--color-text-primary); }
 .side-bar__panel__empty { padding: 0 10px; line-height: 22px; color: var(--color-text-disabled); }
+/* the project line has moved on (plan A7): the update, offered above the changes */
+.side-bar__notice { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 8px 10px; color: var(--color-status-warn); }
 .side-bar__panel__add { margin: 8px 10px 0; }
 /* a diff row (EntityDiffView.tsx, _diff-panel.scss): the name 500, the path grey, upstream's letter in its colour */
 .diff-item__name { flex: 0 0 auto; padding-right: 5px; font-weight: 500; white-space: nowrap; }
@@ -312,6 +314,22 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .sql-playground__editor { display: flex; align-items: flex-start; gap: 8px; padding: 10px; }
 .sql-playground__text { flex: 1; height: 72px; font-family: var(--font-mono); font-size: 13px; }
 .sql-playground__out { flex: 1; overflow: auto; }
+/* a local change's diff (plan A7): Monaco's diff editor under the element's name and path */
+.diff-view { display: flex; flex-direction: column; width: calc(100vw - 80px); height: calc(100vh - 100px); background: var(--color-bg-panel); box-shadow: var(--color-shadow) 0 1px 5px 0; }
+.diff-view__header { display: flex; align-items: center; gap: 10px; flex: 0 0 34px; padding: 0 0 0 10px; background: var(--color-bg-panel-header); }
+.diff-view__title { color: var(--color-text-primary); }
+.diff-view__path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); font-size: 12px; }
+.diff-view__editor { flex: 1; min-height: 0; }
+.diff-item { cursor: pointer; }
+/* the element search (Ctrl + P, plan A7): upstream's search modal, at the top, the list under the input */
+.search-modal { width: 600px; max-width: calc(100vw - 32px); background: var(--color-bg-panel); box-shadow: var(--color-shadow) 0 1px 5px 0; }
+.search-modal__input { height: 34px; font-size: 14px; }
+.search-modal__list { max-height: 360px; overflow-y: auto; }
+.search-modal__item { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; cursor: pointer; color: var(--color-text-secondary); }
+.search-modal__item:hover, .search-modal__item--chosen { background: var(--color-bg-selected); color: var(--color-text-primary); }
+.search-modal__name { white-space: nowrap; }
+.search-modal__path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); font-size: 12px; }
+.search-modal__empty { padding: 8px 10px; color: var(--color-text-muted); }
 /* the Data panel (plan A2): a table per declared table, its source, its rows, its actions */
 .data-tables { overflow: auto; }
 .data-tables__rows { text-align: right; }

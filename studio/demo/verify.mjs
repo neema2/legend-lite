@@ -83,6 +83,32 @@ async function loop(browser, name, query) {
     // stray second brace, 2026-10-04)
     await page.keyboard.insertText('// a trading desk, quoting in one currency\nClass demo::trading::Desk\n{\nname: String[1];\nbase: demo::types::Currency[1];\n}\n');
     await waitCompiled();
+    // the element search (Ctrl + P, plan A7): 'trade pa' narrows to the association, Enter opens it; then back to Desk
+    await page.keyboard.press('ControlOrMeta+P');
+    await page.getByTestId('element-search').fill('trade pa');
+    assert.deepEqual(await page.locator('[data-testid=element-search-list] .search-modal__item').evaluateAll((els) => els.map((e) => e.dataset.path)),
+      ['demo::trading::Trade_Party']);
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.tab.active[title="demo::trading::Trade_Party"]');
+    await page.keyboard.press('ControlOrMeta+P');
+    await page.getByTestId('element-search').fill('desk');
+    await page.keyboard.press('Enter');
+    await page.waitForSelector('.tab.active[title="demo::trading::Desk"]');
+    // a local change's diff (plan A7): the new class against nothing
+    await page.locator('[data-activity=changes]').click();
+    await page.locator('.diff-item[data-path="demo::trading::Desk"]').click();
+    await page.getByTestId('diff-view').locator('.monaco-diff-editor').waitFor();
+    await page.waitForFunction(() => (document.querySelector('[data-testid=diff-view] .editor.modified .view-lines')?.textContent ?? '').includes('demo::trading::Desk'));
+    await page.getByTestId('diff-close').click();
+    await page.locator('[data-activity=explorer]').click();
+    // a delete undone before the save (plan A7): Trade removed, then restored from the explorer, unchanged
+    await page.locator('[data-testid=explorer] .element[data-path="demo::trading::Trade"]').click();
+    await page.getByTestId('delete-element').click();
+    await page.locator('.dialog .btn-primary').click();
+    await page.locator('[data-testid=explorer] .element.removed[data-path="demo::trading::Trade"]').click();
+    await page.waitForSelector('.tab.active[title="demo::trading::Trade"]');
+    await waitStatus('changes-count', /^1 unpushed change$/);
+    await waitCompiled();
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();
     await waitStatus('changes-count', /no changes detected/);
@@ -219,13 +245,52 @@ async function loop(browser, name, query) {
     assert.match(await page.getByTestId('dependencies').textContent(), /org\.finos\.lite\.demo:party : 1\.0\.0/);
     // 6. a mapping executed in Query's builder (plan A5): party's own mapping, a query on the class it maps, run in the
     // tab on party's rows; closed with nothing to keep
-    await page.getByTestId('activity-menu').click();
-    await page.getByTestId('menu-back').click();
-    await page.getByTestId('project-selector').click();
-    await page.locator(`[data-testid=project-selector-menu] [data-id="${PARTY}"]`).click();
-    await page.getByTestId('new-workspace').click();
-    await page.locator('.dialog input').fill('exec');
+    const toSetup = async () => {
+      await page.getByTestId('activity-menu').click();
+      await page.getByTestId('menu-back').click();
+    };
+    const newPartyWorkspace = async (id) => {
+      await page.getByTestId('project-selector').click();
+      await page.locator(`[data-testid=project-selector-menu] [data-id="${PARTY}"]`).click();
+      await page.getByTestId('new-workspace').click();
+      await page.locator('.dialog input').fill(id);
+      await page.locator('.dialog .btn-primary').click();
+      await page.waitForSelector('[data-testid=explorer] .element');
+    };
+    await toSetup();
+    await newPartyWorkspace('exec');
+    // 5b. a workspace updated onto its project line (plan A7): 'memo', made after 'exec', adds a class through a review,
+    // so 'exec' is behind the line; Local Changes offers the update, and after it 'exec' has the class
+    await toSetup();
+    await newPartyWorkspace('memo');
+    await page.getByTestId('new-element').click();
+    await page.getByTestId('new-path').fill('demo::party::Memo');
     await page.locator('.dialog .btn-primary').click();
+    await page.locator('.monaco-editor .view-lines').click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.insertText('Class demo::party::Memo\n{\ntext: String[1];\n}\n');
+    await waitCompiled();
+    await page.getByTestId('save-status').click();
+    await page.locator('.dialog .btn-primary').click();
+    await waitStatus('changes-count', /no changes detected/);
+    await page.locator('[data-activity=review]').click();
+    await page.getByTestId('review-title').fill('Add Memo');
+    await page.getByTestId('create-review').click();
+    await page.getByTestId('commit-review').click({ timeout: 30_000 });
+    await page.waitForSelector('[data-testid=new-workspace]', { timeout: 60_000 });
+    await page.getByTestId('workspace-selector').click();
+    await page.locator('[data-testid=workspace-selector-menu] [data-id="exec"]').click();
+    await page.getByTestId('go').click();
+    await page.waitForSelector('[data-testid=explorer] .element');
+    assert.equal(await page.locator('[data-testid=explorer] .element[data-path="demo::party::Memo"]').count(), 0, 'exec does not have Memo yet');
+    await page.locator('[data-activity=changes]').click();
+    await page.getByTestId('workspace-outdated').locator('button').click();
+    await page.locator('[data-activity=explorer]').click();
+    await page.locator('[data-testid=explorer] .element[data-path="demo::party::Memo"]').waitFor({ timeout: 60_000 });
+    await page.locator('[data-activity=changes]').click();
+    await page.getByTestId('changes').waitFor();
+    assert.equal(await page.getByTestId('workspace-outdated').count(), 0, 'exec is up to date');
+    await page.locator('[data-activity=explorer]').click();
     await page.locator('[data-testid=explorer] .element[data-path="demo::party::PartyMapping"]').click();
     await waitCompiled();
     await page.getByTestId('open-query-builder').click();
