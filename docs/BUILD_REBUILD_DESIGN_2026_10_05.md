@@ -302,7 +302,7 @@ step 1, whose purpose is the measurement.
    - The 14 unpushed Phase 4 commits and the uncommitted P3-25 work stay on `bazel/exec`.
    - They are re-checked against this design before anything lands. Known issues: P3-25's `scripts/corpus:run` must be
      manual, and `engine_stress` needs `shard_count`.
-1. **The Java compile.** Define `//:java`, then measure a clean build of it.
+1. **The build targets.** Define `//:java`, `//:web`, `//:wasm`, `//:native` and the packaging target `//:sites` (D10), plus the guard that the compile tiers contain only compile actions. Then measure a clean build of `//:java`, and record what a one-line `Compiler.java` edit invalidates (by query).
    - Method: a fresh output base, no disk cache, shared download cache, on a machine with no other Bazel build running,
      plus an execution log.
    - Record what is on the critical path.
@@ -356,6 +356,27 @@ throwaway CI run on all platforms.
   - The alternative is Go's chromedp, which brings a whole Go toolchain into Bazel.
 - **D7. The 16 broken `scripts/corpus/probe_*.py` scripts.** They are unrunnable since 2026-09-23. Delete them. Also say
   how `docs/FUNCTIONS_EXECUTED.tsv` is regenerated, since the functions gate's stated remedy can't be followed today.
+
+### Decided by the user (2026-10-05)
+
+- **D8. Remove `//core:ide` and `//core:probe` from the product.**
+  - `ide` calls itself "Dormant… currently unused by the batch pipeline". `probe` is "a PROBE, deleted at step 4" of
+    the platform-architecture untangle. No product code uses either.
+  - This is a core edit: announce it in IN_FLIGHT, and tell core's owner.
+- **D9. The shipped server knows nothing about Bazel.**
+  - The warehouse's DuckDB library and Postgres extension stay declared Bazel dependencies, as they are today:
+    `data` of the server, pinned by checksum.
+  - Whatever runs the server hands it plain file paths with Bazel's own `$(rootpath)` expansion: `bazel run`,
+    tests, the launchers.
+  - The server drops its runfiles lookup (`ServerRunfiles`, and the fallback in `WarehouseServer.java:912-960`),
+    and the runfiles library leaves the product.
+  - Prove it on Windows CI. `.bazelrc` enables runfiles trees there.
+- **D10. One shape per app.**
+  - `//<app>:bundles` (compile, part of `//:web`) and `//<app>:site` (a deployable folder made by one shared Bazel
+    rule, with no per-app packaging script).
+  - `//site:dist` combines Query, DataCube and Studio; PR #24 adds Studio.
+  - DataCube's `make-dist.mjs` and its second packaging path go.
+  - Packaging joins step 1 as a fifth target, `//:sites`.
 
 ## 7. Open items the audits could not settle
 
