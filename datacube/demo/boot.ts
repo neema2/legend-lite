@@ -63,7 +63,8 @@ import {
   type SavedDocument,
 } from '../src/page-document.ts';
 import { inferModel, type InferredModel } from '../src/infer.ts';
-import { pageConfig, type PageConfig, type ProjectConfig } from './page-config.ts';
+import type { ModelHome } from '../../depot-client/src/model-home.ts';
+import { pageConfig, type DepotConfig, type PageConfig, type ProjectConfig } from './page-config.ts';
 import type { ModelElement } from '../src/saved-queries.ts';
 import type { Query, QueryReader } from '../../query-store/src/index.ts';
 
@@ -1392,6 +1393,11 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     const projectModels = new Map<string, Promise<string>>();
     /** Each project's rows, in this tab's DuckDB once. */
     const seeded = new Map<string, Promise<void>>();
+    /** The model home a depot names (the page's own SDLC and Depot, or servers), opened once. */
+    let home: Promise<ModelHome> | undefined;
+    // loaded only when a saved query's project is opened by name: the grid-only page's budget does not carry it
+    const modelHome = (d: DepotConfig): Promise<ModelHome> => (home ??= import('../../depot-client/src/model-home.ts')
+      .then(({ connectModelHome }) => connectModelHome({ sdlc: d.sdlc, vendor: d.vendor })));
     const once = <T,>(cache: Map<string, Promise<T>>, key: string, make: () => Promise<T>): Promise<T> => {
       let p = cache.get(key);
       if (!p) {
@@ -1412,9 +1418,15 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     async function openedRecord(config: PageConfig, q: Pick<Query, 'name' | 'groupId' | 'artifactId' | 'versionId' | 'content' | 'executionContext' | 'defaultParameterValues'>): Promise<OpenedQuery> {
       const { contextOf, enumerationsOf, enumsAsStrings, projectOf, sourceOf } = await savedQueries();
       const project = projectFor(config, q);
-      if (!project) throw new Error(`“${q.name}” belongs to ${projectOf(q)}, which this page has no model for (config.json projects[])`);
+      const byName = config.depot;
+      if (!project && !byName) throw new Error(`“${q.name}” belongs to ${projectOf(q)}, which this page has no model for (config.json projects[], or a depot)`);
       const key = projectOf(q);
-      const model = await once(projectModels, key, async () => (await Promise.all(project.models.map(fetchText))).join('\n'));
+      // the page's own project (config.json projects[]), else the version opened by name from Depot (design Phase 3)
+      const model = await once(projectModels, key, async () => (project
+        ? (await Promise.all(project.models.map(fetchText))).join('\n')
+        : (await import('../../depot-client/src/model-text.ts')).modelText((await modelHome(byName!)).depot, q.groupId, q.artifactId, q.versionId)));
+      const seeds = project ? project.seed : byName!.seed;
+      const seedKey = project ? key : 'depot';
       const elements = await local.elements(model) as ModelElement[];
       const context = contextOf(q, elements);
       const lambdaOf = await planner.parse(q.content);
@@ -1424,8 +1436,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         if (parsed.body[0]) values.set(v.name, parsed.body[0]);
       }
       let source = sourceOf(lambdaOf, values);
-      await once(seeded, key, async () => {
-        for (const url of project.seed) {
+      await once(seeded, seedKey, async () => {
+        for (const url of seeds) {
           for (const line of (await fetchText(url)).split('\n')) {
             const sql = line.trim();
             if (sql && !sql.startsWith('--')) await engine.run(sql, 0);
@@ -1636,7 +1648,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
               ...(q.owner ? { owner: q.owner } : {}),
               ...(q.lastUpdatedAt ? { modified: new Date(q.lastUpdatedAt).toLocaleDateString(UI_LOCALE) } : {}),
               project: project?.title ?? `${q.groupId}:${q.artifactId}:${q.versionId}`,
-              ...(project ? {} : { unusable: 'This page has no model for its project' }),
+              // with a depot, a project not in config.json opens by name (openedRecord)
+              ...(project || config.depot ? {} : { unusable: 'This page has no model for its project' }),
             };
           }),
           open: async (id) => act({ kind: 'saved', query: await openedQuery(config, await queryStore(config).store, id) }),
