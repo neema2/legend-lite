@@ -72,7 +72,7 @@ async function loop(browser, name, query) {
     await page.keyboard.press('ControlOrMeta+A');
     // one input event, as a paste: keystroke by keystroke, Monaco's bracket auto-closing raced the typed '}' (a
     // stray second brace, 2026-10-04)
-    await page.keyboard.insertText('// a trading desk, quoting in one currency\nClass demo::trading::Desk\n{\n  name: String[1];\n  base: demo::types::Currency[1];\n}\n');
+    await page.keyboard.insertText('// a trading desk, quoting in one currency\nClass demo::trading::Desk\n{\nname: String[1];\nbase: demo::types::Currency[1];\n}\n');
     await waitStatus('problems-count', /^0 problems/);
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();
@@ -96,6 +96,12 @@ async function loop(browser, name, query) {
     await page.waitForFunction(() => /1\.1\.0/.test(document.querySelector('[data-testid=versions]')?.textContent ?? ''), null, { timeout: 60_000 });
     await shot('3-released');
     assert.match(await page.getByTestId('dependencies').textContent(), /org\.finos\.lite\.demo:party : 1\.0\.0/);
+    // the activity bar's sun/moon switch: upstream's default-light, kept, and back
+    await page.getByTestId('theme-toggle').click();
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), 'default-light');
+    await shot('4-light');
+    await page.getByTestId('theme-toggle').click();
+    assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), undefined);
     assert.deepEqual(errors, []);
     console.log(`${name}: the loop passed (${await statusText('problems-count')})`);
   } catch (e) {

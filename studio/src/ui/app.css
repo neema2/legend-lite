@@ -66,12 +66,27 @@ button { font: inherit; color: inherit; }
 .setup-empty, .side-empty, .panel-empty { color: var(--text-dim); padding: 12px; }
 
 /* the editor's layout */
-.studio { height: 100%; display: grid; grid-template-columns: 44px 260px 1fr; grid-template-rows: 1fr 24px; }
-.activity-bar { grid-row: 1; display: flex; flex-direction: column; background: var(--bg-2); border-right: 1px solid var(--line); }
-.activity { height: 44px; background: none; border: none; border-left: 2px solid transparent; color: var(--text-dim); font-size: 18px; cursor: pointer; }
-.activity:hover { color: var(--text); }
-.activity.active { color: var(--text); border-left-color: var(--accent); }
-.activity-spacer { flex: 1; }
+/* census 2: the activity bar, then the side bar (initial 300px), then the editor */
+.studio { height: 100%; display: grid; grid-template-columns: 50px 300px 1fr; grid-template-rows: 1fr 24px; }
+
+/* the activity bar (census 2.1, upstream _activity-bar.scss): 50px on the chrome grey; icons muted, the active
+   and hovered one primary -- no bar, background or border marks the active item */
+.icon { display: inline-flex; line-height: 0; }
+.icon svg { display: block; }
+.activity-bar { grid-row: 1; display: flex; flex-direction: column; width: 50px; height: 100%; overflow: hidden; background: var(--color-bg-chrome); }
+.activity-bar__menu { display: flex; align-items: center; justify-content: center; flex: 0 0 34px; height: 34px; border: 0; border-bottom: 1px solid var(--color-border-default); background: none; color: var(--color-text-muted); cursor: pointer; }
+.activity-bar__menu:hover { color: var(--color-text-primary); }
+.activity-bar__items { flex: 1 1 auto; overflow-y: auto; }
+.activity-bar__item { display: flex; align-items: center; justify-content: center; width: 50px; height: 50px; border: 0; background: none; color: var(--color-text-muted); cursor: pointer; position: relative; }
+.activity-bar__item:hover, .activity-bar__item--active { color: var(--color-text-primary); }
+.activity-bar__item__icon-with-indicator { position: relative; display: flex; }
+/* the unpushed-change counter (scss :86-120): an accent pill at the icon's bottom right */
+.activity-bar__local-change-counter { position: absolute; bottom: -5px; right: -7px; min-width: 16px; height: 16px; padding: 0 5px; border-radius: 10px; background: var(--color-accent); color: var(--color-text-on-accent); font-size: 9px; font-weight: 500; display: flex; align-items: center; justify-content: center; }
+
+/* a menu (upstream's BaseMenu: elevated, no animation) */
+.menu { position: fixed; z-index: 200; min-width: 200px; padding: 4px 0; background: var(--color-bg-elevated); box-shadow: var(--color-shadow) 0 1px 5px 0; }
+.menu__item { display: flex; align-items: center; width: 100%; height: 28px; padding: 0 10px; border: 0; background: none; color: var(--color-text-primary); text-align: left; cursor: pointer; }
+.menu__item:hover { background: var(--color-bg-selected); }
 .side-bar { grid-row: 1; background: var(--bg-2); border-right: 1px solid var(--line); overflow: auto; }
 .side-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); border-bottom: 1px solid var(--line); }
 .side-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }

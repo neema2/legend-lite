@@ -10,10 +10,13 @@ import { SdlcError } from '../../../sdlc-client/src/client.ts';
 import type { Compiler } from '../backend/planner.ts';
 import { ELEMENT_KINDS, splitPath } from '../model/templates.ts';
 import { Workspace, type OpenFile, type Problem } from '../model/workspace.ts';
-import { clear, dialog, h, toast } from './dom.ts';
+import { icon } from '../../../legend-art/src/icon.ts';
+import type { IconName } from '../../../legend-art/src/icons.ts';
+import { clear, dialog, h, menu, toast } from './dom.ts';
 import { PURE } from './pure-language.ts';
 import { field } from './setup.ts';
 import { renderProject, renderReview } from './sdlc-panels.ts';
+import { theme, toggleTheme } from './theme.ts';
 
 export interface EditorContext {
   readonly client: SdlcClient;
@@ -74,7 +77,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
 
   const editor = monaco.editor.create(editorHost, {
     model: null,
-    theme: 'vs-dark',
+    theme: theme() === 'light' ? 'vs' : 'vs-dark',
     automaticLayout: true,
     fontFamily: "'Roboto Mono', monospace",
     fontSize: 13,
@@ -172,13 +175,31 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   };
 
   // ---- the side bar ----
+  // upstream's activity bar (census 2.1): the menu cell, the activities in upstream's order with upstream's icons
+  // and sizes, and the theme switch pinned to the bottom. Active and hover change only the colour.
   const renderActivityBar = (): void => {
     clear(activityBar);
-    const item = (a: Activity, label: string, glyph: string): HTMLElement =>
-      h('button', { class: `activity${activity === a ? ' active' : ''}`, title: label, 'data-activity': a, onclick: () => { activity = a; renderActivityBar(); renderSide(); } }, glyph);
-    activityBar.append(item('explorer', 'Explorer', '☰'), item('changes', 'Local changes', '±'), item('review', 'Review', '✓'), item('project', 'Project', '▣'),
-      h('div', { class: 'activity-spacer' }),
-      h('button', { class: 'activity', title: 'Back to workspace setup', onclick: () => ctx.back() }, '⌂'));
+    const changed = ws.removed().length + ws.files().filter((f) => ws.isChanged(f.key)).length;
+    const item = (a: Activity, glyph: IconName, size: string, label: string, badge?: HTMLElement): HTMLElement =>
+      h('button', { class: `activity-bar__item${activity === a ? ' activity-bar__item--active' : ''}`, title: label, 'data-activity': a,
+        onclick: () => { activity = a; renderActivityBar(); renderSide(); } },
+      h('div', { class: 'activity-bar__item__icon-with-indicator' }, icon(glyph, size), badge));
+    const counter = changed === 0 ? undefined
+      : h('div', { class: 'activity-bar__local-change-counter', 'data-testid': 'activity-changes-count' }, changed > 99 ? '99+' : String(changed));
+    const menuCell: HTMLButtonElement = h('button', { class: 'activity-bar__menu', title: 'Menu', 'data-testid': 'activity-menu',
+      onclick: () => menu(menuCell, [{ label: 'Back to workspace setup', run: () => ctx.back(), testId: 'menu-back' }]) },
+    icon('menu', '23px'));
+    const dark = theme() === 'dark';
+    activityBar.append(
+      menuCell,
+      h('div', { class: 'activity-bar__items' },
+        item('explorer', 'fileTray', '23px', 'Explorer (Ctrl + Shift + X)'),
+        item('changes', 'codeBranch', '20px', `Local Changes (Ctrl + Shift + G)${changed ? ` - ${changed} unpushed change${changed === 1 ? '' : 's'}` : ''}`, counter),
+        item('review', 'gitPullRequest', '23px', 'Review (Ctrl + Shift + M)'),
+        item('project', 'repo', '23px', 'Project')),
+      h('button', { class: 'activity-bar__item', title: dark ? 'Switch to light theme' : 'Switch to dark theme', 'data-testid': 'theme-toggle',
+        onclick: () => { const next = toggleTheme(); monaco.editor.setTheme(next === 'light' ? 'vs' : 'vs-dark'); renderActivityBar(); } },
+      icon(dark ? 'sun' : 'moon', '20px')));
   };
 
   const renderSide = (): void => {
@@ -407,6 +428,7 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       h('div', { class: 'status-spacer' }),
       h('button', { class: 'status-item status-action', onclick: () => void compile(), 'data-testid': 'compile' }, 'Compile (F9)'),
       h('button', { class: 'status-item status-action primary', onclick: () => void save(), 'data-testid': 'save-status' }, 'Save (Ctrl+S)'));
+    renderActivityBar();     // its local-change counter follows the same count
   };
 
   renderActivityBar();

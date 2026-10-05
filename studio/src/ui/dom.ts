@@ -62,3 +62,37 @@ export function toast(message: string, kind: 'info' | 'error' = 'info'): void {
   stack.append(t);
   setTimeout(() => t.remove(), kind === 'error' ? 8000 : 3000);
 }
+
+/** One entry of a {@link menu}. */
+export interface MenuItem {
+  readonly label: string;
+  readonly run: () => void;
+  readonly testId?: string;
+}
+
+/**
+ * A dropdown beside `anchor` (upstream's menus: elevated, no animation): it opens to the anchor's right, top
+ * edges aligned, and closes on a choice, a click elsewhere or Escape.
+ */
+export function menu(anchor: HTMLElement, items: readonly MenuItem[]): void {
+  document.querySelector('.menu')?.remove();
+  const box = anchor.getBoundingClientRect();
+  const close = (): void => {
+    list.remove();
+    document.removeEventListener('mousedown', outside, true);
+    document.removeEventListener('keydown', escape, true);
+  };
+  const outside = (e: MouseEvent): void => {
+    if (!list.contains(e.target as Node)) close();
+  };
+  const escape = (e: KeyboardEvent): void => {
+    if (e.key === 'Escape') close();
+  };
+  const list = h('div', { class: 'menu', role: 'menu' },
+    ...items.map((i) => h('button', { class: 'menu__item', role: 'menuitem', 'data-testid': i.testId, onclick: () => { close(); i.run(); } }, i.label)));
+  list.style.left = `${box.right}px`;
+  list.style.top = `${box.top}px`;
+  document.body.append(list);
+  document.addEventListener('mousedown', outside, true);
+  document.addEventListener('keydown', escape, true);
+}

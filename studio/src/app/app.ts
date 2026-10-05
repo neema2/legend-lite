@@ -11,11 +11,13 @@ import { renderEditor } from '../ui/editor.ts';
 import { registerPure } from '../ui/pure-language.ts';
 import { loadDemoProjects, type Manifest } from './demo-projects.ts';
 import { renderSetup } from '../ui/setup.ts';
+import { followTheme } from '../ui/theme.ts';
 
 export async function start(root: HTMLElement, config: StudioConfig, workerUrl: string): Promise<void> {
   (globalThis as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
     getWorker: () => new Worker(new URL('./editor.worker.js', globalThis.location.href), { type: 'module' }),
   };
+  followTheme();     // the kept theme before anything paints (theme.ts)
   registerPure(monaco);
   root.append(h('div', { class: 'loading' }, 'Loading Legend Studio…'));
   const { client, depot, where } = await connect(config);

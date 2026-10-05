@@ -19,6 +19,7 @@ js_library(
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
     deps = [
         "//depot-client:depot_client",
+        "//legend-art:legend_art",
         "//sdlc-client:sdlc_client",
     ],
 )
@@ -162,6 +163,7 @@ typescript.tsc_test(
         "package.json",
         "tsconfig.json",
         "//depot-client:depot_client",
+        "//legend-art:legend_art",
         "//sdlc-client:sdlc_client",
         "//tools/js:runfiles",
         ":node_modules/@types/node",
