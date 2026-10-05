@@ -340,6 +340,27 @@ try {
   await byName.waitForFunction(() => document.querySelector('select[aria-label=Version]')?.value === '1.0.0', undefined, { timeout: 120_000 });
   console.log('Query: saved on party 1.0.0, it reopens on 1.0.0 (pinned; loaded by name after a reload)');
   await byName.close();
+
+  // DataCube opens that saved query: its project is not in DataCube's config.json, so it opens party 1.0.0 by name
+  // from the same Depot, seeds the party rows, and shows them as a grid
+  const cubeByName = await context.newPage();
+  await cubeByName.goto(`${ORIGIN}/datacube/demo/index.html`);
+  await cubeByName.waitForSelector('.dc-row', { timeout: 120_000 });
+  await cubeByName.click('.dc-titlebar-menu');
+  await cubeByName.locator('.dc-menu .dc-menu-item', { has: cubeByName.locator(':scope > .dc-menu-label:text-is("New")') }).hover();
+  await cubeByName.locator('.dc-menu .dc-menu-item', { has: cubeByName.locator(':scope > .dc-menu-label:text-is("Data Source…")') }).click();
+  await cubeByName.locator('.dc-picker-tab[data-section="saved"]').click();
+  const parties1 = cubeByName.locator('.dc-picker-row[data-query]', { hasText: 'Parties at 1.0.0' });
+  await parties1.waitFor({ timeout: 30_000 });
+  await parties1.click();
+  await cubeByName.locator('.dc-picker').waitFor({ state: 'detached', timeout: 120_000 });
+  const partyTile = cubeByName.locator('[data-tile^="grid-"]').last();
+  await partyTile.locator('.dc-row').first().waitFor({ timeout: 120_000 });
+  const partyRows = await partyTile.locator('.dc-row').count();
+  const partyText = await partyTile.textContent();
+  if (partyRows !== 5 || !partyText?.includes('Banque Lumière')) throw new Error(`DataCube showed ${partyRows} party rows: ${partyText?.slice(0, 200)}`);
+  console.log('DataCube: the query saved on party 1.0.0 opened by name from Depot -- 5 rows');
+  await cubeByName.close();
 } catch (e) {
   failed = true;
   console.log(`FAIL: ${String(e.message ?? e).split('\n')[0]}`);
@@ -351,5 +372,5 @@ if (errors.length) {
   failed = true;
   console.log(`page errors: ${errors.join(' | ')}`);
 }
-console.log(failed ? '\n!!! the apps do not share their stores !!!' : '\n*** saved in Query, opened in DataCube; Studio publishes, Query opens it by name: one origin, no server ***');
+console.log(failed ? '\n!!! the apps do not share their stores !!!' : '\n*** saved in Query, opened in DataCube; Studio publishes, Query and DataCube open it by name: one origin, no server ***');
 process.exit(failed ? 1 : 0);
