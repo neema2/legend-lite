@@ -135,6 +135,13 @@ async function loop(browser, name, query) {
     const named = await statusOf('run-status');
     if (!/^1 row in \d+ ms/.test(named)) throw new Error(`the run with prefix 'K' said: ${named}`);
     assert.ok((await page.getByTestId('run-rows').textContent()).includes('Kestrel Partners'), "prefix 'K' finds Kestrel");
+    // 3e. the SQL playground: SQL on the tab's DuckDB, the model's own rows loaded (plan A3)
+    await page.locator('[data-panel-tab=sql]').click();
+    await page.getByTestId('sql-text').fill('SELECT COUNT(*) AS n FROM "PARTY"."PARTY"');
+    await page.getByTestId('sql-run').click();
+    await page.getByTestId('sql-status').waitFor();
+    assert.match(await statusOf('sql-status'), /^1 row in \d+ ms/);
+    assert.equal((await page.getByTestId('sql-rows').locator('tbody td').first().textContent())?.trim(), '5');
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();
     await waitStatus('changes-count', /no changes detected/);
