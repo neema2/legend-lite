@@ -74,7 +74,7 @@ final class EmbeddedDataComposer {
             String values = str(t, "values");
             if (values != null) {
                 List<String> lines = new ArrayList<>();
-                for (String l : values.split("\n")) {
+                for (String l : Composing.splitDroppingTrailingEmpties(values, '\n', (char) 0)) {
                     lines.add(i + TAB + convertString(l + "\n", true));
                 }
                 b.append("\n").append(String.join("+\n", lines));

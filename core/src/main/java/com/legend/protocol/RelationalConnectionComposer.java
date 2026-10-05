@@ -8,7 +8,6 @@ import com.legend.json.Json;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static com.legend.protocol.Composing.TAB;
 import static com.legend.protocol.Composing.convertString;
@@ -26,7 +25,7 @@ import static com.legend.protocol.Composing.tab;
  */
 final class RelationalConnectionComposer {
 
-    private static final Pattern TIME_ZONE_OFFSET = Pattern.compile("[+-][0-9]{4}");
+
 
     /** How a field's value prints. */
     enum Kind {
@@ -156,7 +155,7 @@ final class RelationalConnectionComposer {
         b.append(i).append(TAB).append("type: ").append(c.getString("type")).append(";\n");
         if (timeZone != null) {
             b.append(i).append(TAB).append("timezone: ")
-                    .append(TIME_ZONE_OFFSET.matcher(timeZone).matches() ? timeZone : convertString(timeZone, true)).append(";\n");
+                    .append(utcOffset(timeZone) ? timeZone : convertString(timeZone, true)).append(";\n");
         }
         if (quote != null) {
             b.append(i).append(TAB).append("quoteIdentifiers: ").append(raw(quote)).append(";\n");
@@ -191,6 +190,19 @@ final class RelationalConnectionComposer {
                     .append(i).append(TAB).append("];\n");
         }
         return b.append(i).append("}").toString();
+    }
+
+    /** A bare offset from UTC ({@code [+-]dddd}), which the grammar takes unquoted; any other zone is quoted. */
+    private static boolean utcOffset(String zone) {
+        if (zone.length() != 5 || (zone.charAt(0) != '+' && zone.charAt(0) != '-')) {
+            return false;
+        }
+        for (int k = 1; k < 5; k++) {
+            if (zone.charAt(k) < '0' || zone.charAt(k) > '9') {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static String authentication(Json.Obj auth, String i) {
