@@ -6,7 +6,7 @@
 import type {
   CreateProjectCommand, CreateReviewCommand, CreateVersionCommand, Entity, ErrorMessage, PerformChangesCommand,
   PerformPureChangesCommand, Project, ProjectConfiguration, PureFile, Review, ReviewState, Revision,
-  UpdateProjectConfigurationCommand, User, Version, Workspace,
+  UpdateProjectConfigurationCommand, User, Version, Workspace, WorkspaceUpdateReport,
 } from './wire.ts';
 
 /** An SDLC's refusal, as it said it: its status and its own words. */
@@ -130,6 +130,11 @@ export class SdlcClient {
   /** Whether the project line has moved since the workspace was made from it. */
   outdated(project: string, workspace: string): Promise<boolean> {
     return this.#json('GET', `${base({ project, workspace })}/outdated`);
+  }
+
+  /** `POST …/update`: the workspace rebased onto the project line's head (upstream's WorkspaceUpdateReport). */
+  updateWorkspace(project: string, workspace: string): Promise<WorkspaceUpdateReport> {
+    return this.#json('POST', `${base({ project, workspace })}/update`);
   }
 
   inConflictResolutionMode(project: string, workspace: string): Promise<boolean> {

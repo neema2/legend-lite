@@ -130,6 +130,20 @@ export class Workspace {
     return f.savedPath === undefined || this.#saved.get(f.savedPath) !== f.text;
   }
 
+  /** A removed element back as it is saved (a delete undone before the save); its key. */
+  restore(path: string): string {
+    const text = this.#saved.get(path);
+    if (text === undefined) throw new Error(`${path} is not saved in this workspace: there is nothing to restore`);
+    if (!this.removed().includes(path)) throw new Error(`${path} is not removed`);
+    this.#files.set(path, { key: path, savedPath: path, text });
+    return path;
+  }
+
+  /** An element's text at the revision (what a change is compared with); undefined when it is not saved. */
+  savedText(path: string): string | undefined {
+    return this.#saved.get(path);
+  }
+
   removed(): string[] {
     const kept = new Set([...this.#files.values()].map((f) => f.savedPath));
     return [...this.#saved.keys()].filter((p) => !kept.has(p)).sort();

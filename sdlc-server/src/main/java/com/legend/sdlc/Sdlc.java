@@ -224,6 +224,9 @@ public final class Sdlc {
                 String line = lineHead(p);
                 return ok(!head.equals(line) && !isAncestor(line, head));
             }
+            if (sub.size() == 1 && method.equals("POST") && sub.get(0).equals("update")) {
+                return ok(updateWorkspace(p, w));
+            }
             if (sub.size() == 1 && method.equals("GET") && sub.get(0).equals("inConflictResolutionMode")) {
                 workspaceHead(p, w, wsOf(p, w));
                 return ok(Boolean.FALSE);
@@ -838,8 +841,21 @@ public final class Sdlc {
         storage.delete(workspaceRef(p, w));
     }
 
-    /** Three-way, file by file: a file changed on one side only takes that side; changed on both, differently, is a conflict. */
+    /** A review's merge: the merged tree, or upstream's refusal naming the conflicting files. */
     private static Map<String, String> merge(Map<String, String> base, Map<String, String> ours, Map<String, String> theirs, String id, String p) {
+        Merged m = merge3(base, ours, theirs);
+        if (!m.conflicts().isEmpty()) {
+            throw new Refusal("Could not commit review " + id + " in project " + p + " because of a conflict: "
+                    + "the project line changed the same files since the workspace was made: " + String.join(", ", m.conflicts()), 409);
+        }
+        return m.tree();
+    }
+
+    /** A three-way merge: the merged tree (path → blob), and the paths changed on both sides, differently. */
+    private record Merged(Map<String, String> tree, List<String> conflicts) {}
+
+    /** Three-way, file by file: a file changed on one side only takes that side; changed on both, differently, is a conflict. */
+    private static Merged merge3(Map<String, String> base, Map<String, String> ours, Map<String, String> theirs) {
         Set<String> paths = new java.util.TreeSet<>(base.keySet());
         paths.addAll(ours.keySet());
         paths.addAll(theirs.keySet());
@@ -859,10 +875,59 @@ public final class Sdlc {
             }
             if (result != null) out.put(path, result);
         }
-        if (!conflicts.isEmpty()) {
-            throw new Refusal("Could not commit review " + id + " in project " + p + " because of a conflict: "
-                    + "the project line changed the same files since the workspace was made: " + String.join(", ", conflicts), 409);
+        return new Merged(out, conflicts);
+    }
+
+    /**
+     * Upstream's workspace update ({@code POST …/workspaces/{w}/update}, WorkspaceApi.updateWorkspace): the workspace
+     * rebased onto the project line's head -- each of its commits replayed there, file by file, with its author and
+     * message -- reported as {@code {status, workspaceMergeBaseRevisionId, workspaceRevisionId}}: NO_OP when the
+     * workspace already has the line's head, UPDATED when it was rebased. DEPARTURE (lite): a CONFLICT -- a file
+     * the line and the workspace both changed, differently -- leaves the workspace as it was and names those files in
+     * {@code conflicts}; upstream opens a conflict-resolution workspace instead, which lite does not have yet.
+     */
+    private Map<String, Object> updateWorkspace(String p, String w) {
+        String head = workspaceHead(p, w, wsOf(p, w));
+        String line = lineHead(p);
+        if (head.equals(line) || isAncestor(line, head)) return updateReport("NO_OP", line, head, List.of());
+        String base = mergeBase(line, head);
+        Merged merged = merge3(git.readTree(git.readCommit(base).tree()), git.readTree(git.readCommit(line).tree()),
+                git.readTree(git.readCommit(head).tree()));
+        if (!merged.conflicts().isEmpty()) return updateReport("CONFLICT", base, head, merged.conflicts());
+        // the workspace's own commits, oldest first (its history is a line from base: each save is one commit on the last)
+        List<String> own = new ArrayList<>();
+        for (String at = head; !at.equals(base); ) {
+            own.add(0, at);
+            Git.Commit c = git.readCommit(at);
+            if (c.parents().size() != 1) throw new IllegalStateException("workspace commit " + at + " has " + c.parents().size() + " parents");
+            at = c.parents().get(0);
         }
+        String at = line;
+        Map<String, String> tree = git.readTree(git.readCommit(line).tree());
+        long now = clock.getAsLong() / 1000;
+        for (String id : own) {
+            Git.Commit c = git.readCommit(id);
+            Map<String, String> before = git.readTree(git.readCommit(c.parents().get(0)).tree());
+            Map<String, String> after = git.readTree(c.tree());
+            Set<String> changed = new java.util.TreeSet<>(before.keySet());
+            changed.addAll(after.keySet());
+            for (String path : changed) {
+                String b = before.get(path);
+                String a = after.get(path);
+                if (java.util.Objects.equals(a, b)) continue;
+                if (a == null) tree.remove(path);
+                else tree.put(path, a);
+            }
+            at = git.writeCommit(new Git.Commit(git.writeTree(tree), List.of(at), c.author(), c.authorSeconds(), userId, now, c.message()));
+        }
+        if (!tree.equals(merged.tree())) throw new IllegalStateException("replaying workspace " + w + " of project " + p + " did not give its merge");
+        storage.put(workspaceRef(p, w), at);
+        return updateReport("UPDATED", line, at, List.of());
+    }
+
+    private static Map<String, Object> updateReport(String status, String mergeBase, String revision, List<String> conflicts) {
+        Map<String, Object> out = map("status", status, "workspaceMergeBaseRevisionId", mergeBase, "workspaceRevisionId", revision);
+        if (!conflicts.isEmpty()) out.put("conflicts", conflicts);
         return out;
     }
 

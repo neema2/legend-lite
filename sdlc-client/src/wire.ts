@@ -55,6 +55,19 @@ export interface Workspace {
 }
 
 /** `Revision`: instants are ISO-8601 strings. */
+/**
+ * A workspace update's answer (upstream's WorkspaceApi.WorkspaceUpdateReport): NO_OP, already at the line's head;
+ * UPDATED, rebased onto it; CONFLICT, the line and the workspace changed the same files differently. lite's CONFLICT
+ * leaves the workspace as it was and names those files (`conflicts`, a departure: upstream opens a conflict-resolution
+ * workspace).
+ */
+export interface WorkspaceUpdateReport {
+  readonly status: 'NO_OP' | 'UPDATED' | 'CONFLICT';
+  readonly workspaceMergeBaseRevisionId: string;
+  readonly workspaceRevisionId: string;
+  readonly conflicts?: readonly string[];
+}
+
 export interface Revision {
   readonly id: string;
   readonly authorName: string;
