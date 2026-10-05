@@ -52,6 +52,28 @@ _LAYOUT = json.loads((ROOT / "core/src/test/resources/com/legend/integration/str
 GENERATED = frozenset(f for f, gen in _LAYOUT["generated"].items() if gen == "stress")
 DENSE_GENERATED = frozenset(f for f, gen in _LAYOUT["generated"].items() if gen == "dense")
 
+# Under Bazel the actions pass every declared input file (--inputs; take_inputs below), and the generators read
+# those and nothing else (Bazel workplan P2-03): an unsandboxed run, whose CORPUS_ROOT is the whole execroot,
+# cannot pick up a file nobody declared. Outside Bazel (None) the directories are globbed as before.
+DECLARED: set[Path] | None = None
+
+
+def take_inputs(argv: list[str]) -> None:
+    """Sets DECLARED from the paths after --inputs in argv (up to the next --flag)."""
+    global DECLARED
+    if "--inputs" not in argv:
+        return
+    rest = argv[argv.index("--inputs") + 1:]
+    DECLARED = {Path(p) for p in rest[:next((i for i, a in enumerate(rest) if a.startswith("--")), len(rest))]}
+
+
+def _pure_files(directory: Path) -> list[Path]:
+    """The .pure files directly in `directory`: the declared ones under Bazel, else the directory's."""
+    if DECLARED is None:
+        return list(directory.glob("*.pure"))
+    return [p for p in DECLARED if p.parent == directory and p.suffix == ".pure"]
+
+
 # Set by a generator to leave more files out of "the corpus" -- its own outputs.
 EXCLUDE: set[str] = set()
 
@@ -65,7 +87,7 @@ def stress_sources() -> list[Path]:
     """The hand-written (and other-generator) stress files, in file-name order: the generator's
     inputs. Order is by NAME, never by directory, because a headerless file inherits the
     section of the file before it."""
-    files = {p.name: p for p in STRESS.glob("*.pure")
+    files = {p.name: p for p in _pure_files(STRESS)
              if p.name not in GENERATED and p.name not in EXCLUDE}
     if DENSE_DIR is not None:
         for name in DENSE_GENERATED - EXCLUDE:
@@ -129,7 +151,7 @@ def store_closure(c, root: str) -> set:
 def linked_files() -> list[Path]:
     out = []
     for n in LINKED_PROJECTS:
-        fs = sorted((PROJECTS / n).glob("*.pure"))
+        fs = sorted(_pure_files(PROJECTS / n))
         out += sorted(fs, key=lambda f: (_SECTION_ORDER.get(f.name, 99), f.name))
     return out
 

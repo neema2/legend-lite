@@ -1,7 +1,7 @@
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
-load("//core:stress.bzl", "STRESS_GENERATED")
+load("//core:stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # THE STRESS-CORPUS GENERATORS (spike S5). Ten committed files in
@@ -71,12 +71,17 @@ _ENV = {
     "LC_ALL": "C.UTF-8",
 }
 
+# Only what the generators read (Bazel workplan P2-03): the queries, the layout, the hand-written stress files and
+# the LINKED projects, not every project. The .pure files are also passed as --inputs, the only files read.
+_LINKED = ["//projects:" + p for p in LINKED_PROJECTS]
+
 _INPUTS = [
     "queries.pure",
     "//core:src/test/resources/com/legend/integration/stress-layout.json",
     "//core:stress_sources",
-    "//projects:srcs",
-]
+] + _LINKED
+
+_DECLARED = ["--inputs", "$(execpaths //core:stress_sources)"] + ["$(execpaths %s)" % p for p in _LINKED]
 
 # the generators' outputs, from the one list (core/stress.bzl)
 DENSE = sorted([f for f, gen in STRESS_GENERATED.items() if gen == "dense"])
@@ -90,7 +95,7 @@ run_binary(
     args = [
         "--out",
         "$(RULEDIR)/dense",
-    ],
+    ] + _DECLARED,
     env = _ENV,
     tool = ":dense_build",
     visibility = ["//core:__pkg__"],
@@ -107,7 +112,7 @@ run_binary(
         "$(RULEDIR)/dense",
         "--out",
         "$(RULEDIR)/stress",
-    ],
+    ] + _DECLARED,
     env = _ENV,
     tool = ":build",
     visibility = ["//core:__pkg__"],

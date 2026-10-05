@@ -85,8 +85,8 @@ def build(c: model.Corpus) -> str:
 
     # ---- a Schema, with its own tables and a view over them ------------------------------
     L += [
-        "   // A Schema. Every one of the base model's 210 tables sits in the default schema,",
-        "   // so a schema-qualified reference has never been resolved by anything here.",
+        "   // A Schema, so a schema-qualified table reference is resolved somewhere in the corpus",
+        "   // (the base model's tables sit in the default schema).",
         "   Schema analytics",
         "   (",
         "      Table DESK_SUMMARY",
@@ -129,7 +129,7 @@ def build(c: model.Corpus) -> str:
             break
     if pair:
         a, b, (c1, c2) = pair
-        joins.append(f"   // Multi-column join: every join in the base model is single-column.\n"
+        joins.append(f"   // A multi-column join, over two columns the tables share.\n"
                      f"   Join dense_MultiCol({a}.{c1} = {b}.{c1} and {a}.{c2} = {b}.{c2})")
 
     # ---- non-equality, or, and mixed -----------------------------------------------------

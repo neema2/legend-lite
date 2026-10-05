@@ -32,6 +32,7 @@ def generate() -> dict[str, str]:
 
 
 def main() -> None:
+    model.take_inputs(sys.argv)
     out = Path(sys.argv[sys.argv.index("--out") + 1])
     out.mkdir(parents=True, exist_ok=True)
     for name, text in generate().items():
