@@ -139,7 +139,11 @@ filegroup(
 [filegroup(
     name = project + "_files",
     srcs = glob([project + "/*.pure"]),
-    visibility = ["//scripts/corpus:__pkg__"],
+    # core links the stress corpus's projects into core_tests_lib as classpath resources (P3-05)
+    visibility = [
+        "//core:__pkg__",
+        "//scripts/corpus:__pkg__",
+    ],
 ) for project in PROJECT_DEPS]
 
 # a project directory the graph does not name would be compiled by nothing

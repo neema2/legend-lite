@@ -13,7 +13,7 @@ load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/jars:defs.bzl", "file_list", "java_jars")
 load("//tools/guards:defs.bzl", "guards_package")
 load(":layers.bzl", "core_layer_queries")
-load(":stress.bzl", "STRESS_GENERATED", "stress_layout")
+load(":stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED", "stress_index", "stress_layout")
 
 # PRIVATE BY DEFAULT (Bazel workplan P1-20): a target is visible outside core only where it says to whom.
 package(default_visibility = ["//visibility:private"])
@@ -284,14 +284,12 @@ legend_java_binary(
 # lanes also read the corpus's linked projects; the CENSUS lane (below) reads
 # every module it walks.
 # (no .md: prose is never a test input, so CI's docs-only paths-ignore stays true)
+# core's whole source tree, as the source guards scan it (their declared lists below)
 _CORE_READS = glob(["src/**"], exclude = ["**/*.md"])
-
-_STRESS_READS = _CORE_READS + ["//projects:srcs"]
 
 _CENSUS_READS = _CORE_READS + [
     "//parser-equivalence:srcs",
     "//pct:srcs",
-    "//projects:srcs",
     "//spec:srcs",
     "//warehouse:test_java",
 ]
@@ -312,7 +310,9 @@ legend_java_library(
             "src/test/java/com/legend/parser/ToySectionGrammar.java",
         ],
     ),
-    resources = glob(
+    # the stress corpus is read ONE way, as classpath resources (Bazel workplan P3-05, A11): its files (under
+    # src/test/resources), their table of contents, and the linked projects' files (resource paths projects/<p>/...)
+    resources = [":stress_index"] + ["//projects:%s_files" % p for p in LINKED_PROJECTS] + glob(
         ["src/test/resources/**"],
         # the shadow binding rides :shadow_binding, once; prose is never a test input
         exclude = [
@@ -380,26 +380,79 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
-# Gate 1: every core BEHAVIOUR test — everything but the heavy and stress
-# groups and the source checks below — JUnit's own console launcher selecting by
-# package.
-junit_test(
-    name = "core_tests",
-    memory_mb = 1024,
-    size = "enormous",
-    data = _CORE_READS,
-    select = ["--select-package=com.legend"],
-    exclude_tags = [
-        "census",
-        "differential",
-        "guardrail",
-        "heavy",
-        "stress",
-    ],
+# Gate 1: every core BEHAVIOUR test — everything but the stress group and the source checks below — one junit_test
+# per test package (Bazel workplan P3-05), so a change re-runs only the packages whose tests it reaches, and the
+# root package's own classes in one more. No data: what a behaviour test reads is on its classpath (the stress corpus
+# included). `core_tests` is their suite.
+_CORE_TEST_PACKAGES = [
+    "architecture",
+    "builtin",
+    "cache",
+    "compiler",
+    "exec",
+    "ide",
+    "integration",
+    "ladder",
+    "lexer",
+    "lineage",
+    "lowering",
+    "model",
+    "normalizer",
+    "parser",
+    "platform",
+    "protocol",
+    "resolver",
+    "server",
+    "sql",
+    "test",
+    "testdatagen",
+    "testing",
+    "values",
+]
+
+# Measured 2026-10-05: every package's live heap peak is under 342 MB (the largest, root, 264 MB), so P1-21's rule
+# (the live peak plus half again, at least 512 MB, rounded up to 256 MB) gives each 512 MB. The longest, integration,
+# runs 31 s on a desk: no shards, and `medium` (300 s) leaves CI's slower runners room.
+_CORE_TEST_MEMORY_MB = 512
+
+_CORE_TEST_EXCLUDED_TAGS = [
+    "census",
+    "differential",
+    "guardrail",
+    "stress",
+]
+
+[junit_test(
+    name = "core_tests_" + p,
+    memory_mb = _CORE_TEST_MEMORY_MB,
+    size = "medium",
+    select = ["--select-package=com.legend." + p] + (
+        # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared
+        ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
+    ),
+    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",
     ],
+) for p in _CORE_TEST_PACKAGES]
+
+# the root package's own classes: com.legend, less every package above
+junit_test(
+    name = "core_tests_root",
+    memory_mb = _CORE_TEST_MEMORY_MB,
+    size = "medium",
+    select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
+    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
+test_suite(
+    name = "core_tests",
+    tests = [":core_tests_" + p for p in _CORE_TEST_PACKAGES + ["root"]],
     visibility = ["//gates:__pkg__"],
 )
 
@@ -409,7 +462,7 @@ junit_test(
 junit_test(
     name = "corpus_differential_test",
     memory_mb = 768,
-    data = _STRESS_READS + [
+    data = [
         "//scripts/corpus:diff/seed.sql",
         "//scripts/corpus:gen_differential",
     ],
@@ -483,7 +536,11 @@ junit_test(
     name = "guardrails",
     memory_mb = 1280,
     size = "medium",
-    data = _CORE_READS + [
+    # exactly what the guards read (P3-05, A11): the declared source list (its files ride in its runfiles), the two
+    # single files, and the jar lists
+    data = [
+        "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
+        "src/main/java/com/legend/sql/dialect/DuckDb.java",
         ":core_test_jar",
         ":guardrails_sources",
         ":product_jars",
@@ -545,7 +602,8 @@ junit_test(
     name = "census",
     memory_mb = 1024,
     size = "medium",
-    data = _CENSUS_READS + [":census_sources"],
+    # the declared source list; its files ride in its runfiles (P3-05, A11)
+    data = [":census_sources"],
     jvm_flags = ["-Dlegend.sources=$(rlocationpath :census_sources)"],
     select = [
         "--select-package=com.legend",
@@ -555,45 +613,37 @@ junit_test(
     visibility = ["//gates:__pkg__"],
 )
 
-# THE SCALE TESTS: generated models far past the 1K baseline (StressTest, in
-# core_tests) — 10K, 100K, dense links, complex multi-hop queries, 50K chaotic
-# classes, and the 100K parse-vs-compile profile. Named explicitly: none of these
-# class names matches a test-name pattern, so no default discovery would run them.
-_SCALE = [
-    "StressTest10K",
-    "StressTest100K",
-    "StressTestDense",
-    "StressTestComplexQueries",
-    "StressTestChaotic",
-    "ProfileBuildCost",
-]
-
-# memory_mb per class (Bazel workplan P1-21): the live heap peak measured 2026-10-04 plus half again
-# (at least 512 MB), rounded up to 256 MB
-_SCALE_MEMORY_MB = {
-    "StressTest10K": 768,
-    "StressTest100K": 2304,
-    "StressTestDense": 768,
-    "StressTestComplexQueries": 768,
-    "StressTestChaotic": 6656,
-    "ProfileBuildCost": 3584,
-}
-
-[junit_test(
-    name = "scale_" + c.lower(),
-    memory_mb = _SCALE_MEMORY_MB[c],
-    size = "enormous",
-    data = _STRESS_READS,
-    select = [
-        "--select-class=com.legend.integration." + c,
-        "--include-classname=.*",
+# THE SCALE BENCHMARK (Bazel workplan P3-05, A11): generated models far past the 1K baseline — 10K, 100K, dense links,
+# complex multi-hop queries, 100K chaotic classes, and the 100K parse-vs-compile profile. They assert nothing beyond "no
+# failures" and print timings, so they are one program, not tests:
+#   bazel run //core:scale -- 10k | 100k | dense | complex | chaotic | profile
+# Its heap is the largest one's (StressTestChaotic: live peak measured 2026-10-04 plus half again, 6656 MB).
+legend_java_library(
+    name = "scale_lib",
+    testonly = True,
+    srcs = ["src/scale/java/com/legend/integration/Scale.java"],
+    deps = [
+        "@maven_test//:org_junit_platform_junit_platform_engine",
+        "@maven_test//:org_junit_platform_junit_platform_launcher",
     ],
+)
+
+legend_java_binary(
+    name = "scale",
+    testonly = True,
+    jvm_flags = [
+        "-Xmx6656m",
+        "-Duser.timezone=GMT",
+    ],
+    main_class = "com.legend.integration.Scale",
     tags = ["manual"],
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",
+        ":scale_lib",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_engine",
     ],
-) for c in _SCALE]
+)
 
 # Gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
 # sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest (no -D modes: the knobs are
@@ -602,9 +652,7 @@ junit_test(
     name = "stress_suites",
     memory_mb = 768,
     size = "enormous",
-    data = _STRESS_READS,
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
-    exclude_tags = ["heavy"],
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",
@@ -618,9 +666,7 @@ junit_test(
     # live peak 232 MB, 692 MB before a collection (measured 2026-10-05 at -Xmx1024m): stress_suites' 768 holds it
     memory_mb = 768,
     size = "enormous",
-    data = _STRESS_READS,
     select = ["--select-class=com.legend.integration.StressServiceSuitesH2Test"],
-    exclude_tags = ["heavy"],
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",
@@ -633,12 +679,8 @@ junit_test(
 legend_java_binary(
     name = "stress_tool",
     testonly = True,
-    data = _STRESS_READS,
-    jvm_flags = [
-        "-Dlegend.repo.root=.",
-        "-Dlegend.repo.module=core",
-        "-Duser.timezone=GMT",
-    ],
+    # the corpus is core_tests_lib's classpath resources (P3-05)
+    jvm_flags = ["-Duser.timezone=GMT"],
     main_class = "com.legend.integration.StressTool",
     tags = ["manual"],
     runtime_deps = [
@@ -696,6 +738,13 @@ filegroup(
     name = "test_pure",
     srcs = glob(["src/test/resources/**/*.pure"]),
     visibility = ["//scripts/parser:__pkg__"],
+)
+
+# the stress files' table of contents, a resource beside stress-layout.json (StressCorpus)
+stress_index(
+    name = "stress_index",
+    srcs = glob(["src/test/resources/stress/*.pure"]),
+    out = "src/test/resources/com/legend/integration/stress-index.txt",
 )
 
 # every stress file, the generated ten included: what the corpus ratchets measure (//scripts/corpus, P2-04)
@@ -830,6 +879,7 @@ core_layer_queries(not_layers = {
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_load": "the drivers' bulk loader, beside the layers",
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
+    "scale_lib": "the scale benchmark's launcher (//core:scale), not product code",
     "shadow_binding": "a test-lane ServiceLoader resource",
     "toy_grammar": "a toy section grammar for the registry's own test (section_grammar_registry_test)",
 })

@@ -1,6 +1,5 @@
 package com.legend.integration;
 
-import com.legend.testing.Repo;
 import java.nio.file.*;
 import java.util.*;
 
@@ -44,39 +43,52 @@ final class StressCorpus {
     private static final List<String> SECTION_ORDER = List.of("model.pure", "store.pure",
             "mapping.pure");
 
-    static final Path STRESS = Repo.module("src/test/resources/stress");
-    static final Path PROJECTS = Repo.path("projects");
-
     private StressCorpus() {
     }
 
-    /** Every source file the lite side loads, in load order. */
-    static List<Path> files() throws Exception {
-        List<Path> out = new ArrayList<>();
+    /** One file of the corpus: its name (the file name, as a model source names it) and its text. */
+    record File(String name, String text) {
+    }
+
+    /** Every source file the lite side loads, in load order, read from the classpath (Bazel workplan P3-05, A11:
+     *  core_tests_lib carries the stress files, their table of contents stress-index.txt, and the linked projects'
+     *  files under projects/), never from a directory. */
+    static List<File> files() throws Exception {
+        List<File> out = new ArrayList<>();
         for (String project : LINKED_PROJECTS) {
             for (String f : SECTION_ORDER) {
-                Path p = PROJECTS.resolve(project).resolve(f);
-                if (Files.exists(p)) {
-                    out.add(p);
+                String text = resource("/projects/" + project + "/" + f, false);
+                if (text != null) {
+                    out.add(new File(f, text));
                 }
             }
         }
-        try (var s = Files.list(STRESS)) {
-            for (Path p : s.sorted().toList()) {
-                if (!p.toString().endsWith(".pure")
-                        || StressExclusions.EXCLUDED.containsKey(p.getFileName().toString())) {
-                    continue;
-                }
-                out.add(p);
+        String index = java.util.Objects.requireNonNull(resource("stress-index.txt", true));
+        for (String name : index.lines().filter(l -> !l.isBlank()).sorted().toList()) {
+            if (StressExclusions.EXCLUDED.containsKey(name)) {
+                continue;
             }
+            out.add(new File(name, java.util.Objects.requireNonNull(resource("/stress/" + name, true))));
         }
         return out;
     }
 
+    private static String resource(String name, boolean required) throws java.io.IOException {
+        try (var in = StressCorpus.class.getResourceAsStream(name)) {
+            if (in == null) {
+                if (required) {
+                    throw new IllegalStateException(name + " is not on the classpath (core_tests_lib's resources)");
+                }
+                return null;
+            }
+            return new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
+    }
+
     static String model() throws Exception {
         StringBuilder sb = new StringBuilder();
-        for (Path p : files()) {
-            sb.append(Files.readString(p)).append("\n");
+        for (File f : files()) {
+            sb.append(f.text()).append("\n");
         }
         return sb.toString();
     }
@@ -90,8 +102,8 @@ final class StressCorpus {
         for (Path p : overrides) {
             out.add(new com.legend.Compiler.ModelSource(p.toString(), Files.readString(p)));
         }
-        for (Path p : files()) {
-            out.add(new com.legend.Compiler.ModelSource(p.getFileName().toString(), Files.readString(p)));
+        for (File f : files()) {
+            out.add(new com.legend.Compiler.ModelSource(f.name(), f.text()));
         }
         return out;
     }
