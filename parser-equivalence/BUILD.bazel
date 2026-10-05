@@ -161,9 +161,14 @@ _PINS_TEST_FLAG = "-Doracle.pins.rlocation=$(rlocationpath //tools:oracle-pins.e
 
 _PINS_ACTION_FLAG = "-Doracle.pins=$(execpath //tools:oracle-pins.env)"
 
-_FILE_FLAGS = [_PINS_TEST_FLAG] + ["-Dledger.%s=$(rlocationpath //docs:%s.tsv)" % (l, l) for l in _LEDGERS] + [
+_FILE_FLAGS = [_PINS_TEST_FLAG] + ["-Dledger.%s.rlocation=$(rlocationpath //docs:%s.tsv)" % (l, l) for l in _LEDGERS] + [
     "-Dpe.corpus.manifest=$(rlocationpath src/test/resources/corpus-manifest.tsv)",
-    "-Dpe.engine.fixtures=$(rlocationpath src/test/resources/engine-grammar-fixtures.jsonl)",
+    "-Dpe.engine.fixtures.rlocation=$(rlocationpath src/test/resources/engine-grammar-fixtures.jsonl)",
+]
+
+# the same files for a build action (ProgramPaths: by exec path), which takes _FILE_DATA as srcs
+_FILE_ACTION_FLAGS = [_PINS_ACTION_FLAG] + ["-Dledger.%s=$(execpath //docs:%s.tsv)" % (l, l) for l in _LEDGERS] + [
+    "-Dpe.engine.fixtures=$(execpath src/test/resources/engine-grammar-fixtures.jsonl)",
 ]
 
 # The asserting census run on its trigger, never as part of the gate (//parser-equivalence:diagnostics). The
@@ -363,7 +368,7 @@ write_source_files(
 java_run(
     name = "ratchets",
     testonly = True,
-    srcs = UPSTREAM_TREES + [
+    srcs = UPSTREAM_TREES + _FILE_DATA + [
         ":srcs",
         "//core:srcs",
         "//pct:srcs",
@@ -372,7 +377,8 @@ java_run(
     ],
     outs = ["generated/ratchets.tsv"],
     arguments = ["{OUT}"],
-    jvm_flags = program_jvm_flags("parser-equivalence") + [_PINS_ACTION_FLAG],
+    # the own corpus's classes need the ledgers its classifier reads (P3-30)
+    jvm_flags = program_jvm_flags("parser-equivalence") + _FILE_ACTION_FLAGS,
     main_class = "com.legend.equivalence.PeRatchets",
     mnemonic = "Generate",
     roots = UPSTREAM_ROOTS,

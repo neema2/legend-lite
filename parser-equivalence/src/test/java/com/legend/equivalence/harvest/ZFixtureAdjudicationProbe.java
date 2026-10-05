@@ -27,7 +27,7 @@ final class ZFixtureAdjudicationProbe {
         Path outDir = Files.createDirectories(com.legend.testing.Programs.argument(out));
         String fixtures = com.legend.testing.Programs.option(args, "--fixtures");
         adjudicate(fixtures != null ? com.legend.testing.Programs.argument(fixtures)
-                : com.legend.testing.Runfile.property("pe.engine.fixtures"), outDir);
+                : com.legend.testing.ProgramPaths.file("pe.engine.fixtures"), outDir);
     }
 
 

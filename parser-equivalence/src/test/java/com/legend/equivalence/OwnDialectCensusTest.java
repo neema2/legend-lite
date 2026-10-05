@@ -76,62 +76,6 @@ class OwnDialectCensusTest {
                     // grammar by design (docs/LEGACY_ROUTES_AS_COMPOSITION)
                     "RoutedNavigateTest.java");
 
-    /** F3.7 per-host accounting, both directions EXACT: membership alone
-     *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
-     *  changed count is a review event in the same commit; a host at
-     *  zero everywhere is a stale declaration and leaves its set too. */
-    private static final java.util.Map<String, Integer> PLATFORM_HOST_PINS =
-            java.util.Map.of(   // measured 2026-08-16
-                    "AdversarialParityTest.java", 7,
-                    "ElementParserTest.java", 12,
-                    "LexerTest.java", 1,
-                    "MessageParityTest.java", 1,
-                    "PlatformInliningTest.java", 1,
-                    "ProbeWireShapes.java", 1,
-                    "SectionGrammarRegistryTest.java", 2);
-
-    private static final java.util.Map<String, Integer> EXTENSION_HOST_PINS =
-            java.util.Map.ofEntries(   // measured 2026-08-16 (platform-set
-                                       // hosts may carry extension rows too
-                                       // — invariant 2 allows either set)
-                    java.util.Map.entry("AdversarialParityTest.java", 1),
-                    // 0 -> 1 (2026-09-08, REVIEWED, census batch 150): the
-                    // unit-instance probe (cNeg: `-5 Mass~kilogram`) — the
-                    // platform dialect now reads legend-pure's unit literal
-                    // (newUnit(M~u, n)); the engine grammar refuses it, so
-                    // the row is extension grammar by definition
-                    java.util.Map.entry("ProbeWireShapes.java", 1),
-                    java.util.Map.entry("CleanSheetProtocolShapeTest.java", 6),
-                    // 0 -> 1 (2026-09-13, REVIEWED, composition step 1):
-                    // the routed-navigate witness's one model
-                    java.util.Map.entry("RoutedNavigateTest.java", 1),
-                    // 2 -> 3 (2026-08-28, REVIEWED): the lambda-classifier
-                    // witness (charter §4V) — the Function<{...}>-typed
-                    // variable REJECTED by a FunctionDefinition<Any> formal
-                    // (the lattice direction that keeps native refs out)
-                    // cannot be spelled without a function-type parameter
-                    // 3 -> 5 (2026-08-28, REVIEWED): audit fix-slice §4W —
-                    // the router-execute and concatenateTemporalTdsQueries
-                    // NEGATIVES (Function-carrier rejected by verbatim
-                    // FunctionDefinition/LambdaFunction formals) each need
-                    // a Function<{...}>-typed parameter spelling
-                    java.util.Map.entry("CompileFunctionTest.java", 5),
-                    java.util.Map.entry("ElementParserTest.java", 17),
-                    java.util.Map.entry(
-                            "LegacyCleanSheetConvergenceTest.java", 4),
-                    java.util.Map.entry("MappingNormalizerTest.java", 4),
-                    java.util.Map.entry("MessageParityTest.java", 1),
-                    java.util.Map.entry("PureModelContextTest.java", 3),
-                    java.util.Map.entry("SQLiteIntegrationTest.java", 2),
-                    java.util.Map.entry("TdsLambdaProbeTest.java", 1),
-                    java.util.Map.entry("TypeCheckerTest.java", 1),
-                    java.util.Map.entry("UserCallInlinerTest.java", 1),
-                    java.util.Map.entry("UserFunctionIntegrationTest.java", 6),
-                    // D4 variance pins: the contravariance spec REQUIRES
-                    // function-typed parameter signatures
-                    // (Function<{Number[1]->String[1]}>) — pure-dialect
-                    // grammar, host declared consciously
-                    java.util.Map.entry("VarianceD4Test.java", 2));
 
     private static String hostOf(String id) {
         String f = id.substring(id.lastIndexOf('/') + 1);
@@ -139,8 +83,15 @@ class OwnDialectCensusTest {
         return cut < 0 ? f : f.substring(0, cut);
     }
 
-    @Test
-    void ownCorpusAtLegendLite() throws Exception {
+    /** The own corpus at legend-lite: the platform-accepted snippets LEGEND_LITE refuses (rows) and those it accepts
+     *  that legend-engine refuses (extension rows), and how many each host carries (PeRatchets writes those counts
+     *  into ratchets.tsv; Bazel workplan P3-30). */
+    record Census(List<String> rows, List<String> extensionRows, Map<String, Integer> byMsg, int platformAccepts,
+            int liteAccepts, int engineAccepts, Map<String, Integer> platformHosted,
+            Map<String, Integer> extensionHosted) {
+    }
+
+    static Census measure() {
         List<Corpus.Source> own = new ArrayList<>();
         for (String module : List.of("core", "parser-equivalence", "pct")) {
             own.addAll(InlineSnippets.extract(module,
@@ -191,6 +142,32 @@ class OwnDialectCensusTest {
                 extensionRows.add(s.id());
             }
         }
+        Map<String, Integer> platformHosted = new TreeMap<>();
+        for (String r : rows) {
+            platformHosted.merge(
+                    hostOf(r.substring(0, r.indexOf('\t'))), 1, Integer::sum);
+        }
+        Map<String, Integer> extensionHosted = new TreeMap<>();
+        for (String id : extensionRows) {
+            extensionHosted.merge(hostOf(id), 1, Integer::sum);
+        }
+        return new Census(rows, extensionRows, byMsg, platformAccepts, liteAccepts, engineAccepts, platformHosted,
+                extensionHosted);
+    }
+
+    /** ratchets.tsv's key prefixes for the per-host counts. */
+    static final String PLATFORM_KEY = "own_dialect.platform.";
+    static final String EXTENSION_KEY = "own_dialect.extension.";
+
+    @Test
+    void ownCorpusAtLegendLite() throws Exception {
+        Census c = measure();
+        List<String> rows = new ArrayList<>(c.rows());
+        List<String> extensionRows = c.extensionRows();
+        Map<String, Integer> byMsg = c.byMsg();
+        int platformAccepts = c.platformAccepts();
+        int liteAccepts = c.liteAccepts();
+        int engineAccepts = c.engineAccepts();
         // THE INVARIANTS (quarantined, marked, ratcheted):
         // (1) a LITE-refused row must be hosted in a PLATFORM parser test
         List<String> unquarantined = rows.stream()
@@ -234,28 +211,19 @@ class OwnDialectCensusTest {
                         + " or fix the test:\n  "
                         + String.join("\n  ", unmarkedExtension.subList(0,
                                 Math.min(10, unmarkedExtension.size()))));
-        // F3.7: per-host EXACT accounting (stale-row + total, the
-        // FixtureCorpusParity shape) — the host sets say WHO may excuse,
-        // the pins say HOW MUCH each one currently does
-        Map<String, Integer> platformHosted = new TreeMap<>();
-        for (String r : rows) {
-            platformHosted.merge(
-                    hostOf(r.substring(0, r.indexOf('\t'))), 1, Integer::sum);
-        }
-        Map<String, Integer> extensionHosted = new TreeMap<>();
-        for (String id : extensionRows) {
-            extensionHosted.merge(hostOf(id), 1, Integer::sum);
-        }
+        // F3.7: per-host EXACT accounting: the host sets say WHO may excuse (policy, here), and how much each one
+        // currently does is MEASURED (PeRatchets, ratchets.tsv; Bazel workplan P3-30, D9): a snippet in another module
+        // moves a generated file here (bazel run //parser-equivalence:update_ratchets), reviewed in its diff
+        Map<String, Integer> platformHosted = c.platformHosted();
+        Map<String, Integer> extensionHosted = c.extensionHosted();
         org.junit.jupiter.api.Assertions.assertEquals(
-                new TreeMap<>(PLATFORM_HOST_PINS), platformHosted,
-                "LITE-refused rows per platform-test host drifted — GROWTH"
-                        + " needs review, SHRINKAGE means ratchet the pin"
-                        + " down in the same commit");
+                PeRatchets.measuredWithPrefix(PLATFORM_KEY), platformHosted,
+                "LITE-refused rows per platform-test host moved -- bazel run"
+                        + " //parser-equivalence:update_ratchets, and review the diff");
         org.junit.jupiter.api.Assertions.assertEquals(
-                new TreeMap<>(EXTENSION_HOST_PINS), extensionHosted,
-                "extension-grammar rows per host drifted — GROWTH needs"
-                        + " review, SHRINKAGE means ratchet the pin down"
-                        + " in the same commit");
+                PeRatchets.measuredWithPrefix(EXTENSION_KEY), extensionHosted,
+                "extension-grammar rows per host moved -- bazel run"
+                        + " //parser-equivalence:update_ratchets, and review the diff");
         // a declared host excusing nothing anywhere is a stale pardon
         List<String> staleHosts = new ArrayList<>();
         for (String h : PLATFORM_TEST_HOSTS) {

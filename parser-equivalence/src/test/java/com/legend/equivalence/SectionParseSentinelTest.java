@@ -76,7 +76,7 @@ class SectionParseSentinelTest {
 
     private static java.util.Set<String> loadSkewClaims() {
         try {
-            java.nio.file.Path f = Runfile.property("ledger.version-skew-claims");
+            java.nio.file.Path f = com.legend.testing.ProgramPaths.file("ledger.version-skew-claims");
             // one answer: the repository path (the cwd-relative second guess this had
             // only existed while tests ran from the module directory)
             java.util.Set<String> out = new java.util.HashSet<>();

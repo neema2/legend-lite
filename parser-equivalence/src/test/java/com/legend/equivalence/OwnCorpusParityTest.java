@@ -42,7 +42,7 @@ class OwnCorpusParityTest {
     /** The ledger, as the BUILD file passes it (-Dledger.own-corpus-protocol-diffs); read lazily, so a program that
      *  only calls {@link #readLedger(Path)} (OwnCorpusLedgerDraft, given the path) needs no such flag. */
     static Path ledger() {
-        return com.legend.testing.Runfile.property("ledger.own-corpus-protocol-diffs");
+        return com.legend.testing.ProgramPaths.file("ledger.own-corpus-protocol-diffs");
     }
     // The MATCHED elements are MEASURED (OwnCorpusLedgerDraft.diffs) into this package's generated ratchets.tsv
     // (own_corpus.matched; //parser-equivalence:update_ratchets, diff-tested in //:generated): a test model joining the

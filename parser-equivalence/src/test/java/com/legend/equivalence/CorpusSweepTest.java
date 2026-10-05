@@ -653,7 +653,7 @@ public class CorpusSweepTest {
 
     private static java.util.Set<String> loadSkewClaims() {
         try {
-            java.nio.file.Path f = Runfile.property("ledger.version-skew-claims");
+            java.nio.file.Path f = com.legend.testing.ProgramPaths.file("ledger.version-skew-claims");
             // one answer: the repository path (the cwd-relative second guess this had
             // only existed while tests ran from the module directory)
             java.util.Set<String> out = new java.util.HashSet<>();
@@ -824,7 +824,7 @@ public class CorpusSweepTest {
             throws java.io.IOException {
         Map<String, String> out = new LinkedHashMap<>();
         for (String line : Files.readAllLines(
-                Runfile.property("ledger." + name.substring(0, name.length() - ".tsv".length())))) {
+                com.legend.testing.ProgramPaths.file("ledger." + name.substring(0, name.length() - ".tsv".length())))) {
             if (!line.startsWith("#") && !line.isBlank()) {
                 String[] f = line.split("\t", 2);
                 out.put(f[0], f.length > 1 ? f[1] : "");

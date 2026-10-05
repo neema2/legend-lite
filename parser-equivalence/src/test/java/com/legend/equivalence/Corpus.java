@@ -184,7 +184,7 @@ public final class Corpus {
             return java.nio.file.Path.of(named);
         }
         // a test: the committed snapshot, by the runfiles path its target passes (Bazel workplan P1-05)
-        return com.legend.testing.Runfile.property("pe.engine.fixtures");
+        return com.legend.testing.ProgramPaths.file("pe.engine.fixtures");
     }
 
     /** C6: the committed engine-fixture snapshot (see the harvest note

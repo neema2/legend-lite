@@ -16,7 +16,7 @@ class SurfaceCensusTest {
     @Test
     void everyEngineSurfaceIsParsedOrNamed() throws Exception {
         java.util.Set<String> excluded = new java.util.HashSet<>();
-        java.nio.file.Path ledger = Runfile.property("ledger.parser-surface-exclusions");
+        java.nio.file.Path ledger = com.legend.testing.ProgramPaths.file("ledger.parser-surface-exclusions");
         for (String line : java.nio.file.Files.readAllLines(ledger)) {
             String[] c = line.split("\t");
             if (c.length >= 2 && !"kind".equals(c[0])) {
@@ -122,7 +122,7 @@ class SurfaceCensusTest {
         java.nio.file.Path engineRoot = com.legend.testing.ProgramPaths.rootOf("legend.engine.root");
         java.util.Set<String> snap = new java.util.HashSet<>();
         for (String line : java.nio.file.Files.readAllLines(
-                Runfile.property("ledger.g4-keyword-snapshot"))) {
+                com.legend.testing.ProgramPaths.file("ledger.g4-keyword-snapshot"))) {
             snap.add(line.split("\t")[0]);
         }
         java.util.List<String> fresh = new java.util.ArrayList<>();
