@@ -8,6 +8,9 @@ import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts
 import type { Engine } from '../../../engine-client/src/legend/engine.ts';
 import type { PFunction, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 import type { ExecutionResult, ParameterValue } from '../../../engine-client/src/legend/wire.ts';
+import type { TableState, TabTables } from '../../../engine-client/src/tab-data.ts';
+
+export type { TableState };
 
 /** A function's parameter, as Run asks for it: its name, type and multiplicity, as the signature declares them. */
 export interface RunParameter {
@@ -26,6 +29,12 @@ export interface Runner {
   run(fileText: string, modelText: string, values?: ReadonlyMap<string, string>): Promise<ExecutionResult>;
   /** SQL on the tab's DuckDB, with the model's own test data loaded (upstream's SQL playground); refused on a server. */
   sql(statement: string, modelText: string): Promise<RawTable>;
+  /** Every table the model's Databases declare: where its rows in the tab are from, and how many (plan A2). */
+  tables(modelText: string): Promise<TableState[]>;
+  /** A table filled from a person's file (.csv or .parquet), kept over the model's test data until reset. */
+  putTable(modelText: string, schema: string, table: string, file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void>;
+  /** A table back to the model's own rows. */
+  resetTable(modelText: string, schema: string, table: string): Promise<void>;
 }
 
 /** What a run needs of the session: the grammar (to read the element), the engine, and the in-tab data step. */
@@ -39,6 +48,8 @@ export interface RunSession {
   sqlEngine?(): Promise<QueryEngine>;
   /** Puts the model's own test data where the engine reads it (the tab's DuckDB); a server needs none. */
   loadData?(model: PureModelContextData): Promise<void>;
+  /** The tab's tables and where their rows are from (plan A2); a server has its own data. */
+  tabTables?(): Promise<TabTables>;
 }
 
 /** A multiplicity as Pure writes it: [1], [0..1], [*], [1..*]. */
@@ -101,5 +112,25 @@ export function runner(session: RunSession): Runner {
       if (session.loadData) await session.loadData(await session.modelJson(modelText));
       return engine.run(statement, 0);
     },
+    async tables(modelText) {
+      const { tabs, model } = await tablesOf(modelText);
+      return tabs.tables(model.elements);
+    },
+    async putTable(modelText, schema, table, file) {
+      const { tabs, model } = await tablesOf(modelText);
+      await tabs.put(model.elements, schema, table, file);
+    },
+    async resetTable(modelText, schema, table) {
+      const { tabs, model } = await tablesOf(modelText);
+      await tabs.reset(model.elements, schema, table);
+    },
   };
+
+  /** The tab's tables, the model's own rows loaded first; refused on a server. */
+  async function tablesOf(modelText: string): Promise<{ tabs: TabTables; model: PureModelContextData }> {
+    if (!session.tabTables || !session.loadData) throw new Error("a table's rows are put in this tab's DuckDB; this session runs on a server, which has its own data");
+    const model = await session.modelJson(modelText);
+    await session.loadData(model);
+    return { tabs: await session.tabTables(), model };
+  }
 }

@@ -10,7 +10,7 @@ import { SdlcError } from '../../../sdlc-client/src/client.ts';
 import type { Compiler } from '../backend/planner.ts';
 import type { QueryBuilder } from '../backend/query-builder.ts';
 import type { EditorHandle } from '../../../query/src/embed.ts';
-import type { Runner } from '../backend/run.ts';
+import type { Runner, TableState } from '../backend/run.ts';
 import type { RawTable } from '../../../engine-client/src/engine.ts';
 import { isTds, type ExecutionResult } from '../../../engine-client/src/legend/wire.ts';
 import { ELEMENT_KINDS, splitPath } from '../model/templates.ts';
@@ -102,26 +102,69 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     h('div', { class: 'sql-playground__editor' }, sqlText,
       h('button', { class: 'btn btn-primary', 'data-testid': 'sql-run', title: 'Run the SQL (Ctrl + Enter)', onclick: () => void runSql() }, icon('play', '10px'), 'Run')),
     sqlOut);
+  // the tab's tables (plan A2): every table the model's Databases declare, where its rows are from -- the model's test
+  // data, a person's file (CSV or Parquet, kept until reset), or nothing -- and how many
+  const dataPanel = h('div', { class: 'panel-group__content data-tables', 'data-testid': 'data-tables' });
+  const renderData = async (): Promise<void> => {
+    clear(dataPanel);
+    dataPanel.append(h('div', { class: 'panel-group__empty' }, 'Loading the tables…'));
+    const failed = (e: unknown): void => toast(e instanceof Error ? e.message : String(e), 'error');
+    let tables: TableState[];
+    try {
+      tables = await ctx.run.tables(ws.model().text);
+    } catch (e) {
+      clear(dataPanel);
+      dataPanel.append(h('div', { class: 'panel-group__run-error' }, icon('error'), h('span', {}, e instanceof Error ? e.message : String(e))));
+      return;
+    }
+    clear(dataPanel);
+    if (tables.length === 0) {
+      dataPanel.append(h('div', { class: 'panel-group__empty' }, 'No Database in this model declares a table.'));
+      return;
+    }
+    const rows = tables.map((t) => {
+      const name = `${t.schema}.${t.table}`;
+      const file = h('input', { type: 'file', accept: '.csv,.parquet', style: 'display:none', onchange: () => {
+        const f = file.files?.[0];
+        if (!f) return;
+        void f.arrayBuffer()
+          .then((b) => ctx.run.putTable(ws.model().text, t.schema, t.table, { name: f.name, bytes: new Uint8Array(b) }))
+          .then(() => { toast(`${name}: ${f.name} loaded`, 'success'); return renderData(); }, failed);
+      } });
+      const source = t.source.kind === 'test' ? `test data · ${t.source.element}` : t.source.kind === 'file' ? `file · ${t.source.name}` : 'no rows yet';
+      return h('tr', { 'data-table': name },
+        h('td', { title: t.database }, name),
+        h('td', { 'data-source': t.source.kind }, source),
+        h('td', { class: 'data-tables__rows' }, t.rows === undefined ? '' : String(t.rows)),
+        h('td', { class: 'data-tables__actions' }, file,
+          h('button', { class: 'btn btn-small', 'data-testid': 'data-upload', title: 'Fill this table from a .csv (a header row) or .parquet file', onclick: () => file.click() }, 'Upload…'),
+          t.source.kind === 'file' ? h('button', { class: 'btn btn-small', 'data-testid': 'data-reset', title: "Back to the model's own rows",
+            onclick: () => void ctx.run.resetTable(ws.model().text, t.schema, t.table).then(() => renderData(), failed) }, 'Reset') : null));
+    });
+    dataPanel.append(h('table', { class: 'run-result__table' },
+      h('thead', {}, h('tr', {}, h('th', {}, 'Table'), h('th', {}, 'Rows from'), h('th', {}, 'Rows'), h('th', {}, ''))),
+      h('tbody', {}, ...rows)));
+  };
   let panelOpen = false;
   let panelMaximised = false;
-  let panelTab: 'problems' | 'results' | 'sql' = 'problems';
+  let panelTab: 'problems' | 'results' | 'sql' | 'data' = 'problems';
   const panel = h('div', { class: 'panel-group' });
   const main = h('div', { class: 'main' });
   const renderPanel = (): void => {
     panel.classList.toggle('panel-group--closed', !panelOpen);
     main.classList.toggle('main--panel-maximised', panelOpen && panelMaximised);
     clear(panel);
-    const tab = (t: 'problems' | 'results' | 'sql', label: string, badge?: HTMLElement): HTMLElement =>
+    const tab = (t: typeof panelTab, label: string, badge?: HTMLElement): HTMLElement =>
       h('button', { class: `panel-group__tab${panelTab === t ? ' panel-group__tab--active' : ''}`, 'data-panel-tab': t,
-        onclick: () => { panelTab = t; renderPanel(); } }, label, badge);
+        onclick: () => { panelTab = t; renderPanel(); if (t === 'data') void renderData(); } }, label, badge);
     panel.append(
       h('div', { class: 'panel-group__header' },
-        h('div', { class: 'panel-group__tabs' }, tab('problems', 'Problems', problemsBadge), tab('results', 'Results'), tab('sql', 'SQL Playground')),
+        h('div', { class: 'panel-group__tabs' }, tab('problems', 'Problems', problemsBadge), tab('results', 'Results'), tab('sql', 'SQL Playground'), tab('data', 'Data')),
         h('div', { class: 'panel-group__actions' },
           h('button', { class: 'panel-group__action', title: 'Toggle expand/collapse', onclick: () => { panelMaximised = !panelMaximised; renderPanel(); } },
             icon(panelMaximised ? 'chevronDown' : 'chevronUp', '18px')),
           h('button', { class: 'panel-group__action', title: 'Close', onclick: () => { panelOpen = false; renderPanel(); renderStatus(); } }, icon('x', '18px')))),
-      panelTab === 'problems' ? problemsPanel : panelTab === 'results' ? resultsPanel : sqlPanel);
+      panelTab === 'problems' ? problemsPanel : panelTab === 'results' ? resultsPanel : panelTab === 'sql' ? sqlPanel : dataPanel);
   };
   const openPanel = (): void => {
     panelTab = 'problems';
