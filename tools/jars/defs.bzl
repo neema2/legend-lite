@@ -17,6 +17,7 @@ Either way a reader resolves a line against the root it resolves the list's own
 path against (ProgramPaths.listed reads either form).
 """
 
+load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 
 def _java_jars_impl(ctx):
@@ -82,4 +83,28 @@ file_list = rule(
 A test names the list with ONE -D<property>=$(rlocationpath :<name>) and reads it with SourceFiles (//testing): a set
 of hundreds of files in jvm_flags would pass Windows' 32,767-character command-line limit (A4). The files ride in the
 list's runfiles, so a test that depends on the list has them.""",
+)
+
+def _java_runtime_jars_impl(ctx):
+    return [DefaultInfo(files = depset(transitive = [
+        b[java_common.JavaRuntimeClasspathInfo].runtime_classpath
+        for b in ctx.attr.binaries
+    ]))]
+
+java_runtime_jars = rule(
+    implementation = _java_runtime_jars_impl,
+    attrs = {
+        "binaries": attr.label_list(
+            providers = [java_common.JavaRuntimeClasspathInfo],
+            mandatory = True,
+            doc = "Java programs (java_binary).",
+        ),
+    },
+    doc = """Every jar the binaries run with, as this target's files (docs/BUILD_REBUILD_DESIGN_2026_10_05.md, step 1).
+
+Building it compiles every library the programs run with, and only those. It builds no deploy jar, launcher or
+runfiles, and none of the programs' data. The list is each binary's runtime classpath (JavaRuntimeClasspathInfo), so it
+follows the binaries' dependencies and is never kept by hand. A binary with no sources of its own is the exception:
+its class jar is an empty Javac output that rules_java puts on the launcher's class path but not in
+JavaRuntimeClasspathInfo, so it is not here.""",
 )

@@ -59,6 +59,17 @@ esbuild.esbuild(
     ("editor_worker", "src/backend/editor-worker.ts", "editor.worker.js"),
 ]]
 
+# THE BUNDLES STUDIO SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the page and its two workers.
+filegroup(
+    name = "bundles",
+    srcs = [
+        ":bundle",
+        ":bundle_editor_worker",
+        ":bundle_planner_worker",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
 # The WebAssembly modules the page loads from ./vendor/: the compiler (vendor/planner/) and the SDLC
 # (vendor/sdlc/), and the fonts.
 copy_to_directory(

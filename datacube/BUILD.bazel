@@ -649,6 +649,19 @@ _UNSPLIT = ["src/planner-worker.ts"]
     chdir = package_name(),
 ) for entry, out in _BUNDLES.items()]
 
+# THE BUNDLES DATACUBE SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the app, the embeddable page and
+# the planner's worker. remote-bundle and stress are fixtures of their harnesses (verify_remote, run_stress), not
+# product: they leave the site with D5.
+filegroup(
+    name = "bundles",
+    srcs = [
+        ":bundle_bundle",
+        ":bundle_bundle_page",
+        ":bundle_planner_worker",
+    ],
+    visibility = ["//:__pkg__"],
+)
+
 # The two WebAssembly runtimes the page loads from ./vendor/: DuckDB's, from engine-client's
 # npm package, and legend-lite's planner, from //wasm:planner; and the fonts, from legend-art (the pinned @fontsource).
 copy_to_directory(

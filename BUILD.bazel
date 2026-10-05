@@ -1,6 +1,7 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/deps:pools.bzl", "POOLS")
 load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/jars:defs.bzl", "java_runtime_jars")
 
 # Root package. Exists so the jar pools' lock files are labels rules_jvm_external
 # can read (MODULE.bazel says which pool is whose; tools/deps/pools.bzl lists them),
@@ -16,6 +17,59 @@ filegroup(
         "//tools/deps:__pkg__",
         "//tools/guards:__pkg__",
     ],
+)
+
+# THE BUILD (docs/BUILD_REBUILD_DESIGN_2026_10_05.md, step 1): what we ship, by kind. Building one of these compiles
+# that kind of product and runs nothing else: no generator, test, check or measurement. The first four are compiles,
+# and //tools/guards:compile_only_test fails if one of them gains any other kind of action. The everyday build is
+# `bazel build //:java //:web`.
+
+# The Java the three servers run with: every jar of each one's runtime classpath (the engine, the database server, and
+# SDLC with Depot's rules), except each server's own class jar, which is empty because the servers have no sources. It
+# follows the servers' dependencies, so it is never edited by hand.
+java_runtime_jars(
+    name = "java",
+    binaries = [
+        "//core:server",
+        "//sdlc-server:server",
+        "//warehouse:server",
+    ],
+    visibility = ["//tools/guards:__pkg__"],
+)
+
+# The browser bundles each app ships (each app's own :bundles names them).
+filegroup(
+    name = "web",
+    srcs = [
+        "//datacube:bundles",
+        "//query:bundles",
+        "//studio:bundles",
+    ],
+    visibility = ["//tools/guards:__pkg__"],
+)
+
+# Our Java compiled to WebAssembly for the browser: the engine's planner, and SDLC with Depot (Studio's page).
+filegroup(
+    name = "wasm",
+    srcs = [
+        "//sdlc-server:page",
+        "//wasm:planner",
+    ],
+    visibility = ["//tools/guards:__pkg__"],
+)
+
+# The database server as a native executable (GraalVM).
+filegroup(
+    name = "native",
+    srcs = ["//warehouse:server_native"],
+    visibility = ["//tools/guards:__pkg__"],
+)
+
+# The site: every app from one origin, as a folder for any static host. Packaging, not a compile: it copies what the
+# tiers above built.
+filegroup(
+    name = "sites",
+    srcs = ["//site:dist"],
 )
 
 

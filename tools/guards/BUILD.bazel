@@ -1,6 +1,7 @@
 # THE GUARDS (Bazel workplan Phase 6): tests over the repository itself. inventory.bzl lists every file and package
 # (@repo_inventory); defs.bzl's guards_package gives each package an `all_files` the content guards read.
 load("@repo_inventory//:packages.bzl", "PACKAGES")
+load(":compile_only.bzl", "action_kinds_report")
 load(":defs.bzl", "guards_package")
 load("//tools/junit:defs.bzl", "junit_test")
 
@@ -84,6 +85,32 @@ junit_test(
     # a list: an environment variable keeps it one value (in jvm_flags it would split into JVM arguments)
     env = {"CLASSPATH_REPORTS": "$(rlocationpaths :classpath_reports)"},
     select = ["--select-class=com.legend.tools.guards.ClasspathTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# THE BUILD IS ONLY COMPILES (docs/BUILD_REBUILD_DESIGN_2026_10_05.md, step 1): every kind of action the build targets
+# perform (compile_only.bzl), and the test that holds them to compiling and file plumbing.
+action_kinds_report(
+    name = "build_action_kinds",
+    tiers = {
+        "//:java": "java",
+        "//:native": "native",
+        "//:wasm": "wasm",
+        "//:web": "web",
+    },
+)
+
+junit_test(
+    name = "compile_only_test",
+    size = "small",
+    srcs = ["CompileOnlyTest.java"],
+    data = [":build_action_kinds"],
+    env = {"BUILD_ACTION_KINDS": "$(rlocationpath :build_action_kinds)"},
+    memory_mb = 512,
+    select = ["--select-class=com.legend.tools.guards.CompileOnlyTest"],
     deps = [
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
