@@ -325,4 +325,4 @@ without a **done** entry.
   37304703940 52/52, local gate 313/313 with PCT, corpus and stress lanes. Main CI for 3781cbf98 went green after
   rerunning two Windows jobs (a pgjdbc timeout on a loaded runner; the warehouse poll race, fixed since).
 - **P3-30:** **the audit showed I contradicted P2-16's classification** (generated two policy registers). Reverted;
-  P3-30 amended to a classification (dfc...). Kept: pe's ledgers through ProgramPaths.
+  P3-30 amended to a classification (816cb871e). Kept: pe's ledgers through ProgramPaths.
