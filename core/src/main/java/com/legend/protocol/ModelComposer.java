@@ -75,7 +75,7 @@ public final class ModelComposer {
                 }
             }
             if (!mine.isEmpty()) {
-                composed.add("###" + free.parser() + "\n" + joinPrinted(mine) + "\n");
+                composed.add("###" + free.parser() + "\n" + joinPrinted(free.freeSectionOrder(mine)) + "\n");
                 toCompose.removeAll(mine);
             }
         }

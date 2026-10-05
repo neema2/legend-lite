@@ -24,10 +24,33 @@ import java.util.function.Function;
 final class ElementFamilies {
 
     /** A family: its section's parser name, whether core prints it, its printer, its element {@code _type}s. */
-    record Family(String parser, boolean core, Function<Json.Obj, String> print, List<String> types) {
+    record Family(String parser, boolean core, Function<Json.Obj, String> print, List<String> types, boolean byKind) {
+
+        Family(String parser, boolean core, Function<Json.Obj, String> print, List<String> types) {
+            this(parser, core, print, types, false);
+        }
 
         boolean printsIn(String sectionParser) {
             return core ? !claimed(sectionParser) : parser.equals(sectionParser);
+        }
+
+        /**
+         * A free section's elements in the order upstream prints them: the model's own, or, for an extension
+         * that selects its kinds one after the other ({@code byKind}), kind by kind in {@link #types}' order.
+         */
+        List<Json.Obj> freeSectionOrder(List<Json.Obj> elements) {
+            if (!byKind) {
+                return elements;
+            }
+            List<Json.Obj> out = new ArrayList<>();
+            for (String t : types) {
+                for (Json.Obj e : elements) {
+                    if (t.equals(Composing.type(e))) {
+                        out.add(e);
+                    }
+                }
+            }
+            return out;
         }
     }
 
@@ -42,11 +65,23 @@ final class ElementFamilies {
     static final List<Family> EXTENSIONS = List.of(
             new Family("Data", false, DataElementComposer::dataElement, List.of("dataElement")),
             new Family("ExternalFormat", false, ExternalFormatComposer::element, List.of("externalFormatSchemaSet", "binding")),
+            new Family("FileGeneration", false, GenerationComposer::fileGeneration, List.of("fileGeneration")),
+            new Family("GenerationSpecification", false, GenerationComposer::generationSpecification, List.of("generationSpecification")),
             new Family("Service", false, ServiceComposer::element, List.of("service", "executionEnvironmentInstance")),
+            new Family("BigQuery", false, FunctionActivatorComposer::bigQueryFunction, List.of("bigQueryFunction")),
             new Family("DataSpace", false, DataSpaceComposer::dataSpace, List.of("dataSpace")),
+            new Family("DataQualityValidation", false, DataQualityComposer::element,
+                    List.of("dataQualityValidation", "dataqualityRelationValidation", "dataQualityRelationComparison")),
             new Family("Relational", false, DatabaseComposer::database, List.of("relational")),
             new Family("QueryPostProcessor", false, DatabaseComposer::relationalMapper, List.of("relationalMapper")),
             new Family("Diagram", false, DiagramComposer::diagram, List.of("diagram")),
+            new Family("Elasticsearch", false, ElasticsearchComposer::store, List.of("elasticsearch7Store")),
+            new Family("FunctionJar", false, FunctionActivatorComposer::functionJar, List.of("functionJar")),
+            new Family("HostedService", false, FunctionActivatorComposer::hostedService, List.of("hostedService")),
+            new Family("MemSql", false, FunctionActivatorComposer::memSqlFunction, List.of("memSqlFunction")),
+            new Family("Persistence", false, PersistenceComposer::element, List.of("persistenceContext", "persistence"), true),
+            new Family("ServiceStore", false, ServiceStoreComposer::serviceStore, List.of("serviceStore")),
+            new Family("Snowflake", false, FunctionActivatorComposer::snowflake, List.of("snowflakeApp", "snowflakeM2MUdf")),
             new Family("Text", false, ExternalFormatComposer::text, List.of("text")));
 
     /** Each element {@code _type}'s family. */

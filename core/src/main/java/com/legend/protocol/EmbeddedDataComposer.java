@@ -36,7 +36,8 @@ final class EmbeddedDataComposer {
             "externalFormat", new Kind("ExternalFormat", EmbeddedDataComposer::externalFormat),
             "modelStore", new Kind("ModelStore", EmbeddedDataComposer::modelStore),
             "relationAccessor", new Kind("Relation", EmbeddedDataComposer::relationElements),
-            "relationalCSVData", new Kind("Relational", EmbeddedDataComposer::relationalCsv));
+            "relationalCSVData", new Kind("Relational", EmbeddedDataComposer::relationalCsv),
+            "serviceStore", new Kind("ServiceStore", ServiceStoreComposer::embeddedData));
 
     private EmbeddedDataComposer() {
     }
@@ -53,7 +54,7 @@ final class EmbeddedDataComposer {
         } else {
             Kind kind = KINDS.get(Composing.type(data));
             if (kind == null) {
-                kind = ServiceStoreDataComposer.kind(data);
+                throw Composing.refused("no composer rule for embedded data of _type '" + Composing.type(data) + "'");
             }
             keyword = kind.keyword();
             content = kind.content().apply(data, inner);
