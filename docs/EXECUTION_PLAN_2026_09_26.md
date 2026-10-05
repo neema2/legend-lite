@@ -941,6 +941,9 @@ If C3 chooses "stop the middle rebuild", W5.1c is dropped and W5.2's determinism
   `VerdictArm`, `CsvLoad`, `SeedSqlForms`, `PlanAllocations`); `//wasm:boundary` then depends on `:planner` only. The
   one plan→execution crossing is the effect analysis (`programFacts` → `StatementExecutor.containsEffect`; and
   `Compiler.containsTdgGenerator` used by `BodyCompiler`): it moves to the compiler first. Not done there: this item's.
+  *Update 2026-10-04 (user): the STRUCTURAL split moves to the database-owner line* (its C1 then C2, after C3): the
+  effect analysis into the compiler, the `planner` library with a compile-once API, the `Execution` front door, the
+  ~127 callers moved. W6.2 keeps the runner rewrite only. B2/B3 and C4 stay here.
 - **W6.4 Periphery**: lineage over the typed HIR plus H's binding map; test-data generation through the MIR; the server a
   thin adapter; test runners and the probe out of the product jar. Gate: the product jar's contents list.
 

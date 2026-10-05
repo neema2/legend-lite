@@ -299,6 +299,20 @@ run, and are removed before any commit.
     execution classes; a rule that `planner`'s packages do not depend on `java.sql`/`javax.sql`), every guard of §3.5,
     AGENTS.md's entry-point table (§"Entry points") and pipeline text.
   - Gate: `PlannerRunsOnJavaBaseTest`; `jdeps` on `:planner`'s closure shows no `java.sql`; the full chain.
+  - **The planner's API, compile once (user, 2026-10-04).** `Compiler`'s ~20 plan-side statics are three stages in
+    variants — load the model (`parseModel`, `parseSources` ×3, `buildModel`, `buildModule`, `compileModel` ×2,
+    `compileAllBodies`), type a query (`compileQuery` ×2, `resultType` ×2, `target`, `resolveQuery`), plan it
+    (`plan` ×2, `planStreaming`, `compile` = `plan(..).sql()`, `lowerResolved` ×2) — and nearly each takes the model
+    as TEXT and recompiles it (`compileModel(model)` inside `plan`, `resultType`, `target`, `compileQuery`). The
+    `planner` library carries instead ONE compiled-model object: `Planner.compile(sources, options)` (strict or
+    tolerant is an option) → `CompiledModel.query(text | spec)` → `TypedQuery` (its type, its `->from` runtime as
+    properties) → `.plan()` → `QueryPlan` (SQL, result shape, and the connection target C3b decides). The model is
+    compiled once and reused, as upstream compiles `PureModel` once and generates the plan from it. The ~127
+    `Compiler.*` callers move to it (compiler-checked); no string-recompiling wrapper survives (rule 15).
+  - **Order (user, 2026-10-04): C1 and C2 are THIS line's**, after C3 (C3b, C3c, the guard). The rebuild's W6.2
+    keeps only the runner rewrite (`StatementExecutor` stops re-running G–I; staged plan, W6.1/W6.3); B2/B3 (the
+    effect scan's swallowed errors) and C4 (the reader) stay the rebuild's. C1 only MOVES the effect scan, catch
+    included, so it does not wait for B3.
 - **C3. One owner per concern, keyed by the declared `DatabaseType` — the two-owner design (PROPOSED 2026-10-03, after
   the complete sweep below).** Upstream keeps two per-database registries — SQL generation (`dbExtension.pure`,
   `loadDbExtension`) and connection management (Java `DatabaseManager`s) — and so do we:
@@ -476,6 +490,9 @@ run, and are removed before any commit.
        ACCESSORS produce (`TableReferenceChecker.java:128`); a resolved class query names its tables in other nodes.
        In the corpus it saw a store in 35 of ~256,000 statements. **Fix:** the per-statement check reads the stores a
        resolved statement touches from every node that names one (accessor AND mapped class), or it is not a check.
+    5. **(found 2026-10-04) `Compiler.target(model, query)` already reads a query's own `->from(.., runtime)`** (its
+       typed `TypedFrom.runtime()`), taking the FIRST found. A starting point for the in-query runtime, not an answer:
+       first-match is the shape this line removes; C4 owns reading it fully.
     4. **The one "unbound store" case is the platform's own metamodel store** (`meta::lite::metamodel::MetamodelStore`,
        73 statements, core tests, `storeless::Runtime`): routed to `SystemDatabase`, legitimately bound by no runtime.
        **Fix:** exempted by identity, with its reason — not a silent pass.
