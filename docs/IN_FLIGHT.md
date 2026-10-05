@@ -11,7 +11,11 @@ with the compiler's plan/execution split**, in this order:
    `docs/bazel-first-class-plan`): build files — `core/BUILD.bazel`, `tools/deps`, `MODULE.bazel` (splitting out a
    `release.MODULE.bazel`), `pct`, `spec`, `parser-equivalence`, the guards. Batch 8 lands first. It also carries the
    reference-lane fix the user decided ("fix rule to match pure": legend-pure's overload for `min`/`max` over a list
-   literal), in `core/compiler/spec` — no one else edits those files until it lands.
+   literal), in `core/compiler/spec` — no one else edits those files until it lands. **Announced 2026-10-05:** two small core edits the
+   guards found — `core/src/main/duckdb/com/legend/exec/DuckDbAppenderLoad.java` (its `finally` replaced an in-flight
+   unchecked error with the staging drop's; found when P3-27 put `src/main/duckdb` under the guards), and the core
+   test sources the guards and censuses read (declared file lists, P3-27/P3-05). Not fixed by this program: F-L1 in
+   `projects/FINDINGS.md` (a view inside a Schema is lifted twice; one line in `ModelBuilder`), for the compiler's owner.
 2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; PR #24 `studio-m1`, then `query-by-name`): `studio/`,
    `legend-art/`, `query/`, `datacube/` (imports and labels), `site/`, a `@fontsource` block in `MODULE.bazel`. Nothing
    in `core/`. Lands on the user's merge; `MODULE.bazel` is shared with the Bazel program (the second to land rebases).
