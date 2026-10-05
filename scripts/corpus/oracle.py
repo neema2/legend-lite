@@ -518,22 +518,26 @@ def _date_diff(vals):
         raise Unsupported(
             f"dateDiff in {unit} is not implemented: a month and a year are not fixed "
             f"lengths, so the answer depends on a convention the signature does not state")
-    if unit in ("HOURS", "MINUTES", "SECONDS"):
+    if unit in ("HOURS", "MINUTES", "SECONDS", "MILLISECONDS", "MICROSECONDS"):
         # ELAPSED TIME, with the remainder dropped toward zero: legend-pure's own definition (m4
         # DateFunctions: the time units "measure elapsed time, dropping any remainder. This is not the same
         # as counting boundaries"; DateDiff computes ChronoUnit.between). 14:30 to 10:02 seven days later is
         # 163 hours. This oracle counted boundaries (164) until 2026-10-05, reading SQL's DATEDIFF as the
         # documented convention; legend-pure documents the other, and legend-engine's relational SQL
-        # counting boundaries is the divergence (UPSTREAM_FINDINGS F58). Exact, in microseconds.
+        # counting boundaries is the divergence (UPSTREAM_FINDINGS F58). In integer microseconds of the two
+        # wall-clock times (_dt keeps whole seconds and no offset; Pure reads both as UTC local date-times).
         micros = (b - a) // _timedelta(microseconds=1)
-        unit_micros = {"HOURS": 3_600_000_000, "MINUTES": 60_000_000, "SECONDS": 1_000_000}[unit]
+        unit_micros = {"HOURS": 3_600_000_000, "MINUTES": 60_000_000, "SECONDS": 1_000_000,
+                       "MILLISECONDS": 1_000, "MICROSECONDS": 1}[unit]
         n = abs(micros) // unit_micros
         return n if micros >= 0 else -n
-    # the calendar units count boundaries: truncate both operands to the unit and subtract
-    step = _FIXED_UNITS[unit] * 86400
-    trunc_a = int(a.timestamp() // step)
-    trunc_b = int(b.timestamp() // step)
-    return trunc_b - trunc_a
+    if unit == "DAYS":
+        # day boundaries, from the dates themselves (DateDiff: the dates' day numbers). Not timestamp(): on a naive
+        # datetime it reads the HOST's zone, so a span across a DST change answered differently by machine
+        return (b.date() - a.date()).days
+    # WEEKS counts Sunday boundaries, with a backward rule that is not the negation (DateDiff.weeksBetween); not
+    # modelled, and the corpus asks for none: refused rather than answered by a 1970-epoch (Thursday) count
+    raise Unsupported("dateDiff in WEEKS is not implemented: Pure counts Sunday boundaries, asymmetrically")
 
 
 def _adjust(vals):

@@ -6,8 +6,8 @@
 
 The elapsed time is 163 h 32 min. **Pure's answer is 163.** legend-pure's m4 `DateFunctions` documents it: the time
 units (HOURS, MINUTES, SECONDS, ...) "measure elapsed time, dropping any remainder. This is not the same as counting
-boundaries" (12:59:00 to 13:01:00 is zero HOURS), and `DateDiff` computes `ChronoUnit.HOURS.between` (4.145.0 /
-5.99.0). Its PCT cases (`platform/pure/essential/date/operation/dateDiff.pure`) all start on a unit boundary, where the
+boundaries" (12:59:00 to 13:01:00 is zero HOURS), and `DateDiff` computes `ChronoUnit.HOURS.between` (legend-pure
+5.99.0, the pinned release). Its PCT cases (`platform/pure/essential/date/operation/dateDiff.pure`) all start on a unit boundary, where the
 two rules agree, so they do not show it.
 
 | rule | answer | who |

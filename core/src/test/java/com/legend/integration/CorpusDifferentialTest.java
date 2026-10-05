@@ -74,6 +74,7 @@ class CorpusDifferentialTest {
                 String[] header = want.get(0).split("\\|");
                 List<String> expectedRows = want.subList(1, want.size());
                 List<String> actualRows;
+                boolean crashed = false;
                 try {
                     var vs = com.legend.compiler.NameResolver.resolveQuery(svc.functionBody());
                     // The service's own runtime, not a fixed one — see StressServiceSuitesTest.
@@ -84,13 +85,13 @@ class CorpusDifferentialTest {
                 } catch (Exception e) {
                     // a service legend-lite cannot render or run is judged like a wrong answer: named, with its
                     // reason, never a crash that hides every service after it (Bazel workplan P3-18)
+                    crashed = true;
                     actualRows = List.of("ERROR " + e.getClass().getSimpleName() + ": "
                             + String.valueOf(e.getMessage()).lines().findFirst().orElse(""));
                 }
 
                 boolean same = expectedRows.equals(actualRows);
                 // a quarantined service that CRASHES is not its known divergence: it is a new failure
-                boolean crashed = actualRows.size() == 1 && actualRows.get(0).startsWith("ERROR ");
                 if (same && known.containsKey(name)) {
                     fixed.add(name);
                     System.out.println("FIXED " + name + " — remove from quarantine.py");
