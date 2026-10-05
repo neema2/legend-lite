@@ -336,6 +336,7 @@ step 1, whose purpose is the measurement.
    - Then port the tests and harnesses, replace the servers, and remove the Node toolchain.
    - Exit: `bazel query` finds no Node toolchain dependency.
 8. **CI.** Lanes come from `//gates`; one cache per platform (then a remote cache, Phase 5).
+9. **Last: the product naming (D11), and Depot as its own server (D12)**, each its own announced change.
 
 Every step that touches Bazel setup is reviewed by the Bazel session before it is pushed, and goes through the
 throwaway CI run on all platforms.
@@ -377,6 +378,18 @@ throwaway CI run on all platforms.
   - `//site:dist` combines Query, DataCube and Studio; PR #24 adds Studio.
   - DataCube's `make-dist.mjs` and its second packaging path go.
   - Packaging joins step 1 as a fifth target, `//:sites`.
+
+- **D11. One naming scheme for the backend products, done at the end, as its own change.**
+  - The four products: `core`, `db` (today `warehouse`), `sdlc` (today `sdlc-server`) and `depot` (today
+    `depot-server`).
+  - What it covers: the folders, the Java packages (`com.legend.warehouse` → `com.legend.db`, …), the targets, the docs
+    and the CI lane names.
+  - It is done after the build work, and coordinated through IN_FLIGHT, because every line of work touches these paths.
+- **D12. Depot becomes its own server.**
+  - Today `//depot-server` is only `:rules`, and the SDLC server hosts it at `/depot/api` (`SdlcServer.java:35,113`).
+  - It gains its own server program beside SDLC's. It stays inside the SDLC page's WebAssembly for the in-browser
+    Studio, unless that is decided otherwise.
+  - Done with D11, or before it as a product change. It is not build work.
 
 ## 7. Open items the audits could not settle
 
