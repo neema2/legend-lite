@@ -244,3 +244,23 @@ without a **done** entry.
   //:update_generated no longer re-blesses the rosters; the warehouse lane checks against DuckDB's committed rosters.
 - **Batch 10 complete** but P3-05 (moved after P3-27, which it depends on) and P3-06 (deferred in §6.3 unless the
   user chooses it). Next: push batch 10's rest, P2-90 on main, then batch 11.
+- **Pushed to main: 77f4107c1** (the keyword fix, P3-17 and its audits' follow-ups, P2-15 and its audit's): throwaway
+  37283951536 52/52, local gate 213/213 with PCT and both corpus lanes. Main CI 37289520555. Main's previous run
+  (6b66e3d74) green after one rerun: //studio:verify_test timed out on a click (the same tree was green in the
+  throwaway; a flake).
+- **P3-08, P3-09, P3-12, P3-18, P3-07 committed** (with their audits' follow-ups), batch 11:
+  - P3-09: PCT one target per suite and per Channel B class; PctCensusGate judges each suite's own deltas against
+    per-suite ceilings (DuckDB int-null-empty 20/20/4, the whole-JVM 231 was Maven's composite; Postgres diverge 12/4);
+    Channel B pins 75/103 -> 0; E7 holds (sharding pct_h2 fails the overrun guard).
+  - P3-12: //core:stress_suites_h2 (no lane enforced MIN_PASS_H2), the knobs in //core:stress_tool.
+  - P3-18: the differential wired (D3 row 4). First run 166 agree / 13 unexpected: harness bugs fixed (unqualified
+    schemas, FLOAT as DOUBLE, Java's half-up %.6f); X1 out of scope (two connections; stress_suites skips it).
+    **The audit corrected me:** I first quarantined MO2 as a lite defect; legend-pure's m4 DateDiff defines HOURS as
+    elapsed time (163), so lite was right and the oracle (and legend-engine's SQL) wrong. The oracle now follows Pure
+    (five services' expectations moved; ENGINE_QUARANTINE F58; floors 4,705 / 4,676); its DAYS path read the host's
+    zone (fixed). Differential: 178 agree, 1 known (F14).
+  - P3-07: exact data for spec, pct and parser-equivalence; the 36 upstream-tree consumers kept whole (a pin bump reruns
+    all of them anyway; §6.3).
+- **P2-90 done** (independent): 16 of 20 met; P2-04 reopened, NEW P2-21 (core ratchets), NEW P2-22 (false "generated"
+  claims), amendments to P2-09, P2-10, P3-12; process gaps recorded in §6.5.
+- **Moved:** P3-05 and P3-30 after P3-27 (they depend on its lists). P3-06 stays deferred (§6.3) unless the user chooses.
