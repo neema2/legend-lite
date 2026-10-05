@@ -46,6 +46,8 @@ export class App {
     if (this.#session?.changed && !this.#savedJustNow(hash)) {
       if (!await confirmDialog('Unsaved changes', 'Leave this query? Its unsaved changes will be lost.', 'Leave')) {
         history.replaceState(null, '', this.#hash);
+        // a screen that started the move (the version picker) puts itself back
+        dispatchEvent(new Event('q-navigation-cancelled'));
         return;
       }
     }
@@ -91,6 +93,8 @@ export class App {
   }
 
   async #render(r: Route): Promise<void> {
+    // a route names a version; one opened by name is loaded the first time it is asked for (AppContext.ensure)
+    if ('gav' in r) await this.#ctx.ensure(r.gav);
     const app = this.#ctx;
     switch (r.kind) {
       // as upstream: / opens the query builder; the setup page (every way to start) is /setup
