@@ -1108,8 +1108,8 @@ public interface TokenStreamCursor {
     // the fleet, here.
     // -----------------------------------------------------------------
 
-    static final String DOC_PROFILE_PATH = "meta::pure::profiles::doc";
-    static final String DOC_TAG = "doc";
+    static final String DOC_PROFILE_PATH = com.legend.protocol.Documentation.PROFILE;
+    static final String DOC_TAG = com.legend.protocol.Documentation.TAG;
 
     /** A documentation literal read at declaration position: the token, its
      *  raw text, and its span over the WHOLE literal (closing delimiter

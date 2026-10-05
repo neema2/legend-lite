@@ -74,6 +74,25 @@ public final class PureComposer {
         return new PureComposer(style, "", false).visit(ProtocolUpgrade.upgrade(node));
     }
 
+    /**
+     * A value specification inside a model element ({@link ModelComposer}): upstream's printer built
+     * from the element's composer context, whose indentation a lambda's closing brace, a collection's
+     * closing bracket and a text block's lines are written at.
+     */
+    static String valueSpecification(Json.Node node, Style style, String indentation) {
+        return new PureComposer(style, indentation, false).visit(ProtocolUpgrade.upgrade(node));
+    }
+
+    /** A function or derived property's parameter, as its signature spells it: no {@code $}. */
+    static String signatureParameter(Json.Node variable) {
+        return new PureComposer(Style.STANDARD, "", true).visit(ProtocolUpgrade.upgrade(variable));
+    }
+
+    /** {@code HelperValueSpecificationGrammarComposer.printGenericType}. */
+    static String genericType(Json.Obj genericType) {
+        return new PureComposer(Style.STANDARD, "", false).printGenericType(genericType);
+    }
+
     // ---------------------------------------------------------------------
     // Builder state (upstream's Builder.newInstance(this).with...)
     // ---------------------------------------------------------------------
@@ -556,7 +575,7 @@ public final class PureComposer {
     }
 
     /** {@code HelperDomainGrammarComposer.renderMultiplicity}; absent means {@code [*]}. */
-    private static String multiplicity(@com.legend.base.Nullable Json.Obj m) {
+    static String multiplicity(@com.legend.base.Nullable Json.Obj m) {
         int lower = m == null ? 0 : m.getIntOr("lowerBound", 0);
         int upper = m == null ? Integer.MAX_VALUE : upper(m);
         if (lower == 0 && upper == Integer.MAX_VALUE) {
@@ -773,7 +792,7 @@ public final class PureComposer {
      * A path's {@code ::}-separated segments as Java's String split gives them (upstream's printer
      * splits so): no separator is the text itself; otherwise trailing empty segments are dropped.
      */
-    private static List<String> pathSegments(String s) {
+    static List<String> pathSegments(String s) {
         if (s.indexOf("::") < 0) {
             return List.of(s);
         }
@@ -804,7 +823,7 @@ public final class PureComposer {
         return out;
     }
 
-    private static String convertPath(String val) {
+    static String convertPath(String val) {
         List<String> out = new ArrayList<>();
         for (String s : pathSegments(val)) {
             out.add(convertIdentifier(s));
