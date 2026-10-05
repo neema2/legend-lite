@@ -177,6 +177,11 @@ export class SdlcClient {
     return this.#json('POST', `/projects/${enc(project)}/reviews/${enc(id)}/${action}`);
   }
 
+  /** `GET …/approval`: who has approved the review. */
+  approval(project: string, id: string): Promise<{ readonly approvedBy: readonly User[] }> {
+    return this.#json('GET', `/projects/${enc(project)}/reviews/${enc(id)}/approval`);
+  }
+
   /** Lands the review on the project line (and deletes its workspace). */
   commitReview(project: string, id: string, message: string): Promise<Review> {
     return this.#json('POST', `/projects/${enc(project)}/reviews/${enc(id)}/commit`, { message });

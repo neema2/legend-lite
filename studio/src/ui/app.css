@@ -185,6 +185,7 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .side-bar__panel__count { display: flex; align-items: center; height: 16px; margin: 0 10px 0 auto; padding: 3px 7px; border-radius: 8px; background: var(--color-bg-tag); color: var(--color-text-secondary); font-size: 10px; font-weight: 500; }
 .side-bar__panel__content { padding: 5px 0; background: var(--color-bg-panel); }
 .side-bar__panel__item { display: flex; align-items: center; width: 100%; height: 22px; padding: 0 5px 0 10px; color: var(--color-text-muted); }
+.workspace-review__approvals { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 10px 8px; color: var(--color-text-muted); }
 .side-bar__panel__item--selected { background: var(--color-bg-selected); color: var(--color-text-primary); }
 .revision-item { cursor: pointer; gap: 8px; }
 .side-bar__panel__item:hover { background: var(--color-accent-subtle); }
@@ -323,6 +324,9 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .diff-view__path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); font-size: 12px; }
 .diff-view__editor { flex: 1; min-height: 0; }
 .diff-item { cursor: pointer; }
+.diff-item__discard { display: none; border: 0; background: none; color: var(--color-text-muted); cursor: pointer; padding: 0 4px; }
+.diff-item:hover .diff-item__discard { display: block; }
+.diff-item__discard:hover { color: var(--color-text-primary); }
 /* the element search (Ctrl + P, plan A7): upstream's search modal, at the top, the list under the input */
 .search-modal { width: 600px; max-width: calc(100vw - 32px); background: var(--color-bg-panel); box-shadow: var(--color-shadow) 0 1px 5px 0; }
 .search-modal__input { height: 34px; font-size: 14px; }

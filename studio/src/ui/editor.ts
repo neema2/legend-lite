@@ -532,6 +532,8 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       return h('div', { class: `side-bar__panel__item diff-item diff-item--${c.type.toLowerCase()}`, title: c.path, 'data-path': c.path,
         onclick: () => showLocalDiff(c.path, c.type) },
         h('div', { class: 'diff-item__name' }, name), h('div', { class: 'diff-item__path' }, c.path),
+        h('button', { class: 'diff-item__discard', title: 'Discard this change', 'data-testid': 'discard-change',
+          onclick: (e: Event) => { e.stopPropagation(); discard(c.path, c.type); } }, icon('undo')),
         h('div', { class: 'diff-item__type' }, LETTER[c.type] ?? c.type[0]));
     });
     for (const p of blocked) {
@@ -541,6 +543,28 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     }
     changesBody.append(subPanel('Changes', { info: 'All local changes that have not been yet pushed with the server', count: changes.length, testId: 'changes' },
       ...(rows.length ? rows : [h('div', { class: 'side-bar__panel__empty' }, 'No local changes')])));
+  };
+
+  /**
+   * A local change discarded (upstream's per-change discard): the file the change is of -- a saved element (both
+   * halves of a rename are its file), a removed one, or a new one -- put back as saved, or dropped when it is new.
+   */
+  const discard = (path: string, type: 'CREATE' | 'MODIFY' | 'DELETE'): void => {
+    const file = type === 'CREATE' ? ws.files().find((f) => fileLabel(f) === path) : ws.files().find((f) => f.savedPath === path);
+    const key = ws.discard(file?.key ?? path);
+    if (key === undefined) {
+      models.get(file!.key)?.dispose();
+      models.delete(file!.key);
+      close(file!.key);
+    } else if (file) {
+      const m = modelOf(key);
+      m.pushEditOperations([], [{ range: m.getFullModelRange(), text: ws.file(key)!.text }], () => null);
+    } else {
+      show(key);
+    }
+    renderSide();
+    renderStatus();
+    scheduleCompile();
   };
 
   /** A local change's diff (plan A7): the element's text at the revision beside its text now. */
