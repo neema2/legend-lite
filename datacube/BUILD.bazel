@@ -869,7 +869,8 @@ _BROWSER_TESTS = {
 
 [js_binary(
     name = h.replace("-", "_"),
-    data = _HARNESS_HELPERS + [
+    # make-sample writes a CSV from the sources: it needs no site, no browser (P4-08)
+    data = [":src"] if h == "make-sample" else _HARNESS_HELPERS + [
         # named itself: SITE is its runfiles path
         "demo/index.html",
         ":node_modules/playwright",
@@ -882,7 +883,7 @@ _BROWSER_TESTS = {
         ["//tools/browser:pinned_chromium"] if h in ["verify-smoke", "verify-remote", "verify-real-data", "verify-features"] or h in _BROWSER_TESTS else []
     ),
     entry_point = "demo/" + h + ".mjs",
-    env = _SITE_ENV | ({"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"} if h == "verify-features" else {}),
+    env = {} if h == "make-sample" else _SITE_ENV | ({"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"} if h == "verify-features" else {}),
     node_options = [
         "--experimental-strip-types",
         "--experimental-wasm-exnref",

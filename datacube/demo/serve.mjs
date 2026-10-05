@@ -94,7 +94,8 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  const base = `http://localhost:${port}`;
+  // the port bound, not the one asked for: --port 0 means any free one (Bazel workplan P4-08)
+  const base = `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${server.address().port}`;
   let url = `${base}/demo/index.html`;
   if (DATA_ROUTE) {
     const fmt = extname(dataPath) === '.csv' ? 'csv'
@@ -115,8 +116,9 @@ server.listen(port, host, () => {
       + ' read what is served.\n');
   }
   if (wantOpen) {
-    const opener = process.platform === 'darwin' ? 'open'
-      : process.platform === 'win32' ? 'start' : 'xdg-open';
-    try { execFileSync(opener, [url]); } catch { /* not fatal */ }
+    // Windows' `start` is a cmd builtin, not a program: through cmd, with an empty title argument
+    const [opener, ...openArgs] = process.platform === 'darwin' ? ['open']
+      : process.platform === 'win32' ? ['cmd', '/c', 'start', '""'] : ['xdg-open'];
+    try { execFileSync(opener, [...openArgs, url]); } catch { /* not fatal */ }
   }
 });

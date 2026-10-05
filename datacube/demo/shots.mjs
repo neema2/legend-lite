@@ -10,8 +10,9 @@
 // than reloading it.
 //
 // Run: bazel run //datacube:shots
+import { mkdirSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { extname, join, resolve } from 'node:path';
 
 import { chromium } from 'playwright';
 import { serve, siteRoot } from './harness.mjs';
@@ -19,7 +20,11 @@ import { serve, siteRoot } from './harness.mjs';
 const ROOT = siteRoot();
 // `bazel run` starts this in its runfiles; screenshots are for a person,
 // so they go under the directory the run was started from.
-const OUT = join(process.env.BUILD_WORKING_DIRECTORY ?? process.cwd(), 'datacube-shots');
+// --out DIR (default: datacube-shots in the directory the run was started from), printed at the end
+const outAt = process.argv.indexOf('--out');
+const OUT = resolve(process.env.BUILD_WORKING_DIRECTORY ?? process.cwd(),
+  outAt >= 0 ? process.argv[outAt + 1] : 'datacube-shots');
+mkdirSync(OUT, { recursive: true });
 // port 0: any free one, never a fixed number (Bazel workplan P4-01)
 const { port: PORT, close: closeServer } = await serve(ROOT, { headers: { 'Cross-Origin-Opener-Policy': 'same-origin', 'Cross-Origin-Embedder-Policy': 'require-corp', 'Cross-Origin-Resource-Policy': 'cross-origin' } });
 
