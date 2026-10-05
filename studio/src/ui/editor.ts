@@ -9,6 +9,7 @@ import type { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import { SdlcError } from '../../../sdlc-client/src/client.ts';
 import type { Compiler } from '../backend/planner.ts';
 import type { Runner } from '../backend/run.ts';
+import type { RawTable } from '../../../engine-client/src/engine.ts';
 import { isTds, type ExecutionResult } from '../../../engine-client/src/legend/wire.ts';
 import { ELEMENT_KINDS, splitPath } from '../model/templates.ts';
 import { Workspace, type OpenFile, type Problem } from '../model/workspace.ts';
@@ -76,26 +77,47 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   // a function's run (plan A3): its rows, or what refused it
   const resultsPanel = h('div', { class: 'panel-group__content', 'data-testid': 'results' },
     h('div', { class: 'panel-group__empty' }, 'Run a function to see its result here.'));
+  // upstream's SQL playground: SQL on the tab's DuckDB, the model's own rows loaded first (plan A3)
+  const sqlText = h('textarea', { class: 'input sql-playground__text', 'data-testid': 'sql-text', placeholder: 'SELECT * FROM "PARTY"."PARTY"', spellcheck: 'false' });
+  const sqlOut = h('div', { class: 'sql-playground__out', 'data-testid': 'sql-out' });
+  const runSql = async (): Promise<void> => {
+    clear(sqlOut);
+    sqlOut.append(h('div', { class: 'panel-group__empty' }, 'Running…'));
+    const started = performance.now();
+    try {
+      const t = await ctx.run.sql(sqlText.value, ws.model().text);
+      clear(sqlOut);
+      sqlOut.append(rawView(t, Math.round(performance.now() - started)));
+    } catch (e) {
+      clear(sqlOut);
+      sqlOut.append(h('div', { class: 'panel-group__run-error' }, icon('error'), h('span', {}, e instanceof Error ? e.message : String(e))));
+    }
+  };
+  sqlText.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); void runSql(); } });
+  const sqlPanel = h('div', { class: 'panel-group__content sql-playground', 'data-testid': 'sql-playground' },
+    h('div', { class: 'sql-playground__editor' }, sqlText,
+      h('button', { class: 'btn btn-primary', 'data-testid': 'sql-run', title: 'Run the SQL (Ctrl + Enter)', onclick: () => void runSql() }, icon('play', '10px'), 'Run')),
+    sqlOut);
   let panelOpen = false;
   let panelMaximised = false;
-  let panelTab: 'problems' | 'results' = 'problems';
+  let panelTab: 'problems' | 'results' | 'sql' = 'problems';
   const panel = h('div', { class: 'panel-group' });
   const main = h('div', { class: 'main' });
   const renderPanel = (): void => {
     panel.classList.toggle('panel-group--closed', !panelOpen);
     main.classList.toggle('main--panel-maximised', panelOpen && panelMaximised);
     clear(panel);
-    const tab = (t: 'problems' | 'results', label: string, badge?: HTMLElement): HTMLElement =>
+    const tab = (t: 'problems' | 'results' | 'sql', label: string, badge?: HTMLElement): HTMLElement =>
       h('button', { class: `panel-group__tab${panelTab === t ? ' panel-group__tab--active' : ''}`, 'data-panel-tab': t,
         onclick: () => { panelTab = t; renderPanel(); } }, label, badge);
     panel.append(
       h('div', { class: 'panel-group__header' },
-        h('div', { class: 'panel-group__tabs' }, tab('problems', 'Problems', problemsBadge), tab('results', 'Results')),
+        h('div', { class: 'panel-group__tabs' }, tab('problems', 'Problems', problemsBadge), tab('results', 'Results'), tab('sql', 'SQL Playground')),
         h('div', { class: 'panel-group__actions' },
           h('button', { class: 'panel-group__action', title: 'Toggle expand/collapse', onclick: () => { panelMaximised = !panelMaximised; renderPanel(); } },
             icon(panelMaximised ? 'chevronDown' : 'chevronUp', '18px')),
           h('button', { class: 'panel-group__action', title: 'Close', onclick: () => { panelOpen = false; renderPanel(); renderStatus(); } }, icon('x', '18px')))),
-      panelTab === 'problems' ? problemsPanel : resultsPanel);
+      panelTab === 'problems' ? problemsPanel : panelTab === 'results' ? resultsPanel : sqlPanel);
   };
   const openPanel = (): void => {
     panelTab = 'problems';
@@ -626,4 +648,14 @@ function placeholderFor(type: string): string {
     case 'DateTime': return '%2024-06-01T09:30:00';
     default: return `a ${type}, as Pure`;
   }
+}
+
+/** Raw SQL's answer (the SQL playground): its columns and rows, how many, how long. */
+function rawView(t: RawTable, ms: number): HTMLElement {
+  const rows = Array.from({ length: t.rowCount }, (_, i) => t.columns.map((c) => c.values[i]));
+  return h('div', { class: 'run-result' },
+    h('div', { class: 'run-result__bar', 'data-testid': 'sql-status' }, `${t.rowCount} row${t.rowCount === 1 ? '' : 's'} in ${ms} ms`),
+    h('table', { class: 'run-result__table', 'data-testid': 'sql-rows' },
+      h('thead', {}, h('tr', {}, ...t.columns.map((c) => h('th', {}, c.name)))),
+      h('tbody', {}, ...rows.map((row) => h('tr', {}, ...row.map((v) => h('td', {}, v === null || v === undefined ? '' : String(v))))))));
 }

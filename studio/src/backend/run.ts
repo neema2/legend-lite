@@ -4,6 +4,7 @@
 // each run, plan A2); on a legend server, its pure/v1 execute (the server has its own data).
 
 import { element, fn, type Lambda, type Variable } from '../../../pure-protocol/src/index.ts';
+import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts';
 import type { Engine } from '../../../engine-client/src/legend/engine.ts';
 import type { PFunction, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 import type { ExecutionResult, ParameterValue } from '../../../engine-client/src/legend/wire.ts';
@@ -23,6 +24,8 @@ export interface Runner {
    * `values`: each parameter's value as Pure text (`'GB'`, `42`, `%2024-06-01`), parsed by the compiler.
    */
   run(fileText: string, modelText: string, values?: ReadonlyMap<string, string>): Promise<ExecutionResult>;
+  /** SQL on the tab's DuckDB, with the model's own test data loaded (upstream's SQL playground); refused on a server. */
+  sql(statement: string, modelText: string): Promise<RawTable>;
 }
 
 /** What a run needs of the session: the grammar (to read the element), the engine, and the in-tab data step. */
@@ -32,6 +35,8 @@ export interface RunSession {
   lambdaJson(text: string): Promise<Lambda>;
   /** The engine that executes: started the first time it is needed (DuckDB in the tab), then kept. */
   engine(): Promise<Engine>;
+  /** The tab's DuckDB itself, for the SQL playground (upstream's: SQL on a connection); a server's has none here. */
+  sqlEngine?(): Promise<QueryEngine>;
   /** Puts the model's own test data where the engine reads it (the tab's DuckDB); a server needs none. */
   loadData?(model: PureModelContextData): Promise<void>;
 }
@@ -89,6 +94,12 @@ export function runner(session: RunSession): Runner {
       const engine = await session.engine();
       if (session.loadData) await session.loadData(await session.modelJson(modelText));
       return engine.execute({ function: lambda, model: { _type: 'text', code: modelText }, parameterValues });
+    },
+    async sql(statement, modelText) {
+      if (!session.sqlEngine) throw new Error('the SQL playground runs on DuckDB in this tab; this session runs on a server');
+      const engine = await session.sqlEngine();
+      if (session.loadData) await session.loadData(await session.modelJson(modelText));
+      return engine.run(statement, 0);
     },
   };
 }
