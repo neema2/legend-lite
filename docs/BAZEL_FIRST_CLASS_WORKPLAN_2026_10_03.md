@@ -1313,6 +1313,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | A consumer that asserts a timestamp. The investigation finds it first. Rollback: the committed files are restored from git. |
 | Done when | The fixtures change only through `bazel run`, and a diff test guards them. |
 
+**Amended 2026-10-05 (execution).** The timestamps are epoch milliseconds, not ISO strings: they are written as `0`. D14 (a) holds: `$(JAVA)` comes from the `toolchains` attribute (`@bazel_tools//tools/jdk:current_host_java_runtime`, also in `srcs`), the deploy jar is a target-configuration input, `copy_srcs_to_bin = False` (rules_js cannot copy another repository's files), paths resolve against `JS_BINARY__EXECROOT`, and the query store is a declared output directory.
+
 #### P2-07 · `query/src/ui/icons.ts` from a pinned react-icons, diff-tested
 
 | Field | Content |
@@ -1338,6 +1340,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | S (0.5 d) |
 | Risk/rollback | If `make.ts` no longer reproduces p1, that is a real break of the share-link contract: fix the tool, never the file. |
 | Done when | Changing the tool's output for p1 fails a test. |
+
+**Amended 2026-10-05 (execution).** The premise is wrong: `make.ts` reads the LIVE vocabulary, which grows by design (p1 predates the treemap mark; today's output is p1 plus treemap), so a `diff_test` of the tool against `link-p1.ts` would be red from day one and on every addition. The freeze is p1's hash pin, which stays. Instead: the next version is a build output (`//datacube:link_dictionary_next`, so the tool cannot rot); `bazel run //datacube:cut_link_dictionary` writes it once (`write_source_files`, `diff_test = False`); `share_link_test` fails until a cut version's hash is pinned and `_NEXT_LINK_VERSION` moves on (a load-time guard was rejected by the audit: it would stop `bazel query //...`). **Done when (amended):** no redirect recipe; a version is cut by `bazel run`; every version in the tree is hash-pinned.
 
 #### P2-09 · Native-image reachability metadata: generated and recorded by Bazel, diff-tested
 
@@ -1365,6 +1369,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | Tests that read the file by repository path. P1-05 converted them; the build shows any left. |
 | Done when | The pins live once, in `MODULE.bazel`. |
 
+**Amended 2026-10-05 (execution).** `include()` does not share bindings between segments, so `release.MODULE.bazel` holds everything keyed on the release, not only the constants: a marked PINS block (releases, repos, tag commits, archive integrities, the five engine-managed versions) that Bump rewrites whole, the `maven_upstream` and `maven_runner` pools, the source archives, and an `@oracle_pins` repository rule that writes `oracle-pins.env`; `//tools:oracle-pins.env` copies it under its old label. Per D19 as decided, `git` and nested Bazel (`$BAZEL_REAL`) stay in Bump. `pools_list_test` and `locks_test` read `//:module_files` (MODULE.bazel and every included segment, held equal to its `include()`s).
+
 #### P2-11 · PCT oracle manifests come from the pinned upstream tree
 
 | Field | Content |
@@ -1377,6 +1383,9 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | M (1 d) |
 | Risk/rollback | Count movement. It is evidence, recorded, not hidden. |
 | Done when | Every manifest is either pinned-tree data or a diff-tested action output (A18). |
+
+**Done 2026-10-05.** The pinned tree carries them (`legend-engine-xt-relationalStore-duckdb-PCT/src/main/resources/pct-manifests/relational-duckdb/`); the vendored copies are deleted. The reference moved (Essential 148 -> 146 exclusions, Relation 1 -> 2, Unclassified 12 -> 8); the manifests only corroborate, so no pinned count moved.
+
 
 **Found 2026-10-04 (P1-22): not reproducible.** legend-pure's PAR generator (`//pct:adapter_par`) and the reference dump (`//tools/reference:ref_dump`) give different bytes on every run with identical inputs: the old genrule tools run twice differ in anonymous ids (`@_0018480` vs `@_001848e`) and in the order of the lines around them; the line count is the same. A non-reproducible action defeats the remote cache downstream (every consumer re-runs when it re-runs) and makes a byte diff test impossible. Fix here: make the output canonical (sort; renumber anonymous ids in first-use order, or drop them where the consumer does not read them), or record why it cannot be.
 
@@ -1405,6 +1414,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | M (1 d) |
 | Risk/rollback | None known. |
 | Done when | `git grep -n "ladder.record"` is empty. |
+
+**Amended 2026-10-05 (execution).** `java_run` gains `{OUT_DIR}` (the one directory all outputs share); `_LADDER_RUNGS` in `core/BUILD.bazel` is checked by `LadderRender` against the model's `<<test.Test>>` functions; the emission check moves to `//core:update_ladder_test` (a rung that does not pass fails the action), and `LeanSqlLadderTest` only reads the pins and reports the lean distance.
 
 #### P2-14 · The reference-lane golden: an action, version strings from the pins
 
