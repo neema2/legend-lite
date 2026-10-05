@@ -3,6 +3,7 @@
 # (MODULE.bazel `npm_query`), so DataCube's lock never moves for it.
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
 load("//tools/js:defs.bzl", "node_test")
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_query//:defs.bzl", "npm_link_all_packages")
 load("@npm_query//query:esbuild/package_json.bzl", esbuild = "bin")
@@ -37,26 +38,27 @@ js_library(
     ],
 )
 
-# entry point -> bundle
-_BUNDLES = {
-    "demo/main.ts": "demo/bundle.js",
-    "../engine-client/src/legend/planner-worker.ts": "demo/planner-worker.js",
-}
-
-[esbuild.esbuild(
-    name = "bundle_" + out[len("demo/"):-len(".js")].replace("-", "_"),
+esbuild.esbuild(
+    name = "bundle",
     srcs = glob(["demo/**/*.ts"]) + [":src", "//engine-client:node_modules/@duckdb/duckdb-wasm"],
-    outs = [out],
+    outs = ["demo/bundle.js"],
     args = [
-        entry,
+        "demo/main.ts",
         "--bundle",
         "--format=esm",
         "--target=es2022",
         "--log-level=warning",
-        "--outfile=" + out,
+        "--outfile=demo/bundle.js",
     ],
     chdir = package_name(),
-) for entry, out in _BUNDLES.items()]
+)
+
+# the planner's worker: engine-client's own bundle, served as the page's ./planner-worker.js
+copy_file(
+    name = "planner_worker",
+    src = "//engine-client:planner_worker",
+    out = "demo/planner-worker.js",
+)
 
 # The two WebAssembly runtimes the page loads from ./vendor/: legend-lite's planner (grammar,
 # typing, SQL in the tab) and DuckDB's (where queries run in the browser).
@@ -121,7 +123,7 @@ filegroup(
         "demo/models/*.pure",
         "demo/models/*.sql",
         "src/**/*.css",
-    ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [":vendor", ":cube_styles"],
+    ]) + [":bundle", ":planner_worker", ":vendor", ":cube_styles"],
 )
 
 js_binary(

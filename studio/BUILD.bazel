@@ -5,6 +5,7 @@ load("//tools/guards:defs.bzl", "guards_package")
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
 load("//tools/browser:defs.bzl", "browser_test")
 load("//tools/js:defs.bzl", "node_test")
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_studio//:defs.bzl", "npm_link_all_packages")
 load("@npm_studio//studio:esbuild/package_json.bzl", esbuild = "bin")
@@ -43,23 +44,27 @@ esbuild.esbuild(
     chdir = package_name(),
 )
 
-[esbuild.esbuild(
-    name = "bundle_" + name,
+esbuild.esbuild(
+    name = "bundle_editor_worker",
     srcs = [":src", ":node_modules/monaco-editor"],
-    outs = ["demo/" + out],
+    outs = ["demo/editor.worker.js"],
     args = [
-        entry,
+        "src/backend/editor-worker.ts",
         "--bundle",
         "--format=esm",
         "--target=es2022",
         "--log-level=warning",
-        "--outfile=demo/" + out,
+        "--outfile=demo/editor.worker.js",
     ],
     chdir = package_name(),
-) for name, entry, out in [
-    ("planner_worker", "../engine-client/src/legend/planner-worker.ts", "planner-worker.js"),
-    ("editor_worker", "src/backend/editor-worker.ts", "editor.worker.js"),
-]]
+)
+
+# the compiler's worker: engine-client's own bundle (Query serves the same one), the page's ./planner-worker.js
+copy_file(
+    name = "planner_worker",
+    src = "//engine-client:planner_worker",
+    out = "demo/planner-worker.js",
+)
 
 # The WebAssembly modules the page loads from ./vendor/: the compiler (vendor/planner/), the SDLC (vendor/sdlc/),
 # DuckDB for running functions in the tab (vendor/duckdb/, engine-client's copy) and the fonts.
@@ -111,7 +116,7 @@ filegroup(
         "demo/*.css",
         "demo/projects/**",
         "src/**/*.css",
-    ]) + [":bundle", ":bundle_planner_worker", ":bundle_editor_worker", ":vendor"],
+    ]) + [":bundle", ":planner_worker", ":bundle_editor_worker", ":vendor"],
 )
 
 # `bazel run //studio:serve [-- --port 8200]`: the site, on loopback.
