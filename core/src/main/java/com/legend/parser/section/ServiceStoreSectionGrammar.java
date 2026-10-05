@@ -201,8 +201,8 @@ public final class ServiceStoreSectionGrammar
                     if (Boolean.FALSE.equals(pm.required())) {
                         throw new com.legend.parser.ParseException(
                                 "Path parameters cannot be optional",
-                                pm.sourceInformation().startLine(),
-                                pm.sourceInformation().startColumn());
+                                com.legend.protocol.SourceInfo.parsed(pm.sourceInformation()).startLine(),
+                                com.legend.protocol.SourceInfo.parsed(pm.sourceInformation()).startColumn());
                     }
                     if (!path.contains("{" + pm.name() + "}")) {
                         missing.add(pm.name());

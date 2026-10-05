@@ -655,8 +655,8 @@ final class TailEmitter {
     }
 
     private static void diagramEnds(StringBuilder b, String sourceView,
-            SourceInfo sourceViewSpan, String targetView,
-            SourceInfo targetViewSpan) {
+            @com.legend.base.Nullable SourceInfo sourceViewSpan, String targetView,
+            @com.legend.base.Nullable SourceInfo targetViewSpan) {
         b.append(",\"sourceView\":");
         ProtocolEmitter.str(b, sourceView);
         b.append(",\"sourceViewSourceInformation\":");
@@ -2284,7 +2284,7 @@ final class TailEmitter {
     }
 
     private static void pointer(StringBuilder b, String path,
-            SourceInfo span, String type) {
+            @com.legend.base.Nullable SourceInfo span, String type) {
         b.append("{\"path\":");
         ProtocolEmitter.str(b, path);
         b.append(",\"sourceInformation\":");

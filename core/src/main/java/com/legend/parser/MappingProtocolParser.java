@@ -245,7 +245,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             // (the engine's relation-data walker offset — probe relation-csv)
             SourceInfo first = rels.isEmpty()
                     ? spanOf(pos - 1, pos - 1)
-                    : rels.get(0).sourceInformation();
+                    : SourceInfo.parsed(rels.get(0).sourceInformation());
             return new Protocol.PRelationData(rels,
                     new SourceInfo("", first.startLine(), first.startColumn(),
                             ri.endLine(), ri.endColumn() + 3));
@@ -331,18 +331,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** The span an embedded value contributes to its enclosing entry. */
     private static SourceInfo embeddedSpan(Protocol.PEmbeddedDataValue v) {
         return switch (v) {
-            case Protocol.PExternalFormatData e -> e.sourceInformation();
-            case Protocol.PDataReference r -> r.sourceInformation();
-            case Protocol.PModelStoreData m -> m.sourceInformation();
-            case Protocol.PRelationalCsvData c -> c.sourceInformation();
-            case Protocol.PServiceStoreData ss -> ss.sourceInformation();
+            case Protocol.PExternalFormatData e -> SourceInfo.parsed(e.sourceInformation());
+            case Protocol.PDataReference r -> SourceInfo.parsed(r.sourceInformation());
+            case Protocol.PModelStoreData m -> SourceInfo.parsed(m.sourceInformation());
+            case Protocol.PRelationalCsvData c -> SourceInfo.parsed(c.sourceInformation());
+            case Protocol.PServiceStoreData ss -> SourceInfo.parsed(ss.sourceInformation());
             // the accessor's own end overshoots by the walker offset; a
             // resolver anchors on the RAW island close (probe store-keyed)
-            case Protocol.PRelationData d -> new SourceInfo("",
-                    d.sourceInformation().startLine(),
-                    d.sourceInformation().startColumn(),
-                    d.sourceInformation().endLine(),
-                    d.sourceInformation().endColumn() - 3);
+            case Protocol.PRelationData d -> {
+                SourceInfo s = SourceInfo.parsed(d.sourceInformation());
+                yield new SourceInfo("", s.startLine(), s.startColumn(), s.endLine(), s.endColumn() - 3);
+            }
         };
     }
 
@@ -1924,9 +1923,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** The op with its span's START moved to token {@code startTok}. */
     private Protocol.PRelOp withSpanStart(Protocol.PRelOp op, int startTok) {
         SourceInfo st = spanOf(startTok, startTok);
+        SourceInfo end = SourceInfo.parsed(op.sourceInformation());
         SourceInfo w = new SourceInfo("", st.startLine(), st.startColumn(),
-                op.sourceInformation().endLine(),
-                op.sourceInformation().endColumn());
+                end.endLine(), end.endColumn());
         return switch (op) {
             case Protocol.PElemtWithJoins ej ->
                     new Protocol.PElemtWithJoins(ej.joins(),
@@ -2575,7 +2574,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     parseRelationElements(ri, true);
             SourceInfo first = rels.isEmpty()
                     ? spanOf(pos - 1, pos - 1)
-                    : rels.get(0).sourceInformation();
+                    : SourceInfo.parsed(rels.get(0).sourceInformation());
             SourceInfo accessor = new SourceInfo("", first.startLine(),
                     first.startColumn(), ri.endLine(), ri.endColumn() + 3);
             return new Protocol.PStoreTestData(
@@ -2642,8 +2641,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 throw new com.legend.parser.ParseException(
                         "Multiple entries found for type: '"
                         + entry.model() + "'",
-                        entry.sourceInformation().startLine(),
-                        entry.sourceInformation().startColumn());
+                        SourceInfo.parsed(entry.sourceInformation()).startLine(),
+                        SourceInfo.parsed(entry.sourceInformation()).startColumn());
             }
         }
     }
@@ -2767,7 +2766,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             // (semiLine-1, semiCol) — probe relation-rows; DATA elements
             // keep path..semi
             Protocol.PRelationElement re = rels.get(0);
-            SourceInfo es = re.sourceInformation();
+            SourceInfo es = SourceInfo.parsed(re.sourceInformation());
             Protocol.PRelationElement shifted =
                     new Protocol.PRelationElement(re.columns(), re.paths(),
                             re.rows(), new SourceInfo("",

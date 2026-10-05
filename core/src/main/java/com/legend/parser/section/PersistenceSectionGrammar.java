@@ -322,8 +322,8 @@ public final class PersistenceSectionGrammar
         // error reports at `Batch`, an auditing error at its ingest-mode
         // block, never at the cursor (position-exactness lane: the
         // Persistence family carried 67 of the 288 line diverges)
-        int line = node.sourceInformation().startLine();
-        int col = node.sourceInformation().startColumn();
+        int line = com.legend.protocol.SourceInfo.parsed(node.sourceInformation()).startLine();
+        int col = com.legend.protocol.SourceInfo.parsed(node.sourceInformation()).startColumn();
         List<String> slotKinds = SLOT_KINDS.get(slot);
         if (slotKinds != null && !slotKinds.contains(node.kind())) {
             throw new com.legend.parser.ParseException(

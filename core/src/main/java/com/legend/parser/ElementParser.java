@@ -1826,8 +1826,8 @@ public final class ElementParser implements TokenStreamCursor {
                 // probe "pf relation island data": ';' col 9, wire col 11)
                 payload = new com.legend.protocol.Protocol.PTestPayload.RelationElements(
                         re.elements(), new com.legend.protocol.SourceInfo("",
-                                re.sourceInformation().startLine(),
-                                re.sourceInformation().startColumn(),
+                                com.legend.protocol.SourceInfo.parsed(re.sourceInformation()).startLine(),
+                                com.legend.protocol.SourceInfo.parsed(re.sourceInformation()).startColumn(),
                                 tokens.endLine(pos - 1), tokens.endColumn(pos - 1) + 2));
             }
             data.add(new com.legend.protocol.Protocol.PTestData(head,

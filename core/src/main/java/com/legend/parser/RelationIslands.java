@@ -47,7 +47,7 @@ public final class RelationIslands {
         // it stands) — the same coordinates as a test assertion's expected
         // relation (probed 2026-09-11 against 4.145.0: 10:11-12:15 for rows
         // ending at 13:15)
-        SourceInfo es = re.sourceInformation();
+        SourceInfo es = SourceInfo.parsed(re.sourceInformation());
         return new Protocol.PRelationElement(re.columns(), re.paths(), re.rows(),
                 new SourceInfo("", host.tokens().startLine(braceTok),
                         host.tokens().startColumn(braceTok) + 2, es.endLine() - 1, es.endColumn()));

@@ -35,14 +35,27 @@ import java.util.Objects;
  *                 (no shortening, no import resolution &mdash; that
  *                 happens in {@code NameResolver})
  * @param value    the enum value name as written
+ * @param node     the WIRE spelling: {@code true} for a real {@code enumValue} node (a legacy service-test
+ *                 parameter), {@code false} for the {@code property} on a {@code packageableElementPtr}
+ *                 every expression position writes. A shape, not a position: a model read without source
+ *                 information keeps it.
  */
 public record EnumValue(String fullPath, String value,
         @com.legend.base.Nullable com.legend.protocol.SourceInfo enumerationPos,
-        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+        boolean node)
         implements ValueSpecification {
     public EnumValue {
         Objects.requireNonNull(fullPath, "fullPath");
         Objects.requireNonNull(value, "value");
+    }
+
+    /** The parser's form: a positioned enumeration is the property spelling, an unpositioned one the
+     *  real node (the legacy-test parameter position, the only one that writes it). */
+    public EnumValue(String fullPath, String value,
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo enumerationPos,
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
+        this(fullPath, value, enumerationPos, pos, enumerationPos == null);
     }
 
     /** Position-free form for synthesis and tests. On the wire this node is a plain
