@@ -122,6 +122,7 @@ public final class PctCensusGate {
     // leg P4). Its driver's own spellings (int8, text, bool ...) are names, not divergence
     // (SqlTypeCensus.normalizeMeta). Every other pin holds at its DuckDB/H2 value on this lane too.
     private static final boolean POSTGRES = "postgres".equals(System.getenv("LEGENDLITE_PCT_BACKEND"));
+    private static final boolean H2 = "h2".equals(System.getenv("LEGENDLITE_PCT_BACKEND"));
     // 53 -> 57 (2026-10-02, tier 1: multi-column pivots, whole-partition medians, half-even rounding to a
     // scale and calendar buckets now RUN on Postgres): the same classes, more of their plans -- a decimal
     // rounded exactly is a computed numeric with no declared precision
@@ -183,7 +184,7 @@ public final class PctCensusGate {
     // Essential 20, Standard 20, Unclassified 4 (44 in all; the whole-lane 231 was measured on Maven's one JVM, which
     // also carried channel B's traffic); 0 on H2 and Postgres
     private static long maxIntNullEmpty(String suite) {
-        if (POSTGRES || "h2".equals(System.getenv("LEGENDLITE_PCT_BACKEND"))) {
+        if (POSTGRES || H2) {
             return 0;
         }
         return switch (suite) {

@@ -119,13 +119,18 @@ _SUITES = [
 ) for s in _SUITES]
 
 # the module's discipline guard (no comparison machinery in Java), in gate 6 (G-02)
+# its own library, so the light //gates:local does not build the PCT adapter's 4 GB PAR to run a source scan
 junit_test(
     name = "pct_discipline",
     memory_mb = 768,
     size = "small",
+    srcs = ["src/test/java/org/finos/legend/lite/pct/PctDisciplineTest.java"],
     data = glob(["src/**"]),
     select = ["--select-class=org.finos.legend.lite.pct.PctDisciplineTest"],
-    runtime_deps = [":pct_tests_lib"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )
 
 test_suite(
@@ -201,14 +206,11 @@ _ENGINE_MANIFEST = "@legend_engine_src//:legend-engine-xts-relationalStore/legen
 [junit_test(
     name = "pct_channel_b_" + s.lower(),
     memory_mb = 768,
-    data = glob(["src/**"]) + [_ENGINE_MANIFEST % s for s in _SUITES],
-    # each suite's PCT class and its oracle manifest, by runfiles path (Bazel workplan P1-05)
+    data = glob(["src/**"]) + [_ENGINE_MANIFEST % s],
+    # its suite's PCT class and oracle manifest, by runfiles path (Bazel workplan P1-05)
     jvm_flags = [
-        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s)
-        for s in _SUITES
-    ] + [
-        "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s)
-        for s in _SUITES
+        "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s),
+        "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s),
     ],
     select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelB%sTest" % s],
     upstream = True,

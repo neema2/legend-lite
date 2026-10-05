@@ -24,6 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Pure with both sides in Pure's own value domain; row order is the
  * database's. Zero sort/dedupe/tolerance spellings in this module;
  * stays zero.
+ *
+ * <p>ONE sanctioned indirection: {@code com.legend.testing.SourceWalk.inOrder} sorts the INPUT files Channel B
+ * loads (Bazel workplan P3-08), so a load is the same on every filesystem; it compares no verdict. Any other call
+ * from this module into a helper that sorts, dedupes or tolerates is the dodge this guard exists to stop.
  */
 class PctDisciplineTest {
 

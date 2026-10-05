@@ -161,10 +161,12 @@ class ChannelBGrammarTest {
         // 80 -> 75 (2026-08-23): hash UBIGINT family burned by the
         // dialect hashSigned conform (single owner; Lowerer's private
         // agg shift DELETED) — measured full-lane residue 74
-        assertTrue(com.legend.exec.SqlTypeCensus.wireDivergeCount() <= 75,
+        // 75 -> 0, and adopt-pending 103 -> 0 (2026-10-05, Bazel workplan P3-09): one JVM per class now, so the counts
+        // are this class's own; measured 0 on every class's own target, HARDENED TO EQUALITY
+        assertTrue(com.legend.exec.SqlTypeCensus.wireDivergeCount() <= 0,
                 "wire divergence grew: "
                         + com.legend.exec.SqlTypeCensus.summary());
-        assertTrue(com.legend.exec.SqlTypeCensus.wireAdoptPendingCount() <= 103,
+        assertTrue(com.legend.exec.SqlTypeCensus.wireAdoptPendingCount() <= 0,
                 "wire adopt-pending grew: "
                         + com.legend.exec.SqlTypeCensus.summary());
         // TYPED-IR pin on THIS lane too (the corpus-runner pins do

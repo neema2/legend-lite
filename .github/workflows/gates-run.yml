@@ -24,8 +24,8 @@ on:
         type: string
       low-memory:
         description: >-
-          The 7 GB macOS runner: one test JVM at a time, and the PCT suites each
-          in their own JVM (a suite's Pure graph is a 2.0-2.8 GB live set).
+          The 7 GB macOS runner: one test JVM at a time (--config=ci-small). The
+          PCT suites are one target per suite on every runner (P3-09).
         default: false
         type: boolean
 
@@ -42,8 +42,8 @@ jobs:
           PLATFORM: ${{ inputs.platform }}
         run: |
           set -euo pipefail
-          # the PCT lanes are one target per suite on every runner (Bazel workplan P3-09): each 4 GB, so a 7 GB runner
-          # runs them one at a time by their memory tags, without a low-memory variant
+          # the PCT lanes are one target per suite on every runner (Bazel workplan P3-09); a 7 GB runner runs them one
+          # at a time through --config=ci-small (--local_test_jobs=1), added below for low-memory runners
           pct6='//pct:pct_duckdb'
           pct7p='//pct:pct_postgres //core:postgres_arm_test'
           all=$(jq -nc --arg pct6 "$pct6" --arg pct7p "$pct7p" '[
