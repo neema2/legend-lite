@@ -83,6 +83,20 @@ export async function renderReview(root: HTMLElement, ctx: PanelContext): Promis
         }
       } }, icon('gitMergeShort', '17px'))),
     h('div', { class: 'workspace-review__status' }, `created ${ago(review.createdAt)} ago`));
+  // upstream's approvals: who has approved, and this user's Approve / Revoke approval
+  const [{ approvedBy }, me] = await Promise.all([ctx.client.approval(ctx.project, review.id), ctx.client.currentUser()]);
+  const mine = approvedBy.some((u) => u.userId === me.userId);
+  const approve = async (): Promise<void> => {
+    try {
+      await ctx.client.reviewAction(ctx.project, review.id, mine ? 'revokeApproval' : 'approve');
+      await renderReview(root, ctx);
+    } catch (e) {
+      toast(message(e), 'error');
+    }
+  };
+  body.append(h('div', { class: 'workspace-review__approvals', 'data-testid': 'review-approvals' },
+    h('span', {}, approvedBy.length ? `Approved by ${approvedBy.map((u) => u.name).join(', ')}` : 'Not approved yet'),
+    h('button', { class: 'btn btn-small', 'data-testid': 'approve-review', onclick: () => void approve() }, mine ? 'Revoke approval' : 'Approve')));
   // upstream's review CHANGES (plan A7): what the review brings -- the workspace's saved text against where it was made
   // from (BASE) -- each opening its diff
   const where = { project: ctx.project, workspace: ctx.workspace };

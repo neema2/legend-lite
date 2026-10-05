@@ -109,6 +109,18 @@ async function loop(browser, name, query) {
     await page.waitForSelector('.tab.active[title="demo::trading::Trade"]');
     await waitStatus('changes-count', /^1 unpushed change$/);
     await waitCompiled();
+    // a change discarded (plan A7): Trade_Party edited, then its change discarded from Local Changes
+    await page.locator('[data-testid=explorer] .element[data-path="demo::trading::Trade_Party"]').click();
+    await page.locator('.monaco-editor .view-lines').click();
+    await page.keyboard.press('ControlOrMeta+Home');
+    await page.keyboard.insertText('// touched\n');
+    await waitStatus('changes-count', /^2 unpushed changes$/);
+    await page.locator('[data-activity=changes]').click();
+    const touched = page.locator('.diff-item[data-path="demo::trading::Trade_Party"]');
+    await touched.hover();
+    await touched.getByTestId('discard-change').click();
+    await waitStatus('changes-count', /^1 unpushed change$/);
+    await page.locator('[data-activity=explorer]').click();
     // rename or move (plan A7): Desk moved to demo::desks::TradingDesk, and back -- its declaration follows
     for (const [from, to] of [['demo::trading::Desk', 'demo::desks::TradingDesk'], ['demo::desks::TradingDesk', 'demo::trading::Desk']]) {
       await page.locator(`[data-testid=explorer] .element[data-path="${from}"]`).click();
@@ -232,6 +244,10 @@ async function loop(browser, name, query) {
     await page.locator('[data-activity=review]').click();
     await page.getByTestId('review-title').fill('Add the desk');
     await page.getByTestId('create-review').click();
+    // approvals: approved by this user, the button now revokes
+    await page.getByTestId('approve-review').click();
+    await page.waitForFunction(() => /^Approved by /.test(document.querySelector('[data-testid=review-approvals]')?.textContent ?? ''));
+    assert.equal(await page.getByTestId('approve-review').textContent(), 'Revoke approval');
     // the review's changes (plan A7): what it brings, each opening its diff
     await page.locator('[data-testid=review-changes] .diff-item[data-path="demo::trading::Desk"]').click();
     await page.getByTestId('diff-view').locator('.monaco-diff-editor').waitFor();

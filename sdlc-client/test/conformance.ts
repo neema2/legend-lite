@@ -333,6 +333,7 @@ export function conformance(name: string, target: () => Target): void {
       const approved = await raw('POST', `/projects/${E2}/reviews/${id}/approve`);
       assert.equal(approved.status, 200, approved.text);
       assert.deepEqual((await raw('GET', `/projects/${E2}/reviews/${id}/approval`)).json, { approvedBy: [{ name: 'Local User', userId: target().user }] });
+      assert.deepEqual(await client().approval(P2, id), { approvedBy: [{ name: 'Local User', userId: target().user }] });
       await refused('POST', `/projects/${E2}/reviews/${id}/commit`, {}, 400, 'message may not be null');
       const committed = await raw('POST', `/projects/${E2}/reviews/${id}/commit`, { message: 'Add types [review]' });
       assert.equal(committed.status, 200, committed.text);
