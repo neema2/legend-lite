@@ -39,11 +39,11 @@ Beside the gates, in `bazel test //...`:
 - **Generated files** — `//:generated` (CI's checks lane), that is `//core:update_generated_*_test`,
   `//core:update_stress_corpus_*_test`, `//core:update_ladder_*_test`, `//docs:update_generated_test`,
   `//parser-equivalence:update_generated_*_test`, `//datacube:update_generated_*_test`,
-  `//query:update_generated_test`: each committed generated file
+  `//query:update_generated_test`, `//fixtures/saved-queries:update_generated_*_test`: each committed generated file
   (Pure.java's signatures, DynaFn.java, NameResolver.java's imports,
   prelude.pure, native-claims.tsv, the fixture snapshot, the corpus manifest,
   the stress corpus, the SQL ladder's current pins, the protocol roster, DataCube's lite-facts.ts,
-  Query's icons.ts) equals its generator's output.
+  Query's icons.ts, the saved-query fixtures) equals its generator's output.
   Regenerate: `bazel run //:update_generated`.
 - **Source checks** — `//core:guardrails` (tests whose subject is core's own
   code: size and layer guardrails, shrink-only ratchets, ledgers; `@Tag("guardrail")`)

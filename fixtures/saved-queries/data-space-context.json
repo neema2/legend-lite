@@ -12,9 +12,9 @@
     "executionKey": "Production"
   },
   "content": "|demo::trading::Trade.all()->filter(\n  x|$x.side ==\n    demo::trading::Side.SELL\n)->project(\n  ~[\n     'Trade Id': x|$x.tradeId,\n     Side: x|$x.side,\n     Quantity: x|$x.quantity\n   ]\n)",
-  "lastUpdatedAt": 1790887287645,
-  "createdAt": 1790887287645,
-  "lastOpenAt": 1790887287647,
+  "lastUpdatedAt": 0,
+  "createdAt": 0,
+  "lastOpenAt": 0,
   "deletedAt": null,
   "validUntil": null,
   "version": 1,
