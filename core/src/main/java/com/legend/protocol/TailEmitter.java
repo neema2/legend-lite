@@ -789,7 +789,7 @@ final class TailEmitter {
         boolean first = true;
         if (ctx.defaultRuntime() != null) {
             b.append("\"defaultRuntime\":");
-            pointer(b, ctx.defaultRuntime(), java.util.Objects.requireNonNull(ctx.runtimeSpan()), "RUNTIME");
+            pointer(b, ctx.defaultRuntime(), ctx.runtimeSpan(), "RUNTIME");
             first = false;
         }
         if (ctx.description() != null) {
@@ -799,7 +799,7 @@ final class TailEmitter {
         }
         if (ctx.mapping() != null) {
             b.append(first ? "" : ",").append("\"mapping\":");
-            pointer(b, ctx.mapping(), java.util.Objects.requireNonNull(ctx.mappingSpan()), "MAPPING");
+            pointer(b, ctx.mapping(), ctx.mappingSpan(), "MAPPING");
             first = false;
         }
         Protocol.PDataSpaceMappingProvider mp = ctx.mappingProvider();
@@ -864,8 +864,7 @@ final class TailEmitter {
             b.append(",\"executable\":{\"path\":");
             ProtocolEmitter.str(b, path);
             b.append(",\"sourceInformation\":");
-            ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
-                    e.executableSpan()));
+            ProtocolEmitter.srcInfo(b, e.executableSpan());
             // a FUNCTION-pointer executable (signature form) carries a
             // type tag; a plain element pointer does not (DIFF-pinned)
             if (path.indexOf('(') >= 0) {
@@ -1227,9 +1226,7 @@ final class TailEmitter {
         }
         if (p.service() != null) {
             b.append(",\"service\":");
-            pointer(b, p.service(),
-                    java.util.Objects.requireNonNull(p.serviceSpan()),
-                    "SERVICE");
+            pointer(b, p.service(), p.serviceSpan(), "SERVICE");
         }
         b.append(",\"serviceOutputTargets\":[");
         if (p.serviceOutputTargets() != null) {
@@ -1522,12 +1519,10 @@ final class TailEmitter {
                 // nested [..] stays a plain collection
                 b.append("{\"_type\":\"classInstance\","
                         + "\"sourceInformation\":");
-                ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
-                        af.pos()));
+                ProtocolEmitter.srcInfo(b, af.pos());
                 b.append(",\"type\":\"listInstance\",\"value\":{"
                         + "\"sourceInformation\":");
-                ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
-                        af.pos()));
+                ProtocolEmitter.srcInfo(b, af.pos());
                 b.append(",\"values\":[");
                 for (int j = 0; j < pc.values().size(); j++) {
                     if (j > 0) {
@@ -1908,8 +1903,7 @@ final class TailEmitter {
                 b.append(",\"mapping\":");
                 ProtocolEmitter.str(b, k.mapping());
                 b.append(",\"mappingSourceInformation\":");
-                ProtocolEmitter.srcInfo(b,
-                        java.util.Objects.requireNonNull(k.mappingSpan()));
+                ProtocolEmitter.srcInfo(b, k.mappingSpan());
             }
             if (k.runtime() != null || k.embeddedRuntime() != null) {
                 // "runtime" sorts BEFORE "runtimeComponents"; a keyed
@@ -2089,9 +2083,7 @@ final class TailEmitter {
                     b.append(",\"mapping\":");
                     ProtocolEmitter.str(b, se.mapping());
                     b.append(",\"mappingSourceInformation\":");
-                    ProtocolEmitter.srcInfo(b,
-                            java.util.Objects.requireNonNull(
-                                    se.mappingSpan()));
+                    ProtocolEmitter.srcInfo(b, se.mappingSpan());
                 }
                 serviceRuntime(b, se.runtime(), se.runtimeSpan(),
                         se.embeddedRuntime());
@@ -2125,9 +2117,7 @@ final class TailEmitter {
                         b.append(",\"mapping\":");
                         ProtocolEmitter.str(b, k.mapping());
                         b.append(",\"mappingSourceInformation\":");
-                        ProtocolEmitter.srcInfo(b,
-                                java.util.Objects.requireNonNull(
-                                        k.mappingSpan()));
+                        ProtocolEmitter.srcInfo(b, k.mappingSpan());
                     }
                     serviceRuntime(b, k.runtime(), k.runtimeSpan(),
                             k.embeddedRuntime());
@@ -2151,15 +2141,15 @@ final class TailEmitter {
     private static void paramValue(StringBuilder b,
             com.legend.protocol.spec.ValueSpecification v) {
         if (v instanceof com.legend.protocol.spec.EnumValue e) {
-            SourceInfo ep = java.util.Objects.requireNonNull(
-                    e.enumerationPos());
-            SourceInfo vp = java.util.Objects.requireNonNull(e.pos());
+            SourceInfo ep = e.enumerationPos();
+            SourceInfo vp = e.pos();
             b.append("{\"_type\":\"enumValue\",\"fullPath\":");
             ProtocolEmitter.str(b, e.fullPath());
             b.append(",\"sourceInformation\":");
-            ProtocolEmitter.srcInfo(b, new SourceInfo(ep.sourceId(),
-                    ep.startLine(), ep.startColumn(), vp.endLine(),
-                    vp.endColumn()));
+            // a model read without source information has neither span
+            ProtocolEmitter.srcInfo(b, ep == null || vp == null ? null
+                    : new SourceInfo(ep.sourceId(), ep.startLine(), ep.startColumn(), vp.endLine(),
+                            vp.endColumn()));
             b.append(",\"value\":");
             ProtocolEmitter.str(b, e.value());
             b.append('}');
@@ -2173,8 +2163,7 @@ final class TailEmitter {
                     .append(",\"upperBound\":")
                     .append(pc.values().size())
                     .append("},\"sourceInformation\":");
-            ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
-                    pc.pos()));
+            ProtocolEmitter.srcInfo(b, pc.pos());
             b.append(",\"values\":[");
             for (int i = 0; i < pc.values().size(); i++) {
                 if (i > 0) {
@@ -2212,8 +2201,7 @@ final class TailEmitter {
                     + "\"runtime\":");
             ProtocolEmitter.str(b, runtime);
             b.append(",\"sourceInformation\":");
-            ProtocolEmitter.srcInfo(b,
-                    java.util.Objects.requireNonNull(runtimeSpan));
+            ProtocolEmitter.srcInfo(b, runtimeSpan);
             b.append('}');
         } else if (embedded != null) {
             b.append(",\"runtime\":{\"_type\":\"engineRuntime\"");
