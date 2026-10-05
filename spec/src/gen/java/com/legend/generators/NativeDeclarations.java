@@ -36,7 +36,7 @@ public final class NativeDeclarations {
         StringBuilder sb = new StringBuilder();
         for (Decl d : upstream.values()) {
             sb.append(d.fqn()).append('\t').append(d.key()).append('\t').append(d.text())
-                    .append('\t').append(d.file()).append('\n');
+                    .append('\t').append(d.file().replace('\\', '/')).append('\n');
         }
         Files.writeString(Path.of(args[3]), sb.toString(), StandardCharsets.UTF_8);
     }

@@ -37,11 +37,13 @@ lanes (checks, gates 1 and 3, app, misc, and gate 7P's one-query `//core:postgre
 Beside the gates, in `bazel test //...`:
 
 - **Generated files** — `//:generated` (CI's checks lane), that is `//core:update_generated_*_test`,
-  `//docs:update_generated_test`, `//parser-equivalence:update_generated_*_test`,
-  `//datacube:update_generated_test`: each committed generated file
+  `//core:update_stress_corpus_*_test`, `//core:update_ladder_*_test`, `//docs:update_generated_test`,
+  `//parser-equivalence:update_generated_*_test`, `//datacube:update_generated_*_test`,
+  `//query:update_generated_test`: each committed generated file
   (Pure.java's signatures, DynaFn.java, NameResolver.java's imports,
   prelude.pure, native-claims.tsv, the fixture snapshot, the corpus manifest,
-  the protocol roster, DataCube's lite-facts.ts) equals its generator's output.
+  the stress corpus, the SQL ladder's current pins, the protocol roster, DataCube's lite-facts.ts,
+  Query's icons.ts) equals its generator's output.
   Regenerate: `bazel run //:update_generated`.
 - **Source checks** — `//core:guardrails` (tests whose subject is core's own
   code: size and layer guardrails, shrink-only ratchets, ledgers; `@Tag("guardrail")`)
@@ -56,8 +58,11 @@ Beside the gates, in `bazel test //...`:
 
 Suites and manual targets: `//spec:judge_lanes` (all four judge lanes, the full corpus on both backends),
 `//parser-equivalence:diagnostics` (the measurement
-battery), `//core:heavy`, `//docs:draft_own_corpus_ledger` (a DRAFT of the
-own-corpus ledger for a person to finish — never generated).
+battery), `//core:heavy`, and three `bazel run` targets that write a DRAFT for a person to finish, never a
+generated file: `//docs:draft_own_corpus_ledger` (the own-corpus ledger), `//core:draft_native_membership`
+(native-membership.tsv from Pure.java's constants) and `//datacube:cut_link_dictionary` (the share link's next
+dictionary version, frozen by its hash once cut). `bazel build //spec:native_declarations` lists every upstream
+declaration of a membership FQN.
 
 **Upstream.** The legend-engine / legend-pure release is pinned in MODULE.bazel
 (the jars, and the source archives by sha256); tests read the sources as declared

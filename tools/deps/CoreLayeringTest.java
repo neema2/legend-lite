@@ -46,6 +46,9 @@ class CoreLayeringTest {
         Map<String, Path> layerFiles = new LinkedHashMap<>();
         for (String rlocationpath : System.getenv("CORE_LAYER_FILES").split(" ")) {
             if (rlocationpath.isBlank()) continue;
+            if (!rlocationpath.contains("/layer_")) {
+                throw new IllegalStateException("CORE_LAYER_FILES holds " + rlocationpath + ", no layer query");
+            }
             layerFiles.put(rlocationpath.substring(rlocationpath.lastIndexOf("/layer_") + "/layer_".length()),
                     Runfile.of(rlocationpath));
         }
