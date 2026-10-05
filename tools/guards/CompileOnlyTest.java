@@ -56,7 +56,7 @@ class CompileOnlyTest {
                     Map.entry("cc_library CppLink", "zlib's shared library: registered on Linux and Windows, unused"),
                     Map.entry("cc_library CppModuleMap", "zlib's module map, registered beside its compile"))),
             "web", Map.ofEntries(
-                    Map.entry("_run_binary Esbuild", "bundles TypeScript for the browser"),
+                    Map.entry("_esbuild_bundle Esbuild", "esbuild's native binary bundles TypeScript (tools/js/esbuild.bzl)"),
                     Map.entry("_copy_to_bin CopyFile", "a source file copied into the output tree for esbuild"),
                     Map.entry("js_library CopyFile", "a source file copied into the output tree"),
                     Map.entry("npm_package_store_internal NpmPackageExtract", "an npm package unpacked from its tarball")));
@@ -64,7 +64,7 @@ class CompileOnlyTest {
     /** Tier -> the compile it must show, so an empty or broken report cannot pass. */
     private static final Map<String, String> SIGNATURE = Map.of(
             "java", "java_library Javac",
-            "web", "_run_binary Esbuild",
+            "web", "_esbuild_bundle Esbuild",
             "wasm", "_teavm_wasm TeaVM",
             "native", "_native_image NativeImage");
 
@@ -80,12 +80,14 @@ class CompileOnlyTest {
         Map<String, Set<String>> seen = new TreeMap<>();           // tier -> "kind mnemonic"
         Map<String, Set<String>> offenders = new TreeMap<>();      // "tier kind mnemonic" -> targets
         List<String> problems = new ArrayList<>();
+        int execSkipped = 0;
         for (String line : report) {
             if (line.isBlank()) continue;
             String[] f = line.split("\t");
             if (f[1].equals("#exec-skipped")) {
-                // the walk must stop at some exec target in every tier; zero means the exec test no longer matches
-                if (Integer.parseInt(f[2]) == 0) problems.add(f[0] + " skipped no exec-configuration target");
+                // the walk stops at exec-configuration targets (tools); with none skipped anywhere, the exec test no
+                // longer matches Bazel's naming. A tier may skip none: //:web runs esbuild's downloaded binary.
+                execSkipped += Integer.parseInt(f[2]);
                 continue;
             }
             String pair = f[2] + " " + f[1];
@@ -98,6 +100,11 @@ class CompileOnlyTest {
                 offenders.computeIfAbsent(f[0] + " " + pair, k -> new TreeSet<>()).add(f[3]);
             }
         }
+        if (execSkipped == 0) problems.add("no tier skipped an exec-configuration target: the exec test no longer matches");
+        // NO NODE IN THE BUILD: esbuild runs natively (tools/js/esbuild.bzl). A js_binary is Node's launcher, so any
+        // rule of that kind in a build target means Node is back.
+        seen.forEach((tier, pairs) -> pairs.stream().filter(p -> p.startsWith("js_binary "))
+                .forEach(p -> problems.add(tier + " runs Node: " + p)));
         SIGNATURE.forEach((tier, pair) -> {
             if (!seen.getOrDefault(tier, Set.of()).contains(pair)) problems.add(tier + " shows no " + pair);
         });
