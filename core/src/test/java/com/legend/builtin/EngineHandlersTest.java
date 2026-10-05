@@ -48,19 +48,36 @@ class EngineHandlersTest {
         assertTrue(!EngineHandlers.fqnsOf("joinWithPrefix").isEmpty());
     }
 
-    /** Pinned EXACTLY (audit 2026-09-25: a floor and a ceiling let a stale or
-     *  half-read registry pass), engine 4.145.0: 404 names over 836 ids, 168
-     *  engine ids the platform declares nowhere. A bump moves the numbers with
-     *  its dated reason; a declaration landing lowers the undeclared count.
-     *  2026-09-28: 169 -> 168, engine's string::contains(String[0..1], String[1])
-     *  (stringExtension.pure:21) declared (DataCube T5; ContainsOverloadTest).
-     *  2026-10-05: 168 -> 162, engine's math::min/max over Integer, Float and Number [1..*] declared
-     *  (the reference lane: legend-pure's overload for min([a, b]); GATES 2026-10-05). */
+    /** The registry is read WHOLE (audit 2026-09-25: a stale or half-read registry must not pass): every row of the
+     *  generated engine-handlers.tsv -- parsed here on its own -- is a name, an id and, where the platform declares it,
+     *  an FQN the API reports. Computed from the file, not pinned by hand (Bazel workplan P2-16): the file is
+     *  //core:update_generated's, so a bump or a declaration moves it, as a reviewed diff, and nothing here. */
     @Test
-    void theSurfaceAndItsGapArePinned() {
-        int ids = EngineHandlers.names().stream().mapToInt(n -> EngineHandlers.idsOf(n).size()).sum();
-        assertEquals(404, EngineHandlers.names().size(), "names");
-        assertEquals(836, ids, "engine ids");
-        assertEquals(162, EngineHandlers.undeclaredIds().size(), "undeclared engine ids");
+    void theApiReportsEveryRowOfTheRegistry() throws java.io.IOException {
+        java.util.Map<String, java.util.Set<String>> ids = new java.util.TreeMap<>();
+        java.util.Set<String> undeclared = new java.util.TreeSet<>();
+        try (java.io.InputStream in = EngineHandlers.class.getResourceAsStream("/com/legend/builtin/engine-handlers.tsv")) {
+            for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                if (line.isBlank() || line.startsWith("#") || line.startsWith("name\t")) {   // comments; the column header
+                    continue;
+                }
+                String[] c = line.split("\t", -1);
+                ids.computeIfAbsent(c[0], k -> new java.util.TreeSet<>()).add(c[1]);
+                if (c[2].isEmpty()) {
+                    undeclared.add(c[1]);
+                }
+            }
+        }
+        assertTrue(ids.size() > 300, "engine-handlers.tsv lists " + ids.size() + " names: the registry is not being read");
+        java.util.Set<String> onlyFile = new java.util.TreeSet<>(ids.keySet());
+        onlyFile.removeAll(EngineHandlers.names());
+        java.util.Set<String> onlyApi = new java.util.TreeSet<>(EngineHandlers.names());
+        onlyApi.removeAll(ids.keySet());
+        assertEquals("", (onlyFile.isEmpty() ? "" : "in the file, not the API: " + onlyFile)
+                + (onlyApi.isEmpty() ? "" : " in the API, not the file: " + onlyApi), "names");
+        for (String name : ids.keySet()) {
+            assertEquals(ids.get(name), new java.util.TreeSet<>(EngineHandlers.idsOf(name)), "ids of " + name);
+        }
+        assertEquals(undeclared, new java.util.TreeSet<>(EngineHandlers.undeclaredIds()), "undeclared engine ids");
     }
 }

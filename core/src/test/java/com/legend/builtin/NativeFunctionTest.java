@@ -538,14 +538,14 @@ class NativeFunctionTest {
         // 2026-09-08 (SYSTEM_PRELUDE_DESIGN §10): the generated prelude is a
         // MODULE (prelude.pure, the boot layer), no longer in this catalog —
         // the catalog IS the hand count now
-        long hand = Pure.allNativeClasses().size();
+        // (the hand class count is held by the name check at the end of this test, P2-16)
         // 255 -> 264 (2026-09-04, option S): +9 m3 BOOTSTRAP shapes the
         // generated declarations name (AbstractProperty, QualifiedProperty,
         // PropertyOwner, Association, Constraint, ConstraintsOverride,
         // ReferenceUsage, Referenceable, RelationElementAccessor; and
         // ElementOverride moved to its real package) — m3 is a graph file,
         // not class syntax, so the generator cannot read it; shapes
-        // extracted by tools/m3shape.py.
+        // extracted from m3.pure.
         // 264 -> 60 (2026-09-04, option S cut-over): 204 hand copies of
         // spec shapes (+13 enums) DELETED from Pure.java — the generator now
         // carries every library shape the corpus, the native signatures or
@@ -555,7 +555,7 @@ class NativeFunctionTest {
         // 60 -> 70: +10 more m3 bootstrap shapes the generated declarations
         // name (PackageableFunction, Annotation, Stereotype, Tag, TaggedValue,
         // Profile, ElementWithStereotypes, ElementWithTaggedValues,
-        // AnnotatedElement, Enum) — tools/m3shape.py receipts.
+        // AnnotatedElement, Enum), read from m3.pure.
         // 70 -> 68: the two GUESSED sql-node literals (DateLiteral /
         // TimestampLiteral in ::metamodel — the real ones live in
         // ::metamodel::extension and are generated) deleted; they had made
@@ -574,7 +574,7 @@ class NativeFunctionTest {
         // shapes that grow by witness.
         // 78 -> 82 (batch 149, 2026-09-08): +DataType, +PrimitiveType,
         // +FunctionType, +NativeFunction — m3 bootstrap shapes the spec's
-        // bodies cast to / instanceOf (tools/m3shape.py); the census's
+        // bodies cast to / instanceOf (read from m3.pure); the census's
         // functionType.pure load wall closed with FunctionType.
         // 82 -> 84 (batch 150): +Measure, +Unit (m3.pure:783/:922 — the spec's unit tests)
         // 84 -> 85 (batch 154, phase 3b-1 — legend-pure's platform packages
@@ -631,11 +631,11 @@ class NativeFunctionTest {
         // (relational.pure: owner : Relation[0..1]); the system mapping keeps
         // owner[tbl]. What is left by hand: the 12 primitives, the bootstrap
         // floor (Type.Primitive's keys; the SQL type wall).
-        assertEquals(12, hand,
-                "Pure.java hand-declared native class count moved: review the catalog");
+        // (the count is no longer pinned by hand: the name check below says which classes, exactly -- Bazel
+        // workplan P2-16)
         // STEP 5, the governance pin (batch 167, HAND_SHAPE_DIVERGENCE §4):
         // the hand set IS the bootstrap floor — exactly Type.Primitive's
-        // keys, by NAME (tools/shape_sweep.py retired: nothing by hand has
+        // keys, by NAME (nothing by hand has
         // a spec shape to diff any more). Any other hand shape is a spec
         // shape the prelude module must carry instead.
         java.util.Set<String> handNames = Pure.allNativeClasses().stream()
@@ -1142,7 +1142,7 @@ class NativeFunctionTest {
 
     /** M3 BOOTSTRAP shapes (option S, 2026-09-04): legend-pure's
      * platform/pure/grammar/m3.pure is a graph file the generator cannot
-     * read; these shapes are extracted verbatim by tools/m3shape.py. */
+     * read; these shapes are copied verbatim from m3.pure. */
     private static final java.util.Map<String, List<String>> M3_BOOTSTRAP_SURFACE_PROPERTIES =
             java.util.Map.of(
                     "meta::pure::metamodel::function::property::AbstractProperty",
@@ -1206,7 +1206,7 @@ class NativeFunctionTest {
                     // classMappings (mapping.pure:26) — the metamodel
                     // store's witness (step 3, 2026-09-02)
                     "meta::pure::mapping::Mapping", List.of("name", "classMappings", "associationMappings", "enumerationMappings", "includes"),
-                    // m3 PackageableElement.package (tools/m3shape.py) — batch 57
+                    // m3 PackageableElement.package — batch 57
                     "meta::pure::metamodel::PackageableElement", List.of("package"),
                     // real m3 Property (group F burn 2026-09-02): the
                     // property-mapping rows' property end — name only
@@ -1334,11 +1334,11 @@ class NativeFunctionTest {
             } else if (M3_BOOTSTRAP_SURFACE_PROPERTIES_2.containsKey(c.qualifiedName())) {
                 assertEquals(M3_BOOTSTRAP_SURFACE_PROPERTIES_2.get(c.qualifiedName()),
                         c.properties().stream().map(p -> p.name()).toList(),
-                        () -> c.qualifiedName() + " must match real m3.pure (tools/m3shape.py)");
+                        () -> c.qualifiedName() + " must match real m3.pure");
             } else if (M3_BOOTSTRAP_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
                 assertEquals(M3_BOOTSTRAP_SURFACE_PROPERTIES.get(c.qualifiedName()),
                         c.properties().stream().map(p -> p.name()).toList(),
-                        () -> c.qualifiedName() + " must match real m3.pure (tools/m3shape.py)");
+                        () -> c.qualifiedName() + " must match real m3.pure");
             } else {
                 assertTrue(c.properties().isEmpty(),
                         () -> "native class '" + c.qualifiedName()
