@@ -193,6 +193,16 @@ export class SdlcClient {
     return this.#json('GET', `/projects/${enc(project)}/versions`);
   }
 
+  /** `GET …/versions/{v}/pure`: a released version's files (lite's text route). */
+  versionPure(project: string, version: string): Promise<PureFile[]> {
+    return this.#json('GET', `/projects/${enc(project)}/versions/${enc(version)}/pure`);
+  }
+
+  /** `GET …/versions/{v}/configuration`: a released version's project configuration. */
+  versionConfiguration(project: string, version: string): Promise<ProjectConfiguration> {
+    return this.#json('GET', `/projects/${enc(project)}/versions/${enc(version)}/configuration`);
+  }
+
   /** The latest version, or undefined (upstream's 204). */
   async latestVersion(project: string): Promise<Version | undefined> {
     const res = await this.#call('GET', `/projects/${enc(project)}/versions/latest`);

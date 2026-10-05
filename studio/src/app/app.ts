@@ -52,11 +52,19 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
     clear(root);
     const hash = decodeURIComponent(globalThis.location.hash.slice(1));
     const edit = /^\/edit\/([^/]+)\/([^/]+)$/.exec(hash);
+    // upstream's project viewer: a released version, or the project line's head, read-only
+    const view = /^\/view\/([^/]+)(?:\/([^/]+))?$/.exec(hash);
     const open = (project: string, workspace: string): void => {
       globalThis.location.hash = `#/edit/${encodeURIComponent(project)}/${encodeURIComponent(workspace)}`;
     };
     try {
-      if (edit) {
+      if (view) {
+        const project = view[1]!;
+        dispose = await renderEditor(root, {
+          client, depot, compiler, run, builder, monaco, project, workspace: 'view', view: { version: view[2] },
+          back: () => { globalThis.location.hash = `#/project/${encodeURIComponent(project)}`; },
+        });
+      } else if (edit) {
         const project = edit[1]!;
         dispose = await renderEditor(root, {
           client, depot, compiler, run, builder, monaco, project, workspace: edit[2]!,
