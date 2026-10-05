@@ -130,25 +130,25 @@ public final class CorpusCensus {
         StringBuilder b = new StringBuilder();
         b.append("CORPUS CENSUS — what the parity gate never compares, and why\n")
                 .append("=".repeat(72)).append('\n')
-                .append(String.format("corpus sources          : %d%n", sources.size()))
-                .append(String.format("  BOTH-PARSE            : %d%n", bothParse))
-                .append(String.format("    fully read          : %d"
+                .append(String.format(java.util.Locale.ROOT, "corpus sources          : %d%n", sources.size()))
+                .append(String.format(java.util.Locale.ROOT, "  BOTH-PARSE            : %d%n", bothParse))
+                .append(String.format(java.util.Locale.ROOT, "    fully read          : %d"
                         + "  (every section parsed)%n", fullyParsed))
-                .append(String.format("    read by SKIPPING    : %d"
+                .append(String.format(java.util.Locale.ROOT, "    read by SKIPPING    : %d"
                         + "  (loaded, but a section was ignored)%n",
                         parsedOnlyBySkipping))
-                .append(String.format("  OUR-DEFECT            : %d"
+                .append(String.format(java.util.Locale.ROOT, "  OUR-DEFECT            : %d"
                         + "  (reference accepts, we fail)%n", ourDefect))
-                .append(String.format("  REFERENCE-REFUSES     : %d"
+                .append(String.format(java.util.Locale.ROOT, "  REFERENCE-REFUSES     : %d"
                         + "  (never comparable, at any effort)%n", referenceRefuses))
-                .append(String.format("    of which WE read    : %d"
+                .append(String.format(java.util.Locale.ROOT, "    of which WE read    : %d"
                         + "  (legend-lite is broader here)%n", onlyWeCanRead))
-                .append(String.format("    neither reads       : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "    neither reads       : %d%n",
                         neitherReads))
-                .append(String.format("%nreachable population    : %d of %d sources (%.1f%%)%n",
+                .append(String.format(java.util.Locale.ROOT, "%nreachable population    : %d of %d sources (%.1f%%)%n",
                         comparable, sources.size(),
                         100.0 * comparable / sources.size()))
-                .append(String.format("we parse                : %d of %d reachable (%.1f%%)%n",
+                .append(String.format(java.util.Locale.ROOT, "we parse                : %d of %d reachable (%.1f%%)%n",
                         bothParse, comparable,
                         comparable == 0 ? 0.0 : 100.0 * bothParse / comparable));
 
@@ -159,7 +159,7 @@ public final class CorpusCensus {
                 .append("-".repeat(72)).append('\n');
         onlyWeReadByOrigin.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
         b.append("\nONLY-WE-READ-IT by WHY THE ENGINE REFUSED\n")
@@ -167,34 +167,34 @@ public final class CorpusCensus {
         onlyWeReadByEngineError.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
                 .limit(12)
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
         b.append("\nNEITHER-READS-IT by ORIGIN\n")
                 .append("-".repeat(72)).append('\n');
         neitherByOrigin.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
         b.append("\nREAD-BY-SKIPPING by the section we could not read\n")
                 .append("-".repeat(72)).append('\n');
         skipReasons.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
         b.append("\nOUR-DEFECT by error — THE PARSE-MORE WORKLIST\n")
                 .append("-".repeat(72)).append('\n');
         defectsByMessage.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
         b.append("\nOUR-DEFECT by corpus tier\n").append("-".repeat(72)).append('\n');
         defectsByTier.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
         b.append("\nREFERENCE-REFUSES by the REFERENCE's own error\n")
@@ -202,7 +202,7 @@ public final class CorpusCensus {
         refusalsByReferenceMessage.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
                 .limit(40)
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
         Files.writeString(outDir.resolve("corpus-census.txt"), b.toString());

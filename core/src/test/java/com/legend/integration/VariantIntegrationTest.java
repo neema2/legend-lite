@@ -394,7 +394,7 @@ class VariantIntegrationTest {
 
         // Verify SQL contains typed JSON extraction
         assertTrue(sql.contains("PAYLOAD"), "SQL should reference PAYLOAD column");
-        assertTrue(sql.toUpperCase().contains("CAST"), "SQL should contain CAST for type conversion");
+        assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("CAST"), "SQL should contain CAST for type conversion");
         assertTrue(sql.contains("price") || sql.contains("'price'"), "SQL should extract 'price' from JSON");
 
         // Execute query

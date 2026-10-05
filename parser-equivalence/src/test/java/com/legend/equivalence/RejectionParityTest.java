@@ -114,19 +114,19 @@ class RejectionParityTest {
         StringBuilder report = new StringBuilder();
         report.append("REJECTION PARITY — inputs the engine parser refuses\n")
                 .append("=".repeat(72)).append('\n')
-                .append(String.format("error pins extracted  : %d%n", pins.size()))
-                .append(String.format("stale (engine accepts): %d%s%n", engineAccepts,
+                .append(String.format(java.util.Locale.ROOT, "error pins extracted  : %d%n", pins.size()))
+                .append(String.format(java.util.Locale.ROOT, "stale (engine accepts): %d%s%n", engineAccepts,
                         staleIds.isEmpty() ? "" : " — " + staleIds))
-                .append(String.format("REJECT_MATCH          : %d%n", rejectMatch))
-                .append(String.format("REJECT_MISS (BUG)     : %d%n", misses.size()))
-                .append(String.format("error-line agreement  : %d of %d (vs the engine's LIVE position)%n",
+                .append(String.format(java.util.Locale.ROOT, "REJECT_MATCH          : %d%n", rejectMatch))
+                .append(String.format(java.util.Locale.ROOT, "REJECT_MISS (BUG)     : %d%n", misses.size()))
+                .append(String.format(java.util.Locale.ROOT, "error-line agreement  : %d of %d (vs the engine's LIVE position)%n",
                         lineMatch, rejectMatch))
-                .append(String.format("  column exact        : %d%n", colMatch))
-                .append(String.format("  column engine-1     : %d (TokenStreamCursor 0-base)%n",
+                .append(String.format(java.util.Locale.ROOT, "  column exact        : %d%n", colMatch))
+                .append(String.format(java.util.Locale.ROOT, "  column engine-1     : %d (TokenStreamCursor 0-base)%n",
                         colOffByOne))
-                .append(String.format("scraped pin mispaired : %d (adjacency artifact, not parser signal)%n",
+                .append(String.format(java.util.Locale.ROOT, "scraped pin mispaired : %d (adjacency artifact, not parser signal)%n",
                         mispairedPins))
-                .append(String.format("non-Pure pins skipped : %d (section-parity worklist)%n",
+                .append(String.format(java.util.Locale.ROOT, "non-Pure pins skipped : %d (section-parity worklist)%n",
                         skippedNonPure));
         lineDiverges.stream().limit(10)
                 .forEach(d -> report.append("  LINE-DIVERGE ").append(d).append('\n'));

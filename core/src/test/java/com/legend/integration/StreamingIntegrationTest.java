@@ -132,8 +132,8 @@ class StreamingIntegrationTest {
                     case 1 -> "Sales";
                     default -> "Marketing";
                 };
-                stmt.execute("INSERT INTO T_EMPLOYEE VALUES (%d, 'Employee_%d', '%s', %d)"
-                        .formatted(i, i, dept, 50000 + (i * 1000)));
+                stmt.execute(String.format(java.util.Locale.ROOT, "INSERT INTO T_EMPLOYEE VALUES (%d, 'Employee_%d', '%s', %d)",
+                        i, i, dept, 50000 + (i * 1000)));
             }
         }
     }

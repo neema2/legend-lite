@@ -51,6 +51,14 @@ def _check_js_tests():
             fail("//%s:%s is a js_test not made by node_test (tools/js/defs.bzl): every JavaScript test is a node_test (A28)" %
                  (native.package_name(), rule["name"]))
 
+def _check_libraries():
+    # A19 (Bazel workplan P3-28): every first-party java_library is a legend_java_library (tools/java/defs.bzl), so
+    # every compile takes LEGEND_JAVACOPTS: the Error Prone locale checks hold repository-wide, not only in core
+    for rule in native.existing_rules().values():
+        if rule["kind"] == "java_library" and rule.get("generator_function") != "legend_java_library":
+            fail("//%s:%s is a java_library not made by legend_java_library (tools/java/defs.bzl): every first-party library takes the shared javacopts (A19)" %
+                 (native.package_name(), rule["name"]))
+
 def _check_config_settings():
     # P1-19 (G-nn): platform policy lives in //tools/platforms, so no other package declares a config_setting
     if native.package_name() != "tools/platforms":
@@ -62,6 +70,7 @@ def _check_config_settings():
 def guards_package():
     _check_tests()
     _check_js_tests()
+    _check_libraries()
     _check_config_settings()
 
     rules = native.existing_rules().values()

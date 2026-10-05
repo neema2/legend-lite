@@ -225,7 +225,7 @@ public class ManifestWorldCensusTest {
                     again.model().unclaimedSections()));
             tModel = Math.min(tModel, System.nanoTime() - m0);
         }
-        String timing = String.format("read %d files %.2fs | parse (best of 3) %.2fs | parse+model on the"
+        String timing = String.format(java.util.Locale.ROOT, "read %d files %.2fs | parse (best of 3) %.2fs | parse+model on the"
                 + " converged set (best of 3) %.2fs | wall-finding loop %d rounds %.1fs",
                 fileCount, tRead / 1e9, tParse / 1e9, tModel / 1e9, rounds, tLoop / 1e9);
         System.out.println("[manifest-census] timing: " + timing);
@@ -319,7 +319,7 @@ public class ManifestWorldCensusTest {
         for (Module m : world) {
             int[] r = perModule.getOrDefault(m.name(), new int[4]);
             long walls = loadWalls.stream().filter(w -> w.startsWith(m.name() + ":")).count();
-            out.add(String.format("%-66s %5d | %4d | %5d | %5d | %4d | %5d | %s", m.name(),
+            out.add(String.format(java.util.Locale.ROOT, "%-66s %5d | %4d | %5d | %5d | %4d | %5d | %s", m.name(),
                     filesOf.getOrDefault(m.name(), 0), walls, r[0], r[1], r[2], r[3],
                     reasonByModule.getOrDefault(m.name(), Map.of())));
         }
@@ -328,7 +328,7 @@ public class ManifestWorldCensusTest {
         byMessage.entrySet().stream()
                 .sorted((a, b) -> b.getValue() - a.getValue())
                 .limit(60)
-                .forEach(e -> out.add(String.format("%5d  %s", e.getValue(), e.getKey())));
+                .forEach(e -> out.add(String.format(java.util.Locale.ROOT, "%5d  %s", e.getValue(), e.getKey())));
         out.add("");
         out.add("## load walls (" + loadWalls.size() + ")");
         out.addAll(loadWalls);

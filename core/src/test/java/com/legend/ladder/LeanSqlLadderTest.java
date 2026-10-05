@@ -40,7 +40,7 @@ class LeanSqlLadderTest {
             }
             String lean = resource(rung + ".lean.sql");
             String status = lean == null ? "OPEN" : normalize(lean).equals(normalize(current)) ? "CLOSED" : "OPEN";
-            report.add(String.format("%-24s %-8s statements=%d chars=%5d subqueries=%3d  %s",
+            report.add(String.format(java.util.Locale.ROOT, "%-24s %-8s statements=%d chars=%5d subqueries=%3d  %s",
                     rung, status, current.split("\n;;\n", -1).length, current.length(),
                     count(current, "(SELECT "), lean == null ? "(no lean target written yet)" : "lean chars=" + lean.length()));
         }

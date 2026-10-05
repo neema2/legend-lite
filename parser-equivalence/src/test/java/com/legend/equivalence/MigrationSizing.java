@@ -90,21 +90,21 @@ public final class MigrationSizing {
         StringBuilder b = new StringBuilder();
         b.append("UNFINISHED MIGRATION — legacy model parser vs protocol parser\n")
                 .append("=".repeat(72)).append('\n')
-                .append(String.format("files with ###Mapping/###Relational : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "files with ###Mapping/###Relational : %d%n",
                         both + protocolOnly + legacyOnly + neither))
-                .append(String.format("  BOTH read it                     : %d"
+                .append(String.format(java.util.Locale.ROOT, "  BOTH read it                     : %d"
                         + "   (mechanical to migrate)%n", both))
-                .append(String.format("  PROTOCOL-ONLY                    : %d"
+                .append(String.format(java.util.Locale.ROOT, "  PROTOCOL-ONLY                    : %d"
                         + "   (compiler GAINS these for free)%n", protocolOnly))
-                .append(String.format("  LEGACY-ONLY                      : %d"
+                .append(String.format(java.util.Locale.ROOT, "  LEGACY-ONLY                      : %d"
                         + "   (THE COST: protocol must learn these)%n", legacyOnly))
-                .append(String.format("  NEITHER                          : %d%n", neither));
+                .append(String.format(java.util.Locale.ROOT, "  NEITHER                          : %d%n", neither));
 
         b.append("\nTHE COST — what the protocol parser must learn\n")
                 .append("-".repeat(72)).append('\n');
         legacyOnlyWhy.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
         b.append("\nTHE GAIN — constructs the compiler cannot see today\n")
@@ -112,7 +112,7 @@ public final class MigrationSizing {
         protocolOnlyWhy.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
                 .limit(20)
-                .forEach(e -> b.append(String.format("  %5d  %s%n",
+                .forEach(e -> b.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
         Files.writeString(outDir.resolve("migration-sizing.txt"), b.toString());

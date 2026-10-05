@@ -140,7 +140,7 @@ class ResolveSimpleClassTest {
     }
 
     private static void noJson(String sql) {
-        assertEquals(0, count(sql.toLowerCase(), "json"),
+        assertEquals(0, count(sql.toLowerCase(java.util.Locale.ROOT), "json"),
                 "map-terminal invariant: no JSON in relation-shaped SQL:\n" + sql);
     }
 

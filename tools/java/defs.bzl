@@ -12,7 +12,12 @@ load("//tools/deps:pools.bzl", "check_pool_use")
 load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
 
 # The javac options every first-party library shares, null gate or not.
-LEGEND_JAVACOPTS = []
+# Error Prone on every first-party library and binary (Bazel workplan P3-28): a case mapping or a format with no
+# locale does not compile (the machine's locale would decide it; Locale.ROOT says so).
+LEGEND_JAVACOPTS = [
+    "-Xep:StringCaseLocaleUsage:ERROR",
+    "-Xep:DefaultLocale:ERROR",
+]
 
 def legend_java_library(name, nullaway = True, visibility = ["//visibility:private"], javacopts = [], plugins = [], **kwargs):
     """A java_library with the repository's javac options and, unless `nullaway = False`, the null gate.
@@ -28,7 +33,8 @@ def legend_java_library(name, nullaway = True, visibility = ["//visibility:priva
     check_pool_use(name, kwargs.get("deps", []), kwargs.get("runtime_deps", []), kwargs.get("exports", []))
     java_library(
         name = name,
-        javacopts = LEGEND_JAVACOPTS + (NULLAWAY_OPTS if nullaway else []) + javacopts,
+        # after NullAway's options, whose -XepDisableAllChecks would otherwise switch the shared checks off
+        javacopts = (NULLAWAY_OPTS if nullaway else []) + LEGEND_JAVACOPTS + javacopts,
         plugins = ([NULLAWAY_PLUGIN] if nullaway else []) + plugins,
         visibility = visibility,
         **kwargs

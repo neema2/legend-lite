@@ -548,7 +548,7 @@ public class CorpusSweepTest {
                         "parseStrict leniency census grew: " + fStrict
                                 + " > " + MAX_STRICT_ORACLE_ASYMMETRY),
                 () -> assertTrue(fCal >= M3_CALIBRATION_FLOOR,
-                        String.format("M3 second-reference calibration %.1f%%"
+                        String.format(java.util.Locale.ROOT, "M3 second-reference calibration %.1f%%"
                                 + " below floor %.1f%% — the m3-corroborated"
                                 + " label is no longer trustworthy",
                                 fCal, M3_CALIBRATION_FLOOR)),
@@ -943,16 +943,16 @@ public class CorpusSweepTest {
         StringBuilder eq = new StringBuilder();
         eq.append("CORPUS SWEEP — one pass, every claim (CorpusSweepTest)\n")
                 .append("=".repeat(72)).append('\n')
-                .append(String.format("corpus sources        : %d%n", sources))
-                .append(String.format("oracle accepts        : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "corpus sources        : %d%n", sources))
+                .append(String.format(java.util.Locale.ROOT, "oracle accepts        : %d%n",
                         oracleAccepts))
-                .append(String.format("  docs byte-MATCH     : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "  docs byte-MATCH     : %d%n",
                         docsMatched))
-                .append(String.format("  docs DIFF (BUG)     : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "  docs DIFF (BUG)     : %d%n",
                         docDiffs.size()))
-                .append(String.format("  we-refuse (BUG)     : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "  we-refuse (BUG)     : %d%n",
                         weRefuse.size()))
-                .append(String.format("oracle rejects        : %d (both-reject %d)%n",
+                .append(String.format(java.util.Locale.ROOT, "oracle rejects        : %d (both-reject %d)%n",
                         sources - oracleAccepts, bothReject));
         docDiffs.stream().limit(15).forEach(d ->
                 eq.append("  DIFF ").append(d).append('\n'));
@@ -967,14 +967,14 @@ public class CorpusSweepTest {
         StringBuilder seam = new StringBuilder();
         seam.append("SPI SEAM — engine+legend-lite vs vanilla engine, full PMCD\n")
                 .append("=".repeat(72)).append('\n')
-                .append(String.format("files byte-identical  : %d%n", seamMatched))
-                .append(String.format("engine JSON-asymmetry : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "files byte-identical  : %d%n", seamMatched))
+                .append(String.format(java.util.Locale.ROOT, "engine JSON-asymmetry : %d%n",
                         engineAsym.size()))
-                .append(String.format("DIFF (BUG)            : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "DIFF (BUG)            : %d%n",
                         seamDiffs.size()))
-                .append(String.format("asymmetric rejects    : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "asymmetric rejects    : %d%n",
                         seamAccepts.size() + seamRejects.size()))
-                .append(String.format("strict/oracle asym    : %d%n",
+                .append(String.format(java.util.Locale.ROOT, "strict/oracle asym    : %d%n",
                         strictAsymmetry));
         engineAsym.stream().limit(20).forEach(d ->
                 seam.append("  ENGINE-ASYM ").append(d).append('\n'));

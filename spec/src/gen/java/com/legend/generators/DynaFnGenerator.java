@@ -53,11 +53,11 @@ public final class DynaFnGenerator {
         String s = p.toString().replace('\\', '/');
         Matcher m = Pattern.compile("core_relational_(\\w+)/").matcher(s);
         if (m.find()) {
-            return m.group(1).toUpperCase();
+            return m.group(1).toUpperCase(java.util.Locale.ROOT);
         }
         m = Pattern.compile("dbSpecific/(\\w+)/").matcher(s);
         if (m.find()) {
-            return m.group(1).toUpperCase();
+            return m.group(1).toUpperCase(java.util.Locale.ROOT);
         }
         return s.endsWith("extensionDefaults.pure") ? "DEFAULT" : "OTHER";
     }
@@ -136,7 +136,7 @@ public final class DynaFnGenerator {
             String[] keep = kept[0].equals("PURE")
                     ? new String[] {kept[0], pureFqns(e.getKey())}
                     : new String[] {kept[0], kept[0].equals("SHIM") ? kept[1] : ""};
-            String member = e.getKey().replaceAll("([a-z0-9])([A-Z])", "$1_$2").toUpperCase();
+            String member = e.getKey().replaceAll("([a-z0-9])([A-Z])", "$1_$2").toUpperCase(java.util.Locale.ROOT);
             StringBuilder ds = new StringBuilder();
             for (String d : e.getValue().dialects()) {
                 ds.append(", Dialect.").append(d);

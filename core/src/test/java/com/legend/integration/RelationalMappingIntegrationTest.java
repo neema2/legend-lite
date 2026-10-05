@@ -1933,7 +1933,7 @@ class RelationalMappingIntegrationTest {
 
         private int countJoins(String sql) {
             int count = 0;
-            String upper = sql.toUpperCase();
+            String upper = sql.toUpperCase(java.util.Locale.ROOT);
             int idx = 0;
             while ((idx = upper.indexOf("LEFT OUTER JOIN", idx)) != -1) {
                 count++;
@@ -1950,9 +1950,9 @@ class RelationalMappingIntegrationTest {
                     "model::Person.all()->project(~[name:p|$p.name])");
             assertEquals(0, countJoins(sql),
                     "Expected 0 LEFT JOINs when only local property projected. SQL: " + sql);
-            assertFalse(sql.toUpperCase().contains("T_DEPT"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("T_DEPT"),
                     "T_DEPT should not appear in SQL. SQL: " + sql);
-            assertFalse(sql.toUpperCase().contains("T_ORG"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("T_ORG"),
                     "T_ORG should not appear in SQL. SQL: " + sql);
         }
 
@@ -1964,9 +1964,9 @@ class RelationalMappingIntegrationTest {
                     "model::Person.all()->project(~[name:p|$p.name, dept:p|$p.deptName])");
             assertEquals(1, countJoins(sql),
                     "Expected 1 LEFT JOIN for deptName (1-hop). SQL: " + sql);
-            assertTrue(sql.toUpperCase().contains("T_DEPT"),
+            assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("T_DEPT"),
                     "T_DEPT should appear for deptName. SQL: " + sql);
-            assertFalse(sql.toUpperCase().contains("T_ORG"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("T_ORG"),
                     "T_ORG should not appear when orgName not used. SQL: " + sql);
         }
 
@@ -1976,9 +1976,9 @@ class RelationalMappingIntegrationTest {
                     "model::Person.all()->project(~[name:p|$p.name, org:p|$p.orgName])");
             assertEquals(2, countJoins(sql),
                     "Expected 2 LEFT JOINs for orgName (2-hop chain). SQL: " + sql);
-            assertTrue(sql.toUpperCase().contains("T_DEPT"),
+            assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("T_DEPT"),
                     "T_DEPT should appear (intermediate hop). SQL: " + sql);
-            assertTrue(sql.toUpperCase().contains("T_ORG"),
+            assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("T_ORG"),
                     "T_ORG should appear (terminal hop). SQL: " + sql);
         }
 
@@ -2059,7 +2059,7 @@ class RelationalMappingIntegrationTest {
                     "model::Person.all()->project(~[dept:p|$p.deptName])");
             assertEquals(1, countJoins(sql),
                     "Expected 1 LEFT JOIN for deptName only. SQL: " + sql);
-            assertFalse(sql.toUpperCase().contains("T_ORG"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("T_ORG"),
                     "T_ORG should not appear when orgName not projected. SQL: " + sql);
         }
 
@@ -2069,7 +2069,7 @@ class RelationalMappingIntegrationTest {
                     "model::Person.all()->filter({p|$p.deptName == 'Engineering'})->project(~[name:p|$p.name])");
             assertEquals(1, countJoins(sql),
                     "Expected 1 LEFT JOIN for deptName in filter. SQL: " + sql);
-            assertFalse(sql.toUpperCase().contains("T_ORG"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("T_ORG"),
                     "T_ORG should not appear. SQL: " + sql);
         }
 
@@ -2645,17 +2645,17 @@ class RelationalMappingIntegrationTest {
             // doctrine as slot elision on direct join PMs.
             String sql = planSql(model,
                     "test::Employee.all()->project(~[empId, empName])");
-            assertFalse(sql.toUpperCase().contains("JOIN"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("JOIN"),
                     "No deptName access → no JOIN. SQL: " + sql);
-            assertFalse(sql.toUpperCase().contains("DEPARTMENTS"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("DEPARTMENTS"),
                     "DEPARTMENTS should not appear. SQL: " + sql);
 
             // Project deptName — JOIN should appear
             String sql2 = planSql(model,
                     "test::Employee.all()->project(~[empId, deptName])");
-            assertTrue(sql2.toUpperCase().contains("JOIN"),
+            assertTrue(sql2.toUpperCase(java.util.Locale.ROOT).contains("JOIN"),
                     "deptName access → JOIN expected. SQL: " + sql2);
-            assertTrue(sql2.toUpperCase().contains("DEPARTMENTS"),
+            assertTrue(sql2.toUpperCase(java.util.Locale.ROOT).contains("DEPARTMENTS"),
                     "DEPARTMENTS should appear for deptName. SQL: " + sql2);
         }
 
@@ -2864,11 +2864,11 @@ class RelationalMappingIntegrationTest {
 
             // Pruning: only project name + city — dept/org joins should be pruned
             String sql = planSql(model, "test::Person.all()->project(~[name, city])");
-            assertFalse(sql.toUpperCase().contains("DEPTS"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("DEPTS"),
                     "DEPTS should not appear when deptName/orgName not projected. SQL: " + sql);
-            assertFalse(sql.toUpperCase().contains("ORGS"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("ORGS"),
                     "ORGS should not appear. SQL: " + sql);
-            assertTrue(sql.toUpperCase().contains("OFFICES"),
+            assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("OFFICES"),
                     "OFFICES should appear for city. SQL: " + sql);
         }
 
@@ -4631,7 +4631,7 @@ class RelationalMappingIntegrationTest {
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 1).contains("Acme Corp"));
             assertTrue(colStr(r, 1).contains("Beta Inc"));
-            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Embedded should produce no JOIN");
+            assertFalse(planSql(model, query).toUpperCase(java.util.Locale.ROOT).contains("JOIN"), "Embedded should produce no JOIN");
         }
 
         @Test
@@ -4647,7 +4647,7 @@ class RelationalMappingIntegrationTest {
             int aliceIdx = names.indexOf("Alice");
             assertEquals("Acme Corp", firms.get(aliceIdx));
             assertEquals(Integer.valueOf(1000000), revs.get(aliceIdx));
-            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Embedded should produce no JOIN");
+            assertFalse(planSql(model, query).toUpperCase(java.util.Locale.ROOT).contains("JOIN"), "Embedded should produce no JOIN");
         }
 
         @Test
@@ -4657,14 +4657,14 @@ class RelationalMappingIntegrationTest {
             var r = exec(model, query);
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
-            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Embedded filter should produce no JOIN");
+            assertFalse(planSql(model, query).toUpperCase(java.util.Locale.ROOT).contains("JOIN"), "Embedded filter should produce no JOIN");
         }
 
         @Test
         @DisplayName("SQL has no JOIN for embedded — columns from parent table")
         void testEmbeddedNoJoinSql() {
             String sql = planSql(model, "model::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])");
-            assertFalse(sql.toUpperCase().contains("JOIN"), "Embedded should produce no JOIN: " + sql);
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("JOIN"), "Embedded should produce no JOIN: " + sql);
             assertTrue(sql.contains("FIRM_NAME"), "Should reference FIRM_NAME column directly: " + sql);
         }
 
@@ -4676,7 +4676,7 @@ class RelationalMappingIntegrationTest {
             assertEquals(3, r.rowCount());
             assertEquals("Alice", colStr(r, 0).get(0));
             assertEquals("Acme Corp", colStr(r, 1).get(0));
-            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Embedded + sort should produce no JOIN");
+            assertFalse(planSql(model, query).toUpperCase(java.util.Locale.ROOT).contains("JOIN"), "Embedded + sort should produce no JOIN");
         }
     }
 
@@ -4739,7 +4739,7 @@ class RelationalMappingIntegrationTest {
             assertEquals("Acme Corp", colStr(r, 1).get(aliceIdx));
             assertEquals("New York", colStr(r, 2).get(aliceIdx));
             // Exactly one JOIN for address association; firm embedded = no JOIN
-            String sql = planSql(model, query).toUpperCase();
+            String sql = planSql(model, query).toUpperCase(java.util.Locale.ROOT);
             assertEquals(1, sql.split("JOIN").length - 1, "Expected exactly 1 JOIN (address): " + sql);
             assertTrue(sql.contains("T_ADDRESS"), "JOIN should be to T_ADDRESS: " + sql);
         }
@@ -4787,7 +4787,7 @@ class RelationalMappingIntegrationTest {
                     """, "store::DB", "model::M");
 
             String sql = planSql(model, "model::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName, city:p|$p.address.city])");
-            String upper = sql.toUpperCase();
+            String upper = sql.toUpperCase(java.util.Locale.ROOT);
             // Exactly one JOIN (for address association); firm embedded = no JOIN
             assertEquals(1, upper.split("JOIN").length - 1, "Expected exactly 1 JOIN (address): " + sql);
             assertTrue(upper.contains("T_ADDRESS"), "JOIN should be to T_ADDRESS: " + sql);
@@ -4845,7 +4845,7 @@ class RelationalMappingIntegrationTest {
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 1).contains("Acme Corp"));
             assertTrue(colStr(r, 1).contains("Beta Inc"));
-            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Inline should produce no JOIN");
+            assertFalse(planSql(model, query).toUpperCase(java.util.Locale.ROOT).contains("JOIN"), "Inline should produce no JOIN");
         }
 
         @Test
@@ -4858,7 +4858,7 @@ class RelationalMappingIntegrationTest {
             int aliceIdx = names.indexOf("Alice");
             assertEquals("Acme Corp", colStr(r, 1).get(aliceIdx));
             assertEquals(Integer.valueOf(1000000), colInt(r, 2).get(aliceIdx));
-            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Inline should produce no JOIN");
+            assertFalse(planSql(model, query).toUpperCase(java.util.Locale.ROOT).contains("JOIN"), "Inline should produce no JOIN");
         }
 
         @Test
@@ -4868,7 +4868,7 @@ class RelationalMappingIntegrationTest {
             var r = exec(model, query);
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
-            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"), "Inline filter should produce no JOIN");
+            assertFalse(planSql(model, query).toUpperCase(java.util.Locale.ROOT).contains("JOIN"), "Inline filter should produce no JOIN");
         }
 
         @Test
@@ -4876,7 +4876,7 @@ class RelationalMappingIntegrationTest {
         void testInlineNoJoinSql() {
             var query = "model::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])";
             String sql = planSql(model, query);
-            assertFalse(sql.toUpperCase().contains("JOIN"), "Inline should produce no JOIN: " + sql);
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("JOIN"), "Inline should produce no JOIN: " + sql);
             assertTrue(sql.contains("FIRM_NAME"), "Should reference FIRM_NAME column directly: " + sql);
         }
     }
@@ -4939,7 +4939,7 @@ class RelationalMappingIntegrationTest {
             assertEquals(3, r.rowCount());
             assertTrue(colStr(r, 1).contains("Acme Corp"));
             // Embedded property resolves from parent table — no JOIN
-            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"),
+            assertFalse(planSql(model, query).toUpperCase(java.util.Locale.ROOT).contains("JOIN"),
                     "Embedded property should not require JOIN");
         }
 
@@ -4953,7 +4953,7 @@ class RelationalMappingIntegrationTest {
             int aliceIdx = names.indexOf("Alice");
             assertEquals(Integer.valueOf(1000000), colInt(r, 1).get(aliceIdx));
             // Fallback property needs JOIN to T_FIRM
-            String sql = planSql(model, query).toUpperCase();
+            String sql = planSql(model, query).toUpperCase(java.util.Locale.ROOT);
             assertEquals(1, sql.split("JOIN").length - 1, "Expected 1 JOIN for fallback: " + sql);
             assertTrue(sql.contains("T_FIRM"), "JOIN should be to T_FIRM: " + sql);
         }
@@ -4969,7 +4969,7 @@ class RelationalMappingIntegrationTest {
             assertEquals("Acme Corp", colStr(r, 1).get(aliceIdx));
             assertEquals(Integer.valueOf(1000000), colInt(r, 2).get(aliceIdx));
             // One JOIN for revenue (fallback), legalName from parent
-            String sql = planSql(model, query).toUpperCase();
+            String sql = planSql(model, query).toUpperCase(java.util.Locale.ROOT);
             assertEquals(1, sql.split("JOIN").length - 1, "Expected 1 JOIN: " + sql);
             assertTrue(sql.contains("FIRM_NAME"), "Embedded legalName from parent: " + sql);
             assertTrue(sql.contains("T_FIRM"), "Fallback revenue via JOIN: " + sql);
@@ -4982,7 +4982,7 @@ class RelationalMappingIntegrationTest {
             var r = exec(model, query);
             assertEquals(2, r.rowCount());
             assertTrue(colStr(r, 0).containsAll(List.of("Alice", "Charlie")));
-            assertFalse(planSql(model, query).toUpperCase().contains("JOIN"),
+            assertFalse(planSql(model, query).toUpperCase(java.util.Locale.ROOT).contains("JOIN"),
                     "Filter on embedded property should not require JOIN");
         }
 
@@ -4996,9 +4996,9 @@ class RelationalMappingIntegrationTest {
         void testOtherwisePruningNoFirmAccess() {
             String sql = planSql(model,
                     "model::Person.all()->project(~[name:p|$p.name])");
-            assertFalse(sql.toUpperCase().contains("JOIN"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("JOIN"),
                     "No firm access → no JOIN. SQL: " + sql);
-            assertFalse(sql.toUpperCase().contains("T_FIRM"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("T_FIRM"),
                     "T_FIRM should not appear. SQL: " + sql);
         }
 
@@ -5007,9 +5007,9 @@ class RelationalMappingIntegrationTest {
         void testOtherwisePruningEmbeddedOnly() {
             String sql = planSql(model,
                     "model::Person.all()->project(~[name:p|$p.name, firmName:p|$p.firm.legalName])");
-            assertFalse(sql.toUpperCase().contains("JOIN"),
+            assertFalse(sql.toUpperCase(java.util.Locale.ROOT).contains("JOIN"),
                     "Embedded-only access → no JOIN. SQL: " + sql);
-            assertTrue(sql.toUpperCase().contains("FIRM_NAME"),
+            assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("FIRM_NAME"),
                     "Should resolve legalName from parent table column FIRM_NAME. SQL: " + sql);
         }
 
@@ -5018,9 +5018,9 @@ class RelationalMappingIntegrationTest {
         void testOtherwisePruningFallbackOnly() {
             String sql = planSql(model,
                     "model::Person.all()->project(~[name:p|$p.name, rev:p|$p.firm.revenue])");
-            assertEquals(1, sql.toUpperCase().split("JOIN").length - 1,
+            assertEquals(1, sql.toUpperCase(java.util.Locale.ROOT).split("JOIN").length - 1,
                     "Fallback-only access → 1 JOIN. SQL: " + sql);
-            assertTrue(sql.toUpperCase().contains("T_FIRM"),
+            assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("T_FIRM"),
                     "JOIN should target T_FIRM. SQL: " + sql);
         }
 
@@ -5029,11 +5029,11 @@ class RelationalMappingIntegrationTest {
         void testOtherwisePruningMixed() {
             String sql = planSql(model,
                     "model::Person.all()->project(~[firmName:p|$p.firm.legalName, rev:p|$p.firm.revenue])");
-            assertEquals(1, sql.toUpperCase().split("JOIN").length - 1,
+            assertEquals(1, sql.toUpperCase(java.util.Locale.ROOT).split("JOIN").length - 1,
                     "Mixed access → 1 JOIN for fallback. SQL: " + sql);
-            assertTrue(sql.toUpperCase().contains("FIRM_NAME"),
+            assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("FIRM_NAME"),
                     "Embedded legalName from parent. SQL: " + sql);
-            assertTrue(sql.toUpperCase().contains("T_FIRM"),
+            assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("T_FIRM"),
                     "Fallback revenue via JOIN. SQL: " + sql);
         }
     }

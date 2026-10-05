@@ -1070,7 +1070,7 @@ public final class Executor {
         // ('DECIMAL(38,9)' -> 'DECIMAL'), then the table is EXACT-match
         // — no prefix matching (the audited startsWith arms could never
         // say what they excluded).
-        String t = sqlType.toUpperCase();
+        String t = sqlType.toUpperCase(java.util.Locale.ROOT);
         int paren = t.indexOf('(');
         if (paren > 0) {
             t = t.substring(0, paren).strip();

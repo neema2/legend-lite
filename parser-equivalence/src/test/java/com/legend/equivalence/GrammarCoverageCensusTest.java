@@ -236,7 +236,7 @@ class GrammarCoverageCensusTest {
         for (Drive d : drives.values()) {
             totalRules += d.ruleNames.length;
             coveredRules += d.covered.cardinality();
-            out.append(String.format("%s\t%s\t%d\t%d\t%d\t%d\t%.1f%%\t%d%n",
+            out.append(String.format(java.util.Locale.ROOT, "%s\t%s\t%d\t%d\t%d\t%d\t%.1f%%\t%d%n",
                     simple(d.parserFqn), d.sections, d.fragments,
                     d.errFragments, d.covered.cardinality(),
                     d.ruleNames.length,
@@ -256,7 +256,7 @@ class GrammarCoverageCensusTest {
                         uncoveredDetail.append("  ").append(r).append('\n'));
             }
         }
-        out.append(String.format("# TOTAL driven: %d/%d rules (%.1f%%)%n",
+        out.append(String.format(java.util.Locale.ROOT, "# TOTAL driven: %d/%d rules (%.1f%%)%n",
                 coveredRules, totalRules,
                 100.0 * coveredRules / Math.max(1, totalRules)));
         out.append("# sections with NO mapped grammar: ")

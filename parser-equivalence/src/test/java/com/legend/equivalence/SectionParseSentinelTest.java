@@ -212,19 +212,19 @@ class SectionParseSentinelTest {
         StringBuilder report = new StringBuilder();
         report.append("SECTION PARSE SENTINEL — Mapping/Relational/Connection/Runtime\n")
                 .append("=".repeat(72)).append('\n')
-                .append(String.format("files in scope        : %d%n", inScope))
-                .append(String.format("parse cleanly         : %d%n", parsed))
-                .append(String.format("parse failures        : %d%n", failures.size()))
-                .append(String.format("  reference ACCEPTS   : %d (drop-in DEFECTS)%n", defects))
-                .append(String.format("  reference rejects   : %d (legal refusals)%n",
+                .append(String.format(java.util.Locale.ROOT, "files in scope        : %d%n", inScope))
+                .append(String.format(java.util.Locale.ROOT, "parse cleanly         : %d%n", parsed))
+                .append(String.format(java.util.Locale.ROOT, "parse failures        : %d%n", failures.size()))
+                .append(String.format(java.util.Locale.ROOT, "  reference ACCEPTS   : %d (drop-in DEFECTS)%n", defects))
+                .append(String.format(java.util.Locale.ROOT, "  reference rejects   : %d (legal refusals)%n",
                         legalRefusals))
                 .append(String.format("%nBEHAVIOUR vs the reference (what the ratchet"
                         + " actually guards)%n"))
-                .append(String.format("  MATCHED             : %d"
+                .append(String.format(java.util.Locale.ROOT, "  MATCHED             : %d"
                         + " (both accept, or both refuse)%n", matched))
-                .append(String.format("  LENIENT             : %d"
+                .append(String.format(java.util.Locale.ROOT, "  LENIENT             : %d"
                         + " (we accept, reference REFUSES)%n", lenient))
-                .append(String.format("  DEFECT              : %d"
+                .append(String.format(java.util.Locale.ROOT, "  DEFECT              : %d"
                         + " (reference accepts, we refuse)%n", defects));
         if (!lenientFiles.isEmpty()) {
             report.append("\nLENIENT by JUSTIFICATION — see leniencyKind(): a superset"
@@ -232,7 +232,7 @@ class SectionParseSentinelTest {
                     .append("-".repeat(72)).append('\n');
             lenientByKind.entrySet().stream()
                     .sorted((x, y) -> y.getValue() - x.getValue())
-                    .forEach(e -> report.append(String.format("  %5d  %s%n",
+                    .forEach(e -> report.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                             e.getValue(), e.getKey())));
             report.append("\nLENIENT — files we take that the engine will not\n")
                     .append("-".repeat(72)).append('\n');
@@ -247,7 +247,7 @@ class SectionParseSentinelTest {
                 .append("-".repeat(72)).append('\n');
         byMessage.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue())
                 .limit(20)
-                .forEach(e -> report.append(String.format("  %5d  %s%n",
+                .forEach(e -> report.append(String.format(java.util.Locale.ROOT, "  %5d  %s%n",
                         e.getValue(), e.getKey())));
         report.append('\n');
         // NOT truncated, same reason the LENIENT list is not: DEFECT is the

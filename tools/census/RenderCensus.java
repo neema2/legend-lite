@@ -54,7 +54,7 @@ public final class RenderCensus {
             String[] f = line.split("\t", -1);
             String model = decode(f[0]);
             String expression = decode(f[1]);
-            String id = String.format("%05d", n++);
+            String id = String.format(java.util.Locale.ROOT, "%05d", n++);
             SqlQuery q;
             try {
                 Object built = models.computeIfAbsent(model, m -> {
