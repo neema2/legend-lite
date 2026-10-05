@@ -80,19 +80,20 @@ class ResolveUnionSelfJoinProbeTest {
                 + "->project([p|$p.lastName, p|$p.manager.lastName],"
                 + " ['Name','manager'])->from(u::M, u::RT)");
         // the joins match on last name: each person's only manager is itself, through its own set's route (the
-        // cross-set routes find no one with a different last name)
+        // cross-set routes find no one with a different last name; a join that lost its condition would pair Smith
+        // and Brown)
         List<List<Object>> rows = new ArrayList<>();
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
             st.execute("CREATE TABLE P1 (ID INTEGER PRIMARY KEY, lastName_s1 VARCHAR(200))");
             st.execute("CREATE TABLE P2 (ID INTEGER PRIMARY KEY, lastName_s2 VARCHAR(200))");
-            st.execute("INSERT INTO P1 VALUES (1, 'Smith')");
+            st.execute("INSERT INTO P1 VALUES (1, 'Smith'), (3, 'Brown')");
             st.execute("INSERT INTO P2 VALUES (2, 'Jones')");
             try (ResultSet rs = st.executeQuery(sql)) {
                 while (rs.next()) {
-                    rows.add(List.of(rs.getString(1), rs.getString(2)));
+                    rows.add(java.util.Arrays.asList(rs.getString(1), rs.getString(2)));
                 }
             }
         }
-        Rows.assertSameRows(List.of(List.of("Smith", "Smith"), List.of("Jones", "Jones")), rows);
+        Rows.assertSameRows(List.of(List.of("Smith", "Smith"), List.of("Brown", "Brown"), List.of("Jones", "Jones")), rows);
     }
 }

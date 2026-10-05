@@ -10,8 +10,8 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.model.PackageableElement;
 import com.legend.model.ParsedModel;
 import com.legend.testing.Repo;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -44,6 +44,7 @@ import java.util.stream.Stream;
  * exists to answer one question before the corpus loader is switched to the
  * manifests: how much of the closure the compiler can already carry.
  */
+@Tag("heavy")
 public class ManifestWorldCensusTest {
 
     /** legend-pure's {@code platform} repository has no definition.json in the
@@ -120,8 +121,12 @@ public class ManifestWorldCensusTest {
     @Test
     @DisplayName("manifest-world census: a module's dependency closure loaded whole, every body typed once")
     void census() throws IOException {
+        // the module: //spec:manifest_world_census sets core_relational (its ceilings below); another by
+        // --jvmopt=-Dmanifest.census=<module>. Heavy, so in no default lane; it never skips (Bazel workplan P3-17)
         String target = System.getProperty("manifest.census");
-        Assumptions.assumeTrue(target != null && !target.isEmpty(), "-Dmanifest.census=<module> not set");
+        if (target == null || target.isEmpty()) {
+            throw new IllegalStateException("-Dmanifest.census=<module>: run it as //spec:manifest_world_census");
+        }
         Path engine = com.legend.testing.Upstream.engine();
         Path pure = com.legend.testing.Upstream.pure();
         Map<String, Module> all = manifests(engine, pure);

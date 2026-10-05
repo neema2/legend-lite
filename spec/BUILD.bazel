@@ -3,7 +3,7 @@
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
-load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 load(":corpus.bzl", "corpus_lane")
@@ -460,5 +460,37 @@ java_run(
     ("eager_corpus_compile", []),
     ("eager_corpus_compile_world2", ["-Deager.world2=1"]),
 ]]
+
+# THE MANIFEST-WORLD CENSUS (ManifestWorldCensusTest, charter step 7 / D7): a module's dependency closure loaded
+# whole, every body typed once; core_relational's walls and failing bodies are ceilings. Heavy, so in no default
+# lane: `bazel test //spec:manifest_world_census`, another module by --jvmopt=-Dmanifest.census=<module>.
+junit_test(
+    name = "manifest_world_census",
+    memory_mb = 4096,
+    data = _INPUTS,
+    jvm_flags = ["-Dmanifest.census=core_relational"],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.generators.ManifestWorldCensusTest"],
+    tags = ["manual"],
+    upstream = True,
+)
+
+# Our side of the reference differential for one module, for ad-hoc joins (tools/reference/README.md):
+#   bazel run //spec:our_resolutions -- <module> [--out FILE]
+legend_java_binary(
+    name = "our_resolutions",
+    testonly = True,
+    data = _INPUTS + UPSTREAM_TREES,
+    jvm_flags = [
+        "-Dlegend.repo.root=.",
+        "-Dlegend.repo.module=spec",
+        "-Dlegend.engine.root=$(rlocationpath @legend_engine_src//:pom.xml)",
+        "-Dlegend.pure.root=$(rlocationpath @legend_pure_src//:pom.xml)",
+        "-Xss16m",
+    ],
+    main_class = "com.legend.generators.OurResolutionsDump",
+    tags = ["manual"],
+    runtime_deps = [":spec_tests_lib"],
+)
 
 guards_package()

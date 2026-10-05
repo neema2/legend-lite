@@ -2075,7 +2075,7 @@ class RelationalMappingIntegrationTest {
 
     }
 
-    // ==================== GAP FEATURES (Disabled) ====================
+    // ==================== GAP FEATURES (once unsupported, now tested) ====================
 
     @Nested
     @DisplayName("GAP: Features Not Yet Supported")

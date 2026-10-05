@@ -379,7 +379,7 @@ filegroup(
 )
 
 # The parse-speed benchmark: a timing is the machine's, so it is run, never cached.
-#   bazel run //parser-equivalence:parse_speed_benchmark
+#   bazel run //parser-equivalence:parse_speed_benchmark [-- --out FILE]
 legend_java_binary(
     name = "parse_speed_benchmark",
     testonly = True,
@@ -396,7 +396,7 @@ legend_java_binary(
 # THE PROBES, run on demand (Bazel workplan P3-17): instruments that print what they find, each its own binary.
 #   bazel run //parser-equivalence:probe_wire_shapes [-- --out FILE]       the reference parser's bytes for constructs
 #   bazel run //parser-equivalence:z_fixture_adjudication_probe -- --out DIR [--fixtures FILE]
-#   bazel run //parser-equivalence:fixture_sweep -- DIR...                  a fixture directory against both parsers
+#   bazel run //parser-equivalence:fixture_sweep -- [--out FILE] DIR...     a fixture directory against both parsers
 [legend_java_binary(
     name = name,
     testonly = True,

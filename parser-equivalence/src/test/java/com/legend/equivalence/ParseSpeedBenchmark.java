@@ -13,7 +13,7 @@ import java.util.List;
  * machine's, not the inputs'; Bazel workplan P3-17):
  *
  * <pre>
- * bazel run //parser-equivalence:parse_speed_benchmark
+ * bazel run //parser-equivalence:parse_speed_benchmark [-- --out FILE]
  * </pre>
  *
  * <p>Method: one full UNTIMED pass per parser (JIT/classloading warmup —
@@ -27,7 +27,8 @@ public final class ParseSpeedBenchmark {
     private ParseSpeedBenchmark() {}
 
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws java.io.IOException {
+        com.legend.testing.Programs.stdoutToOut(args);
         List<Corpus.Source> sources = Corpus.all();
         if (sources.isEmpty()) {
             throw new IllegalStateException("no corpus on disk: set -Dlegend.engine.root / -Dlegend.pure.root");

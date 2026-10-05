@@ -19,8 +19,12 @@ public final class Programs {
     private Programs() {}
 
     /** Sends this JVM's stdout and stderr to {@code outDir/run.log}, a declared output: what the corpus machinery and
-     *  the engine's parsers print (progress, ANTLR's syntax errors, SLF4J) never reaches the build's console. */
+     *  the engine's parsers print (progress, ANTLR's syntax errors, SLF4J) never reaches the build's console. A
+     *  failure still does: Bazel discards a failed action's outputs, run.log with them, so an uncaught exception is
+     *  printed on the console the action started with. */
     public static void captureConsole(Path outDir) throws IOException {
+        PrintStream console = System.err;
+        Thread.setDefaultUncaughtExceptionHandler((thread, e) -> e.printStackTrace(console));
         PrintStream log = new PrintStream(Files.newOutputStream(outDir.resolve("run.log")), true, StandardCharsets.UTF_8);
         System.setOut(log);
         System.setErr(log);
@@ -40,6 +44,19 @@ public final class Programs {
             }
         }
         return null;
+    }
+
+    /** {@code args} without {@code --out FILE}: the program's own arguments. */
+    public static String[] withoutOut(String[] args) {
+        java.util.List<String> rest = new java.util.ArrayList<>();
+        for (int i = 0; i < args.length; i++) {
+            if (args[i].equals("--out") && i + 1 < args.length) {
+                i++;
+            } else {
+                rest.add(args[i]);
+            }
+        }
+        return rest.toArray(String[]::new);
     }
 
     /** {@code --out FILE}, when given: stdout goes to that file from here on. */

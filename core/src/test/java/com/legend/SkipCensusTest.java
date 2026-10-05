@@ -51,19 +51,14 @@ class SkipCensusTest {
     private static final List<String> ASSUMPTION_FILES = List.of(
             // skips when the generated expected/ dir is absent -- the
             // differential needs its oracle materialized first (it reads Maven's
-            // core/target/diff, so under Bazel it always skips: P3-17 wires or retires it)
+            // core/target/diff, so under Bazel it always skips: P3-18 runs it on generated data)
             "CorpusDifferentialTest.java",
-            // the manifest-world census (charter step 7 / D7, 2026-09-25): a
-            // MEASUREMENT program, opt-in by -Dmanifest.census=<module>; skips
-            // in the chain by design (P3-17 makes such programs actions or binaries)
-            "ManifestWorldCensusTest.java",
-            // our side of the reference differential (2026-09-25): a MEASUREMENT
-            // program, opt-in by -Dour.resolutions=<module>; skips in the chain
-            "OurResolutionsTest.java",
             // the warehouse against a live Postgres: runs only when LEGENDLITE_PG_DSN names one, by its own
             // manual target (//warehouse:postgres_live); an embedded Postgres in the chain is leg P2 of
             // docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md
             "WarehousePostgresLiveTest.java");
+    // LEFT 2026-10-05 (Bazel workplan P3-17): ManifestWorldCensusTest (a heavy test of //spec:manifest_world_census,
+    // its module a flag) and OurResolutionsTest (now the program //spec:our_resolutions).
     // LEFT 2026-10-05 (Bazel workplan P3-14): MinimalCorpusTest, SpecBodyCensusTest, CoreImportsParityTest,
     // PlatformNamesSpellingTest, UpstreamPathManifestTest and parser-equivalence's CorpusCensusTest,
     // CorpusSweepTest, MigrationSizingTest, OwnDialectCensusTest, ParseSpeedBenchmarkTest and

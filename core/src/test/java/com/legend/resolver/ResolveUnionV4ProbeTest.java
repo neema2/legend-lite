@@ -113,13 +113,15 @@ class ResolveUnionV4ProbeTest {
             """).formatted(UNION_FQN, UNION_FQN);
 
     @Test
-    @DisplayName("V4 mini 2-hop: chained routes across TWO unions ")
+    @DisplayName("V4 mini 2-hop: chained routes across TWO unions")
     void v4TwoUnionHops() throws SQLException {
         String sql = sqlOf(MODEL2, "v::X.all(%2018-1-1)"
                 + "->project([x|$x.pk, x|$x.y.pk, x|$x.y.z.pk], ['xpk','ypk','zpk'])"
                 + "->from(v::M2, v::RT2)");
-        // x1 reaches y100 (y0, X0_Y0) and y200 (y1, X0_A > A_Y1); y100 reaches z500 (z0, Y0_Z0), y200 z600
-        // (z1, Y1_G > G_Z1); every milestoned row is live on 2018-01-01
+        // x1 reaches y100 (y0, X0_Y0) and y200 (y1, X0_A > A_Y1); y101 and y201 match no route: a join that lost
+        // its condition would bring them in; y100 reaches z500 (z0, Y0_Z0), y200 z600
+        // (z1, Y1_G > G_Z1); every milestoned row is live on 2018-01-01. y101, y201, z501 and z601 match no route:
+        // a join that lost its condition would bring them in
         Rows.assertSameRows(List.of(List.of(1, 100, 500), List.of(1, 200, 600)), rows(sql,
                 "CREATE TABLE xT0 (pk INTEGER PRIMARY KEY, fk INTEGER, fk1 INTEGER, from_z DATE, thru_z DATE)",
                 "CREATE TABLE yT0 (pk INTEGER PRIMARY KEY, fk INTEGER, zfk INTEGER, from_z DATE, thru_z DATE)",
@@ -129,10 +131,14 @@ class ResolveUnionV4ProbeTest {
                 "CREATE TABLE \"aT\" (fk1 INTEGER, afk INTEGER)",
                 "CREATE TABLE gT (fk0 INTEGER, fk1 INTEGER)",
                 "INSERT INTO xT0 VALUES (1, 10, 20, DATE '2017-01-01', DATE '2019-01-01')",
-                "INSERT INTO yT0 VALUES (100, 10, 50, DATE '2017-01-01', DATE '2019-01-01')",
-                "INSERT INTO yT1 VALUES (200, 30, 60, DATE '2017-01-01', DATE '2019-01-01')",
-                "INSERT INTO zT0 VALUES (500, 50, DATE '2017-01-01', DATE '2019-01-01')",
-                "INSERT INTO zT1 VALUES (600, 70, DATE '2017-01-01', DATE '2019-01-01')",
+                "INSERT INTO yT0 VALUES (100, 10, 50, DATE '2017-01-01', DATE '2019-01-01'),"
+                        + " (101, 11, 51, DATE '2017-01-01', DATE '2019-01-01')",
+                "INSERT INTO yT1 VALUES (200, 30, 60, DATE '2017-01-01', DATE '2019-01-01'),"
+                        + " (201, 31, 61, DATE '2017-01-01', DATE '2019-01-01')",
+                "INSERT INTO zT0 VALUES (500, 50, DATE '2017-01-01', DATE '2019-01-01'),"
+                        + " (501, 52, DATE '2017-01-01', DATE '2019-01-01')",
+                "INSERT INTO zT1 VALUES (600, 70, DATE '2017-01-01', DATE '2019-01-01'),"
+                        + " (601, 71, DATE '2017-01-01', DATE '2019-01-01')",
                 "INSERT INTO \"aT\" VALUES (20, 30)",
                 "INSERT INTO gT VALUES (60, 70)"));
     }
@@ -203,7 +209,7 @@ class ResolveUnionV4ProbeTest {
     }
 
     @Test
-    @DisplayName("V4 mini: per-pair chained routes into a union target ")
+    @DisplayName("V4 mini: per-pair chained routes into a union target")
     void v4ChainedPairRoutes() throws SQLException {
         String sql = sqlOf("v::X.all()"
                 + "->project([x|$x.pk, x|$x.y.pk], ['xpk','ypk'])"
@@ -215,8 +221,8 @@ class ResolveUnionV4ProbeTest {
                 "CREATE TABLE yT1 (pk INTEGER PRIMARY KEY, yfk1 INTEGER)",
                 "CREATE TABLE \"aT\" (fk1 INTEGER, afk INTEGER)",
                 "INSERT INTO xT0 VALUES (1, 10, 20)",
-                "INSERT INTO yT0 VALUES (100, 10)",
-                "INSERT INTO yT1 VALUES (200, 30)",
+                "INSERT INTO yT0 VALUES (100, 10), (101, 11)",
+                "INSERT INTO yT1 VALUES (200, 30), (201, 31)",
                 "INSERT INTO \"aT\" VALUES (20, 30)"));
     }
 }

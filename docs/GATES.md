@@ -56,8 +56,9 @@ Beside the gates, in `bazel test //...`:
   `:pools_are_disjoint`, 2026-10-04).
 
 Suites and manual targets: `//spec:judge_lanes` (all four judge lanes, the full corpus on both backends),
-`//parser-equivalence:diagnostics` (the measurement
-battery), `//core:heavy`, and three `bazel run` targets that write a DRAFT for a person to finish, never a
+`//parser-equivalence:diagnostics` (the asserting grammar-coverage census),
+`//parser-equivalence:diagnostics_reports` (the measurements, as cached report actions),
+`//parser-equivalence:parse_speed_benchmark` (`bazel run`), `//spec:manifest_world_census`, `//core:heavy`, and three `bazel run` targets that write a DRAFT for a person to finish, never a
 generated file: `//docs:draft_own_corpus_ledger` (the own-corpus ledger), `//core:draft_native_membership`
 (native-membership.tsv from Pure.java's constants) and `//datacube:cut_link_dictionary` (the share link's next
 dictionary version, frozen by its hash once cut). `bazel build //spec:native_declarations` lists every upstream
