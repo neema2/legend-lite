@@ -14,6 +14,7 @@ import type { Runner, TableState } from '../backend/run.ts';
 import type { RawTable } from '../../../engine-client/src/engine.ts';
 import { isTds, type ExecutionResult } from '../../../engine-client/src/legend/wire.ts';
 import { renamePath } from '../model/rename.ts';
+import { joinFiles, splitElements } from '../model/split.ts';
 import { ELEMENT_KINDS, splitPath } from '../model/templates.ts';
 import { Workspace, type OpenFile, type Problem } from '../model/workspace.ts';
 import { icon } from '../../../legend-art/src/icon.ts';
@@ -203,10 +204,18 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   editor.addCommand(monaco.KeyCode.F9, () => void compile());
   editor.addCommand(monaco.KeyCode.F5, () => void runActive());
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyP, () => search());
+  editor.addCommand(monaco.KeyCode.F8, () => textMode());
+  editor.addCommand(monaco.KeyCode.F2, () => void importModel());
   // the query builder, while open, has the keys (its own Ctrl+S is Save Query)
   let closeBuilder: (() => void) | undefined;
+  /** In whole-project text mode (textMode): the workspace is edited there, not here. */
+  let inTextMode = false;
   const onKey = (e: KeyboardEvent): void => {
-    if (closeBuilder) return;
+    // text mode saves nothing itself: Ctrl+S is not the browser's there either
+    if (inTextMode && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') e.preventDefault();
+    if (closeBuilder || inTextMode) return;
+    if (e.key === 'F8') { e.preventDefault(); textMode(); }
+    if (e.key === 'F2') { e.preventDefault(); void importModel(); }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); void save(); }
     if (e.key === 'F9') { e.preventDefault(); void compile(); }
     if (e.key === 'F5') { e.preventDefault(); void runActive(); }
@@ -411,7 +420,11 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     const counter = changed === 0 ? undefined
       : h('div', { class: 'activity-bar__local-change-counter', 'data-testid': 'activity-changes-count' }, changed > 99 ? '99+' : String(changed));
     const menuCell: HTMLButtonElement = h('button', { class: 'activity-bar__menu', title: 'Menu', 'data-testid': 'activity-menu',
-      onclick: () => menu(menuCell, [{ label: 'Back to workspace setup', run: () => ctx.back(), testId: 'menu-back' }]) },
+      onclick: () => menu(menuCell, [
+        { label: 'Back to workspace setup', run: () => ctx.back(), testId: 'menu-back' },
+        { label: 'Text mode (F8)', run: () => textMode(), testId: 'menu-text-mode' },
+        { label: 'Import model… (F2)', run: () => void importModel(), testId: 'menu-import' },
+      ]) },
     icon('menu', '23px'));
     const dark = theme() === 'dark';
     activityBar.append(
@@ -765,6 +778,108 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     }
     show(key);
     toast(`Renamed to ${to}${changed > 1 ? `: ${changed - 1} other element${changed === 2 ? '' : 's'} updated` : ''}`, 'success');
+  };
+
+  /**
+   * Elements as text (split.ts), into the workspace: each read by the compiler first -- nothing is applied unless every
+   * text holds exactly one element, and no two the same -- then an element whose text changed is edited (undoable in its
+   * editor), a new one added, and with `wholeWorkspace` (text mode, which holds all of it) one no longer there removed.
+   * Answers what refused it, or how many elements changed.
+   */
+  const applyElements = async (texts: readonly string[], wholeWorkspace: boolean): Promise<{ error: string } | { changed: number }> => {
+    const paths: string[] = [];
+    for (const t of texts) {
+      const head = t.split('\n').find((l) => l.trim() !== '' && !l.startsWith('###') && !l.trim().startsWith('//')) ?? t.slice(0, 60);
+      try {
+        const els = await ctx.compiler.elements(t);
+        if (els.length !== 1) return { error: `"${head.trim()}" holds ${els.length} elements: an element starts with its keyword on its own line` };
+        if (paths.includes(els[0]!.path)) return { error: `${els[0]!.path} is written twice` };
+        paths.push(els[0]!.path);
+      } catch (e) {
+        return { error: `"${head.trim()}": ${e instanceof Error ? e.message : String(e)}` };
+      }
+    }
+    const byPath = new Map(ws.files().map((f) => [fileLabel(f), f]));
+    const trimmed = (s: string): string => s.replace(/\s+$/, '');
+    let changed = 0;
+    texts.forEach((t, i) => {
+      const f = byPath.get(paths[i]!);
+      if (!f) { ws.add(t); changed++; return; }
+      if (trimmed(f.text) === trimmed(t)) return;
+      const m = modelOf(f.key);
+      m.pushEditOperations([], [{ range: m.getFullModelRange(), text: t }], () => null);
+      changed++;
+    });
+    if (wholeWorkspace) {
+      for (const f of ws.files()) {
+        if (paths.includes(fileLabel(f))) continue;
+        ws.remove(f.key);
+        models.get(f.key)?.dispose();
+        models.delete(f.key);
+        tabs = tabs.filter((k) => k !== f.key);
+        changed++;
+      }
+      if (active !== undefined && !ws.file(active)) show(tabs[tabs.length - 1]);
+    }
+    renderTabs();
+    renderSide();
+    renderStatus();
+    scheduleCompile();
+    return { changed };
+  };
+
+  /**
+   * Upstream's text mode (F8, plan A7): the whole workspace as one text, each element under its section; leaving it
+   * splits the text into elements again and applies them -- or, when the text does not split into elements, says why
+   * and stays. Discard leaves without applying.
+   */
+  const textMode = (): void => {
+    if (inTextMode || closeBuilder) return;
+    inTextMode = true;
+    const model = monaco.editor.createModel(joinFiles(ws.files().map((f) => f.text)), PURE);
+    const problem = h('div', { class: 'text-mode__problem', 'data-testid': 'text-mode-problem' });
+    const host = h('div', { class: 'text-mode__editor' });
+    const done = (): void => {
+      textEditor.dispose();
+      model.dispose();
+      overlay.remove();
+      inTextMode = false;
+      editor.focus();
+    };
+    const leave = async (): Promise<void> => {
+      problem.textContent = 'Reading the elements…';
+      const r = await applyElements(splitElements(model.getValue()), true);
+      if ('error' in r) { problem.textContent = r.error; return; }
+      done();
+      if (r.changed) toast(`Text mode: ${r.changed} element${r.changed === 1 ? '' : 's'} changed`, 'success');
+    };
+    const overlay = h('div', { class: 'text-mode', 'data-testid': 'text-mode' },
+      h('div', { class: 'text-mode__header' },
+        h('span', { class: 'text-mode__title' }, 'Text mode'),
+        h('span', { class: 'text-mode__hint' }, 'The whole workspace, one element after another; F8 leaves and applies it'),
+        problem,
+        h('button', { class: 'btn btn-small', 'data-testid': 'text-mode-discard', title: 'Leave without applying', onclick: done }, 'Discard'),
+        h('button', { class: 'btn btn-small btn-primary', 'data-testid': 'text-mode-leave', title: 'Leave text mode (F8)', onclick: () => void leave() }, 'Leave text mode')),
+      host);
+    document.body.append(overlay);
+    const textEditor = monaco.editor.create(host, {
+      model, theme: editorTheme(theme() === 'light'), automaticLayout: true, fontFamily: "'Roboto Mono'", fontSize: 14, fontLigatures: true,
+      tabSize: 2, detectIndentation: false, contextmenu: false, bracketPairColorization: { enabled: false }, fixedOverflowWidgets: true,
+    });
+    textEditor.addCommand(monaco.KeyCode.F8, () => void leave());
+    textEditor.focus();
+  };
+
+  /** Upstream's model importer (F2, plan A7): Pure text pasted, split into elements, added or replacing what is there. */
+  const importModel = async (): Promise<void> => {
+    if (inTextMode || closeBuilder) return;
+    const text = h('textarea', { class: 'input import-model__text', 'data-testid': 'import-text', spellcheck: 'false', placeholder: 'Class model::Person\n{\n  name: String[1];\n}' });
+    const pasted = await dialog('Import model', h('div', { class: 'form' }, h('div', {}, 'Pure text: each element is added, or replaces the element of the same path.'), text),
+      () => (text.value.trim() === '' ? 'Paste the Pure text to import.' : { ok: text.value }), 'Import');
+    if (pasted === undefined) return;
+    const r = await applyElements(splitElements(pasted), false);
+    if ('error' in r) toast(`Nothing imported: ${r.error}`, 'error');
+    else toast(`Imported: ${r.changed} element${r.changed === 1 ? '' : 's'} added or changed`, 'success');
   };
 
   const reload = async (): Promise<void> => {
