@@ -23,6 +23,8 @@ js_library(
         # the in-tab engine's planner port and worker, shared with Query (engine-client/src/legend/)
         "//engine-client:engine_client",
         "//legend-art:legend_art",
+        # the query builder, Query's own (query/src/embed.ts, plan A5), and DataCube's grid it shows results in
+        "//query:src",
         "//sdlc-client:sdlc_client",
     ],
 )
@@ -67,13 +69,16 @@ copy_file(
 )
 
 # The WebAssembly modules the page loads from ./vendor/: the compiler (vendor/planner/), the SDLC (vendor/sdlc/),
-# DuckDB for running functions in the tab (vendor/duckdb/, engine-client's copy) and the fonts.
+# DuckDB for running functions in the tab (vendor/duckdb/, engine-client's copy), the fonts, and the query builder's
+# stylesheets: Query's (vendor/query/) and DataCube's for its results grid (vendor/cube/, Query's copy).
 copy_to_directory(
     name = "vendor",
     srcs = [
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         "//legend-art:fonts",
         "//legend-art:styles",
+        "//query:cube_styles",
+        "//query:styles",
         "//sdlc-server:page",
         "//wasm:planner",
     ],
@@ -95,6 +100,8 @@ copy_to_directory(
         "legend-art/fonts/raleway-latin-900-normal.woff2",
         "legend-art/fonts/LICENSE-*.txt",
         "legend-art/src/*.css",
+        "query/src/ui/app.css",
+        "query/demo/cube/**",
     ],
     replace_prefixes = {
         "wasm/planner/": "planner/",
@@ -102,6 +109,8 @@ copy_to_directory(
         "**/dist/": "duckdb/",
         "legend-art/fonts/": "fonts/",
         "legend-art/src/": "legend-art/",
+        "query/src/ui/": "query/",
+        "query/demo/cube/": "cube/",
     },
 )
 
@@ -182,6 +191,7 @@ typescript.tsc_test(
         "//depot-client:depot_client",
         "//engine-client:engine_client",
         "//legend-art:legend_art",
+        "//query:src",
         "//sdlc-client:sdlc_client",
         "//tools/js:runfiles",
         ":node_modules/@types/node",
@@ -195,6 +205,7 @@ test_suite(
     tests = [
         ":demo_test",
         ":engine_test",
+        ":query_builder_test",
         ":typecheck_test",
         ":workspace_test",
     ],

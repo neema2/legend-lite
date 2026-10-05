@@ -11,6 +11,7 @@ import { HttpEngine } from '../../../engine-client/src/legend/engine.ts';
 import { dataTables, loadDataTables, type DataSink } from '../../../engine-client/src/model-data.ts';
 import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler, WorkerPort } from '../backend/planner.ts';
+import { queryBuilder, type BuilderSession } from '../backend/query-builder.ts';
 import { runner, type RunSession } from '../backend/run.ts';
 import { connect, type StudioConfig } from '../backend/sdlc.ts';
 import { clear, h } from '../ui/dom.ts';
@@ -38,11 +39,11 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
     : new Compiler(new HttpEngine(config.engine!));
   // running a function (plan A3): in the tab, DuckDB started the first time and the model's own rows loaded before each
   // run; on a server, its pure/v1 execute
-  const run = runner(inTab ? inTabSession(inTab, `${config.vendor}duckdb/`, config.user?.userId ?? 'local') : {
-    modelJson: (text) => new HttpEngine(config.engine!).modelJson(text),
-    lambdaJson: (text) => new HttpEngine(config.engine!).lambdaJson(text),
-    engine: () => Promise.resolve(new HttpEngine(config.engine!)),
-  });
+  const user = config.user?.userId ?? 'local';
+  const session: RunSession & BuilderSession = inTab ? inTabSession(inTab, `${config.vendor}duckdb/`, user) : serverSession(config.engine!, user);
+  const run = runner(session);
+  // the query builder (plan A5): Query's, over the same session
+  const builder = queryBuilder(session);
   let dispose: (() => void) | undefined;
 
   const route = async (): Promise<void> => {
@@ -58,7 +59,7 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
       if (edit) {
         const project = edit[1]!;
         dispose = await renderEditor(root, {
-          client, depot, compiler, run, monaco, project, workspace: edit[2]!,
+          client, depot, compiler, run, builder, monaco, project, workspace: edit[2]!,
           back: () => { globalThis.location.hash = `#/project/${encodeURIComponent(project)}`; },
         });
       } else {
@@ -82,8 +83,23 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   await route();
 }
 
+/** Runs on a legend server: its pure/v1 execute, on the server's own data; its grid reads rows from the server too. */
+function serverSession(api: string, user: string): RunSession & BuilderSession {
+  const http = new HttpEngine(api);
+  return {
+    modelJson: (text) => http.modelJson(text),
+    lambdaJson: (text) => http.lambdaJson(text),
+    engine: () => Promise.resolve(http),
+    plane: () => Promise.resolve({
+      execution: { kind: 'server', engine: api }, engine: http, planner: undefined, user,
+      // the server answers pure/v1 at its root; the config names its /api (as Query's does)
+      cubeRows: { kind: 'server', baseUrl: api.replace(/\/api\/?$/, '') },
+    }),
+  };
+}
+
 /** A run in this tab: the planner writes the SQL, DuckDB here runs it on the model's own test data (plan A2, A3). */
-function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string): RunSession {
+function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string): RunSession & BuilderSession {
   let enumerations = new Set<string>();
   type Started = { engine: BrowserEngine; sql: QueryEngine; data: DataSink };
   let started: Promise<Started> | undefined;
@@ -94,6 +110,10 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
     lambdaJson: (text) => grammar.lambdaJson(text),
     engine: async () => (await start()).engine,
     sqlEngine: async () => (await start()).sql,
+    plane: async () => {
+      const tab = await start();
+      return { execution: { kind: 'duckdb-wasm', user }, engine: tab.engine, planner: grammar, cubeRows: { kind: 'sql', engine: tab.sql }, user };
+    },
     async loadData(model) {
       enumerations = new Set(model.elements.filter((e) => e._type === 'Enumeration').map((e) => `${e.package}::${e.name}`));
       await loadDataTables((await start()).data, dataTables(model.elements as Parameters<typeof dataTables>[0]));
