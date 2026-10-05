@@ -87,6 +87,20 @@ Left out of this plan when it was written; the user ruled it next after A0 (2026
   deployment to ship one; it retires when the demo itself is published (A2's seeding of Depot on first visit).
   Next for fidelity: Depot-lite's classifier routes (S8) and upstream's data-space search across every project.
 
+**STATUS 2026-10-05, branch `studio-engine` (stacked on `query-by-name`):**
+- **A1 done.** Query's in-tab engine is engine-client's (`engine-client/src/legend/`): one planner worker for both apps
+  (Studio's compile included), the BrowserEngine, the WasmGrammar, HttpEngine. Studio's Compiler asks the session's
+  engine -- in-tab by default, or a legend server's pure/v1 (`StudioConfig.engine`). Pending: lite's own server in
+  that test (needs //core:server visible to //studio, a core edit announced on main first).
+- **A2 step 1 done.** A model's own test data (relational Data elements) is loaded into the tab's DuckDB
+  (`engine-client/src/model-data.ts`; types as SQL, DuckDB judges them; DuckDB parses the CSV) by Studio before each
+  run, by Query when it opens a project by name, by DataCube when a saved query does. The demo's party rows are its
+  Data element; the separate seed file is gone. Next: CSV/Parquet dropped in, generated samples, Snap.
+- **A3 mostly done.** Run (F5) a function -- its parameters asked for as Pure, read by the compiler -- or a
+  single-execution service, in the tab; RESULTS shows the rows, count, time and SQL. The SQL playground runs SQL on the
+  tab's DuckDB with the model's rows. `//studio:verify_test` runs a function, a service, a parameterised function and
+  the playground at both levels. Left for A5: the results in DataCube's grid, and mapping execution (the query builder).
+
 ### A1. One in-tab engine for every app
 - Move Query's `BrowserEngine` (planner → SQL → DuckDB/warehouse, engine-shaped answers) into `engine-client/` as **the
   in-tab legend engine**: `execute`, `generatePlan` (SQL shown), `lambdaRelationType`, `lambdaReturnType`, `compile`
