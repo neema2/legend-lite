@@ -1,7 +1,6 @@
 package com.legend.warehouse;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -101,9 +100,10 @@ class WarehouseServerTest {
         List<List<Json.Node>> out = new ArrayList<>();
         int chunks = s.result().chunkCount();
         if (chunks == 0) return out;   // a statement with no result rows: DDL, a write
+        // the first chunk comes with the answer only when the submit itself finished it; a statement finished by a
+        // poll (a slow host: main's Windows native lane, 2026-10-05) answers without it, as WarehouseClient reads
         Chunk first = s.firstChunk();
-        assertNotNull(first);
-        out.addAll(first.rows());
+        out.addAll(first != null ? first.rows() : API.chunk(sendTo(server, API.fetchChunk(s.statementId(), 0, token))).rows());
         for (int i = 1; i < chunks; i++) out.addAll(API.chunk(sendTo(server, API.fetchChunk(s.statementId(), i, token))).rows());
         return out;
     }
