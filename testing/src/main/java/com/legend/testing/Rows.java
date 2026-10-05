@@ -63,13 +63,14 @@ public final class Rows {
         return out;
     }
 
-    /** A cell's comparison key, tagged by kind so the number 1, the text "1" and a null never meet. */
+    /** A cell's comparison key, tagged by kind so the number 1, the text "1" and a null never meet; any other
+     *  value is tagged by its class, so a date and its text differ too. */
     private static String key(Object c) {
         if (c == null) {
             return "\u0000null";
         }
-        if (c instanceof Number n && finite(n)) {
-            return "n:" + number(n).stripTrailingZeros().toPlainString();
+        if (c instanceof Number n) {
+            return "n:" + (finite(n) ? number(n).stripTrailingZeros().toPlainString() : n.toString());
         }
         if (c instanceof CharSequence) {
             return "s:" + c;

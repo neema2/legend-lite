@@ -31,8 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (the named feature gap it waits on); the per-file count is pinned MAX
  * (burn a gap, tighten the pin — never add a skip without a pin bump
  * and a written justification here).</li>
- * <li>environment-conditional skips — {@code Assumptions.assume*},
- * {@code assumingThat}, {@code @EnabledIf*} and {@code @DisabledIf*}; the
+ * <li>environment-conditional skips — any {@code Assumptions} call,
+ * {@code assumeTrue/False/That}, {@code assumingThat}, and the
+ * {@code @EnabledIf/On/For/In*} and {@code @DisabledIf/On/For/In*}
+ * conditions; the
  * FILE SET is pinned exactly (a new conditionally skipping file is a new
  * way for the suite to go quiet).</li>
  * </ol>
@@ -75,10 +77,14 @@ class SkipCensusTest {
 
     /** A conditional skip: an assumption, or a JUnit condition annotation. */
     private static final Pattern CONDITIONAL =
-            Pattern.compile("Assumptions\\.assume|\\bassumingThat\\(|@EnabledIf|@DisabledIf");
+            Pattern.compile("Assumptions\\.|\\bassume(True|False|That)\\(|\\bassumingThat\\(|@(Enabled|Disabled)(If|On|For|In)");
 
     private static final Pattern DISABLED =
             Pattern.compile("@Disabled\\(\"([^\"]*)\"\\)");
+
+    /** An {@code @Disabled} annotation without a quoted reason, which {@link #DISABLED} cannot read. */
+    private static final Pattern UNREASONED_DISABLED =
+            Pattern.compile("(?m)^\\s*@(org\\.junit\\.jupiter\\.api\\.)?Disabled\\b(?!\\(\")");
 
     @Test
     void disabledRowsAreNamedGapsAndShrinkOnly() throws IOException {
@@ -86,6 +92,9 @@ class SkipCensusTest {
         List<String> badReasons = new ArrayList<>();
         for (Path f : testSources()) {
             String src = Files.readString(f);
+            if (UNREASONED_DISABLED.matcher(src).find()) {
+                badReasons.add(f.getFileName() + ": an @Disabled with no quoted reason");
+            }
             Matcher m = DISABLED.matcher(src);
             int c = 0;
             while (m.find()) {

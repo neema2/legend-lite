@@ -54,7 +54,7 @@ final class AuthenticatedUser {
     static final Upcall ON_BIND = new Upcall("onBind", FunctionDescriptor.ofVoid(ADDRESS));
     static final Upcall ON_EXECUTE = new Upcall("onExecute", FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS));
     static final Upcall ON_COPY = new Upcall("onCopy", FunctionDescriptor.of(ADDRESS, ADDRESS));
-    /** The callbacks, for the native image's FFM metadata (//warehouse:foreign_metadata; Bazel workplan P2-09). */
+    /** The callbacks, for the native image's FFM metadata (//warehouse:reachability_metadata; Bazel workplan P2-09). */
     static final java.util.List<Upcall> UPCALLS = java.util.List.of(ON_BIND, ON_EXECUTE, ON_COPY);
 
     private static MemorySegment stub(Upcall u) throws ReflectiveOperationException {

@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * multi-row insert of quoted literals): the database types every cell on both.
  */
 // reads process-wide counters (CanonicalDivergence, Census) that every query bumps: runs alone if JUnit ever runs
-// classes in parallel, so no other test's calls land between its reset and its assert (Bazel workplan P3-04, A9)
+// classes in parallel, so no other test's calls land between its before and after reads (Bazel workplan P3-04, A9)
 @org.junit.jupiter.api.parallel.Isolated
 class RowLoadTest {
 

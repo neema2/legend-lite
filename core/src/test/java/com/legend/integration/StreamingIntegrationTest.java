@@ -341,10 +341,10 @@ class StreamingIntegrationTest {
     void testStreamOutputVisibleIncrementallyDuringExecution() throws Exception {
         // The streaming proof without a clock (Bazel workplan P3-15; it sampled the buffer from a thread every 1 ms
         // around a busy-wait): a recording connection counts ResultSet.next() calls, and the output stream notes how
-        // many rows had been fetched at its FIRST write. Streaming writes as it fetches; a materialized
-        // implementation fetches all 100 rows before writing a byte.
+        // many rows had been fetched at each write. Streaming writes as it fetches, at many fetched-row counts; a
+        // materialized implementation fetches all 100 rows first and writes at one or two.
         String query = "model::Employee.all()->project(~[name:e|$e.name, dept:e|$e.department, salary:e|$e.salary])";
-        assertRowsFetchedAtFirstWriteFewerThanAll(query);
+        assertWrittenThroughoutFetch(query);
     }
 
     @Test
@@ -436,14 +436,14 @@ class StreamingIntegrationTest {
                     ->graphFetch(#{ Employee { name, department, salary } }#)
                     ->serialize(#{ Employee { name, department, salary } }#)
                 """;
-        assertRowsFetchedAtFirstWriteFewerThanAll(query);
+        assertWrittenThroughoutFetch(query);
     }
 
     /** Streams {@code query} over a connection that counts every ResultSet.next(), and asserts the output was
      *  written at many different points of the fetch: streaming writes as it fetches, so its writes land at many
      *  distinct fetched-row counts; a materialized result (even one that writes an opening "[" first) writes at one
      *  or two. */
-    private void assertRowsFetchedAtFirstWriteFewerThanAll(String query) throws Exception {
+    private void assertWrittenThroughoutFetch(String query) throws Exception {
         AtomicInteger fetched = new AtomicInteger();
         java.util.Set<Integer> fetchedAtWrites = java.util.Collections.synchronizedSet(new java.util.TreeSet<>());
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();

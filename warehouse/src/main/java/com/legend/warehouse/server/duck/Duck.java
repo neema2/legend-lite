@@ -83,7 +83,7 @@ final class Duck {
     private final SymbolLookup lib;
 
     /** Every DuckDB function this class calls, by symbol, with its signature (read from duckdb.h): one table that the
-     *  handles below are made from and //warehouse:foreign_metadata renders into the native image's FFM metadata, so
+     *  handles below are made from and //warehouse:reachability_metadata renders into the native image's FFM metadata, so
      *  a new signature cannot ship without its metadata (Bazel workplan P2-09). */
     static final java.util.Map<String, FunctionDescriptor> DOWNCALLS;
     /** An Arrow struct's release callback, called through its pointer, not by symbol. */
