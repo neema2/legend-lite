@@ -332,6 +332,10 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .diff-view__path { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); font-size: 12px; }
 .diff-view__editor { flex: 1; min-height: 0; }
 .diff-item { cursor: pointer; }
+/* conflict resolution (plan A7): the conflicts, each unresolved (!) or resolved (✓), then accept or discard */
+.diff-item--conflict .diff-item__type { color: var(--color-status-error); }
+.diff-item--resolved .diff-item__type { color: var(--color-status-success); }
+.conflict-resolution__actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
 .diff-item__discard { display: none; border: 0; background: none; color: var(--color-text-muted); cursor: pointer; padding: 0 4px; }
 .diff-item:hover .diff-item__discard { display: block; }
 .diff-item__discard:hover { color: var(--color-text-primary); }

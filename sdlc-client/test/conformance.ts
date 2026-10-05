@@ -404,13 +404,43 @@ export function conformance(name: string, target: () => Target): void {
       assert.deepEqual((await client().pure({ project: P2, workspace: 'side' })).map((f) => f.path).sort(), ['demo::party::Address', 'demo::types::Country']);
       // again: nothing to do
       assert.deepEqual(await client().updateWorkspace(P2, 'side'), { status: 'NO_OP', workspaceMergeBaseRevisionId: line.id, workspaceRevisionId: after.id });
-      // 'two' changed the file 'one' changed, differently: a conflict, named, and the workspace as it was
+      // 'two' changed the file 'one' changed, differently: a conflict, named, and -- as upstream -- a conflict resolution
+      // opened: the line's head with the workspace's changes over it; the workspace itself as it was
       const two = await client().revision({ project: P2, workspace: 'two' });
+      assert.equal(await client().inConflictResolutionMode(P2, 'two'), false);
+      await refused('GET', `/projects/${E2}/workspaces/two/conflictResolution`, undefined, 404, `Unknown: conflict resolution of user workspace two of project ${P2}`);
       const conflict = await client().updateWorkspace(P2, 'two');
       assert.equal(conflict.status, 'CONFLICT');
       assert.deepEqual(conflict.conflicts, ['demo/types/Country.pure']);
-      assert.equal(conflict.workspaceRevisionId, two.id);
+      assert.equal(conflict.workspaceMergeBaseRevisionId, line.id);
       assert.equal((await client().revision({ project: P2, workspace: 'two' })).id, two.id);
+      assert.equal(await client().inConflictResolutionMode(P2, 'two'), true);
+      assert.equal(await client().conflictResolutionOutdated(P2, 'two'), false);
+      const country = (files: readonly { path: string; pureCode: string }[]): string => files.find((f) => f.path === 'demo::types::Country')!.pureCode;
+      assert.equal(country(await client().conflictResolutionPure(P2, 'two')), COUNTRY.replace('GB, US', 'GB, US, DE'));
+      // accepted with Country resolved to both: the workspace becomes the resolution, on the line's head
+      await client().acceptConflictResolution(P2, 'two', { message: 'resolve', changes: [{ type: 'MODIFY', path: 'demo::types::Country', pureCode: COUNTRY.replace('GB, US', 'GB, US, FR, DE') }] });
+      assert.equal(await client().inConflictResolutionMode(P2, 'two'), false);
+      assert.equal(await client().outdated(P2, 'two'), false);
+      assert.equal(country(await client().pure({ project: P2, workspace: 'two' })), COUNTRY.replace('GB, US', 'GB, US, FR, DE'));
+      // another conflict: its resolution discarded leaves the workspace as it was; its changes discarded, the line's head
+      const conflicting = async (w: string, value: string): Promise<void> => {
+        await client().createWorkspace(P2, w);
+        await client().performPureChanges(P2, w, { message: w, changes: [{ type: 'MODIFY', path: 'demo::types::Country', pureCode: COUNTRY.replace('GB, US', value) }] });
+      };
+      await conflicting('x1', 'GB, US, IT');
+      await conflicting('x2', 'GB, US, ES');
+      const x1 = String(((await raw('POST', `/projects/${E2}/reviews`, { workspaceId: 'x1', title: 'x1', description: '' })).json as { id: string }).id);
+      assert.equal((await raw('POST', `/projects/${E2}/reviews/${x1}/commit`, { message: 'x1' })).status, 200);
+      const x2 = await client().revision({ project: P2, workspace: 'x2' });
+      assert.equal((await client().updateWorkspace(P2, 'x2')).status, 'CONFLICT');
+      await client().discardConflictResolution(P2, 'x2');
+      assert.equal(await client().inConflictResolutionMode(P2, 'x2'), false);
+      assert.equal((await client().revision({ project: P2, workspace: 'x2' })).id, x2.id);
+      assert.equal((await client().updateWorkspace(P2, 'x2')).status, 'CONFLICT');
+      await client().discardConflictResolutionChanges(P2, 'x2');
+      assert.equal(await client().inConflictResolutionMode(P2, 'x2'), false);
+      assert.equal((await client().revision({ project: P2, workspace: 'x2' })).id, (await client().revision({ project: P2 })).id);
       await refused('POST', `/projects/${E2}/workspaces/nope/update`, undefined, 404, `Unknown: user workspace nope of project ${P2}`);
     });
 

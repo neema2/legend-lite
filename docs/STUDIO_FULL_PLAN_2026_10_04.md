@@ -116,8 +116,11 @@ Left out of this plan when it was written; the user ruled it next after A0 (2026
   `studio/src/model/split.ts`, every file read by the compiler first, nothing applied unless each holds one element);
   the model importer (F2: Pure text pasted, each element added or replacing its path); upstream's project viewer
   (`#/view/<project>[/<version>]`: a released version, or the line's head, read-only -- explore, compile, run, query;
-  from the setup page and the Project view's Versions). Next: conflict resolution, group workspaces; definition, hover
-  and completion from the compiler (core, announced first).
+  from the setup page and the Project view's Versions); upstream's conflict resolution (sdlc-server: a CONFLICT update
+  opens a resolution as upstream does -- the line's head with the workspace's changes over it -- read, `outdated`,
+  `accept` with text changes, DELETE, `discardChanges`; Studio lists the conflicting elements three ways, resolves each
+  in a merge view, and accepts or discards). Next: group workspaces; definition, hover and completion from the
+  compiler (core, announced first).
 - **A3 mostly done.** Run (F5) a function -- its parameters asked for as Pure, read by the compiler -- or a
   single-execution service, in the tab; RESULTS shows the rows, count, time and SQL. The SQL playground runs SQL on the
   tab's DuckDB with the model's rows. `//studio:verify_test` runs a function, a service, a parameterised function and
