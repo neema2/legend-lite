@@ -3,7 +3,7 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -38,7 +38,7 @@ class H2FirstInGroupTest {
                 st.execute("CREATE TABLE t (k INTEGER, s VARCHAR(32), n INTEGER)");
                 st.execute("INSERT INTO t VALUES (1, NULL, NULL), (1, 'b', 2), (2, 'z', 9)");
             }
-            var r = Compiler.execute(MODEL, query, "local::RT", c);
+            var r = Execution.execute(MODEL, query, "local::RT", c);
             return r.rows().stream().map(row -> row.get(0) + "|" + row.get(1)).toList();
         }
     }

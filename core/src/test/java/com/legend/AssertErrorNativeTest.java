@@ -44,7 +44,7 @@ class AssertErrorNativeTest {
     }
 
     private static ExecutionResult run(String query) throws SQLException {
-        return Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, conn);
+        return Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, conn);
     }
 
     // assertError.pure:36 testSimpleAssertError, verbatim body

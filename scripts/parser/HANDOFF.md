@@ -23,6 +23,12 @@ scoped to what appeared in a corpus. A corpus cannot find what it was derived fr
 
 ## 2. Current numbers
 
+**2026-10-05, by Bazel over the pinned release (4.145.0; Bazel workplan P2-20):** the keyword census is
+`scripts/parser/keyword-coverage.tsv` (`bazel run //scripts/parser:update_keyword_coverage`; `//:generated` fails when
+it is stale) -- in scope **598 of 607**: the pinned grammars added DataSpace's `mappingProvider`, `expertise`,
+`expertIds`, `coverageRegions`, `operationalMetadata`, `updateFrequency`, and tier 1 misses `trueString`,
+`falseString`, `optional`. The table below is the 2026-08 measurement against a legend-engine working copy (history).
+
 Coverage of the grammar surface (`python3 fixtures.py`):
 
 ```
@@ -63,7 +69,7 @@ cd scripts/parser
 
 python3 fixtures.py              # coverage + positive & negative harnesses; non-zero on any problem
 python3 fixtures.py --gaps       # what is still uncovered, by grammar
-python3 keywords.py --tier1      # raw keyword census, no fixtures involved
+bazel run //scripts/parser:keywords -- --tier1   # raw keyword census over the pinned grammars, no fixtures involved
 python3 mutants.py               # regenerate the mutation manifest (~2 min)
 python3 mutants.py --check       # fail on drift instead of overwriting
 python3 mutants.py --accepted    # mutations legend-engine tolerated (review queue)
@@ -71,17 +77,16 @@ python3 parity.py                # both parsers over all three corpora
 python3 parity.py --detail       # every divergence, named
 ```
 
-The CI ratchet (this is what a build runs):
+The other `python3` lines are history (Bazel workplan P7-04): only the keyword census is kept, as a Bazel target.
+
+The CI ratchet (this is what a build runs): `bazel test //parser-equivalence:parser_parity` (FixtureCorpusParityTest
+among its classes).
+
+The runner's view of the engine's token vocabulary is a build output; after a release bump:
 
 ```bash
-mvn -o -pl parser-equivalence -Dtest=FixtureCorpusParityTest -DfailIfNoSpecifiedTests=false test
-```
-
-Regenerate the runner's view of the engine's token vocabulary after any engine version bump:
-
-```bash
-java -cp tools/engine-runner/target/classes:$(cat tools/engine-runner/cp.txt) \
-     perf.TokenDump > tools/engine-runner/vocab.tsv
+bazel run //tools/engine-runner:update_vocab
+bazel run //scripts/parser:update_keyword_coverage
 ```
 
 ---

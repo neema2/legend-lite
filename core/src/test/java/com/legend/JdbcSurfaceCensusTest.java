@@ -81,7 +81,9 @@ class JdbcSurfaceCensusTest {
     private static final int FILE_FLOOR = 778;
 
     private static final Set<String> MAIN_REGISTER = new TreeSet<>(List.of(
-            "core/src/main/java/com/legend/Compiler.java",
+            // 2026-10-04 C2a: Compiler (the planner) left the register; Execution, the execution front door, holds the
+            // execute entry points it took (a session in, checked; nothing evaluated)
+            "core/src/main/java/com/legend/Execution.java",
             // leg 3.4: the deferred verdict statements are keyed by the
             // session they run on (a store side's routed connection, or the
             // body's); sent through the one Executor choke point
@@ -90,14 +92,19 @@ class JdbcSurfaceCensusTest {
             // every cell as TEXT and one INSERT ... SELECT casts: the DATABASE
             // types each value, exactly as the text path's quoted literals
             "core/src/main/duckdb/com/legend/exec/DuckDbAppenderLoad.java",
+            // C3c (2026-10-04): DuckDB's own JSON cell type, recognised beside its driver (DriverCells) — it
+            // moved out of Executor, which matched the class by name; carriage only (the node's text)
+            "core/src/main/duckdb/com/legend/exec/DuckDbCells.java",
             "core/src/main/java/com/legend/exec/BulkLoad.java",   // the seam it joins: a Connection in, no SQL of its own
             // 2026-09-27: CsvSeed.run establishes a connection -- its declared setup
             // statements and rows, through Executor.executeRaw / Executor.load under the SEED
             // origin; a Connection in, the database executes (moved from StatementExecutor)
             "core/src/main/java/com/legend/exec/CsvSeed.java",
-            // the driver's one metadata read, moved from Compiler: a java.sql
-            // catch clause there made the plan surface need java.sql (2026-09-23)
-            "core/src/main/java/com/legend/exec/JdbcMetadata.java",
+            // the execution side's ONE session owner (C3b, 2026-10-04; it absorbed JdbcMetadata, the
+            // driver's one metadata read kept out of Compiler so the plan surface needs no java.sql):
+            // the product/version read a handed session is checked by, and opening a declared
+            // connection or a private in-memory database. It opens sessions; it executes nothing
+            "core/src/main/java/com/legend/exec/Sessions.java",
             "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
             "core/src/main/java/com/legend/exec/VerdictBatch.java",
             "core/src/main/java/com/legend/StatementExecutor.java",

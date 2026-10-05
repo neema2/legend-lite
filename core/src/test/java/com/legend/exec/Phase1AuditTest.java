@@ -6,7 +6,7 @@ package com.legend.exec;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +59,7 @@ class Phase1AuditTest {
     @Test
     @DisplayName("Pin 1: bare .rows = real Row objects, real cells, NULL-first-column included")
     void bareRowsAreRealRows() throws Exception {
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select null as A, 7 as B union all"
                 + " select null, 8 order by 2', $c, 0, 1000).rows;}", StorelessRuntime.RUNTIME, conn);
@@ -83,7 +83,7 @@ class Phase1AuditTest {
         // the tripwire's contract fulfilled: `.rows` types as a
         // relation (the splice arm -> TypedRawSqlRelation -> the one
         // Lowerer -> COUNT in the database); no recognizer vocabulary
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as A union all select 2', $c, 0, 1000)"
                 + ".rows->size();}", StorelessRuntime.RUNTIME, conn);
@@ -102,7 +102,7 @@ class Phase1AuditTest {
     @Test
     @DisplayName("slice 3: .columnNames is a probed SCHEMA FACT through the ordinary pipeline")
     void columnNamesIsASchemaFact() throws Exception {
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as A, 2 as B', $c, 0, 1000).columnNames;}", StorelessRuntime.RUNTIME,
                 conn);
@@ -116,7 +116,7 @@ class Phase1AuditTest {
         try (var st = conn.createStatement()) {
             st.execute("CREATE TABLE PHASE1_T(X INT)");
         }
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::fetchDbTablesMetaData("
                 + "$c, [], 'PHASE1_T').rows->size();}", StorelessRuntime.RUNTIME, conn);
         assertEquals(1L, ((Number) ((ExecutionResult.Scalar) r).value())
@@ -126,7 +126,7 @@ class Phase1AuditTest {
     @Test
     @DisplayName("tripwire #2 FLIPPED (slice 2): filter via the SPEC accessor value('A') composes")
     void filterViaSpecAccessorComposes() throws Exception {
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as A union all select 2 union all select 3',"
                 + " $c, 0, 1000)"

@@ -56,8 +56,8 @@ public final class BodyCompiler {
         Map<String, StatementExecutor.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         for (int i = 0; i < stmts.size(); i++) {
-            boolean effect = StatementExecutor.containsEffect(stmts.get(i), specs, effectMemo);
-            boolean generator = Compiler.containsTdgGenerator(stmts.get(i));
+            boolean effect = com.legend.compiler.spec.StatementEffects.containsEffect(stmts.get(i), specs, effectMemo);
+            boolean generator = com.legend.compiler.spec.StatementEffects.containsTdgGenerator(stmts.get(i));
             if (generator) {
                 seg.closeEffects();     // the fold reads the state the pending script creates
                 seg.closeVerdicts();    // the loop's own order: verdicts flush before a generator
@@ -69,7 +69,7 @@ public final class BodyCompiler {
                     StatementExecutor.viewSqlRenderer(specs, seg.env()));
             StatementExecutor.establishContexts(stmt, seg.env());
             boolean last = i == stmts.size() - 1;
-            if (effect || StatementExecutor.containsEffect(stmt, specs, effectMemo)) {
+            if (effect || com.legend.compiler.spec.StatementEffects.containsEffect(stmt, specs, effectMemo)) {
                 seg.closeVerdicts();
                 seg.collectEffect(stmt, stmts, i, letPrefix, execFrames);
                 continue;

@@ -42,7 +42,7 @@ import java.util.Set;
  * messages are printed, never compared.
  */
 @Tag("heavy")
-class MinimalCorpusTest {
+public class MinimalCorpusTest {
 
     /** Wall time one corpus test may take, setups included. Set against the
      *  RUNAWAY it exists to catch (a refused body inlined through the SQL
@@ -98,28 +98,16 @@ class MinimalCorpusTest {
     private static final String DUCKDB_UNORDERED = "/rcorpus/duckdb-unordered-register.txt";
     private static final String H2_UNORDERED = "/rcorpus/h2-unordered-register.txt";
 
-    /** The denominator per lane (the ceiling's other half: a pass-count
-     * jump is either a GAINED name or a bigger corpus, and both must be
-     * explained). 2575 = 2721 declared − 146 excluded by the engine's own
-     * stereotypes (audit §9); re-derived against a corpus scan in Phase
-     * 0.8.
-     *
-     * <p>2721/146/2575 -> 2702/144/2558 on 2026-09-10 (upstream boundary
-     * batch 1): the SOURCE pin moved from 4.137.0+36 — a non-tag commit 20
-     * commits PAST the 4.138.2 tag — back to the 4.138.2 TAG itself (one
-     * release: the checkout is now the same release as every oracle jar).
-     * The 20 newer commits carried 19 declared tests (17 discovered, 2
-     * excluded) that are not in 4.138.2; they return at the 4.145.0 bump
-     * (homework §4b: +14 there, on top). A denominator move, not a
-     * discovery change. */
-    private static final int DISCOVERED = 2613;   // 4.145.0 bump (batch 8): +55 discovered,
-                                                   // +59 declared, +4 excluded — the corpus
-                                                   // gained 10 files (drift read: 18 tests + 6
-                                                   // parameterised) and existing files grew
-    /** 2702 {@code <<test.Test>>} functions declared, 144 excluded by the
-     * engine's ToFix / ExcludeAlloy (Phase 0.8; the audit's census). */
-    private static final int DECLARED = 2761;
-    private static final int EXCLUDED = 148;
+    /** The denominator per lane (the ceiling's other half: a pass-count jump is either a GAINED name or a bigger
+     * corpus, and both must be explained): the corpus census -- declared {@code <<test.Test>>} functions, those the
+     * engine's ToFix / ExcludeAlloy exclude, and the difference, discovered -- is MEASURED by the text scan
+     * ({@link #scanCensus}) into spec's generated ratchets.tsv ({@code corpus.census.*}; //spec:update_ratchets,
+     * diff-tested in //:generated). A move there is a reviewed diff with its reason in the commit (Bazel workplan
+     * P2-16, D9); its history (2575 at Phase 0.8, 2558 at the 4.138.2 tag, 2613 at the 4.145.0 bump) is in git. */
+    private static int discovered() {
+        return com.legend.generators.SpecRatchets.measured("corpus.census.discovered");
+    }
+
 
     /** Setups the platform derives as INERT on the full run (Phase 0.2;
      * measured 2026-09-08, the names print as {@code [corpus2] inert-setup}):
@@ -880,8 +868,10 @@ class MinimalCorpusTest {
                 + c.excluded() + " discovered=" + c.discovered());
         org.junit.jupiter.api.Assertions.assertEquals(c.declared() - c.excluded(), c.discovered(),
                 "discovery dropped a test the model declares");
-        org.junit.jupiter.api.Assertions.assertEquals(new MinimalCorpus.Census(DECLARED, EXCLUDED, DISCOVERED), c,
-                "the corpus denominator moved (model reading): explain, then re-pin");
+        org.junit.jupiter.api.Assertions.assertEquals(new MinimalCorpus.Census(
+                        com.legend.generators.SpecRatchets.measured("corpus.census.declared"),
+                        com.legend.generators.SpecRatchets.measured("corpus.census.excluded"), discovered()), c,
+                "the corpus denominator moved (model reading): explain it, then bazel run //spec:update_ratchets");
         org.junit.jupiter.api.Assertions.assertEquals(c, scanCensus(),
                 "the model's census disagrees with the text scan of the corpus tree");
     }
@@ -889,7 +879,7 @@ class MinimalCorpusTest {
     /** {@code <<test.Test>>} functions in the corpus tree, comments stripped
      * — the audit's method (roster-and-floor.md §1): each stereotype block
      * that precedes a function name and its parameter list. */
-    private static MinimalCorpus.Census scanCensus() throws IOException {
+    public static MinimalCorpus.Census scanCensus() throws IOException {
         java.util.regex.Pattern block = java.util.regex.Pattern.compile(
                 "<<([^>]*)>>\\s*(?:\\{[^}]*\\}\\s*)?[\\w:]+\\s*\\(");
         int declared = 0;
@@ -927,9 +917,9 @@ class MinimalCorpusTest {
         Set<String> rosterNames = new HashSet<>(roster);
         Set<String> ranNames = new HashSet<>(ran);
         if (only.isEmpty() && denominator) {
-            org.junit.jupiter.api.Assertions.assertEquals(DISCOVERED, ran.size(),
+            org.junit.jupiter.api.Assertions.assertEquals(discovered(), ran.size(),
                     "[" + lane + "] the corpus denominator moved (" + ran.size()
-                    + " tests ran, " + DISCOVERED + " pinned): a bigger or smaller"
+                    + " tests ran, " + discovered() + " in ratchets.tsv): a bigger or smaller"
                     + " corpus must be explained, never absorbed");
         } else if (denominator) {
             org.junit.jupiter.api.Assertions.assertFalse(ran.isEmpty(),

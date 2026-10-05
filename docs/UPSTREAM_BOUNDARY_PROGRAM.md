@@ -126,7 +126,7 @@ spec/                        NEW — everything that READS the checkouts
 parser-equivalence/          oracle JARS; gate 8; + protocol LIVE differential (goldens deleted)
 pct/                         PCT JARS + checkouts; gates 6/7/9
 
-tools/oracle-pins.env        ONE release. Pure derived from engine's pom. Jars = source = same tag.
+release.MODULE.bazel         ONE release (its PINS block; //tools/bump rewrites it). Pure derived from engine's pom. Jars = source = same tag.
 ```
 
 The contract between `spec` and `core` is the one the prelude already honours:
@@ -176,7 +176,8 @@ copied fact carries a semantic claim nothing can currently verify.
 
 Six version identities (source pins 4.137.0+36, oracle jars 4.138.2, PCT jars 4.133.0,
 perf harness, a fixture filename, captured bytes) collapse to **one line** in
-`tools/oracle-pins.env`. Pure's version is **derived** from the engine release's own
+`tools/oracle-pins.env` (since 2026-10-05, Bazel workplan P2-10: the PINS block of `release.MODULE.bazel`, which
+MODULE.bazel includes; the tests' `//tools:oracle-pins.env` is generated from it). Pure's version is **derived** from the engine release's own
 `<legend.pure.version>` — nobody types it. Source checkouts pin a **release tag**, so the
 oracle jar is the *same release* (today the source pin is a non-tag commit that no jar
 exists for; the two trees are `diverged`, 20 ahead / 11 behind, and

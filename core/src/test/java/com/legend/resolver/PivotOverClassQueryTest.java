@@ -3,7 +3,7 @@
 
 package com.legend.resolver;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.Column;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,7 +45,7 @@ class PivotOverClassQueryTest {
                 st.execute("INSERT INTO SALES VALUES (1,'EU',2023,10), (2,'EU',2023,5), (3,'EU',2024,7),"
                         + " (4,'US',2023,1), (5,'US',2024,2), (6,'US',2024,3)");
             }
-            var r = Compiler.execute(MODEL, "|x::Sale.all()"
+            var r = Execution.execute(MODEL, "|x::Sale.all()"
                     + "->project(~[region: s|$s.region, year: s|$s.year, amount: s|$s.amount])"
                     + "->pivot(~[year], ~[total: x|$x.amount: y|$y->plus()])"
                     + "->sort(~region->ascending())", "x::RT", c);

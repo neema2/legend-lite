@@ -27,7 +27,7 @@ This measures the **grammar** directly, and grades coverage on fixtures that par
 cd scripts/parser
 python3 fixtures.py            # coverage + both harnesses; exit non-zero on any problem
 python3 fixtures.py --gaps     # what is still missing, by grammar
-python3 keywords.py --tier1    # the raw keyword census, no fixtures involved
+bazel run //scripts/parser:keywords -- --tier1   # the raw keyword census over the pinned grammars (Bazel)
 python3 mutants.py             # regenerate the mutation manifest
 python3 mutants.py --check     # fail on drift instead of overwriting
 python3 mutants.py --accepted  # the review queue: mutations legend-engine tolerated
@@ -129,12 +129,8 @@ so no fixture could ever cover them, and "100%" would have been a claim about a 
 nobody was running. The fix takes the surface from the same artifact that parses:
 `perf.TokenDump` reads the `Vocabulary` ANTLR bakes into every generated lexer — the same
 table the parser uses to produce its "Valid alternatives: [...]" messages — into
-`tools/engine-runner/vocab.tsv`. **Regenerate it whenever the engine version moves:**
-
-```
-java -cp tools/engine-runner/target/classes:$(cat tools/engine-runner/cp.txt) \
-     perf.TokenDump > tools/engine-runner/vocab.tsv
-```
+`tools/engine-runner/vocab.tsv`, a build output now: **after a release bump,** `bazel run
+//tools/engine-runner:update_vocab` (and `//:generated` fails while it is stale).
 
 If that file is missing the harness says so rather than quietly skipping the check. Note
 only simple-literal tokens are comparable: a composite like

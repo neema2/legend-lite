@@ -1,4 +1,5 @@
-load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # Saved queries as legend-lite's /api/pure/v1/query answers GET: the one contract Query writes and
@@ -12,6 +13,59 @@ js_library(
         "//query:__pkg__",
         "//query-store:__pkg__",
     ],
+)
+
+# THE RECORDS, MADE (Bazel workplan P2-06, D14 (a)): make.mjs starts legend-lite's server (its deploy jar, built
+# once in the target configuration, on the build machine's Java runtime) on a port the system picks, saves each
+# record through it, runs each to README.md's row counts, and writes them with the timestamps set to 0.
+_RECORDS = [
+    "data-space-context",
+    "default-parameter-values",
+    "explicit-context",
+    "graph-fetch",
+]
+
+js_binary(
+    name = "make",
+    entry_point = "make.mjs",
+)
+
+js_run_binary(
+    name = "gen",
+    srcs = [
+        "//core:server_deploy.jar",
+        "//query:demo/models/runtime-h2.pure",
+        "//query:demo/models/trading.pure",
+        "@bazel_tools//tools/jdk:current_host_java_runtime",
+    ],
+    outs = ["gen/%s.json" % r for r in _RECORDS],
+    out_dirs = ["store"],
+    args = [
+        "--java",
+        "$(JAVA)",
+        "--server-jar",
+        "$(execpath //core:server_deploy.jar)",
+        "--model",
+        "$(execpath //query:demo/models/trading.pure)",
+        "--model",
+        "$(execpath //query:demo/models/runtime-h2.pure)",
+        "--store",
+        "$(RULEDIR)/store",
+        "--out",
+        "$(RULEDIR)/gen",
+    ],
+    # the inputs are read where Bazel put them (make.mjs resolves against the execution root); another
+    # repository's files (the Java runtime) cannot be copied into this package's output
+    copy_srcs_to_bin = False,
+    tool = ":make",
+    toolchains = ["@bazel_tools//tools/jdk:current_host_java_runtime"],
+)
+
+write_source_files(
+    name = "update_generated",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA saved-query record changed -- regenerate: bazel run //fixtures/saved-queries:update_generated, then read the diff (Query writes these records and DataCube reads them)",
+    files = {"%s.json" % r: ":gen/%s.json" % r for r in _RECORDS},
+    visibility = ["//:__pkg__"],
 )
 
 guards_package()

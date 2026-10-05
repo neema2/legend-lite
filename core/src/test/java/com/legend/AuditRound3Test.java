@@ -29,12 +29,12 @@ class AuditRound3Test {
 
     private static Object scalar(String query) throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            return Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
+            return Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
         }
     }
 
     private static Exception rejects(String query) {
-        return assertThrows(Exception.class, () -> Compiler.compileQuery(MODEL, query));
+        return assertThrows(Exception.class, () -> Compiler.query(Compiler.compileModel(MODEL), query).expression());
     }
 
     // ---- kernel / checkers ----
@@ -54,7 +54,7 @@ class AuditRound3Test {
         // signatures alone.
         var ex = assertThrows(Exception.class, () -> {
             try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-                Compiler.execute(StorelessRuntime.with(MODEL + "function test::f(): Integer[1] { [] }\n", DatabaseType.DuckDB),
+                Execution.execute(StorelessRuntime.with(MODEL + "function test::f(): Integer[1] { [] }\n", DatabaseType.DuckDB),
                         "|test::f()", StorelessRuntime.RUNTIME, c);
             }
         });
@@ -111,10 +111,10 @@ class AuditRound3Test {
         // no import section, so a bare user name is unresolvable, LOUD,
         // with the qualification hint; the FQN spelling works.
         var ex = assertThrows(Exception.class,
-                () -> Compiler.compileQuery(MODEL, "A.all()"));
+                () -> Compiler.query(Compiler.compileModel(MODEL), "A.all()").expression());
         assertTrue(String.valueOf(ex.getMessage()).contains("fully qualified"),
                 ex.getMessage());
-        var typed = Compiler.compileQuery(MODEL, "test::A.all()");
+        var typed = Compiler.query(Compiler.compileModel(MODEL), "test::A.all()").expression();
         assertEquals("test::A", typed.info().type().typeName());
     }
 

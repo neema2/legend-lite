@@ -3,121 +3,59 @@
 
 package com.legend.generators;
 
-import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE REFERENCE LANE (execution plan W1.1, calls first): legend-pure's own compiler, from the pinned jars, against
- * ours, call by call, over {@code core_relational}'s manifest closure. The reference dump is a cached build output
- * ({@code //tools/reference:ref_dump}); this test produces our side ({@link OurResolutions}), joins
- * ({@link ReferenceJoin}) and compares the whole report to the committed golden
- * {@code src/test/resources/reference-lane/core_relational.txt}.
+ * THE REFERENCE LANE's invariant (execution plan W1.1): every disagreement class in the report
+ * ({@link ReferenceLaneReport}, made by {@code //spec:reference_lane_report}) has a reason in
+ * {@code reference-lane/reasons.tsv} (kind, spelling or {@code *}, the owning plan item, the reason): reasons are per
+ * (kind, spelling) class, or per kind, never per row. The report against its committed golden is
+ * {@code //spec:update_reference_lane_test}.
  *
- * <p>The report pins, exactly: the coverage (functions each side typed, the bodies we FAILED, the sources our loader
- * DROPPED to make the model build — survivorship, so losing coverage turns the lane red instead of shrinking the
- * disagreements), every bucket's count, and every disagreement class with its count. A change of any line is a red
- * lane: a front-end slice either leaves the report unchanged or updates the golden in the same push, with the GATES
- * entry saying which lines moved and why.
- *
- * <p>Every disagreement class must have a reason ({@code reference-lane/reasons.tsv}: kind, spelling or {@code *},
- * the owning plan item, the reason): reasons are per (kind, spelling) class, or per kind, never per row.
- *
- * <p>Run: {@code bazel test //spec:reference_lane} (manual; ~8 GB). To bless a deliberate change:
- * {@code unzip -o -j bazel-testlogs/spec/reference_lane/test.outputs/outputs.zip core_relational.txt
- * -d spec/src/test/resources/reference-lane/}.
+ * <p>Run: {@code bazel test //spec:reference_lane //spec:update_reference_lane_test} (manual; the report's action
+ * needs about 8 GB with the reference dump).
  */
 @Tag("heavy")   // never in //spec:spec_tests; its own manual lane, //spec:reference_lane
 class ReferenceLaneTest {
-
-    private static final String MODULE = "core_relational";
 
     record Reason(String kind, String spelling, String owner, String reason) {
     }
 
     @Test
-    void theReferenceLaneMatchesItsGolden() throws IOException {
-        Path reference = Path.of(Objects.requireNonNull(System.getProperty("reference.dump"),
-                "-Dreference.dump=<ref-resolutions.tsv> (set by //spec:reference_lane)"));
-        StringWriter ours = new StringWriter();
-        OurResolutions.Result dump;
-        try (PrintWriter w = new PrintWriter(ours)) {
-            dump = OurResolutions.dump(MODULE, w);
+    void everyDisagreementClassHasAReason() throws IOException {
+        List<String> classes = new ArrayList<>();
+        boolean in = false;
+        for (String line : Files.readAllLines(Runfile.property("reference.report"), StandardCharsets.UTF_8)) {
+            if (line.startsWith("== ")) {
+                in = line.startsWith("== disagreement classes");
+            } else if (in && !line.isBlank()) {
+                classes.add(line);
+            }
         }
-        ReferenceJoin.Result join = ReferenceJoin.join(reference, ours.toString());
-        String report = report(dump, join);
-        Files.createDirectories(Repo.outDir());
-        Files.writeString(Repo.out(MODULE + ".txt"), report, StandardCharsets.UTF_8);
-        Files.writeString(Repo.out(MODULE + "-examples.tsv"), examples(join), StandardCharsets.UTF_8);
-
+        assertFalse(classes.isEmpty(), "the report lists no disagreement classes: the lane is not looking");
         List<Reason> reasons = reasons();
         List<String> unexplained = new ArrayList<>();
-        for (ReferenceJoin.Key k : join.classes().keySet()) {
-            if (reasons.stream().noneMatch(r -> r.kind().equals(k.kind())
-                    && (r.spelling().equals("*") || r.spelling().equals(k.spelling())))) {
-                unexplained.add(k.kind() + "\t" + k.spelling());
+        for (String c : classes) {
+            String[] f = c.split("\t", -1);
+            if (reasons.stream().noneMatch(r -> r.kind().equals(f[0])
+                    && (r.spelling().equals("*") || r.spelling().equals(f[1])))) {
+                unexplained.add(f[0] + "\t" + f[1]);
             }
         }
         assertTrue(unexplained.isEmpty(), "disagreement classes with no reason in reference-lane/reasons.tsv:\n  "
                 + String.join("\n  ", unexplained.stream().distinct().toList()));
-
-        String golden = resource("reference-lane/" + MODULE + ".txt");
-        assertEquals(golden, report, "the reference lane moved: the fresh report is in the lane's test.outputs ("
-                + MODULE + ".txt); a deliberate change updates the golden in the same push (see this class's doc)");
-    }
-
-    /** The report: deterministic, sorted, no positions (they live in the examples file). */
-    static String report(OurResolutions.Result dump, ReferenceJoin.Result j) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("# The reference lane (execution plan W1.1): ").append(MODULE)
-                .append("'s closure, legend-pure 5.99.0 / engine 4.145.0 jars vs ours, call by call.\n")
-                .append("# Generated by ReferenceLaneTest; every line is pinned. Positions are in the lane's examples output.\n");
-        sb.append("\n== coverage\n");
-        Map<String, Integer> cov = new LinkedHashMap<>();
-        cov.put("reference functions", j.refFunctions());
-        cov.put("our functions", j.ourFunctions());
-        cov.put("our bodies typed", dump.functions());
-        cov.put("our bodies FAILED", dump.failedFunctions().size());
-        cov.put("our sources DROPPED", dump.droppedSources().size());
-        cov.put("functions in both", j.inBoth());
-        cov.put("reference only", j.refOnly());
-        cov.put("ours only", j.oursOnly());
-        cov.put("reference typed, we FAILED", j.refTypedWeFailed());
-        cov.forEach((k, v) -> sb.append(k).append('\t').append(v).append('\n'));
-        sb.append("\n== buckets\n");
-        j.buckets().forEach((k, v) -> sb.append(k).append('\t').append(v).append('\n'));
-        sb.append("\n== dropped sources\n");
-        dump.droppedSources().forEach(s -> sb.append(s).append('\n'));
-        sb.append("\n== failed bodies\n");
-        dump.failedFunctions().forEach(s -> sb.append(s).append('\n'));
-        sb.append("\n== disagreement classes (kind, spelling, reference id, our id, count)\n");
-        j.classes().forEach((k, n) -> sb.append(k.kind()).append('\t').append(k.spelling()).append('\t')
-                .append(k.refId()).append('\t').append(k.ourId()).append('\t').append(n).append('\n'));
-        return sb.toString();
-    }
-
-    private static String examples(ReferenceJoin.Result j) {
-        StringBuilder sb = new StringBuilder("kind\tspelling\trefId\tourId\tcount\texample\n");
-        j.classes().forEach((k, n) -> sb.append(k.kind()).append('\t').append(k.spelling()).append('\t')
-                .append(k.refId()).append('\t').append(k.ourId()).append('\t').append(n).append('\t')
-                .append(j.examples().get(k)).append('\n'));
-        return sb.toString();
     }
 
     static List<Reason> reasons() throws IOException {

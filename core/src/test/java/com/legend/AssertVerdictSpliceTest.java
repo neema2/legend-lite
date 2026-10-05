@@ -119,7 +119,7 @@ class AssertVerdictSpliceTest {
     }
 
     private static ExecutionResult run(String query) throws SQLException {
-        return Compiler.execute(MODEL, query, "e::RT", conn);
+        return Execution.execute(MODEL, query, "e::RT", conn);
     }
 
     @Test

@@ -159,8 +159,7 @@ public class PctExecuteNative extends NativeFunction {
             // one flag selects between them.
             // a storeless expression executes on the lane's declared runtime, as the engine's PCT
             // adapter gives it one (StorelessRuntime)
-            ExecutionResult result = new QueryService().execute(com.legend.test.StorelessRuntime.with(model,
-                    PctBackend.databaseType()), pureExpression, com.legend.test.StorelessRuntime.RUNTIME, connection, com.legend.ExecuteOptions.PCT_RENDER.withFeatures(
+            ExecutionResult result = new QueryService().execute(PctBackend.withStorelessRuntime(model), pureExpression, com.legend.test.StorelessRuntime.RUNTIME, connection, com.legend.ExecuteOptions.PCT_RENDER.withFeatures(
                             java.util.Set.of(com.legend.platform.Feature
                                     .CORRECT_SQL_SUBSTRING_INDEXING)));
             return switch (result) {

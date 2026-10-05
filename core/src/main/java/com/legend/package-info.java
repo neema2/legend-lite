@@ -10,7 +10,8 @@
  * {@code com.legend.ArchitectureTest}.
  *
  * <h2>Pipeline</h2>
- * {@link com.legend.Compiler#compile} drives 11 steps:
+ * {@link com.legend.Compiler} (the planner: {@code compileModel}, then {@code query(...)}, then the
+ * {@link com.legend.TypedQuery}'s {@code plan}) drives steps 1&ndash;10; {@link com.legend.Execution} runs step 11:
  * <ol>
  *   <li>{@code lexer/}      — text → tokens</li>
  *   <li>{@code parser/}     — tokens → {@code parser.element.PackageableElement} (ElementParser)</li>

@@ -4,6 +4,7 @@
 package com.legend.resolver;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.testing.KnownDefect;
 import org.junit.jupiter.api.Test;
 
@@ -64,7 +65,7 @@ class NavPrefixCollisionTemporalTest {
                         + " (10, 'old', DATE '2010-01-01', DATE '2015-01-01'),"
                         + " (10, 'new', DATE '2015-01-01', DATE '9999-12-31')");
             }
-            var r = Compiler.execute(model, QUERY, "c::RT", c);
+            var r = Execution.execute(model, QUERY, "c::RT", c);
             List<String> out = new ArrayList<>();
             for (var row : r.rows()) {
                 StringBuilder sb = new StringBuilder();
@@ -80,7 +81,7 @@ class NavPrefixCollisionTemporalTest {
     @Test
     void datedNavigationFiltersTargetVersions() throws Exception {
         String m = model("");
-        String sql = Compiler.compile(m, QUERY, "c::RT");
+        String sql = Compiler.query(Compiler.compileModel(m), QUERY).plan("c::RT").sql();
         assertTrue(sql.contains("from_z <= DATE '2015-06-01'"), sql);
         assertEquals(List.of("1|new"), rows(m));
     }
@@ -91,7 +92,7 @@ class NavPrefixCollisionTemporalTest {
             + " dated navigation is stamped as a physical slot with the empty root context")
     void datedNavigationFiltersTargetVersionsWhenPrefixCollides() throws Exception {
         String m = model(", product_name VARCHAR(64)");
-        String sql = Compiler.compile(m, QUERY, "c::RT");
+        String sql = Compiler.query(Compiler.compileModel(m), QUERY).plan("c::RT").sql();
         assertTrue(sql.contains("from_z <= DATE '2015-06-01'"), sql);
         assertEquals(List.of("1|new"), rows(m));
     }

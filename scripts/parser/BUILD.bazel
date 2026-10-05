@@ -1,0 +1,104 @@
+# The parser harness's kept part (D3 row 6): the keyword census over the PINNED legend-engine grammars
+# (@legend_engine_src), the runner's vocabulary (//tools/engine-runner:vocab) and the .pure this repository owns.
+# The other scripts here are history (P7-04). Bazel workplan P2-20.
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("//tools/guards:defs.bzl", "guards_package")
+
+py_library(
+    name = "tiers",
+    srcs = ["tiers.py"],
+    # keywords.py imports it by its bare name, as it always has
+    imports = ["."],
+)
+
+# the .pure the census counts as ours: the parser fixtures here, the corpus scripts' queries, core's test resources
+filegroup(
+    name = "pure_sources",
+    srcs = glob(["**/*.pure"]),
+)
+
+_DATA = [
+    ":pure_sources",
+    "//core:test_pure",
+    "//scripts/corpus:pure_sources",
+    "//tools/engine-runner:vocab",
+    "@legend_engine_src//:grammars",
+    "@legend_engine_src//:pom.xml",
+]
+
+# `bazel run //scripts/parser:keywords [-- --tier1 | --gaps]`: the census as a report
+py_binary(
+    name = "keywords",
+    testonly = True,
+    srcs = ["keywords.py"],
+    args = [
+        "--engine-pom",
+        "$(rootpath @legend_engine_src//:pom.xml)",
+        "--vocab",
+        "$(rootpath //tools/engine-runner:vocab)",
+        "--ours",
+        "core/src/test/resources",
+        "--ours",
+        "scripts",
+    ],
+    data = _DATA,
+    deps = [":tiers"],
+)
+
+# The census's inputs as two trees holding ONLY the declared files, so the walk sees nothing else even where the action
+# is not sandboxed (Windows): the pinned grammars, and the .pure this repository owns, each at its repository path.
+copy_to_directory(
+    name = "engine_grammars",
+    testonly = True,
+    srcs = ["@legend_engine_src//:grammars"],
+    include_external_repositories = ["*legend_engine_src"],
+)
+
+copy_to_directory(
+    name = "our_pure",
+    testonly = True,
+    srcs = [
+        ":pure_sources",
+        "//core:test_pure",
+        "//scripts/corpus:pure_sources",
+    ],
+    root_paths = ["."],
+)
+
+# the census as a measurement (D9: a golden), from declared inputs only (the vocabulary is the report's, not this)
+run_binary(
+    name = "keyword_coverage",
+    testonly = True,
+    srcs = [
+        ":engine_grammars",
+        ":our_pure",
+    ],
+    outs = ["generated/keyword-coverage.tsv"],
+    args = [
+        "--engine-root",
+        "$(execpath :engine_grammars)",
+        "--ours",
+        "$(execpath :our_pure)",
+        "--out",
+        "$(execpath generated/keyword-coverage.tsv)",
+    ],
+    env = {
+        "PYTHONHASHSEED": "0",
+        "PYTHONUTF8": "1",
+    },
+    tool = ":keywords",
+)
+
+write_source_files(
+    name = "update_keyword_coverage",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe keyword census moved -- regenerate: bazel run //scripts/parser:update_keyword_coverage, and read the diff",
+    files = {"keyword-coverage.tsv": ":keyword_coverage"},
+    visibility = ["//:__pkg__"],
+)
+
+guards_package()

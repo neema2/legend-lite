@@ -13,7 +13,7 @@ import java.util.Set;
  * The per-suite channel diff (One-Platform Plan Phase 4): channel B's
  * outcomes against TWO oracles — channel A's own expectedFailures ledger
  * (the interpreted reference) and the engine's relational-DuckDB PCT
- * manifest (the pinned frontier snapshot). AGREE rows corroborate;
+ * manifest (the pinned release's, read from @legend_engine_src). AGREE rows corroborate;
  * WIRE-BUG rows split into ENGINE-FRONTIER (the reference relational
  * executor fails them too) and TRUE wire bugs — the number that burns.
  */

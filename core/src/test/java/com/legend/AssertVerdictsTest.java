@@ -61,7 +61,7 @@ class AssertVerdictsTest {
     }
 
     private static ExecutionResult run(String query) throws SQLException {
-        return Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, conn);
+        return Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, conn);
     }
 
     @Test

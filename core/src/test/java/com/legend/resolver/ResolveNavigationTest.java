@@ -1,6 +1,7 @@
 package com.legend.resolver;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -510,7 +511,7 @@ class ResolveNavigationTest {
     @Test
     @DisplayName("AUTO-MAP: class-RESULT map (->map(f|$f.staff->filter(...))) re-roots at the target")
     void autoMapClassResultMapReroots() throws SQLException {
-        var r = Compiler.execute(MODEL,
+        var r = Execution.execute(MODEL,
                 "{| m::Firm.all()->map(f|$f.staff->filter(e|$e.name != 'Ann'))"
                         + "->map(p|$p.name);}", "m::RT", conn);
         // F6.2: the map-binder channel is a VALUE COLLECTION
@@ -536,7 +537,7 @@ class ResolveNavigationTest {
         // the head natives; scalar reads off the binding then evaluate per
         // statement (toOne = the documented pass-through stand-in: a
         // multi-row source surfaces at the value compare, never silently)
-        var r = Compiler.execute(MODEL,
+        var r = Execution.execute(MODEL,
                 "{| let row = m::Person.all()->filter(p|$p.name == 'Ann')->toOne();\n"
                         + "$row.addr.city;}", "m::RT", conn);
         // F6.2: the map-binder channel is a VALUE COLLECTION (here to-one)

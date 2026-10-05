@@ -2,7 +2,7 @@ import com.legend.Compiler;
 public class Probe {
   static void t(String label, String q) {
     String model = "Class demo::P { name: String[1]; age: Integer[1]; }\n";
-    try { Compiler.compileQuery(model, q); System.out.println("ACCEPTED  " + label); }
+    try { Compiler.query(Compiler.compileModel(model), q).expression(); System.out.println("ACCEPTED  " + label); }
     catch (Throwable e) {
       String m = String.valueOf(e.getMessage());
       System.out.println("rejected  " + label + "  :: " + m.split("\n")[0].substring(0, Math.min(95, m.split("\n")[0].length())));

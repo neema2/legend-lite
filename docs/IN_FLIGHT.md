@@ -1,15 +1,31 @@
 # In flight
 
-**Start at `docs/EXECUTION_PLAN_2026_09_26.md` §0.** It holds the current item ("Now"), the session checklist, the
-decisions and the order. This file only says who is working and what rules apply between sessions; it carries no status
-of its own (plan rule 0b.16).
+This file says who is working, on what files, in what order, and the rules between sessions; each line's status lives
+in its own plan (plan rule 0b.16).
 
-- **One session owns the whole repository** (since 2026-09-29; the user stopped every other session). The two-session
-  handshake that lived here is retired; its text is in git history at `caf0cf71f`.
-- **The compiler rebuild lands on `main`** slice by slice (D18): each slice is gated by `bazel test //...` and `bazel test
-  //tools/deps:all` on the exact tree, then pushed with `git push origin HEAD:compiler/rebuild HEAD:main`.
-- **Paused while the rebuild runs:** `docs/SERVER_PROGRAM_2026_09_26.md` (its legs are SV0–SV3, not the rebuild's W0–W7),
-  the DataCube feature programs (`docs/DATACUBE_*`), NLQ (the untracked `nlq/` directory is not ours; leave it).
+**Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
+edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
+with the compiler's plan/execution split**, in this order:
+
+1. **The Bazel program** (`docs/BAZEL_IMPLEMENTATION_PLAN.md`; log `docs/BAZEL_EXECUTION_LOG.md` on
+   `docs/bazel-first-class-plan`): build files — `core/BUILD.bazel`, `tools/deps`, `MODULE.bazel` (splitting out a
+   `release.MODULE.bazel`), `pct`, `spec`, `parser-equivalence`, the guards. Batch 8 lands first. It also carries the
+   reference-lane fix the user decided ("fix rule to match pure": legend-pure's overload for `min`/`max` over a list
+   literal), in `core/compiler/spec` — no one else edits those files until it lands.
+2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; PR #24 `studio-m1`, then `query-by-name`): `studio/`,
+   `legend-art/`, `query/`, `datacube/` (imports and labels), `site/`, a `@fontsource` block in `MODULE.bazel`. Nothing
+   in `core/`. Lands on the user's merge; `MODULE.bazel` is shared with the Bazel program (the second to land rebases).
+3. **The database owner** (the fourth line below; `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md`): C3c
+   now (no shared files); **C1/C2, the plan/execution split, starts only after the Bazel program's batch 8 is on
+   `main`** (both touch `core/BUILD.bazel` and `tools/deps`), announced to the other lines first.
+
+**Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
+B2/B3 and the W6.2 runner wait for it); DataCube + Python (two local commits in `legend-lite-dcsnap`: a GraalVM native
+library with Python bindings and a `Typer` fix, which meets the Bazel program's overload fix on rebase); the server
+program (`docs/SERVER_PROGRAM_2026_09_26.md`); NLQ (the untracked `nlq/` directory is not ours; leave it).
+
+**Shared machine:** at most two heavy Bazel/JVM jobs at once; before a full `bazel test //...`, check that another
+session is not running one (a browser test, `//studio:verify_test`, times out under two full chains).
 
 ## A second line, 2026-09-29: DataCube against the warehouse (the user's ask, rule 5)
 
@@ -250,6 +266,14 @@ The compiler rebuild is paused by the user while this line works (design S11). C
 announced here with its files before it lands: the model JSON reader and printer (opening existing upstream projects),
 W1.2 diagnostics, and (v1) name-resolved entity JSON with the function-resolution fix
 (`docs/function-resolution/README.md` on `studio`).
+
+**2026-10-05, announced before landing: the reference-lane fix in `core/`** (the user: "fix rule to match pure for
+sure"). The rule `c1f9bac5b` added (a list literal's elements are `[1]`) is legend-pure's and stays. The lane's two
+new failures (`dataTypeToSqlTextH2`, `max([$MIN, min([$v.size, $MAX])])`) come from overload choice: legend-pure picks
+`math::min(Integer[1..*]):Integer[1]`, which our catalog lacks, so we pick `min(Integer[*]):Integer[0..1]`. The fix adds
+the six `[1..*]` overloads legend-engine registers (`math::min`/`max` over `Integer`, `Float`, `Number`) to
+`native-membership.tsv` and `Pure.java` (their text and the `AT_MATH_MIN`/`AT_MATH_MAX` groups regenerated); lowering
+already dispatches on the groups. Gate: the full chain plus `//spec:reference_lane` back at its golden.
 
 ## Rules between sessions
 

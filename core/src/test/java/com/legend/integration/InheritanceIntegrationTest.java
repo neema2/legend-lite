@@ -169,10 +169,7 @@ class InheritanceIntegrationTest {
         }
 
         private String generateSql(String pureQuery) {
-            var plan = com.legend.Compiler.plan(
-                    INHERITANCE_MODEL,
-                    pureQuery,
-                    "test::TestRuntime");
+            var plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(INHERITANCE_MODEL), pureQuery).plan("test::TestRuntime");
             return plan.sql();
         }
 

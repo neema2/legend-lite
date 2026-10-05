@@ -74,8 +74,19 @@ _TESTS = glob(["test/*.test.ts"])
 _SCANNERS = ["config-readers", "guardrails", "menu-ids", "portability", "state-guardrail", "wasm-flag"]
 
 # Each test's inputs by runfiles path ($(rlocationpath); tools/js/runfiles.mts), beside _EXTRA_DATA.
+# THE SHARE LINK'S NEXT DICTIONARY VERSION (P2-08; see :cut_link_dictionary)
+_NEXT_LINK_VERSION = "p2"
+
+_NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
+
 _EXTRA_ENV = {
     "bundle-budget": {"BUNDLE": "$(rlocationpath :demo/bundle.js)"},
+    # every dictionary version in the tree, and the next one's name: each version needs its hash pinned, and the
+    # next one is not cut yet
+    "share-link": {
+        "LINK_VERSIONS": " ".join([f[len("src/share/link-"):-len(".ts")] for f in glob(["src/share/link-*.ts"])]),
+        "NEXT_LINK_VERSION": _NEXT_LINK_VERSION,
+    },
     "saved-queries": {
         "SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)",
         "TRADING_PROJECT": "$(rlocationpath :projects)",
@@ -261,14 +272,7 @@ js_binary(
 # The next version, from today's vocabulary: built with //... so the tool cannot rot unseen. To ship it,
 # `bazel run //datacube:cut_link_dictionary` writes src/share/link-<version>.ts once (a DRAFT, the
 # docs:draft_own_corpus_ledger pattern: no diff test, the hash pin is the freeze); then pin its hash in
-# test/share-link.test.ts and move _NEXT_LINK_VERSION on. Until then the package refuses to load.
-_NEXT_LINK_VERSION = "p2"
-
-_NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
-
-[fail("%s is cut: pin its hash in datacube/test/share-link.test.ts and move _NEXT_LINK_VERSION on in " % f +
-      "datacube/BUILD.bazel (P2-08)") for f in glob([_NEXT_LINK_FILE], allow_empty = True)]
-
+# test/share-link.test.ts and move _NEXT_LINK_VERSION (above) on. share_link_test fails until both are done.
 js_run_binary(
     name = "link_dictionary_next",
     args = [_NEXT_LINK_VERSION],

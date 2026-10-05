@@ -4,6 +4,7 @@
 package com.legend.resolver;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedFilter;
@@ -77,7 +78,7 @@ class NestedExistsCorrelationStampTest {
                 st.execute("CREATE TABLE C (PID INTEGER, MAKE VARCHAR)");
                 st.execute("INSERT INTO C VALUES (10, 'BMW'), (NULL, 'VW')");
             }
-            var r = Compiler.execute(MODEL, query, "m::RT", c);
+            var r = Execution.execute(MODEL, query, "m::RT", c);
             List<String> out = new ArrayList<>();
             for (var row : r.rows()) {
                 StringBuilder sb = new StringBuilder();
@@ -124,7 +125,7 @@ class NestedExistsCorrelationStampTest {
     void nestedExistsDoesNotMatchNullKeys() throws Exception {
         assertEquals(List.of(TypedFilter.Stamp.CORRELATION, TypedFilter.Stamp.CORRELATION),
                 existsRelationStamps(NESTED));
-        String sql = Compiler.compile(MODEL, NESTED, "m::RT");
+        String sql = Compiler.query(Compiler.compileModel(MODEL), NESTED).plan("m::RT").sql();
         assertFalse(sql.contains("IS NOT DISTINCT FROM"), sql);
         // was [BETA]
         assertEquals(List.of(), rows(NESTED));
@@ -143,6 +144,6 @@ class NestedExistsCorrelationStampTest {
         String q = "m::Firm.all()->filter(f|$f.staff->exists(s|"
                 + "$s.cars->filter(c|$c.make != 'BMW')->exists(c|$c.make == 'VW')))->project(~[legal: f|$f.legal])";
         assertEquals(List.of(), rows(q));
-        assertFalse(Compiler.compile(MODEL, q, "m::RT").contains("IS NOT DISTINCT FROM"));
+        assertFalse(Compiler.query(Compiler.compileModel(MODEL), q).plan("m::RT").sql().contains("IS NOT DISTINCT FROM"));
     }
 }

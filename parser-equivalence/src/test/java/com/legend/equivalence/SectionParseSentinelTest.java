@@ -329,7 +329,7 @@ class SectionParseSentinelTest {
     //     grammar the then-ORACLE (5.88.1, later 5.92.0) refused while the
     //     then-checkout (5.92.1-SNAPSHOT, 4.137.0+36) accepted (its own
     //     build compiled these fixtures). Since 2026-09-10 the oracle jars
-    //     and the checkout are ONE release (tools/oracle-pins.env), so a
+    //     and the checkout are ONE release (release.MODULE.bazel's pins), so a
     //     remaining row here is a lite bug, not skew; the corpus decides
     //     (the xStore rule), and this ratchets back DOWN as rows match.
     // (2) UNMASKED rows: files whose ###Service section we previously

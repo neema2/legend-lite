@@ -58,7 +58,7 @@ class PostgresArmTest {
                 }
                 """.formatted(pg.port());
 
-        try (ConnectionResolver.Lease lease = ConnectionResolver.resolve(model, "test::PgRuntime");
+        try (ConnectionResolver.Lease lease = ConnectionResolver.lease(com.legend.Compiler.compileModel(model), "test::PgRuntime");
                 Statement s = lease.connection().createStatement();
                 ResultSet r = s.executeQuery("SELECT 41 + 1")) {
             assertTrue(lease.connection().getMetaData().getURL().startsWith("jdbc:postgresql://127.0.0.1:"),

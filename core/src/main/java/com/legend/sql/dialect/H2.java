@@ -61,7 +61,7 @@ public class H2 extends AnsiSqlRenderer {
     }
 
     public H2() {
-        super("H2", Lexicon.H2, TypeNames.H2, Spellings.H2);
+        super(Lexicon.H2, TypeNames.H2, Spellings.H2);
     }
 
     @Override
@@ -149,6 +149,12 @@ public class H2 extends AnsiSqlRenderer {
             case PHYSICAL_QUOTED -> delimited(c.name());
             case PHYSICAL -> execPart(c.name());
         };
+    }
+
+    /** A stored name as this dialect's queries reference a physical column or table part. */
+    @Override
+    public String physicalName(String name) {
+        return execPart(name);
     }
 
     private String execPart(String part) {

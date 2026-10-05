@@ -1,16 +1,10 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/guards:defs.bzl", "guards_package")
 
-# docs/ is prose, except for the committed LEDGERS some tests compare against
-# (the protocol roster, the refusal allowlists, the skew claims, ...). Declared here
-# so a test reads them as inputs rather than by a path nobody can see.
-filegroup(
-    name = "ledgers",
-    srcs = glob(["*.tsv"]),
-    visibility = ["//visibility:public"],
-)
-
-# each ledger as a label of its own, so a test passes the one it reads by $(rlocationpath)
+# docs/ is prose, except for the committed LEDGERS some tests compare against (the protocol roster, the refusal
+# allowlists, the skew claims, ...). Each is a label of its own, and a test names the ones it reads, each by
+# $(rlocationpath) (parser-equivalence's _LEDGERS): no blanket filegroup, so no test carries a ledger it never
+# reads (Bazel workplan P2-18). The other TSVs here are frozen snapshots or measurements no build reads.
 exports_files(glob(["*.tsv"]))
 
 # GENERATED ledgers in docs/ (see //:update_generated)

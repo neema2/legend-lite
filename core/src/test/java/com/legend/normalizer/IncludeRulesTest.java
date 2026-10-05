@@ -52,8 +52,8 @@ class IncludeRulesTest {
                 Runtime w::RtAB { mappings: [w::AB]; connections: [ w::DB: [ c: #{ RelationalDatabaseConnection { type: DuckDB; specification: LocalH2 {}; auth: DefaultH2; } }# ] ]; }
                 Runtime w::RtBA { mappings: [w::BA]; connections: [ w::DB: [ c: #{ RelationalDatabaseConnection { type: DuckDB; specification: LocalH2 {}; auth: DefaultH2; } }# ] ]; }
                 """;
-        String ab = Compiler.compile(model, "w::Person.all()->project([p | $p.name], ['name'])", "w::RtAB");
-        String ba = Compiler.compile(model, "w::Person.all()->project([p | $p.name], ['name'])", "w::RtBA");
+        String ab = Compiler.query(Compiler.compileModel(model), "w::Person.all()->project([p | $p.name], ['name'])").plan("w::RtAB").sql();
+        String ba = Compiler.query(Compiler.compileModel(model), "w::Person.all()->project([p | $p.name], ['name'])").plan("w::RtBA").sql();
         assertTrue(ab.contains("PERSON_B") && !ab.contains("PERSON_A"), ab);
         assertTrue(ba.contains("PERSON_A") && !ba.contains("PERSON_B"), ba);
     }
@@ -70,7 +70,7 @@ class IncludeRulesTest {
                 ###Runtime
                 Runtime w::Rt { mappings: [w::Own]; connections: [ w::DB: [ c: #{ RelationalDatabaseConnection { type: DuckDB; specification: LocalH2 {}; auth: DefaultH2; } }# ] ]; }
                 """;
-        String sql = Compiler.compile(model, "w::Person.all()->project([p | $p.name], ['name'])", "w::Rt");
+        String sql = Compiler.query(Compiler.compileModel(model), "w::Person.all()->project([p | $p.name], ['name'])").plan("w::Rt").sql();
         assertTrue(sql.contains("PERSON_C"), sql);
         // operation sets: two includes each declare a union for Person — the later include's wins
         String ops = CLASSES + """

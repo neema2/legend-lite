@@ -161,7 +161,7 @@ public final class PureV1Api {
             Json.Obj request = request(body);
             String model = modelText(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
-            com.legend.compiler.element.type.Type t = com.legend.Compiler.resultType(model, lambda).type();
+            com.legend.compiler.element.type.Type t = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda).resultType().type();
             String path = com.legend.compiler.element.type.Type.schemaView(t) != null
                     ? "meta::pure::metamodel::relation::Relation"
                     : UpstreamRelationType.typePath(t);
@@ -191,7 +191,7 @@ public final class PureV1Api {
             String model = modelText(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
             return Json.toCompact(UpstreamRelationType.of(
-                    com.legend.Compiler.resultType(model, lambda)));
+                    com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda).resultType()));
         });
     }
 
@@ -206,9 +206,11 @@ public final class PureV1Api {
             Json.Obj request = request(body);
             String model = modelText(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("function"));
-            com.legend.Compiler.Target target = com.legend.Compiler.target(model, lambda);
+            // compiled and typed once: the target it names and its plan come off the one typed query
+            com.legend.TypedQuery query = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda);
+            com.legend.Compiler.Target target = query.target();
             String runtime = runtimeOf(request, target);
-            QueryPlan plan = com.legend.Compiler.plan(model, lambda, runtime);
+            QueryPlan plan = query.plan(runtime);
             return Json.toCompact(executionPlan(plan,
                     connectionOf(model, runtime, target.store())));
         });
@@ -229,7 +231,7 @@ public final class PureV1Api {
             String model = modelText(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(
                     boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
-            String runtime = runtimeOf(request, com.legend.Compiler.target(model, lambda));
+            String runtime = runtimeOf(request, com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda).target());
             java.io.StringWriter rows = new java.io.StringWriter();
             QueryPlan plan = new QueryService().executeUpstream(model, lambda, runtime, rows);
             if (plan.shape() == com.legend.plan.ResultShape.GRAPH) {

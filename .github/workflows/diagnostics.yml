@@ -9,7 +9,7 @@ on:
     branches: [main]
     paths:
       - MODULE.bazel
-      - tools/oracle-pins.env
+      - release.MODULE.bazel
       - parser-equivalence/**
       - core/src/main/java/com/legend/parser/**
       - core/src/main/java/com/legend/lexer/**
@@ -17,7 +17,7 @@ on:
   pull_request:
     paths:
       - MODULE.bazel
-      - tools/oracle-pins.env
+      - release.MODULE.bazel
       - parser-equivalence/**
       - core/src/main/java/com/legend/parser/**
       - core/src/main/java/com/legend/lexer/**

@@ -10,6 +10,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -28,17 +29,22 @@ class ChannelBRelationTest {
         return com.legend.testing.Upstream.engine();
     }
 
-    @Test
-    void census() throws Exception {
+    /** This suite's run: its model roots and discovery scope (PctRatchets measures its discovery the same way). */
+    static List<ChannelB.Outcome> runSuite(java.util.List<String> walls) throws Exception {
         Path platform = pureRoot().resolve(
                 "legend-pure-core/legend-pure-m3-core/src/main/resources"
                         + "/platform/pure");
         Path scope = engineRoot().resolve(
                 "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure"
                         + "/src/main/resources/core_functions_relation");
-        java.util.List<String> walls = new java.util.ArrayList<>();
-        List<ChannelB.Outcome> out = ChannelB.run(
+        return ChannelB.run(
                 List.of(platform, scope), List.of(scope), walls);
+    }
+
+    @Test
+    void census() throws Exception {
+        java.util.List<String> walls = new java.util.ArrayList<>();
+        List<ChannelB.Outcome> out = runSuite(walls);
         walls.forEach(w -> System.out.println("[chB-Relation-wall] " + w));
         System.out.println("[chB-Relation] walls=" + walls.size());
         // audit-of-audits #12: walls ASSERTED shrink-only (23 measured
@@ -85,8 +91,7 @@ class ChannelBRelationTest {
         // sort / extend / size additions — 110 of them ERROR here (the new
         // functions the platform does not implement yet; channel A pins
         // them as expected failures, one row each); PASS 359 >= 350 holds
-        assertTrue(out.size() == 469,
-                "relation discovery moved: " + out.size() + " != 469");
+        assertEquals(PctRatchets.measured("channel_b.relation.discovered"), out.size(), "relation discovery moved -- an upstream move or a discovery-rule change: bazel run //pct:update_ratchets, with the reason in the commit");
         // 100% (2026-08-19): the DESC nulls-first sort burned the last
         // pair — pure null ordering is NULL-IS-LARGEST
         // 287 -> 355 (2026-08-23): 100% at the EXPANDED universe —

@@ -6,6 +6,8 @@
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/guards:defs.bzl", "guards_package")
 
@@ -218,16 +220,20 @@ junit_test(
 # GATE 9 — channel B: lite's own compiler runs the PCT sources straight from the
 # pinned legend-pure / legend-engine trees, and its verdicts are diffed against
 # channel A's ledgers and the engine's manifests.
+# The engine's own DuckDB manifests at the pinned release, read from the pinned tree (Bazel workplan P2-11; they were
+# vendored snapshots of 2026-08-06, 943d38b3).
+_ENGINE_MANIFEST = "@legend_engine_src//:legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-duckdb/legend-engine-xt-relationalStore-duckdb-PCT/src/main/resources/pct-manifests/relational-duckdb/%sFunctions_manifest.json"
+
 junit_test(
     name = "pct_channel_b",
     memory_mb = 768,
-    data = glob(["src/**"]),
+    data = glob(["src/**"]) + [_ENGINE_MANIFEST % s for s in _SUITES],
     # each suite's PCT class and its oracle manifest, by runfiles path (Bazel workplan P1-05)
     jvm_flags = [
         "-Dpct.suite.%s=$(rlocationpath src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%sFunctions_PCT.java)" % (s, s)
         for s in _SUITES
     ] + [
-        "-Dpct.oracle.%s=$(rlocationpath src/test/resources/oracle/%sFunctions_manifest.duckdb.json)" % (s, s)
+        "-Dpct.oracle.%s=$(rlocationpath %s)" % (s, _ENGINE_MANIFEST % s)
         for s in _SUITES
     ],
     select = ["--select-package=org.finos.legend.lite.pct.channelb"],
@@ -236,6 +242,37 @@ junit_test(
         ":pct_tests_lib",
         "//core:drivers",
     ],
+)
+
+# PCT'S MEASURED RATCHET VALUES (PctRatchets; Bazel workplan P2-16, D9): each Channel B suite's discovery count,
+# measured by running the suite into ratchets.tsv. Manual, at the suites' cost (the platform compiled per suite); the
+# Channel B tests compare their live discovery with the committed copy, so gate 9 fails when it is stale.
+java_run(
+    name = "ratchets",
+    testonly = True,
+    srcs = UPSTREAM_TREES,
+    outs = ["generated/ratchets.tsv"],
+    arguments = ["{OUT}"],
+    jvm_flags = program_jvm_flags("pct"),
+    main_class = "org.finos.legend.lite.pct.channelb.PctRatchets",
+    memory_mb = 2048,
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
+    tags = ["manual"],
+    deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+)
+
+write_source_files(
+    name = "update_ratchets",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA Channel B discovery count moved -- bazel run //pct:update_ratchets, with the reason in the commit",
+    files = {"src/test/resources/org/finos/legend/lite/pct/channelb/ratchets.tsv": ":ratchets"},
+    tags = ["manual"],
+    # //:update_generated runs it too (a bump moves discovery); its diff test stays manual, gate 9 holds the file
+    visibility = ["//:__pkg__"],
 )
 
 guards_package()

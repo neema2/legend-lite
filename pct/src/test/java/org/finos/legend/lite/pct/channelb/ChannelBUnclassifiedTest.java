@@ -10,6 +10,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -28,17 +29,22 @@ class ChannelBUnclassifiedTest {
         return com.legend.testing.Upstream.engine();
     }
 
-    @Test
-    void census() throws Exception {
+    /** This suite's run: its model roots and discovery scope (PctRatchets measures its discovery the same way). */
+    static List<ChannelB.Outcome> runSuite(java.util.List<String> walls) throws Exception {
         Path platform = pureRoot().resolve(
                 "legend-pure-core/legend-pure-m3-core/src/main/resources"
                         + "/platform/pure");
         Path scope = engineRoot().resolve(
                 "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure"
                         + "/src/main/resources/core_functions_unclassified");
-        java.util.List<String> walls = new java.util.ArrayList<>();
-        List<ChannelB.Outcome> out = ChannelB.run(
+        return ChannelB.run(
                 List.of(platform, scope), List.of(scope), walls);
+    }
+
+    @Test
+    void census() throws Exception {
+        java.util.List<String> walls = new java.util.ArrayList<>();
+        List<ChannelB.Outcome> out = runSuite(walls);
         walls.forEach(w -> System.out.println("[chB-Unclassified-wall] " + w));
         System.out.println("[chB-Unclassified] walls=" + walls.size());
         // audit-of-audits #12: walls ASSERTED shrink-only (27 measured
@@ -62,8 +68,7 @@ class ChannelBUnclassifiedTest {
         // 95 -> 94 at the 4.145.0 bump (batch 8): one unclassified PCT.test
         // relocated upstream (the drift read predicted 89; the arithmetic
         // did not model which files moved); 94/94 PASS
-        assertTrue(out.size() == 94,
-                "unclassified discovery moved: " + out.size() + " != 94");
+        assertEquals(PctRatchets.measured("channel_b.unclassified.discovered"), out.size(), "unclassified discovery moved -- an upstream move or a discovery-rule change: bazel run //pct:update_ratchets, with the reason in the commit");
         assertTrue(c.pass() >= 94, "unclassified PASS fell: " + c.pass());
         assertTrue(c.trueWireBug() == 0,
                 "a TRUE wire bug appeared: " + c.trueWireBug());

@@ -4,6 +4,7 @@ import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -51,7 +52,7 @@ class MetamodelStoreTest {
     }
 
     private ExecutionResult run(String query) throws SQLException {
-        return Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, connection);
+        return Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, connection);
     }
 
     @Test
@@ -94,7 +95,7 @@ class MetamodelStoreTest {
     void userClassWithoutContextStillWalls() {
         var ex = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.MappingResolutionException.class,
-                () -> Compiler.execute(MODEL, "test::Person.all()->size()", connection));
+                () -> Execution.execute(MODEL, "test::Person.all()->size()", connection));
         // no runtime: where it would execute is undeclared, refused before anything runs
         assertEquals(Compiler.NO_RUNTIME, ex.getMessage());
     }
@@ -105,7 +106,7 @@ class MetamodelStoreTest {
         var r1 = run(METACLASS
                 + ".all()->filter(c | $c.name == 'Trade')->size()");
         assertEquals(0L, ((Number) ((ExecutionResult.Scalar) r1).value()).longValue());
-        var r2 = (ExecutionResult.Scalar) Compiler.execute(StorelessRuntime.with(MODEL + "Class test::Trade { id: Integer[1]; }\n", DatabaseType.DuckDB),
+        var r2 = (ExecutionResult.Scalar) Execution.execute(StorelessRuntime.with(MODEL + "Class test::Trade { id: Integer[1]; }\n", DatabaseType.DuckDB),
                 METACLASS + ".all()->filter(c | $c.name == 'Trade')->size()", StorelessRuntime.RUNTIME,
                 connection);
         assertEquals(1L, ((Number) r2.value()).longValue(),
