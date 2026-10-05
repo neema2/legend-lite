@@ -34,11 +34,12 @@ let TABLE = process.env.DATACUBE_APP_TABLE;
 let GROUP = process.env.DATACUBE_APP_GROUP;
 
 // THE TEST'S OWN POSTGRES (verify_app_test): APP_POSTGRES is the rlocation of :app_postgres's executable (a
-// script on Linux and macOS, an .exe on Windows), SAMPLE_SQL the sample's; both resolved by the runfiles library
+// script on Linux and macOS, an .exe on Windows), SAMPLE_SQL the sample's; both resolved through the runfiles
+// (tools/js/runfiles.mts, Bazel workplan P1-24)
 let postgres;
 if (process.env.APP_POSTGRES) {
-  const { runfiles } = (await import('@bazel/runfiles')).default;
-  postgres = spawn(runfiles.resolve(process.env.APP_POSTGRES), [runfiles.resolve(process.env.SAMPLE_SQL)], {
+  const { runfileFromEnv } = await import('../../tools/js/runfiles.mts');
+  postgres = spawn(runfileFromEnv('APP_POSTGRES'), [runfileFromEnv('SAMPLE_SQL')], {
     env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
     stdio: ['pipe', 'pipe', 'inherit'],
   });

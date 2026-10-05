@@ -24,7 +24,7 @@
 import assert from 'node:assert/strict';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { engineClientRequire } from '../../../engine-client/src/node-require.ts';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, it } from 'node:test';
@@ -103,9 +103,8 @@ before(async () => {
   for (const sql of DDL) await asOwner(sql, alice.token);
   live = new WarehouseEngine(await signIn(base, 'rita', 'rita-pw'));
 
-  const require = createRequire(import.meta.url);
-  const duckdb = require('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(require.resolve('@duckdb/duckdb-wasm/blocking'));
+  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
+  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
   const db = await duckdb.createDuckDB({
     mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
     eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },

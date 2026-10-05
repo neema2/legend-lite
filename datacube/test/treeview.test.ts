@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
+import { engineClientRequire } from '../../engine-client/src/node-require.ts';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
@@ -319,9 +319,8 @@ describe('assemble', () => {
 let engine: DuckDbEngine;
 
 before(async () => {
-  const require = createRequire(import.meta.url);
-  const duckdb = require('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(require.resolve('@duckdb/duckdb-wasm/blocking'));
+  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
+  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
   const db = await duckdb.createDuckDB(
     {
       mvp: {

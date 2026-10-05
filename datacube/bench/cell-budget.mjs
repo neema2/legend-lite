@@ -14,8 +14,9 @@ import { createRequire } from 'node:module';
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
 
-const require = createRequire(import.meta.url);
-const duckdb = require('@duckdb/duckdb-wasm/blocking');
+// DuckDB from engine-client's one copy (run with plain node: no .ts import here)
+const engineClientRequire = createRequire(new URL('../../engine-client/src/node-require.ts', import.meta.url));
+const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
 
 const ROWS = 5_000_000; // fixed
 const REPS = 3;
@@ -33,7 +34,7 @@ const CASES = [
   [4000, 1000],
 ];
 
-const dist = path.dirname(require.resolve('@duckdb/duckdb-wasm/blocking'));
+const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
 
 function best(fn, reps = REPS) {
   let t = null;

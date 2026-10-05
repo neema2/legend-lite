@@ -40,13 +40,12 @@ const EXPECT = fixture ? fixture.expect : JSON.parse(process.env.EXPECT ?? '{}')
 
 /** A Parquet file of the demo's eight columns, and DuckDB's per-region total of notional. */
 async function buildFixture() {
-  const { createRequire } = await import('node:module');
+  const { engineClientRequire } = await import('../../engine-client/src/node-require.ts');
   const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');
   const path = await import('node:path');
-  const require = createRequire(import.meta.url);
-  const duckdb = require('@duckdb/duckdb-wasm/blocking');
-  const dist = path.dirname(require.resolve('@duckdb/duckdb-wasm/blocking'));
+  const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
+  const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
   const db = await duckdb.createDuckDB({
     mvp: { mainModule: path.join(dist, 'duckdb-mvp.wasm'), mainWorker: path.join(dist, 'duckdb-node-mvp.worker.cjs') },
     eh: { mainModule: path.join(dist, 'duckdb-eh.wasm'), mainWorker: path.join(dist, 'duckdb-node-eh.worker.cjs') },

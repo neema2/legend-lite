@@ -11,8 +11,9 @@ import { createRequire } from 'node:module';
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
 
-const require = createRequire(import.meta.url);
-const duckdb = require('@duckdb/duckdb-wasm/blocking');
+// DuckDB from engine-client's one copy (run with plain node: no .ts import here)
+const engineClientRequire = createRequire(new URL('../../engine-client/src/node-require.ts', import.meta.url));
+const duckdb = engineClientRequire('@duckdb/duckdb-wasm/blocking');
 
 const SIZES = [1_000_000, 2_000_000, 5_000_000, 10_000_000];
 const PIVOT_COLS = 500;
@@ -20,7 +21,7 @@ const GROUPS = 2000;
 const REPS = 3;
 const BUDGET_MS = 300; // p95 target for expand / sort / filter
 
-const dist = path.dirname(require.resolve('@duckdb/duckdb-wasm/blocking'));
+const dist = path.dirname(engineClientRequire.resolve('@duckdb/duckdb-wasm/blocking'));
 
 function best(fn, reps = REPS) {
   let t = null;
