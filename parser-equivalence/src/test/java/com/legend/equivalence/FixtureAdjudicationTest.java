@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 2026-09-10 the oracle jars (5.88.1, then 5.92.0) sat against a
  * non-release checkout (5.92.1-SNAPSHOT / 4.137.0+36), so some apparent
  * leniency was version skew — a form the newer grammar added. The jars and
- * the checkout are now ONE release (tools/oracle-pins.env), so that
+ * the checkout are now ONE release (release.MODULE.bazel's pins), so that
  * explanation is gone: what remains is ours to adjudicate.
  * And legend-engine is not the only Legend: legend-PURE's compiler accepts
  * things engine's ANTLR grammar rejects (a missing comma in an xStore

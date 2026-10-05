@@ -16,7 +16,10 @@ exports_files(["pnpm-lock.yaml", "package.json"])
 # The trading project's model and seed: DataCube serves them too, to open a saved query over them.
 exports_files(
     glob(["demo/models/*"]),
-    visibility = ["//datacube:__pkg__"],
+    visibility = [
+        "//datacube:__pkg__",
+        "//fixtures/saved-queries:__pkg__",
+    ],
 )
 
 js_library(

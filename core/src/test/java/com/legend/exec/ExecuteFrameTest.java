@@ -3,7 +3,7 @@
 
 package com.legend.exec;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -64,7 +64,7 @@ class ExecuteFrameTest {
     }
 
     private static ExecutionResult run(String query) throws SQLException {
-        return Compiler.execute(MODEL, query, "m::RT", conn);
+        return Execution.execute(MODEL, query, "m::RT", conn);
     }
 
     @Test

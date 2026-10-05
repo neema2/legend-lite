@@ -45,28 +45,6 @@ class NativeSignatureGeneratorTest {
     static final Path MEMBERSHIP = CoreTree.resource("com/legend/builtin/native-membership.tsv");
     static final Path PURE_JAVA = CoreTree.main("com/legend/builtin/Pure.java");
     @Test
-    @DisplayName("every membership constant's signature text in Pure.java is the generator's current output (regenerate: bazel run //:update_generated)")
-    void signatureTextIsCurrent() throws IOException {
-        List<Row> rows = NativesGenerator.readMembership(MEMBERSHIP);
-        Map<String, Decl> upstream = NativesGenerator.upstreamDeclarations(rows,
-                PreludeGeneratorTest.engineRoot(), PreludeGeneratorTest.pureRoot());
-        NativesGenerator.Result r = NativesGenerator.compute(rows, upstream,
-                Files.readAllLines(PURE_JAVA, StandardCharsets.UTF_8), false);
-        // DIVERGENT rows — membership rows whose signature is not upstream's:
-        // a shrink-only pin (each leg of batch 5 adopts upstream's text for a
-        // bucket and lowers it), never a ledger of reasons. Zero is the done
-        // criterion (program §4 row 5, D4): then the pin goes and this is a
-        // plain parity assert.
-        NativesGenerator.refuseOrphans(r.orphans());
-        assertTrue(r.missing().isEmpty(), () -> "membership constants with no declaration line in"
-                + " Pure.java: " + r.missing() + " — regenerate: bazel run //:update_generated");
-        NativesGenerator.printSummary(r);
-        assertTrue(r.drift().isEmpty(), () -> "Pure.java's signature text drifted from the membership"
-                + " + the pinned checkouts (" + r.drift().size() + " constants) — regenerate:"
-                + " bazel run //:update_generated");
-    }
-
-    @Test
     @DisplayName("every generated constant is claimed (membership = the implemented surface) and every catalog native outside the block is a Lite invention")
     void membershipIsTheCatalog() throws IOException {
         Set<String> members = new LinkedHashSet<>();

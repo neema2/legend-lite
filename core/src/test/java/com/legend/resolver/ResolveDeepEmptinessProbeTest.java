@@ -4,6 +4,7 @@
 package com.legend.resolver;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -120,7 +121,7 @@ class ResolveDeepEmptinessProbeTest {
                 + " $result.values.legalName->removeDuplicates()->sort();}";
         Object r;
         try {
-            r = Compiler.execute(MODEL, query, "e::RT", conn);
+            r = Execution.execute(MODEL, query, "e::RT", conn);
         } catch (com.legend.error.DataError e) {
             // the seam: database failures arrive as DataError now
             System.out.println("[class-frame-read-FULL-ERR] " + e.getMessage());

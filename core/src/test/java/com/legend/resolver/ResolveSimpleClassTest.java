@@ -1,6 +1,7 @@
 package com.legend.resolver;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -323,7 +324,7 @@ class ResolveSimpleClassTest {
     @Test
     @DisplayName("H2c: from-less query resolves via the 4-arg execute (the corpus shape)")
     void driverSeamNoFrom() throws SQLException {
-        var result = Compiler.execute(MODEL,
+        var result = Execution.execute(MODEL,
                 "m::Person.all()->filter(p|$p.age > 30)->project(~[name: p|$p.name])",
                 "m::RT", conn);
         assertEquals(List.of(List.of("Bob"), List.of("Dan")),

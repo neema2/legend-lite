@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -35,8 +34,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ImplementationTableTest {
 
-    @Test
-    void theTableIsTotalAndEveryRegistrationResolves() throws IOException {
+    /** The table over the catalog, the pinned standard library and every upstream overload at a registered FQN. */
+    record Built(DeclarationTable table, ImplementationTable impl, int stdlib, int atCatalogFqns) {
+    }
+
+    static Built build() throws IOException {
         UpstreamDeclarations upstream = UpstreamDeclarations.load();
         // THE ENGINE SURFACE the platform takes on is exactly what its
         // registrations name: the catalog's FQNs, and every FQN a form, a wall,
@@ -66,16 +68,34 @@ class ImplementationTableTest {
             }
         }
         DeclarationTable table = DeclarationTable.of(declarations);
-        assertEquals(List.of(), table.duplicates(), "two different bodies under one id");
-        ImplementationTable impl = ImplementationTable.build(table, com.legend.lowering.PlatformRegistrations.current());
+        return new Built(table, ImplementationTable.build(table, com.legend.lowering.PlatformRegistrations.current()),
+                stdlib, atCatalogFqns);
+    }
 
-        Map<String, Integer> kinds = new LinkedHashMap<>();
+    /** Rows per implementation kind (Intrinsic, Form, Body, ...): a measurement, in spec's ratchets.tsv. */
+    static Map<String, Integer> kindsOf(ImplementationTable impl) {
+        Map<String, Integer> kinds = new java.util.TreeMap<>();
+        for (Implementation i : impl.rows().values()) {
+            kinds.merge(i.getClass().getSimpleName(), 1, Integer::sum);
+        }
+        return kinds;
+    }
+
+    @Test
+    void theTableIsTotalAndEveryRegistrationResolves() throws IOException {
+        Built built = build();
+        DeclarationTable table = built.table();
+        assertEquals(List.of(), table.duplicates(), "two different bodies under one id");
+        ImplementationTable impl = built.impl();
+        int stdlib = built.stdlib();
+        int atCatalogFqns = built.atCatalogFqns();
+
+        Map<String, Integer> kinds = kindsOf(impl);
         List<String> rows = new ArrayList<>();
         rows.add("fqn\tid\tkind\tbodied\tdetail");
         for (var e : impl.rows().entrySet()) {
             Implementation i = e.getValue();
             String kind = i.getClass().getSimpleName();
-            kinds.merge(kind, 1, Integer::sum);
             Function decl = table.get(e.getKey());
             rows.add(decl.qualifiedName() + "\t" + e.getKey() + "\t" + kind + "\t"
                     + (decl instanceof com.legend.model.FunctionDefinition) + "\t" + detail(i));
@@ -102,15 +122,11 @@ class ImplementationTableTest {
         // every registration names something declared; none contradicts another
         assertEquals(List.of(), impl.dangling(), "registrations naming nothing declared");
         assertEquals(List.of(), impl.conflicts(), "contradicting registrations");
-        // THE KINDS, pinned EXACTLY (audit 2026-09-25: totality alone lets an empty
-        // registration set pass) — engine 4.145.0 / pure 5.99.0; a registration
-        // that lands moves a row from Body/Unimplemented to Intrinsic/Form, and the
-        // pin follows with its reason (Form 208 -> 217: validate owned, 9 overloads;
-        // 2026-09-28 Body 2194 -> 2193, Intrinsic 664 -> 665: engine's
-        // string::contains(String[0..1], String[1]) declared, beside the startsWith/endsWith
-        // [0..1] forms -- DataCube T5, ContainsOverloadTest)
-        assertEquals(Map.of("Intrinsic", 665, "Form", 217, "Refused", 20, "Body", 2193, "Unimplemented", 71),
-                kinds, "implementation kinds");
+        // THE KINDS, checked against the generated report (audit 2026-09-25: totality alone lets an empty
+        // registration set pass). The measured counts live in ratchets.tsv (//spec:update_ratchets, diff-tested in
+        // //:generated), so a registration that lands moves them there, as a reviewed diff (Bazel workplan P2-16, D9)
+        assertEquals(SpecRatchets.measuredWithPrefix("implementation.kinds."), kinds,
+                "implementation kinds");
     }
 
     private static String detail(Implementation i) {

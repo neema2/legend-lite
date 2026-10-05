@@ -60,6 +60,21 @@ public final class Executor {
     private static final List<BulkLoad> BULK_LOADS = java.util.ServiceLoader.load(BulkLoad.class)
             .stream().map(java.util.ServiceLoader.Provider::get).toList();
 
+    /** The drivers' own cell types, each beside its driver (ServiceLoader): core compiles against none. */
+    private static final List<DriverCells> DRIVER_CELLS = java.util.ServiceLoader.load(DriverCells.class)
+            .stream().map(java.util.ServiceLoader.Provider::get).toList();
+
+    /** {@code cell} as JSON text when a driver says it is that driver's own JSON node, else null. */
+    private static @com.legend.base.Nullable String jsonText(Object cell) {
+        for (DriverCells d : DRIVER_CELLS) {
+            String text = d.jsonText(cell);
+            if (text != null) {
+                return text;
+            }
+        }
+        return null;
+    }
+
     /** Loads {@code load}'s rows: through the engine's bulk API when one is
      * present, else as ONE multi-row insert. The database types every cell
      * on both paths ({@link BulkLoad}'s contract); {@code dialect} renders
@@ -622,23 +637,17 @@ public final class Executor {
     }
 
     private static @com.legend.base.Nullable Object decodeAny(@com.legend.base.Nullable Object v) {
-        // Drivers hand JSON cells back as their own node type (DuckDB:
-        // org.duckdb.JsonNode) or as text — matched by FULL class name.
-        // The REASON is optional-dependency isolation, not guard-dodging
-        // (documented-debts 2026-08-18; the audit read the old comment as
-        // compliance-avoidance policy): exec MAY import driver packages
-        // (F1.3 funnel), but a hard `instanceof org.duckdb.JsonNode`
-        // links a class that is ABSENT on H2/SQLite-only deployments —
-        // NoClassDefFoundError at first result read. The full-FQN string
-        // is the exact-match, no-sniffing form of the same test; the
-        // node's toString IS the JSON text.
+        // A JSON cell arrives as text, or as a driver's own node object, which that driver's DriverCells
+        // (found by ServiceLoader beside the driver) turns into its text — the executor names no driver
+        // class (C3c; it matched org.duckdb.JsonNode by name here)
         String s;
         if (v instanceof String str) {
             s = str;
-        } else if (v != null && v.getClass().getName().equals("org.duckdb.JsonNode")) {
-            s = v.toString();
         } else {
-            return v;
+            s = v == null ? null : jsonText(v);
+            if (s == null) {
+                return v;
+            }
         }
         String t = s.trim();
         // F10 slice-3 AUDIT (2026-08-24): the spelling arms that lived

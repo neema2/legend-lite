@@ -3,7 +3,7 @@
 
 package com.legend.resolver;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -91,7 +91,7 @@ class ResolveDerivedLeafProbeTest {
                 + "->graphFetch(#{q::Product{name, classificationTypeStr()}}#)"
                 + "->serialize(#{q::Product{name, classificationTypeStr()}}#)"
                 + "->from(q::M, q::RT)";
-        ExecutionResult r = Compiler.execute(MODEL, query, "q::RT", conn);
+        ExecutionResult r = Execution.execute(MODEL, query, "q::RT", conn);
         String json = r instanceof ExecutionResult.Graph g ? g.json()
                 : String.valueOf(r);
         System.out.println("[derived-leaf] " + json);

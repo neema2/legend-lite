@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.legend.testing.Runfile;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.TreeSet;
@@ -22,7 +23,7 @@ class PoolsListTest {
 
     @Test
     void poolsBzlNamesEveryPoolInModuleBazel() throws IOException {
-        Matcher m = INSTALL.matcher(Files.readString(Runfile.property("module.bazel")));
+        Matcher m = INSTALL.matcher(module());
         TreeSet<String> module = new TreeSet<>();
         while (m.find()) {
             module.add(m.group(1));
@@ -37,7 +38,7 @@ class PoolsListTest {
      *  it reaches usable outside tests). */
     @Test
     void testonlyPoolsAreTestonlyAsAWhole() throws IOException {
-        String module = Files.readString(Runfile.property("module.bazel"));
+        String module = module();
         for (String pool : System.getProperty("testonly.pools").split(",")) {
             Matcher install = Pattern.compile("(?m)^maven\\.install\\(\\n    name = \"" + Pattern.quote(pool)
                     + "\",\\n    artifacts = (_[A-Z]+_ARTIFACTS),\\n").matcher(module);
@@ -49,5 +50,33 @@ class PoolsListTest {
             assertFalse(Pattern.compile("maven\\.artifact\\(\\s*name = \"" + Pattern.quote(pool) + "\"").matcher(module).find(),
                     pool + ": a maven.artifact tag adds a root that is not testonly");
         }
+    }
+
+    /** Every segment MODULE.bazel include()s is read here (and by //tools/guards:locks_test): a pool in a segment
+     *  the list missed would escape both. */
+    @Test
+    void everyIncludedSegmentIsRead() throws IOException {
+        List<Path> files = Runfile.envList("MODULE_FILES");
+        Path main = files.stream().filter(f -> f.getFileName().toString().equals("MODULE.bazel")).findFirst()
+                .orElseThrow(() -> new AssertionError("//:module_files holds no MODULE.bazel: " + files));
+        TreeSet<String> included = new TreeSet<>();
+        Matcher m = Pattern.compile("(?m)^include\\(\"//:([^\"]+)\"\\)").matcher(Files.readString(main));
+        while (m.find()) {
+            included.add(m.group(1));
+        }
+        TreeSet<String> read = new TreeSet<>();
+        files.forEach(f -> read.add(f.getFileName().toString()));
+        read.remove("MODULE.bazel");
+        assertEquals(included, read, "MODULE.bazel's include()s and //:module_files differ");
+        assertTrue(included.contains("release.MODULE.bazel"), "the release segment is included");
+    }
+
+    /** MODULE.bazel and every segment it includes, as one text (//:module_files). */
+    static String module() throws IOException {
+        StringBuilder out = new StringBuilder();
+        for (Path f : Runfile.envList("MODULE_FILES")) {
+            out.append(Files.readString(f)).append('\n');
+        }
+        return out.toString();
     }
 }

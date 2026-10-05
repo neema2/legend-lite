@@ -3,7 +3,7 @@
 
 package com.legend.lowering;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -57,7 +57,7 @@ class AnyLiteralByteDecidabilityTest {
     }
 
     private static long size(String query) throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL, query, "m::RT", conn);
+        ExecutionResult r = Execution.execute(MODEL, query, "m::RT", conn);
         return ((Number) ((ExecutionResult.Scalar) r).value()).longValue();
     }
 

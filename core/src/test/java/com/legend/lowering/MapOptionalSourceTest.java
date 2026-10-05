@@ -6,7 +6,7 @@ package com.legend.lowering;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -48,7 +48,7 @@ class MapOptionalSourceTest {
     }
 
     private static Object run(String query) throws Exception {
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, conn);
+        ExecutionResult r = Execution.execute(StorelessRuntime.with("", DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, conn);
         return r instanceof ExecutionResult.Scalar s ? s.value()
                 : r instanceof ExecutionResult.Collection c ? c.values() : r;
     }

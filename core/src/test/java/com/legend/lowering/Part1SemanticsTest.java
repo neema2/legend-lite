@@ -6,7 +6,7 @@ package com.legend.lowering;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.Test;
 
@@ -37,7 +37,7 @@ class Part1SemanticsTest {
             "Class my::A { name: String[1]; age: Integer[1]; }";
 
     private static Object scalar(String q, Connection conn) throws Exception {
-        ExecutionResult r = Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), q, StorelessRuntime.RUNTIME, conn);
+        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), q, StorelessRuntime.RUNTIME, conn);
         return r instanceof ExecutionResult.Scalar s ? s.value()
                 : r instanceof ExecutionResult.Collection c ? c.values() : r;
     }

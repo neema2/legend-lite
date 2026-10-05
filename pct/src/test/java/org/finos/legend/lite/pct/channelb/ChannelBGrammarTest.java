@@ -10,6 +10,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -25,8 +26,8 @@ class ChannelBGrammarTest {
         return com.legend.testing.Upstream.pure();
     }
 
-    @Test
-    void grammarCensus() throws Exception {
+    /** This suite's run: its model roots and discovery scope (PctRatchets measures its discovery the same way). */
+    static List<ChannelB.Outcome> runSuite(java.util.List<String> walls) throws Exception {
         Path modelRoot = pureRoot().resolve(
                 "legend-pure-core/legend-pure-m3-core/src/main/resources"
                         + "/platform/pure");
@@ -34,9 +35,14 @@ class ChannelBGrammarTest {
         // grammar's OTHER subtrees (tests/, m3.pure …) belong to no
         // adapter suite
         Path scope = modelRoot.resolve("grammar/functions");
-        java.util.List<String> walls = new java.util.ArrayList<>();
-        List<ChannelB.Outcome> out = ChannelB.run(modelRoot,
+        return ChannelB.run(modelRoot,
                 List.of(scope), walls);
+    }
+
+    @Test
+    void grammarCensus() throws Exception {
+        java.util.List<String> walls = new java.util.ArrayList<>();
+        List<ChannelB.Outcome> out = runSuite(walls);
         walls.forEach(w -> System.out.println("[chB-gram-wall] " + w));
         System.out.println("[chB-gram] walls=" + walls.size());
         // audit-of-Blocker-3: the ONE suite #12 missed — walls ASSERTED
@@ -69,8 +75,7 @@ class ChannelBGrammarTest {
         // tag). Channel A's jar universe is 136 too — one universe.
         // 136 -> 137 at the 4.145.0 bump (batch 8): one PCT.test added
         // upstream; channel A's jar universe is 137 too
-        assertTrue(out.size() == 137,
-                "grammar discovery moved: " + out.size() + " != 137");
+        assertEquals(PctRatchets.measured("channel_b.grammar.discovered"), out.size(), "grammar discovery moved -- an upstream move or a discovery-rule change: bazel run //pct:update_ratchets, with the reason in the commit");
         // 128 (slice 11): letFn ×2 (inline multi-statement hoist),
         // testSingle{Plus,Minus}Type + OneToOne (is/assertIs World-1
         // identity: type refs canonicalized, instance provenance)

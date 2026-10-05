@@ -75,7 +75,7 @@ class LowerRelationTest {
     }
 
     private String sqlOf(String query) {
-        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(MODEL, query));
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(MODEL), query).expression());
         return new DuckDb().render(q);
     }
 
@@ -656,8 +656,7 @@ class LowerRelationTest {
                   Table T_ORDERS (ID INTEGER NOT NULL, ITEMS SEMISTRUCTURED)
                 )
                 """;
-        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
-                "#>{test::DB.T_ORDERS}#->flatten(~ITEMS)"));
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_ORDERS}#->flatten(~ITEMS)").expression());
         String sql = new DuckDb().render(q);
         assertEquals(1, count(sql, "SELECT"), "flatten folds: " + sql);
         assertTrue(sql.contains("UNNEST(CAST(t0.ITEMS AS JSON[])) AS ITEMS"), sql);
@@ -713,9 +712,8 @@ class LowerRelationTest {
                   Table T_DOCS (ID INTEGER NOT NULL, PAYLOAD SEMISTRUCTURED)
                 )
                 """;
-        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
-                "#>{test::DB.T_DOCS}#->extend(~sku : x |"
-                        + " $x.PAYLOAD->get('items')->get(0)->get('sku')->to(@String))"));
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_DOCS}#->extend(~sku : x |"
+                        + " $x.PAYLOAD->get('items')->get(0)->get('sku')->to(@String))").expression());
         String sql = new DuckDb().render(q);
         // -> hops parenthesize (the JSON arrow collides with DuckDB's lambda
         // arrow inside list lambdas); an INTEGER key takes the arrow too, never a
@@ -733,9 +731,8 @@ class LowerRelationTest {
                     + " STRUCT(items STRUCT(sku VARCHAR)[], qty INTEGER)) AS PAYLOAD FROM T_DOCS");
         }
         String nativeSql = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable())
-                .lower(Compiler.compileQuery(model.replace("T_DOCS", "T_DOCS_N"),
-                        "#>{test::DB.T_DOCS_N}#->extend(~sku : x |"
-                                + " $x.PAYLOAD->get('items')->get(0)->get('sku')->to(@String))")));
+                .lower(Compiler.query(Compiler.compileModel(model.replace("T_DOCS", "T_DOCS_N")), "#>{test::DB.T_DOCS_N}#->extend(~sku : x |"
+                                + " $x.PAYLOAD->get('items')->get(0)->get('sku')->to(@String))").expression()));
         assertEquals(List.of("1|A-7", "2|B-2"),
                 exec("SELECT ID, sku FROM (" + nativeSql + ")\nORDER BY ID"), "native storage: " + nativeSql);
     }
@@ -755,12 +752,11 @@ class LowerRelationTest {
             String model = "###Relational\nDatabase test::DB ( Table " + table
                     + " (ID INTEGER NOT NULL, V SEMISTRUCTURED) )\n";
             String projected = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable())
-                    .lower(Compiler.compileQuery(model, "#>{test::DB." + table + "}#->select(~[ID, V])")));
+                    .lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB." + table + "}#->select(~[ID, V])").expression()));
             // the whole value is read as JSON, under its own name; navigation is not
             assertTrue(projected.contains("CAST(t0.V AS JSON) AS V"), projected);
             String grouped = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable())
-                    .lower(Compiler.compileQuery(model,
-                            "#>{test::DB." + table + "}#->groupBy(~[V], ~[n : x | $x.ID : y | $y->count()])")));
+                    .lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB." + table + "}#->groupBy(~[V], ~[n : x | $x.ID : y | $y->count()])").expression()));
             List<String> rows = new ArrayList<>(exec("SELECT ID, CAST(V AS VARCHAR) FROM (" + projected + ") ORDER BY ID"));
             rows.addAll(exec("SELECT CAST(V AS VARCHAR), n FROM (" + grouped + ") ORDER BY n DESC"));
             answers.add(rows);
@@ -785,10 +781,9 @@ class LowerRelationTest {
                   Table T_CARTS (ID INTEGER NOT NULL, NUMS SEMISTRUCTURED)
                 )
                 """;
-        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
-                "#>{test::DB.T_CARTS}#->extend(~total : x | $x.NUMS->toMany(@Variant)"
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_CARTS}#->extend(~total : x | $x.NUMS->toMany(@Variant)"
                         + "->map(i | $i->to(@Integer)->toOne())"
-                        + "->fold({e, a | $e + $a}, 0))"));
+                        + "->fold({e, a | $e + $a}, 0))").expression());
         String sql = new DuckDb().render(q);
         // The composition's SHAPE is pinned, not just its results: elements
         // via JSON[] cast, per-element CAST inside list_transform, reduced
@@ -803,9 +798,8 @@ class LowerRelationTest {
                 "sum of each row's JSON array");
 
         // toMany(@Integer): the TYPED-array cast branch.
-        String typed = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
-                "#>{test::DB.T_CARTS}#->extend(~first : x |"
-                        + " $x.NUMS->toMany(@Integer)->fold({e, a | $e + $a}, 0))")));
+        String typed = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_CARTS}#->extend(~first : x |"
+                        + " $x.NUMS->toMany(@Integer)->fold({e, a | $e + $a}, 0))").expression()));
         assertTrue(typed.contains("CAST(t0.NUMS AS BIGINT[])"),
                 "typed array cast: " + typed);
         assertEquals(List.of("1|6", "2|10"),
@@ -820,7 +814,7 @@ class LowerRelationTest {
         for (String body : List.of("$x.NUMS->toMany(@Variant)->map(i | $i->to(@Integer)->toOne())->fold({e, a | $e + $a}, 0)",
                 "$x.NUMS->toMany(@Integer)->fold({e, a | $e + $a}, 0)")) {
             String nativeSql = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable())
-                    .lower(Compiler.compileQuery(nativeModel, "#>{test::DB.T_CARTS_N}#->extend(~total : x | " + body + ")")));
+                    .lower(Compiler.query(Compiler.compileModel(nativeModel), "#>{test::DB.T_CARTS_N}#->extend(~total : x | " + body + ")").expression()));
             assertEquals(List.of("1|6", "2|10"),
                     exec("SELECT ID, total FROM (" + nativeSql + ")\nORDER BY ID"), "native storage: " + nativeSql);
         }
@@ -831,8 +825,7 @@ class LowerRelationTest {
         // string's quotes -- '"abc"', where variant/convert/to.pure
         // testToString says 'abc'. The same cast inside a map lambda made
         // map(t|$t->to(@String))->contains('gift') false on every row.
-        String bare = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
-                "#>{test::DB.T_CARTS}#->extend(~txt : x | $x.NUMS->to(@String))")));
+        String bare = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.query(Compiler.compileModel(model), "#>{test::DB.T_CARTS}#->extend(~txt : x | $x.NUMS->to(@String))").expression()));
         assertTrue(bare.contains("CAST((t0.NUMS ->> '$') AS VARCHAR) AS txt"), bare);
         // An array's text is now DuckDB's compact JSON, not the stored
         // spelling -- upstream's own JSON text is compact too

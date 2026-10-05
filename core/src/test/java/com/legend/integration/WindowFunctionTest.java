@@ -141,10 +141,7 @@ class WindowFunctionTest {
     }
 
     private String generateSql(String pureQuery) {
-        var plan = com.legend.Compiler.plan(
-                COMPLETE_MODEL,
-                pureQuery,
-                "test::TestRuntime");
+        var plan = com.legend.Compiler.query(com.legend.Compiler.compileModel(COMPLETE_MODEL), pureQuery).plan("test::TestRuntime");
         return plan.sql();
     }
 

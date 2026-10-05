@@ -87,7 +87,6 @@ _ENGINE_JARS_FLAG = "-Dlegend.engine.jars=$(rootpath :engine_jars)"
 _INPUTS = [
     ":srcs",
     "//core:srcs",
-    "//docs:ledgers",
     "//pct:srcs",
     "//spec:srcs",
     "//tools:oracle-pins.env",
@@ -100,6 +99,7 @@ _LEDGERS = [
     "c12-walls",
     "g4-keyword-snapshot",
     "model-refuse-allowlist",
+    "own-corpus-protocol-diffs",
     "parser-surface-exclusions",
     "protocol-roster",
     "refusal-allowlist",
@@ -111,7 +111,12 @@ _FILE_DATA = ["//docs:%s.tsv" % l for l in _LEDGERS] + [
     "src/test/resources/engine-grammar-fixtures.jsonl",
 ]
 
-_FILE_FLAGS = ["-Dledger.%s=$(rlocationpath //docs:%s.tsv)" % (l, l) for l in _LEDGERS] + [
+# the oracle pins (OraclePins, through Repo.path): a test's path is the runfiles one, an action's the execroot one
+_PINS_TEST_FLAG = "-Doracle.pins=$(rootpath //tools:oracle-pins.env)"
+
+_PINS_ACTION_FLAG = "-Doracle.pins=$(execpath //tools:oracle-pins.env)"
+
+_FILE_FLAGS = [_PINS_TEST_FLAG] + ["-Dledger.%s=$(rlocationpath //docs:%s.tsv)" % (l, l) for l in _LEDGERS] + [
     "-Dpe.corpus.manifest=$(rlocationpath src/test/resources/corpus-manifest.tsv)",
     "-Dpe.engine.fixtures=$(rlocationpath src/test/resources/engine-grammar-fixtures.jsonl)",
 ]
@@ -136,13 +141,8 @@ junit_test(
     jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS,
     exclude_tags = [],
     runtime_deps = [":pe_tests_lib"],
-    # ProtocolRosterCensusTest's one assertion — the committed roster equals a
-    # fresh generation — IS //docs:update_generated's diff test for
-    # docs/protocol-roster.tsv (the gen_roster action, cached on its inputs); run
-    # here it parsed every corpus with the engine a second time (~35s). It stays
-    # in :diagnostics, which also writes the roster file the reachability census reads.
     select = ["--select-package=com.legend.equivalence"] + [
-        "--exclude-classname=.*\\." + c for c in _DIAGNOSTICS + ["ProtocolRosterCensusTest"]
+        "--exclude-classname=.*\\." + c for c in _DIAGNOSTICS
     ],
     upstream = True,
 )
@@ -150,10 +150,14 @@ junit_test(
 junit_test(
     name = "diagnostics",
     memory_mb = 2048,
-    data = _INPUTS + _FILE_DATA + [":engine_jars"],
-    jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS,
+    # the reachability census reads the roster as :gen_roster makes it (P2-19)
+    data = _INPUTS + _FILE_DATA + [
+        ":engine_jars",
+        ":gen_roster",
+    ],
+    jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS + ["-Dpe.roster=$(rlocationpath :gen_roster)"],
     runtime_deps = [":pe_tests_lib"],
-    select = ["--select-class=com.legend.equivalence." + c for c in _DIAGNOSTICS + ["ProtocolRosterCensusTest"]],
+    select = ["--select-class=com.legend.equivalence." + c for c in _DIAGNOSTICS],
     tags = ["manual"],
     upstream = True,
 )
@@ -209,7 +213,7 @@ java_run(
     ],
     outs = ["generated/engine-grammar-fixtures.jsonl"],
     arguments = ["{OUT}"],
-    jvm_flags = program_jvm_flags("parser-equivalence", pure = False) + [
+    jvm_flags = program_jvm_flags("parser-equivalence", pure = False) + [_PINS_ACTION_FLAG] + [
         "-Dlegend.harvest.jars=$(execpath :harvest_tests_jars)",
     ],
     main_class = "com.legend.equivalence.harvest.FixtureHarvestGenerator",
@@ -232,7 +236,7 @@ java_run(
     ],
     outs = ["generated/corpus-manifest.tsv"],
     arguments = ["{OUT}"],
-    jvm_flags = program_jvm_flags("parser-equivalence") + [_NEW_FIXTURES],
+    jvm_flags = program_jvm_flags("parser-equivalence") + [_PINS_ACTION_FLAG] + [_NEW_FIXTURES],
     main_class = "com.legend.equivalence.ManifestGenerator",
     mnemonic = "Generate",
     roots = UPSTREAM_ROOTS,
@@ -255,7 +259,7 @@ java_run(
     ],
     outs = ["generated/protocol-roster.tsv"],
     arguments = ["{OUT}"],
-    jvm_flags = program_jvm_flags("parser-equivalence") + [
+    jvm_flags = program_jvm_flags("parser-equivalence") + [_PINS_ACTION_FLAG] + [
         _NEW_FIXTURES,
         "-Dlegend.engine.jars=$(execpath :engine_jars_exec)",
     ],
@@ -279,6 +283,36 @@ write_source_files(
     visibility = ["//visibility:public"],
 )
 
+# PARSER-EQUIVALENCE'S MEASURED RATCHET VALUES (PeRatchets; Bazel workplan P2-16, D9): the own-corpus elements that
+# match the oracle and the mutant deck's size, measured into ratchets.tsv; the tests compare their live values with the
+# committed copy.
+java_run(
+    name = "ratchets",
+    testonly = True,
+    srcs = UPSTREAM_TREES + [
+        ":srcs",
+        "//core:srcs",
+        "//pct:srcs",
+        "//spec:srcs",
+        "//tools:oracle-pins.env",
+    ],
+    outs = ["generated/ratchets.tsv"],
+    arguments = ["{OUT}"],
+    jvm_flags = program_jvm_flags("parser-equivalence") + [_PINS_ACTION_FLAG],
+    main_class = "com.legend.equivalence.PeRatchets",
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
+    deps = [":pe_tests_lib"],
+)
+
+write_source_files(
+    name = "update_ratchets",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nA measured parser-equivalence ratchet moved -- bazel run //parser-equivalence:update_ratchets, and give the reason in the commit",
+    files = {"src/test/resources/com/legend/equivalence/ratchets.tsv": ":ratchets"},
+    visibility = ["//:__pkg__"],
+)
+
 # a DRAFT of docs/own-corpus-protocol-diffs.tsv (//docs:draft_own_corpus_ledger):
 # current diffs, reasons kept, new rows marked for a human
 java_run(
@@ -296,7 +330,7 @@ java_run(
         "$(execpath //docs:own-corpus-protocol-diffs.tsv)",
         "{OUT}",
     ],
-    jvm_flags = program_jvm_flags("parser-equivalence"),
+    jvm_flags = program_jvm_flags("parser-equivalence") + [_PINS_ACTION_FLAG],
     main_class = "com.legend.equivalence.OwnCorpusLedgerDraft",
     mnemonic = "Generate",
     roots = UPSTREAM_ROOTS,

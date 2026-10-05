@@ -37,11 +37,13 @@ lanes (checks, gates 1 and 3, app, misc, and gate 7P's one-query `//core:postgre
 Beside the gates, in `bazel test //...`:
 
 - **Generated files** — `//:generated` (CI's checks lane), that is `//core:update_generated_*_test`,
-  `//docs:update_generated_test`, `//parser-equivalence:update_generated_*_test`,
-  `//datacube:update_generated_test`: each committed generated file
+  `//core:update_stress_corpus_*_test`, `//core:update_ladder_*_test`, `//docs:update_generated_test`,
+  `//parser-equivalence:update_generated_*_test`, `//datacube:update_generated_*_test`,
+  `//query:update_generated_test`, `//fixtures/saved-queries:update_generated_*_test`: each committed generated file
   (Pure.java's signatures, DynaFn.java, NameResolver.java's imports,
   prelude.pure, native-claims.tsv, the fixture snapshot, the corpus manifest,
-  the protocol roster, DataCube's lite-facts.ts) equals its generator's output.
+  the stress corpus, the SQL ladder's current pins, the protocol roster, DataCube's lite-facts.ts,
+  Query's icons.ts, the saved-query fixtures) equals its generator's output.
   Regenerate: `bazel run //:update_generated`.
 - **Source checks** — `//core:guardrails` (tests whose subject is core's own
   code: size and layer guardrails, shrink-only ratchets, ledgers; `@Tag("guardrail")`)
@@ -49,15 +51,17 @@ Beside the gates, in `bazel test //...`:
   Out of `//core:core_tests`, so the behaviour suite declares only core's tree.
 - **Dependency guards** — `//tools/deps:core_closure_test` (core compiles
   against no jar; the drivers are exactly the named five: H2, DuckDB, SQLite,
-  Postgres and its annotations jar, since 2026-10-03), `:one_release`
-  (MODULE.bazel and tools/oracle-pins.env name one release), and
+  Postgres and its annotations jar, since 2026-10-03), and
   `//tools/guards:classpath_test` (no runtime classpath holds one Maven coordinate at two versions; it replaced
   `:pools_are_disjoint`, 2026-10-04).
 
 Suites and manual targets: `//spec:judge_lanes` (all four judge lanes, the full corpus on both backends),
 `//parser-equivalence:diagnostics` (the measurement
-battery), `//core:heavy`, `//docs:draft_own_corpus_ledger` (a DRAFT of the
-own-corpus ledger for a person to finish — never generated).
+battery), `//core:heavy`, and three `bazel run` targets that write a DRAFT for a person to finish, never a
+generated file: `//docs:draft_own_corpus_ledger` (the own-corpus ledger), `//core:draft_native_membership`
+(native-membership.tsv from Pure.java's constants) and `//datacube:cut_link_dictionary` (the share link's next
+dictionary version, frozen by its hash once cut). `bazel build //spec:native_declarations` lists every upstream
+declaration of a membership FQN.
 
 **Upstream.** The legend-engine / legend-pure release is pinned in MODULE.bazel
 (the jars, and the source archives by sha256); tests read the sources as declared
@@ -6739,3 +6743,20 @@ judge passes it, the database judge walls.
 
 **Measured.** DuckDB in process: roster unchanged (host 2,472 / 107, database 2,474 / 107). DuckDB
 through the warehouse (`//spec:corpus_warehouse`, manual): identical. H2: fail 362 → 361.
+
+## 2026-10-05 — The reference lane back in step: legend-pure's `[1..*]` overloads of `min`/`max` (the user: "fix rule to match pure")
+
+`//spec:reference_lane` had been red since `c1f9bac5b` (2026-10-01; bisected): 1515 → 1517 failed bodies. The rule that
+commit added (a list literal's elements are `[1]`) is legend-pure's and stays. The two new failures, the H2 renderers'
+`dataTypeToSqlTextH2` (`max([$MIN, min([$v.size, $MAX])])`), came from the overload: legend-pure resolves `min([a, b])`
+to `math::min(Integer[1..*]):Integer[1]`, which our catalog lacked, so we chose `min(Integer[*]):Integer[0..1]` and the
+outer literal held a `[0..1]` element. Added: the six `[1..*]` overloads legend-engine registers (`math::min`/`max`
+over `Integer`, `Float`, `Number`) to `native-membership.tsv` and `Pure.java`; their text, the `AT_MATH_MIN`/`AT_MATH_MAX`
+groups (which the reducers and scalar rules dispatch on), `native-claims.tsv` and `engine-handlers.tsv` (engine's six
+handler ids now map to our functions) regenerated. The date `[1..*]` overloads stay out: legend-engine registers none.
+
+**The reference lane moved, in the right direction** (golden re-blessed in this push, `bazel run
+//spec:update_reference_lane`): `our bodies FAILED` 1515 → 1508 (the two H2 renderers, engine's six `TestMaxMin`
+properties and `getDynaFunctionTypeInferenceMap` now type), `reference typed, we FAILED` 1336 → 1335, `AGREE` 72271 →
+73103, `OVERLOAD` 769 → 745 (the six `[1..*]` classes gone); two new `EXTRA` classes (`math::min` 6, `math::max` 1)
+fall under the `EXTRA *` reason.

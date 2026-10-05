@@ -47,7 +47,7 @@ public final class Databases {
             case Postgres -> new com.legend.sql.dialect.Postgres();
             // SQLite differs from the ANSI baseline ONLY lexically — a Lexicon row, not a dialect subclass
             // (remediation T3.2)
-            case SQLite -> new com.legend.sql.dialect.AnsiSqlRenderer("SQLite", com.legend.sql.dialect.Lexicon.SQLITE,
+            case SQLite -> new com.legend.sql.dialect.AnsiSqlRenderer(com.legend.sql.dialect.Lexicon.SQLITE,
                     com.legend.sql.dialect.TypeNames.ANSI, com.legend.sql.dialect.Spellings.DUCKDB);
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
                  Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora ->

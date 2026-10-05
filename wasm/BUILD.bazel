@@ -42,7 +42,8 @@ legend_java_library(
     resource_strip_prefix = "wasm/src/main/resources",
     deps = [
         ":teavm_api",
-        "//core",
+        # the plan side only (C2a): the WebAssembly planner carries no execution library, no database, no driver
+        "//core:plan_side",
         "//json",
     ],
 )
@@ -112,7 +113,9 @@ java_run(
 node_test(
     name = "differential_test",
     wasm = True,
-    size = "small",
+    # loads the WebAssembly planner, as datacube's _WASM_TESTS do: seconds alone, but past `small`'s 60 s under a full
+    # local gate beside the corpus lanes (2026-10-05) and on CI's Windows runner (main's CI run 37214692462)
+    size = "medium",
     data = [
         ":planner",
         "corpus/model.pure",

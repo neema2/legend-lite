@@ -33,7 +33,7 @@ class PreludeGeneratorTest {
     }
 
     @Test
-    @DisplayName("prelude.pure is the generator's current output (regenerate: bazel run //:update_generated)")
+    @DisplayName("the engine-library membership is the one interim row (charter D7)")
     void engineLibraryMembershipIsTheOneInterimRow() {
         // the membership list is the declared INTERIM for the namespace rule
         // (charter D7); it grows only with that rule's own work, never a row at a time
@@ -41,23 +41,12 @@ class PreludeGeneratorTest {
                 PreludeGenerator.ENGINE_LIBRARY_FUNCTIONS.keySet());
     }
 
-    @org.junit.jupiter.api.Test
-    void preludeIsCurrent() throws Exception {
-        Path census = "1".equals(System.getProperty("prelude.census")) ? Repo.out("prelude-census.tsv") : null;
-        String generated = PreludeGenerator.generate(engineRoot(), pureRoot(),
-                SourceTree.of(CoreTree.CORE.resolve("src/main/java")), census);
-        assertTrue(Files.exists(OUT), "prelude.pure missing — regenerate: bazel run //:update_generated");
-        assertEquals(generated, Files.readString(OUT, StandardCharsets.UTF_8),
-                "prelude.pure is stale: the spec moved or the file was edited by hand —"
-                        + " regenerate: bazel run //:update_generated");
-    }
-
     @Test
     @DisplayName("m3 reader: every class of m3.pure prints as a declaration (-Dprelude.m3=1 lists them)")
     void m3ReaderPrintsEveryClass() throws IOException {
         Path m3 = pureRoot().resolve(PreludeGenerator.M3_PURE);
         // never an assumption-skip (SkipCensusTest): the reference checkout is
-        // this test class's hard default, exactly as preludeIsCurrent's
+        // this test class's hard default
         assertTrue(Files.isRegularFile(m3), "m3.pure missing at " + m3);
         Map<String, String> decls = PreludeGenerator.m3Declarations(Files.readString(m3, StandardCharsets.UTF_8));
         for (Map.Entry<String, String> e : decls.entrySet()) {

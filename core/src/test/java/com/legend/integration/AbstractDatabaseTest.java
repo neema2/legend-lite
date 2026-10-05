@@ -340,8 +340,7 @@ public abstract class AbstractDatabaseTest {
      * @return The generated SQL
      */
     protected String generateSql(String pureQuery) {
-        return com.legend.Compiler
-                .plan(getCompletePureModelWithRuntime(), pureQuery, "test::TestRuntime")
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(getCompletePureModelWithRuntime()), pureQuery).plan("test::TestRuntime")
                 .sql();
     }
 

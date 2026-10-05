@@ -352,10 +352,7 @@ final class StatementExecutor {
         }
         com.legend.resolver.StoreResolver resolver =
                 resolver(specs, env);
-        body = resolver.resolve(body, env.runtimeFqn());              // Phase H
-        // C2.2: stores bound to DIFFERENT connections cannot share
-        // the one session connection — wall, never wrong-database rows
-        CrossStoreGuard.check(body, env.ctx(), env.runtimeFqn());
+        body = resolvedToExecute(resolver, body, env);              // Phase H
         // the statement's env is widened LAST, after resolution — the loop's own order
         // (computing it before resolution changed a lowering: an order dependence
         // in the shared state the inliner touches, measured 2026-09-21, owed)
@@ -1440,8 +1437,8 @@ final class StatementExecutor {
                         resolver(specs, env);
                 try (var __o = com.legend.exec.StatementOrigin.enter(resultNeeded
                         ? com.legend.exec.StatementOrigin.VALUE : com.legend.exec.StatementOrigin.LET)) {
-                lqRun = executeTyped(lqResolver.resolve(
-                        java.util.List.of(lqChain.chain()), env.runtimeFqn()),
+                lqRun = executeTyped(resolvedToExecute(lqResolver,
+                        java.util.List.of(lqChain.chain()), env),
                         env);
                 }
             }
@@ -1491,8 +1488,8 @@ final class StatementExecutor {
             // resolver's let env resolves them (engine inScopeVars)
             com.legend.resolver.StoreResolver chainResolver =
                     resolver(specs, env);
-            java.util.List<TypedSpec> body = chainResolver.resolve(
-                    java.util.List.of(assembled.chain()), env.runtimeFqn());
+            java.util.List<TypedSpec> body = resolvedToExecute(chainResolver,
+                    java.util.List.of(assembled.chain()), env);
             try (var __o = com.legend.exec.StatementOrigin.enter(resultNeeded
                     ? com.legend.exec.StatementOrigin.VALUE : com.legend.exec.StatementOrigin.LET)) {
             run = executeTyped(body, env);
@@ -1870,94 +1867,6 @@ final class StatementExecutor {
     }
 
     /**
-     * Does this expression (transitively, through user calls) reach the
-     * {@code executeInDb} K-native? Memoized per callee signature; a cycle
-     * scores the in-progress callee non-effectful — real recursion is
-     * caught loudly at execution time.
-     */
-    static boolean containsEffect(TypedSpec node, SpecCompiler specs,
-            java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
-        if (node instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.builtin.NativeFn.Effect.isDbEffect(nc.callee().id())) {
-            return true;
-        }
-        if (node instanceof com.legend.compiler.spec.typed.TypedUserCall uc
-                && com.legend.builtin.Subsumed.of(uc.callee().qualifiedName()).isPresent()) {
-            // a SUBSUMED engine program's body is never compiled or run
-            // here (Subsumed.java): no effect
-            return false;
-        }
-        if (node instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
-            com.legend.model.FunctionId key = uc.callee().id();
-            Boolean known = memo.get(key);
-            if (known == null) {
-                memo.put(key, false);   // in-progress: cycles score false
-                boolean effectful = false;
-                java.util.List<TypedSpec> calleeBody;
-                try {
-                    calleeBody = specs.compile(uc.callee()).body();
-                } catch (com.legend.compiler.spec.TypeInferenceException e) {
-                    // an UN-TYPEABLE callee (a dead match arm's library
-                    // closure — toPostgresModel's SemiStructuredObjectNavigation
-                    // arm reaching sqlQueryToString's string recursion) cannot
-                    // execute in EITHER channel: this over-approximating
-                    // reachability scan must not decide the test on it — the
-                    // SQL channel's inliner walls the LIVE arm loudly if it is
-                    // ever reached (WORLD_MAP rule 5)
-                    memo.put(key, false);
-                    return false;
-                }
-                for (TypedSpec stmt : calleeBody) {
-                    if (containsEffect(stmt, specs, memo)) {
-                        effectful = true;
-                        break;
-                    }
-                }
-                memo.put(key, effectful);
-                known = effectful;
-            }
-            if (known) {
-                return true;
-            }
-        }
-        // post-processor CONFIG properties carry plan-time SQL-rewrite
-        // hooks, never DDL/executeInDb effects — compiling them drags in
-        // relational-metamodel vocabulary the prelude does not declare
-        // (ledger cluster 63)
-        if (node instanceof com.legend.compiler.spec.typed
-                .TypedNewInstance ni9) {
-            for (var pe : ni9.properties().entrySet()) {
-                if (!com.legend.compiler.element.type.PlatformTypes
-                                .isPostProcessorConfigProperty(pe.getKey())
-                        && containsEffect(pe.getValue(), specs, memo)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        if (node instanceof com.legend.compiler.spec.typed
-                .TypedCopyInstance cp9) {
-            if (containsEffect(cp9.source(), specs, memo)) {
-                return true;
-            }
-            for (var pe : cp9.overrides().entrySet()) {
-                if (!com.legend.compiler.element.type.PlatformTypes
-                                .isPostProcessorConfigProperty(pe.getKey())
-                        && containsEffect(pe.getValue(), specs, memo)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        for (TypedSpec c : node.children()) {
-            if (containsEffect(c, specs, memo)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * The I&rarr;J&rarr;K tail over a resolved TYPED body — shared by
      * {@link #executeResolved} and the K-native argument evaluation below.
      */
@@ -2129,7 +2038,7 @@ final class StatementExecutor {
                         + " not in the model — injection regressed"));
         ModelContext ctx = env.ctx();
         return env.withConnection(com.legend.exec.SystemDatabase.of(ctx)
-                .connectionFor(env.connection(), env.dialect(), store,
+                .connectionFor(Compiler.executesOn(ctx, env.runtimeFqn()).type(), env.dialect(), store,
                         table -> MetamodelSeeds.rows(table, ctx)));
     }
 
@@ -2318,7 +2227,19 @@ final class StatementExecutor {
         final java.util.List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
                 .stage(b, stageEnv, nativeRoutines(specs, env)));
-        return resolver(specs, env).resolve(body, env.runtimeFqn());
+        return resolvedToExecute(resolver(specs, env), body, env);
+    }
+
+    /** Phase H for a body that EXECUTES on the env's session: resolved, then every store it touches checked
+     *  against the runtime's connections (CrossStoreGuard — one session per query; a store the runtime does
+     *  not bind refused). Every execution path resolves through here (C3b: four of the five ran unchecked). */
+    private static java.util.List<TypedSpec> resolvedToExecute(com.legend.resolver.StoreResolver resolver,
+            java.util.List<TypedSpec> body, ExecEnv env) {
+        java.util.List<TypedSpec> resolved = resolver.resolve(body, env.runtimeFqn());
+        // C2.2: stores bound to DIFFERENT connections cannot share
+        // the one session connection — wall, never wrong-database rows
+        CrossStoreGuard.check(resolved, env.ctx(), env.runtimeFqn());
+        return resolved;
     }
 
     static ExecutionResult executeTyped(

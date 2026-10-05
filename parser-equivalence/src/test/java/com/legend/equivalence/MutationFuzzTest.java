@@ -32,10 +32,17 @@ class MutationFuzzTest {
 
     private static final int MAX_SITES = 3;
 
-    /** F3.7 total accounting: the exact mutant-deck size (deterministic —
-     *  fixtures x operators x sites). A fixture or operator change moves
-     *  this number DELIBERATELY, in the same commit. */
-    private static final int TOTAL_MUTANTS = 950;   // measured 2026-08-16
+    /** F3.7 total accounting: the mutant-deck size is deterministic (fixtures x operators x sites), so a fixture or
+     *  operator change moves it deliberately. It is MEASURED ({@link #deckSize}) into this package's generated
+     *  ratchets.tsv ({@code mutation.deck}; //parser-equivalence:update_ratchets), and the test holds the run to the
+     *  committed value (Bazel workplan P2-16, D9; 950 on 2026-08-16). */
+    static int deckSize() throws Exception {
+        int n = 0;
+        for (String name : listFixtures()) {
+            n += mutants(readFixture(name)).size();
+        }
+        return n;
+    }
 
     /** Divergence classes reviewed 2026-08-14, keyed
      *  {@code operator :: fixture}. Shrink-only. */
@@ -69,7 +76,7 @@ class MutationFuzzTest {
                     // lands inside the final Connection element
                     "truncate :: connection-auth.pure");
 
-    /** ONE oracle instance for all 950 mutants — newInstance() rebuilds
+    /** ONE oracle instance for every mutant — newInstance() rebuilds
      *  the extension list per call (the sweep's own precedent; the
      *  per-mutant spelling cost ~seconds of gate 8). */
     private static final PureGrammarParser ORACLE =
@@ -128,8 +135,8 @@ class MutationFuzzTest {
         // F3.7: total accounting — the mutant deck is deterministic, so a
         // silent shrink (a fixture or operator dropping out) is a review
         // event, not a pass
-        assertEquals(TOTAL_MUTANTS, total,
-                "mutant-deck accounting drifted — re-pin with review");
+        assertEquals(PeRatchets.measured("mutation.deck"), total,
+                "mutant-deck accounting drifted -- bazel run //parser-equivalence:update_ratchets, with review");
         assertEquals(total - pardonedSeen.size(), agreed,
                 "mutant accounting drifted (agreed + pardoned != total)");
     }

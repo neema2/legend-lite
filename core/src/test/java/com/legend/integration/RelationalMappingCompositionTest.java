@@ -67,7 +67,7 @@ class RelationalMappingCompositionTest {
     }
 
     private String planSql(String model, String query) {
-        return com.legend.Compiler.plan(model, query, "test::RT").sql();
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).plan("test::RT").sql();
     }
 
     private void sql(String... statements) throws SQLException {

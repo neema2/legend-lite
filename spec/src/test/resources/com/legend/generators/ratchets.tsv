@@ -1,0 +1,11 @@
+# spec's measured ratchet values (SpecRatchets) -- regenerate: bazel run //spec:update_ratchets
+corpus.census.declared	2761
+corpus.census.discovered	2613
+corpus.census.excluded	148
+dynafn.unsupported	41
+implementation.kinds.Body	2187
+implementation.kinds.Form	217
+implementation.kinds.Intrinsic	671
+implementation.kinds.Refused	20
+implementation.kinds.Unimplemented	71
+upstream.paths	91

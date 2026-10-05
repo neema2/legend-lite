@@ -129,7 +129,7 @@ class UserFunctionIntegrationTest {
     }
 
     private static QueryPlan plan(String pureSource, String query) {
-        return com.legend.Compiler.plan(pureSource, query, "test::TestRuntime");
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(pureSource), query).plan("test::TestRuntime");
     }
 
     private static ExecutionResult exec(String pureSource, String query) throws SQLException {

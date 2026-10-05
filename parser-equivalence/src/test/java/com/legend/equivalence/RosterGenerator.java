@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
  * GENERATES docs/protocol-roster.tsv — every Jackson subtype tag the pinned
  * engine's protocol jars declare (+ the extension registry), each (tag, class)
  * marked COVERED when a source in the engine corpus, the fixture snapshot or our
- * own test snippets reaches it ({@link ProtocolRosterCensusTest} holds it equal).
+ * own test snippets reaches it (//docs:update_generated holds the committed copy equal).
  * The jars are this program's classpath; in a bump the fixture snapshot is the new
  * harvest ({@code -Dlegend.engine.fixtures}, parser-equivalence's :gen_roster).
  *
@@ -39,7 +39,7 @@ public final class RosterGenerator {
 
     public static final String HEADER = "# PROTOCOL-TYPE ROSTER — every @JsonSubTypes tag the pinned engine's protocol jars declare"
                 + " (+ the extension registry),\n# one row per (tag, class): unrelated protocols reuse a tag, and every class declaring it is listed.\n# COVERED when a source in the engine corpus, the fixtures or our own"
-                + " test snippets reaches it (ProtocolRosterCensusTest).\n# THE LEDGER IS THIS FILE: a bump that adds"
+                + " test snippets reaches it (RosterGenerator).\n# THE LEDGER IS THIS FILE: a bump that adds"
                 + " or removes a tag, or moves a tag between COVERED and UNCOVERED, is a reviewed diff."
                 + " Regenerate: bazel run //:update_generated.\n";
 
@@ -81,7 +81,7 @@ public final class RosterGenerator {
                             .replace('/', '.');
                     try {
                         Class<?> c = Class.forName(cls, false,
-                                ProtocolRosterCensusTest.class.getClassLoader());
+                                RosterGenerator.class.getClassLoader());
                         JsonSubTypes st = c.getAnnotation(JsonSubTypes.class);
                         if (st != null) {
                             for (JsonSubTypes.Type t : st.value()) {

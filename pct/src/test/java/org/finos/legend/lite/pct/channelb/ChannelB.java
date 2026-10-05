@@ -4,6 +4,7 @@
 package org.finos.legend.lite.pct.channelb;
 
 import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.ModelContext;
 import com.legend.model.FunctionDefinition;
@@ -271,7 +272,7 @@ public final class ChannelB {
             // with CORRECT_SQL_SUBSTRING_INDEXING on, as the engine's own
             // testable runner does — the flag is the lowering's, so channel
             // B's identity adapter carries it the same way
-            Compiler.executeResolved(resolved, ctx, com.legend.test.StorelessRuntime.RUNTIME, conn, null, null,
+            Execution.executeResolved(resolved, ctx, com.legend.test.StorelessRuntime.RUNTIME, conn, null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                             com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING)));
             return new Outcome(fqn, Status.PASS, "");

@@ -3,7 +3,7 @@
 
 package com.legend.lowering;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -64,7 +64,7 @@ class OptionalCollectionNullDropTest {
     }
 
     private static Object run(String query) throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL, query, "m::RT", conn);
+        ExecutionResult r = Execution.execute(MODEL, query, "m::RT", conn);
         return r instanceof ExecutionResult.Scalar s ? s.value()
                 : r instanceof ExecutionResult.Collection c ? c.values() : r;
     }

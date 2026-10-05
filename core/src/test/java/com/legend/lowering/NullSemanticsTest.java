@@ -3,7 +3,7 @@
 
 package com.legend.lowering;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -61,7 +61,7 @@ class NullSemanticsTest {
     }
 
     private static List<String> names(String query) throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL, query, "m::RT", conn);
+        ExecutionResult r = Execution.execute(MODEL, query, "m::RT", conn);
         // F6.2: the map-binder channel is a VALUE COLLECTION (nulls are
         // pure empties and never arrive)
         if (r instanceof ExecutionResult.Collection c) {
@@ -112,7 +112,7 @@ class NullSemanticsTest {
     @Test
     @DisplayName("VALUE position: a [0..1] comparison yields pure's false, never SQL NULL")
     void valuePosition() throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL,
+        ExecutionResult r = Execution.execute(MODEL,
                 "{| m::A.all()->project([x|$x.street->endsWith('p'), x|$x.name],"
                         + " ['e','nm']);}", "m::RT", conn);
         var rows = ((ExecutionResult.Tabular) r).rows();

@@ -54,7 +54,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li><b>Instrument honesty</b> — the M3 second-reference calibrates
  *       itself every run; the comparator self-test lives in
  *       {@code ComparatorSelfTest}; the corpus is SHA-pinned by
- *       {@code CorpusManifestTest}.</li>
+ *       the committed corpus manifest (//parser-equivalence:update_generated).</li>
  * </ol>
  *
  * <p>Element-level comparison is a DIAGNOSTIC ({@code ParserEquivalence}

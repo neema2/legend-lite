@@ -6,7 +6,7 @@ package com.legend.compiler.spec;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,7 +40,7 @@ class VarianceD4Test {
     @DisplayName("wrong-accept dies: an Integer[1] lambda cannot fill a Number[1] slot")
     void unsoundDirectionRejected() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            var ex = assertThrows(Exception.class, () -> Compiler.execute(StorelessRuntime.with(FNS, DatabaseType.DuckDB), "{|m::relay({i: Integer[1] | ($i + 1)->toString()})}", StorelessRuntime.RUNTIME,
+            var ex = assertThrows(Exception.class, () -> Execution.execute(StorelessRuntime.with(FNS, DatabaseType.DuckDB), "{|m::relay({i: Integer[1] | ($i + 1)->toString()})}", StorelessRuntime.RUNTIME,
                     c));
             assertTrue(ex.getMessage() != null,
                     "expected a type error, got: " + ex);
@@ -53,7 +53,7 @@ class VarianceD4Test {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             // a Number-taking function in an Integer-taking slot — the
             // USEFUL case the covariant order refused
-            ExecutionResult r = Compiler.execute(StorelessRuntime.with("""
+            ExecutionResult r = Execution.execute(StorelessRuntime.with("""
                     function m::callI(f: Function<{Integer[1]->String[1]}>[1]): String[1]
                     { $f->eval(7) }
                     function m::wide(n: Number[1]): String[1]
@@ -69,7 +69,7 @@ class VarianceD4Test {
     void inheritanceCycleIsFinite() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             try {
-                Compiler.execute(StorelessRuntime.with("""
+                Execution.execute(StorelessRuntime.with("""
                         Class m::A extends m::B {}
                         Class m::B extends m::A {}
                         Class m::D {}

@@ -8,6 +8,7 @@ load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
+load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/guards:defs.bzl", "guards_package")
 load(":layers.bzl", "core_layer_queries")
 load(":stress.bzl", "STRESS_GENERATED", "stress_layout")
@@ -128,7 +129,7 @@ legend_java_library(
 legend_java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    deps = ["//base", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":sql_dialect", ":values"],
+    deps = ["//base", ":compiler", ":compiler_element_type", ":database", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":sql_dialect", ":values"],
 )
 legend_java_library(
     name = "probe",
@@ -141,13 +142,33 @@ legend_java_library(
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":sql_dialect", ":values"],
 )
 
-# the root package: the driver (Compiler, StatementExecutor, the judges)
+# THE PLANNER (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the root package's plan side --
+# model text to a compiled model, a query to its SQL. No :exec, no :testdatagen: planning never touches a database
+# (the build enforces it; a plan-only consumer carries no driver).
+_PLANNER_SRCS = [
+    "src/main/java/com/legend/Compiler.java",
+    "src/main/java/com/legend/CrossStoreGuard.java",
+    "src/main/java/com/legend/ProgramFacts.java",
+    "src/main/java/com/legend/TypedQuery.java",
+]
+
+legend_java_library(
+    name = "planner",
+    srcs = _PLANNER_SRCS,
+    deps = [
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error",
+        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
+        ":protocol", ":resolver", ":sql", ":sql_dialect", ":validation", ":values",
+    ],
+)
+
+# the root package's execution side: Execution (the front door), StatementExecutor, the judges
 legend_java_library(
     name = "driver",
-    srcs = glob(["src/main/java/com/legend/*.java"]),
+    srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error", ":exec",
-        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
+        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner", ":platform",
         ":protocol", ":resolver", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
@@ -155,20 +176,35 @@ legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.j
 legend_java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
-    deps = ["//base", ":compiler", ":driver", ":error", ":exec", ":model", ":protocol", ":sql", ":values"],
+    deps = ["//base", ":compiler", ":driver", ":error", ":exec", ":model", ":planner", ":protocol", ":sql", ":values"],
 )
 legend_java_library(
     name = "server_lib",
     srcs = glob(["src/main/java/com/legend/server/**/*.java"]),
-    deps = ["//base", "//json", ":cache", ":compiler_element_type", ":driver", ":error", ":exec", ":lowering", ":model", ":parser", ":plan", ":protocol", ":sql_dialect"],
+    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":driver", ":error", ":exec", ":lowering", ":model", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
 )
 
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":exec", ":probe", ":testdatagen",
-    ":driver", ":ide", ":test", ":server_lib",
+    ":planner", ":driver", ":ide", ":test", ":server_lib",
 ]
+
+# THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it
+# stands on, and none of execution (exec, testdatagen, driver, probe, ide, test, server_lib). A plan-only consumer
+# depends on this, so the build proves it carries no database and no driver.
+_PLAN_SIDE_TARGETS = [
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
+    ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":planner",
+]
+
+legend_java_library(
+    name = "plan_side",
+    exports = _PLAN_SIDE_TARGETS,
+    visibility = ["//wasm:__pkg__"],
+)
 
 # THE UMBRELLA: what every consumer depends on today and keeps depending on.
 # It compiles nothing; it exports the targets above. A consumer that needs only
@@ -220,7 +256,7 @@ legend_java_binary(
         ":core",
         ":drivers",
     ],
-    visibility = ["//query:__pkg__", "//query-store:__pkg__"],
+    visibility = ["//fixtures/saved-queries:__pkg__", "//query:__pkg__", "//query-store:__pkg__"],
 )
 
 # every file a core test reads by path, declared, so it exists in runfiles and
@@ -473,6 +509,13 @@ exports_files(
     visibility = ["//scripts/corpus:__pkg__"],
 )
 
+# every .pure under the test resources: the keyword census's share of "the .pure this repository owns" (P2-20)
+filegroup(
+    name = "test_pure",
+    srcs = glob(["src/test/resources/**/*.pure"]),
+    visibility = ["//scripts/parser:__pkg__"],
+)
+
 # every stress file, the generated ten included: what the corpus ratchets measure (//scripts/corpus, P2-04)
 filegroup(
     name = "stress_files",
@@ -506,6 +549,46 @@ write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThis file is generated from the pinned upstream release — regenerate: bazel run //:update_generated",
     files = _GENERATED,
+    visibility = ["//:__pkg__"],
+)
+
+# THE LEAN SQL LADDER's current emission (P2-13): LadderRender runs each rung in database mode on DuckDB and writes
+# what it sent; the pins in src/test/resources/ladder change only through `bazel run //core:update_ladder`, and
+# //core:update_ladder_test (in //:generated) fails when the emission moves. The <rung>.lean.sql beside them are
+# hand-written targets. LadderRender checks this list against the model's rungs.
+_LADDER_RUNGS = [
+    "r01_constant",
+    "r02_literalListSize",
+    "r03_stringConstant",
+    "r04_countNoLet",
+    "r05_countOneLet",
+    "r06_columnVsList",
+    "r07_projectRows",
+    "r08_positionalCell",
+    "r09_twoAssertsOneLet",
+    "r10_twoLets",
+    "r11_floatLeniency",
+    "r12_classLetManyReaders",
+]
+
+java_run(
+    name = "ladder_report",
+    testonly = True,
+    outs = ["ladder/%s.current.sql" % r for r in _LADDER_RUNGS],
+    arguments = ["{OUT_DIR}"] + _LADDER_RUNGS,
+    main_class = "com.legend.ladder.LadderRender",
+    mnemonic = "Generate",
+    deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
+write_source_files(
+    name = "update_ladder",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThe lean SQL ladder's emission moved -- if the shape change is deliberate, re-pin: bazel run //core:update_ladder, and review the diff",
+    files = {"src/test/resources/ladder/%s.current.sql" % r: ":ladder/%s.current.sql" % r for r in _LADDER_RUNGS},
     visibility = ["//:__pkg__"],
 )
 
@@ -564,6 +647,7 @@ core_layer_queries(not_layers = {
     "core_tests_lib": "the tests' library, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
     "duckdb_load": "the drivers' bulk loader, beside the layers",
+    "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
     "shadow_binding": "a test-lane ServiceLoader resource",
 })
 

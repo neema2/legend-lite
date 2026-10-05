@@ -5,7 +5,18 @@ load("//tools/guards:defs.bzl", "guards_package")
 # Root package. Exists so the jar pools' lock files are labels rules_jvm_external
 # can read (MODULE.bazel says which pool is whose; tools/deps/pools.bzl lists them),
 # and as the home for workspace-wide targets later.
-exports_files(["MODULE.bazel"] + ["%s_install.json" % pool for pool in POOLS])
+exports_files(["MODULE.bazel", "release.MODULE.bazel"] + ["%s_install.json" % pool for pool in POOLS])
+
+# the module as Bazel reads it: MODULE.bazel and the segments it include()s (release.MODULE.bazel), for the tests that
+# read the pools' definitions (//tools/deps:pools_list_test checks that every included segment is here)
+filegroup(
+    name = "module_files",
+    srcs = ["MODULE.bazel"] + glob(["*.MODULE.bazel"]),
+    visibility = [
+        "//tools/deps:__pkg__",
+        "//tools/guards:__pkg__",
+    ],
+)
 
 
 # EVERY committed generated file's diff test, in one suite: what CI's checks lane runs
@@ -15,12 +26,18 @@ test_suite(
     name = "generated",
     tests = [
         "//core:update_generated_tests",
+        "//core:update_ladder_tests",
         "//core:update_stress_corpus_tests",
         "//datacube:update_generated_tests",
         "//engine-client:update_generated_tests",
         "//docs:update_generated_tests",
+        "//fixtures/saved-queries:update_generated_tests",
         "//parser-equivalence:update_generated_tests",
         "//legend-art:update_generated_tests",
+        "//parser-equivalence:update_ratchets_tests",
+        "//scripts/parser:update_keyword_coverage_tests",
+        "//spec:update_ratchets_tests",
+        "//tools/engine-runner:update_vocab_tests",
     ],
 )
 
@@ -32,12 +49,19 @@ write_source_files(
     testonly = True,
     additional_update_targets = [
         "//core:update_generated",
+        "//core:update_ladder",
         "//core:update_stress_corpus",
         "//datacube:update_generated",
         "//engine-client:update_generated",
         "//docs:update_generated",
+        "//fixtures/saved-queries:update_generated",
         "//parser-equivalence:update_generated",
         "//legend-art:update_generated",
+        "//parser-equivalence:update_ratchets",
+        "//pct:update_ratchets",
+        "//scripts/parser:update_keyword_coverage",
+        "//spec:update_ratchets",
+        "//tools/engine-runner:update_vocab",
     ],
 )
 

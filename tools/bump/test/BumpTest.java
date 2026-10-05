@@ -2,6 +2,7 @@ package com.legend.tools.bump;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.testing.Runfile;
@@ -9,13 +10,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.MessageDigest;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class BumpTest {
-
-    private static final String ENGINE_INTEGRITY = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-    private static final String PURE_INTEGRITY = "sha256-/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+8=";
 
     @Test
     void integrityIsSubresourceIntegrity() throws Exception {
@@ -25,38 +24,37 @@ class BumpTest {
     }
 
     @Test
-    void rewritesEveryPinOfTheRealModule() throws Exception {
-        String module = Files.readString(Runfile.property("module.bazel"), StandardCharsets.UTF_8);
-        Map<String, String> managed = new LinkedHashMap<>();
-        managed.put("com.zaxxer:HikariCP", "9.9.1");
-        managed.put("org.apache.commons:commons-lang3", "9.9.2");
-        managed.put("org.apache.httpcomponents:httpcore", "9.9.3");
-        managed.put("junit:junit", "9.9.4");
-        managed.put("com.google.guava:guava", "9.9.5-jre$1");  // taken literally, never as a group reference
-        String out = Bump.rewriteModule(module, "9.1.0", "8.2.0", ENGINE_INTEGRITY, PURE_INTEGRITY, managed);
-        assertTrue(out.contains("\nLEGEND_ENGINE_RELEASE = \"9.1.0\"\n"), "engine release");
-        assertTrue(out.contains("\nLEGEND_PURE_RELEASE = \"8.2.0\"\n"), "pure release");
-        assertTrue(out.matches("(?s).*name = \"legend_engine_src\",[^)]*integrity = \"" + quote(ENGINE_INTEGRITY) + "\".*"),
-                "engine archive");
-        assertTrue(out.matches("(?s).*name = \"legend_pure_src\",[^)]*integrity = \"" + quote(PURE_INTEGRITY) + "\".*"),
-                "pure archive");
-        managed.forEach((k, v) -> assertTrue(out.contains("\"" + k + ":" + v + "\""), k));
-        // nothing else moved: the same lines, the same count
-        assertEquals(module.lines().count(), out.lines().count());
+    void rewritesThePinsBlockOfTheRealSegment() throws Exception {
+        String segment = Files.readString(Runfile.property("release.segment"), StandardCharsets.UTF_8);
+        Map<String, String> pins = Bump.readPins(segment);
+        assertEquals("finos/legend-engine", pins.get("LEGEND_ENGINE_REPO"));
+        Map<String, String> moved = new LinkedHashMap<>();
+        int n = 0;
+        for (String k : Bump.PINS) {
+            moved.put(k, "moved-" + n++ + "$1\\");  // taken literally: no regex, no escapes
+        }
+        String out = Bump.writePins(segment, moved);
+        assertEquals(moved, Bump.readPins(out), "every pin moved, and reads back");
+        // nothing outside the block moved: the same lines, in the same places
+        List<String> before = segment.lines().toList();
+        List<String> after = out.lines().toList();
+        assertEquals(before.size(), after.size());
+        for (int i = 0; i < before.size(); i++) {
+            if (!before.get(i).equals(after.get(i))) {
+                String name = before.get(i).substring(0, before.get(i).indexOf(" = "));
+                assertTrue(Bump.PINS.contains(name), "line " + (i + 1) + " moved: " + before.get(i));
+            }
+        }
+        assertEquals(segment.endsWith("\n"), out.endsWith("\n"));
     }
 
     @Test
-    void rewritesEveryPinOfTheRealOraclePins() throws Exception {
-        String pins = Files.readString(Runfile.property("oracle.pins"), StandardCharsets.UTF_8);
-        String engineSha = "1".repeat(40);
-        String pureSha = "2".repeat(40);
-        String out = Bump.rewritePins(pins, "9.1.0", "8.2.0", engineSha, "legend-engine-9.1.0", pureSha,
-                "legend-pure-8.2.0");
-        for (String line : new String[] {"LEGEND_ENGINE_RELEASE=9.1.0", "LEGEND_PURE_RELEASE=8.2.0",
-                "LEGEND_ENGINE_SHA=" + engineSha, "LEGEND_ENGINE_DESCRIBE=legend-engine-9.1.0",
-                "LEGEND_PURE_SHA=" + pureSha, "LEGEND_PURE_DESCRIBE=legend-pure-8.2.0"}) {
-            assertTrue(out.lines().anyMatch(line::equals), line);
-        }
+    void refusesAPinsBlockItDidNotWrite() {
+        String block = "x\n# ── PINS: written whole\nLEGEND_ENGINE_RELEASE = \"1\"\n# ── END PINS ──\n";
+        assertThrows(IllegalStateException.class, () -> Bump.readPins(block), "a missing name");
+        assertThrows(IllegalStateException.class, () -> Bump.readPins("no block"), "no block");
+        assertThrows(IllegalStateException.class,
+                () -> Bump.readPins(block.replace("= \"1\"", "= other")), "not NAME = \"value\"");
     }
 
     @Test
@@ -79,7 +77,4 @@ class BumpTest {
         assertNull(Bump.tagCommit(advertisement, "legend-engine-4.146.0"));
     }
 
-    private static String quote(String s) {
-        return java.util.regex.Pattern.quote(s);
-    }
 }

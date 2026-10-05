@@ -6,7 +6,7 @@ package com.legend.lowering;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Compiler;
+import com.legend.Execution;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,7 +35,7 @@ class ComparatorConventionTest {
 
     private static Object one(String q) throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            return ((ExecutionResult.Scalar) Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), q, StorelessRuntime.RUNTIME, c))
+            return ((ExecutionResult.Scalar) Execution.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), q, StorelessRuntime.RUNTIME, c))
                     .value();
         }
     }
