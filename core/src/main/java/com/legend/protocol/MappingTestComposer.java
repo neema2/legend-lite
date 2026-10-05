@@ -7,7 +7,6 @@ import com.legend.json.Json;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Pattern;
 
 import static com.legend.protocol.Composing.convertString;
 import static com.legend.protocol.Composing.objs;
@@ -20,9 +19,6 @@ import static com.legend.protocol.Composing.tab;
  * extension's test input data).
  */
 final class MappingTestComposer {
-
-    /** A SQL input's statements: split at each {@code ;} not escaped by a backslash. */
-    private static final Pattern SQL_STATEMENT_END = Pattern.compile("(?<!\\\\);");
 
     private MappingTestComposer() {
     }
@@ -66,12 +62,12 @@ final class MappingTestComposer {
         String data;
         if ("SQL".equals(inputType)) {
             List<String> lines = new ArrayList<>();
-            for (String l : SQL_STATEMENT_END.split(raw.replace("\r", "").replace("\n", ""))) {
+            for (String l : Composing.splitDroppingTrailingEmpties(raw.replace("\r", "").replace("\n", ""), ';', '\\')) {
                 lines.add(tab(5) + convertString(l + ";\n", true).replace("\\\\;", "\\;"));
             }
             data = "\n" + String.join("+\n", lines);
         } else if ("CSV".equals(inputType)) {
-            List<String> lines = new ArrayList<>(List.of(raw.split("\n")));
+            List<String> lines = new ArrayList<>(Composing.splitDroppingTrailingEmpties(raw, '\n', (char) 0));
             lines.add("\n\n");
             List<String> out = new ArrayList<>();
             for (String l : lines) {
