@@ -19,6 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
  * HOST reference render the R1 divergence instrument compares with;
  * R2's SQL renders are held to the same rows.
  */
+// reads process-wide counters (CanonicalDivergence, Census): one such class at a time if JUnit ever runs classes in
+// parallel, so no other test's calls land between its reset and its assert (Bazel workplan P3-04, A9)
+@org.junit.jupiter.api.parallel.ResourceLock("process-counters")
 class CanonicalFormTest {
 
     private static String text(Object v) {

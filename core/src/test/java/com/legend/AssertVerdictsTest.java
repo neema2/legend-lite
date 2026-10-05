@@ -28,6 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * call BEFORE β-inlining, or the bodies would compile into SQL (the
  * named Clause-2c violation; there is NO SQL assert rule anymore).
  */
+// reads process-wide counters (CanonicalDivergence, Census): one such class at a time if JUnit ever runs classes in
+// parallel, so no other test's calls land between its reset and its assert (Bazel workplan P3-04, A9)
+@org.junit.jupiter.api.parallel.ResourceLock("process-counters")
 class AssertVerdictsTest {
 
     private static final String MODEL = """

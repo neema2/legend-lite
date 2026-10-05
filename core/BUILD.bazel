@@ -284,7 +284,12 @@ legend_java_library(
     # PostgresArmTest is :postgres_arm_test's alone: it needs the embedded Postgres in its runfiles
     srcs = glob(
         ["src/test/java/**/*.java"],
-        exclude = ["src/test/java/com/legend/server/PostgresArmTest.java"],
+        exclude = [
+            "src/test/java/com/legend/server/PostgresArmTest.java",
+            # the toy section grammar and its test are :toy_grammar's and :section_grammar_registry_test's (P3-04)
+            "src/test/java/com/legend/parser/SectionGrammarRegistryTest.java",
+            "src/test/java/com/legend/parser/ToySectionGrammar.java",
+        ],
     ),
     resources = glob(
         ["src/test/resources/**"],
@@ -292,6 +297,8 @@ legend_java_library(
         exclude = [
             "**/*.md",
             "src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe",
+            # the toy section grammar's binding is :toy_grammar's, so no other core test loads it (P3-04)
+            "src/test/resources/META-INF/services/com.legend.spi.SectionGrammar",
         ],
     ),
     # :duckdb_load: the bulk-load path RowLoadTest judges, declared, not borrowed from :drivers (P3-02)
@@ -322,6 +329,34 @@ legend_java_library(
     resources = ["src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe"],
     resource_strip_prefix = "core/src/test/resources",
     visibility = ["//spec:__pkg__", "//pct:__pkg__"],
+)
+
+# A toy section grammar and its ServiceLoader binding, for the registry's own test only: as a resource of
+# core_tests_lib it was loaded by every core test (Bazel workplan P3-04).
+legend_java_library(
+    name = "toy_grammar",
+    # not yet written to the null discipline (Bazel workplan P1-20), as core_tests_lib it came from
+    nullaway = False,
+    testonly = True,
+    srcs = ["src/test/java/com/legend/parser/ToySectionGrammar.java"],
+    resources = ["src/test/resources/META-INF/services/com.legend.spi.SectionGrammar"],
+    resource_strip_prefix = "core/src/test/resources",
+    deps = [":core"],
+)
+
+junit_test(
+    name = "section_grammar_registry_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["src/test/java/com/legend/parser/SectionGrammarRegistryTest.java"],
+    select = ["--select-class=com.legend.parser.SectionGrammarRegistryTest"],
+    deps = [
+        ":core",
+        ":core_tests_lib",
+        ":toy_grammar",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
 )
 
 # Gate 1: every core BEHAVIOUR test — everything but the heavy and stress

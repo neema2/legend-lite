@@ -8,8 +8,6 @@ import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
 import com.legend.Execution;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -38,15 +36,16 @@ class ExecuteInDbTest {
             "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
                     + "type=meta::relational::runtime::DatabaseType.DuckDB);\n";
 
-    private static Connection conn;
+    // one connection per method: nothing a test writes reaches the next (Bazel workplan P3-04)
+    private Connection conn;
 
-    @BeforeAll
-    static void open() throws Exception {
+    @org.junit.jupiter.api.BeforeEach
+    void open() throws Exception {
         conn = DriverManager.getConnection("jdbc:duckdb:");
     }
 
-    @AfterAll
-    static void close() throws Exception {
+    @org.junit.jupiter.api.AfterEach
+    void close() throws Exception {
         conn.close();
     }
 
