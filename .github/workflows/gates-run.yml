@@ -39,17 +39,13 @@ jobs:
       - id: pick
         env:
           WANT: ${{ inputs.gates }}
-          LOW_MEMORY: ${{ inputs.low-memory }}
           PLATFORM: ${{ inputs.platform }}
         run: |
           set -euo pipefail
-          if [ "$LOW_MEMORY" = "true" ]; then
-            pct6='//pct:pct_duckdb_essential //pct:pct_duckdb_grammar //pct:pct_duckdb_relation //pct:pct_duckdb_standard //pct:pct_duckdb_unclassified //pct:pct_discipline'
-            pct7p='//pct:pct_postgres_essential //pct:pct_postgres_grammar //pct:pct_postgres_relation //pct:pct_postgres_standard //pct:pct_postgres_unclassified //core:postgres_arm_test'
-          else
-            pct6='//pct:pct_duckdb'
-            pct7p='//pct:pct_postgres //core:postgres_arm_test'
-          fi
+          # the PCT lanes are one target per suite on every runner (Bazel workplan P3-09): each 4 GB, so a 7 GB runner
+          # runs them one at a time by their memory tags, without a low-memory variant
+          pct6='//pct:pct_duckdb'
+          pct7p='//pct:pct_postgres //core:postgres_arm_test'
           all=$(jq -nc --arg pct6 "$pct6" --arg pct7p "$pct7p" '[
             {"key":"1",      "name":"gate 1 core suite",               "targets":"//core:core_tests //core:duckdb_load_test //core:section_grammar_registry_test"},
             {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"//:generated //tools/deps:all //tools/guards:classpath_test //tools/guards:inventory_test //tools/guards:locks_test //tools/guards:markdown_inputs_test //tools/junit:pins_test //tools/junit:runner_test //tools/java_run:pins_test //tools/python:lock_matches_requirements //tools/browser:revision_test //tools/bump:bump_test //tools/js:lock_matches_package_json_test //scripts/corpus:density_gate //scripts/corpus:executed_gate //scripts/corpus:stacking_gate //core:guardrails //core:census"},

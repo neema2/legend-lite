@@ -1,7 +1,7 @@
 # THE LOCAL GATE (Bazel workplan P0-14, decision D17's fast loop): what a session runs before it pushes
 # to main, after rebasing onto the latest origin/main: `bazel test //gates:local`. Light and cached:
 # every CI lane except the heavy ones, which stay CI-only under the desk's two-heavy-jobs cap (the
-# 9 GB PCT lanes, the two corpus lanes, the stress corpus, parser equivalence, Channel B, the native
+# PCT suites (4 GB each), the two corpus lanes, the stress corpus, parser equivalence, Channel B, the native
 # image, the browser lane) and `bazel build //...`. A change under a .github/CODEOWNERS path goes through
 # a PR instead (AGENTS.md, "Pushing to main"). CI names //tools/deps:all and //wasm:all by wildcard and
 # this suite names their tests: a test added there is added here too, until P5-01 makes the CI lanes
@@ -30,6 +30,9 @@ test_suite(
         "//tools/junit:pins_test",
         "//tools/junit:runner_test",
         "//tools/python:lock_matches_requirements",
+        # PCT's discipline guard (no comparison machinery in the module): seconds, and it turned main red once
+        # when only CI ran it (2026-10-05)
+        "//pct:pct_discipline",
         # the corpus ratchets (P2-04)
         "//scripts/corpus:density_gate",
         "//scripts/corpus:executed_gate",
