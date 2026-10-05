@@ -307,3 +307,8 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .run-result__table td { padding: 3px 10px; border-bottom: 1px solid var(--color-border-subtle); }
 .run-result__json { margin: 10px; font-family: var(--font-mono); font-size: 12px; color: var(--color-text-secondary); white-space: pre-wrap; }
 .panel-group__run-error { display: flex; align-items: flex-start; gap: 8px; margin: 10px; color: var(--color-status-error); }
+/* the SQL playground: the statement over its rows */
+.sql-playground { display: flex; flex-direction: column; }
+.sql-playground__editor { display: flex; align-items: flex-start; gap: 8px; padding: 10px; }
+.sql-playground__text { flex: 1; height: 72px; font-family: var(--font-mono); font-size: 13px; }
+.sql-playground__out { flex: 1; overflow: auto; }
