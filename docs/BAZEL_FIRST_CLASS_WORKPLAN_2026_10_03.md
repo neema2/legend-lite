@@ -958,6 +958,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 
 **Progress (2026-10-04):** (a) filed upstream after research (USER: "Do research first and if don't find similar issue ... file PR upstream"): https://github.com/sgammon/rules_graalvm/pull/602. Research: no issue or PR on rules_graalvm mentions a sysroot (#27, closed, asked for hermetic native images in general); GraalVM has no sysroot option of its own (`-H:CCompilerOption` only, and native-image compiles from its own temporary directory, so the path must be absolute). The upstream form is self-contained (its own `//internal/native_image:sysroot_launcher`), handles an explicit `native_image_tool`, and cites legend-lite's Linux x86_64/arm64 run 37212513283. #567 (no Xcode.app) is our patch's other hunk, offered upstream as a follow-up. When #602 is released, delete `third_party/rules_graalvm_sysroot.patch`'s sysroot hunk and `//tools/graalvm`. (b), per-platform GraalVM toolchain registration: still to investigate.
 
+**Amended 2026-10-04 (P1-90 audit, (B)).** Also open: Bazel 10's `--incompatible_stop_exporting_language_modules` fails on rules_graalvm's `apple_common` use (`native_image/rules.bzl:144,176`, including our patch's lines; G-21, §6.1 row 71). It is tracked here with #602 (and #567); §6.3 gets its row with the upstream link when filed; the flag joins `build:bazel10` when it passes. (b), the per-platform GraalVM toolchain, is still to investigate.
+
 #### P1-13 · Linux arm64 joins CI permanently (the crash investigation is closed)
 
 | Field | Content |
@@ -1069,6 +1071,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Done when | No platform `config_setting` lives outside `//tools/platforms`. WH-N16's open question is answered by that command (A25). |
 
 **As built (2026-10-04):** the unlisted platform is Linux on s390x, not ppc (ppc has no Java runtime; ppc64le makes rules_js's esbuild selection ambiguous). The A25 check runs over non-test targets only (Bazel 9 resolves a test's toolchain for a platform that can run it before it sees an incompatible dependency); its command is in `tools/platforms/BUILD.bazel`. A guard that it keeps passing, and that no `config_setting` appears outside `//tools/platforms`, joins Phase 6 (P6-14). The embedded Postgres skips there once P1-15 lands.
+
+**Amended 2026-10-04 (P1-90 audit, (A)).** Its A25 check had regressed on `main` (the Phase 6 guard reports depend on every test) and nothing ran it. Fixed (ff2375362): the reports are compatible only with //tools/platforms' PLATFORMS, guards_package refuses a config_setting outside //tools/platforms, and CI's build lane runs A25's command.
 
 #### P1-20 · `legend_java_library`: NullAway built in, private by default
 
@@ -1417,6 +1421,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 
 **Found 2026-10-04 (P1-22): not reproducible.** legend-pure's PAR generator (`//pct:adapter_par`) and the reference dump (`//tools/reference:ref_dump`) give different bytes on every run with identical inputs: the old genrule tools run twice differ in anonymous ids (`@_0018480` vs `@_001848e`) and in the order of the lines around them; the line count is the same. A non-reproducible action defeats the remote cache downstream (every consumer re-runs when it re-runs) and makes a byte diff test impossible. Fix here: make the output canonical (sort; renumber anonymous ids in first-use order, or drop them where the consumer does not read them), or record why it cannot be.
 
+**Amended 2026-10-04 (P1-90 audit, (F)).** `//spec:reference_lane` has been red on `main` since 2026-09-29 (golden 1515 → 1517 failing bodies) with no item: re-bless or fix it first; then P1-02's `compare_testcases` for it, and P5-08's weekly heavy run covers it.
+
 #### P2-15 · The relational-corpus rosters and registers: action outputs, diff-tested (D9)
 
 | Field | Content |
@@ -1574,6 +1580,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | M (2 d: 1.5 d, plus 0.5 d for A7 and A11) |
 | Risk/rollback | Coupling that P3-03/P3-04 missed shows up here as a split failure. Fix the coupling, never re-merge the targets. |
 | Done when | `core_tests` is a suite of targets with exact data, and the union is identical. No core target declares data it does not read, no core test is a manual timing script (A11), and `CorpusDifferentialTest` is selected once (A7). |
+
+**Amended 2026-10-04 (P1-90 audit, (J)).** P1-02's baseline was not kept: the proof takes its baseline from `main`'s CI test.xml artifacts at the commit before this item.
 
 #### P3-06 · Core test sources split into per-package libraries
 
@@ -1863,6 +1871,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | A guard's file count changes when its input becomes exact. Each floor moves with a dated note. |
 | Done when | `git grep -n "Files.walk\|Files.list" -- core/src/test` shows no walk over a `Repo` root. No `jvm_flags` value carries a file set, and no guard derives class locations from the classpath (A4). |
 
+**Amended 2026-10-04 (P1-90 audit, (G)).** Its residual owners (P1-05's amendment): the 24 Repo.path/module classes named there, not "29 classes".
+
 #### P3-27b · The walker rule applied outside core: spec, pe and pct read declared lists
 
 | Field | Content |
@@ -1875,6 +1885,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | M (2 d) |
 | Risk/rollback | Guard counts move when their inputs become exact: each pin moves with a dated note naming P3-27b. Each PR reverts on its own. |
 | Done when | P3-32's Windows manifest-only lane passes on spec, pct and pe with no tree-mode reader. |
+
+**Amended 2026-10-04 (P1-90 audit, (G)).** Also OwnCorpusConformanceTest, CoreTree and NativeSignatureGeneratorTest.
 
 #### P3-28 · Locale-explicit product code, enforced by Error Prone
 
@@ -1901,6 +1913,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
 | Done when | No JS test walks the working directory. G12 passes with the scanner rows only (A26). |
+
+**Amended 2026-10-04 (P1-90 audit, (H)).** The scanners are six: the five named and `//datacube:wasm_flag_test` (P1-23). The Done-when grep is scoped to test targets: the esbuild bundling actions (`datacube/BUILD.bazel`, `query/BUILD.bazel`) keep `chdir` as build actions.
 
 #### P3-30 · Censuses over other modules' sources become generated measurements (D9)
 
@@ -1942,6 +1956,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Done when | Windows runs `bazel test //...` with manifest-only runfiles. Guard G15 (P6-15) keeps it so. |
 
 **Note (2026-10-04, batch 3):** `.bazelrc` sets `startup:windows --output_user_root=C:/bzl` because pyarrow's DLLs, under a test's runfiles tree, passed Windows' path limit (main's CI run 37209395985; 252-259 characters, about 85 of them the runfiles prefix). Manifest-only Windows removes that prefix: when this item lands, re-measure and drop the short root if it is no longer needed (USER: keep it for now).
+
+**Amended 2026-10-04 (P1-90 audit, (I)).** Convert the `$(rootpath)` test inputs too: `spec/BUILD.bazel:120,167`, `parser-equivalence/BUILD.bazel:85`, `query/BUILD.bazel:137-138` (manifest-only mode needs `$(rlocationpath)`).
 
 #### P3-33 · `testing/Repo.java` and `testing/Upstream.java` are deleted; generator actions name their inputs
 
@@ -2083,6 +2099,8 @@ These rules apply to every harness item (plan 4.1):
 | Size | M (1.5 d; 0.5 d moved to P1-14b) |
 | Risk/rollback | None known. |
 | Done when | No harness probes a fixed host port. |
+
+**Amended 2026-10-04 (P1-90 audit, (E)).** Change, Proof and Done-when must build `//tools/engine-runner:server` (P1-18's answer: `legend-engine-server-http-server:4.145.0` in `@maven_runner`, a port-0 config, a start script). Proof: `bazel run //tools/engine-runner:server -- --port 0` prints a port and answers.
 
 #### P4-08 · The dev tools stay `bazel run`, with minimal deps
 
@@ -2575,6 +2593,20 @@ The guard items P6-00 to P6-19 are in §5.
 | Risk/rollback | None known. |
 | Done when | None of the three remains in place. |
 
+
+#### P7-16 · The null gate everywhere (P1-90 audit (D))
+
+| Field | Content |
+|---|---|
+| ID | P7-16 |
+| Why | P1-20 kept NullAway where it was: 22 first-party libraries with sources say `nullaway = False` (forcing it on found 792 errors in the first wave, 2026-10-04). No item owned them. |
+| Change | <ul><li>A guard (G-family, in `tools/guards`) counts the `nullaway = False` libraries and fails if the count grows (a dated, shrink-only pin).</li><li>Library by library, make the code pass NullAway and drop its opt-out.</li></ul> |
+| Proof | The guard passes; each conversion builds with NullAway on; the count shrinks. |
+| Depends on | P1-20 |
+| Size | L (the 792 findings) |
+| Risk/rollback | Per library. |
+| Done when | No first-party library says `nullaway = False`, or each remaining one has a dated reason. |
+
 #### P7-90 · Phase 7 audit: done-criteria checked against the coverage table (C4)
 
 | Field | Content |
@@ -2868,6 +2900,8 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 | Size | S (0.25 d) |
 | Risk/rollback | None known. |
 | Done when | A fallback to a host linker fails a test. |
+
+**Amended 2026-10-04 (P1-90 audit, (C)).** D1 revised (macOS keeps the Command Line Tools, declared and checked by `@host_cc`) makes the macOS half obsolete: no `--config=hermetic-cc`, no Mach-O LLD check. Linux only: CI in P5-02's gcc-less image plus an ELF `.comment` LLD assertion; macOS may assert the `@host_cc` record instead.
 
 #### P6-19 · G19: the pinned Chromium equals the locks' revision (S4)
 
@@ -3185,6 +3219,7 @@ All 85 IDs are mapped. The ledger's proposed G2, G5 and G8 allowlists are adopte
 | Phase | Date | Auditor | Items checked | Done-when met | Gaps found → items |
 |---|---|---|---|---|---|
 | 0 | 2026-10-04 | independent review agent (wrote none of Phase 0) | P0-01 … P0-15, §6.1/§6.4 rows naming them, PRs #19–#21, `main`'s CI | 14 of 15 yes; P0-14 partial | P0-14 stays open until `codeowners/errors` is `[]`; gaps 4–8 below folded into P0-09/P6-17, P2-10, P1-15, P5-01, P5-03/P5-05 |
+| 1 | 2026-10-04 | independent review agent (wrote none of Phase 1) | P1-01 … P1-28, P1-14b, P1-25b; the §6.1/§6.2/§6.4 rows naming them; batches 0–6d on `main`; `main`'s CI | 25 of 30 yes; P1-02, P1-09, P1-18, P1-19 partly; P1-12 no (open) | (A) A25 check broken on main → fixed (ff2375362) and run in CI; (B) G-21 → P1-12 amended, §6.3 row; (C) P6-18 to D1-revised; (D) NEW P7-16; (E) P4-07 amended; (F) P2-14 amended; (G)–(K) text amendments |
 
 **Phase 0 (P0-90), 2026-10-04.** Checked on `origin/main` `0662fed80` in a scratch worktree; light targets run locally (`--lockfile_mode=error` `//tools/junit:pins_test //tools/java_run:pins_test //tools/deps:all //:generated //core:postgres_arm_test`, 21/21; `//json:tests` under `tr_TR.UTF-8`), heavy lanes cited from each PR head's CI. Negative checks run and reverted: a misspelt suite label fails `//:generated`; a `MODULE.bazel` version bump without a repin fails under `--lockfile_mode=error`; a package under `runs/` is invisible to `//...`.
 
@@ -3211,6 +3246,46 @@ PR reviews: #19 combined #15–#18, whose independent review is `bazel-audit-202
 Gaps folded into existing items: P6-17 filters G17's query to main-repo labels; P2-10 gives Bump a `--help`/`--dry-run` (or fixes the proof text); P1-15 adds `//core:postgres_arm_test` to the hub-select targets; P5-01 ends `//gates:local`'s hand copy of the lanes; P5-03/P5-05 close the remaining `set -euo pipefail` gaps (`gates-run.yml:108-111`, `gate.yml:59-62,105-110`). No regression from Phase 0 without an item.
 
 ---
+
+
+**Phase 1 (P1-90), 2026-10-04.** Checked on `origin/main` `8822b03b0` in a scratch worktree by an agent that wrote none of Phase 1. Light targets run locally (`//tools/junit:all`; `//json:tests` filtered and `--test_sharding_strategy=forced=3`, 308 testcases, no duplicates; `--noenable_runfiles //tools/deps:core_layering_test`; `//tools/js:all //tools/browser:revision_test //tools/python:lock_matches_requirements //tools/deps:all //tools/guards:all //tools/bump:bump_test //tools/java_run:pins_test //datacube:wasm_flag_test //warehouse:tests`, 16/16, the Arrow check "25000 rows, 0 differences"); heavy lanes cited from `main`'s CI (runs 37203023190 … 37243808806, the last 53/53 on `8822b03b0`). Under D17 (no PRs) the P0-15 template check became: every batch had an independent audit (the execution log) and green all-platform CI on `main`; batch 3 went red and was reverted, batches 1 and 4c were green on re-run (judgment calls recorded), 6a and 6c had Windows throwaway runs.
+
+| Item | Evidence | Verdict | Follow-up |
+|---|---|---|---|
+| P1-01 | JUnitMain (Launcher, BazelFilter, premature-exit file); runner_test; a filter matching nothing fails; forced=3 shards union to 308 | yes | — |
+| P1-02 | compare_testcases exists; the identity diff was run locally on 44 java tests, its output not kept; reference_lane left out (red on main); no `heavy` dispatch lane | partly | P5-08; (F) P2-14; (J) P3-05 |
+| P1-03 | Runfile.java; core_layering_test passes in both runfiles modes; no Repo | yes | — |
+| P1-04 | no `"../" + repo_name`; Upstream two-branch via Runfile | yes | — |
+| P1-05 | 36 Repo.path/module files, each owned per the amendment | yes (amended) | (G) |
+| P1-06 | EmbeddedPostgres uses Runfile.of; no RUNFILES_* reads | yes | — |
+| P1-07 | rules_python hub; offline lock_matches_requirements in the gate | yes | `:requirements.test` (manual, network) listed by P5-08/P6-03 |
+| P1-08 | no pip or `--test_env` in CI; py_binary arrow check, never skips | yes | — |
+| P1-09 | hermetic LLVM toolchain and sysroots; native lanes green; but the gcc-less proof is the spike's, libxml2 still installed by apt | partly | P5-02 (D7 (b)), P6-18 |
+| P1-10 | `@host_cc` macOS checks (xcrun, Apple clang ≥ 15) | yes (as built) | (C) P6-18 |
+| P1-11 | `@host_cc` Windows checks (BAZEL_VC, vswhere, cl ≥ 19.36) | yes | — |
+| P1-12 | rules_graalvm#602 open; toolchain unconstrained; (b) never investigated | **no (open)** | P1-12 stays open; (B) |
+| P1-13 | `linux-arm` native lane in `gates green` | yes | — |
+| P1-14 | pinned Chromium by integrity; browser_test; revision_test (now derived) | yes | — |
+| P1-14b | verify_app_test on three platforms, its own Postgres, no psql | yes | — |
+| P1-15 | per-platform Postgres repos; incompatible on the unlisted platform | yes | — |
+| P1-16 | no tmpdir extraction; DuckLibraryTest | yes | — |
+| P1-17 | java_run gunzip, Mach-O magic, no run_shell anywhere | yes (amended) | — |
+| P1-18 | investigation answered; no server target, and P4-07 does not require one | partly | (E) P4-07 |
+| P1-19 | no config_setting outside //tools/platforms; A25 check had regressed (guard reports) and nothing ran it | partly → fixed | (A) done in ff2375362: reports platform-aware, load-time config_setting check, A25 in CI's build lane |
+| P1-20 | macro everywhere, core private; 22 `nullaway = False` with no owner | yes (amended) | (D) NEW P7-16 |
+| P1-21 | no heap flags in `.bazelrc`; memory_mb mandatory | yes | — |
+| P1-22 | no genrule; exec tools only TeaVM and the graalvm launcher; heaps measured | yes (amended) | — |
+| P1-23 | js_test only via node_test/browser_test (+2 tsc_test); wasm_flag_test | yes (amended) | — |
+| P1-24 | only the two P3-29 scanners keep URL arithmetic; chdir only on scanners and esbuild actions | yes (amended) | (H) P3-29 |
+| P1-25 | strict pools, POOL_USERS, testonly pools | yes (amended) | — |
+| P1-25b | `run --run_env=RJE_UNSAFE_CACHE=0` (one-off proof, no test) | yes | — |
+| P1-26 | lock_matches_package_json_test; datacube exact | yes | — |
+| P1-27 | no `sha256 =`, no `http://`; bump_test | yes | — |
+| P1-28 | disk-cache GC; no no-op flag | yes | — |
+
+§6.1 rows naming a Phase 1 item: 19, 20, 23, 26, 34, 61, 62, 65, 67, 69, 70 closed; 17 and 24 (node part) closed; 8, 11, 14, 15, 68 partly (owners P4-12, P5-03/P4-09, P3-33/(I) P3-32, P4, P5-04); 6 not closed (P3-01); **33 and 71 not closed** (P1-12; (B)). §6.2: S3's upstream sysroot/GraalVM constraints not closed (P1-12); S3's blocked-CLT guard obsolete ((C) P6-18); the rest closed or partly as noted per item. §6.4: A25 regressed → fixed (A); G-21 not closed (B); G-10 ownerless (E); G-08 not closed by P1-02 (P5-08); A28 mostly closed (node_options still pass through, documented).
+
+Amendments recorded with this audit: (A) P1-19/P6-14, done; (B) P1-12 and §6.3; (C) P6-18; (D) P7-16 (new); (E) P4-07; (F) P2-14; (G) P3-27, P3-27b, P2-10, P2-13, P3-02, P3-17; (H) P3-29; (I) P3-32; (J) P3-05; (K) optional, P6-20. **Verdict:** Phase 1 is substantially in the code on `main`; it closes with P1-12 open and P1-02, P1-09, P1-18 carried forward through the amendments above.
 
 ## 7. Milestones, effort and critical path
 
