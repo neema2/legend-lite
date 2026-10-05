@@ -20,6 +20,7 @@ test_suite(
         "//engine-client:update_generated_tests",
         "//docs:update_generated_tests",
         "//parser-equivalence:update_generated_tests",
+        "//query:update_generated_tests",
     ],
 )
 
@@ -36,6 +37,7 @@ write_source_files(
         "//engine-client:update_generated",
         "//docs:update_generated",
         "//parser-equivalence:update_generated",
+        "//query:update_generated",
     ],
 )
 
