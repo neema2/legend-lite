@@ -15,7 +15,8 @@ js_library(
 # The one suite against the page's Depot (depot-server's rules in WebAssembly).
 node_test(
     name = "wasm_test",
-    size = "small",
+    # medium: it loads the page's SDLC module (WebAssembly, 1.4 MB), which outlasted small's 60 s under a full gate
+    size = "medium",
     data = [
         ":depot_client",
         "test/conformance.ts",
