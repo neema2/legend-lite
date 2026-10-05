@@ -108,18 +108,19 @@ export class AppContext {
   readonly engine: Engine;
   readonly store: QueryStore;
   readonly planner: WasmGrammar | undefined;
-  readonly projects: readonly LoadedProject[];
+  /** The projects loaded so far: the configured ones, and each version opened by name since (ensure). */
+  readonly projects: LoadedProject[];
   readonly user: string;
   /** Where the results grid (a DataCube) reads rows. */
   readonly cubeRows: CubeRows;
 
   constructor(config: AppConfig, engine: Engine, store: QueryStore, planner: WasmGrammar | undefined,
-    projects: readonly LoadedProject[], user: string, cubeRows: CubeRows) {
+    projects: LoadedProject[], user: string, cubeRows: CubeRows) {
     this.config = config;
     this.engine = engine;
     this.store = store;
     this.planner = planner;
-    this.projects = projects;
+    this.projects = projects;     // the caller's own list: what loads later (ensure) is seen by whoever holds it
     this.user = user;
     this.cubeRows = cubeRows;
   }
@@ -128,6 +129,33 @@ export class AppContext {
     const p = this.projects.find((x) => x.gav === gav);
     if (!p) throw new Error(`no project ${gav} is configured`);
     return p;
+  }
+
+  /** Where a version not yet loaded is opened by name (by-name.ts), when the app has a Depot. */
+  byName: ((groupId: string, artifactId: string, versionId: string) => Promise<LoadedProject>) | undefined;
+  /** A project's versions in Depot, HEAD first (by-name.ts versionsOf); undefined for the demo's own projects. */
+  versions: ((groupId: string, artifactId: string) => Promise<string[]>) | undefined;
+  readonly #loading = new Map<string, Promise<LoadedProject>>();
+
+  /**
+   * The project at `gav`, loading it from Depot the first time it is asked for (a release, or a snapshot not loaded
+   * at start): a route, a saved query or the version picker names a version, and this makes it there.
+   */
+  async ensure(gav: string): Promise<LoadedProject> {
+    const have = this.projects.find((x) => x.gav === gav);
+    if (have) return have;
+    const parts = gav.split(':');
+    if (!this.byName || parts.length !== 3) return this.project(gav);
+    let loading = this.#loading.get(gav);
+    if (!loading) {
+      loading = this.byName(parts[0]!, parts[1]!, parts[2]!).then((p) => {
+        this.projects.push(p);
+        return p;
+      });
+      this.#loading.set(gav, loading);
+      loading.catch(() => this.#loading.delete(gav));
+    }
+    return loading;
   }
 
   /** The project that holds an element, by path. */
