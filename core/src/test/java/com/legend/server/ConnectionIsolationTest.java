@@ -61,6 +61,13 @@ class ConnectionIsolationTest {
             Database store::DB ( Table T_A (ID VARCHAR(50)) )
             """ + RUNTIME_TAIL;
 
+    /** Nothing outlives the method: LEAK_T sits in model A's in-memory database, which the server's connection store
+     *  keeps for the JVM (Bazel workplan P3-03). */
+    @org.junit.jupiter.api.AfterEach
+    void dropLeakTable() throws Exception {
+        Seed.sql(MODEL_A, "DROP TABLE IF EXISTS LEAK_T", "test::RT");
+    }
+
     @Test
     void distinctStoresSharingAConnectionDefinitionDoNotShareADatabase()
             throws Exception {
