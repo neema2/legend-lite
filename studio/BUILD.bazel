@@ -20,6 +20,8 @@ js_library(
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
     deps = [
         "//depot-client:depot_client",
+        # the in-tab engine's planner port and worker, shared with Query (engine-client/src/legend/)
+        "//engine-client:engine_client",
         "//legend-art:legend_art",
         "//sdlc-client:sdlc_client",
     ],
@@ -54,7 +56,7 @@ esbuild_bundle(
         "--outfile=demo/" + out,
     ],
 ) for name, entry, out in [
-    ("planner_worker", "src/backend/planner-worker.ts", "planner-worker.js"),
+    ("planner_worker", "../engine-client/src/legend/planner-worker.ts", "planner-worker.js"),
     ("editor_worker", "src/backend/editor-worker.ts", "editor.worker.js"),
 ]]
 
@@ -187,6 +189,7 @@ typescript.tsc_test(
         "package.json",
         "tsconfig.json",
         "//depot-client:depot_client",
+        "//engine-client:engine_client",
         "//legend-art:legend_art",
         "//sdlc-client:sdlc_client",
         "//tools/js:runfiles",

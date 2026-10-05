@@ -8,9 +8,9 @@
 // whole model, generating an execution plan) is refused, naming why -- never approximated.
 
 import { findAll, isFunction, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import type { QueryEngine } from '../../../engine-client/src/engine.ts';
-import type { Plan } from '../../../engine-client/src/relation-type.ts';
-import type { PureModelContextData } from '../model/pmcd.ts';
+import type { QueryEngine } from '../engine.ts';
+import type { Plan } from '../relation-type.ts';
+import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, type Engine } from './engine.ts';
 import type { WasmGrammar } from './wasm-grammar.ts';
 import type {
@@ -33,7 +33,7 @@ export function bindParameters(lambda: Lambda, values: readonly ParameterValue[]
 export function runtimeOf(lambda: Lambda): string {
   const from = findAll(lambda, isFunction).find((f) => f.function === 'from' || f.function.endsWith('::from'));
   const last = from?.parameters[from.parameters.length - 1];
-  if (last?._type !== 'packageableElementPtr') throw new EngineError('the query names no runtime (->from(mapping, runtime))', 400);
+  if (last?._type !== 'packageableElementPtr') throw new EngineError('the query names no runtime: its from(mapping, runtime) has none', 400);
   return last.fullPath;
 }
 
