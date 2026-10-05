@@ -46,7 +46,8 @@ final class MappingComposer {
             "mergeOperation", (cm, level) -> operation(cm),
             "aggregationAware", (cm, level) -> aggregationAware(cm),
             "relation", MappingComposer::relationFunction,
-            "relational", (cm, level) -> RelationalMappingComposer.classMapping(cm));
+            "relational", (cm, level) -> RelationalMappingComposer.classMapping(cm),
+            "serviceStore", (cm, level) -> ServiceStoreComposer.classMapping(cm));
 
     private static final Map<String, PropertyPrinter> PROPERTY_MAPPINGS = Map.of(
             "purePropertyMapping", (pm, level) -> purePropertyMapping(pm),

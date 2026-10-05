@@ -30,7 +30,9 @@ final class ConnectionComposer {
             "JsonModelConnection", new Kind("JsonModelConnection", (c, i) -> modelConnection(c, i)),
             "XmlModelConnection", new Kind("XmlModelConnection", (c, i) -> modelConnection(c, i)),
             "ModelChainConnection", new Kind("ModelChainConnection", ConnectionComposer::modelChain),
-            "RelationalDatabaseConnection", new Kind("RelationalDatabaseConnection", RelationalConnectionComposer::connection));
+            "RelationalDatabaseConnection", new Kind("RelationalDatabaseConnection", RelationalConnectionComposer::connection),
+            "serviceStore", new Kind("ServiceStoreConnection", ServiceStoreComposer::connection),
+            "elasticsearch7StoreConnection", new Kind("Elasticsearch7ClusterConnection", ElasticsearchComposer::connection));
 
     private ConnectionComposer() {
     }
