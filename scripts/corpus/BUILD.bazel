@@ -1,0 +1,155 @@
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("//core:stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# THE STRESS-CORPUS GENERATORS (spike S5). Ten committed files in
+# core/src/test/resources/stress are their outputs; //core:update_stress_corpus writes them
+# back and diff-tests them. Every input is declared: the hand-written stress sources
+# (//core:stress_sources -- the generated ten excluded), the linked projects, and the
+# hand-written queries 92 is generated from.
+
+# build.py's import closure plus the dense generators. Stdlib only, except zoneinfo's data.
+py_library(
+    name = "corpus",
+    srcs = [
+        "aggregate.py",
+        "aggregates.py",
+        "battery.py",
+        "combos.py",
+        "deepstack.py",
+        "dense_mapping.py",
+        "dense_store.py",
+        "density.py",
+        "emit.py",
+        "exactmath.py",
+        "executed.py",
+        "expand.py",
+        "flat.py",
+        "functest.py",
+        "graphs.py",
+        "hier.py",
+        "model.py",
+        "oracle.py",
+        "partition.py",
+        "quarantine.py",
+        "query.py",
+        "rhs.py",
+        "seed.py",
+        "spread.py",
+        "stacking.py",
+        "stacks.py",
+        "taxonomy.py",
+        "tomany.py",
+        "views.py",
+    ],
+    # the modules import each other by bare name (`import model`)
+    imports = ["."],
+    # oracle's convertTimeZone reads zoneinfo; the action empties PYTHONTZPATH so the zone
+    # data is this pinned package, never the machine's /usr/share/zoneinfo
+    deps = ["@pypi//tzdata"],
+)
+
+py_binary(
+    name = "build",
+    srcs = ["build.py"],
+    deps = [":corpus"],
+)
+
+py_binary(
+    name = "dense_build",
+    srcs = ["dense_build.py"],
+    deps = [":corpus"],
+)
+
+# The action environment: the root is the execroot (declared inputs only), zone data from the
+# pinned tzdata package, and a fixed hash seed so no set order can reach the output.
+_ENV = {
+    "CORPUS_ROOT": ".",
+    # the layout as core/stress.bzl gives it NOW (not the committed copy, which one update also rewrites)
+    "STRESS_LAYOUT": "$(execpath //core:stress_layout)",
+    # every text read is UTF-8 on every platform (Windows would otherwise decode as cp1252)
+    "PYTHONUTF8": "1",
+    "PYTHONHASHSEED": "0",
+    "PYTHONTZPATH": "",
+    "LC_ALL": "C.UTF-8",
+}
+
+# Only what the generators read (Bazel workplan P2-03): the queries, the layout, the hand-written stress files and
+# the LINKED projects, not every project. The .pure files are also passed as --inputs, the only files read.
+_LINKED = ["//projects:" + p for p in LINKED_PROJECTS]
+
+_INPUTS = [
+    "queries.pure",
+    "//core:stress_layout",
+    "//core:stress_sources",
+] + _LINKED
+
+_DECLARED = ["--inputs", "$(execpaths //core:stress_sources)"] + ["$(execpaths %s)" % p for p in _LINKED]
+
+# the generators' outputs, from the one list (core/stress.bzl)
+DENSE = sorted([f for f, gen in STRESS_GENERATED.items() if gen == "dense"])
+
+STRESS = sorted([f for f, gen in STRESS_GENERATED.items() if gen == "stress"])
+
+run_binary(
+    name = "gen_dense",
+    srcs = _INPUTS,
+    outs = ["dense/" + f for f in DENSE],
+    args = [
+        "--out",
+        "$(RULEDIR)/dense",
+    ] + _DECLARED,
+    env = _ENV,
+    tool = ":dense_build",
+    visibility = ["//core:__pkg__"],
+)
+
+# build.py reads the dense generator's OUTPUTS, not the committed 59/60/64, so a dense change
+# reaches 92-98 in the same update.
+run_binary(
+    name = "gen_stress",
+    srcs = _INPUTS + [":gen_dense"],
+    outs = ["stress/" + f for f in STRESS],
+    args = [
+        "--dense",
+        "$(RULEDIR)/dense",
+        "--out",
+        "$(RULEDIR)/stress",
+    ] + _DECLARED,
+    env = _ENV,
+    tool = ":build",
+    visibility = ["//core:__pkg__"],
+)
+
+# THE CORPUS RATCHETS (Bazel workplan P2-04): each `--gate` of the corpus's own measures as a test, over the
+# committed corpus (every stress file, the linked projects, the queries). Each ratchet constant stays a hand-owned,
+# dated pin in its script (density.py MAX_PLAIN_RATIO/MAX_ABSENT, executed.py's baseline, stacking.py
+# SURFACE_BASELINE; D9). They run from the runfiles tree, so they read only what is declared here.
+_GATE_DATA = [
+    "queries.pure",
+    "//core:src/test/resources/com/legend/integration/stress-layout.json",
+    "//core:stress_files",
+] + _LINKED
+
+_GATE_ENV = {
+    "CORPUS_ROOT": ".",
+    "PYTHONUTF8": "1",
+    "PYTHONHASHSEED": "0",
+    "PYTHONTZPATH": "",
+}
+
+[py_test(
+    name = gate + "_gate",
+    size = "medium",
+    srcs = [gate + ".py"],
+    args = ["--gate"],
+    data = _GATE_DATA,
+    env = _GATE_ENV,
+    main = gate + ".py",
+    deps = [":corpus"],
+) for gate in ["density", "executed", "stacking"]]
+
+guards_package()

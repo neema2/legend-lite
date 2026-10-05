@@ -14,27 +14,47 @@ filegroup(
     visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__"],
 )
 
-# Compiled ONCE; every lane below runs from this library.
-# THE GENERATOR PROGRAMS (see "THE GENERATORS" below): plain code, no test
-# framework — a program reads its declared inputs and writes one file.
-_GENERATOR_SRCS = [
-    "src/test/java/com/legend/claims/Claims.java",
-    "src/test/java/com/legend/claims/ClaimsGenerator.java",
-    "src/test/java/com/legend/generators/DynaFnGenerator.java",
-    "src/test/java/com/legend/generators/EngineHandlersGenerator.java",
-    "src/test/java/com/legend/generators/ImportsGenerator.java",
-    "src/test/java/com/legend/generators/NativesGenerator.java",
-    "src/test/java/com/legend/generators/PreludeGenerator.java",
-    "src/test/java/com/legend/generators/SourceTree.java",
-    "src/test/java/com/legend/generators/UpstreamFiles.java",
-]
+# THE GENERATOR PROGRAMS (see "THE GENERATORS" below), in src/gen/java, out of the test tree (Bazel workplan P7-12):
+# plain code, no test framework; a program reads its declared inputs and writes one file.
+# SourceTree reads a source root as text; it needs no core, so both cores' generators share it.
+legend_java_library(
+    name = "source_tree",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
+    srcs = ["src/gen/java/com/legend/generators/SourceTree.java"],
+)
 
 legend_java_library(
     name = "generators",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
-    srcs = _GENERATOR_SRCS,
-    deps = ["//core"],
+    srcs = glob(
+        ["src/gen/java/com/legend/generators/*.java"],
+        exclude = ["src/gen/java/com/legend/generators/SourceTree.java"],
+    ),
+    deps = [
+        ":claims",
+        ":source_tree",
+        "//core",
+    ],
+)
+
+# Claims (and ClaimsGenerator, which writes its ledger) reads the COMPILED registries of the core it is compiled
+# against, so the two are compiled once per core they read: here against //core, for ClaimRegistryTest (the committed core against the committed ledger) and the
+# prelude generator; and in
+# :claims_generator_lib against //core:core_next, for :gen_claims (the ledger of core as regenerated).
+legend_java_library(
+    name = "claims",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
+    srcs = [
+        "src/gen/java/com/legend/claims/Claims.java",
+        "src/gen/java/com/legend/claims/ClaimsGenerator.java",
+    ],
+    deps = [
+        ":source_tree",
+        "//core",
+    ],
 )
 
 legend_java_library(
@@ -42,17 +62,16 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    srcs = glob(
-        ["src/test/java/**/*.java"],
-        exclude = _GENERATOR_SRCS,
-    ),
+    srcs = glob(["src/test/java/**/*.java"]),
     resources = glob(["src/test/resources/**"]),
     runtime_deps = [
         "//core:drivers",
         "//core:shadow_binding",
     ],
     deps = [
+        ":claims",
         ":generators",
+        ":source_tree",
         "//core",
         "//testing",
         "@maven_test//:com_tngtech_archunit_archunit",
@@ -199,6 +218,10 @@ _ENGINE_COMPILE_CONTEXT = "@legend_engine_src//:legend-engine-core/legend-engine
 # java_binary, which compiled core a second time for the tools (2026-09-23).
 _ROOTS = UPSTREAM_ROOTS
 
+# core's Java source root for the generators that read it as text, by label: Pure.java's directory, three package
+# levels below it (P7-12; it was the hard-coded workspace path "core/src/main/java")
+_CORE_SRC = {"//core:src/main/java/com/legend/builtin/Pure.java": "{CORE_BUILTIN}"}
+
 # engine-handlers.tsv: the engine's Handlers.java registry — the bare-name
 # function surface, each name with its signature ids and the platform's FQN
 _ENGINE_HANDLERS = "@legend_engine_src//:legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/handlers/Handlers.java"
@@ -278,6 +301,38 @@ java_run(
     deps = [":generators"],
 )
 
+# Every upstream declaration of a membership FQN (fqn, key, text, source file): what a re-keying leg reads.
+# A build output (bazel build //spec:native_declarations), never a file in the tree (P2-17).
+java_run(
+    name = "native_declarations",
+    srcs = UPSTREAM_TREES + [
+        "//core:src/main/resources/com/legend/builtin/native-membership.tsv",
+    ],
+    outs = ["generated/native-declarations.tsv"],
+    arguments = [
+        "{ENGINE_ROOT}",
+        "{PURE_ROOT}",
+        "$(execpath //core:src/main/resources/com/legend/builtin/native-membership.tsv)",
+        "{OUT}",
+    ],
+    main_class = "com.legend.generators.NativeDeclarations",
+    mnemonic = "Generate",
+    roots = _ROOTS,
+    deps = [":generators"],
+)
+
+# A DRAFT of the hand-owned native-membership.tsv from Pure.java's compiled constants, for a person to finish:
+# //core:draft_native_membership writes it (P2-17).
+java_run(
+    name = "native_membership_draft",
+    outs = ["generated/native-membership.draft.tsv"],
+    arguments = ["{OUT}"],
+    main_class = "com.legend.generators.NativeMembershipDraft",
+    mnemonic = "Generate",
+    visibility = ["//core:__pkg__"],
+    deps = [":generators"],
+)
+
 # prelude.pure: the spec shapes the platform and the corpus name. It reads core's
 # Java SOURCES with Pure.java as :gen_natives wrote it (the chain: natives, then
 # prelude), and runs on core as committed.
@@ -291,13 +346,13 @@ java_run(
     arguments = [
         "{ENGINE_ROOT}",
         "{PURE_ROOT}",
-        "core/src/main/java",
+        "{CORE_BUILTIN}/../../..",  # core/src/main/java, from Pure.java's label (P7-12)
         "{OUT}",
         "com/legend/builtin/Pure.java=$(execpath :gen_natives)",
     ],
     main_class = "com.legend.generators.PreludeGenerator",
     mnemonic = "Generate",
-    roots = _ROOTS,
+    roots = _ROOTS | _CORE_SRC,
     visibility = ["//core:__pkg__"],
     deps = [":generators"],
 )
@@ -310,11 +365,11 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = [
-        "src/test/java/com/legend/claims/Claims.java",
-        "src/test/java/com/legend/claims/ClaimsGenerator.java",
-        "src/test/java/com/legend/generators/SourceTree.java",
+        "src/gen/java/com/legend/claims/Claims.java",
+        "src/gen/java/com/legend/claims/ClaimsGenerator.java",
     ],
     deps = [
+        ":source_tree",
         "//base",
         "//core:core_next",
     ],
@@ -332,12 +387,13 @@ java_run(
     ],
     outs = ["generated/native-claims.tsv"],
     arguments = [
-        "core/src/main/java",
+        "{CORE_BUILTIN}/../../..",  # core/src/main/java, from Pure.java's label (P7-12)
         "{OUT}",
         "com/legend/builtin/DynaFn.java=$(execpath :gen_dynafn)",
         "com/legend/builtin/Pure.java=$(execpath :gen_natives)",
         "com/legend/compiler/NameResolver.java=$(execpath :gen_imports)",
     ],
+    roots = _CORE_SRC,
     main_class = "com.legend.claims.ClaimsGenerator",
     mnemonic = "Generate",
     visibility = ["//core:__pkg__"],

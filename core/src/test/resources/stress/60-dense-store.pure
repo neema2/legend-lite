@@ -14,8 +14,8 @@ Database stress::DenseDB
 (
    include store::DB
 
-   // A Schema. Every one of the base model's 210 tables sits in the default schema,
-   // so a schema-qualified reference has never been resolved by anything here.
+   // A Schema, so a schema-qualified table reference is resolved somewhere in the corpus
+   // (the base model's tables sit in the default schema).
    Schema analytics
    (
       Table DESK_SUMMARY
@@ -41,7 +41,7 @@ Database stress::DenseDB
       )
    )
 
-   // Multi-column join: every join in the base model is single-column.
+   // A multi-column join, over two columns the tables share.
    Join dense_MultiCol(ACCOUNT.CURRENCY = ACCRUAL_ENTRY.CURRENCY and ACCOUNT.STATUS = ACCRUAL_ENTRY.STATUS)
    // Non-equality join. `=` is the only operator the base model uses.
    Join dense_GreaterThan(ACCRUAL_ENTRY.AMOUNT > ACCRUAL_SCHEDULE.ACCRUED_TO_DATE)

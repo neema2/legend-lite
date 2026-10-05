@@ -23,14 +23,80 @@ a signal to extend this deliberately rather than a reason to make the parser len
 """
 from __future__ import annotations
 
+import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import rhs
 
-STRESS = Path(__file__).resolve().parents[2] / "core/src/test/resources/stress"
-PROJECTS = Path(__file__).resolve().parents[2] / "projects"
+# The repository root. Under Bazel the generator runs as an action whose inputs are DECLARED,
+# so the root is given (CORPUS_ROOT, the action's execroot) rather than found by resolving
+# __file__ -- which follows the runfiles symlink back into the real checkout and would let the
+# generator read files nobody declared.
+ROOT = Path(os.environ["CORPUS_ROOT"]) if os.environ.get("CORPUS_ROOT") \
+    else Path(__file__).resolve().parents[2]
+STRESS = ROOT / "core/src/test/resources/stress"
+PROJECTS = ROOT / "projects"
+# The hand-written queries 92-services.pure is generated FROM. They used to be read back out
+# of 92 itself, which made the file both the generator's input and its output.
+QUERIES = ROOT / "scripts/corpus/queries.pure"
+
+# THE LAYOUT, ONE LIST (Bazel workplan P2-02): core/stress.bzl, committed as JSON in core's test resources and
+# diff-tested. GENERATED: the files build.py WRITES; DENSE_GENERATED: the files the dense generators write (inputs
+# to build.py, never to the generator that writes them). Both are outputs, never inputs: every reader of "the
+# corpus" below reads stress_sources(), so the generator's answer cannot depend on what it wrote last time.
+# A generator action is given the layout as core/stress.bzl makes it (STRESS_LAYOUT, the execpath of
+# //core:stress_layout), so one `bazel run //core:update_stress_corpus` regenerates from the new list; everything
+# else reads the committed copy.
+_LAYOUT = json.loads(Path(os.environ["STRESS_LAYOUT"]).read_text(encoding="utf-8") if os.environ.get("STRESS_LAYOUT")
+                     else (ROOT / "core/src/test/resources/com/legend/integration/stress-layout.json")
+                     .read_text(encoding="utf-8"))
+GENERATED = frozenset(f for f, gen in _LAYOUT["generated"].items() if gen == "stress")
+DENSE_GENERATED = frozenset(f for f, gen in _LAYOUT["generated"].items() if gen == "dense")
+
+# Under Bazel the actions pass every declared input file (--inputs; take_inputs below), and the generators read
+# those and nothing else (Bazel workplan P2-03): an unsandboxed run, whose CORPUS_ROOT is the whole execroot,
+# cannot pick up a file nobody declared. Outside Bazel (None) the directories are globbed as before.
+DECLARED: set[Path] | None = None
+
+
+def take_inputs(argv: list[str]) -> None:
+    """Sets DECLARED from the paths after --inputs in argv (up to the next --flag)."""
+    global DECLARED
+    if "--inputs" not in argv:
+        return
+    rest = argv[argv.index("--inputs") + 1:]
+    DECLARED = {Path(p) for p in rest[:next((i for i, a in enumerate(rest) if a.startswith("--")), len(rest))]}
+
+
+def _pure_files(directory: Path) -> list[Path]:
+    """The .pure files directly in `directory`: the declared ones under Bazel, else the directory's."""
+    if DECLARED is None:
+        return list(directory.glob("*.pure"))
+    return [p for p in DECLARED if p.parent == directory and p.suffix == ".pure"]
+
+
+# Set by a generator to leave more files out of "the corpus" -- its own outputs.
+EXCLUDE: set[str] = set()
+
+
+# Where DENSE_GENERATED files are read from when not the checkout: under Bazel, build.py reads
+# the dense generator's OUTPUTS (dense_build.py --out), so one update writes all ten files.
+DENSE_DIR: Path | None = None
+
+
+def stress_sources() -> list[Path]:
+    """The hand-written (and other-generator) stress files, in file-name order: the generator's
+    inputs. Order is by NAME, never by directory, because a headerless file inherits the
+    section of the file before it."""
+    files = {p.name: p for p in _pure_files(STRESS)
+             if p.name not in GENERATED and p.name not in EXCLUDE}
+    if DENSE_DIR is not None:
+        for name in DENSE_GENERATED - EXCLUDE:
+            files[name] = DENSE_DIR / name
+    return [files[n] for n in sorted(files)]
 
 # Projects from the dependency graph that the EXECUTABLE corpus depends on.
 #
@@ -56,10 +122,7 @@ PROJECTS = Path(__file__).resolve().parents[2] / "projects"
 # Dependencies BEFORE dependents: fee-core needs core-types and core-tenor to have been
 # parsed. core-types exports no store and no mapping at all -- it is enums and functions --
 # so it is here purely to satisfy fee-core, which is what a transitive dependency looks like.
-LINKED_PROJECTS = ["core-types", "core-tenor", "core-fx", "core-ratings",
-                   "core-instrument", "core-calendar", "core-units",
-                   "core-account", "core-geo",
-                   "fee-core", "index-core"]
+LINKED_PROJECTS = list(_LAYOUT["linked_projects"])  # core/stress.bzl
 
 
 # Section order within a project, not alphabetical. A .pure file with no `###` header
@@ -92,7 +155,7 @@ def store_closure(c, root: str) -> set:
 def linked_files() -> list[Path]:
     out = []
     for n in LINKED_PROJECTS:
-        fs = sorted((PROJECTS / n).glob("*.pure"))
+        fs = sorted(_pure_files(PROJECTS / n))
         out += sorted(fs, key=lambda f: (_SECTION_ORDER.get(f.name, 99), f.name))
     return out
 
@@ -1886,7 +1949,7 @@ def load() -> Corpus:
     # Linked projects FIRST: a corpus store includes a project store and a corpus mapping
     # includes a project mapping, so the project's tables and sets must already exist when
     # the corpus's own files are read.
-    files = linked_files() + sorted(STRESS.glob("*.pure"))
+    files = linked_files() + stress_sources()
     parsed = [(f, sections(f.read_text())) for f in files]
     # Three passes: stores define the tables mappings point at, and mappings bind
     # associations that must already exist.
@@ -1947,7 +2010,7 @@ def check(c: Corpus) -> list[str]:
     # from whatever the runner happens to concatenate ahead of it, which used to be nothing
     # and is now a linked project. A default that holds only while a file is first is not a
     # default, it is an accident waiting for something to be put in front of it.
-    first = (linked_files() + sorted(STRESS.glob("*.pure")))[0]
+    first = (linked_files() + stress_sources())[0]
     if not first.read_text().lstrip().startswith("###"):
         bad.append(f"{first.name} is parsed first and declares no ###Section; it would "
                    f"inherit from whatever is concatenated ahead of it")
@@ -1978,7 +2041,7 @@ def check(c: Corpus) -> list[str]:
     # one, and every property mapped to a column of the other reports as missing from a file
     # where it is plainly present.
     seen_tables: dict[tuple, list[str]] = {}
-    for f in sorted(STRESS.glob("*.pure")):
+    for f in stress_sources():
         db = None
         for line in f.read_text().splitlines():
             m = re.match(r"^\s*Database\s+([\w:]+)", line)
@@ -2018,7 +2081,7 @@ def check(c: Corpus) -> list[str]:
                        f"silently drops the other")
 
     prev = "###Pure"
-    for f in sorted(STRESS.glob("*.pure")):
+    for f in stress_sources():
         txt = f.read_text()
         first = next((ln for ln in txt.splitlines()
                       if ln.strip() and not ln.lstrip().startswith("//")), "")

@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from model import STRESS
+from model import QUERIES
 
 
 class DateArg(str):
@@ -396,7 +396,7 @@ def apply_temporal(c, spec) -> None:
 
 
 def load() -> list[Spec]:
-    return parse((STRESS / "92-services.pure").read_text())
+    return parse(QUERIES.read_text())
 
 
 if __name__ == "__main__":

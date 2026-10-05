@@ -31,13 +31,25 @@ import model
 DB = "stress::DenseDB"
 BASE = "store::DB"
 
+# THE SEED: the tables this generator chooses among. It used to choose among EVERY table in the
+# corpus, so adding any stress file whose table sorts first (ACCESS_ENTITLEMENT did) silently
+# every object here and churned the file. These are its picks as of the
+# file it wrote on 2026-08-14 (6718aae22); widening the store is a deliberate edit to this list.
+SEED_TABLES = ("ACCOUNT", "ACCOUNTING_RULE", "ACCRUAL_ENTRY", "ACCRUAL_SCHEDULE")
+
+
+def _seed(c: model.Corpus) -> list[str]:
+    missing = [t for t in SEED_TABLES if t not in c.tables or t in c.views]
+    if missing:
+        raise SystemExit(f"dense_store seed tables no longer in the model: {missing}")
+    return sorted(SEED_TABLES)
+
 
 def _tables_with(c: model.Corpus, kind: str, minimum: int = 1) -> list[str]:
-    """Tables having at least `minimum` columns of `kind`, deterministically ordered."""
+    """Seed tables having at least `minimum` columns of `kind`, deterministically ordered."""
     out = []
-    for name, t in sorted(c.tables.items()):
-        if name in c.views:
-            continue
+    for name in _seed(c):
+        t = c.tables[name]
         if sum(1 for col in t.columns.values() if col.kind == kind) >= minimum:
             out.append(name)
     return out
@@ -73,8 +85,8 @@ def build(c: model.Corpus) -> str:
 
     # ---- a Schema, with its own tables and a view over them ------------------------------
     L += [
-        "   // A Schema. Every one of the base model's 210 tables sits in the default schema,",
-        "   // so a schema-qualified reference has never been resolved by anything here.",
+        "   // A Schema, so a schema-qualified table reference is resolved somewhere in the corpus",
+        "   // (the base model's tables sit in the default schema).",
         "   Schema analytics",
         "   (",
         "      Table DESK_SUMMARY",
@@ -106,7 +118,7 @@ def build(c: model.Corpus) -> str:
 
     # ---- multi-column join, over real shared columns -------------------------------------
     pair = None
-    names = [n for n in sorted(c.tables) if n not in c.views]
+    names = _seed(c)
     for i, a in enumerate(names):
         for b in names[i + 1:]:
             shared = [s for s in _shared_columns(c, a, b) if s not in c.tables[a].pk]
@@ -117,7 +129,7 @@ def build(c: model.Corpus) -> str:
             break
     if pair:
         a, b, (c1, c2) = pair
-        joins.append(f"   // Multi-column join: every join in the base model is single-column.\n"
+        joins.append(f"   // A multi-column join, over two columns the tables share.\n"
                      f"   Join dense_MultiCol({a}.{c1} = {b}.{c1} and {a}.{c2} = {b}.{c2})")
 
     # ---- non-equality, or, and mixed -----------------------------------------------------
@@ -161,11 +173,27 @@ def build(c: model.Corpus) -> str:
     L += joins + [""]
 
     # ---- filters -------------------------------------------------------------------------
+    # The view's root: the table its ~groupBy and columns read.
+    root = num[0] if num and strt else None
+    view_filter = "dense_NotNull"
     if strt:
         t = strt[0]
         s1 = _cols(c, t, "string")[0]
+        L += [f"   Filter dense_NotNull({t}.{s1} is not null)"]
+        # RULE (hand fix d0367624b, 2026-09-22): a view's ~filter must read the view's own
+        # root. A filter over a table the view never reads compiles in the engine and fails at
+        # SQL generation; this platform refuses it at build. So when dense_NotNull reads
+        # another table, the view gets its own NotNull filter over its root's primary key.
+        if root and root != t:
+            view_filter = f"dense_{root.split('_')[0].title()}NotNull"
+            L += [
+                "   // A view's ~filter must read the view's own root (or a table its joins",
+                "   // reach): the engine compiles a filter over an unrelated table and fails",
+                "   // at SQL generation; this platform refuses it at build (views are lifted",
+                f"   // eagerly, strict entry — 2026-09-22). dense_Rollup roots at {root}.",
+                f"   Filter {view_filter}({root}.{c.tables[root].pk[0]} is not null)",
+            ]
         L += [
-            f"   Filter dense_NotNull({t}.{s1} is not null)",
             "   // A MultiGrainFilter is referenced from a mapping exactly like a Filter;",
             "   // the distinction is consumed by the planner for join elision.",
             f"   MultiGrainFilter dense_Grain({t}.{s1} is not null)",
@@ -182,7 +210,7 @@ def build(c: model.Corpus) -> str:
             "   // orders the last two the other way round.",
             "   View dense_Rollup",
             "   (",
-            "      ~filter dense_NotNull",
+            f"      ~filter {view_filter}",
             "      ~groupBy",
             "      (",
             f"         {t}.{pk}",

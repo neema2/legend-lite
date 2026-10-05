@@ -3,7 +3,7 @@
 // Seed data for the stress corpus: 5159 rows across 436 tables, carrying the
 // adversarial properties A1..A12 documented in scripts/corpus/seed.py (orphan and NULL
 // foreign keys, zero-child entities, ties, skew, empty-vs-NULL strings, apostrophes and
-// a broken two-hop chain). Regenerate with `python3 scripts/corpus/build.py`.
+// a broken two-hop chain). Regenerate with `bazel run //core:update_stress_corpus`.
 
 ###Data
 Data stress::TestData

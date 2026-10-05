@@ -101,28 +101,18 @@ junit_test(
 
 # THE LAYERS OF //core (execution plan rule 0.12): each product library's direct dependencies, as Bazel resolves
 # them, one genquery per target; CoreLayeringTest compares them with core-layers.txt.
-_CORE_LAYERS = [
-    "spi", "cache", "values", "error", "lexer", "sql", "protocol", "model", "parser", "builtin", "platform",
-    "compiler_element_type", "sql_dialect", "database", "compiler", "normalizer", "lineage", "validation", "lowering", "plan",
-    "resolver", "exec", "probe", "testdatagen", "driver", "ide", "test", "server_lib",
-]
-
-[genquery(
-    name = "layer_" + t,
-    expression = "labels(deps, //core:%s)" % t,
-    scope = ["//core:" + t],
-) for t in _CORE_LAYERS]
-
 junit_test(
     name = "core_layering_test",
     memory_mb = 768,
     size = "small",
     srcs = ["CoreLayeringTest.java"],
-    data = ["core-layers.txt"] + [":layer_" + t for t in _CORE_LAYERS],
-    jvm_flags = [
-        "-Dcore.layers=$(rlocationpath core-layers.txt)",
-        "-Dcore.layer.files=" + ",".join(["$(rlocationpath :layer_%s)" % t for t in _CORE_LAYERS]),
+    data = [
+        "core-layers.txt",
+        "//core:layer_queries",
     ],
+    # every core library's layer query (core/layers.bzl), as a list: an environment variable keeps it one value
+    env = {"CORE_LAYER_FILES": "$(rlocationpaths //core:layer_queries)"},
+    jvm_flags = ["-Dcore.layers=$(rlocationpath core-layers.txt)"],
     select = ["--select-class=com.legend.tools.deps.CoreLayeringTest"],
     deps = [
         "//testing",
