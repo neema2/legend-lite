@@ -1,19 +1,21 @@
-/* Legend Studio, light: upstream Studio's dark editor look (legend-art: Roboto, dark greys, blue
- * accent), on plain DOM. */
+/* Legend Studio, light: upstream Studio's look on plain DOM. The colours are UPSTREAM's tokens, shared by every
+ * app here (legend-art/src/tokens.css, linked first: default-dark, and default-light by `data-theme`); Studio's
+ * short names below point at them. The census of what each region must look like:
+ * studio/docs/UPSTREAM_STUDIO_LOOK.md. */
 :root {
-  --bg: #1e2026;
-  --bg-2: #24272e;
-  --bg-3: #2c3038;
-  --bg-4: #343943;
-  --line: #3a3f4a;
-  --text: #d4d7dd;
-  --text-dim: #9aa1ad;
-  --accent: #1e7cd6;
-  --accent-2: #3594ec;
-  --error: #f35b5b;
-  --warn: #e0a84f;
-  --ok: #55b37a;
-  --mono: 'Roboto Mono', monospace;
+  --bg: var(--color-bg-app);
+  --bg-2: var(--color-bg-panel);
+  --bg-3: var(--color-bg-panel-header);
+  --bg-4: var(--color-bg-chrome);
+  --line: var(--color-border-default);
+  --text: var(--color-text-primary);
+  --text-dim: var(--color-text-muted);
+  --accent: var(--color-accent);
+  --accent-2: var(--color-accent-hover);
+  --error: var(--color-status-error);
+  --warn: var(--color-status-warn);
+  --ok: var(--color-status-success);
+  --mono: var(--font-mono);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 Roboto, sans-serif; }

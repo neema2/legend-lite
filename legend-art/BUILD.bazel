@@ -12,6 +12,17 @@ js_library(
     ],
 )
 
+# The shared stylesheets (tokens.css: upstream's colour tokens, dark and both light themes), served with each site
+# from ./vendor/legend-art/ and linked before the app's own.
+filegroup(
+    name = "styles",
+    srcs = glob(["src/*.css"]),
+    visibility = [
+        "//query:__pkg__",
+        "//studio:__pkg__",
+    ],
+)
+
 # Upstream Legend's type (legend-art _fonts.scss): Roboto, Roboto Mono, and Raleway 900 for Query's type letters.
 # Served with each site from ./vendor/fonts/, never a font CDN (SIL OFL 1.1, the LICENSE-*.txt beside them).
 filegroup(

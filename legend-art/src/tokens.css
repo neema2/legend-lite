@@ -1,0 +1,148 @@
+/* legend-art, lite: UPSTREAM's colour tokens (finos/legend-studio @821c74c, legend-art style/base/themes/
+   _semantic-tokens.scss, _theme-default-dark.scss, _theme-default-light.scss, _theme-legacy-light.scss and the
+   physical palette in _variables.scss), resolved, for every app here. Dark by default, as upstream; a light theme
+   is `data-theme` on <html>: `default-light` (Studio's sun/moon switch) or `legacy-light` (Query's).
+   Census: studio/docs/UPSTREAM_STUDIO_LOOK.md section 0.3; query/docs/UPSTREAM_QUERY_CENSUS.md.
+   An app's own tokens (Query's grid and type colours, say) stay in the app. */
+
+/* default-dark */
+:root {
+  --color-bg-app: #1e1e1e;
+  --color-bg-panel: #2d2d2d;
+  --color-bg-panel-header: #353535;
+  --color-bg-chrome: #3e3e3e;
+  --color-bg-elevated: #252525;
+  --color-bg-input: #2d2d2d;
+  --color-bg-hover: #3e3e3e;
+  --color-bg-selected: #264f77;
+  --color-bg-tag: #595959;
+  --color-bg-overlay: #00000061;
+  --color-bg-row-hover: #7f7ab124;
+  --color-text-primary: #fafafa;
+  --color-text-secondary: #ddd;
+  --color-text-muted: #bbb;
+  --color-text-disabled: #737373;
+  --color-text-inverted: #1e1e1e;
+  --color-text-on-accent: #f3f3f3;
+  --color-text-link: #007acc;
+  --color-border-subtle: #2d2d2d;
+  --color-border-default: #353535;
+  --color-border-strong: #595959;
+  --color-border-focus: #08629e;
+  --color-accent: #08629e;
+  --color-accent-hover: #007acc;
+  --color-accent-subtle: #7f7ab124;
+  --color-status-error: #f5584b;
+  --color-status-error-bg: #ff00001a;
+  --color-status-warn: #fbbc05;
+  --color-status-warn-bg: #342a18;
+  --color-status-success: #34a853;
+  --color-status-success-bg: #014321;
+  /* Query's name for the same token (upstream's dark theme names it -hover too) */
+  --color-status-success-hover: #014321;
+  --color-status-info: #007acc;
+  --color-state-hover-on-accent: #ffffff12;
+  --color-state-disabled-on-accent: #00000061;
+  --color-active-indicator: #fbbc05;
+  --color-category-experimental: #7695ff;
+  --color-category-generation: #d14664;
+  --color-shadow: #0000004f;
+  /* normalize.scss: the scrollbar thumb (light-shade-100) */
+  --color-scrollbar: #ffffff2e;
+
+  /* the physical colours Studio uses directly (_variables.scss), the same in every theme */
+  --color-conflict: #ca663a;
+  --color-conflict-hover: #c95f03;
+  --color-caution: #b33659;
+  --color-caution-hover: #c5375f;
+  --color-caution-light: #d14664;
+  --color-splitter: #3e3e3e;
+  --color-loading-bar: #08629e;
+  --color-backdrop: #0000003d;
+
+  --font-sans: Roboto, sans-serif;
+  --font-mono: 'Roboto Mono', monospace;
+  color-scheme: dark;
+}
+
+/* default-light: Studio's light theme (_theme-default-light.scss: "an initial pass", upstream's own words) */
+:root[data-theme='default-light'] {
+  --color-bg-app: #f3f3f3;
+  --color-bg-panel: #fff;
+  --color-bg-panel-header: #efefef;
+  --color-bg-chrome: #e6e6e6;
+  --color-bg-elevated: #fff;
+  --color-bg-input: #fff;
+  --color-bg-hover: #efefef;
+  --color-bg-selected: #deebff;
+  --color-bg-tag: #cecece;
+  --color-bg-row-hover: #deebff;
+  --color-text-primary: #1e1e1e;
+  --color-text-secondary: #595959;
+  --color-text-muted: #737373;
+  --color-text-disabled: #9a9a9a;
+  --color-text-inverted: #fff;
+  --color-text-on-accent: #f3f3f3;
+  --color-text-link: #08629e;
+  --color-border-subtle: #efefef;
+  --color-border-default: #ddd;
+  --color-border-strong: #bbb;
+  --color-border-focus: #08629e;
+  --color-accent: #08629e;
+  --color-accent-hover: #014a7b;
+  --color-accent-subtle: #deebff;
+  --color-status-error: #be1100;
+  --color-status-error-bg: #ffe6e3;
+  --color-status-warn: #c58105;
+  --color-status-warn-bg: #ffffe0;
+  --color-status-success: #34a853;
+  --color-status-success-bg: #c9e9ca;
+  --color-status-success-hover: #c9e9ca;
+  --color-status-info: #08629e;
+  --color-state-hover-on-accent: #00000014;
+  --color-active-indicator: #08629e;
+  --color-shadow: #00000030;
+  /* normalize.scss's thumb on a light page (its inactive-window colour) */
+  --color-scrollbar: #0000002e;
+  /* the non-dark inputs and selects (_variables.scss input-border, -hover, -focus) */
+  --color-input-border: #ddd;
+  --color-input-border-hover: #bbb;
+  --color-input-border-focus: #477cc5;
+  color-scheme: light;
+}
+
+/* legacy-light: Legend Query's light theme (_theme-legacy-light.scss) */
+:root[data-theme='legacy-light'] {
+  --color-bg-app: #edf0f1;
+  --color-bg-panel: #fff;
+  --color-bg-panel-header: #edf0f1;
+  --color-bg-chrome: #dce2e4;
+  --color-bg-elevated: #fff;
+  --color-bg-input: #fff;
+  --color-bg-hover: #edf0f1;
+  --color-bg-selected: #def3ff;
+  --color-bg-tag: #b5bec4;
+  --color-bg-row-hover: #def3ff;
+  --color-text-primary: #29323a;
+  --color-text-secondary: #4e5364;
+  --color-text-muted: #95a0a8;
+  --color-text-disabled: #b5bec4;
+  --color-text-on-accent: #fff;
+  --color-text-link: #1b4c8c;
+  --color-border-subtle: #edf0f1;
+  --color-border-default: #b5bec4;
+  --color-border-strong: #95a0a8;
+  --color-border-focus: #6a8db6;
+  --color-accent: #6a8db6;
+  --color-accent-hover: #4d6f9c;
+  --color-accent-subtle: #def3ff;
+  --color-status-error: #be1100;
+  --color-status-error-bg: #ffe6e3;
+  --color-status-warn: #f68f1e;
+  --color-status-warn-bg: #ffffe0;
+  --color-status-success: #5cb65c;
+  --color-active-indicator: #1b4c8c;
+  --color-shadow: #00000030;
+  --color-scrollbar: #00000030;
+  color-scheme: light;
+}

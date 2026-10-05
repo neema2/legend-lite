@@ -64,6 +64,7 @@ copy_to_directory(
     name = "vendor",
     srcs = [
         "//legend-art:fonts",
+        "//legend-art:styles",
         "//sdlc-server:page",
         "//wasm:planner",
     ],
@@ -78,11 +79,13 @@ copy_to_directory(
         "legend-art/fonts/roboto-latin-700-normal.woff2",
         "legend-art/fonts/roboto-mono-latin-400-normal.woff2",
         "legend-art/fonts/LICENSE-*.txt",
+        "legend-art/src/*.css",
     ],
     replace_prefixes = {
         "wasm/planner/": "planner/",
         "sdlc-server/page/": "sdlc/",
         "legend-art/fonts/": "fonts/",
+        "legend-art/src/": "legend-art/",
     },
 )
 

@@ -63,6 +63,7 @@ copy_to_directory(
         # upstream Legend Query's type (legend-art _fonts.scss): Roboto, Roboto Mono, Raleway 900
         # for the type letters -- vendored in legend-art, served with the site, no font CDN (OFL-1.1)
         "//legend-art:fonts",
+        "//legend-art:styles",
         "//wasm:planner",
     ],
     out = "demo/vendor",
@@ -82,11 +83,13 @@ copy_to_directory(
         "legend-art/fonts/roboto-mono-latin-700-normal.woff2",
         "legend-art/fonts/raleway-latin-900-normal.woff2",
         "legend-art/fonts/LICENSE-*.txt",
+        "legend-art/src/*.css",
     ],
     replace_prefixes = {
         "wasm/planner/": "",
         "**/dist/": "",
         "legend-art/fonts/": "fonts/",
+        "legend-art/src/": "legend-art/",
     },
 )
 

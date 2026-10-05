@@ -70,7 +70,9 @@ async function loop(browser, name, query) {
     await page.locator('.dialog .btn-primary').click();
     await page.locator('.monaco-editor .view-lines').click();
     await page.keyboard.press('ControlOrMeta+A');
-    await page.keyboard.type('// a trading desk, quoting in one currency\nClass demo::trading::Desk\n{\nname: String[1];\nbase: demo::types::Currency[1];\n}\n');
+    // one input event, as a paste: keystroke by keystroke, Monaco's bracket auto-closing raced the typed '}' (a
+    // stray second brace, 2026-10-04)
+    await page.keyboard.insertText('// a trading desk, quoting in one currency\nClass demo::trading::Desk\n{\n  name: String[1];\n  base: demo::types::Currency[1];\n}\n');
     await waitStatus('problems-count', /^0 problems/);
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();

@@ -1,41 +1,9 @@
-/* Legend Query: one stylesheet, tokens first -- UPSTREAM's (finos/legend-studio, legend-art):
-   dark by default, as Legend Query is; the light theme is the one its sun/moon switch picks,
-   legacy-light. Values from legend-art style/base/_variables.scss, themes/_theme-default-dark.scss
-   and themes/_theme-legacy-light.scss (studio 821c74c). Type: Roboto, Roboto Mono, Raleway 900
-   (fonts.css). Query's own short names below point at them. */
+/* Legend Query: one stylesheet. The colour tokens are UPSTREAM's, shared by every app here:
+   legend-art/src/tokens.css (served as vendor/legend-art/tokens.css, linked before this file) --
+   dark by default, as Legend Query is; the light theme its sun/moon switch picks is legacy-light
+   (`data-theme='legacy-light'`, theme.ts). Below: Query's own tokens, and Query's short names for
+   legend-art's. Type: Roboto, Roboto Mono, Raleway 900 (fonts.css). */
 :root {
-  --color-bg-app: #1e1e1e;
-  --color-bg-panel: #2d2d2d;
-  --color-bg-panel-header: #353535;
-  --color-bg-chrome: #3e3e3e;
-  --color-bg-elevated: #252525;
-  --color-bg-input: #2d2d2d;
-  --color-bg-hover: #3e3e3e;
-  --color-bg-selected: #264f77;
-  --color-bg-tag: #595959;
-  --color-bg-overlay: #00000061;
-  --color-bg-row-hover: #7f7ab124;
-  --color-text-primary: #fafafa;
-  --color-text-secondary: #ddd;
-  --color-text-muted: #bbb;
-  --color-text-disabled: #737373;
-  --color-text-on-accent: #f3f3f3;
-  --color-text-link: #007acc;
-  --color-border-subtle: #2d2d2d;
-  --color-border-default: #353535;
-  --color-border-strong: #595959;
-  --color-border-focus: #08629e;
-  --color-accent: #08629e;
-  --color-accent-hover: #007acc;
-  --color-accent-subtle: #7f7ab124;
-  --color-status-error: #f5584b;
-  --color-status-error-bg: #ff00001a;
-  --color-status-warn: #fbbc05;
-  --color-status-warn-bg: #342a18;
-  --color-status-success: #34a853;
-  --color-status-success-hover: #014321;
-  --color-active-indicator: #fbbc05;
-  --color-shadow: #0000004f;
   --color-editable-value: #40a6ff;
   --color-filter-selected: #002f4f;
   --color-type-class: #8a58ab;
@@ -46,9 +14,6 @@
   --color-grid-header: #2d2d2d;
   --color-grid-text: #ddd;
   --color-grid-selection: #45456b;
-  --color-caution: #b33659;
-  --color-scrollbar: #ffffff2e;
-  color-scheme: dark;
 
   /* Query's names */
   --bg: var(--color-bg-app);
@@ -73,46 +38,14 @@
   --shadow: var(--color-shadow) 0 1px 5px 0;
 }
 
-/* legacy-light: what Legend Query's switch turns on (_theme-legacy-light.scss) */
-:root[data-theme='light'] {
-  --color-bg-app: #edf0f1;
-  --color-bg-panel: #fff;
-  --color-bg-panel-header: #edf0f1;
-  --color-bg-chrome: #dce2e4;
-  --color-bg-elevated: #fff;
-  --color-bg-input: #fff;
-  --color-bg-hover: #edf0f1;
-  --color-bg-selected: #def3ff;
-  --color-bg-tag: #b5bec4;
-  --color-bg-row-hover: #def3ff;
-  --color-text-primary: #29323a;
-  --color-text-secondary: #4e5364;
-  --color-text-muted: #95a0a8;
-  --color-text-disabled: #b5bec4;
-  --color-text-on-accent: #fff;
-  --color-text-link: #1b4c8c;
-  --color-border-subtle: #edf0f1;
-  --color-border-default: #b5bec4;
-  --color-border-strong: #95a0a8;
-  --color-border-focus: #6a8db6;
-  --color-accent: #6a8db6;
-  --color-accent-hover: #4d6f9c;
-  --color-accent-subtle: #def3ff;
-  --color-status-error: #be1100;
-  --color-status-error-bg: #ffe6e3;
-  --color-status-warn: #f68f1e;
-  --color-status-warn-bg: #ffffe0;
-  --color-status-success: #5cb65c;
-  --color-active-indicator: #1b4c8c;
-  --color-shadow: #00000030;
+/* legacy-light: Query's own tokens on Legend Query's light theme (legend-art has the rest) */
+:root[data-theme='legacy-light'] {
   --color-editable-value: #1b4c8c;
   --color-filter-selected: #def3ff;
   --color-grid-bg: #fff;
   --color-grid-header: #edf0f1;
   --color-grid-text: #29323a;
   --color-grid-selection: #def3ff;
-  --color-scrollbar: #00000030;
-  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
