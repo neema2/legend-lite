@@ -12,6 +12,8 @@ import * as duckdb from '../../engine-client/src/duckdb-wasm.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { signIn, WarehouseEngine } from '../../engine-client/src/warehouse.ts';
+import { connectModelHome } from '../../depot-client/src/model-home.ts';
+import { projectsByName } from '../src/app/by-name.ts';
 import { AppContext, gavOf, type AppConfig, type CubeRows, type LoadedProject } from '../src/app/context.ts';
 import { App } from '../src/app/app.ts';
 import { BrowserEngine } from '../src/backend/browser-engine.ts';
@@ -82,6 +84,12 @@ async function boot(): Promise<void> {
     const code = (await Promise.all(p.models.map(text))).join('\n');
     return { config: p, gav: gavOf(p), context: { _type: 'text', code }, graph: new ModelGraph(await grammar.modelJson(code)) };
   }));
+  // projects by name (design Phase 3): what this origin's Depot has -- what Studio publishes -- at each line's HEAD
+  if (config.depot) {
+    starting('Opening the projects in Depot');
+    const { depot } = await connectModelHome(config.depot);
+    projects.push(...await projectsByName(depot, grammar));
+  }
   const isEnumeration = (t: string): boolean => projects.some((p) => p.graph.enumerations.has(t));
 
   let engine: Engine;

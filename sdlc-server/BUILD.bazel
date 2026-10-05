@@ -79,6 +79,7 @@ teavm_wasm(
     visibility = [
         "//:__pkg__",
         "//depot-client:__pkg__",
+        "//query:__pkg__",
         "//sdlc-client:__pkg__",
         "//studio:__pkg__",
     ],
