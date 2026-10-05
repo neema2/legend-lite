@@ -58,7 +58,8 @@ async function loop(browser, name, query) {
     // 1. the demo projects, published through the SDLC (every release through the compile gate)
     await page.getByTestId('load-demo').click({ timeout: 60_000 });
     await waitStatus('demo-status', /Demo projects published/);
-    await page.locator(`[data-testid=projects] .setup-item[data-id="${TRADING}"]`).click();
+    await page.getByTestId('project-selector').click();
+    await page.locator(`[data-testid=project-selector-menu] [data-id="${TRADING}"]`).click();
     await shot('1-projects');
     // 2. a workspace on trading: it compiles in the tab, with its dependencies from Depot
     await page.getByTestId('new-workspace').click();
