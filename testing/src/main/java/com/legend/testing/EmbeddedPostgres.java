@@ -20,8 +20,15 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>The cluster is made for determinism, not durability: the C locale (strings compare by bytes, as
  * DuckDB's do), UTF-8, the session zone UTC, trust authentication on 127.0.0.1 only, no Unix socket (a
- * macOS socket path is capped at ~104 bytes), no fsync. It runs through {@code pg_ctl}, which is also how
- * Postgres runs under an administrator account (Windows runners), where {@code postgres} itself refuses.
+ * macOS socket path is capped at ~104 bytes), no fsync.
+ *
+ * <p>How it runs (Bazel workplan P3-20, A16): on macOS and Linux {@code postgres -D <cluster>} is this JVM's own
+ * child, in the test's process group, so a test that times out takes it down with it (Bazel kills the group), and
+ * the JVM's exit stops it ({@code destroy}: SIGTERM, a smart shutdown). {@code pg_ctl} would have called
+ * {@code setsid()} and left the group, so a killed test left a server behind. On Windows it runs through
+ * {@code pg_ctl}, which is how Postgres runs under an administrator account (the runners), where {@code postgres}
+ * itself refuses. A port taken between choosing it and binding it is retried, three times, each with a new port.
+ * The cluster lives in the test's TEST_TMPDIR only; {@code initdb} refuses root, said before it runs.
  */
 public final class EmbeddedPostgres {
 
@@ -32,14 +39,17 @@ public final class EmbeddedPostgres {
     /** Why the one start failed: every later {@link #shared()} says so instead of starting again. */
     private static IllegalStateException failed;
 
+    private static final boolean WINDOWS = System.getProperty("os.name").toLowerCase(Locale.ROOT).startsWith("windows");
+
     private final Path bin;
     private final Path data;
-    private final int port;
+    private int port;
+    /** The server, this JVM's child (macOS, Linux); null where pg_ctl runs it (Windows). */
+    private Process server;
 
-    private EmbeddedPostgres(Path bin, Path data, int port) {
+    private EmbeddedPostgres(Path bin, Path data) {
         this.bin = bin;
         this.data = data;
-        this.port = port;
     }
 
     /** This JVM's server, started on first use and stopped at exit. */
@@ -81,39 +91,96 @@ public final class EmbeddedPostgres {
                     + " data = [\"@embedded_postgres//:postgres\", \"@embedded_postgres//:pg/PG_ROOT\"] and"
                     + " jvm_flags = [\"-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)\"]");
         }
+        if ("root".equals(System.getProperty("user.name"))) {
+            throw new IllegalStateException("initdb refuses root: run the CI job as a non-root user");
+        }
+        String tmp = System.getenv("TEST_TMPDIR");
+        if (tmp == null) {
+            throw new IllegalStateException("no TEST_TMPDIR: the embedded Postgres runs under bazel test, its cluster in"
+                    + " the test's own temporary directory");
+        }
         try {
             // the install's real directory: postgres finds its lib/ and share/ beside its own binary
             Path root = Runfile.of(marker).toRealPath().getParent();
-            String tmp = System.getenv("TEST_TMPDIR");
-            Path data = Files.createTempDirectory(tmp == null ? Path.of(System.getProperty("java.io.tmpdir")) : Path.of(tmp),
-                    "pg");
+            Path data = Files.createTempDirectory(Path.of(tmp), "pg");
             Path cluster = data.resolve("cluster");
-            int port;
-            try (ServerSocket s = new ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())) {
-                port = s.getLocalPort();
-            }
-            EmbeddedPostgres pg = new EmbeddedPostgres(root.resolve("bin"), data, port);
+            EmbeddedPostgres pg = new EmbeddedPostgres(root.resolve("bin"), data);
             pg.run(List.of(pg.tool("initdb"), "-D", cluster.toString(), "-U", USER, "-A", "trust", "-E", "UTF8",
                     "--no-locale", "--no-sync"));
             // the settings go in the cluster's own configuration, never through pg_ctl's -o: that string
             // reaches postgres through a shell, and cmd.exe keeps quotes (unix_socket_directories=''
             // became the directory '' on Windows, CI 2026-10-02)
             Files.writeString(cluster.resolve("postgresql.conf"), String.join("\n", "",
-                    "port = " + port,
                     "listen_addresses = '127.0.0.1'",
                     "unix_socket_directories = ''",
                     "fsync = off",
                     "TimeZone = 'UTC'",
                     "max_connections = 200", ""), StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.APPEND);
-            pg.run(List.of(pg.tool("pg_ctl"), "-D", cluster.toString(), "-l", data.resolve("postgres.log").toString(),
-                    "-w", "-t", "120", "start"));
-            return pg;
+            IllegalStateException last = null;
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                try (ServerSocket s = new ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress())) {
+                    pg.port = s.getLocalPort();
+                }
+                // the last `port` line wins: each attempt appends its own
+                Files.writeString(cluster.resolve("postgresql.conf"), "port = " + pg.port + "\n", StandardCharsets.UTF_8,
+                        java.nio.file.StandardOpenOption.APPEND);
+                try {
+                    pg.startServer(cluster);
+                    return pg;
+                } catch (IllegalStateException e) {
+                    last = e;   // the port was taken before the server bound it: another, up to three
+                }
+            }
+            throw last;
         } catch (IOException e) {
             throw new IllegalStateException("the embedded Postgres did not start: " + e.getMessage(), e);
         }
     }
 
+    /** Starts the server on {@link #port}, returning once it accepts connections; a server that exits first fails. */
+    private void startServer(Path cluster) throws IOException {
+        Path log = data.resolve("postgres.log");
+        if (WINDOWS) {
+            run(List.of(tool("pg_ctl"), "-D", cluster.toString(), "-l", log.toString(), "-w", "-t", "120", "start"));
+            return;
+        }
+        server = new ProcessBuilder(tool("postgres"), "-D", cluster.toString()).redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.appendTo(log.toFile())).start();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(120);
+        while (System.nanoTime() < deadline) {
+            if (!server.isAlive()) {
+                throw new IllegalStateException("postgres exited " + server.exitValue() + " before accepting connections:\n"
+                        + Files.readString(log, StandardCharsets.UTF_8));
+            }
+            try (java.net.Socket socket = new java.net.Socket(java.net.InetAddress.getLoopbackAddress(), port)) {
+                return;
+            } catch (IOException notYet) {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("interrupted waiting for postgres", e);
+                }
+            }
+        }
+        server.destroyForcibly();
+        throw new IllegalStateException("postgres did not accept connections in 120 s:\n"
+                + Files.readString(log, StandardCharsets.UTF_8));
+    }
+
     private void stop() {
+        if (server != null) {
+            server.destroy();   // SIGTERM: a smart shutdown
+            try {
+                if (!server.waitFor(30, TimeUnit.SECONDS)) {
+                    server.destroyForcibly();
+                }
+            } catch (InterruptedException e) {
+                server.destroyForcibly();
+                Thread.currentThread().interrupt();
+            }
+            return;
+        }
         try {
             run(List.of(tool("pg_ctl"), "-D", data.resolve("cluster").toString(), "-m", "immediate", "-w", "stop"));
         } catch (IOException | IllegalStateException e) {
@@ -122,8 +189,7 @@ public final class EmbeddedPostgres {
     }
 
     private String tool(String name) {
-        boolean windows = System.getProperty("os.name").toLowerCase(Locale.ROOT).startsWith("windows");
-        return bin.resolve(windows ? name + ".exe" : name).toString();
+        return bin.resolve(WINDOWS ? name + ".exe" : name).toString();
     }
 
     /** Runs one of the server's tools to completion; a failure says what it printed (and the server's log). */
