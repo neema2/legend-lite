@@ -18,6 +18,7 @@ load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 load("//tools/guards:defs.bzl", "guards_package")
+load(":test_imports.bzl", "TEST_IMPORTS")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -35,12 +36,20 @@ exports_files(
 # "type": "module" (the sources are ES modules)
 js_library(
     name = "src",
-    srcs = glob(["src/**/*.ts"]) + [
+    srcs = glob(["src/**/*.ts"]),
+    # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse)
+    visibility = ["//query:__pkg__"],
+    deps = [":src_base"],
+)
+
+# what every source file needs beside itself: the package's module settings and the libraries the sources import. A
+# test takes this and the files its imports reach (TEST_IMPORTS, P3-34), not all of :src.
+js_library(
+    name = "src_base",
+    srcs = [
         "package.json",
         "tsconfig.json",
     ],
-    # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse)
-    visibility = ["//query:__pkg__"],
     deps = [
         # the protocol library (T4b): the cube's queries built as protocol JSON
         "//pure-protocol:pure_protocol",
@@ -194,12 +203,15 @@ _WASM_TESTS = [
     # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
     # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
     size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else "small",
+    # a scanner reads every source; any other test, the files its imports reach (a test not yet in the generated
+    # list takes them all until //datacube:update_generated adds it)
     data = [
         ":node_modules/jsdom",
-        ":src",
         "test/fake-engine.ts",
         "test/fake-planner.ts",
     ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + [f for f in _SCANNED.get(t[len("test/"):-len(".test.ts")], []) if f != ":src"] + (
+        [":src"] if t[len("test/"):-len(".test.ts")] in _SCANNED or t[len("test/"):-len(".test.ts")] not in TEST_IMPORTS else [":src_base"] + TEST_IMPORTS[t[len("test/"):-len(".test.ts")]]
+    ) + (
         [":node_modules/@duckdb/duckdb-wasm"] if t[len("test/"):-len(".test.ts")] in _DUCKDB_USERS else []
     ) + (
         ["test/catalog-builder.ts", "test/lite-compiler.ts", "//pure-protocol:typescript_sources"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []
@@ -379,6 +391,33 @@ java_run(
     deps = [":catalog_facts_main"],
 )
 
+# THE TESTS' IMPORT CLOSURES (P3-34): test_imports.bzl, generated from the imports themselves, diff-tested below
+js_binary(
+    name = "test_imports_tool",
+    entry_point = "tools/test-imports.mts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+filegroup(
+    name = "import_scan",
+    srcs = glob(["src/**/*.ts", "test/**/*.ts"]),
+)
+
+js_run_binary(
+    name = "test_imports",
+    srcs = [":import_scan"],
+    outs = ["test_imports_generated.bzl"],
+    args = [
+        package_name() + "/test_imports_generated.bzl",
+        package_name(),
+        "$(rootpaths :import_scan)",
+    ],
+    tool = ":test_imports_tool",
+)
+
 write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows; a changed offer fact changes what a column is offered)",
@@ -386,6 +425,7 @@ write_source_files(
         "src/generated/offer-facts.ts": ":offer_facts",
         "src/generated/catalog-facts.ts": ":catalog_rules",
         "test/generated/catalog-corpus.ts": ":catalog_corpus",
+        "test_imports.bzl": ":test_imports",
     },
     visibility = ["//:__pkg__"],
 )
