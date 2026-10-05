@@ -76,6 +76,16 @@ Left out of this plan when it was written; the user ruled it next after A0 (2026
   they come with A5.
 - **Done when:** `//site:verify` creates a project in Studio, commits a class, and Query opens it at HEAD and runs a
   query; then releases it and opens 1.0.0.
+- **STATUS 2026-10-05: done** (branch `query-by-name`). `//site:verify` walks it: Studio publishes the demo projects;
+  Query's start page lists them by name unloaded (`depot.projects()`), "Open at HEAD" loads one; Query opens
+  `party:master-SNAPSHOT` and runs to the seeded rows; the Version field offers HEAD and the releases, 1.0.0 opens by
+  name (loaded the first time, `AppContext.ensure`) and runs; a query saved on 1.0.0 reopens on 1.0.0; DataCube opens
+  that saved query by name (its `depot` config, the model fetched only then, under the bundle budget). The model text
+  is one Depot call (`depot-client/src/model-text.ts`); the party rows are one fixture (`//fixtures/demo-data`).
+  **Deferred, deliberately:** retiring Query's bundled trading demo -- the saved-query fixtures, DataCube's demo and
+  tests and both harnesses name `demo:trading:0.0.0` as served files, and a bundled model is a fair way for a
+  deployment to ship one; it retires when the demo itself is published (A2's seeding of Depot on first visit).
+  Next for fidelity: Depot-lite's classifier routes (S8) and upstream's data-space search across every project.
 
 ### A1. One in-tab engine for every app
 - Move Query's `BrowserEngine` (planner → SQL → DuckDB/warehouse, engine-shaped answers) into `engine-client/` as **the
