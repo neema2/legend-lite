@@ -1,0 +1,6 @@
+// The engine runner's smoke fixture (Bazel workplan P3-26): one class, which every binary parses (and testable compiles).
+Class smoke::Person
+{
+  name: String[1];
+  age: Integer[0..1];
+}
