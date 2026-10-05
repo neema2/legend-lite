@@ -198,3 +198,10 @@ without a **done** entry.
 - **Pushed to main: b245f5f30** (9 commits). Main CI 37267596779: running. Studio's studio-engine reviewed (planner
   worker as its own bundle; A5; tests) and approved.
 - Left in Phase 2: P2-09 (native-image reachability metadata, H-native, Windows proof), then P2-90 (the Phase 2 audit).
+- **Main red, fixed:** b245f5f30's //pct:pct_duckdb (gate 6) failed on all platforms: PctDisciplineTest forbids
+  comparison machinery in the PCT module and PctRatchets used a TreeMap. Fixed on main as 7511621f2 (LinkedHashMap,
+  one fixed order; ratchets.tsv unchanged). **Lesson:** //gates:local omits the PCT lanes and the batch 9 throwaway
+  ran checks/build/8 only; a push that touches a package now runs that package's CI lanes (local or throwaway) first.
+- P2-09 done (a: FFM metadata from Duck.DOWNCALLS/AuthenticatedUser.UPCALLS; b: the whole metadata generated, the
+  agent's host-dependent recording replaced by declared JDK services, A23; equal entry for entry). Phase 3 started:
+  P3-02, P3-11, P3-03 committed locally.
