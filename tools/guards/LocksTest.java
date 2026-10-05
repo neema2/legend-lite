@@ -1,7 +1,6 @@
 package com.legend.tools.guards;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.testing.Runfile;
 import java.io.IOException;
@@ -9,6 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
@@ -28,12 +29,12 @@ class LocksTest {
         String module = module();
         Matcher m = INSTALL.matcher(module);
         List<String> missing = new ArrayList<>();
-        int pools = 0;
+        Set<String> pools = new TreeSet<>();
         while (m.find()) {
-            pools++;
             String body = m.group(1);
             Matcher name = Pattern.compile("name = \"([^\"]+)\"").matcher(body);
             String pool = name.find() ? name.group(1) : "?";
+            pools.add(pool);
             for (String setting : List.of("fail_if_repin_required = True", "strict_visibility = True")) {
                 if (!body.contains("\n    " + setting + ",")) {
                     missing.add(pool + ": " + setting);
@@ -44,7 +45,9 @@ class LocksTest {
                 missing.add(pool + ": lock_file = \"//:" + pool + "_install.json\"");
             }
         }
-        assertTrue(pools >= 8, "found " + pools + " maven.install pools in MODULE.bazel and its segments: the guard is not looking");
+        // exactly the pools tools/deps/pools.bzl names: none unlisted, and none listed that the guard failed to find
+        Set<String> listed = new TreeSet<>(List.of(System.getenv("POOLS").split(" ")));
+        assertEquals(listed, pools, "the maven.install pools in MODULE.bazel and its segments, against tools/deps/pools.bzl");
         assertEquals(List.of(), missing, "jar pools without their lock or strict-visibility setting");
     }
 

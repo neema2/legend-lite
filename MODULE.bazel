@@ -98,9 +98,6 @@ maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 # resolves its own versions); //tools/guards:classpath_test fails on any runtime
 # classpath that holds one coordinate at two versions (Bazel workplan P6-11).
 #
-#   @maven_core      core's JDBC drivers (the warehouse adds @maven_warehouse, the planner TeaVM's classlib)
-#   @maven_warehouse DuckDB's JDBC driver, for the warehouse and the app on it
-#   @maven_h2_modern H2 2.4.240, the alternative H2 one pct lane runs on
 #   @maven_test      the test tooling every module's tests share
 #   @maven_upstream  legend-engine / legend-pure, for the modules that referee
 #                    lite against them (parser-equivalence, pct) — TEST ONLY
@@ -108,48 +105,11 @@ maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 #   @maven_tools     build tooling: compiler plugins, never on a classpath
 #   @maven_teavm     the WebAssembly compiler and the class library it compiles against
 
-# core's runtime jars: the JDBC drivers the SQL renderer targets, and nothing
-# else. The planner needs none of them (java.base alone); they belong to the
-# execution side, and shrink to zero when core's targets split planner | exec.
-maven.install(
-    name = "maven_core",
-    artifacts = [
-        "org.duckdb:duckdb_jdbc:1.4.4.0",
-        "org.xerial:sqlite-jdbc:3.47.1.0",
-        "com.h2database:h2:2.1.214",
-        # the server's Postgres arm (ConnectionResolver: jdbc:postgresql://); the version the upstream
-        # pool resolved before core owned it, so the repository keeps ONE Postgres driver
-        "org.postgresql:postgresql:42.7.4",
-    ],
-    fail_if_repin_required = True,
-    strict_visibility = True,
-    lock_file = "//:maven_core_install.json",
-    repositories = ["https://repo1.maven.org/maven2"],
-)
-
-# THE WAREHOUSE's DuckDB (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md): 1.5.x, for
-# chunked result fetching and host functions. Its own set, so the warehouse moves
-# ahead without dragging core's 1.4.4 (core upgrades in its own leg).
-maven.install(
-    name = "maven_warehouse",
-    artifacts = ["org.duckdb:duckdb_jdbc:1.5.5.1"],
-    fail_if_repin_required = True,
-    strict_visibility = True,
-    lock_file = "//:maven_warehouse_install.json",
-    repositories = ["https://repo1.maven.org/maven2"],
-)
-
-# THE MODERN H2, for the one lane that runs on it: pct's gate 7 (PCT relation on
-# H2 2.4.240, the version the engine's own PCT H2 profile used). An ALTERNATIVE to core's
-# 2.1.214, never beside it — the target that takes this one is given no other H2.
-maven.install(
-    name = "maven_h2_modern",
-    artifacts = ["com.h2database:h2:2.4.240"],
-    fail_if_repin_required = True,
-    strict_visibility = True,
-    lock_file = "//:maven_h2_modern_install.json",
-    repositories = ["https://repo1.maven.org/maven2"],
-)
+# THE PRODUCT'S JARS (core's JDBC drivers, the warehouse's DuckDB, PCT's modern H2): leaf jars, so rules_java's
+# http_jar fetches each, pinned by sha256, with no Maven resolution (tools/deps/jars_table.bzl, the one table;
+# docs/BUILD_REBUILD_DESIGN_2026_10_05.md, section 5b).
+product_jars = use_extension("//tools/deps:jars.bzl", "product_jars")
+use_repo(product_jars, "duckdb_jdbc", "duckdb_jdbc_warehouse", "h2", "h2_modern", "postgresql", "sqlite_jdbc")
 
 # THE POSTGRES the Postgres lanes run on (tools/postgres/postgres.bzl): pinned Postgres 16 binaries, one
 # repository per platform, unpacked by Bazel -- no Docker, no jar on a classpath -- and the hub
@@ -245,7 +205,7 @@ maven.install(
     lock_file = "//:maven_teavm_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
-use_repo(maven, "maven_core", "maven_h2_modern", "maven_teavm", "maven_test", "maven_tools", "maven_warehouse")
+use_repo(maven, "maven_teavm", "maven_test", "maven_tools")
 
 # THE WAREHOUSE AS A NATIVE IMAGE (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md, W1e): GraalVM's
 # native-image run by Bazel over the server's own runtime class path, as //tools/teavm runs

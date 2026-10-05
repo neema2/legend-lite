@@ -165,8 +165,9 @@ maven.install(
     # never chosen here (INV-5). BOM import needs the maven resolver.
     boms = ["org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE],
     resolver = "maven",
-    # Jars another pool owns are left out, so a test that uses both pools gets
-    # ONE copy: the drivers are core's, JUnit 5 is the test tooling's.
+    # Jars supplied elsewhere are left out, so a test that uses both gets ONE
+    # copy: the drivers are product jars (tools/deps/jars_table.bzl), JUnit 5 is
+    # the test tooling's pool.
     excluded_artifacts = [
         "com.h2database:h2",
         "org.duckdb:duckdb_jdbc",

@@ -110,15 +110,17 @@ jobs:
       # Xcode or Visual Studio, whose versions are a native-image input (@host_cc), so it starts a fresh cache.
       - id: image
         run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
-      - name: Bazel downloads and outputs, keyed by the lock files
+      # keyed by every pin: the lock files, the product jars' table and MODULE.bazel's own archives (esbuild, fonts,
+      # Chromium), which no lock file records
+      - name: Bazel downloads and outputs, keyed by the pins
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/bazel-repo
             ~/.cache/bazel-disk
-          key: bazel-${{ inputs.platform }}-${{ steps.image.outputs.version }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-${{ matrix.lane.key }}
+          key: bazel-${{ inputs.platform }}-${{ steps.image.outputs.version }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}-${{ matrix.lane.key }}
           restore-keys: |
-            bazel-${{ inputs.platform }}-${{ steps.image.outputs.version }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-
+            bazel-${{ inputs.platform }}-${{ steps.image.outputs.version }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}-
             bazel-${{ inputs.platform }}-
       - name: a zone that is not UTC (the Windows app lane)
         # The hosted runners are UTC, which hides a test that reads the machine's zone where it should set its

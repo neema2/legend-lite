@@ -106,7 +106,7 @@ legend_java_library(
         "//tools/junit",
         "@maven_test//:com_tngtech_archunit_archunit",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
-        "@maven_core//:org_duckdb_duckdb_jdbc",
+        "@duckdb_jdbc//jar",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
     ],

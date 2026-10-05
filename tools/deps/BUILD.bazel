@@ -9,7 +9,7 @@ load("//tools/guards:defs.bzl", "guards_package")
 # drivers a running core is given.
 genquery(
     name = "core_closure",
-    expression = "kind(jvm_import, deps(//core:core) except deps(//tools/nullaway:nullaway))",
+    expression = "kind(\"jvm_import|java_import\", deps(//core:core) except deps(//tools/nullaway:nullaway))",
     opts = ["--noimplicit_deps"],
     scope = ["//core:core"],
 )
@@ -19,7 +19,7 @@ genquery(
 # running core's classpath (2026-09-23: its jsr305 read as a driver)
 genquery(
     name = "drivers_closure",
-    expression = "kind(jvm_import, deps(//core:drivers) except deps(//tools/nullaway:nullaway))",
+    expression = "kind(\"jvm_import|java_import\", deps(//core:drivers) except deps(//tools/nullaway:nullaway))",
     opts = ["--noimplicit_deps"],
     scope = ["//core:drivers"],
 )
@@ -29,7 +29,7 @@ genquery(
 # gate 2 convergence check that pools alone do not make true.
 genquery(
     name = "spec_closure",
-    expression = "kind(jvm_import, deps(//spec:spec_tests_lib))",
+    expression = "kind(\"jvm_import|java_import\", deps(//spec:spec_tests_lib))",
     opts = ["--noimplicit_deps"],
     scope = ["//spec:spec_tests_lib"],
 )
