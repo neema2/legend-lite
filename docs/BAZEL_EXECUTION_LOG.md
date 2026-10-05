@@ -326,3 +326,13 @@ without a **done** entry.
   rerunning two Windows jobs (a pgjdbc timeout on a loaded runner; the warehouse poll race, fixed since).
 - **P3-30:** **the audit showed I contradicted P2-16's classification** (generated two policy registers). Reverted;
   P3-30 amended to a classification (816cb871e). Kept: pe's ledgers through ProgramPaths.
+- **Pushed to main: 3faa7d291** (P3-05 follow-ups, P3-27b, P3-33, P3-30 as classification, their audits'
+  follow-ups): throwaway 37311913885 52/52; main's previous run (fbc1f2756) 53/53.
+- **Phase 4 on the branch** (P4-01, -02, -03, -04, -06, -08, -09 DataCube part, -11 completeness, -14, -15 part, -16,
+  -17, -18): DataCube's harnesses are browser tests (//datacube:browser) with no fixed sleep; servers take
+  --exit-with-parent (no taskkill in this program's tests); the .mjs harnesses typechecked. **Audit: one High, my
+  mistake again** -- a proof run's stress-results.json committed at the root; removed. **And I was wrong about two
+  "engine bugs" in torture:** legend-lite refuses arithmetic on a nullable value on purpose (c1f9bac5b); the cases now
+  take toOne. Mediums fixed (verify-page's settle reused stale state; verify-cubes' late-pick wait). Windows proof of
+  --exit-with-parent rides the Phase 4 throwaway's Windows app lane. Left to the Studio line: query/site harnesses,
+  sdlc-client's taskkill.
