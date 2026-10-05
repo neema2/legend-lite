@@ -1033,7 +1033,7 @@ final class TailEmitter {
 
     /** {@code (slot:kind) -> wire _type} for the persistence sub-DSL.
      *  Unknown pairs THROW — the wall names the next probe. */
-    private static final java.util.Map<String, String> PERSISTENCE_TYPES =
+    static final java.util.Map<String, String> PERSISTENCE_TYPES =
             java.util.Map.ofEntries(
                     java.util.Map.entry("trigger:Manual", "manualTrigger"),
                     java.util.Map.entry("trigger:Cron", "cronTrigger"),

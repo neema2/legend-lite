@@ -74,6 +74,8 @@ public final class ModelReader {
             Map.entry("service", ServiceReader::service),
             Map.entry("executionEnvironmentInstance", ServiceReader::executionEnvironment),
             Map.entry("dataSpace", DataSpaceReader::dataSpace),
+            Map.entry("persistence", PersistenceReader::persistence),
+            Map.entry("persistenceContext", PersistenceReader::persistenceContext),
             Map.entry("text", TailReader::text),
             Map.entry("generationSpecification", TailReader::generationSpecification),
             Map.entry("fileGeneration", TailReader::fileGeneration),
