@@ -59,9 +59,11 @@ class CompileOnlyTest {
                     Map.entry("_native_image RunfilesTree", "the image's runfiles tree"),
                     Map.entry("_native_image SourceSymlinkManifest", "the image's runfiles manifest"),
                     Map.entry("_native_image RepoMappingManifest", "the image's runfiles repository mapping"),
+                    Map.entry("_native_image Symlink", "links the static zlib (libz.a) for the image: Linux only"),
                     Map.entry("cc_library CppCompile", "compiles zlib, which the native image links"),
                     Map.entry("cc_library CppArchive", "archives zlib for the image (libz.a)"),
                     Map.entry("cc_library CppLink", "zlib's shared library: registered on Linux and Windows, unused"),
+                    Map.entry("cc_library SolibSymlink", "the link to zlib's shared library: Linux only, unused"),
                     Map.entry("cc_library CppModuleMap", "zlib's module map, registered beside its compile"))),
             "web", Map.ofEntries(
                     Map.entry("_run_binary Esbuild", "bundles TypeScript for the browser"),
