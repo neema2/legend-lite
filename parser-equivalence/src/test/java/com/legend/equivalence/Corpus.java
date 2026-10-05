@@ -113,21 +113,19 @@ public final class Corpus {
         }
     }
 
-    /** Files the loader could not read this run — COUNTED, never a silent
-     *  {@code continue} (HARNESS_SIMPLIFICATION_PLAN Phase 6). */
-    static final List<String> UNREADABLE = new ArrayList<>();
+    /** One load of the corpus: its sources, the files it could not read (COUNTED, never a silent {@code continue};
+     *  HARNESS_SIMPLIFICATION_PLAN Phase 6) and the exact-text duplicates it dropped. A value, not process-wide
+     *  statics that grew with every load in the JVM (Bazel workplan P3-08). */
+    record Loaded(List<Source> sources, List<String> unreadable, int deduped) {}
 
-    /** Exact-text duplicates dropped by {@link #all()} this run. */
-    static final java.util.concurrent.atomic.AtomicInteger DEDUPED =
-            new java.util.concurrent.atomic.AtomicInteger();
-
-    private static void add(List<Source> out, Path root, String tier, java.util.function.Predicate<String> accept) {
+    private static void add(List<Source> out, Path root, String tier, java.util.function.Predicate<String> accept,
+            List<String> unreadable) {
         for (Path p : pureFiles(root)) {
             String t;
             try {
                 t = Files.readString(p);
             } catch (Exception e) {
-                UNREADABLE.add(slashed(root.relativize(p)) + " :: " + e);
+                unreadable.add(slashed(root.relativize(p)) + " :: " + e);
                 continue;
             }
             if (accept.test(t)) {
@@ -238,11 +236,17 @@ public final class Corpus {
     }
 
     public static List<Source> all() {
+        return load().sources();
+    }
+
+    /** The corpus with its load's counts. */
+    static Loaded load() {
         List<Source> out = new ArrayList<>();
+        List<String> unreadable = new ArrayList<>();
         // the WHOLE engine checkout — every module's .pure, not a curated subset
         // (the three-root cut left 1,161 files in other xts modules invisible)
-        add(out, engineRoot(), "C3/C10 engine", t -> true);
-        add(out, pureRoot(), "C10 pure", t -> true);
+        add(out, engineRoot(), "C3/C10 engine", t -> true, unreadable);
+        add(out, pureRoot(), "C10 pure", t -> true, unreadable);
         // C4/C5 — Pure snippets embedded in upstream Java TEST sources; the reference
         // parser adjudicates every candidate, so extraction is tolerant by design
         out.addAll(InlineSnippets.extract(engineRoot(), "C4 engine-inline"));
@@ -268,7 +272,7 @@ public final class Corpus {
         java.util.Set<String> seen = new java.util.HashSet<>();
         int before = out.size();
         out.removeIf(s -> !seen.add(s.text()));
-        DEDUPED.set(before - out.size());
+        int deduped = before - out.size();
         String only = System.getProperty("legend.corpus.containing");
         if (only != null) {
             // ITERATION ONLY — a section leg's inner loop. The ratchet gate is
@@ -276,6 +280,6 @@ public final class Corpus {
             // MIN_ELEMENTS_COMPARED floor fails long before it could).
             out.removeIf(s -> !s.text().contains(only));
         }
-        return out;
+        return new Loaded(out, unreadable, deduped);
     }
 }
