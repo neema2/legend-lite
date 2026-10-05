@@ -1,5 +1,5 @@
 /* Upstream Legend Query's type (legend-art style/base/_fonts.scss: @fontsource Roboto, Roboto Mono,
- * Raleway 900 for the type letters), served with the site from the same @fontsource packages
+ * Raleway 900 for the type letters), served with the site from legend-art/fonts (vendored)
  * (OFL-1.1): no request leaves for a font CDN. Latin; the weights upstream loads. */
 @font-face { font-family: 'Roboto'; font-style: normal; font-display: swap; font-weight: 300; src: url(vendor/fonts/roboto-latin-300-normal.woff2) format('woff2'); }
 @font-face { font-family: 'Roboto'; font-style: normal; font-display: swap; font-weight: 400; src: url(vendor/fonts/roboto-latin-400-normal.woff2) format('woff2'); }

@@ -71,8 +71,6 @@ button { font: inherit; color: inherit; }
 
 /* the activity bar (census 2.1, upstream _activity-bar.scss): 50px on the chrome grey; icons muted, the active
    and hovered one primary -- no bar, background or border marks the active item */
-.icon { display: inline-flex; line-height: 0; }
-.icon svg { display: block; }
 .activity-bar { grid-row: 1; display: flex; flex-direction: column; width: 50px; height: 100%; overflow: hidden; background: var(--color-bg-chrome); }
 .activity-bar__menu { display: flex; align-items: center; justify-content: center; flex: 0 0 34px; height: 34px; border: 0; border-bottom: 1px solid var(--color-border-default); background: none; color: var(--color-text-muted); cursor: pointer; }
 .activity-bar__menu:hover { color: var(--color-text-primary); }
@@ -87,18 +85,35 @@ button { font: inherit; color: inherit; }
 .menu { position: fixed; z-index: 200; min-width: 200px; padding: 4px 0; background: var(--color-bg-elevated); box-shadow: var(--color-shadow) 0 1px 5px 0; }
 .menu__item { display: flex; align-items: center; width: 100%; height: 28px; padding: 0 10px; border: 0; background: none; color: var(--color-text-primary); text-align: left; cursor: pointer; }
 .menu__item:hover { background: var(--color-bg-selected); }
-.side-bar { grid-row: 1; background: var(--bg-2); border-right: 1px solid var(--line); overflow: auto; }
-.side-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); border-bottom: 1px solid var(--line); }
-.side-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; }
-.tree { padding: 4px 0; }
-.tree-node { display: flex; align-items: center; gap: 6px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
-.tree-node:hover { background: var(--bg-3); }
-.tree-node.selected { background: var(--bg-4); }
-.tree-node.changed > span:last-child { color: var(--warn); }
-.tree-node.has-errors > span:last-child { color: var(--error); text-decoration: underline wavy var(--error); }
-.tree-node.removed { color: var(--text-dim); text-decoration: line-through; cursor: default; }
-.tree-caret { width: 10px; color: var(--text-dim); }
-.tree-icon { display: inline-flex; width: 16px; height: 16px; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; background: #5a6170; border-radius: 2px; }
+/* the side bar (census 2.2): every view's header is upstream's side-bar header -- 34px on the panel grey, the
+   title in upper case, 12px / 500, primary text; header actions are 28px icon buttons in muted grey */
+.side-bar { grid-row: 1; display: flex; flex-direction: column; min-height: 0; background: var(--color-bg-panel); color: var(--color-text-muted); overflow: hidden; }
+.side-head { display: flex; align-items: center; justify-content: space-between; flex: 0 0 34px; height: 34px; padding-left: 10px; background: var(--color-bg-panel); }
+.side-head > span:first-child, .side-head__title { font-size: 12px; font-weight: 500; text-transform: uppercase; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+.panel__header__actions { display: flex; align-items: stretch; height: 100%; margin-left: auto; padding-right: 5px; }
+.panel__header__action { display: flex; align-items: center; justify-content: center; width: 28px; border: 0; background: none; color: var(--color-text-muted); font-size: 14px; cursor: pointer; }
+.panel__header__action:hover { color: var(--color-text-primary); }
+.panel__header__action[disabled] { color: var(--color-text-disabled); cursor: not-allowed; }
+
+/* the explorer (census 3): its sub-header -- the "workspace" chip, the id in bold -- then the tree */
+.explorer { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.explorer__header { display: flex; align-items: center; flex: 0 0 28px; height: 28px; min-width: 90px; padding-left: 10px; background: var(--color-bg-panel-header); color: var(--color-text-secondary); box-shadow: var(--color-shadow) 0 1px 5px 0; z-index: 1; }
+.explorer__header__chip { height: 18px; line-height: 18px; padding: 0 5px; margin-right: 5px; border-radius: 1px; background: var(--color-bg-tag); color: var(--color-text-secondary); font-size: 11px; }
+.explorer__header__title { font-weight: 700; color: var(--color-text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tree { flex: 1; overflow: auto; padding: 5px 0; }
+/* a row (census 3.2): 22px; hover the subtle accent, selected the selection blue; the label stays muted */
+.tree-node { display: flex; align-items: center; height: 22px; padding-right: 5px; cursor: pointer; white-space: nowrap; color: var(--color-text-muted); }
+.tree-node:hover { background: var(--color-accent-subtle); }
+.tree-node.selected, .tree-node.selected:hover { background: var(--color-bg-selected); }
+.tree-node__icon { display: flex; align-items: center; flex: 0 0 40px; width: 40px; height: 22px; padding-right: 5px; }
+.tree-node__icon__expand, .tree-node__icon__type { display: flex; align-items: center; justify-content: center; width: 20px; }
+.tree-node__label { height: 22px; line-height: 22px; overflow: hidden; text-overflow: ellipsis; }
+/* lite's own marks (no upstream equivalent): an unsaved element, an element the compiler refuses, a removed one */
+.tree-node.changed .tree-node__label { color: var(--color-status-warn); }
+.tree-node.has-errors .tree-node__label { color: var(--color-status-error); text-decoration: underline wavy var(--color-status-error); }
+.tree-node.removed { color: var(--color-text-disabled); cursor: default; }
+.tree-node.removed .tree-node__label { text-decoration: line-through; }
 .change { display: flex; gap: 8px; padding: 3px 10px; font-family: var(--mono); font-size: 12px; }
 .change-type { font-weight: 700; width: 12px; }
 .change-create .change-type { color: var(--ok); }

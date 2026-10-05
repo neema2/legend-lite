@@ -11,6 +11,7 @@ import type { Compiler } from '../backend/planner.ts';
 import { ELEMENT_KINDS, splitPath } from '../model/templates.ts';
 import { Workspace, type OpenFile, type Problem } from '../model/workspace.ts';
 import { icon } from '../../../legend-art/src/icon.ts';
+import { typeIcon } from '../../../legend-art/src/type-icon.ts';
 import type { IconName } from '../../../legend-art/src/icons.ts';
 import { clear, dialog, h, menu, toast } from './dom.ts';
 import { PURE } from './pure-language.ts';
@@ -217,8 +218,15 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   };
 
   const renderExplorer = (): void => {
-    const head = h('div', { class: 'side-head' }, h('span', {}, 'Explorer'),
-      h('button', { class: 'btn btn-small', 'data-testid': 'new-element', title: 'New element (Ctrl+Shift+N)', onclick: () => void newElement() }, '+ New'));
+    // upstream's explorer (census 3): the side-bar header, then the sub-header -- the "workspace" chip, its id, and
+    // the actions this Studio has (New Element, Collapse All) -- then the tree
+    const head = h('div', { class: 'side-head' }, h('span', { class: 'side-head__title' }, 'Explorer'));
+    const subHead = h('div', { class: 'explorer__header' },
+      h('div', { class: 'explorer__header__chip' }, 'workspace'),
+      h('div', { class: 'explorer__header__title', title: ctx.workspace }, ctx.workspace),
+      h('div', { class: 'panel__header__actions' },
+        h('button', { class: 'panel__header__action', 'data-testid': 'new-element', title: 'New Element... (Ctrl + Shift + N)', onclick: () => void newElement() }, icon('plus')),
+        h('button', { class: 'panel__header__action', title: 'Collapse All', onclick: () => { for (const p of packagePaths()) collapsed.add(p); renderSide(); } }, icon('compress'))));
     const tree = h('div', { class: 'tree', 'data-testid': 'explorer' });
     const files = ws.files();
     if (files.length === 0) tree.append(h('div', { class: 'side-empty' }, 'This workspace is empty: create an element.'));
@@ -235,27 +243,39 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       }
       node.files.push({ name: parts[parts.length - 1]!, file: f });
     }
+    // a row (census 3.2): 22px, indented 10px a level; a 40px icon block -- the expand chevron, then the folder or
+    // the element's type icon -- then the label, whose tooltip is the full path
+    const row = (depth: number, cls: string, expand: HTMLElement | undefined, type: HTMLElement, label: string, title: string, onclick?: () => void, path?: string): HTMLElement =>
+      h('div', { class: `tree-node ${cls}`, style: `padding-left:${depth * 10}px`, 'data-path': path, onclick },
+        h('div', { class: 'tree-node__icon' }, h('div', { class: 'tree-node__icon__expand' }, expand), h('div', { class: 'tree-node__icon__type' }, type)),
+        h('div', { class: 'tree-node__label', title }, label));
     const draw = (node: Node, prefix: string, depth: number): void => {
       for (const [name, sub] of [...node.pkgs].sort(([a], [b]) => a.localeCompare(b))) {
         const path = prefix ? `${prefix}::${name}` : name;
         const open = !collapsed.has(path);
-        tree.append(h('div', { class: 'tree-node package', style: `padding-left:${8 + depth * 12}px`, onclick: () => { if (open) collapsed.add(path); else collapsed.delete(path); renderSide(); } },
-          h('span', { class: 'tree-caret' }, open ? '▾' : '▸'), h('span', {}, name)));
+        tree.append(row(depth, 'package', icon(open ? 'chevronDown' : 'chevronRight', '10px'), icon(open ? 'folderOpen' : 'folder'), name, path,
+          () => { if (open) collapsed.add(path); else collapsed.delete(path); renderSide(); }));
         if (open) draw(sub, path, depth + 1);
       }
       for (const { name, file } of node.files.sort((a, b) => a.name.localeCompare(b.name))) {
         const errors = problems.some((p) => p.key === file.key);
-        tree.append(h('div', {
-          class: `tree-node element${file.key === active ? ' selected' : ''}${ws.isChanged(file.key) ? ' changed' : ''}${errors ? ' has-errors' : ''}`,
-          style: `padding-left:${20 + depth * 12}px`, 'data-path': fileLabel(file), onclick: () => show(file.key),
-        }, h('span', { class: 'tree-icon' }, kindGlyph(file.text)), h('span', {}, name)));
+        tree.append(row(depth, `element${file.key === active ? ' selected' : ''}${ws.isChanged(file.key) ? ' changed' : ''}${errors ? ' has-errors' : ''}`,
+          undefined, typeIcon(kindOf(file.text)), name, fileLabel(file), () => show(file.key), fileLabel(file)));
       }
     };
     draw(rootNode, '', 0);
-    for (const path of ws.removed()) {
-      tree.append(h('div', { class: 'tree-node element removed', style: 'padding-left:8px' }, h('span', { class: 'tree-icon' }, '−'), h('span', {}, path)));
+    for (const path of ws.removed()) tree.append(row(0, 'element removed', undefined, icon('trash'), path, `${path} (removed, not yet saved)`));
+    sideBar.append(head, h('div', { class: 'explorer' }, subHead, tree));
+  };
+
+  /** Every package path in the workspace, for Collapse All. */
+  const packagePaths = (): string[] => {
+    const out = new Set<string>();
+    for (const f of ws.files()) {
+      const parts = fileLabel(f).split('::').slice(0, -1);
+      for (let i = 1; i <= parts.length; i++) out.add(parts.slice(0, i).join('::'));
     }
-    sideBar.append(head, tree);
+    return [...out];
   };
 
   const renderChanges = async (): Promise<void> => {
@@ -449,18 +469,7 @@ function shortcut(label: string, keys: string): HTMLElement {
   return h('div', { class: 'shortcut' }, h('span', {}, label), h('kbd', {}, keys));
 }
 
-function kindGlyph(text: string): string {
-  const k = DECLARES.exec(text.replace(/\/\/.*$/gm, ''))?.[0]?.trim().split(/\s/)[0];
-  switch (k) {
-    case 'Class': return 'C';
-    case 'Enum': return 'E';
-    case 'Association': return 'A';
-    case 'Profile': return 'P';
-    case 'function': return 'ƒ';
-    case 'Mapping': return 'M';
-    case 'Runtime': return 'R';
-    case 'Database': return 'D';
-    case 'Service': return 'S';
-    default: return '•';
-  }
+/** The keyword an element's text declares it with (`Class`, `function`, ...), for its type icon. */
+function kindOf(text: string): string | undefined {
+  return DECLARES.exec(text.replace(/\/\/.*$/gm, ''))?.[0]?.trim().split(/\s/)[0];
 }

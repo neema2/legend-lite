@@ -79,6 +79,7 @@ copy_to_directory(
         "legend-art/fonts/roboto-latin-500-normal.woff2",
         "legend-art/fonts/roboto-latin-700-normal.woff2",
         "legend-art/fonts/roboto-mono-latin-400-normal.woff2",
+        "legend-art/fonts/raleway-latin-900-normal.woff2",
         "legend-art/fonts/LICENSE-*.txt",
         "legend-art/src/*.css",
     ],
