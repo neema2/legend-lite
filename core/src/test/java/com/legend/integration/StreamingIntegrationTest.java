@@ -16,9 +16,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -271,7 +269,6 @@ class StreamingIntegrationTest {
         final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
         final AtomicInteger writeCallCount = new AtomicInteger(0);
         final List<Integer> writeCallSizeHistory = new ArrayList<>();
-        final List<Long> writeCallTimestamps = new ArrayList<>();
 
         @Override public void write(int b) {
             recordWrite(1);
@@ -291,7 +288,6 @@ class StreamingIntegrationTest {
         private void recordWrite(int size) {
             writeCallCount.incrementAndGet();
             writeCallSizeHistory.add(size);
-            writeCallTimestamps.add(System.nanoTime());
         }
     }
 
@@ -341,87 +337,14 @@ class StreamingIntegrationTest {
     }
 
     @Test
-    @DisplayName("stream: output buffer is observably growing during execution [MUTATION-VERIFIED]")
+    @DisplayName("stream: bytes reach the output while rows are still being fetched [MUTATION-VERIFIED]")
     void testStreamOutputVisibleIncrementallyDuringExecution() throws Exception {
-        // The strongest streaming proof in this class: an observer thread
-        // watches the output buffer WHILE the query is executing, and asserts
-        // it sees multiple intermediate sizes between empty and final.
-        //
-        // How this differentiates streaming from materialized:
-        //   * Streaming impl: each row's bytes appear in the buffer as that
-        //     row is fetched and flushed. Observer (sampling every ~1ms)
-        //     sees the buffer grow through many distinct intermediate sizes.
-        //   * Materialized impl: the whole JSON is buffered in memory first,
-        //     then written to the OutputStream in one flush. Observer only
-        //     ever sees {0, finalSize} — no intermediate values.
-        //
-        // A per-write busy-wait stretches streaming time out so the observer
-        // has time to sample mid-execution. On materialized the delay lands
-        // in a single write at the end and the observer still sees no
-        // intermediate growth.
-
+        // The streaming proof without a clock (Bazel workplan P3-15; it sampled the buffer from a thread every 1 ms
+        // around a busy-wait): a recording connection counts ResultSet.next() calls, and the output stream notes how
+        // many rows had been fetched at its FIRST write. Streaming writes as it fetches; a materialized
+        // implementation fetches all 100 rows before writing a byte.
         String query = "model::Employee.all()->project(~[name:e|$e.name, dept:e|$e.department, salary:e|$e.salary])";
-
-        ByteArrayOutputStream sharedBuffer = new ByteArrayOutputStream();
-        List<Integer> observedSizes = Collections.synchronizedList(new ArrayList<>());
-        AtomicBoolean executionDone = new AtomicBoolean(false);
-
-        OutputStream slowObservableStream = new OutputStream() {
-            private void stretchTime() {
-                // 500μs busy-wait per write — enough for the 1ms observer to
-                // sample many intermediate states when combined with ~100 row
-                // flushes (500μs × 100 ≈ 50ms total).
-                long end = System.nanoTime() + 500_000L;
-                while (System.nanoTime() < end) {
-                    Thread.onSpinWait();
-                }
-            }
-            @Override public void write(int b) {
-                stretchTime();
-                synchronized (sharedBuffer) { sharedBuffer.write(b); }
-            }
-            @Override public void write(byte[] b, int off, int len) {
-                stretchTime();
-                synchronized (sharedBuffer) { sharedBuffer.write(b, off, len); }
-            }
-            @Override public void flush() {}
-            @Override public void close() {}
-        };
-
-        Thread observer = new Thread(() -> {
-            while (!executionDone.get()) {
-                int size;
-                synchronized (sharedBuffer) { size = sharedBuffer.size(); }
-                observedSizes.add(size);
-                try { Thread.sleep(1); } catch (InterruptedException e) { return; }
-            }
-        }, "streaming-observer");
-        observer.setDaemon(true);
-        observer.start();
-
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, slowObservableStream);
-        executionDone.set(true);
-        observer.join(5_000);
-
-        int finalSize;
-        synchronized (sharedBuffer) { finalSize = sharedBuffer.size(); }
-        assertTrue(finalSize > 0, "Should have produced some output");
-
-        // Distinct non-empty sizes strictly less than the final size. For a
-        // materialized impl there would be zero — buffer transitions directly
-        // from 0 to finalSize.
-        long distinctNonFinalNonZeroSizes = observedSizes.stream()
-                .filter(s -> s > 0 && s < finalSize)
-                .distinct()
-                .count();
-
-        assertTrue(distinctNonFinalNonZeroSizes >= 3,
-                "Streaming must produce observable incremental growth. "
-                        + "Final buffer size=" + finalSize
-                        + ", distinct non-final-non-zero sizes observed=" + distinctNonFinalNonZeroSizes
-                        + ", total samples=" + observedSizes.size()
-                        + ". A materialized impl would transition directly from 0 to " + finalSize
-                        + " with no intermediate values visible to the observer.");
+        assertRowsFetchedAtFirstWriteFewerThanAll(query);
     }
 
     @Test
@@ -505,72 +428,85 @@ class StreamingIntegrationTest {
     }
 
     @Test
-    @DisplayName("stream graphFetch: output buffer observably growing during execution [MUTATION-VERIFIED]")
+    @DisplayName("stream graphFetch: bytes reach the output while rows are still being fetched [MUTATION-VERIFIED]")
     void testStreamGraphFetchOutputVisibleIncrementallyDuringExecution() throws Exception {
-        // Mirror of testStreamOutputVisibleIncrementallyDuringExecution but for
-        // graphFetch. Streaming impl: observer sees many intermediate sizes as
-        // rows are fetched and flushed. Materialized fallback: observer sees
-        // only {0, finalSize}.
+        // the graphFetch mirror of testStreamOutputVisibleIncrementallyDuringExecution, without a clock (P3-15)
         String query = """
                 model::Employee.all()
                     ->graphFetch(#{ Employee { name, department, salary } }#)
                     ->serialize(#{ Employee { name, department, salary } }#)
                 """;
+        assertRowsFetchedAtFirstWriteFewerThanAll(query);
+    }
 
-        ByteArrayOutputStream sharedBuffer = new ByteArrayOutputStream();
-        List<Integer> observedSizes = Collections.synchronizedList(new ArrayList<>());
-        AtomicBoolean executionDone = new AtomicBoolean(false);
-
-        OutputStream slowObservableStream = new OutputStream() {
-            private void stretchTime() {
-                long end = System.nanoTime() + 500_000L;
-                while (System.nanoTime() < end) {
-                    Thread.onSpinWait();
-                }
+    /** Streams {@code query} over a connection that counts every ResultSet.next(), and asserts the output saw its
+     *  first byte before the 100 employee rows were all fetched. */
+    private void assertRowsFetchedAtFirstWriteFewerThanAll(String query) throws Exception {
+        AtomicInteger fetched = new AtomicInteger();
+        AtomicInteger fetchedAtFirstWrite = new AtomicInteger(-1);
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        OutputStream out = new OutputStream() {
+            private void first() {
+                fetchedAtFirstWrite.compareAndSet(-1, fetched.get());
             }
             @Override public void write(int b) {
-                stretchTime();
-                synchronized (sharedBuffer) { sharedBuffer.write(b); }
+                first();
+                buffer.write(b);
             }
             @Override public void write(byte[] b, int off, int len) {
-                stretchTime();
-                synchronized (sharedBuffer) { sharedBuffer.write(b, off, len); }
+                first();
+                buffer.write(b, off, len);
             }
             @Override public void flush() {}
             @Override public void close() {}
         };
+        queryService.stream(PURE_MODEL, query, "test::TestRuntime", countingRows(connection, fetched), out);
+        assertTrue(buffer.size() > 0, "Should have produced some output");
+        assertTrue(fetched.get() >= 100, "the recording connection saw " + fetched.get() + " rows fetched, not the"
+                + " 100 the query reads: the stream bypassed it, and this test proves nothing");
+        assertTrue(fetchedAtFirstWrite.get() < fetched.get(), "the first byte reached the output after all "
+                + fetched.get() + " rows were fetched: the result was materialized before writing");
+    }
 
-        Thread observer = new Thread(() -> {
-            while (!executionDone.get()) {
-                int size;
-                synchronized (sharedBuffer) { size = sharedBuffer.size(); }
-                observedSizes.add(size);
-                try { Thread.sleep(1); } catch (InterruptedException e) { return; }
-            }
-        }, "graphfetch-streaming-observer");
-        observer.setDaemon(true);
-        observer.start();
+    /** {@code inner}, with every ResultSet its statements return counting its next() calls into {@code fetched}. */
+    private static Connection countingRows(Connection inner, AtomicInteger fetched) {
+        return (Connection) java.lang.reflect.Proxy.newProxyInstance(StreamingIntegrationTest.class.getClassLoader(),
+                new Class<?>[] {Connection.class}, (proxy, m, args) -> {
+                    Object r = invoke(inner, m, args);
+                    if (r instanceof java.sql.PreparedStatement ps) {
+                        return wrapStatement(ps, java.sql.PreparedStatement.class, fetched);
+                    }
+                    if (r instanceof Statement st) {
+                        return wrapStatement(st, Statement.class, fetched);
+                    }
+                    return r;
+                });
+    }
 
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, slowObservableStream);
-        executionDone.set(true);
-        observer.join(5_000);
+    private static <S extends Statement> S wrapStatement(S inner, Class<S> type, AtomicInteger fetched) {
+        return type.cast(java.lang.reflect.Proxy.newProxyInstance(StreamingIntegrationTest.class.getClassLoader(),
+                new Class<?>[] {type}, (proxy, m, args) -> {
+                    Object r = invoke(inner, m, args);
+                    if (r instanceof java.sql.ResultSet rs) {
+                        return java.lang.reflect.Proxy.newProxyInstance(StreamingIntegrationTest.class.getClassLoader(),
+                                new Class<?>[] {java.sql.ResultSet.class}, (p2, m2, a2) -> {
+                                    Object v = invoke(rs, m2, a2);
+                                    if (m2.getName().equals("next") && Boolean.TRUE.equals(v)) {
+                                        fetched.incrementAndGet();
+                                    }
+                                    return v;
+                                });
+                    }
+                    return r;
+                }));
+    }
 
-        int finalSize;
-        synchronized (sharedBuffer) { finalSize = sharedBuffer.size(); }
-        assertTrue(finalSize > 0, "Should have produced some output");
-
-        long distinctNonFinalNonZeroSizes = observedSizes.stream()
-                .filter(s -> s > 0 && s < finalSize)
-                .distinct()
-                .count();
-
-        assertTrue(distinctNonFinalNonZeroSizes >= 3,
-                "Streaming graphFetch must produce observable incremental growth. "
-                        + "Final buffer size=" + finalSize
-                        + ", distinct non-final-non-zero sizes observed=" + distinctNonFinalNonZeroSizes
-                        + ", total samples=" + observedSizes.size()
-                        + ". A materialized fallback would transition directly from 0 to " + finalSize
-                        + " with no intermediate values visible to the observer.");
+    private static Object invoke(Object target, java.lang.reflect.Method m, Object[] args) throws Throwable {
+        try {
+            return m.invoke(target, args);
+        } catch (java.lang.reflect.InvocationTargetException e) {
+            throw e.getCause();
+        }
     }
 
     @Test

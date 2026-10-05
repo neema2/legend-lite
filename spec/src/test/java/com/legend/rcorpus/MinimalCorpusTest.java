@@ -44,13 +44,6 @@ import java.util.Set;
 @Tag("heavy")
 public class MinimalCorpusTest {
 
-    /** Wall time one corpus test may take, setups included. Set against the
-     *  RUNAWAY it exists to catch (a refused body inlined through the SQL
-     *  printer: 100s, 2026-09-25), not against this machine: CI's macOS runner
-     *  is ~3x slower and a test that opens a package session took 17.1s there
-     *  (1.5s here). 60s trips on the runaway with margin on the slowest runner
-     *  and never on a legitimate test. */
-    static final long PER_TEST_CEILING_MS = 60_000L;
 
 
     /** The roster files: one test FQN per line, sorted, no messages. */
@@ -359,18 +352,8 @@ public class MinimalCorpusTest {
                 .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
                 .limit(15)
                 .forEach(e -> System.out.println("[corpus2] slow " + e.getValue() + "ms " + e.getKey()));
-        // THE PER-TEST CEILING (2026-09-25): the slowest corpus test takes ~1.5s on
-        // this machine; a change that sends one test to 100s (a refused body minted
-        // as a native node and inlined through the SQL printer) must be RED, not
-        // a line in this ledger. Includes the package session's setups; the
-        // probe lane (LL_SHADOW) is exempt — it writes on every decision.
-        if (System.getenv("LL_SHADOW") == null) {
-            List<String> overBudget = elapsed.entrySet().stream()
-                    .filter(e -> e.getValue() > PER_TEST_CEILING_MS)
-                    .map(e -> e.getValue() + "ms " + e.getKey()).toList();
-            org.junit.jupiter.api.Assertions.assertEquals(List.of(), overBudget,
-                    "corpus tests over the per-test ceiling of " + PER_TEST_CEILING_MS + "ms");
-        }
+        // (no per-test wall-clock ceiling, Bazel workplan P3-15: elapsed time is a machine's, not the code's; each
+        // test's time stays in corpus2-elapsed.txt for reading, and a runaway is the lane's Bazel timeout)
         // setups the platform derived as inert (never ran): named, and
         // pinned exactly on the full run — Phase 0.2
         for (String s : corpus.inertSetups()) {

@@ -1974,31 +1974,36 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("today() — current date literal in extend")
         void testToday() throws SQLException {
+            // against DuckDB's own date, read either side of the query (a midnight between them is either day):
+            // not the JVM's clock, whose zone need not be the database's (Bazel workplan P3-15)
+            String before = dbScalar("SELECT CAST(current_date AS VARCHAR)");
             var r = executeRelation("""
                     |#TDS
                     id
                     1
                     #->extend(~td: x | today())""");
             assertEquals(1, r.rowCount());
-            // today() should return a date containing the current year
+            String after = dbScalar("SELECT CAST(current_date AS VARCHAR)");
             String td = r.rows().get(0).get(colIdx(r, "td")).toString();
-            assertTrue(td.startsWith(String.valueOf(java.time.Year.now().getValue())),
-                    "today() should start with current year");
+            assertTrue(td.startsWith(before) || td.startsWith(after),
+                    "today() is the database's date (" + before + " .. " + after + "), got " + td);
         }
 
         @Test
         @DisplayName("now() — current datetime in extend")
         void testNow() throws SQLException {
+            // the year of DuckDB's own clock either side of the query, not the JVM's (P3-15)
+            String before = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
             var r = executeRelation("""
                     |#TDS
                     id
                     1
                     #->extend(~ts: x | now())""");
             assertEquals(1, r.rowCount());
-            // now() should return a datetime containing the current year
+            String after = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
             String ts = r.rows().get(0).get(colIdx(r, "ts")).toString();
-            assertTrue(ts.startsWith(String.valueOf(java.time.Year.now().getValue())),
-                    "now() should start with current year");
+            assertTrue(ts.startsWith(before) || ts.startsWith(after),
+                    "now() is in the database's year (" + before + " .. " + after + "), got " + ts);
         }
 
         @Test
@@ -2257,5 +2262,13 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         }
         throw new AssertionError("Column '" + name + "' not found in " +
                 result.columns().stream().map(c -> c.name()).toList());
+    }
+
+    /** One value the test's own DuckDB session computes. */
+    private String dbScalar(String sql) throws SQLException {
+        try (var st = connection.createStatement(); var rs = st.executeQuery(sql)) {
+            rs.next();
+            return rs.getString(1);
+        }
     }
 }
