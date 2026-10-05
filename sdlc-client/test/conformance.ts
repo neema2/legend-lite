@@ -431,6 +431,8 @@ export function conformance(name: string, target: () => Target): void {
       await refused('GET', `/projects/${E2}/versions/1.0`, undefined, 400, 'Invalid version string: "1.0"');
       await refused('GET', `/projects/${E2}/versions/9.9.9`, undefined, 404, `Version 9.9.9 is unknown for project ${P2}`);
       assert.equal(((await raw('GET', `/projects/${E2}/versions/0.1.0/pure`)).json as unknown[]).length, 1);
+      assert.deepEqual(await client().versionPure(P2, '0.1.0'), (await raw('GET', `/projects/${E2}/versions/0.1.0/pure`)).json);
+      assert.equal((await client().versionConfiguration(P2, '0.1.0')).projectId, P2);
       assert.deepEqual(((await raw('GET', `/projects/${E2}/versions/0.1.0/entities`)).json as { path: string }[]).map((e) => e.path), ['demo::types::Country']);
       await refused('GET', `/projects/${E2}/versions/0.1.0/entities/demo::x::Y`, undefined, 404, `Unknown entity demo::x::Y for version 0.1.0 of project ${P2}`);
     });
