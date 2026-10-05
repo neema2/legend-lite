@@ -1,0 +1,26 @@
+# legend-art, lite (README.md): the look every app here shares -- upstream Legend's icons and type, VENDORED as
+# data (no app depends on react-icons or @fontsource; this package holds what they would have supplied).
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("//tools/guards:defs.bzl", "guards_package")
+
+js_library(
+    name = "legend_art",
+    srcs = glob(["src/**/*.ts"]) + ["package.json"],
+    visibility = [
+        "//query:__pkg__",
+        "//studio:__pkg__",
+    ],
+)
+
+# Upstream Legend's type (legend-art _fonts.scss): Roboto, Roboto Mono, and Raleway 900 for Query's type letters.
+# Served with each site from ./vendor/fonts/, never a font CDN (SIL OFL 1.1, the LICENSE-*.txt beside them).
+filegroup(
+    name = "fonts",
+    srcs = glob(["fonts/*.woff2"]) + glob(["fonts/LICENSE-*.txt"]),
+    visibility = [
+        "//query:__pkg__",
+        "//studio:__pkg__",
+    ],
+)
+
+guards_package()

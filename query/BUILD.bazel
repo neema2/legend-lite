@@ -61,10 +61,8 @@ copy_to_directory(
     srcs = [
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         # upstream Legend Query's type (legend-art _fonts.scss): Roboto, Roboto Mono, Raleway 900
-        # for the type letters -- served with the site, no font CDN (OFL-1.1)
-        ":node_modules/@fontsource/raleway",
-        ":node_modules/@fontsource/roboto",
-        ":node_modules/@fontsource/roboto-mono",
+        # for the type letters -- vendored in legend-art, served with the site, no font CDN (OFL-1.1)
+        "//legend-art:fonts",
         "//wasm:planner",
     ],
     out = "demo/vendor",
@@ -75,19 +73,20 @@ copy_to_directory(
         "**/dist/duckdb-eh.wasm",
         "**/dist/duckdb-browser-mvp.worker.js",
         "**/dist/duckdb-browser-eh.worker.js",
-        "**/files/roboto-latin-300-normal.woff2",
-        "**/files/roboto-latin-400-normal.woff2",
-        "**/files/roboto-latin-500-normal.woff2",
-        "**/files/roboto-latin-700-normal.woff2",
-        "**/files/roboto-latin-900-normal.woff2",
-        "**/files/roboto-mono-latin-400-normal.woff2",
-        "**/files/roboto-mono-latin-700-normal.woff2",
-        "**/files/raleway-latin-900-normal.woff2",
+        "legend-art/fonts/roboto-latin-300-normal.woff2",
+        "legend-art/fonts/roboto-latin-400-normal.woff2",
+        "legend-art/fonts/roboto-latin-500-normal.woff2",
+        "legend-art/fonts/roboto-latin-700-normal.woff2",
+        "legend-art/fonts/roboto-latin-900-normal.woff2",
+        "legend-art/fonts/roboto-mono-latin-400-normal.woff2",
+        "legend-art/fonts/roboto-mono-latin-700-normal.woff2",
+        "legend-art/fonts/raleway-latin-900-normal.woff2",
+        "legend-art/fonts/LICENSE-*.txt",
     ],
     replace_prefixes = {
         "wasm/planner/": "",
         "**/dist/": "",
-        "**/files/": "fonts/",
+        "legend-art/fonts/": "fonts/",
     },
 )
 

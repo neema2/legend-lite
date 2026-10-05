@@ -7,16 +7,6 @@ settings:
 importers:
 
   .:
-    dependencies:
-      '@fontsource/raleway':
-        specifier: 5.3.0
-        version: 5.3.0
-      '@fontsource/roboto':
-        specifier: 5.3.0
-        version: 5.3.0
-      '@fontsource/roboto-mono':
-        specifier: 5.3.0
-        version: 5.3.0
     devDependencies:
       '@types/node':
         specifier: 26.6.2
@@ -188,15 +178,6 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
-
-  '@fontsource/raleway@5.3.0':
-    resolution: {integrity: sha512-BTWr1I14Ji0DWpS/KCIq/CXcvxXWgMO73gynWpbYv7A5wlPhLevozgRmdPJvZmUf0fhH+Lju+F4nigJ6Ums24A==}
-
-  '@fontsource/roboto-mono@5.3.0':
-    resolution: {integrity: sha512-yhwplHMHW9dCk+1pZuERfcJe+K3rosGVZEoK0XktkxRSqQ9qsipSwwiuW2/8Qmtp9lzu3Ixa/ie4BMH3i8CkZQ==}
-
-  '@fontsource/roboto@5.3.0':
-    resolution: {integrity: sha512-BapRJOWYP+LZ21zp+wBQjfpPYKRoxc4LspJ/RLuI+HSMBD5u/X4O+ESDrSvEqDSy0rAl7GwBJ+09mdc16cVQ1Q==}
 
   '@types/node@26.6.2':
     resolution: {integrity: sha512-X1P21scMv4zGKLYqjdGjaKa7COa0RKVYYZZN/NfvLQ1JegxFhdhpZG/Lyn8AXx6CDUavKAd11v6BvfpkDByK8g==}
@@ -423,12 +404,6 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
-
-  '@fontsource/raleway@5.3.0': {}
-
-  '@fontsource/roboto-mono@5.3.0': {}
-
-  '@fontsource/roboto@5.3.0': {}
 
   '@types/node@26.6.2':
     dependencies:
