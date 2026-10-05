@@ -87,7 +87,6 @@ _ENGINE_JARS_FLAG = "-Dlegend.engine.jars=$(rootpath :engine_jars)"
 _INPUTS = [
     ":srcs",
     "//core:srcs",
-    "//docs:ledgers",
     "//pct:srcs",
     "//spec:srcs",
     "//tools:oracle-pins.env",
@@ -100,6 +99,7 @@ _LEDGERS = [
     "c12-walls",
     "g4-keyword-snapshot",
     "model-refuse-allowlist",
+    "own-corpus-protocol-diffs",
     "parser-surface-exclusions",
     "protocol-roster",
     "refusal-allowlist",

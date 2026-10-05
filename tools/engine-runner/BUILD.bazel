@@ -1,4 +1,6 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
+load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/guards:defs.bzl", "guards_package")
 
 # The engine runner (README.md): the real legend-engine over .pure sources, beside
@@ -52,5 +54,26 @@ legend_java_library(
     ("lite_parse", "LiteParseMain"),
     ("token_dump", "TokenDump"),
 ]]
+
+# vocab.tsv: every literal token the runner's lexers know, at the pinned release (TokenDump over the runner's jars;
+# keywords.py reads it). `bazel run //tools/engine-runner:update_vocab` writes it (Bazel workplan P2-18).
+java_run(
+    name = "vocab",
+    testonly = True,
+    outs = ["generated/vocab.tsv"],
+    arguments = ["{OUT}"],
+    main_class = "perf.TokenDump",
+    mnemonic = "Generate",
+    visibility = ["//scripts/parser:__pkg__"],
+    deps = [":runner"],
+)
+
+write_source_files(
+    name = "update_vocab",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nvocab.tsv is the runner's lexer vocabulary at the pinned release -- regenerate: bazel run //tools/engine-runner:update_vocab",
+    files = {"vocab.tsv": ":vocab"},
+    visibility = ["//:__pkg__"],
+)
 
 guards_package()

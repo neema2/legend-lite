@@ -34,6 +34,7 @@ test_suite(
         "//fixtures/saved-queries:update_generated_tests",
         "//parser-equivalence:update_generated_tests",
         "//query:update_generated_tests",
+        "//tools/engine-runner:update_vocab_tests",
     ],
 )
 
@@ -53,6 +54,7 @@ write_source_files(
         "//fixtures/saved-queries:update_generated",
         "//parser-equivalence:update_generated",
         "//query:update_generated",
+        "//tools/engine-runner:update_vocab",
     ],
 )
 

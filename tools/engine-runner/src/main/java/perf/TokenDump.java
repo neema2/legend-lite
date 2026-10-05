@@ -27,6 +27,12 @@ import java.util.jar.JarFile;
  *
  * Output is one line per lexer:  <SimpleClassName> <TAB> literal <TAB> literal ...
  * with the surrounding single quotes stripped. Consumed by keywords.py.
+ *
+ * //tools/engine-runner:vocab runs it over the runner's jars (the pinned release) and writes
+ * vocab.tsv; `bazel run //tools/engine-runner:update_vocab` puts it in the tree, and //:generated
+ * fails when the committed copy is stale (Bazel workplan P2-18).
+ *
+ *   TokenDump <output file>
  */
 public class TokenDump
 {
@@ -60,11 +66,23 @@ public class TokenDump
             }
         }
 
+        if (args.length != 1)
+        {
+            throw new IllegalArgumentException("usage: TokenDump <output file>");
+        }
+        StringBuilder text = new StringBuilder();
         for (var e : out.entrySet())
         {
             if (e.getValue().isEmpty()) continue;
-            System.out.println(e.getKey() + "\t" + String.join("\t", e.getValue()));
+            text.append(e.getKey()).append('\t').append(String.join("\t", e.getValue())).append('\n');
         }
+        if (text.length() == 0)
+        {
+            // an empty vocabulary is a classpath that lost the engine's grammars, never a surface
+            throw new IllegalStateException("no ANTLR lexer on the classpath: the runner's grammar jars are missing");
+        }
+        java.nio.file.Files.writeString(java.nio.file.Path.of(args[0]), text.toString(),
+                java.nio.charset.StandardCharsets.UTF_8);
     }
 
     private static void collect(String cls, String simple,

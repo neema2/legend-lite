@@ -40,7 +40,7 @@ import org.junit.jupiter.api.Test;
  */
 class OwnCorpusParityTest {
 
-    static final Path LEDGER = Repo.path("docs", "own-corpus-protocol-diffs.tsv");
+    static final Path LEDGER = com.legend.testing.Runfile.property("ledger.own-corpus-protocol-diffs");
     /** EXACT pin on MATCHED elements (measured 2026-09-11). 2292 → 2296
      *  (batch 7a): the product test runner's proof model — four functions
      *  in a core test — joined the own corpus and matched. */
