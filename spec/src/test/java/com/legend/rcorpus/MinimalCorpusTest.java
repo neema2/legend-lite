@@ -139,7 +139,7 @@ public class MinimalCorpusTest {
 
     private static void run() throws Exception {
         String only = System.getProperty("rcorpus.test", "").trim();
-        final boolean TRACE = "1".equals(System.getProperty("rcorpus.trace"));
+        final boolean TRACE = com.legend.diagnostics.Diagnostics.on("corpus-trace");
         MinimalCorpus corpus = new MinimalCorpus();
         for (String w : corpus.libraryWalls()) {
             System.out.println("[corpus2] library skipped: " + w);

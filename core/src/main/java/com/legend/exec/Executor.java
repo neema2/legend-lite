@@ -125,7 +125,7 @@ public final class Executor {
             Census.inc(Census.Key.SQL_ROUND_TRIPS);
             StatementOrigin.count();
             Census.add(Census.Key.SQL_CHARS, script.length());
-            if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+            if (com.legend.diagnostics.Diagnostics.dumpSql()) {
                 System.err.println("[script] " + script);
             }
             st.execute(script);
@@ -227,7 +227,7 @@ public final class Executor {
             // error-path echo under the same diagnostic flag: a sweep's
             // failing statement is otherwise invisible (pre-exec dump
             // interleaves; the FAILING sql is the one worth reading)
-            if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+            if (com.legend.diagnostics.Diagnostics.dumpSql()) {
                 System.err.println("[sql-fail] " + sql);
             }
             throw e;
@@ -330,7 +330,7 @@ public final class Executor {
         Census.inc(Census.Key.SQL_ROUND_TRIPS);
         StatementOrigin.count();
         Census.add(Census.Key.SQL_CHARS, sql.length());
-        if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+        if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             // the dump names the statement's ORIGIN mark (census: which sends are sides,
             // probes, seeds …) — the same fact the statement-origin census counts
             System.err.println("[sql:" + StatementOrigin.current().name().toLowerCase(java.util.Locale.ROOT) + "] " + sql);

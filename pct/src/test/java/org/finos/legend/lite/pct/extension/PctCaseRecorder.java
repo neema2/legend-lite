@@ -12,7 +12,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.Base64;
 
 /**
- * DEBUG ONLY: the render census's input (tools/census/README.md). With {@code LL_PCT_CASES} set,
+ * DEBUG ONLY: the render census's input (tools/census/README.md). With {@code -Dlegend.diagnostics=pct-cases},
  * every (model, expression) pair the PCT lane executes is appended to {@code pct-cases.tsv} in the
  * test's undeclared outputs -- each field Base64, one case a line -- so the census can lower and
  * render the same cases under every dialect, at any two commits, without the interpreter. Unset
@@ -20,7 +20,7 @@ import java.util.Base64;
  */
 final class PctCaseRecorder {
 
-    private static final String DIR = System.getenv("LL_PCT_CASES") == null ? null
+    private static final String DIR = !com.legend.diagnostics.Diagnostics.on("pct-cases") ? null
             : System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
 
     private PctCaseRecorder() {

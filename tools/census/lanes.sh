@@ -11,7 +11,7 @@ expanded=$(bazel query 'tests(//pct:pct_duckdb + //pct:pct_channel_b + //spec:co
 [ -n "$expanded" ] || { echo "lanes.sh: the suites expanded to nothing" >&2; exit 1; }
 lanes=(//core:core_tests //core:stress_suites //core:stress_suites_h2 $expanded //pct:pct_h2)
 mkdir -p runs/census/$label
-bazel test "${lanes[@]}" --test_env=LEGEND_LITE_DUMP_SQL=1 --test_env=LL_PCT_CASES=1 --cache_test_results=no \
+bazel test "${lanes[@]}" --jvmopt=-Dlegend.diagnostics=dump-sql,pct-cases --cache_test_results=no \
   > runs/census/$label/bazel.out 2>&1
 grep -E "^//" runs/census/$label/bazel.out
 T=$(bazel info bazel-testlogs 2>/dev/null)

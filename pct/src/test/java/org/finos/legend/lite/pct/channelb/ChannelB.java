@@ -189,7 +189,7 @@ public final class ChannelB {
         // cumulative pins (fewer declines than the ceiling) and never
         // writes a scoreboard — the gate configuration is always the
         // unscoped suite.
-        String only = System.getProperty("chb.only");
+        String only = com.legend.diagnostics.Diagnostics.value("chb-only");
         List<Outcome> out = new ArrayList<>();
         for (var el : module.model().elements()) {
             if (!(el instanceof FunctionDefinition fd) || !isPctTest(fd)) {

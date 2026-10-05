@@ -134,7 +134,7 @@ public final class WireTypes {
                 continue;
             }
             Census.inc(Census.Key.WIRE_RETYPED);
-            if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
+            if (com.legend.diagnostics.Diagnostics.dumpSql()) {
                 System.err.println("[wire] " + col.name() + ": stamped " + col.type()
                         + ", the database reports " + wire);
             }

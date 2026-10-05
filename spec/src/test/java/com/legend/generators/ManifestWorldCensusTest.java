@@ -229,7 +229,7 @@ public class ManifestWorldCensusTest {
                 + " converged set (best of 3) %.2fs | wall-finding loop %d rounds %.1fs",
                 fileCount, tRead / 1e9, tParse / 1e9, tModel / 1e9, rounds, tLoop / 1e9);
         System.out.println("[manifest-census] timing: " + timing);
-        if (System.getProperty("manifest.census.timing") != null) {
+        if (com.legend.diagnostics.Diagnostics.on("timing")) {
             System.out.println("[manifest-census] " + target + ": modules=" + world.size() + " files=" + fileCount
                     + " loadWalls=" + loadWalls.size() + " (timing only, bodies not typed)");
             return;

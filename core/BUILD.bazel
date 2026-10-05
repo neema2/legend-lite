@@ -61,6 +61,8 @@ legend_java_library(name = "spi", srcs = glob(["src/main/java/com/legend/spi/*.j
 legend_java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache/*.java"]), deps = ["//base"])
 legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = ["//base"])
 legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
+# the diagnostics switchboard (-Dlegend.diagnostics, Bazel workplan P3-13): what lowering, exec and driver may turn on
+legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"])
 legend_java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"])
 legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"])
 legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"])
@@ -145,7 +147,7 @@ legend_java_library(
 legend_java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    deps = ["//base", ":compiler", ":compiler_element_type", ":database", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":sql_dialect", ":values"],
+    deps = ["//base", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":sql_dialect", ":values"],
 )
 legend_java_library(
     name = "probe",
@@ -183,7 +185,7 @@ legend_java_library(
     name = "driver",
     srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
     deps = [
-        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error", ":exec",
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
         ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner", ":platform",
         ":protocol", ":resolver", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
@@ -201,7 +203,7 @@ legend_java_library(
 )
 
 _CORE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":exec", ":probe", ":testdatagen",
     ":planner", ":driver", ":ide", ":test", ":server_lib",
@@ -211,7 +213,7 @@ _CORE_TARGETS = [
 # stands on, and none of execution (exec, testdatagen, driver, probe, ide, test, server_lib). A plan-only consumer
 # depends on this, so the build proves it carries no database and no driver.
 _PLAN_SIDE_TARGETS = [
-    "//base", "//json", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":planner",
 ]

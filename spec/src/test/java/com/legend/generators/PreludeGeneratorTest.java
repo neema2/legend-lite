@@ -53,9 +53,6 @@ class PreludeGeneratorTest {
             // every printed declaration parses through the platform's own door
             ParsedModel parsed = ElementParser.parse(e.getValue(), Dialect.LEGEND_PLATFORM);
             assertEquals(1, parsed.elements().size(), e.getKey());
-            if ("1".equals(System.getProperty("prelude.m3"))) {
-                System.out.println(e.getValue());
-            }
         }
         assertTrue(decls.size() >= 85, "m3.pure declares 85 classes; read " + decls.size());
     }

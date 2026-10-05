@@ -300,7 +300,7 @@ final class DuckWorkspaces {
             DETACHES.incrementAndGet();
             DETACH_NANOS.addAndGet(dt);
             DETACH_MAX_NANOS.accumulateAndGet(dt, Math::max);
-            if (System.getProperty("rcorpus.detachTrace") != null && dt > 20_000_000L) {
+            if (com.legend.diagnostics.Diagnostics.on("detach-trace") && dt > 20_000_000L) {
                 System.out.println("[ws-detach] " + dt / 1_000_000L + "ms " + ws);
             }
         } catch (SQLException e) {

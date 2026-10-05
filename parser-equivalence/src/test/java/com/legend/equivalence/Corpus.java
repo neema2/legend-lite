@@ -273,7 +273,7 @@ public final class Corpus {
         int before = out.size();
         out.removeIf(s -> !seen.add(s.text()));
         int deduped = before - out.size();
-        String only = System.getProperty("legend.corpus.containing");
+        String only = com.legend.diagnostics.Diagnostics.value("corpus-containing");
         if (only != null) {
             // ITERATION ONLY — a section leg's inner loop. The ratchet gate is
             // the FULL sweep; a filtered run cannot raise it (the test's own

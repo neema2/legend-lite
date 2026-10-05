@@ -13,7 +13,7 @@ python3 tools/census/lanes_diff.py runs/census/base runs/census/head
 ```
 
 `lanes.sh` runs core, the stress suites, the three spec corpora and the three PCT lanes with
-`LEGEND_LITE_DUMP_SQL` (every statement sent, to the log) and keeps each lane's log. `lanes_diff.py`
+`-Dlegend.diagnostics=dump-sql` (every statement sent, to the log; com.legend.diagnostics.Diagnostics) and keeps each lane's log. `lanes_diff.py`
 compares the logs as multisets of lines after removing run-to-run noise (ports, sandbox paths, timings,
 UUIDs, per-run verdict ids, the row order of an unordered result) and lists what remains per lane.
 This covers the dialects the lanes EXECUTE: DuckDB and H2.
@@ -31,7 +31,7 @@ At a commit that has it, the program is also a target: `bazel run //tools/census
 deploy jar, so it also measures commits older than the target.
 
 The cases are the (model, expression) pairs the PCT lanes ran, recorded by the DEBUG-ONLY
-`PctCaseRecorder` when `LL_PCT_CASES` is set (`lanes.sh` sets it). `RenderCensus.java` lowers each
+`PctCaseRecorder` under `-Dlegend.diagnostics=pct-cases` (`lanes.sh` sets both). `RenderCensus.java` lowers each
 case once, as `Compiler.execute` does, and renders it with DuckDb, H2, EngineStyleH2 and Postgres:
 one line per case and dialect, the SQL or the failure. It compiles against the measured commit's own
 `//core:core_tests_deploy.jar`, so it runs at commits older than itself. This covers the dialects no

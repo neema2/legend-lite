@@ -88,7 +88,7 @@ class JavaEvalLedgerTest {
             // a runner default, evaluated nowhere in Java
             // 109 -> 110 (store types step 5, 2026-10-02): ONE call to the
             // DEBUG-ONLY census recorder (PctCaseRecorder: a no-op unless
-            // LL_PCT_CASES is set; tools/census/README.md) -- records the
+            // -Dlegend.diagnostics=pct-cases; tools/census/README.md) -- records the
             // case, evaluates nothing in Java
             // 110 -> 106 (leg P2, 2026-10-02): the database a lane runs on moved to PctBackend
             // (DuckDB, H2, Postgres), one call here
