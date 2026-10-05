@@ -58,10 +58,13 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   const sideBar = h('div', { class: 'side-bar' });
   const tabsBar = h('div', { class: 'tabs', 'data-testid': 'tabs' });
   const editorHost = h('div', { class: 'editor-host' });
+  // upstream's empty-editor splash (census 4.2), its shortcuts block: the ones this Studio has, in upstream's words
+  // (upstream's cards -- showcases, documentation -- have nothing to point at here yet)
   const empty = h('div', { class: 'editor-empty' },
-    h('div', { class: 'editor-empty-title' }, 'Open an element from the explorer, or create one'),
-    h('div', { class: 'shortcuts' },
-      shortcut('New element', 'Ctrl+Shift+N'), shortcut('Save (push local changes)', 'Ctrl+S'), shortcut('Compile', 'F9')));
+    h('div', { class: 'editor-empty__content' },
+      h('div', { class: 'editor-empty__title' }, 'Essential Keyboard Shortcuts'),
+      h('div', { class: 'shortcuts' },
+        shortcut('Push Local Changes', ['Ctrl', 'S']), shortcut('Compile', ['F9']), shortcut('New Element', ['Ctrl', 'Shift', 'N']))));
   const problemsPanel = h('div', { class: 'panel-body', 'data-testid': 'problems' });
   const problemsTitle = h('div', { class: 'panel-title' }, 'Problems');
   const status = h('div', { class: 'status-bar' });
@@ -162,12 +165,16 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       const label = fileLabel(f);
       const name = label.split('::').pop() ?? label;
       const errors = problems.filter((p) => p.key === key).length;
+      // upstream's tab (census 4.1): the type icon and the name, the full path as tooltip; the close button shows on
+      // the active or hovered tab; a middle click closes. No unsaved marker (upstream shows that in the status bar
+      // and on the activity bar). A tab with compile errors keeps lite's red name.
       tabsBar.append(h('div', {
-        class: `tab${key === active ? ' active' : ''}${ws.isChanged(key) ? ' changed' : ''}${errors ? ' has-errors' : ''}`,
+        class: `tab${key === active ? ' active' : ''}${errors ? ' has-errors' : ''}`,
         title: label, 'data-key': key, onclick: () => show(key),
+        onauxclick: (e: Event) => { if ((e as MouseEvent).button === 1) { e.preventDefault(); close(key); } },
       },
-      h('span', { class: 'tab-name' }, name),
-      h('button', { class: 'tab-close', title: 'Close', onclick: (e: Event) => { e.stopPropagation(); close(key); } }, '×')));
+      h('div', { class: 'tab__label' }, typeIcon(kindOf(f.text)), h('span', { class: 'tab-name' }, name)),
+      h('button', { class: 'tab__close', title: 'Close', onclick: (e: Event) => { e.stopPropagation(); close(key); } }, icon('times', '12px'))));
     }
     if (active !== undefined && ws.file(active)) {
       tabsBar.append(h('div', { class: 'tabs-spacer' }),
@@ -465,8 +472,14 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   };
 }
 
-function shortcut(label: string, keys: string): HTMLElement {
-  return h('div', { class: 'shortcut' }, h('span', {}, label), h('kbd', {}, keys));
+/** A shortcut on the splash (upstream's hotkey look): the label, then each key as a key cap, a plus between. */
+function shortcut(label: string, keys: readonly string[]): HTMLElement {
+  const caps: Node[] = [];
+  keys.forEach((k, i) => {
+    if (i > 0) caps.push(icon('plus'));
+    caps.push(h('kbd', { class: 'hotkey__key' }, k));
+  });
+  return h('div', { class: 'shortcut' }, h('div', { class: 'shortcut__label' }, label), h('div', { class: 'hotkey' }, ...caps));
 }
 
 /** The keyword an element's text declares it with (`Class`, `function`, ...), for its type icon. */

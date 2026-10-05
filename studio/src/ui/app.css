@@ -134,21 +134,31 @@ button { font: inherit; color: inherit; }
 .btn[disabled] { opacity: .45; cursor: default; }
 
 .main { grid-row: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.tabs { display: flex; align-items: stretch; background: var(--bg-2); border-bottom: 1px solid var(--line); min-height: 32px; overflow-x: auto; }
-.tab { display: flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; border-right: 1px solid var(--line); cursor: pointer; color: var(--text-dim); white-space: nowrap; }
-.tab.active { background: var(--bg); color: var(--text); border-top: 2px solid var(--accent); }
-.tab.changed .tab-name::after { content: ' ●'; color: var(--warn); }
-.tab.has-errors .tab-name { color: var(--error); }
-.tab-close { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 15px; padding: 0 4px; }
+/* the tab bar (census 4.1): 34px on the panel grey; an inactive tab on the header grey, the active one on the
+   editor's own surface (no underline); the close button only on the active or hovered tab */
+.tabs { display: flex; align-items: stretch; flex: 0 0 34px; height: 34px; background: var(--color-bg-panel); overflow-x: auto; box-shadow: var(--color-shadow) 0 1px 5px 0; z-index: 1; }
+.tab { display: flex; align-items: center; background: var(--color-bg-panel-header); color: var(--color-text-muted); border-right: 1px solid var(--color-bg-panel); cursor: pointer; white-space: nowrap; }
+.tab.active { background: var(--color-bg-app); color: var(--color-text-primary); }
+.tab__label { display: flex; align-items: center; height: 100%; padding: 0 5px 0 10px; overflow: hidden; text-overflow: ellipsis; }
+.tab-name { margin-left: 5px; }
+.tab.has-errors .tab-name { color: var(--color-status-error); }
+.tab__close { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; margin-right: 4px; border: 0; border-radius: 2px; background: none; color: var(--color-text-secondary); cursor: pointer; visibility: hidden; }
+.tab.active .tab__close, .tab:hover .tab__close { visibility: visible; }
+.tab__close:hover { background: var(--color-bg-hover); }
 .tabs-spacer { flex: 1; }
 .tabs .btn-small { align-self: center; margin-right: 8px; }
 .editor-area { flex: 1; position: relative; min-height: 0; }
 .editor-host { position: absolute; inset: 0; }
-.editor-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--text-dim); }
-.editor-empty-title { font-size: 15px; }
-.shortcuts { display: grid; gap: 6px; }
-.shortcut { display: flex; justify-content: space-between; gap: 32px; }
-kbd { font-family: var(--mono); font-size: 11px; background: var(--bg-3); border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; }
+/* the empty editor (census 4.2): its shortcuts block -- the title bold in primary text, link-blue labels, key
+   caps in Roboto Mono on the tag grey with a plus between */
+.editor-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--color-bg-app); user-select: none; }
+.editor-empty__content { display: flex; flex-direction: column; align-items: center; }
+.editor-empty__title { font-weight: 700; color: var(--color-text-primary); font-size: min(2vw, 2vh); margin-bottom: 3vh; }
+.shortcuts { display: grid; grid-template-columns: repeat(3, auto); column-gap: 80px; row-gap: 20px; }
+.shortcut { display: grid; grid-template-columns: auto auto; align-items: center; column-gap: 12px; min-height: 34px; }
+.shortcut__label { font-weight: 500; font-size: max(12px, min(1.5vh, 1.5vw)); color: var(--color-text-link); }
+.hotkey { display: flex; align-items: center; color: var(--color-text-muted); font-size: max(8px, min(1vh, 1vw)); }
+.hotkey__key { display: flex; align-items: center; height: max(18px, min(2vh, 2vw)); margin: 0 2px; padding: 0 7px; border-radius: 3px; background: var(--color-bg-tag); color: var(--color-text-muted); font-family: var(--font-mono); font-weight: 500; font-size: max(11px, min(1.5vh, 1.5vw)); }
 .panel { height: 170px; border-top: 1px solid var(--line); display: flex; flex-direction: column; background: var(--bg-2); }
 .panel-head { padding: 6px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-dim); border-bottom: 1px solid var(--line); }
 .panel-body { overflow: auto; flex: 1; }
