@@ -45,6 +45,8 @@ test_suite(
         "//core:section_grammar_registry_test",
         # the cross-engine differential over the stress corpus (P3-18): seconds
         "//core:corpus_differential_test",
+        # the planner on java.base alone (P3-19): seconds
+        "//core:planner_on_java_base_test",
         "//spec:spec_tests",
         # the server's Postgres arm: one query against the embedded Postgres 16
         "//core:postgres_arm_test",

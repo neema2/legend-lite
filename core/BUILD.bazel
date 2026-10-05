@@ -4,6 +4,7 @@
 # — see "CORE AS TARGETS" below — with `:core` kept as the umbrella consumers
 # depend on. Bazel now refuses a back-edge at compile time.
 
+load("@rules_java//java:defs.bzl", "java_test")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
@@ -418,6 +419,19 @@ junit_test(
         ":drivers",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# THE PLANNER RUNS ON java.base ALONE (Bazel workplan P3-19): PlanOnJavaBase plans a DuckDB and a Postgres query in a
+# JVM whose only module is java.base, and exits non-zero when a check fails. A plain java_test, G16's one allowlisted
+# non-junit_test (tools/guards/defs.bzl): its verdict is the JVM's own module limit, which a test runner on the class
+# path cannot have; until 2026-10-05 a junit test started it as a child JVM of itself.
+java_test(
+    name = "planner_on_java_base_test",
+    size = "small",
+    jvm_flags = ["--limit-modules=java.base"],
+    main_class = "com.legend.PlanOnJavaBase",
+    use_testrunner = False,
+    runtime_deps = [":core_tests_lib"],
 )
 
 # THE BULK-LOAD PATH, on its own (Bazel workplan P3-02): DuckDB's Appender is found through ServiceLoader

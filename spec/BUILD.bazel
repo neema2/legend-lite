@@ -152,20 +152,21 @@ corpus_lane(
 
 # W1c (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md): :corpus_duckdb with every
 # connection a session on the warehouse, spoken to through its JDBC driver. The
-# harness starts the server (its deploy jar: DuckDB 1.5.5.1, its own classpath)
+# harness starts the server (the native binary: DuckDB 1.5.5.1, its own build)
 # as a child process. Not in the chain yet: its differences from :corpus_duckdb
 # are the leg's rows. It commits no rosters of its own: its passes check exactly against DuckDB's committed ones.
 corpus_lane(
     name = "corpus_warehouse",
     golden = False,
     host_jvm_flags = [
-        "-Drcorpus.warehouse.server=$(execpath //warehouse:server_deploy.jar)",
+        # the native binary (Bazel workplan P3-19): the passes start it, never a JVM of their own
+        "-Drcorpus.warehouse.server=$(execpath //warehouse:server_native)",
         # the passes are build actions with no runfiles: the server is told where DuckDB's library is
         "-Drcorpus.warehouse.library=$(execpath //warehouse:duckdb_library)",
     ],
     host_srcs = [
         "//warehouse:duckdb_library",
-        "//warehouse:server_deploy.jar",
+        "//warehouse:server_native",
     ],
     memory_mb = 1024,
     data = _CORPUS_INPUTS,

@@ -18,13 +18,20 @@ _JUNIT_MACROS = [
     "corpus_lane",
 ]
 
+# The JVM tests that are not junit_tests, each with its reason (G16's allowlist).
+_NON_JUNIT_TESTS = {
+    # its verdict is the JVM's own module limit (--limit-modules=java.base), which no runner on the class path can
+    # keep (Bazel workplan P3-19)
+    "//core:planner_on_java_base_test": "PlanOnJavaBase exits non-zero when the planner needs more than java.base",
+}
+
 def _check_tests():
     # G16 (Bazel workplan P6-16): every JVM test is a junit_test (tools/junit/defs.bzl), run by its JUnitMain:
     # one runner, one set of pinned settings, Bazel's test protocol. guards_package() is the LAST call of every BUILD
     # file (by convention: G0 checks only that it is there; a rule written after it escapes these checks), so it sees
     # every rule of the package, manual ones included.
     for rule in native.existing_rules().values():
-        if rule["kind"] == "java_test" and (
+        if rule["kind"] == "java_test" and "//%s:%s" % (native.package_name(), rule["name"]) not in _NON_JUNIT_TESTS and (
             rule.get("generator_function") not in _JUNIT_MACROS or rule.get("main_class") != "com.legend.tools.junit.JUnitMain"
         ):
             fail("//%s:%s is a java_test not made by junit_test (tools/junit/defs.bzl): every JVM test is a junit_test (G16)" %
