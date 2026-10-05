@@ -27,11 +27,11 @@ import java.util.function.Supplier;
  * (model, expression) lowered once, the way {@code Compiler.execute} does -- parse, resolve,
  * {@code lowerResolved} with no runtime -- and rendered by each dialect: DuckDb, H2, EngineStyleH2,
  * Postgres. One line per case and dialect: the SQL (newlines escaped), or the failure's class and
- * first message line. Run at two commits against each one's {@code //core:core_tests_deploy.jar}
+ * first message line. Run at two commits against each one's core test deploy jar ({@code //core:core_tests_root_deploy.jar})
  * and diff the outputs: a change to rendering shows as a changed line.
  *
  * <p>usage: bazel run //tools/census:render_census -- out.tsv cases.tsv... (paths from where it is run), or
- * java -cp core_tests_deploy.jar:. RenderCensus out.tsv cases.tsv... (render.sh, at a commit older than the target)
+ * java -cp core_tests_root_deploy.jar:. RenderCensus out.tsv cases.tsv... (render.sh, at a commit older than the target)
  * (cases: Base64 model TAB Base64 expression, one a line; the PCT lane writes them with
  * -Dlegend.diagnostics=pct-cases).
  */

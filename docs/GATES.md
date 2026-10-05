@@ -48,7 +48,8 @@ Beside the gates, in `bazel test //...`:
 - **Source checks** — `//core:guardrails` (tests whose subject is core's own
   code: size and layer guardrails, shrink-only ratchets, ledgers; `@Tag("guardrail")`)
   and `//core:census` (the ones that walk other modules too; `@Tag("census")`).
-  Out of `//core:core_tests`, so the behaviour suite declares only core's tree.
+  Out of `//core:core_tests`, a suite of one target per test package with no data: a behaviour test reads only
+  its classpath (Bazel workplan P3-05).
 - **Dependency guards** — `//tools/deps:core_closure_test` (core compiles
   against no jar; the drivers are exactly the named five: H2, DuckDB, SQLite,
   Postgres and its annotations jar, since 2026-10-03), and

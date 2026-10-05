@@ -34,7 +34,7 @@ The cases are the (model, expression) pairs the PCT lanes ran, recorded by the D
 `PctCaseRecorder` under `-Dlegend.diagnostics=pct-cases` (`lanes.sh` sets both). `RenderCensus.java` lowers each
 case once, as `Compiler.execute` does, and renders it with DuckDb, H2, EngineStyleH2 and Postgres:
 one line per case and dialect, the SQL or the failure. It compiles against the measured commit's own
-`//core:core_tests_deploy.jar`, so it runs at commits older than itself. This covers the dialects no
+`//core:core_tests_root_deploy.jar` (`core_tests_deploy.jar` at a commit before P3-05), so it runs at commits older than itself. This covers the dialects no
 lane executes: EngineStyleH2 and Postgres.
 
 Give it a few cases of your own too (Base64 model TAB Base64 expression, one a line): a change that

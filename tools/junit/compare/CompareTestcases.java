@@ -20,20 +20,26 @@ import org.w3c.dom.NodeList;
  * {@code test.outputs/junit/TEST-*.xml} or, without them, the target's {@code test.xml} (every shard's),
  * and prints the sorted {@code classname#name} testcases only one side has: {@code -} the first, {@code +}
  * the second. A target only one side ran is named as such. Nothing printed: identical selection. Exits 1
- * on any difference.
+ * on any difference. With {@code --union}, every target's testcases are one set on each side: the proof of a split
+ * (one target into many, Bazel workplan P3-05), where no target name is on both sides.
  *
- * <pre>bazel run //tools/junit:compare_testcases -- &lt;baseline-dir&gt; &lt;after-dir&gt;</pre>
+ * <pre>bazel run //tools/junit:compare_testcases -- [--union] &lt;baseline-dir&gt; &lt;after-dir&gt;</pre>
  */
 public final class CompareTestcases {
 
     private CompareTestcases() {}
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) {
-            throw new IllegalArgumentException("usage: compare_testcases <baseline-dir> <after-dir>");
+        boolean union = args.length == 3 && args[0].equals("--union");
+        if (args.length != 2 && !union) {
+            throw new IllegalArgumentException("usage: compare_testcases [--union] <baseline-dir> <after-dir>");
         }
-        Map<String, Set<String>> before = testcases(Path.of(args[0]));
-        Map<String, Set<String>> after = testcases(Path.of(args[1]));
+        Map<String, Set<String>> before = testcases(Path.of(args[union ? 1 : 0]));
+        Map<String, Set<String>> after = testcases(Path.of(args[union ? 2 : 1]));
+        if (union) {
+            before = merged(before);
+            after = merged(after);
+        }
         boolean differ = false;
         Set<String> targets = new TreeSet<>(before.keySet());
         targets.addAll(after.keySet());
@@ -102,5 +108,12 @@ public final class CompareTestcases {
             throw new IOException(files + ": " + e.getMessage(), e);
         }
         return ids;
+    }
+
+    /** Every target's testcases as one set, under the name "(all targets)". */
+    private static Map<String, Set<String>> merged(Map<String, Set<String>> byTarget) {
+        Set<String> all = new TreeSet<>();
+        byTarget.values().forEach(all::addAll);
+        return Map.of("(all targets)", all);
     }
 }
