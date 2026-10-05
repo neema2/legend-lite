@@ -165,7 +165,7 @@ record RelationalOperations(String indentation, @com.legend.base.Nullable String
         }
         if (v instanceof Json.Num n) {
             if (!n.isInteger()) {
-                return Double.toString(n.doubleValue());
+                return Double.toString(Composing.doubleOf(n));
             }
             if (n.longValue() == (int) n.longValue()) {
                 return Long.toString(n.longValue());
