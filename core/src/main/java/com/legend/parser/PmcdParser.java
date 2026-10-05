@@ -96,9 +96,15 @@ public final class PmcdParser {
     /** One parsed element: its wire JSON, the path the sectionIndex
      *  lists (functions use their MANGLED path, like the engine), and the
      *  PROTOCOL type (for rule-grouping — the old JSON-prefix sniff broke
-     *  silently on any emitter field-order change, adversarial audit). */
+     *  silently on any emitter field-order change, adversarial audit) --
+     *  and the parsed RECORD itself, the protocol program's hub. */
     public record DocElement(@com.legend.base.Nullable String path, String json,
-            Class<? extends Protocol.Element> kind) {
+            Class<? extends Protocol.Element> kind, Protocol.Element element) {
+
+        /** One parsed element, its wire JSON emitted from the record. */
+        static DocElement of(@com.legend.base.Nullable String path, Protocol.Element element) {
+            return new DocElement(path, ProtocolEmitter.emitElement(element), element.getClass(), element);
+        }
     }
 
     /** One document section with its parsed elements and imports. */
@@ -106,18 +112,21 @@ public final class PmcdParser {
                              List<String> imports, SourceInfo span) {
     }
 
-    /** Parse {@code source} into the engine's full PMCD JSON. */
+    /** Parse {@code source} into the engine's full PMCD JSON: the records of {@link #parseModel}, emitted. */
     public static String parseDocument(String source) {
+        return ProtocolEmitter.emit(parseModel(source));
+    }
+
+    /**
+     * Parse {@code source} into the typed protocol records (text to records, the protocol program's parse
+     * leg): every element in section order, then the section index the engine appends.
+     */
+    public static Protocol.PureModelContextData parseModel(String source) {
         List<DocSection> sections = parseSections(source);
-        StringBuilder b = new StringBuilder("{\"_type\":\"data\",\"elements\":[");
-        boolean first = true;
+        List<Protocol.Element> elements = new ArrayList<>();
         for (DocSection s : sections) {
             for (DocElement e : s.elements()) {
-                if (!first) {
-                    b.append(',');
-                }
-                first = false;
-                b.append(e.json());
+                elements.add(e.element());
             }
         }
         List<Protocol.PSection> pSections = new ArrayList<>();
@@ -135,12 +144,8 @@ public final class PmcdParser {
                     IMPORT_AWARE.contains(s.parserName()), s.parserName(),
                     paths, s.imports(), s.span()));
         }
-        if (!first) {
-            b.append(',');
-        }
-        b.append(ProtocolEmitter.emitElement(new Protocol.PSectionIndex(
-                "__internal__", "SectionIndex", pSections)));
-        return b.append("]}").toString();
+        elements.add(new Protocol.PSectionIndex("__internal__", "SectionIndex", pSections));
+        return new Protocol.PureModelContextData(elements);
     }
 
     /** The ordered section list with parsed elements — the assembly
@@ -542,8 +547,7 @@ public final class PmcdParser {
         List<DocElement> out = new ArrayList<>();
         for (var pe : parsed.elements()) {
             Protocol.PDiagram d = (Protocol.PDiagram) pe.protocol();
-            out.add(new DocElement(d.qualifiedName(),
-                    ProtocolEmitter.emitElement(d), d.getClass()));
+            out.add(DocElement.of(d.qualifiedName(), d));
         }
         return out;
     }
@@ -674,7 +678,7 @@ public final class PmcdParser {
             default -> throw new IllegalStateException(
                     "unknown site kind " + kind);
         }
-        return new DocElement(path, ProtocolEmitter.emitElement(el), el.getClass());
+        return DocElement.of(path, el);
     }
 
     // ------------------------------------------------------------------

@@ -24,11 +24,26 @@ public final class SourceInformation {
 
     /** {@link #strip(String)} over a parsed node. */
     public static Object strip(Json.Node n) {
+        return strip(n, false);
+    }
+
+    /**
+     * {@code json} with EVERY span removed: {@code sourceInformation} and the named spans the protocol carries
+     * beside it ({@code classSourceInformation}, {@code profileSourceInformation}, ...) -- the JSON of a model
+     * parsed without source information, as the engine writes it ({@code returnSourceInformation=false}) and as
+     * entity JSON arrives.
+     */
+    public static String stripAll(String json) {
+        return Json.toCompact(strip(Json.parse(json, new Json.Config(4096)), true));
+    }
+
+    private static Object strip(Json.Node n, boolean named) {
         if (n instanceof Json.Obj o) {
             Map<String, Object> out = new LinkedHashMap<>();
             for (Map.Entry<String, Json.Node> e : o.fields().entrySet()) {
-                if (!e.getKey().equals("sourceInformation")) {
-                    out.put(e.getKey(), strip(e.getValue()));
+                String k = e.getKey();
+                if (!k.equals("sourceInformation") && !(named && k.endsWith("SourceInformation"))) {
+                    out.put(k, strip(e.getValue(), named));
                 }
             }
             return out;
@@ -36,7 +51,7 @@ public final class SourceInformation {
         if (n instanceof Json.Arr a) {
             List<Object> out = new ArrayList<>();
             for (Json.Node x : a.items()) {
-                out.add(strip(x));
+                out.add(strip(x, named));
             }
             return out;
         }
