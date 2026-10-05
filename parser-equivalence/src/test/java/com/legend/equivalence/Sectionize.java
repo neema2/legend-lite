@@ -34,6 +34,7 @@ final class Sectionize {
             case com.legend.model.ServiceDefinition s -> "Service";
             case com.legend.model.ExecutionEnvironmentDefinition s -> "Service";
             case com.legend.model.DataSpaceDefinition d -> "DataSpace";
+            case com.legend.model.DataDefinition d -> "Data";
             // section carriers already know their section — never a move
             case com.legend.model.GenericSectionElementDefinition g ->
                     g.section();
