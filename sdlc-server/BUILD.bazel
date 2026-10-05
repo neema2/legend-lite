@@ -78,6 +78,7 @@ teavm_wasm(
     main_class = "com.legend.sdlc.page.SdlcPage",
     visibility = [
         "//:__pkg__",
+        "//datacube:__pkg__",
         "//depot-client:__pkg__",
         "//query:__pkg__",
         "//sdlc-client:__pkg__",

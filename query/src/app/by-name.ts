@@ -4,16 +4,11 @@
 // loaded as the demo's files are. A project with no line (nothing committed yet) is not offered.
 
 import type { DepotClient } from '../../../depot-client/src/client.ts';
+import { modelText } from '../../../depot-client/src/model-text.ts';
 import { SNAPSHOT } from '../../../depot-client/src/wire.ts';
 import type { Grammar } from '../backend/engine.ts';
 import { ModelGraph } from '../model/graph.ts';
 import { gavOf, type LoadedProject, type ProjectConfig } from './context.ts';
-
-/** A version's model text: every file of it and its dependency closure, each from the Pure section (`###Pure`). */
-export async function modelText(depot: DepotClient, groupId: string, artifactId: string, versionId: string): Promise<string> {
-  const closure = await depot.dependencyFiles([{ groupId, artifactId, versionId }]);
-  return closure.flatMap((v) => v.files.map((f) => `###Pure\n${f.pureCode}`)).join('\n');
-}
 
 /** One version of a project, loaded: its model text and graph, as the demo's files are. */
 export async function loadByName(depot: DepotClient, grammar: Grammar, groupId: string, artifactId: string, versionId: string): Promise<LoadedProject> {
