@@ -65,6 +65,11 @@ public final class ModelReader {
             Map.entry("Enumeration", DomainReader::enumeration),
             Map.entry("function", DomainReader::function),
             Map.entry("measure", DomainReader::measure),
+            Map.entry("relational", StoreReader::database),
+            Map.entry("relationalMapper", StoreReader::relationalMapper),
+            Map.entry("connection", ConnectionReader::connection),
+            Map.entry("runtime", ConnectionReader::runtime),
+            Map.entry("dataElement", EmbeddedDataReader::dataElement),
             Map.entry("sectionIndex", ModelReader::sectionIndex));
 
     private static Element element(Json.Node node) {
