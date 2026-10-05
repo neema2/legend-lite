@@ -1,0 +1,17 @@
+# THE RENDER CENSUS (README.md): every recorded case lowered once and rendered by each dialect, as a program over
+# this checkout's core (Bazel workplan P3-17). One side of a comparison:
+#   bazel run //tools/census:render_census -- <out.tsv> <cases.tsv>...
+# run at each of two commits over the same cases, then diff the two outputs.
+
+load("//tools/java:defs.bzl", "legend_java_binary")
+load("//tools/guards:defs.bzl", "guards_package")
+
+legend_java_binary(
+    name = "render_census",
+    srcs = ["RenderCensus.java"],
+    jvm_flags = ["-Xss16m"],
+    main_class = "RenderCensus",
+    deps = ["//core"],
+)
+
+guards_package()

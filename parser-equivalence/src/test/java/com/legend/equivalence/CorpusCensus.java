@@ -1,8 +1,6 @@
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
-import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,17 +31,25 @@ import java.util.TreeMap;
  *       shrinking around our gaps.</li>
  * </ul>
  *
- * <p>Reports only — this test asserts nothing about the counts, because its
+ * <p>Reports only — it asserts nothing about the counts, because its
  * job is to make the number visible, not to freeze it. The ratchets live in
  * {@link CorpusEquivalenceTest} and {@link SectionParseSentinelTest}.
+ *
+ * <p>A report action of //parser-equivalence:diagnostics_reports (Bazel workplan P3-17), cached until an input changes.
  */
-class CorpusCensusTest {
+public final class CorpusCensus {
 
-    @Test
-    void reportWhatTheGateNeverCompares() throws Exception {
+    private CorpusCensus() {}
+
+
+    /** {@code args[0]}: the directory the report goes in (the action's {@code {OUT_DIR}}). */
+    public static void main(String[] args) throws Exception {
+        Path outDir = Path.of(args[0]);
+        com.legend.testing.Programs.captureConsole(outDir);
         List<Corpus.Source> sources = Corpus.all();
-        org.junit.jupiter.api.Assertions.assertTrue(!sources.isEmpty(),
-                "no corpus on disk — set -Dlegend.engine.root / -Dlegend.pure.root");
+        if (sources.isEmpty()) {
+            throw new IllegalStateException("no corpus on disk: set -Dlegend.engine.root / -Dlegend.pure.root");
+        }
 
         PureGrammarParser reference = PureGrammarParser.newInstance();
         int bothParse = 0;
@@ -199,10 +205,9 @@ class CorpusCensusTest {
                 .forEach(e -> b.append(String.format("  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
-        Files.writeString(Repo.out("corpus-census.txt"), b.toString());
-        Files.writeString(Repo.out("corpus-census-defects.txt"),
+        Files.writeString(outDir.resolve("corpus-census.txt"), b.toString());
+        Files.writeString(outDir.resolve("corpus-census-defects.txt"),
                 String.join("\n", defectLines));
-        System.out.println(b);
     }
 
     /** Which project SHIPS this source — the cheapest real evidence about a

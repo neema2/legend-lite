@@ -12,7 +12,10 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    srcs = ["RefResolutions.java"],
+    srcs = [
+        "RefImports.java",
+        "RefResolutions.java",
+    ],
     deps = [
         "@maven_upstream//:org_eclipse_collections_eclipse_collections",
         "@maven_upstream//:org_eclipse_collections_eclipse_collections_api",
@@ -77,6 +80,21 @@ java_run(
     mnemonic = "ReferenceDump",
     tags = ["manual"],
     visibility = ["//spec:__pkg__"],
+    deps = [":ref_resolutions"],
+)
+
+# Every source's implicit import group, as the reference compiler sees it (README, "The implicit import group"): a
+# report over the pinned jars alone, cached (Bazel workplan P3-17). `bazel build //tools/reference:ref_imports`
+java_run(
+    name = "ref_imports",
+    testonly = True,
+    outs = ["ref-imports.tsv"],
+    arguments = ["{OUT}"],
+    jvm_flags = ["-Xss16m"],
+    main_class = "RefImports",
+    memory_mb = 8192,
+    mnemonic = "ReferenceImports",
+    tags = ["manual"],
     deps = [":ref_resolutions"],
 )
 

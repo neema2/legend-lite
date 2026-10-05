@@ -1,7 +1,6 @@
 package com.legend.equivalence;
 
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
-import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -10,12 +9,11 @@ import java.util.List;
 /**
  * Parse-speed measurement: the legend-engine reference parser vs core's
  * {@code PmcdParser.parseDocument} over the SAME corpus (every source the
- * oracle accepts). ON-DEMAND only — gate 8 runs an explicit test list, so
- * this never rides the standing chain:
+ * oracle accepts). ON-DEMAND only, and never an action (a timing is the
+ * machine's, not the inputs'; Bazel workplan P3-17):
  *
  * <pre>
- * mvn -pl parser-equivalence -am test -Dtest=ParseSpeedBenchmarkTest \
- *     -Dlegend.engine.root=... -Dlegend.pure.root=...
+ * bazel run //parser-equivalence:parse_speed_benchmark
  * </pre>
  *
  * <p>Method: one full UNTIMED pass per parser (JIT/classloading warmup —
@@ -24,13 +22,16 @@ import java.util.List;
  * second parser on a per-file basis. Only sources BOTH parsers accept are
  * timed, so the two sides sum over the identical document set.
  */
-class ParseSpeedBenchmarkTest {
+public final class ParseSpeedBenchmark {
 
-    @Test
-    void oracleVsCoreParseSpeed() {
+    private ParseSpeedBenchmark() {}
+
+
+    public static void main(String[] args) {
         List<Corpus.Source> sources = Corpus.all();
-        org.junit.jupiter.api.Assertions.assertTrue(!sources.isEmpty(),
-                "no corpus on disk — set -Dlegend.engine.root / -Dlegend.pure.root");
+        if (sources.isEmpty()) {
+            throw new IllegalStateException("no corpus on disk: set -Dlegend.engine.root / -Dlegend.pure.root");
+        }
 
         PureGrammarParser oracle = PureGrammarParser.newInstance();
 

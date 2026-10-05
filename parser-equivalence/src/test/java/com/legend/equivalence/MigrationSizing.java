@@ -1,10 +1,8 @@
 package com.legend.equivalence;
 
-import com.legend.testing.Repo;
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
-import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,7 +25,7 @@ import java.util.regex.Pattern;
  * other's parser, which is how {@code ~primaryKey} stayed readable by one and
  * unreadable by the other for months.
  *
- * <p>This test does not assert. It measures the divergence in BOTH directions
+ * <p>It does not assert. It measures the divergence in BOTH directions
  * over every corpus file carrying those sections, so "finish the migration" can
  * be costed instead of guessed:
  *
@@ -41,17 +39,25 @@ import java.util.regex.Pattern;
  *       before the legacy parser can be deleted.</li>
  *   <li><b>NEITHER</b> — a gap in both; unrelated to the migration.</li>
  * </ul>
+ *
+ * <p>A report action of //parser-equivalence:diagnostics_reports (Bazel workplan P3-17), cached until an input changes.
  */
-class MigrationSizingTest {
+public final class MigrationSizing {
+
+    private MigrationSizing() {}
+
 
     private static final Pattern DUAL_SECTIONS =
             Pattern.compile("(?m)^###(Mapping|Relational)\\b");
 
-    @Test
-    void sizeTheUnfinishedProtocolMigration() throws Exception {
+    /** {@code args[0]}: the directory the report goes in (the action's {@code {OUT_DIR}}). */
+    public static void main(String[] args) throws Exception {
+        Path outDir = Path.of(args[0]);
+        com.legend.testing.Programs.captureConsole(outDir);
         List<Corpus.Source> sources = Corpus.all();
-        org.junit.jupiter.api.Assertions.assertTrue(!sources.isEmpty(),
-                "no corpus on disk — set -Dlegend.engine.root / -Dlegend.pure.root");
+        if (sources.isEmpty()) {
+            throw new IllegalStateException("no corpus on disk: set -Dlegend.engine.root / -Dlegend.pure.root");
+        }
 
         int both = 0;
         int protocolOnly = 0;
@@ -109,10 +115,9 @@ class MigrationSizingTest {
                 .forEach(e -> b.append(String.format("  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
-        Files.writeString(Repo.out("migration-sizing.txt"), b.toString());
-        Files.writeString(Repo.out("migration-legacy-only.txt"),
+        Files.writeString(outDir.resolve("migration-sizing.txt"), b.toString());
+        Files.writeString(outDir.resolve("migration-legacy-only.txt"),
                 String.join("\n", legacyOnlyFiles));
-        System.out.println(b);
     }
 
     /** The path the COMPILER uses. */

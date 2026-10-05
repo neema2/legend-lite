@@ -3,7 +3,7 @@
 # live only here: core must never see org.finos.legend.
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
-load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
@@ -121,15 +121,11 @@ _FILE_FLAGS = [_PINS_TEST_FLAG] + ["-Dledger.%s=$(rlocationpath //docs:%s.tsv)" 
     "-Dpe.engine.fixtures=$(rlocationpath src/test/resources/engine-grammar-fixtures.jsonl)",
 ]
 
-# The measurement battery (//parser-equivalence:diagnostics): censuses and a benchmark, run on
-# their triggers, never as part of the gate.
+# The asserting census run on its trigger, never as part of the gate (//parser-equivalence:diagnostics). The
+# measuring ones are report actions (:diagnostics_reports) and the benchmark a binary (:parse_speed_benchmark):
+# Bazel workplan P3-17.
 _DIAGNOSTICS = [
-    "ParseSpeedBenchmarkTest",
-    "CorpusCensusTest",
-    "GrammarKeywordCensusTest",
-    "PmcdReachabilityCensusTest",
     "GrammarCoverageCensusTest",
-    "MigrationSizingTest",
 ]
 
 # Gate 8: every asserting parity class. Selected by PACKAGE, so a new test is in the
@@ -150,12 +146,8 @@ junit_test(
 junit_test(
     name = "diagnostics",
     memory_mb = 2048,
-    # the reachability census reads the roster as :gen_roster makes it (P2-19)
-    data = _INPUTS + _FILE_DATA + [
-        ":engine_jars",
-        ":gen_roster",
-    ],
-    jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS + ["-Dpe.roster=$(rlocationpath :gen_roster)"],
+    data = _INPUTS + _FILE_DATA + [":engine_jars"],
+    jvm_flags = [_ENGINE_JARS_FLAG] + _FILE_FLAGS,
     runtime_deps = [":pe_tests_lib"],
     select = ["--select-class=com.legend.equivalence." + c for c in _DIAGNOSTICS],
     tags = ["manual"],
@@ -337,5 +329,87 @@ java_run(
     visibility = ["//docs:__pkg__"],
     deps = [":pe_tests_lib"],
 )
+
+# A `bazel run` binary's Repo: the runfiles tree it starts in, as this module
+_RUN_REPO_FLAGS = [
+    "-Dlegend.repo.root=.",
+    "-Dlegend.repo.module=parser-equivalence",
+]
+
+# THE MEASUREMENTS (Bazel workplan P3-17): each census a program over declared inputs, its report a cached build
+# output in bazel-bin/parser-equivalence/<name>/. Manual: a measurement is asked for, never part of `//...`:
+#   bazel build //parser-equivalence:diagnostics_reports
+_REPORTS = {
+    "corpus_census": ("CorpusCensus", ["corpus-census.txt", "corpus-census-defects.txt"]),
+    "grammar_keyword_census": ("GrammarKeywordCensus", ["grammar-keyword-census.txt"]),
+    "migration_sizing": ("MigrationSizing", ["migration-sizing.txt", "migration-legacy-only.txt"]),
+    "pmcd_reachability_census": ("PmcdReachabilityCensus", ["pmcd-reachability-census.txt"]),
+}
+
+[java_run(
+    name = name,
+    testonly = True,
+    srcs = _INPUTS + UPSTREAM_TREES + [
+        ":engine_jar_files",
+        ":engine_jars_exec",
+        ":gen_fixtures",
+        ":gen_roster",
+    ],
+    outs = [name + "/" + f for f in files + ["run.log"]],
+    arguments = ["{OUT_DIR}"],
+    jvm_flags = program_jvm_flags("parser-equivalence") + [
+        _PINS_ACTION_FLAG,
+        _NEW_FIXTURES,
+        "-Dlegend.engine.jars=$(execpath :engine_jars_exec)",
+        "-Dpe.roster=$(execpath :gen_roster)",
+    ],
+    main_class = "com.legend.equivalence." + main,
+    memory_mb = 2048,
+    mnemonic = "Measure",
+    roots = UPSTREAM_ROOTS,
+    tags = ["manual"],
+    deps = [":pe_tests_lib"],
+) for name, (main, files) in _REPORTS.items()]
+
+filegroup(
+    name = "diagnostics_reports",
+    testonly = True,
+    srcs = [":" + name for name in _REPORTS],
+    tags = ["manual"],
+)
+
+# The parse-speed benchmark: a timing is the machine's, so it is run, never cached.
+#   bazel run //parser-equivalence:parse_speed_benchmark
+legend_java_binary(
+    name = "parse_speed_benchmark",
+    testonly = True,
+    data = _INPUTS + _FILE_DATA + UPSTREAM_TREES,
+    jvm_flags = _FILE_FLAGS + _RUN_REPO_FLAGS + [
+        "-Dlegend.engine.root=$(rlocationpath @legend_engine_src//:pom.xml)",
+        "-Dlegend.pure.root=$(rlocationpath @legend_pure_src//:pom.xml)",
+    ],
+    main_class = "com.legend.equivalence.ParseSpeedBenchmark",
+    tags = ["manual"],
+    runtime_deps = [":pe_tests_lib"],
+)
+
+# THE PROBES, run on demand (Bazel workplan P3-17): instruments that print what they find, each its own binary.
+#   bazel run //parser-equivalence:probe_wire_shapes [-- --out FILE]       the reference parser's bytes for constructs
+#   bazel run //parser-equivalence:z_fixture_adjudication_probe -- --out DIR [--fixtures FILE]
+#   bazel run //parser-equivalence:fixture_sweep -- DIR...                  a fixture directory against both parsers
+[legend_java_binary(
+    name = name,
+    testonly = True,
+    # the ledgers and resources the parity code reads, as the tests have them
+    data = _INPUTS + _FILE_DATA,
+    jvm_flags = _FILE_FLAGS + _RUN_REPO_FLAGS,
+    main_class = "com.legend.equivalence." + main,
+    tags = ["manual"],
+    runtime_deps = [":pe_tests_lib"],
+) for name, main in [
+    ("fixture_sweep", "FixtureSweep"),
+    ("probe_wire_shapes", "ProbeWireShapes"),
+    ("z_fixture_adjudication_probe", "harvest.ZFixtureAdjudicationProbe"),
+]]
 
 guards_package()

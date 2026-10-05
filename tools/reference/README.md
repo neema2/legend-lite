@@ -93,7 +93,8 @@ differential at zero.
 
 ## The implicit import group (`RefImports.java`)
 
-`RefImports.java` runs the same way as `RefResolutions.java` and prints, for every source the
+`RefImports.java` runs the same way as `RefResolutions.java` (`bazel build //tools/reference:ref_imports`, its
+report in `bazel-bin/tools/reference/ref-imports.tsv`) and prints, for every source the
 reference compiled (2,108 on 2026-09-25), the packages its import group makes visible. Twenty-nine
 packages appear in every source: the implicit imports the Pure parser adds to each section. Our
 generated `NameResolver.CORE_IMPORTS` is those 29 plus three the newer engine added. So a bare

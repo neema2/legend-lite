@@ -1,9 +1,9 @@
 package com.legend.equivalence;
 
+import java.io.PrintWriter;
 import com.legend.testing.Upstream;
 
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
-import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,12 +20,23 @@ import java.util.stream.Stream;
  *  73 .g4 grammars, checked against the corpus — a keyword that never
  *  appears in any source BOTH parsers accept marks a grammar arm the
  *  parity harness has never exercised (how the Binding transformer hid).
- *  Diagnostic. */
-class GrammarKeywordCensusTest {
+ *  Diagnostic. A report action of //parser-equivalence:diagnostics_reports (Bazel workplan P3-17), cached until an input changes. */
+public final class GrammarKeywordCensus {
+
+    private GrammarKeywordCensus() {}
 
 
-    @Test
-    void keywordCoverage() throws Exception {
+
+    /** {@code args[0]}: the directory the report goes in (the action's {@code {OUT_DIR}}). */
+    public static void main(String[] args) throws Exception {
+        Path outDir = Path.of(args[0]);
+        com.legend.testing.Programs.captureConsole(outDir);
+        try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(outDir.resolve("grammar-keyword-census.txt")))) {
+            report(out, outDir);
+        }
+    }
+
+    private static void report(PrintWriter out, Path outDir) throws Exception {
         Path engineRoot = Upstream.engine();
         // keyword literals from lexer/parser grammars: word-shaped, >= 3
         // chars (operators/punctuation can't be checked by text presence)
@@ -46,7 +57,7 @@ class GrammarKeywordCensusTest {
                 }
             }
         }
-        System.out.println("@@ keywords harvested: " + kwToGrammars.size());
+        out.println("@@ keywords harvested: " + kwToGrammars.size());
 
         PureGrammarParser oracle = PureGrammarParser.newInstance();
         Set<String> covered = new HashSet<>();
@@ -88,7 +99,7 @@ class GrammarKeywordCensusTest {
                 }
             }
         }
-        System.out.println("@@ both-accepted sources: " + accepted
+        out.println("@@ both-accepted sources: " + accepted
                 + "; keywords covered: " + covered.size() + "/"
                 + kwToGrammars.size());
         Map<String, java.util.List<String>> byGrammar = new TreeMap<>();
@@ -101,7 +112,7 @@ class GrammarKeywordCensusTest {
                         .add(e.getKey());
             }
         }
-        byGrammar.forEach((g, kws) -> System.out.println(
+        byGrammar.forEach((g, kws) -> out.println(
                 "@@ UNCOVERED [" + g + "] " + String.join(", ", kws)));
     }
 }

@@ -1,8 +1,8 @@
 package com.legend.equivalence;
 
+import java.io.PrintWriter;
 import com.legend.testing.Repo;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
-import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -27,11 +27,22 @@ import java.util.jar.JarFile;
  *  generics + Jackson subtype expansions). A protocol tag is in
  *  text-parity scope iff its class is reachable; reachable ∧ uncovered
  *  (per protocol-roster.txt) = the true fixture worklist, package
- *  heuristics retired. Diagnostic. */
-class PmcdReachabilityCensusTest {
+ *  heuristics retired. Diagnostic. A report action of //parser-equivalence:diagnostics_reports (Bazel workplan P3-17), cached until an input changes. */
+public final class PmcdReachabilityCensus {
 
-    @Test
-    void reachability() throws Exception {
+    private PmcdReachabilityCensus() {}
+
+
+    /** {@code args[0]}: the directory the report goes in (the action's {@code {OUT_DIR}}). */
+    public static void main(String[] args) throws Exception {
+        Path outDir = Path.of(args[0]);
+        com.legend.testing.Programs.captureConsole(outDir);
+        try (PrintWriter out = new PrintWriter(Files.newBufferedWriter(outDir.resolve("pmcd-reachability-census.txt")))) {
+            report(out, outDir);
+        }
+    }
+
+    private static void report(PrintWriter out, Path outDir) throws Exception {
         // ---- tag -> class (and class -> subtypes) from every jar ----
         Map<String, String> tagToClass = new TreeMap<>();
         Map<String, Set<String>> parentToChildren = new HashMap<>();
@@ -52,7 +63,7 @@ class PmcdReachabilityCensusTest {
                             .replace('/', '.');
                     try {
                         Class<?> c = Class.forName(cls, false,
-                                getClass().getClassLoader());
+                                PmcdReachabilityCensus.class.getClassLoader());
                         JsonSubTypes st = c.getAnnotation(JsonSubTypes.class);
                         if (st != null) {
                             for (JsonSubTypes.Type t : st.value()) {
@@ -102,7 +113,7 @@ class PmcdReachabilityCensusTest {
                     Set.of())) {
                 try {
                     queue.add(Class.forName(child, false,
-                            getClass().getClassLoader()));
+                            PmcdReachabilityCensus.class.getClassLoader()));
                 } catch (Throwable ignored) {
                     // skip
                 }
@@ -120,9 +131,9 @@ class PmcdReachabilityCensusTest {
         }
 
         // ---- verdicts over the uncovered set ----
-        // the roster, as //parser-equivalence:gen_roster makes it (Bazel workplan P2-19: no test reads another
-        // test's output; this was ProtocolRosterCensusTest's file, regenerated here when absent)
-        Path roster = com.legend.testing.Runfile.property("pe.roster");
+        // the roster, as //parser-equivalence:gen_roster makes it (Bazel workplan P2-19), by its exec path
+        Path roster = Path.of(java.util.Objects.requireNonNull(System.getProperty("pe.roster"),
+                "-Dpe.roster names :gen_roster's output"));
         List<String> lines = Files.readAllLines(roster);
         Map<String, List<String>> inScope = new TreeMap<>();
         int outOfScope = 0;
@@ -143,12 +154,12 @@ class PmcdReachabilityCensusTest {
                 outOfScope++;
             }
         }
-        System.out.println("@@ reachable protocol classes: "
+        out.println("@@ reachable protocol classes: "
                 + reachable.size());
-        System.out.println("@@ uncovered & IN-SCOPE (fixture worklist): "
+        out.println("@@ uncovered & IN-SCOPE (fixture worklist): "
                 + inScopeCount + "; uncovered & UNREACHABLE (proven out): "
                 + outOfScope);
-        inScope.forEach((pkg, tags) -> System.out.println("@@ IN [" + pkg
+        inScope.forEach((pkg, tags) -> out.println("@@ IN [" + pkg
                 + "] " + String.join(", ", tags)));
     }
 

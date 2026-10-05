@@ -5,7 +5,8 @@ import org.finos.legend.engine.shared.core.ObjectMapperFactory;
 
 /** One-shot sweep of the sibling's test-corpus fixtures (positive +
  *  negative) against BOTH parsers — prints one TSV row per divergence.
- *  Not a gate; the survivors become battery rows / fixes. */
+ *  Not a gate; the survivors become battery rows / fixes. Run on demand
+ *  (Bazel workplan P3-17): {@code bazel run //parser-equivalence:fixture_sweep -- DIR...}. */
 class FixtureSweep {
     static final com.fasterxml.jackson.databind.ObjectMapper M =
             ObjectMapperFactory
@@ -14,7 +15,7 @@ class FixtureSweep {
     public static void main(String[] args) throws Exception {
         int agree = 0;
         for (String dir : args) {
-            java.io.File[] files = new java.io.File(dir).listFiles(
+            java.io.File[] files = com.legend.testing.Programs.argument(dir).toFile().listFiles(
                     (d, n) -> n.endsWith(".pure"));
             java.util.Arrays.sort(files);
             for (java.io.File f : files) {

@@ -440,4 +440,25 @@ java_run(
     deps = [":claims_generator_lib"],
 )
 
+# THE EAGER COMPILE (EagerCorpusCompileProbe): every body of the corpus's compiled world typed up front, a
+# measurement (Bazel workplan P3-17). Manual: `bazel build //spec:eager_corpus_compile`, and the second world
+# (the corpus + legend-pure's platform packages whole) `//spec:eager_corpus_compile_world2`.
+[java_run(
+    name = name,
+    testonly = True,
+    srcs = _INPUTS + UPSTREAM_TREES,
+    outs = [name + "/eager-corpus.txt", name + "/eager-residue.txt", name + "/run.log"],
+    arguments = ["{OUT_DIR}"],
+    jvm_flags = program_jvm_flags("spec") + flags,
+    main_class = "com.legend.rcorpus.EagerCorpusCompileProbe",
+    memory_mb = 4096,
+    mnemonic = "Measure",
+    roots = UPSTREAM_ROOTS,
+    tags = ["manual"],
+    deps = [":spec_tests_lib"],
+) for name, flags in [
+    ("eager_corpus_compile", []),
+    ("eager_corpus_compile_world2", ["-Deager.world2=1"]),
+]]
+
 guards_package()

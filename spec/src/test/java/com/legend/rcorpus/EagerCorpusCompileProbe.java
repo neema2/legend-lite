@@ -1,8 +1,6 @@
 package com.legend.rcorpus;
 
-import com.legend.testing.Repo;
 import com.legend.Compiler;
-import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,13 +12,16 @@ import java.util.TreeMap;
 /** THE EAGER COMPILE — a MEASUREMENT, not a gate (USER 2026-09-09: "before
  * we add to gate let's do all the work, then decide"): every body in the
  * corpus's compiled world typed up front through Compiler.compileAllBodies.
- * Run by name only ({@code -Dtest=EagerCorpusCompileProbe}; the Probe suffix
- * keeps it out of surefire's default set). Writes target/eager-corpus.txt
- * (by reason, by package, by source file, every failing body).
- * {@code -Deager.world2=1} adds the second world (the corpus + legend-pure's
+ * A report action (Bazel workplan P3-17): {@code bazel build //spec:eager_corpus_compile}
+ * writes eager-corpus.txt (by reason, by package, by source file, every failing
+ * body) and eager-residue.txt; {@code //spec:eager_corpus_compile_world2}
+ * ({@code -Deager.world2=1}) adds the second world (the corpus + legend-pure's
  * platform packages whole). Measured 2026-09-09: 9,099 bodies, 1,605 fail
  * (COMPILE_EVERYTHING_HOMEWORK §10). */
-class EagerCorpusCompileProbe {
+public final class EagerCorpusCompileProbe {
+
+    private EagerCorpusCompileProbe() {}
+
     /** A platform-independent path string: '/' separators always. A Path in a
      *  concatenation converts with the PLATFORM separator, so an id built that
      *  way differs on Windows (census 2026-09-09). */
@@ -29,8 +30,10 @@ class EagerCorpusCompileProbe {
     }
 
 
-    @Test
-    void eagerCompileEverything() throws Exception {
+    /** {@code args[0]}: the directory the reports go in (the action's {@code {OUT_DIR}}). */
+    public static void main(String[] args) throws Exception {
+        java.nio.file.Path outDir = java.nio.file.Path.of(args[0]);
+        com.legend.testing.Programs.captureConsole(outDir);
         long t0 = System.nanoTime();
         MinimalCorpus corpus = new MinimalCorpus();
         long t1 = System.nanoTime();
@@ -88,8 +91,7 @@ class EagerCorpusCompileProbe {
         out.add("# RESIDUE (non-test, outside the walled families) = " + residue.size()
                 + " by source: " + residueBySource.entrySet().stream()
                         .sorted((x, y) -> y.getValue() - x.getValue()).toList());
-        Files.createDirectories(Repo.outDir());
-        Files.write(Repo.out("eager-residue.txt"), residue);
+        Files.write(outDir.resolve("eager-residue.txt"), residue);
         out.add("# by source (failed/total): " + bySource.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
                 .map(e -> e.getKey() + "=" + e.getValue() + "/" + bodiesBySource.getOrDefault(e.getKey(), 0))
@@ -100,9 +102,8 @@ class EagerCorpusCompileProbe {
         out.add("# by top package: " + byPackage);
         out.add("");
         walls.forEach((k, v) -> out.add(k + " :: " + v.replace('\n', ' ')));
-        Files.createDirectories(Repo.outDir());
         if (!"1".equals(System.getProperty("eager.world2"))) {
-            Files.write(Repo.out("eager-corpus.txt"), out);
+            Files.write(outDir.resolve("eager-corpus.txt"), out);
             System.out.println(out.get(0));
             System.out.println(out.get(1));
             return;
@@ -170,7 +171,7 @@ class EagerCorpusCompileProbe {
         out.add("# WORLD 2 NEW top unknown types: " + newTypes.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(20).toList());
         out.add("# WORLD 2 NEW top messages: " + newMsgs.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(12).toList());
         out.add("# WORLD 2 walls: " + w2walls);
-        Files.write(Repo.out("eager-corpus.txt"), out);
+        Files.write(outDir.resolve("eager-corpus.txt"), out);
         for (String l : out) if (l.startsWith("# WORLD 2")) System.out.println(l);
     }
 

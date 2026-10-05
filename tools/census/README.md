@@ -26,6 +26,10 @@ git switch <branch>;        tools/census/render.sh head runs/census/head/pct_pct
 diff runs/census/render/base.tsv runs/census/render/head.tsv
 ```
 
+At a commit that has it, the program is also a target: `bazel run //tools/census:render_census -- <out.tsv>
+<cases.tsv>...` renders with that checkout's core (Bazel workplan P3-17); `render.sh` compiles it against a commit's
+deploy jar, so it also measures commits older than the target.
+
 The cases are the (model, expression) pairs the PCT lanes ran, recorded by the DEBUG-ONLY
 `PctCaseRecorder` when `LL_PCT_CASES` is set (`lanes.sh` sets it). `RenderCensus.java` lowers each
 case once, as `Compiler.execute` does, and renders it with DuckDb, H2, EngineStyleH2 and Postgres:
