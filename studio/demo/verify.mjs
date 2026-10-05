@@ -109,6 +109,29 @@ async function loop(browser, name, query) {
     await page.waitForSelector('.tab.active[title="demo::trading::Trade"]');
     await waitStatus('changes-count', /^1 unpushed change$/);
     await waitCompiled();
+    // whole-project text mode (F8, plan A7): a class added at the end of the text becomes its own element on leaving
+    await page.locator('.monaco-editor .view-lines').click();
+    await page.keyboard.press('F8');
+    await page.getByTestId('text-mode').locator('.monaco-editor').waitFor();
+    await page.getByTestId('text-mode').locator('.view-lines').click();
+    await page.keyboard.press('ControlOrMeta+End');
+    await page.keyboard.insertText('\n###Pure\n// a book of trades\nClass demo::trading::Book\n{\nname: String[1];\n}\n');
+    await page.getByTestId('text-mode-leave').click();
+    await page.getByTestId('text-mode').waitFor({ state: 'detached' });
+    await page.locator('[data-testid=explorer] .element[data-path="demo::trading::Book"]').waitFor();
+    await waitStatus('changes-count', /^2 unpushed changes$/);
+    // the model importer (F2): the same class pasted with a desk replaces it -- still one Book
+    await page.getByTestId('activity-menu').click();
+    await page.getByTestId('menu-import').click();
+    await page.getByTestId('import-text').fill('Class demo::trading::Book\n{\n  name: String[1];\n  desk: demo::trading::Desk[1];\n}\n');
+    await page.locator('.dialog .btn-primary').click();
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid=explorer] .element[data-path="demo::trading::Book"]').length === 1);
+    await page.locator('[data-testid=explorer] .element[data-path="demo::trading::Book"]').click();
+    await page.waitForFunction(() => (document.querySelector('.monaco-editor .view-lines')?.textContent ?? '').includes('desk'));
+    await waitCompiled();
+    await page.getByTestId('delete-element').click();
+    await page.locator('.dialog .btn-primary').click();
+    await waitStatus('changes-count', /^1 unpushed change$/);
     // a change discarded (plan A7): Trade_Party edited, then its change discarded from Local Changes
     await page.locator('[data-testid=explorer] .element[data-path="demo::trading::Trade_Party"]').click();
     await page.locator('.monaco-editor .view-lines').click();
