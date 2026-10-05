@@ -130,4 +130,15 @@ without a **done** entry.
   .claude un-ignored; the G17 genquery fetched every platform's downloads); fixed. Each guard proven by a reverted
   negative edit. Full proof 186/186.
 - **On main** (8822b03b0; 13 commits: 6c + 6d guards + P7-10). Local gate 154/154. Main CI: running.
-- Left in batch 6: P7-12 (generator sources out of src/test), then the P1-90 Phase 1 audit.
+- **6d main CI green** (run 37243808806, 53/53).
+- **P7-12 built:** generator sources in spec/src/gen/java; :source_tree; Claims compiled once per core it reads (by design);
+  core's source root by Pure.java's label.
+- **P1-90 Phase 1 audit:** 25 of 30 yes, P1-02/P1-09/P1-18/P1-19 partly, P1-12 no (open). A regression it found (A25's
+  unlisted-platform check broken by the guard reports, run by nothing) is fixed and now runs in CI's build lane;
+  amendments (B)-(J) and new P7-16 recorded in the workplan (§6.5). Phase 1 closes with P1-12 open.
+- **Batch 7 built:** P2-01 stress corpus from Bazel actions (spike S5 ported), P2-02 one layout list (core/stress.bzl),
+  P2-03 declared inputs only + bazel-run headers (60/93 comment lines regenerated), P2-04 the corpus ratchets as
+  py_tests (green at HEAD), P2-05 memoised specs (287 s -> 146 s, byte-identical). P2-20 moved to batch 9 (after P2-18).
+- **Batch 7 audit: not ready** -- the oracle used the platform libm (cbrt/log/sin in 98 would differ on Linux/Windows);
+  fixed with exactmath.py (correctly rounded, decimal at 60 digits; the committed corpus unchanged); PYTHONUTF8; the live
+  layout; a CI query that could fail silently. Throwaway CI on all platforms (checks, build): running.

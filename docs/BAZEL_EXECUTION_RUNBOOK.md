@@ -61,9 +61,9 @@ permission is denied; a finding would change the plan's scope.
 | 4 | C toolchains | P1-09, P1-13, P1-10, P1-11, P1-12 | Linux hermetic (LLVM); macOS CLT and Windows MSVC declared and checked (D1 revised, D5); Linux arm64 in CI |
 | 5 | Platform infrastructure | P1-15, P1-16, P1-17, P1-19, P1-18 | |
 | 6 | Build hygiene, JS, early guards | P1-20, P1-22, P1-23, P1-24, P1-25, P1-25b, P1-26, P1-27, P1-28; P6-00, P6-10, P6-11, P6-14, P6-16, P6-17, P6-19; P7-10, P7-12; **P1-90** | Phase 1 closes |
-| 7 | Generators I | P2-01–P2-05, P2-20 | The stress corpus from Bazel actions, byte-identical |
+| 7 | Generators I | P2-01–P2-05 | The stress corpus from Bazel actions, byte-identical (P2-20 moved to batch 9: it reads P2-18's vocab) |
 | 8 | Generators II | P2-06, P2-07, P2-08, P2-10, P2-11, P2-12, P2-13, P2-14, P2-17 | |
-| 9 | Generators III | P2-15, P2-16, P2-18, P2-19, P2-09; **P2-90** | |
+| 9 | Generators III | P2-15, P2-16, P2-18, P2-20, P2-19, P2-09; **P2-90** | P2-20 after P2-18, whose vocab it reads |
 | 10 | Test graph A: core | P3-01–P3-06, P3-11, P3-14, P3-15, P3-17 | The largest risk: one item per push where needed |
 | 11 | Test graph B: spec, pct, parser-equivalence | P3-07, P3-08, P3-09, P3-12, P3-13, P3-18, P3-30 | |
 | 12 | Test graph C: native, JS, misc | P3-10, P3-16, P3-19–P3-26, P3-28, P3-29, P3-31, P3-34 | |
