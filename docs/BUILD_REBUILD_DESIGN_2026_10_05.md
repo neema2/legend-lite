@@ -341,6 +341,60 @@ step 1, whose purpose is the measurement.
 Every step that touches Bazel setup is reviewed by the Bazel session before it is pushed, and goes through the
 throwaway CI run on all platforms.
 
+## 5a. Step 1 results (2026-10-05, branch `build/rebuild`, commit `1479486dd`)
+
+**The targets** (root `BUILD.bazel`):
+
+| Target | What it builds |
+|---|---|
+| `//:java` | `java_runtime_jars` over `//core:server`, `//sdlc-server:server` and `//warehouse:server`: each binary's own runtime classpath (`JavaRuntimeClasspathInfo`), so it follows their dependencies. 46 jars: 39 of ours, plus DuckDB JDBC 1.4.4, H2, Postgres, SQLite, checker-qual and the 2 runfiles jars (gone with D9). |
+| `//:web` | `//datacube:bundles`, `//query:bundles`, `//studio:bundles`: 8 esbuild bundles |
+| `//:wasm` | `//wasm:planner`, `//sdlc-server:page` |
+| `//:native` | `//warehouse:server_native` |
+| `//:sites` | `//site:dist` (packaging) |
+
+**The guard:** `//tools/guards:compile_only_test`, run in `//gates:local` and the checks lane.
+- `compile_only.bzl` lists every action kind the four compile targets' closures register, at analysis time. It
+  skips the exec configuration and a java_binary's non-classpath edges.
+- The test holds every kind to an allowlist of compiles and file plumbing, each entry with its reason.
+- Proven to fail: with `//warehouse:duckdb_extensions` (a generator) put into `//:native`, it fails naming
+  `GunzipDuckdbExtension` and the target.
+
+**B1: a clean build of `//:java`.**
+- Method: a fresh output base, downloads already fetched, no disk cache, and the Bazel server and javac workers
+  restarted before every run; macOS arm64, 10 cores, no other build running.
+- Three runs: **22.6 s, 23.1 s, 22.9 s** (critical path 19.7 s).
+- **The critical path is the DuckDB jar:** rules_jvm_external stamps its manifest (10.4 s), then makes its
+  compile-only copy (7.0 s). That is 17.4 of the 19.7 s, before `//core:duckdb_load` (2 files) can compile.
+- Our own code is 64 s of javac work summed over 46 compiles, run in parallel, and finishes before the DuckDB chain.
+- So the fix that lowers the clean build is the DuckDB jar handling, not our code. Candidates, each to be
+  measured:
+  - `--@rules_jvm_external//settings:stamp_manifest=False`;
+  - a cheaper compile-only copy;
+  - one DuckDB version for core and the warehouse.
+
+**After a one-line comment edit to `Compiler.java`: 0.44 s.** Only `//core:planner` recompiles. Its header jar is
+unchanged, so nothing above it recompiles.
+
+**B2: what a one-line `Compiler.java` edit invalidates, by query.**
+- The query: `rdeps(<all packages>, //core:src/main/java/com/legend/Compiler.java)`, minus npm package plumbing.
+- **495 targets:**
+  - 31 Java libraries, 15 Java binaries and 2 TeaVM compiles;
+  - **40 build-time programs**, 30 of them not manual, so `bazel build //...` reruns them;
+  - 168 tests (122 Java, 46 JS);
+  - 45 diff tests and 55 writers of committed files;
+  - 41 guard reports and layer queries;
+  - the rest wiring.
+- The 40 programs are:
+  - spec: `gen_*` (6), `judge_*` (6), `eager_corpus_compile*`, `ratchets`, `native_*`, `reference_lane_report`;
+  - parser-equivalence: 9;
+  - `pct:ratchets`;
+  - `tools/engine-runner:vocab`, `scripts/parser:keyword_coverage`;
+  - datacube: `catalog_*`, `offer_facts`, `cube_jvm_answers`, `dist`;
+  - `engine-client:lite_facts`, `fixtures/saved-queries:gen`, `core:ladder_report`;
+  - `wasm:jvm_answers`, `wasm:zone_jvm`.
+- Steps 3 and 4 are measured against these numbers.
+
 ## 6. Decisions for the user
 
 - **D1. Error Prone.**
