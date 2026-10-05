@@ -11,10 +11,10 @@ import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** {@code tools/oracle-pins.env}, read once: THE release every upstream identity in
- *  this repository must agree with (docs/UPSTREAM_BOUNDARY_PROGRAM.md §3 A). The
- *  test JVM runs in the module directory, so the file is one level up; the
- *  repository-root fallback covers an IDE launched from the root. */
+/** The oracle pins ({@code //tools:oracle-pins.env}, generated from release.MODULE.bazel), read once: THE release
+ *  every upstream identity in this repository must agree with (docs/UPSTREAM_BOUNDARY_PROGRAM.md §3 A). The BUILD
+ *  file passes it as {@code -Doracle.pins}: its $(rootpath) to a test, its $(execpath) to a build action, each
+ *  resolved by {@link Repo#path}. */
 public final class OraclePins {
 
     private OraclePins() {
@@ -23,9 +23,11 @@ public final class OraclePins {
     private static final Map<String, String> PINS = load();
 
     private static Map<String, String> load() {
-        Path f = Repo.path("tools", "oracle-pins.env");
-        // one answer: the repository path (the cwd-relative second guess this had
-        // only existed while tests ran from the module directory)
+        String pins = System.getProperty("oracle.pins");
+        if (pins == null || pins.isEmpty()) {
+            throw new IllegalStateException("-Doracle.pins is not set: the BUILD file passes //tools:oracle-pins.env");
+        }
+        Path f = Repo.path(pins);
         Map<String, String> out = new LinkedHashMap<>();
         try {
             for (String line : Files.readAllLines(f)) {
@@ -40,7 +42,7 @@ public final class OraclePins {
             throw new UncheckedIOException(e);
         }
         if (!out.containsKey("LEGEND_ENGINE_RELEASE")) {
-            throw new IllegalStateException("tools/oracle-pins.env has no LEGEND_ENGINE_RELEASE: " + f);
+            throw new IllegalStateException(f + " has no LEGEND_ENGINE_RELEASE");
         }
         return out;
     }

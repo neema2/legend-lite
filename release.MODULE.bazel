@@ -1,0 +1,274 @@
+# THE UPSTREAM RELEASE: legend-engine and legend-pure at ONE release, and everything keyed on it -- the two jar
+# pools that carry it (maven_upstream, maven_runner), the source archives the tests read as the spec, and the pins
+# the tests read (@oracle_pins). Pulled into MODULE.bazel by include(); its names are its own (a segment's
+# bindings are not shared), which is why all of it lives here.
+#
+# THE RULE: the sources pin a RELEASE TAG, never an arbitrary commit. Jars exist only at release tags, so a
+# non-tag source pin makes an identical oracle jar impossible and the parser differential (gate 8) has to
+# hand-adjudicate every construct on either side of the divergence (docs/version-skew-claims.tsv was 25 rows of
+# that rent at 4.137.0+36).
+#
+#   LEGEND_ENGINE_RELEASE        the release
+#   LEGEND_PURE_RELEASE          DERIVED: the <legend.pure.version> that engine release's own pom declares --
+#                                nobody types a pure version independently
+#   *_SHA                        the COMMIT the tag points to (the tag object itself is a different SHA)
+#   *_SRC_INTEGRITY              the tag's source archive, by content
+#   the *_VERSION below          third-party versions the engine release's root pom manages
+#
+# Bumping = `bazel run //tools/bump -- <engine release>`: it derives the pure release from the engine release's
+# pom on Maven Central, resolves the two tag commits, rewrites the PINS block below WHOLE, repins, regenerates
+# every generated file and runs every gate; then the judgement half (docs/UPSTREAM_BOUNDARY_HOMEWORK_2026_09_10.md
+# §5 phases 3-6). Pins may only name what Central has published (4.142.0 is tagged and unpublished).
+
+# ── PINS: written whole by //tools/bump (Bump.PINS), one `NAME = "value"` per line ──
+LEGEND_ENGINE_RELEASE = "4.145.0"
+LEGEND_PURE_RELEASE = "5.99.0"
+LEGEND_ENGINE_REPO = "finos/legend-engine"
+LEGEND_ENGINE_SHA = "230c159196d6512486fd382556c5e9e4fb128ebb"
+LEGEND_ENGINE_SRC_INTEGRITY = "sha256-zxwlJBBsHN4PmNp68juUPdrfV+ZjlF9us0fUaejm02E="
+LEGEND_PURE_REPO = "finos/legend-pure"
+LEGEND_PURE_SHA = "7fbc7d6e8d52e2488bdae67280e5f5dfed448d68"
+LEGEND_PURE_SRC_INTEGRITY = "sha256-8hb6qk1BTFWy6fuSzSX82Nk0ZWd16jDQCoZenP3yboo="
+HIKARICP_VERSION = "7.0.2"
+COMMONS_LANG3_VERSION = "3.18.0"
+HTTPCORE_VERSION = "4.4.13"
+JUNIT4_VERSION = "4.13.1"
+GUAVA_VERSION = "33.4.6-jre"
+# ── END PINS ──
+
+# the pins as the tests and generators read them, KEY=VALUE (//tools:oracle-pins.env copies it into the tree's
+# namespace); the tag names are the releases'
+oracle_pins = use_repo_rule("//tools:oracle_pins.bzl", "oracle_pins")
+
+oracle_pins(
+    name = "oracle_pins",
+    pins = {
+        "LEGEND_ENGINE_RELEASE": LEGEND_ENGINE_RELEASE,
+        "LEGEND_PURE_RELEASE": LEGEND_PURE_RELEASE,
+        "LEGEND_ENGINE_REPO": LEGEND_ENGINE_REPO,
+        "LEGEND_ENGINE_SHA": LEGEND_ENGINE_SHA,
+        "LEGEND_ENGINE_DESCRIBE": "legend-engine-" + LEGEND_ENGINE_RELEASE,
+        "LEGEND_PURE_REPO": LEGEND_PURE_REPO,
+        "LEGEND_PURE_SHA": LEGEND_PURE_SHA,
+        "LEGEND_PURE_DESCRIBE": "legend-pure-" + LEGEND_PURE_RELEASE,
+    },
+)
+
+maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+
+# legend-engine and legend-pure, at ONE release. Test inputs only (AGENTS.md,
+# reference-checkout tenet): core never sees a jar from here.
+_UPSTREAM_ARTIFACTS = [
+    "junit:junit:" + JUNIT4_VERSION,
+
+    # parser-equivalence: the reference parser and EVERY section grammar the
+    # engine ships (the parser differential compares every section, so it needs them all), test only
+    "org.finos.legend.engine:legend-engine-language-pure-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-diagram-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-extensions-collection-generation:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m3-core:" + LEGEND_PURE_RELEASE,
+
+    # pct: the engine's PCT framework, the three function universes it runs,
+    # and the interpreted runtime with their native extensions;
+    # compiled-core and the TDS DSL are also the PAR generator's classpath
+    "org.finos.legend.engine:legend-engine-test-framework:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-code-compiled-core:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-functions-relation-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-functions-standard-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-standard:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m4:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-tds-pure:" + LEGEND_PURE_RELEASE,
+    # the FIXTURE HARVEST's classpath only (parser-equivalence :harvest_lib,
+    # run by :gen_fixtures): the engine's published grammar and compiler
+    # tests-jars, and json-unit at the engine's own jsonunit version for the
+    # tier-2 sources. QUARANTINED by construction — their test-scoped
+    # ServiceLoader registrations would alter the oracle, and nothing but the
+    # harvest depends on them (was the engine-fixture-harvest Maven profile).
+    "org.finos.legend.engine:legend-engine-language-pure-grammar:jar:tests:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-language-pure-compiler:jar:tests:" + LEGEND_ENGINE_RELEASE,
+    "net.javacrumbs.json-unit:json-unit:2.17.0",
+    "org.eclipse.collections:eclipse-collections:10.2.0",
+    "org.eclipse.collections:eclipse-collections-api:10.2.0",
+
+    # INV-5: the third-party versions the ENGINE release's own root pom manages
+    # (its dependencyManagement; //tools/bump reads them from the release's pom) — listed so `pinned` holds them
+    "com.zaxxer:HikariCP:" + HIKARICP_VERSION,
+    "org.apache.commons:commons-lang3:" + COMMONS_LANG3_VERSION,
+    "org.apache.httpcomponents:httpcore:" + HTTPCORE_VERSION,
+    # the engine release's <guava.version>, listed because rules_jvm_external
+    # 7.1's BOM import lets protobuf-java-util's own 32.0.1 through where
+    # Maven's import applies the managed 33.4.6-jre (measured 2026-09-22
+    # against a Maven build importing the same BOM: guava was the ONLY
+    # third-party artifact on which the two disagreed). Still different after
+    # it, and left: error_prone_annotations 2.5.1 / j2objc-annotations 2.8
+    # (Maven: 2.36.0 / 3.0.0) — annotation-only jars the engine does not
+    # manage, which a JVM ignores at runtime.
+    "com.google.guava:guava:" + GUAVA_VERSION,
+
+    # USED DIRECTLY by BUILD files, so declared: strict_visibility (Bazel workplan P1-25) makes an
+    # undeclared transitive artifact invisible. Versionless ones take the engine BOM's version.
+    "com.fasterxml.jackson.core:jackson-annotations",
+    "com.fasterxml.jackson.core:jackson-databind",
+    "org.antlr:antlr4-runtime",
+    "org.finos.legend.engine:legend-engine-language-pure-compiler:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-language-pure-dsl-generation-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-language-pure-dsl-service-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-protocol-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-functions-json-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-pure-functions-variant-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-shared-core:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-data-space-pure-metamodel:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-diagram-pure-metamodel:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-json-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-core-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-h2-sqlDialectTranslation-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlModel-extensions-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlModel-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlParser-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-sqlDialectTranslation-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-sqlPlanning-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-diagram-grammar:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-diagram-pure:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-graph-grammar:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-graph-pure:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-mapping-grammar:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-mapping-pure:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-path-grammar:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-path-pure:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-store-grammar:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-store-pure:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-dsl-tds-grammar:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-store-relational-grammar:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m2-store-relational-pure:" + LEGEND_PURE_RELEASE,
+    "org.finos.legend.pure:legend-pure-m3-precisePrimitives:" + LEGEND_PURE_RELEASE,
+]
+
+maven.install(
+    name = "maven_upstream",
+    artifacts = _UPSTREAM_ARTIFACTS,
+    # THE ENGINE RELEASE'S OWN VERSIONS for everything it manages: its root pom is
+    # imported as a BOM, so a third-party artifact here (guava, slf4j, snakeyaml,
+    # the jackson family, ...) resolves at the version the engine's reactor — the
+    # PCT framework included — builds and runs with. Derived from the release,
+    # never chosen here (INV-5). BOM import needs the maven resolver.
+    boms = ["org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE],
+    resolver = "maven",
+    # Jars another pool owns are left out, so a test that uses both pools gets
+    # ONE copy: the drivers are core's, JUnit 5 is the test tooling's.
+    excluded_artifacts = [
+        "com.h2database:h2",
+        "org.duckdb:duckdb_jdbc",
+        "org.xerial:sqlite-jdbc",
+        "org.postgresql:postgresql",
+        "org.junit.jupiter:junit-jupiter",
+        "org.junit.jupiter:junit-jupiter-api",
+        "org.junit.jupiter:junit-jupiter-engine",
+        "org.junit.jupiter:junit-jupiter-params",
+        "org.junit.platform:junit-platform-commons",
+        "org.junit.platform:junit-platform-engine",
+        "org.opentest4j:opentest4j",
+        "org.apiguardian:apiguardian-api",
+    ],
+    # one version of every artifact across this pool; listed versions win
+    version_conflict_policy = "pinned",
+    fail_if_repin_required = True,
+    strict_visibility = True,
+    lock_file = "//:maven_upstream_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+# TEST ONLY: every jar this pool lists is testonly, and with the testonly-closure patch (above) so is every
+# jar only they reach, which is the whole pool: Bazel refuses any non-test target that depends on one, or on a
+# file generated from one (.bazelrc: --incompatible_check_testonly_for_output_files) (legend-engine and legend-pure are test inputs: AGENTS.md, reference-checkout tenet).
+[maven.amend_artifact(
+    name = "maven_upstream",
+    coordinates = coordinates,
+    testonly = "true",
+) for coordinates in _UPSTREAM_ARTIFACTS]
+
+
+# THE ENGINE RUNNER (tools/engine-runner): the real legend-engine — parse,
+# compile, execute through its Testable framework — beside legend-lite's core, to
+# check that the stress corpus is portable Legend by running it on a second engine.
+# A tool with its own classpath universe: the engine's execution stack at the
+# release, with the driver versions it runs with. Never on a test classpath, so it
+# shares no artifact rule with the pools above.
+_RUNNER_ARTIFACTS = [
+    "org.finos.legend.engine:legend-engine-language-pure-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-language-pure-compiler:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-language-pure-modelManager:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-executionPlan-generation:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-extensions-collection-generation:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-extensions-collection-execution:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection:" + LEGEND_ENGINE_RELEASE,
+    "com.h2database:h2:2.2.224",
+    "org.finos.legend.engine:legend-engine-test-runner-mapping:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-test-runner-function:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-test-runner-service:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-execution:" + LEGEND_ENGINE_RELEASE,
+    "org.duckdb:duckdb_jdbc:1.3.0.0",
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-grammar:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-grammar:" + LEGEND_ENGINE_RELEASE,
+
+    # USED DIRECTLY by BUILD files, so declared: strict_visibility (Bazel workplan P1-25) makes an
+    # undeclared transitive artifact invisible. Versionless ones take the engine BOM's version.
+    "org.antlr:antlr4-runtime",
+    "org.finos.legend.engine:legend-engine-language-pure-dsl-service:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-protocol-pure:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-shared-core:" + LEGEND_ENGINE_RELEASE,
+    "org.finos.legend.engine:legend-engine-testable:" + LEGEND_ENGINE_RELEASE,
+]
+
+maven.install(
+    name = "maven_runner",
+    artifacts = _RUNNER_ARTIFACTS,
+    boms = ["org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE],
+    resolver = "maven",
+    fail_if_repin_required = True,
+    strict_visibility = True,
+    lock_file = "//:maven_runner_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+# TEST ONLY: every jar this pool lists is testonly, and with the testonly-closure patch (above) so is every
+# jar only they reach, which is the whole pool: Bazel refuses any non-test target that depends on one, or on a
+# file generated from one (.bazelrc: --incompatible_check_testonly_for_output_files) (the engine runner is a test tool).
+[maven.amend_artifact(
+    name = "maven_runner",
+    coordinates = coordinates,
+    testonly = "true",
+) for coordinates in _RUNNER_ARTIFACTS]
+
+use_repo(maven, "maven_runner", "maven_upstream")
+
+# ── THE UPSTREAM SOURCES: the two trees at the release, pinned by content. Tests read them as the spec (see
+# third_party/legend_*_src.BUILD). Measured 2026-09-22: 18.4 MB and 2.4 MB, 2.4 s and 0.7 s to fetch -- once.
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "legend_engine_src",
+    build_file = "//third_party:legend_engine_src.BUILD",
+    integrity = LEGEND_ENGINE_SRC_INTEGRITY,
+    strip_prefix = "legend-engine-legend-engine-" + LEGEND_ENGINE_RELEASE,
+    urls = ["https://github.com/" + LEGEND_ENGINE_REPO + "/archive/refs/tags/legend-engine-" + LEGEND_ENGINE_RELEASE + ".tar.gz"],
+)
+
+http_archive(
+    name = "legend_pure_src",
+    build_file = "//third_party:legend_pure_src.BUILD",
+    integrity = LEGEND_PURE_SRC_INTEGRITY,
+    strip_prefix = "legend-pure-legend-pure-" + LEGEND_PURE_RELEASE,
+    urls = ["https://github.com/" + LEGEND_PURE_REPO + "/archive/refs/tags/legend-pure-" + LEGEND_PURE_RELEASE + ".tar.gz"],
+)

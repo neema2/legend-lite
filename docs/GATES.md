@@ -51,8 +51,7 @@ Beside the gates, in `bazel test //...`:
   Out of `//core:core_tests`, so the behaviour suite declares only core's tree.
 - **Dependency guards** — `//tools/deps:core_closure_test` (core compiles
   against no jar; the drivers are exactly the named five: H2, DuckDB, SQLite,
-  Postgres and its annotations jar, since 2026-10-03), `:one_release`
-  (MODULE.bazel and tools/oracle-pins.env name one release), and
+  Postgres and its annotations jar, since 2026-10-03), and
   `//tools/guards:classpath_test` (no runtime classpath holds one Maven coordinate at two versions; it replaced
   `:pools_are_disjoint`, 2026-10-04).
 

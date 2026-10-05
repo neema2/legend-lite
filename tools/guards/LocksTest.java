@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.legend.testing.Runfile;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -24,7 +25,7 @@ class LocksTest {
 
     @Test
     void everyPoolIsLockedAndStrict() throws IOException {
-        String module = Files.readString(Runfile.property("module.bazel"));
+        String module = module();
         Matcher m = INSTALL.matcher(module);
         List<String> missing = new ArrayList<>();
         int pools = 0;
@@ -43,7 +44,16 @@ class LocksTest {
                 missing.add(pool + ": lock_file = \"//:" + pool + "_install.json\"");
             }
         }
-        assertTrue(pools >= 8, "found " + pools + " maven.install pools in MODULE.bazel: the guard is not looking");
+        assertTrue(pools >= 8, "found " + pools + " maven.install pools in MODULE.bazel and its segments: the guard is not looking");
         assertEquals(List.of(), missing, "jar pools without their lock or strict-visibility setting");
+    }
+
+    /** MODULE.bazel and every segment it includes, as one text (//:module_files). */
+    static String module() throws IOException {
+        StringBuilder out = new StringBuilder();
+        for (Path f : Runfile.envList("MODULE_FILES")) {
+            out.append(Files.readString(f)).append('\n');
+        }
+        return out.toString();
     }
 }

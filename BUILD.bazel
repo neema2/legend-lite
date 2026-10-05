@@ -5,7 +5,18 @@ load("//tools/guards:defs.bzl", "guards_package")
 # Root package. Exists so the jar pools' lock files are labels rules_jvm_external
 # can read (MODULE.bazel says which pool is whose; tools/deps/pools.bzl lists them),
 # and as the home for workspace-wide targets later.
-exports_files(["MODULE.bazel"] + ["%s_install.json" % pool for pool in POOLS])
+exports_files(["MODULE.bazel", "release.MODULE.bazel"] + ["%s_install.json" % pool for pool in POOLS])
+
+# the module as Bazel reads it: MODULE.bazel and the segments it include()s (release.MODULE.bazel), for the tests that
+# read the pools' definitions (//tools/deps:pools_list_test checks that every included segment is here)
+filegroup(
+    name = "module_files",
+    srcs = ["MODULE.bazel"] + glob(["*.MODULE.bazel"]),
+    visibility = [
+        "//tools/deps:__pkg__",
+        "//tools/guards:__pkg__",
+    ],
+)
 
 
 # EVERY committed generated file's diff test, in one suite: what CI's checks lane runs

@@ -18,21 +18,15 @@ legend_java_binary(
     runtime_deps = [":bump_lib"],
 )
 
-# The bump's rewrites against the real MODULE.bazel and oracle-pins.env: a pin that moves in either file
-# without the bump fails here, not at the next release (the integrity move, Bazel workplan P1-27, did).
+# The bump's rewrite of the real release.MODULE.bazel's PINS block: a block the bump could not rewrite whole fails
+# here, not at the next release.
 junit_test(
     name = "bump_test",
     memory_mb = 768,
     size = "small",
     srcs = ["test/BumpTest.java"],
-    data = [
-        "//:MODULE.bazel",
-        "//tools:oracle-pins.env",
-    ],
-    jvm_flags = [
-        "-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)",
-        "-Doracle.pins=$(rlocationpath //tools:oracle-pins.env)",
-    ],
+    data = ["//:release.MODULE.bazel"],
+    jvm_flags = ["-Drelease.segment=$(rlocationpath //:release.MODULE.bazel)"],
     select = ["--select-class=com.legend.tools.bump.BumpTest"],
     deps = [
         ":bump_lib",

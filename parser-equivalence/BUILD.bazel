@@ -111,7 +111,12 @@ _FILE_DATA = ["//docs:%s.tsv" % l for l in _LEDGERS] + [
     "src/test/resources/engine-grammar-fixtures.jsonl",
 ]
 
-_FILE_FLAGS = ["-Dledger.%s=$(rlocationpath //docs:%s.tsv)" % (l, l) for l in _LEDGERS] + [
+# the oracle pins (OraclePins, through Repo.path): a test's path is the runfiles one, an action's the execroot one
+_PINS_TEST_FLAG = "-Doracle.pins=$(rootpath //tools:oracle-pins.env)"
+
+_PINS_ACTION_FLAG = "-Doracle.pins=$(execpath //tools:oracle-pins.env)"
+
+_FILE_FLAGS = [_PINS_TEST_FLAG] + ["-Dledger.%s=$(rlocationpath //docs:%s.tsv)" % (l, l) for l in _LEDGERS] + [
     "-Dpe.corpus.manifest=$(rlocationpath src/test/resources/corpus-manifest.tsv)",
     "-Dpe.engine.fixtures=$(rlocationpath src/test/resources/engine-grammar-fixtures.jsonl)",
 ]
@@ -209,7 +214,7 @@ java_run(
     ],
     outs = ["generated/engine-grammar-fixtures.jsonl"],
     arguments = ["{OUT}"],
-    jvm_flags = program_jvm_flags("parser-equivalence", pure = False) + [
+    jvm_flags = program_jvm_flags("parser-equivalence", pure = False) + [_PINS_ACTION_FLAG] + [
         "-Dlegend.harvest.jars=$(execpath :harvest_tests_jars)",
     ],
     main_class = "com.legend.equivalence.harvest.FixtureHarvestGenerator",
@@ -232,7 +237,7 @@ java_run(
     ],
     outs = ["generated/corpus-manifest.tsv"],
     arguments = ["{OUT}"],
-    jvm_flags = program_jvm_flags("parser-equivalence") + [_NEW_FIXTURES],
+    jvm_flags = program_jvm_flags("parser-equivalence") + [_PINS_ACTION_FLAG] + [_NEW_FIXTURES],
     main_class = "com.legend.equivalence.ManifestGenerator",
     mnemonic = "Generate",
     roots = UPSTREAM_ROOTS,
@@ -255,7 +260,7 @@ java_run(
     ],
     outs = ["generated/protocol-roster.tsv"],
     arguments = ["{OUT}"],
-    jvm_flags = program_jvm_flags("parser-equivalence") + [
+    jvm_flags = program_jvm_flags("parser-equivalence") + [_PINS_ACTION_FLAG] + [
         _NEW_FIXTURES,
         "-Dlegend.engine.jars=$(execpath :engine_jars_exec)",
     ],
@@ -296,7 +301,7 @@ java_run(
         "$(execpath //docs:own-corpus-protocol-diffs.tsv)",
         "{OUT}",
     ],
-    jvm_flags = program_jvm_flags("parser-equivalence"),
+    jvm_flags = program_jvm_flags("parser-equivalence") + [_PINS_ACTION_FLAG],
     main_class = "com.legend.equivalence.OwnCorpusLedgerDraft",
     mnemonic = "Generate",
     roots = UPSTREAM_ROOTS,
