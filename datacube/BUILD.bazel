@@ -479,6 +479,8 @@ node_test(
 # real app over the real WASM planner and DuckDB-WASM; a column's type is the
 # compiler's, never an engine's wire type or one learned from a result.
 node_test(
+    # each lane names its zone and the offset it must see (the test asserts it, Bazel workplan P3-10)
+    env = {"TZ": "UTC", "EXPECTED_UTC_OFFSET_MINUTES": "0"},
     name = "typed_values_test",
     wasm = True,
     size = "medium",
@@ -493,7 +495,7 @@ node_test(
 
 # the same file east / west of UTC (T3): a date must be its own day everywhere
 node_test(
-    env = {"TZ": "Asia/Tokyo"},
+    env = {"TZ": "Asia/Tokyo", "EXPECTED_UTC_OFFSET_MINUTES": "-540"},
     name = "typed_values_tokyo_test",
     wasm = True,
     size = "medium",
@@ -508,7 +510,7 @@ node_test(
 
 # the same file east / west of UTC (T3): a date must be its own day everywhere
 node_test(
-    env = {"TZ": "America/New_York"},
+    env = {"TZ": "America/New_York", "EXPECTED_UTC_OFFSET_MINUTES": "300"},
     name = "typed_values_new_york_test",
     wasm = True,
     size = "medium",

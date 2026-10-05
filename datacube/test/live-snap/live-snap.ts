@@ -83,7 +83,8 @@ async function asOwner(sql: string, token: string): Promise<void> {
 before(async () => {
   const binary = runfileFromEnv('WAREHOUSE_BINARY');
   const library = runfileFromEnv('WAREHOUSE_DUCKDB_LIBRARY');
-  const data = mkdtempSync(path.join(tmpdir(), 'live-snap-'));
+  // the test's own temp directory (Bazel's TEST_TMPDIR), never the host's
+  const data = mkdtempSync(path.join(process.env['TEST_TMPDIR'] ?? tmpdir(), 'live-snap-'));
   server = spawn(binary, ['--port', '0', '--data', data, '--user', 'alice:alice-pw', '--user', 'rita:rita-pw',
     '--owner', 'alice', '--duckdb-library', library], { stdio: ['ignore', 'ignore', 'pipe'] });
   const port = await new Promise<number>((ok, fail) => {
@@ -115,8 +116,12 @@ before(async () => {
   planner = new WasmPlanner({ model: MODEL, runtime: RUNTIME, assetBaseUrl: MODULE_DIR, cache: false });
 });
 
-after(() => {
-  server?.kill();
+// stopped and WAITED for: the process is gone before the test reports (Bazel workplan P3-10)
+after(async () => {
+  if (server === undefined || server.exitCode !== null || server.signalCode !== null) return;
+  const exited = new Promise<void>((ok) => server.once('exit', () => ok()));
+  server.kill();
+  await exited;
 });
 
 /** A result as comparable text: its columns, then its rows (sorted unless ordered). */

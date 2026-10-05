@@ -75,12 +75,14 @@ describe('SnapManager', () => {
   });
 
   it('is genuinely frozen: live changes do not reach the snap', async () => {
+    // its own live table, so the row it adds reaches no other test (Bazel workplan P3-10)
+    await engine.run('CREATE TABLE trades_frozen AS SELECT * FROM trades', 0);
     const s = new SnapManager(engine);
-    const { table: snapped } = await s.snap('SELECT * FROM trades', 1, { target: target('snap_frozen') });
+    const { table: snapped } = await s.snap('SELECT * FROM trades_frozen', 1, { target: target('snap_frozen') });
 
     // The world moves on underneath.
     await engine.run(
-      'INSERT INTO trades SELECT 9, 9, 2024, 1.0',
+      'INSERT INTO trades_frozen SELECT 9, 9, 2024, 1.0',
       2,
     );
 
@@ -89,14 +91,11 @@ describe('SnapManager', () => {
       3,
     );
     const fromLive = await engine.run(
-      'SELECT count(*) AS n FROM trades',
+      'SELECT count(*) AS n FROM trades_frozen',
       4,
     );
     assert.equal(fromSnap.columns[0]?.values[0], 1000, 'snap is stable');
     assert.equal(fromLive.columns[0]?.values[0], 1001, 'live moved');
-
-    // Clean up so later tests see the original table.
-    await engine.run('DELETE FROM trades WHERE year = 2024', 5);
   });
 
   it('returns to live on release', async () => {

@@ -16,7 +16,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
-import { describe, it } from 'node:test';
+import { after, describe, it } from 'node:test';
 
 import { servedPath } from '../demo/static-files.ts';
 
@@ -151,7 +151,9 @@ describe('the Windows guardrail', () => {
 describe('servedPath, on this platform', () => {
   // The demo servers' one URL -> file mapping. The Windows lane runs
   // these same cases with `\` separators and a drive letter.
-  const root = mkdtempSync(join(tmpdir(), 'dc-served-'));
+  // the test's own temp directory (Bazel's TEST_TMPDIR), removed after the cases whatever their order (P3-10)
+  const root = mkdtempSync(join(process.env['TEST_TMPDIR'] ?? tmpdir(), 'dc-served-'));
+  after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(join(root, 'a b.txt'), 'x');
   const under = (...parts: string[]): string => join(root, ...parts);
 
@@ -177,5 +179,4 @@ describe('servedPath, on this platform', () => {
     assert.equal(servedPath(root, '/a%5cb'), undefined);
   });
 
-  it('cleans up', () => rmSync(root, { recursive: true, force: true }));
 });
