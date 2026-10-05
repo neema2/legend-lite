@@ -183,3 +183,18 @@ without a **done** entry.
   //datacube:live_snap_test ECONNRESET under the full gate's load (all pass alone): sizing follow-up owed.
 - Studio's second branch (query-by-name) reviewed: approved. The database-owner line (neema-32) told C2 may start.
 - **Batch 8 complete**; batch 9 left: P2-15, P2-16, P2-18, P2-20, P2-09, P2-90.
+- **Main CI on cf911b24f:** 51/53 green; linux //warehouse:tests_native TIMEOUT (no output). It passes locally (28 s)
+  and passed on main's next run (37262434241, which contains the push): runner load, not a hang.
+- **Batch 9 built:** wasm differential_test medium; P2-18 (vocab.tsv by Bazel, the committed copy was from the 4.138.2
+  jars; false "generated" claims removed; //docs:ledgers deleted); P2-20 (the keyword census over pinned grammars,
+  declared-file trees; 598/607 in scope at 4.145.0, HANDOFF's 574/574 was a working copy); P2-16 (a) computed counts,
+  G-01 (all 23 Repo.out writers diagnostic; docs/refusal-asymmetry.tsv orphan deleted), (b) generated measured reports
+  for spec, parser-equivalence and pct (core's justified registers are policy and stay: amendment). P2-15 moved after
+  P3-01.
+- **Batch 9 audit: two bugs** (gen_own_corpus_draft would die on a static -D property; the census wrote CRLF on
+  Windows) and should-fixes (undeclared reads unsandboxed; ratchet readers loading their own output; pct's update
+  outside //:update_generated; stale recipes): all fixed. Throwaway 37265420480 (checks, build, gate 8; all platforms)
+  green; local gate 198/198.
+- **Pushed to main: b245f5f30** (9 commits). Main CI 37267596779: running. Studio's studio-engine reviewed (planner
+  worker as its own bundle; A5; tests) and approved.
+- Left in Phase 2: P2-09 (native-image reachability metadata, H-native, Windows proof), then P2-90 (the Phase 2 audit).
