@@ -16,6 +16,7 @@ export const ELEMENT_KINDS: readonly ElementKind[] = [
   { label: 'Mapping', template: (p, n) => `###Mapping\nMapping ${p}::${n}\n(\n)\n` },
   { label: 'Database', template: (p, n) => `###Relational\nDatabase ${p}::${n}\n(\n  Table T\n  (\n    ID INTEGER PRIMARY KEY\n  )\n)\n` },
   { label: 'Runtime', template: (p, n) => `###Runtime\nRuntime ${p}::${n}\n{\n  mappings:\n  [\n  ];\n}\n` },
+  { label: 'Service', template: (p, n) => `###Service\nService ${p}::${n}\n{\n  pattern: '/${n}';\n  documentation: '';\n  execution: Single\n  {\n    query: |${p}::Thing.all()->project(~[name: x | $x.name]);\n    mapping: ${p}::Mapping;\n    runtime: ${p}::Runtime;\n  }\n}\n` },
 ];
 
 /** `a::b::C` as its package and name, or undefined when it is not a full path. */

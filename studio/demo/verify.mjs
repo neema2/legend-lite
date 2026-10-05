@@ -106,6 +106,19 @@ async function loop(browser, name, query) {
     if (!/^5 rows in \d+ ms/.test(ran)) throw new Error(`the function's run said: ${ran}`);
     assert.ok((await page.getByTestId('run-rows').textContent()).includes('Banque Lumière'), 'the run shows the party rows');
     await shot('2b-ran');
+    // 3c. a service, run in the tab: its query, with its mapping and runtime (plan A3)
+    await page.getByTestId('new-element').click();
+    await page.getByTestId('new-kind').selectOption({ label: 'Service' });
+    await page.getByTestId('new-path').fill('demo::trading::PartiesService');
+    await page.locator('.dialog .btn-primary').click();
+    await page.locator('.monaco-editor .view-lines').click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.insertText("###Service\nService demo::trading::PartiesService\n{\npattern: '/trading/parties';\ndocumentation: 'Every party, by name.';\nexecution: Single\n{\nquery: |demo::party::Party.all()->project(~[name: p | $p.name]);\nmapping: demo::party::PartyMapping;\nruntime: demo::party::Runtime;\n}\n}\n");
+    await waitCompiled();
+    await page.getByTestId('run-function').click();
+    await page.waitForFunction(() => !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), undefined, { timeout: 120_000 });
+    const served = await statusOf('run-status');
+    if (!/^5 rows in \d+ ms/.test(served)) throw new Error(`the service's run said: ${served}`);
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();
     await waitStatus('changes-count', /no changes detected/);
