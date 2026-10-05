@@ -6,7 +6,7 @@
 // it is handed: asks the planner for SQL, runs it under an epoch guard (the
 // latest run wins; an older one resolves STALE), and returns the view or
 // throws the refusal. What it keeps is the query side's own: the runners,
-// the guard, and the plane (snap.ts).
+// the guard, and the plane (engine-client's snap.ts).
 
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import { from, type Lambda } from '../../pure-protocol/src/index.ts';
@@ -34,7 +34,7 @@ import {
 } from './query.ts';
 import { planPivot, typeColumns, type PivotPlan, type SchemaChange } from './plan.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import { SnapManager, type PlaneState, type RemoteSource, type SnapTarget } from './snap.ts';
+import { SnapManager, type PlaneState, type RemoteSource, type SnapTable } from '../../engine-client/src/snap.ts';
 import type { Receipt } from '../../engine-client/src/receipt.ts';
 import {
   PlanThenRun,
@@ -75,6 +75,16 @@ export interface CompileOutcome {
  * class of divergence the differential tests exist to catch. So the
  * interface stays narrow and the real implementation calls the engine.
  */
+/**
+ * Where a cube's snap materialises (engine-client's SnapTable), and how a query on the copy is planned: the SAME model
+ * against the runtime of the store the copy is in (`InferredModel.snapRuntime`). The rows are pulled with the live
+ * plan, which runs where they are; every query on the copy runs here, in the tab's engine, so it is planned for that
+ * engine's database type (docs/DATACUBE_APP_PLAN_2026_10_02.md, leg C).
+ */
+export interface SnapTarget extends SnapTable {
+  readonly planner: Planner;
+}
+
 export interface Planner {
   /** A query (a protocol tree, query.ts) in, SQL and the compiler's result type out. */
   plan(query: Lambda, signal?: AbortSignal): Promise<Plan>;

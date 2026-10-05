@@ -54,7 +54,8 @@ import { findAll, type AppliedProperty, type ValueSpecification } from '../../pu
 import { isPivotTotalColumn } from './snapshot.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
-import type { RemoteSource, SnapTarget } from './snap.ts';
+import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
+import type { SnapTarget } from './cube.ts';
 import { exportCsv, exportFileName, toCsv, toEml } from './export.ts';
 import {
   ALERT_WINDOW,
@@ -3614,29 +3615,18 @@ export class CubeApp {
       snap.title = held !== undefined
         ? `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}, ` +
           `${held.rowCount.toLocaleString(UI_LOCALE)} rows. Nothing can change it while you work.`
-        : 'Live — this plane has no store in this tab to snap into.';
+        : describePlane({ mode: 'live' }, { remote: false, toggles: false }).title;
       host.append(snap);
       this.#paintSnap = null;
     } else {
       const paint = (): void => {
         const state = this.#controller.snaps.state;
-        const snapped = state.mode === 'snapped';
-        snap.textContent = snapped ? 'Snapped' : 'Live';
-        snap.classList.toggle('dc-on', snapped);
-        // Where the data is, when Live is a warehouse: the plane is a place.
+        snap.classList.toggle('dc-on', state.mode === 'snapped');
+        // Where the data is, when Live is a warehouse: the plane is a place (the wording every app shares)
         const remote = this.#options.runner === undefined && this.#options.live !== undefined;
-        if (state.mode === 'snapped') {
-          const taken = state.snap.takenAt.toLocaleTimeString(UI_LOCALE);
-          snap.title =
-            `${state.snap.label} — frozen at ${taken}, ` +
-            `${state.snap.rowCount.toLocaleString(UI_LOCALE)} rows` +
-            (remote ? ', a copy in this tab' : '') + '. ' +
-            `Click to go live.`;
-        } else {
-          snap.title = remote
-            ? 'Live — running on the warehouse, as you. Click to snap a copy of your rows into this tab.'
-            : 'Live data, which may move while you work. Click to snap.';
-        }
+        const described = describePlane(state, { remote, toggles: true });
+        snap.textContent = described.text;
+        snap.title = described.title;
       };
       this.#paintSnap = paint;
       this.#planeToggle = () => snap.click();

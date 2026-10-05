@@ -93,7 +93,7 @@ import type { CubeSnapshot } from '../src/snapshot.ts';
 import type { TreeState } from '../src/tree.ts';
 import { sourceColumns } from '../src/source-columns.ts';
 import { accessor, lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import type { SnapTarget } from '../src/snap.ts';
+import type { SnapTarget } from '../src/cube.ts';
 
 const ROWS = 200_000;
 
