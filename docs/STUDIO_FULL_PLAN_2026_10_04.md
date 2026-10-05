@@ -102,6 +102,14 @@ Left out of this plan when it was written; the user ruled it next after A0 (2026
   file that does not fit -- and the file's rows are kept over the test data on every run until Reset
   (`engine-client/src/tab-data.ts`, TabTables). Next: generated samples (lite's testdatagen, a core WASM export:
   announced first), Snap (A6).
+- **A7 started.** Ctrl+P element search (by path, names first, arrows and Enter); a local change's diff (Monaco's diff
+  editor, the revision's text beside today's); a delete undone before the save (click the removed element); and
+  upstream's workspace update (`POST …/workspaces/{w}/update` in sdlc-server: the workspace's commits replayed onto the
+  line's head, author and message kept; NO_OP / UPDATED; a CONFLICT -- a file both changed, differently -- leaves the
+  workspace as it was and names the files, a departure from upstream's conflict-resolution workspace), offered in
+  Local Changes when the line has moved. The SDLC conformance suite covers update on the page's SDLC and the server.
+  Next: rename/move, review diff, revision history, conflict resolution, group workspaces; definition, hover and
+  completion from the compiler (core, announced first).
 - **A3 mostly done.** Run (F5) a function -- its parameters asked for as Pure, read by the compiler -- or a
   single-execution service, in the tab; RESULTS shows the rows, count, time and SQL. The SQL playground runs SQL on the
   tab's DuckDB with the model's rows. `//studio:verify_test` runs a function, a service, a parameterised function and

@@ -383,6 +383,36 @@ export function conformance(name: string, target: () => Target): void {
         `Could not commit review ${two} in project ${P2} because of a conflict: the project line changed the same files since the workspace was made: demo/types/Country.pure`);
     });
 
+    it("updates a workspace onto the line's head: UPDATED (its commits replayed), NO_OP, or CONFLICT left as it was", async () => {
+      const line = await client().revision({ project: P2 });
+      // 'side' was made before 'one' landed: rebased, its own commit replayed on the line's head, author and message kept
+      const before = await client().revision({ project: P2, workspace: 'side' });
+      assert.equal(await client().outdated(P2, 'side'), true);
+      const r = await raw('POST', `/projects/${E2}/workspaces/side/update`);
+      assert.equal(r.status, 200, r.text);
+      const report = r.json as Record<string, unknown>;
+      assert.deepEqual(Object.keys(report), ['status', 'workspaceMergeBaseRevisionId', 'workspaceRevisionId']);
+      assert.equal(report['status'], 'UPDATED');
+      assert.equal(report['workspaceMergeBaseRevisionId'], line.id);
+      const after = await client().revision({ project: P2, workspace: 'side' });
+      assert.equal(after.id, report['workspaceRevisionId']);
+      assert.equal(after.message, before.message);
+      assert.equal(after.authorName, before.authorName);
+      assert.equal(await client().outdated(P2, 'side'), false);
+      assert.deepEqual(await client().revision({ project: P2, workspace: 'side', revision: 'BASE' }), line);
+      assert.deepEqual((await client().pure({ project: P2, workspace: 'side' })).map((f) => f.path).sort(), ['demo::party::Address', 'demo::types::Country']);
+      // again: nothing to do
+      assert.deepEqual(await client().updateWorkspace(P2, 'side'), { status: 'NO_OP', workspaceMergeBaseRevisionId: line.id, workspaceRevisionId: after.id });
+      // 'two' changed the file 'one' changed, differently: a conflict, named, and the workspace as it was
+      const two = await client().revision({ project: P2, workspace: 'two' });
+      const conflict = await client().updateWorkspace(P2, 'two');
+      assert.equal(conflict.status, 'CONFLICT');
+      assert.deepEqual(conflict.conflicts, ['demo/types/Country.pure']);
+      assert.equal(conflict.workspaceRevisionId, two.id);
+      assert.equal((await client().revision({ project: P2, workspace: 'two' })).id, two.id);
+      await refused('POST', `/projects/${E2}/workspaces/nope/update`, undefined, 404, `Unknown: user workspace nope of project ${P2}`);
+    });
+
     it('cuts versions on the project line, numbered from the latest, and reads a version\'s files', async () => {
       const none = await raw('GET', `/projects/${E2}/versions/latest`);
       assert.equal(none.status, 204, none.text);
