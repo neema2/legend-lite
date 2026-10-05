@@ -165,3 +165,64 @@ connection.
 - **Upstream plans** fit the same type: `sql` nodes with text only, run through the FreeMarker compatibility subset,
   no lineage.
 
+## 8. Phase 1 — the query path (PROPOSED 2026-10-05, for the user's review before code)
+
+**Scope.** The paths whose result is TEXT THE DATABASE BUILDS: the server's `pure/v1/execution/generatePlan` and
+`execute` (with `parameterValues`), and `Execution.executeWire` / `executeStreaming` (JSON, CSV, streamed rows). In
+these the executor never decodes a value (the wire statement returns the finished JSON or CSV), so phase 1's executor is
+pure from the start. Typed-row decoding into `ExecutionResult` (the in-process callers, Pure test bodies) is phase 3.
+
+**Facts it rests on (measured 2026-10-05).**
+- The SQL tree already has typed parameter slots: `SqlExpr.PlanParam(name, kind, optional, enumMapFn, type)` — today
+  only the engine-text printer renders them (as FreeMarker), the real dialects refuse them.
+- The server's `execute` binds `parameterValues` by REWRITING the lambda (`PureV1Api.boundParameters`: each value
+  becomes a `let`) and recompiling — per request.
+- `exec` uses the dialect 43 times (seed DDL rendering, `normalize` decoding) and compiler types (decoding, metamodel
+  seeding), so the pure executor is a NEW library, not `exec` renamed.
+- Connections' declared test data (`CsvSeed.declaredSteps`) is rendered from the MODEL at execution today; the server's
+  in-memory database identity (`ConnectionResolver.storesKey`) is a hash read from the model at execution today.
+
+**Steps, each landed on the full chain:**
+1. **The plan records** — a new library `//core:execution_plan` (`com.legend.executionplan`; deps `//base`, `//json`
+   only): `SingleExecutionPlan`, `Sequence`, `FunctionParametersValidation`, `TdsInstantiation`, a lite
+   `JsonInstantiation` (class, graph, scalar and collection results the database builds as JSON), `Sql` (statement text,
+   ordered typed parameter slots, result columns, the typed SQL tree as metadata, the connection), result types (`tds`,
+   `dataType`, lite's JSON result), the connection (upstream's `RelationalDatabaseConnection` shape) carrying its SETUP
+   statements (upstream's `testDataSetupSqls`, rendered at plan time) and the in-memory database's identity (a lite
+   field, computed at plan time). JSON in legend-engine's protocol shape; round-trip tests. No behaviour change.
+2. **The planner makes plans** — `TypedQuery.executionPlan(runtime, output)` (`output`: rows, JSON, CSV, streamed
+   JSON — the wire statement the database builds, `lowering.WireRender`, decided at plan time). Each dialect renders
+   `PlanParam` as a bind placeholder and returns the slots in order; a collection slot is rendered in the target's array
+   form (`= ANY(?)` on Postgres, a list parameter on DuckDB, H2's array) with the element's SQL type name in the slot;
+   the target per `Sql` node from `Compiler.executesOn`; setup statements rendered from the connection's declared data.
+   Tests: plans for the §3 queries, checked node by node against legend-engine's (kinds, result columns, connection).
+3. **The pure executor** — a new library `//core:plan_runner` (deps: `:execution_plan`, `//base`, `//json`, and the
+   session owner — `exec.Sessions` moves to a dependency-light library it can use, since `exec` itself depends on the
+   dialect and the compiler). `PlanRunner.run(plan, parameterValues, Sessions.Source, out)`: validates parameters
+   against the plan's declared ones, opens or checks each node's session (running its setup once), binds slots by type
+   (arrays through `Connection.createArrayOf`), executes, streams the database's text. Its BUILD has no `:compiler`,
+   `:lowering`, `:sql_dialect`, `:planner` — the data plane is pure by construction, as the planner is (C2a).
+4. **Switch the callers and delete what they replace** — `generatePlan` returns the plan (upstream-shaped export:
+   `sqlQuery` printed with FreeMarker-spelled parameters for outside consumers); `execute` = plan once, run with
+   `parameterValues` (no lambda rewriting, no recompiling per value); `Execution.executeWire` / `executeStreaming` /
+   `QueryService`'s wire and streaming paths = plan + run. DELETED (rule 15): `PureV1Api.executionPlan` (the map
+   builder), `PureV1Api.boundParameters`, the wire/streaming bodies in `Execution` (`wireOn`, `streamOn`), and
+   `plan.QueryPlan` where the plan replaces it (the WebAssembly planner's `plan(...).sql()` reads the plan's statement).
+   `ConnectionResolver` opens from the node's connection and identity instead of the compiled model.
+
+**Not in phase 1:** upstream plans (`executePlan`, the FreeMarker subset, temp-table and allocation nodes — phase 2);
+typed-row decoding and Pure test bodies (`StatementExecutor`, phase 3); moving `normalize`'s per-database decoding out
+of the dialect into the data plane (phase 3, when rows are decoded); the plan text printer and `PlanNode` (with C6's
+engine-text decision).
+
+**Gates.** The full chain at each step; `PureV1ApiTest`, `PureV1HttpTest`, the server and streaming tests with
+unchanged answers; for the §3 queries, our plan's node kinds and result columns equal legend-engine's; the same query
+answered identically through the plan and through today's path on DuckDB, H2 and Postgres (a differential test kept
+until step 4 deletes the old path); `:planner` and `:plan_runner` dependency closures checked by
+`tools/deps` (no execution library in the first, no compiler, lowering or dialect in the second).
+
+**Open questions for the user.** (a) The lite `JsonInstantiation` node and lite fields (`identity`, the typed tree,
+typed slots) in the plan JSON — under a `lite` key, or top-level fields? (b) Parameter validation: legend-engine's
+`function-parameters-validation` checks types and multiplicity — the runner does the same from the plan's declared
+parameters; agreed?
+
