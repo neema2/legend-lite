@@ -219,7 +219,7 @@ final class StoreReader {
             if (n.isInteger()) {
                 return n.longValue();
             }
-            double d = n.doubleValue();
+            double d = Wire.asDouble(n, "relational literal");
             String token = n.token();
             if (token != null && !Double.toString(d).equals(token)) {
                 throw Wire.refuse("a relational literal " + token + " that is not a double's spelling");

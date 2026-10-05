@@ -524,8 +524,7 @@ final class TailEmitter {
         if (p.explode() != null) {
             b.append("\"explode\":").append(p.explode())
                     .append(",\"explodeSourceInformation\":");
-            ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
-                    p.explodeSpan()));
+            ProtocolEmitter.srcInfo(b, p.explodeSpan());
         }
         if (p.style() != null) {
             if (p.explode() != null) {
@@ -534,8 +533,7 @@ final class TailEmitter {
             b.append("\"style\":");
             ProtocolEmitter.str(b, p.style());
             b.append(",\"styleSourceInformation\":");
-            ProtocolEmitter.srcInfo(b, java.util.Objects.requireNonNull(
-                    p.styleSpan()));
+            ProtocolEmitter.srcInfo(b, p.styleSpan());
         }
         b.append("},\"sourceInformation\":");
         ProtocolEmitter.srcInfo(b, p.sourceInformation());
@@ -2262,8 +2260,7 @@ final class TailEmitter {
                 pointer(b, v.contextPath(), v.contextPathSpan(), "MAPPING");
                 b.append(",\"runtime\":");
                 pointer(b, java.util.Objects.requireNonNull(v.contextSecond()),
-                        java.util.Objects.requireNonNull(v.contextSecondSpan()),
-                        "RUNTIME");
+                        v.contextSecondSpan(), "RUNTIME");
                 b.append('}');
             }
             case "fromDataSpace" -> {

@@ -125,6 +125,19 @@ final class Wire {
         return exact(take(key), where + "." + key);
     }
 
+    /** A number a record holds as a {@code double} (its sign kept, {@code -0.0} included). */
+    double dbl(String key) {
+        return asDouble(take(key), where + "." + key);
+    }
+
+    static double asDouble(Json.Node v, String what) {
+        if (v instanceof Json.Num n) {
+            // the token, not the BigDecimal: a decimal has no negative zero
+            return n.token() != null ? Double.parseDouble(n.token()) : n.doubleValue();
+        }
+        throw refuse(what + " is not a number: " + abbreviate(v));
+    }
+
     List<Json.Node> arr(String key) {
         return asArr(take(key), key);
     }
