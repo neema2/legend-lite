@@ -30,12 +30,24 @@ filegroup(
     visibility = ["//core:__pkg__"],
 )
 
+# THE HARVEST'S RECORDING SHIMS (Bazel workplan P3-31): legend-engine's own test base classes, re-declared in their
+# namespace so the engine's tests-jars record every fixture they parse; with FixtureRecorder, the one class they call.
+# Only the harvest links them, AHEAD of the tests-jars (:harvest_lib), and FixtureHarvestGenerator refuses to run when
+# a shim is not the class that loads.
+_HARVEST_SHIMS = [
+    "src/test/java/org/finos/legend/engine/language/pure/compiler/test/TestCompilationFromGrammar.java",
+    "src/test/java/org/finos/legend/engine/language/pure/grammar/test/TestGrammarParser.java",
+    "src/test/java/org/finos/legend/engine/language/pure/grammar/test/TestGrammarRoundtrip.java",
+    "src/test/java/com/legend/equivalence/harvest/FixtureRecorder.java",
+]
+
 legend_java_library(
     name = "pe_tests_lib",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    srcs = glob(["src/test/java/**/*.java"]),
+    # the recording shims are :harvest_shims' alone: no parity test sees an engine class re-declared
+    srcs = glob(["src/test/java/**/*.java"], exclude = _HARVEST_SHIMS),
     resources = glob(["src/test/resources/**"]),
     deps = [
         "//core",
@@ -181,9 +193,32 @@ junit_test(
 # the snapshot's dedup is minted in) and json-unit. QUARANTINED: nothing else
 # depends on these jars, whose test-scoped registrations would alter the oracle.
 legend_java_library(
+    name = "harvest_shims",
+    # not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    testonly = True,
+    srcs = _HARVEST_SHIMS,
+    deps = [
+        # FixtureRecorder stamps the dump with the pinned release (Corpus, OraclePins)
+        ":pe_tests_lib",
+        "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
+        "@maven_upstream//:org_antlr_antlr4_runtime",
+        "@maven_upstream//:org_eclipse_collections_eclipse_collections",
+        "@maven_upstream//:org_eclipse_collections_eclipse_collections_api",
+        "@maven_upstream//:junit_junit",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_compiler",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_grammar",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_protocol_pure",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_shared_core",
+    ],
+)
+
+legend_java_library(
     name = "harvest_lib",
     testonly = True,
     runtime_deps = [
+        # the shims FIRST: ahead of the tests-jars' own classes of the same names
+        ":harvest_shims",
         ":pe_tests_lib",
         "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_grammar_tests",
         "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_compiler_tests",

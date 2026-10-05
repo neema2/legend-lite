@@ -34,6 +34,7 @@ public final class FixtureHarvestGenerator {
         Path dump = work.resolve("engine-fixtures.jsonl");
         // before FixtureRecorder loads: it reads the dump location once
         System.setProperty("fixture.dump", dump.toString());
+        requireShims();
 
         // the grammar and compiler tests-jars, in that order: declared by the BUILD
         // file (java_jars), not found on the class path
@@ -58,5 +59,24 @@ public final class FixtureHarvestGenerator {
         String snapshot = FixtureHarvest.snapshot(dump);
         Files.writeString(Path.of(args[0]), snapshot, StandardCharsets.UTF_8);
         System.out.println("@@ snapshot: " + (snapshot.lines().count() - 1) + " fixtures");
+    }
+
+    /** The recording shims are the classes that load (Bazel workplan P3-31): each from the jar FixtureRecorder comes
+     *  from (:harvest_shims), never the tests-jars' own class of the same name, which records nothing. Loaded, not
+     *  initialized. */
+    private static void requireShims() throws ClassNotFoundException {
+        ClassLoader loader = FixtureHarvestGenerator.class.getClassLoader();
+        Object shims = Class.forName("com.legend.equivalence.harvest.FixtureRecorder", false, loader)
+                .getProtectionDomain().getCodeSource().getLocation();
+        for (String shim : List.of(
+                "org.finos.legend.engine.language.pure.compiler.test.TestCompilationFromGrammar",
+                "org.finos.legend.engine.language.pure.grammar.test.TestGrammarParser",
+                "org.finos.legend.engine.language.pure.grammar.test.TestGrammarRoundtrip")) {
+            Object from = Class.forName(shim, false, loader).getProtectionDomain().getCodeSource().getLocation();
+            if (!shims.equals(from)) {
+                throw new IllegalStateException(shim + " loads from " + from + ", not the shims' jar " + shims
+                        + ": the harvest would record nothing (put :harvest_shims first on the class path)");
+            }
+        }
     }
 }
