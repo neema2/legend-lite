@@ -48,11 +48,9 @@ class SkipCensusTest {
     // asserted nothing; they are deleted, and the gaps stay listed in docs/OUTSTANDING.md ("Declared platform gaps").
 
     /** Files permitted to carry a conditional skip ({@link #CONDITIONAL}). */
-    private static final List<String> ASSUMPTION_FILES = List.of(
-            // the warehouse against a live Postgres: runs only when LEGENDLITE_PG_DSN names one, by its own
-            // manual target (//warehouse:postgres_live); an embedded Postgres in the chain is leg P2 of
-            // docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md
-            "WarehousePostgresLiveTest.java");
+    private static final List<String> ASSUMPTION_FILES = List.of();   // none: no test in the walked trees skips conditionally
+    // LEFT 2026-10-05 (Bazel workplan P3-21): WarehousePostgresLiveTest, selected only by its manual target and
+    // failing without a DSN, never skipping.
     // LEFT 2026-10-05 (Bazel workplan P3-18): CorpusDifferentialTest, which runs on the data
     // //scripts/corpus:gen_differential generates, and never skips.
     // LEFT 2026-10-05 (Bazel workplan P3-17): ManifestWorldCensusTest (a heavy test of //spec:manifest_world_census,

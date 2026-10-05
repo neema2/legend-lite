@@ -26,17 +26,16 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 /**
- * A Postgres catalog against a LIVE Postgres (docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md, leg P0): skipped
- * unless {@code LEGENDLITE_PG_DSN} names one (a login role with SELECT, nothing more), with
+ * A Postgres catalog against a LIVE Postgres (docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md, leg P0): selected only by
+ * its own manual target (//warehouse:postgres_live; :tests leaves it out by selection, Bazel workplan P3-21), and
+ * failing, not skipping, unless {@code LEGENDLITE_PG_DSN} names one (a login role with SELECT, nothing more), with
  * {@code LEGENDLITE_PG_EXTENSIONS} the directory holding {@code postgres_scanner.duckdb_extension}. Run by
  * {@code bazel test //warehouse:postgres_live --test_env=LEGENDLITE_PG_DSN=... --test_env=LEGENDLITE_PG_EXTENSIONS=...}
  * (tagged manual); with {@code WAREHOUSE_BINARY} set, against the native image. Needs no table: every query
  * makes its rows with generate_series. Embedded Postgres in the test environment is leg P2.
  */
-@EnabledIfEnvironmentVariable(named = "LEGENDLITE_PG_DSN", matches = ".+")
 class WarehousePostgresLiveTest {
 
     static TestServer server;
@@ -47,6 +46,7 @@ class WarehousePostgresLiveTest {
     @BeforeAll
     static void start() throws Exception {
         String dsn = System.getenv("LEGENDLITE_PG_DSN");
+        if (dsn == null || dsn.isEmpty()) throw new IllegalStateException("LEGENDLITE_PG_DSN: a live Postgres (--test_env)");
         String ext = System.getenv("LEGENDLITE_PG_EXTENSIONS");
         if (ext == null) throw new IllegalStateException("LEGENDLITE_PG_EXTENSIONS: the directory of DuckDB's postgres extension");
         server = TestServer.start(Files.createTempDirectory("warehouse-pg"),

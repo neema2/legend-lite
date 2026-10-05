@@ -48,7 +48,8 @@ class LauncherTest {
         Process p = start(LAUNCHER, List.of("--port", "x&y z"));
         List<String> said = linesUntilExit(p);
         assertEquals(2, p.exitValue(), String.join("\n", said));
-        assertTrue(said.contains("warehouse: For input string: \"x&y z\""), String.join("\n", said));
+        // the server's own words, with the argument whole (the JDK's NumberFormatException text is not pinned)
+        assertTrue(said.contains("warehouse: --port takes a number, not 'x&y z'"), String.join("\n", said));
     }
 
     @Test

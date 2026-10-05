@@ -83,6 +83,8 @@ legend_java_binary(
         ":duckdb_extensions",
         ":duckdb_library",
     ],
+    # DuckDB's library is loaded through FFM: allowed, so the JDK prints no warning (Bazel workplan P3-21)
+    jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
     main_class = "com.legend.warehouse.server.WarehouseServer",
     runtime_deps = [":server_lib"],
 )
@@ -140,6 +142,18 @@ _ARROW_COMPARATOR = "-Dwarehouse.arrow.comparator=$(rlocationpath :arrow_matches
 # DuckDB's library, for the in-process servers and DuckLibrary's own tests (Bazel workplan P1-16)
 _DUCKDB_LIBRARY_FLAG = "-Dwarehouse.duckdb.library=$(rlocationpath :duckdb_library)"
 
+# every warehouse test JVM loads DuckDB's library through FFM (Bazel workplan P3-21)
+_NATIVE_ACCESS = "--enable-native-access=ALL-UNNAMED"
+
+# the suite that drives a server over HTTP (TestServer): what :tests_native judges the BINARY by, nothing else
+_HTTP_SUITE = [
+    "WarehouseArrowTest",
+    "WarehouseCorsTest",
+    "WarehouseEntitlementsTest",
+    "WarehouseJdbcTest",
+    "WarehouseServerTest",
+]
+
 junit_test(
     name = "tests",
     memory_mb = 768,
@@ -152,8 +166,15 @@ junit_test(
     jvm_flags = [
         _ARROW_COMPARATOR,
         _DUCKDB_LIBRARY_FLAG,
+        _NATIVE_ACCESS,
+        # a principal from the machine's account name is host-dependent (AppModeTest); every host is "tester"
+        "-Duser.name=tester",
     ],
-    select = ["--select-package=com.legend.warehouse"],
+    # the live Postgres test is :postgres_live's alone (it needs a DSN): left out by selection, not by a skip
+    select = [
+        "--select-package=com.legend.warehouse",
+        "--exclude-classname=.*\\.WarehousePostgresLiveTest",
+    ],
     runtime_deps = [":tests_lib"],
 )
 
@@ -202,6 +223,7 @@ junit_test(
     jvm_flags = [
         _ARROW_COMPARATOR,
         _DUCKDB_LIBRARY_FLAG,
+        _NATIVE_ACCESS,
     ],
     select = ["--select-class=com.legend.warehouse.WarehousePostgresLiveTest"],
     tags = ["manual"],
@@ -216,6 +238,7 @@ junit_test(
     jvm_flags = [
         _ARROW_COMPARATOR,
         _DUCKDB_LIBRARY_FLAG,
+        _NATIVE_ACCESS,
     ],
     data = [
         ":arrow_matches_json",
@@ -249,6 +272,7 @@ junit_test(
     jvm_flags = [
         _ARROW_COMPARATOR,
         _DUCKDB_LIBRARY_FLAG,
+        _NATIVE_ACCESS,
     ],
     data = [
         ":arrow_matches_json",
@@ -260,7 +284,8 @@ junit_test(
         "WAREHOUSE_BINARY": "$(rlocationpath :server_native)",
         "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath :duckdb_library)",
     },
-    select = ["--select-package=com.legend.warehouse"],
+    # the HTTP suite only: the binary is what this target judges (Bazel workplan P3-21)
+    select = ["--select-class=com.legend.warehouse." + c for c in _HTTP_SUITE],
     runtime_deps = [":tests_lib"],
 )
 
