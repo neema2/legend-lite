@@ -321,3 +321,8 @@ without a **done** entry.
   every file a program reads (action exec path or test runfiles path), TestOutputs for side reports; the generators
   byte-identical, 313/313 locally. **P3-32 held:** the audit showed rules_js needs a runfiles tree on Windows (amendment
   in the workplan; options: a node_test transition, or a manifest-aware runfiles.mts).
+- **Pushed to main: fbc1f2756** (batch 12 rest, P3-27, P3-05 and the audits' follow-ups; 25 commits): throwaway
+  37304703940 52/52, local gate 313/313 with PCT, corpus and stress lanes. Main CI for 3781cbf98 went green after
+  rerunning two Windows jobs (a pgjdbc timeout on a loaded runner; the warehouse poll race, fixed since).
+- **P3-30:** **the audit showed I contradicted P2-16's classification** (generated two policy registers). Reverted;
+  P3-30 amended to a classification (dfc...). Kept: pe's ledgers through ProgramPaths.

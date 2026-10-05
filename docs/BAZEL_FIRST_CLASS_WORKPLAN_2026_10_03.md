@@ -2025,6 +2025,14 @@ library; their G15 allowlist rows come with P6-15.
 
 **Amended 2026-10-05 (execution).** Moved after P3-27 (batch 13), which it depends on.
 
+**Amended 2026-10-05 (execution, after audit).** Done as a classification, not a conversion: under D9 and P2-16's
+amendment, the cross-module counts left in tests are POLICY registers with a dated reason per row
+(OwnCorpusConformanceTest's classes, OwnDialectCensusTest's per-host pins, FixtureAdjudicationTest's OVER_STRICT_PINS
+and LENIENCY_KINDS, HarnessDisciplineTest's ALLOWED); the measurements among the named censuses were already generated
+by P2-16 (own_corpus.matched, the mutant deck, dynafn.unsupported, PctRatchets). A first conversion of two registers
+into ratchets.tsv was reverted: generating a register lets an update accept a regression unexplained. The Done-when
+reads: no test pins a MEASURED count of another module's sources.
+
 #### P3-31 · The fixture harvest's shims cannot be shadowed by classpath order
 
 | Field | Content |
