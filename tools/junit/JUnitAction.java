@@ -51,8 +51,10 @@ public final class JUnitAction {
         Path log = Path.of(args[1]);
         // the pass's side reports (TestOutputs: what a test writes beside its verdict) go to a scratch directory of
         // the action's own temp: an action declares its outputs, and these are not among them (Bazel workplan P3-33)
+        Path reports = null;
         if (System.getProperty("legend.outputs.dir") == null && System.getenv("TEST_UNDECLARED_OUTPUTS_DIR") == null) {
-            System.setProperty("legend.outputs.dir", Files.createTempDirectory("junit-action-reports-").toString());
+            reports = Files.createTempDirectory("junit-action-reports-");
+            System.setProperty("legend.outputs.dir", reports.toString());
         }
         int code = 4;
         PrintStream out = System.out;
@@ -60,6 +62,10 @@ public final class JUnitAction {
         try (PrintStream to = new PrintStream(Files.newOutputStream(log), true, StandardCharsets.UTF_8)) {
             System.setOut(to);
             System.setErr(to);
+            if (reports != null) {
+                // in the run's log, so a `bazel run` of a pass (//spec:corpus_one) says where its side reports went
+                System.out.println("[junit-action] side reports: " + reports);
+            }
             try {
                 // no Bazel test protocol here: no XML, no shards, no premature-exit file
                 code = JUnitMain.run(Arrays.copyOfRange(args, split + 1, args.length), name -> null);

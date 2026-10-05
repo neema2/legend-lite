@@ -40,7 +40,9 @@ public final class ProgramPaths {
     /** The files a declared list names (java_jars): each line in the list's own form, an action's exec path or a
      *  test's runfiles path ({@code rlocation_paths = True}). */
     public static List<Path> listed(String name) {
-        boolean rlocation = System.getProperty(name) == null;
+        String given = System.getProperty(name);
+        // the same test file() makes: an empty -D<name> is unset, and the list is then the runfiles one
+        boolean rlocation = given == null || given.isEmpty();
         Path list = file(name);
         try {
             return Files.readAllLines(list, StandardCharsets.UTF_8).stream()
