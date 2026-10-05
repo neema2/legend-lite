@@ -32,7 +32,9 @@ final class ConnectionComposer {
             "ModelChainConnection", new Kind("ModelChainConnection", ConnectionComposer::modelChain),
             "RelationalDatabaseConnection", new Kind("RelationalDatabaseConnection", RelationalConnectionComposer::connection),
             "serviceStore", new Kind("ServiceStoreConnection", ServiceStoreComposer::connection),
-            "elasticsearch7StoreConnection", new Kind("Elasticsearch7ClusterConnection", ElasticsearchComposer::connection));
+            "elasticsearch7StoreConnection", new Kind("Elasticsearch7ClusterConnection", ElasticsearchComposer::connection),
+            "MongoDBConnection", new Kind("MongoDBConnection", MongoComposer::connection),
+            "deephavenConnection", new Kind("DeephavenConnection", DeephavenComposer::connection));
 
     private ConnectionComposer() {
     }

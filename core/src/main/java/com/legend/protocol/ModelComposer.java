@@ -70,7 +70,8 @@ public final class ModelComposer {
         for (ElementFamilies.Family free : ElementFamilies.EXTENSIONS) {
             List<Json.Obj> mine = new ArrayList<>();
             for (Json.Obj e : elements) {
-                if (toCompose.contains(e) && !SECTION_INDEX.equals(Composing.type(e)) && family(e) == free) {
+                if (toCompose.contains(e) && !SECTION_INDEX.equals(Composing.type(e)) && family(e) == free
+                        && !ElementFamilies.NOT_IN_FREE_SECTIONS.contains(Composing.type(e))) {
                     mine.add(e);
                 }
             }

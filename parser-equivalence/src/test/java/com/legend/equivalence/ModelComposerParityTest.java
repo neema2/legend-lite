@@ -45,13 +45,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ModelComposerParityTest {
 
     /** Elements printed alone, byte-equal. Up-only. */
-    private static final int MIN_ELEMENTS_MATCHED = 0;
+    private static final int MIN_ELEMENTS_MATCHED = 31452;   // 2026-10-05, B1: every element kind of the corpus
     /** Elements printed alone, different bytes. Down-only. */
-    private static final int MAX_ELEMENTS_MISMATCHED = 1_000_000;
+    private static final int MAX_ELEMENTS_MISMATCHED = 0;
     /** Whole models (with and without the section index), byte-equal. Up-only. */
-    private static final int MIN_MODELS_MATCHED = 0;
+    private static final int MIN_MODELS_MATCHED = 14383;   // 2026-10-05, B1
     /** Whole models, different bytes. Down-only. */
-    private static final int MAX_MODELS_MISMATCHED = 1_000_000;
+    private static final int MAX_MODELS_MISMATCHED = 0;
 
     /** A whole model's JSON nests far deeper than one request's default limit. */
     private static final Json.Config DEEP = new Json.Config(4096);
@@ -63,7 +63,7 @@ class ModelComposerParityTest {
     private final Map<String, int[]> byType = new TreeMap<>();
     private final Map<String, Integer> refusals = new TreeMap<>();
     private final List<String> diffs = new ArrayList<>();
-    private final int[] models = new int[4];
+    private final int[] models = new int[5];
     /** Every case lite does not match, as JSON lines, when MODEL_COMPOSER_DUMP is set: a work list. */
     private java.io.Writer dump;
     private int deliberate;
@@ -110,18 +110,21 @@ class ModelComposerParityTest {
             }
         }
 
-        int[] total = new int[4];
-        StringBuilder table = new StringBuilder(String.format("%-48s %8s %8s %8s %8s%n", "_type", "matched", "mismatch", "refused", "upstream-x"));
+        int[] total = new int[5];
+        // upstream-x: upstream cannot print it (it throws, or writes its unsupported comment); of those,
+        // lite-only: lite prints it anyway (nothing to compare it with)
+        String row = "%-40s %8s %8s %8s %10s %9s%n";
+        StringBuilder table = new StringBuilder(String.format(row, "_type", "matched", "mismatch", "refused", "upstream-x", "lite-only"));
         byType.forEach((type, c) -> {
-            table.append(String.format("%-48s %8d %8d %8d %8d%n", type, c[0], c[1], c[2], c[3]));
-            for (int i = 0; i < 4; i++) {
+            table.append(String.format(row, type, c[0], c[1], c[2], c[3], c[4]));
+            for (int i = 0; i < 5; i++) {
                 total[i] += c[i];
             }
         });
-        table.append(String.format("%-48s %8d %8d %8d %8d%n", "TOTAL", total[0], total[1], total[2], total[3]));
+        table.append(String.format(row, "TOTAL", total[0], total[1], total[2], total[3], total[4]));
         System.out.println("[model-composer-parity] sources=" + sources + " roundtripTexts=" + roundtripTexts
                 + " models: matched=" + models[0] + " mismatched=" + models[1] + " refused=" + models[2]
-                + " upstreamCannot=" + models[3]);
+                + " upstreamCannot=" + models[3] + " liteOnly=" + models[4]);
         System.out.print(table);
         refusals.forEach((m, n) -> System.out.println("[model-composer-parity] refused " + n + " x " + m));
         diffs.stream().limit(30).forEach(d -> System.out.println("[model-composer-parity] DIFF " + d));
@@ -154,7 +157,7 @@ class ModelComposerParityTest {
             compareModel(id + " (no section index)", Json.toCompact(stripped), stripped);
         }
         PureModelContextData pmcd = mapper.readValue(json, PureModelContextData.class);
-        Map<String, String> parserOf = parserNames(wire);
+        Map<String, java.util.ArrayDeque<String>> parserOf = parserNames(wire);
         for (int i = 0; i < elements.size(); i++) {
             Json.Obj e = (Json.Obj) elements.get(i);
             String type = e.getStringOr("_type", "?");
@@ -162,20 +165,22 @@ class ModelComposerParityTest {
                 continue;
             }
             PackageableElement element = pmcd.getElements().get(i);
-            int[] counts = byType.computeIfAbsent(type, k -> new int[4]);
-            String parser = parserOf.get(element.getPath());
+            int[] counts = byType.computeIfAbsent(type, k -> new int[5]);
+            java.util.ArrayDeque<String> parsers = parserOf.get(element.getPath());
+            String parser = parsers == null || parsers.isEmpty() ? null : parsers.size() == 1 ? parsers.peek() : parsers.poll();
+            String elementId = id + " element " + element.getPath();
             String expected;
             try {
                 expected = parser == null ? upstream.render(element) : upstream.render(element, parser);
             } catch (Throwable t) {
-                counts[3]++;
+                upstreamCannot(counts, elementId, Json.toCompact(e), String.valueOf(t), () -> ModelComposer.element(e));
                 continue;
             }
             if (cannotPrint(expected)) {
-                counts[3]++;
+                upstreamCannot(counts, elementId, Json.toCompact(e), expected, () -> ModelComposer.element(e));
                 continue;
             }
-            counts[judge(id + " element " + element.getPath(), Json.toCompact(e), expected, () -> ModelComposer.element(e))]++;
+            counts[judge(elementId, Json.toCompact(e), expected, () -> ModelComposer.element(e))]++;
         }
     }
 
@@ -184,14 +189,26 @@ class ModelComposerParityTest {
         try {
             expected = upstream.renderPureModelContextData(mapper.readValue(json, PureModelContextData.class));
         } catch (Throwable t) {
-            models[3]++;
+            upstreamCannot(models, id, json, String.valueOf(t), () -> ModelComposer.model(wire));
             return;
         }
         if (cannotPrint(expected)) {
-            models[3]++;
+            upstreamCannot(models, id, json, expected, () -> ModelComposer.model(wire));
             return;
         }
         models[judge(id, json, expected, () -> ModelComposer.model(wire))]++;
+    }
+
+    /** Upstream cannot print it: counted, and whether lite prints it anyway is counted too (and dumped). */
+    private void upstreamCannot(int[] counts, String id, String json, String why, java.util.function.Supplier<String> lite) {
+        counts[3]++;
+        try {
+            String printed = lite.get();
+            record(id, json, "UPSTREAM CANNOT PRINT (lite printed " + printed.length() + " chars): " + (why.length() > 500 ? why.substring(0, 500) : why));
+        } catch (RuntimeException e) {
+            return;   // lite does not print it either
+        }
+        counts[4]++;
     }
 
     /** 0 matched, 1 mismatched, 2 refused. */
@@ -238,9 +255,13 @@ class ModelComposerParityTest {
                 || text.contains(" composers for the Element ");
     }
 
-    /** Each element's section parser, from the model's section index. */
-    private static Map<String, String> parserNames(Json.Obj wire) {
-        Map<String, String> out = new LinkedHashMap<>();
+    /**
+     * Each path's section parsers, in section order, from the model's section index: a source may declare
+     * one path twice in two sections (a class and a diagram both named {@code anything::class}), and the
+     * elements come in the same order, so each element takes the next one.
+     */
+    private static Map<String, java.util.ArrayDeque<String>> parserNames(Json.Obj wire) {
+        Map<String, java.util.ArrayDeque<String>> out = new LinkedHashMap<>();
         for (Json.Node n : wire.getArr("elements").items()) {
             Json.Obj e = (Json.Obj) n;
             if (!"sectionIndex".equals(e.getStringOr("_type", ""))) {
@@ -249,7 +270,7 @@ class ModelComposerParityTest {
             for (Json.Node s : e.getArr("sections").items()) {
                 Json.Obj section = (Json.Obj) s;
                 for (String path : section.getStringArrayOr("elements", List.of())) {
-                    out.putIfAbsent(path, section.getString("parserName"));
+                    out.computeIfAbsent(path, k -> new java.util.ArrayDeque<>()).add(section.getString("parserName"));
                 }
             }
         }
