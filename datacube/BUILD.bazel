@@ -239,9 +239,9 @@ js_binary(
 )
 
 # THE SHARE LINK'S DICTIONARY (milestone 1b): made ONCE per version from the product's own
-# vocabulary, then frozen in src/share/link-<version>.ts (pinned by its hash in
-# test/share-link.test.ts) -- links made with it must open forever, so it is never regenerated:
-#   bazel run //datacube:make_link_dictionary -- p2 > $PWD/datacube/src/share/link-p2.ts
+# vocabulary, then frozen in src/share/link-<version>.ts, pinned by its hash in test/share-link.test.ts
+# (links made with it must open forever). The tool reads the LIVE vocabulary, which grows (p1 has no
+# treemap mark), so a frozen version is held by its hash, never by re-running the tool (P2-08).
 js_binary(
     name = "make_link_dictionary",
     data = [
@@ -253,6 +253,31 @@ js_binary(
         "--experimental-strip-types",
         "--disable-warning=ExperimentalWarning",
     ],
+)
+
+# The next version, from today's vocabulary: built with //... so the tool cannot rot unseen. To ship it,
+# `bazel run //datacube:cut_link_dictionary` writes src/share/link-<version>.ts once (a DRAFT, the
+# docs:draft_own_corpus_ledger pattern: no diff test, the hash pin is the freeze); then pin its hash in
+# test/share-link.test.ts and move _NEXT_LINK_VERSION on. Until then the package refuses to load.
+_NEXT_LINK_VERSION = "p2"
+
+_NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
+
+[fail("%s is cut: pin its hash in datacube/test/share-link.test.ts and move _NEXT_LINK_VERSION on in " % f +
+      "datacube/BUILD.bazel (P2-08)") for f in glob([_NEXT_LINK_FILE], allow_empty = True)]
+
+js_run_binary(
+    name = "link_dictionary_next",
+    args = [_NEXT_LINK_VERSION],
+    stdout = "link-%s.gen.ts" % _NEXT_LINK_VERSION,
+    tool = ":make_link_dictionary",
+)
+
+write_source_files(
+    name = "cut_link_dictionary",
+    check_that_out_file_exists = False,
+    diff_test = False,
+    files = {_NEXT_LINK_FILE: ":link_dictionary_next"},
 )
 
 js_run_binary(
