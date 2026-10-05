@@ -1,6 +1,7 @@
 // What every screen of the app shares: the engine and query store, the loaded project and its
 // model graph, the current user, recently viewed things.
 
+import type { ModelHomeConfig } from '../../../depot-client/src/model-home.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
 import type { Engine, QueryStore } from '../backend/engine.ts';
 import type { WasmGrammar } from '../backend/wasm-grammar.ts';
@@ -40,7 +41,14 @@ export interface AppConfig {
   readonly execution: ExecutionConfig;
   /** legend-lite's planner in the tab (grammar, typing, SQL); required unless a server answers them. */
   readonly planner?: { readonly worker: string; readonly vendor: string };
+  /** Projects whose model is files served with the page (the demo's own trading model). */
   readonly projects: readonly ProjectConfig[];
+  /**
+   * Where projects are opened by name (design Phase 3): a Depot -- `{ "sdlc": "page" }` is the one this origin's
+   * pages share (Studio publishes into it), or a model home's server. Each project there opens at its project line's
+   * snapshot (Depot's `master-SNAPSHOT`, upstream Query's HEAD), with its dependencies.
+   */
+  readonly depot?: ModelHomeConfig;
 }
 
 /** A project's model, loaded: its text (what execution sends), and its graph (what the screens read). */
