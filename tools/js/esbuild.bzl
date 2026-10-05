@@ -54,6 +54,8 @@ def _esbuild_bundle_impl(ctx):
         tools = [esbuild],
         mnemonic = "Esbuild",
         progress_message = "Bundling %{label}",
+        # the executable is the coreutils toolchain's (Bazel 10's automatic exec groups need it named)
+        toolchain = _COREUTILS,
     )
     files = depset(outs + out_dirs)
 
