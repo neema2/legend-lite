@@ -98,7 +98,11 @@ passes (every roster, register, ledger and verdict) and every PCT case.
   offer-facts.ts generator, not test data (left non-testonly); `//datacube:catalog_corpus` is DataCube's test
   expectations (real DuckDB's answers), not a measurement; `test_imports` had no npm inputs to narrow. Deferred:
   engine-tree subset filegroups (sandbox inputs only), the parity tests' unread data (Phase 8), the PAR's permanent
-  entry-time test.
+  entry-time test; the offer-facts chain still reads its own committed output (emit_offer_queries' `:src`; early
+  cutoff keeps it to one Node action with the same bytes); `//spec:eager_corpus_compile` still declares the pure
+  tree it no longer reads (a set-aside measurement, narrowed with that group); the link-dictionary tool's runtime
+  check (a small `makeDictionary()` test, now that the build no longer runs it). The audit (2026-10-06): ready
+  after fixes, all made.
 
 ### Phase 2: upstream tables joined at class init
 - DynaFn.java generated whole from upstream (with its `Dialect` enum); a hand `DynaFnDecisions.java` holds the
