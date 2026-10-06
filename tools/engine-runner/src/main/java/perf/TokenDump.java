@@ -26,7 +26,7 @@ import java.util.jar.JarFile;
  * lexer, and it is the same table the parser uses to produce "Valid alternatives: [...]".
  *
  * Output is one line per lexer:  <SimpleClassName> <TAB> literal <TAB> literal ...
- * with the surrounding single quotes stripped. Consumed by keywords.py.
+ * with the surrounding single quotes stripped. Kept as an upgrade's record of the release's lexers.
  *
  * //tools/engine-runner:vocab runs it over the runner's jars (the pinned release) and writes
  * vocab.tsv; `bazel run //tools/engine-runner:update_vocab` puts it in the tree, and //:generated

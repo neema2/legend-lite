@@ -273,18 +273,12 @@ def main() -> None:
     # A target that includes keywords no fixture can ever cover makes 100% impossible and
     # turns the number into a permanent accusation instead of a goal.
     dead = K.dead_tokens()
-    skew = K.version_skew()
-    if not skew and not K.runner_vocabulary():
-        print("NOTE: tools/engine-runner/vocab.tsv absent -- version skew between the .g4\n"
-              "      census and the runner's jars is NOT being checked. Regenerate with\n"
-              "      bazel run //tools/engine-runner:update_vocab\n")
     for label, stems in (("TIER 1  core Legend surface", tiers.TIER1),
                          ("TIER 1  embedded (GraphQL)", tiers.TIER1_EMBEDDED)):
         declared = set().union(*[grammars[s] for s in stems if s in grammars])
         unreachable = set().union(*[dead.get(s, set()) for s in stems]) if stems else set()
         unreachable |= {k for (s, k) in tiers.WALKER_REJECTED if s in stems}
         unreachable |= {k for (s, k) in tiers.UNSHIPPED_SECTION if s in stems}
-        unreachable |= set().union(*[skew.get(s, set()) for s in stems]) if stems else set()
         total = declared - unreachable
         got = set().union(*[have.get(s, set()) for s in stems]) if stems else set()
         got &= total
@@ -301,7 +295,6 @@ def main() -> None:
             reachable = grammars.get(stem, set()) - dead.get(stem, set())
             reachable -= {k for (s, k) in tiers.WALKER_REJECTED if s == stem}
             reachable -= {k for (s, k) in tiers.UNSHIPPED_SECTION if s == stem}
-            reachable -= skew.get(stem, set())
             miss = sorted(reachable - have.get(stem, set()))
             if miss:
                 print(f"[{len(reachable) - len(miss):>3} of {len(reachable):>3}] "

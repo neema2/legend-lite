@@ -132,10 +132,9 @@ table the parser uses to produce its "Valid alternatives: [...]" messages — in
 `tools/engine-runner/vocab.tsv`, a build output now: **after a release bump,** `bazel run
 //tools/engine-runner:update_vocab` (and `//:generated` fails while it is stale).
 
-If that file is missing the harness says so rather than quietly skipping the check. Note
-only simple-literal tokens are comparable: a composite like
-`CONSTRAINT_OWNER: '~owner' CONSTRAINT_SEPARATOR;` has no literal name in the vocabulary and
-would otherwise read as skew while parsing perfectly — five of those in Domain alone.
+Since 2026-10-06 the census reads the legend-engine tree pinned to the jars' own release
+(`@legend_engine_src`), so the two can no longer disagree, and the skew check went;
+`vocab.tsv` stays as an upgrade's record of the release's lexers.
 
 One tool was **built and discarded**: a rule-reachability detector meant to find dead parser
 rules. It claimed `UserNamePassword` was unreachable, which a passing fixture disproves —

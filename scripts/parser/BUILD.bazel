@@ -1,5 +1,5 @@
 # The parser harness's kept part (D3 row 6): the keyword census over the PINNED legend-engine grammars
-# (@legend_engine_src), the runner's vocabulary (//tools/engine-runner:vocab) and the .pure this repository owns.
+# (@legend_engine_src) and the .pure this repository owns.
 # The other scripts here are history (P7-04). Bazel workplan P2-20.
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
@@ -25,7 +25,6 @@ _DATA = [
     ":pure_sources",
     "//core:test_pure",
     "//scripts/corpus:pure_sources",
-    "//tools/engine-runner:vocab",
     "@legend_engine_src//:grammars",
     "@legend_engine_src//:pom.xml",
 ]
@@ -38,8 +37,6 @@ py_binary(
     args = [
         "--engine-pom",
         "$(rootpath @legend_engine_src//:pom.xml)",
-        "--vocab",
-        "$(rootpath //tools/engine-runner:vocab)",
         "--ours",
         "core/src/test/resources",
         "--ours",
@@ -69,7 +66,7 @@ copy_to_directory(
     root_paths = ["."],
 )
 
-# the census as a measurement (D9: a golden), from declared inputs only (the vocabulary is the report's, not this)
+# the census as a measurement (D9: a golden), from declared inputs only
 run_binary(
     name = "keyword_coverage",
     testonly = True,
