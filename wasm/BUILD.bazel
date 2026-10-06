@@ -95,6 +95,7 @@ legend_java_library(
 # plans the same corpus in the module and compares, refusals included.
 java_run(
     name = "jvm_answers",
+    testonly = True,
     srcs = [
         "corpus/model.pure",
         "corpus/queries.tsv",
@@ -129,6 +130,7 @@ node_test(
 # built module can say whether it survived. ZoneMain's answers are the cases.
 java_run(
     name = "zone_jvm",
+    testonly = True,
     outs = ["zone_jvm.txt"],
     arguments = ["{OUT}"],
     main_class = "planner.ZoneMain",

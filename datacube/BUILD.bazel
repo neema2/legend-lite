@@ -448,6 +448,7 @@ js_binary(
 
 js_run_binary(
     name = "cube_queries",
+    testonly = True,
     srcs = [
         "test/wasm-differential/cases.ts",
         "test/wasm-differential/emit.ts",
@@ -465,6 +466,7 @@ js_run_binary(
 
 java_run(
     name = "cube_jvm_answers",
+    testonly = True,
     srcs = [
         "cube_model.pure",
         "cube_queries.tsv",

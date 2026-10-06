@@ -187,6 +187,7 @@ filegroup(
 # committed stress corpus and the seed they are computed on, as one tree, the data of //core:corpus_differential_test.
 run_binary(
     name = "gen_differential",
+    testonly = True,
     srcs = _GATE_DATA,
     # seed.sql a file of its own, so a test resolves IT by runfiles path and takes expected/ beside it (a directory
     # resolves only under a runfiles tree, never by the Windows manifest: com.legend.testing.Runfile)

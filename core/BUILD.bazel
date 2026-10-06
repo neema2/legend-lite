@@ -746,6 +746,7 @@ filegroup(
 # the stress files' table of contents, a resource beside stress-layout.json (StressCorpus)
 stress_index(
     name = "stress_index",
+    testonly = True,
     srcs = glob(["src/test/resources/stress/*.pure"]),
     out = "src/test/resources/com/legend/integration/stress-index.txt",
 )
