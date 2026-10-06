@@ -102,7 +102,8 @@ These stay in `//:update_generated` (run by people), with their diff tests in th
 ## 5. The rest
 
 **Measurements of our engine (SET ASIDE by the user, 2026-10-05; unchanged for now):**
-- the corpus judges (6);
+- the corpus judges (6): `//spec:judge_host_duckdb`, `judge_database_duckdb`, `judge_host_h2`, `judge_database_h2`,
+  `judge_host_warehouse`, `judge_database_warehouse`;
 - `//core:ladder_report`;
 - the spec, parser-equivalence and PCT ratchets;
 - `//datacube:catalog_corpus`;
