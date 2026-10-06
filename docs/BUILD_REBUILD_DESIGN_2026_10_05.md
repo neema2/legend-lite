@@ -1,6 +1,7 @@
 # Rebuilding the build: inventory, causes, and the design (2026-10-05)
 
-Status: DRAFT for the user's review. Nothing in the repo changes until this is agreed.
+Status: AGREED (the user, 2026-10-05). Step 1, section 5b's product jars and section 5c land together, with the
+audit's fixes (end of section 5c); the rest continues as the rebuild program's later phases.
 
 Evidence: `docs/build-inventory/`.
 - `BRIEF.md`: the audit brief.
@@ -429,7 +430,8 @@ jar's manifest (10.4 s), then makes a full compile-only copy (7.0 s), before `//
     sign-on, never pulled).
   - The product needs the one 1.2 MB jar. Drop `checker-qual` from it if the Postgres tests prove it unneeded:
     annotations whose classes are missing are ignored at run time.
-- With no product jar left in the plugin, stamping (experiment E1) needs no change.
+- With no product jar left in the plugin, stamping is off the critical path (section 5c turns it off anyway, for
+  the action count).
 
 **Prototype result (2026-10-05, branch `build/http-jars`, commit `f6cffc6f9`, local macOS):**
 - **A clean `//:java` build: 12.4 s, 12.3 s, 12.4 s** (was 22.6 to 23.1 s). The critical path is 7.7 s (was 19.7).
@@ -451,7 +453,8 @@ jar's manifest (10.4 s), then makes a full compile-only copy (7.0 s), before `//
 - Every bundle used to run through a bash launcher (`js_binary`), Node, and esbuild's JavaScript launcher, before
   the Go binary did the work.
 - `tools/js/esbuild.bzl` (`esbuild_bundle`) now runs the native binary directly:
-  - the binary is the npm registry's `@esbuild/<platform>` tarball, pinned by the pnpm lock's sha512;
+  - the binary is the npm registry's `@esbuild/<platform>` tarball, pinned by its sha512 (MODULE.bazel; at first
+    the pnpm locks' entries, now the registry's own: see the audit below);
   - the working directory is set by bazel_lib's hermetic coreutils (`env -C`);
   - its inputs come from rules_js's own helper;
   - its outputs are output labels plus `JsInfo`, as before.
@@ -480,6 +483,30 @@ jar's manifest (10.4 s), then makes a full compile-only copy (7.0 s), before `//
   - minify whitespace, which drops the comments and shrinks the download;
   - run esbuild unsandboxed, which gives stable relative paths but loses the sandbox's undeclared-input check;
   - or another esbuild setting, to be found.
+- It is also a hermeticity hole, not only a leak (the audit, S8): esbuild resolves imports in the real execroot, so
+  it can read a file the action did not declare, and the sandbox does not catch a missing input. The bytes also
+  differ by platform and by strategy (sandboxed or not) under one action key. rules_esbuild's sandbox plugin needs
+  esbuild's JavaScript API, and `--preserve-symlinks` breaks rules_js's store layout without hoisting.
+
+**The audit of this work (2026-10-06): ready after fixes, all made.**
+- The guard has a self-test. A fixture tier holds a genrule, a java_run, a java_run calling itself `Javac`, and a
+  target with a validation; nothing builds them. `compile_only_test` expects exactly those four flagged, and an
+  honest compile beside them not flagged.
+- The guard's allowlists are per tier and minimal. The report lists every exec-configuration target it skipped: each
+  Java tier must stop at NullAway, and no first-party target outside `//tools` may be skipped. A java_binary outside
+  `//:java` fails. Its claim is what holds: an honest rule cannot hide behind a mnemonic; the rule kind is the name
+  a rule is exported under, so the guard catches mistakes, not a rule that lies about its name.
+- esbuild has one version: MODULE.bazel's pins, by the registry's own sha512. The three package.json files no longer
+  name it, and their locks were relocked with the pinned pnpm (only esbuild's entries left). Windows arm64 is mapped,
+  through `platform_select`. `esbuild_bundle` gives its outputs as runfiles, as js_run_binary did, and fails on a
+  bare file from another package instead of missing it.
+- The product jars use rules_java's `http_jar` (its maintained implementation, the same attributes). Their table is
+  its own file (`tools/deps/jars_table.bzl`), so a BUILD file that checks its users loads no repository rule; the
+  users are exact (spec reads only core's DuckDB).
+- `.bazelrc`'s stamping note is corrected: strict-deps' hint shows a jar's path, not its label, for every jar still
+  on rules_jvm_external (the test pools and the tools' pools).
+- CI's cache key includes MODULE.bazel and the jar table, which no lock file records.
+- macOS x86_64's esbuild is unexercised: no CI runner.
 
 ## 6. Decisions for the user
 
