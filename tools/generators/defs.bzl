@@ -6,20 +6,27 @@ target-configuration jars — //tools/java_run) over declared inputs, writing on
 outputs into the checkout and diff-tests the committed copies.
 """
 
-# The trees as declared inputs, plus a file each release has at its root.
-UPSTREAM_TREES = [
+# Each tree as declared inputs, plus a file its release has at its root; and java_run's roots: each release's root,
+# named by the file at it, as a token the generator's arguments and flags use. A generator that reads no legend-pure
+# source takes legend-engine's alone, so a pure-only change never reruns it.
+ENGINE_TREE = [
     "@legend_engine_src//:pom.xml",
     "@legend_engine_src//:tree",
+]
+
+ENGINE_ROOT = {"@legend_engine_src//:pom.xml": "{ENGINE_ROOT}"}
+
+_PURE_TREE = [
     "@legend_pure_src//:pom.xml",
     "@legend_pure_src//:tree",
 ]
 
-# java_run's roots: each release's root, named by the file at it, as a token the
-# generator's arguments and flags use
-UPSTREAM_ROOTS = {
-    "@legend_engine_src//:pom.xml": "{ENGINE_ROOT}",
-    "@legend_pure_src//:pom.xml": "{PURE_ROOT}",
-}
+_PURE_ROOT = {"@legend_pure_src//:pom.xml": "{PURE_ROOT}"}
+
+# both trees, for a generator that reads both
+UPSTREAM_TREES = ENGINE_TREE + _PURE_TREE
+
+UPSTREAM_ROOTS = ENGINE_ROOT | _PURE_ROOT
 
 def program_jvm_flags(module, engine = True, pure = True):
     """JVM flags for a generator (java_run) that reads the pinned upstream trees (Bazel workplan P3-33).
