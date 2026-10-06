@@ -89,13 +89,15 @@ included — is task #47, the first thing done before step A (`docs/A1_HOMEWORK_
 has the orderings written out and the change list); the binder's acceptance test is this
 differential at zero.
 
-## The implicit import group (`RefImports.java`)
+## The implicit import group (measured once, 2026-09-25)
 
-`RefImports.java` runs the same way as `RefResolutions.java` (`bazel build //tools/reference:ref_imports`, its
-report in `bazel-bin/tools/reference/ref-imports.tsv`) and prints, for every source the
+`RefImports.java` (removed 2026-10-06, once its finding was recorded; it is in git history) ran the same way as
+`RefResolutions.java` and printed, for every source the
 reference compiled (2,108 on 2026-09-25), the packages its import group makes visible. Twenty-nine
 packages appear in every source: the implicit imports the Pure parser adds to each section. Our
 generated `NameResolver.CORE_IMPORTS` is those 29 plus three the newer engine added. So a bare
 name in Pure source (the corpus included) resolves by the section's imports and this group alone;
 the engine's handler surface is a rule for engine input, not for Pure source. The list is in the
-homework note.
+homework note (`docs/A1_HOMEWORK_2026_09_25.md` §1.2). What keeps it true now: `CORE_IMPORTS` is generated from the
+engine's own list (`//spec:gen_imports`, from `CompileContext.META_IMPORTS`), and `CoreImportsParityTest` holds it
+there.

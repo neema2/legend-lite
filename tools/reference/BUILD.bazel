@@ -83,29 +83,4 @@ java_run(
     deps = [":ref_resolutions"],
 )
 
-# RefImports in its own library, so editing it never reruns the reference dump
-legend_java_library(
-    name = "ref_imports_lib",
-    # not yet written to the null discipline (Bazel workplan P1-20)
-    nullaway = False,
-    testonly = True,
-    srcs = ["RefImports.java"],
-    deps = _REFERENCE_JARS,
-)
-
-# Every source's implicit import group, as the reference compiler sees it (README, "The implicit import group"): a
-# report over the pinned jars alone, cached (Bazel workplan P3-17). `bazel build //tools/reference:ref_imports`
-java_run(
-    name = "ref_imports",
-    testonly = True,
-    outs = ["ref-imports.tsv"],
-    arguments = ["{OUT}"],
-    jvm_flags = ["-Xss16m"],
-    main_class = "RefImports",
-    memory_mb = 8192,
-    mnemonic = "ReferenceImports",
-    tags = ["manual"],
-    deps = [":ref_imports_lib"],
-)
-
 guards_package()

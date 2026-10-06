@@ -388,7 +388,8 @@ write_source_files(
 )
 
 # a DRAFT of docs/own-corpus-protocol-diffs.tsv (//docs:draft_own_corpus_ledger):
-# current diffs, reasons kept, new rows marked for a human
+# current diffs, reasons kept, new rows marked for a human. Run when the ledger needs it, never part of //... (manual);
+# OwnCorpusParityTest is the check
 java_run(
     name = "gen_own_corpus_draft",
     testonly = True,
@@ -408,6 +409,7 @@ java_run(
     main_class = "com.legend.equivalence.OwnCorpusLedgerDraft",
     mnemonic = "Generate",
     roots = UPSTREAM_ROOTS,
+    tags = ["manual"],
     visibility = ["//docs:__pkg__"],
     deps = [":pe_tests_lib"],
 )

@@ -179,7 +179,7 @@ path to core's execution libraries.
 | `parser-equivalence:gen_manifest` | `//core:diagnostics` plus `//testing` only |
 | `tools/engine-runner:vocab` | split TokenDump out of the runner, which depends on all of core |
 | `scripts/parser:keyword_coverage` | drop vocab from its tool's inputs (never read) |
-| `tools/reference:ref_dump`, `ref_imports` | already right |
+| `tools/reference:ref_dump` | already right (`ref_imports`, a one-time measurement, was deleted in Phase 1) |
 | `pct:adapter_par` | trigger already right; make its output reproducible so it stops invalidating PCT tests |
 | `query:icons_gen`, `warehouse:duckdb_library`, `warehouse:duckdb_extensions` | already right: their pins |
 | `spec:native_declarations` | `manual` (by hand) |
