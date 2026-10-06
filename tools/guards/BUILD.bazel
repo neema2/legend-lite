@@ -1,7 +1,11 @@
 # THE GUARDS (Bazel workplan Phase 6): tests over the repository itself. inventory.bzl lists every file and package
 # (@repo_inventory); defs.bzl's guards_package gives each package an `all_files` the content guards read.
 load("@repo_inventory//:packages.bzl", "PACKAGES")
+load(":compile_only.bzl", "action_kinds_report", "compile_only_validated_fixture")
 load(":defs.bzl", "guards_package")
+load("//tools/deps:pools.bzl", "POOLS")
+load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 
 # Every package's files (guards_package), from the inventory's package list: a package without guards_package()
@@ -36,7 +40,11 @@ junit_test(
     size = "small",
     srcs = ["LocksTest.java"],
     data = ["//:module_files"],
-    env = {"MODULE_FILES": "$(rlocationpaths //:module_files)"},
+    # the pools tools/deps/pools.bzl names: the maven.install calls found must be exactly these
+    env = {
+        "MODULE_FILES": "$(rlocationpaths //:module_files)",
+        "POOLS": " ".join(POOLS),
+    },
     select = ["--select-class=com.legend.tools.guards.LocksTest"],
     deps = [
         "//testing",
@@ -88,6 +96,82 @@ junit_test(
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
+)
+
+# THE BUILD IS ONLY COMPILES (docs/BUILD_REBUILD_DESIGN_2026_10_05.md, step 1): every kind of action the build targets
+# perform (compile_only.bzl), and the test that holds them to compiling and file plumbing. The fixture tier is the
+# test's proof that it still catches what it exists to catch.
+action_kinds_report(
+    name = "build_action_kinds",
+    testonly = True,
+    tiers = {
+        "//:java": "java",
+        "//:native": "native",
+        "//:wasm": "wasm",
+        "//:web": "web",
+        ":compile_only_fixture_genrule": "fixture",
+        ":compile_only_fixture_generator": "fixture",
+        ":compile_only_fixture_impostor": "fixture",
+        ":compile_only_fixture_validated": "fixture",
+    },
+)
+
+junit_test(
+    name = "compile_only_test",
+    size = "small",
+    srcs = ["CompileOnlyTest.java"],
+    data = [":build_action_kinds"],
+    env = {"BUILD_ACTION_KINDS": "$(rlocationpath :build_action_kinds)"},
+    memory_mb = 512,
+    select = ["--select-class=com.legend.tools.guards.CompileOnlyTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# compile_only_test's fixture tier: what a build target must never reach, each of which the test expects flagged
+# exactly. They are never built (manual, and the report reads only the aspect's walk of them), so nothing runs.
+genrule(
+    name = "compile_only_fixture_genrule",
+    testonly = True,
+    outs = ["compile_only_fixture_genrule.txt"],
+    cmd = "exit 1",
+    tags = ["manual"],
+)
+
+# an empty library: java_run needs one, and it registers no action of its own
+legend_java_library(
+    name = "compile_only_fixture_library",
+    testonly = True,
+    nullaway = False,
+    tags = ["manual"],
+)
+
+java_run(
+    name = "compile_only_fixture_generator",
+    testonly = True,
+    outs = ["compile_only_fixture_generator.txt"],
+    main_class = "Never",
+    tags = ["manual"],
+    deps = [":compile_only_fixture_library"],
+)
+
+# a program that calls itself Javac: its rule kind still gives it away
+java_run(
+    name = "compile_only_fixture_impostor",
+    testonly = True,
+    outs = ["compile_only_fixture_impostor.txt"],
+    main_class = "Never",
+    mnemonic = "Javac",
+    tags = ["manual"],
+    deps = [":compile_only_fixture_library"],
+)
+
+compile_only_validated_fixture(
+    name = "compile_only_fixture_validated",
+    testonly = True,
+    tags = ["manual"],
 )
 
 guards_package()

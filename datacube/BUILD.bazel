@@ -14,7 +14,7 @@ load("//tools/java_run:defs.bzl", "java_run")
 load("//warehouse:defs.bzl", "warehouse_run")
 
 load("@npm//:defs.bzl", "npm_link_all_packages")
-load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
+load("//tools/js:esbuild.bzl", "esbuild_bundle")
 load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -372,7 +372,7 @@ legend_java_library(
         "//json",
     ],
     # the DuckDB DataCube meets -- the warehouse's 1.5.x, as the tab's DuckDB-WASM is -- not core's 1.4.4
-    runtime_deps = ["@maven_warehouse//:org_duckdb_duckdb_jdbc"],
+    runtime_deps = ["@duckdb_jdbc_warehouse//jar"],
 )
 
 java_run(
@@ -629,7 +629,7 @@ _BUNDLES = {
 # The planner's worker is one file: it loads nothing lazily, and a worker's imports are its own.
 _UNSPLIT = ["src/planner-worker.ts"]
 
-[esbuild.esbuild(
+[esbuild_bundle(
     name = "bundle_" + out[len("demo/"):-len(".js")].replace("-", "_"),
     srcs = glob(["demo/**/*.ts"]) + [":src"],
     outs = [out],
@@ -646,8 +646,20 @@ _UNSPLIT = ["src/planner-worker.ts"]
         "--entry-names=" + out[len("demo/"):-len(".js")],
         "--chunk-names=chunks-" + out[len("demo/"):-len(".js")] + "/[name]-[hash]",
     ]),
-    chdir = package_name(),
 ) for entry, out in _BUNDLES.items()]
+
+# THE BUNDLES DATACUBE SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the app, the embeddable page and
+# the planner's worker. remote-bundle and stress are fixtures of their harnesses (verify_remote, run_stress), not
+# product: they leave the site with D5.
+filegroup(
+    name = "bundles",
+    srcs = [
+        ":bundle_bundle",
+        ":bundle_bundle_page",
+        ":bundle_planner_worker",
+    ],
+    visibility = ["//:__pkg__"],
+)
 
 # The two WebAssembly runtimes the page loads from ./vendor/: DuckDB's, from engine-client's
 # npm package, and legend-lite's planner, from //wasm:planner; and the fonts, from legend-art (the pinned @fontsource).

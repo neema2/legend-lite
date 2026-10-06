@@ -174,7 +174,7 @@ junit_test(
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_H2_RelationFunctions_PCT"],
     runtime_deps = [
         ":pct_tests_lib",
-        "@maven_h2_modern//:com_h2database_h2",
+        "@h2_modern//jar",
     ],
 )
 

@@ -12,8 +12,8 @@ import org.junit.jupiter.api.Test;
 /**
  * CORE STANDS ALONE. {@code //core:core} reaches NO external jar: it speaks
  * {@code java.sql} and the JDK, nothing else. The JDBC drivers are
- * {@code //core:drivers}, a runtime choice for whatever runs core, and they come
- * from the {@code @maven_core} pool (MODULE.bazel) and nowhere else. Nothing pct,
+ * {@code //core:drivers}, a runtime choice for whatever runs core, and they are
+ * product jars (tools/deps/jars_table.bzl, fetched by http_jar) and nothing else. Nothing pct,
  * parser-equivalence or spec needs — legend-engine, legend-pure, their BOM, test
  * tooling — can reach the product, because a native image or a WASM build of
  * core carries every jar core reaches.
@@ -27,15 +27,17 @@ class CoreClosureTest {
     /** The drivers a running core is given — the product's whole external
      *  surface, and none of it needed to compile or to plan. */
     private static final List<String> DRIVER_JARS = List.of(
-            "com_h2database_h2",
+            "duckdb_jdbc",
+            "h2",
             // 2026-10-03 (Bazel workplan P0-08): the server's Postgres arm (ConnectionResolver opens
             // jdbc:postgresql://) had no driver, so it failed with "No suitable driver" in the server and
-            // its deploy jar. checker-qual is the driver's own declared dependency: annotations only.
-            // Moved from @maven_upstream, which now excludes it, so the repository holds one copy.
-            "org_checkerframework_checker_qual",
-            "org_duckdb_duckdb_jdbc",
-            "org_postgresql_postgresql",
-            "org_xerial_sqlite_jdbc");
+            // its deploy jar. 2026-10-05 (docs/BUILD_REBUILD_DESIGN_2026_10_05.md, 5b): the driver alone, without
+            // the checker-qual its POM declares: annotations only, ignored at run time when absent.
+            "postgresql",
+            "sqlite_jdbc");
+
+    /** The product jars' repositories: @@+product_jars+<name>//jar:jar (tools/deps/jars.bzl makes them). */
+    private static final String PRODUCT_JAR = "@@+product_jars+";
 
     @Test
     void coreReachesNoJarAtAll() throws IOException {
@@ -45,13 +47,14 @@ class CoreClosureTest {
     }
 
     @Test
-    void theDriversAreCoresPoolAndOnlyTheNamedOnes() throws IOException {
+    void theDriversAreProductJarsAndOnlyTheNamedOnes() throws IOException {
         List<String> jars = jars("drivers_closure");
         for (String jar : jars) {
-            assertTrue(jar.contains("maven_core//:"),
-                    () -> "a driver comes from outside @maven_core: " + jar);
+            assertTrue(jar.startsWith(PRODUCT_JAR) && jar.endsWith("//jar:jar"),
+                    () -> "a driver is not a product jar (tools/deps/jars_table.bzl): " + jar);
         }
-        assertEquals(DRIVER_JARS, jars.stream().map(j -> j.substring(j.indexOf("//:") + 3)).toList(),
+        assertEquals(DRIVER_JARS,
+                jars.stream().map(j -> j.substring(PRODUCT_JAR.length(), j.indexOf("//"))).toList(),
                 "the drivers changed — edit DRIVER_JARS in the same change, with the reason");
     }
 

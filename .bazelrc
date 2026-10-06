@@ -78,6 +78,12 @@ build:ci-small --local_test_jobs=1
 # leaves the Bazel server, the OS and whatever else runs on the desk the rest. Bazel
 # then packs tests by memory; each test's own memory_mb is its tag (tools/junit/defs.bzl).
 test --local_resources=memory=HOST_RAM*.6
+# No Maven jar is rewritten to stamp its target's label into the manifest (docs/BUILD_REBUILD_DESIGN_2026_10_05.md,
+# section 5c): a clean //:java runs 99 actions instead of 118, //:wasm 198 instead of 257. Strict-deps is still
+# enforced. What changes: for a jar of a rules_jvm_external pool (the test pools maven_test, maven_upstream and
+# maven_runner, and the tools' maven_tools and maven_teavm), its "add this dependency" hint names the jar's path, not
+# its label. The product's jars (http_jar, tools/deps/jars.bzl) keep the label: Bazel's interface jar carries it.
+build --@rules_jvm_external//settings:stamp_manifest=False
 # A local disk cache: a fresh worktree or a `bazel clean` costs seconds, not core's
 # compile; CI passes the same path explicitly (gates-run.yml).
 build --disk_cache=~/.cache/bazel-disk

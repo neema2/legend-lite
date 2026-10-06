@@ -40,9 +40,9 @@ jobs:
           path: |
             ~/.cache/bazel-repo
             ~/.cache/bazel-disk
-          key: bazel-linux-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-diagnostics
+          key: bazel-linux-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}-diagnostics
           restore-keys: |
-            bazel-linux-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-
+            bazel-linux-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}-
             bazel-linux-
       - name: run the battery
         run: >-

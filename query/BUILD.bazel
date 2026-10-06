@@ -5,7 +5,7 @@ load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
 load("//tools/js:defs.bzl", "node_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_query//:defs.bzl", "npm_link_all_packages")
-load("@npm_query//query:esbuild/package_json.bzl", esbuild = "bin")
+load("//tools/js:esbuild.bzl", "esbuild_bundle")
 load("@npm_query//query:typescript/package_json.bzl", typescript = "bin")
 load("//tools/guards:defs.bzl", "guards_package")
 
@@ -44,7 +44,7 @@ _BUNDLES = {
     "src/backend/planner-worker.ts": "demo/planner-worker.js",
 }
 
-[esbuild.esbuild(
+[esbuild_bundle(
     name = "bundle_" + out[len("demo/"):-len(".js")].replace("-", "_"),
     srcs = glob(["demo/**/*.ts"]) + [":src", "//engine-client:node_modules/@duckdb/duckdb-wasm"],
     outs = [out],
@@ -56,8 +56,17 @@ _BUNDLES = {
         "--log-level=warning",
         "--outfile=" + out,
     ],
-    chdir = package_name(),
 ) for entry, out in _BUNDLES.items()]
+
+# THE BUNDLES QUERY SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the app and the planner's worker.
+filegroup(
+    name = "bundles",
+    srcs = [
+        ":bundle_bundle",
+        ":bundle_planner_worker",
+    ],
+    visibility = ["//:__pkg__"],
+)
 
 # The two WebAssembly runtimes the page loads from ./vendor/: legend-lite's planner (grammar,
 # typing, SQL in the tab) and DuckDB's (where queries run in the browser).
