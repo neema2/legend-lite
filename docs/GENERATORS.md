@@ -1,184 +1,155 @@
-# Every generator: what it does, and where it belongs (2026-10-05)
+# Every generator: what it is, when it runs, and the bump (2026-10-05)
 
-Status: DRAFT for the user's decisions. Nothing has changed in the build.
+Status: AGREED SHAPE (the user, 2026-10-05). Nothing has changed in the build yet; section 6 is the work, in order.
 
 The evidence is in `docs/build-inventory/generators/`:
-- G1 to G5 hold one dossier per generator, each with 15 fields (what it computes and why, the inputs it declares
-  against what its program actually reads, its outputs, consumers, determinism, cost, what reruns it today against
-  what should, and who runs it).
-- G6 covers the machinery: every writer and diff test, `//:update_generated`, `//:generated`, the bump procedure,
-  and every instruction to a human.
+- G1 to G5 hold one dossier per generator: what it computes and why, its declared inputs against what its program
+  reads, outputs, consumers, determinism, cost, what reruns it against what should, and who runs it today.
+- G6 covers the machinery: every writer and diff test, `//:update_generated`, `//:generated`, the bump procedure, and
+  every instruction to a human.
 - `programs.txt` is the exact list of the 57 generators, from Bazel's graph at `build/rebuild` HEAD.
 
-## 1. The rule for expected results (decided by the user, 2026-10-05)
+## 1. The rules
 
-A result that judges engine behaviour (a corpus roster, a ladder SQL golden, a measured count) is a TEST. Tests run
-whenever the code they test changes. They are not manual, and they are not part of a routine update.
+1. **A generator is placed on two axes.**
+   - **What it is** (by where its inputs come from): upstream, ours, a measurement of our engine, a build output, or
+     dead.
+   - **When it runs:** automatically, or on demand (`manual`).
+2. **Upstream-derived content is generated from the pinned checkouts alone, and only the bump generates it.** This is
+   `docs/COMPILER_DESIGN_2026_09_25.md` tenets 4 and 5: "nothing about upstream is typed by hand", and "everything the
+   platform decides for itself is a registration, in one registry". Our decisions never go into an upstream record
+   and are never an upstream generator's input.
+3. **The bump is self-contained.** Every upstream generator and report runs only inside `bazel run //tools/bump`.
+   Nothing in the everyday build, the local gate or CI runs them, and nothing there needs the upstream archives
+   except tests that use them (PCT, parser-equivalence).
+4. **A generated file is generated whole.** Nobody edits it. Hand-written content lives in its own files, and what
+   people edit are inputs (native membership, DynaFn resolutions, the Lite extensions).
+5. **Our own generators run when our code changes**, never in the bump.
 
-Most changes fix corpus tests, so these expected results are re-blessed often. Bazel's way to get ONE run per
-change is to split the test in two halves:
-- **Measure:** a build action runs the corpus (or the ladder, or the counts) and writes the measured result as
-  cached data. It fails only when the harness itself breaks: a crash, zero tests run, no database. A failing corpus
-  test is data, not an action failure.
-- **Judge:** a diff test compares measured against committed. That is the test people see; it is red when anything
-  moved.
-- **Re-bless:** a writer (`bazel run`) copies the already-measured result into the tree. It is a cache hit with no
-  rerun, run deliberately with the reason in the commit, and never by `//:update_generated` or the bump.
+## 2. Upstream: the bump's records and reports
 
-A fix therefore costs one run:
-1. `bazel test` runs it once and shows what moved.
-2. `bazel run` re-blesses it.
-3. `bazel test` again: only the cheap diff reruns.
+All are committed and regenerated only by `//:update_upstream` inside the bump. Each must be deterministic: two runs,
+same bytes.
 
-A golden test in a single test target would cost two or three runs, because the committed file is that test's input.
+| # | Generator | Writes | What it is | Reads | Status |
+|---|---|---|---|---|---|
+| 1 | `//parser-equivalence:gen_fixtures` | engine-grammar-fixtures.jsonl | every grammar example from upstream's own test jars (parity corpus tier C6); read by gate 8, the manifest, the roster, the censuses | upstream only | clean; narrow (it reaches all of core today) |
+| 2 | `//parser-equivalence:gen_manifest` | corpus-manifest.tsv | a sha256 of every upstream corpus source; a record read as a diff | upstream only | clean; kept as a bump record (the user) |
+| 3 | `//tools/engine-runner:vocab` | vocab.tsv | every literal token upstream's grammar lexers know | upstream jars only | clean; kept as a bump record (the user); leaves keyword_coverage's tool data |
+| 4 | `//spec:gen_imports` | CORE_IMPORTS | the default import list in the engine's order, from `CompileContext.META_IMPORTS` | upstream, plus its host file | split: moves to its own generated file, then clean |
+| 5 | `//spec:gen_natives` | Pure.java membership signatures | upstream's exact signature text for the natives we implement | upstream, our membership list, our parser | split now; full catalog later |
+| 6 | `//spec:gen_dynafn` | DynaFn.java rows | upstream's dynafunctions: name, dialects, inference | upstream, plus our resolutions read back from the file | split now; registry rows later |
+| 7 | `//spec:gen_engine_handlers` | engine-handlers.tsv | upstream's handler surface (bare-name resolution for engine input) | upstream, our committed Pure.java and prelude | upstream-only later |
+| 8 | `//spec:gen_prelude` | prelude.pure | the platform declarations loaded at boot | upstream, a scan of our core Java, Pure.java's hand shapes, the claims | mostly ours today; shrinks to "what Java needs at boot" in the compiler rebuild |
+| 9 | `//tools/reference:ref_imports` | (report) | each source's import groups, as legend-pure's compiler uses them | upstream jars only | becomes a committed bump report; prove determinism |
+| 10 | `//parser-equivalence:pmcd_reachability_census` | (report) | which upstream protocol classes are reachable from a model | upstream jars, plus our roster | commit the upstream half (reachability); the "uncovered" worklist becomes an on-demand report |
+| 11 | `//spec:native_declarations` | (report) | upstream declarations of natives | upstream, plus our membership list | widen to every upstream native (the catalog); then commit |
 
-Results that rarely change, or are cheap to compute, may use a golden test with a record mode.
+**Items 5 to 8 (option (a), the user's decision): the basic split now.**
+- Pure.java keeps its hand-written parts: the Lite extensions, legend-lite's own natives, the hand code. The
+  membership signatures and overload groups move to their own fully generated class.
+- DynaFn's resolutions move to a hand-owned decisions file; DynaFn.java is generated whole.
+- CORE_IMPORTS gets its own generated file.
+- The full upstream catalog, the one registry and the prelude shrink are compiler-rebuild work (W2.1, "the one
+  registry"). Until then, items 5, 6 and 8 keep one hand-owned input each, and they regenerate in the bump.
 
-## 2. The 57 generators, by where they belong
+Research behind the split (git history):
+- Nobody has hand-edited a generated part. Pure.java's generated text changed only in the 4 commits that introduced
+  its generator (2026-09-11).
+- The hand edits are legend-lite's extensions (9 commits on Lite), DynaFn resolution decisions (1 commit, 10
+  decisions), and ordinary resolver development (NameResolver.java, 93 commits).
+- The problem is placement: every hand edit is an input to a generator that splices into the same file.
 
-Tag key: **E** = the diff test runs in the everyday gate; **B** = run by the bump; **R** = re-blessed deliberately;
-**M** = the target is `manual`.
+**Moves with a bump by itself (no bump step):** `//pct:adapter_par` (our adapter compiled against upstream; fix its
+clock-stamped jar), and `//tools/reference:ref_dump`.
 
-### A. Chain: committed, regenerated by `//:update_generated` AND the bump; diff tests everyday (E, B)
+## 3. The bump: `bazel run //tools/bump -- <engine release>`
 
-People edit these files in ordinary commits too (native membership, `Pure.java`, `DynaFn.java`, `NameResolver.java`),
-so the checks run on every change.
+| Step | Today | Agreed |
+|---|---|---|
+| 1. Decide | release published on Central; pure release, tag commits and managed versions read from it | unchanged |
+| 2. Move | rewrite release.MODULE.bazel's pins; re-pin maven_upstream and maven_runner | unchanged |
+| 3. Regenerate | `//:update_generated`, ONCE: all 55 writers, ours and the ratchets, ladder and roster included. It re-blesses expected results silently, and one run is not a fixed point. | `//:update_upstream`: the upstream records only (items 1 to 8), checked to be a fixed point (a second run changes nothing) |
+| 4. Reports | none (people must remember items 9 to 11) | items 9 to 11, committed |
+| 5. Seal | none | write `upstream.seal`: the release, plus the sha256 of every bump record and report |
+| 6. Check | `bazel test //...` (after step 3 already re-blessed things) | `bazel test //...`, nothing re-blessed first: every expected result that moved is a red diff, listed together |
+| 7. Judge | a person re-pins ratchets and commits | a person reads the record diffs and reports, re-blesses each moved expected result on purpose with its reason, and commits |
 
-| Generator | Writes | True trigger | Narrow to |
-|---|---|---|---|
-| `//spec:gen_imports` | `NameResolver.java` CORE_IMPORTS | upstream `CompileContext.java`; hand edits | **no core at all** (31 core jars today, none loaded) |
-| `//spec:gen_natives` | `Pure.java` membership | upstream; native-membership.tsv; our parser and resolver | parser and resolver (needs `parseSources` below `:planner`) |
-| `//spec:gen_prelude` | `prelude.pure` | upstream; class names our core Java mentions; Pure.java shapes | an extraction step over core's sources (early cutoff) |
-| `//spec:gen_engine_handlers` | `engine-handlers.tsv` | upstream `Handlers.java`; the chain's Pure.java and prelude | `:builtin`, `:model` |
-| `//spec:gen_dynafn` | `DynaFn.java` | upstream relationalStore registries; hand edits; the chain's handler list | the relationalStore subtree, not the whole pure tree |
+**Every day, the seal check:**
+- One test reads the committed bump records and `upstream.seal`, and fails if any record's hash differs. It takes
+  milliseconds and needs no upstream and no generator.
+- It catches a hand edit to a generated record, or one changed outside a bump. Its message says "generated by the
+  bump; run `bazel run //tools/bump`".
+- Whether a record is current with upstream can only change when upstream does, which is only ever a bump.
+- So the bump generators never run in the everyday gate, even on a cold cache.
 
-**The fixed point (G1, G6):**
-- Today one update run is NOT enough. It can take up to 4 runs, because each link reads the committed copies of the
-  others, and gen_natives and gen_prelude form a cycle through committed files.
-- Make the chain read the chain's own build outputs (a true DAG), breaking the gen_natives/gen_prelude cycle with
-  a defined order.
-- The bump then proves one update reaches a fixed point.
-
-### B. Upstream records: committed; only the bump regenerates them (B)
-
-| Generator | Writes | True trigger | Note |
-|---|---|---|---|
-| `//parser-equivalence:gen_fixtures` | engine-grammar-fixtures.jsonl (corpus tier C6) | the upstream release | uses no core at all |
-| `//parser-equivalence:gen_manifest` | corpus-manifest.tsv | the upstream release | no test reads it: a record a person reads after a bump (**decision G-1**) |
-| `//pct:ratchets` | Channel B discovery counts | the upstream release (secondary: our walls) | M today. It leaves the non-manual root writer that drags it into every build. |
-
-### C. Source-derived: committed; `//:update_generated` regenerates them; diff tests everyday (E)
+## 4. Ours: committed, generated from our own code (they run when that code changes)
 
 | Generator | Writes | True trigger | Narrow to |
 |---|---|---|---|
 | `//scripts/corpus:gen_dense` | stress 59, 60, 64 | the dense builder, hand-written stress files, linked projects | its 14 modules; drop queries.pure (never read) |
 | `//scripts/corpus:gen_stress` | stress 92 to 98 | build.py, queries.pure, stress files, gen_dense output | its 27 modules |
-| `//core:stress_layout` | stress-layout.json | core/stress.bzl | (written at analysis time, no program) |
-| `//scripts/parser:keyword_coverage` | keyword-coverage.tsv | our .pure files; engine grammars | drop vocab from its tool (the light gate recompiles all of core for it) |
-| `//parser-equivalence:gen_roster` | protocol-roster.tsv | the upstream release; our test snippets | `//core:diagnostics` + `//testing`, test sources only (**decision G-2**: everyday or bump) |
-| `//datacube:catalog_rules` | catalog-facts.ts (shipped) | `//core:sql_dialect` catalog classes | 3 libraries instead of 31 |
-| `//datacube:offer_facts` | offer-facts.ts (shipped) | our compiler and the DataCube query builder | `//core:planner` closure |
-| `//datacube:test_imports` | test_imports.bzl | import lines of DataCube's src and test | the files it reads (33 to 48, not 122 npm files) |
+| `//core:stress_layout` | stress-layout.json | core/stress.bzl | (written at analysis time) |
+| `//datacube:catalog_rules` | catalog-facts.ts (shipped) | the sql_dialect catalog classes | 3 libraries instead of 31 |
+| `//datacube:offer_facts` | offer-facts.ts (shipped) | our compiler, DataCube's query builder | the `//core:planner` closure |
+| `//datacube:test_imports` | test_imports.bzl | import lines of DataCube's src and test | the files it reads, not 122 npm files |
 | `//engine-client:lite_facts` | lite-facts.ts (shipped) | `compiler/element/type` | `//core:compiler_element_type` |
-| `//legend-art:icons_gen` | icons.ts (shipped) | our `icons.mjs` table; rarely the react-icons pin | (not the bump: the bump never moves react-icons) |
-| `//warehouse:reachability_metadata` | native-image metadata | Duck.java, AuthenticatedUser.java, the services table | a small library on `:server_lib`, not the whole test library |
+| `//legend-art:icons_gen` | icons.ts (shipped) | our `icons.mjs` table; rarely the react-icons pin | (not the bump) |
+| `//warehouse:reachability_metadata` | the native image's metadata | Duck.java, AuthenticatedUser.java, the services table | a small library on `:server_lib` |
 
-### D. Tests: measure plus diff test plus deliberate re-bless (section 1; E or a lane; R)
+These stay in `//:update_generated` (run by people), with their diff tests in the everyday gate.
 
-| Generator | Measures | Lane | Note |
-|---|---|---|---|
-| `//spec:judge_host_duckdb`, `judge_database_duckdb` | the DuckDB corpus: rosters and the database register | lane 4 (and the local gate: **decision G-3**) | 2,613 tests; H2 is the in-process referee. Narrow the inputs (today `//core:srcs`, the whole pure tree, spec_tests_lib). |
-| `//spec:judge_host_h2`, `judge_database_h2` | the H2 corpus | lane 5 | two of its files are empty by construction |
-| `//spec:judge_host_warehouse`, `judge_database_warehouse` | verdicts through the native warehouse | its own lane (**decision G-4**: no lane runs it today) | compares with DuckDB's committed rosters |
-| `//core:ladder_report` | the 12 rungs' SQL | lane 1 | re-pinned silently today by `//:update_generated` and the bump: stop that |
-| `//spec:ratchets` | the spec's measured counts | lane 3 | four tests already compare live with committed; the bump rewrites it silently today |
-| `//parser-equivalence:ratchets` | own-corpus matches, mutation deck | lane 8 | our parser is the real trigger |
-| `//datacube:catalog_corpus` | DuckDB 1.5.5's catalog, through our CatalogModel | app | starts an in-memory DuckDB |
-| `//fixtures/saved-queries:gen` | 4 saved-query records written by the server | app | split it: the records are source-derived; the 6/5/6-row counts become a server test. Its `store/` output carries wall-clock timestamps that nothing reads. |
-| `//spec:reference_lane_report` (+ `//tools/reference:ref_dump`) | our front end against legend-pure's | its own lane (**decision G-4**) | run by nothing today; GATES.md records it red for 4 days unnoticed |
+## 5. The rest
 
-**The bump:**
-- Today it re-blesses ratchets, ladder pins and the protocol roster BEFORE testing, so its test phase can never
-  report them moving.
-- New order:
-  1. regenerate groups A and B to a fixed point;
-  2. run the tests;
-  3. report every group D diff for a person to re-bless.
+**Measurements of our engine (SET ASIDE by the user, 2026-10-05; unchanged for now):**
+- the corpus judges (6);
+- `//core:ladder_report`;
+- the spec, parser-equivalence and PCT ratchets;
+- `//datacube:catalog_corpus`;
+- `//fixtures/saved-queries:gen` (its records are ours; its row counts are a test);
+- `//spec:reference_lane_report`;
+- the coverage measurements `//parser-equivalence:gen_roster` and `//scripts/parser:keyword_coverage`;
+- on demand: `corpus_census`, `grammar_keyword_census`, `eager_corpus_compile`, and `gen_own_corpus_draft` (it
+  drafts gate 8's expected-differences ledger).
 
-### E. Build outputs: not committed, consumed by a test or the product; testonly where only tests read them
+**Build outputs, never committed (testonly where only tests read them):**
+- for the product: `//warehouse:duckdb_library` and `duckdb_extensions` (they rerun only on their pins), and
+  `//datacube:dist` (replaced by D10's shared site rule; broken on this branch, fix `dab833263` on the held
+  `bazel/exec`);
+- for tests: `gen_differential` (drop the 7 stress files it never reads), `stress_index`, `offer_queries`,
+  `cube_queries`, `cube_jvm_answers`, `jvm_answers`, `zone_jvm` (narrowed to `LiteralSpelling`), `ref_dump`, `pins`.
 
-| Generator | Consumer | Change |
-|---|---|---|
-| `//scripts/corpus:gen_differential` | `//core:corpus_differential_test` | testonly; drop the 7 stress files it never reads (11.5 MB) |
-| `//core:stress_index` | StressCorpus (core tests) | testonly |
-| `//datacube:offer_queries`, `cube_queries`, `cube_jvm_answers` | offer_facts; the wasm differential | testonly |
-| `//wasm:jvm_answers`, `zone_jvm` | the wasm and zone differentials | testonly; zone_jvm narrowed to `LiteralSpelling` |
-| `//pct:adapter_par` | the 11 Channel A PCT tests | rewrite the jar with constant entry times (legend-pure's jar builder stamps the clock); split pct_tests_lib so Channel B and the ratchets stop carrying it |
-| `//tools/reference:ref_dump` | the reference lane | (manual already) |
-| `//tools/java_run:pins` | `//tools/java_run:pins_test` | testonly |
-| `//warehouse:duckdb_library`, `duckdb_extensions` | the warehouse server (product) | none: they already rerun only on their pins |
-| `//datacube:dist` | `//datacube:app` | replaced by D10's shared site rule. Broken on this branch (no fonts or config; absolute symlinks); the fix `dab833263` is on the held `bazel/exec`. |
+**Our tools, on demand (`manual`):**
+- `//spec:native_membership_draft` (with `//core:draft_native_membership`): drafts our membership list;
+- `//datacube:link_dictionary_next`: cuts the next share-link version.
 
-### F. Drafts and reports: `manual`, run by a person on purpose (M)
+**Dead (delete):**
+- `//parser-equivalence:migration_sizing`: the parsers it measured were deleted (`b23f68757`);
+- `//spec:eager_corpus_compile_world2`;
+- `//spec:gen_claims` with `core_next` and its writer, if D2 retires native-claims.tsv. Nothing reads that file:
+  ClaimRegistryTest names its path and never opens it.
 
-| Generator | What a person gets |
-|---|---|
-| `//spec:native_declarations` | every upstream declaration of a membership FQN (for re-keying) |
-| `//spec:native_membership_draft` (+ `//core:draft_native_membership`) | a draft of native-membership.tsv |
-| `//parser-equivalence:gen_own_corpus_draft` (+ `//docs:draft_own_corpus_ledger`) | a draft of the own-corpus ledger |
-| `//parser-equivalence:corpus_census`, `grammar_keyword_census`, `pmcd_reachability_census` | census reports (manual already) |
-| `//tools/reference:ref_imports` | the reference compiler's implicit imports (manual already) |
-| `//spec:eager_corpus_compile`, `eager_corpus_compile_world2` | eager-compile probes; nothing reads them (manual already) |
-| `//datacube:link_dictionary_next` | the next share-link version, cut by hand |
+## 6. The work, in order (each proven locally; Windows in the end-of-rebuild PR)
 
-### G. Dead: proposed for deletion, each with its proof in the dossiers
+1. **Delete the dead; mark the on-demand tools and reports `manual`.**
+2. **Build outputs:** testonly tags, the PCT adapter's constant jar timestamps, gen_differential's inputs.
+3. **Narrow every generator to what it reads** (sections 2 and 4), and remove self-inputs (committed outputs out of
+   the libraries their generators run on). Includes dropping vocab from keyword_coverage's tool data.
+4. **The split (option (a)):**
+   - CORE_IMPORTS into its own generated file;
+   - Pure.java's membership signatures and overload groups into their own generated class;
+   - DynaFn's resolutions into a hand-owned decisions file, with DynaFn.java generated whole.
 
-- `//parser-equivalence:migration_sizing`: the two parsers it measured were deleted (`b23f68757`).
-- `//tools/engine-runner:vocab`: no target reads vocab.tsv (its one reader has no target). Alternatively keep it as
-  a bump record (**decision G-1**).
-- `//spec:gen_claims`, with `core_next`, `core_next_prelude`, `claims_generator_lib` and its writer, if D2 retires
-  native-claims.tsv. **Correction:** nothing reads native-claims.tsv; ClaimRegistryTest names its path and never
-  opens it.
-- `//spec:eager_corpus_compile_world2` (a candidate).
+   A core change: announced in IN_FLIGHT first, with a heads-up to core's owner.
+5. **The reports in upstream-only form:** native_declarations widened to every upstream native; the reachability
+   census's upstream half separated from the worklist. Determinism proven for all three.
+6. **The self-contained bump:**
+   - add `//:update_upstream`;
+   - remove the upstream records and the measurements from `//:update_generated`, and tag it `manual` (it is a
+     `bazel run` command);
+   - the bump runs regenerate, reports, seal, test, in that order;
+   - add the seal file and its everyday test, which replaces the upstream records' diff tests in the everyday gate.
+7. **Wiring:** a guard that every writer and diff test belongs to a suite and a gate; the stale instructions (G6
+   section 5) fixed.
 
-## 3. Findings that change earlier documents
-
-- **The design (R2):** "gen_dynafn uses no core class" is wrong (G1, G6). gen_imports is the one that needs no core.
-- **The design (R4):** "every generator is built a second time" is wrong. Only vocab is, through keyword_coverage's
-  tool, which also recompiles all of core in the exec configuration (G3, G6).
-- **The design (4.2):** "icons: upstream bump only" is wrong. Its trigger is our own icons table (G5).
-- **The design and area 1:** "native-claims.tsv: read by its one test" is wrong: nothing reads it (G1).
-- **Self-inputs:** ladder_report, the three ratchets, gen_claims, four parser-equivalence generators and
-  reachability_metadata take their own committed output as input. So does the corpus, through spec ratchets, the
-  ladder pins and the reference golden: updating those reruns both corpus lanes (G6). Fixed by moving committed
-  outputs out of the libraries their generators run on.
-- **Over-declared inputs** everywhere: `//core:srcs` (1,333 files) where test snippets are read, whole upstream
-  trees where one subtree is, and all 31 core jars where 3 to 24 libraries are (G1 to G5).
-- **The gates pay for generators:** the checks lane and `//gates:local` run all 29 generators behind `//:generated`.
-  A core execution edit reruns 20 of them plus core_next (G6).
-- **Nothing checks the wiring:** two diff tests run nowhere (`//pct:update_ratchets_test`,
-  `//spec:update_reference_lane_test`), and no guard checks that a new writer or suite is wired in (G6).
-- **Stale instructions** in 10 places (G6 section 5): GATES.md:39-47, README.md:294, corpus.bzl:148,
-  release.MODULE.bazel:20, the diff-test messages that blame "upstream" for files our own edits move, and others.
-
-## 4. Decisions for the user
-
-- **G-1.** Keep the corpus manifest and vocab as bump records that a person reads, or delete them? (No test reads either.)
-- **G-2.** gen_roster's diff test: everyday (it moves when our test snippets change), or the bump only?
-- **G-3.** Does the DuckDB corpus run in `//gates:local` (minutes on an engine edit, cached otherwise), with H2 and
-  the warehouse in CI only?
-- **G-4.** The warehouse corpus lane and the reference lane run nowhere today. Give each a lane, scheduled or on
-  demand, or retire them?
-- **D2.** Retire native-claims.tsv, deleting core_next and four other targets, or keep it as a manual draft?
-- **The deletions in section G**, and **the placement in section 2**, group by group.
-
-Engineering that follows the decisions, in order:
-1. narrow every generator's dependencies (the "Narrow to" column);
-2. move committed outputs out of the libraries their generators run on (self-inputs);
-3. make the chain a true DAG, so one update is a fixed point;
-4. split the updates into the chain plus source-derived group (`//:update_generated`) and the bump's group;
-5. re-order the bump;
-6. convert section D to measure-plus-diff tests with deliberate writers;
-7. testonly and manual tags;
-8. a guard that every writer and diff test is wired into a suite and a gate;
-9. fix the stale instructions.
+Decisions still open: D2 (native-claims.tsv), and the measurement group when we return to it.
