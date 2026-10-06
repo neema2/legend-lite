@@ -6,7 +6,9 @@ and does it work for users, the corpus, PCT, boot time and the browser?
 
 **Evidence:** `docs/build-inventory/manifest-world/experiments/` (its README names every script and output;
 `rerun.sh` regenerates the analysis). Nothing in the product was changed: every run swapped `prelude.pure` on the
-classpath of an unmodified build.
+classpath of an unmodified build. So every run still booted from the prelude, as today, and still had Pure.java's
+catalog: the experiments change what the prelude holds and where it comes from, not the mechanism, and none of them
+removed Pure.java's signature text.
 
 **Terminology:** "upstream native" is upstream's `native function` keyword; "platform-lowered" is what our Pure.java
 declares. Never bare "native" (`docs/UPSTREAM_BOUNDARY_PROGRAM.md` section 0).
@@ -70,9 +72,17 @@ pruning, no Java scan.
 5. **The user side** (`e5_user_side_summary.txt`): the 56 projects compiled as one graph and the 3 demos, every body
    type-checked. Results in the table above.
 6. **Corpus and PCT** (`e6_lanes_*.txt`): each corpus pass's exact Bazel command rerun by hand, and the PCT targets
-   through Bazel, with the world first on the classpath. Results in the table above. The corpus runner already builds
-   its program world from upstream files (the relational tree, the M2M test models, `LIBRARY_FILES`, `SHAPE_FILES`),
-   so the harness can leave the default world: the corpus result is identical without it.
+   through Bazel, with the world first on the classpath. Results in the table above. The corpus gets what it needs
+   from three places:
+   - its own program files, which the runner already loads from upstream per test: the relational tree (which holds
+     `toSQLString`'s upstream body, `SQLResult`, `DbConfig` and the DDL helpers), the M2M test models,
+     `LIBRARY_FILES` and the classes of `SHAPE_FILES`;
+   - Pure.java's catalog, which declares the functions we implement (`toSQLString`, `executionPlan`, …);
+   - the default world.
+
+   The corpus helpers we implement, and what only they need, are not in the proposed world. Harness types that
+   upstream's query surface reaches are: about 109 types and 91 functions in the plan, extension, graph-fetch,
+   lineage and test-data areas (`Extension`, `ExecutionPlan`, graph-fetch tree helpers…).
 7. **Browser** (`e7_*`, `bazel run //wasm:startup`, median of 5): table above. The module grows from 4.71 MB to 5.03
    MB. In every world the boot layer's resolve, normalize and index is about 55% of the first answer, and parsing the
    prelude about 13 to 17%.
@@ -127,8 +137,9 @@ Today's runner composition by file is the working path. A true manifest load for
   choice.
 - **Pure.java** becomes decision rows keyed by `FunctionId` (experiment 2), with the implementation table as the
   ownership filter (section 3).
-- **The corpus harness** (SQL text and DDL helpers, plans, test-data generation, lineage, JSON checks) leaves the
-  default world; the corpus's program world supplies it.
+- **The corpus helpers we implement** (SQL text and DDL helpers, plans, test-data generation, JSON checks), and what
+  only they need, leave the default world. The corpus's own files supply them, and Pure.java's catalog declares them
+  until its signature text goes. Harness types that upstream's query surface reaches stay in the default world.
 
 ## 6. Costs and open items
 
@@ -148,3 +159,6 @@ WASM module.
 5. **Whole-closure loading for the corpus** (section 4): needed only if the corpus moves to a true manifest load.
 6. **Other engine extensions' handlers** (data quality, service, JSON, external format, Elasticsearch, data space):
    counted only when legend-lite supports those DSLs.
+7. **Pure.java without signature text:** experiment 2 shows the ids match one for one, but no run has gone without
+   the catalog yet. Then the corpus would get the declarations of the functions we implement from its own files.
+   Settled by switching the implementation table on and rerunning the corpus and PCT the same way.
