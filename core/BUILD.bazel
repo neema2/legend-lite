@@ -828,11 +828,13 @@ write_source_files(
 
 # NOT a generated file: native-membership.tsv is hand-owned (membership is OURS). This writes a DRAFT from
 # Pure.java's constants over it for a person to finish (git diff shows what moved); NativeSignatureGeneratorTest is
-# the check. Outside //:update_generated, with no diff test (the docs:draft_own_corpus_ledger pattern; P2-17).
+# the check. Outside //:update_generated, with no diff test (the docs:draft_own_corpus_ledger pattern; P2-17). A tool
+# run on demand, so not part of //... (manual).
 write_source_files(
     name = "draft_native_membership",
     diff_test = False,
     files = {"src/main/resources/com/legend/builtin/native-membership.tsv": "//spec:native_membership_draft"},
+    tags = ["manual"],
 )
 
 # CORE AS THE GENERATORS REWRITE IT: the generated Java and prelude in place of

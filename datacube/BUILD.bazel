@@ -302,14 +302,16 @@ js_binary(
     ],
 )
 
-# The next version, from today's vocabulary: built with //... so the tool cannot rot unseen. To ship it,
-# `bazel run //datacube:cut_link_dictionary` writes src/share/link-<version>.ts once (a DRAFT, the
-# docs:draft_own_corpus_ledger pattern: no diff test, the hash pin is the freeze); then pin its hash in
-# test/share-link.test.ts and move _NEXT_LINK_VERSION (above) on. share_link_test fails until both are done.
+# The next version, from today's vocabulary: a tool run on demand, so not part of //... (manual; the build only
+# compiles, docs/BUILD_REBUILD_DESIGN_2026_10_05.md). To ship it, `bazel run //datacube:cut_link_dictionary` writes
+# src/share/link-<version>.ts once (a DRAFT, the docs:draft_own_corpus_ledger pattern: no diff test, the hash pin is
+# the freeze); then pin its hash in test/share-link.test.ts and move _NEXT_LINK_VERSION (above) on. share_link_test
+# fails until both are done.
 js_run_binary(
     name = "link_dictionary_next",
     args = [_NEXT_LINK_VERSION],
     stdout = "link-%s.gen.ts" % _NEXT_LINK_VERSION,
+    tags = ["manual"],
     tool = ":make_link_dictionary",
 )
 
@@ -318,6 +320,7 @@ write_source_files(
     check_that_out_file_exists = False,
     diff_test = False,
     files = {_NEXT_LINK_FILE: ":link_dictionary_next"},
+    tags = ["manual"],
 )
 
 js_run_binary(

@@ -84,10 +84,8 @@ class ParserBoundaryArchTest {
             // the spec's own declaration files, the same provenance as the
             // generator (SYSTEM_PRELUDE_DESIGN §6, 2026-09-08)
             "com/legend/generators/SpecBodyCensusTest.java",
-            // the EAGER corpus compile probe (COMPILE_EVERYTHING_HOMEWORK §10) parses
-            // the corpus world plus legend-pure's platform packages to measure what
-            // closes — a measurement run by name, not a gate (batch 169)
-            "com/legend/rcorpus/EagerCorpusCompileProbe.java",
+            // EagerCorpusCompileProbe left 2026-10-06 (the build rebuild's Phase 1): its second world, the one parse in
+            // the platform dialect, was deleted with //spec:eager_corpus_compile_world2
             "com/legend/equivalence/Surfaces.java",
             // Phase 4 entry gate: channel B's front door IS a dialect
             // decision — the PCT sources are the M3 surface, parsed at

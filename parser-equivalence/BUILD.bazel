@@ -418,7 +418,6 @@ java_run(
 _REPORTS = {
     "corpus_census": ("CorpusCensus", ["corpus-census.txt", "corpus-census-defects.txt"]),
     "grammar_keyword_census": ("GrammarKeywordCensus", ["grammar-keyword-census.txt"]),
-    "migration_sizing": ("MigrationSizing", ["migration-sizing.txt", "migration-legacy-only.txt"]),
     "pmcd_reachability_census": ("PmcdReachabilityCensus", ["pmcd-reachability-census.txt"]),
 }
 

@@ -413,7 +413,8 @@ write_source_files(
 )
 
 # Every upstream declaration of a membership FQN (fqn, key, text, source file): what a re-keying leg reads.
-# A build output (bazel build //spec:native_declarations), never a file in the tree (P2-17).
+# A build output (bazel build //spec:native_declarations), never a file in the tree (P2-17). Asked for by name, never
+# part of //... (manual).
 java_run(
     name = "native_declarations",
     srcs = UPSTREAM_TREES + [
@@ -429,17 +430,19 @@ java_run(
     main_class = "com.legend.generators.NativeDeclarations",
     mnemonic = "Generate",
     roots = _ROOTS,
+    tags = ["manual"],
     deps = [":generators"],
 )
 
 # A DRAFT of the hand-owned native-membership.tsv from Pure.java's compiled constants, for a person to finish:
-# //core:draft_native_membership writes it (P2-17).
+# //core:draft_native_membership writes it (P2-17). On demand (manual).
 java_run(
     name = "native_membership_draft",
     outs = ["generated/native-membership.draft.tsv"],
     arguments = ["{OUT}"],
     main_class = "com.legend.generators.NativeMembershipDraft",
     mnemonic = "Generate",
+    tags = ["manual"],
     visibility = ["//core:__pkg__"],
     deps = [":generators"],
 )
@@ -512,25 +515,21 @@ java_run(
 )
 
 # THE EAGER COMPILE (EagerCorpusCompileProbe): every body of the corpus's compiled world typed up front, a
-# measurement (Bazel workplan P3-17). Manual: `bazel build //spec:eager_corpus_compile`, and the second world
-# (the corpus + legend-pure's platform packages whole) `//spec:eager_corpus_compile_world2`.
-[java_run(
-    name = name,
+# measurement (Bazel workplan P3-17). Manual: `bazel build //spec:eager_corpus_compile`.
+java_run(
+    name = "eager_corpus_compile",
     testonly = True,
     srcs = _INPUTS + UPSTREAM_TREES,
-    outs = [name + "/eager-corpus.txt", name + "/eager-residue.txt", name + "/run.log"],
+    outs = ["eager_corpus_compile/" + f for f in ["eager-corpus.txt", "eager-residue.txt", "run.log"]],
     arguments = ["{OUT_DIR}"],
-    jvm_flags = program_jvm_flags("spec") + flags,
+    jvm_flags = program_jvm_flags("spec"),
     main_class = "com.legend.rcorpus.EagerCorpusCompileProbe",
     memory_mb = 4096,
     mnemonic = "Measure",
     roots = UPSTREAM_ROOTS,
     tags = ["manual"],
     deps = [":spec_tests_lib"],
-) for name, flags in [
-    ("eager_corpus_compile", []),
-    ("eager_corpus_compile_world2", ["-Deager.world2=1"]),
-]]
+)
 
 # THE MANIFEST-WORLD CENSUS (ManifestWorldCensusTest, charter step 7 / D7): a module's dependency closure loaded
 # whole, every body typed once; core_relational's walls and failing bodies are ceilings. Heavy, so in no default
