@@ -70,11 +70,14 @@ legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error
 legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"])
 legend_java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"])
 legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"])
-legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"])
+# DataCube's catalog generators read these directly (datacube/tools/catalogfacts): the dialects, the database owner,
+# the parser and the protocol emitter
+legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"], visibility = ["//datacube:__pkg__"])
 legend_java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"])
 legend_java_library(
     name = "parser",
     srcs = glob(["src/main/java/com/legend/parser/**/*.java"]),
+    visibility = ["//datacube:__pkg__"],
     deps = ["//base", ":error", ":lexer", ":model", ":protocol", ":spi", ":values"],
 )
 
@@ -101,6 +104,7 @@ legend_java_library(
 legend_java_library(
     name = "sql_dialect",
     srcs = glob(["src/main/java/com/legend/sql/dialect/*.java"]),
+    visibility = ["//datacube:__pkg__"],
     deps = ["//base", ":sql"],
 )
 
@@ -110,6 +114,7 @@ legend_java_library(
 legend_java_library(
     name = "database",
     srcs = glob(["src/main/java/com/legend/database/*.java"]),
+    visibility = ["//datacube:__pkg__"],
     deps = ["//base", ":error", ":model", ":sql_dialect"],
 )
 
