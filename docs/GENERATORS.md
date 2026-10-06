@@ -1,6 +1,8 @@
 # Every generator: what it is, when it runs, and the bump (2026-10-05)
 
-Status: AGREED SHAPE (the user, 2026-10-05). Nothing has changed in the build yet; section 6 is the work, in order.
+Status: AGREED SHAPE (the user, 2026-10-05). Section 6 steps 1 to 3 and the small upstream generators are done on
+`build/phase1-generators` (the program's Phase 1, 2026-10-06); see the program's Phase 1 status for what changed from
+this file (ref_imports deleted; offer_queries and catalog_corpus reclassified).
 
 **Update 2026-10-06:** the program's phases are now in `docs/REBUILD_PROGRAM_2026_10_06.md`. The homework and
 experiments replaced section 2's "basic split now" (option (a)) for items 5 to 8 with the full design: the

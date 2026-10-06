@@ -90,6 +90,15 @@ passes (every roster, register, ledger and verdict) and every PCT case.
   own file generated from `CompileContext` alone.
 - Check: every diff test and `//:generated`; two runs give the same bytes, on macOS, Linux and Windows; the everyday
   gate.
+- **Status (2026-10-06): done locally on `build/phase1-generators` (14 commits, stacked on PR #25).** Every changed
+  generator's output is byte-identical; `//gates:local` and `//:generated` (290) and `bazel build //...` pass on
+  macOS; the PAR and `pmcd-reachable.tsv` are the same bytes across two runs. Decided on the way (the user):
+  `ref_imports` deleted, not committed (a one-time measurement, its finding recorded); the catalog generator split
+  (option B, 3 libraries). Corrections to GENERATORS.md: `//datacube:offer_queries` is the input of the committed
+  offer-facts.ts generator, not test data (left non-testonly); `//datacube:catalog_corpus` is DataCube's test
+  expectations (real DuckDB's answers), not a measurement; `test_imports` had no npm inputs to narrow. Deferred:
+  engine-tree subset filegroups (sandbox inputs only), the parity tests' unread data (Phase 8), the PAR's permanent
+  entry-time test.
 
 ### Phase 2: upstream tables joined at class init
 - DynaFn.java generated whole from upstream (with its `Dialect` enum); a hand `DynaFnDecisions.java` holds the
