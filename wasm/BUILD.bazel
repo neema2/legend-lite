@@ -87,7 +87,7 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["src/main/java/planner/ZoneMain.java"],
-    deps = [":boundary"],
+    deps = ["//core:lowering"],
 )
 
 # THE DIFFERENTIAL. The JVM's answers are a build output — a function of the

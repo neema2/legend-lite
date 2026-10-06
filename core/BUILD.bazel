@@ -70,8 +70,7 @@ legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error
 legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"])
 legend_java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"])
 legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"])
-# DataCube's catalog generators read these directly (datacube/tools/catalogfacts): the dialects, the database owner,
-# the parser and the protocol emitter
+# visible to //datacube: its catalog corpus and offer facts generators read the protocol directly
 legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"], visibility = ["//datacube:__pkg__"])
 legend_java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"])
 legend_java_library(
@@ -98,6 +97,7 @@ legend_java_library(
 legend_java_library(name = "platform", srcs = glob(["src/main/java/com/legend/platform/*.java"]), deps = ["//base", ":builtin", ":model"])
 legend_java_library(
     name = "compiler_element_type",
+    visibility = ["//datacube:__pkg__", "//engine-client:__pkg__"],
     srcs = glob(["src/main/java/com/legend/compiler/element/type/*.java"]),
     deps = ["//base", ":builtin", ":model", ":platform", ":protocol", ":sql"],
 )
@@ -121,6 +121,7 @@ legend_java_library(
 # the compiler quartet: resolver-of-names, element compiler, typer, typed tree
 legend_java_library(
     name = "compiler",
+    visibility = ["//datacube:__pkg__"],
     srcs = glob(["src/main/java/com/legend/compiler/**/*.java"], exclude = ["src/main/java/com/legend/compiler/element/type/*.java"]),
     deps = ["//base", ":builtin", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
 )
@@ -141,11 +142,13 @@ legend_java_library(
 )
 legend_java_library(
     name = "lowering",
+    visibility = ["//wasm:__pkg__"],
     srcs = glob(["src/main/java/com/legend/lowering/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
 )
 legend_java_library(
     name = "plan",
+    visibility = ["//datacube:__pkg__"],
     srcs = glob(["src/main/java/com/legend/plan/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":database", ":error", ":lineage", ":model", ":sql"],
 )
@@ -182,6 +185,7 @@ _PLANNER_SRCS = [
 
 legend_java_library(
     name = "planner",
+    visibility = ["//datacube:__pkg__"],
     srcs = _PLANNER_SRCS,
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error",
@@ -240,7 +244,9 @@ legend_java_library(
 legend_java_library(
     name = "core",
     exports = _CORE_TARGETS,
-    visibility = ["//datacube:__pkg__", "//engine-client:__pkg__", "//parser-equivalence:__pkg__", "//pct:__pkg__", "//sdlc-server:__pkg__", "//spec:__pkg__", "//tools/census:__pkg__", "//tools/engine-runner:__pkg__", "//tools/legend:__pkg__", "//wasm:__pkg__"],
+    # //datacube, //engine-client and //wasm name narrower targets (the build rebuild's Phase 1), so the whole of core
+    # is not theirs to reach again by accident
+    visibility = ["//parser-equivalence:__pkg__", "//pct:__pkg__", "//sdlc-server:__pkg__", "//spec:__pkg__", "//tools/census:__pkg__", "//tools/engine-runner:__pkg__", "//tools/legend:__pkg__"],
 )
 
 # THE JDBC DRIVERS, as their own target. core never compiles against a driver: it

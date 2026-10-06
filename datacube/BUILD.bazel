@@ -342,7 +342,13 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["tools/offer-facts/OfferFacts.java"],
-    deps = ["//core"],
+    deps = [
+        "//core:compiler",
+        "//core:compiler_element_type",
+        "//core:plan",
+        "//core:planner",
+        "//core:protocol",
+    ],
 )
 
 java_run(
