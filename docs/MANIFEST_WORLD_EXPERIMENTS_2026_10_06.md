@@ -113,19 +113,38 @@ pruning, no Java scan.
    `joinWithOptionalColumns` and the lineage `PropertyPathNode`, which only a body reaches. A world users can run must
    follow those bodies.
 
-## 4. What does not work yet: the corpus loading its whole closure as its base
+## 4. The corpus on its real manifest (experiment 8)
 
-Swapping in `closure(core_relational)` (14,440 elements) as the corpus's prelude (`corpus_closure_build_walls.tsv`):
-- **Compiler gaps:**
-  - units of measure: a `Measure` is not a type to our compiler (`Mass~Kilogram`, `meta::pure::unit::Mass`; 9
-    elements);
-  - non-test code naming types upstream keeps in test code (12 elements);
-  - one resolver miss: `meta::pure::router::routeFunction`'s bare `Extension` does not resolve though the world has
-    it.
-- **With those excluded it boots** (13,979 elements, 1.4 s in the JVM), but the runner fails: its T4 rule drops a
-  test's copy of a class the base also holds, and `RelationReads` looks that class up in the test's graph only.
+Today the corpus runner loads a hand-picked part of its manifest: the relational tree, the M2M test models, the
+graph-fetch domain, two `LIBRARY_FILES` and the classes of `SHAPE_FILES`. Experiment 8 gives it the rest: every file
+of the 9 repositories the relational tree belongs to and their whole dependency closure (38 repositories), tests
+included, as one more set of program sources (`e8_extra.py`, a copy of `MinimalCorpus` that reads them, on the
+classpath ahead of the real one). **The loading rule that makes it work:** each element is loaded once, so nothing
+the runner or the default world already declares; the ownership filter applies (no function the platform owns); and
+platform-namespace functions come from the default world only (the runner's own guard). That adds 655 files, 11,063
+elements, 8.8 MB.
 
-Today's runner composition by file is the working path. A true manifest load for the corpus needs those fixes first.
+**Result, all six passes, on the proposed default world:**
+- Every roster and register is identical. Each ledger gains exactly one line: an already-failing test
+  (`testPlanWithLocalH2ConnectionWithSQL`) now reaches its assertion and fails there. That trips the H2 database
+  pass's shrink-only register (`NEW 1`), which needs a register entry with its reason.
+- Pass times barely move (DuckDB host 37 to 40 s).
+
+**Everything our compiler cannot yet handle in the real manifest** (the whole module, 22,408 elements, built
+tolerantly; `e8_module_build_walls.tsv`). None of it is reached by a corpus test:
+1. **Parser, 4 files:** `;` as a property-mapping separator (2 engine test files), `->` where our parser rejects it
+   (1), trailing tokens after a code block (`simpleObject.pure`, skipped today too).
+2. **Units of measure, 9 elements:** a `Measure` is not a type to our compiler (`Mass~Kilogram`,
+   `meta::pure::unit::Mass`).
+3. **One resolver miss:** `meta::pure::router::routeFunction` does not resolve its bare type names (`Mapping`, and
+   `Extension` when that was absent) though the world holds them.
+4. **Duplicate view functions, 4 elements:** a store's views reached twice synthesize the same function twice. It is
+   the same defect as the projects' 4 build walls.
+
+**The first attempt** (the whole closure swapped in as the corpus's prelude, `corpus_closure_build_walls.tsv`)
+failed for two reasons the loading rule removes: upstream test files were stripped, so 12 elements named missing
+test types; and the same element sat in both the base and the test's module, where the runner's T4 rule drops the
+test's copy and `RelationReads` then looks only in the test's graph.
 
 ## 5. What this changes
 
@@ -156,7 +175,9 @@ WASM module.
 3. **Execution on the user side:** the projects and demos were type-checked, not executed; the corpus and PCT
    executed. Settled by running the demos' queries against the world.
 4. **Visibility semantics** for manifest-loaded worlds (homework section 5): untested.
-5. **Whole-closure loading for the corpus** (section 4): needed only if the corpus moves to a true manifest load.
+5. **The corpus on its real manifest** (section 4): works with the loading rule; to adopt it, replace the runner's
+   `LIBRARY_FILES`/`SHAPE_FILES` composition with the manifest's repositories, add the one register entry, and fix
+   the four compiler gaps (none blocks a test).
 6. **Other engine extensions' handlers** (data quality, service, JSON, external format, Elasticsearch, data space):
    counted only when legend-lite supports those DSLs.
 7. **Pure.java without signature text:** experiment 2 shows the ids match one for one, but no run has gone without

@@ -28,7 +28,7 @@ outputs. Nothing in the product was changed to produce it.
 | `synth_prelude.py` | a candidate world written as a `prelude.pure`, with an ownership filter | (override directories) |
 | `probe/UserSideProbe.java` | experiment 5: boot, then parse, build and type-check every body of the 56 projects (one graph) and the 3 demos | `e5_user_side_summary.txt` |
 | `probe/BootProbe.java` | cold boot timing | `boottimes.txt` |
-| `e6_lanes.py` | experiment 6: each corpus pass's exact Bazel command rerun by hand with a world first on the classpath, every output compared with the Bazel baseline | `e6_lanes_*.txt` |
+| `e6_lanes.py` (experiments 6 and 8: `EXTRA_CP`, `EXTRA_JVM`, `LABEL`, `ONLY`) | experiment 6: each corpus pass's exact Bazel command rerun by hand with a world first on the classpath, every output compared with the Bazel baseline | `e6_lanes_*.txt` |
 | `usage.py`, `usage2.py` | the earlier usage analysis (what our programs name) | `usage*.txt` |
 
 PCT (experiment 6) ran through Bazel with `--test_env=JAVA_TOOL_OPTIONS=-Xbootclasspath/a:<world>`: resource lookup is
@@ -45,3 +45,13 @@ parent-first, so a `prelude.pure` on the boot class path wins over core's jar. T
 - `e7_wasm_first_answer.txt`, `e7_wasm_*_phases.txt`: experiment 7.
 
 `e6_lanes.py` names the Bazel configuration directory `darwin_arm64-fastbuild`; adjust it on another platform.
+
+## Experiment 8 (the corpus on its real manifest)
+
+- `e8_extra.py`: writes the rest of the manifest (38 repositories' files not already loaded, each element once, the
+  ownership filter applied) as extra program sources.
+- `e8_MinimalCorpus.patch`: the one change to a COPY of the runner (never committed): read those extra sources.
+  Compiled on its own and put ahead of the real class on the classpath.
+- `e8_lanes.txt`: all six passes (`EXTRA_CP=<copy's classes> EXTRA_JVM=-Dexperiment.extraSources=<list>
+  LABEL=e8_manifest e6_lanes.py ...`).
+- `e8_module_build_walls.tsv`: the walls of the whole real-manifest module built tolerantly.

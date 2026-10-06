@@ -2,6 +2,7 @@
 # classpath, outputs redirected; then compare every output with the Bazel baseline.
 import json, sys, os, subprocess, shlex, time, shutil
 B, H, P, override = sys.argv[1:5]
+EXTRA_CP = os.environ.get('EXTRA_CP', ''); EXTRA_JVM = [x for x in os.environ.get('EXTRA_JVM', '').split('|') if x]; LABEL = os.environ.get('LABEL', os.path.basename(override)); ONLY = os.environ.get('ONLY', '')
 ER = subprocess.run(['bazel', 'info', 'execution_root'], cwd=B, capture_output=True, text=True).stdout.strip()
 BB = subprocess.run(['bazel', 'info', 'bazel-bin'], cwd=B, capture_output=True, text=True).stdout.strip()
 lanes = ['duckdb', 'h2', 'warehouse']
@@ -11,7 +12,7 @@ for lane in lanes:
         tgt = f'judge_{kind}_{lane}'
         q = subprocess.run(['bazel', 'aquery', f'mnemonic("Corpus.*", //spec:{tgt})', '--output=jsonproto'], cwd=B, capture_output=True, text=True).stdout
         args = json.loads(q)['actions'][0]['arguments']
-        out = f'{H}/e6_lanes/{os.path.basename(override)}/{tgt}'
+        out = f'{H}/e6_lanes/{LABEL}/{tgt}'
         shutil.rmtree(out, ignore_errors=True); os.makedirs(f'{out}/tmp')
         new = []
         for i, x in enumerate(args):
@@ -19,11 +20,13 @@ for lane in lanes:
                 pass
             if x.startswith('-Djava.io.tmpdir='): x = f'-Djava.io.tmpdir={out}/tmp'
             elif x.startswith('-Xmx'): x = '-Xmx4g'
-            elif i > 0 and args[i - 1] == '-cp': x = f'{override}:' + x
+            elif i > 0 and args[i - 1] == '-cp': x = f'{override}:' + (EXTRA_CP + ':' if EXTRA_CP else '') + x
             x = x.replace(f'bazel-out/darwin_arm64-fastbuild/bin/spec/{tgt}', out)
             if kind == 'database':
-                x = x.replace(f'bazel-out/darwin_arm64-fastbuild/bin/spec/judge_host_{lane}', f'{H}/e6_lanes/{os.path.basename(override)}/judge_host_{lane}')
+                x = x.replace(f'bazel-out/darwin_arm64-fastbuild/bin/spec/judge_host_{lane}', f'{H}/e6_lanes/{LABEL}/judge_host_{lane}')
             new.append(x)
+        if EXTRA_JVM: k = new.index('-cp'); new[k:k] = EXTRA_JVM
+        if ONLY and tgt not in ONLY.split(','): continue
         t0 = time.time()
         r = subprocess.run(new, cwd=ER, capture_output=True, text=True)
         secs = time.time() - t0
