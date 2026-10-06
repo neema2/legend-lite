@@ -1,0 +1,1163 @@
+label	kind	macro	manual	testonly	size	nsrcs	ndeps	nusers	reaches	loc
+//:all_files	filegroup	guards_package	0	0		60	0	1		BUILD.bazel:73
+//:generated	test_suite		0	1		0	14	1	core_libs,core_next,npm_any,oracle_pins,projects,python,upstream_jars,upstream_src,warehouse_server	BUILD.bazel:25
+//:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		BUILD.bazel:73
+//:guard_markdown	markdown_report	guards_package	0	1		0	6	1		BUILD.bazel:73
+//:module_files	filegroup		0	0		2	0	2		BUILD.bazel:12
+//:update_generated	_write_source_file	write_source_files	0	1		0	15	0	core_libs,core_next,npm_any,oracle_pins,projects,python,upstream_jars,upstream_src,warehouse_server	BUILD.bazel:51
+//base:all_files	filegroup	guards_package	0	0		3	0	1		base/BUILD.bazel:15
+//base:base	java_library	legend_java_library	0	0		2	1	43		base/BUILD.bazel:9
+//base:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		base/BUILD.bazel:15
+//base:guard_markdown	markdown_report	guards_package	0	1		0	6	1		base/BUILD.bazel:15
+//core:all_files	filegroup	guards_package	0	0		1335	0	1		core/BUILD.bazel:887
+//core:builtin	java_library	legend_java_library	0	0		9	6	17	core_libs	core/BUILD.bazel:81
+//core:cache	java_library	legend_java_library	0	0		4	2	7	core_libs	core/BUILD.bazel:63
+//core:census	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:601
+//core:census_sources	file_list		0	1		1334	4	1		core/BUILD.bazel:595
+//core:compiler	java_library	legend_java_library	0	0		214	10	16	core_libs	core/BUILD.bazel:114
+//core:compiler_element_type	java_library	legend_java_library	0	0		5	7	16	core_libs	core/BUILD.bazel:93
+//core:core	java_library	legend_java_library	0	0		0	33	19	core_libs	core/BUILD.bazel:232
+//core:core_next	java_library	legend_java_library	0	0		749	7	1	core_libs,core_next,upstream_src	core/BUILD.bazel:839
+//core:core_next_prelude	java_library	legend_java_library	0	0		0	2	1	core_libs,upstream_src	core/BUILD.bazel:866
+//core:core_test_jar	java_jars		0	1		0	1	1	core_libs,projects	core/BUILD.bazel:580
+//core:core_tests	test_suite		0	1		0	24	1	core_libs,projects	core/BUILD.bazel:453
+//core:core_tests_architecture	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_builtin	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_cache	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_compiler	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_exec	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_ide	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_integration	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_ladder	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_lexer	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_lib	java_library	legend_java_library	0	1		322	16	36	core_libs,projects	core/BUILD.bazel:298
+//core:core_tests_lineage	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_lowering	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_model	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_normalizer	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_parser	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_platform	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_protocol	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_resolver	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_root	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:441
+//core:core_tests_server	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_sql	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_test	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_testdatagen	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_testing	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:core_tests_values	java_test	junit_test	0	1	medium	0	3	3	core_libs,projects	core/BUILD.bazel:425
+//core:corpus_differential_test	java_test	junit_test	0	1	large	0	4	3	core_libs,projects,python	core/BUILD.bazel:462
+//core:database	java_library	legend_java_library	0	0		2	5	9	core_libs	core/BUILD.bazel:107
+//core:diagnostics	java_library	legend_java_library	0	0		1	2	6	core_libs	core/BUILD.bazel:67
+//core:draft_native_membership	_write_source_file	write_source_files	0	0		0	1	0	core_libs	core/BUILD.bazel:829
+//core:driver	java_library	legend_java_library	0	0		23	25	5	core_libs	core/BUILD.bazel:186
+//core:drivers	java_library	legend_java_library	0	0		0	2	52	core_libs	core/BUILD.bazel:244
+//core:duckdb_load	java_library	legend_java_library	0	0		2	2	4	core_libs	core/BUILD.bazel:258
+//core:duckdb_load_test	java_test	junit_test	0	1	small	0	3	3	core_libs,projects	core/BUILD.bazel:493
+//core:error	java_library	legend_java_library	0	0		8	2	20	core_libs	core/BUILD.bazel:65
+//core:exec	java_library	legend_java_library	0	0		34	14	7	core_libs	core/BUILD.bazel:149
+//core:guard_classpaths	classpath_report	guards_package	0	1		0	43	1	core_libs,projects,python	core/BUILD.bazel:887
+//core:guard_markdown	markdown_report	guards_package	0	1		0	68	1	core_libs,core_next,projects,python,upstream_src	core/BUILD.bazel:887
+//core:guardrails	java_test	junit_test	0	1	medium	0	6	3	core_libs,projects	core/BUILD.bazel:535
+//core:guardrails_sources	file_list		0	1		1330	0	1		core/BUILD.bazel:589
+//core:ide	java_library	legend_java_library	0	0		4	5	3	core_libs	core/BUILD.bazel:195
+//core:ladder_report	_java_run	java_run	0	1		0	2	25	core_libs,projects	core/BUILD.bazel:805
+//core:layer_builtin	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_cache	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_compiler	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_compiler_element_type	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_database	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_diagnostics	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_driver	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_error	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_exec	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_ide	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_lexer	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_lineage	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_lowering	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_model	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_normalizer	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_parser	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_plan	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_planner	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_platform	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_probe	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_protocol	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_queries	filegroup	core_layer_queries	0	0		30	30	1	core_libs	core/BUILD.bazel:874
+//core:layer_resolver	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_server_lib	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_spi	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_sql	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_sql_dialect	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_test	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_testdatagen	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_validation	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:layer_values	genquery	core_layer_queries	0	0		0	1	1	core_libs	core/BUILD.bazel:874
+//core:lexer	java_library	legend_java_library	0	0		5	2	6	core_libs	core/BUILD.bazel:68
+//core:lineage	java_library	legend_java_library	0	0		5	10	8	core_libs	core/BUILD.bazel:124
+//core:lowering	java_library	legend_java_library	0	0		75	11	10	core_libs	core/BUILD.bazel:134
+//core:main_java	filegroup		0	0		749	0	2		core/BUILD.bazel:716
+//core:main_srcs	filegroup		0	0		757	0	2		core/BUILD.bazel:31
+//core:model	java_library	legend_java_library	0	0		62	3	24	core_libs	core/BUILD.bazel:71
+//core:normalizer	java_library	legend_java_library	0	0		29	9	6	core_libs	core/BUILD.bazel:119
+//core:parser	java_library	legend_java_library	0	0		44	8	9	core_libs	core/BUILD.bazel:72
+//core:plan	java_library	legend_java_library	0	0		14	10	10	core_libs	core/BUILD.bazel:139
+//core:plan_side	java_library	legend_java_library	0	0		0	26	1	core_libs	core/BUILD.bazel:223
+//core:planner	java_library	legend_java_library	0	0		4	21	7	core_libs	core/BUILD.bazel:175
+//core:planner_on_java_base_test	java_test	java_test	0	1	small	0	1	3	core_libs,projects	core/BUILD.bazel:482
+//core:platform	java_library	legend_java_library	0	0		7	4	14	core_libs	core/BUILD.bazel:92
+//core:postgres_arm_test	java_test	junit_test	0	1	medium	1	9	3	core_libs	core/BUILD.bazel:507
+//core:probe	java_library	legend_java_library	0	0		1	6	3	core_libs	core/BUILD.bazel:154
+//core:product_jars	java_jars		0	1		0	33	1	core_libs	core/BUILD.bazel:571
+//core:protocol	java_library	legend_java_library	0	0		53	4	18	core_libs	core/BUILD.bazel:70
+//core:resolver	java_library	legend_java_library	0	0		57	12	7	core_libs	core/BUILD.bazel:144
+//core:scale	java_binary	legend_java_binary	1	1		0	3	1	core_libs,projects	core/BUILD.bazel:631
+//core:scale_lib	java_library	legend_java_library	0	1		1	1	1		core/BUILD.bazel:621
+//core:section_grammar_registry_test	java_test	junit_test	0	1	small	1	4	3	core_libs,projects	core/BUILD.bazel:368
+//core:server	java_binary	legend_java_binary	0	0		0	2	8	core_libs	core/BUILD.bazel:272
+//core:server_lib	java_library	legend_java_library	0	0		12	17	3	core_libs	core/BUILD.bazel:201
+//core:shadow_binding	java_library	legend_java_library	0	1		0	1	3		core/BUILD.bazel:347
+//core:spi	java_library	legend_java_library	0	0		3	1	5	core_libs	core/BUILD.bazel:62
+//core:sql	java_library	legend_java_library	0	0		25	2	15	core_libs	core/BUILD.bazel:69
+//core:sql_dialect	java_library	legend_java_library	0	0		37	3	10	core_libs	core/BUILD.bazel:98
+//core:srcs	filegroup		0	0		1330	0	14		core/BUILD.bazel:24
+//core:stress_files	filegroup		0	0		202	0	8		core/BUILD.bazel:751
+//core:stress_index	stress_index		0	0		202	0	1		core/BUILD.bazel:744
+//core:stress_layout	stress_layout		0	0		0	0	4		core/BUILD.bazel:725
+//core:stress_sources	filegroup		0	0		192	0	2		core/BUILD.bazel:757
+//core:stress_suites	java_test	junit_test	0	1	enormous	0	3	2	core_libs,projects	core/BUILD.bazel:651
+//core:stress_suites_h2	java_test	junit_test	0	1	enormous	0	3	2	core_libs,projects	core/BUILD.bazel:664
+//core:stress_tool	java_binary	legend_java_binary	1	1		0	2	1	core_libs,projects	core/BUILD.bazel:679
+//core:test	java_library	legend_java_library	0	0		6	11	3	core_libs	core/BUILD.bazel:196
+//core:test_java	filegroup		0	0		325	0	11		core/BUILD.bazel:39
+//core:test_pure	filegroup		0	0		211	0	2		core/BUILD.bazel:737
+//core:testdatagen	java_library	legend_java_library	0	0		2	14	4	core_libs	core/BUILD.bazel:159
+//core:toy_grammar	java_library	legend_java_library	0	1		1	1	1	core_libs	core/BUILD.bazel:357
+//core:update_generated	_write_source_file	write_source_files	0	0		0	6	1	core_libs,core_next,upstream_src	core/BUILD.bazel:779
+//core:update_generated_0	_write_source_file	write_source_files	0	0		0	1	1	core_libs,upstream_src	core/BUILD.bazel:779
+//core:update_generated_0_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,upstream_src	core/BUILD.bazel:779
+//core:update_generated_1	_write_source_file	write_source_files	0	0		0	1	1	core_libs,upstream_src	core/BUILD.bazel:779
+//core:update_generated_1_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,upstream_src	core/BUILD.bazel:779
+//core:update_generated_2	_write_source_file	write_source_files	0	0		0	1	1	core_libs	core/BUILD.bazel:779
+//core:update_generated_2_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs	core/BUILD.bazel:779
+//core:update_generated_3	_write_source_file	write_source_files	0	0		0	1	1	core_libs	core/BUILD.bazel:779
+//core:update_generated_3_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs	core/BUILD.bazel:779
+//core:update_generated_4	_write_source_file	write_source_files	0	0		0	1	1	core_libs,core_next,upstream_src	core/BUILD.bazel:779
+//core:update_generated_4_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,core_next,upstream_src	core/BUILD.bazel:779
+//core:update_generated_5	_write_source_file	write_source_files	0	0		0	1	1	core_libs,upstream_src	core/BUILD.bazel:779
+//core:update_generated_5_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,upstream_src	core/BUILD.bazel:779
+//core:update_generated_tests	test_suite	write_source_files	0	1		0	6	1	core_libs,core_next,upstream_src	core/BUILD.bazel:779
+//core:update_ladder	_write_source_file	write_source_files	0	1		0	12	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_0	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_0_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_1	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_10	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_10_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_11	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_11_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_1_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_2	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_2_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_3	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_3_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_4	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_4_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_5	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_5_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_6	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_6_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_7	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_7_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_8	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_8_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_9	_write_source_file	write_source_files	0	1		0	1	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_9_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,projects	core/BUILD.bazel:818
+//core:update_ladder_tests	test_suite	write_source_files	0	1		0	12	1	core_libs,projects	core/BUILD.bazel:818
+//core:update_stress_corpus	_write_source_file	write_source_files	0	0		0	11	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_0	_write_source_file	write_source_files	0	0		0	1	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_0_test	_diff_test	write_source_files	0	1	small	0	1	2	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_1	_write_source_file	write_source_files	0	0		0	1	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_10	_write_source_file	write_source_files	0	0		0	1	1		core/BUILD.bazel:766
+//core:update_stress_corpus_10_test	_diff_test	write_source_files	0	1	small	0	1	2		core/BUILD.bazel:766
+//core:update_stress_corpus_1_test	_diff_test	write_source_files	0	1	small	0	1	2	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_2	_write_source_file	write_source_files	0	0		0	1	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_2_test	_diff_test	write_source_files	0	1	small	0	1	2	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_3	_write_source_file	write_source_files	0	0		0	1	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_3_test	_diff_test	write_source_files	0	1	small	0	1	2	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_4	_write_source_file	write_source_files	0	0		0	1	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_4_test	_diff_test	write_source_files	0	1	small	0	1	2	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_5	_write_source_file	write_source_files	0	0		0	1	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_5_test	_diff_test	write_source_files	0	1	small	0	1	2	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_6	_write_source_file	write_source_files	0	0		0	1	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_6_test	_diff_test	write_source_files	0	1	small	0	1	2	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_7	_write_source_file	write_source_files	0	0		0	1	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_7_test	_diff_test	write_source_files	0	1	small	0	1	2	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_8	_write_source_file	write_source_files	0	0		0	1	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_8_test	_diff_test	write_source_files	0	1	small	0	1	2	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_9	_write_source_file	write_source_files	0	0		0	1	1	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_9_test	_diff_test	write_source_files	0	1	small	0	1	2	projects,python	core/BUILD.bazel:766
+//core:update_stress_corpus_tests	test_suite	write_source_files	0	1		0	11	1	projects,python	core/BUILD.bazel:766
+//core:validation	java_library	legend_java_library	0	0		1	8	6	core_libs	core/BUILD.bazel:129
+//core:values	java_library	legend_java_library	0	0		3	2	14	core_libs	core/BUILD.bazel:64
+//datacube:adhoc_mode_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:adhoc_query_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:adhoc_session_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:adhoc_state_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:adhoc_transactions_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:all_files	filegroup	guards_package	0	0		286	0	1		datacube/BUILD.bazel:1101
+//datacube:app	alias	warehouse_run	0	0		0	2	0	core_libs,native_image,npm_any,teavm,warehouse_server,wasm_planner	datacube/BUILD.bazel:773
+//datacube:app_extensions	copy_to_directory	warehouse_run	0	0		1	6	2		datacube/BUILD.bazel:773
+//datacube:app_posix	_posix_launcher	warehouse_run	0	0		0	4	1	core_libs,native_image,npm_any,teavm,warehouse_server,wasm_planner	datacube/BUILD.bazel:773
+//datacube:app_postgres	java_binary	legend_java_binary	0	1		1	7	3	core_libs	datacube/BUILD.bazel:1077
+//datacube:app_postgres_executable	executable_of		0	1		0	1	1	core_libs	datacube/BUILD.bazel:1069
+//datacube:app_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:app_windows	launcher_binary	warehouse_run	0	0		0	5	1	core_libs,native_image,npm_any,teavm,warehouse_server,wasm_planner	datacube/BUILD.bazel:773
+//datacube:apply_refusal_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:board_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:browser	test_suite		0	1		0	10	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:1012
+//datacube:bundle_budget_test	js_test	node_test	0	1	small	0	6	2	npm_any	datacube/BUILD.bazel:203
+//datacube:bundle_bundle	_run_binary	esbuild	0	0		13	5	2	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle__entry_point	directory_path	esbuild	1	0		0	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle__js_binary	js_binary	esbuild	1	0		0	2	2	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle_copy_srcs_to_bin	_copy_to_bin	esbuild	1	0		10	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle_js_info_files	js_info_files	esbuild	1	0		10	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle_page	_run_binary	esbuild	0	0		13	5	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle_page__entry_point	directory_path	esbuild	1	0		0	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle_page__js_binary	js_binary	esbuild	1	0		0	2	2	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle_page_copy_srcs_to_bin	_copy_to_bin	esbuild	1	0		10	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle_page_js_info_files	js_info_files	esbuild	1	0		10	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle_page_runfiles	filegroup	esbuild	1	0		1	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_bundle_runfiles	filegroup	esbuild	1	0		1	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_planner_worker	_run_binary	esbuild	0	0		13	5	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_planner_worker__entry_point	directory_path	esbuild	1	0		0	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_planner_worker__js_binary	js_binary	esbuild	1	0		0	2	2	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_planner_worker_copy_srcs_to_bin	_copy_to_bin	esbuild	1	0		10	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_planner_worker_js_info_files	js_info_files	esbuild	1	0		10	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_planner_worker_runfiles	filegroup	esbuild	1	0		1	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_remote_bundle	_run_binary	esbuild	0	0		13	5	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_remote_bundle__entry_point	directory_path	esbuild	1	0		0	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_remote_bundle__js_binary	js_binary	esbuild	1	0		0	2	2	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_remote_bundle_copy_srcs_to_bin	_copy_to_bin	esbuild	1	0		10	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_remote_bundle_js_info_files	js_info_files	esbuild	1	0		10	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_remote_bundle_runfiles	filegroup	esbuild	1	0		1	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_stress	_run_binary	esbuild	0	0		13	5	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_stress__entry_point	directory_path	esbuild	1	0		0	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_stress__js_binary	js_binary	esbuild	1	0		0	2	2	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_stress_copy_srcs_to_bin	_copy_to_bin	esbuild	1	0		10	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_stress_js_info_files	js_info_files	esbuild	1	0		10	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:bundle_stress_runfiles	filegroup	esbuild	1	0		1	1	1	npm_any	datacube/BUILD.bazel:669
+//datacube:calc_fix_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:calc_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:calc_vocabulary_test	js_test	node_test	0	1	medium	0	6	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:998
+//datacube:cancel_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:catalog_corpus	_java_run	java_run	0	0		0	1	3	core_libs	datacube/BUILD.bazel:423
+//datacube:catalog_facts_main	java_library	legend_java_library	0	0		1	2	2	core_libs	datacube/BUILD.bazel:402
+//datacube:catalog_model_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:catalog_rules	_java_run	java_run	0	0		0	1	3	core_libs	datacube/BUILD.bazel:415
+//datacube:chaos	js_binary	js_binary	0	0		0	4	0	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:chart_echarts_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:chart_tiles_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:child_groups_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:column_editor_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:column_kind_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:columns_panel_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:columns_selector_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:config_readers_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:config_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:cube_adhoc_shell_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:cube_document_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:cube_editors_app_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:cube_jvm_answers	_java_run	java_run	0	0		2	2	2	core_libs,npm_any	datacube/BUILD.bazel:500
+//datacube:cube_library_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:cube_lifecycle_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:cube_open_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:566
+//datacube:cube_queries	_run_binary	js_run_binary	0	0		5	4	1	npm_any	datacube/BUILD.bazel:483
+//datacube:cube_queries_copy_srcs_to_bin	_copy_to_bin	js_run_binary	1	0		2	0	1		datacube/BUILD.bazel:483
+//datacube:cube_queries_js_info_files	js_info_files	js_run_binary	1	0		2	0	1		datacube/BUILD.bazel:483
+//datacube:cube_queries_runfiles	filegroup	js_run_binary	1	0		1	1	1	npm_any	datacube/BUILD.bazel:483
+//datacube:cube_state_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:cube_store_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:cube_transactions_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:cut_link_dictionary	_write_source_file	write_source_files	0	0		0	1	0	npm_any	datacube/BUILD.bazel:353
+//datacube:datacube_serve	executable_of		0	1		0	1	1	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:990
+//datacube:dimensions_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:dist	_run_binary	js_run_binary	0	0		4	5	5	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:791
+//datacube:dist_complete_test	js_test	node_test	0	1	small	0	6	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:dist_copy_srcs_to_bin	_copy_to_bin	js_run_binary	1	0		1	1	1	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:791
+//datacube:dist_js_info_files	js_info_files	js_run_binary	1	0		1	1	1	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:791
+//datacube:dist_runfiles	filegroup	js_run_binary	1	0		1	1	1		datacube/BUILD.bazel:791
+//datacube:drill_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:duckdb_cancel_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:duckdb_test	js_test	node_test	0	1	small	0	6	2	npm_any	datacube/BUILD.bazel:203
+//datacube:editor_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:editors_live_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:emit_cube_queries	js_binary	js_binary	0	0		0	1	2	npm_any	datacube/BUILD.bazel:473
+//datacube:emit_offer_queries	js_binary	js_binary	0	0		0	1	2	npm_any	datacube/BUILD.bazel:315
+//datacube:engine_remote_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:epoch_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:escaping_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:export_doc_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:export_model_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:export_rich_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:export_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:filter_editor_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:form_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:format_scale_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:format_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:fuzz_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:grid_basics_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:grid_dom_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:grid_resize_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:grid_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:group_derived_test	js_test	node_test	0	1	medium	0	8	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:guard_classpaths	classpath_report	guards_package	0	1		0	11	1	core_libs,npm_any	datacube/BUILD.bazel:1101
+//datacube:guard_markdown	markdown_report	guards_package	0	1		0	132	1	chromium,core_libs,native_image,npm_any,teavm,warehouse_server,wasm_planner	datacube/BUILD.bazel:1101
+//datacube:guardrails_test	js_test	node_test	0	1	small	0	8	2	npm_any	datacube/BUILD.bazel:203
+//datacube:host_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:import_scan	filegroup		0	0		202	0	3		datacube/BUILD.bazel:441
+//datacube:infer_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:install_browser	js_binary	js_binary	0	0		0	1	0	npm_any	datacube/BUILD.bazel:1095
+//datacube:json_read_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:551
+//datacube:json_shape_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:legend_server_for_torture	executable_of		0	1		0	1	1	core_libs	datacube/BUILD.bazel:966
+//datacube:link_dictionary_next	_run_binary	js_run_binary	0	0		3	4	1	npm_any	datacube/BUILD.bazel:346
+//datacube:link_dictionary_next_copy_srcs_to_bin	_copy_to_bin	js_run_binary	1	0		0	0	1		datacube/BUILD.bazel:346
+//datacube:link_dictionary_next_js_info_files	js_info_files	js_run_binary	1	0		0	0	1		datacube/BUILD.bazel:346
+//datacube:link_dictionary_next_runfiles	filegroup	js_run_binary	1	0		1	1	1	npm_any	datacube/BUILD.bazel:346
+//datacube:live_snap_test	js_test	node_test	0	1	medium	0	8	2	core_libs,native_image,npm_any,teavm,warehouse_server,wasm_planner	datacube/BUILD.bazel:630
+//datacube:make_dist	js_binary	js_binary	0	0		0	0	2		datacube/BUILD.bazel:786
+//datacube:make_link_dictionary	js_binary	js_binary	0	0		0	1	2	npm_any	datacube/BUILD.bazel:329
+//datacube:make_sample	js_binary	js_binary	0	0		0	1	0	npm_any	datacube/BUILD.bazel:856
+//datacube:measure_startup	js_binary	js_binary	0	0		0	4	0	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:menu_ids_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:menu_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:menu_view_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:multi_cube_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:offer_facts	_java_run	java_run	0	0		2	2	3	core_libs,npm_any	datacube/BUILD.bazel:382
+//datacube:offer_facts_main	java_library	legend_java_library	0	0		1	1	1	core_libs	datacube/BUILD.bazel:374
+//datacube:offer_facts_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:offer_queries	_run_binary	js_run_binary	0	0		4	4	1	npm_any	datacube/BUILD.bazel:360
+//datacube:offer_queries_copy_srcs_to_bin	_copy_to_bin	js_run_binary	1	0		1	0	1		datacube/BUILD.bazel:360
+//datacube:offer_queries_js_info_files	js_info_files	js_run_binary	1	0		1	0	1		datacube/BUILD.bazel:360
+//datacube:offer_queries_runfiles	filegroup	js_run_binary	1	0		1	1	1	npm_any	datacube/BUILD.bazel:360
+//datacube:page_document_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:pivot_panel_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:pivot_rows_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:535
+//datacube:pivot_total_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:pivot_values_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:plane_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:planner_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:portability_test	js_test	node_test	0	1	small	0	6	2	npm_any	datacube/BUILD.bazel:203
+//datacube:projects	copy_to_directory		0	0		3	0	2		datacube/BUILD.bazel:722
+//datacube:query_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:relation_type_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:remote_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:run_stress	js_binary	js_binary	0	0		0	5	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:run_stress_test	js_test	browser_test	0	1	enormous	0	15	2	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:900
+//datacube:runner_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:sample_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:save_dialog_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:saved_queries_test	js_test	node_test	0	1	medium	0	10	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:scale_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:scanned_demo	filegroup		0	0		10	0	1		datacube/BUILD.bazel:102
+//datacube:scanned_scripts	filegroup		0	0		171	0	1		datacube/BUILD.bazel:107
+//datacube:scanned_tests	filegroup		0	0		99	0	1		datacube/BUILD.bazel:121
+//datacube:screen_colours_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:selection_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:serve	js_binary	js_binary	0	0		0	2	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:752
+//datacube:share_link_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:shell_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:shots	js_binary	js_binary	0	0		0	4	0	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:site	filegroup		0	0		19	7	34	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:734
+//datacube:snap_test	js_test	node_test	0	1	small	0	6	2	npm_any	datacube/BUILD.bazel:203
+//datacube:sorting_test	js_test	node_test	0	1	medium	0	8	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:source_picker_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:src	js_library		0	0		87	1	64	npm_any	datacube/BUILD.bazel:37
+//datacube:src_base	js_library		0	0		2	6	94	npm_any	datacube/BUILD.bazel:47
+//datacube:state_guardrail_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:style_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:styles	filegroup		0	0		3	0	1		datacube/BUILD.bazel:72
+//datacube:test_imports	_run_binary	js_run_binary	0	0		4	5	2		datacube/BUILD.bazel:446
+//datacube:test_imports_copy_srcs_to_bin	_copy_to_bin	js_run_binary	1	0		1	1	1		datacube/BUILD.bazel:446
+//datacube:test_imports_js_info_files	js_info_files	js_run_binary	1	0		1	1	1		datacube/BUILD.bazel:446
+//datacube:test_imports_runfiles	filegroup	js_run_binary	1	0		1	1	1		datacube/BUILD.bazel:446
+//datacube:test_imports_tool	js_binary	js_binary	0	0		0	0	2		datacube/BUILD.bazel:432
+//datacube:tests	test_suite		0	1		0	111	1	chromium,core_libs,native_image,npm_any,teavm,warehouse_server,wasm_planner	datacube/BUILD.bazel:229
+//datacube:tile_layout_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:torture	js_binary	js_binary	0	0		0	4	0	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:torture_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:951
+//datacube:tree_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:treeview_test	js_test	node_test	0	1	medium	0	8	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:type_columns_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:typecheck_mjs_test	js_test	tsc_test	0	1	small	0	12	2	chromium,npm_any	datacube/BUILD.bazel:281
+//datacube:typecheck_mjs_test__entry_point	directory_path	tsc_test	1	0		0	1	1	npm_any	datacube/BUILD.bazel:281
+//datacube:typecheck_test	js_test	tsc_test	0	1	small	0	13	2	npm_any	datacube/BUILD.bazel:252
+//datacube:typecheck_test__entry_point	directory_path	tsc_test	1	0		0	1	1	npm_any	datacube/BUILD.bazel:252
+//datacube:typed_values_new_york_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:613
+//datacube:typed_values_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:582
+//datacube:typed_values_tokyo_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:598
+//datacube:undo_coverage_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:update_generated	_write_source_file	write_source_files	0	0		0	4	1	core_libs,npm_any	datacube/BUILD.bazel:458
+//datacube:update_generated_0	_write_source_file	write_source_files	0	0		0	1	1	core_libs,npm_any	datacube/BUILD.bazel:458
+//datacube:update_generated_0_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,npm_any	datacube/BUILD.bazel:458
+//datacube:update_generated_1	_write_source_file	write_source_files	0	0		0	1	1	core_libs	datacube/BUILD.bazel:458
+//datacube:update_generated_1_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs	datacube/BUILD.bazel:458
+//datacube:update_generated_2	_write_source_file	write_source_files	0	0		0	1	1	core_libs	datacube/BUILD.bazel:458
+//datacube:update_generated_2_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs	datacube/BUILD.bazel:458
+//datacube:update_generated_3	_write_source_file	write_source_files	0	0		0	1	1		datacube/BUILD.bazel:458
+//datacube:update_generated_3_test	_diff_test	write_source_files	0	1	small	0	1	2		datacube/BUILD.bazel:458
+//datacube:update_generated_tests	test_suite	write_source_files	0	1		0	4	1	core_libs,npm_any	datacube/BUILD.bazel:458
+//datacube:upload_test	js_test	node_test	0	1	medium	0	8	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:values_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:vendor	copy_to_directory		0	0		3	3	1	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:691
+//datacube:verify_app	js_binary	js_binary	1	0		0	5	0	chromium,core_libs,native_image,npm_any,teavm,warehouse_server,wasm_planner	datacube/BUILD.bazel:1024
+//datacube:verify_app_test	js_test	browser_test	0	1	large	0	17	2	chromium,core_libs,native_image,npm_any,teavm,warehouse_server,wasm_planner	datacube/BUILD.bazel:1048
+//datacube:verify_calc_vocabulary	js_binary	js_binary	0	0		0	4	0	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_charts	js_binary	js_binary	0	0		0	5	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_charts_test	js_test	browser_test	0	1	large	0	15	2	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:900
+//datacube:verify_cubes	js_binary	js_binary	0	0		0	5	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_cubes_test	js_test	browser_test	0	1	large	0	15	2	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:900
+//datacube:verify_engine	js_binary	js_binary	0	0		0	4	0	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_engine_differential	js_binary	js_binary	0	0		0	4	0	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_features	js_binary	js_binary	0	0		0	6	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_features_test	js_test	browser_test	0	1	large	0	16	2	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:934
+//datacube:verify_page	js_binary	js_binary	0	0		0	5	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_page_test	js_test	browser_test	0	1	large	0	15	2	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:900
+//datacube:verify_picker	js_binary	js_binary	0	0		0	5	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_picker_test	js_test	browser_test	0	1	large	0	14	2	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:975
+//datacube:verify_real_data	js_binary	js_binary	0	0		0	5	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_remote	js_binary	js_binary	0	0		0	5	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_remote_test	js_test	browser_test	0	1	large	0	16	2	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:915
+//datacube:verify_smoke	js_binary	js_binary	0	0		0	5	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_smoke_test	js_test	browser_test	0	1	large	0	15	2	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:883
+//datacube:verify_upload	js_binary	js_binary	0	0		0	5	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_upload_test	js_test	browser_test	0	1	large	0	15	2	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:900
+//datacube:verify_wasm_browser	js_binary	js_binary	0	0		0	5	0	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:856
+//datacube:verify_wasm_browser_test	js_test	browser_test	0	1	large	0	15	2	chromium,core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:900
+//datacube:warehouse_session_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:wasm_differential_test	js_test	node_test	0	1	medium	0	6	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:518
+//datacube:wasm_flag_test	js_test	node_test	0	1	small	0	6	2	npm_any	datacube/BUILD.bazel:203
+//datacube:wasm_planner_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//datacube:window_columns_test	js_test	node_test	0	1	medium	0	7	2	core_libs,npm_any,teavm,wasm_planner	datacube/BUILD.bazel:203
+//datacube:window_test	js_test	node_test	0	1	small	0	5	2	npm_any	datacube/BUILD.bazel:203
+//depot-client:all_files	filegroup	guards_package	0	0		9	0	1		depot-client/BUILD.bazel:57
+//depot-client:depot_client	js_library		0	0		4	1	6		depot-client/BUILD.bazel:8
+//depot-client:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		depot-client/BUILD.bazel:57
+//depot-client:guard_markdown	markdown_report	guards_package	0	1		0	8	1	core_libs,teavm	depot-client/BUILD.bazel:57
+//depot-client:server_test	js_test	node_test	0	1	medium	0	8	2	core_libs	depot-client/BUILD.bazel:32
+//depot-client:tests	test_suite		0	1		0	2	1	core_libs,teavm	depot-client/BUILD.bazel:49
+//depot-client:wasm_test	js_test	node_test	0	1	small	0	6	2	core_libs,teavm	depot-client/BUILD.bazel:16
+//depot-server:all_files	filegroup	guards_package	0	0		4	0	1		depot-server/BUILD.bazel:20
+//depot-server:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		depot-server/BUILD.bazel:20
+//depot-server:guard_markdown	markdown_report	guards_package	0	1		0	6	1		depot-server/BUILD.bazel:20
+//depot-server:rules	java_library	legend_java_library	0	0		3	3	3		depot-server/BUILD.bazel:10
+//docs:all_files	filegroup	guards_package	0	0		594	0	1		docs/BUILD.bazel:36
+//docs:draft_own_corpus_ledger	_write_source_file	write_source_files	0	1		0	1	0	core_libs,oracle_pins,upstream_jars,upstream_src	docs/BUILD.bazel:27
+//docs:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		docs/BUILD.bazel:36
+//docs:guard_markdown	markdown_report	guards_package	0	1		0	7	1	core_libs,oracle_pins,upstream_jars,upstream_src	docs/BUILD.bazel:36
+//docs:update_generated	_write_source_file	write_source_files	0	1		0	1	1	core_libs,oracle_pins,upstream_jars,upstream_src	docs/BUILD.bazel:11
+//docs:update_generated_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,oracle_pins,upstream_jars,upstream_src	docs/BUILD.bazel:11
+//docs:update_generated_tests	test_suite	write_source_files	0	1		0	1	1	core_libs,oracle_pins,upstream_jars,upstream_src	docs/BUILD.bazel:11
+//engine-client:all_files	filegroup	guards_package	0	0		18	0	1		engine-client/BUILD.bazel:64
+//engine-client:engine_client	js_library		0	0		14	3	6	npm_any	engine-client/BUILD.bazel:17
+//engine-client:guard_classpaths	classpath_report	guards_package	0	1		0	7	1	core_libs	engine-client/BUILD.bazel:64
+//engine-client:guard_markdown	markdown_report	guards_package	0	1		0	7	1	core_libs	engine-client/BUILD.bazel:64
+//engine-client:lite_facts	_java_run	java_run	0	0		0	1	3	core_libs	engine-client/BUILD.bazel:47
+//engine-client:type_facts_main	java_library	legend_java_library	0	0		1	1	1	core_libs	engine-client/BUILD.bazel:39
+//engine-client:update_generated	_write_source_file	write_source_files	0	0		0	1	1	core_libs	engine-client/BUILD.bazel:55
+//engine-client:update_generated_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs	engine-client/BUILD.bazel:55
+//engine-client:update_generated_tests	test_suite	write_source_files	0	1		0	1	1	core_libs	engine-client/BUILD.bazel:55
+//fixtures/saved-queries:all_files	filegroup	guards_package	0	0		7	0	1		fixtures/saved-queries/BUILD.bazel:71
+//fixtures/saved-queries:gen	_run_binary	js_run_binary	0	0		6	4	8	core_libs	fixtures/saved-queries/BUILD.bazel:33
+//fixtures/saved-queries:gen_js_info_files	js_info_files	js_run_binary	1	0		4	1	1	core_libs	fixtures/saved-queries/BUILD.bazel:33
+//fixtures/saved-queries:gen_runfiles	filegroup	js_run_binary	1	0		1	1	1		fixtures/saved-queries/BUILD.bazel:33
+//fixtures/saved-queries:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		fixtures/saved-queries/BUILD.bazel:71
+//fixtures/saved-queries:guard_markdown	markdown_report	guards_package	0	1		0	10	1	core_libs	fixtures/saved-queries/BUILD.bazel:71
+//fixtures/saved-queries:make	js_binary	js_binary	0	0		0	0	2		fixtures/saved-queries/BUILD.bazel:28
+//fixtures/saved-queries:records	js_library		0	0		4	0	7		fixtures/saved-queries/BUILD.bazel:8
+//fixtures/saved-queries:update_generated	_write_source_file	write_source_files	0	0		0	4	1	core_libs	fixtures/saved-queries/BUILD.bazel:64
+//fixtures/saved-queries:update_generated_0	_write_source_file	write_source_files	0	0		0	1	1	core_libs	fixtures/saved-queries/BUILD.bazel:64
+//fixtures/saved-queries:update_generated_0_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs	fixtures/saved-queries/BUILD.bazel:64
+//fixtures/saved-queries:update_generated_1	_write_source_file	write_source_files	0	0		0	1	1	core_libs	fixtures/saved-queries/BUILD.bazel:64
+//fixtures/saved-queries:update_generated_1_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs	fixtures/saved-queries/BUILD.bazel:64
+//fixtures/saved-queries:update_generated_2	_write_source_file	write_source_files	0	0		0	1	1	core_libs	fixtures/saved-queries/BUILD.bazel:64
+//fixtures/saved-queries:update_generated_2_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs	fixtures/saved-queries/BUILD.bazel:64
+//fixtures/saved-queries:update_generated_3	_write_source_file	write_source_files	0	0		0	1	1	core_libs	fixtures/saved-queries/BUILD.bazel:64
+//fixtures/saved-queries:update_generated_3_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs	fixtures/saved-queries/BUILD.bazel:64
+//fixtures/saved-queries:update_generated_tests	test_suite	write_source_files	0	1		0	4	1	core_libs	fixtures/saved-queries/BUILD.bazel:64
+//gates:all_files	filegroup	guards_package	0	0		1	0	1		gates/BUILD.bazel:81
+//gates:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		gates/BUILD.bazel:81
+//gates:guard_markdown	markdown_report	guards_package	0	1		0	6	1		gates/BUILD.bazel:81
+//gates:local	test_suite		0	1		0	49	0	chromium,core_libs,core_next,native_image,npm_any,oracle_pins,projects,python,teavm,upstream_jars,upstream_src,warehouse_server,wasm_planner	gates/BUILD.bazel:11
+//json:all_files	filegroup	guards_package	0	0		3	0	1		json/BUILD.bazel:32
+//json:guard_classpaths	classpath_report	guards_package	0	1		0	7	1		json/BUILD.bazel:32
+//json:guard_markdown	markdown_report	guards_package	0	1		0	7	1		json/BUILD.bazel:32
+//json:json	java_library	legend_java_library	0	0		1	2	18		json/BUILD.bazel:12
+//json:tests	java_test	junit_test	0	1	small	1	2	3		json/BUILD.bazel:19
+//parser-equivalence:all_files	filegroup	guards_package	0	0		321	0	1		parser-equivalence/BUILD.bazel:491
+//parser-equivalence:corpus_census	_java_run	java_run	1	1		14	11	2	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:425
+//parser-equivalence:diagnostics	java_test	junit_test	1	1	large	0	10	2	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:197
+//parser-equivalence:diagnostics_reports	filegroup		1	1		4	4	0	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:450
+//parser-equivalence:engine_jar_files	filegroup		0	1		1	1	5	core_libs,upstream_jars	parser-equivalence/BUILD.bazel:104
+//parser-equivalence:engine_jars	java_jars		0	1		0	1	2	core_libs,upstream_jars	parser-equivalence/BUILD.bazel:90
+//parser-equivalence:engine_jars_exec	java_jars		0	1		0	1	6	core_libs,upstream_jars	parser-equivalence/BUILD.bazel:97
+//parser-equivalence:fixture_sweep	java_binary	legend_java_binary	1	1		0	8	1	core_libs,oracle_pins,upstream_jars	parser-equivalence/BUILD.bazel:476
+//parser-equivalence:gen_fixtures	_java_run	java_run	0	1		7	4	9	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:280
+//parser-equivalence:gen_manifest	_java_run	java_run	0	1		6	3	3	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:304
+//parser-equivalence:gen_own_corpus_draft	_java_run	java_run	0	1		9	5	2	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:392
+//parser-equivalence:gen_roster	_java_run	java_run	0	1		11	8	7	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:322
+//parser-equivalence:grammar_keyword_census	_java_run	java_run	1	1		14	11	2	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:425
+//parser-equivalence:guard_classpaths	classpath_report	guards_package	0	1		0	21	1	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:491
+//parser-equivalence:guard_markdown	markdown_report	guards_package	0	1		0	11	1	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:491
+//parser-equivalence:harvest_lib	java_library	legend_java_library	0	1		0	3	1	core_libs,upstream_jars	parser-equivalence/BUILD.bazel:247
+//parser-equivalence:harvest_shims	java_library	legend_java_library	0	1		4	1	1	core_libs,upstream_jars	parser-equivalence/BUILD.bazel:222
+//parser-equivalence:harvest_tests_jar_files	filegroup		0	1		1	1	1	upstream_jars	parser-equivalence/BUILD.bazel:272
+//parser-equivalence:harvest_tests_jars	java_jars		0	1		0	0	2	upstream_jars	parser-equivalence/BUILD.bazel:261
+//parser-equivalence:migration_sizing	_java_run	java_run	1	1		14	11	2	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:425
+//parser-equivalence:parity_sources	file_list		0	1		5	5	5		parser-equivalence/BUILD.bazel:115
+//parser-equivalence:parse_speed_benchmark	java_binary	legend_java_binary	1	1		0	7	1	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:459
+//parser-equivalence:parser_parity	java_test	junit_test	0	1	large	0	10	2	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:178
+//parser-equivalence:pe_tests_lib	java_library	legend_java_library	0	1		46	2	18	core_libs,upstream_jars	parser-equivalence/BUILD.bazel:44
+//parser-equivalence:pmcd_reachability_census	_java_run	java_run	1	1		14	11	2	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:425
+//parser-equivalence:probe_wire_shapes	java_binary	legend_java_binary	1	1		0	8	1	core_libs,oracle_pins,upstream_jars	parser-equivalence/BUILD.bazel:476
+//parser-equivalence:ratchets	_java_run	java_run	0	1		9	6	3	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:363
+//parser-equivalence:sibling_corpus	filegroup		0	0		266	0	11		parser-equivalence/BUILD.bazel:21
+//parser-equivalence:srcs	filegroup		0	0		320	0	2		parser-equivalence/BUILD.bazel:27
+//parser-equivalence:test_java	filegroup		0	0		50	0	11		parser-equivalence/BUILD.bazel:15
+//parser-equivalence:update_generated	_write_source_file	write_source_files	0	1		0	2	1	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:349
+//parser-equivalence:update_generated_0	_write_source_file	write_source_files	0	1		0	1	1	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:349
+//parser-equivalence:update_generated_0_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:349
+//parser-equivalence:update_generated_1	_write_source_file	write_source_files	0	1		0	1	1	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:349
+//parser-equivalence:update_generated_1_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:349
+//parser-equivalence:update_generated_tests	test_suite	write_source_files	0	1		0	2	1	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:349
+//parser-equivalence:update_ratchets	_write_source_file	write_source_files	0	1		0	1	1	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:382
+//parser-equivalence:update_ratchets_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:382
+//parser-equivalence:update_ratchets_tests	test_suite	write_source_files	0	1		0	1	1	core_libs,oracle_pins,upstream_jars,upstream_src	parser-equivalence/BUILD.bazel:382
+//parser-equivalence:z_fixture_adjudication_probe	java_binary	legend_java_binary	1	1		0	8	1	core_libs,oracle_pins,upstream_jars	parser-equivalence/BUILD.bazel:476
+//pct:adapter	java_library	legend_java_library	0	1		0	2	1	upstream_jars	pct/BUILD.bazel:57
+//pct:adapter_par	_java_run	java_run	0	1		4	1	2	upstream_jars	pct/BUILD.bazel:36
+//pct:adapter_par_jar	java_library	legend_java_library	0	1		0	2	1	upstream_jars	pct/BUILD.bazel:64
+//pct:all_files	filegroup	guards_package	0	0		38	0	1		pct/BUILD.bazel:284
+//pct:discipline_sources	file_list		0	1		1	1	1		pct/BUILD.bazel:136
+//pct:guard_classpaths	classpath_report	guards_package	0	1		0	25	1	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:284
+//pct:guard_markdown	markdown_report	guards_package	0	1		0	24	1	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:284
+//pct:pct_channel_b	test_suite		0	1		0	5	0	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:248
+//pct:pct_channel_b_essential	java_test	junit_test	0	1	large	0	3	3	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:227
+//pct:pct_channel_b_grammar	java_test	junit_test	0	1	large	0	3	3	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:227
+//pct:pct_channel_b_relation	java_test	junit_test	0	1	large	0	3	3	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:227
+//pct:pct_channel_b_standard	java_test	junit_test	0	1	large	0	3	3	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:227
+//pct:pct_channel_b_unclassified	java_test	junit_test	0	1	large	0	3	3	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:227
+//pct:pct_discipline	java_test	junit_test	0	1	small	1	3	4		pct/BUILD.bazel:142
+//pct:pct_duckdb	test_suite		0	1		0	6	0	core_libs,upstream_jars	pct/BUILD.bazel:157
+//pct:pct_duckdb_essential	java_test	junit_test	0	1	large	0	3	3	core_libs,upstream_jars	pct/BUILD.bazel:123
+//pct:pct_duckdb_grammar	java_test	junit_test	0	1	large	0	3	3	core_libs,upstream_jars	pct/BUILD.bazel:123
+//pct:pct_duckdb_relation	java_test	junit_test	0	1	large	0	3	3	core_libs,upstream_jars	pct/BUILD.bazel:123
+//pct:pct_duckdb_standard	java_test	junit_test	0	1	large	0	3	3	core_libs,upstream_jars	pct/BUILD.bazel:123
+//pct:pct_duckdb_unclassified	java_test	junit_test	0	1	large	0	3	3	core_libs,upstream_jars	pct/BUILD.bazel:123
+//pct:pct_h2	java_test	junit_test	0	1	large	0	2	2	core_libs,upstream_jars	pct/BUILD.bazel:170
+//pct:pct_postgres	test_suite		0	1		0	5	0	core_libs,upstream_jars	pct/BUILD.bazel:213
+//pct:pct_postgres_essential	java_test	junit_test	0	1	large	0	8	3	core_libs,upstream_jars	pct/BUILD.bazel:202
+//pct:pct_postgres_grammar	java_test	junit_test	0	1	large	0	8	3	core_libs,upstream_jars	pct/BUILD.bazel:202
+//pct:pct_postgres_relation	java_test	junit_test	0	1	large	0	8	3	core_libs,upstream_jars	pct/BUILD.bazel:202
+//pct:pct_postgres_standard	java_test	junit_test	0	1	large	0	8	3	core_libs,upstream_jars	pct/BUILD.bazel:202
+//pct:pct_postgres_unclassified	java_test	junit_test	0	1	large	0	8	3	core_libs,upstream_jars	pct/BUILD.bazel:202
+//pct:pct_tests_lib	java_library	legend_java_library	0	1		28	4	17	core_libs,upstream_jars	pct/BUILD.bazel:71
+//pct:ratchets	_java_run	java_run	1	1		4	2	3	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:256
+//pct:srcs	filegroup		0	0		37	0	5		pct/BUILD.bazel:16
+//pct:test_java	filegroup		0	0		29	0	11		pct/BUILD.bazel:24
+//pct:update_ratchets	_write_source_file	write_source_files	1	1		0	1	1	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:274
+//pct:update_ratchets_test	_diff_test	write_source_files	1	1	small	0	1	2	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:274
+//pct:update_ratchets_tests	test_suite	write_source_files	1	1		0	1	0	core_libs,upstream_jars,upstream_src	pct/BUILD.bazel:274
+//projects:all_files	filegroup	guards_package	0	0		226	0	1	projects	projects/BUILD.bazel:152
+//projects:cash-core	_legend_sources	legend_library	0	0		3	2	4	projects	projects/BUILD.bazel:86
+//projects:cash-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:cash-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:client-core	_legend_sources	legend_library	0	0		3	2	5	projects	projects/BUILD.bazel:86
+//projects:client-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:client-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:client-portal	_legend_sources	legend_library	0	0		3	2	2	projects	projects/BUILD.bazel:86
+//projects:client-portal_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:client-portal_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:client-reporting	_legend_sources	legend_library	0	0		3	3	3	projects	projects/BUILD.bazel:86
+//projects:client-reporting_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:client-reporting_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:collateral-core	_legend_sources	legend_library	0	0		3	2	4	projects	projects/BUILD.bazel:86
+//projects:collateral-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:collateral-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:collateral-mgmt	_legend_sources	legend_library	0	0		3	2	2	projects	projects/BUILD.bazel:86
+//projects:collateral-mgmt_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:collateral-mgmt_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:collateral-opt	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:collateral-opt_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:collateral-opt_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:contract_files	filegroup		0	0		55	0	1	projects	projects/BUILD.bazel:101
+//projects:contract_test	py_test	py_test	0	1	small	1	1	2	projects,python	projects/BUILD.bazel:106
+//projects:core-account	_legend_sources	legend_library	0	0		3	0	6	projects	projects/BUILD.bazel:86
+//projects:core-account_files	filegroup		0	0		3	0	11	projects	projects/BUILD.bazel:139
+//projects:core-account_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-book	_legend_sources	legend_library	0	0		3	0	5	projects	projects/BUILD.bazel:86
+//projects:core-book_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:core-book_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-calendar	_legend_sources	legend_library	0	0		3	0	4	projects	projects/BUILD.bazel:86
+//projects:core-calendar_files	filegroup		0	0		3	0	11	projects	projects/BUILD.bazel:139
+//projects:core-calendar_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-fx	_legend_sources	legend_library	0	0		3	0	3	projects	projects/BUILD.bazel:86
+//projects:core-fx_files	filegroup		0	0		3	0	11	projects	projects/BUILD.bazel:139
+//projects:core-fx_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-geo	_legend_sources	legend_library	0	0		3	0	5	projects	projects/BUILD.bazel:86
+//projects:core-geo_files	filegroup		0	0		3	0	11	projects	projects/BUILD.bazel:139
+//projects:core-geo_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-instrument	_legend_sources	legend_library	0	0		3	0	12	projects	projects/BUILD.bazel:86
+//projects:core-instrument_files	filegroup		0	0		3	0	11	projects	projects/BUILD.bazel:139
+//projects:core-instrument_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-party	_legend_sources	legend_library	0	0		3	0	9	projects	projects/BUILD.bazel:86
+//projects:core-party_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:core-party_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-price	_legend_sources	legend_library	0	0		3	0	4	projects	projects/BUILD.bazel:86
+//projects:core-price_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:core-price_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-ratings	_legend_sources	legend_library	0	0		3	0	3	projects	projects/BUILD.bazel:86
+//projects:core-ratings_files	filegroup		0	0		3	0	11	projects	projects/BUILD.bazel:139
+//projects:core-ratings_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-tenor	_legend_sources	legend_library	0	0		3	0	4	projects	projects/BUILD.bazel:86
+//projects:core-tenor_files	filegroup		0	0		3	0	11	projects	projects/BUILD.bazel:139
+//projects:core-tenor_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-types	_legend_sources	legend_library	0	0		1	0	6	projects	projects/BUILD.bazel:86
+//projects:core-types_files	filegroup		0	0		1	0	11	projects	projects/BUILD.bazel:139
+//projects:core-types_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:core-units	_legend_sources	legend_library	0	0		3	0	3	projects	projects/BUILD.bazel:86
+//projects:core-units_files	filegroup		0	0		3	0	11	projects	projects/BUILD.bazel:139
+//projects:core-units_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:credit-core	_legend_sources	legend_library	0	0		3	2	4	projects	projects/BUILD.bazel:86
+//projects:credit-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:credit-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:credit-limits	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:credit-limits_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:credit-limits_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:custody-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:custody-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:custody-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:custody-recon	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:custody-recon_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:custody-recon_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:event-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:event-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:event-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:exposure-agg	_legend_sources	legend_library	0	0		3	2	5	projects	projects/BUILD.bazel:86
+//projects:exposure-agg_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:exposure-agg_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:fee-billing	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:fee-billing_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:fee-billing_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:fee-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:fee-core_files	filegroup		0	0		3	0	11	projects	projects/BUILD.bazel:139
+//projects:fee-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:firm-balance-sheet	_legend_sources	legend_library	0	0		3	3	1	projects	projects/BUILD.bazel:86
+//projects:firm-balance-sheet_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:firm-balance-sheet_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:funding-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:funding-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:funding-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:graph_test	java_test	legend_graph_test	0	1	medium	0	57	3	core_libs,projects	projects/BUILD.bazel:95
+//projects:guard_classpaths	classpath_report	guards_package	0	1		0	63	1	core_libs,projects	projects/BUILD.bazel:152
+//projects:guard_markdown	markdown_report	guards_package	0	1		0	64	1	core_libs,projects,python	projects/BUILD.bazel:152
+//projects:index-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:index-core_files	filegroup		0	0		3	0	11	projects	projects/BUILD.bazel:139
+//projects:index-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:legal-core	_legend_sources	legend_library	0	0		3	1	3	projects	projects/BUILD.bazel:86
+//projects:legal-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:legal-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:legal-netting	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:legal-netting_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:legal-netting_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:limit-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:limit-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:limit-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:liquidity-view	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:liquidity-view_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:liquidity-view_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:margin-calc	_legend_sources	legend_library	0	0		3	2	4	projects	projects/BUILD.bazel:86
+//projects:margin-calc_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:margin-calc_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:ops-control	_legend_sources	legend_library	0	0		3	2	2	projects	projects/BUILD.bazel:86
+//projects:ops-control_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:ops-control_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:order-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:order-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:order-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:order-execution	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:order-execution_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:order-execution_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:pnl-attribution	_legend_sources	legend_library	0	0		3	2	4	projects	projects/BUILD.bazel:86
+//projects:pnl-attribution_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:pnl-attribution_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:position-keeping	_legend_sources	legend_library	0	0		3	2	6	projects	projects/BUILD.bazel:86
+//projects:position-keeping_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:position-keeping_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:product-catalogue	_legend_sources	legend_library	0	0		3	2	2	projects	projects/BUILD.bazel:86
+//projects:product-catalogue_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:product-catalogue_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:product-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:product-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:product-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:product-pricing	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:product-pricing_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:product-pricing_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:reference-data	_legend_sources	legend_library	0	0		3	2	4	projects	projects/BUILD.bazel:86
+//projects:reference-data_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:reference-data_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:regulatory-capital	_legend_sources	legend_library	0	0		3	3	2	projects	projects/BUILD.bazel:86
+//projects:regulatory-capital_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:regulatory-capital_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:regulatory-extract	_legend_sources	legend_library	0	0		3	3	3	projects	projects/BUILD.bazel:86
+//projects:regulatory-extract_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:regulatory-extract_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:risk-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:risk-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:risk-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:risk-dashboard	_legend_sources	legend_library	0	0		3	3	2	projects	projects/BUILD.bazel:86
+//projects:risk-dashboard_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:risk-dashboard_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:settlement-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:settlement-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:settlement-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:settlement-flow	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:settlement-flow_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:settlement-flow_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:srcs	filegroup		0	0		166	0	0	projects	projects/BUILD.bazel:128
+//projects:static-core	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:static-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:static-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:static-distribution	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:static-distribution_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:static-distribution_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:tests	test_suite		0	1		0	58	1	core_libs,projects,python	projects/BUILD.bazel:120
+//projects:trade-capture	_legend_sources	legend_library	0	0		3	3	5	projects	projects/BUILD.bazel:86
+//projects:trade-capture_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:trade-capture_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:trade-lifecycle	_legend_sources	legend_library	0	0		3	2	3	projects	projects/BUILD.bazel:86
+//projects:trade-lifecycle_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:trade-lifecycle_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:trade-surveillance	_legend_sources	legend_library	0	0		3	2	2	projects	projects/BUILD.bazel:86
+//projects:trade-surveillance_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:trade-surveillance_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//projects:valuation-core	_legend_sources	legend_library	0	0		3	2	5	projects	projects/BUILD.bazel:86
+//projects:valuation-core_files	filegroup		0	0		3	0	0	projects	projects/BUILD.bazel:139
+//projects:valuation-core_test	java_test	legend_library	0	1	small	0	3	3	core_libs,projects	projects/BUILD.bazel:86
+//pure-protocol:all_files	filegroup	guards_package	0	0		15	0	1		pure-protocol/BUILD.bazel:36
+//pure-protocol:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		pure-protocol/BUILD.bazel:36
+//pure-protocol:guard_markdown	markdown_report	guards_package	0	1		0	7	1	core_libs,teavm,wasm_planner	pure-protocol/BUILD.bazel:36
+//pure-protocol:pure_protocol	js_library		0	0		11	0	8		pure-protocol/BUILD.bazel:8
+//pure-protocol:twins_test	js_test	node_test	0	1	small	0	5	2	core_libs,teavm,wasm_planner	pure-protocol/BUILD.bazel:16
+//pure-protocol:typescript_sources	js_library		0	0		13	0	24		pure-protocol/BUILD.bazel:30
+//query-store:all_files	filegroup	guards_package	0	0		13	0	1		query-store/BUILD.bazel:73
+//query-store:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		query-store/BUILD.bazel:73
+//query-store:guard_markdown	markdown_report	guards_package	0	1		0	9	1	core_libs	query-store/BUILD.bazel:73
+//query-store:legend_server	executable_of		0	1		0	1	1	core_libs	query-store/BUILD.bazel:67
+//query-store:lite_test	js_test	node_test	0	1	medium	0	6	2	core_libs	query-store/BUILD.bazel:41
+//query-store:local_test	js_test	node_test	0	1	small	0	4	2		query-store/BUILD.bazel:16
+//query-store:query_store	js_library		0	0		7	0	9		query-store/BUILD.bazel:9
+//query-store:share_test	js_test	node_test	0	1	small	0	5	2		query-store/BUILD.bazel:28
+//query-store:typescript_sources	js_library		0	0		11	0	2		query-store/BUILD.bazel:57
+//query:all_files	filegroup	guards_package	0	0		67	0	1		query/BUILD.bazel:249
+//query:build_test	js_test	node_test	0	1	small	0	10	2	core_libs,npm_any,teavm,wasm_planner	query/BUILD.bazel:164
+//query:bundle_bundle	_run_binary	esbuild	0	0		6	6	1	npm_any	query/BUILD.bazel:46
+//query:bundle_bundle__entry_point	directory_path	esbuild	1	0		0	1	1	npm_any	query/BUILD.bazel:46
+//query:bundle_bundle__js_binary	js_binary	esbuild	1	0		0	2	2	npm_any	query/BUILD.bazel:46
+//query:bundle_bundle_copy_srcs_to_bin	_copy_to_bin	esbuild	1	0		3	2	1	npm_any	query/BUILD.bazel:46
+//query:bundle_bundle_js_info_files	js_info_files	esbuild	1	0		3	2	1	npm_any	query/BUILD.bazel:46
+//query:bundle_bundle_runfiles	filegroup	esbuild	1	0		1	1	1	npm_any	query/BUILD.bazel:46
+//query:bundle_planner_worker	_run_binary	esbuild	0	0		6	6	1	npm_any	query/BUILD.bazel:46
+//query:bundle_planner_worker__entry_point	directory_path	esbuild	1	0		0	1	1	npm_any	query/BUILD.bazel:46
+//query:bundle_planner_worker__js_binary	js_binary	esbuild	1	0		0	2	2	npm_any	query/BUILD.bazel:46
+//query:bundle_planner_worker_copy_srcs_to_bin	_copy_to_bin	esbuild	1	0		3	2	1	npm_any	query/BUILD.bazel:46
+//query:bundle_planner_worker_js_info_files	js_info_files	esbuild	1	0		3	2	1	npm_any	query/BUILD.bazel:46
+//query:bundle_planner_worker_runfiles	filegroup	esbuild	1	0		1	1	1	npm_any	query/BUILD.bazel:46
+//query:cube_styles	copy_to_directory		0	0		1	1	1		query/BUILD.bazel:99
+//query:demo_models	filegroup		0	0		3	0	3		query/BUILD.bazel:159
+//query:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		query/BUILD.bazel:249
+//query:guard_markdown	markdown_report	guards_package	0	1		0	11	1	core_libs,npm_any,teavm,wasm_planner	query/BUILD.bazel:249
+//query:icons_gen	_run_binary	js_run_binary	0	0		4	5	2		query/BUILD.bazel:234
+//query:icons_gen_copy_srcs_to_bin	_copy_to_bin	js_run_binary	1	0		1	1	1		query/BUILD.bazel:234
+//query:icons_gen_js_info_files	js_info_files	js_run_binary	1	0		1	1	1		query/BUILD.bazel:234
+//query:icons_gen_runfiles	filegroup	js_run_binary	1	0		1	1	1		query/BUILD.bazel:234
+//query:icons_tool	js_binary	js_binary	0	0		0	0	2		query/BUILD.bazel:213
+//query:load_test	js_test	node_test	0	1	small	0	10	2	core_libs,npm_any,teavm,wasm_planner	query/BUILD.bazel:164
+//query:react_icons	copy_to_directory		0	0		5	0	3		query/BUILD.bazel:228
+//query:saved_queries_test	js_test	node_test	0	1	small	0	10	2	core_libs,npm_any,teavm,wasm_planner	query/BUILD.bazel:164
+//query:serve	js_binary	js_binary	0	0		0	1	0	core_libs,npm_any,teavm,wasm_planner	query/BUILD.bazel:122
+//query:site	filegroup		0	0		14	4	3	core_libs,npm_any,teavm,wasm_planner	query/BUILD.bazel:107
+//query:src	js_library		0	0		46	4	9	npm_any	query/BUILD.bazel:26
+//query:tests	test_suite		0	1		0	4	1	core_libs,npm_any,teavm,wasm_planner	query/BUILD.bazel:207
+//query:typecheck_test	js_test	tsc_test	0	1	small	0	11	2	npm_any	query/BUILD.bazel:184
+//query:typecheck_test__entry_point	directory_path	tsc_test	1	0		0	1	1	npm_any	query/BUILD.bazel:184
+//query:update_generated	_write_source_file	write_source_files	0	0		0	1	1		query/BUILD.bazel:242
+//query:update_generated_test	_diff_test	write_source_files	0	1	small	0	1	2		query/BUILD.bazel:242
+//query:update_generated_tests	test_suite	write_source_files	0	1		0	1	1		query/BUILD.bazel:242
+//query:vendor	copy_to_directory		0	0		5	5	1	core_libs,npm_any,teavm,wasm_planner	query/BUILD.bazel:63
+//query:verify	js_binary	js_binary	0	0		0	5	0	core_libs,native_image,npm_any,teavm,warehouse_server,wasm_planner	query/BUILD.bazel:130
+//scripts/corpus:all_files	filegroup	guards_package	0	0		189	0	1		scripts/corpus/BUILD.bazel:253
+//scripts/corpus:build	py_binary	py_binary	0	0		1	1	1	python	scripts/corpus/BUILD.bazel:56
+//scripts/corpus:corpus	py_library	py_library	0	0		29	0	10	python	scripts/corpus/BUILD.bazel:16
+//scripts/corpus:dense_build	py_binary	py_binary	0	0		1	1	1	python	scripts/corpus/BUILD.bazel:68
+//scripts/corpus:density_gate	py_test	py_test	0	1	medium	1	13	2	projects,python	scripts/corpus/BUILD.bazel:151
+//scripts/corpus:differential	py_binary	py_binary	0	0		1	1	1	python	scripts/corpus/BUILD.bazel:62
+//scripts/corpus:engine_stress	py_test	py_test	1	1	enormous	1	15	1	core_libs,projects,python,upstream_jars	scripts/corpus/BUILD.bazel:225
+//scripts/corpus:executed_gate	py_test	py_test	0	1	medium	1	13	2	projects,python	scripts/corpus/BUILD.bazel:151
+//scripts/corpus:functions_gate	py_test	py_test	0	1	medium	1	13	2	projects,python	scripts/corpus/BUILD.bazel:169
+//scripts/corpus:gen_dense	_run_binary	run_binary	0	0		14	14	7	projects,python	scripts/corpus/BUILD.bazel:104
+//scripts/corpus:gen_differential	_run_binary	run_binary	0	0		14	13	1	projects,python	scripts/corpus/BUILD.bazel:189
+//scripts/corpus:gen_stress	_run_binary	run_binary	0	0		15	15	14	projects,python	scripts/corpus/BUILD.bazel:119
+//scripts/corpus:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		scripts/corpus/BUILD.bazel:253
+//scripts/corpus:guard_markdown	markdown_report	guards_package	0	1		0	12	1	core_libs,projects,python,upstream_jars	scripts/corpus/BUILD.bazel:253
+//scripts/corpus:pure_sources	filegroup		0	0		87	0	2		scripts/corpus/BUILD.bazel:181
+//scripts/corpus:run	py_binary	py_binary	0	1		1	15	0	core_libs,projects,python,upstream_jars	scripts/corpus/BUILD.bazel:240
+//scripts/corpus:scoreboard_gate	py_test	py_test	0	1	medium	1	13	2	projects,python	scripts/corpus/BUILD.bazel:169
+//scripts/corpus:stacking_gate	py_test	py_test	0	1	medium	1	13	2	projects,python	scripts/corpus/BUILD.bazel:151
+//scripts/corpus:testable_launcher	executable_of		0	1		0	1	2	core_libs,upstream_jars	scripts/corpus/BUILD.bazel:210
+//scripts/parser:all_files	filegroup	guards_package	0	0		278	0	1		scripts/parser/BUILD.bazel:104
+//scripts/parser:engine_grammars	copy_to_directory		0	1		1	0	1	upstream_src	scripts/parser/BUILD.bazel:54
+//scripts/parser:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		scripts/parser/BUILD.bazel:104
+//scripts/parser:guard_markdown	markdown_report	guards_package	0	1		0	7	1	core_libs,python,upstream_jars,upstream_src	scripts/parser/BUILD.bazel:104
+//scripts/parser:keyword_coverage	_run_binary	run_binary	0	1		2	3	2	core_libs,python,upstream_jars,upstream_src	scripts/parser/BUILD.bazel:73
+//scripts/parser:keywords	py_binary	py_binary	0	1		1	5	1	core_libs,python,upstream_jars,upstream_src	scripts/parser/BUILD.bazel:34
+//scripts/parser:our_pure	copy_to_directory		0	1		3	3	1		scripts/parser/BUILD.bazel:61
+//scripts/parser:pure_sources	filegroup		0	0		266	0	2		scripts/parser/BUILD.bazel:19
+//scripts/parser:tiers	py_library	py_library	0	0		1	0	1	python	scripts/parser/BUILD.bazel:11
+//scripts/parser:update_keyword_coverage	_write_source_file	write_source_files	0	1		0	1	1	core_libs,python,upstream_jars,upstream_src	scripts/parser/BUILD.bazel:96
+//scripts/parser:update_keyword_coverage_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,python,upstream_jars,upstream_src	scripts/parser/BUILD.bazel:96
+//scripts/parser:update_keyword_coverage_tests	test_suite	write_source_files	0	1		0	1	1	core_libs,python,upstream_jars,upstream_src	scripts/parser/BUILD.bazel:96
+//sdlc-client:all_files	filegroup	guards_package	0	0		13	0	1		sdlc-client/BUILD.bazel:77
+//sdlc-client:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		sdlc-client/BUILD.bazel:77
+//sdlc-client:guard_markdown	markdown_report	guards_package	0	1		0	8	1	core_libs,teavm	sdlc-client/BUILD.bazel:77
+//sdlc-client:sdlc_client	js_library		0	0		6	0	7		sdlc-client/BUILD.bazel:9
+//sdlc-client:sdlc_server	executable_of		0	1		0	1	3	core_libs	sdlc-client/BUILD.bazel:47
+//sdlc-client:server_helper	js_library		0	1		1	0	3		sdlc-client/BUILD.bazel:58
+//sdlc-client:server_test	js_test	node_test	0	1	medium	0	7	2	core_libs	sdlc-client/BUILD.bazel:16
+//sdlc-client:tests	test_suite		0	1		0	2	1	core_libs,teavm	sdlc-client/BUILD.bazel:69
+//sdlc-client:wasm_test	js_test	node_test	0	1	small	0	5	2	core_libs,teavm	sdlc-client/BUILD.bazel:32
+//sdlc-server:all_files	filegroup	guards_package	0	0		15	0	1		sdlc-server/BUILD.bazel:120
+//sdlc-server:git_repository_test	java_test	junit_test	0	1	small	1	4	3	core_libs	sdlc-server/BUILD.bazel:92
+//sdlc-server:guard_classpaths	classpath_report	guards_package	0	1		0	8	1	core_libs	sdlc-server/BUILD.bazel:120
+//sdlc-server:guard_markdown	markdown_report	guards_package	0	1		0	7	1	core_libs	sdlc-server/BUILD.bazel:120
+//sdlc-server:page	_teavm_wasm	teavm_wasm	0	0		0	2	2	core_libs,teavm	sdlc-server/BUILD.bazel:75
+//sdlc-server:page_boundary	java_library	legend_java_library	0	0		2	5	1	core_libs	sdlc-server/BUILD.bazel:61
+//sdlc-server:page_dir	copy_to_directory		0	0		1	1	4	core_libs,teavm	sdlc-server/BUILD.bazel:109
+//sdlc-server:rules	java_library	legend_java_library	0	0		7	5	3	core_libs	sdlc-server/BUILD.bazel:14
+//sdlc-server:server	java_binary	legend_java_binary	0	0		0	1	5	core_libs	sdlc-server/BUILD.bazel:39
+//sdlc-server:server_lib	java_library	legend_java_library	0	0		2	5	2	core_libs	sdlc-server/BUILD.bazel:27
+//sdlc-server:teavm_api	java_library	legend_java_library	0	0		0	0	1		sdlc-server/BUILD.bazel:51
+//site:all_files	filegroup	guards_package	0	0		4	0	1		site/BUILD.bazel:38
+//site:dist	copy_to_directory		0	0		3	2	2	core_libs,npm_any,teavm,wasm_planner	site/BUILD.bazel:10
+//site:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		site/BUILD.bazel:38
+//site:guard_markdown	markdown_report	guards_package	0	1		0	6	1		site/BUILD.bazel:38
+//site:serve	js_binary	js_binary	0	0		0	1	0	core_libs,npm_any,teavm,wasm_planner	site/BUILD.bazel:21
+//site:verify	js_binary	js_binary	0	0		0	2	0	core_libs,npm_any,teavm,wasm_planner	site/BUILD.bazel:28
+//spec:all_files	filegroup	guards_package	0	0		82	0	1		spec/BUILD.bazel:565
+//spec:claims	java_library	legend_java_library	0	0		2	2	2	core_libs	spec/BUILD.bazel:74
+//spec:claims_generator_lib	java_library	legend_java_library	0	0		2	3	1	core_libs,core_next,upstream_src	spec/BUILD.bazel:474
+//spec:core_main_sources	file_list		0	1		1	1	1		spec/BUILD.bazel:128
+//spec:corpus_duckdb	test_suite	corpus_lane	0	1		0	2	1	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:corpus_duckdb_verdict	java_test	corpus_lane	0	1	small	0	4	3	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:corpus_h2	test_suite	corpus_lane	0	1		0	2	1	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:corpus_h2_verdict	java_test	corpus_lane	0	1	small	0	4	3	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:corpus_one	java_binary	legend_java_binary	1	1		0	3	1	core_libs,upstream_src	spec/BUILD.bazel:207
+//spec:corpus_srcs	filegroup		0	0		70	0	6		spec/BUILD.bazel:25
+//spec:corpus_warehouse	test_suite	corpus_lane	1	1		0	1	0	core_libs,native_image,upstream_src,warehouse_server	spec/BUILD.bazel:169
+//spec:corpus_warehouse_verdict	java_test	corpus_lane	1	1	small	0	5	3	core_libs,native_image,upstream_src,warehouse_server	spec/BUILD.bazel:169
+//spec:eager_corpus_compile	_java_run	java_run	1	1		6	3	1	core_libs,upstream_src	spec/BUILD.bazel:517
+//spec:eager_corpus_compile_world2	_java_run	java_run	1	1		6	3	1	core_libs,upstream_src	spec/BUILD.bazel:517
+//spec:gen_claims	_java_run	java_run	0	0		4	5	3	core_libs,core_next,upstream_src	spec/BUILD.bazel:491
+//spec:gen_dynafn	_java_run	java_run	0	0		5	1	5	core_libs,upstream_src	spec/BUILD.bazel:350
+//spec:gen_engine_handlers	_java_run	java_run	0	0		1	1	3	core_libs	spec/BUILD.bazel:316
+//spec:gen_imports	_java_run	java_run	0	0		2	1	5	core_libs	spec/BUILD.bazel:331
+//spec:gen_natives	_java_run	java_run	0	0		6	1	6	core_libs,upstream_src	spec/BUILD.bazel:370
+//spec:gen_prelude	_java_run	java_run	0	0		6	3	4	core_libs,upstream_src	spec/BUILD.bazel:450
+//spec:generators	java_library	legend_java_library	0	0		8	3	8	core_libs	spec/BUILD.bazel:55
+//spec:guard_classpaths	classpath_report	guards_package	0	1		0	32	1	core_libs,core_next,native_image,oracle_pins,upstream_jars,upstream_src,warehouse_server	spec/BUILD.bazel:565
+//spec:guard_markdown	markdown_report	guards_package	0	1		0	24	1	core_libs,native_image,oracle_pins,upstream_jars,upstream_src,warehouse_server	spec/BUILD.bazel:565
+//spec:judge_database_duckdb	_java_run	corpus_lane	0	1		7	5	4	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:judge_database_h2	_java_run	corpus_lane	0	1		7	5	4	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:judge_database_warehouse	_java_run	corpus_lane	1	1		14	8	2	core_libs,native_image,upstream_src,warehouse_server	spec/BUILD.bazel:169
+//spec:judge_host_duckdb	_java_run	corpus_lane	0	1		6	4	11	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:judge_host_h2	_java_run	corpus_lane	0	1		6	4	11	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:judge_host_warehouse	_java_run	corpus_lane	1	1		13	7	3	core_libs,native_image,upstream_src,warehouse_server	spec/BUILD.bazel:169
+//spec:judge_lanes	test_suite		0	1		0	2	0	core_libs,upstream_src	spec/BUILD.bazel:286
+//spec:manifest_world_census	java_test	junit_test	1	1	large	0	4	2	core_libs,upstream_src	spec/BUILD.bazel:538
+//spec:native_declarations	_java_run	java_run	0	0		5	1	1	core_libs,upstream_src	spec/BUILD.bazel:417
+//spec:native_membership_draft	_java_run	java_run	0	0		0	1	2	core_libs	spec/BUILD.bazel:437
+//spec:our_resolutions	java_binary	legend_java_binary	1	1		0	3	1	core_libs,upstream_src	spec/BUILD.bazel:551
+//spec:ratchets	_java_run	java_run	0	1		4	1	3	core_libs,upstream_src	spec/BUILD.bazel:394
+//spec:reference_lane	java_test	junit_test	1	1	large	0	3	2	core_libs,oracle_pins,upstream_jars,upstream_src	spec/BUILD.bazel:271
+//spec:reference_lane_report	_java_run	java_run	1	1		6	3	4	core_libs,oracle_pins,upstream_jars,upstream_src	spec/BUILD.bazel:235
+//spec:source_tree	java_library	legend_java_library	0	0		1	0	4		spec/BUILD.bazel:48
+//spec:spec_tests	java_test	junit_test	0	1	large	0	4	3	core_libs,upstream_src	spec/BUILD.bazel:134
+//spec:spec_tests_lib	java_library	legend_java_library	0	1		36	8	19	core_libs	spec/BUILD.bazel:88
+//spec:srcs	filegroup		0	0		80	0	9		spec/BUILD.bazel:39
+//spec:test_java	filegroup		0	0		36	0	11		spec/BUILD.bazel:32
+//spec:update_ratchets	_write_source_file	write_source_files	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:407
+//spec:update_ratchets_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:407
+//spec:update_ratchets_tests	test_suite	write_source_files	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:407
+//spec:update_rcorpus_duckdb	_write_source_file	corpus_lane	0	1		0	5	0	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_0	_write_source_file	corpus_lane	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_0_test	_diff_test	corpus_lane	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_1	_write_source_file	corpus_lane	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_1_test	_diff_test	corpus_lane	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_2	_write_source_file	corpus_lane	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_2_test	_diff_test	corpus_lane	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_3	_write_source_file	corpus_lane	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_3_test	_diff_test	corpus_lane	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_4	_write_source_file	corpus_lane	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_4_test	_diff_test	corpus_lane	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_duckdb_tests	test_suite	corpus_lane	0	1		0	5	1	core_libs,upstream_src	spec/BUILD.bazel:156
+//spec:update_rcorpus_h2	_write_source_file	corpus_lane	0	1		0	5	0	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_0	_write_source_file	corpus_lane	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_0_test	_diff_test	corpus_lane	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_1	_write_source_file	corpus_lane	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_1_test	_diff_test	corpus_lane	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_2	_write_source_file	corpus_lane	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_2_test	_diff_test	corpus_lane	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_3	_write_source_file	corpus_lane	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_3_test	_diff_test	corpus_lane	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_4	_write_source_file	corpus_lane	0	1		0	1	1	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_4_test	_diff_test	corpus_lane	0	1	small	0	1	2	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_rcorpus_h2_tests	test_suite	corpus_lane	0	1		0	5	1	core_libs,upstream_src	spec/BUILD.bazel:196
+//spec:update_reference_lane	_write_source_file	write_source_files	1	1		0	1	0	core_libs,oracle_pins,upstream_jars,upstream_src	spec/BUILD.bazel:262
+//spec:update_reference_lane_test	_diff_test	write_source_files	1	1	small	0	1	2	core_libs,oracle_pins,upstream_jars,upstream_src	spec/BUILD.bazel:262
+//spec:update_reference_lane_tests	test_suite	write_source_files	1	1		0	1	0	core_libs,oracle_pins,upstream_jars,upstream_src	spec/BUILD.bazel:262
+//studio:all_files	filegroup	guards_package	0	0		54	0	1		studio/BUILD.bazel:179
+//studio:bundle	_run_binary	esbuild	0	0		6	6	1	npm_any	studio/BUILD.bazel:27
+//studio:bundle__entry_point	directory_path	esbuild	1	0		0	1	1	npm_any	studio/BUILD.bazel:27
+//studio:bundle__js_binary	js_binary	esbuild	1	0		0	2	2	npm_any	studio/BUILD.bazel:27
+//studio:bundle_copy_srcs_to_bin	_copy_to_bin	esbuild	1	0		3	2	1	npm_any	studio/BUILD.bazel:27
+//studio:bundle_editor_worker	_run_binary	esbuild	0	0		5	6	1	npm_any	studio/BUILD.bazel:43
+//studio:bundle_editor_worker__entry_point	directory_path	esbuild	1	0		0	1	1	npm_any	studio/BUILD.bazel:43
+//studio:bundle_editor_worker__js_binary	js_binary	esbuild	1	0		0	2	2	npm_any	studio/BUILD.bazel:43
+//studio:bundle_editor_worker_copy_srcs_to_bin	_copy_to_bin	esbuild	1	0		2	2	1	npm_any	studio/BUILD.bazel:43
+//studio:bundle_editor_worker_js_info_files	js_info_files	esbuild	1	0		2	2	1	npm_any	studio/BUILD.bazel:43
+//studio:bundle_editor_worker_runfiles	filegroup	esbuild	1	0		1	1	1	npm_any	studio/BUILD.bazel:43
+//studio:bundle_js_info_files	js_info_files	esbuild	1	0		3	2	1	npm_any	studio/BUILD.bazel:27
+//studio:bundle_planner_worker	_run_binary	esbuild	0	0		5	6	1	npm_any	studio/BUILD.bazel:43
+//studio:bundle_planner_worker__entry_point	directory_path	esbuild	1	0		0	1	1	npm_any	studio/BUILD.bazel:43
+//studio:bundle_planner_worker__js_binary	js_binary	esbuild	1	0		0	2	2	npm_any	studio/BUILD.bazel:43
+//studio:bundle_planner_worker_copy_srcs_to_bin	_copy_to_bin	esbuild	1	0		2	2	1	npm_any	studio/BUILD.bazel:43
+//studio:bundle_planner_worker_js_info_files	js_info_files	esbuild	1	0		2	2	1	npm_any	studio/BUILD.bazel:43
+//studio:bundle_planner_worker_runfiles	filegroup	esbuild	1	0		1	1	1	npm_any	studio/BUILD.bazel:43
+//studio:bundle_runfiles	filegroup	esbuild	1	0		1	1	1	npm_any	studio/BUILD.bazel:27
+//studio:demo_projects	filegroup		0	0		18	0	2		studio/BUILD.bazel:145
+//studio:demo_test	js_test	node_test	0	1	small	0	8	2	core_libs,teavm,wasm_planner	studio/BUILD.bazel:125
+//studio:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		studio/BUILD.bazel:179
+//studio:guard_markdown	markdown_report	guards_package	0	1		0	10	1	chromium,core_libs,npm_any,teavm,wasm_planner	studio/BUILD.bazel:179
+//studio:serve	js_binary	js_binary	0	0		0	1	0	core_libs,npm_any,teavm,wasm_planner	studio/BUILD.bazel:102
+//studio:site	filegroup		0	0		27	4	2	core_libs,npm_any,teavm,wasm_planner	studio/BUILD.bazel:90
+//studio:src	js_library		0	0		16	2	11		studio/BUILD.bazel:17
+//studio:tests	test_suite		0	1		0	3	1	core_libs,npm_any,teavm,wasm_planner	studio/BUILD.bazel:170
+//studio:typecheck_test	js_test	tsc_test	0	1	small	0	7	2	npm_any	studio/BUILD.bazel:150
+//studio:typecheck_test__entry_point	directory_path	tsc_test	1	0		0	1	1	npm_any	studio/BUILD.bazel:150
+//studio:vendor	copy_to_directory		0	0		4	4	1	core_libs,npm_any,teavm,wasm_planner	studio/BUILD.bazel:63
+//studio:verify_test	js_test	browser_test	0	1	large	0	16	1	chromium,core_libs,npm_any,teavm,wasm_planner	studio/BUILD.bazel:110
+//studio:workspace_test	js_test	node_test	0	1	small	0	8	2	core_libs,teavm,wasm_planner	studio/BUILD.bazel:125
+//testing:all_files	filegroup	guards_package	0	0		9	0	1		testing/BUILD.bazel:16
+//testing:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		testing/BUILD.bazel:16
+//testing:guard_markdown	markdown_report	guards_package	0	1		0	6	1		testing/BUILD.bazel:16
+//testing:testing	java_library	legend_java_library	0	1		8	0	21		testing/BUILD.bazel:6
+//third_party:all_files	filegroup	guards_package	0	0		5	0	1		third_party/BUILD.bazel:5
+//third_party:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		third_party/BUILD.bazel:5
+//third_party:guard_markdown	markdown_report	guards_package	0	1		0	6	1		third_party/BUILD.bazel:5
+//tools/browser:all_files	filegroup	guards_package	0	0		5	0	1		tools/browser/BUILD.bazel:81
+//tools/browser:chromium_headless_shell	alias		0	0		0	5	12		tools/browser/BUILD.bazel:25
+//tools/browser:chromium_headless_shell_executable	alias		0	0		0	5	12		tools/browser/BUILD.bazel:32
+//tools/browser:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/browser/BUILD.bazel:81
+//tools/browser:guard_markdown	markdown_report	guards_package	0	1		0	7	1	npm_any	tools/browser/BUILD.bazel:81
+//tools/browser:pinned_chromium	js_library		0	0		1	0	25	chromium	tools/browser/BUILD.bazel:38
+//tools/browser:revision_test	js_test	node_test	0	1		0	6	2	npm_any	tools/browser/BUILD.bazel:46
+//tools/bump:all_files	filegroup	guards_package	0	0		3	0	1		tools/bump/BUILD.bazel:38
+//tools/bump:bump	java_binary	legend_java_binary	0	0		0	1	1		tools/bump/BUILD.bazel:15
+//tools/bump:bump_lib	java_library	legend_java_library	0	0		1	0	2		tools/bump/BUILD.bazel:5
+//tools/bump:bump_test	java_test	junit_test	0	1	small	1	3	3		tools/bump/BUILD.bazel:23
+//tools/bump:guard_classpaths	classpath_report	guards_package	0	1		0	8	1		tools/bump/BUILD.bazel:38
+//tools/bump:guard_markdown	markdown_report	guards_package	0	1		0	7	1		tools/bump/BUILD.bazel:38
+//tools/cc:all_files	filegroup	guards_package	0	0		2	0	1		tools/cc/BUILD.bazel:4
+//tools/cc:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/cc/BUILD.bazel:4
+//tools/cc:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/cc/BUILD.bazel:4
+//tools/census:all_files	filegroup	guards_package	0	0		6	0	1		tools/census/BUILD.bazel:25
+//tools/census:guard_classpaths	classpath_report	guards_package	0	1		0	7	1	core_libs	tools/census/BUILD.bazel:25
+//tools/census:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/census/BUILD.bazel:25
+//tools/census:lanes_diff	py_binary	py_binary	0	0		1	0	0	python	tools/census/BUILD.bazel:20
+//tools/census:render_census	java_binary	legend_java_binary	0	0		1	1	1	core_libs	tools/census/BUILD.bazel:10
+//tools/deps:all_files	filegroup	guards_package	0	0		7	0	1		tools/deps/BUILD.bazel:121
+//tools/deps:core_closure	genquery		0	0		0	1	1	core_libs	tools/deps/BUILD.bazel:10
+//tools/deps:core_closure_test	java_test	junit_test	0	1	small	1	5	3	core_libs	tools/deps/BUILD.bazel:37
+//tools/deps:core_layering_test	java_test	junit_test	0	1	small	1	3	3	core_libs	tools/deps/BUILD.bazel:83
+//tools/deps:drivers_closure	genquery		0	0		0	1	1	core_libs	tools/deps/BUILD.bazel:20
+//tools/deps:guard_classpaths	classpath_report	guards_package	0	1		0	10	1	core_libs,warehouse_server	tools/deps/BUILD.bazel:121
+//tools/deps:guard_markdown	markdown_report	guards_package	0	1		0	10	1	core_libs,warehouse_server	tools/deps/BUILD.bazel:121
+//tools/deps:pools_list_test	java_test	junit_test	0	1	small	1	3	3		tools/deps/BUILD.bazel:103
+//tools/deps:spec_closure	genquery		0	0		0	1	1	core_libs	tools/deps/BUILD.bazel:30
+//tools/deps:warehouse_closure	genquery		0	0		0	3	1	warehouse_server	tools/deps/BUILD.bazel:57
+//tools/deps:warehouse_closure_test	java_test	junit_test	0	1	small	1	3	3	warehouse_server	tools/deps/BUILD.bazel:67
+//tools/engine-runner:all_files	filegroup	guards_package	0	0		10	0	1		tools/engine-runner/BUILD.bazel:106
+//tools/engine-runner:guard_classpaths	classpath_report	guards_package	0	1		0	11	1	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:106
+//tools/engine-runner:guard_markdown	markdown_report	guards_package	0	1		0	8	1	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:106
+//tools/engine-runner:lite_parse	java_binary	legend_java_binary	0	1		0	1	2	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:47
+//tools/engine-runner:parse	java_binary	legend_java_binary	0	1		0	1	2	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:47
+//tools/engine-runner:runner	java_library	legend_java_library	0	1		5	1	4	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:9
+//tools/engine-runner:smoke_test	java_test	junit_test	0	1	medium	1	5	3	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:82
+//tools/engine-runner:testable	java_binary	legend_java_binary	0	1		0	1	5	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:47
+//tools/engine-runner:update_vocab	_write_source_file	write_source_files	0	1		0	1	1	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:73
+//tools/engine-runner:update_vocab_test	_diff_test	write_source_files	0	1	small	0	1	2	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:73
+//tools/engine-runner:update_vocab_tests	test_suite	write_source_files	0	1		0	1	1	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:73
+//tools/engine-runner:vocab	_java_run	java_run	0	1		0	1	4	core_libs,upstream_jars	tools/engine-runner/BUILD.bazel:62
+//tools/generators:all_files	filegroup	guards_package	0	0		2	0	1		tools/generators/BUILD.bazel:3
+//tools/generators:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/generators/BUILD.bazel:3
+//tools/generators:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/generators/BUILD.bazel:3
+//tools/graalvm:all_files	filegroup	guards_package	0	0		2	0	1		tools/graalvm/BUILD.bazel:13
+//tools/graalvm:guard_classpaths	classpath_report	guards_package	0	1		0	7	1		tools/graalvm/BUILD.bazel:13
+//tools/graalvm:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/graalvm/BUILD.bazel:13
+//tools/graalvm:sysroot_native_image	java_binary	legend_java_binary	0	0		1	0	2		tools/graalvm/BUILD.bazel:6
+//tools/guards:all_files	filegroup	guards_package	0	0		9	0	1		tools/guards/BUILD.bazel:93
+//tools/guards:classpath_reports	filegroup		0	1		53	53	1	core_libs,core_next,native_image,npm_any,oracle_pins,projects,python,teavm,upstream_jars,upstream_src,warehouse_server	tools/guards/BUILD.bazel:72
+//tools/guards:classpath_test	java_test	junit_test	0	1	small	1	3	3	core_libs,core_next,native_image,npm_any,oracle_pins,projects,python,teavm,upstream_jars,upstream_src,warehouse_server	tools/guards/BUILD.bazel:78
+//tools/guards:guard_classpaths	classpath_report	guards_package	0	1		0	10	0	chromium,core_libs,core_next,native_image,npm_any,oracle_pins,projects,python,teavm,upstream_jars,upstream_src,warehouse_server,wasm_planner	tools/guards/BUILD.bazel:93
+//tools/guards:guard_markdown	markdown_report	guards_package	0	1		0	10	0	chromium,core_libs,core_next,native_image,npm_any,oracle_pins,projects,python,teavm,upstream_jars,upstream_src,warehouse_server,wasm_planner	tools/guards/BUILD.bazel:93
+//tools/guards:inventory_test	java_test	junit_test	0	1	small	1	3	3	projects	tools/guards/BUILD.bazel:15
+//tools/guards:locks_test	java_test	junit_test	0	1	small	1	3	3		tools/guards/BUILD.bazel:33
+//tools/guards:markdown_inputs_test	java_test	junit_test	0	1	small	1	3	3	chromium,core_libs,core_next,native_image,npm_any,oracle_pins,projects,python,teavm,upstream_jars,upstream_src,warehouse_server,wasm_planner	tools/guards/BUILD.bazel:56
+//tools/guards:markdown_reports	filegroup		0	1		53	53	1	chromium,core_libs,core_next,native_image,npm_any,oracle_pins,projects,python,teavm,upstream_jars,upstream_src,warehouse_server,wasm_planner	tools/guards/BUILD.bazel:50
+//tools/guards:repository_files	filegroup		0	0		54	54	1	projects	tools/guards/BUILD.bazel:9
+//tools/gunzip:all_files	filegroup	guards_package	0	0		2	0	1		tools/gunzip/BUILD.bazel:13
+//tools/gunzip:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/gunzip/BUILD.bazel:13
+//tools/gunzip:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/gunzip/BUILD.bazel:13
+//tools/gunzip:gunzip	java_library	legend_java_library	0	0		1	0	1		tools/gunzip/BUILD.bazel:5
+//tools/jars:all_files	filegroup	guards_package	0	0		2	0	1		tools/jars/BUILD.bazel:4
+//tools/jars:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/jars/BUILD.bazel:4
+//tools/jars:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/jars/BUILD.bazel:4
+//tools/java:all_files	filegroup	guards_package	0	0		2	0	1		tools/java/BUILD.bazel:4
+//tools/java:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/java/BUILD.bazel:4
+//tools/java:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/java/BUILD.bazel:4
+//tools/java_run:all_files	filegroup	guards_package	0	0		4	0	1		tools/java_run/BUILD.bazel:31
+//tools/java_run:guard_classpaths	classpath_report	guards_package	0	1		0	7	1		tools/java_run/BUILD.bazel:31
+//tools/java_run:guard_markdown	markdown_report	guards_package	0	1		0	7	1		tools/java_run/BUILD.bazel:31
+//tools/java_run:pins	_java_run	java_run	0	0		0	1	2		tools/java_run/BUILD.bazel:17
+//tools/java_run:pins_test	_diff_test	diff_test	0	1	small	0	1	2		tools/java_run/BUILD.bazel:25
+//tools/java_run:print_pins	java_library	legend_java_library	0	0		1	0	1		tools/java_run/BUILD.bazel:10
+//tools/js:all_files	filegroup	guards_package	0	0		6	0	1		tools/js/BUILD.bazel:58
+//tools/js:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/js/BUILD.bazel:58
+//tools/js:guard_markdown	markdown_report	guards_package	0	1		0	7	1		tools/js/BUILD.bazel:58
+//tools/js:lock_matches_package_json_test	js_test	node_test	0	1	small	0	3	2		tools/js/BUILD.bazel:27
+//tools/js:runfiles	js_library		0	0		1	0	162		tools/js/BUILD.bazel:20
+//tools/js:strict_reporter	js_library		0	0		1	0	138		tools/js/BUILD.bazel:6
+//tools/js:zone	js_library		0	0		1	0	138		tools/js/BUILD.bazel:13
+//tools/junit:all_files	filegroup	guards_package	0	0		11	0	1		tools/junit/BUILD.bazel:67
+//tools/junit:compare_testcases	java_binary	legend_java_binary	0	0		1	0	1		tools/junit/BUILD.bazel:61
+//tools/junit:guard_classpaths	classpath_report	guards_package	0	1		0	9	1	upstream_jars	tools/junit/BUILD.bazel:67
+//tools/junit:guard_markdown	markdown_report	guards_package	0	1		0	8	1	upstream_jars	tools/junit/BUILD.bazel:67
+//tools/junit:junit	java_library	legend_java_library	0	1		2	0	141		tools/junit/BUILD.bazel:9
+//tools/junit:pins_test	java_test	junit_test	0	1	small	1	1	3		tools/junit/BUILD.bazel:33
+//tools/junit:runner_test	java_test	junit_test	0	1	small	5	1	3	upstream_jars	tools/junit/BUILD.bazel:44
+//tools/legend:all_files	filegroup	guards_package	0	0		3	0	1		tools/legend/BUILD.bazel:18
+//tools/legend:compiles_test_lib	java_library	legend_java_library	0	1		1	3	57	core_libs	tools/legend/BUILD.bazel:6
+//tools/legend:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/legend/BUILD.bazel:18
+//tools/legend:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/legend/BUILD.bazel:18
+//tools/nullaway:all_files	filegroup	guards_package	0	0		2	0	1		tools/nullaway/BUILD.bazel:16
+//tools/nullaway:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/nullaway/BUILD.bazel:16
+//tools/nullaway:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/nullaway/BUILD.bazel:16
+//tools/nullaway:nullaway	java_plugin	java_plugin	0	0		0	0	53		tools/nullaway/BUILD.bazel:11
+//tools/par:all_files	filegroup	guards_package	0	0		2	0	1		tools/par/BUILD.bazel:23
+//tools/par:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/par/BUILD.bazel:23
+//tools/par:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/par/BUILD.bazel:23
+//tools/par:par_generator	java_library	legend_java_library	0	1		1	0	1	upstream_jars	tools/par/BUILD.bazel:8
+//tools/platforms:all_files	filegroup	guards_package	0	0		2	0	1		tools/platforms/BUILD.bazel:71
+//tools/platforms:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/platforms/BUILD.bazel:71
+//tools/platforms:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/platforms/BUILD.bazel:71
+//tools/platforms:linux_aarch64	config_setting		0	0		0	0	140		tools/platforms/BUILD.bazel:7
+//tools/platforms:linux_x86_64	config_setting		0	0		0	0	140		tools/platforms/BUILD.bazel:15
+//tools/platforms:macos_arm64	config_setting		0	0		0	0	140		tools/platforms/BUILD.bazel:23
+//tools/platforms:macos_x86_64	config_setting		0	0		0	0	140		tools/platforms/BUILD.bazel:31
+//tools/platforms:unlisted_test	platform		0	0		0	0	0		tools/platforms/BUILD.bazel:63
+//tools/platforms:windows_aarch64	config_setting		0	0		0	0	108		tools/platforms/BUILD.bazel:39
+//tools/platforms:windows_x86_64	config_setting		0	0		0	0	143		tools/platforms/BUILD.bazel:47
+//tools/postgres:all_files	filegroup	guards_package	0	0		4	0	1		tools/postgres/BUILD.bazel:3
+//tools/postgres:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/postgres/BUILD.bazel:3
+//tools/postgres:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/postgres/BUILD.bazel:3
+//tools/python:all_files	filegroup	guards_package	0	0		4	0	1		tools/python/BUILD.bazel:32
+//tools/python:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/python/BUILD.bazel:32
+//tools/python:guard_markdown	markdown_report	guards_package	0	1		0	8	1	python	tools/python/BUILD.bazel:32
+//tools/python:lock_matches_requirements	py_test	py_test	0	1	small	1	0	2	python	tools/python/BUILD.bazel:17
+//tools/python:requirements	filegroup	pip_compile	0	0		1	0	2		tools/python/BUILD.bazel:9
+//tools/python:requirements.test	py_test	pip_compile	1	1		1	1	2	python	tools/python/BUILD.bazel:9
+//tools/python:requirements.update	py_binary	pip_compile	1	0		1	1	0	python	tools/python/BUILD.bazel:9
+//tools/python:requirements_test	alias	pip_compile	1	0		0	1	0	python	tools/python/BUILD.bazel:9
+//tools/reference:all_files	filegroup	guards_package	0	0		6	0	1		tools/reference/BUILD.bazel:111
+//tools/reference:guard_classpaths	classpath_report	guards_package	0	1		0	8	1	upstream_jars	tools/reference/BUILD.bazel:111
+//tools/reference:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/reference/BUILD.bazel:111
+//tools/reference:ref_dump	_java_run	java_run	1	1		0	1	2	upstream_jars	tools/reference/BUILD.bazel:64
+//tools/reference:ref_imports	_java_run	java_run	1	1		0	1	1	upstream_jars	tools/reference/BUILD.bazel:98
+//tools/reference:ref_imports_lib	java_library	legend_java_library	0	1		1	0	1	upstream_jars	tools/reference/BUILD.bazel:87
+//tools/reference:ref_resolutions	java_library	legend_java_library	0	1		1	0	1	upstream_jars	tools/reference/BUILD.bazel:51
+//tools/runfiles:all_files	filegroup	guards_package	0	0		2	0	1		tools/runfiles/BUILD.bazel:4
+//tools/runfiles:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/runfiles/BUILD.bazel:4
+//tools/runfiles:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/runfiles/BUILD.bazel:4
+//tools/teavm:all_files	filegroup	guards_package	0	0		3	0	1		tools/teavm/BUILD.bazel:21
+//tools/teavm:compile	java_binary	legend_java_binary	0	0		1	0	4	teavm	tools/teavm/BUILD.bazel:9
+//tools/teavm:guard_classpaths	classpath_report	guards_package	0	1		0	7	1	teavm	tools/teavm/BUILD.bazel:21
+//tools/teavm:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/teavm/BUILD.bazel:21
+//tools/wrongrows:all_files	filegroup	guards_package	0	0		5	0	1		tools/wrongrows/BUILD.bazel:11
+//tools/wrongrows:compare	py_binary	py_binary	0	0		1	0	0	python	tools/wrongrows/BUILD.bazel:6
+//tools/wrongrows:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/wrongrows/BUILD.bazel:11
+//tools/wrongrows:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/wrongrows/BUILD.bazel:11
+//tools:all_files	filegroup	guards_package	0	0		27	0	1		tools/BUILD.bazel:14
+//tools:guard_classpaths	classpath_report	guards_package	0	1		0	6	1		tools/BUILD.bazel:14
+//tools:guard_markdown	markdown_report	guards_package	0	1		0	6	1		tools/BUILD.bazel:14
+//tools:oracle_pins	_copy_file	copy_file	0	0		0	0	16	oracle_pins	tools/BUILD.bazel:7
+//warehouse:all_files	filegroup	guards_package	0	0		73	0	1		warehouse/BUILD.bazel:444
+//warehouse:arrow_matches_json	py_binary	py_binary	0	1		1	5	5	python	warehouse/BUILD.bazel:132
+//warehouse:arrow_matches_json_executable	executable_of		0	1		0	1	4	python	warehouse/BUILD.bazel:141
+//warehouse:client	java_library	legend_java_library	0	0		12	4	5		warehouse/BUILD.bazel:45
+//warehouse:duckdb_extension_gz	alias		0	0		0	5	1		warehouse/BUILD.bazel:365
+//warehouse:duckdb_extensions	_java_run	java_run	0	0		1	7	7		warehouse/BUILD.bazel:372
+//warehouse:duckdb_library	jar_entry		0	0		0	5	15		warehouse/BUILD.bazel:265
+//warehouse:guard_classpaths	classpath_report	guards_package	0	1		0	15	1	native_image,python,teavm,warehouse_server	warehouse/BUILD.bazel:444
+//warehouse:guard_markdown	markdown_report	guards_package	0	1		0	13	1	native_image,python,teavm,warehouse_server	warehouse/BUILD.bazel:444
+//warehouse:launcher_test	java_test	junit_test	0	1	medium	1	10	2	native_image,warehouse_server	warehouse/BUILD.bazel:334
+//warehouse:launcher_test_serve_site	alias	warehouse_run	0	1		0	2	1	native_image,warehouse_server	warehouse/BUILD.bazel:318
+//warehouse:launcher_test_serve_site_extensions	copy_to_directory	warehouse_run	0	1		1	6	2		warehouse/BUILD.bazel:318
+//warehouse:launcher_test_serve_site_posix	_posix_launcher	warehouse_run	0	1		0	4	1	native_image,warehouse_server	warehouse/BUILD.bazel:318
+//warehouse:launcher_test_serve_site_windows	launcher_binary	warehouse_run	0	1		0	5	1	native_image,warehouse_server	warehouse/BUILD.bazel:318
+//warehouse:launcher_test_site	copy_to_directory		0	1		1	0	2		warehouse/BUILD.bazel:311
+//warehouse:postgres_live	java_test	junit_test	0	1	medium	0	11	2	python,warehouse_server	warehouse/BUILD.bazel:236
+//warehouse:postgres_live_native	java_test	junit_test	0	1	medium	0	12	2	native_image,python,warehouse_server	warehouse/BUILD.bazel:248
+//warehouse:reachability_metadata	_java_run	java_run	0	1		0	1	3	warehouse_server	warehouse/BUILD.bazel:390
+//warehouse:serve	alias	warehouse_run	0	0		0	2	3	native_image,warehouse_server	warehouse/BUILD.bazel:303
+//warehouse:serve_extensions	copy_to_directory	warehouse_run	0	0		1	6	2		warehouse/BUILD.bazel:303
+//warehouse:serve_posix	_posix_launcher	warehouse_run	0	0		0	3	1	native_image,warehouse_server	warehouse/BUILD.bazel:303
+//warehouse:serve_windows	launcher_binary	warehouse_run	0	0		0	4	1	native_image,warehouse_server	warehouse/BUILD.bazel:303
+//warehouse:server	java_binary	legend_java_binary	0	0		0	3	1	warehouse_server	warehouse/BUILD.bazel:81
+//warehouse:server_lib	java_library	legend_java_library	0	0		29	4	4	warehouse_server	warehouse/BUILD.bazel:59
+//warehouse:server_native	_native_image	native_image	0	0		0	7	12	native_image,warehouse_server	warehouse/BUILD.bazel:194
+//warehouse:sqlapi	java_library	legend_java_library	0	0		9	3	5		warehouse/BUILD.bazel:33
+//warehouse:sqlapi_wasm	_teavm_wasm	teavm_wasm	0	1		0	2	1	teavm	warehouse/BUILD.bazel:418
+//warehouse:sqlapi_wasm_build_test	java_test	junit_test	0	1	small	1	3	3	teavm	warehouse/BUILD.bazel:429
+//warehouse:sqlapi_wasm_entry	java_library	legend_java_library	0	1		1	2	1		warehouse/BUILD.bazel:411
+//warehouse:test_java	filegroup		0	0		17	0	1		warehouse/BUILD.bazel:96
+//warehouse:tests	java_test	junit_test	0	1	medium	0	5	3	python,warehouse_server	warehouse/BUILD.bazel:164
+//warehouse:tests_lib	java_library	legend_java_library	0	1		14	6	5	warehouse_server	warehouse/BUILD.bazel:102
+//warehouse:tests_native	java_test	junit_test	0	1	medium	0	6	2	native_image,python,warehouse_server	warehouse/BUILD.bazel:273
+//warehouse:update_reachability_metadata	_write_source_file	write_source_files	0	1		0	1	1	warehouse_server	warehouse/BUILD.bazel:400
+//warehouse:update_reachability_metadata_test	_diff_test	write_source_files	0	1	small	0	1	2	warehouse_server	warehouse/BUILD.bazel:400
+//warehouse:update_reachability_metadata_tests	test_suite	write_source_files	0	1		0	1	1	warehouse_server	warehouse/BUILD.bazel:400
+//wasm:all_files	filegroup	guards_package	0	0		12	0	1		wasm/BUILD.bazel:162
+//wasm:boundary	java_library	legend_java_library	0	0		2	3	3	core_libs	wasm/BUILD.bazel:33
+//wasm:differential	js_library		0	0		1	0	2		wasm/BUILD.bazel:13
+//wasm:differential_test	js_test	node_test	0	1	medium	0	7	2	core_libs,teavm,wasm_planner	wasm/BUILD.bazel:113
+//wasm:guard_classpaths	classpath_report	guards_package	0	1		0	8	1	core_libs	wasm/BUILD.bazel:162
+//wasm:guard_markdown	markdown_report	guards_package	0	1		0	8	1	core_libs,teavm,wasm_planner	wasm/BUILD.bazel:162
+//wasm:jvm_answers	_java_run	java_run	0	0		2	1	2	core_libs	wasm/BUILD.bazel:96
+//wasm:jvm_main	java_library	legend_java_library	0	0		1	1	2	core_libs	wasm/BUILD.bazel:76
+//wasm:planner	_teavm_wasm	teavm_wasm	0	0		0	2	7	core_libs,teavm,wasm_planner	wasm/BUILD.bazel:53
+//wasm:planner_dir	copy_to_directory		0	0		1	1	48	core_libs,teavm,wasm_planner	wasm/BUILD.bazel:66
+//wasm:startup	js_binary	js_binary	0	0		0	1	0	core_libs,teavm,wasm_planner	wasm/BUILD.bazel:151
+//wasm:teavm_api	java_library	legend_java_library	0	0		0	1	1		wasm/BUILD.bazel:22
+//wasm:zone_jvm	_java_run	java_run	0	0		0	1	2	core_libs	wasm/BUILD.bazel:130
+//wasm:zone_main	java_library	legend_java_library	0	0		1	1	1	core_libs	wasm/BUILD.bazel:85
+//wasm:zone_test	js_test	node_test	0	1	small	0	6	2	core_libs,teavm,wasm_planner	wasm/BUILD.bazel:138
