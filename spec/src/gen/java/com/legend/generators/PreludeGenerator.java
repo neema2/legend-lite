@@ -6,6 +6,7 @@ package com.legend.generators;
 import com.legend.Compiler;
 import com.legend.lexer.TokenType;
 import com.legend.protocol.Protocol;
+import com.legend.compiler.CoreImports;
 import com.legend.compiler.NameResolver;
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
@@ -318,7 +319,7 @@ public final class PreludeGenerator {
                         continue;
                     }
                     List<String> scope = new ArrayList<>(imports);
-                    scope.addAll(NameResolver.CORE_IMPORTS);   // real pure's implicit imports
+                    scope.addAll(CoreImports.SEQUENCE);   // real pure's implicit imports
                     for (String imp : scope) {
                         if (index.containsKey(imp + "::" + n)) {
                             sink.add(imp + "::" + n);
@@ -472,7 +473,7 @@ public final class PreludeGenerator {
                             String pkg = c.substring(0, c.lastIndexOf("::"));
                             boolean inTier = tier == 0 ? pkg.equals(ownPkg)
                                     : tier == 1 ? pf.wildcards().contains(pkg)
-                                    : NameResolver.CORE_IMPORTS.contains(pkg);
+                                    : CoreImports.SEQUENCE.contains(pkg);
                             if (inTier) {
                                 cands.add(c);
                             }

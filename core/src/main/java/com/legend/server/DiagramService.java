@@ -82,7 +82,7 @@ public final class DiagramService {
         List<GeneralisationInfo> generalisations = new ArrayList<>();
 
         // A bare `doc` is meta::pure::profiles::doc through the implicit import
-        // (NameResolver.CORE_IMPORTS) — unless this model declares a profile of
+        // (CoreImports.SEQUENCE) — unless this model declares a profile of
         // its own named `doc`, which makes the bare name ambiguous in Pure.
         boolean docIsPlatform = true;
         for (var el : model.elements()) {

@@ -161,8 +161,8 @@ public final class Bump {
 
                 NEXT (the judgement half):
                   1. read the diff — prelude.pure / Pure.java / native-*.tsv / DynaFn.java /
-                     corpus-manifest.tsv / protocol-roster.tsv / the fixture snapshot: that IS the
-                     upstream change;
+                     CoreImports.java / corpus-manifest.tsv / pmcd-reachable.tsv / protocol-roster.tsv /
+                     the fixture snapshot: that IS the upstream change;
                   2. re-pin every ratchet the gates reported moved, each with a reason; ledgers shrink-only;
                   3. commit the named files and push; CI runs the same gates from the pins.""");
     }

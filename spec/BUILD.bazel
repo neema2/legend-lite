@@ -58,13 +58,25 @@ legend_java_library(
     nullaway = False,
     srcs = glob(
         ["src/gen/java/com/legend/generators/*.java"],
-        exclude = ["src/gen/java/com/legend/generators/SourceTree.java"],
+        exclude = [
+            "src/gen/java/com/legend/generators/ImportsGenerator.java",
+            "src/gen/java/com/legend/generators/SourceTree.java",
+        ],
     ),
     deps = [
         ":claims",
         ":source_tree",
         "//core",
     ],
+)
+
+# the imports generator alone: it reads one text (CompileContext.java) and no core class, so it compiles without the
+# core it writes into
+legend_java_library(
+    name = "imports_generator",
+    # not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    srcs = ["src/gen/java/com/legend/generators/ImportsGenerator.java"],
 )
 
 # Claims (and ClaimsGenerator, which writes its ledger) reads the COMPILED registries of the core it is compiled
@@ -99,6 +111,7 @@ legend_java_library(
     deps = [
         ":claims",
         ":generators",
+        ":imports_generator",
         ":source_tree",
         "//core",
         "//testing",
@@ -327,23 +340,19 @@ java_run(
     deps = [":generators"],
 )
 
-# NameResolver.java's CORE_IMPORTS: the engine's META_IMPORTS sequence
+# CoreImports.java, whole: the engine's META_IMPORTS sequence
 java_run(
     name = "gen_imports",
-    srcs = [
-        _ENGINE_COMPILE_CONTEXT,
-        "//core:src/main/java/com/legend/compiler/NameResolver.java",
-    ],
-    outs = ["generated/NameResolver.java"],
+    srcs = [_ENGINE_COMPILE_CONTEXT],
+    outs = ["generated/CoreImports.java"],
     arguments = [
         "$(execpath %s)" % _ENGINE_COMPILE_CONTEXT,
-        "$(execpath //core:src/main/java/com/legend/compiler/NameResolver.java)",
         "{OUT}",
     ],
     main_class = "com.legend.generators.ImportsGenerator",
     mnemonic = "Generate",
     visibility = ["//core:__pkg__"],
-    deps = [":generators"],
+    deps = [":imports_generator"],
 )
 
 # DynaFn.java's members: the engine's dynafunction registries, every dialect
@@ -506,7 +515,7 @@ java_run(
         "{OUT}",
         "com/legend/builtin/DynaFn.java=$(execpath :gen_dynafn)",
         "com/legend/builtin/Pure.java=$(execpath :gen_natives)",
-        "com/legend/compiler/NameResolver.java=$(execpath :gen_imports)",
+        "com/legend/compiler/CoreImports.java=$(execpath :gen_imports)",
     ],
     roots = _CORE_SRC,
     main_class = "com.legend.claims.ClaimsGenerator",

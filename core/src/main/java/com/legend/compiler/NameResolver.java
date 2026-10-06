@@ -203,47 +203,6 @@ public final class NameResolver {
         return resolve(model, knownFqns, wallSink, false);
     }
 
-    /** The implicit import group every element resolves through, walked
-     * FIRST-MATCH — the ENGINE's sequence ({@code CompileContext.META_IMPORTS}:
-     * legend-pure's {@code system::imports::coreImport} 29 plus
-     * {@code metamodel::variant}, {@code metamodel::relation} and
-     * {@code precisePrimitives} at the engine's positions). GENERATED from the
-     * pinned checkout and held as a sequence by {@code CoreImportsParityTest}
-     * ({@code ImportsGenerator}, {@code bazel run //:update_generated}). */
-    public static final List<String> CORE_IMPORTS = List.of(
-            "meta::pure::metamodel",
-            "meta::pure::metamodel::type",
-            "meta::pure::metamodel::type::generics",
-            "meta::pure::metamodel::relationship",
-            "meta::pure::metamodel::valuespecification",
-            "meta::pure::metamodel::multiplicity",
-            "meta::pure::metamodel::function",
-            "meta::pure::metamodel::function::property",
-            "meta::pure::metamodel::extension",
-            "meta::pure::metamodel::import",
-            "meta::pure::metamodel::variant",
-            "meta::pure::functions::date",
-            "meta::pure::functions::string",
-            "meta::pure::functions::collection",
-            "meta::pure::functions::meta",
-            "meta::pure::functions::constraints",
-            "meta::pure::functions::lang",
-            "meta::pure::functions::boolean",
-            "meta::pure::functions::tools",
-            "meta::pure::functions::io",
-            "meta::pure::functions::math",
-            "meta::pure::functions::asserts",
-            "meta::pure::functions::test",
-            "meta::pure::functions::multiplicity",
-            "meta::pure::functions::relation",
-            "meta::pure::metamodel::relation",
-            "meta::pure::router",
-            "meta::pure::service",
-            "meta::pure::tds",
-            "meta::pure::tools",
-            "meta::pure::profiles",
-            "meta::pure::precisePrimitives");
-
     private static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,
             java.util.@com.legend.base.Nullable Map<String, String> wallSink,
             boolean preludeOn) {
@@ -373,7 +332,7 @@ public final class NameResolver {
             addKnown(out, scope.ownPackage() + "::" + name, scope);
         }
         int afterOwn = out.size();
-        for (String pkg : CORE_IMPORTS) {
+        for (String pkg : CoreImports.SEQUENCE) {
             addKnown(out, pkg + "::" + name, scope);
         }
         if (afterOwn > afterWildcards && com.legend.builtin.DecisionProbe.INSTALLED != null) {
@@ -710,7 +669,7 @@ public final class NameResolver {
         // profiles); the group's order is the spec's.
         String coreFirst = null;
         List<String> coreHits = List.of();
-        for (String pkg : CORE_IMPORTS) {
+        for (String pkg : CoreImports.SEQUENCE) {
             String candidate = pkg + "::" + name;
             if (scope.knownFqns().contains(candidate)) {
                 if (coreFirst == null) {

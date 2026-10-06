@@ -95,9 +95,9 @@ differential at zero.
 `RefResolutions.java` and printed, for every source the
 reference compiled (2,108 on 2026-09-25), the packages its import group makes visible. Twenty-nine
 packages appear in every source: the implicit imports the Pure parser adds to each section. Our
-generated `NameResolver.CORE_IMPORTS` is those 29 plus three the newer engine added. So a bare
+generated `CoreImports.SEQUENCE` is those 29 plus three the newer engine added. So a bare
 name in Pure source (the corpus included) resolves by the section's imports and this group alone;
 the engine's handler surface is a rule for engine input, not for Pure source. The list is in the
-homework note (`docs/A1_HOMEWORK_2026_09_25.md` §1.2). What keeps it true now: `CORE_IMPORTS` is generated from the
+homework note (`docs/A1_HOMEWORK_2026_09_25.md` §1.2). What keeps it true now: `CoreImports.java` is generated from the
 engine's own list (`//spec:gen_imports`, from `CompileContext.META_IMPORTS`), and `CoreImportsParityTest` holds it
 there.

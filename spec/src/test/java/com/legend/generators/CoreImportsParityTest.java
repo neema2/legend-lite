@@ -6,7 +6,7 @@ package com.legend.generators;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.legend.compiler.NameResolver;
+import com.legend.compiler.CoreImports;
 import com.legend.rcorpus.Corpus;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link NameResolver#CORE_IMPORTS} — the implicit import group every Pure
+ * {@link CoreImports#SEQUENCE} — the implicit import group every Pure
  * element resolves through, walked FIRST-MATCH — is upstream's, as a SEQUENCE
  * (order is semantic), from two upstream files:
  * <ul>
@@ -37,7 +37,7 @@ import org.junit.jupiter.api.Test;
  * packages differently — pure lists {@code functions::relation} before
  * {@code functions::io}, the engine after {@code functions::multiplicity} —
  * which is why the engine's sequence, not a merge, is the one held).
- * {@link ImportsGenerator} writes the constant from the checkout
+ * {@link ImportsGenerator} writes it, as the whole of CoreImports.java, from the checkout
  * ({@code bazel run //:update_generated}).
  * Until the batch-5 audit (2026-09-11) the list was typed by hand with the
  * three engine additions APPENDED — a different first-match order from the
@@ -71,14 +71,14 @@ class CoreImportsParityTest {
     }
 
     @Test
-    @DisplayName("CORE_IMPORTS is the engine's META_IMPORTS sequence; pure's coreImport is that set minus the engine's three")
+    @DisplayName("CoreImports is the engine's META_IMPORTS sequence; pure's coreImport is that set minus the engine's three")
     void coreImportsAreUpstreams() throws IOException {
         org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(Corpus.ENGINE_ROOT), "legend-engine checkout not present");
         org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(PreludeGeneratorTest.pureRoot()), "legend-pure checkout not present");
         List<String> engine = engineMetaImports();
         List<String> pure = pureCoreImport();
-        assertEquals(engine, NameResolver.CORE_IMPORTS,
-                "CORE_IMPORTS drifted from CompileContext.META_IMPORTS — regenerate: bazel run //:update_generated");
+        assertEquals(engine, CoreImports.SEQUENCE,
+                "CoreImports drifted from CompileContext.META_IMPORTS — regenerate: bazel run //:update_generated");
         List<String> engineMinusThree = new ArrayList<>(engine);
         engineMinusThree.removeAll(List.of("meta::pure::metamodel::variant",
                 "meta::pure::metamodel::relation", "meta::pure::precisePrimitives"));

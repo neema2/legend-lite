@@ -15,7 +15,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** Review #13: import scopes are keyed by element FQN, so overloads of one FQN declared in different sections all
- *  resolve with the first section's imports (ElementParser.java:325 putIfAbsent; NameResolver.java:258). */
+ *  resolve with the first section's imports (ElementParser.java:325 putIfAbsent; NameResolver.java:217). */
 class SectionImportScopeKnownDefectTest {
 
     private static final String SOURCE = "###Pure\n"

@@ -40,7 +40,7 @@ Beside the gates, in `bazel test //...`:
   `//core:update_stress_corpus_*_test`, `//core:update_ladder_*_test`, `//docs:update_generated_test`,
   `//parser-equivalence:update_generated_*_test`, `//datacube:update_generated_*_test`,
   `//query:update_generated_test`, `//fixtures/saved-queries:update_generated_*_test`: each committed generated file
-  (Pure.java's signatures, DynaFn.java, NameResolver.java's imports,
+  (Pure.java's signatures, DynaFn.java, CoreImports.java, the protocol's reachable classes,
   prelude.pure, native-claims.tsv, the fixture snapshot, the corpus manifest,
   the stress corpus, the SQL ladder's current pins, the protocol roster, DataCube's lite-facts.ts,
   Query's icons.ts, the saved-query fixtures) equals its generator's output.
