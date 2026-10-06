@@ -188,7 +188,14 @@ filegroup(
 run_binary(
     name = "gen_differential",
     testonly = True,
-    srcs = _GATE_DATA,
+    # what the oracle reads (model.py): the hand-written stress files, the committed dense three, the layout, the
+    # queries and the linked projects; not the generated 92-98, which it leaves out
+    srcs = [
+        "queries.pure",
+        "//core:src/test/resources/com/legend/integration/stress-layout.json",
+        "//core:stress_dense",
+        "//core:stress_sources",
+    ] + _LINKED,
     # seed.sql a file of its own, so a test resolves IT by runfiles path and takes expected/ beside it (a directory
     # resolves only under a runfiles tree, never by the Windows manifest: com.legend.testing.Runfile)
     outs = ["diff/seed.sql"],
@@ -197,7 +204,8 @@ run_binary(
         "--out",
         "$(RULEDIR)/diff",
         "--inputs",
-        "$(execpaths //core:stress_files)",
+        "$(execpaths //core:stress_sources)",
+        "$(execpaths //core:stress_dense)",
     ] + ["$(execpaths %s)" % p for p in _LINKED],
     env = dict(_GATE_ENV, LC_ALL = "C.UTF-8"),
     tool = ":differential",
