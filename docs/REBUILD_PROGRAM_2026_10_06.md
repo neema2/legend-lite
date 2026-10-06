@@ -71,11 +71,15 @@ passes (every roster, register, ledger and verdict) and every PCT case.
 - What: the build targets (`//:java`, `//:web`, `//:wasm`, `//:native`, `//:sites`) and the compile-only guard;
   product jars through `http_jar` (Postgres 42.7.13 without checker-qual); `//:web` without Node (native esbuild);
   stamping off.
-- First: reconcile the held `bazel/exec` work (its unpushed Phase 4 commits, P3-25, the `datacube:dist` fix
-  `dab833263`) and the old Bazel plan's "batch 8", which IN_FLIGHT says the database owner and DataCube+Python lines
-  wait on. They touch the same BUILD files as Phases 0 and 1.
-- Check: rebased on main; `//gates:local`; a full throwaway CI (MODULE and `.bazelrc` changed); an audit agent's
-  review.
+- Only `build/rebuild`'s 8 commits (decided 2026-10-06: keep the critical path short). The old Bazel plan's held
+  work stays parked, untouched, until Phase 8: `bazel/exec`'s 14 Phase 4 commits (DataCube's browser checks as Bazel
+  tests, servers exiting with their parent, `//datacube:dist` complete, and the rest), its small uncommitted harness
+  fixes, and the unfinished P3-25 (the stress corpus through legend-engine, the wrong-rows tool).
+- IN_FLIGHT on main: the old plan's batch 8 is already on main (`053e15006`), so nobody waits on it; its remaining
+  work lives in this program; the P4-18 announcement (servers exit with their parent) is parked with Phase 8.
+- Check: rebased on main; `bazel build --nobuild --config=bazel10 //...`; `//gates:local` with
+  `--lockfile_mode=error`; the compile-only guard; the clean `//:java` timing; a full throwaway CI (MODULE and
+  `.bazelrc` changed); an audit agent's review. Then the PR, with the user's go.
 
 ### Phase 1: generator hygiene (no behavior change)
 - Delete the dead generators; mark on-demand tools and reports `manual`; build outputs `testonly`; the PCT adapter's
@@ -159,6 +163,7 @@ passes (every roster, register, ledger and verdict) and every PCT case.
   shape per app), D5 (DataCube fixtures out of the site), D13 (the warehouse client), D15; the TS typecheck cleanup.
 - Node out of the tests: a CDP client driving pinned Chromium.
 - CI lanes from `//gates`, and caching (D14).
+- The old Bazel plan's parked work: `bazel/exec`'s Phase 4 commits and fixes, and P3-25.
 - The measurement group, set aside on 2026-10-05: the corpus judges as cached build actions, the ratchets, the
   ladder. Decide what each is and carve it by its true trigger.
 - Last: the renames (D11: core, db, sdlc, depot; D12: depot its own server).
