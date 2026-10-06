@@ -729,7 +729,7 @@ final class RelOpTranslator {
     }
 
     /** The declarations a dynafunction's PURE spelling names — the registry
-     *  row's FQNs (generated from the catalog); a name the engine registers as
+     *  member's FQNs (DynaFnDecisions: the engine surface's); a name the engine registers as
      *  no dynafunction, or one respelled to a Lite FQN, carries none: the
      *  call resolves like any other. */
     static List<String> dynaFnCandidates(RelationalOperation.FunctionCall call) {

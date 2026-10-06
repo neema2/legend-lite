@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.builtin.DynaFn;
+import com.legend.builtin.EngineHandlers;
 import com.legend.builtin.Pure;
 import com.legend.normalizer.DynaFnArms;
 import java.io.IOException;
@@ -23,18 +24,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * {@link DynaFn} is GENERATED from the pinned legend-engine checkout's two
- * dynafunction registries and VERIFIED here: every {@code dynaFnToSql('name', …)}
- * in {@code extensionDefaults.pure} and the dialect extensions, and every name in
- * the relational type-inference map ({@code getDynaFunctionTypeInferenceMap},
- * relationalExtension.pure), is a member (and only those); each member carries
- * exactly the dialects that register it and whether the inference map knows it;
- * and each member's resolution holds — a PURE name resolves in the catalog, a
- * SHIM names a Lite constant, TRANSLATED names have arms (and armed names are
- * TRANSLATED or PURE), UNSUPPORTED only shrinks. The translator's declared arm
- * set is derived from its SOURCE, and {@code Pure.ENGINE_VOCAB_SHIMS} from the
- * registry. {@link DynaFnGenerator} writes the members (existing resolutions
- * kept; a new engine name lands UNSUPPORTED): {@code bazel run //:update_generated}.
+ * {@link DynaFn} is GENERATED whole from the pinned legend-engine checkout's two
+ * dynafunction registries by {@code DynaFnGenerator} (its diff test keeps the
+ * committed file current); the platform's decisions are {@code DynaFnDecisions}',
+ * by hand, and are VERIFIED here: a PURE name resolves in the catalog, a SHIM names
+ * a Lite native, TRANSLATED names have arms (and armed names are TRANSLATED or
+ * PURE), the residue's names are still absent from the engine surface,
+ * UNSUPPORTED only shrinks, and so do the engine handler ids the platform declares
+ * nowhere. The translator's declared arm set is derived from its SOURCE, and
+ * {@code Pure.ENGINE_VOCAB_SHIMS} from the registry.
  */
 class DynaFnRegistryTest {
 
@@ -59,17 +57,12 @@ class DynaFnRegistryTest {
         for (DynaFn d : DynaFn.values()) {
             switch (d.resolution()) {
                 case PURE -> {
-                    // the row's declarations are the engine surface's FQNs for
-                    // the name (or the declared residue), generated; each a
-                    // catalog native
+                    // the declarations are the engine surface's FQNs for the
+                    // name (or the declared residue), joined when the classes
+                    // load; each a catalog native
                     if (d.fqns().isEmpty()) {
-                        bad.add(d.dynaName() + ": PURE but no catalog native of that name");
-                    }
-                    String expected = DynaFnGenerator.pureFqns(d.dynaName()).replace("\"", "");
-                    String actual = String.join(", ", d.fqns());
-                    if (!expected.equals(actual)) {
-                        bad.add(d.dynaName() + ": PURE declarations drifted — row " + actual
-                                + " vs catalog " + expected);
+                        bad.add(d.dynaName() + ": PURE but neither the engine surface nor DynaFnDecisions.RESIDUE"
+                                + " declares what it resolves to");
                     }
                     for (String fqn : d.fqns()) {
                         if (Pure.nativeFunctionsAt(fqn).isEmpty()) {
@@ -103,6 +96,28 @@ class DynaFnRegistryTest {
                 + " -- lower UNSUPPORTED_MAX with the reason (headroom is not a pin)");
         assertEquals(SpecRatchets.measured("dynafn.unsupported"), unsupported, "UNSUPPORTED dynafunctions moved"
                 + " -- bazel run //spec:update_ratchets (and lower UNSUPPORTED_MAX when it shrank: headroom is not a pin)");
+    }
+
+    /** The engine handler ids the platform declares nowhere: shrink-only. 162 when EngineHandlers began joining
+     *  them at load (2026-10-06, the build rebuild's Phase 2): the hand pin's history (169 -> 168 -> 162) ended when
+     *  engine-handlers.tsv carried each id's FQN, and that column went with the join. */
+    static final int UNDECLARED_ENGINE_IDS_MAX = 162;
+
+    @Test
+    @DisplayName("the engine handler ids the platform declares nowhere only shrink; the residue is still needed")
+    void undeclaredEngineIdsShrinkAndTheResidueHolds() {
+        int undeclared = EngineHandlers.undeclaredIds().size();
+        assertEquals(UNDECLARED_ENGINE_IDS_MAX, undeclared, "engine handler ids the platform declares nowhere: "
+                + undeclared + " (shrink-only; lower UNDECLARED_ENGINE_IDS_MAX with the reason, never raise it)");
+        assertEquals(SpecRatchets.measured("engine.handlers.undeclared"), undeclared, "the undeclared engine ids moved"
+                + " -- bazel run //spec:update_ratchets");
+        // sqlNull, sqlTrue and sqlFalse resolve through DynaFnDecisions.RESIDUE only because no engine handler names
+        // them; the day one does, the residue row is stale
+        for (DynaFn d : List.of(DynaFn.SQL_NULL, DynaFn.SQL_TRUE, DynaFn.SQL_FALSE)) {
+            assertEquals(List.of(), EngineHandlers.fqnsOf(d.dynaName()), d.dynaName() + " is on the engine surface now:"
+                    + " drop its DynaFnDecisions.RESIDUE row");
+            assertTrue(!d.fqns().isEmpty(), d.dynaName() + " has no declarations");
+        }
     }
 
     @Test

@@ -27,6 +27,11 @@ on:
     paths-ignore:
       - "**/*.md"
       - progress*.txt
+  # Every night on main. A PR merged up to date carries [skip ci] in its merge message (its run already tested
+  # exactly the merged result), so this is main's own verdict, and it refreshes the build cache every PR run
+  # starts from (a PR's run can read main's cache; main cannot read a PR's).
+  schedule:
+    - cron: "23 6 * * *"
   workflow_dispatch:
     inputs:
       gates:

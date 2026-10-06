@@ -717,8 +717,8 @@ _GENERATED = {
     "src/main/resources/com/legend/builtin/prelude.pure": "//spec:gen_prelude",
 }
 
-# the committed DynaFn.java and Pure.java are also generator INPUTS (each generator splices its part in), as is the
-# hand-owned membership list natives reads; the other generated files are written whole
+# the committed Pure.java is also a generator INPUT (gen_natives splices its part in), as is the hand-owned
+# membership list natives reads; the other generated files are written whole
 exports_files(
     list(_GENERATED.keys()) + [
         "src/main/resources/com/legend/builtin/native-membership.tsv",

@@ -49,35 +49,53 @@ class EngineHandlersTest {
     }
 
     /** The registry is read WHOLE (audit 2026-09-25: a stale or half-read registry must not pass): every row of the
-     *  generated engine-handlers.tsv -- parsed here on its own -- is a name, an id and, where the platform declares it,
-     *  an FQN the API reports. Computed from the file, not pinned by hand (Bazel workplan P2-16): the file is
-     *  //core:update_generated's, so a bump or a declaration moves it, as a reviewed diff, and nothing here. */
+     *  generated engine-handlers.tsv -- upstream's (name, id) pairs, parsed here on its own -- is a name and an id the
+     *  API reports, and each id is either one the platform declares (its name then has an FQN) or one it does not
+     *  (in undeclaredIds). The names the file does not hold are the platform's own surface. Computed from the file,
+     *  not pinned by hand (Bazel workplan P2-16): the file is //core:update_generated's, so only a bump moves it. */
     @Test
     void theApiReportsEveryRowOfTheRegistry() throws java.io.IOException {
         java.util.Map<String, java.util.Set<String>> ids = new java.util.TreeMap<>();
-        java.util.Set<String> undeclared = new java.util.TreeSet<>();
         try (java.io.InputStream in = EngineHandlers.class.getResourceAsStream("/com/legend/builtin/engine-handlers.tsv")) {
             for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
                 if (line.isBlank() || line.startsWith("#") || line.startsWith("name\t")) {   // comments; the column header
                     continue;
                 }
                 String[] c = line.split("\t", -1);
+                assertEquals(2, c.length, "a row is a name and an id: " + line);
                 ids.computeIfAbsent(c[0], k -> new java.util.TreeSet<>()).add(c[1]);
-                if (c[2].isEmpty()) {
-                    undeclared.add(c[1]);
-                }
             }
         }
         assertTrue(ids.size() > 300, "engine-handlers.tsv lists " + ids.size() + " names: the registry is not being read");
         java.util.Set<String> onlyFile = new java.util.TreeSet<>(ids.keySet());
         onlyFile.removeAll(EngineHandlers.names());
+        assertEquals(java.util.Set.of(), onlyFile, "names in the file, not the API");
         java.util.Set<String> onlyApi = new java.util.TreeSet<>(EngineHandlers.names());
         onlyApi.removeAll(ids.keySet());
-        assertEquals("", (onlyFile.isEmpty() ? "" : "in the file, not the API: " + onlyFile)
-                + (onlyApi.isEmpty() ? "" : " in the API, not the file: " + onlyApi), "names");
+        assertTrue(Pure.LITE_SURFACE.containsAll(onlyApi), "names in the API beyond the file are the platform's own"
+                + " surface: " + onlyApi);
+        java.util.Set<String> undeclared = new java.util.HashSet<>(EngineHandlers.undeclaredIds());
         for (String name : ids.keySet()) {
-            assertEquals(ids.get(name), new java.util.TreeSet<>(EngineHandlers.idsOf(name)), "ids of " + name);
+            assertTrue(EngineHandlers.idsOf(name).containsAll(ids.get(name)), "ids of " + name);
+            if (!Pure.LITE_SURFACE.contains(name)) {
+                assertEquals(ids.get(name), new java.util.TreeSet<>(EngineHandlers.idsOf(name)), "ids of " + name);
+            }
+            for (String id : ids.get(name)) {
+                assertTrue(undeclared.contains(id) || !EngineHandlers.fqnsOf(name).isEmpty(),
+                        id + " is neither declared (an FQN under " + name + ") nor in undeclaredIds");
+            }
         }
-        assertEquals(undeclared, new java.util.TreeSet<>(EngineHandlers.undeclaredIds()), "undeclared engine ids");
+    }
+
+    /** The surface by function id names exactly the surface's bare names, and every id has a declaration: a broken
+     *  entry would vanish from the surface. */
+    @Test
+    void theSurfaceIsDeclaredByFunctionId() {
+        assertEquals(Pure.LITE_SURFACE, Pure.liteSurfaceFunctions().keySet(),
+                "Pure.liteSurfaceFunctions names exactly Pure.LITE_SURFACE");
+        assertEquals(List.of(), EngineHandlers.unmatchedSurface(), "surface function ids no declaration carries");
+        // each name's group is that name's lite overloads: a name paired with the wrong AT_ group fails here
+        Pure.liteSurfaceFunctions().forEach((name, group) -> group.forEach(id -> assertTrue(
+                id.qualified().startsWith(Pure.Lite.PKG + name + "_"), name + " is paired with " + id)));
     }
 }

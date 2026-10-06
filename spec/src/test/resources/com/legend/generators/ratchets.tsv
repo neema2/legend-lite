@@ -3,6 +3,7 @@ corpus.census.declared	2761
 corpus.census.discovered	2613
 corpus.census.excluded	148
 dynafn.unsupported	41
+engine.handlers.undeclared	162
 implementation.kinds.Body	2187
 implementation.kinds.Form	217
 implementation.kinds.Intrinsic	671

@@ -17,15 +17,15 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
- * GENERATES {@code DynaFn.java}'s member block from the pinned legend-engine
- * tree's two dynafunction registries — every {@code dynaFnToSql('name', …)} in
- * {@code extensionDefaults.pure} and the dialect extensions, with its registering
- * dialects, and whether {@code getDynaFunctionTypeInferenceMap} knows it. An
- * existing member keeps its resolution and Lite constant; a new engine name
- * lands UNSUPPORTED. Checked by {@link DynaFnRegistryTest}.
+ * GENERATES {@code core/src/main/java/com/legend/builtin/DynaFn.java} whole, from the pinned legend-engine alone: every
+ * relational "dynafunction" its dialect extensions register ({@code dynaFnToSql('name', …)}), each with the dialects
+ * that register it (from the file path) and whether the engine's type-inference map knows it. The platform's decision
+ * for each name is not here: {@code DynaFnDecisions}, written by hand, which DynaFn asks; a name it does not list is
+ * UNSUPPORTED, so a new engine name arrives unsupported. The committed file is held to this output by its diff test;
+ * the decisions by {@code DynaFnRegistryTest}.
  *
  * <pre>
- *   DynaFnGenerator &lt;legend-engine root&gt; &lt;DynaFn.java&gt; &lt;output&gt;
+ *   DynaFnGenerator &lt;legend-engine root&gt; &lt;output&gt;
  * </pre>
  */
 public final class DynaFnGenerator {
@@ -37,12 +37,12 @@ public final class DynaFnGenerator {
     private static final String INFERENCE_MAP = "getDynaFunctionTypeInferenceMap():";
 
     public static void main(String[] args) throws IOException {
-        if (args.length != 3) {
-            throw new IllegalArgumentException("usage: DynaFnGenerator <legend-engine root> <DynaFn.java> <output>");
+        if (args.length != 2) {
+            throw new IllegalArgumentException("usage: DynaFnGenerator <legend-engine root> <output>");
         }
-        String generated = generate(upstream(Path.of(args[0])),
-                Files.readString(Path.of(args[1]), StandardCharsets.UTF_8));
-        Files.writeString(Path.of(args[2]), generated, StandardCharsets.UTF_8);
+        TreeMap<String, Upstream> up = upstream(Path.of(args[0]));
+        Files.writeString(Path.of(args[1]), render(up), StandardCharsets.UTF_8);
+        System.out.println("[dynafn] generated " + up.size() + " members");
     }
 
     /** One upstream name's facts: registering dialects + inference-map membership. */
@@ -59,7 +59,10 @@ public final class DynaFnGenerator {
         if (m.find()) {
             return m.group(1).toUpperCase(java.util.Locale.ROOT);
         }
-        return s.endsWith("extensionDefaults.pure") ? "DEFAULT" : "OTHER";
+        if (s.endsWith("extensionDefaults.pure")) {
+            return "DEFAULT";
+        }
+        throw new IllegalStateException("a dynaFnToSql registry at a path no dialect rule names: " + s);
     }
 
     /** name → facts, read from every registry file in the checkout. */
@@ -69,9 +72,14 @@ public final class DynaFnGenerator {
             for (Path p : walk.filter(x -> x.toString().endsWith(".pure")).toList()) {
                 String text = Files.readString(p, StandardCharsets.UTF_8);
                 if (text.contains("dynaFnToSql(")) {
-                    String dialect = dialectOf(p);
+                    // the dialect only for a file that registers a name (dbExtension.pure declares the function
+                    // itself, at a path no dialect rule names, and registers none)
                     Matcher m = DYNA.matcher(text);
+                    String dialect = null;
                     while (m.find()) {
+                        if (dialect == null) {
+                            dialect = dialectOf(p);
+                        }
                         out.computeIfAbsent(m.group(1), k -> new Upstream(new TreeSet<>(), false))
                                 .dialects().add(dialect);
                     }
@@ -89,69 +97,147 @@ public final class DynaFnGenerator {
         return out;
     }
 
-    /** The three engine operators no handler names: the platform's own
-     *  relational constants, each spelled by its catalog declaration. A PURE
-     *  name that is neither on the engine surface nor here is a generator
-     *  error — membership is a decision, never a by-name match. */
-    static final java.util.Map<String, List<String>> RESIDUE = java.util.Map.of(
-            "sqlNull", List.of(com.legend.builtin.Pure.SQL_NULL.qualifiedName()),
-            "sqlTrue", List.of(com.legend.builtin.Pure.SQL_TRUE.qualifiedName()),
-            "sqlFalse", List.of(com.legend.builtin.Pure.SQL_FALSE.qualifiedName()));
-
-    /** The declarations a PURE dynafunction name resolves to, spelled as the
-     *  member's list literal: the FQNs the ENGINE SURFACE gives the name
-     *  ({@code EngineHandlers}, generated from the pinned Handlers.java — the
-     *  same tier a bare call gets), else the declared residue. */
-    static String pureFqns(String dynaName) {
-        List<String> out = com.legend.builtin.EngineHandlers.fqnsOf(dynaName);
-        if (out.isEmpty()) {
-            out = RESIDUE.get(dynaName);
+    /** DynaFn.java's text: the members and the Dialect enum from {@code up}, around the fixed template. */
+    public static String render(TreeMap<String, Upstream> up) {
+        if (up.isEmpty()) {
+            throw new IllegalStateException("no dynaFnToSql registration found — upstream moved them");
         }
-        if (out == null || out.isEmpty()) {
-            throw new IllegalStateException("dynafunction '" + dynaName + "' is PURE but neither the engine"
-                    + " surface nor DynaFnGenerator.RESIDUE declares what it resolves to");
-        }
-        StringBuilder sb = new StringBuilder();
-        for (String f : out) {
-            sb.append(sb.length() == 0 ? "" : ", ").append('"').append(f).append('"');
-        }
-        return sb.toString();
-    }
-
-    /** DynaFn.java's text with its member block rewritten from {@code up},
-     *  keeping each existing member's resolution and Lite constant. */
-    public static String generate(TreeMap<String, Upstream> up, String text) {
-        Map<String, String[]> existing = new TreeMap<>();
-        Matcher m = Pattern.compile("^    ([A-Z_0-9]+)\\(\"(\\w+)\", Resolution\\.(\\w+), List\\.of\\(([^)]*)\\), Inference\\.\\w+", Pattern.MULTILINE).matcher(text);
-        while (m.find()) {
-            existing.put(m.group(2), new String[] {m.group(3), m.group(4)});
-        }
-        List<String> lines = new ArrayList<>();
+        TreeSet<String> dialects = new TreeSet<>();
+        List<String> members = new ArrayList<>();
         for (Map.Entry<String, Upstream> e : up.entrySet()) {
-            String[] kept = existing.getOrDefault(e.getKey(), new String[] {"UNSUPPORTED", ""});
-            // the FQN column: a PURE name's declarations are DERIVED from the
-            // catalog (every user-resolvable native of that bare name — the
-            // engine's operator IS pure's function, wherever the platform
-            // declares it); a SHIM keeps its spelled Lite constant; the rest none
-            String[] keep = kept[0].equals("PURE")
-                    ? new String[] {kept[0], pureFqns(e.getKey())}
-                    : new String[] {kept[0], kept[0].equals("SHIM") ? kept[1] : ""};
+            dialects.addAll(e.getValue().dialects());
             String member = e.getKey().replaceAll("([a-z0-9])([A-Z])", "$1_$2").toUpperCase(java.util.Locale.ROOT);
             StringBuilder ds = new StringBuilder();
             for (String d : e.getValue().dialects()) {
                 ds.append(", Dialect.").append(d);
             }
-            lines.add("    " + member + "(\"" + e.getKey() + "\", Resolution." + keep[0] + ", List.of(" + keep[1]
-                    + "), Inference." + (e.getValue().inferred() ? "MAPPED" : "NONE") + ds + "),");
+            members.add("    " + member + "(\"" + e.getKey() + "\", Inference." + (e.getValue().inferred() ? "MAPPED" : "NONE")
+                    + ds + ")");
         }
-        String last = lines.get(lines.size() - 1);
-        lines.set(lines.size() - 1, last.substring(0, last.length() - 1) + ";");
-        int start = text.indexOf("public enum DynaFn {\n") + "public enum DynaFn {\n".length();
-        Matcher end = Pattern.compile("^    [A-Z_0-9]+\\(.*\\);\\n", Pattern.MULTILINE).matcher(text);
-        if (!end.find(start)) {
-            throw new IllegalStateException("member block not found");
-        }
-        System.out.println("[dynafn] generated " + lines.size() + " members");
-        return text.substring(0, start) + String.join("\n", lines) + "\n" + text.substring(end.end());
+        return TEMPLATE.replace("__MEMBERS__", String.join(",\n", members))
+                .replace("__DIALECTS__", String.join(", ", dialects));
     }
+
+    private static final String TEMPLATE = """
+            // GENERATED by //spec:gen_dynafn from the pinned legend-engine's dynafunction registries -- do not edit.
+            // Regenerate: bazel run //:update_generated. The platform's decisions are DynaFnDecisions.java's.
+            package com.legend.builtin;
+
+            import java.util.EnumSet;
+            import java.util.List;
+            import java.util.Map;
+            import java.util.Optional;
+
+            /**
+             * THE ENGINE'S DYNAFUNCTION REGISTRY, as data: every operator name a relational
+             * mapping expression may use ({@code hash(col)}, {@code isDistinct(a, b)},
+             * {@code concat(…)}), read from the pinned legend-engine checkout's SQL rendering
+             * registries — {@code dynaFnToSql('<name>', …)} in {@code extensionDefaults.pure}
+             * and every dialect extension — plus the engine's relational type-inference map
+             * ({@code getDynaFunctionTypeInferenceMap}, relationalExtension.pure; some names
+             * exist only there). Generated whole by {@code DynaFnGenerator}; how THIS platform
+             * resolves each name is {@link DynaFnDecisions}' decision, written by hand:
+             * <ul>
+             *   <li>{@link Resolution#PURE}: passes through to the Pure native(s) the row's
+             *       {@link #fqns()} name — the engine's operator IS pure's function;</li>
+             *   <li>{@link Resolution#SHIM}: an engine-only operator with no pure signature
+             *       (or a shape pure's differs from) — its {@link Pure.Lite} identity;</li>
+             *   <li>{@link Resolution#TRANSLATED}: the mapping translator ({@code RelOpTranslator})
+             *       rewrites the call into pure's own spelling and NOTHING passes through — a
+             *       shape no arm rewrites is an error;</li>
+             *   <li>{@link Resolution#UNSUPPORTED}: registered by the engine, handled by nothing
+             *       here yet — a mapping using it fails LOUD naming the operator.</li>
+             * </ul>
+             * A PURE name may ALSO carry a translator arm for the engine's extra shape
+             * ({@code and}/{@code or} with more than two operands, {@code parseDate} with a
+             * format): {@code DynaFnArms.ARMS} lists every name with an arm, TRANSLATED or PURE.
+             * Never a name set anywhere else: {@link #of(String)} is the one lookup.
+             */
+            public enum DynaFn {
+            __MEMBERS__;
+
+                /** How the platform resolves an engine dynafunction. */
+                public enum Resolution { PURE, SHIM, TRANSLATED, UNSUPPORTED }
+
+                /** Whether the engine's relational TYPE-INFERENCE map
+                 *  ({@code getDynaFunctionTypeInferenceMap} in relationalExtension.pure) has
+                 *  a rule for the name — the engine's second registry of dynafunction names. */
+                public enum Inference { MAPPED, NONE }
+
+                /** The engine dialect extension files that register a name. */
+                public enum Dialect { __DIALECTS__ }
+
+                private final String name;
+                private final Inference inference;
+                private final EnumSet<Dialect> dialects;
+
+                DynaFn(String name, Inference inference, Dialect... dialects) {
+                    this.name = name;
+                    this.inference = inference;
+                    this.dialects = EnumSet.noneOf(Dialect.class);
+                    this.dialects.addAll(List.of(dialects));
+                }
+
+                /** Whether the engine's type-inference map has a rule for the name. */
+                public Inference inference() {
+                    return inference;
+                }
+
+                /** The engine's spelling of the operator. */
+                public String dynaName() {
+                    return name;
+                }
+
+                /** The platform's decision for the name ({@link DynaFnDecisions}; UNSUPPORTED unless it says otherwise). */
+                public Resolution resolution() {
+                    return DynaFnDecisions.resolution(this);
+                }
+
+                /** The dialects whose rendering registry declares this name (empty for a
+                 *  name the engine knows only in its type-inference map). */
+                public java.util.Set<Dialect> dialects() {
+                    return java.util.Collections.unmodifiableSet(dialects);
+                }
+
+                /** THE DECLARATIONS this name resolves to: a PURE name's catalog FQNs (the engine
+                 *  surface's for the name, or the declared residue: {@link DynaFnDecisions}), a SHIM's
+                 *  one {@link Pure.Lite} FQN; empty for TRANSLATED and UNSUPPORTED. The translator
+                 *  mints a PURE call carrying these as its candidates, so the typer never resolves a
+                 *  dynafunction by a bare spelling (untangle 4b.2). */
+                public List<String> fqns() {
+                    return DynaFnDecisions.fqns(this);
+                }
+
+                /** The {@link Pure.Lite} identity a SHIM resolves to. */
+                public String liteFqn() {
+                    List<String> fqns = fqns();
+                    if (resolution() != Resolution.SHIM || fqns.size() != 1) {
+                        throw new IllegalStateException(name + " is not a SHIM");
+                    }
+                    return fqns.get(0);
+                }
+
+                private static final Map<String, DynaFn> BY_NAME;
+
+                static {
+                    Map<String, DynaFn> m = new java.util.HashMap<>();
+                    for (DynaFn d : values()) {
+                        m.put(d.name, d);
+                    }
+                    BY_NAME = Map.copyOf(m);
+                }
+
+                /** The registry entry for an engine operator name, or empty when the engine
+                 *  registers no such dynafunction (the name is then a plain Pure function
+                 *  the mapping expression calls, resolved like any other). */
+                public static Optional<DynaFn> of(String dynaName) {
+                    return Optional.ofNullable(BY_NAME.get(dynaName));
+                }
+
+                /** Every member of one resolution kind. */
+                public static List<DynaFn> withResolution(Resolution r) {
+                    return java.util.Arrays.stream(values()).filter(d -> d.resolution() == r).toList();
+                }
+            }
+            """;
 }

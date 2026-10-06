@@ -63,8 +63,12 @@ class ParkedWorkLedgerTest {
             // in the engine; ours passes through to pure's ISO form. The
             // obvious arm collapses multiplicity (it LOST a corpus row), so
             // NOTHING dispatches on the member — that is the anchor.
+            // Restated 2026-10-06 (the build rebuild's Phase 2): the platform's
+            // decisions left the generated registry for DynaFnDecisions, which
+            // names every decided member, TO_STRING's PURE decision among them.
+            // That row is the one site; an arm naming it anywhere else is red.
             "PARK-3 toString emits pure's ISO form, not the database's cast",
-            new Anchor("DynaFn\\.TO_STRING", List.of()),
+            new Anchor("DynaFn\\.TO_STRING", List.of("DynaFnDecisions.java")),
             // PARK-4: the ~groupBy wrapper. The prune's refusal to touch a
             // grouped select is NOT the cause (the engine projects those
             // columns too — lifting it LOST a row); the wrapper needs a

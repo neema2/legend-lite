@@ -562,6 +562,17 @@ public final class Pure {
                     liteLocalName(Lite.JOIN_WITH_PREFIX),
                     liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX));
 
+    /** The same surface by FUNCTION ID: each bare name ({@link #LITE_SURFACE}) and the lite overloads it stands for,
+     *  the catalog's generated AT_ groups. EngineHandlers adds them to the engine surface, joined by id like the
+     *  engine's own rows. A method, not a field: the AT_ groups are initialized after this point in the class. */
+    public static java.util.Map<String, List<com.legend.model.FunctionId>> liteSurfaceFunctions() {
+        return java.util.Map.of(
+                liteLocalName(Lite.NAVIGATE), AT_LEGEND_LITE_NAVIGATE,
+                liteLocalName(Lite.SOURCE_URL), AT_LEGEND_LITE_SOURCE_URL,
+                liteLocalName(Lite.JOIN_WITH_PREFIX), AT_LEGEND_LITE_JOIN_WITH_PREFIX,
+                liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX), AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX);
+    }
+
     /** Every registered native in the lite-internal package — the
      *  governance test's census surface. */
     public static java.util.List<String> liteInternalNatives() {

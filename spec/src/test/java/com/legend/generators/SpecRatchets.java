@@ -43,6 +43,9 @@ public final class SpecRatchets {
         // the dynafunctions the platform cannot translate (DynaFnRegistryTest holds the ceiling)
         out.put("dynafn.unsupported", com.legend.builtin.DynaFn.withResolution(
                 com.legend.builtin.DynaFn.Resolution.UNSUPPORTED).size());
+        // the engine handler ids the platform declares nowhere (DynaFnRegistryTest holds the ceiling): joined when
+        // EngineHandlers loads, so a declaration removed from Pure.java or the prelude moves this as a reviewed diff
+        out.put("engine.handlers.undeclared", com.legend.builtin.EngineHandlers.undeclaredIds().size());
         // the implementation table's rows per kind
         ImplementationTableTest.kindsOf(ImplementationTableTest.build().impl())
                 .forEach((kind, n) -> out.put("implementation.kinds." + kind, n));

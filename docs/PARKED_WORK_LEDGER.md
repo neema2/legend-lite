@@ -87,9 +87,10 @@ it, which is why this is a latent divergence rather than a failing row.
 **Acceptance (what closes this row).** A multiplicity-preserving cast arm, with
 `testGraphFetchMultiPrimitiveOnInlineChild` still EXACT and a witness for the date shape.
 
-**Anchor.** `DynaFn.TO_STRING` appears in NO product file: the enum member is declared
-unqualified in the registry and nothing dispatches on it. Adding the arm references it and
-turns this row red.
+**Anchor.** `DynaFn.TO_STRING` appears in exactly one product file, `DynaFnDecisions.java`, as
+its PURE decision (restated 2026-10-06, when the platform's decisions left the generated
+registry); nothing dispatches on it. Adding the arm references it in another file and turns
+this row red.
 
 ---
 
