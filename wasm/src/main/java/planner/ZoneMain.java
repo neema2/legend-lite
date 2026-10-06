@@ -7,7 +7,10 @@ package planner;
  * {@code ZoneId.of}, and a timezone database is a RESOURCE rather than
  * code — so whether it survives the WASM build is a question no amount
  * of reading the source can answer. {@code zoneprobe.mjs} asks the
- * built module the same eight questions this asks the JVM.
+ * built module the same eight questions this asks the JVM. It asks
+ * {@code LiteralSpelling} directly, with the module's export's own
+ * try/catch ({@code Wasm.zoneProbe}), so it builds on //core:lowering
+ * alone; the test compares the two, so the copies cannot drift unseen.
  */
 public final class ZoneMain {
 
@@ -30,9 +33,18 @@ public final class ZoneMain {
         StringBuilder out = new StringBuilder();
         for (String[] c : CASES) {
             out.append(c[0]).append('\t').append(c[1]).append('\t')
-                    .append(Wasm.zoneProbe(c[0], c[1])).append('\n');
+                    .append(answer(c[0], c[1])).append('\n');
         }
         java.nio.file.Files.writeString(java.nio.file.Path.of(args[0]), out.toString(),
                 java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /** What the module's export answers (Wasm.zoneProbe: the same call, the same refusal text). */
+    static String answer(String utcIso, String zone) {
+        try {
+            return com.legend.lowering.LiteralSpelling.inZone(utcIso, zone);
+        } catch (RuntimeException e) {
+            return "ERR " + e.getClass().getName() + ": " + e.getMessage();
+        }
     }
 }

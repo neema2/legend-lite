@@ -302,14 +302,16 @@ js_binary(
     ],
 )
 
-# The next version, from today's vocabulary: built with //... so the tool cannot rot unseen. To ship it,
-# `bazel run //datacube:cut_link_dictionary` writes src/share/link-<version>.ts once (a DRAFT, the
-# docs:draft_own_corpus_ledger pattern: no diff test, the hash pin is the freeze); then pin its hash in
-# test/share-link.test.ts and move _NEXT_LINK_VERSION (above) on. share_link_test fails until both are done.
+# The next version, from today's vocabulary: a tool run on demand, so not part of //... (manual; the build only
+# compiles, docs/BUILD_REBUILD_DESIGN_2026_10_05.md). To ship it, `bazel run //datacube:cut_link_dictionary` writes
+# src/share/link-<version>.ts once (a DRAFT, the docs:draft_own_corpus_ledger pattern: no diff test, the hash pin is
+# the freeze); then pin its hash in test/share-link.test.ts and move _NEXT_LINK_VERSION (above) on. share_link_test
+# fails until both are done.
 js_run_binary(
     name = "link_dictionary_next",
     args = [_NEXT_LINK_VERSION],
     stdout = "link-%s.gen.ts" % _NEXT_LINK_VERSION,
+    tags = ["manual"],
     tool = ":make_link_dictionary",
 )
 
@@ -318,6 +320,7 @@ write_source_files(
     check_that_out_file_exists = False,
     diff_test = False,
     files = {_NEXT_LINK_FILE: ":link_dictionary_next"},
+    tags = ["manual"],
 )
 
 js_run_binary(
@@ -339,7 +342,13 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["tools/offer-facts/OfferFacts.java"],
-    deps = ["//core"],
+    deps = [
+        "//core:compiler",
+        "//core:compiler_element_type",
+        "//core:plan",
+        "//core:planner",
+        "//core:protocol",
+    ],
 )
 
 java_run(
@@ -362,13 +371,26 @@ java_run(
 # 2026-10-01): legend-lite's catalog decisions and THE catalog question, generated as data; and
 # CatalogModel's answers for a corpus of real DuckDB tables, which src/catalog-model.ts is tested
 # against (test/catalog-model.test.ts). Nothing parses a type string.
+# the rules alone, over the dialects alone: only a change to them reruns catalog_rules
+legend_java_library(
+    name = "catalog_rules_main",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
+    srcs = ["tools/catalogfacts/CatalogRulesFacts.java"],
+    deps = ["//core:sql_dialect"],
+)
+
 legend_java_library(
     name = "catalog_facts_main",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["tools/catalogfacts/CatalogFacts.java"],
     deps = [
-        "//core",
+        ":catalog_rules_main",
+        "//core:database",
+        "//core:parser",
+        "//core:protocol",
+        "//core:sql_dialect",
         "//json",
     ],
     # the DuckDB DataCube meets -- the warehouse's 1.5.x, as the tab's DuckDB-WASM is -- not core's 1.4.4
@@ -378,15 +400,15 @@ legend_java_library(
 java_run(
     name = "catalog_rules",
     outs = ["generated/catalog-facts.gen.ts"],
-    arguments = ["rules", "{OUT}"],
-    main_class = "catalogfacts.CatalogFacts",
-    deps = [":catalog_facts_main"],
+    arguments = ["{OUT}"],
+    main_class = "catalogfacts.CatalogRulesFacts",
+    deps = [":catalog_rules_main"],
 )
 
 java_run(
     name = "catalog_corpus",
     outs = ["generated/catalog-corpus.gen.ts"],
-    arguments = ["corpus", "{OUT}"],
+    arguments = ["{OUT}"],
     main_class = "catalogfacts.CatalogFacts",
     deps = [":catalog_facts_main"],
 )
@@ -445,6 +467,7 @@ js_binary(
 
 js_run_binary(
     name = "cube_queries",
+    testonly = True,
     srcs = [
         "test/wasm-differential/cases.ts",
         "test/wasm-differential/emit.ts",
@@ -462,6 +485,7 @@ js_run_binary(
 
 java_run(
     name = "cube_jvm_answers",
+    testonly = True,
     srcs = [
         "cube_model.pure",
         "cube_queries.tsv",

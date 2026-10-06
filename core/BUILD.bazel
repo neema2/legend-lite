@@ -67,14 +67,17 @@ legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/valu
 legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":model", ":sql"])
 legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
 # the diagnostics switchboard (-Dlegend.diagnostics, Bazel workplan P3-13): what lowering, exec and driver may turn on
-legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"])
+# parser-equivalence's corpus machinery reads one switch of it (Corpus.load)
+legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"], visibility = ["//parser-equivalence:__pkg__"])
 legend_java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"])
 legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"])
-legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"])
+# visible to //datacube: its catalog corpus and offer facts generators read the protocol directly
+legend_java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"], visibility = ["//datacube:__pkg__"])
 legend_java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"])
 legend_java_library(
     name = "parser",
     srcs = glob(["src/main/java/com/legend/parser/**/*.java"]),
+    visibility = ["//datacube:__pkg__"],
     deps = ["//base", ":error", ":lexer", ":model", ":protocol", ":spi", ":values"],
 )
 
@@ -95,12 +98,14 @@ legend_java_library(
 legend_java_library(name = "platform", srcs = glob(["src/main/java/com/legend/platform/*.java"]), deps = ["//base", ":builtin", ":model"])
 legend_java_library(
     name = "compiler_element_type",
+    visibility = ["//datacube:__pkg__", "//engine-client:__pkg__"],
     srcs = glob(["src/main/java/com/legend/compiler/element/type/*.java"]),
     deps = ["//base", ":builtin", ":model", ":platform", ":protocol", ":sql"],
 )
 legend_java_library(
     name = "sql_dialect",
     srcs = glob(["src/main/java/com/legend/sql/dialect/*.java"]),
+    visibility = ["//datacube:__pkg__"],
     deps = ["//base", ":sql"],
 )
 
@@ -110,12 +115,14 @@ legend_java_library(
 legend_java_library(
     name = "database",
     srcs = glob(["src/main/java/com/legend/database/*.java"]),
+    visibility = ["//datacube:__pkg__"],
     deps = ["//base", ":error", ":model", ":sql_dialect"],
 )
 
 # the compiler quartet: resolver-of-names, element compiler, typer, typed tree
 legend_java_library(
     name = "compiler",
+    visibility = ["//datacube:__pkg__"],
     srcs = glob(["src/main/java/com/legend/compiler/**/*.java"], exclude = ["src/main/java/com/legend/compiler/element/type/*.java"]),
     deps = ["//base", ":builtin", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
 )
@@ -136,11 +143,13 @@ legend_java_library(
 )
 legend_java_library(
     name = "lowering",
+    visibility = ["//wasm:__pkg__"],
     srcs = glob(["src/main/java/com/legend/lowering/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
 )
 legend_java_library(
     name = "plan",
+    visibility = ["//datacube:__pkg__"],
     srcs = glob(["src/main/java/com/legend/plan/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":database", ":error", ":lineage", ":model", ":sql"],
 )
@@ -177,6 +186,7 @@ _PLANNER_SRCS = [
 
 legend_java_library(
     name = "planner",
+    visibility = ["//datacube:__pkg__"],
     srcs = _PLANNER_SRCS,
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error",
@@ -235,7 +245,9 @@ legend_java_library(
 legend_java_library(
     name = "core",
     exports = _CORE_TARGETS,
-    visibility = ["//datacube:__pkg__", "//engine-client:__pkg__", "//parser-equivalence:__pkg__", "//pct:__pkg__", "//sdlc-server:__pkg__", "//spec:__pkg__", "//tools/census:__pkg__", "//tools/engine-runner:__pkg__", "//tools/legend:__pkg__", "//wasm:__pkg__"],
+    # //datacube, //engine-client and //wasm name narrower targets (the build rebuild's Phase 1), so the whole of core
+    # is not theirs to reach again by accident
+    visibility = ["//parser-equivalence:__pkg__", "//pct:__pkg__", "//sdlc-server:__pkg__", "//spec:__pkg__", "//tools/census:__pkg__", "//tools/engine-runner:__pkg__", "//tools/legend:__pkg__"],
 )
 
 # THE JDBC DRIVERS, as their own target. core never compiles against a driver: it
@@ -699,14 +711,14 @@ legend_java_binary(
 _GENERATED = {
     "src/main/java/com/legend/builtin/DynaFn.java": "//spec:gen_dynafn",
     "src/main/java/com/legend/builtin/Pure.java": "//spec:gen_natives",
-    "src/main/java/com/legend/compiler/NameResolver.java": "//spec:gen_imports",
+    "src/main/java/com/legend/compiler/CoreImports.java": "//spec:gen_imports",
     "src/main/resources/com/legend/builtin/engine-handlers.tsv": "//spec:gen_engine_handlers",
     "src/main/resources/com/legend/builtin/native-claims.tsv": "//spec:gen_claims",
     "src/main/resources/com/legend/builtin/prelude.pure": "//spec:gen_prelude",
 }
 
-# the committed copies are also generator INPUTS (a generator splices its part
-# in), as is the hand-owned membership list natives reads
+# the committed DynaFn.java and Pure.java are also generator INPUTS (each generator splices its part in), as is the
+# hand-owned membership list natives reads; the other generated files are written whole
 exports_files(
     list(_GENERATED.keys()) + [
         "src/main/resources/com/legend/builtin/native-membership.tsv",
@@ -746,6 +758,7 @@ filegroup(
 # the stress files' table of contents, a resource beside stress-layout.json (StressCorpus)
 stress_index(
     name = "stress_index",
+    testonly = True,
     srcs = glob(["src/test/resources/stress/*.pure"]),
     out = "src/test/resources/com/legend/integration/stress-index.txt",
 )
@@ -763,6 +776,14 @@ filegroup(
         ["src/test/resources/stress/*.pure"],
         exclude = ["src/test/resources/stress/" + f for f in STRESS_GENERATED],
     ),
+    visibility = ["//scripts/corpus:__pkg__"],
+)
+
+# the committed dense files (59, 60, 64): the cross-engine differential reads them; the stress generators read
+# gen_dense's outputs instead
+filegroup(
+    name = "stress_dense",
+    srcs = ["src/test/resources/stress/" + f for f, g in STRESS_GENERATED.items() if g == "dense"],
     visibility = ["//scripts/corpus:__pkg__"],
 )
 
@@ -828,11 +849,13 @@ write_source_files(
 
 # NOT a generated file: native-membership.tsv is hand-owned (membership is OURS). This writes a DRAFT from
 # Pure.java's constants over it for a person to finish (git diff shows what moved); NativeSignatureGeneratorTest is
-# the check. Outside //:update_generated, with no diff test (the docs:draft_own_corpus_ledger pattern; P2-17).
+# the check. Outside //:update_generated, with no diff test (the docs:draft_own_corpus_ledger pattern; P2-17). A tool
+# run on demand, so not part of //... (manual).
 write_source_files(
     name = "draft_native_membership",
     diff_test = False,
     files = {"src/main/resources/com/legend/builtin/native-membership.tsv": "//spec:native_membership_draft"},
+    tags = ["manual"],
 )
 
 # CORE AS THE GENERATORS REWRITE IT: the generated Java and prelude in place of
@@ -846,7 +869,7 @@ legend_java_library(
         exclude = [
             "src/main/java/com/legend/builtin/DynaFn.java",
             "src/main/java/com/legend/builtin/Pure.java",
-            "src/main/java/com/legend/compiler/NameResolver.java",
+            "src/main/java/com/legend/compiler/CoreImports.java",
         ],
     ) + [
         "//spec:gen_dynafn",

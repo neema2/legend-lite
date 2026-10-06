@@ -53,15 +53,15 @@ import os
 import re
 core_imports = set()
 src = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
-                   "core", "src", "main", "java", "com", "legend", "compiler", "NameResolver.java")
+                   "core", "src", "main", "java", "com", "legend", "compiler", "CoreImports.java")
 try:
     text = open(src, encoding="utf-8").read()
-    block = text[text.index("CORE_IMPORTS = List.of("):]
+    block = text[text.index("SEQUENCE = List.of("):]
     block = block[:block.index(");")]
     core_imports = set(re.findall(r'"([^"]+)"', block))
 except (OSError, ValueError):
     pass
-print(f"core import group read from NameResolver.java: {len(core_imports)} packages")
+print(f"core import group read from CoreImports.java: {len(core_imports)} packages")
 
 
 def in_core_group(fqn):

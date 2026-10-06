@@ -87,7 +87,7 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["src/main/java/planner/ZoneMain.java"],
-    deps = [":boundary"],
+    deps = ["//core:lowering"],
 )
 
 # THE DIFFERENTIAL. The JVM's answers are a build output — a function of the
@@ -95,6 +95,7 @@ legend_java_library(
 # plans the same corpus in the module and compares, refusals included.
 java_run(
     name = "jvm_answers",
+    testonly = True,
     srcs = [
         "corpus/model.pure",
         "corpus/queries.tsv",
@@ -129,6 +130,7 @@ node_test(
 # built module can say whether it survived. ZoneMain's answers are the cases.
 java_run(
     name = "zone_jvm",
+    testonly = True,
     outs = ["zone_jvm.txt"],
     arguments = ["{OUT}"],
     main_class = "planner.ZoneMain",

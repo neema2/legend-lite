@@ -24,7 +24,7 @@ import java.util.Map;
  *       registers, each resolved to the FQNs the platform declares
  *       ({@link EngineHandlers}, generated from the pinned checkout);</li>
  *   <li>the CORE GROUP — the packages real pure imports implicitly
- *       ({@link NameResolver#CORE_IMPORTS}, generated from the engine's
+ *       ({@link CoreImports#SEQUENCE}, generated from the engine's
  *       {@code CompileContext}), the name spelled under each;</li>
  *   <li>the FORM's OWNED FQNs — a language form the typer implements dispatches
  *       by the declarations it owns ({@link CoreFn#ownedFqns()}).</li>
@@ -57,7 +57,7 @@ public final class BareNames {
         for (String fqn : EngineHandlers.fqnsOf(name)) {
             out.add(new TierFqn("ENGINE", fqn));
         }
-        for (String pkg : NameResolver.CORE_IMPORTS) {
+        for (String pkg : CoreImports.SEQUENCE) {
             out.add(new TierFqn("CORE", pkg + "::" + name));
         }
         // the form's owned declarations SPELLED LIKE THE CALL (a form owning

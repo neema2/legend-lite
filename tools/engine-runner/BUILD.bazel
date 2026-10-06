@@ -6,42 +6,57 @@ load("//tools/guards:defs.bzl", "guards_package")
 
 # The engine runner (README.md): the real legend-engine over .pure sources, beside
 # legend-lite's core. Its jars are its own pool, @maven_runner (MODULE.bazel).
+_RUNNER_RUNTIME = [
+    "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_grammar",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_compiler",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_modelManager",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_executionPlan_generation",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_extensions_collection_generation",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_extensions_collection_execution",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_executionPlan_connection",
+    "@maven_runner//:com_h2database_h2",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_test_runner_mapping",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_test_runner_function",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_duckdb_execution",
+    "@maven_runner//:org_duckdb_duckdb_jdbc",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_athena_grammar",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_oracle_grammar",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_aurora_grammar",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_memsql_grammar",
+]
+
+_RUNNER_DEPS = [
+    "@maven_runner//:org_finos_legend_engine_legend_engine_test_runner_service",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_grammar",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_compiler",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_protocol_pure",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_shared_core",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_testable",
+    "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_dsl_service",
+    "@maven_runner//:org_antlr_antlr4_runtime",
+]
+
 legend_java_library(
     name = "runner",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
-    srcs = glob(["src/main/java/**/*.java"]),
+    srcs = glob(["src/main/java/**/*.java"], exclude = ["src/main/java/perf/TokenDump.java"]),
     # legend-engine's jars are testonly (MODULE.bazel), so this is: a test tool, never shipped; `bazel run` still works
     testonly = True,
-    runtime_deps = [
-        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_grammar",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_compiler",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_modelManager",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_executionPlan_generation",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_extensions_collection_generation",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_extensions_collection_execution",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_executionPlan_connection",
-        "@maven_runner//:com_h2database_h2",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_test_runner_mapping",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_test_runner_function",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_duckdb_execution",
-        "@maven_runner//:org_duckdb_duckdb_jdbc",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_athena_grammar",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_oracle_grammar",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_aurora_grammar",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_memsql_grammar",
-    ],
-    deps = [
-        "//core",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_test_runner_service",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_grammar",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_compiler",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_protocol_pure",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_shared_core",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_testable",
-        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_dsl_service",
-        "@maven_runner//:org_antlr_antlr4_runtime",
-    ],
+    runtime_deps = _RUNNER_RUNTIME,
+    deps = ["//core"] + _RUNNER_DEPS,
+)
+
+# TokenDump alone, over the runner's jars without core: it reads every jar on its class path, and ours carry no lexer
+# vocabulary, so the record is the same and a core change never reruns it
+legend_java_library(
+    name = "token_dump",
+    # not yet written to the null discipline (Bazel workplan P1-20), as :runner, whose file it was
+    nullaway = False,
+    srcs = ["src/main/java/perf/TokenDump.java"],
+    testonly = True,
+    runtime_deps = _RUNNER_RUNTIME,
+    deps = _RUNNER_DEPS,
 )
 
 [legend_java_binary(
@@ -55,8 +70,8 @@ legend_java_library(
     ("lite_parse", "LiteParseMain"),
 ]]
 
-# vocab.tsv: every literal token the runner's lexers know, at the pinned release (TokenDump over the runner's jars;
-# keywords.py reads it). `bazel run //tools/engine-runner:update_vocab` writes it (Bazel workplan P2-18).
+# vocab.tsv: every literal token the runner's lexers know, at the pinned release (TokenDump over the runner's jars),
+# kept as an upgrade's record. `bazel run //tools/engine-runner:update_vocab` writes it (Bazel workplan P2-18).
 java_run(
     name = "vocab",
     testonly = True,
@@ -64,8 +79,7 @@ java_run(
     arguments = ["{OUT}"],
     main_class = "perf.TokenDump",
     mnemonic = "Generate",
-    visibility = ["//scripts/parser:__pkg__"],
-    deps = [":runner"],
+    deps = [":token_dump"],
 )
 
 write_source_files(

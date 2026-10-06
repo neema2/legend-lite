@@ -9,6 +9,7 @@ load("//tools/guards:defs.bzl", "guards_package")
 # defs.bzl changes the output, and the diff test fails.
 legend_java_library(
     name = "print_pins",
+    testonly = True,
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["pins/PrintPins.java"],
@@ -16,6 +17,7 @@ legend_java_library(
 
 java_run(
     name = "pins",
+    testonly = True,
     outs = ["pins.txt"],
     arguments = ["{OUT}"],
     main_class = "com.legend.tools.javarun.pins.PrintPins",

@@ -2,7 +2,7 @@
 # byte-parity checks (Maven gate 3) and the relational corpus lanes (gates 4, 5).
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
-load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
+load("//tools/generators:defs.bzl", "ENGINE_ROOT", "ENGINE_TREE", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
@@ -58,13 +58,25 @@ legend_java_library(
     nullaway = False,
     srcs = glob(
         ["src/gen/java/com/legend/generators/*.java"],
-        exclude = ["src/gen/java/com/legend/generators/SourceTree.java"],
+        exclude = [
+            "src/gen/java/com/legend/generators/ImportsGenerator.java",
+            "src/gen/java/com/legend/generators/SourceTree.java",
+        ],
     ),
     deps = [
         ":claims",
         ":source_tree",
         "//core",
     ],
+)
+
+# the imports generator alone: it reads one text (CompileContext.java) and no core class, so it compiles without the
+# core it writes into
+legend_java_library(
+    name = "imports_generator",
+    # not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    srcs = ["src/gen/java/com/legend/generators/ImportsGenerator.java"],
 )
 
 # Claims (and ClaimsGenerator, which writes its ledger) reads the COMPILED registries of the core it is compiled
@@ -99,6 +111,7 @@ legend_java_library(
     deps = [
         ":claims",
         ":generators",
+        ":imports_generator",
         ":source_tree",
         "//core",
         "//testing",
@@ -327,29 +340,26 @@ java_run(
     deps = [":generators"],
 )
 
-# NameResolver.java's CORE_IMPORTS: the engine's META_IMPORTS sequence
+# CoreImports.java, whole: the engine's META_IMPORTS sequence
 java_run(
     name = "gen_imports",
-    srcs = [
-        _ENGINE_COMPILE_CONTEXT,
-        "//core:src/main/java/com/legend/compiler/NameResolver.java",
-    ],
-    outs = ["generated/NameResolver.java"],
+    srcs = [_ENGINE_COMPILE_CONTEXT],
+    outs = ["generated/CoreImports.java"],
     arguments = [
         "$(execpath %s)" % _ENGINE_COMPILE_CONTEXT,
-        "$(execpath //core:src/main/java/com/legend/compiler/NameResolver.java)",
         "{OUT}",
     ],
     main_class = "com.legend.generators.ImportsGenerator",
     mnemonic = "Generate",
     visibility = ["//core:__pkg__"],
-    deps = [":generators"],
+    deps = [":imports_generator"],
 )
 
 # DynaFn.java's members: the engine's dynafunction registries, every dialect
 java_run(
     name = "gen_dynafn",
-    srcs = UPSTREAM_TREES + [
+    # the engine's dynafunction tables and the committed file; no legend-pure source
+    srcs = ENGINE_TREE + [
         "//core:src/main/java/com/legend/builtin/DynaFn.java",
     ],
     outs = ["generated/DynaFn.java"],
@@ -360,7 +370,7 @@ java_run(
     ],
     main_class = "com.legend.generators.DynaFnGenerator",
     mnemonic = "Generate",
-    roots = _ROOTS,
+    roots = ENGINE_ROOT,
     visibility = ["//core:__pkg__"],
     deps = [":generators"],
 )
@@ -413,7 +423,8 @@ write_source_files(
 )
 
 # Every upstream declaration of a membership FQN (fqn, key, text, source file): what a re-keying leg reads.
-# A build output (bazel build //spec:native_declarations), never a file in the tree (P2-17).
+# A build output (bazel build //spec:native_declarations), never a file in the tree (P2-17). Asked for by name, never
+# part of //... (manual).
 java_run(
     name = "native_declarations",
     srcs = UPSTREAM_TREES + [
@@ -429,17 +440,19 @@ java_run(
     main_class = "com.legend.generators.NativeDeclarations",
     mnemonic = "Generate",
     roots = _ROOTS,
+    tags = ["manual"],
     deps = [":generators"],
 )
 
 # A DRAFT of the hand-owned native-membership.tsv from Pure.java's compiled constants, for a person to finish:
-# //core:draft_native_membership writes it (P2-17).
+# //core:draft_native_membership writes it (P2-17). On demand (manual).
 java_run(
     name = "native_membership_draft",
     outs = ["generated/native-membership.draft.tsv"],
     arguments = ["{OUT}"],
     main_class = "com.legend.generators.NativeMembershipDraft",
     mnemonic = "Generate",
+    tags = ["manual"],
     visibility = ["//core:__pkg__"],
     deps = [":generators"],
 )
@@ -502,7 +515,7 @@ java_run(
         "{OUT}",
         "com/legend/builtin/DynaFn.java=$(execpath :gen_dynafn)",
         "com/legend/builtin/Pure.java=$(execpath :gen_natives)",
-        "com/legend/compiler/NameResolver.java=$(execpath :gen_imports)",
+        "com/legend/compiler/CoreImports.java=$(execpath :gen_imports)",
     ],
     roots = _CORE_SRC,
     main_class = "com.legend.claims.ClaimsGenerator",
@@ -512,25 +525,21 @@ java_run(
 )
 
 # THE EAGER COMPILE (EagerCorpusCompileProbe): every body of the corpus's compiled world typed up front, a
-# measurement (Bazel workplan P3-17). Manual: `bazel build //spec:eager_corpus_compile`, and the second world
-# (the corpus + legend-pure's platform packages whole) `//spec:eager_corpus_compile_world2`.
-[java_run(
-    name = name,
+# measurement (Bazel workplan P3-17). Manual: `bazel build //spec:eager_corpus_compile`.
+java_run(
+    name = "eager_corpus_compile",
     testonly = True,
     srcs = _INPUTS + UPSTREAM_TREES,
-    outs = [name + "/eager-corpus.txt", name + "/eager-residue.txt", name + "/run.log"],
+    outs = ["eager_corpus_compile/" + f for f in ["eager-corpus.txt", "eager-residue.txt", "run.log"]],
     arguments = ["{OUT_DIR}"],
-    jvm_flags = program_jvm_flags("spec") + flags,
+    jvm_flags = program_jvm_flags("spec"),
     main_class = "com.legend.rcorpus.EagerCorpusCompileProbe",
     memory_mb = 4096,
     mnemonic = "Measure",
     roots = UPSTREAM_ROOTS,
     tags = ["manual"],
     deps = [":spec_tests_lib"],
-) for name, flags in [
-    ("eager_corpus_compile", []),
-    ("eager_corpus_compile_world2", ["-Deager.world2=1"]),
-]]
+)
 
 # THE MANIFEST-WORLD CENSUS (ManifestWorldCensusTest, charter step 7 / D7): a module's dependency closure loaded
 # whole, every body typed once; core_relational's walls and failing bodies are ceilings. Heavy, so in no default
