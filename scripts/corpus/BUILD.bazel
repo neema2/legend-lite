@@ -11,7 +11,8 @@ load("//tools/guards:defs.bzl", "guards_package")
 # (//core:stress_sources -- the generated ten excluded), the linked projects, and the
 # hand-written queries 92 is generated from.
 
-# build.py's import closure plus the dense generators. Stdlib only, except zoneinfo's data.
+# Every corpus module: the gates' library (the generators run on their own closures, below). Stdlib only, except
+# zoneinfo's data.
 py_library(
     name = "corpus",
     srcs = [
@@ -52,22 +53,102 @@ py_library(
     deps = ["@pypi//tzdata"],
 )
 
+# Each generator's own import closure (function-local imports included), so editing a module reruns only the
+# generators that import it. The gates below keep :corpus (their own closures are 12 to 24 modules; narrowing them is
+# later work).
+_BUILD_MODULES = [
+    "aggregate",
+    "aggregates",
+    "battery",
+    "combos",
+    "deepstack",
+    "density",
+    "emit",
+    "exactmath",
+    "executed",
+    "expand",
+    "flat",
+    "functest",
+    "graphs",
+    "hier",
+    "model",
+    "oracle",
+    "partition",
+    "quarantine",
+    "query",
+    "rhs",
+    "seed",
+    "spread",
+    "stacking",
+    "stacks",
+    "taxonomy",
+    "tomany",
+    "views",
+]
+
+_DENSE_MODULES = [
+    "aggregate",
+    "combos",
+    "dense_mapping",
+    "dense_store",
+    "exactmath",
+    "expand",
+    "flat",
+    "model",
+    "oracle",
+    "partition",
+    "query",
+    "rhs",
+    "seed",
+    "views",
+]
+
+_DIFFERENTIAL_MODULES = [
+    "aggregate",
+    "battery",
+    "combos",
+    "exactmath",
+    "expand",
+    "flat",
+    "graphs",
+    "model",
+    "oracle",
+    "partition",
+    "quarantine",
+    "query",
+    "rhs",
+    "seed",
+    "stacks",
+    "views",
+]
+
+[py_library(
+    name = name,
+    srcs = [m + ".py" for m in modules],
+    imports = ["."],
+    deps = ["@pypi//tzdata"],
+) for name, modules in [
+    ("corpus_build", _BUILD_MODULES),
+    ("corpus_dense", _DENSE_MODULES),
+    ("corpus_differential", _DIFFERENTIAL_MODULES),
+]]
+
 py_binary(
     name = "build",
     srcs = ["build.py"],
-    deps = [":corpus"],
+    deps = [":corpus_build"],
 )
 
 py_binary(
     name = "differential",
     srcs = ["differential.py"],
-    deps = [":corpus"],
+    deps = [":corpus_differential"],
 )
 
 py_binary(
     name = "dense_build",
     srcs = ["dense_build.py"],
-    deps = [":corpus"],
+    deps = [":corpus_dense"],
 )
 
 # The action environment: the root is the execroot (declared inputs only), zone data from the
@@ -87,8 +168,7 @@ _ENV = {
 # the LINKED projects, not every project. The .pure files are also passed as --inputs, the only files read.
 _LINKED = ["//projects:%s_files" % p for p in LINKED_PROJECTS]
 
-_INPUTS = [
-    "queries.pure",
+_SOURCES = [
     "//core:stress_layout",
     "//core:stress_sources",
 ] + _LINKED
@@ -102,7 +182,8 @@ STRESS = sorted([f for f, gen in STRESS_GENERATED.items() if gen == "stress"])
 
 run_binary(
     name = "gen_dense",
-    srcs = _INPUTS,
+    # the dense builders never read the queries (only build.py's 92 does)
+    srcs = _SOURCES,
     outs = ["dense/" + f for f in DENSE],
     args = [
         "--out",
@@ -117,7 +198,10 @@ run_binary(
 # reaches 92-98 in the same update.
 run_binary(
     name = "gen_stress",
-    srcs = _INPUTS + [":gen_dense"],
+    srcs = _SOURCES + [
+        "queries.pure",
+        ":gen_dense",
+    ],
     outs = ["stress/" + f for f in STRESS],
     args = [
         "--dense",
