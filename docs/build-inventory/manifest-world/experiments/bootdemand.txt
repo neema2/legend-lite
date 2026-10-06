@@ -1,0 +1,13 @@
+
+system: references 70 upstream names; by area: {'A': 3, 'E': 9, 'F': 1, 'G': 2, 'core': 55}
+   harness ones: ['AggregationAwareActivity', 'ColumnWithContext', 'ExecutionNode', 'ExecutionPlan', 'Extension', 'FunctionParameter', 'FunctionParametersValidationNode', 'RelationTree', 'RelationalInstantiationExecutionNode', 'RouterExtension', 'SQLExecutionNode', 'SequenceExecutionNode']
+
+catalog: references 80 upstream names; by area: {'A': 2, 'C': 6, 'D': 2, 'E': 2, 'F': 2, 'G': 9, 'core': 57}
+   harness ones: ['AlloySerializationConfig', 'Checked', 'ColumnWithContext', 'DbConfig', 'ExecutionPlan', 'Extension', 'PropertyPathNode', 'PropertyPathTree', 'RelationTree', 'RelationalCSVData', 'Res', 'SQLResult', 'TableRowIdentifiers', 'TemporalMilestoningDates', 'TestDataGenResult']
+
+core  + boot demands (system only): +90 names, +60 KB; by area: {'A': 5, 'B': 2, 'C': 20, 'E': 33, 'F': 19, 'G': 2, 'other': 9}
+core  + boot demands (system + catalog): +824 names, +572 KB; by area: {'A': 15, 'B': 6, 'C': 24, 'D': 205, 'E': 73, 'F': 24, 'G': 12, 'other': 465}
+S2    + boot demands (system only): +54 names, +32 KB; by area: {'C': 1, 'E': 28, 'F': 19, 'G': 2, 'other': 4}
+S2    + boot demands (system + catalog): +776 names, +542 KB; by area: {'A': 3, 'B': 3, 'C': 3, 'D': 205, 'E': 66, 'F': 24, 'G': 12, 'other': 460}
+S1    + boot demands (system only): +10 names, +2 KB; by area: {'E': 8, 'G': 2}
+S1    + boot demands (system + catalog): +698 names, +499 KB; by area: {'B': 1, 'D': 202, 'E': 43, 'G': 6, 'other': 446}

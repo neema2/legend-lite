@@ -1,0 +1,6 @@
+judge_host_duckdb              39s verdict=1 exit=0 differing outputs: ['duckdb-engine-order-register.txt', 'duckdb-fail-roster.txt', 'judge-host.tsv', 'verdict.txt']
+judge_database_duckdb           0s verdict=1 exit=0 differing outputs: ['duckdb-database-engine-order-register.txt', 'judge-database.tsv', 'verdict.txt']
+judge_host_h2                  26s verdict=0 exit=0 differing outputs: ['h2-fail-roster.txt', 'judge-host.tsv']
+judge_database_h2              57s verdict=1 exit=0 differing outputs: ['judge-database.tsv', 'verdict.txt']
+judge_host_warehouse          102s verdict=1 exit=0 differing outputs: ['judge-host.tsv', 'verdict.txt']
+judge_database_warehouse        0s verdict=1 exit=0 differing outputs: ['judge-database.tsv', 'verdict.txt']

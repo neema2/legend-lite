@@ -1,0 +1,14 @@
+cold start, attributed
+
+  read 4.2 MB from disk                        0.5 ms
+  WebAssembly.compile                         24.8 ms
+  TeaVM load + instantiate                    68.3 ms    3% of first-answer
+  parse prelude.pure (929 elements)          349.6 ms   17% of first-answer
+  system metamodel (59 elements)              90.8 ms    4% of first-answer
+    of which: SHA-256 of the boot source      19.8 ms    1% of first-answer
+    of which: NameResolver.resolve           305.4 ms   15% of first-answer
+  boot layer: resolve + normalize + index   1163.4 ms   56% of first-answer
+  first plan, everything above warm           79.5 ms    4% of first-answer
+  warm plan p50                               64.0 ms
+
+  first answer (instantiate → planned)      2076.8 ms

@@ -1,0 +1,45 @@
+universe: 1591 elements, 0.66 MB (files: 459 W1 + 21 whole + 55 mixed)
+seed                          direct  closed     MB  share
+projects                         332     723   0.33    50%
+demos                            110     702   0.32    49%
+our Java                         993    1335   0.60    91%
+corpus tests                     889    1254   0.57    85%
+user programs + our Java                1338   0.60    91%
+all                                     1388   0.62    93%
+
+in today's prelude: 560 elements 0.19 MB; NEW (not in today's prelude): 1031 elements 0.47 MB
+   used by user programs + our Java: of prelude part 383/560, of new part 955/1031 (0.45 of 0.47 MB)
+   used by all: of prelude part 422/560, of new part 966/1031 (0.46 of 0.47 MB)
+prelude declarations NOT in the universe: 106; by top package: [('meta::pure', 106)]
+   of which m3 metamodel: 86; others e.g. ['meta::pure::functions::test::TestedByResult', 'meta::pure::test::pct::PCTManifest', 'meta::pure::test::pct::loadPCTManifest', 'meta::pure::test::pct::testAdapterForInMemoryExecution', 'meta::pure::test::surveyor::TestGroup', 'meta::pure::test::surveyor::TestReport', 'meta::pure::test::surveyor::TestResult', 'meta::pure::test::surveyor::TestStatus', 'meta::pure::test::surveyor::buildTestGroup', 'meta::pure::test::surveyor::executePCTTest', 'meta::pure::test::surveyor::executeTest', 'meta::pure::test::surveyor::flattenTestGroup']
+
+packages by bytes (elements: user-used / any-used / total):
+     60.3 KB   121/ 122/ 135  meta::pure::functions::relation
+     52.4 KB   121/ 121/ 122  meta::pure::functions::math
+     48.8 KB    75/  75/  81  meta::pure::functions::string
+     48.2 KB    47/  48/  64  meta::pure::functions::meta
+     42.8 KB    86/  87/  90  meta::pure::functions::collection
+     41.7 KB   127/ 128/ 135  meta::pure::functions::date
+     38.0 KB    75/  75/  75  meta::pure::functions::boolean
+     21.9 KB    31/  32/  32  meta::pure::functions::lang
+     21.7 KB    16/  16/  16  meta::relational::functions::sqlQueryToString
+     19.6 KB    40/  44/  55  meta::pure::mapping
+     19.2 KB    61/  61/  77  meta::pure::functions::asserts
+     15.5 KB    60/  65/  81  meta::relational::metamodel
+     13.2 KB    11/  11/  11  meta::pure::lineage::scanRelations
+     11.6 KB    35/  35/  35  meta::relational::functions::toDDL
+     11.4 KB    15/  15/  15  meta::relational::functions::sqlstring
+     11.3 KB    17/  17/  17  meta::relational::testDataGeneration
+     11.2 KB    25/  25/  26  meta::pure::executionPlan
+      9.9 KB    22/  23/  23  meta::pure::tds
+      8.5 KB     4/   4/   4  meta::relational::testDataGeneration::executionPlan
+      7.9 KB    28/  28/  32  meta::relational::metamodel::datatype
+      7.3 KB    17/  22/  25  meta::relational::mapping
+      7.0 KB     4/   4/   4  meta::pure::extension
+      6.6 KB    25/  25/  32  meta::json
+      4.9 KB     1/   1/   1  meta::pure::tds::schema
+      4.7 KB    17/  17/  20  meta::relational::metamodel::execute
+
+world U     : 1591 elements, 516 files, 1.02 MB on disk
+world Uall  : 1388 elements, 462 files, 0.94 MB on disk
+world Uuser : 1338 elements, 457 files, 0.92 MB on disk

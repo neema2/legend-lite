@@ -153,6 +153,15 @@ at boot" (the m3 bootstrap, SystemMetamodel) stays built in, as the compiler des
 
 ## 6. Open, each with what settles it
 
+**Update 2026-10-06:** `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md` settles several of these by measurement:
+- item 1's "2b" question: upstream core whole, plus upstream's query surface, closed through runnable bodies;
+- item 2: the default manifest is a module-level choice (the core and relational compiler modules), not a list of
+  files or elements;
+- item 3: measured in the JVM and the browser;
+- item 4: the 87 declarations upstream has only in `m3.pure`'s bootstrap form stay built in.
+
+Items 1's other sub-questions, 5 and 6 stay open, with the experiments' own open items.
+
 1. **D9** (the compiler plan; open until its checkpoint C1). Four sub-questions:
    - the "2b" standard-library question, whose text exists only as "whole stdlib resource vs library-only is decided
      HERE, by measurement" (UPSTREAM_BOUNDARY_PROGRAM:273). Section 3's sizes ARE that measurement;
