@@ -1,0 +1,31 @@
+== E1_resolver_comment (edited: core/src/main/java/com/legend/compiler/NameResolver.java ; build rc=0)
+   CHANGED  spec/generated/NameResolver.java
+   unchanged: 10 of 11
+== E2_pure_comment (edited: core/src/main/java/com/legend/builtin/Pure.java ; build rc=0)
+   CHANGED  spec/generated/Pure.java
+   unchanged: 10 of 11
+== E3_unrelated_comment (edited: core/src/main/java/com/legend/Compiler.java ; build rc=0)
+   unchanged: 11 of 11
+== E4_java_names_absent_class (edited: core/src/main/java/com/legend/Compiler.java ; build rc=0)
+   unchanged: 11 of 11
+removed: AVERAGE__NUMBER_MANY	meta::pure::functions::math::average	meta::pure::functions::math::average(meta:
+== E5_membership_row (edited: core/src/main/resources/com/legend/builtin/native-membership.tsv ; build rc=0)
+   unchanged: 11 of 11
+== E6_lite_constant (edited: core/src/main/java/com/legend/builtin/Pure.java ; build rc=0)
+   CHANGED  spec/generated/Pure.java
+   unchanged: 10 of 11
+== E8_dynafn_resolution (edited: core/src/main/java/com/legend/builtin/DynaFn.java ; build rc=0)
+   CHANGED  spec/generated/DynaFn.java
+   unchanged: 10 of 11
+removed: Class meta::pure::functions::collection::Pair<U,V>
+== E9_committed_prelude (edited: core/src/main/resources/com/legend/builtin/prelude.pure ; build rc=0)
+   unchanged: 11 of 11
+== E4b_java_names_engine_class (edited: core/src/main/java/com/legend/Compiler.java ; build rc=0)
+   CHANGED  spec/generated/com/legend/builtin/prelude.pure
+   unchanged: 10 of 11
+swapped: "meta::pure::metamodel", <-> "meta::pure::metamodel::type",
+== E10_core_imports_order (edited: core/src/main/java/com/legend/compiler/NameResolver.java ; build rc=0)
+   unchanged: 11 of 11
+blanked fqn of: abs	meta::pure::functions::math::abs_Float_1__Float_1_	meta::pure::functions::math::abs	en
+== E11_committed_handlers (edited: core/src/main/resources/com/legend/builtin/engine-handlers.tsv ; build rc=0)
+   unchanged: 11 of 11
