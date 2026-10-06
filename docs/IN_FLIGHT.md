@@ -31,11 +31,21 @@ with the compiler's plan/execution split**, in this order:
    `MODULE.bazel` (the product-jar extension, esbuild's archives), `release.MODULE.bazel`, `.bazelrc`, `tools/deps`,
    `tools/guards`, `tools/js`, `tools/jars`, `pct/`, `spec/`, `docs/GATES.md`, and the CI cache key. No source
    edits; no `depot-server/` or warehouse visibility edit (the 2026-10-05 note was wrong there).
-   **Phase 1 next (generator hygiene, no behavior change), on a branch stacked on PR 1:** `CORE_IMPORTS` moves out of
-   `core/src/main/java/com/legend/compiler/NameResolver.java` into its own generated file (`NameResolver`,
-   `BareNames` and `DiagramService` read it there); generators' BUILD declarations narrowed to what they read, dead
-   ones deleted and on-demand ones `manual`, in `core/`, `spec/`, `parser-equivalence/`, `pct/`, `scripts/corpus/`,
-   `tools/`, `datacube/`, `engine-client/`, `legend-art/` and `warehouse/`.
+   **Phase 1 (generator hygiene, no behavior change), branch `build/phase1-generators`, stacked on PR 1; announced
+   2026-10-06, the full scope:** core source: `CORE_IMPORTS` leaves `core/src/main/java/com/legend/compiler/NameResolver.java`
+   for a new generated `CoreImports.java` (`SEQUENCE`), read by `NameResolver`, `BareNames` and `PreludeGenerator`
+   (`DiagramService` a comment); core tests: two pins (`HarnessDisciplineTest`'s count for the trimmed eager-compile
+   probe, `ParserBoundaryArchTest`'s entry for it); `core/BUILD.bazel`: visibility for the narrowed generators
+   (`diagnostics`, `protocol`, `parser`, `sql_dialect`, `database`, `compiler_element_type`, `compiler`, `plan`,
+   `planner`, `lowering`), a `stress_dense` group, `manual`/`testonly` tags and the generated-file map. **Studio's:**
+   `datacube/` (the catalog generator split into `CatalogRulesFacts.java` + `CatalogFacts.java`, `catalog-facts.ts`'s
+   header line regenerated, `manual`/`testonly` tags, narrowed deps) and `engine-client/BUILD.bazel`. Also: `wasm/`
+   (`ZoneMain.java`, BUILD), `warehouse/BUILD.bazel` (the native image's metadata in its own library),
+   `parser-equivalence/` (new programs `PmcdReachability`, `PmcdWorklist`, a committed `pmcd-reachable.tsv`; deleted
+   `MigrationSizing`, `PmcdReachabilityCensus`), `spec/` (BUILD, `ImportsGenerator`, `PreludeGenerator`,
+   `CoreImportsParityTest`, `EagerCorpusCompileProbe`), `scripts/corpus/`, `scripts/parser/` (`keywords.py`),
+   `tools/` (`par`, `reference`, `engine-runner`, `java_run`, `generators`, `untangle`), `docs/BUILD.bazel`,
+   `docs/GATES.md`. Every changed generator's output is byte-identical.
 2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; PR #24 `studio-m1`, then `query-by-name`): `studio/`,
    `legend-art/`, `query/`, `datacube/` (imports and labels; the Snap move, A6), `site/`, a `@fontsource` block in
    `MODULE.bazel`; then, on `studio-engine`, core's test runner and model printer (A4, B1: files in the fifth line's
