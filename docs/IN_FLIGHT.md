@@ -46,6 +46,13 @@ with the compiler's plan/execution split**, in this order:
    `CoreImportsParityTest`, `EagerCorpusCompileProbe`), `scripts/corpus/`, `scripts/parser/` (`keywords.py`),
    `tools/` (`par`, `reference`, `engine-runner`, `java_run`, `generators`, `untangle`), `docs/BUILD.bazel`,
    `docs/GATES.md`. Every changed generator's output is byte-identical.
+   **Phase 2 (announced 2026-10-06): the upstream tables joined when the classes load**, branch `build/phase2-tables`,
+   stacked on Phase 1. core: `core/src/main/java/com/legend/builtin/DynaFn.java` becomes generated whole from upstream
+   (members, dialects, inference); a new hand-written `DynaFnDecisions.java` holds the platform's resolutions (PURE,
+   SHIM, TRANSLATED; an unlisted name is UNSUPPORTED); `EngineHandlers.java` joins upstream's (name, id) table with the
+   platform's declarations when it loads, and `engine-handlers.tsv` keeps upstream's two columns only. Their tests
+   (`EngineHandlersTest`; spec's `DynaFnRegistryTest`, `SpecRatchets`) and generators (`spec/`) follow. `DynaFn`'s API is
+   unchanged, so its users (`RelOpTranslator`, `DynaFnArms`, `GroupBySynthesis`, `BareNames`) are not edited.
 2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; PR #24 `studio-m1`, then `query-by-name`): `studio/`,
    `legend-art/`, `query/`, `datacube/` (imports and labels; the Snap move, A6), `site/`, a `@fontsource` block in
    `MODULE.bazel`; then, on `studio-engine`, core's test runner and model printer (A4, B1: files in the fifth line's
