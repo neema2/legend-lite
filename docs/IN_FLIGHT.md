@@ -9,7 +9,8 @@ with the compiler's plan/execution split**, in this order:
 
 1. **The Bazel program** (`docs/BAZEL_IMPLEMENTATION_PLAN.md`; log `docs/BAZEL_EXECUTION_LOG.md` on
    `docs/bazel-first-class-plan`): build files — `core/BUILD.bazel`, `tools/deps`, `MODULE.bazel` (splitting out a
-   `release.MODULE.bazel`), `pct`, `spec`, `parser-equivalence`, the guards. Batch 8 lands first. It also carries the
+   `release.MODULE.bazel`), `pct`, `spec`, `parser-equivalence`, the guards. Batch 8 landed (`053e15006`); the old
+   plan's remaining work lives in the rebuild program below. It also carries the
    reference-lane fix the user decided ("fix rule to match pure": legend-pure's overload for `min`/`max` over a list
    literal), in `core/compiler/spec` — no one else edits those files until it lands. **Announced 2026-10-05:** two small core edits the
    guards found — `core/src/main/duckdb/com/legend/exec/DuckDbAppenderLoad.java` (its `finally` replaced an in-flight
@@ -17,9 +18,24 @@ with the compiler's plan/execution split**, in this order:
    test sources the guards and censuses read (declared file lists, P3-27/P3-05). Not fixed by this program: F-L1 in
    `projects/FINDINGS.md` (a view inside a Schema is lifted twice; one line in `ModelBuilder`), for the compiler's owner. **Announced 2026-10-05 (P4-18):** `core/.../server/LegendHttpServer.java` and the warehouse server gain
    `--exit-with-parent` (exit when stdin reaches EOF; only tests set it), so no test stops a server with `taskkill`.
-   **Announced 2026-10-05 (the build rebuild, `docs/BUILD_REBUILD_DESIGN_2026_10_05.md` on the plan branch):** a
-   root `//:java` target naming every Java program we ship. Each one's BUILD file gains `//:__pkg__` visibility: one line
-   in `core/BUILD.bazel` (`//core:server`), plus `warehouse/`, `sdlc-server/` and `depot-server/`. No source edits.
+   **Parked (2026-10-06)** with the rebuild program's Phase 8: not landing now.
+   **The build rebuild and the self-contained bump** (`docs/REBUILD_PROGRAM_2026_10_06.md` on the plan branch; one
+   PR per phase). **Announced 2026-10-06, replacing the 2026-10-05 note — PR 1, Phase 0:** the build targets
+   (`//:java`, `//:web`, `//:wasm`, `//:native`, `//:sites`) and their compile-only guard, the product's jars on
+   http_jar, `//:web` without Node, stamping off (`docs/BUILD_REBUILD_DESIGN_2026_10_05.md`, which the PR carries).
+   Files: the root `BUILD.bazel`; `//:__pkg__` visibility on `//core:server`, `//sdlc-server:server`,
+   `//sdlc-server:page` and `//site:dist`; **core's runtime drivers** in `core/BUILD.bazel`, now http_jars, with
+   **Postgres JDBC 42.7.4 → 42.7.13 without checker-qual** (the server's Postgres arm); `warehouse/BUILD.bazel`'s
+   DuckDB jar label; **Studio's** `datacube/`, `query/` and `studio/` BUILD files (each app's `:bundles`, built by
+   `esbuild_bundle`) and their `package.json` and `pnpm-lock.yaml` (esbuild removed, relocked with the pinned pnpm);
+   `MODULE.bazel` (the product-jar extension, esbuild's archives), `release.MODULE.bazel`, `.bazelrc`, `tools/deps`,
+   `tools/guards`, `tools/js`, `tools/jars`, `pct/`, `spec/`, `docs/GATES.md`, and the CI cache key. No source
+   edits; no `depot-server/` or warehouse visibility edit (the 2026-10-05 note was wrong there).
+   **Phase 1 next (generator hygiene, no behavior change), on a branch stacked on PR 1:** `CORE_IMPORTS` moves out of
+   `core/src/main/java/com/legend/compiler/NameResolver.java` into its own generated file (`NameResolver`,
+   `BareNames` and `DiagramService` read it there); generators' BUILD declarations narrowed to what they read, dead
+   ones deleted and on-demand ones `manual`, in `core/`, `spec/`, `parser-equivalence/`, `pct/`, `scripts/corpus/`,
+   `tools/`, `datacube/`, `engine-client/`, `legend-art/` and `warehouse/`.
 2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; PR #24 `studio-m1`, then `query-by-name`): `studio/`,
    `legend-art/`, `query/`, `datacube/` (imports and labels; the Snap move, A6), `site/`, a `@fontsource` block in
    `MODULE.bazel`; then, on `studio-engine`, core's test runner and model printer (A4, B1: files in the fifth line's
