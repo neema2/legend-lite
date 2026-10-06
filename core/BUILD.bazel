@@ -67,7 +67,8 @@ legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/valu
 legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":model", ":sql"])
 legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
 # the diagnostics switchboard (-Dlegend.diagnostics, Bazel workplan P3-13): what lowering, exec and driver may turn on
-legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"])
+# parser-equivalence's corpus machinery reads one switch of it (Corpus.load)
+legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"], visibility = ["//parser-equivalence:__pkg__"])
 legend_java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"])
 legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"])
 # visible to //datacube: its catalog corpus and offer facts generators read the protocol directly

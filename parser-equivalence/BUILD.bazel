@@ -4,7 +4,7 @@
 
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
-load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
+load("//tools/generators:defs.bzl", "ENGINE_ROOT", "ENGINE_TREE", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/jars:defs.bzl", "file_list", "java_jars")
@@ -41,42 +41,105 @@ _HARVEST_SHIMS = [
     "src/test/java/com/legend/equivalence/harvest/FixtureRecorder.java",
 ]
 
+# The corpus machinery the generators share, in a library of its own, so gen_fixtures and gen_manifest run without
+# the parity tests, core or their own committed outputs (closure: Corpus -> InlineSnippets, OraclePins;
+# InlineSnippets -> Corpus, ModuleFiles; ModuleFiles -> Corpus; ManifestGenerator -> Corpus).
+_CORPUS = ["src/test/java/com/legend/equivalence/%s.java" % c for c in [
+    "Corpus",
+    "InlineSnippets",
+    "ManifestGenerator",
+    "ModuleFiles",
+    "OraclePins",
+]]
+
+# the harvest's own program (it reaches the shims and FixtureRecorder by name, at run time)
+_HARVEST_PROGRAM = ["src/test/java/com/legend/equivalence/harvest/%s.java" % c for c in [
+    "FixtureHarvest",
+    "FixtureHarvestGenerator",
+]]
+
+# the engine's side of the parity programs' class path, ONE list, so the parity tests and the harvest see the same
+# engine: what the tests compile against, and the grammar extensions the engine finds by ServiceLoader
+_ENGINE_COMPILE = [
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_compiler",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_protocol_pure",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_shared_core",
+    "@maven_upstream//:com_fasterxml_jackson_core_jackson_annotations",
+    "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
+    "@maven_upstream//:junit_junit",
+    "@maven_upstream//:org_antlr_antlr4_runtime",
+    "@maven_upstream//:org_eclipse_collections_eclipse_collections",
+    "@maven_upstream//:org_eclipse_collections_eclipse_collections_api",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_grammar",
+    "@maven_upstream//:org_finos_legend_pure_legend_pure_m3_core",
+]
+
+_ENGINE_EXTENSIONS = [
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_extensions_collection_generation",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_diagram_grammar",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_athena_grammar",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_aurora_grammar",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_duckdb_grammar",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_grammar",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_memsql_grammar",
+    "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_oracle_grammar",
+]
+
+_JUNIT5 = [
+    "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+]
+
+legend_java_library(
+    name = "pe_corpus",
+    # not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    testonly = True,
+    srcs = _CORPUS,
+    deps = [
+        # Corpus.load's corpus-containing switch (inert in the generators)
+        "//core:diagnostics",
+        "//testing",
+        "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
+    ],
+)
+
+legend_java_library(
+    name = "harvest_program",
+    # not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    testonly = True,
+    srcs = _HARVEST_PROGRAM,
+    deps = [
+        "//testing",
+        "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
+        "@maven_upstream//:junit_junit",
+    ],
+)
+
 legend_java_library(
     name = "pe_tests_lib",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    # the recording shims are :harvest_shims' alone: no parity test sees an engine class re-declared
-    srcs = glob(["src/test/java/**/*.java"], exclude = _HARVEST_SHIMS),
-    resources = glob(["src/test/resources/**"]),
+    # the recording shims are :harvest_shims' alone: no parity test sees an engine class re-declared; the corpus
+    # machinery is :pe_corpus' and the harvest's program :harvest_program's
+    srcs = glob(["src/test/java/**/*.java"], exclude = _HARVEST_SHIMS + _HARVEST_PROGRAM + _CORPUS),
+    # not the two generated records: no class reads them from the class path (the tests read the snapshot by its
+    # path), so a bump's rewrite of them reruns no parity program
+    resources = glob(
+        ["src/test/resources/**"],
+        exclude = [
+            "src/test/resources/corpus-manifest.tsv",
+            "src/test/resources/engine-grammar-fixtures.jsonl",
+        ],
+    ),
     deps = [
+        ":pe_corpus",
         "//core",
         "//testing",
-        # the engine-namespace recording shims (org/finos/legend/...) compile against the compiler
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_compiler",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_protocol_pure",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_shared_core",
-        "@maven_upstream//:com_fasterxml_jackson_core_jackson_annotations",
-        "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
-        "@maven_upstream//:junit_junit",
-        "@maven_upstream//:org_antlr_antlr4_runtime",
-        "@maven_upstream//:org_eclipse_collections_eclipse_collections",
-        "@maven_upstream//:org_eclipse_collections_eclipse_collections_api",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_grammar",
-        "@maven_upstream//:org_finos_legend_pure_legend_pure_m3_core",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
-    ],
-    runtime_deps = [
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_extensions_collection_generation",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_diagram_grammar",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_athena_grammar",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_aurora_grammar",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_duckdb_grammar",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_grammar",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_memsql_grammar",
-        "@maven_upstream//:org_finos_legend_engine_legend_engine_xt_relationalStore_oracle_grammar",
-    ],
+    ] + _ENGINE_COMPILE + _JUNIT5,
+    runtime_deps = _ENGINE_EXTENSIONS,
 )
 
 # What the parity tests read besides the upstream trees: committed ledgers in docs/,
@@ -227,7 +290,7 @@ legend_java_library(
     srcs = _HARVEST_SHIMS,
     deps = [
         # FixtureRecorder stamps the dump with the pinned release (Corpus, OraclePins)
-        ":pe_tests_lib",
+        ":pe_corpus",
         "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
         "@maven_upstream//:org_antlr_antlr4_runtime",
         "@maven_upstream//:org_eclipse_collections_eclipse_collections",
@@ -240,17 +303,19 @@ legend_java_library(
     ],
 )
 
-# THE FIXTURE HARVEST's classpath: the shims first (:harvest_shims), then the
-# engine's grammar and compiler tests-jars (grammar before compiler — the order
-# the snapshot's dedup is minted in) and json-unit. QUARANTINED: nothing else
-# depends on these jars, whose test-scoped registrations would alter the oracle.
+# THE FIXTURE HARVEST's classpath: the shims first (:harvest_shims), then its program, the engine's side of the
+# parity class path (_ENGINE_COMPILE, _ENGINE_EXTENSIONS, _JUNIT5), and the engine's grammar and compiler tests-jars
+# (grammar before compiler — the order the snapshot's dedup is minted in) and json-unit. No jar of ours but the
+# corpus machinery the shims stamp the dump with. QUARANTINED: nothing else depends on the tests-jars, whose
+# test-scoped registrations would alter the oracle.
 legend_java_library(
     name = "harvest_lib",
     testonly = True,
     runtime_deps = [
         # the shims FIRST: ahead of the tests-jars' own classes of the same names
         ":harvest_shims",
-        ":pe_tests_lib",
+        ":harvest_program",
+    ] + _ENGINE_COMPILE + _ENGINE_EXTENSIONS + _JUNIT5 + [
         "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_grammar_tests",
         "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_compiler_tests",
         "@maven_upstream//:net_javacrumbs_json_unit_json_unit",
@@ -280,7 +345,8 @@ filegroup(
 java_run(
     name = "gen_fixtures",
     testonly = True,
-    srcs = UPSTREAM_TREES + [
+    # legend-engine's tree alone (three modules' test sources, tier 2): it reads no legend-pure source
+    srcs = ENGINE_TREE + [
         ":harvest_tests_jar_files",
         ":harvest_tests_jars",
         "//tools:oracle-pins.env",
@@ -292,7 +358,7 @@ java_run(
     ],
     main_class = "com.legend.equivalence.harvest.FixtureHarvestGenerator",
     mnemonic = "Generate",
-    roots = UPSTREAM_ROOTS,
+    roots = ENGINE_ROOT,
     deps = [":harvest_lib"],
 )
 
@@ -314,7 +380,7 @@ java_run(
     main_class = "com.legend.equivalence.ManifestGenerator",
     mnemonic = "Generate",
     roots = UPSTREAM_ROOTS,
-    deps = [":pe_tests_lib"],
+    deps = [":pe_corpus"],
 )
 
 # docs/protocol-roster.tsv: every protocol subtype tag, COVERED or UNCOVERED by
