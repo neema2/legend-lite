@@ -37,10 +37,22 @@ true trigger; no Node anywhere; one shape per app.
 
 ## 2. Decisions (the user, 2026-10-06)
 
-1. **The system metamodel splits (option B):** its harness views (execution-plan nodes, plan connections, execution
-   activities, lineage results, and the functions over engine machinery) join a program's layer only when that
-   program's world declares their classes; the core views load always. No list of ours feeds the default-world
-   generator. Those views write no data at boot or ever: their rows ride each query (`PlanRows`, `LineageRows`).
+1. **The system metamodel stays in Pure** (the user: its model, mapping and store are the platform building on
+   itself). What changes is where its **result views** load. Those are the parts added on 2026-09-03 (harness
+   burn-down batches 18 and 20, under the 2026-09-02 ruling that the database, not Java, answers what a test reads):
+   the tables, mapping and small classes that let Pure read the results of `executionPlan`, `execute`,
+   `scanRelations` and `scanColumns` (plan nodes and connections, activities, lineage trees), and our versions of
+   three upstream functions over those rows (`allNodes`, `routerExtensions`, `relationTreeAsString`).
+   - **Everything they describe is declared upstream in two engine modules**, `core` and `core_relational`. So they
+     **load in a program whose manifest includes those two modules** (the corpus's does) and never at boot. A user's
+     program has no manifest and gets the default world, which holds none of those functions, so its world never needs
+     the engine classes those views name, and no list of ours feeds the default-world generator.
+   - **The classes stay upstream's**, used as they are; the views only say where their instances' data lives. They
+     write no data at boot or ever: the rows ride each query (`PlanRows`, `LineageRows`, the activity rows).
+   - **The three functions** exist upstream too. Which version runs is decided by the implementation table, by
+     function id: each has a row saying "the platform's version", here our Pure over the rows. That needs one more
+     kind of row, **the platform's own Pure**, which the system metamodel's other upstream-named functions
+     (`classMappingById`, `mainTable`, …) also use; today a name-based rule does this, and Phase 3 replaces it.
 2. **Boot speed: profile and optimize the boot first**; the pre-built boot layer (Phase 4b, the parked compiler plan's
    W2.1 "generated at build time, not parsed at class load") is decided with measured numbers.
 3. **The product ships a generated copy of upstream bodies** (the default world). AGENTS.md and TENET_CHARTER C6.3
@@ -108,9 +120,8 @@ passes (every roster, register, ledger and verdict) and every PCT case.
   runnable functions; the m3 metamodel printed from upstream's m3 graph, as today's generator does. (Upstream marks
   tests with stereotypes; the `::tests::` package rule is its naming convention, used alongside.)
 - Its inputs: the pinned archives and the module choice. No Java scan, claims, hand enums, path lists or exclusions.
-- The system metamodel splits (decision 1): its harness views join a program's layer when that world declares their
-  classes. It needs Phase 3: the corpus may then load `scanRelations.pure`, which declares `RelationTree` and which
-  the runner excludes today only because nothing owns functions by id.
+- The result views move off startup (decision 1): they load with the `core` and `core_relational` modules, which the
+  corpus's manifest already includes (Phase 6 comes first for that reason).
 - AGENTS.md and TENET_CHARTER C6.3 amended (decision 3).
 - Boot speed (decision 2): profile and optimize the boot first; Phase 4b, the pre-built boot layer, decided with the
   measured numbers (+0.6 s in the browser before any optimization).
@@ -125,7 +136,9 @@ passes (every roster, register, ledger and verdict) and every PCT case.
 - A test checks every row against the pinned archive: a row matching nothing fails and lists that name's real ids.
 - Check: the experiment harness identical. Several PRs (837 signatures, and every registry that names them).
 
-### Phase 6: the corpus on its real manifest
+### Phase 6: the corpus on its real manifest (runs before Phase 4)
+- First: re-run experiment 8 against today's prelude (it ran on the new default world), since this phase now lands
+  before Phase 4.
 - The runner loads its manifest's repositories (the relational tree's 9 repositories and their closure, 38) with the
   loading rule, replacing `LIBRARY_FILES`, `SHAPE_FILES` and the folder lists. The H2 register gains its one entry.
 - The compiler gaps the real manifest exposed: the parser (`;` as a property-mapping separator, `->` where we reject
@@ -152,6 +165,37 @@ passes (every roster, register, ledger and verdict) and every PCT case.
 
 ## 4. Order and what can move
 
-Phase 0 first. Phases 1 to 7 are a chain: 2b informs 3, 3 needs 2's tables, 4 needs 3's filter, 5 needs 4's world, 6
-needs 3 and 5, 7 needs all. Phase 8's items are independent of that chain and can interleave where they do not touch the same
-files.
+**Order: 0, 1, 2, 2b, 3, 6, 4, 5, 7**, with Phase 8's items interleaved where they do not touch the same files.
+- 2b informs 3's design; 3 needs 2's tables.
+- 6 needs 3 (the table owns what the manifest's files redefine) and runs before 4, so the result views can move off
+  startup at the moment the default world changes, with nothing temporary in between.
+- 4 needs 3's ownership and 6's manifest; 5 needs 4's world; 7 needs all.
+
+## 5. Working on this program (for any session that picks it up)
+
+**Process (the user's rules):**
+- Plan each phase and get the user's agreement before writing code; explain plainly, without jargon; never invent a
+  new mechanism when an existing one (the implementation table, modules, manifests) does the job.
+- Prove locally first; throwaway CI only on the lanes a change touches; one PR per phase (or a few).
+- Core edits: announce in `docs/IN_FLIGHT.md` on main first. Bazel changes: an audit agent reviews before a push or
+  PR.
+- Never write bare "native": "upstream native" (upstream's keyword) or "platform-lowered" (our Pure.java).
+- No local paths (home directories, temp directories) in anything committed; scrub evidence copied from scratch.
+
+**The experiment harness** (`docs/build-inventory/manifest-world/experiments/`, README): how to synthesize a world,
+swap `prelude.pure` without code changes (first on the classpath; `-Xbootclasspath/a` through `JAVA_TOOL_OPTIONS` for
+Bazel tests), rerun each corpus pass's exact Bazel command by hand (`e6_lanes.py`), compile the user side
+(`UserSideProbe`), and time the browser (`bazel run //wasm:startup`).
+
+**Pitfalls already hit (each cost a rerun):**
+- Segmenting upstream Pure files: a doc string belongs to the element below it; keywords at a line start inside a doc
+  string or block comment are prose; names come after every `<<stereotype>>` and `{tagged value}`, however long
+  (`docstart.py` does all three).
+- Upstream's test markers are the test stereotypes and `::tests::` packages; `::test::` packages hold upstream's test
+  infrastructure, which ordinary code references.
+- An ownership filter has to cover the functions Pure.java implements, `CoreFn`'s forms (registered by bare name),
+  the system metamodel's own versions, `TdsLegacy`'s Java-implemented functions, and the helpers forms recognize by
+  spelling (`agg`, `col`); missing any one breaks hundreds of tests.
+- Running a hand-made corpus command after another Bazel command: re-run a cached `bazel build` of the corpus
+  targets first, or the execution root lacks the upstream trees ("legend-engine checkout not present").
+- In zsh, `echo ====` fails (`=` expansion), and unquoted `$VAR` holding several paths is one word.
