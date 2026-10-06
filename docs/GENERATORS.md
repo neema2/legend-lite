@@ -2,6 +2,12 @@
 
 Status: AGREED SHAPE (the user, 2026-10-05). Nothing has changed in the build yet; section 6 is the work, in order.
 
+**Update 2026-10-06:** the program's phases are now in `docs/REBUILD_PROGRAM_2026_10_06.md`. The homework and
+experiments replaced section 2's "basic split now" (option (a)) for items 5 to 8 with the full design: the
+implementation table at boot (Phase 3), the default world from upstream alone (Phase 4), and Pure.java as rows keyed
+by function id (Phase 5). With those, no upstream generator keeps a hand-owned input, and section 6's steps 1 to 3, 5,
+6 and 7 are Phases 1 and 7.
+
 The evidence is in `docs/build-inventory/generators/`:
 - G1 to G5 hold one dossier per generator: what it computes and why, its declared inputs against what its program
   reads, outputs, consumers, determinism, cost, what reruns it against what should, and who runs it today.
