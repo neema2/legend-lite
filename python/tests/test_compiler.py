@@ -59,11 +59,15 @@ class Compiling(unittest.TestCase):
         self.assertEqual([c.name for c in from_tree.columns], ['desk', 'q'])
 
     def test_an_unknown_column_is_refused(self):
-        # PLANNING refuses it, naming the column. (Typing alone does not yet: relation_type lets
-        # $x.nope through a filter -- the compiler's behaviour in every build; the fix is the compiler
-        # line's, branch compiler/tdsrow-erased-row, docs/IN_FLIGHT.md's sixth line.)
+        # typing refuses it, as legend-engine does (the erased TDS row reads only through its
+        # accessors: docs/GATES.md, "The erased TDS row is read only through its accessors"), and so
+        # does planning
+        bad = ll.parse("|#>{trades::DB.TRADES}#->filter(x|$x.nope == 1)")
         with self.assertRaises(ll.LegendError) as e:
-            ll.plan(MODEL, ll.parse("|#>{trades::DB.TRADES}#->filter(x|$x.nope == 1)"), 'trades::RT')
+            ll.relation_type(MODEL, bad)
+        self.assertIn("'nope'", e.exception.message)
+        with self.assertRaises(ll.LegendError) as e:
+            ll.plan(MODEL, bad, 'trades::RT')
         self.assertIn("'nope'", e.exception.message)
         with self.assertRaises(ll.LegendError) as e:
             ll.relation_type(MODEL, ll.parse("|#>{trades::DB.TRADES}#->select(~[nope])"))
