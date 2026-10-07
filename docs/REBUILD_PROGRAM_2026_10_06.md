@@ -17,6 +17,170 @@ This file is the program's one plan. The decisions and evidence behind it:
 - `docs/MANIFEST_WORLD_HOMEWORK_2026_10_05.md` and `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md`: the default world,
   measured.
 
+## 0. What the whole program is for
+
+Written 2026-10-07 at the user's request ("add the actual overall goal of this program not just phase 3 ... so we have
+holistic view of what we are trying to accomplish"). Each part quotes the user's own words, with the date they were
+said. The program has four parts, in this order, each built on the one before; after the bump lands come the
+compiler's debts (0.5).
+
+### 0.1 A first-class Bazel build, starting with a fast compile of only the product (the base; first deliverable done)
+
+**The goal.** An expert, principled Bazel build. Bazel knows every step: what it reads and what it makes, so Bazel
+alone decides, deterministically, what runs and when. Nothing outside Bazel drives the work: no shell script, no Java
+or Python program, no Node. As hermetic as Bazel allows: every tool and every piece of data pinned, nothing read from
+the machine (no host JDK, no hard-coded paths, not even PATH), the same bytes on Linux, macOS and Windows. Its base is
+a very fast compile of only the real product.
+- The user, 2026-10-03: "the build needs to be principled and bazel first class - not a hodge podge of random scripts";
+  "there are java code orchestrators like Repo.java that run outside of bazel?"; "at end of whole plan will we have
+  deleted all non-bazel orchestration like calling out to shell scripts or java?"; and Windows must not break for the
+  people who use it.
+- The user, 2026-10-05: "our java build used to take 30 seconds for clean build now saying 5-10 min - we first have to
+  fix the basic basic stuff - a single java build that makes sense and is fast"; "building all of our java stuff should
+  be around 30 seconds so how do we carve up all the rest of everything correctly in the right way to get to a sane
+  build? I don't want any guessing or sampling".
+
+**What "the product" is.** The servers: core (the compiler and the execution pipeline), the warehouse, and the SDLC
+server, which carries Depot's rules until Depot becomes its own server (design D12; D11 renames them core, db, sdlc,
+depot). Then the web bundles (DataCube, Query, Studio), the planner compiled to WebAssembly (TeaVM), and the
+warehouse's native image. Generators, tests, checks and measurements are not the product build.
+
+**How the first deliverable was built (Phase 0, PR #25, merged 2026-10-06 as `ab4723ba2`).**
+- The inventory first, no sampling: all 1,162 targets from Bazel's own graph, each with one verdict (compile, tool,
+  generator, check, test by kind, wiring, dead), every claim citing a file and line (`docs/build-inventory/`, design
+  §2).
+- Named compile targets (design §4.1, §5a): `//:java` (every runtime jar of the servers, computed from their
+  dependencies), `//:web` (8 esbuild bundles; no Node: Bazel calls the esbuild program directly), `//:wasm`,
+  `//:native`, and `//:sites` (packaging).
+- A guard keeps them honest: `//tools/guards:compile_only_test` fails if anything but compiles and file plumbing enters
+  them (proven to fail on a generator put into `//:native`).
+- The slow clean build's cause, found by measuring: the Maven plugin stamped the DuckDB jar's manifest and copied it
+  (17.4 of the 19.7 s critical path). The product's jars moved to Bazel's own `http_jar` (pinned by URL and sha256),
+  and stamping went off.
+- Result (design §5a-§5c; macOS, clean, three runs): **a clean `//:java` in 12.4 s** (22.6-23.1 s before; the
+  critical path is now our own code, the compiler's jar); a one-line comment edit to `Compiler.java` rebuilds in 0.44 s
+  (one library: its interface did not change, so nothing above it recompiles); a clean `//:web` in 4.8 s.
+
+**What is left of this part (Phase 8; `docs/build-inventory/program/PHASE_8.md`).** "Build means compile" holds for
+the compile targets, not yet for CI: CI's build lane runs `bazel build //...`, which also runs the corpus passes and
+the 2 GB `//pct:ratchets`. Tests and some generators still run on Node. Scripts outside Bazel still drive work (the
+SQL census's `lanes.sh` and `render.sh`, P3-25's corpus runner, scripts that read a host JDK: the brief's Short-22,
+Short-25, Exec-2). Checks run as reports in every package. CI's cache barely works. The build's own carried shortcuts
+are listed in the brief's §2.8.
+
+### 0.2 The bump as a standalone piece (Phases 1 to 7: the main body)
+
+**The goal.** Moving to a new upstream release (legend-engine and legend-pure) is one self-contained job: it runs only
+when we move the pins, reads only upstream's files, regenerates everything made from upstream, seals it and runs the
+tests; a person judges what changed. Nothing else ever regenerates an upstream-derived file, and no upstream
+generator reads our code.
+- The user, 2026-10-05: "we def need to keep the generated code only generated on upstream bump".
+- The user, 2026-10-06: "I want the bump to be a self contained thing that only runs when need to bump"; "So how do
+  we actually get to self contained bump for real?"; "We still need the java override list? And the generators still
+  need our list as input"; "let's get it fully fully done so we have an amazing build with self contained upgrade
+  bump".
+- The user, 2026-10-07: "really want to get this bump self contained program done".
+
+**Why it takes more than build work.** The upstream generators took our own lists as input (Pure.java's signature
+catalog, the "override list"; the prelude generator's hand lists; `native-claims.tsv` with `core_next`), and the
+compiler decided some calls by name, so the bump could not run from upstream alone. Getting there restructures how
+the product boots and what it reads from generated upstream code, and fixes the compiler where it differs from
+legend-pure:
+- Phase 1 (done, PR #26, `96bf6ae5d`): generator hygiene; the small upstream generators made upstream-only.
+- Phase 2 (done, `ff70aef01`): DynaFn and the engine handlers generated whole from upstream; our decisions joined when
+  the classes load.
+- Phase 2b (done): the end-state experiment (every upstream declaration in the world, no catalog).
+- Phase 3 (on branch `build/phase3`, not landed): one table decides, by exact function id; overloads ranked as
+  legend-pure ranks them.
+- Phase 3b: the compiler fixes the bump and users need (the boot layer's twin files, the mapping files,
+  `routeFunction`, F-L1).
+- Phase 6: the corpus loads its real manifest instead of our hand lists of files.
+- Phase 4: the default world (what users boot on) generated from upstream alone, replacing `PreludeGenerator`; the
+  system metamodel's result views leave startup.
+- Phase 5: Pure.java becomes rows keyed by function id; the catalog, the membership list, `native-claims.tsv`,
+  `core_next` and `gen_claims` go.
+- Phase 7: `bazel run //tools/bump -- <release>` decides, moves the pins, regenerates, writes the reports and the
+  seal, and runs the tests. **Acceptance: a real bump to the next legend-engine release, end to end, with no hand edit
+  to any generated file.**
+
+The target shape is §1, the north star (three kinds of files, never mixed). One open point bounds "only upstream's
+files": a generator that reads upstream through our parser (Pure.java's generator today; the default world's
+generator, the Phase 4 brief's D4-5) makes a parser change a real trigger too (design §4.2 group B), and the seal has
+to say so.
+
+### 0.3 Our own generators, separate from the bump (Phases 1 and 7, then Phase 8)
+
+**The goal.** Generators that have nothing to do with the bump (made from our own code or from pinned data) run only
+when what they read changes, as Bazel actions with exact inputs. Things that only look like generators, measurements
+of our own engine (corpus results, ratchets, the ladder), become tests.
+- The user, 2026-10-05: "we need to split the generation work into 'generators that are needed for version bump' vs
+  'our generators that have nothing to do with version bump at all' vs 'tests that look like generators'"; "Why is
+  relational corpus in generators at all?" and then "relational corpus should be tests"; "I don't think we should make
+  update generated manual until we go through in detail exactly what all the generators are doing".
+
+**Where.** `docs/GENERATORS.md` places each of the 57 generators on two axes (what it is, when it runs), with a
+dossier each in `docs/build-inventory/generators/`; design §4.2 groups them A to F by what truly changes them. Phase 1
+narrowed every one of ours to what it reads (done). Phase 7 makes `//:update_generated` ours only and `manual`, with
+a guard that every writer and diff test belongs to a group. The rest is the Phase 8 brief: §2.2 (Gen-1 to Gen-9: the
+JavaScript generators off Node, the offer-facts tool reading its own output, drafts `manual`) and §2.9 (the
+measurement group, each carved by its true trigger).
+
+### 0.4 The tests, untangled (after the bump)
+
+**The goal.** Each family of tests depends only on the code it exercises, so it reruns only when that code changes.
+Each CI lane is a Bazel suite in `//gates`, and a guard holds that every test is in some lane. No Node: the JavaScript
+tests and the browser checks run in the pinned Chromium through a small client for Chrome's remote-control protocol
+(CDP). Comparing a run with a previous run, or with a sibling run, is done the Bazel way, not by scripts.
+- The user, 2026-10-07: "various different tests like core, rcorpus, stress corpus, different flavors of PCT, parser
+  equivalence, UI/playwrite, etc etc etc that we also want to untangle after".
+- The user, 2026-10-05: "what tests do we have that should run when"; "what is the bazel first class native way to do
+  run by run test compares either to a previous run or to sibling runs? What would expert do".
+
+**The families today** (the lanes as `docs/GATES.md` on main lists them), and what tangles each (the Phase 8 brief's
+item):
+
+| Family | Targets | Tangled by |
+|---|---|---|
+| Core | `//core:core_tests` (gate 1), `//core:corpus_differential_test` | one `core_tests_lib` carrying the stress corpus and the linked projects (Test-1); heavy classes skipped by name, not by tag (Test-10) |
+| Spec parity | `//spec:spec_tests` (gate 3) | one `spec_tests_lib` (Test-2) |
+| The relational corpus ("rcorpus") | six passes, a host judge and a database judge on each of DuckDB (`//spec:corpus_duckdb`, gates 4 and 11), H2 (`//spec:corpus_h2`, gate 5) and the warehouse (`//spec:corpus_warehouse`, manual); the reference lane (`//spec:reference_lane`, manual) | the passes are build actions, so `bazel build //...` runs them (CI's build lane up to twice per platform); hand lists of files until Phase 6; the manual ones in no lane (Test-11) |
+| The stress corpus | `//core:stress_suites`, `//core:stress_suites_h2` (gate 10); its generators `//scripts/corpus:gen_*` | one Python library for five gates (Gen-7); the engine-side runner P3-25 unfinished (Exec-2) |
+| PCT, four flavors | `//pct:pct_duckdb` (five suites, gate 6), `//pct:pct_h2` (gate 7), `//pct:pct_postgres` (five suites, gate 7P), `//pct:pct_channel_b` (gate 9); `//pct:pct_discipline`; `//pct:ratchets` (manual, 2 GB) | Channel B builds the adapter archive it does not use (Test-4); CI's build lane builds `//pct:ratchets` |
+| Parser equivalence | `//parser-equivalence:parser_parity` (gate 8); `:diagnostics` (manual) | `pe_tests_lib` depends on all of core (Test-3); test data no test reads (Short-6) |
+| The model projects | 56 compile tests (`tools/legend`) | 56 JVMs on all of core (Test-5) |
+| The app, WebAssembly, the warehouse | the app lane (`//datacube:tests`, `//datacube:verify_app_test`, `//wasm:all`, `//warehouse:tests`, `//query-store:lite_test`); the native lane (`//warehouse:tests_native`, `//warehouse:launcher_test`) | the native image inside `//gates:local` (Test-9); `postgres_live` in no lane (Test-8) |
+| The UI and the browser | `//datacube:live_snap_test`, `//datacube:verify_smoke_test`; the Playwright harnesses (tagged `browser-ci`, run by `bazel run`, Linux only) | Node and Playwright throughout (Node-1 to Node-9); CI installs Playwright's own Chromium (Short-18) |
+| Checks | `//:generated` and the guards (the checks lane) | a report in every package (Check-1 to Check-7) |
+
+**Where and when.** The Phase 8 brief: §2.3 (Test-1 to Test-13), §2.5 (no Node), §2.6 (CI and caching), §2.9 (the
+measurement group). It comes after the bump because the bump's phases change these tests: Test-1 waits for Phases 3b,
+4 and 5 (they add core tests), Test-2 for Phases 6 and 5 (Phase 6 rewrites the corpus runner). **Not designed yet:**
+the Bazel way to compare a run with a previous run or a sibling run. Today the corpus compares against committed
+results through diff tests, while the SQL census (`tools/census/`) and the landing checks (START_HERE §5) compare two
+commits by script and by hand. It needs a design agreed with the user.
+
+### 0.5 After the bump lands: the compiler's debts
+
+The shortcuts this program carries in the compiler are `docs/PARKED_WORK_LEDGER.md` rows PARK-5 to PARK-14 (§5). The
+user, 2026-10-07: "we need a ledger of hacks that we need to come back a fix", a list "to fix correctly after we land
+the bump". Two close inside the program (PARK-11 in Phase 4, PARK-12 in Phase 3b); PARK-5's timing is the user's open
+decision.
+
+### 0.6 Done means
+
+- `bazel build //:java //:web` compiles and nothing else (the guard); a clean `//:java` in about 12 s; an edit that
+  leaves a library's interface unchanged rebuilds that library alone. CI's build lane builds the compile targets, not
+  `//...` (design §4.1).
+- No work driven from outside Bazel: every generator, test and check is a Bazel target with exactly its inputs; each
+  remaining script is a `bazel run` tool or gone; `bazel query` finds no Node toolchain.
+- Nothing read from the machine; the same bytes on Linux, macOS and Windows.
+- The bump: `bazel run //tools/bump -- <release>` from upstream alone; a real bump with no hand edit; the seal's test
+  in every lane.
+- Our generators run when our code changes; `//:update_generated` is ours only and `manual`; no "update everything"
+  command re-blesses a measurement.
+- Every test in a `//gates` lane, each depending on what it exercises, with a guard.
+- The ledger's rows closed by agreed designs, their anchors gone.
+
 ## 1. The north star
 
 **Three kinds of files, never mixed:**
@@ -337,12 +501,13 @@ stays a guard that must not get worse, not a target. Small: days (the Phase 3b b
 - CI lanes from `//gates`, and caching (an open decision: there is no "D14" in the design; the Phase 8 brief's OD-5).
 - The old Bazel plan's parked work: `bazel/exec`'s Phase 4 commits and fixes, and P3-25.
 - The build's own carried shortcuts (listed 2026-10-07, the user: fixed correctly, not worked around), complete in
-  the Phase 8 brief's §2.8 (24 rows): of the Windows PR's (#14) four follow-ups, two are already fixed on main (the
+  the Phase 8 brief's §2.8 (26 rows): of the Windows PR's (#14) four follow-ups, two are already fixed on main (the
   gzip `run_shell`, `4f7448989`; `LauncherTest`'s JDK text, `067973962`) and two remain (the hard-coded Windows bash
   path in `.bazelrc`; `warehouse_run` not taking visibility, tags or `target_compatible_with`); Phase 1's six deferrals
   (above); and 14 the first list missed (the `C:/bzl` output root, Windows runfiles trees, the rules_graalvm patch,
   libxml2 by `apt-get`, actionlint by `curl`, `taskkill` in two tests, 22 libraries without NullAway, never-run
-  `postgres_live` tests, and more).
+  `postgres_live` tests, and more); and two found while writing §0 (the SQL census's shell scripts driving Bazel from
+  outside it, one with a hard-coded macOS JDK path; the CI watcher on `curl`).
 - The design's open decisions with no other home: design D1 (one Error Prone policy), D4 (`postgres_live`: a lane or
   delete), D6 (the CDP client and its transport: a spike first; the pipe transport may not work from Java), D7 (the
   probe scripts, which contradicts the old plan's D18); and the 17 open decisions the Phase 8 brief lists (§3.4).

@@ -8,15 +8,28 @@ Do not confuse this program, **the build rebuild**, with **the compiler rebuild*
 (`docs/EXECUTION_PLAN_2026_09_26.md`), which `AGENTS.md` on main still names as "current work" (an open decision,
 §3). Do not follow that plan's §0 checklist: its worktree and branch belong to another line of work.
 
-## 1. The program in two paragraphs
+## 1. The program in brief
 
-legend-lite reimplements FINOS legend-pure and legend-engine. Today, moving to a new upstream release (the "bump")
-needs hand work: files mix upstream facts with our decisions, generators read our own code, and the compiler decides
-what a call means partly by name. The program makes the bump self-contained: every upstream fact is generated from
-the pinned upstream archives alone, by the bump alone, and sealed; everything we decide is hand-written in its own
-place (above all the implementation table, keyed by function id); the compiler picks overloads exactly as legend-pure
-does and asks the table how each one runs. Alongside, the build is rebuilt so "build" means compile only, every
-generator and test runs on its true trigger, and Node leaves the build.
+legend-lite reimplements FINOS legend-pure and legend-engine. The program has four parts, in this order, each built
+on the one before. **The plan's §0 has the whole picture, in the user's own words; read it first.**
+1. **A first-class Bazel build, starting with a fast compile of only the product.** Bazel knows every step, what it
+   reads and what it makes; nothing outside Bazel (shell scripts, Java or Python programs, Node) drives the work;
+   everything pinned, nothing read from the machine, the same on Linux, macOS and Windows. The first deliverable is
+   done (Phase 0): a clean compile of all the Java we ship in 12.4 s, with a guard that the compile targets only
+   compile. What is left of this part (CI's build lane, Node, scripts, checks) is Phase 8.
+2. **The bump as a standalone piece** (Phases 1 to 7, the main body): moving to a new upstream release runs only when
+   we move the pins and reads only upstream's files. Today, files mix upstream facts with our decisions, generators
+   read our own code, and the compiler decides some calls by name. So this part restructures how the product boots and
+   fixes the compiler: one implementation table keyed by function id, overloads picked exactly as legend-pure picks
+   them, the default world generated from upstream alone, Pure.java as rows.
+3. **Our own generators, separate from the bump** (Phases 1 and 7, then Phase 8): generators made from our own code run
+   when that code changes; measurements of our engine that look like generators become tests.
+4. **The tests, untangled, after the bump** (Phase 8): core, the relational corpus, the stress corpus, the PCT
+   flavors, parser equivalence, the browser and UI tests. Each depends on exactly the code it exercises, each CI lane is
+   a `//gates` suite, and none runs on Node.
+
+After the bump lands: the compiler's debts (`docs/PARKED_WORK_LEDGER.md` PARK-5 to PARK-14), each fixed with a design
+agreed first.
 
 The north star, in the plan's section 1: three kinds of files, never mixed. **Upstream** (the pinned archives; only
 the bump changes them), **ours** (hand-written decisions and code: the implementation table, legend-lite's own
@@ -214,5 +227,5 @@ the browser with `bazel run //wasm:startup`).
 
 ## 7. Reading order
 
-1. This file. 2. The plan: sections 1 to 5. 3. `docs/PARKED_WORK_LEDGER.md` (PARK-5 to PARK-14). 4. The brief of the
+1. This file. 2. The plan: sections 0 (what the whole program is for) to 5. 3. `docs/PARKED_WORK_LEDGER.md` (PARK-5 to PARK-14). 4. The brief of the
 next phase in this folder, and the documents it lists. 5. `docs/IN_FLIGHT.md` on main, to see who else is working.

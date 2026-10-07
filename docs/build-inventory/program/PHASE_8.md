@@ -87,7 +87,7 @@ shortcuts the build still carries must be fixed properly; and, last, the product
     old P5-03's "delete the `gates` dispatch input"; design D7 "delete the 16 probe scripts" vs old D18 "keep them as
     `bazel run` tools" (decided twice). Section 5 lists every one.
 
-**Reading order.** This brief; the plan (§1 to §5); `docs/build-inventory/program/START_HERE.md` (process, exact
+**Reading order.** This brief; the plan (§0 to §5; §0.1, §0.3 and §0.4 are this phase's goals); `docs/build-inventory/program/START_HERE.md` (process, exact
 commands, traps); the design doc §3 to §7; the dossiers named per item below; then the old workplan only for the items
 section 4 maps.
 
@@ -119,7 +119,7 @@ section 4 maps.
 | Node out of the tests (CDP client) | `//:web` already runs without Node (Phase 0); tests all Node | 2.5 |
 | CI lanes from `//gates`, caching ("D14") | Not started; "D14" does not exist | 2.6 |
 | `bazel/exec`'s Phase 4 commits and fixes, P3-25 | Parked, unrebased (base `3faa7d291`) | 2.7 |
-| The carried shortcuts (PR #14's four, Phase 1's six) | 2 of the 4 done; 6 open; at least 14 more not listed | 2.8 |
+| The carried shortcuts (PR #14's four, Phase 1's six) | 2 of the 4 done; 6 open; at least 16 more not listed (Short-25 and Short-26 added 2026-10-07) | 2.8 |
 | The measurement group | Untouched since set aside (2026-10-05) | 2.9 |
 | The renames (D11, D12) | Last; not started | 2.10 |
 | (implied) the old plan's Phase 6 guards, Phase 7 cleanup, P8-01 | Not started | 2.11 |
@@ -328,6 +328,8 @@ list. Each found on main unless marked.
 | Short-22 | **Not listed:** scripts that read a host JDK or checkout | `scripts/corpus/run.py` on main (`~/jdk/jdk-21.0.11+10`), `coverage.py:48`, `mutate.py:43`, `scripts/census_gate.py:40-41`, the probes through `runner.JAVA_HOME` (`probe_aggregates.py:208`, …), `scripts/parser/*`; `tools/wrongrows/engine-rows.sh` (a macOS JDK path on main) | The script review, old P7-01 to P7-05, held to the end (log 2026-10-05); D7 vs old D18 first (OD-8) |
 | Short-23 | **Not listed:** `//datacube:dist` broken as a deployable | G5 cross-cutting #4 | Compile-5 |
 | Short-24 | **Not listed:** the bash launcher and `hermetic_launcher` behind `//warehouse:serve` and `//datacube:app` | `warehouse/defs.bzl:56-101` (`#!/usr/bin/env bash` script), `:155-169`; `MODULE.bazel:308` | Compile-4 (old P4-12's goal: "No launcher script and no `hermetic_launcher` remain") |
+| Short-25 | **Not listed (found 2026-10-07, writing plan §0):** the SQL census's two sides are shell scripts that drive Bazel from outside it, at two commits checked out by hand (`git switch`, `tools/census/README.md`) | `tools/census/lanes.sh:12,16,20` (`bazel query`, `bazel test` with `--cache_test_results=no`, then copies each lane's `test.log` out of `bazel info bazel-testlogs`); `tools/census/render.sh:9` hard-codes the macOS JDK inside the output base (`remotejdk25_macos_aarch64`), then runs `javac` and `java` itself (`:16-19`). The comparing halves are already targets (`//tools/census:render_census`, `//tools/census:lanes_diff`, both still to tag `manual`: Gen-5) | With the comparison design (plan §0.4: "the Bazel way to compare a run with a previous run or a sibling run", not designed yet); the script review |
+| Short-26 | **Not listed (found 2026-10-07):** `tools/ci-watch.sh` watches CI through `curl` and `python3` from the host (`:8-9`, unchanged since `8c2103d13`, 2026-09-13) | A hand tool, not build work; the `gh` CLI does the same (`gh run watch`) | Delete, or keep as a hand tool: the script review decides |
 
 Handed off, not build work (recorded so nobody hunts for them): `Lexicon.H2` lacks H2 2.x reserved words (log, batch
 11), for the dialect owner; F-L1 (a view inside a Schema lifted twice) is taken by plan Phases 3b/6; PARK-13 (a debug
