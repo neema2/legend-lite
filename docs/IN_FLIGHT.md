@@ -100,7 +100,7 @@ with the compiler's plan/execution split**, in this order:
    line's notes). **Resumed 2026-10-07 by session `neema-8f`**: see the fifth line's 2026-10-07 note.
 3. **The database owner** (the fourth line below; `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md`; since
    2026-10-05 also the execution plan boundary, `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`, which takes the rebuild's
-   W6.1 and W6.2). Session `neema-32`, worktree `legend-lite-pgspike`. C3a–C3c, C1, C2a and C2b landed; the plan's
+   W6.1 and W6.2). Session `neema-20`, worktree `legend-lite-pgspike`. C3a–C3c, C1, C2a and C2b landed; the plan's
    step 1 (the plan records, `//core:execution_plan`) landed 2026-10-05. **Next (announced 2026-10-07): phase 1,
    steps 2–4 — the planner makes an execution plan, a runner in `exec` runs it, the server's execute paths switch to
    it** (files in the fourth line's 2026-10-07 note).
