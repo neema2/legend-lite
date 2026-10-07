@@ -116,7 +116,7 @@ public final class PlatformTypes {
      * nominal class. */
     public static Type eraseTdsRow(Type t) {
         return t instanceof Type.ClassType c && com.legend.builtin.NativeFn.RowGetter.isOwner(c.fqn())
-                ? Type.RelationType.lateBound() : t;
+                ? Type.RelationType.erasedRow(c.fqn()) : t;
     }
 
     /** The mapping METACLASS (platform_dsl_mapping mapping.pure:26) — a prelude

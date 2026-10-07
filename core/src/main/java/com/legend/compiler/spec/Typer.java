@@ -1103,16 +1103,18 @@ final class Typer {
         String colRef = java.util.Objects.requireNonNull(
                 TdsDesugars.literalColName(af.parameters().get(1)),
                 "TDS cell read requires a literal column name");
-        TypedSpec cell = synth(new AppliedProperty(
-                af.parameters().get(0), colRef), env);
         // an ERASED row (a TDSRow in a type position): the column's type is
         // the accessor's DECLARED type (getString: String[1]) — real pure knows
-        // no more at type time either; a concrete row keeps its schema's type
+        // no more at type time either; a concrete row keeps its schema's type.
+        // The accessor IS the erased row's read (a bare $r.col on it is
+        // refused — relationColumn), so the cell is built here, not synthesized.
         if (Type.schemaView(grecv.info().type()) instanceof Type.RelationType erased
                 && erased.isLateBound()) {
-            return cell.withInfo(liftedAccessor(getter, grecv.info(),
-                    ExprType.one(Type.Primitive.STRING)).output());
+            return new TypedPropertyAccess(grecv, colRef, liftedAccessor(getter,
+                    grecv.info(), ExprType.one(Type.Primitive.STRING)).output());
         }
+        TypedSpec cell = synth(new AppliedProperty(
+                af.parameters().get(0), colRef), env);
         // getNullableString returns String[0..1] (tds.pure:82/112) —
         // the optional cell read IS the semantics, no strictening
         if (TdsDesugars.rowGetter(af, com.legend.builtin.NativeFn.RowGetter.GET_NULLABLE_STRING)
@@ -1519,6 +1521,13 @@ final class Typer {
                                 .equals(stripColQuotes(name)))
                         .findFirst()
                         .orElseGet(() -> {
+                            if (rel.isErasedRow()) {
+                                throw new TypeInferenceException("a "
+                                        + ((Type.ClassType) rel.dynamicColumns().get(0).type()).fqn()
+                                        + " has no property '" + name
+                                        + "' (read a cell with its accessor, e.g. getString('"
+                                        + name + "'))");
+                            }
                             if (rel.isLateBound()) {
                                 return Type.RelationType.trustedColumn(name);
                             }

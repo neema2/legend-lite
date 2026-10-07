@@ -490,18 +490,39 @@ public sealed interface Type permits
 
         /** A relation whose columns are late-bound (raw-SQL grids). */
         public static RelationType lateBound() {
+            return new RelationType(java.util.List.of(), java.util.List.of(GRID_TEMPLATE));
+        }
+
+        /** The raw-SQL grid's wildcard template: every column trusted, {@code Any[0..1]}. */
+        private static final Column GRID_TEMPLATE = new Column(LATE_BOUND_WILDCARD,
+                new ClassType(PlatformTypes.ANY), Multiplicity.Bounded.ZERO_ONE);
+
+        /** The ERASED ROW (TDS erasure, docs/TDS_ERASURE_DESIGN_2026_09_11.md
+         * §4b): a row-accessor owner ({@code TDSRow}, {@code execute::Row})
+         * in a type position. Late-bound like a raw-SQL grid -- any row
+         * conforms to it -- but its wildcard template keeps the NOMINAL
+         * class: real pure reads such a row only through the owner's
+         * accessors ({@code $r.getString('x')}), never as {@code $r.x}. */
+        public static RelationType erasedRow(String ownerFqn) {
             return new RelationType(java.util.List.of(), java.util.List.of(
                     new Column(LATE_BOUND_WILDCARD,
-                            new ClassType(PlatformTypes.ANY),
+                            new ClassType(ownerFqn),
                             Multiplicity.Bounded.ZERO_ONE)));
         }
 
         /** True iff this schema is the late-bound wildcard (columns
-         * unknown until the execution boundary stamps them). */
+         * unknown until the execution boundary stamps them) -- a raw-SQL
+         * grid or an erased row. */
         public boolean isLateBound() {
             return columns().isEmpty() && dynamicColumns().size() == 1
                     && dynamicColumns().get(0).name()
                             .equals(LATE_BOUND_WILDCARD);
+        }
+
+        /** True iff this is an {@link #erasedRow}: late-bound, read only
+         * through its owner's accessors. */
+        public boolean isErasedRow() {
+            return isLateBound() && !dynamicColumns().get(0).equals(GRID_TEMPLATE);
         }
 
         /** THE PIVOT-COLUMN MATCHING RULE (one owner — the exec egress
