@@ -116,9 +116,9 @@ server.listen(port, host, () => {
       + ' read what is served.\n');
   }
   if (wantOpen) {
-    // Windows' `start` is a cmd builtin, not a program: through cmd, with an empty title argument
+    // Windows' `start` is a cmd builtin, and cmd splits a URL at `&`: the URL protocol handler takes it whole
     const [opener, ...openArgs] = process.platform === 'darwin' ? ['open']
-      : process.platform === 'win32' ? ['cmd', '/c', 'start', '""'] : ['xdg-open'];
+      : process.platform === 'win32' ? ['rundll32', 'url.dll,FileProtocolHandler'] : ['xdg-open'];
     try { execFileSync(opener, [...openArgs, url]); } catch { /* not fatal */ }
   }
 });

@@ -75,7 +75,8 @@ conn.query(
 // moved on.
 // In the run's own temp directory (harness.tmpDir), never the working directory (Bazel workplan P4-03: under a
 // test that is the runfiles tree).
-const fixture = path.join(await tmpDir('dc-remote-'), `dc-fixture-${process.pid}-${Date.now()}.parquet`);
+// forward slashes: DuckDB reads a backslash in a quoted path as an escape
+const fixture = path.join(await tmpDir('dc-remote-'), `dc-fixture-${process.pid}-${Date.now()}.parquet`).replace(/\\/g, '/');
 conn.query(`COPY t TO '${fixture}' (FORMAT PARQUET)`);
 const parquet = db.copyFileToBuffer(fixture);
 for (const stray of [fixture, path.join(path.dirname(fixture), `tmp_${path.basename(fixture)}`)]) {

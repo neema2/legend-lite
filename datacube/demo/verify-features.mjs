@@ -30,7 +30,7 @@ import {
 import { isNumeric } from '../../engine-client/src/types.ts';
 import { sampleCsv } from '../src/samples.ts';
 import { WAREHOUSE, openWarehouseTable } from './warehouse-source.mjs';
-import { frames, serve, siteRoot } from './harness.mjs';
+import { frames, serve, siteRoot, tmpDir } from './harness.mjs';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 
 const ROOT = siteRoot();
@@ -52,7 +52,8 @@ const ROOT = siteRoot();
  * offers, from the same generator, and opens that.
  */
 async function sampleOnDisk() {
-  const path = join(tmpdir(), 'datacube-verify-features.csv');
+  // in this run's own temp directory: four shards run at once (harness.tmpDir)
+  const path = join(await tmpDir('dc-features-'), 'datacube-verify-features.csv');
   await writeFile(path, sampleCsv({ rows: 5000, seed: 20260920 }), 'utf8');
   return path;
 }
@@ -1006,6 +1007,9 @@ try {
     const before2 = await statusNow();
     await page.locator('.dc-filter-apply').click();
     await settle(before2);
+    // the applied query, awaited (G-11): on a slower runner the SQL pane updates after the quiet window
+    await page.waitForFunction(() => / AND /i.test(document.getElementById('sql')?.textContent ?? ''),
+      null, { timeout: 20_000 }).catch(() => {});
 
     const both = await state();
     if (!/ AND /i.test(both.sql)) {

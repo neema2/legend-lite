@@ -60,7 +60,7 @@ const { port, close: closeServer } = await serve(ROOT);
 const dir = await tmpDir('dc-smoke-');
 // a test's artifacts (the summary, a screenshot of a failing shape) go where Bazel keeps them (harness.outPath)
 // SHARDED by sample under `bazel test` (shard_count): shard i of n takes every n-th sample, and says it shards
-const SHARDS = Number(process.env.TEST_TOTAL_SHARDS ?? 1);
+const SHARDS = ONLY ? 1 : Number(process.env.TEST_TOTAL_SHARDS ?? 1);
 const SHARD = Number(process.env.TEST_SHARD_INDEX ?? 0);
 if (process.env.TEST_SHARD_STATUS_FILE) await writeFile(process.env.TEST_SHARD_STATUS_FILE, '');
 const wanted = SAMPLES.filter((s, i) => (!ONLY || s.id.includes(ONLY)) && i % SHARDS === SHARD);

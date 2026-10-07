@@ -37,8 +37,9 @@ export async function sendFile(res, path, range, headers = {}) {
     res.end(await readFile(path));
     return;
   }
-  const start = m[1] ? Number(m[1]) : 0;
-  const end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
+  // bytes=a-b, bytes=a- (to the end), or bytes=-n (the last n)
+  const start = m[1] ? Number(m[1]) : m[2] ? Math.max(0, size - Number(m[2])) : 0;
+  const end = m[1] && m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
   const len = Math.max(0, end - start + 1);
   const fh = await open(path, 'r');
   try {

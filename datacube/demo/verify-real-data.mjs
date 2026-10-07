@@ -65,7 +65,7 @@ async function buildFixture() {
     .toArray().map((r) => [String(r.region), Number(r.n)]));
   // in the run's own temp directory, never the working directory (P4-03: under a test, the runfiles tree)
   const dir = await tmpDir('dc-real-');
-  const file = path.join(dir, 'trades.parquet');
+  const file = path.join(dir, 'trades.parquet').replace(/\\/g, '/'); // DuckDB reads a backslash as an escape
   conn.query(`COPY t TO '${file}' (FORMAT PARQUET)`);
   console.log(`no DATA: built ${file} (30,000 rows); DuckDB says ${JSON.stringify(expect)}`);
   return { file, expect };

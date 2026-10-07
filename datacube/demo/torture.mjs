@@ -25,7 +25,7 @@ import { levelWithValues } from '../src/plan.ts';
 import { PlanError, UpstreamPlanner } from '../src/planner.ts';
 import { pivotValuesLambda } from '../src/query.ts';
 import { sourceColumns } from '../src/source-columns.ts';
-import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
+import { accessor, col, fn, lambda, lit, times } from '../../pure-protocol/src/index.ts';
 import { buildColumnModel } from '../src/grid/columns.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
 import { siteRoot } from './harness.mjs';
@@ -52,6 +52,8 @@ let failed = false;
 // FIXED 2026-09-23 against both the datacube branch's core and main's),
 // so every such case asserts. A new engine bug goes here with its
 // cause, and comes out the day the run says FIXED.
+// (The derived columns below multiply n_float, which the table declares nullable: legend-lite refuses arithmetic on a
+// [0..1] value, as legend-engine and legend-pure do, so each takes toOne first -- what a person writes too.)
 const KNOWN_ENGINE_BUGS = new Map([]);
 
 const check = (name, ok, detail = '') => {
@@ -245,7 +247,7 @@ const cases = [
     {
       ...base,
       rows: ['plain'],
-      derived: [{ name: 'doubled', lambda: lambda(['x'], times(col('x', 'n_float'), lit.integer(2))) }],
+      derived: [{ name: 'doubled', lambda: lambda(['x'], times(fn('toOne', col('x', 'n_float')), lit.integer(2))) }],
       measures: [sum('m', 'doubled')],
     },
   ],
@@ -330,7 +332,7 @@ console.log('\n--- scale ---');
       rows: ['plain'],
       derived: Array.from({ length: 60 }, (_, i) => ({
         name: `d${i}`,
-        lambda: lambda(['x'], times(col('x', 'n_float'), lit.integer(i + 1))),
+        lambda: lambda(['x'], times(fn('toOne', col('x', 'n_float')), lit.integer(i + 1))),
       })),
       measures: Array.from({ length: 60 }, (_, i) => sum(`dm${i}`, `d${i}`)),
     }],

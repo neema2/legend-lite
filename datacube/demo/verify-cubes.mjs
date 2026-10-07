@@ -396,16 +396,26 @@ try {
     await load();
     const answer = (d) => { void d.accept(); };
     page.on('dialog', answer); // "open anyway?" -- yes
+    await page.evaluate(() => { window.__cubeBefore = window.__dataCube; });
     try {
       await pickFile(big);
       const said = (await page.locator('.dc-picker-status').textContent()) ?? '';
       if (!/Reading big-trades/.test(said)) throw new Error(`while reading, the window says "${said}"`);
       await page.setInputFiles('.dc-picker-file', small);
       await page.locator('.dc-picker').waitFor({ state: 'detached', timeout: 120_000 });
-      // the file's cube on screen: rows and a status line saying so
-      await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0
-        && /rows/.test(document.querySelector('.dc-status-timing')?.textContent ?? ''), null, { timeout: 60_000 });
-      await frames(page, 4);
+      // a NEW cube on screen, and then no other for a second (measured in the page, G-11): a second pick that lands
+      // late replaces it within that window, which the check below then sees
+      await page.waitForFunction(() => window.__dataCube !== window.__cubeBefore
+        && document.querySelectorAll('.dc-row').length > 0, null, { timeout: 60_000 });
+      await page.waitForFunction(() => {
+        const now = performance.now();
+        if (window.__cubeSeen !== window.__dataCube) {
+          window.__cubeSeen = window.__dataCube;
+          window.__cubeSince = now;
+          return false;
+        }
+        return now - window.__cubeSince > 1000;
+      }, null, { timeout: 30_000, polling: 100 });
     } finally {
       page.off('dialog', answer);
     }

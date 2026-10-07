@@ -40,6 +40,8 @@ const rowsOf = (id) => page.evaluate((t) => window.__page.cubes[t]?.snapshot.row
 /** Until no cube is busy and no cube has told the page of a change for a moment: an awaited condition, measured in
  *  the page (G-11), never a sleep in the harness. */
 async function settle() {
+  // a fresh watch per call: a state left from the last settle would read as quiet at once
+  await page.evaluate(() => { window.__settleState = undefined; });
   await page.waitForFunction((quietMs) => {
     const state = JSON.stringify([
       window.__page.changes,
