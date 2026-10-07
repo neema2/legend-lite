@@ -6764,6 +6764,58 @@ properties and `getDynaFunctionTypeInferenceMap` now type), `reference typed, we
 73103, `OVERLOAD` 769 → 745 (the six `[1..*]` classes gone); two new `EXTRA` classes (`math::min` 6, `math::max` 1)
 fall under the `EXTRA *` reason.
 
+## 2026-10-07 — The erased TDS row is read only through its accessors; a filter on a column the relation lacks is refused at typing
+
+The compiler line's first landing after the plan resumed (`docs/EXECUTION_PLAN_2026_09_26.md` D25); the fix was
+diagnosed and first cut by the DataCube + Python line and handed over at the user's request ("send it to them so we
+can keep going on python"); the plan's rule 0b.11: a reproduced defect is fixed now, in place. Branch
+`compiler/tdsrow-erased-row`, two commits: "TDS erasure: the erased row is read only through its accessors" (theirs)
+and "TDS erasure, the accessors read the erased row: get, isNull and isNotNull build their cell on the typed
+receiver" (this line's correction).
+
+**The defect.** `|#>{t::DB.TRADES}#->filter(x|$x.nope == 1)` typed, where legend-engine refuses it at typing ("The
+column 'nope' can't be found in the relation"); lite refused it later, in planning, so no wrong rows, only a late and
+vague error, and type-only callers (DataCube's calculated-column check) accepted it. Why: the relation `filter`
+refused `$x.nope`, then the overload rollback tried `meta::pure::tds::filter`, whose lambda parameter TDSRow erases to
+the raw-SQL grid's late-bound wildcard, and `Typer.relationColumn` trusted any name on a late-bound schema.
+
+**What changed.** The erased row has its own marker (`Type.RelationType.erasedRow(ownerFqn)`: late-bound like a grid,
+any row conforms, but its wildcard template keeps the owner class; `isErasedRow()`), and a bare `$r.col` on it is
+refused with the owner named. The accessors are its reads: the typed getters build the cell directly
+(`Typer.rowCellReadOnRow`); the untyped `get`, `isNull` and `isNotNull`, which are desugars, type the receiver once
+and on an erased row build the accessor's cell and the native call over it on the typed tree (`TdsDesugars.erasedCell`,
+`nativeCall`), never a bare property read. Two late-bound rows join to the wildcard (`InferenceKernel.unionRows`),
+not to an empty bound schema. The `isNotEmpty` spelling lives in `PlatformTypes` with its siblings; the native-claims
+register regenerated (its two `isNotEmpty` rows gain `PlatformTypes`).
+
+**What the audit and the reference lane found in the first cut** (the audit's B1, S1 to S3, N2; the reference lane
+run this line added): the refusal also blocked `get`, `isNull` and `isNotNull`, because their desugars re-synthesize a
+bare property read; two of the engine's own m2m filter test bodies (`$res.values->at(0).rows->at(0).get('legalName')`,
+`core/store/m2m/tests/filter.pure`) went from typed to FAILED (AGREE 73,103 to 73,088). The engine's declaration
+(`core/pure/tds/tds.pure:76-120`) names `get`, `isNull`, `isNotNull` and the typed getters as TDSRow's qualified
+properties and no bare column. Corrected as above; the report equals its golden again.
+
+**Checked.** `//core:core_tests_compiler` (`TdsRowReceiverTest`: the refusal by error class, the relation's own
+columns, the typed and the untyped accessors on an erased row typed at its own let, a bare column on an erased row
+refused); `//spec:update_reference_lane_test` and `//spec:reference_lane` (the report equals its golden: our bodies
+FAILED 1,508, reference typed / we FAILED 1,335, AGREE 73,103); `//spec:eager_corpus_compile` unchanged (9,942 bodies,
+1,620 fail, both bodies type); the local gate (`//gates:local`, 311 tests) green; the DataCube line's own runs on the
+first cut: corpora, every PCT lane and parser parity unchanged apart from the ratchet (`own_corpus.matched` 2685 to
+2686, the test's database). CI: run 37699620156 (22:59 to 23:17 UTC, 17 minutes; the rebased tip 33a459624): green on every job; the first run, on the tip before the rebase onto the DataCube line's landing, 37697220355 (22:36 to 22:58 UTC, 22 minutes), green too.
+
+**Behaviour note** (audit N3): `getString('columns')` on a late-bound row is now a cell read, not the column-metadata
+collection relabelled as String.
+
+**Open parity question, not pinned by a test:** an annotated `{r:meta::pure::tds::TDSRow[1]|...}` lambda under the
+relation `filter` types in lite (the parameter takes the concrete row, never the erased one); the engine's verdict is
+unknown (in legend-pure `#>{db.T}#` is a Relation, which `meta::pure::tds::filter` cannot host). Owner: W3.1 (the TDS
+carrier inventory). A second one in the same family: the rollback to `meta::pure::tds::filter` over an erased row
+still accepts an accessor read of a column the relation lacks (`filter(x|$x.isNotNull('nope'))`), where the engine
+has no `isNotNull` on a relation row at all; pre-existing, W3.1 too.
+
+**Net product lines** (rule 0b.17): +97 in `core/src/main` (the typed-tree construction in the desugars; the
+representation is W3.1's to replace).
+
 ## 2026-10-07 — Build rebuild L1a: the lanes as suites, the product lane, the downloads cached, the heavy targets out of the wildcard
 
 The plan: `docs/REBUILD_PROGRAM_2026_10_06.md` §4 (L1, the first landing, agreed 2026-10-07: the CI work before
