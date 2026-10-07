@@ -42,6 +42,7 @@ filegroup(
     name = "web",
     srcs = [
         "//datacube:bundles",
+        "//engine-client:bundles",
         "//query:bundles",
         "//studio:bundles",
     ],

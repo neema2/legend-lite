@@ -6,6 +6,7 @@ load("//tools/js:defs.bzl", "node_test")
 load("//tools/browser:defs.bzl", "browser_test")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_query//:defs.bzl", "npm_link_all_packages")
 load("//tools/js:esbuild.bzl", "esbuild_bundle")
@@ -43,32 +44,33 @@ js_library(
     ],
 )
 
-# entry point -> bundle
-_BUNDLES = {
-    "demo/main.ts": "demo/bundle.js",
-    "../engine-client/src/legend/planner-worker.ts": "demo/planner-worker.js",
-}
-
-[esbuild_bundle(
-    name = "bundle_" + out[len("demo/"):-len(".js")].replace("-", "_"),
+esbuild_bundle(
+    name = "bundle",
     srcs = glob(["demo/**/*.ts"]) + [":src", "//engine-client:node_modules/@duckdb/duckdb-wasm"],
-    outs = [out],
+    outs = ["demo/bundle.js"],
     args = [
-        entry,
+        "demo/main.ts",
         "--bundle",
         "--format=esm",
         "--target=es2022",
         "--log-level=warning",
-        "--outfile=" + out,
+        "--outfile=demo/bundle.js",
     ],
-) for entry, out in _BUNDLES.items()]
+)
 
-# THE BUNDLES QUERY SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the app and the planner's worker.
+# the planner's worker: engine-client's own bundle, served as the page's ./planner-worker.js
+copy_file(
+    name = "planner_worker",
+    src = "//engine-client:planner_worker",
+    out = "demo/planner-worker.js",
+)
+
+# THE BUNDLES QUERY SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the app. The planner's worker is
+# engine-client's bundle (//engine-client:bundles); :planner_worker is only its copy into this site.
 filegroup(
     name = "bundles",
     srcs = [
-        ":bundle_bundle",
-        ":bundle_planner_worker",
+        ":bundle",
     ],
     visibility = ["//:__pkg__"],
 )
@@ -136,7 +138,7 @@ filegroup(
         "demo/models/*.pure",
         "demo/models/*.sql",
         "src/**/*.css",
-    ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [":vendor", ":cube_styles"],
+    ]) + [":bundle", ":planner_worker", ":vendor", ":cube_styles"],
 )
 
 # `bazel run //query:serve [-- --port 8100]`: the site, on loopback. A hand tool: manual (2026-10-07, PHASE_8.md
