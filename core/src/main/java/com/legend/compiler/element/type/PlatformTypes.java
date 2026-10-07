@@ -58,6 +58,8 @@ public final class PlatformTypes {
 
     public static final String ANY = "meta::pure::metamodel::type::Any";
     public static final String NIL = "meta::pure::metamodel::type::Nil";
+    /** m3's {@code Enum}: the generalization of every enumeration (an enum value's type). */
+    public static final String ENUM = "meta::pure::metamodel::type::Enum";
     public static final String VARIANT = "meta::pure::metamodel::variant::Variant";
     public static final String LIST = "meta::pure::functions::collection::List";
     public static final String PAIR = "meta::pure::functions::collection::Pair";

@@ -775,9 +775,10 @@ final class Overloads {
                         .functionTypeOf(t) == null;
     }
 
-    /** Candidates best-score-first (stable — declaration order breaks
-     *  ties, preserving first-max semantics for the winner); arity
-     *  misfits filtered; empty = the same loud no-overload error. */
+    /** Candidates best-first by legend-pure's ranking over the typed arguments ({@link
+     *  InferenceKernel#rankNonLambda}; stable — declaration order breaks ties, preserving
+     *  first-max semantics for the winner; a candidate a typed argument does not fit comes
+     *  last); arity misfits filtered; empty = the same loud no-overload error. */
     private List<TypedFunction> selectRankedByPresentArgs(String name,
             List<TypedFunction> arity, TypedSpec[] typed,
             @com.legend.base.Nullable List<ValueSpecification> raw) {
@@ -785,9 +786,9 @@ final class Overloads {
         for (TypedSpec t : typed) {
             argTypes.add(t == null ? null : t.info());
         }
-        record Scored(TypedFunction fn, long score, int declIdx) {
+        record Ranked(TypedFunction fn, @com.legend.base.Nullable FunctionMatch rank, int declIdx) {
         }
-        List<Scored> scored = new ArrayList<>();
+        List<Ranked> ranked = new ArrayList<>();
         String arityRejection = null;
         for (int i = 0; i < arity.size(); i++) {
             TypedFunction c = arity.get(i);
@@ -797,18 +798,25 @@ final class Overloads {
                 }
                 continue;
             }
-            scored.add(new Scored(c, kernel.scoreNonLambda(c, argTypes), i));
+            ranked.add(new Ranked(c, kernel.rankNonLambda(c, argTypes), i));
         }
-        if (scored.isEmpty()) {
+        if (ranked.isEmpty()) {
             throw new TypeInferenceException(
                     "no overload of '" + name + "' matches the argument types"
                             + (arityRejection != null
                                     ? " (" + arityRejection + ")" : ""));
         }
-        scored.sort(java.util.Comparator
-                .comparingLong(Scored::score).reversed()
-                .thenComparingInt(Scored::declIdx));
-        return scored.stream().map(Scored::fn).toList();
+        ranked.sort((a, b) -> {
+            FunctionMatch ra = a.rank();
+            FunctionMatch rb = b.rank();
+            if (ra == null || rb == null) {
+                int c = Boolean.compare(ra == null, rb == null);
+                return c != 0 ? c : Integer.compare(a.declIdx(), b.declIdx());
+            }
+            int c = ra.compareTo(rb);
+            return c != 0 ? c : Integer.compare(a.declIdx(), b.declIdx());
+        });
+        return ranked.stream().map(Ranked::fn).toList();
     }
 
     /** Whether every DEFERRED lambda argument's parameter count fits the

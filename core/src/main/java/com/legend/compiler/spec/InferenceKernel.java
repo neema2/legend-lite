@@ -1057,9 +1057,10 @@ public final class InferenceKernel {
     /**
      * Pick the single best-matching overload from {@code candidates} for the
      * given concrete argument types, then resolve the call's output type.
-     * Arity filter &rarr; specificity scoring (type exact=2/subtype=1/var=0 &times;10
-     * + multiplicity exact=5/[1]=4/[0..1]=3/[1..*]=2/[*]=1/var=0) &rarr; highest
-     * wins, a tie throws (G-&beta;).
+     * Arity filter &rarr; acceptance ({@link #paramTypeScore}, {@link #paramMultScore})
+     * &rarr; legend-pure's ranking ({@link FunctionMatch}: the parameters' type
+     * matches left to right, then their multiplicity matches, the first
+     * difference deciding) &rarr; the tie-breaks; a tie they do not settle throws.
      *
      * <p>Scope: scalar / native resolution over already-typed arguments. Lambda
      * arguments (function-typed params) and class-subtype user-argument checking
@@ -1095,18 +1096,22 @@ public final class InferenceKernel {
             return resolveChosen(arityMatches.get(0), args, name, expected);
         }
 
-        long best = Long.MIN_VALUE;
+        // legend-pure's ranking (m3 FunctionMatch): among the candidates that accept the arguments, the
+        // parameters' type matches left to right, then their multiplicity matches; the first difference
+        // decides, nothing is added up. A tie falls to the tie-breaks below.
         List<TypedFunction> winners = new ArrayList<>();
+        FunctionMatch best = null;
         for (TypedFunction c : arityMatches) {
-            long s = score(c, args);
-            if (s < 0) {
+            FunctionMatch m = match(c, args, false);
+            if (m == null) {
                 continue;   // structural non-match
             }
-            if (s > best) {
-                best = s;
+            int cmp = best == null ? -1 : m.compareTo(best);
+            if (cmp < 0) {
+                best = m;
                 winners.clear();
                 winners.add(c);
-            } else if (s == best) {
+            } else if (cmp == 0) {
                 winners.add(c);
             }
         }
@@ -1187,15 +1192,11 @@ public final class InferenceKernel {
                     if (byBottom.size() == 1) {
                         return resolveChosen(byBottom.get(0), args, name, expected);
                     }
-                    // LINEARIZATION tie-break (real pure resolves a class's
-                    // generalizations in declaration order): among UNRELATED
-                    // class formals that all accept the argument, the one
-                    // nearest in the argument's supertype order wins —
-                    // elementToPath(Type) over (PackageableElement) for a
-                    // Class value (m3: Class extends Type, …, PackageableElement)
-                    TypedFunction nearest = nearestInLinearization(byBottom, args);
-                    if (nearest != null) {
-                        return resolveChosen(nearest, args, name, expected);
+                    // m3's literal order (Any a concrete class) settles what is left: a typed
+                    // argument fits f(Any) better than f<T>(T) (see match)
+                    TypedFunction literal = uniqueBest(byBottom, args);
+                    if (literal != null) {
+                        return resolveChosen(literal, args, name, expected);
                     }
                     throw new TypeInferenceException("ambiguous overload of '" + name + "': "
                             + winners.size() + " candidates tie for the argument types ["
@@ -1215,51 +1216,277 @@ public final class InferenceKernel {
     }
 
     /**
-     * Specificity score of {@code candidate} against {@code args}, counting only the
-     * <strong>present</strong> positions (a {@code null} entry is a not-yet-typed
-     * slot, e.g. a lambda argument, and is skipped); {@code -1} if any present
-     * parameter does not match. Same scoring as {@link #resolveOverload}, so it is
-     * the basis for selecting an overload from a call's non-lambda arguments &mdash;
-     * crucially, it lets a relation source pick {@code Relation<T>} (a relation match,
-     * type-score 1) over a generic {@code T[*]} (a type-var, score 0).
+     * The ranking of {@code candidate} against a call whose {@code null} entries are slots not typed yet
+     * (a lambda argument): m3's lenient first pass, which orders the candidates its compiler then tries
+     * one by one, in the {@link #resolveOverload} order ({@code Any} with the type parameters: with slots
+     * still untyped, a later parameter may decide, as in legend-pure's lambda bodies — m3's literal
+     * order would put {@code collection::in} before {@code relation::in} on the value alone);
+     * {@code null} when an arity or a typed argument does not fit.
      */
-    public long scoreNonLambda(TypedFunction candidate, List<ExprType> args) {
+    @com.legend.base.Nullable FunctionMatch rankNonLambda(TypedFunction candidate, List<ExprType> args) {
         if (candidate.parameters().size() != args.size()) {
-            return -1;
+            return null;
         }
-        long total = 0;
-        for (int i = 0; i < args.size(); i++) {
-            ExprType a = args.get(i);
-            if (a == null) {
-                continue;
-            }
-            TypedParameter p = candidate.parameters().get(i);
-            int typeScore = paramTypeScore(p.type(), a.type());
-            int multScore = paramMultScore(p.multiplicity(), a.multiplicity(), a.type());
-            if (typeScore < 0 || multScore < 0) {
-                return -1;
-            }
-            total += typeScore * 20L + multScore;
-        }
-        return total;
+        return match(candidate, args, false);
     }
 
-    /** Specificity score of a candidate, or {@code -1} if any parameter does not match. */
-    private long score(TypedFunction c, List<ExprType> args) {
-        long total = 0;
-        for (int i = 0; i < args.size(); i++) {
+    /**
+     * legend-pure's match of one candidate ({@link FunctionMatch}); {@code null} when the kernel's
+     * acceptance test rejects it (the acceptance is unchanged: {@link #paramTypeScore} and
+     * {@link #paramMultScore}, the halves {@link #unify} agrees with). A {@code null} argument, a slot
+     * not typed yet, matches as m3's lenient pass matches an untyped value: last, alike for every
+     * candidate.
+     *
+     * <p>{@code Any}: m3 ranks it as a concrete class (the last in every linearization), but its
+     * compiler matches the calls inside a lambda before their arguments are typed
+     * ({@code FunctionExpressionProcessor.processLambda}), and there an untyped value fits {@code Any}
+     * and a type parameter alike: {@code relation::in(U[0..1], Relation)} wins over
+     * {@code collection::in(Any[0..1], Any[*])} for {@code $d.col->in($rel)} in a filter (the
+     * reference lane's 12 calls in core_functions_relation; legend-pure's own matcher, run on the
+     * finished types, ranks them the other way). This kernel types those arguments first, so the
+     * ranking puts {@code Any} with the type parameters ({@code anyConcrete} false) and m3's literal
+     * order settles a tie that leaves ({@code anyConcrete} true), the case of a typed argument; Phase
+     * 3b brings the typing order itself to legend-pure's.
+     */
+    private @com.legend.base.Nullable FunctionMatch match(TypedFunction c, List<ExprType> args, boolean anyConcrete) {
+        int n = args.size();
+        List<FunctionMatch.TypeFit> types = new ArrayList<>(n);
+        List<FunctionMatch.MultFit> mults = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            ExprType a = args.get(i);
             TypedParameter p = c.parameters().get(i);
-            int typeScore = paramTypeScore(p.type(), args.get(i).type());
-            if (typeScore < 0) {
-                return -1;
+            if (a == null) {
+                types.add(FunctionMatch.TypeFit.NULL);
+                mults.add(FunctionMatch.MultFit.NULL);
+                continue;
             }
-            int multScore = paramMultScore(p.multiplicity(), args.get(i).multiplicity(), args.get(i).type());
-            if (multScore < 0) {
-                return -1;
+            if (paramTypeScore(p.type(), a.type()) < 0
+                    || paramMultScore(p.multiplicity(), a.multiplicity(), a.type()) < 0) {
+                return null;
             }
-            total += typeScore * 20L + multScore;
+            types.add(typeFit(p.type(), a.type(), anyConcrete));
+            mults.add(multFit(p.multiplicity(), a.multiplicity(), true));
         }
-        return total;
+        return new FunctionMatch(types, mults);
+    }
+
+    /** The one candidate m3's literal order ranks first ({@code Any} concrete); null on a tie. */
+    private @com.legend.base.Nullable TypedFunction uniqueBest(List<TypedFunction> cands, List<ExprType> args) {
+        TypedFunction best = null;
+        FunctionMatch bestMatch = null;
+        boolean tie = false;
+        for (TypedFunction c : cands) {
+            FunctionMatch m = match(c, args, true);
+            if (m == null) {
+                continue;
+            }
+            int cmp = bestMatch == null ? -1 : m.compareTo(bestMatch);
+            if (cmp < 0) {
+                best = c;
+                bestMatch = m;
+                tie = false;
+            } else if (cmp == 0) {
+                tie = true;
+            }
+        }
+        return tie ? null : best;
+    }
+
+    /** The C3 linearizations of this context's types, for the type distances. */
+    private FunctionMatch.@com.legend.base.Nullable Linearizer linearizer;
+
+    private FunctionMatch.Linearizer linearizer() {
+        FunctionMatch.Linearizer l = linearizer;
+        if (l == null) {
+            l = new FunctionMatch.Linearizer(
+                    fqn -> ctx.findClass(fqn).map(TypedClass::superClassFqns).orElse(List.of()), ANY_FQN);
+            linearizer = l;
+        }
+        return l;
+    }
+
+    /**
+     * One accepted parameter's type match, as m3's {@code GenericTypeMatch} over {@code TypeMatch}
+     * (covariant): identical types exactly; a type-parameter formal as non-concrete; an empty
+     * ({@code Nil}) value as the bottom match; otherwise the raw types by the formal's distance in the
+     * argument's C3 linearization ({@code Any} is a concrete class there, last), then the type and
+     * multiplicity arguments.
+     */
+    private FunctionMatch.TypeFit typeFit(Type formal, Type actual, boolean anyConcrete) {
+        // the function-carrier normalization the acceptance test applies (paramTypeScore)
+        Type nf = unwrapFunction(formal);
+        boolean formalKeepsCarrier = nf == formal
+                && ((formal instanceof Type.GenericType fg && FUNCTION_CARRIER_FQNS.contains(fg.rawFqn()))
+                    || PlatformTypes.isAny(formal));
+        Type na = formalKeepsCarrier ? actual : unwrapFunctionValue(actual, nf);
+        if (nf != formal || na != actual) {
+            return typeFit(nf, na, anyConcrete);
+        }
+        if (!anyConcrete && PlatformTypes.isAny(actual) && !(formal instanceof Type.TypeVar)) {
+            // a value this kernel types Any is one whose type legend-pure has not settled when it
+            // matches (see match): it fits Any and a type parameter alike
+            return FunctionMatch.TypeFit.NON_CONCRETE;
+        }
+        if (formal.equals(actual)) {
+            return FunctionMatch.TypeFit.EXACT;
+        }
+        if (formal instanceof Type.TypeVar) {
+            return FunctionMatch.TypeFit.NON_CONCRETE;
+        }
+        if (isNil(actual)) {
+            return FunctionMatch.TypeFit.BOTTOM;
+        }
+        if (actual instanceof Type.TypeVar) {
+            // m3's lenient pass (a value of a type parameter matches any formal non-concretely); its
+            // strict pass keeps only Any, which the acceptance test, not this order, decides
+            return FunctionMatch.TypeFit.NON_CONCRETE;
+        }
+        return switch (formal) {
+            case Type.FunctionType ff -> actual instanceof Type.FunctionType af
+                    ? functionTypeFit(ff, af, anyConcrete)
+                    : FunctionMatch.TypeFit.of(FunctionMatch.Kind.FUNCTION);
+            case Type.RelationType ignored -> FunctionMatch.TypeFit.of(FunctionMatch.Kind.RELATION);
+            case Type.SchemaAlgebra ignored -> FunctionMatch.TypeFit.NULL;
+            default -> nominalTypeFit(formal, actual, anyConcrete);
+        };
+    }
+
+    /** The distance of a fit only a platform rule accepts, not the class lattice (a relation into the legacy
+     *  TabularDataSet): after every real generalization, before a type parameter — legend-pure has no such fit
+     *  (tds::filter(TabularDataSet) must not out-rank relation::filter(Relation<T>) for a relation accessor). */
+    private static final int PLATFORM_RULE_DISTANCE = Integer.MAX_VALUE / 2;
+
+    /** A nominal formal (a primitive, class, enumeration or generic class) against an accepted value. */
+    private FunctionMatch.TypeFit nominalTypeFit(Type formal, Type actual, boolean anyConcrete) {
+        if (PlatformTypes.isAny(formal) && !anyConcrete) {
+            return FunctionMatch.TypeFit.NON_CONCRETE;
+        }
+        String formalRaw = nominalFqn(formal);
+        String actualRaw = nominalFqn(actual);
+        if (formalRaw == null) {
+            return FunctionMatch.TypeFit.NULL;
+        }
+        if (actualRaw == null) {
+            // a structural value (a function or relation type) against a nominal formal: m3 makes a
+            // function type a direct subtype of Any, and a relation value is the generic Relation class
+            if (formalRaw.equals(RELATION_FQN) && Type.schemaView(actual) != null
+                    && formal instanceof Type.GenericType fg && fg.arguments().size() == 1) {
+                return FunctionMatch.TypeFit.EXACT.withArguments(
+                        List.of(typeFit(fg.arguments().get(0), actual, anyConcrete)), List.of());
+            }
+            // m3 makes a function type a direct subtype of Any; any other fit here is a platform rule's
+            return FunctionMatch.TypeFit.simple(PlatformTypes.isAny(formal) ? 1 : PLATFORM_RULE_DISTANCE);
+        }
+        int distance;
+        if (formalRaw.equals(actualRaw) && !(actual instanceof Type.PrecisionDecimal && !(formal instanceof Type.PrecisionDecimal))) {
+            distance = 0;
+        } else if (actual instanceof Type.PrecisionDecimal) {
+            // a precise decimal generalizes Decimal (m3: an extended primitive type)
+            int d = linearizer().distance(Type.Primitive.DECIMAL.qualifiedName(), formalRaw);
+            distance = d < 0 ? -1 : d + 1;
+        } else if (actual instanceof Type.EnumType) {
+            // an enumeration generalizes Enum (m3)
+            int d = formalRaw.equals(PlatformTypes.ENUM) ? 0 : linearizer().distance(PlatformTypes.ENUM, formalRaw);
+            distance = d < 0 ? -1 : d + 1;
+        } else {
+            distance = linearizer().distance(actualRaw, formalRaw);
+        }
+        if (distance < 0) {
+            return FunctionMatch.TypeFit.simple(PLATFORM_RULE_DISTANCE);
+        }
+        FunctionMatch.TypeFit raw = FunctionMatch.TypeFit.simple(distance);
+        // the type and multiplicity arguments, as m3 compares them after the raw types (not against Any,
+        // and the value's own arguments only where they line up with the formal's)
+        if (!(formal instanceof Type.GenericType fg) || PlatformTypes.isAny(formal)) {
+            return raw;
+        }
+        List<Type> actualArgs = actual instanceof Type.GenericType ag ? ag.arguments() : List.of();
+        List<Multiplicity> actualMults = actual instanceof Type.GenericType ag ? ag.multArguments() : List.of();
+        List<FunctionMatch.TypeFit> argFits = new ArrayList<>();
+        if (actualArgs.size() == fg.arguments().size()) {
+            for (int i = 0; i < actualArgs.size(); i++) {
+                argFits.add(typeFit(fg.arguments().get(i), actualArgs.get(i), anyConcrete));
+            }
+        } else {
+            for (Type a : fg.arguments()) {
+                argFits.add(a instanceof Type.TypeVar ? FunctionMatch.TypeFit.NON_CONCRETE : FunctionMatch.TypeFit.NULL);
+            }
+        }
+        List<FunctionMatch.MultFit> multFits = new ArrayList<>();
+        if (actualMults.size() == fg.multArguments().size()) {
+            for (int i = 0; i < actualMults.size(); i++) {
+                multFits.add(multFit(fg.multArguments().get(i), actualMults.get(i), true));
+            }
+        }
+        return raw.withArguments(argFits, multFits);
+    }
+
+    /** m3's {@code FunctionTypeMatch}: the parameters' types (contravariant), the parameters'
+     *  multiplicities, the return type, the return multiplicity, in that order. */
+    private FunctionMatch.TypeFit functionTypeFit(Type.FunctionType formal, Type.FunctionType actual, boolean anyConcrete) {
+        List<FunctionMatch.TypeFit> params = new ArrayList<>();
+        List<FunctionMatch.MultFit> paramMults = new ArrayList<>();
+        for (int i = 0; i < formal.params().size() && i < actual.params().size(); i++) {
+            Type.Param fp = formal.params().get(i);
+            Type.Param ap = actual.params().get(i);
+            params.add(contravariantTypeFit(fp.type(), ap.type()));
+            paramMults.add(multFit(fp.multiplicity(), ap.multiplicity(), false));
+        }
+        FunctionMatch.TypeFit result = typeFit(formal.result().type(), actual.result().type(), anyConcrete);
+        FunctionMatch.MultFit resultMult = multFit(formal.result().multiplicity(), actual.result().multiplicity(), true);
+        return new FunctionMatch.TypeFit(FunctionMatch.Kind.FUNCTION, 0, params, paramMults,
+                List.of(result), List.of(resultMult));
+    }
+
+    /** A function parameter's type match: the value's parameter must accept what the formal's passes. */
+    private FunctionMatch.TypeFit contravariantTypeFit(Type formal, Type actual) {
+        if (formal.equals(actual)) {
+            return FunctionMatch.TypeFit.EXACT;
+        }
+        if (formal instanceof Type.TypeVar || actual instanceof Type.TypeVar) {
+            return FunctionMatch.TypeFit.NON_CONCRETE;
+        }
+        String f = nominalFqn(formal);
+        String a = nominalFqn(actual);
+        if (f == null || a == null) {
+            return FunctionMatch.TypeFit.NULL;
+        }
+        int d = linearizer().distance(f, a);
+        return FunctionMatch.TypeFit.simple(d < 0 ? 1 : d);
+    }
+
+    /**
+     * One accepted parameter's multiplicity match, as m3's {@code MultiplicityMatch} (covariant: the
+     * formal is the larger): exact; a multiplicity-parameter formal non-concretely; otherwise by the
+     * upper-bound gap, then the lower-bound gap. A multiplicity-parameter value fits only {@code [*]}
+     * in m3, as the widest concrete fit; a fit only a platform rule accepts (a relation source, a
+     * variant) ranks there too.
+     */
+    private static FunctionMatch.MultFit multFit(Multiplicity formal, Multiplicity actual, boolean covariant) {
+        if (formal instanceof Multiplicity.Var) {
+            return FunctionMatch.MultFit.NON_CONCRETE;
+        }
+        if (!(formal instanceof Multiplicity.Bounded fb) || !(actual instanceof Multiplicity.Bounded ab)) {
+            return FunctionMatch.MultFit.WIDEST;
+        }
+        Multiplicity.Bounded large = covariant ? fb : ab;
+        Multiplicity.Bounded small = covariant ? ab : fb;
+        int lower = small.lower() - large.lower();
+        if (lower < 0) {
+            return FunctionMatch.MultFit.WIDEST;
+        }
+        int upper;
+        if (large.upper() == null) {
+            upper = small.upper() == null ? 0 : Integer.MAX_VALUE;
+        } else if (small.upper() == null) {
+            return FunctionMatch.MultFit.WIDEST;
+        } else {
+            upper = large.upper() - small.upper();
+            if (upper < 0) {
+                return FunctionMatch.MultFit.WIDEST;
+            }
+        }
+        return FunctionMatch.MultFit.concrete(lower, upper);
     }
 
     /** Unify the chosen overload's parameters against the args, then resolve its output. */
@@ -1834,57 +2061,6 @@ public final class InferenceKernel {
     }
 
     /** Superclass FQNs of {@code fqn}, breadth-first (nearest ancestors first), walking the class lattice. */
-    /** The unique candidate whose class formals sit nearest in each
-     * argument's linearized supertype order; null when none is unique or
-     * a formal is not a plain class. */
-    private @com.legend.base.Nullable TypedFunction nearestInLinearization(
-            List<TypedFunction> cands, List<ExprType> args) {
-        TypedFunction best = null;
-        long bestRank = Long.MAX_VALUE;
-        boolean tie = false;
-        List<List<TypedParameter>> shapesSeen = new ArrayList<>();
-        for (TypedFunction c : cands) {
-            // a SAME-SHAPE duplicate (a module twin of a native) is the
-            // duplicate-signature tolerance's case: the first spelling stands
-            if (shapesSeen.contains(c.parameters())) {
-                continue;
-            }
-            shapesSeen.add(c.parameters());
-            long rank = 0;
-            for (int i = 0; i < args.size() && i < c.parameters().size(); i++) {
-                Type formal = c.parameters().get(i).type();
-                if (formal.equals(args.get(i).type())) {
-                    continue;   // an exact formal (String against String) ranks 0
-                }
-                String actualRaw = nominalFqn(args.get(i).type());
-                if (actualRaw == null) {
-                    return null;
-                }
-                if (!(formal instanceof Type.ClassType fc)) {
-                    rank = Long.MAX_VALUE / 2;   // not a class formal: least specific
-                    continue;
-                }
-                if (fc.fqn().equals(actualRaw)) {
-                    continue;
-                }
-                int at = ancestorsOf(actualRaw).indexOf(fc.fqn());
-                if (at < 0) {
-                    rank = Long.MAX_VALUE / 2;   // accepts by some other rule: least specific
-                    continue;
-                }
-                rank += at + 1;
-            }
-            if (rank < bestRank) {
-                bestRank = rank;
-                best = c;
-                tie = false;
-            } else if (rank == bestRank) {
-                tie = true;
-            }
-        }
-        return tie ? null : best;
-    }
-
     private List<String> ancestorsOf(String fqn) {
         List<String> out = new ArrayList<>();
         Set<String> seen = new HashSet<>();

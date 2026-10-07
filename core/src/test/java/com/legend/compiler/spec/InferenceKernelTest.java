@@ -367,8 +367,10 @@ class InferenceKernelTest {
     }
 
     @Test
-    void overload_incomparableSignaturesAreAmbiguous() {
-        // f(Integer, Number) and f(Number, Integer) on (Integer, Integer): both score 2+1 — a true tie.
+    void overload_firstDifferingParameterDecides() {
+        // f(Integer, Number) and f(Number, Integer) on (Integer, Integer): legend-pure compares the
+        // parameters left to right and the first difference decides (m3 FunctionMatch) — the first
+        // parameter is exact for A, so A wins; summed scores called this a tie
         TypedFunction a = overload("R::A",
                 List.of(param(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE),
                         param(Type.Primitive.NUMBER, Multiplicity.Bounded.ONE)));
@@ -378,7 +380,75 @@ class InferenceKernelTest {
         List<ExprType> args = List.of(
                 et(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE),
                 et(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE));
-        assertThrows(TypeInferenceException.class, () -> kernel().resolveOverload(List.of(a, b), args));
+        assertEquals(new Type.ClassType("R::A"), kernel().resolveOverload(List.of(b, a), args).output().type());
+    }
+
+    @Test
+    void overload_aTypedArgumentPrefersAnyOverATypeParameter() {
+        // m3 ranks Any as a concrete class: for a typed argument f(Any) beats f<T>(T). The kernel ranks
+        // Any with the type parameters first (legend-pure matches calls in a lambda before their
+        // arguments are typed — see the next test) and m3's literal order settles the tie
+        TypedFunction anyParam = overload("R::Any",
+                List.of(param(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY),
+                        Multiplicity.Bounded.ONE)));
+        TypedFunction typeParam = new TypedFunction("f", List.of("T"), List.of(),
+                List.of(new TypedParameter("p", new Type.TypeVar("T"), Multiplicity.Bounded.ONE)),
+                new Type.ClassType("R::T"), Multiplicity.Bounded.ONE, Optional.empty(), true);
+        InferenceKernel.Resolution r = kernel().resolveOverload(
+                List.of(typeParam, anyParam), List.of(et(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE)));
+        assertEquals(new Type.ClassType("R::Any"), r.output().type());
+    }
+
+    @Test
+    void overload_anyTiesWithATypeParameterSoALaterParameterDecides() {
+        // $d.col->in($rel) in a filter: legend-pure picks relation::in(U[0..1], Relation<Z>[1]) over
+        // collection::in(Any[0..1], Any[*]) — at match time the value fits U and Any alike, and the
+        // relation parameter decides (the reference lane's core_functions_relation calls)
+        Type relParam = new Type.GenericType(REL, List.of(new Type.TypeVar("Z")));
+        TypedFunction relationIn = new TypedFunction("in", List.of("U", "Z"), List.of(),
+                List.of(new TypedParameter("value", new Type.TypeVar("U"), Multiplicity.Bounded.ZERO_ONE),
+                        new TypedParameter("rel", relParam, Multiplicity.Bounded.ONE)),
+                new Type.ClassType("R::RelationIn"), Multiplicity.Bounded.ONE, Optional.empty(), true);
+        TypedFunction collectionIn = overload("R::CollectionIn",
+                List.of(param(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY), Multiplicity.Bounded.ZERO_ONE),
+                        param(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY), Multiplicity.Bounded.ZERO_MANY)));
+        Type rows = new Type.GenericType(REL, List.of(rel(col("department", Type.Primitive.INTEGER))));
+        InferenceKernel.Resolution r = kernel().resolveOverload(List.of(collectionIn, relationIn),
+                List.of(et(Type.Primitive.INTEGER, Multiplicity.Bounded.ZERO_ONE), et(rows, Multiplicity.Bounded.ONE)));
+        assertEquals(new Type.ClassType("R::RelationIn"), r.output().type());
+    }
+
+    @Test
+    void overload_nearerParentClassWinsInC3Order() {
+        // m3 ranks a class formal by its position in the argument's C3 linearization. For
+        // X extends A, B with A extends Y: C3(X) = X, A, Y, B, Any, so f(Y) beats f(B) for an X —
+        // a breadth-first walk (A, B, Y) would have picked f(B)
+        InferenceKernel k = new InferenceKernel((PureModelContext) com.legend.Compiler.buildModel(
+                com.legend.testing.Own.model("Class model::Y {}\nClass model::A extends model::Y {}\n"
+                        + "Class model::B {}\nClass model::X extends model::A, model::B {}\n")));
+        TypedFunction viaY = overload("R::Y", List.of(param(new Type.ClassType("model::Y"), Multiplicity.Bounded.ONE)));
+        TypedFunction viaB = overload("R::B", List.of(param(new Type.ClassType("model::B"), Multiplicity.Bounded.ONE)));
+        InferenceKernel.Resolution r = k.resolveOverload(
+                List.of(viaB, viaY), List.of(et(new Type.ClassType("model::X"), Multiplicity.Bounded.ONE)));
+        assertEquals(new Type.ClassType("R::Y"), r.output().type());
+    }
+
+    @Test
+    void overload_multiplicityParameterRanksRightAfterExact() {
+        // m3 MultiplicityMatch: for a [1] argument, [1] then m then [0..1] then [1..*] then [*]
+        TypedFunction optional = overload("R::Optional",
+                List.of(param(Type.Primitive.INTEGER, Multiplicity.Bounded.ZERO_ONE)));
+        TypedFunction byParameter = new TypedFunction("f", List.of(), List.of("m"),
+                List.of(new TypedParameter("p", Type.Primitive.INTEGER, new Multiplicity.Var("m"))),
+                new Type.ClassType("R::M"), Multiplicity.Bounded.ONE, Optional.empty(), true);
+        TypedFunction many = overload("R::Many",
+                List.of(param(Type.Primitive.INTEGER, Multiplicity.Bounded.ZERO_MANY)));
+        InferenceKernel.Resolution r = kernel().resolveOverload(
+                List.of(many, optional, byParameter), List.of(et(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE)));
+        assertEquals(new Type.ClassType("R::M"), r.output().type());
+        InferenceKernel.Resolution r2 = kernel().resolveOverload(
+                List.of(many, optional), List.of(et(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE)));
+        assertEquals(new Type.ClassType("R::Optional"), r2.output().type());
     }
 
     @Test
@@ -413,7 +483,7 @@ class InferenceKernelTest {
 
     @Test
     void overload_prefersTighterMultiplicity() {
-        // same type, different mult: f(Integer[1]) vs f(Integer[*]) on Integer[1] -> [1] wins (exact 5 > [*] tightness 1).
+        // same type, different mult: f(Integer[1]) vs f(Integer[*]) on Integer[1] -> [1] wins (exact before any gap).
         TypedFunction toOne = overload("R::One", List.of(param(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE)));
         TypedFunction toMany = overload("R::Many", List.of(param(Type.Primitive.INTEGER, Multiplicity.Bounded.ZERO_MANY)));
         InferenceKernel.Resolution r = kernel().resolveOverload(
@@ -476,7 +546,8 @@ class InferenceKernelTest {
 
     @Test
     void overload_typeSpecificityDominatesMultiplicity() {
-        // exact-type + loose-mult (2*10+1 = 21) must beat subtype-type + exact-mult (1*10+5 = 15).
+        // types are compared before multiplicities (m3 FunctionMatch): an exact type with a loose
+        // multiplicity beats a parent type with an exact one.
         TypedFunction exactTypeLooseMult = overload("R::ExactType",
                 List.of(param(Type.Primitive.INTEGER, Multiplicity.Bounded.ZERO_MANY)));   // Integer[*]
         TypedFunction subTypeExactMult = overload("R::SubType",
