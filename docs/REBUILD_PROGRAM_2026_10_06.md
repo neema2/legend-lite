@@ -1,8 +1,14 @@
 # The program: an amazing build with a self-contained upgrade bump (2026-10-06)
 
 Status: the user, 2026-10-06: "we should do the whole thing here, in phases that make sense - let's get it fully fully
-done". Not one PR: each phase lands as its own PR (or a few), proven locally first, with throwaway CI on the lanes it
-touches (a full run when MODULE, toolchains, `.bazelrc` or workflows change).
+done". Each phase is proven locally first and lands on main from its own branch. **No PRs since 2026-10-06** (the
+user: "I think we should not do PRs anymore so you can automatically push to main without my manual step"): an
+audit, the local gate, one full CI run on the branch, then that exact commit pushed to main (Phases 0 and 1 landed as
+PRs #25 and #26, before the change).
+
+**A session picking this program up starts at `docs/build-inventory/program/START_HERE.md`**: where everything is,
+the state, the working rules, how to run every check. That folder holds one execution brief per remaining phase
+(files, steps, checks, traps, open decisions); this file stays the plan.
 
 This file is the program's one plan. The decisions and evidence behind it:
 - `docs/BUILD_REBUILD_DESIGN_2026_10_05.md`: the build (decisions D1 to D15);
@@ -52,11 +58,16 @@ true trigger; no Node anywhere; one shape per app.
    - **The three functions** exist upstream too. Which version runs is decided by the implementation table, by
      function id: each has a row saying "the platform's version", here our Pure over the rows. That needs one more
      kind of row, **the platform's own Pure**, which the system metamodel's other upstream-named functions
-     (`classMappingById`, `mainTable`, …) also use; today a name-based rule does this, and Phase 3 replaces it.
+     (`classMappingById`, `mainTable`, …) also use. (2026-10-07: Phase 3 replaced the name rule with hiding by function id, `SystemMetamodel.shadows`; the
+     row kind itself is not built yet. It comes with Phase 3b item 1, whose acceptance deletes `shadows`,
+     PARKED_WORK_LEDGER PARK-12, and Phase 4 needs it when the result views move.)
 2. **Boot speed: profile and optimize the boot first**; the pre-built boot layer (Phase 4b, the parked compiler plan's
    W2.1 "generated at build time, not parsed at class load") is decided with measured numbers.
 3. **The product ships a generated copy of upstream bodies** (the default world). AGENTS.md and TENET_CHARTER C6.3
-   are amended in Phase 4 to match WORLD_MAP rule 2 (amended 2026-09-08).
+   are amended in Phase 4 to match WORLD_MAP rule 2 (amended 2026-09-08); so are WORLD_MAP's own §3 ("declarations only
+   ... no bodies"), rule 1 ("never loaded") and rule 2's first text and 2026-09-04 amendment, which still contradict it
+   (`docs/build-inventory/program/PHASES_4_5_7.md` §2.9), and AGENTS.md's guard name (`Runner.registerLibrarySource`
+   is now `MinimalCorpus.refusePlatformNamespace`).
 4. **Bazel changes are reviewed by an audit agent** before a push or PR (this session is the Bazel program).
 5. **D2: native-claims.tsv, `core_next` and `gen_claims` retire** (Phase 5).
 
@@ -152,8 +163,9 @@ on a branch, one CI run, then pushed to main.
    the end, once: the full local gate, the six corpus passes, all PCT suites, the reference lane report. Bar: corpus and
    PCT identical (a difference fixed, or explained to the user, before landing); the reference lane's `AGREE` up and the
    new report committed. Auditor, fixes, one CI run, push to main.
-- Not here: the 49 typing rows (Phase 3b); the default world (Phase 4, before which the rest of the 184 rows come);
-  `Pure.java`'s signature text (Phase 5).
+- Not here: the 49 typing rows (Phase 3b); the default world (Phase 4, before which the rest of the 184 rows come:
+  109 remain after Phase 3, `implementation.unrowed`; each gets a row or a recorded refusal before Phase 4 lands, the
+  Phase 4 brief's D4-12); `Pure.java`'s signature text (Phase 5).
 - This takes over W2.1's `ids` and `catalog` items from the parked compiler plan (`docs/EXECUTION_PLAN_2026_09_26.md`):
   said so in IN_FLIGHT and in that plan, so nobody redoes them.
 - **Pre-experiment (2026-10-06):** `docs/build-inventory/manifest-world/experiments/phase3-ranking/README.md`.
@@ -163,9 +175,16 @@ on a branch, one CI run, then pushed to main.
   drops by name (this phase's suppression removal brings them back), 79 are class-hierarchy choices (legend-pure
   measures hierarchy distance), 49 are numbers and optional values, likely argument typing.
 
-- **Status (2026-10-06):** done on `build/phase3` (three commits; GATES entry "Build rebuild Phase 3"). Reference lane:
-  AGREE 73103 -> 74578, OVERLOAD 745 -> 58, DRIFT 32 -> 0, bodies we fail to type 1508 -> 1471; the local gate, all PCT
-  suites and the corpus ratchets pass. Adjustments, each measured: `Any` ranks with the type parameters (legend-pure
+- **Status (2026-10-07): built and audited on `build/phase3`, not landed** (four commits on `293318dda` plus the
+  audit's fixes; GATES entry "Build rebuild Phase 3"; what is left: `docs/build-inventory/program/PHASE_3_LANDING.md`).
+  Reference lane: AGREE 73,103 -> 74,586, OVERLOAD 745 -> 58, DRIFT 32 -> 0, PROPERTY_AS_CALL 39 -> 1, bodies we fail
+  to type 1,508 -> 1,469 (51 newly typed, 12 newly failing). The six corpus passes: four tests the step-2 change broke
+  were fixed by the fourth commit (dot calls property-first, the statement inliner deferring to overload resolution,
+  `executeInDb`'s ConnectionStore row); every result file identical to main's. PCT 17 of 17. The audit (2026-10-07,
+  maximum effort): ready after fixes; its blocker (a function-typed parameter ranked after a type parameter) is fixed
+  with three tests, and nothing on any lane moved. Its other findings are corrected or recorded as
+  `docs/PARKED_WORK_LEDGER.md` PARK-5 to PARK-14; whether PARK-5 (typing +18% on the compile probe) is fixed before
+  landing is the user's decision. Adjustments, each measured: `Any` ranks with the type parameters (legend-pure
   matches the calls in a lambda before their arguments are typed; run on legend-pure itself), m3's literal order settling
   a remaining tie; a fit only a platform rule accepts ranks after every real parent. A short name that could mean a form's
   function or another function stays decided by the argument types (`ReceiverOwnedFunctions`, as legend-pure decides),
@@ -173,15 +192,31 @@ on a branch, one CI run, then pushed to main.
   (`resolvePrimaryKey`, `propertyMappingsByPropertyName`, `inferRelationalType`, ...) run upstream's body as before.
   About 480 places still branch on a resolved callee's full name (the identity guard's shrink-only counts); Phase 3 did
   not take those. Phase 3b, re-scoped 2026-10-07, takes over neither W1.1b nor the typing work at large.
+- **Correction (2026-10-07): item 3's rows for the legacy TDS functions move to Phase 4.** A row is keyed by a function
+  id, and an id needs a declaration; the platform's own world declares none of `TdsLegacy`'s 18 functions (not the
+  catalog, not the prelude), so in a user program `restrict(...)` resolves to nothing and only its spelling is left.
+  Phase 3 built recognition by the names a call resolves to, falling back to the spelling when nothing resolves
+  (`TdsLegacy.matches`, `GroupByChecker.isAgg`); `docs/PARKED_WORK_LEDGER.md` PARK-11 anchors it. Adding them to the
+  catalog would grow what Phase 5 deletes; 14 of the 18 are upstream query handlers, so Phase 4's default world
+  declares them and the rows come with them. The other 4 are not functions the default world brings (the Phase 4
+  bullet below).
 
 ### Phase 3b: what the bump and users need from the compiler (core compiler)
 Re-scoped with the user 2026-10-07, after the census (`docs/build-inventory/manifest-world/experiments/phase3b-census/`):
 of the 1,469 bodies we fail to type, 931 (364 functions) are engine machinery the platform never runs, 460 are
 upstream's own tests, 52 are library functions user code could call (mostly legacy TDS functions the forms handle, or
 reflection not run here), 26 other. The six corpus passes and the PCT suites measure what users get; the reference lane
-stays a guard that must not get worse, not a target. Small: days.
+stays a guard that must not get worse, not a target. Small: days (the Phase 3b brief, 2026-10-07, finds items 1b and
+5b larger than that: size it with the user). **The execution brief is `docs/build-inventory/program/PHASES_3B_6.md`.**
 1. **The boot layer's twins merge by function id, and the view lifted twice (F-L1) is fixed.** Today 7 upstream
-   platform files drop ("defined more than once"); Phases 4 and 6 load them.
+   platform files drop ("defined more than once"); Phases 4 and 6 load them. Found by the brief (inferred from the
+   code): the twins fail because `SystemMetamodel.shadows` compares type spellings the two sides write differently
+   (bare `String` against `meta::pure::metamodel::type::String`; `EnumerationMapping` against `EnumerationMapping<T>`)
+   while their function ids are equal; once the files load, `superMapping` has two versions with identical parameters;
+   the other upstream versions at the boot layer's 29 names are 14 by a text count (to verify by id). The boot layer's
+   versions should win by implementation rows, not hiding (PARKED_WORK_LEDGER PARK-12). F-L1's fix is in
+   `compiler/ModelBuilder.java` and holds only while the flat and per-schema view lists share objects, which the name
+   resolver can break. This item owns F-L1; Phase 6 relies on it.
 2. **No change for the 18 files whose mappings use an unsupported feature** (decided with the user 2026-10-07). The
    reference lane stays strict: it builds with `Compiler.buildModel`, drops a file that fails and pins the list, so
    every model-level gap with legend-pure stays loud. A tolerant lane would turn those failures into unpinned walls and
@@ -191,7 +226,18 @@ stays a guard that must not get worse, not a target. Small: days.
 3. **The reference lane's 58 OVERLOAD and 14 PACKAGE rows, reviewed for user impact:** fix those that change results or a
    type users see; record the rest as type-only differences.
 4. **A dot call finds a qualified property when a plain property shares its name** (`Extension.serializerExtension(
-   version)`, about 391 bodies; a model of the user's can have the same shape).
+   version)`, about 391 bodies; a model of the user's can have the same shape). Two `Typer` routes need it, and it also
+   explains the reference lane's last PROPERTY_AS_CALL row (`RoutingStrategy`'s plain `toString` and qualified
+   `toString()`). PARK-6's and PARK-14's anchors sit in that code: restate or close them in the same commit.
+5. **Two bugs the census found that nothing else schedules:** (a) 9 bodies crash typing (an index out of bounds)
+   inside the ambiguity error's own message, instead of failing with that error (the ambiguity comes from our
+   own-package rule, the parked plan's W2.3b; this item fixes the crash, not the rule). (b) `Runtime` and `Mapping`
+   "not found as type names" (the service's `from`, the router's `routeFunction`) is one general bug, confirmed in the
+   code: a file's imports are recorded per element full name (`Compiler.java`, `elementImports.put(fqn, ...)`;
+   `NameResolver.java`, `elementImports().get(el.qualifiedName())`), so overloads of one function in different files
+   are all resolved with the imports of the last file read. Users with multi-file projects meet it; Phase 6 needs it
+   fixed (this item owns `routeFunction`'s case; Phase 6 only checks it). The census blamed the wrong files for these
+   rows because the element-to-file map is keyed the same way.
 - Conditions: the reference lane and the six corpus passes (against a fresh baseline) run before every compiler change
   lands; Phase 4 opens by re-measuring the library bodies upstream core brings in (each types or is refused with a
   reason).
@@ -207,13 +253,38 @@ stays a guard that must not get worse, not a target. Small: days.
   runnable functions; the m3 metamodel printed from upstream's m3 graph, as today's generator does. (Upstream marks
   tests with stereotypes; the `::tests::` package rule is its naming convention, used alongside.)
 - Its inputs: the pinned archives and the module choice. No Java scan, claims, hand enums, path lists or exclusions.
+  **Open decision (found 2026-10-07, the Phase 4 brief's D4-1):** "the bodies of runnable functions" was measured by
+  reading our own code to know which functions are lowered, forms or walled (`closure.py:61-77`), which a generator may
+  not do; following every body is upstream-only (+80 names, +74 KB at the measured size) but never yet run through the
+  corpus, PCT and the user side. Also open: which parser the generator uses (D4-5: ours makes the default world
+  "upstream plus our parser", which the seal cannot see). No experiment measured the real Phase 4 world: every measured
+  world still dropped upstream functions by name, the rule Phase 3 deleted (U4-1), so the recorded boot costs are a
+  floor.
 - The result views move off startup (decision 1): they load with the `core` and `core_relational` modules, which the
   corpus's manifest already includes (Phase 6 comes first for that reason).
+- **The legacy TDS functions by id (moved from Phase 3, 2026-10-07; closes PARKED_WORK_LEDGER PARK-11).** `TdsLegacy`'s
+  18 members (`meta::pure::tds::` agg, col, func, window, columnByName, columnValues, olapGroupBy, project,
+  projectWithColumnSubset, renameColumn, renameColumns, restrict, restrictDistinct, tdsRows, and
+  `meta::pure::functions::math::olap::` rank, denseRank, rowNumber, averageRank). **14 are upstream query handlers**
+  (`engine-handlers.tsv`), so the query surface brings their declarations into the default world: each id gets an
+  implementation-table row ("the platform's desugar", a form row), recognition reads the row through the names a call
+  resolves to (the resolver resolves `restrict` through the core import `meta::pure::tds`), calls the typer builds
+  name the full name, and `TdsLegacy.matches`' spelling fallback and `GroupByChecker.isAgg`'s name test are deleted.
+  **The other 4 (checked 2026-10-07, `docs/build-inventory/program/PHASES_4_5_7.md` D4-2):** `columnByName` is not a
+  function but a qualified property of `TabularDataSet` (`tds.pure:21`): it comes with the class and is read as the
+  class member. `columnValues` (2 versions), `renameColumn` and `window` (`tds.pure:516-533`, `:748`) are upstream
+  functions that no handler registers and only upstream's own tests call; no closure brings them, and legend-engine
+  does not let a user query call them (code reading, to confirm with a run: U4-5). **Open decision for the user:**
+  leave them out of the default world (faithful to legend-engine; the corpus gets them from its own files after Phase
+  6), or another rule (D4-2). The row kind a TDS function takes (a `CoreFn` form, or a `Form` row that accepts both)
+  is D4-3.
 - AGENTS.md and TENET_CHARTER C6.3 amended (decision 3).
 - Boot speed (decision 2): profile and optimize the boot first; Phase 4b, the pre-built boot layer, decided with the
   measured numbers (+0.6 s in the browser before any optimization).
 - Check: the experiment harness: projects' body walls 146 to 0 (`orElse`), corpus and PCT identical, the demos'
-  queries executed, not only type-checked; boot times recorded.
+  queries executed, not only type-checked; boot times recorded; the 14 legacy TDS query handlers declared by the
+  default world with rows by id, `columnByName` read as the class member, the other three as decided, and no spelling
+  test left (PARK-11's anchor gone, its row deleted).
 
 ### Phase 5: Pure.java as rows keyed by function id (the catalog goes)
 - No signature text: every row names an upstream function id and its implementation. Declarations come from the
@@ -221,16 +292,30 @@ stays a guard that must not get worse, not a target. Small: days.
 - Retires: the membership list and its draft, `native-claims.tsv` with `core_next` and `gen_claims` (D2), the
   natives generator.
 - A test checks every row against the pinned archive: a row matching nothing fails and lists that name's real ids.
-- Check: the experiment harness identical. Several PRs (837 signatures, and every registry that names them).
+- Check: the experiment harness identical. Several landings (837 signatures, and every registry that names them; no
+  PRs, see the header). Before coding: 70 of the 821 rows (45 names) are not in the measured default world, mostly
+  corpus helpers but also `fromEpochValue`, `sortByReversed` and `sqlNull`, which the platform's own code calls in every
+  world (`docs/build-inventory/program/PHASES_4_5_7.md` §3, D5-4 and D5-5).
 
 ### Phase 6: the corpus on its real manifest (runs before Phase 4)
 - First: re-run experiment 8 against today's prelude (it ran on the new default world), since this phase now lands
-  before Phase 4.
+  before Phase 4. **What experiment 8 did not test** (the Phase 6 brief, `docs/build-inventory/program/PHASES_3B_6.md`):
+  it ADDED the rest of the manifest to today's `LIBRARY_FILES`/`SHAPE_FILES`, it did not replace them (one SHAPE file,
+  `core_relational_duckdb/relational/connection/metamodel.pure`, is in neither candidate manifest); its "38
+  repositories" came from a path-prefix choice (the corpus's own `core_relational` closure is 27); it ran every pass
+  with a 4 GB heap (the DuckDB and warehouse passes run with 1 GB); and it removed platform-namespace functions in
+  Python with pre-Phase-3 ownership lists, where the runner's own guard throws. Each is a decision or a measurement
+  before the runner changes (the brief's §6.8, §6.10).
 - The runner loads its manifest's repositories (the relational tree's 9 repositories and their closure, 38) with the
-  loading rule, replacing `LIBRARY_FILES`, `SHAPE_FILES` and the folder lists. The H2 register gains its one entry.
-- The compiler gaps the real manifest exposed: the parser (`;` as a property-mapping separator, `->` where we reject
-  it), units of measure (a `Measure` as a type), `routeFunction`'s resolution, duplicate view functions (F-L1 in
-  `projects/FINDINGS.md`, "a view inside a Schema is lifted twice", which also removes the projects' 4 build walls).
+  loading rule, replacing `LIBRARY_FILES`, `SHAPE_FILES` and the folder lists (`PreludeGenerator` and
+  `FeatureFlagParityTest` read the same lists until Phase 4). The H2 register gains its one entry: it is the
+  host-compared register, empty since 2026-09-21 and meant to stay at zero, so adding a row is the user's decision.
+- The compiler gaps the real manifest exposed: the parser (`;` between property mappings, which legend-pure does
+  not accept either: its mapping rule has no end anchor, so it silently ignores the rest, whole property mappings
+  included; how we treat those files is a decision, the brief's §6.8; `->` where we reject it; `m3.pure`), units of
+  measure (a `Measure` as a type), `routeFunction`'s resolution (fixed by Phase 3b item 5b), duplicate view functions (F-L1 in
+  `projects/FINDINGS.md`, "a view inside a Schema is lifted twice", which also removes the projects' 4 build walls:
+  fixed by Phase 3b item 1, which runs first; Phase 6 relies on it).
 - PCT's own file composition reviewed the same way (it passed unchanged, but was never examined).
 - Check: the six corpus passes identical apart from recorded improvements; the projects' build walls 4 to 0.
 
@@ -245,8 +330,21 @@ stays a guard that must not get worse, not a target. Small: days.
 - D8 (delete `ide` and `probe`), D9 (warehouse server paths as flags; runfiles jars out of the product), D10 (one
   shape per app), D5 (DataCube fixtures out of the site), D13 (the warehouse client), D15; the TS typecheck cleanup.
 - Node out of the tests: a CDP client driving pinned Chromium.
-- CI lanes from `//gates`, and caching (D14).
+- CI lanes from `//gates`, and caching (an open decision: there is no "D14" in the design; the Phase 8 brief's OD-5).
 - The old Bazel plan's parked work: `bazel/exec`'s Phase 4 commits and fixes, and P3-25.
+- The build's own carried shortcuts (listed 2026-10-07, the user: fixed correctly, not worked around), complete in
+  the Phase 8 brief's §2.8 (24 rows): of the Windows PR's (#14) four follow-ups, two are already fixed on main (the
+  gzip `run_shell`, `4f7448989`; `LauncherTest`'s JDK text, `067973962`) and two remain (the hard-coded Windows bash
+  path in `.bazelrc`; `warehouse_run` not taking visibility, tags or `target_compatible_with`); Phase 1's six deferrals
+  (above); and 14 the first list missed (the `C:/bzl` output root, Windows runfiles trees, the rules_graalvm patch,
+  libxml2 by `apt-get`, actionlint by `curl`, `taskkill` in two tests, 22 libraries without NullAway, never-run
+  `postgres_live` tests, and more).
+- The design's open decisions with no other home: design D1 (one Error Prone policy), D4 (`postgres_live`: a lane or
+  delete), D6 (the CDP client and its transport: a spike first; the pipe transport may not work from Java), D7 (the
+  probe scripts, which contradicts the old plan's D18); and the 17 open decisions the Phase 8 brief lists (§3.4).
+- **The Phase 8 brief, `docs/build-inventory/program/PHASE_8.md`, is this phase's plan in detail**: about 80 items in
+  10 themes, both decision series with their status, the old workplan's items mapped so nothing is lost or done
+  twice, the stale statements, the homework, and a proposed order.
 - The measurement group, set aside on 2026-10-05: the corpus judges as cached build actions, the ratchets, the
   ladder. Decide what each is and carve it by its true trigger.
 - Last: the renames (D11: core, db, sdlc, depot; D12: depot its own server).
@@ -263,10 +361,18 @@ stays a guard that must not get worse, not a target. Small: days.
 
 ## 5. Working on this program (for any session that picks it up)
 
+**The program's debts:** `docs/PARKED_WORK_LEDGER.md` rows PARK-5 to PARK-14 (2026-10-07): the shortcuts and
+simplifications this program carries in the compiler (a platform call never resolved once, arguments typed more than
+once, the ranking's adjustments and unported parts, legacy TDS functions by name, the boot layer's versions, a debug
+trace, the dot-call fallback), each with its cost, what closes it and an anchor test that goes red when the code
+changes. The user, 2026-10-07: they are fixed after the program lands, correctly, with a design agreed first; none is
+worked around in the meantime, and a new shortcut is a new row, not a quiet one.
+
 **Process (the user's rules):**
 - Plan each phase and get the user's agreement before writing code; explain plainly, without jargon; never invent a
   new mechanism when an existing one (the implementation table, modules, manifests) does the job.
-- Prove locally first; throwaway CI only on the lanes a change touches; one PR per phase (or a few).
+- Prove locally first; throwaway CI only on the lanes a change touches during the work; to land, one full CI run on
+  the branch and a push of that commit to main (no PRs; `START_HERE.md` section 4 has the exact commands).
 - Core edits: announce in `docs/IN_FLIGHT.md` on main first. Bazel changes: an audit agent reviews before a push or
   PR.
 - Never write bare "native": "upstream native" (upstream's keyword) or "platform-lowered" (our Pure.java).
