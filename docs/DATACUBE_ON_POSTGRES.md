@@ -213,7 +213,7 @@ The app prints one line saying what failed, and stops (exit code 2). The message
 | `Connection refused` … `Is the server running on that host and accepting TCP/IP connections?` | Nothing is listening at that host and port. | Check the host and port. For Docker, check `docker ps` and the `-p` mapping. |
 | `Postgres catalog shop is PostgreSQL 15; DataCube needs 16 or newer` | The server is too old. | Use Postgres 16 or newer. |
 | `the database 'My-Shop' is not a catalog name ([a-z][a-z0-9_]*): name it with --postgres NAME=DSN` | The database name can't be a catalog name. | Use `--postgres` (section 6). |
-| `--table takes schema.name, with --site and --single-user` | `--table` was given a bare name. | Write it as `schema.name`, e.g. `sales.orders`. |
+| `--table takes schema.name, with --app (or --site and --single-user)` | `--table` was given a bare name. | Write it as `schema.name`, e.g. `sales.orders`. |
 | `catalog shop is named twice` | Two URLs for databases with the same name. | Name one with `--postgres`. |
 | `java.net.BindException: Address already in use` (a stack trace) | Port 8765 is taken, usually by another copy of the app still running. | Stop the other copy, or add `--port 0`. |
 
@@ -258,20 +258,16 @@ reports `grouped by channel: 3 groups`.
 
 ## 11. On Windows
 
-The app on Windows is the same native binary, started by a small native launcher
-([hermetic-launcher](https://github.com/hermeticbuild/hermetic-launcher)) instead of the bash script
-macOS and Linux use. Three differences:
+The app on Windows is the same native binary, started the same way: Bazel starts the server itself, with no
+script between (the launcher of 2026-10-02 is gone since 2026-10-07, the build rebuild's L1c). Three things to know:
 
-- **The app runs in Bazel's folder, not yours.** A relative path among your arguments (say
-  `?sslrootcert=ca.pem`) is read from Bazel's runfiles folder: give it as an absolute path, or run
-  `bazel run --run_in_cwd //datacube:app -- ...`, which starts the app where you are. A relative
-  `--data` is the exception: it is always where you ran `bazel run`.
-- **An argument containing `"` arrives changed**, and so does one that holds a space and ends in
-  `\` (`a b\` arrives as `a b\\`; `ab\` arrives intact).
-  Postgres URLs and connection strings, which quote with `'`, are unaffected.
+- **The app runs in Bazel's folder, not yours** (on every platform). A relative path among your arguments (say
+  `?sslrootcert=ca.pem`, or `--data cube`) is read from Bazel's runfiles folder: give absolute paths. Without
+  `--data` the app keeps its data in a temporary directory, which it names when it starts and removes when it stops.
 - **x64 only.** Windows on ARM is not supported: there `bazel build //...` skips the app.
 - **Your account name becomes your user name in the app**, with each character a user name cannot
   hold written as `_`: an account `John Madsen` signs in as `John_Madsen`.
 
-Ctrl+C stops the app as on the other platforms; PowerShell then shows the exit code as `-1073741510`,
-which is `0xC000013A` (stopped by Ctrl+C) and not an error.
+Ctrl+C stops the app as on the other platforms. PowerShell may then show an exit code such as `-1073741510`
+(`0xC000013A`, stopped by Ctrl+C), which is not an error (measured through the launcher of 2026-10-02; not
+re-measured since the server is started directly).

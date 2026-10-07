@@ -3,6 +3,7 @@ package com.legend.warehouse.server;
 import com.legend.testing.Runfile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -80,7 +81,7 @@ class AppModeTest {
     // -- the command line ------------------------------------------------------------------------
 
     @Test
-    void theAppsCommandLine() throws Exception {
+    void theAppsCommandLine(@TempDir Path dir) throws Exception {
         WarehouseServer.CommandLine c = WarehouseServer.commandLine(new String[] {
             "postgresql://bob@db/shop", "--site", "/srv/cube", "--single-user", "--open", "--table", "sales.orders",
             "--duckdb-extensions", "/opt/ext"});
@@ -90,16 +91,27 @@ class AppModeTest {
         assertEquals(System.getProperty("user.name"), c.config().singleUser());
         assertTrue(c.open());
         assertEquals("sales.orders", c.table());
-        // single-user without --data: a fresh directory, removed on exit
+        // no --data: a fresh directory, removed on exit (the app or not, since the build rebuild's L1c)
         assertNotNull(c.temporaryData());
         assertEquals(c.temporaryData(), c.config().dataDir());
         assertNull(WarehouseServer.commandLine(new String[] {"--single-user", "--data", "/var/cube"}).temporaryData());
-        // a plain warehouse is what it was
+        // --app: one user, and the site beside the executable -- or the one given, the JVM's only way to it; a site
+        // that is not there is refused by name (a folder without its page would answer 404 to everything)
+        Path site = Files.createDirectories(dir.resolve("site"));
+        WarehouseServer.CommandLine app = WarehouseServer.commandLine(new String[] {"--app", "--site", site.toString()});
+        assertEquals(System.getProperty("user.name"), app.config().singleUser());
+        assertEquals(site, app.config().site());
+        assertFalse(app.open());
+        assertThrows(IllegalArgumentException.class,
+                () -> WarehouseServer.commandLine(new String[] {"--app", "--site", dir.resolve("none").toString()}));
+        // a plain warehouse is what it was, its data in a fresh directory
         WarehouseServer.CommandLine plain = WarehouseServer.commandLine(new String[] {"--user", "alice:pw"});
         assertNull(plain.config().site());
         assertNull(plain.config().singleUser());
         assertNull(plain.table());
-        assertNull(plain.temporaryData());
+        assertNotNull(plain.temporaryData());
+        // a path is as written: the server resolves nothing (it knows nothing of where `bazel run` was started)
+        assertEquals(Path.of("cube"), WarehouseServer.commandLine(new String[] {"--data", "cube"}).config().dataDir());
     }
 
     @Test
@@ -107,6 +119,7 @@ class AppModeTest {
         for (String[] args : List.of(
                 new String[] {"--single-user", "--user", "alice:pw"},             // one user: the launch key's
                 new String[] {"--single-user", "--owner", "alice"},
+                new String[] {"--app"},                                            // on the JVM: give --site
                 new String[] {"--open", "--site", "/srv/cube"},                     // --open needs --single-user
                 new String[] {"--open", "--single-user"},                           // and --site
                 new String[] {"--single-user", "--table", "sales.orders"},          // --table needs a page
@@ -115,22 +128,6 @@ class AppModeTest {
                 new String[] {"postgresql://db/shop", "--postgres", "shop=host=db", "--duckdb-extensions", "/x"})) {
             assertThrows(IllegalArgumentException.class, () -> WarehouseServer.commandLine(args), String.join(" ", args));
         }
-    }
-
-    @Test
-    void underBazelRunARelativeDataDirectoryIsWhereTheCommandWasStarted() throws Exception {
-        Path startedIn = Path.of("work").toAbsolutePath();
-        // the default, and a relative --data: where `bazel run` was started, wherever the launcher put the server
-        assertEquals(startedIn.resolve("warehouse-data"),
-                WarehouseServer.commandLine(new String[] {}, startedIn).config().dataDir());
-        assertEquals(startedIn.resolve("cube"),
-                WarehouseServer.commandLine(new String[] {"--data", "cube"}, startedIn).config().dataDir());
-        // an absolute --data is what it says
-        Path absolute = Path.of("srv", "cube").toAbsolutePath();
-        assertEquals(absolute,
-                WarehouseServer.commandLine(new String[] {"--data", absolute.toString()}, startedIn).config().dataDir());
-        // not under `bazel run`: as given, relative to wherever the server runs
-        assertEquals(Path.of("warehouse-data"), WarehouseServer.commandLine(new String[] {}, null).config().dataDir());
     }
 
     @Test

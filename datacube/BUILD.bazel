@@ -12,7 +12,8 @@ load("//tools/browser:defs.bzl", "browser_test")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
-load("//warehouse:defs.bzl", "warehouse_run")
+load("//warehouse:defs.bzl", "warehouse_folder")
+load("@tar.bzl", "tar")
 
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("//tools/js:esbuild.bzl", "esbuild_bundle")
@@ -771,19 +772,44 @@ js_binary(
     tags = ["manual"],
 )
 
-# THE APP (docs/DATACUBE_APP_PLAN_2026_10_02.md): the native warehouse serving this site, one user,
-# the browser opened on the tables of the databases named (on Windows through hermetic-launcher:
-# warehouse/defs.bzl):
+# THE APP (docs/DATACUBE_APP_PLAN_2026_10_02.md): one folder, bazel-bin/datacube/app -- the native warehouse beside
+# DuckDB's library, its postgres extension and this site (warehouse_folder, warehouse/defs.bzl; the build rebuild's
+# L1c, 2026-10-07) -- started with --app (the account running it is its one user; the site beside the executable is
+# the page) and --open (the browser, on the tables of the databases named):
 #   bazel run //datacube:app -- postgresql://bob@db:5432/shop [--table sales.orders]
-warehouse_run(
+# `bazel run` starts it in Bazel's runfiles folder, so a relative path among the arguments is relative to that: give
+# absolute paths. The server knows nothing of Bazel; :app_package is the same folder as an archive.
+warehouse_folder(
     name = "app",
-    args_before = [
-        "--single-user",
+    args = [
+        "--app",
         "--open",
     ],
+    extension = "//warehouse:postgres_extension",
     library = "//warehouse:duckdb_library",
     server = "//warehouse:server_native",
     site = ":dist",
+)
+
+# the app's executable alone, for a test to name by $(rlocationpath); the folder around it is the app
+executable_of(
+    name = "app_executable",
+    binary = ":app",
+)
+
+# THE PACKAGE: the app folder as datacube-app.tar.gz, its entries under datacube/app/ as built (bsdtar pinned by
+# tar.bzl: no host tar). The folder's four entries only: not the runfiles tree Bazel keeps beside the executable
+# (include_runfiles). Not renamed: tar.bzl's mutate runs gawk under a shell, and bsdtar's own -s leaves the empty
+# parent entry behind (measured 2026-10-07); a Starlark mtree writer could rename, if a nicer path is ever wanted.
+# Unpacked anywhere, `datacube/app/warehouse --app --open postgresql://...` is the app with no Bazel on the machine;
+# that the folder works that way is :verify_app_test's finding, which starts it from a plain directory. CI's product
+# job builds it.
+tar(
+    name = "app_package",
+    srcs = [":app"],
+    compress = "gzip",
+    include_runfiles = False,
+    out = "datacube-app.tar.gz",
 )
 
 # `bazel build //datacube:dist`: the site as a folder for any static host — no
@@ -968,48 +994,44 @@ test_suite(
 )
 
 # `bazel run //datacube:verify_app` (manual; see demo/verify-app.mjs for its Postgres): the single-user app
-# end to end -- the native warehouse serving :dist, started from the launch key.
+# end to end -- the app folder (:app) copied to a plain directory and started there, from the launch key.
 js_binary(
     name = "verify_app",
     data = [
-        ":dist",
+        ":app",
+        ":app_executable",
         ":node_modules/playwright",
         # it imports pinned-chromium.mjs first, a no-op under bazel run
         "//tools/browser:pinned_chromium",
         "//tools/js:runfiles",
-        "//warehouse:serve",
     ],
     entry_point = "demo/verify-app.mjs",
-    # this platform's launcher (warehouse/defs.bzl): a script on Linux and macOS, an .exe on Windows; the site it
-    # serves, by runfiles path
-    env = {
-        "DIST": "$(rlocationpath :dist)",
-        "WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)",
-    },
+    # the app's executable by runfiles path; the folder around it is the app
+    env = {"APP": "$(rlocationpath :app_executable)"},
     tags = ["manual"],
 )
 
 # THE APP AGAINST POSTGRES, AS A TEST ON EVERY PLATFORM (Bazel workplan P1-14b, D11 revised): verify-app.mjs's
 # checks with the Postgres it needs started inside the test -- :app_postgres, Postgres 16 from the pinned
 # binaries loaded with the guide's sample over JDBC -- and the pinned Chromium. No psql, no host Postgres,
-# no host browser. CI's app lane runs it on Linux, macOS and Windows: the Windows desk's own path.
+# no host browser. CI's datacube lane runs it on Linux, macOS and Windows: the Windows desk's own path. Since L1c
+# it starts the app folder from a plain directory, with none of Bazel's variables: a package's user's way.
 browser_test(
     name = "verify_app_test",
     size = "large",
     data = [
+        ":app",
+        ":app_executable",
         ":app_postgres",
         ":app_postgres_executable",
-        ":dist",
         ":node_modules/playwright",
         "demo/sample-shop.sql",
-        "//warehouse:serve",
     ],
     entry_point = "demo/verify-app.mjs",
     env = {
+        "APP": "$(rlocationpath :app_executable)",
         "APP_POSTGRES": "$(rlocationpath :app_postgres_executable)",
-        "DIST": "$(rlocationpath :dist)",
         "SAMPLE_SQL": "$(rlocationpath demo/sample-shop.sql)",
-        "WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)",
     },
 )
 

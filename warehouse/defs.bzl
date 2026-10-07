@@ -1,17 +1,19 @@
-"""The warehouse's build helpers: jar_entry, POSTGRES_EXTENSION and warehouse_run.
+"""The warehouse's build helpers: jar_entry, POSTGRES_EXTENSION and warehouse_folder.
 
 jar_entry takes one file out of a Java library's jar, as a build output. The warehouse's native
 image loads DuckDB's native library from beside it (or from --duckdb-library), and that library
 rides inside DuckDB's JDBC jar, one per platform. This takes it out with Bazel's own zipper, in an
 action, so the file is an ordinary Bazel output with a runfiles path -- never unzipped by a script.
 
-warehouse_run is `bazel run`'s launcher for the native warehouse (docs/WINDOWS_APP_DESIGN_2026_10_02.md).
+warehouse_folder is the native warehouse as one folder beside everything it loads -- DuckDB's library, its
+postgres extension and, for the DataCube app, the site -- which `bazel run` starts and a package carries
+(the build rebuild's L1c, docs/REBUILD_PROGRAM_2026_10_06.md §4: the server knows nothing of Bazel). The
+folder is packaging: the image itself (//:native) stays a compile (tools/guards compile_only_test).
 """
 
-load("//tools/platforms:defs.bzl", "INCOMPATIBLE_WINDOWS", "compatible_with", "platform_select")
-
-load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
-load("@hermetic_launcher//launcher:launcher_binary.bzl", "launcher_binary")
+load("@bazel_lib//lib:copy_directory.bzl", "copy_directory_bin_action")
+load("@bazel_lib//lib:copy_file.bzl", "COPY_FILE_TOOLCHAINS", "copy_file_action")
+load("//tools/platforms:defs.bzl", "platform_select")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
 
 def _jar_entry_impl(ctx):
@@ -43,8 +45,8 @@ jar_entry = rule(
     doc = "Extracts one entry of a Java library's jar as a file named after it.",
 )
 
-# DuckDB's postgres extension for the platform being built, as MODULE.bazel pins it: one choice for
-# every launcher (//warehouse:serve, //datacube:app).
+# DuckDB's postgres extension for the platform being built, as MODULE.bazel pins it: one choice, which
+# //warehouse:postgres_extension unpacks beside the native server.
 POSTGRES_EXTENSION, POSTGRES_EXTENSION_COMPATIBLE = platform_select({
     "macos_arm64": "@duckdb_postgres_extension_osx_arm64//file",
     "macos_x86_64": "@duckdb_postgres_extension_osx_amd64//file",
@@ -53,125 +55,46 @@ POSTGRES_EXTENSION, POSTGRES_EXTENSION_COMPATIBLE = platform_select({
     "windows_x86_64": "@duckdb_postgres_extension_windows_amd64//file",
 }, "DuckDB postgres extension (MODULE.bazel, duckdb_postgres_extension_*)")
 
-def _posix_launcher_impl(ctx):
+_COPY_DIRECTORY_TOOLCHAIN = "@bazel_lib//lib:copy_directory_toolchain_type"
+
+def _warehouse_folder_impl(ctx):
     server = ctx.executable.server
-    files = [server, ctx.file.library, ctx.file.extensions]
-    fixed = ""
+    folder = ctx.label.name
+
+    # Real copies, never symlinks: a native executable finds its files beside its REAL path (DuckLibrary.executableDir
+    # reads the process's command, /proc/self/exe on Linux, links resolved), so a link to the server in another folder
+    # would find that other folder's files. The server under one name on every platform, .exe where the image has it.
+    exe = ctx.actions.declare_file(folder + "/warehouse" + (".exe" if server.extension == "exe" else ""))
+    copy_file_action(ctx, server, exe)
+    files = [exe]
+    for file in [ctx.file.library, ctx.file.extension]:
+        out = ctx.actions.declare_file(folder + "/" + file.basename)
+        copy_file_action(ctx, file, out)
+        files.append(out)
     if ctx.file.site:
-        files.append(ctx.file.site)
-        fixed += " --site \"$here/{}\"".format(ctx.file.site.short_path)
-    for arg in ctx.attr.args_before:
-        fixed += " " + shell_quote(arg)
-    script = ctx.actions.declare_file(ctx.label.name + ".sh")
-    ctx.actions.write(script, is_executable = True, content = """#!/usr/bin/env bash
-# The warehouse with everything it loads beside it -- DuckDB's library, its postgres extension and,
-# for the app, the DataCube site -- from runfiles; then it runs where `bazel run` was started, so a
-# relative path among the caller's arguments is the caller's.
-set -euo pipefail
-here="${{RUNFILES_DIR:-$0.runfiles}}/_main"
-[[ -d "$here" ]] || here="$(pwd)"
-server="$here/{server}"
-library="$here/{library}"
-extensions="$here/{extensions}"
-cd "${{BUILD_WORKING_DIRECTORY:-.}}"
-exec "$server" --duckdb-library "$library" --duckdb-extensions "$extensions"{fixed} "$@"
-""".format(
-        server = server.short_path,
-        library = ctx.file.library.short_path,
-        extensions = ctx.file.extensions.short_path,
-        fixed = fixed,
-    ))
-    runfiles = ctx.runfiles(files = files).merge(ctx.attr.server[DefaultInfo].default_runfiles)
-    return [DefaultInfo(executable = script, runfiles = runfiles)]
+        site = ctx.actions.declare_directory(folder + "/site")
+        copy_directory_bin_action(
+            ctx,
+            src = ctx.file.site,
+            dst = site,
+            copy_directory_bin = ctx.toolchains[_COPY_DIRECTORY_TOOLCHAIN].copy_directory_info.bin,
+        )
+        files.append(site)
+    return [DefaultInfo(executable = exe, files = depset(files), runfiles = ctx.runfiles(files = files))]
 
-def shell_quote(s):
-    return "'" + s.replace("'", "'\\''") + "'"
-
-_posix_launcher = rule(
-    implementation = _posix_launcher_impl,
+warehouse_folder = rule(
+    implementation = _warehouse_folder_impl,
     executable = True,
     attrs = {
-        "server": attr.label(executable = True, cfg = "target", mandatory = True),
-        "library": attr.label(allow_single_file = True, mandatory = True),
-        "extensions": attr.label(allow_single_file = True, mandatory = True, doc = "A directory (--duckdb-extensions)."),
-        "site": attr.label(allow_single_file = True, doc = "A directory served as the page (--site)."),
-        "args_before": attr.string_list(doc = "Fixed arguments, before the caller's."),
+        "server": attr.label(executable = True, cfg = "target", mandatory = True, doc = "The native warehouse."),
+        "library": attr.label(allow_single_file = True, mandatory = True, doc = "DuckDB's native library for the platform."),
+        "extension": attr.label(allow_single_file = True, mandatory = True, doc = "DuckDB's postgres extension."),
+        "site": attr.label(allow_single_file = True, doc = "The site, a directory: the DataCube app's page (--app)."),
     },
-    doc = "macOS and Linux: a bash script that execs the native warehouse with its files from runfiles.",
+    # bazel_lib's pinned coreutils and copy_directory binaries: no shell on any platform
+    toolchains = COPY_FILE_TOOLCHAINS + [_COPY_DIRECTORY_TOOLCHAIN],
+    doc = """The native warehouse as one folder, named after the target: `warehouse` (the server), DuckDB's library and
+its postgres extension under their own names, and `site/` when a site is given (the DataCube app). `bazel run`
+starts the server in that folder with the target's `args`; a package is the folder as an archive. The server knows
+nothing of Bazel: it finds what is beside itself (DuckLibrary), and `--app` serves `site/`.""",
 )
-
-def warehouse_run(name, server, library, site = None, args_before = [], testonly = False):
-    """`bazel run`'s launcher for the native warehouse, one name on every platform.
-
-    DuckDB's library, its postgres extension and (for the app) a site go beside the server, then the
-    caller's arguments. On macOS and Linux a bash script execs the server where `bazel run` was started.
-    On Windows `bazel run` can start no script, and a .bat or Bazel's bash launcher splits a Postgres URL
-    at '&', so a hermetic-launcher stub starts the server with its arguments intact; it runs the server in
-    the runfiles folder, so the server resolves a relative --data against BUILD_WORKING_DIRECTORY itself
-    (docs/WINDOWS_APP_DESIGN_2026_10_02.md, §2 and its known limits). Windows x64 only: on Windows ARM64
-    the targets are incompatible (POSTGRES_EXTENSION_COMPATIBLE, //tools/platforms).
-
-    Args:
-        name: the target `bazel run` runs (an alias of <name>_posix or <name>_windows).
-        server: the native warehouse (//warehouse:server_native).
-        library: DuckDB's native library for the platform (//warehouse:duckdb_library).
-        site: a directory served as the page (--site), or None.
-        args_before: fixed arguments, before the caller's.
-        testonly: for a launcher only tests run (//warehouse:launcher_test_serve_site).
-    """
-    # DuckDB's postgres extension (//warehouse:duckdb_extensions, unpacked once by a Java action) in a directory of
-    # its own: what --duckdb-extensions names, and what the Windows stub can name (a runfiles manifest lists a
-    # directory output, not a file's parent). bazel_lib's copy_to_directory is a pinned binary per platform: no
-    # shell (it was a run_shell `gzip -dc` until 2026-10-04, Bazel workplan P1-17).
-    extensions = name + "_extensions"
-    copy_to_directory(
-        name = extensions,
-        srcs = [Label("//warehouse:duckdb_extensions")],
-        root_paths = ["warehouse/duckdb_extensions"],
-        testonly = testonly,
-        target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
-    )
-    _posix_launcher(
-        name = name + "_posix",
-        server = server,
-        library = library,
-        extensions = ":" + extensions,
-        site = site,
-        args_before = args_before,
-        testonly = testonly,
-        target_compatible_with = INCOMPATIBLE_WINDOWS,
-    )
-    embedded = [
-        "--duckdb-library",
-        "$(rlocationpath %s)" % library,
-        "--duckdb-extensions",
-        "$(rlocationpath :%s)" % extensions,
-    ]
-    data = [library, ":" + extensions]
-    if site:
-        embedded += ["--site", "$(rlocationpath %s)" % site]
-        data.append(site)
-
-    # the stub holds ten arguments, the entrypoint among them (hermetic-launcher 0.0.16's finalizer:
-    # "Maximum 10 arguments supported"); the app uses nine. The finalizer runs only when the Windows
-    # target is built, so one more would break only Windows desks: refused here, on every platform,
-    # when the BUILD file loads (measured 2026-10-03: ten built, eleven refused).
-    if 1 + len(embedded) + len(args_before) > 10:
-        fail("warehouse_run %s: %d launcher arguments (the server, %d fixed, %d args_before); hermetic-launcher's Windows stub holds 10" %
-             (name, 1 + len(embedded) + len(args_before), len(embedded), len(args_before)))
-    launcher_binary(
-        name = name + "_windows",
-        entrypoint = server,
-        embedded_args = embedded + args_before,
-        data = data,
-        testonly = testonly,
-        target_compatible_with = compatible_with(["windows_x86_64"]),
-    )
-    native.alias(
-        name = name,
-        actual = select({
-            "@platforms//os:windows": ":" + name + "_windows",
-            "//conditions:default": ":" + name + "_posix",
-        }),
-        testonly = testonly,
-    )

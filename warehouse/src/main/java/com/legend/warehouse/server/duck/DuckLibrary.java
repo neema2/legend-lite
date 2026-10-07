@@ -7,10 +7,10 @@ import java.nio.file.Path;
 import java.util.Locale;
 
 /**
- * Where DuckDB's native library is: given explicitly ({@code --duckdb-library}; started by Bazel, the server finds
- * //warehouse:duckdb_library in its runfiles), or, in a native image, beside the executable. Never extracted from
- * DuckDB's JDBC jar into a temporary directory (Bazel workplan P1-16): a JVM started without it fails, naming the
- * flag.
+ * Where DuckDB's native library is: given explicitly ({@code --duckdb-library}), or, in a native image, beside the
+ * executable (where //warehouse:serve and //datacube:app put it). Never extracted from DuckDB's JDBC jar into a
+ * temporary directory (Bazel workplan P1-16), never looked for in runfiles (the build rebuild's L1c): a JVM started
+ * without it fails, naming the flag.
  */
 public final class DuckLibrary {
 
@@ -27,8 +27,7 @@ public final class DuckLibrary {
         } else if (nativeImage()) {
             Duck.load(besideExecutable());
         } else {
-            throw new IOException("DuckDB's library is not given: pass --duckdb-library (" + resourceName()
-                    + "; under Bazel, $(rlocationpath //warehouse:duckdb_library))");
+            throw new IOException("DuckDB's library is not given: pass --duckdb-library FILE (" + resourceName() + ")");
         }
     }
 

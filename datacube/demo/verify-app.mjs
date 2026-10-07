@@ -1,7 +1,9 @@
-// The single-user app, end to end (docs/DATACUBE_APP_PLAN_2026_10_02.md, A2 and A3): the native
-// warehouse serving this site with one user, its printed address opened the way `--open` opens it.
-// It starts from the launch key, never from the sample; it opens the table asked for, or offers the
-// tables; a reload signs in again; a wrong key and an unknown table leave the blank page saying why.
+// The single-user app, end to end (docs/DATACUBE_APP_PLAN_2026_10_02.md, A2 and A3): the folder //datacube:app
+// builds -- the native warehouse beside DuckDB's library, its postgres extension and the site -- copied to a plain
+// directory and started there with --app, as a package's user starts it, nothing of Bazel around the server (the
+// build rebuild's L1c). Its printed address is opened the way `--open` opens it. It starts from the launch key,
+// never from the sample; it opens the table asked for, or offers the tables; a reload signs in again; a wrong key
+// and an unknown table leave the blank page saying why.
 //
 //   DATACUBE_APP_PG=postgresql://reader:secret@127.0.0.1:5432/shop \
 //   DATACUBE_APP_TABLE=sales.orders DATACUBE_APP_GROUP=channel bazel run //datacube:verify_app
@@ -12,20 +14,14 @@
 
 // first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
 import '../../tools/browser/pinned-chromium.mjs';
-import { spawn, spawnSync } from 'node:child_process';
-import { join, resolve } from 'node:path';
+import { spawn } from 'node:child_process';
+import { cpSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, dirname, join } from 'node:path';
 import { chromium } from 'playwright';
-import { runfile, runfileFromEnv, runfilesRoot } from '../../tools/js/runfiles.mts';
+import { runfileFromEnv, runfilesRoot } from '../../tools/js/runfiles.mts';
 
-// Windows' own taskkill by its full path: a test's PATH is Bazel's, not the desk's (Bazel workplan P1-08
-// removed CI's --test_env=PATH). SystemRoot is set on every Windows process.
-const taskkill = () => {
-  const root = process.env.SystemRoot ?? process.env.SYSTEMROOT;
-  if (!root) throw new Error('SystemRoot is not set: cannot find taskkill.exe');
-  return join(root, 'System32', 'taskkill.exe');
-};
-
-// the runfiles tree, through the runfiles helper (never this file's own location), for the launchers' RUNFILES_DIR
+// the runfiles tree, through the runfiles helper (never this file's own location): the test's Postgres's RUNFILES_DIR
 const RUNFILES = runfilesRoot();
 
 let PG = process.env.DATACUBE_APP_PG;
@@ -37,7 +33,6 @@ let GROUP = process.env.DATACUBE_APP_GROUP;
 // (tools/js/runfiles.mts, Bazel workplan P1-24)
 let postgres;
 if (process.env.APP_POSTGRES) {
-  const { runfileFromEnv } = await import('../../tools/js/runfiles.mts');
   postgres = spawn(runfileFromEnv('APP_POSTGRES'), [runfileFromEnv('SAMPLE_SQL')], {
     env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
     stdio: ['pipe', 'pipe', 'inherit'],
@@ -70,21 +65,29 @@ if (!PG || !TABLE || !GROUP) {
   process.exit(2);
 }
 
-// the launcher's runfiles path, named by //datacube:verify_app: a script on Linux and macOS, an .exe on Windows
-const SERVE = process.env.WAREHOUSE_SERVE;
-if (!SERVE) {
-  console.error('run this as `bazel run //datacube:verify_app`: WAREHOUSE_SERVE names the launcher');
+// THE APP FOLDER (//datacube:app, warehouse/defs.bzl): APP is the rlocation of its executable. The folder around it --
+// the server, DuckDB's library, the postgres extension, site/ -- is copied to a directory of its own and the server
+// started from there, with none of Bazel's variables: no runfiles, no output tree, nothing a package's user has.
+const APP = process.env.APP;
+if (!APP) {
+  console.error('run this as `bazel run //datacube:verify_app`: APP names the app\'s executable');
   process.exit(2);
 }
+const built = runfileFromEnv('APP');
+const folder = mkdtempSync(join(process.env.TEST_TMPDIR ?? tmpdir(), 'datacube-app-'));
+// dereference: in a runfiles tree the folder's entries are links to the built files
+cpSync(dirname(built), folder, { recursive: true, dereference: true });
+const app = join(folder, basename(built));
+const plainEnv = Object.fromEntries(Object.entries(process.env)
+  .filter(([k]) => !/^(RUNFILES_|JAVA_RUNFILES|BUILD_WORKING_DIRECTORY|BUILD_WORKSPACE_DIRECTORY|TEST_SRCDIR|TEST_WORKSPACE)/.test(k)));
 
 let failed = false;
 const bad = (m) => { console.log(`FAIL: ${m}`); failed = true; };
 const ok = (m) => console.log(`ok: ${m}`);
 
-// The warehouse as //datacube:app runs it, without --open: the address is read from what it prints.
-const server = spawn(runfile(SERVE),
-  ['--port', '0', '--site', runfileFromEnv('DIST'), '--single-user', PG],
-  { env: { ...process.env, RUNFILES_DIR: RUNFILES }, stdio: ['ignore', 'ignore', 'pipe'] });
+// The app as `bazel run //datacube:app` starts it (--app: one user, the site beside the executable), without --open:
+// the address is read from what it prints. Started in its own folder, as a user would.
+const server = spawn(app, ['--port', '0', '--app', PG], { cwd: folder, env: plainEnv, stdio: ['ignore', 'ignore', 'pipe'] });
 let printed = '';
 const address = await new Promise((done, fail) => {
   server.stderr.on('data', (b) => {
@@ -95,7 +98,10 @@ const address = await new Promise((done, fail) => {
   server.on('exit', (code) => fail(new Error(`the warehouse exited (${code}):\n${printed}`)));
   setTimeout(() => fail(new Error(`no address in 60s:\n${printed}`)), 60_000);
 });
-ok(`the warehouse printed ${address.replace(/key=.*/, 'key=…')}`);
+ok(`the warehouse printed ${address.replace(/key=.*/, 'key=…')}, started from ${folder}`);
+// no --data: the server said its data is a fresh directory, removed when it stops
+if (/warehouse data in .+ \(temporary: removed when the warehouse stops\)/.test(printed)) ok('its data is temporary');
+else bad(`the app did not say its data is temporary:\n${printed}`);
 
 let browser;
 try {
@@ -193,31 +199,10 @@ try {
   }
 } finally {
   await browser?.close();
-  if (process.platform === 'win32') {
-    // On Windows the launcher and the server are two processes, and kill() would stop the launcher alone.
-    // taskkill takes the PID of a child that is still running: once it has exited, Node has released its
-    // handle and Windows may have given the PID to another process, whose tree /t /f would then stop.
-    if (server.exitCode === null && server.signalCode === null) {
-      const r = spawnSync(taskkill(), ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
-      if (r.error) bad(`taskkill did not run: ${r.error.message}`);
-      else {
-        // taskkill's status is not the verdict: it stops the server first, the launcher may then exit on its
-        // own before taskkill reaches it, and taskkill reports 255 for a tree it did stop (CI, 2026-10-03).
-        // The verdict is the outcome: the launcher has exited and nothing answers on the port. A server
-        // still up holds its port and its data directory.
-        const until = Date.now() + 10_000;
-        while (server.exitCode === null && server.signalCode === null && Date.now() < until) {
-          await new Promise((res) => setTimeout(res, 100));
-        }
-        const exited = server.exitCode !== null || server.signalCode !== null;
-        const answers = await fetch(new URL(address).origin).then(() => true, () => false);
-        if (!exited || answers) {
-          bad(`taskkill did not stop the warehouse (status ${r.status}; launcher exited: ${exited}; `
-            + `port answers: ${answers}): ${r.stdout}${r.stderr}`.trim());
-        }
-      }
-    }
-  } else server.kill('SIGTERM');
+  // The server is this process's own child on every platform (no launcher since L1c), so kill() stops it. On Windows
+  // that is TerminateProcess, under which the server's own removal of its temporary data does not run (as under the
+  // taskkill /f of before); the folder copied above is under TEST_TMPDIR either way.
+  server.kill('SIGTERM');
 }
 if (postgres) {
   // closing its stdin stops it, and Postgres with it

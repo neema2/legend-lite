@@ -122,7 +122,7 @@ These stay in `//:update_generated` (run by people), with their diff tests in th
   drafts gate 8's expected-differences ledger).
 
 **Build outputs, never committed (testonly where only tests read them):**
-- for the product: `//warehouse:duckdb_library` and `duckdb_extensions` (they rerun only on their pins), and
+- for the product: `//warehouse:duckdb_library` and `postgres_extension` (they rerun only on their pins), and
   `//datacube:dist` (replaced by D10's shared site rule; broken on this branch, fix `dab833263` on the held
   `bazel/exec`);
 - for tests: `gen_differential` (drop the 7 stress files it never reads), `stress_index`, `offer_queries`,

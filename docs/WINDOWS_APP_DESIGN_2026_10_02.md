@@ -1,5 +1,13 @@
 # The DataCube app on Windows: the design (2026-10-02)
 
+> **Superseded in part on 2026-10-07 (the build rebuild's L1c, `docs/REBUILD_PROGRAM_2026_10_06.md` §4).** The launcher
+> this design built (§2: the bash script, hermetic-launcher on Windows, `BUILD_WORKING_DIRECTORY` read by the server)
+> is gone: the warehouse knows nothing of Bazel. `//datacube:app` is one folder, the native server beside its files
+> (`warehouse_folder`, `warehouse/defs.bzl`), started with `--app`; `//warehouse:serve` is the server itself; without
+> `--data` the data is a temporary directory, printed at start; a relative path is relative to where the server runs
+> (under `bazel run`, Bazel's runfiles folder: give absolute paths). Known limits 1 and 2 below no longer apply; §1
+> (the toolchain) and the tests of §3 that remain stand. The rest is the record of why.
+
 **Goal.** On Windows x64, `bazel run //datacube:app -- postgresql://reader@127.0.0.1:5432/shop` does
 what it does on macOS and Linux: Bazel builds the native warehouse, puts DuckDB's library and its
 Postgres extension beside it, serves the DataCube site, opens the browser. `//warehouse:serve` the

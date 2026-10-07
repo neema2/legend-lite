@@ -1,6 +1,5 @@
 # The warehouse: a DuckDB server behind the HTTP SQL API
 # (docs/SERVER_PROGRAM_2026_09_26.md, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md).
-load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@rules_graalvm//graalvm:defs.bzl", "native_image")
 
@@ -10,7 +9,7 @@ load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/teavm:defs.bzl", "teavm_wasm")
 load("//tools/platforms:defs.bzl", "compatible_with", "platform_select")
-load(":defs.bzl", "POSTGRES_EXTENSION", "POSTGRES_EXTENSION_COMPATIBLE", "jar_entry", "warehouse_run")
+load(":defs.bzl", "POSTGRES_EXTENSION", "POSTGRES_EXTENSION_COMPATIBLE", "jar_entry", "warehouse_folder")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -59,8 +58,9 @@ legend_java_library(
 legend_java_library(
     name = "server_lib",
     srcs = glob(["src/main/java/com/legend/warehouse/server/**/*.java"]),
+    # nothing of Bazel: no runfiles library (the build rebuild's L1c, 2026-10-07); the native image finds its files
+    # beside itself, the JVM server is told where they are
     deps = [
-        "@rules_java//java/runfiles",
         ":sqlapi",
         "//base",
         "//json",
@@ -86,14 +86,21 @@ legend_java_library(
     resources = ["src/main/resources/META-INF/native-image/com.legend/warehouse/reachability-metadata.json"],
 )
 
-# `bazel run //warehouse:server -- --user alice:secret --data /tmp/wh`
+# `bazel run //warehouse:server -- --user alice:secret --data /tmp/wh`: the server on the JVM, a desk's tool (the
+# product is :server_native). It is told where DuckDB's library and the postgres extension are, as paths relative to
+# the runfiles folder `bazel run` starts it in, on every platform (Windows has the tree too: .bazelrc's
+# --windows_enable_symlinks and --enable_runfiles); the server itself resolves nothing (L1c).
 legend_java_binary(
     name = "server",
-    # DuckDB's library and the postgres extension, found in the server's runfiles by their paths
-    # (<repo>/warehouse/<library>, <repo>/warehouse/duckdb_extensions/...; ServerRunfiles, Bazel workplan P1-16)
+    args = [
+        "--duckdb-library",
+        "$(rootpath :duckdb_library)",
+        "--duckdb-extensions",
+        "$(rootpath :postgres_extension)",
+    ],
     data = [
-        ":duckdb_extensions",
         ":duckdb_library",
+        ":postgres_extension",
     ],
     # DuckDB's library is loaded through FFM: allowed, so the JDK prints no warning (Bazel workplan P3-21)
     jvm_flags = ["--enable-native-access=ALL-UNNAMED"],
@@ -113,11 +120,9 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    # launcher/ is :launcher_test's alone: it needs the launcher and a Postgres in its runfiles
     srcs = glob(
         ["src/test/java/**/*.java"],
         exclude = [
-            "src/test/java/com/legend/warehouse/launcher/**",
             # the WebAssembly compile's entry and its test are :sqlapi_wasm's and :sqlapi_wasm_build_test's (P3-24)
             "src/test/java/com/legend/warehouse/sqlapi/**",
             # the metadata generator is :reachability_metadata_lib's
@@ -208,7 +213,9 @@ native_image(
         "--link-at-build-time",
         "--enable-native-access=ALL-UNNAMED",
     ],
-    # the host C toolchain, checked before native-image runs (macOS: the CLT; Windows: MSVC; P1-10, P1-11)
+    # the host C toolchain, checked before native-image runs (macOS: the CLT; Windows: MSVC; P1-10, P1-11). Nothing
+    # else: the image is a compile (//:native, tools/guards compile_only_test); what it loads is put beside it by
+    # :serve and //datacube:app, which are packaging.
     data = ["@host_cc//:present"],
     main_class = "com.legend.warehouse.server.WarehouseServer",
     # zlib from source (Bazel workplan P1-09; the rule uses it on Linux only): -lz finds this static
@@ -233,8 +240,8 @@ native_image(
 _POSTGRES_LIVE_DATA = [
     ":arrow_matches_json",
     ":arrow_matches_json_executable",
-    ":duckdb_extensions",
     ":duckdb_library",
+    ":postgres_extension",
     "@embedded_postgres//:pg/PG_ROOT",
     "@embedded_postgres//:postgres",
 ]
@@ -244,7 +251,7 @@ _POSTGRES_LIVE_FLAGS = [
     _DUCKDB_LIBRARY_FLAG,
     _NATIVE_ACCESS,
     "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
-    "-Dwarehouse.postgres.extension=$(rlocationpath :duckdb_extensions)",
+    "-Dwarehouse.postgres.extension=$(rlocationpath :postgres_extension)",
 ]
 
 junit_test(
@@ -274,8 +281,8 @@ junit_test(
     runtime_deps = [":tests_lib"],
 )
 
-# DuckDB's native library for this platform, out of its JDBC jar: what the image loads.
-# DO NOT RENAME: the server finds this output in its runfiles by its path (ServerRunfiles, Bazel workplan P1-16).
+# DuckDB's native library for this platform, out of its JDBC jar: what the image loads, from beside itself in
+# bazel-bin, under the name DuckLibrary looks for (this platform name, or libduckdb_java.so).
 jar_entry(
     name = "duckdb_library",
     entry = _DUCKDB_LIBRARY,
@@ -299,94 +306,45 @@ junit_test(
         ":duckdb_library",
         ":server_native",
     ],
-    env = {
-        "WAREHOUSE_BINARY": "$(rlocationpath :server_native)",
-        "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath :duckdb_library)",
-    },
+    # the binary as shipped, with no library flag (since L1c): it finds :duckdb_library beside itself, where this test's
+    # data puts it -- judged on every platform the lane runs on, Linux arm64 included
+    env = {"WAREHOUSE_BINARY": "$(rlocationpath :server_native)"},
     # the HTTP suite only: the binary is what this target judges (Bazel workplan P3-21)
     select = ["--select-class=com.legend.warehouse." + c for c in _HTTP_SUITE],
     runtime_deps = [":tests_lib"],
 )
 
-# THE WAREHOUSE, BUILT AND RUN IN ONE STEP: the native server, DuckDB's library and DuckDB's postgres
-# extension (pinned per platform in MODULE.bazel), all from Bazel. Flags pass through:
+# THE WAREHOUSE, BUILT AND RUN IN ONE STEP:
 #   bazel run //warehouse:serve -- --postgres shop='host=db dbname=shop user=reader password=secret'
-# A relative --data, the default `warehouse-data` among them, is where `bazel run` was started, on every
-# platform: the server resolves it against BUILD_WORKING_DIRECTORY (on Windows the launcher starts it in
-# the runfiles folder, which `bazel clean` removes).
-warehouse_run(
+# One folder, bazel-bin/warehouse/serve: the native server beside DuckDB's library and its postgres extension (real
+# copies: warehouse_folder, defs.bzl), found there by the server itself (DuckLibrary). No launcher, no runfiles,
+# nothing of Bazel in the server (the build rebuild's L1c, 2026-10-07; before it, a bash script and hermetic-launcher,
+# docs/WINDOWS_APP_DESIGN_2026_10_02.md). Without --data its data is a fresh temporary directory, printed and removed
+# when it stops. `bazel run` starts it in Bazel's runfiles folder, so a relative path among the arguments is relative
+# to that: give absolute paths. The DataCube app is //datacube:app: the same folder with the site in it.
+warehouse_folder(
     name = "serve",
+    extension = ":postgres_extension",
     library = ":duckdb_library",
     server = ":server_native",
-)
-
-# The launcher as //datacube:app has it -- a site and fixed arguments before the caller's -- without
-# the app's --open (no browser in a test) and without building the DataCube site: :launcher_test's.
-copy_to_directory(
-    name = "launcher_test_site",
-    testonly = True,
-    srcs = ["src/test/launcher-site/index.html"],
-    root_paths = ["warehouse/src/test/launcher-site"],
-)
-
-warehouse_run(
-    name = "launcher_test_serve_site",
-    args_before = ["--single-user"],
-    library = ":duckdb_library",
-    server = ":server_native",
-    site = ":launcher_test_site",
-    testonly = True,
-)
-
-# THE LAUNCHER, JUDGED (docs/WINDOWS_APP_DESIGN_2026_10_02.md, §3): //warehouse:serve as `bazel run`
-# starts it, on every platform -- the caller's arguments intact, the exit code back, and the server and
-# the postgres extension's directory resolved through it, attaching the Postgres 16 that gate 7P starts
-# (@embedded_postgres, //testing EmbeddedPostgres); and :launcher_test_serve_site, the app's shape: the
-# site's directory resolved through the launcher and served, the fixed arguments reaching the server.
-# DuckDB's library is passed too, but the native server would also find it beside itself (DuckLibrary),
-# where Bazel puts it, so this test does not judge that flag on its own.
-junit_test(
-    name = "launcher_test",
-    # starts the embedded Postgres: skipped where no build is pinned (P1-15)
-    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
-    memory_mb = 768,
-    size = "medium",
-    srcs = ["src/test/java/com/legend/warehouse/launcher/LauncherTest.java"],
-    data = [
-        ":launcher_test_serve_site",
-        ":serve",
-        "@embedded_postgres//:pg/PG_ROOT",
-        "@embedded_postgres//:postgres",
-    ],
-    env = {
-        "WAREHOUSE_SERVE": "$(rlocationpath :serve)",
-        "WAREHOUSE_SERVE_SITE": "$(rlocationpath :launcher_test_serve_site)",
-    },
-    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
-    select = ["--select-class=com.legend.warehouse.launcher.LauncherTest"],
-    deps = [
-        "//base",
-        "//testing",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
-    ],
 )
 
 # DuckDB's postgres extension, gunzipped by a Java action (Bazel workplan P1-17): no shell, no host gzip. Bazel's own
 # fetch-time unpacking of a .gz (http_archive) would be simpler, but Bazel 9.2 sets the unpacked file's modification
 # time 1000x too far in the future (GzFunction multiplies milliseconds by 1000), which Windows refuses: the fetch
 # fails "(Permission denied)" (throwaway CI run 37224856941, 2026-10-04). Revisit once a Bazel release fixes it.
-# warehouse_run's launchers copy this one file into their extension directories.
 alias(
     name = "duckdb_extension_gz",
     actual = POSTGRES_EXTENSION,
     target_compatible_with = POSTGRES_EXTENSION_COMPATIBLE,
 )
 
-# DO NOT RENAME: the server finds this output in its runfiles by its path (ServerRunfiles, Bazel workplan P1-16).
+# The extension beside :server_native in bazel-bin, under the name DuckDB loads it by (Attachment.POSTGRES): the server
+# finds it there, the folders carry a copy (warehouse_folder), a test names it (--duckdb-extensions takes the file).
 java_run(
-    name = "duckdb_extensions",
+    name = "postgres_extension",
     srcs = [":duckdb_extension_gz"],
-    outs = ["duckdb_extensions/postgres_scanner.duckdb_extension"],
+    outs = ["postgres_scanner.duckdb_extension"],
     arguments = [
         "$(execpath :duckdb_extension_gz)",
         "{OUT}",

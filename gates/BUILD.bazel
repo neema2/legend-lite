@@ -137,15 +137,14 @@ test_suite(
     ],
 )
 
-# the warehouse: the JVM tests, the native image's tests and its launcher (the image is built here), and the two
-# tests against a live Postgres that no lane ran before this landing (PHASE_8.md Test-8: the first run decides
-# whether they stay)
+# the warehouse: the JVM tests, the native image's tests (the image is built here), and the two tests against a live
+# Postgres that no lane ran before this landing (PHASE_8.md Test-8: the first run decides whether they stay). The
+# launcher test went with the launcher (L1c): the app as a plain folder is //datacube:verify_app_test's, in `datacube`.
 test_suite(
     name = "warehouse",
     tests = [
         ":warehouse_jvm",
         "//warehouse:tests_native",
-        "//warehouse:launcher_test",
         "//warehouse:postgres_live",
         "//warehouse:postgres_live_native",
     ],

@@ -122,7 +122,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/.cache/bazel-repo
-          key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}
+          key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
           restore-keys: |
             bazel-repo-${{ inputs.platform }}=
       - name: a zone that is not UTC (the Windows warehouse, datacube and ui lanes)
@@ -162,8 +162,15 @@ jobs:
           set -euo pipefail
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
-          bazel build "${flags[@]}" //:java //:web //:wasm //:native //:sites //datacube:app
+          # the app package too (L1c, 2026-10-07): packaging, so the product job's, and built nowhere else in CI
+          bazel build "${flags[@]}" //:java //:web //:wasm //:native //:sites //datacube:app //datacube:app_package
           du -sh "$HOME/.cache/bazel-repo"
+          # what the cache is made of (the cache fix's run, 37661408648, measured Linux at 16 GB and macOS at 2 GB with
+          # nothing to say why; the likely cause: Bazel 9's repo contents cache, the UNPACKED repositories, defaults to
+          # {--repository_cache}/contents, inside the cached path): the cache's own top entries, then the biggest
+          # external repositories by name
+          du -sh "$HOME/.cache/bazel-repo"/* "$HOME/.cache/bazel-repo"/contents/* 2>/dev/null | sort -h | tail -15 || true
+          du -sh "$(bazel info "${flags[@]}" output_base)"/external/* | sort -h | tail -15 || true
       # the downloads saved once per platform and pin hash, by the product job once the product is built (above);
       # the lanes never save (actions/cache never adds to an existing key: the first saver would fix the content)
       - name: Bazel downloads, saved by the product job
@@ -171,7 +178,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/bazel-repo
-          key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}
+          key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
       - name: bazel ${{ matrix.lane.cmd }} ${{ matrix.lane.key }}
         env:
           LOW_MEMORY: ${{ inputs.low-memory }}
@@ -209,6 +216,19 @@ jobs:
             [ -z "$unlaned" ] || { echo "::error ::tests in no lane of gates/BUILD.bazel:"; echo "$unlaned"; exit 1; }
           else
             bazel test "${tflags[@]}" "//gates:${{ matrix.lane.key }}"
+            if [ "${{ matrix.lane.key }}" = warehouse ]; then
+              # L1c (2026-10-07): the native server started by `bazel run` itself, with no script between, keeps an
+              # argument holding '&' and a space intact, on every platform (PHASE_8.md U-6; what the launcher test
+              # judged before the launcher went): the server's own refusal quotes the argument back, and exits 2
+              set +e
+              said=$(bazel run "${flags[@]}" //warehouse:serve -- --port 'x&y z' 2>&1)
+              code=$?
+              set -e
+              printf '%s\n' "$said" | tail -2
+              [ "$code" = 2 ] || { echo "::error ::bazel run //warehouse:serve exited $code, not 2 (the refusal)"; exit 1; }
+              printf '%s\n' "$said" | grep -F "takes a number, not 'x&y z'" > /dev/null \
+                || { echo "::error ::the argument did not reach the server intact"; exit 1; }
+            fi
           fi
       - name: test logs
         if: always()
@@ -232,4 +252,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/bazel-repo
-          key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}
+          key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}

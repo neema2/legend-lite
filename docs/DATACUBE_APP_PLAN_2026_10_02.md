@@ -84,6 +84,10 @@ app keeps nothing between runs.
 The `warehouse_run` rule gains an optional `site` and fixed extra args. `//datacube:app` is
 `server_native` with `site = //datacube:dist` and `--single-user --open`. It is native only.
 
+*2026-10-07 (the build rebuild's L1c):* `warehouse_run` is gone. `//datacube:app` is `warehouse_folder` (one folder: the
+server beside its files, `args = ["--app", "--open"]`), and the server knows nothing of Bazel
+(`docs/REBUILD_PROGRAM_2026_10_06.md` §4).
+
 **Gate:** the command runs from a clean checkout. A Playwright test drives the native binary through
 key, then list, then open, then group.
 

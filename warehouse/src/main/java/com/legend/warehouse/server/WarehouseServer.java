@@ -128,9 +128,9 @@ public final class WarehouseServer implements AutoCloseable {
     }
 
     /**
-     * The command line: the server's {@link Config}, and what the launcher does once it runs. With
-     * {@code --single-user} and no {@code --data}, the data directory is {@code temporaryData}: the app
-     * keeps nothing between runs (no grants, results only while they are fetched), and removes it on exit.
+     * The command line: the server's {@link Config}, and what the launcher does once it runs. Without {@code --data},
+     * the data directory is {@code temporaryData}: the server keeps nothing between runs (the app: no grants, results
+     * only while they are fetched), and removes it on exit.
      */
     public record CommandLine(Config config, boolean open, @Nullable String table, @Nullable Path temporaryData) {
     }
@@ -711,6 +711,9 @@ public final class WarehouseServer implements AutoCloseable {
      * --owner NAME... --allow-origin ORIGIN... --token-key-file FILE --token-minutes N --session-hours N}. An owner may
      * do anything; every other user is a reader (§3 of the server program). With {@code --token-key-file} tokens are
      * signed with the key in FILE (made, owner-only, when absent), so a restart does not sign everyone out.
+     * {@code --data DIR} is where the data lives; without it, a fresh temporary directory, removed when the server
+     * stops, and said when it starts. {@code --duckdb-library FILE} is DuckDB's library: beside a native executable by
+     * default; on the JVM it must be given.
      *
      * <p>{@code --postgres NAME=DSN...} adds a Postgres catalog ({@link Postgres}): DSN is a libpq connection
      * string, whose login role is what every user of the catalog reads as (give it SELECT only, and
@@ -718,6 +721,11 @@ public final class WarehouseServer implements AutoCloseable {
      * is where {@code postgres_scanner.duckdb_extension} is: beside a native executable by default; on the JVM
      * it must be given. Without {@code --catalog}, the DuckDB catalog {@code main} is made, Postgres catalogs
      * or not: grants are managed from a DuckDB catalog.
+     *
+     * <p>{@code --app} is the DataCube app (docs/DATACUBE_APP_PLAN_2026_10_02.md): the account running it is its one
+     * user, signed in by the address printed, and the page is served from the {@code site} folder beside the
+     * executable ({@code --site DIR} names another; on the JVM it must be given). {@code --open} opens the address in
+     * the browser; {@code --table schema.name} opens that table. {@code --single-user} is {@code --app} without a page.
      */
     public static void main(String[] args) throws Exception {
         try {
@@ -736,9 +744,9 @@ public final class WarehouseServer implements AutoCloseable {
         CommandLine command = commandLine(args);
         Config config = command.config();
         Path temporary = command.temporaryData();
-        // the single-user app's temporary data: removed on exit, after the server has closed its DuckDB files, so
-        // the removal does not depend on DuckDB opening them with delete sharing (on Windows; review of
-        // neema2/legend-lite#14, 2026-10-03). Registered before the server starts, so a start that fails removes it too.
+        // no --data: temporary data, removed on exit, after the server has closed its DuckDB files, so the removal
+        // does not depend on DuckDB opening them with delete sharing (on Windows; review of neema2/legend-lite#14,
+        // 2026-10-03). Registered before the server starts, so a start that fails removes it too.
         java.util.concurrent.atomic.AtomicReference<WarehouseServer> running = new java.util.concurrent.atomic.AtomicReference<>();
         if (temporary != null) {
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -763,6 +771,8 @@ public final class WarehouseServer implements AutoCloseable {
         List<String> names = new ArrayList<>(config.catalogs());
         names.addAll(new java.util.TreeSet<>(config.postgres().keySet()));
         System.err.println("warehouse listening on 127.0.0.1:" + s.port() + ", catalogs " + names);
+        System.err.println("warehouse data in " + config.dataDir().toAbsolutePath()
+                + (temporary == null ? "" : " (temporary: removed when the warehouse stops)"));
         if (config.site() != null && s.launchKey() != null) {
             // the page's address, with the key that signs it in: printed always, opened with --open
             String url = "http://127.0.0.1:" + s.port() + "/#key=" + s.launchKey()
@@ -815,21 +825,15 @@ public final class WarehouseServer implements AutoCloseable {
     }
 
     /**
-     * The command line: the server's Config and the launcher's {@code --open} and {@code --table}. Under
-     * {@code bazel run}, a relative {@code --data} (its default {@code warehouse-data} among them) is where the
-     * command was started ({@code BUILD_WORKING_DIRECTORY}): a launcher may start the server elsewhere, in its
-     * runfiles folder (hermetic-launcher on Windows has no working-directory option), where {@code bazel clean}
-     * would delete the data (review of neema2/legend-lite#14, 2026-10-03).
+     * The command line: the server's Config and the launcher's {@code --open} and {@code --table}. A path is as
+     * written: absolute, or relative to the directory the server was started in (under {@code bazel run} that is
+     * Bazel's runfiles folder, not the shell's: give absolute paths there). The server knows nothing of Bazel (the
+     * build rebuild's L1c, 2026-10-07): what is beside a native executable is found beside it, and nothing else is
+     * found anywhere.
      */
     public static CommandLine commandLine(String[] args) throws IOException {
-        String startedIn = System.getenv("BUILD_WORKING_DIRECTORY");
-        return commandLine(args, startedIn == null || startedIn.isEmpty() ? null : Path.of(startedIn));
-    }
-
-    /** {@link #commandLine(String[])} with {@code BUILD_WORKING_DIRECTORY} given: null when not under {@code bazel run}. */
-    static CommandLine commandLine(String[] args, @Nullable Path startedIn) throws IOException {
         int port = 8765;
-        Path data = Path.of("warehouse-data");
+        Path data = null;
         List<String> cats = new ArrayList<>();
         List<String[]> users = new ArrayList<>();
         int concurrency = 2;
@@ -846,7 +850,7 @@ public final class WarehouseServer implements AutoCloseable {
         LinkedHashMap<String, String> postgres = new LinkedHashMap<>();
         Path extensions = null;
         Path site = null;
-        boolean dataGiven = false;
+        boolean app = false;
         boolean singleUser = false;
         boolean open = false;
         String table = null;
@@ -856,6 +860,10 @@ public final class WarehouseServer implements AutoCloseable {
                 if (postgres.put(url.catalog(), url.dsn()) != null) {
                     throw new IllegalArgumentException("catalog " + url.catalog() + " is named twice");
                 }
+                continue;
+            }
+            if (args[i].equals("--app")) {
+                app = true;
                 continue;
             }
             if (args[i].equals("--single-user")) {
@@ -868,7 +876,7 @@ public final class WarehouseServer implements AutoCloseable {
             }
             if (i + 1 >= args.length) throw new IllegalArgumentException(args[i] + " needs a value");
             switch (args[i]) {
-                case "--site" -> site = named(args[++i], startedIn);
+                case "--site" -> site = Path.of(args[++i]);
                 case "--table" -> table = args[++i];
                 case "--postgres" -> {
                     String[] kv = args[++i].split("=", 2);
@@ -880,45 +888,48 @@ public final class WarehouseServer implements AutoCloseable {
                         throw new IllegalArgumentException("catalog " + kv[0] + " is named twice");
                     }
                 }
-                case "--duckdb-extensions" -> extensions = directoryOf(named(args[++i], startedIn));
+                case "--duckdb-extensions" -> extensions = directoryOf(Path.of(args[++i]));
                 case "--port" -> port = intArgument("--port", args[++i]);
-                case "--data" -> {
-                    data = Path.of(args[++i]);
-                    dataGiven = true;
-                }
+                case "--data" -> data = Path.of(args[++i]);
                 case "--catalog" -> cats.add(args[++i]);
                 case "--user" -> users.add(args[++i].split(":", 2));
                 case "--concurrency" -> concurrency = intArgument("--concurrency", args[++i]);
                 case "--queue" -> queue = intArgument("--queue", args[++i]);
-                case "--duckdb-library" -> library = named(args[++i], startedIn);
+                case "--duckdb-library" -> library = Path.of(args[++i]);
                 case "--owner" -> owners.add(args[++i]);
                 case "--allow-origin" -> origins.add(args[++i]);
                 case "--max-rows" -> maxRows = longArgument("--max-rows", args[++i]);
                 case "--retain-minutes" -> retainMinutes = longArgument("--retain-minutes", args[++i]);
                 case "--result-memory-mb" -> resultMemoryMb = longArgument("--result-memory-mb", args[++i]);
-                case "--token-key-file" -> tokenKeyFile = callers(args[++i], startedIn);
+                case "--token-key-file" -> tokenKeyFile = Path.of(args[++i]);
                 case "--token-minutes" -> tokenMinutes = longArgument("--token-minutes", args[++i]);
                 case "--session-hours" -> sessionHours = longArgument("--session-hours", args[++i]);
                 default -> throw new IllegalArgumentException("unknown argument " + args[i]);
             }
         }
-        if (startedIn != null && !data.isAbsolute()) data = startedIn.resolve(data);
         if (cats.isEmpty()) cats.add(StatementRequest.DEFAULT_CATALOG);
         for (String n : postgres.keySet()) {
             if (!Catalogs.validName(n)) throw new IllegalArgumentException("bad catalog name: " + n);
             if (cats.contains(n)) throw new IllegalArgumentException("catalog " + n + " is named twice");
         }
-        // Started by Bazel (bazel run, a test's data, bazel-bin), the server finds DuckDB's library and the postgres
-        // extension in its own runfiles, where //warehouse:duckdb_library and //warehouse:duckdb_extensions put them
-        // (Bazel workplan P1-16): never extracted to a temporary directory.
-        if (library == null) {
-            library = ServerRunfiles.rlocation(ServerRunfiles.repository() + "/warehouse/" + DuckLibrary.resourceName());
+        // THE APP: the account running it is its one user, and the page is the site folder beside the executable,
+        // where //datacube:app and the package made from it put it (--site names another). On the JVM nothing is
+        // beside the executable, so the site must be given.
+        if (app) {
+            singleUser = true;
+            if (site == null) {
+                if (!DuckLibrary.nativeImage()) {
+                    throw new IllegalArgumentException("--app serves the site beside the executable; on the JVM, give --site DIR");
+                }
+                site = DuckLibrary.executableDir("--site").resolve("site");
+            }
+            // a folder without its page would start and answer 404 to everything: refused by name instead
+            if (!java.nio.file.Files.isDirectory(site)) {
+                throw new IllegalArgumentException("--app: no site folder at " + site);
+            }
         }
-        if (extensions == null) {
-            Path inRunfiles = ServerRunfiles.rlocation(ServerRunfiles.repository()
-                    + "/warehouse/duckdb_extensions/" + Attachment.POSTGRES.extensionFile);
-            if (inRunfiles != null) extensions = inRunfiles.getParent();
-        }
+        // DuckDB's library stays as given: null is "beside a native executable" (DuckLibrary), and on the JVM a refusal
+        // naming the flag. The postgres extension likewise, when a catalog needs it.
         if (!postgres.isEmpty() && extensions == null) {
             if (!DuckLibrary.nativeImage()) {
                 throw new IllegalArgumentException("a Postgres catalog needs --duckdb-extensions DIR"
@@ -932,14 +943,15 @@ public final class WarehouseServer implements AutoCloseable {
             user = Identity.accountPrincipal(System.getProperty("user.name", ""));
         }
         if (open && (site == null || !singleUser)) {
-            throw new IllegalArgumentException("--open opens the page: it needs --site and --single-user");
+            throw new IllegalArgumentException("--open opens the page: it needs --app (or --site and --single-user)");
         }
         if (table != null && (site == null || !singleUser || !TABLE.matcher(table).matches())) {
-            throw new IllegalArgumentException("--table takes schema.name, with --site and --single-user");
+            throw new IllegalArgumentException("--table takes schema.name, with --app (or --site and --single-user)");
         }
+        // no --data: a fresh directory, removed when the server stops (start registers that)
         Path temporaryData = null;
-        if (singleUser && !dataGiven) {
-            temporaryData = java.nio.file.Files.createTempDirectory("datacube-");
+        if (data == null) {
+            temporaryData = java.nio.file.Files.createTempDirectory("warehouse-");
             data = temporaryData;
         }
         Config config = new Config(port, data, cats, users,
@@ -949,25 +961,7 @@ public final class WarehouseServer implements AutoCloseable {
         return new CommandLine(config, open, table, temporaryData);
     }
 
-    /**
-     * A file or directory the command line names: absolute as given; relative, where {@code bazel run} was started
-     * ({@code BUILD_WORKING_DIRECTORY}) when it is there, else a runfiles path ({@code $(rlocationpath)} in a target's
-     * {@code args}) found in this process's runfiles (Bazel workplan P1-16).
-     */
-    static Path named(String value, @Nullable Path startedIn) {
-        Path callers = callers(value, startedIn);
-        if (Path.of(value).isAbsolute() || java.nio.file.Files.exists(callers)) return callers;
-        Path runfile = ServerRunfiles.rlocation(value.replace('\\', '/'));
-        return runfile != null ? runfile : callers;
-    }
-
-    /** A path the caller wrote: relative to where {@code bazel run} was started, when it was. */
-    static Path callers(String value, @Nullable Path startedIn) {
-        Path p = Path.of(value);
-        return startedIn == null || p.isAbsolute() ? p : startedIn.resolve(p);
-    }
-
-    /** {@code --duckdb-extensions} names the directory, or the extension file in it ($(rlocationpath) of a file). */
+    /** {@code --duckdb-extensions} names the directory, or the extension file in it. */
     private static Path directoryOf(Path p) {
         Path parent = p.getParent();
         return java.nio.file.Files.isRegularFile(p) && parent != null ? parent : p;
