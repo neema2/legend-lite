@@ -62,6 +62,8 @@ jobs:
   linux:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'linux' }}
     uses: ./.github/workflows/gates-run.yml
+    # the repository's secrets reach the called workflow (BUILDBUDDY_API_KEY, the remote cache: L1e)
+    secrets: inherit
     with:
       runs-on: ubuntu-latest
       platform: linux
@@ -73,6 +75,8 @@ jobs:
     # image flip is a deliberate commit, like the upstream pins.
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'macos' }}
     uses: ./.github/workflows/gates-run.yml
+    # the repository's secrets reach the called workflow (BUILDBUDDY_API_KEY, the remote cache: L1e)
+    secrets: inherit
     with:
       runs-on: macos-14
       platform: macos
@@ -84,6 +88,8 @@ jobs:
   windows:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'windows' }}
     uses: ./.github/workflows/gates-run.yml
+    # the repository's secrets reach the called workflow (BUILDBUDDY_API_KEY, the remote cache: L1e)
+    secrets: inherit
     with:
       runs-on: windows-2022
       platform: windows
@@ -96,6 +102,8 @@ jobs:
   linux-arm:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'linux-arm' }}
     uses: ./.github/workflows/gates-run.yml
+    # the repository's secrets reach the called workflow (BUILDBUDDY_API_KEY, the remote cache: L1e)
+    secrets: inherit
     with:
       runs-on: ubuntu-24.04-arm
       platform: linux-arm

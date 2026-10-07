@@ -160,6 +160,8 @@ test_suite(
     tests = [
         "//datacube:tests",
         "//datacube:verify_app_test",
+        # the app package's entries (L1d): the app folder's four things and nothing of Bazel's
+        "//datacube:package_test",
         "//datacube:browser",
         "//wasm:differential_test",
         "//wasm:zone_test",

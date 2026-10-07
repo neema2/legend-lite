@@ -803,13 +803,24 @@ executable_of(
 # parent entry behind (measured 2026-10-07); a Starlark mtree writer could rename, if a nicer path is ever wanted.
 # Unpacked anywhere, `datacube/app/warehouse --app --open postgresql://...` is the app with no Bazel on the machine;
 # that the folder works that way is :verify_app_test's finding, which starts it from a plain directory. CI's product
-# job builds it.
+# job builds it; the datacube lane builds it again, for :package_test.
 tar(
     name = "app_package",
     srcs = [":app"],
     compress = "gzip",
     include_runfiles = False,
     out = "datacube-app.tar.gz",
+)
+
+# THE PACKAGE'S ENTRIES, JUDGED (L1d, 2026-10-07): the app folder's four things and nothing else -- not the runfiles tree
+# Bazel keeps beside the executable, which include_runfiles above leaves out and nothing else would notice coming back
+# (the audit of L1c found the package at twice its size). Node reads the archive itself: no host tar.
+node_test(
+    name = "package_test",
+    size = "medium",
+    data = [":app_package"],
+    entry_point = "test/package/entries.ts",
+    env = {"APP_PACKAGE": "$(rlocationpath :app_package)"},
 )
 
 # `bazel build //datacube:dist`: the site as a folder for any static host — no

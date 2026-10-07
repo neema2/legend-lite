@@ -15,7 +15,7 @@
 // first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
 import '../../tools/browser/pinned-chromium.mjs';
 import { spawn } from 'node:child_process';
-import { cpSync, mkdtempSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { chromium } from 'playwright';
@@ -99,8 +99,9 @@ const address = await new Promise((done, fail) => {
   setTimeout(() => fail(new Error(`no address in 60s:\n${printed}`)), 60_000);
 });
 ok(`the warehouse printed ${address.replace(/key=.*/, 'key=…')}, started from ${folder}`);
-// no --data: the server said its data is a fresh directory, removed when it stops
-if (/warehouse data in .+ \(temporary: removed when the warehouse stops\)/.test(printed)) ok('its data is temporary');
+// no --data: the server said its data is a fresh directory, removed when it stops (checked at the end)
+const dataDir = /warehouse data in (.+) \(temporary: removed when the warehouse stops\)/.exec(printed)?.[1];
+if (dataDir) ok(`its data is temporary: ${dataDir}`);
 else bad(`the app did not say its data is temporary:\n${printed}`);
 
 let browser;
@@ -199,10 +200,30 @@ try {
   }
 } finally {
   await browser?.close();
-  // The server is this process's own child on every platform (no launcher since L1c), so kill() stops it. On Windows
-  // that is TerminateProcess, under which the server's own removal of its temporary data does not run (as under the
-  // taskkill /f of before); the folder copied above is under TEST_TMPDIR either way.
+  // The server is this process's own child on every platform (no launcher since L1c), so kill() stops it; the folder
+  // copied above is under TEST_TMPDIR either way.
   server.kill('SIGTERM');
+  await new Promise((done) => {
+    if (server.exitCode !== null || server.signalCode !== null) return done();
+    server.on('exit', done);
+    setTimeout(done, 15_000);
+  });
+  if (dataDir) {
+    // a removal that fails (Windows: a handle released late, an antivirus scan) is a finding, not a thrown error
+    // that would skip stopping the test's Postgres below
+    const remove = () => {
+      try { rmSync(dataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); return true; }
+      catch (e) { bad(`could not remove the temporary data ${dataDir}: ${e.message}`); return false; }
+    };
+    if (process.platform === 'win32') {
+      // Windows: kill() is TerminateProcess, under which the server's own removal of its temporary data cannot run
+      // (as under the taskkill /f of before), so the test removes it (L1d; a desk's Ctrl+C is a separate check)
+      if (remove()) ok('the temporary data removed by the test (Windows: a hard kill runs no cleanup)');
+    } else if (existsSync(dataDir)) {
+      bad(`the temporary data is still there after SIGTERM: ${dataDir}`);
+      remove();
+    } else ok('the temporary data is gone: the server removed it on SIGTERM');
+  }
 }
 if (postgres) {
   // closing its stdin stops it, and Postgres with it

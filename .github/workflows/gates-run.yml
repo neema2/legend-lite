@@ -116,12 +116,19 @@ jobs:
       # cached: build outputs (GitHub keeps 10 GB per repository), and the test pools' jars (the product job saves
       # right after the product build, before its analysis of //... fetches every pool: that cache was 19 GB). Every
       # lane restores the entry; only the product job saves it, since actions/cache never adds to an existing key.
-      # linux-arm has no product job, so its one lane (warehouse) saves at its end.
+      # linux-arm has no product job, so its one lane (warehouse) saves at its end. Not saved either: `contents/`, Bazel
+      # 9's repo contents cache -- the UNPACKED repositories, which it keeps inside the repository cache's folder (13 of
+      # Linux's 16 GB in L1c's run, evidence §10). Bazel keeps using that cache during the job: the first cut of L1d
+      # disabled it instead, and on Windows the product job's `--config=bazel10` command, whose incompatible flags make
+      # Bazel refetch every repository, then re-extracted the JDK over its own java.dll, held open by a worker
+      # ("Permission denied", the cold run of L1e, 2026-10-07); re-linking from the contents cache has no such step.
       - name: Bazel downloads, keyed by the pins
         id: repo
         uses: actions/cache/restore@v4
         with:
-          path: ~/.cache/bazel-repo
+          path: |
+            ~/.cache/bazel-repo
+            !~/.cache/bazel-repo/contents
           key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
           restore-keys: |
             bazel-repo-${{ inputs.platform }}=
@@ -151,6 +158,25 @@ jobs:
             echo "$sha  /usr/local/bin/bazel" | sha256sum -c -
             sudo chmod +x /usr/local/bin/bazel
           fi
+      # THE REMOTE CACHE (the build rebuild's L1e, 2026-10-07; OD-5): BuildBuddy, read and written by every CI job, so a
+      # lane downloads what the product job or an earlier run built (the native image, the WebAssembly planner, the
+      # bundles) instead of building it again on its own runner. The key is the repository secret BUILDBUDDY_API_KEY
+      # (gate.yml passes the secrets through); it goes into the runner's own ~/.bazelrc with the `remote` config
+      # (.bazelrc), never onto a command line or into a log; on both the cache's and the event service's headers. CI's rc
+      # also turns uploads on: the `remote` config itself uploads nothing, so only CI writes to the cache. Without the
+      # secret (a fork, a desk) Bazel builds as before.
+      - name: the remote cache (BuildBuddy)
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -n "$BUILDBUDDY_API_KEY" ]; then
+            printf 'common --config=remote\ncommon --remote_header=x-buildbuddy-api-key=%s\ncommon --bes_header=x-buildbuddy-api-key=%s\ncommon --remote_upload_local_results\n' \
+              "$BUILDBUDDY_API_KEY" "$BUILDBUDDY_API_KEY" >> "$HOME/.bazelrc"
+            echo "the remote cache is on (BuildBuddy)"
+          else
+            echo "::warning ::no BUILDBUDDY_API_KEY secret: building without the remote cache"
+          fi
       # THE PRODUCT (docs/BUILD_REBUILD_DESIGN_2026_10_05.md §4.1): the compile targets and the app's packaging, nothing
       # else; //tools/guards:compile_only_test holds them to compiles and file plumbing. A step of its own, so the
       # downloads cache is saved right after it (below), before the analysis of everything fetches every pool.
@@ -162,22 +188,21 @@ jobs:
           set -euo pipefail
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
-          # the app package too (L1c, 2026-10-07): packaging, so the product job's, and built nowhere else in CI
+          # the app package too (L1c, 2026-10-07): packaging, so the product job's (the datacube lane builds it again, as
+          # package_test's data)
           bazel build "${flags[@]}" //:java //:web //:wasm //:native //:sites //datacube:app //datacube:app_package
-          du -sh "$HOME/.cache/bazel-repo"
-          # what the cache is made of (the cache fix's run, 37661408648, measured Linux at 16 GB and macOS at 2 GB with
-          # nothing to say why; the likely cause: Bazel 9's repo contents cache, the UNPACKED repositories, defaults to
-          # {--repository_cache}/contents, inside the cached path): the cache's own top entries, then the biggest
-          # external repositories by name
-          du -sh "$HOME/.cache/bazel-repo"/* "$HOME/.cache/bazel-repo"/contents/* 2>/dev/null | sort -h | tail -15 || true
-          du -sh "$(bazel info "${flags[@]}" output_base)"/external/* | sort -h | tail -15 || true
+          # what the cache holds and what is saved (the whole folder less contents/, the unpacked repositories): the
+          # downloads were 3.1 GB on Linux, 1 GB on macOS and Windows in L1c's run (evidence §10), under the 10 GB cap
+          du -sh "$HOME/.cache/bazel-repo" "$HOME/.cache/bazel-repo/contents" 2>/dev/null || true
       # the downloads saved once per platform and pin hash, by the product job once the product is built (above);
       # the lanes never save (actions/cache never adds to an existing key: the first saver would fix the content)
       - name: Bazel downloads, saved by the product job
         if: matrix.lane.key == 'product' && steps.repo.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ~/.cache/bazel-repo
+          path: |
+            ~/.cache/bazel-repo
+            !~/.cache/bazel-repo/contents
           key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
       - name: bazel ${{ matrix.lane.cmd }} ${{ matrix.lane.key }}
         env:
@@ -187,6 +212,9 @@ jobs:
         run: |
           set -euo pipefail
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
+          # the queries take these, before ci-small: a build-only config, which `query` refuses by name (the cold run of
+          # L1e, macOS's product job, 2026-10-07)
+          qflags=("${flags[@]}")
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
           # the browser harnesses run on Linux only (their tag, gates/BUILD.bazel): the same on every platform, and
           # live-vs-snap already checks x86_64 against the arm64 desks; a desk still runs them anywhere. The filter
@@ -205,14 +233,15 @@ jobs:
             # analyzes for a platform none of them supports, the platform-specific ones skipped as incompatible
             S='//warehouse/... + //pct/... + //datacube/...'
             # the list first, so a failed query fails the step (a process substitution would hide its status)
-            list=$(bazel query "($S) except tests($S) except kind(test_suite, $S)" | grep -v '\.aspect_rules_js')
+            # the queries with the same flags as the builds (L1e): the same repository cache, so they fetch nothing twice
+            list=$(bazel query "${qflags[@]}" "($S) except tests($S) except kind(test_suite, $S)" | grep -v '\.aspect_rules_js')
             [ -n "$list" ] || { echo "A25: the query returned no targets"; exit 1; }
             unlisted=()  # a read loop, not mapfile: macOS's bash is 3.2
             while IFS= read -r t; do unlisted+=("$t"); done <<< "$list"
             bazel build --nobuild --skip_incompatible_explicit_targets --platforms=//tools/platforms:unlisted_test "${flags[@]}" "${unlisted[@]}"
             # THE LANE GUARD (gates/BUILD.bazel): every test of the repository is in some lane, or in `heavy` (a
             # query's //... includes manual targets, unlike a build's): a new test goes into a suite, never nowhere
-            unlaned=$(bazel query 'tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)')
+            unlaned=$(bazel query "${qflags[@]}" 'tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)')
             [ -z "$unlaned" ] || { echo "::error ::tests in no lane of gates/BUILD.bazel:"; echo "$unlaned"; exit 1; }
           else
             bazel test "${tflags[@]}" "//gates:${{ matrix.lane.key }}"
@@ -251,5 +280,7 @@ jobs:
         if: always() && inputs.platform == 'linux-arm' && steps.repo.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ~/.cache/bazel-repo
+          path: |
+            ~/.cache/bazel-repo
+            !~/.cache/bazel-repo/contents
           key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}

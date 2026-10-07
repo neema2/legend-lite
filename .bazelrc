@@ -45,10 +45,33 @@ build:windows --shell_executable="C:/Program Files/Git/usr/bin/bash.exe"
 # CI: `--config=ci` — every test's log on failure, and no progress-bar noise.
 common:ci --color=no --curses=no --show_progress_rate_limit=30
 test:ci --test_output=errors --test_summary=terse
+# CI runs every test, every time (L1e, 2026-10-07): with a remote cache Bazel would otherwise answer an unchanged test
+# with its last result, so a push would get no verdict of its own and a flaky test that passed once would stay passed.
+# The cache's gain is the build: the native image, the planner, the bundles.
+test:ci --nocache_test_results
 # CI never updates a lock file: MODULE.bazel.lock must already match MODULE.bazel (and each jar
 # pool's maven_*_install.json must match its artifacts: fail_if_repin_required in MODULE.bazel).
 # A dependency edit without its lock fails here instead of resolving silently.
 common:ci --lockfile_mode=error
+
+# THE REMOTE CACHE (the build rebuild's L1e, 2026-10-07; OD-5): BuildBuddy, written by CI, read by any desk that asks,
+# so a lane downloads what an earlier job built (the native image, the WebAssembly planner, the bundles) instead of
+# building it again on its own runner. `--config=remote` and the key, `--remote_header=x-buildbuddy-api-key=...`, go in
+# ~/.bazelrc: CI writes them from the repository secret BUILDBUDDY_API_KEY (gates-run.yml); a desk puts its own key
+# there, never in this file. Only CI writes to the cache: this config uploads nothing (noremote_upload_local_results),
+# CI's own rc turns uploads on; so what the cache holds was built by CI, whatever key a desk has. The event upload
+# gives every build a page with per-action timings (bes_results_url). Measured 2026-10-07: an unreachable cache is a
+# warning (Bazel builds locally, exit 0), but an unreachable event service fails the build (exit 38) under the default
+# upload mode, so the upload is fully asynchronous here: it can never turn a build red. zstd compression on the wire.
+# The timeout: 600 s, BuildBuddy's own quickstart value and ten times Bazel's default, for the largest blobs (DuckDB's
+# library at 108 MB, the image at 22 MB) on a slow runner link; a stalled call cannot hold an action for an hour.
+common:remote --remote_cache=grpcs://remote.buildbuddy.io
+common:remote --bes_backend=grpcs://remote.buildbuddy.io
+common:remote --bes_results_url=https://app.buildbuddy.io/invocation/
+common:remote --bes_upload_mode=fully_async
+common:remote --remote_timeout=600
+common:remote --remote_cache_compression
+common:remote --noremote_upload_local_results
 # REPINNING READS NO HOST MAVEN REPOSITORY (Bazel workplan P1-25b). `bazel run @<pool>//:pin` on a
 # `resolver = "maven"` pool (maven_test, maven_upstream, maven_runner) otherwise resolves through
 # ~/.m2/repository, as its first repository and its cache (rules_jvm_external 7.1's ResolverConfig sets the
