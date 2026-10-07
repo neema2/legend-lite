@@ -159,7 +159,7 @@ without a **done** entry.
 - **Pushed to main** (a97cbd188; batch 7, P2-12, P2-08, P2-07, P2-17, the memo fix): local gate 177/177 at that
   commit; throwaway 37251203524 green but for the Windows build job, still running (main's own CI re-runs it); pushed
   early to unblock the Studio session (USER: "the studio session is waiting for us"). Main CI 37253460391: running.
-- **Studio line reviewed** (studio-m1, /Users/neema/legend/legend-lite-query): in line, but two fixes before it pushes --
+- **Studio line reviewed** (studio-m1, the Studio worktree): in line, but two fixes before it pushes --
   the fonts committed as .woff2 binaries (pin @fontsource by integrity like @react_icons), and legend-art/src/icons.ts
   as vendored data (generate it from @react_icons, diff-tested, and retire //query's generator).
 - **P2-14 (F) root cause:** bisect (7 runs) puts the reference lane's 1515 -> 1517 failed bodies at c1f9bac5b

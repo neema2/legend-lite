@@ -85,7 +85,7 @@ Closure (computed from every `import` line): aggregate, aggregates, battery, com
 |---|---|---|---|---|---|---|
 | scripts/census_gate.py | 216 | 2026-08-12 | `docs/census-baseline.json` (151); `parser-equivalence/target/*` (34, 65). Runs `mvn` from `~/jdk/apache-maven-3.9.9` (38-42). | none | C (KNOWN K19) | Delete it and `docs/census-baseline.json`. |
 | scripts/generate_pure_constants.py | 337 | 2026-04-25 | `engine/src/main/java/com/gs/legend/compiler/Pure.java` (28-29) — the engine module is deleted | none | C (KNOWN K19) | delete |
-| scripts/outstanding.py | 163 | 2026-07-22 | `docs/OUTSTANDING.md` (130). Hard-coded `/Users/neema/legend/legend-lite` and a legend-engine checkout path (14-18). | none (AGENTS.md:352 calls the output history) | C | delete |
+| scripts/outstanding.py | 163 | 2026-07-22 | `docs/OUTSTANDING.md` (130). Hard-coded `/Users/<user>/legend/legend-lite` and a legend-engine checkout path (14-18). | none (AGENTS.md:352 calls the output history) | C | delete |
 | scripts/walldepth.py | 28 | 2026-07-22 | `docs/WALL_DEPTH.txt` (22), from the git history of the frozen `RELATIONAL_CORPUS.md` | none | C | delete |
 | scripts/parser/fixtures.py | 315 | 2026-08-14 | none; runs `perf.ParseMain` through cp.txt, `target/classes` and `~/jdk` (36, 61-68) | none | C/B | See the fixture-corpus note after this table. |
 | scripts/parser/keywords.py | 397 | 2026-08-14 | none; reads `tools/engine-runner/vocab.tsv` (103) | none | B/C | Same note. |
@@ -99,8 +99,8 @@ Closure (computed from every `import` line): aggregate, aggregates, battery, com
 | tools/census/render.sh | 15 | 2026-10-02 | `runs/census/render/*`. **Hard-codes** `$(bazel info output_base)/external/rules_java++toolchains+remotejdk25_macos_aarch64/bin`, so it works only on macOS arm64 (render.sh:9). Compiles `tools/census/RenderCensus.java` with a bare `javac`; `tools/census` has no BUILD file. | README | B (NEW) | Add a `java_binary` for RenderCensus that depends on `//core:core_tests_deploy.jar`. |
 | tools/census/lanes_diff.py | 45 | 2026-10-02 | stdout | README:12 | B | `py_binary` |
 | tools/ci-watch.sh | 18 | 2026-09-13 | stdout; `curl` to the GitHub API plus host `python3`; repo name hard-coded | Four dated docs | C/B (KNOWN K19) | Delete; `gh run watch` does the same. |
-| tools/golden_shape_survey.py | 240 | 2026-08-29 | Committed `docs/golden-shape-survey-4AD.tsv` (16, 210). Default engine root `/Users/neemsandv/legend/legend-engine` (14) — a different user's home. | `docs/NAV_ROUTING_BATCH0_4AD.md` | C (KNOWN K19) | attic |
-| tools/metamodel-census/{build,closure,props,scan2,scan3}.py | 97 / 60 / 56 / 48 / 64 | 2026-09-02 | Committed `tools/metamodel-census/*.json` (8 files: closure, fallback_partition (0 bytes), family_tests, hn_vocabulary_tests, inventory, inventory_props, scan3, shapes). Hard-codes `/Users/neemsandv/legend/*` and `core/target/wholetest-flipped.txt`. | `docs/METAMODEL_AS_RELATIONS_HOMEWORK_2026_09_02.md` and `docs/SESSION_HANDOFF_2026_09_02.md` | C (KNOWN K19) | Attic, with the JSON receipts. |
+| tools/golden_shape_survey.py | 240 | 2026-08-29 | Committed `docs/golden-shape-survey-4AD.tsv` (16, 210). Default engine root `/Users/<another user>/legend/legend-engine` (14) — a different user's home. | `docs/NAV_ROUTING_BATCH0_4AD.md` | C (KNOWN K19) | attic |
+| tools/metamodel-census/{build,closure,props,scan2,scan3}.py | 97 / 60 / 56 / 48 / 64 | 2026-09-02 | Committed `tools/metamodel-census/*.json` (8 files: closure, fallback_partition (0 bytes), family_tests, hn_vocabulary_tests, inventory, inventory_props, scan3, shapes). Hard-codes `/Users/<another user>/legend/*` and `core/target/wholetest-flipped.txt`. | `docs/METAMODEL_AS_RELATIONS_HOMEWORK_2026_09_02.md` and `docs/SESSION_HANDOFF_2026_09_02.md` | C (KNOWN K19) | Attic, with the JSON receipts. |
 | tools/native-axes.py | 160 | 2026-09-10 | Optional `--tsv`; reads `core/target/lowering-coverage-probe.txt` (12, 99). Cites the missing **`tools/oracle-roots.sh`** (20). | UPSTREAM_BOUNDARY_PROGRAM.md:13 | B/C | Rebuild on the `@legend_*_src` repos, or delete. |
 | tools/upstream-drift.py | 274 | 2026-09-11 | stdout; shells out to `curl` (54) and `git ls-tree` on local checkouts (35-36, 79). Cites the missing `tools/oracle-roots.sh` (15) and `tools/version-report.sh` (52). | Javadoc in `UpstreamPathManifestTest.java:29`; UPSTREAM_BOUNDARY_PROGRAM.md | B | A `py_binary` reading the `@legend_*_src` repos; drop the host-checkout dependency. |
 | tools/scoreboard.py | 130 | 2026-07-08 | Appends to `docs/SCOREBOARD.md` (114-116). Needs `engine/target/surefire-reports` and `mvn` (4-15). | none | C | delete |
@@ -125,15 +125,15 @@ All are dated audit receipts. **Class C** throughout: none is consumed by any bu
 
 | path | lines | last commit | writes | notes |
 |---|---|---|---|---|
-| docs/burndown-2026-08-14/tools/census3.py | 48 | 2026-08-14 | `$BURNDOWN_OUT` or `/tmp/burndown/engine-tests.csv` | `/Users/neemsandv/...` engine root |
+| docs/burndown-2026-08-14/tools/census3.py | 48 | 2026-08-14 | `$BURNDOWN_OUT` or `/tmp/burndown/engine-tests.csv` | `/Users/<another user>/...` engine root |
 | …/cluster.py | 45 | 2026-08-14 | `/tmp/burndown/clusters.json` | |
-| …/dossier.py | 50 | 2026-08-14 | `/tmp/burndown` | `/Users/neemsandv` |
-| …/famdiff.py | 27 | 2026-08-14 | stdout | `/Users/neemsandv/legend/legend-lite/docs/RELATIONAL_CORPUS.md` |
+| …/dossier.py | 50 | 2026-08-14 | `/tmp/burndown` | `/Users/<another user>` |
+| …/famdiff.py | 27 | 2026-08-14 | stdout | `/Users/<another user>/legend/legend-lite/docs/RELATIONAL_CORPUS.md` |
 | …/features.py | 49 | 2026-08-14 | `/tmp/burndown/features.json` | |
 | …/ledger.py | 19 | 2026-08-14 | `/tmp/burndown/failing.{json,tsv}` | |
 | …/master.py | 39 | 2026-08-14 | `/tmp/burndown/master.csv` | |
 | …/recon3.py | 31 | 2026-08-14 | stdout | |
-| docs/invention-audit-2026-08-14/probes/{bare,cls,final,idx,nat,usage2,usage3}.py | 14 / 26 / 19 / 27 / 14 / 30 / 34 | 2026-08-14 | `$CLAUDE_JOB_DIR/tmp/audit/*.json` | `/Users/neemsandv` paths |
+| docs/invention-audit-2026-08-14/probes/{bare,cls,final,idx,nat,usage2,usage3}.py | 14 / 26 / 19 / 27 / 14 / 30 / 34 | 2026-08-14 | `$CLAUDE_JOB_DIR/tmp/audit/*.json` | `/Users/<another user>` paths |
 | docs/parked/batch120_partA.py, batch120_partA2.py | 288 / 237 | 2026-09-07 | Rewrite Java sources in place | codemods |
 | docs/type-audit-2026-08/harness/setup.sh, jrun.sh, probe.sh | 16 / 15 / 8 | 2026-08-26 | `.cp` | **`mvn -pl core …`** (setup.sh:9-10). Dead. |
 | docs/datacube-dashboards-homework-2026-09-28/charts/render-check-{echarts,plot,vega-csp}.mjs | 10 / 3 / 5 | 2026-09-28 | stdout | Need an npm install of `survey-package.json` |
@@ -148,7 +148,7 @@ Fix for all of these: move to an attic, or keep as receipts but move them out of
 **experiments/**
 - It is in `.bazelignore`. The comment there says "Two Bazel prototype workspaces", but the directory holds much more: backend-probes (about 120 TSVs, 8 `.py`, `harness/pom.xml` plus `Probe.java`, `databricks/DbxTest.java`, `duckdb-census/*`), name-resolution-repro, postgres-dialect, warehouse-ffm, warehouse-w0, warehouse-w1d.
 - Nothing outside it that matters references it: no BUILD, `.bzl`, Java, TypeScript or CI file. Only dated docs and `tools/untangle/move_classes.py` (a skip list).
-- Instructions inside are Maven and `curl`: backend-probes/README.md:48-63, 121-126; name-resolution-repro/README.md:15-18; harness/HARNESS.md:3-25 (which points at a `/private/tmp/claude-502/-Users-neemsandv/...` scratch directory).
+- Instructions inside are Maven and `curl`: backend-probes/README.md:48-63, 121-126; name-resolution-repro/README.md:15-18; harness/HARNESS.md:3-25 (which points at a `/private/tmp/<a session directory>` scratch directory).
 - `legend_rules_test` and `tree_artifact_test` (2026-04-16) are dead prototypes.
 - `postgres-dialect/semantics_probe.sh` (2026-10-02) needs a Docker Postgres and the DuckDB CLI. It backs docs/POSTGRES_DIALECT_HOMEWORK_2026_10_01.md. Class B if it is kept.
 - Recommendation: class C (attic). At minimum, fix the `.bazelignore` comment.
@@ -305,8 +305,8 @@ Historical (fine as they stand): docs/BAZEL_DEPENDENCY_PROPOSAL.md and docs/BAZE
    - stress files 59, 60 and 64 (59 and 60 already stale)
    - outside my slice but seen: `fixtures/saved-queries/*.json` (make.mjs) and `query/src/ui/icons.ts` (icons.mjs). Each is either A (wire it) or C (drop the "generated" claim and the generator).
 6. **Hard-coded machine paths** in tracked tools:
-   - `/Users/neemsandv/...`: tools/golden_shape_survey.py:14, tools/metamodel-census/*.py, docs/burndown and invention-audit scripts.
-   - `/Users/neema/legend/legend-lite`: scripts/outstanding.py:14.
+   - `/Users/<another user>/...`: tools/golden_shape_survey.py:14, tools/metamodel-census/*.py, docs/burndown and invention-audit scripts.
+   - `/Users/<user>/legend/legend-lite`: scripts/outstanding.py:14.
    - `~/jdk/jdk-21.0.11+10`: run.py:31, parser/*.py, RUNNING_THE_CORPUS.md.
    - `~/jdk/apache-maven-3.9.9`: census_gate.py:42.
    - `remotejdk25_macos_aarch64`: tools/census/render.sh:9, tools/wrongrows/engine-rows.sh:24.

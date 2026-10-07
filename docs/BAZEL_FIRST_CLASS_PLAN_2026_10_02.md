@@ -482,7 +482,7 @@ Each guard is a Bazel test in a `//tools/guards` package, part of `//...`:
 - **`experiments/` is kept.** It stays bazelignored, as separate workspaces. The `.bazelignore` comment is corrected, and its scripts go through the same review as everything else; nothing there is deleted.
 - **No script is deleted before it has been reviewed.** The classes below are the auditors' first read, not decisions. Each script gets a review row:
   - what it does and what it is evidence for;
-  - whether it runs today (many need the Maven-era `cp.txt` or `mvn`, or hard-coded `~/jdk` or `/Users/neemsandv` paths);
+  - whether it runs today (many need the Maven-era `cp.txt` or `mvn`, or hard-coded `~/jdk` or `/Users/<another user>` paths);
   - what committed files it wrote or wrote into;
   - who references it;
   - the options: wire as-is, repair and wire, keep as data/history, or retire.
