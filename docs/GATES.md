@@ -6886,3 +6886,44 @@ platform (the user's ask; the next step after this landing).
 Suites after this landing: `lanes` 345 tests, `local` 310 (the harness tests join it), `heavy` 7; the lane guard
 names nothing. Local gate on this tree: see the landing commit's message (the harness tests ran on this macOS desk,
 not Linux-only here: the tag is CI's).
+
+## 2026-10-07 — Build rebuild L1c: the warehouse knows nothing about Bazel; `//warehouse:serve` and `//datacube:app` are folders, and a package
+
+The plan: `docs/REBUILD_PROGRAM_2026_10_06.md` §4 (L1c: design D9 done properly, agreed with the user on 2026-10-07);
+the state: `docs/build-inventory/program/START_HERE.md` §3; the run's numbers: `evidence/phase8/CI_LANES_2026_10_07.md` §10.
+
+What changed:
+1. **The server** (`warehouse/src/main/java/com/legend/warehouse/server/WarehouseServer.java`): `ServerRunfiles` and
+   rules_java's runfiles library are gone; nothing is looked for in runfiles. A native image finds DuckDB's library,
+   the Postgres extension and (with `--app`) the site beside its own executable (`DuckLibrary.executableDir`, the
+   way the library was already found); the JVM server is told the two paths. `BUILD_WORKING_DIRECTORY` is not read:
+   a path is as written, and under `bazel run` that is Bazel's runfiles folder (documented: give absolute paths).
+   `--data` not given is a fresh temporary directory, removed when the server stops, said at start. `--app` is one
+   user plus the `site/` folder beside the program (a missing folder is refused by name); `--open` stays a flag of
+   its own, so a test starts the app without a browser.
+2. **The build**: `warehouse_run`, its bash script and `hermetic_launcher` (`MODULE.bazel`), the 10-argument limit
+   and the "DO NOT RENAME" couplings are gone. `warehouse_folder` (`warehouse/defs.bzl`) is the image beside its
+   files as one folder of real copies (bazel_lib's pinned coreutils and copy_directory; no shell, no symlinks: a
+   native executable finds its files beside its REAL path): `//warehouse:serve` without a site, `//datacube:app`
+   with it and `args = ["--app", "--open"]`, `//datacube:app_package` the app folder as `datacube-app.tar.gz`
+   (tar.bzl's pinned bsdtar; the four entries, not the runfiles tree; paths as built, `datacube/app/...`). `//:native`
+   stays a compile: the first cut put the files in the image's `data`, and `//tools/guards:compile_only_test` caught
+   it. `duckdb_extensions` is `postgres_extension`, the file itself.
+3. **What judges it**: `//datacube:verify_app_test` copies the app folder to a plain directory and starts it there,
+   in that folder, with none of Bazel's variables, on every platform (the `datacube` lane); `//warehouse:tests_native`
+   runs the image with no library flag (it finds the library beside itself; Linux arm64 included); the warehouse
+   lane runs `bazel run //warehouse:serve -- --port 'x&y z'` on every platform and expects the server's own refusal
+   quoting the argument and exit code 2 (`PHASE_8.md` U-6: an argument with `&` and a space intact with no script
+   between). Deleted with their subjects: `LauncherTest` (the launcher), `RunfilesDefaultsTest` (the runfiles
+   default), AppModeTest's `BUILD_WORKING_DIRECTORY` case.
+4. **The workflow**, three small things: the product job builds the package; the cache key also hashes the pnpm
+   locks, the pip lock and the Postgres pins (the audit of the cache fix); two `du` lines name what the downloads
+   cache holds (§10 of the evidence: on Linux 13 of the 16 GB are `contents/`, Bazel 9's unpacked repositories, and the downloads are 3.1 GB; macOS and Windows about 1 GB each way).
+
+The audit (the auditor agent, 2026-10-07, 15 minutes, read-only): no blockers; seven should-fix and four nits, all
+taken — the package's second copy of the app (the runfiles tree), the `mutate` step's gawk under a shell, the package
+built nowhere in CI, the wrong "Windows has no runfiles tree" caveat (`.bazelrc` enables symlinks and runfiles there),
+Linux arm64's lost check of the beside-the-executable layout, the stale javadoc and program rows, the commit message's
+gaps, the missing `site/` check, the Ctrl+C exit code softened to what was measured; and its section on the cache fix
+(sound; two efficiency items, in this landing). Local gate `//gates:local` green, 310 of 310, three times. The run:
+37668591690, dispatched 18:40 UTC; the Linux `ui` job failed once on a Maven Central 404 for duckdb_jdbc 1.5.5.1 (a fetch, before any test) and was rerun on the same commit, green on every job; the lane minutes in the evidence's §10.
