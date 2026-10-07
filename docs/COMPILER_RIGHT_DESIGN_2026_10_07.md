@@ -1,251 +1,222 @@
-# The compiler done right: what to fix, upgrade or redo, and in what order (2026-10-07)
+# The compiler done right, reconciled with the rebuild plan (2026-10-07, revision 2)
 
-**Status: a design for the user's decision. No code before it is agreed.** Written from the code and from
-measurements taken today, not from the earlier documents; where an earlier document's claim was checked, this says
-so. The user's framing (2026-10-07): parity of OUTPUT with legend-pure and legend-engine is the goal and the oracle,
-and the compiler itself should be better than theirs — streamlined, robust, fast, close to mainstream compilers; an
-expert-level compiler. So legend-pure's algorithm is not the template here; the corpus, PCT, parser parity and the
-reference lane are the judges of "same output", and the question for each piece is what a mainstream compiler would
-do.
+**Status: for the user's decision; no code before it is agreed.** Revision 2 replaces the same day's revision 1
+(commit "Docs: the compiler done right -- the design for the user's decision, with its measurement"). Revision 1 was
+written from the code and one measurement **without reading the compiler rebuild's own plan**,
+`docs/EXECUTION_PLAN_2026_09_26.md` (revision H4, approved by the user on 2026-09-29; its work landed on main through
+the nineteen "— Rebuild" entries in `docs/GATES.md`; it stopped on 2026-10-04 at its "Now" line when the build program
+began). Every finding of revision 1 is an item of that plan, usually a smaller version of it. This revision keeps the
+measurement, adds two more taken today (the stress corpus end to end; the probe's residue taken apart), maps each
+finding to its item, says what today's numbers change, and reduces the decision to one question: where the rebuild
+resumes.
 
-## 0. What the compiler is today, measured
+The user's framing (2026-10-07) stands: parity of OUTPUT with legend-pure and legend-engine is the goal and the oracle;
+the compiler itself should be streamlined, robust, fast, close to mainstream compilers, expert-level. The plan says the
+same in its own words: D15 (our own inference engine, judged by observable outcomes) and D17 (cleaner, more
+bulletproof, much less code, faster, cruft deleted).
 
-**Size** (lines of Java under `core/src/main/java/com/legend`, 2026-10-07): lexer 1.4k; parser 15.3k (hand-written
-recursive descent, one parser per grammar section: Pure, mapping, relational, connections, services); normalizer 11.2k
-(the legacy mapping DSL into functions); name resolver 2.1k; element compiler 6.1k (the model from definitions); the
-typer 22.1k (`compiler/spec`: `InferenceKernel` 2.0k, `Typer` 1.8k, `UserCallInliner` 1.6k, `Overloads` 1.2k, 39
-checkers, folds, unrolls, desugars); the store resolver 35.9k (the biggest package: object queries into relation
-pipelines against the mapping); lowering 23.8k; SQL and dialects 16.8k; the native catalog (`builtin/Pure.java`) 2.8k
-with 837 native signatures. The typed tree has 43 node kinds; the type language 8 (primitives, decimals, classes,
-enums, type variables, function types, relation types, schema algebra); every typed node carries `(type, multiplicity)`.
+## 0. In plain words
 
-**The pipeline for one query** (`Compiler.query` → `TypedQuery.plan`): parse → `NameResolver.resolveQuery` (a whole-tree
-rewrite that records, on every call node, the user functions it can mean) → the typer (`SpecCompiler.typeQueryBody` →
-`Typer.synth`, one recursive pass that infers each node's type) → the inliner (every user call β-inlined) → the store
-resolver (phase H) → the lowering (phase I) → the dialect (J). Function bodies are typed on demand and memoized per
-function (`SpecCompiler.compile`), never twice.
+- **There is already a plan for this**, and it is a good one. It is a catalogue of about sixty items (W0 to W7) in
+  five phases, ordered by its §4: fix the known wrong answers and learn what is unknown first (Phase 1, ending at a
+  decision point C1), then the gates that make every later change safe (Phase 2), then the middle, where the wrong
+  answers and the worst tangle live (the 36k-line store resolver and the SQL, Phase 3), then the front end (names, the
+  typer, Phase 4), then the back end (Phase 5). Twenty-odd items are done. It stopped at a cleanup step: "one
+  substitution engine" (decision D24).
+- **What I measured today, in plain words.** (1) When the compiler types the whole world, 40 cents of every dollar
+  go to re-answering "what can this bare name mean". The plan's item W2.3a removes exactly that (a name resolved once,
+  into an id, and every later check comparing ids); the plan knew the problem but not its size. (2) When the stress
+  corpus runs end to end, 14 cents of every dollar go to re-reading the test-data islands: each island is copied into
+  a new string padded with one newline for every line above it, lexed again and indexed again. One corpus file has
+  14,948 islands in 291,278 lines, so that is about 2.2 billion characters of padding per run. The plan does not have
+  this item; it is a half-session fix with no semantic risk. (3) The back half, the store resolver, the lowering and
+  the SQL, has no hot spot of that kind. Its cost is its shape, which is the plan's Phase 3. (4) Of the 365 bodies of
+  platform code the typer cannot type, about 260 name functions, types and elements lite does not serve (a decision,
+  the plan's D9, not a fix), about 60 come from the typer's own shape (desugaring interleaved with typing, checks that
+  match an argument's spelling instead of its type, lambdas typed before their expected type is known), about 25 from
+  the overload rule, about 10 from the inference kernel. The plan's Phase 4 removes the 60 and the 25 by construction.
+- **The things the user named** on 2026-10-07, typing arguments twice and re-typing a property several times, are
+  the plan's W3.4 and W4.2 (one substitution engine over the typed tree, which never re-types) and W2.4 (member
+  access). The plan's "Now" line, the D24 cleanup, is their first step: six substitution engines become one. So the
+  plan's resume point is already the user's priority.
+- **The one question** is whether to resume the plan where it stopped and keep its order (recommended, with seven
+  small amendments below), or to pull the names item forward because of the 40%.
+- **The bump's Phase 3 branch becomes a reference either way**: its facts (legend-pure's ranking rules, the names
+  calls resolve to, the legacy TDS forms, the corpus fixes) survive; its code is written again on the new typer; the
+  bump's remaining phases follow on that base, the prelude with them.
 
-**The measurement.** `//spec:eager_corpus_compile` types every body of the corpus's world — 9,942 bodies — after
-building the model: build 1.8 s, typing 2.0 s, about 4 s in all (three runs, 2026-10-07, this machine). Under Java
-Flight Recorder (809 samples over three runs; a sample is attributed to the first phase found on its stack):
+## 1. What was measured today
+
+### 1.1 Typing the whole world (revision 1's measurement, kept)
+
+`//spec:eager_corpus_compile` types every body of the corpus's world, 9,942 bodies, after building the model: build
+1.8 s, typing 2.0 s (three runs, this desk). Under Java Flight Recorder (809 samples over three runs; a sample belongs
+to the first phase found on its stack): names **40%**, type 24%, parse 10%, model 4%, normalize 3%, other 17%. The
+names share is `BareNames.catalogTiered` 24% inclusive, `BareNames.catalog` 20%, `ResolvedNames.referents` 11%,
+`NameResolver.resolveVs` 13%: the resolver tries each bare call under the imports, the element's own package and the
+32 core packages, and every later check asks again from the spelling. The earlier ledger row (PARK-5) put it at 19% of
+typing time; across the whole compile it is 40% of everything. Evidence: `EAGER_COMPILE_PROFILE_2026_10_07.md` in
+`docs/build-inventory/program/evidence/compiler/`.
+
+### 1.2 The stress corpus end to end (new)
+
+`//core:stress_tool` over the stress corpus (202 files, 344,824 lines, 4,745 service tests on DuckDB; D23's base):
+4,705 pass, 15 fail, 16 skipped; 3,669 samples. Evidence: `STRESS_PROFILE_2026_10_07.md` (with `jfr_other.py` and
+`jfr_callers.py` beside `jfr_phases.py`).
 
 | phase | share | what it is |
 |---|---|---|
-| names | **40%** | `BareNames.catalogTiered` 24% inclusive, `BareNames.catalog` 20%, `ResolvedNames.referents` 11%, `BareNames.tiered` 11%, `NameResolver.resolveVs` 13%, `resolveCallCandidates` 7%, `Pure.nativeFunctionsAt` 4%; the hottest leaf frames are `HashMap.getNode` and `ArrayList.removeIf` |
-| type | 24% | `Typer.synth` 7.5%, `applyFunction` 6.7%, `Overloads.checkGeneric` 4.9%, `applyCore` 2.5%, the TDS desugars 3.6%, `accessProperty` 2.1%, `resolveOverload` 2.0%, `TdsLegacy.bare` 1.6% (a name match per call), `typeLambda` 1.4% |
-| parse | 10% | lexer and parser |
-| model | 4% | the element compiler |
-| normalize | 3% | the mapping normalizer |
-| other | 17% | the JVM, collection, the probe |
+| other | 33.0% | loading and execution (the CSV seeds, the DuckDB appender), the mapping include closure, SQL rendering, the test runner, Java streams and strings |
+| parse | 16.3% | **14.4% is one method, `MappingProtocolParser.readIsland`**; the rest is lexing |
+| type | 13.2% | `Typer.synth`, `applyFunction`, `Overloads.checkGeneric` |
+| store-resolve | 12.7% | `StoreResolver.resolveChain`, `resolveObject`, `anchoredNode`, `TemporalFrame`, string-keyed binding maps: spread, no single hot spot |
+| names | 12.7% | the same frames as 1.1 |
+| model | 5.1% | `ModelBuilder.findMapping` resolving the mapping's FQN string on every call |
+| lower | 3.7% | |
+| inline | 1.6% | |
 
-So the single biggest cost of compiling the world is **re-deriving what a bare name can mean**: the resolver tries
-each bare call under the imports, the element's own package and the 32 core packages (`resolveCallCandidates`), and
-then every later check asks again from the spelling (`ResolvedNames.names` → `BareNames.catalog`: the same 32
-packages, about five times per call). The earlier ledger row (PARK-5) put it at 19% of typing time; measured across
-the whole compile it is 40% of everything. Typing itself is a quarter. Parsing is a tenth.
+**The islands.** Every island (`#{ … }#`: test data, external-format blocks, embedded values, assertions) is read by
+copying its text into a new string, padded with one newline per line above it and one space per column, so that the
+second lexing reports the island's true position; the padded string is lexed and given its own line index. The
+comment above the code cites the 2026-08 deep audit's finding that the island path was quadratic and the fix (the
+stream's cached line index); the padding kept the cost. Of the method's 528 samples the leaves are the padding loop
+(299), the lexer skipping the padding (134) and the line index of the padded string (81). Done right, a nested grammar
+is parsed from the same token stream, a slice with the island's bounds and the line index shared, exactly as
+`TokenStream.slice` already does for sections; no copy, no padding, no second lexing; spans unchanged.
 
-**What is not measured yet:** the per-query path in the product (DataCube, Query, Studio): parse → names → type →
-inline → store-resolve → lower → render for one query against a built model, where the store resolver and the
-lowering — 60k lines that the eager probe never runs — carry their own cost. That measurement is the first item below.
+**The include closure.** `MappingDefinition.withIncludes` walks a mapping's includes transitively every time the
+bindings of some classes are asked for (2.5%), and `ModelBuilder.findMapping` resolves the mapping's FQN string
+through the symbol table on each call (2.4%, a quarter of it `String.equals`). The closure is a fact of the built
+model; identity by spelling is the plan's rule 0b.8's subject (no string identity for a declaration).
 
-## 1. What a mainstream compiler does that this one does not (the findings)
+**Not a hot spot.** The store resolver's 12.7% and the lowering's 3.7% are spread over many frames (the biggest,
+`resolveObject`, is 3.4% inclusive, its leaves its own logic). Nothing in the back half re-derives a whole-model fact
+per call the way the names and the islands do. Its cost is its structure: the plan's W4.3 and the D11 question.
 
-Each finding names the code, says what the evidence is, and what "done right" looks like. The order is by what the
-numbers and the risks say, not by the ledger's numbering.
+### 1.3 The residue taken apart (new)
 
-### F1. Names are never resolved once (the 40%)
+Of the probe's 1,620 failing bodies, 822 are the engine's JSON protocol serializers (walled: the platform speaks its own
+protocol), 428 are test bodies (the roster's), 5 autogeneration; **365 are ours**, 319 of them in `meta::relational`.
+By message shape (`residue_shapes.py`; evidence `EAGER_RESIDUE_2026_10_07.md`, the bodies in
+`eager-residue-2026-10-07.txt`):
 
-**Now.** `NameResolver` (phase D) records on a call node the user functions it can mean (`candidateFqns`), but a call
-to a platform function stays bare — unless the resolver also found a user function of that name, in which case it
-merges the platform's by walking `BareNames.catalogTiered` (`NameResolver.java:1697-1752`). Every later consumer asks
-again from the spelling: `ResolvedNames.referents(af)` (`compiler/ResolvedNames.java:24`) rebuilds the catalog's answer
-for the name — the 32 core packages, the engine handlers, the forms' owned names, then a `removeIf` for the lite
-partition (`BareNames.tiered`, `:60-80`) — and it is called from `Typer.applyFunction:481` for every applied function
-(the `instanceOf` check), from `TdsDesugars:112`, `StatementInline:285`, `LiteralMapUnroll:58`, the mapping normalizer
-(three sites), the lineage scan, the plan allocations, test-data generation. `TdsLegacy.bare` matches 18 legacy names
-by spelling per call (`Typer.applyFunction:367-422`). The ~200 calls the typer and the normalizer *build* after
-resolution are bare too, so they go through the same path.
+| bodies | what fails | what it is |
+|---|---|---|
+| 220 | an unknown function | platform functions never ported: the cut list and the manifest world (D9, W4.4a) |
+| 29 + 8 | an element or type not known | functions referenced as values by their mangled names; elements and types never admitted (W2.6, D9) |
+| 26 | a `validate` call reached the typer | a desugar that runs before typing and misses these forms: desugaring interleaved with typing (W2.3a push 2a, W3.6) |
+| 21 | no overload fits | the overload rule and the catalogue (W3.2, W3.3, W1.13) |
+| ~15 | "`renameColumns` expects literal pairs", "`generateTestData` needs its lambda INLINE", "`tableReference` expects (database, …)", "`flatten` expects (source, ~column)", "`join` expects …", "`cast` expects …", "`from()` argument must be a reference" | **shape checks**: a checker matches an argument's syntax and refuses the same value written another way; a compiler types values whatever their spelling. The few that need a compile-time value belong inside D8's fence (W4.2); the rest become typed arguments (W3.1, W3.3; `CallShapes` is in W2.3a push 2a's list) |
+| 6 | "expected a function-typed parameter, got `LambdaFunction<Any>`" | a lambda typed before its expected type is known: the solver's "reverse inference" rule (W3.3-1) |
+| ~10 | a type variable bound wrong, no common supertype, a property on `V` | the solver and the kernel's second half (W3.3, W3.5) |
+| 6 | walled by name | by design |
 
-**Done right.** Resolution happens once, in one place, and produces an identity, not a spelling: every call node
-carries a **referent** — an interned symbol naming a function id or a native overload group — assigned by the resolver
-for parsed calls and by the constructor for calls built later (a call built by the compiler is built from a symbol,
-never from a string). Every "does this call name X" check becomes an identity comparison. `BareNames.catalog`,
-`ResolvedNames`, the spelling matches (`TdsLegacy.bare`, `CoreFn.parseNames` by name) go. The name→symbol table is
-built once per model (the prelude's part once per process). This is what every mainstream front end does (a symbol
-table and interned names), and it is the ledger's PARK-5 acceptance, generalized to the resolver's own tiering.
+### 1.4 The correctness state, from the plan's own records
 
-**Judge.** The profile: `names` from 40% to a few percent; whole-world typing at or below today's 2.0 s; every lane
-unchanged (the corpus rosters, PCT, parser parity, the reference lane's overload picks). **Risk:** low in semantics
-(a name resolves to the same set, computed once), medium in reach (the ~200 construction sites). **Size:** medium.
+The plan's §1b and §3: the type checker agrees with legend-pure on about 72,000 calls (769 differ, the reference
+lane's OVERLOAD rows); seven of W0.6's thirteen wrong-answer pushes are done (1, 2, 3, 7, 8, 11, 13); the wrong-rows
+tool compared both engines on the seed data (4,686 of 4,729 equal, 22 row disagreements to attribute, GATES "Rebuild
+D23 (1)") and on damaged data (D23 (2)); the remaining pushes 9, 4, 5, 5b, 10 are judged by that tool's rows, 6 and 6b
+by the reference lane, 12 by its repros; D20 and D21 are open decisions that block one fix each. Today's stress run's
+15 failures are that attribution's work list. None of this was in revision 1.
 
-### F2. Arguments are typed more than once (the typer's shape)
+## 2. Each finding, mapped to the plan
 
-**Now.** The typer is one recursive `synth` (`Typer.java:150`), and `applyFunction` (`:360-590`) decides a call's
-route by typing its receiver and then **re-entering `synth` on rewritten syntax**: the row-getter check types the
-receiver (`:388`), the qualified-property route rebuilds the call and types its arguments again (`:458`, `:470`,
-`:543`), the auto-map rewrite wraps the receiver in a `map` and re-types it (`:525`, and `accessProperty:1294`), the
-derived zero-argument property re-applies its body function over the receiver (`:1316`), the derived shadow and the
-format-slot rewrite in `Overloads.applyGeneric` re-enter with raw arguments (`:123`, `:188`), and a function that must
-be inlined has the caller's **untyped** syntax substituted into its body and the whole typed from scratch
-(`Overloads.inlineNormalized:316-354`). Seven places; the ledger's PARK-6 lists them and the code confirms each. In a
-chain of such calls the work doubles at each level. The typer records nothing per typing, so results do not change;
-time does.
+| finding (revision 1's number) | in plain words | the plan's item and phase | what today adds |
+|---|---|---|---|
+| F1 names resolved more than once | the resolver finds what a bare name can mean; every later check asks again from the spelling | **W2.3a** (pushes 2c and 4b switch the 121 name readers to ids and delete `candidateFqns`), D12, W2.1; Phase 4; the bump's PARK-5 | measured: 40% of a whole-world compile, 12.7% of the stress run |
+| F2 arguments typed more than once | seven places re-enter the typer on rewritten syntax | **W3.4** (the inliner substitutes recorded instantiations, never re-types), **W4.2** (one hygienic engine over the typed tree replaces six: SourceSubst, UserCallInliner, StaticFold's inlining, AlphaRename, StatementInline, LiteralMapUnroll), the D24 cleanup (the "Now" line), W2.4 (member access, the auto-map rewrite), W2.7; Phase 3 and the cleanup; the bump's PARK-6 | the seven sites confirmed by reading; W1.0b's run will count re-entries per node |
+| F3 desugaring interleaved with typing | untyped rewrites inside the typer's call dispatch | W2.3a push 2a (the five rewriters through the query layer), **W3.6** (forms by declaration), W3.3-3 (the checker routes); Phase 4 | the 26 `validate` bodies and the shape checks are its correctness face |
+| F4 overloads as a score | a numeric score and five tie-breaks | **W3.2a/b** (the matcher: one lexicographic key over type and multiplicity distances, no score), **W3.3** (lite's own solver, D15, with a shadow period), W1.13; Phase 4; the bump's PARK-7..10; the bump's `FunctionMatch` holds legend-pure's ranking facts | 21 residue bodies |
+| F5 type variables by name | a callee's `T` is a string, renamed apart at every call | W3.3-2 keys the inference context by (context, name) as well: **amendment A3** | — |
+| F6 scopes copy; lets parked as syntax | `Env.with` copies a map per binding; deferred lets hold raw syntax | W2.5 (`VarId`), W3.3a (type facts before the loop); Phase 4 | the six `LambdaFunction<Any>` bodies |
+| F7 errors as strings, positions stop at the function | | **W1.2** in four pushes per the h4 design: (a) Phase 2, (b) to (d) Phase 4 | — |
+| F8 probes in the hot path | 39 static hooks, two environment reads in product code | W0.7 (Phase 1), the build program's D8 (delete `probe`), W6.4 | — |
+| F9 no compile benchmark | | **W1.0b** (Phase 1 step 4): plan latency p50/p95 over the 69 DataCube-shaped queries in `wasm/corpus/queries.tsv`, `//core:scale`, the reference-lane buckets | not built; today's two profiles are the stopgap: **amendment A2** |
+| F10 the back half unmeasured | | W4.3, W3.7 and D11; Phase 3 | measured today: no hot spot; structure |
+| F11 the parser must carry spans; the lazy-load guard | | W1.2(b), W1.9; W0.7 | — |
+| **F12 (new) islands copied, padded, lexed again** | | not in the plan: **amendment A1** | 14.4% of the stress run |
+| **F13 (new) the include closure and string-keyed model lookups** | | W2.1 (world tables), W2.6 (`Ref<Kind>`), D24's "mapping elaboration as one owner": **amendment A4** | 2.5% + 2.4% |
+| **F14 (new) shape checks refuse valid Pure** | | W3.1, W3.3, W4.2 and D8's fence: **amendment A5** | about 15 residue bodies plus the 26 `validate` ones |
+| **F15 (new) lambdas typed before their expected type** | | W3.3-1's rule table already names reverse inference | 6 bodies |
 
-**Done right.** Type each argument once, then decide on typed facts — *elaboration on the typed tree*. The
-type-directed rewrites (auto-map, qualified-property routing, the derived shadow, the format slots, must-inline)
-become transformations that take the already-typed arguments: a rewrite builds a typed node from typed nodes, never
-syntax it then re-synthesizes. The must-inline path substitutes typed arguments. One guard keeps it: a test that counts
-`synth` entries per source node (exactly one).
+## 3. What revision 1 got wrong
 
-**Judge.** Same results on every lane; typing time; the guard. **Risk:** medium — this is the typer's spine; the
-checkers that take raw syntax today (`TdsDesugars`, `CallShapes`, `ReceiverOwnedFunctions`) change their inputs.
-**Size:** medium-large; it is the heart of the typer rework.
+1. It was written without the plan, so it re-derived W2.3a, W3.4, W4.2, W3.2, W3.3, W2.5, W1.2, W0.7, W1.0b and W4.3
+   as "findings" and gave them a new order. The plan's rule 0b.18 ("build, don't re-plan" until C1) exists for this.
+2. "F9 comes first" proposed a new benchmark target; W1.0b already specifies one, in Phase 1.
+3. "F1 first after F9" put the front end before the middle; the plan's re-cut (approved 2026-09-29) argues the
+   opposite from the facts in §1.4, and today's measurement changes the weight of one item, not that argument. §4
+   puts the two options side by side.
+4. It said the back half was unmeasured and left it at that. Measured today; §1.2.
+5. It had no correctness findings. §1.3 and §1.4 are the correctness side; two of today's new findings (F14, F15) are
+   correctness, not speed.
+6. It did not know the plan's own open decisions (D9, D11, D19, D20, D21), which are the real decisions, all placed
+   at C1.
 
-### F3. Desugaring is interleaved with typing
+## 4. The one decision: where the rebuild resumes
 
-**Now.** `applyFunction` begins with a run of *untyped* rewrites — `col(fn, 'name')` to a column spec, `tdsRows`,
-`restrict`, `extractEnumValue`, TDS literals, path literals, the infix carrier — each a `return synth(rewritten)`
-(`Typer.java:367-431`, `:154`, `:179`); `CallShapes.toMultiplicityDesugar` and `expandLetBoundLambdaArgs` do the same
-inside the generic path. Some rewrites need types (auto-map); these do not.
+**Option A, recommended: resume at the plan's "Now" line and keep its order, with the amendments in §5.** The "Now"
+line is the D24 cleanup (one substitution engine, unique variable ids on the typed tree, mapping elaboration as one
+owner; self-contained in `compiler/spec` and the resolver, no SQL changes), then the rest of Phase 1: the remaining
+W0.6 pushes judged by the wrong-rows tool, W1.0b, the D11 experiment (W3.7), W0.7, then C1, where the user rules D9,
+D11, D19 to D21 and re-fits every size from logged cost. Why: the plan's reasoning holds (the typer already agrees
+with legend-pure on about 72,000 calls; the wrong answers and the worst tangle are in the middle); the items the user
+named are the resume point itself and Phase 3; and the one number that is new, the 40%, is a speed number with a
+low-risk item behind it, which C1 can move forward with the number in hand (A6). Cost: the names item waits for C1
+(roughly eight to twelve sessions of Phase 1 remain, by the plan's sizes and what is done).
 
-**Done right.** A **desugaring pass** between resolution and typing — surface syntax to core syntax, on the AST, once —
-so the typer sees only core forms. `applyFunction` shrinks to the core-construct dispatch (`applyCore`, exhaustive over
-`CoreFn`) plus the generic signature path. This is the standard front-end shape (surface → core → typed).
+**Option B: pull the names item forward.** After the D24 cleanup, run Phase 4's prefix, W2.1 → W2.2 → W2.2b(1) →
+W2.3a (eleven to fifteen sessions), before the rest of Phase 1. Why: the 40% is the biggest single number in the
+compiler, its semantic risk is low (a name resolves to the same set, computed once), and it makes every later typer
+item simpler. Cost: fifteen to twenty sessions on the front end before the wrong rows are attributed and before C1's
+decisions; W2.3a's pushes touch the same files as the bump's Phase 3 branch (which waits in either option); and it is
+a re-plan before C1, which the plan's rule 0b.18 forbids unless the user rules it.
 
-**Judge.** The same results; `applyFunction`'s length; the desugar pass's own unit tests. **Risk:** low. **Size:**
-small-medium; it falls out of F2.
+Revision 1's order (measure, names, one typing pass, overloads, diagnostics) is **withdrawn**: it is Option B plus a
+re-ordering of Phase 4 that the plan's catalogue already contains in better detail.
 
-### F4. Overload resolution is a score, not a specification
+## 5. The amendments to the plan (small; they apply under either option)
 
-**Now.** `InferenceKernel.score` (`:1248`) sums `typeScore * 20 + multScore` per parameter (exact 2, subtype 1, type
-variable or `Any` 0), then `resolveOverload` (`:1068-1215`) breaks ties with five older rules: duplicate signatures
-(first wins), a native over a module function, the most specific, `Nil` narrowing, the class linearization; the
-"present arguments" ranking (`Overloads.selectRankedByPresentArgs:781`) ranks before lambdas are typed and retries
-candidates in order (`checkWithDeferred:536-585`). The ledger rows PARK-7 to PARK-10 record what differs from
-legend-pure (`Any` ranked with the type parameters, tie-breaks legend-pure does not have, an acceptance test that
-admits what it rejects, three parts of its ranking not ported). The Phase 3 branch's step 1 ("overloads ranked as
-legend-pure ranks them", `FunctionMatch`) holds the facts.
+- **A1. Islands read from the same stream** (F12): `readIsland` returns a slice of the outer token stream with the
+  island's bounds, the line index shared, instead of a padded copy lexed again; the fourteen call sites (three parsers:
+  mapping, service stub data, relation islands) keep their spans. A Phase 1 push of at most half a session; gates: the parser-parity lane (spans unchanged), the stress corpus's
+  rows, the profile (parse from 16% to about 2% of the stress run).
+- **A2. W1.0b runs first**, before the cleanup, and its metrics gain the two phase shares measured today (names of a
+  whole-world compile; parse of the stress run), so every landing from here is a number moved, not a claim.
+- **A3. Type variables have identity** (F5): W3.3's rule table and solver key the inference context by a fresh
+  variable per instantiation, not by (context, name); W2.5 gives binders ids, this gives type variables the same.
+- **A4. The include closure is a built fact** (F13): computed once per model in W2.1's world tables; mapping lookups
+  by `Ref<Kind>` (W2.6); D24's "mapping elaboration as one owner" names it.
+- **A5. Every shape check becomes a typed argument or a fenced evaluation** (F14): W3.1 inventories the family
+  (the "expects literal" refusals), W3.3 types the arguments, W4.2's D8 fence takes the ones that need a compile-time
+  value; a refusal lite keeps on purpose becomes a `SEMANTICS_REGISTER.md` row, per rule 0b.13.
+- **A6. At C1, W2.3a's place is re-weighed with the 40%** (the plan already says every size is re-fitted there); if
+  the user wants the names win before the middle, it is the first item after C1.
+- **A7. The bump's Phase 3 branch is reference material** for W2.3a (forms by id, `candidateFqns` deleted there too)
+  and W3.2 (`FunctionMatch`, legend-pure's ranking rules), not a landing; its five commits are read before those items
+  start.
 
-**Done right.** Overload resolution as a **stated partial order with laws** — most specific wins; `Any` is a concrete
-top type; a lambda argument is typed against each candidate it could fit (as today, bounded); a genuine tie is an
-error, named — written down in one place (`FunctionMatch`), with a table of legend-pure's picks as the test (the Phase
-3 probe's data), and no numeric score. Which programs compile where legend-pure refuses (PARK-9, PARK-14) is a
-semantic choice for the user, recorded in `SEMANTICS_REGISTER.md` either way.
+## 6. Decisions for the user
 
-**Judge.** The reference lane's overload picks (the probe), the corpus, PCT. **Risk:** medium (a pick that changes is
-an output change — which is exactly what the lanes catch). **Size:** medium.
+1. Option A (recommended) or Option B in §4.
+2. The bump's Phase 3 branch as a reference, not a landing (A7; agreed in conversation on 2026-10-07; this confirms
+   it in writing).
 
-### F5. The inference engine is sound but by names
+Everything else is the plan's own: D9, D11, D19, D20, D21 at C1, as its §4 says.
 
-**Now.** `Bindings` maps type-variable *names* to types (`Bindings.java:54-55`), so a callee's `T` must be renamed
-apart from the caller's at every call (`SignatureApart`, `InferenceKernel.resolveChosen:1265`); unification is a
-structural switch over the type language with a nominal lattice, `Nil` as bottom, the schema algebra for relation
-columns (`InferenceKernel.unify:104-331`). It works (the corpus says so); it is more fragile than it needs to be.
+## 7. What does not change
 
-**Done right.** Type variables with **identity** (fresh per instantiation, never a string), a substitution keyed by
-them, an occurs check; the same unification otherwise. **Judge:** the kernel's own tests, then the lanes. **Risk:**
-low-medium. **Size:** small-medium. Not first: nothing measured points at it; it pays when F2 and F4 are done.
+The output oracle and the gates (the corpus rosters, PCT, parser parity, the reference lane, the stress corpus and
+the wrong-rows tool); the plan's rules (§0b: no string identity, no caches before the algorithm is right, no tolerant
+modes, net deletion, build don't re-plan); the layer contract (`AGENTS.md`); the no-PR landing procedure with an
+audit, the local gate and one CI run per landing; design before code for each item (W2.3a, W3.3 and W1.2 have theirs
+in `docs/plan-audit-2026-09-26/`).
 
-### F6. Scopes copy, and some bindings are syntax
+## 8. Evidence
 
-**Now.** `Env.with` copies a `LinkedHashMap` per binding (`Env.java:45`): quadratic in a body's lets. "Deferred" lets
-park raw syntax (trees, column specs) to be typed at a consuming call (`Env.withDeferred`, `SpecCompiler:300-320`,
-`Typer:286-292`): a value without a type until something reads it.
-
-**Done right.** A chained or persistent scope (constant-time binding, no copy); and the deferred kinds typed as the
-values they are (a graph-fetch tree literal has a type; a column spec is a value of a spec type), so nothing is parked
-as syntax. **Judge:** the same results; the lets-heavy corpus bodies. **Risk:** low for the scope; medium for the
-deferred kinds (their consumers are several checkers). **Size:** small for the scope, medium for the kinds.
-
-### F7. Errors are strings, and positions stop at the function
-
-**Now.** 232 `throw new TypeInferenceException("…" + …)` in the typer; a failure names the enclosing function
-("Positions stopgap … the expression-level [line:col] is the deferred big lift", `SpecCompiler.compile:97-105`); the
-first error ends a body's typing. The tolerant mode (`buildModule`) collects walls per element, not per expression.
-The AST carries positions on some nodes (`AppliedFunction.pos`), not all.
-
-**Done right.** A **diagnostic** type (a code, a span, a message, notes), spans on every node from the parser,
-recoverable typing (an error node poisons its parents and typing continues, so a body reports all its errors), and
-the same diagnostics feeding the LSP (`ide`) and the test runners. This is what makes a compiler feel expert to its
-user. **Judge:** message tests; the corpus rosters and PCT pin some messages by text, so a message change has a cost
-to plan (a mapping from old to new texts in one commit). **Risk:** low in semantics, high in surface. **Size:** medium.
-
-### F8. Instrumentation sits in the hot path
-
-**Now.** 39 `DecisionProbe.…` hooks in 10 product files, inside `applyFunction`, `candidatesOf`, the resolver (the
-`INSTALLED != null` guards); `LL_TDG_DEBUG` and `LEGEND_LITE_RAW_EXPAND_TRACE` environment reads in product code
-(`InferenceKernel:1277`, PARK-13). The build program's D8 deletes `probe`.
-
-**Done right.** One tracing seam — an interface the typer calls through a single field, a no-op by default — or
-nothing; no static hooks, no environment variables. **Judge:** the guard that forbids them (`ObservabilityGuardrailTest`
-exists; extend). **Risk:** none. **Size:** small; do it with D8.
-
-### F9. There is no compile benchmark
-
-**Now.** The eager probe measures the whole-world compile; nothing measures the per-query path, which is what the
-product's users feel. The 60k lines of store resolver and lowering have never been profiled.
-
-**Done right.** A **benchmark target** (`//core:compile_bench`, manual, a measurement on CI like the probe): a fixed set
-of queries (the corpus's, DataCube's shapes, Studio's) against a built model, parse → SQL, p50 and p99 per phase, JFR
-on request; its numbers in the evidence folder whenever a landing above claims a gain. **Risk:** none. **Size:** small.
-**It comes first**, because every other item is judged by it.
-
-### F10. The back half, unmeasured
-
-The store resolver (`StoreResolver` 3.5k, `Substitution` 3.5k, `GraphEmission` 3.3k, `CorrelatedSubselects` 2.9k,
-`TemporalFrame` 2.8k, …) and the lowering (`Lowerer` 3.5k, `Scalars` 3.5k, `VerdictSql` 1.7k, `Fold` 1.4k) are the
-two biggest packages. Nothing in today's measurement reaches them. **Decide after F9's numbers**, not before.
-
-### F11. Smaller things, true but not urgent
-
-Invariant 5 (lazy loading of user elements) has no guard since the engine module's deletion (`AGENTS.md`); the
-parser is 15k lines of hand-written recursive descent (mainstream, fine) but must carry spans for F7; `Pure.java`
-registers 837 natives as static fields (fine; F1 interns them); the inliner rewrites the typed tree before lowering
-(inherent to Pure-to-SQL; keep).
-
-## 2. The order, and why
-
-1. **F9 — measure first** (small): the benchmark, so every claim below is a number on CI.
-2. **F1 — names once** (medium): the 40%, the lowest semantic risk, and it simplifies every check the typer makes.
-3. **F2 + F3 — the typer's single pass** (medium-large): desugar before typing; type once; elaborate on typed trees.
-   This is the typer rework the ledger's PARK-6 and PARK-7 wait for, and the one piece that needs its own design
-   detail before code (the seven routes, each as a typed transformation; the must-inline path; the guard).
-4. **F4 — overload resolution as a specification** (medium): on the single pass, with the Phase 3 branch's step 1
-   as the facts and legend-pure's picks as the test; PARK-7..10 close; PARK-9 and PARK-14 are the user's semantic
-   choices.
-5. **F7 — diagnostics** (medium): spans everywhere, errors as data, recoverable typing; the message pins migrated
-   in one commit.
-6. **F5, F6** as F2 and F4 reveal the need (fresh type variables; the scope; the deferred kinds as values).
-7. **F8** with D8, any time.
-8. **F10** on F9's numbers.
-
-**Where Phase 3's branch goes.** Its five commits touch exactly the files items 2-4 rewrite (`Typer`, `Overloads`,
-`InferenceKernel`, `FunctionMatch`, `StatementInline`, `UserCallInliner`, `ResolvedNames`); the user's call on
-2026-10-07 is that the compiler is fixed before the bump's restructuring lands. So the branch is **a reference, not a
-landing**: its facts survive (legend-pure's ranking rules, the names calls resolve to, the forms and the legacy TDS
-knowledge, the corpus fixes), its code is written again on the new typer; the bump phases (candidates and
-implementations by id, forms, boot-layer versions by resolved names) follow on that base, and the prelude with them.
-
-## 3. What does not change
-
-The output oracle and the gates (the corpus rosters, PCT, parser parity, the reference lane, the stress corpus); the
-layer contract (`AGENTS.md`); "no fallbacks, no defaulting"; the no-PR landing procedure with an audit, the local gate
-and one CI run per landing; design before code for each item above (F2+F3 and F7 get a short design of their own).
-
-## 4. Decisions for the user
-
-1. The order above, and that Phase 3's branch becomes a reference.
-2. F7's cost: messages pinned by text in the corpus rosters and PCT change in one commit (a mapping, not a drift).
-3. The semantic choices the ledger leaves open: a dot call with no qualified property (PARK-14: refuse as legend-pure
-   does, or keep the leniency and record it); the acceptance test's extra admissions (PARK-9: match legend-pure's, or
-   record ours).
-4. F9's query set: which product queries define "fast".
-
-## 5. Evidence
-
-The eager probe's report and the Flight Recorder aggregation of 2026-10-07 go to
-`docs/build-inventory/program/evidence/compiler/` with this document's landing (the probe is
-`bazel build //spec:eager_corpus_compile`; the profile ran the action's own command under
-`-XX:StartFlightRecording=settings=profile` with a writable repository, three times, 809 samples). The ledger rows
-PARK-5 to PARK-14 are on the Phase 3 branch (`docs/PARKED_WORK_LEDGER.md` there); their anchors were checked against
-the code today and hold.
+`docs/build-inventory/program/evidence/compiler/`: `EAGER_COMPILE_PROFILE_2026_10_07.md` and `jfr_phases.py`
+(revision 1's measurement); `STRESS_PROFILE_2026_10_07.md`, `jfr_other.py`, `jfr_callers.py` (§1.2);
+`EAGER_RESIDUE_2026_10_07.md`, `residue_shapes.py`, `eager-residue-2026-10-07.txt` (§1.3). The plan's numbers are its
+§1b and §3; the gate entries are `docs/GATES.md`, "— Rebuild". The bump's ledger rows PARK-5 to PARK-14 are on the
+Phase 3 branch (`docs/PARKED_WORK_LEDGER.md` there); their code anchors were checked today and hold.
