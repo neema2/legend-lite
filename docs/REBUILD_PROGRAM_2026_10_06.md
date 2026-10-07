@@ -172,7 +172,7 @@ on a branch, one CI run, then pushed to main.
   not refused as first planned. Open, the user's call: about 12 upstream versions at the boot layer's 29 names
   (`resolvePrimaryKey`, `propertyMappingsByPropertyName`, `inferRelationalType`, ...) run upstream's body as before.
   About 480 places still branch on a resolved callee's full name (the identity guard's shrink-only counts); Phase 3 did
-  not take those.
+  not take those. Phase 3b, re-scoped 2026-10-07, takes over neither W1.1b nor the typing work at large.
 
 ### Phase 3b: what the bump and users need from the compiler (core compiler)
 Re-scoped with the user 2026-10-07, after the census (`docs/build-inventory/manifest-world/experiments/phase3b-census/`):
