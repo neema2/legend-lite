@@ -116,9 +116,12 @@ jobs:
       # cached: build outputs (GitHub keeps 10 GB per repository), and the test pools' jars (the product job saves
       # right after the product build, before its analysis of //... fetches every pool: that cache was 19 GB). Every
       # lane restores the entry; only the product job saves it, since actions/cache never adds to an existing key.
-      # linux-arm has no product job, so its one lane (warehouse) saves at its end. Not saved either: `contents/`, Bazel
-      # 9's repo contents cache -- the UNPACKED repositories, which it keeps inside the repository cache's folder (13 of
-      # Linux's 16 GB in L1c's run, evidence §10). Bazel keeps using that cache during the job: the first cut of L1d
+      # linux-arm has no product job, so its one lane (warehouse) saves at its end. What is saved is the downloads folder
+      # itself, `content_addressable/`, and not `contents/` beside it: Bazel 9's repo contents cache, the UNPACKED
+      # repositories (13 of Linux's 16 GB in L1c's run, evidence §10). A negated pattern (`!~/.cache/bazel-repo/contents`)
+      # was tried first and saved everything (L1e's warm run: Linux 6.28 GB again, evidence §11): `path` matches entries,
+      # not trees, so the folder's own entry matched and tar archived everything beneath it, and the negation had nothing
+      # to remove; a positive path has nothing to get wrong. Bazel keeps using its contents cache during the job: the first cut of L1d
       # disabled it instead, and on Windows the product job's `--config=bazel10` command, whose incompatible flags make
       # Bazel refetch every repository, then re-extracted the JDK over its own java.dll, held open by a worker
       # ("Permission denied", the cold run of L1e, 2026-10-07); re-linking from the contents cache has no such step.
@@ -126,9 +129,7 @@ jobs:
         id: repo
         uses: actions/cache/restore@v4
         with:
-          path: |
-            ~/.cache/bazel-repo
-            !~/.cache/bazel-repo/contents
+          path: ~/.cache/bazel-repo/content_addressable
           key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
           restore-keys: |
             bazel-repo-${{ inputs.platform }}=
@@ -191,18 +192,16 @@ jobs:
           # the app package too (L1c, 2026-10-07): packaging, so the product job's (the datacube lane builds it again, as
           # package_test's data)
           bazel build "${flags[@]}" //:java //:web //:wasm //:native //:sites //datacube:app //datacube:app_package
-          # what the cache holds and what is saved (the whole folder less contents/, the unpacked repositories): the
-          # downloads were 3.1 GB on Linux, 1 GB on macOS and Windows in L1c's run (evidence §10), under the 10 GB cap
-          du -sh "$HOME/.cache/bazel-repo" "$HOME/.cache/bazel-repo/contents" 2>/dev/null || true
+          # the folder, what is saved (content_addressable/, the downloads: 3.1 GB on Linux, about 1 GB on macOS and Windows in
+          # the cold run of L1e, under the 10 GB cap) and what is not (contents/, the unpacked repositories)
+          du -sh "$HOME/.cache/bazel-repo" "$HOME/.cache/bazel-repo/content_addressable" "$HOME/.cache/bazel-repo/contents" 2>/dev/null || true
       # the downloads saved once per platform and pin hash, by the product job once the product is built (above);
       # the lanes never save (actions/cache never adds to an existing key: the first saver would fix the content)
       - name: Bazel downloads, saved by the product job
         if: matrix.lane.key == 'product' && steps.repo.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: |
-            ~/.cache/bazel-repo
-            !~/.cache/bazel-repo/contents
+          path: ~/.cache/bazel-repo/content_addressable
           key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
       - name: bazel ${{ matrix.lane.cmd }} ${{ matrix.lane.key }}
         env:
@@ -280,7 +279,5 @@ jobs:
         if: always() && inputs.platform == 'linux-arm' && steps.repo.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: |
-            ~/.cache/bazel-repo
-            !~/.cache/bazel-repo/contents
+          path: ~/.cache/bazel-repo/content_addressable
           key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
