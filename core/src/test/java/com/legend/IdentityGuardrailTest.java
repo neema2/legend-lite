@@ -137,18 +137,18 @@ class IdentityGuardrailTest {
             // written on a local variable the pattern never saw; the tiers are data
             // now (TierFqn) and the same test reads fqn(), so the pattern sees it.
             // Retired when the surface is a declaration fact (step 3, Bindings).
-            Map.entry("NAME_COMPARE", 208),
+            Map.entry("NAME_COMPARE", 205),   // 208 -> 205 (2026-10-06, build rebuild Phase 3: measured when the table became the one authority)
             Map.entry("NAME_COMPARE_REVERSED", 81),
             Map.entry("LITERAL_NAME_COMPARE", 65),   // 64 -> 65 (2026-09-27, T4a): protocol/ProtocolUpgrade, upstream's protocol converter for a Result variable ("meta::pure::mapping::Result" on the WIRE, before any resolution)
             Map.entry("NAME_AFFIX_TEST", 51),
-            Map.entry("NAME_CUTTING", 106),   // 104 -> 106 (2026-09-27, T4a): protocol/PureComposer prints as upstream's printer does -- it strips a wire function name's package to match its special forms and splits a path to quote each segment; 105 -> 104 (2026-09-26, step 2: the unroller's bare-name cut retired with its by-name fold test)
+            Map.entry("NAME_CUTTING", 105),   // 106 -> 105 (2026-10-06, build rebuild Phase 3: measured)
             Map.entry("SIGNATURE_ID_CUTTING", 1),
-            Map.entry("CATALOG_LOOKUP_BY_NAME", 10),   // 170 -> 10 (2026-09-26, execution plan step 2: every rule table registers the catalog's generated overload groups and is keyed by FunctionId; nativeKeysAt/nativeNamed/registeredAt and the bare index are deleted; the 10 left are QUALIFIED lookups, nativeFunctionsAt(fqn), which step 3 turns into declaration-table reads)
-            Map.entry("FAMILY_LOOKUP_BY_NAME", 33),   // 87 -> 33 (2026-09-26, execution plan step 2: every implementer family is asked by the callee's FunctionId — 54 sites — and the by-name lookups those sites used are deleted from NativeFn; the 33 left are CoreFn.of(spelling) and RowGetter.of(spelling) in the typer, step 3/5)
-            Map.entry("FUNCTION_CATEGORY_CHECK", 14),   // 13 -> 14 (2026-09-26, step 2): not a new site — StatementInline's statement-only check was spelled as a method reference the pattern missed; the pattern now sees both spellings and the count is the true 14
+            Map.entry("CATALOG_LOOKUP_BY_NAME", 8),   // 10 -> 8 (2026-10-06, build rebuild Phase 3: candidates merge by function id, StatementInline asks the definition's own row)
+            Map.entry("FAMILY_LOOKUP_BY_NAME", 13),   // 33 -> 13 (2026-10-06, build rebuild Phase 3: a form is read off the names a call resolves to, ResolvedNames.form)
+            Map.entry("FUNCTION_CATEGORY_CHECK", 9),   // 14 -> 9 (2026-10-06, build rebuild Phase 3: the PCT rule and the platform-owned and assert-family lists are gone)
             Map.entry("MINT_BY_NAME", 142),   // 143 -> 142 (2026-09-27: the #>{}# island's record is built by ONE factory, AppliedFunction.tableReference, for the parser and the protocol reader; the parser's two mints went into it)
-            Map.entry("FORM_DISPATCH_BY_NAME", 21),
-            Map.entry("LOCAL_NAME_COMPARE", 87),   // 90 -> 87 (2026-09-26, step 2: three local-name compares in the rule tables left with the bare names)
+            Map.entry("FORM_DISPATCH_BY_NAME", 1),   // 21 -> 1 (2026-10-06, build rebuild Phase 3: ResolvedNames.form)
+            Map.entry("LOCAL_NAME_COMPARE", 85),   // 87 -> 85 (2026-10-06, build rebuild Phase 3: measured)
             Map.entry("CASE_NAME_LABEL", 4),
             Map.entry("PARSE_NAME_LOOKUP", 3));
 

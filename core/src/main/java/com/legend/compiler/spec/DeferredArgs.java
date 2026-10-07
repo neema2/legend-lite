@@ -49,7 +49,7 @@ final class DeferredArgs {
      *  lambda: after the enclosing overload is chosen. */
     static boolean isOverCall(ValueSpecification p) {
         return p instanceof AppliedFunction af
-                && CoreFn.of(af.function()).orElse(null) == CoreFn.OVER;
+                && com.legend.compiler.ResolvedNames.form(af).orElse(null) == CoreFn.OVER;
     }
 
     /** A NON-EMPTY collection literal of lambdas — {@code filter([t|...])} /

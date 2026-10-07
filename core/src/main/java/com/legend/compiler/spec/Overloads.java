@@ -963,7 +963,7 @@ final class Overloads {
         for (int si = 0; !multiStatement && si < lam.body().size() - 1; si++) {
             ValueSpecification st = lam.body().get(si);
             if (st instanceof AppliedFunction lf2
-                    && CoreFn.of(lf2.function()).orElse(null) == CoreFn.LET
+                    && com.legend.compiler.ResolvedNames.form(lf2).orElse(null) == CoreFn.LET
                     && lf2.parameters().size() == 2
                     && lf2.parameters().get(0) instanceof CString ln) {
                 TypedSpec val = synth(lf2.parameters().get(1), lambdaScope);

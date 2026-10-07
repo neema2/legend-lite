@@ -736,11 +736,11 @@ public final class ScanRelations {
     private static void collectTableToTds(ModelContext ctx,
             ValueSpecification n, List<Node> out) {
         if (n instanceof AppliedFunction af) {
-            if (com.legend.platform.CoreFn.of(af.function()).orElse(null)
+            if (com.legend.compiler.ResolvedNames.form(af).orElse(null)
                             == com.legend.platform.CoreFn.TABLE_TO_TDS
                     && !af.parameters().isEmpty()
                     && af.parameters().get(0) instanceof AppliedFunction tr
-                    && com.legend.platform.CoreFn.of(tr.function()).orElse(null)
+                    && com.legend.compiler.ResolvedNames.form(tr).orElse(null)
                             == com.legend.platform.CoreFn.TABLE_REFERENCE
                     && tr.parameters().size() >= 3
                     && tr.parameters().get(0)

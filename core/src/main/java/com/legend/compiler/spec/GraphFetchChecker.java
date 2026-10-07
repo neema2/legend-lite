@@ -252,7 +252,7 @@ final class GraphFetchChecker {
      */
     static ValueSpecification unwrapCompiledTree(ValueSpecification v) {
         if (v instanceof AppliedFunction c
-                && CoreFn.of(c.function()).orElse(null) == CoreFn.CAST
+                && com.legend.compiler.ResolvedNames.form(c).orElse(null) == CoreFn.CAST
                 && !c.parameters().isEmpty()) {
             ValueSpecification inner = unwrapCompiledTree(c.parameters().get(0));
             return inner instanceof GraphFetchLiteral ? inner : v;

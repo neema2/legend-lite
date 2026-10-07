@@ -437,8 +437,8 @@ final class TdsDesugars {
 
     private static boolean isLegacySortKey(ValueSpecification v) {
         return v instanceof AppliedFunction sf
-                && (CoreFn.of(sf.function()).orElse(null) == CoreFn.ASC
-                        || CoreFn.of(sf.function()).orElse(null) == CoreFn.DESC)
+                && (com.legend.compiler.ResolvedNames.form(sf).orElse(null) == CoreFn.ASC
+                        || com.legend.compiler.ResolvedNames.form(sf).orElse(null) == CoreFn.DESC)
                 && sf.parameters().size() == 1
                 && sf.parameters().get(0) instanceof CString;
     }

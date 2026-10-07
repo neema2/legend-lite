@@ -133,7 +133,7 @@ final class ProjectChecker {
 
     private static ValueSpecification stripCast(ValueSpecification v) {
         return v instanceof AppliedFunction c
-                && CoreFn.of(c.function()).orElse(null) == CoreFn.CAST
+                && com.legend.compiler.ResolvedNames.form(c).orElse(null) == CoreFn.CAST
                 && c.parameters().size() == 2
                 ? c.parameters().get(0) : v;
     }

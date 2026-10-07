@@ -143,7 +143,7 @@ public final class SourceSubst {
             return ni;
         }
         if (v instanceof AppliedFunction af
-                && CoreFn.of(af.function()).orElse(null) == CoreFn.NEW
+                && com.legend.compiler.ResolvedNames.form(af).orElse(null) == CoreFn.NEW
                 && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof com.legend.protocol.spec.NewInstance ni2) {
             return ni2;
@@ -156,7 +156,7 @@ public final class SourceSubst {
      * fold and the lambda-local shadow-stop so the spelling lives once. */
     public static @com.legend.base.Nullable CString letName(ValueSpecification st) {
         return st instanceof AppliedFunction lf
-                && CoreFn.of(lf.function()).orElse(null) == CoreFn.LET
+                && com.legend.compiler.ResolvedNames.form(lf).orElse(null) == CoreFn.LET
                 && lf.parameters().size() == 2
                 && lf.parameters().get(0) instanceof CString name
                 ? name : null;

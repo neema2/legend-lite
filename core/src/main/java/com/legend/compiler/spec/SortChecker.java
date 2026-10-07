@@ -237,7 +237,7 @@ final class SortChecker {
     }
 
     private static boolean isSortDirection(AppliedFunction f) {
-        Optional<CoreFn> fn = CoreFn.of(f.function());
+        Optional<CoreFn> fn = com.legend.compiler.ResolvedNames.form(f);
         return fn.isPresent() && (fn.get() == CoreFn.ASC || fn.get() == CoreFn.DESC);
     }
 
@@ -257,7 +257,7 @@ final class SortChecker {
         if (vs instanceof AppliedFunction f && isNullPlacement(f) && f.parameters().size() == 1) {
             TypedSort.TypedSortKey inner = keysFromAst(f.parameters().get(0)).get(0);
             return List.of(new TypedSort.TypedSortKey(inner.column(), inner.ascending(),
-                    CoreFn.of(f.function()).orElseThrow() == CoreFn.EMPTY_FIRST
+                    com.legend.compiler.ResolvedNames.form(f).orElseThrow() == CoreFn.EMPTY_FIRST
                             ? TypedSortInfo.NullOrder.FIRST : TypedSortInfo.NullOrder.LAST));
         }
         if (vs instanceof AppliedFunction f && isSortDirection(f)
@@ -273,14 +273,14 @@ final class SortChecker {
                 order = TypedSortInfo.NullOrder.valueOf(ev.value());
             }
             return List.of(new TypedSort.TypedSortKey(cs.name(),
-                    CoreFn.of(f.function()).orElseThrow() == CoreFn.ASC, order));
+                    com.legend.compiler.ResolvedNames.form(f).orElseThrow() == CoreFn.ASC, order));
         }
         throw new TypeInferenceException("expected sort key(s) (asc(~col) / desc(~col) / "
                 + "emptyFirst() / emptyLast()), got " + vs.getClass().getSimpleName());
     }
 
     private static boolean isNullPlacement(AppliedFunction f) {
-        Optional<CoreFn> fn = CoreFn.of(f.function());
+        Optional<CoreFn> fn = com.legend.compiler.ResolvedNames.form(f);
         return fn.isPresent() && (fn.get() == CoreFn.EMPTY_FIRST || fn.get() == CoreFn.EMPTY_LAST);
     }
 

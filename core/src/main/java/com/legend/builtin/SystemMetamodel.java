@@ -1480,7 +1480,11 @@ public final class SystemMetamodel {
         }
         if (e instanceof com.legend.model.FunctionDefinition f
                 && sys instanceof com.legend.model.FunctionDefinition g) {
-            if (f.parameters().size() != g.parameters().size()) {
+            // by function id (build rebuild Phase 3): another version under the name — another multiplicity or
+            // return — is its own function, never a shadow; the type spellings below tell apart two functions the
+            // id cannot (it spells types by their short names)
+            if (!com.legend.model.FunctionId.of(f).equals(com.legend.model.FunctionId.of(g))
+                    || f.parameters().size() != g.parameters().size()) {
                 return false;
             }
             for (int i = 0; i < f.parameters().size(); i++) {

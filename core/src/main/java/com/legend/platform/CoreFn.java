@@ -398,10 +398,17 @@ public enum CoreFn {
         return parseNames[0];
     }
 
+    /** The form that owns a full name ({@link #OWNS}), or empty. */
+    public static Optional<CoreFn> owning(String fqn) {
+        return Optional.ofNullable(OWNER_OF.get(fqn));
+    }
+
     /**
-     * The single string&rarr;construct resolution point: the parse-time name of an
-     * applied function, to its core construct &mdash; or empty for a library call
-     * (which rides the generic path).
+     * The parse-time name of an applied function, to its core construct &mdash; or
+     * empty for a library call (which rides the generic path). A call reaches this
+     * through {@code ResolvedNames.form}, which reads the names the call resolves to
+     * first (build rebuild Phase 3); this spelling lookup answers only for a full name
+     * or a bare name the resolver found nothing for.
      */
     public static Optional<CoreFn> of(String parseName) {
         CoreFn direct = BY_NAME.get(parseName);

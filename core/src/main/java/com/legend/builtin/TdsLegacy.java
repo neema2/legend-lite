@@ -20,6 +20,8 @@ package com.legend.builtin;
  * of typer desugars is an open finding of the batch-5 audit.
  */
 public enum TdsLegacy {
+    /** the TDS-era aggregate spec groupBy's legacy form takes ({@code agg('count', x|$x, y|$y->count())}) */
+    AGG("meta::pure::tds::agg"),
     COL("meta::pure::tds::col"),
     FUNC("meta::pure::tds::func"),
     WINDOW("meta::pure::tds::window"),
@@ -55,14 +57,15 @@ public enum TdsLegacy {
         return fqn;
     }
 
-    /** Whether an applied (pre-resolution) name spells this form exactly —
-     *  its upstream FQN or its bare name. */
-    public boolean matches(String appliedName) {
-        return appliedName.equals(bare()) || appliedName.equals(fqn);
-    }
-
-    /** Whether the applied function spells this form. */
+    /** Whether a call names this function (build rebuild Phase 3): its exact FQN, or among the candidates the
+     *  resolver left on a bare name; a bare name the resolver found nothing for is read by its spelling. */
     public boolean matches(com.legend.protocol.spec.AppliedFunction af) {
-        return matches(af.function());
+        String name = af.function();
+        if (name.equals(fqn)) {
+            return true;
+        }
+        // a bare name's candidates, else (the resolver found nothing for it) its spelling — a full name that is not
+        // this one is neither
+        return af.candidateFqns().isEmpty() ? name.equals(bare()) : af.candidateFqns().contains(fqn);
     }
 }

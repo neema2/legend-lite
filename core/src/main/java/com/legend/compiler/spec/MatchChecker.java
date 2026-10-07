@@ -382,7 +382,7 @@ final class MatchChecker {
             return spelledArmsOf(af.parameters().get(0));
         }
         if (vs instanceof AppliedFunction af && af.parameters().size() == 2
-                && CoreFn.of(af.function()).filter(f -> f == CoreFn.CONCATENATE).isPresent()
+                && com.legend.compiler.ResolvedNames.form(af).filter(f -> f == CoreFn.CONCATENATE).isPresent()
                 && af.parameters().get(1) instanceof PureCollection c
                 && !c.values().isEmpty()
                 && c.values().stream().allMatch(v -> v instanceof LambdaFunction)) {
@@ -399,7 +399,7 @@ final class MatchChecker {
             return dynamicArmsPrefix(af.parameters().get(0), env);
         }
         if (vs instanceof AppliedFunction af && af.parameters().size() == 2
-                && CoreFn.of(af.function()).filter(f -> f == CoreFn.CONCATENATE).isPresent()
+                && com.legend.compiler.ResolvedNames.form(af).filter(f -> f == CoreFn.CONCATENATE).isPresent()
                 && spelledArmsOf(vs) != null) {
             return Optional.of(af.parameters().get(0));
         }

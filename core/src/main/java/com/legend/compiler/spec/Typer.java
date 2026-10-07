@@ -280,7 +280,7 @@ final class Typer {
                     List<TypedSpec> stmts = new ArrayList<>();
                     for (int si = 0; si < lf.body().size() - 1; si++) {
                         if (lf.body().get(si) instanceof AppliedFunction lset
-                                && CoreFn.of(lset.function()).orElse(null) == CoreFn.LET
+                                && com.legend.compiler.ResolvedNames.form(lset).orElse(null) == CoreFn.LET
                                 && lset.parameters().size() == 2
                                 && lset.parameters().get(0) instanceof CString ln) {
                             // bind-once (family A): deferred-kind rhs
@@ -458,7 +458,7 @@ final class Typer {
                 return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(), qargs), env);
             }
         }
-        Optional<CoreFn> core = CoreFn.of(af.function());
+        Optional<CoreFn> core = com.legend.compiler.ResolvedNames.form(af);
         if (core.isPresent()) {
             com.legend.builtin.DecisionProbe.form(af.function(), core.get().name());
             // real pure resolves by TYPE: a model function of this name whose
@@ -1663,7 +1663,7 @@ final class Typer {
 
     private static boolean legacyAggCall(ValueSpecification v) {
         return v instanceof AppliedFunction c
-                && GroupByChecker.isAggSpelling(c.function())
+                && GroupByChecker.isAgg(c)
                 && c.parameters().size() == 2
                 && c.parameters().get(0) instanceof LambdaFunction
                 && c.parameters().get(1) instanceof LambdaFunction;
@@ -1675,7 +1675,7 @@ final class Typer {
         // purposes: it types only at its graphFetch/serialize consumer
         // (GraphFetchChecker.unwrapCompiledTree strips the cast)
         if (v instanceof AppliedFunction c
-                && CoreFn.of(c.function()).orElse(null) == CoreFn.CAST
+                && com.legend.compiler.ResolvedNames.form(c).orElse(null) == CoreFn.CAST
                 && c.parameters().size() == 2
                 && (c.parameters().get(0) instanceof com.legend.protocol.spec.QuotedTreeCall
                         || c.parameters().get(0)
@@ -1686,7 +1686,7 @@ final class Typer {
         // ...]->cast(@BasicColumnSpecification<Firm>)`) parks the same
         // way: its specs type only against the project that consumes it
         if (v instanceof AppliedFunction c2
-                && CoreFn.of(c2.function()).orElse(null) == CoreFn.CAST
+                && com.legend.compiler.ResolvedNames.form(c2).orElse(null) == CoreFn.CAST
                 && c2.parameters().size() == 2
                 && deferredLetRhs(c2.parameters().get(0))) {
             return true;

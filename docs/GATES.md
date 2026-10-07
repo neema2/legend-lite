@@ -7979,3 +7979,49 @@ the user: keep refusing, or write the value as its literal on H2); PARK-20, a li
 unmeasured against the engine), a class instance, a Byte, LatestDate or StrictTime value. Found on the way: today's
 server path answers no rows for an optional parameter sent empty, where the engine answers the rows whose value is empty;
 plans answer as the engine does, and step 4 retires that path.
+## 2026-10-06 — Build rebuild Phase 3: one table decides, by function id; overloads ranked as legend-pure ranks them
+
+The plan: `docs/REBUILD_PROGRAM_2026_10_06.md` (plan branch), Phase 3; the pre-experiment:
+`docs/build-inventory/manifest-world/experiments/phase3-ranking/README.md`.
+
+1. **Ranking** (`compiler/spec/FunctionMatch.java`, a port of m3's `FunctionMatch`, `GenericTypeMatch`, `TypeMatch`,
+   `MultiplicityMatch` and `C3Linearization`): the parameters' type matches left to right, then their multiplicity
+   matches; the first difference decides. Two adaptations, each measured: `Any` ranks with the type parameters (legend-pure
+   matches the calls in a lambda before their arguments are typed: `relation::in` over `collection::in` for
+   `$d.col->in($rel)`, seen by running legend-pure itself), m3's literal order settling a remaining tie; a fit only a
+   platform rule accepts (a relation into `TabularDataSet`) ranks after every real parent.
+2. **Candidates by id**: every declaration at a name is a candidate, merged by function id; the PCT rule, the
+   platform-owned list and `withoutPreludeShadows`' by-name drop are gone. A version of a function the platform implements
+   with no row is refused (`Implementation.Reason.NO_ROW`); 26 versions got rows (`native-membership.tsv`): the 14 the
+   OVERLOAD rows needed and the 12 Boolean comparisons PCT calls. This reverses the 2026-10-05 entry's "the date `[1..*]`
+   overloads stay out": legend-pure resolves 22 of the lane's calls to them. The unrowed versions are a shrink-only
+   ratchet, 110.
+3. **Forms, the legacy TDS functions, `agg` and the boot layer's versions by the names a call resolves to**
+   (`ResolvedNames.form`, `TdsLegacy.matches`, `SystemMetamodel.shadows` by id).
+
+**The reference lane moved, in the right direction** (golden re-blessed in this push, `bazel run
+//spec:update_reference_lane`):
+
+| line | before | step 1 | step 2 | step 3 |
+|---|---|---|---|---|
+| our bodies FAILED | 1,508 | 1,508 | 1,490 | 1,471 |
+| reference typed, we FAILED | 1,335 | 1,335 | 1,318 | 1,300 |
+| AGREE | 73,103 | 73,176 | 73,977 | 74,578 |
+| OVERLOAD | 745 | 672 | 58 | 58 |
+| DRIFT | 32 | 32 | 0 | 0 |
+| PACKAGE, PROPERTY_AS_CALL | 14, 39 | unchanged | unchanged | unchanged |
+| ABSENT | 68,643 | 68,643 | 69,160 | 69,825 |
+| EXTRA | 15,938 | 15,938 | 15,988 | 16,223 |
+
+Step 1 fixed the class-hierarchy rows (`elementToPath` 32, `hasGeneratedMilestoningPropertyStereotype` 42); step 2 the
+617 calls whose legend-pure overload the by-name drops removed (`isEmpty` 523 among them). ABSENT and EXTRA grow by the
+form nodes and calls of the newly typed bodies. One new OVERLOAD class (`average` on `Number` against our `Integer`, 3
+calls: legend-pure types the argument `Number`). The 58 left are argument typing (Phase 3b).
+
+Bodies: 50 newly typed, 13 newly failing, all from step 2. Three were on the removed platform-owned list and are typed
+for the first time (`executionPlan`, `router::execute`, `loadCsvToDbTable(String, Table, ConnectionStore)`: the closure
+lacks the 4-argument `routeFunction` and `loadCsvToDbTable` they call). The rest call a name whose candidates grew and
+fail in typing: `getSignFunctions` (5 protocol versions; `Pair<Any,String>` where `Pair<Function<Any>,String>` is
+declared), `extractMappingsFromFunctionDefinition`, `shouldStopFunctions`, `varToString` (multiplicity unions),
+`flattenConcatenate` (no common supertype of `T` and `TabularDataSet`), `testViewChainsWithBusinessDate`
+(`toSQLString` over an `SQLResult`). legend-pure types them all: Phase 3b's list.

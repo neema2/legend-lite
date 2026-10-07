@@ -3,23 +3,23 @@
 
 == coverage
 reference functions	12380
-our functions	16076
-our bodies typed	17156
-our bodies FAILED	1508
+our functions	16094
+our bodies typed	17205
+our bodies FAILED	1471
 our sources DROPPED	32
-functions in both	11840
-reference only	540
+functions in both	11858
+reference only	522
 ours only	4236
-reference typed, we FAILED	1335
+reference typed, we FAILED	1300
 
 == buckets
-AGREE	73103
-OVERLOAD	745
+AGREE	74578
+OVERLOAD	58
 PACKAGE	14
-DRIFT	32
-ABSENT	68643
+DRIFT	0
+ABSENT	69825
 PROPERTY_AS_CALL	39
-EXTRA	15938
+EXTRA	16223
 
 == dropped sources
 /core/pure/corefunctions/unit.pure
@@ -57,7 +57,6 @@ EXTRA	15938
 
 == failed bodies
 meta::alloy::metadataServer::alloyToJSON_Any_1__String_1_
-meta::alloy::service::execution::schemaAndTableSetup_Database_1__DbConfig_1__Pair_MANY__String_MANY_
 meta::core::runtime::getRuntimeWithModelQueryConnection_Class_1__Binding_1__Byte_MANY__Runtime_1_
 meta::core::runtime::getRuntimeWithModelQueryConnection_Class_1__Binding_1__String_1__Runtime_1_
 meta::core::runtime::getRuntimeWithModelQueryConnection_Class_1__String_1__Byte_MANY__Runtime_1_
@@ -685,6 +684,7 @@ meta::protocols::pure::v1_30_0::transformation::fromPureGraph::scan_Any_1__Funct
 meta::protocols::pure::v1_30_0::transformation::fromPureGraph::store::relational::transformMilestoning_Milestoning_1__Extension_MANY__Milestoning_1_
 meta::protocols::pure::v1_30_0::transformation::fromPureGraph::store::transformStore_Store_1__Extension_MANY__Store_1_
 meta::protocols::pure::v1_30_0::transformation::fromPureGraph::toPureGrammar::defaultAlloyToPureState_Extension_MANY__AlloyToPureState_1_
+meta::protocols::pure::v1_30_0::transformation::fromPureGraph::toPureGrammar::getSignFunctions__Pair_MANY_
 meta::protocols::pure::v1_30_0::transformation::fromPureGraph::toPureGrammar::toPure_AlloyToPureState_1__ValueSpecification_MANY__String_1_
 meta::protocols::pure::v1_30_0::transformation::fromPureGraph::valueSpecification::transformAny_Any_MANY__String_MANY__Map_1__Multiplicity_1__Integer_1__FunctionExpression_$0_1$__Boolean_1__Extension_MANY__ValueSpecification_1_
 meta::protocols::pure::v1_30_0::transformation::fromPureGraph::valueSpecification::transformValueSpecification_ValueSpecification_1__String_MANY__Map_1__Boolean_1__Boolean_1__Extension_MANY__ValueSpecification_1_
@@ -727,6 +727,7 @@ meta::protocols::pure::v1_31_0::transformation::fromPureGraph::scan_Any_1__Funct
 meta::protocols::pure::v1_31_0::transformation::fromPureGraph::store::relational::transformMilestoning_Milestoning_1__Extension_MANY__Milestoning_1_
 meta::protocols::pure::v1_31_0::transformation::fromPureGraph::store::transformStore_Store_1__Extension_MANY__Store_1_
 meta::protocols::pure::v1_31_0::transformation::fromPureGraph::toPureGrammar::defaultAlloyToPureState_Extension_MANY__AlloyToPureState_1_
+meta::protocols::pure::v1_31_0::transformation::fromPureGraph::toPureGrammar::getSignFunctions__Pair_MANY_
 meta::protocols::pure::v1_31_0::transformation::fromPureGraph::toPureGrammar::toPure_AlloyToPureState_1__ValueSpecification_MANY__String_1_
 meta::protocols::pure::v1_31_0::transformation::fromPureGraph::valueSpecification::transformAny_Any_MANY__String_MANY__Map_1__Multiplicity_1__Integer_1__FunctionExpression_$0_1$__Boolean_1__Extension_MANY__ValueSpecification_1_
 meta::protocols::pure::v1_31_0::transformation::fromPureGraph::valueSpecification::transformValueSpecification_ValueSpecification_1__String_MANY__Map_1__Boolean_1__Boolean_1__Extension_MANY__ValueSpecification_1_
@@ -769,6 +770,7 @@ meta::protocols::pure::v1_32_0::transformation::fromPureGraph::scan_Any_1__Funct
 meta::protocols::pure::v1_32_0::transformation::fromPureGraph::store::relational::transformMilestoning_Milestoning_1__Extension_MANY__Milestoning_1_
 meta::protocols::pure::v1_32_0::transformation::fromPureGraph::store::transformStore_Store_1__Extension_MANY__Store_1_
 meta::protocols::pure::v1_32_0::transformation::fromPureGraph::toPureGrammar::defaultAlloyToPureState_Extension_MANY__AlloyToPureState_1_
+meta::protocols::pure::v1_32_0::transformation::fromPureGraph::toPureGrammar::getSignFunctions__Pair_MANY_
 meta::protocols::pure::v1_32_0::transformation::fromPureGraph::toPureGrammar::toPure_AlloyToPureState_1__ValueSpecification_MANY__String_1_
 meta::protocols::pure::v1_32_0::transformation::fromPureGraph::valueSpecification::transformAny_Any_MANY__String_MANY__Map_1__Multiplicity_1__Integer_1__FunctionExpression_$0_1$__Boolean_1__Extension_MANY__ValueSpecification_1_
 meta::protocols::pure::v1_32_0::transformation::fromPureGraph::valueSpecification::transformValueSpecification_ValueSpecification_1__String_MANY__Map_1__Boolean_1__Boolean_1__Extension_MANY__ValueSpecification_1_
@@ -811,6 +813,7 @@ meta::protocols::pure::v1_33_0::transformation::fromPureGraph::scan_Any_1__Funct
 meta::protocols::pure::v1_33_0::transformation::fromPureGraph::store::relational::transformMilestoning_Milestoning_1__Extension_MANY__Milestoning_1_
 meta::protocols::pure::v1_33_0::transformation::fromPureGraph::store::transformStore_Store_1__Extension_MANY__Store_1_
 meta::protocols::pure::v1_33_0::transformation::fromPureGraph::toPureGrammar::defaultAlloyToPureState_Extension_MANY__AlloyToPureState_1_
+meta::protocols::pure::v1_33_0::transformation::fromPureGraph::toPureGrammar::getSignFunctions__Pair_MANY_
 meta::protocols::pure::v1_33_0::transformation::fromPureGraph::toPureGrammar::toPure_AlloyToPureState_1__ValueSpecification_MANY__String_1_
 meta::protocols::pure::v1_33_0::transformation::fromPureGraph::valueSpecification::transformAny_Any_MANY__String_MANY__Map_1__Multiplicity_1__Integer_1__FunctionExpression_$0_1$__Boolean_1__Extension_MANY__ValueSpecification_1_
 meta::protocols::pure::v1_33_0::transformation::fromPureGraph::valueSpecification::transformValueSpecification_ValueSpecification_1__String_MANY__Map_1__Boolean_1__Boolean_1__Extension_MANY__ValueSpecification_1_
@@ -854,6 +857,7 @@ meta::protocols::pure::vX_X_X::transformation::fromPureGraph::scan_Any_1__Functi
 meta::protocols::pure::vX_X_X::transformation::fromPureGraph::store::relational::transformMilestoning_Milestoning_1__Extension_MANY__Milestoning_1_
 meta::protocols::pure::vX_X_X::transformation::fromPureGraph::store::transformStore_Store_1__Extension_MANY__Store_1_
 meta::protocols::pure::vX_X_X::transformation::fromPureGraph::toPureGrammar::defaultAlloyToPureState_Extension_MANY__AlloyToPureState_1_
+meta::protocols::pure::vX_X_X::transformation::fromPureGraph::toPureGrammar::getSignFunctions__Pair_MANY_
 meta::protocols::pure::vX_X_X::transformation::fromPureGraph::toPureGrammar::toPure_AlloyToPureState_1__ValueSpecification_MANY__String_1_
 meta::protocols::pure::vX_X_X::transformation::fromPureGraph::valueSpecification::transformAny_Any_MANY__String_MANY__Map_1__Multiplicity_1__Integer_1__FunctionExpression_$0_1$__Boolean_1__Extension_MANY__ValueSpecification_1_
 meta::protocols::pure::vX_X_X::transformation::fromPureGraph::valueSpecification::transformValueSpecification_ValueSpecification_1__String_MANY__Map_1__Boolean_1__Boolean_1__Extension_MANY__ValueSpecification_1_
@@ -870,6 +874,7 @@ meta::pure::constraints::functions::util::extractPropertyValues_Property_MANY__A
 meta::pure::dataQuality::defaultDefectTree__RootGraphFetchTree_1_
 meta::pure::executionPlan::MultiExecutionContext$prop$allContexts_MultiExecutionContext_1__ExecutionContext_MANY_
 meta::pure::executionPlan::buildVariableTemplateString_String_1__Any_1__Type_1__Runtime_1__Extension_MANY__String_1_
+meta::pure::executionPlan::executionPlan_FunctionDefinition_1__ExecutionContext_1__Extension_MANY__DebugContext_1__ExecutionPlan_1_
 meta::pure::executionPlan::nodeFromConnection_Connection_1__RootGraphFetchTree_$0_1$__Boolean_1__Boolean_1__Extension_MANY__Function_$1_MANY$__ExecutionNode_1_
 meta::pure::executionPlan::platformBinding::localBinding::extractClasspathExtensions__Extension_MANY_
 meta::pure::executionPlan::platformBinding::typeInfo::addBasicClassTypeInfo_TypeInfoSet_1__Class_1__Class_MANY__Boolean_1__TypeInfoSet_1_
@@ -934,9 +939,9 @@ meta::pure::functions::collection::tests::map::testMapWithPathInFunction__Boolea
 meta::pure::functions::collection::tests::map::testMapWithVariableThisAsParameter__Boolean_1_
 meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesLongList__Boolean_1_
 meta::pure::functions::lang::tests::new::testNewGenericFunc__Boolean_1_
-meta::pure::functions::math::tests::wavg::testWavg__Boolean_1_
 meta::pure::functions::meta::allNestedPropertyTypes_Class_1__Type_MANY_
 meta::pure::functions::meta::allProperties_Class_1__AbstractProperty_MANY_
+meta::pure::functions::meta::extractMappingsFromFunctionDefinition_FunctionDefinition_1__Mapping_MANY_
 meta::pure::functions::meta::findExpressionsForFunctionInValueSpecification_ValueSpecification_1__Function_MANY__Function_1__FunctionDefinition_MANY__FunctionExpression_MANY_
 meta::pure::functions::meta::forgivingPathToElement_String_1__PackageableElement_$0_1$_
 meta::pure::functions::meta::hierarchicalAllProperties_Class_1__AbstractProperty_MANY_
@@ -993,7 +998,6 @@ meta::pure::lineage::scanProperties::internal_scanProperties_ValueSpecification_
 meta::pure::lineage::scanProperties::processQualifier_QualifiedProperty_1__Class_1__ValueSpecification_MANY__List_1__Function_MANY__Map_1__Boolean_1__ScanConfig_1__Map_1__DebugContext_1__List_1_
 meta::pure::mapping::aggregationAware::canRewrite_ValueSpecification_1__Class_1__MappingClass_1__ProjectPath_MANY__Map_1__Map_1__Boolean_1_
 meta::pure::mapping::aggregationAware::contract::execution_StoreQuery_1__RoutedValueSpecification_$0_1$__Mapping_1__Runtime_1__ExecutionContext_1__Extension_MANY__DebugContext_1__Result_1_
-meta::pure::mapping::aggregationAware::contract::planExecution_StoreQuery_1__RoutedValueSpecification_$0_1$__Mapping_$0_1$__Runtime_$0_1$__ExecutionContext_1__Extension_MANY__DebugContext_1__ExecutionNode_1_
 meta::pure::mapping::aggregationAware::generateProjectPath_ValueSpecification_1__Map_1__Map_1__ProjectPath_1_
 meta::pure::mapping::aggregationAware::reprocessFunction_ValueSpecification_1__Map_1__RoutedValueSpecification_$0_1$__Mapping_1__DebugContext_1__LambdaFunction_1_
 meta::pure::mapping::aggregationAware::reprocessVS_ValueSpecification_1__ValueSpecification_1_
@@ -1006,7 +1010,6 @@ meta::pure::mapping::modelToModel::chain::reprocess_ValueSpecification_1__StoreM
 meta::pure::mapping::modelToModel::contract::supports_FunctionExpression_1__Boolean_1_
 meta::pure::mapping::modelToModel::graphFetch::executionPlan::planCrossStoreGraphFetchExecutionInMemory_StoreMappingClusteredGraphFetchTree_1__String_MANY__String_1__Map_1__Mapping_1__Runtime_1__ExecutionContext_1__Boolean_1__Boolean_1__Extension_MANY__DebugContext_1__InMemoryCrossStoreGraphFetchExecutionNode_1_
 meta::pure::mapping::modelToModel::graphFetch::executionPlan::planInMemoryStoreMergeGraphFetchExecution_StoreQuery_1__RoutedValueSpecification_$0_1$__InstanceSetImplementation_MANY__Mapping_1__Runtime_1__ExecutionContext_1__Extension_MANY__DebugContext_1__ExecutionNode_1_
-meta::pure::mapping::modelToModel::graphFetch::executionPlan::planModelChainConnectionGraphFetchExecution_FunctionExpression_1__ModelChainConnection_1__RootGraphFetchTree_1__Mapping_1__Runtime_1__ExecutionContext_1__RoutedValueSpecification_$0_1$__Map_1__AbstractProperty_MANY__Boolean_1__Boolean_1__Extension_MANY__DebugContext_1__ExecutionNode_1_
 meta::pure::mapping::modelToModel::graphFetch::executionPlan::planModelQueryConnectionGraphFetchExecution_ModelQueryConnection_1__Store_1__RootGraphFetchTree_1__ExecutionContext_1__Map_1__Boolean_1__Boolean_1__Extension_MANY__DebugContext_1__ExecutionNode_1_
 meta::pure::mapping::modelToModel::graphFetch::executionPlan::planRootGraphFetchExecutionInMemory_StoreQuery_1__RoutedValueSpecification_$0_1$__StoreMappingClusteredGraphFetchTree_1__String_MANY__Mapping_1__Runtime_1__ExecutionContext_1__Boolean_1__Boolean_1__Extension_MANY__DebugContext_1__InMemoryRootGraphFetchExecutionNode_1_
 meta::pure::mapping::modelToModel::inMemory::inMemoryGetAll_PureInstanceSetImplementation_1__StoreMappingRoutedValueSpecification_1__Mapping_1__ModelConnection_1__Runtime_1__ExecutionContext_1__Extension_MANY__DebugContext_1__Any_MANY_
@@ -1091,6 +1094,7 @@ meta::pure::router::clustering::createCrossSetImplementation_SetImplementation_1
 meta::pure::router::clustering::createLetFunction_FunctionExpression_1__String_1__StoreClusteredValueSpecification_1__Extension_MANY__SimpleFunctionExpression_1_
 meta::pure::router::clustering::getDistinctClusterVSByStore_ValueSpecification_MANY__Boolean_1__Extension_MANY__ClusteredValueSpecification_MANY_
 meta::pure::router::executePlan_ExecutionPlan_1__ExecutionContext_1__Extension_MANY__Result_$0_1$_
+meta::pure::router::execute_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__Extension_MANY__DebugContext_1__Result_1_
 meta::pure::router::execution::executeExpression_ClusteredValueSpecification_MANY__Map_1__Activity_MANY__ExecutionContext_$0_1$__Extension_MANY__DebugContext_1__Result_1_
 meta::pure::router::execution::resolve_Container_1__Map_1__Extension_MANY__DebugContext_1__Container_1_
 meta::pure::router::externalFormat::clustering::cluster_ValueSpecification_1__Binding_1__Map_1__ExecutionContext_1__Extension_MANY__DebugContext_1__ValueSpecification_MANY_
@@ -1099,7 +1103,6 @@ meta::pure::router::externalFormat::routing::enrichExternalFormatRoutedValueSpec
 meta::pure::router::platform::clustering::cluster_ValueSpecification_1__Map_1__ExecutionContext_1__Extension_MANY__DebugContext_1__ValueSpecification_MANY_
 meta::pure::router::platform::routing::enrichPlatformRoutedValueSpecification_ValueSpecification_1__ExecutionContext_1__Extension_MANY__DebugContext_1__ValueSpecification_1_
 meta::pure::router::preeval::addToScope_State_1__Function_1__GenericType_MANY__ValueSpecification_MANY__Boolean_1__State_1_
-meta::pure::router::preeval::fromFunctionsToStop__ConcreteFunctionDefinition_MANY_
 meta::pure::router::preeval::isSimpleType_Class_1__Class_MANY__Boolean_1_
 meta::pure::router::preeval::prevalGenericFunctionExpression_FunctionExpression_1__State_1__Extension_MANY__PrevalWrapper_1_
 meta::pure::router::preeval::prevalInternal_Any_1__State_1__Extension_MANY__PrevalWrapper_1_
@@ -1118,7 +1121,6 @@ meta::pure::router::preeval::tests::testPrerouting31b__Boolean_1_
 meta::pure::router::preeval::tests::testPrerouting32a__Boolean_1_
 meta::pure::router::preeval::tests::testPrerouting32b__Boolean_1_
 meta::pure::router::preeval::tests::testPrerouting33__Boolean_1_
-meta::pure::router::preeval::tests::testPrerouting34__Boolean_1_
 meta::pure::router::preeval::tests::testPrerouting41__Boolean_1_
 meta::pure::router::preeval::tests::testPrerouting42__Boolean_1_
 meta::pure::router::preeval::tests::testPrerouting_OptionalLimit1__Boolean_1_
@@ -1136,6 +1138,8 @@ meta::pure::router::routing::processColumnSpecification_ValueSpecification_1__Ro
 meta::pure::router::routing::routeFunctionExpressionFunctionDefinition_Function_1__FunctionExpression_1__RoutingState_1__ExecutionContext_1__Map_1__Map_1__Extension_MANY__DebugContext_1__RoutingState_1_
 meta::pure::router::routing::routeFunctionExpression_FunctionExpression_1__RoutingState_1__ExecutionContext_1__Map_1__Map_1__Extension_MANY__DebugContext_1__RoutingState_1_
 meta::pure::router::routing::routeValueSpecification_RoutingState_1__ExecutionContext_1__Map_1__Map_1__Extension_MANY__DebugContext_1__RoutingState_1_
+meta::pure::router::routing::shouldStopFunctions_Extension_MANY__Function_MANY_
+meta::pure::router::routing::varToString_Any_1__String_1_
 meta::pure::router::store::routing::buildConcatenate_ValueSpecification_MANY__Boolean_1__GenericType_1__ValueSpecification_1_
 meta::pure::router::store::routing::buildConcatenate_ValueSpecification_MANY__GenericType_1__ValueSpecification_1_
 meta::pure::router::store::routing::doUnion_ValueSpecification_MANY__Boolean_1__GenericType_1__ValueSpecification_1_
@@ -1221,54 +1225,33 @@ meta::pure::tds::toRelation::transform_AppliedFunction_1__Extension_MANY__Applie
 meta::pure::test::collectParameterizedTests_Package_1__String_$0_1$__Any_$0_1$__FunctionDefinition_$0_1$__Function_$0_1$__PureTestCollection_1_
 meta::pure::test::mft::executeMFTLegendQuery_TestParameters_1__Extension_MANY__StringResult_1_
 meta::relational::dbTestRunner::executeInRelationalDb_String_MANY__ConnectionStore_1__Extension_MANY__Boolean_1_
-meta::relational::dbTestRunner::executeViaPlan_FunctionDefinition_1__Mapping_1__Database_1__DbTestConfig_1__Extension_MANY__Result_$0_1$_
 meta::relational::dbTestRunner::getTestConnection_DatabaseType_1__Extension_MANY__RelationalDatabaseConnection_$0_1$_
-meta::relational::functions::database::setUpData_List_MANY__Mapping_MANY__Runtime_1__String_MANY_
-meta::relational::functions::pureToSqlQuery::addPkForAggregation_FunctionExpression_1__PropertyMapping_MANY__SelectWithCursor_1__State_1__String_1__DebugContext_1__Extension_MANY__SelectWithCursor_1_
-meta::relational::functions::pureToSqlQuery::applyJoinInTreeDeep_ApplyJoinInTreeState_1__JoinTreeNode_1__SelectWithCursor_1__TemporalMilestoningContext_$0_1$__Boolean_1__String_1__JoinType_1__Boolean_1__TableAliasColumn_MANY__State_1__DebugContext_1__Extension_MANY__ApplyJoinInTreeState_1_
-meta::relational::functions::pureToSqlQuery::applyJoinInTree_RootJoinTreeNode_1__RelationalTreeNode_1__JoinTreeNode_1__SelectWithCursor_1__String_1__JoinType_1__Boolean_1__Boolean_1__TableAliasColumn_MANY__State_1__DebugContext_1__Extension_MANY__SelectWithCursor_1_
 meta::relational::functions::pureToSqlQuery::calendarAggregations::getCalendarColumnType_TableAlias_1__String_1__DataType_1_
-meta::relational::functions::pureToSqlQuery::calendarAggregations::getSupportedCalendarFunctions__AggHandler_MANY_
 meta::relational::functions::pureToSqlQuery::calendarAggregations::insertCalendarJoins_SelectWithCursor_1__RelationalOperationElement_1__String_1__String_1__State_1__DebugContext_1__Extension_MANY__SelectWithCursor_1_
 meta::relational::functions::pureToSqlQuery::calendarAggregations::processCalendarAggPureToSQL_FunctionExpression_1__PropertyMapping_MANY__SelectWithCursor_1__Map_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__RelationalOperationElement_1_
 meta::relational::functions::pureToSqlQuery::extractStore_RelationalOperationElement_$0_1$__Store_MANY_
 meta::relational::functions::pureToSqlQuery::findAliasMappingBySchemaName_RelationalOperationElement_1__OldAliasToNewAlias_MANY__OldAliasToNewAlias_MANY_
 meta::relational::functions::pureToSqlQuery::findSupportedFunction_FunctionExpression_1__Map_1__State_1__Function_$0_1$_
+meta::relational::functions::pureToSqlQuery::flattenConcatenate_ValueSpecification_1__ValueSpecification_MANY_
 meta::relational::functions::pureToSqlQuery::flatten_JoinTreeNode_$0_1$__JoinTreeNode_MANY_
 meta::relational::functions::pureToSqlQuery::getClusteringContextPredicates__Map_1_
 meta::relational::functions::pureToSqlQuery::getContextBasedSupportedFunctions__Map_1_
 meta::relational::functions::pureToSqlQuery::getSupportedFunctions__Map_1_
 meta::relational::functions::pureToSqlQuery::getVariantEmptyFunctionExpression_FunctionExpression_1__SimpleFunctionExpression_1_
-meta::relational::functions::pureToSqlQuery::isolateSubJoins_SelectSQLQuery_1__RelationalTreeNode_1__TableAliasColumn_MANY__TableAlias_$0_1$__String_1__Boolean_1__State_1__DebugContext_1__Extension_MANY__Pair_1_
-meta::relational::functions::pureToSqlQuery::manageIsolation_SelectWithCursor_1__TableAliasColumn_MANY__String_1__Boolean_1__State_1__DebugContext_1__Extension_MANY__SelectWithCursor_1_
 meta::relational::functions::pureToSqlQuery::mergeOldAliasToNewAlias_Boolean_1__OldAliasToNewAlias_MANY__OldAliasToNewAlias_MANY__OldAliasToNewAlias_MANY_
-meta::relational::functions::pureToSqlQuery::mergeSQLQueryData_SelectSQLQuery_MANY__String_1__State_1__DebugContext_1__Extension_MANY__SelectSQLQuery_1_
 meta::relational::functions::pureToSqlQuery::merge_MergeResultContainer_1__RelationalTreeNode_1__String_1__State_1__DebugContext_1__Extension_MANY__MergeResultContainer_1_
-meta::relational::functions::pureToSqlQuery::moveFiltersInOnClause_SelectSQLQuery_1__Pair_MANY__RelationalTreeNode_1__JoinType_1__State_1__Extension_MANY__Pair_1_
 meta::relational::functions::pureToSqlQuery::nestFilters_SelectSQLQuery_1__RelationalOperationElement_$0_1$__RelationalOperationElement_$0_1$__SelectSQLQuery_1_
 meta::relational::functions::pureToSqlQuery::processAt_FunctionExpression_1__PropertyMapping_MANY__SelectWithCursor_1__Map_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__RelationalOperationElement_1_
-meta::relational::functions::pureToSqlQuery::processColumnsInRelationalOperationElements_RelationalOperationElement_1__State_1__SelectWithCursor_1__String_1__List_1__Boolean_1__DebugContext_1__Extension_MANY__SelectWithCursor_1_
-meta::relational::functions::pureToSqlQuery::processCrossPropertyMapping_CrossSetImplementationPropertyMapping_MANY__AbstractProperty_1__Class_1__SelectWithCursor_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__RelationalOperationElement_1_
-meta::relational::functions::pureToSqlQuery::processLateral_FunctionExpression_1__PropertyMapping_MANY__SelectWithCursor_1__Map_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__RelationalOperationElement_1_
 meta::relational::functions::pureToSqlQuery::processQuery_ValueSpecification_1__State_1__DebugContext_1__Extension_MANY__SelectWithCursor_1_
-meta::relational::functions::pureToSqlQuery::processRelationalPropertyMapping_RelationalPropertyMapping_MANY__AbstractProperty_1__Class_1__SelectWithCursor_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__RelationalOperationElement_1_
-meta::relational::functions::pureToSqlQuery::processSemiStructuredRelationalPropertyMapping_SemiStructuredRelationalPropertyMapping_MANY__AbstractProperty_1__Class_1__SelectWithCursor_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__RelationalOperationElement_1_
 meta::relational::functions::pureToSqlQuery::processTdsContainsWithLambda_FunctionExpression_1__PropertyMapping_MANY__SelectWithCursor_1__Map_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__RelationalOperationElement_1_
 meta::relational::functions::pureToSqlQuery::processTdsContains_FunctionExpression_1__PropertyMapping_MANY__SelectWithCursor_1__Map_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__RelationalOperationElement_1_
 meta::relational::functions::pureToSqlQuery::processTdsLambda_ValueSpecification_1__RelationalOperationElement_MANY__Boolean_1__Map_1__State_1__PropertyMapping_MANY__Pair_MANY__DebugContext_1__RelationalOperationElement_MANY_
 meta::relational::functions::pureToSqlQuery::processTdsProjectExtend_FunctionExpression_1__PropertyMapping_MANY__SelectWithCursor_1__Map_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Boolean_1__Extension_MANY__RelationalOperationElement_1_
-meta::relational::functions::pureToSqlQuery::processTypeName_FunctionExpression_1__PropertyMapping_MANY__SelectWithCursor_1__Map_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__RelationalOperationElement_1_
-meta::relational::functions::pureToSqlQuery::processValueSpecificationReturnPropertyMapping_ValueSpecification_1__PropertyMapping_MANY__SelectWithCursor_1__Map_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__OperationWithParentPropertyMapping_MANY_
-meta::relational::functions::pureToSqlQuery::processVariantFlatten_FunctionExpression_1__PropertyMapping_MANY__SelectWithCursor_1__Map_1__State_1__JoinType_1__String_1__List_1__DebugContext_1__Extension_MANY__RelationalOperationElement_1_
 meta::relational::functions::pureToSqlQuery::renameTreeAliases_RelationalTreeNode_1__OldAliasToNewAlias_MANY__String_MANY__String_1__RelationalTreeNode_1_
 meta::relational::functions::pureToSqlQuery::reprocessAliases_RelationalOperationElement_1__OldAliasToNewAlias_MANY__Map_$0_1$__RelationalOperationElement_1_
-meta::relational::functions::pureToSqlQuery::union::addMissingColumnToUnion_SelectWithCursor_1__LambdaFunction_1__Boolean_1__String_MANY__Extension_MANY__SelectWithCursor_1_
-meta::relational::functions::pureToSqlQuery::union::addPkForAggregationInUnion_SelectWithCursor_1__RootRelationalInstanceSetImplementation_MANY__State_1__Extension_MANY__SelectWithCursor_1_
 meta::relational::functions::pureToSqlQuery::union::canJoinTreeNodesBeSimplyMergedUsingOrOperation_RelationalPropertyMapping_MANY__Mapping_1__State_$0_1$__Boolean_1_
 meta::relational::functions::pureToSqlQuery::union::getDefaultLiteralValue_DataType_1__Literal_1_
 meta::relational::functions::pureToSqlQuery::union::removeUnionOrJoins_RelationalTreeNode_1__Extension_MANY__RelationalTreeNode_1_
-meta::relational::functions::pureToSqlQuery::validate_SelectSQLQuery_1__Extension_MANY__Boolean_1_
-meta::relational::functions::pureToSqlQuery::validate_SelectWithCursor_1__ValueSpecification_$0_1$__Extension_MANY__Boolean_1_
 meta::relational::functions::pureToSqlQuery::zeroToOneBasedIndex_ValueSpecification_1__ValueSpecification_1_
 meta::relational::functions::sqlQueryToString::DbConfig$prop$dataTypeToSqlText_DbConfig_1__DataType_1__String_1_
 meta::relational::functions::sqlQueryToString::DbConfig$prop$dynaFuncDispatch_DbConfig_1__DynaFunction_1__SqlGenerationContext_1__DynaFunctionToSql_1_
@@ -1296,7 +1279,6 @@ meta::relational::functions::sqlQueryToString::sqlQueryToString_SQLQuery_1__Data
 meta::relational::functions::sqlQueryToString::sqlQueryToString_SQLQuery_1__DatabaseType_1__String_$0_1$__Boolean_$0_1$__Format_1__Boolean_1__Boolean_1__Extension_MANY__String_1_
 meta::relational::functions::sqlQueryToString::sqlQueryToString_SQLQuery_1__DatabaseType_1__String_$0_1$__Boolean_$0_1$__Format_1__Boolean_1__Extension_MANY__String_1_
 meta::relational::functions::sqlQueryToString::sqlQueryToString_SQLQuery_1__DatabaseType_1__String_$0_1$__Boolean_$0_1$__Format_1__Extension_MANY__String_1_
-meta::relational::functions::toDDL::dropAndCreateTableSql_Database_1__String_1__String_1__Boolean_1__String_1_
 meta::relational::functions::toPostgresModel::convertSemiStructuredArrayFlatten_SemiStructuredArrayFlatten_1__ModelConversionState_1__SemiStructuredArrayFlatten_1_
 meta::relational::functions::typeInference::getSafeType_DataType_1__DataType_1__DataType_1_
 meta::relational::functions::typeInference::isSafeTypePossible_DataType_1__DataType_1__Boolean_1_
@@ -1305,13 +1287,13 @@ meta::relational::graphFetch::executionPlan::generateNonPrimitivePropertyQuery_R
 meta::relational::mapping::buildBuilders_InstanceSetImplementation_MANY__ResultSet_1__Mapping_1__Connection_1__Runtime_1__Integer_MANY__ExecutionContext_1__Extension_MANY__DebugContext_1__BuilderInfo_MANY_
 meta::relational::mapping::contextBasedPostProcessors_PostProcessorResult_1__Runtime_1__RoutedValueSpecification_$0_1$__Mapping_$0_1$__Database_$0_1$__ExecutionContext_1__PostProcessorResult_1_
 meta::relational::mapping::processProperty_Any_1__Property_1__Any_MANY_
+meta::relational::metamodel::execute::loadCsvToDbTable_String_1__Table_1__ConnectionStore_1__Nil_0_
 meta::relational::metamodel::execute::resultSetToTDS_ResultSet_1__TabularDataSet_1_
 meta::relational::metamodel::execute::tests::sortCsv_String_1__String_1_
 meta::relational::mft::executeMFTQuery_TestParameters_1__Extension_MANY__TestResult_1_
 meta::relational::milestoning::TemporalMilestoningContext$prop$toTemporalMilestoningThisContext_TemporalMilestoningContext_1__TemporalMilestoningThisContext_$0_1$_
 meta::relational::milestoning::getKeyValueBuildClasses_TemporalStrategy_1__Row_1__KeyValue_MANY_
 meta::relational::milestoning::newThisMilestonedPropertyExpression_SingleDateTemporalStrategy_1__FunctionExpression_1_
-meta::relational::mutation::executionPlan::buildAllocNodeFromFromCall_SimpleFunctionExpression_1__String_1__ExecutionContext_1__Extension_MANY__DebugContext_1__AllocationExecutionNode_1_
 meta::relational::mutation::executionPlan::planMutationExecution_StoreQuery_1__RoutedValueSpecification_$0_1$__Mapping_1__Runtime_1__ExecutionContext_1__Extension_MANY__DebugContext_1__ExecutionNode_1_
 meta::relational::mutation::executionPlan::processDateColumnToDynaFunc_Store_1__RootRelationalInstanceSetImplementation_1__Map_1_
 meta::relational::postProcessor::filterPushDown::tryAddingFiltersToSubQuery_SelectSQLQuery_1__List_1__Extension_MANY__SelectSQLQuery_1_
@@ -1349,7 +1331,6 @@ meta::relational::tests::groupBy::testGroupByAndFilterIsolatedJoinMerge__Boolean
 meta::relational::tests::groupBy::testGroupByOnRootLevelPrimitiveAttributeWithNoJoinAndFilter__Boolean_1_
 meta::relational::tests::groupBy::testGroupByWithJoinDB2__Boolean_1_
 meta::relational::tests::groupBy::testGroupByWithJoinH2__Boolean_1_
-meta::relational::tests::groupBy::testGroupByWithWavgAggregation__Boolean_1_
 meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation__Boolean_1_
 meta::relational::tests::groupBy::testJoinStringsWithAssociation__Boolean_1_
 meta::relational::tests::groupBy::testMax__Boolean_1_
@@ -1414,15 +1395,6 @@ meta::relational::tests::mapping::modelJoin::advanced::testRelationalNestedPrope
 meta::relational::tests::mapping::modelJoin::advanced::testRelationalSubFilter__Boolean_1_
 meta::relational::tests::mapping::modelJoin::advanced::testSubAggregationRelational__Boolean_1_
 meta::relational::tests::mapping::modelJoin::advanced::testSubFilter__Boolean_1_
-meta::relational::tests::mapping::relation::aggregation::testSubAggregationJoinStringsOnRelationMapping__Boolean_1_
-meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithFilterOnRelationMapping__Boolean_1_
-meta::relational::tests::mapping::union::relation::advanced::testUnionOfSubAggregations_FilterFromFirm_Tds__Boolean_1_
-meta::relational::tests::mapping::union::relation::advanced::testUnionOfSubAggregations_FilterToFirm_Tds__Boolean_1_
-meta::relational::tests::mapping::union::relation::advanced::testUnionRelationAndRelational_FilterFromFirm_Tds__Boolean_1_
-meta::relational::tests::mapping::union::relation::advanced::testUnionRelationAndRelational_FilterToFirm_Tds__Boolean_1_
-meta::relational::tests::mapping::union::relation::advanced::testUnionTwoRelationMappings_FilterFromFirm_Tds__Boolean_1_
-meta::relational::tests::mapping::union::relation::advanced::testUnionTwoRelationMappings_FilterToFirm_Tds__Boolean_1_
-meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_EmbeddedFirmFilter_Tds__Boolean_1_
 meta::relational::tests::mft::mapping::crossstore::testcrossstoreMapping__MFTMappingTest_1_
 meta::relational::tests::mft::mapping::crossstore::testcrossstoreUnionMapping__MFTMappingTest_1_
 meta::relational::tests::mft::mapping::distinct::testDistinctMapping__MFTMappingTest_1_
@@ -1448,6 +1420,7 @@ meta::relational::tests::milestoning::businessdate::testConstraintUsageOfVarRefe
 meta::relational::tests::milestoning::businessdate::testMilestonedThisBusinessDateUsedAsParameterToFunctionInMilestoningQualifiedPropertyMappedToView__Boolean_1_
 meta::relational::tests::milestoning::businessdate::testMilestoningQueryWithGroupByFilterWithMilestoning__Boolean_1_
 meta::relational::tests::milestoning::businessdate::testProcessedMilestonedExchangeNameConstraint__Boolean_1_
+meta::relational::tests::milestoning::businessdate::testViewChainsWithBusinessDate__Boolean_1_
 meta::relational::tests::postProcessor::nonExecutable::testReplaceTablePostProcessorWithSubQueries__Boolean_1_
 meta::relational::tests::projection::association::toMany::testAssociationToManyColumnProtocolOneColumn__Boolean_1_
 meta::relational::tests::projection::enumeration::testTdsProjectWithEnumInequalityComparison__Boolean_1_
@@ -1461,14 +1434,10 @@ meta::relational::tests::projection::simple::runQuery_Path_1__Result_1_
 meta::relational::tests::projection::simple::testAllOneSimplePropertyUsingOpenVariables__Boolean_1_
 meta::relational::tests::projection::simple::testAllOneSimplePropertyUsingVariables3__Boolean_1_
 meta::relational::tests::projection::simple::testRoutingWithSubtypePropagation__Boolean_1_
-meta::relational::tests::query::enumPushDown::testPushDownProjectWithParameter__Boolean_1_
-meta::relational::tests::query::enumPushDown::testPushDownProject__Boolean_1_
 meta::relational::tests::query::enumeration::testAggregationFunctionWithEnum__Boolean_1_
 meta::relational::tests::query::filter::exists::testFilterWithNestedNotExistsFilterInlined__Boolean_1_
 meta::relational::tests::query::filter::exists::testFilterWithNestedNotExists__Boolean_1_
 meta::relational::tests::query::filter::exists::testMultipleExistsOnSameProperty__Boolean_1_
-meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals__Boolean_1_
-meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector__Boolean_1_
 meta::relational::tests::query::routing::extendWithIsAdult_TabularDataSet_1__TabularDataSet_1_
 meta::relational::tests::query::routing::getAggValues__AggregateValue_MANY_
 meta::relational::tests::query::routing::getColumns__ColumnSpecification_MANY_
@@ -1476,10 +1445,6 @@ meta::relational::tests::query::routing::getJoin_TabularDataSet_1__TabularDataSe
 meta::relational::tests::query::routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression2__Boolean_1_
 meta::relational::tests::query::routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression__Boolean_1_
 meta::relational::tests::query::routing::routeInternal_FunctionDefinition_1__FunctionDefinition_1_
-meta::relational::tests::query::routing::testCompositionInExtend__Boolean_1_
-meta::relational::tests::query::routing::testCompositionInJoin__Boolean_1_
-meta::relational::tests::query::routing::testCompositionInProjectAndNestedFilter__Boolean_1_
-meta::relational::tests::query::routing::testCompositionInUnion__Boolean_1_
 meta::relational::tests::query::simple::getPersonNames_String_MANY__TabularDataSet_1_
 meta::relational::tests::query::simple::getTrades_String_MANY__TabularDataSet_1_
 meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction_ExtendedPrimitives__Interaction_ExtendedPrimitives_MANY_
@@ -1487,8 +1452,6 @@ meta::relational::tests::tds::groupBy::simpleGroupByAggFuncAsLambda__Boolean_1_
 meta::relational::tests::tds::groupBy::simpleGroupByAggFuncAsVariable__Boolean_1_
 meta::relational::tests::tds::groupBy::simpleGroupByAggFuncNotStopFunc__Boolean_1_
 meta::relational::tests::tds::groupBy::simpleGroupCountUsingVariables__Boolean_1_
-meta::relational::tests::tds::groupBy::testGroupByWithMultipleWavgAggregation__Boolean_1_
-meta::relational::tests::tds::groupBy::testGroupByWithWavgAggregation__Boolean_1_
 meta::relational::tests::tds::groupBy::testValidateTdsGroupByWithIsNotEmpty__Boolean_1_
 meta::relational::tests::tds::sort::testSimpleSortAscInputToProject__Boolean_1_
 meta::relational::tests::tds::tabletds::testView__Boolean_1_
@@ -1567,11 +1530,12 @@ meta::relational::validation::tests::milestoning::testValidateQueryWithUnion__Bo
 
 == disagreement classes (kind, spelling, reference id, our id, count)
 ABSENT	_range			98
+ABSENT	addFilter			2
 ABSENT	addGroupBy			1
 ABSENT	addProject			1
 ABSENT	addSubTree			1
 ABSENT	adjust			2
-ABSENT	agg			306
+ABSENT	agg			313
 ABSENT	aggColSpec			119
 ABSENT	aggColSpec2			129
 ABSENT	aggregate			8
@@ -1581,9 +1545,9 @@ ABSENT	allSuperSetImplementations			1
 ABSENT	and			21
 ABSENT	asOfJoin			8
 ABSENT	asString			11
-ABSENT	asc			53
+ABSENT	asc			56
 ABSENT	ascending			986
-ABSENT	assert			108
+ABSENT	assert			112
 ABSENT	assertEmpty			2
 ABSENT	assertEquals			34
 ABSENT	assertFalse			5
@@ -1596,27 +1560,29 @@ ABSENT	assertSameElements			2
 ABSENT	assertSize			5
 ABSENT	assertTestData			26
 ABSENT	at			60
-ABSENT	average			1
+ABSENT	average			2
 ABSENT	buildClass			1
 ABSENT	buildUniqueName			1
 ABSENT	builderGeneration			1
 ABSENT	byPassRouterInfo			1
-ABSENT	cast			4173
+ABSENT	cast			4283
 ABSENT	class			1
 ABSENT	classMappingById			1
-ABSENT	col			647
+ABSENT	col			650
 ABSENT	colSpec			1695
 ABSENT	colSpecArray			196
 ABSENT	columnValues			12
 ABSENT	columns			6
 ABSENT	compare			2
-ABSENT	concatenate			918
+ABSENT	concatenate			931
 ABSENT	connectionByElement			26
 ABSENT	contains			10
-ABSENT	copy			1467
+ABSENT	copy			1546
 ABSENT	count			1
-ABSENT	createDbConfig			2
+ABSENT	createDbConfig			13
 ABSENT	createSchemaState			2
+ABSENT	createSchemaStatement			1
+ABSENT	createTableStatement			4
 ABSENT	createTempTable			2
 ABSENT	createTestDatabaseConnection			1
 ABSENT	datePart			4
@@ -1628,63 +1594,72 @@ ABSENT	defaultScanConfig			1
 ABSENT	desc			50
 ABSENT	descending			269
 ABSENT	distinct			133
-ABSENT	drop			32
+ABSENT	drop			33
+ABSENT	dropAndCreateSchemaInDb			1
+ABSENT	dropAndCreateTableInDb			2
+ABSENT	dropSchemaStatement			2
+ABSENT	dropTableStatement			3
 ABSENT	dropTempTable			1
-ABSENT	elementToPath			9
+ABSENT	elementToPath			10
 ABSENT	emptyFirst			5
 ABSENT	emptyLast			5
 ABSENT	enrichSourceTreeNode			2
 ABSENT	eq			5
-ABSENT	equal			88
-ABSENT	eval			3232
+ABSENT	equal			89
+ABSENT	eval			3240
 ABSENT	evalWrapper			1
 ABSENT	evaluate			29
 ABSENT	evaluateAndDeactivate			29
 ABSENT	evaluateConstraint			1
 ABSENT	execute			2
-ABSENT	executeInDb			7
+ABSENT	executeInDb			9
 ABSENT	executeInRelationalDb			1
 ABSENT	executePCTTest			1
 ABSENT	executeTest			1
 ABSENT	exists			4
-ABSENT	extend			354
+ABSENT	extend			355
+ABSENT	extendColumns			1
+ABSENT	extendWithIsAdult			1
 ABSENT	extractDBs			1
-ABSENT	extractEnumValue			2033
+ABSENT	extractEnumValue			2075
 ABSENT	extractTableAliasColumns			1
-ABSENT	fail			131
+ABSENT	fail			138
 ABSENT	fetchDbColumnsMetaData			6
 ABSENT	fetchDbPrimaryKeysMetaData			6
 ABSENT	fetchDbSchemasMetaData			4
 ABSENT	fetchDbTablesMetaData			7
-ABSENT	filter			2542
+ABSENT	filter			2573
 ABSENT	findFunctionSequenceMultiplicity			1
-ABSENT	firmProjected			9
+ABSENT	firmProjected			12
+ABSENT	firmProjected1			1
 ABSENT	flatten			13
-ABSENT	fold			201
-ABSENT	format			6
-ABSENT	from			52
+ABSENT	fold			209
+ABSENT	format			7
+ABSENT	from			53
 ABSENT	func			16
-ABSENT	funcColSpec			316
+ABSENT	funcColSpec			332
 ABSENT	funcColSpec2			96
 ABSENT	functionReturnMultiplicity			2
 ABSENT	generateProjectPath			1
 ABSENT	generateTestData			35
 ABSENT	genericType			2
 ABSENT	genericTypeClass			2
-ABSENT	getAll			2965
+ABSENT	getAll			2989
 ABSENT	getAllForEachDate			11
 ABSENT	getAllTypeGeneralisations			2
 ABSENT	getAllVersions			18
 ABSENT	getAllVersionsInRange			19
-ABSENT	getColumns			2
+ABSENT	getColumns			3
 ABSENT	getFilterCondition			1
 ABSENT	getFilterLambda			1
+ABSENT	getJoin			1
 ABSENT	getLowerBound			4
 ABSENT	getMilestoningContextForAllVersions			1
 ABSENT	getMilestoningContextFromTemporalDates			1
 ABSENT	getPCTTestFunctions			2
 ABSENT	getPropertyValues			3
 ABSENT	getRuntimeWithModelConnection			2
+ABSENT	getTableToTableIdentityFunction			1
 ABSENT	getTabularDataSetFromProtocol			1
 ABSENT	getTestFunctions			2
 ABSENT	getUpperBound			2
@@ -1692,20 +1667,20 @@ ABSENT	graphFetch			246
 ABSENT	graphFetchChecked			68
 ABSENT	greaterThan			3
 ABSENT	greaterThanEqual			5
-ABSENT	groupBy			372
+ABSENT	groupBy			375
 ABSENT	groupByWithWindowSubset			5
 ABSENT	hasToOneUpperBound			1
 ABSENT	hasUpperBound			2
 ABSENT	head			4
-ABSENT	id			1
-ABSENT	if			3504
+ABSENT	id			2
+ABSENT	if			3602
 ABSENT	in			1
 ABSENT	indexOf			3
 ABSENT	inferRelationalType			1
 ABSENT	insertIntoTempTableStatement			3
-ABSENT	instanceOf			22
+ABSENT	instanceOf			23
 ABSENT	is			3
-ABSENT	isEmpty			10
+ABSENT	isEmpty			13
 ABSENT	isNotEmpty			9
 ABSENT	isOnDay			2
 ABSENT	join			143
@@ -1717,26 +1692,30 @@ ABSENT	length			4
 ABSENT	lenientPathToElement			1
 ABSENT	lessThan			4
 ABSENT	lessThanEqual			4
-ABSENT	letFunction			18114
+ABSENT	letFunction			18491
 ABSENT	limit			36
-ABSENT	list			262
+ABSENT	list			264
 ABSENT	literal			1
-ABSENT	loadCsvDataToDbTable			1
+ABSENT	loadCsvDataToDbTable			3
 ABSENT	loadPCTManifest			1
 ABSENT	loadValuesToDbTable2			1
+ABSENT	mainTable			2
 ABSENT	makeString			20
-ABSENT	map			7456
-ABSENT	match			1284
+ABSENT	map			7533
+ABSENT	match			1294
 ABSENT	maxBy			2
-ABSENT	meta::alloy::service::execution::setUpDataSQLs			1
+ABSENT	meta::alloy::service::execution::schemaAndTableSetup			2
+ABSENT	meta::alloy::service::execution::setUpDataSQLs			4
+ABSENT	meta::alloy::service::execution::splitWithEmptyValue			1
 ABSENT	meta::alloy::test::mayExecuteAlloyTest			28
-ABSENT	meta::external::store::relational::tests::testRuntime			10
+ABSENT	meta::external::store::relational::tests::testRuntime			11
 ABSENT	meta::json::tdsToJSONKeyValueObjectString			1
 ABSENT	meta::legend::compileLegendGrammar			3
 ABSENT	meta::legend::compileLegendValueSpecification			14
 ABSENT	meta::legend::test::mayExecuteLegendTest			2
 ABSENT	meta::pure::functions::lang::tests::newInferenceAtRuntime::put			1
 ABSENT	meta::pure::functions::math::olap::rank			1
+ABSENT	meta::pure::functions::math::wavg			1
 ABSENT	meta::pure::functions::meta::reactivate			1
 ABSENT	meta::pure::functions::relation::_range			4
 ABSENT	meta::pure::functions::relation::map			2
@@ -1762,6 +1741,8 @@ ABSENT	meta::relational::extension::relationalExtensions			70
 ABSENT	meta::relational::functions::database::tableReference			18
 ABSENT	meta::relational::functions::sqlQueryToString::createDbConfig			1
 ABSENT	meta::relational::functions::sqlQueryToString::processOperation			6
+ABSENT	meta::relational::functions::toDDL::createSchemaStatement			1
+ABSENT	meta::relational::mapping::sqlQueryDefaultPostProcessors			1
 ABSENT	meta::relational::mapping::syntheticRelationalAccessorExtension			1
 ABSENT	meta::relational::metamodel::execute::executeInDb			2
 ABSENT	meta::relational::metamodel::execute::executeInDbToTDS			1
@@ -1771,8 +1752,8 @@ ABSENT	meta::relational::testDataGeneration::generateSeedDataString			1
 ABSENT	meta::relational::testDataGeneration::getRelationalCSVDataFromQuery			3
 ABSENT	meta::relational::tests::m2m2r::runtimeWithoutChain			4
 ABSENT	meta::relational::tests::mapping::enumeration::enumTestRuntime			1
-ABSENT	meta::relational::tests::mapping::union::relation::advanced::testTds			6
-ABSENT	meta::relational::tests::mapping::union::relation::testTds			1
+ABSENT	meta::relational::tests::mapping::union::relation::advanced::testTds			18
+ABSENT	meta::relational::tests::mapping::union::relation::testTds			3
 ABSENT	meta::relational::tests::platform::operations::runtime::testRuntimeUS			4
 ABSENT	meta::relational::tests::projection::simple::getCols			1
 ABSENT	meta::relational::tests::query::routing::getAggValues			1
@@ -1783,12 +1764,12 @@ ABSENT	mod			2
 ABSENT	month			1
 ABSENT	monthNumber			3
 ABSENT	mutateAdd			5
-ABSENT	new			6355
+ABSENT	new			6458
 ABSENT	newLambdaFunction			1
 ABSENT	newMap			2
 ABSENT	newTDSRelationAccessor			1
-ABSENT	noDebug			2
-ABSENT	not			50
+ABSENT	noDebug			5
+ABSENT	not			52
 ABSENT	olapGroupBy			8
 ABSENT	openVariableValues			1
 ABSENT	optimizedTdsJSONStringStream			2
@@ -1801,17 +1782,19 @@ ABSENT	pair			129
 ABSENT	parseAlloyObjectReferenceV1			1
 ABSENT	partition			1
 ABSENT	pathToElement			31
+ABSENT	personProjected			1
 ABSENT	pivot			21
-ABSENT	plus			1441
+ABSENT	planNodeToString			1
+ABSENT	plus			1453
 ABSENT	preval			2
-ABSENT	print			60
+ABSENT	print			63
 ABSENT	printDebug			10
-ABSENT	printDebugQuery			2
+ABSENT	printDebugQuery			4
 ABSENT	printDebugWithDepth			2
 ABSENT	printProperty			2
 ABSENT	printRelationalTreeNode			2
-ABSENT	println			43
-ABSENT	project			1810
+ABSENT	println			44
+ABSENT	project			1834
 ABSENT	projectWithColumnSubset			5
 ABSENT	putAll			1
 ABSENT	quarter			1
@@ -1839,11 +1822,12 @@ ABSENT	select			211
 ABSENT	serialize			295
 ABSENT	size			32
 ABSENT	slice			77
-ABSENT	sort			755
-ABSENT	sortBy			74
+ABSENT	sort			758
+ABSENT	sortBy			75
 ABSENT	sortByReversed			3
 ABSENT	sourceInformation			2
 ABSENT	sourceRuntime			1
+ABSENT	split			1
 ABSENT	startsWith			2
 ABSENT	substr			2
 ABSENT	tableReference			72
@@ -1852,7 +1836,7 @@ ABSENT	tail			1
 ABSENT	take			37
 ABSENT	tdsRowToJSON			2
 ABSENT	tdsToJSONKeyValueObjectString			1
-ABSENT	testFirmAgg			9
+ABSENT	testFirmAgg			11
 ABSENT	testRuntime			14
 ABSENT	times			3
 ABSENT	to			64
@@ -1860,14 +1844,17 @@ ABSENT	toJSON			1
 ABSENT	toLower			1
 ABSENT	toMany			44
 ABSENT	toMultiplicity			9
-ABSENT	toOne			101
+ABSENT	toOne			116
 ABSENT	toOneMany			16
 ABSENT	toRepresentation			1
+ABSENT	toSQL			2
+ABSENT	toSQLString			2
 ABSENT	toString			103
 ABSENT	toUpper			1
 ABSENT	twoDBRunTime			2
-ABSENT	type			3
+ABSENT	type			4
 ABSENT	union			8
+ABSENT	validate			4
 ABSENT	value4Tag			1
 ABSENT	varToString			1
 ABSENT	window			9
@@ -1875,11 +1862,7 @@ ABSENT	withMapping			4
 ABSENT	wrapIfNecessary			1
 ABSENT	write			1
 ABSENT	zip			3
-DRIFT	greaterThan	meta::pure::functions::boolean::greaterThan_Boolean_1__Boolean_1__Boolean_1_	meta::pure::functions::boolean::greaterThan_Boolean_$0_1$__Boolean_$0_1$__Boolean_1_	8
-DRIFT	greaterThanEqual	meta::pure::functions::boolean::greaterThanEqual_Boolean_1__Boolean_1__Boolean_1_	meta::pure::functions::boolean::greaterThanEqual_Boolean_$0_1$__Boolean_$0_1$__Boolean_1_	8
-DRIFT	lessThan	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	meta::pure::functions::boolean::lessThan_Boolean_$0_1$__Boolean_$0_1$__Boolean_1_	8
-DRIFT	lessThanEqual	meta::pure::functions::boolean::lessThanEqual_Boolean_1__Boolean_1__Boolean_1_	meta::pure::functions::boolean::lessThanEqual_Boolean_$0_1$__Boolean_$0_1$__Boolean_1_	8
-EXTRA	meta::alloy::service::execution::setUpDataSQLs			2
+EXTRA	meta::alloy::service::execution::setUpDataSQLs			4
 EXTRA	meta::external::format::shared::executionPlan::extractPackageableElementFromTree			1
 EXTRA	meta::external::format::shared::executionPlan::getFunctionParameterValue			8
 EXTRA	meta::external::format::shared::executionPlan::toString::printPlanNodeToString			1
@@ -3128,50 +3111,50 @@ EXTRA	meta::pure::functions::asserts::assertIsNot			1
 EXTRA	meta::pure::functions::asserts::assertNotContains			1
 EXTRA	meta::pure::functions::asserts::assertNotEq			4
 EXTRA	meta::pure::functions::asserts::assertNotSize			1
-EXTRA	meta::pure::functions::boolean::and			164
+EXTRA	meta::pure::functions::boolean::and			171
 EXTRA	meta::pure::functions::boolean::eq			5
-EXTRA	meta::pure::functions::boolean::equal			482
-EXTRA	meta::pure::functions::boolean::greaterThan			5
-EXTRA	meta::pure::functions::boolean::greaterThanEqual			7
+EXTRA	meta::pure::functions::boolean::equal			489
+EXTRA	meta::pure::functions::boolean::greaterThan			6
+EXTRA	meta::pure::functions::boolean::greaterThanEqual			8
 EXTRA	meta::pure::functions::boolean::is			5
 EXTRA	meta::pure::functions::boolean::isTrue			15
-EXTRA	meta::pure::functions::boolean::not			100
-EXTRA	meta::pure::functions::boolean::or			102
+EXTRA	meta::pure::functions::boolean::not			109
+EXTRA	meta::pure::functions::boolean::or			104
 EXTRA	meta::pure::functions::collection::add			32
 EXTRA	meta::pure::functions::collection::and			4
-EXTRA	meta::pure::functions::collection::at			374
-EXTRA	meta::pure::functions::collection::contains			17
+EXTRA	meta::pure::functions::collection::at			380
+EXTRA	meta::pure::functions::collection::contains			20
 EXTRA	meta::pure::functions::collection::count			2
-EXTRA	meta::pure::functions::collection::defaultIfEmpty			1
-EXTRA	meta::pure::functions::collection::exists			4
-EXTRA	meta::pure::functions::collection::first			23
+EXTRA	meta::pure::functions::collection::defaultIfEmpty			2
+EXTRA	meta::pure::functions::collection::exists			5
+EXTRA	meta::pure::functions::collection::first			28
 EXTRA	meta::pure::functions::collection::forAll			16
 EXTRA	meta::pure::functions::collection::get			78
-EXTRA	meta::pure::functions::collection::head			19
+EXTRA	meta::pure::functions::collection::head			21
 EXTRA	meta::pure::functions::collection::in			15
-EXTRA	meta::pure::functions::collection::indexOf			52
+EXTRA	meta::pure::functions::collection::indexOf			54
 EXTRA	meta::pure::functions::collection::init			3
 EXTRA	meta::pure::functions::collection::intersection			1
-EXTRA	meta::pure::functions::collection::isEmpty			720
-EXTRA	meta::pure::functions::collection::isNotEmpty			195
+EXTRA	meta::pure::functions::collection::isEmpty			744
+EXTRA	meta::pure::functions::collection::isNotEmpty			196
 EXTRA	meta::pure::functions::collection::keyValues			21
 EXTRA	meta::pure::functions::collection::last			71
 EXTRA	meta::pure::functions::collection::list			23
 EXTRA	meta::pure::functions::collection::newMap			112
 EXTRA	meta::pure::functions::collection::newMultiValueMap			1
 EXTRA	meta::pure::functions::collection::or			2
-EXTRA	meta::pure::functions::collection::pair			176
+EXTRA	meta::pure::functions::collection::pair			190
 EXTRA	meta::pure::functions::collection::put			7
 EXTRA	meta::pure::functions::collection::putAll			8
 EXTRA	meta::pure::functions::collection::range			26
 EXTRA	meta::pure::functions::collection::removeAll			1
 EXTRA	meta::pure::functions::collection::removeDuplicates			76
-EXTRA	meta::pure::functions::collection::removeDuplicatesBy			8
+EXTRA	meta::pure::functions::collection::removeDuplicatesBy			13
 EXTRA	meta::pure::functions::collection::replaceTreeNode			4
 EXTRA	meta::pure::functions::collection::reverse			2
-EXTRA	meta::pure::functions::collection::size			47
+EXTRA	meta::pure::functions::collection::size			50
 EXTRA	meta::pure::functions::collection::sort			1
-EXTRA	meta::pure::functions::collection::tail			69
+EXTRA	meta::pure::functions::collection::tail			73
 EXTRA	meta::pure::functions::collection::zip			11
 EXTRA	meta::pure::functions::date::date			6
 EXTRA	meta::pure::functions::date::datePart			15
@@ -3211,7 +3194,7 @@ EXTRA	meta::pure::functions::meta::hasToOneUpperBound			1
 EXTRA	meta::pure::functions::meta::hasUpperBound			2
 EXTRA	meta::pure::functions::meta::hierarchicalProperties			1
 EXTRA	meta::pure::functions::meta::id			40
-EXTRA	meta::pure::functions::meta::instanceOf			158
+EXTRA	meta::pure::functions::meta::instanceOf			161
 EXTRA	meta::pure::functions::meta::instanceValuesAtParameter			4
 EXTRA	meta::pure::functions::meta::isPrimitiveValueProperty			1
 EXTRA	meta::pure::functions::meta::lenientPathToElement			1
@@ -3229,26 +3212,27 @@ EXTRA	meta::pure::functions::meta::sourceInformation			3
 EXTRA	meta::pure::functions::meta::stereotype			3
 EXTRA	meta::pure::functions::meta::stringToDataType			15
 EXTRA	meta::pure::functions::meta::type			24
-EXTRA	meta::pure::functions::multiplicity::toOne			2981
+EXTRA	meta::pure::functions::multiplicity::toOne			3064
 EXTRA	meta::pure::functions::multiplicity::toOneMany			16
 EXTRA	meta::pure::functions::relation::sort			1
 EXTRA	meta::pure::functions::relation::toString			1
 EXTRA	meta::pure::functions::string::endsWith			2
 EXTRA	meta::pure::functions::string::format			9
-EXTRA	meta::pure::functions::string::joinStrings			22
+EXTRA	meta::pure::functions::string::generation::generateGuid			2
+EXTRA	meta::pure::functions::string::joinStrings			19
 EXTRA	meta::pure::functions::string::lastIndexOf			1
 EXTRA	meta::pure::functions::string::length			13
 EXTRA	meta::pure::functions::string::makeString			55
 EXTRA	meta::pure::functions::string::parseDate			60
 EXTRA	meta::pure::functions::string::parseInteger			1
-EXTRA	meta::pure::functions::string::plus			1637
+EXTRA	meta::pure::functions::string::plus			1650
 EXTRA	meta::pure::functions::string::regexpReplace			2
 EXTRA	meta::pure::functions::string::replace			9
 EXTRA	meta::pure::functions::string::startsWith			24
 EXTRA	meta::pure::functions::string::substring			12
 EXTRA	meta::pure::functions::string::toLower			5
 EXTRA	meta::pure::functions::string::toRepresentation			1
-EXTRA	meta::pure::functions::string::toString			139
+EXTRA	meta::pure::functions::string::toString			136
 EXTRA	meta::pure::functions::string::trim			16
 EXTRA	meta::pure::functions::test::testedBy			1
 EXTRA	meta::pure::graphFetch::addPassThroughSubTrees			1
@@ -3301,7 +3285,7 @@ EXTRA	meta::pure::mapping::aggregationAware::reprocessVS			1
 EXTRA	meta::pure::mapping::aggregationAware::rewriteValueSpecification			3
 EXTRA	meta::pure::mapping::allPropertyMappings			47
 EXTRA	meta::pure::mapping::buildClassMappingsByClassMap			2
-EXTRA	meta::pure::mapping::buildClassMappingsById			4
+EXTRA	meta::pure::mapping::buildClassMappingsById			5
 EXTRA	meta::pure::mapping::classMappingById			5
 EXTRA	meta::pure::mapping::classMappings			2
 EXTRA	meta::pure::mapping::enumerationMappingByName			15
@@ -3318,7 +3302,7 @@ EXTRA	meta::pure::mapping::modelToModel::graphFetch::executionPlan::generateInMe
 EXTRA	meta::pure::mapping::modelToModel::inMemory::routeGettersInCode			1
 EXTRA	meta::pure::mapping::modelToModel::inMemory::routeGettersInCodeVS			4
 EXTRA	meta::pure::mapping::modelToModel::test::alloy::autoMapping::mapping::helperFunction			1
-EXTRA	meta::pure::mapping::propertyMappingByPropertyNameAndTargetId			1
+EXTRA	meta::pure::mapping::propertyMappingByPropertyNameAndTargetId			3
 EXTRA	meta::pure::mapping::propertyMappingsByPropertyName			1
 EXTRA	meta::pure::mapping::relation::relationElementAccessorModuleExtensionName			2
 EXTRA	meta::pure::mapping::resolveStore			20
@@ -3365,6 +3349,7 @@ EXTRA	meta::pure::router::preeval::resolveGenericType			2
 EXTRA	meta::pure::router::preeval::resolveVariable			2
 EXTRA	meta::pure::router::preeval::tests::getDummyRuntime			1
 EXTRA	meta::pure::router::preeval::toMultiplicity			1
+EXTRA	meta::pure::router::printer::asString			1
 EXTRA	meta::pure::router::routing::propogateSubType			2
 EXTRA	meta::pure::router::routing::resolveOperation			2
 EXTRA	meta::pure::router::routing::routeFunctionExpressionFunctionDefinition			1
@@ -3409,16 +3394,48 @@ EXTRA	meta::relational::functions::database::constructDb::joinFunctions::createT
 EXTRA	meta::relational::functions::database::constructDb::removeUnsupportedChars			1
 EXTRA	meta::relational::functions::database::loadCsvDataToDbTable			1
 EXTRA	meta::relational::functions::database::loadValuesToDbTable2			1
-EXTRA	meta::relational::functions::pureToSqlQuery::addQuotesIfNecessary			27
-EXTRA	meta::relational::functions::pureToSqlQuery::andFilters			45
+EXTRA	meta::relational::functions::pureToSqlQuery::addQuotesIfNecessary			28
+EXTRA	meta::relational::functions::pureToSqlQuery::andFilters			49
 EXTRA	meta::relational::functions::pureToSqlQuery::appendAtDeepestLeaf			1
 EXTRA	meta::relational::functions::pureToSqlQuery::buildNodeId			4
 EXTRA	meta::relational::functions::pureToSqlQuery::buildRfpmDummyRootSet			1
 EXTRA	meta::relational::functions::pureToSqlQuery::buildSimpleSQL			1
 EXTRA	meta::relational::functions::pureToSqlQuery::buildTree			1
 EXTRA	meta::relational::functions::pureToSqlQuery::buildUnionJoinName			1
-EXTRA	meta::relational::functions::pureToSqlQuery::buildUniqueName			9
+EXTRA	meta::relational::functions::pureToSqlQuery::buildUniqueName			12
 EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::andColumns			6
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseAnnualizedCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseCWCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseCWFMCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseCYMinus2CaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseCYMinus3CaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseCmeCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseMtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseP12MtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseP12WaCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseP12WtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseP4WaCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseP4WtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseP52WaCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseP52WtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePMtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePQtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePWCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePWFMCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePWtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePYMtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePYQtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePYWaCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePYWtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePYtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePmaCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePriorDayCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePriorYearCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetisePwaCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseQtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseReportEndDayCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseWtdCaseCondition			1
+EXTRA	meta::relational::functions::pureToSqlQuery::calendarAggregations::synthetiseYtdCaseCondition			1
 EXTRA	meta::relational::functions::pureToSqlQuery::excludeNullsFromQuantifiedSubSelect			1
 EXTRA	meta::relational::functions::pureToSqlQuery::excludeNullsFromSearchedColumn			1
 EXTRA	meta::relational::functions::pureToSqlQuery::expressionTouchesVariant			1
@@ -3431,12 +3448,12 @@ EXTRA	meta::relational::functions::pureToSqlQuery::findAliasOrFail			4
 EXTRA	meta::relational::functions::pureToSqlQuery::findBestNodeToIsolate			1
 EXTRA	meta::relational::functions::pureToSqlQuery::findMainRelation			1
 EXTRA	meta::relational::functions::pureToSqlQuery::findMainTable			3
-EXTRA	meta::relational::functions::pureToSqlQuery::findNode			13
-EXTRA	meta::relational::functions::pureToSqlQuery::findOneNode			43
+EXTRA	meta::relational::functions::pureToSqlQuery::findNode			22
+EXTRA	meta::relational::functions::pureToSqlQuery::findOneNode			58
 EXTRA	meta::relational::functions::pureToSqlQuery::flatten			15
 EXTRA	meta::relational::functions::pureToSqlQuery::freshAliasName			1
 EXTRA	meta::relational::functions::pureToSqlQuery::genericTypeToDataType			11
-EXTRA	meta::relational::functions::pureToSqlQuery::getAllNodes			3
+EXTRA	meta::relational::functions::pureToSqlQuery::getAllNodes			5
 EXTRA	meta::relational::functions::pureToSqlQuery::getClassMapping			2
 EXTRA	meta::relational::functions::pureToSqlQuery::getContextBasedSupportedFunctions			3
 EXTRA	meta::relational::functions::pureToSqlQuery::getDistinct			31
@@ -3453,7 +3470,7 @@ EXTRA	meta::relational::functions::pureToSqlQuery::joinKindToType			2
 EXTRA	meta::relational::functions::pureToSqlQuery::joinToTemp			1
 EXTRA	meta::relational::functions::pureToSqlQuery::manageIsolation			1
 EXTRA	meta::relational::functions::pureToSqlQuery::moveExtraFilterToFilter			1
-EXTRA	meta::relational::functions::pureToSqlQuery::newDynaFunction			13
+EXTRA	meta::relational::functions::pureToSqlQuery::newDynaFunction			14
 EXTRA	meta::relational::functions::pureToSqlQuery::orFilters			4
 EXTRA	meta::relational::functions::pureToSqlQuery::orderImmediateChildNodeByJoinAliasDependencies			1
 EXTRA	meta::relational::functions::pureToSqlQuery::otherSideAlias			2
@@ -3474,12 +3491,12 @@ EXTRA	meta::relational::functions::pureToSqlQuery::removeLeafNodes			1
 EXTRA	meta::relational::functions::pureToSqlQuery::removeUnionColumnsAndJoins			1
 EXTRA	meta::relational::functions::pureToSqlQuery::replaceDynaFunctionWithTableAliasColumn			2
 EXTRA	meta::relational::functions::pureToSqlQuery::replaceVariableByValues			1
-EXTRA	meta::relational::functions::pureToSqlQuery::reprocessAliases			39
-EXTRA	meta::relational::functions::pureToSqlQuery::reprocessJoin			4
+EXTRA	meta::relational::functions::pureToSqlQuery::reprocessAliases			44
+EXTRA	meta::relational::functions::pureToSqlQuery::reprocessJoin			6
 EXTRA	meta::relational::functions::pureToSqlQuery::reprocessJoinTreeNode			1
 EXTRA	meta::relational::functions::pureToSqlQuery::reprocessTableAliasColumns			24
 EXTRA	meta::relational::functions::pureToSqlQuery::reprocessVS			2
-EXTRA	meta::relational::functions::pureToSqlQuery::stripMatchingQuotes			3
+EXTRA	meta::relational::functions::pureToSqlQuery::stripMatchingQuotes			5
 EXTRA	meta::relational::functions::pureToSqlQuery::switchAliasForColumns			2
 EXTRA	meta::relational::functions::pureToSqlQuery::union::applyChainedJoinsToUnionQueries			1
 EXTRA	meta::relational::functions::pureToSqlQuery::union::bridgeUnionAllPKName			5
@@ -3491,7 +3508,7 @@ EXTRA	meta::relational::functions::pureToSqlQuery::updateEnumerationType			1
 EXTRA	meta::relational::functions::pureToSqlQuery::usePropertyName			12
 EXTRA	meta::relational::functions::sqlQueryToString::convertPlaceHolderToSQLString			2
 EXTRA	meta::relational::functions::sqlQueryToString::convertStringToSQLString			1
-EXTRA	meta::relational::functions::sqlQueryToString::createDbConfig			4
+EXTRA	meta::relational::functions::sqlQueryToString::createDbConfig			9
 EXTRA	meta::relational::functions::sqlQueryToString::db2::getDDLCommandsTranslator			1
 EXTRA	meta::relational::functions::sqlQueryToString::debugPrint::getDDLCommandsTranslator			1
 EXTRA	meta::relational::functions::sqlQueryToString::debugPrint::wrapH2Boolean			3
@@ -3508,7 +3525,9 @@ EXTRA	meta::relational::functions::sqlQueryToString::nullsLowWithClauseSupport		
 EXTRA	meta::relational::functions::sqlQueryToString::parseSemiStructuredPathNavigation			1
 EXTRA	meta::relational::functions::sqlQueryToString::processLiteralDefaultForPlanService			2
 EXTRA	meta::relational::functions::sqlQueryToString::processOperation			1
+EXTRA	meta::relational::functions::toDDL::createTableStatement			2
 EXTRA	meta::relational::functions::toDDL::createTempTableStatement			1
+EXTRA	meta::relational::functions::toDDL::dropTableStatement			1
 EXTRA	meta::relational::functions::toDDL::getTable			3
 EXTRA	meta::relational::functions::toPostgresModel::convertDurationUnit			1
 EXTRA	meta::relational::functions::toPostgresModel::convertElement			4
@@ -3558,7 +3577,7 @@ EXTRA	meta::relational::mapping::inferSourceDataType			4
 EXTRA	meta::relational::mapping::pureTypeToDataType			3
 EXTRA	meta::relational::mapping::relationalPlanSupportFunctions			9
 EXTRA	meta::relational::mapping::resolveFilter			15
-EXTRA	meta::relational::mapping::resolvePrimaryKey			15
+EXTRA	meta::relational::mapping::resolvePrimaryKey			16
 EXTRA	meta::relational::mapping::tablePrimaryKeyLeaf			2
 EXTRA	meta::relational::mapping::updateConnection			9
 EXTRA	meta::relational::metamodel::children			12
@@ -3621,42 +3640,25 @@ EXTRA	meta::relational::transform::autogen::createSQLSafeName			3
 EXTRA	meta::relational::transform::autogen::createValidClassName			2
 EXTRA	meta::relational::transform::autogen::createValidPropertyName			2
 EXTRA	meta::relational::transform::autogen::generateRelationalPropertyMappings			1
-EXTRA	meta::relational::transform::fromPure::pureTypeToDataType			16
+EXTRA	meta::relational::transform::fromPure::pureTypeToDataType			17
 EXTRA	meta::relational::translation::translateCoreTypeToDbSpecificType			2
 EXTRA	meta::relational::validation::alloy::injectThisReplacement			2
 EXTRA	meta::relational::validation::functions::resolveVars			4
-OVERLOAD	average	meta::pure::functions::math::average_Float_MANY__Float_1_	meta::pure::functions::math::average_Number_MANY__Float_1_	9
-OVERLOAD	average	meta::pure::functions::math::average_Integer_MANY__Float_1_	meta::pure::functions::math::average_Number_MANY__Float_1_	36
+OVERLOAD	average	meta::pure::functions::math::average_Number_MANY__Float_1_	meta::pure::functions::math::average_Integer_MANY__Float_1_	3
 OVERLOAD	contains	meta::pure::functions::string::contains_String_$0_1$__String_1__Boolean_1_	meta::pure::functions::string::contains_String_1__String_1__Boolean_1_	2
 OVERLOAD	elementToPath	meta::pure::functions::meta::elementToPath_PackageableElement_1__String_1_	meta::pure::functions::meta::elementToPath_Function_1__String_1_	1
-OVERLOAD	elementToPath	meta::pure::functions::meta::elementToPath_Type_1__String_1_	meta::pure::functions::meta::elementToPath_PackageableElement_1__String_1_	30
-OVERLOAD	elementToPath	meta::pure::functions::meta::elementToPath_Type_1__String_1__String_1_	meta::pure::functions::meta::elementToPath_PackageableElement_1__String_1__String_1_	1
 OVERLOAD	greaterThan	meta::pure::functions::boolean::greaterThan_Number_$0_1$__Number_1__Boolean_1_	meta::pure::functions::boolean::greaterThan_Number_1__Number_1__Boolean_1_	24
 OVERLOAD	greaterThanEqual	meta::pure::functions::boolean::greaterThanEqual_Number_$0_1$__Number_1__Boolean_1_	meta::pure::functions::boolean::greaterThanEqual_Number_1__Number_1__Boolean_1_	1
-OVERLOAD	hasGeneratedMilestoningPropertyStereotype	meta::pure::milestoning::hasGeneratedMilestoningPropertyStereotype_Function_1__Boolean_1_	meta::pure::milestoning::hasGeneratedMilestoningPropertyStereotype_ElementWithStereotypes_1__Boolean_1_	21
 OVERLOAD	in	meta::pure::functions::collection::in_Any_$0_1$__Any_MANY__Boolean_1_	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean_1_	2
-OVERLOAD	isEmpty	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	523
 OVERLOAD	lessThan	meta::pure::functions::boolean::lessThan_Number_$0_1$__Number_1__Boolean_1_	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	1
 OVERLOAD	lessThanEqual	meta::pure::functions::boolean::lessThanEqual_Number_$0_1$__Number_1__Boolean_1_	meta::pure::functions::boolean::lessThanEqual_Number_1__Number_1__Boolean_1_	2
-OVERLOAD	max	meta::pure::functions::date::max_DateTime_$1_MANY$__DateTime_1_	meta::pure::functions::date::max_DateTime_MANY__DateTime_$0_1$_	4
-OVERLOAD	max	meta::pure::functions::date::max_Date_$1_MANY$__Date_1_	meta::pure::functions::date::max_Date_MANY__Date_$0_1$_	3
-OVERLOAD	max	meta::pure::functions::date::max_StrictDate_$1_MANY$__StrictDate_1_	meta::pure::functions::date::max_StrictDate_MANY__StrictDate_$0_1$_	4
 OVERLOAD	max	meta::pure::functions::math::max_Number_MANY__Number_$0_1$_	meta::pure::functions::math::max_Integer_MANY__Integer_$0_1$_	3
-OVERLOAD	median	meta::pure::functions::math::median_Float_MANY__Float_1_	meta::pure::functions::math::median_Number_MANY__Float_1_	4
-OVERLOAD	median	meta::pure::functions::math::median_Integer_MANY__Float_1_	meta::pure::functions::math::median_Number_MANY__Float_1_	4
 OVERLOAD	meta::pure::mapping::propertyMappingsByPropertyName	meta::pure::mapping::propertyMappingsByPropertyName_EmbeddedSetImplementation_1__String_1__PropertyMapping_MANY_	meta::pure::mapping::propertyMappingsByPropertyName_InstanceSetImplementation_1__String_1__PropertyMapping_MANY_	1
-OVERLOAD	meta::pure::milestoning::hasGeneratedMilestoningPropertyStereotype	meta::pure::milestoning::hasGeneratedMilestoningPropertyStereotype_Function_1__Boolean_1_	meta::pure::milestoning::hasGeneratedMilestoningPropertyStereotype_ElementWithStereotypes_1__Boolean_1_	21
-OVERLOAD	min	meta::pure::functions::date::min_DateTime_$1_MANY$__DateTime_1_	meta::pure::functions::date::min_DateTime_MANY__DateTime_$0_1$_	4
-OVERLOAD	min	meta::pure::functions::date::min_Date_$1_MANY$__Date_1_	meta::pure::functions::date::min_Date_MANY__Date_$0_1$_	3
-OVERLOAD	min	meta::pure::functions::date::min_StrictDate_$1_MANY$__StrictDate_1_	meta::pure::functions::date::min_StrictDate_MANY__StrictDate_$0_1$_	4
-OVERLOAD	or	meta::pure::functions::collection::or_Boolean_$1_MANY$__Boolean_1_	meta::pure::functions::collection::or_Boolean_MANY__Boolean_1_	7
 OVERLOAD	plus	meta::pure::functions::math::plus_Number_MANY__Number_1_	meta::pure::functions::math::plus_Float_MANY__Float_1_	2
 OVERLOAD	propertyMappingsByPropertyName	meta::pure::mapping::propertyMappingsByPropertyName_EmbeddedSetImplementation_1__String_1__PropertyMapping_MANY_	meta::pure::mapping::propertyMappingsByPropertyName_InstanceSetImplementation_1__String_1__PropertyMapping_MANY_	2
 OVERLOAD	propertyMappingsByPropertyName	meta::pure::mapping::propertyMappingsByPropertyName_OtherwiseEmbeddedSetImplementation_1__String_1__PropertyMapping_MANY_	meta::pure::mapping::propertyMappingsByPropertyName_InstanceSetImplementation_1__String_1__PropertyMapping_MANY_	2
 OVERLOAD	range	meta::pure::functions::collection::range_Integer_1__Integer_MANY_	meta::pure::functions::collection::range_Integer_1__Integer_1__Integer_MANY_	1
 OVERLOAD	startsWith	meta::pure::functions::string::startsWith_String_$0_1$__String_1__Boolean_1_	meta::pure::functions::string::startsWith_String_1__String_1__Boolean_1_	2
-OVERLOAD	stdDevPopulation	meta::pure::functions::math::stdDevPopulation_Number_$1_MANY$__Number_1_	meta::pure::functions::math::stdDevPopulation_Number_MANY__Number_1_	2
-OVERLOAD	stdDevSample	meta::pure::functions::math::stdDevSample_Number_$1_MANY$__Number_1_	meta::pure::functions::math::stdDevSample_Number_MANY__Number_1_	10
 OVERLOAD	sum	meta::pure::functions::math::sum_Number_MANY__Number_1_	meta::pure::functions::math::sum_Float_MANY__Float_1_	2
 OVERLOAD	sum	meta::pure::functions::math::sum_Number_MANY__Number_1_	meta::pure::functions::math::sum_Integer_MANY__Integer_1_	5
 OVERLOAD	times	meta::pure::functions::math::times_Number_MANY__Number_1_	meta::pure::functions::math::times_Float_MANY__Float_1_	2

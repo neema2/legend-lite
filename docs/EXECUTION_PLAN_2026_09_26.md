@@ -527,6 +527,9 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
 
 - **W1.0 This page executable** — done (rev H2, the cold read and its fixes, rev H3). Repeat the cold read at every
   checkpoint.
+- **Taken over (2026-10-06):** W1.1b and the typing work it measures belong to the build rebuild program's Phase 3b
+  (`docs/REBUILD_PROGRAM_2026_10_06.md` on the plan branch): every call the same function and type as legend-pure,
+  every body legend-pure types typed.
 - **W1.1b Type rows and recorded instantiations** [W0-W1 #2, L1 #2, L5 #11, T3]: the reference side prints
   `_genericType`, `_multiplicity`, `_resolvedTypeParameters` and `_resolvedMultiplicityParameters` per call (all on the
   pinned `legend-pure-m3-core-5.99.0.jar`'s `FunctionExpressionAccessor`; printing via
@@ -678,6 +681,10 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
 ### W2 — The resolved tree (catalogue; order in §4, Phase 4)
 
 - **W2.0 = the ResolvedExpr note (H2)**, ruled (D12). Read its revision and reading guide.
+- **Taken over (2026-10-06):** W2.1's `ids` and `catalog` items belong to the build rebuild program
+  (`docs/REBUILD_PROGRAM_2026_10_06.md` on the plan branch): Phase 3 merges declarations by function id, refuses a
+  version with no row, and holds the catalog's ids distinct (`DeclarationTableTest`); Phase 5 turns `Pure.java`'s
+  signature text into rows. Nobody redoes them here.
 - **W2.1 World tables, the index in three layers, and the `ids`, `catalog`, `types` targets** [W2 #9, L4] (D25: the mapping
   include closure, walked on every binding lookup today — `MappingDefinition.withIncludes`, 2.5% of the stress run — becomes a
   world-table fact computed once; mapping lookups go by `Ref<Kind>` in W2.6 instead of `ModelBuilder.findMapping`'s FQN

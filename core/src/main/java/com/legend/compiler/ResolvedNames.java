@@ -48,4 +48,21 @@ public final class ResolvedNames {
     public static boolean names(AppliedFunction af, String fqn) {
         return referents(af).contains(fqn);
     }
+
+    /** The language form a call IS (build rebuild Phase 3): the form owning a full name the call resolves to (its
+     *  referents: the exact FQN, or a bare name's — beside a referent no form owns, the argument types decide:
+     *  ReceiverOwnedFunctions). A full name no form owns is read as written (the lite desugar's exact spellings); a bare
+     *  name with no referent at all, by its spelling — the form's own syntax; a bare name whose referents no form owns
+     *  is no form, whatever its spelling. */
+    public static java.util.Optional<com.legend.platform.CoreFn> form(AppliedFunction af) {
+        List<String> refs = referents(af);
+        for (String fqn : refs) {
+            java.util.Optional<com.legend.platform.CoreFn> owner = com.legend.platform.CoreFn.owning(fqn);
+            if (owner.isPresent()) {
+                return owner;
+            }
+        }
+        return refs.isEmpty() || refs.contains(af.function())
+                ? com.legend.platform.CoreFn.of(af.function()) : java.util.Optional.empty();
+    }
 }
