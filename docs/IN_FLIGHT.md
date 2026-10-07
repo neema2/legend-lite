@@ -58,6 +58,23 @@ with the compiler's plan/execution split**, in this order:
    `EngineHandlersGenerator`, `DynaFnRegistryTest`, `SpecRatchets` and `ratchets.tsv` (the undeclared engine ids,
    shrink-only). `.github/workflows/gate.yml` runs nightly on main. `DynaFn`'s API is unchanged, so its users are
    not edited beyond that one comment.
+   **Phase 3 (announced 2026-10-06): one table decides, by function id**, branch `build/phase3`. core:
+   `compiler/spec/FunctionMatch.java` (new: legend-pure's overload ranking), `InferenceKernel.java`, `Overloads.java`;
+   `compiler/element/FunctionCompiler.java` (candidates merged by function id; the PCT rule and the platform-owned list
+   gone), `compiler/element/type/PlatformTypes.java` (the owned and assert-family lists gone), `Compiler.java`
+   (`withoutPreludeShadows` by id), `builtin/Prelude.java`, `platform/ImplementationTable.java` and
+   `Implementation.java` (a version of a function the platform implements with no row is refused),
+   `compiler/StatementInline.java`; `builtin/Pure.java` and `native-membership.tsv` (26 versions get rows),
+   `native-claims.tsv` regenerated, `lowering/Aggregates.java`; `compiler/ResolvedNames.java` and `platform/CoreFn.java`
+   (a form by the names a call resolves to) with the 21 form-dispatch sites (`compiler/spec/` DeferredArgs,
+   GraphFetchChecker, MatchChecker, Overloads, ProjectChecker, SortChecker, SourceSubst, TdsDesugars, Typer;
+   `lineage/ScanRelations.java`, `normalizer/MappingNormalizer.java`), `builtin/TdsLegacy.java`,
+   `compiler/spec/GroupByChecker.java`, `builtin/SystemMetamodel.java`. core tests: `InferenceKernelTest`,
+   `PickByTableTest`, `DeclarationTableTest`, `IdentityGuardrailTest` (pins lowered, dated). spec:
+   `ImplementationTableTest`, `SpecRatchets`, `DynaFnRegistryTest`, `SubsumedRegistryTest`, `ratchets.tsv`, the
+   reference lane golden. Also **Studio's** `datacube/src/generated/offer-facts.ts` (regenerated: one more offered
+   function), `parser-equivalence`'s ratchets, `docs/GATES.md`, and `docs/EXECUTION_PLAN_2026_09_26.md`: W2.1's
+   `ids`/`catalog` items and W1.1b now belong to this program (Phases 3 and 3b), so nobody redoes them there.
 2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; PR #24 `studio-m1`, then `query-by-name`): `studio/`,
    `legend-art/`, `query/`, `datacube/` (imports and labels; the Snap move, A6), `site/`, a `@fontsource` block in
    `MODULE.bazel`; then, on `studio-engine`, core's test runner and model printer (A4, B1: files in the fifth line's
