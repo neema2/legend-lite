@@ -19,6 +19,17 @@ with the compiler's plan/execution split**, in this order:
    inside a Schema is lifted twice; one line in `ModelBuilder`) is now the build rebuild's (Phase 3b item 1). **Announced 2026-10-05 (P4-18):** `core/.../server/LegendHttpServer.java` and the warehouse server gain
    `--exit-with-parent` (exit when stdin reaches EOF; only tests set it), so no test stops a server with `taskkill`.
    **Parked (2026-10-06)** with the rebuild program's Phase 8: not landing now.
+   **Announced 2026-10-07 — the CI landing, the rebuild's L1 (plan §4; the lane set `docs/build-inventory/program/PHASE_8.md` §8), branch `build/ci-lanes`, before Phase 3 lands.**
+   L1a, no source file: `.github/workflows/gate.yml` and `gates-run.yml` (the build lane builds the product; every
+   lane a `//gates` suite; the lane guard; the cache reduced to the downloads; actionlint and the actions pinned);
+   `gates/BUILD.bazel` (the suites, `all`, `heavy`, `local` as a suite of suites; its header's PR sentence goes); the
+   root `BUILD.bazel` (`//:update_generated` manual); `spec/corpus.bzl` and `spec/BUILD.bazel` (the judge passes
+   manual); `core/layers.bzl` (the layer queries manual: a Bazel file under `core/`, no Java); `tools/census`,
+   `tools/junit`, `wasm` BUILD files (hand tools manual); `tools/guards/` (two new tests: every hand tool compiles,
+   actionlint over the workflows); `MODULE.bazel` and `third_party/` (actionlint's archives); `docs/GATES.md`. L1b:
+   `tools/browser/defs.bzl` (a Linux-only option), `datacube/BUILD.bazel`, `query/BUILD.bazel`, `site/BUILD.bazel`,
+   `studio/BUILD.bazel` and `datacube/demo/*.mjs` (the harnesses as tests: `bazel/exec`'s P4-02, P4-03, P4-04 and
+   P4-08 rebased) — Studio's line owns `datacube/`, `query/`, `site/` (below): noted here once, proceeding.
    **The build rebuild and the self-contained bump** (`docs/REBUILD_PROGRAM_2026_10_06.md`, on main since 2026-10-07 with its research and
    evidence; a session picking it up starts at `docs/build-inventory/program/START_HERE.md`. Phases 0 and 1 landed as PRs;
    since 2026-10-06 there are no PRs: one full CI run on the branch, then that commit pushed to main). **Announced 2026-10-06, replacing the 2026-10-05 note — PR 1, Phase 0:** the build targets

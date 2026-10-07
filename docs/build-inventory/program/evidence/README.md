@@ -25,6 +25,8 @@ apart from local paths (written `<checkout>`, `<output_base>`, `<tmp>`, `~`). Th
 | `homework/TRAIL.md` | the existing design trail (the upstream-boundary program, the compiler plans) read against the upstream-only homework, 2026-10-05 | the plan's design history |
 | `homework/outputs.txt` | the generators' output hashes before the upstream-only changes (the baselines R1 and R3 compare with) | `upstream-only/R1.md`, `R3.md` |
 | `world/e1_seeds.json`, `user_modules.txt`, `e8_extra.files`, `repos.json` | recorded results of the manifest-world experiments that the briefs quote (the seeds, the user side's modules, experiment 8's extra files, the repositories) | `PHASES_4_5_7.md`, `PHASES_3B_6.md`, the experiments README |
+| `phase8/CI_LANES_2026_10_07.md` | CI measured on 2026-10-07 (written in the planning session, not moved from scratch): every lane's minutes per platform, the minutes of actual testing per lane, the browser lane step by step, the 10 GB cache cap and the five-macOS-jobs cap, the native image built three times | the plan's §4 (L1), `PHASE_8.md` §8 |
+| `phase8/lane_minutes.py`, `job_steps.py`, `concurrency.py`, `test_minutes.py` | the scripts that produced it, over `gh run view <run> --json jobs`, `gh api .../actions/jobs/<job>`, the same job list, and a downloaded `test logs` artifact (`gh run download <run> -n <platform>-lane-<key>`); run with `python3 -I` | `CI_LANES_2026_10_07.md` |
 
 ## What stays in scratch, and why
 

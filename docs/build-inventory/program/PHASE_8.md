@@ -16,6 +16,17 @@ question for the user before design D8 is applied. OD-9's list of PR texts also 
 say that `[skip ci]` stops main's push run and that the next nightly run is the check after a landing (CI-10: confirm
 it fires).
 
+**Agreed on 2026-10-07 (the planning session): the CI work is the program's first landing, L1** (the plan's §4), not
+interleaved later. §8 below is its agreed shape: the lane set, what moves, what stays for later landings. The
+measurements that decided it are `evidence/phase8/CI_LANES_2026_10_07.md`: the build lane was the slowest lane on
+every platform (42 minutes on Windows) because it built `//...`; the browser lane's 23 minutes were a serial shell
+loop of harnesses plus a cold fetch; GitHub's 10 GB cache cap had evicted every cache but macOS's (§0 item 4's "5
+caches, 17.5 GB" was already 3 and 9.9 GB by the afternoon); GitHub runs at most five macOS jobs at once, so on macOS
+the queue is the wall clock. CI-10 is settled: the nightly run fires (a `schedule` run started 13:38 UTC for the 06:23
+cron; GitHub runs schedules late). Compile-1, Compile-2, Gen-5, Check-4, Test-6, Test-7, Test-8, CI-1, CI-2 (as the
+downloads-only cache), CI-4, CI-5, Meas-1 (a), Exec-1 (the four harness commits) and the harness half of Node-4 are
+L1's; §7 item 2's CI bullet is superseded by §8.
+
 
 Written 2026-10-07 by a read-only research pass. Nothing in any repository was changed and no Bazel command was run.
 Every claim below carries a path (with line or symbol), a commit, or a command; anything I could not check is marked
@@ -579,7 +590,7 @@ group: P2-21 plus design §4.2 E; renames: none (D11 and D12 are the design's).
 
 ---
 
-## 7. A sensible order (a proposal for the user, not agreed)
+## 7. A sensible order (a proposal, written before the planning session; item 2's CI bullet became L1, §8; the rest stands as a proposal for L10 to L13)
 
 The plan says Phase 8's items interleave with Phases 3b, 6, 4, 5 and 7 "where they do not touch the same files".
 Those phases touch: core's compiler and builtins (3b, 4, 5), the corpus runner and parser (6), the prelude generator
@@ -613,6 +624,63 @@ the seal (7). So:
 Sizes known from the old workplan (engineer-days): P3-06 5; P5-01 1; P5-02 2; P5-03 2.5; P5-07 1; P5-09 1; P4-12
 1.5; P4-13 1.5; P7-01 … P7-05 about 6; P7-06 … P7-09 about 4.5; P7-14 3; P7-16 L. No estimate exists for the no-Node
 port: make one after the spike (U-1, U-2).
+
+---
+
+## 8. The CI landing (L1), as agreed with the user on 2026-10-07
+
+**What it is.** The build lane builds the product and nothing else; every lane is a `//gates` suite with one name, one
+command and the same members on every platform; a guard holds that every test is in some suite; the browser harnesses
+are Bazel tests; the downloads are cached per platform; the heavy and hand targets leave the wildcard. Two landings:
+**L1a** (the structure and the cache: workflow and BUILD files only) and **L1b** (the harnesses as tests: the parked
+`bazel/exec` commits P4-02, P4-03, P4-04 and P4-08 rebased, the Linux-only tests constrained; `datacube/`, `query/`,
+`site/`, `studio/` files, which Studio's line owns: noted in IN_FLIGHT, then proceed). Each: an audit agent, one full
+CI run, a push to main.
+
+**The lanes.** Every lane runs `bazel test //gates:<name>` on Linux (`ubuntu-latest`), macOS (`macos-14`, one test JVM
+at a time) and Windows (`windows-2022`); `linux-arm` runs `warehouse` only; `product` runs `bazel build`. Tests that
+run only on Linux (the Chromium harnesses: "the same on every platform", and live-vs-snap deliberately checks
+x86_64) declare `target_compatible_with = ["@platforms//os:linux"]` and are skipped by the suite elsewhere.
+Minutes are estimates, Linux / macOS / Windows; L1a's own run replaces them.
+
+| Lane | Members (exact) | min |
+|---|---|---|
+| `product` | `bazel build //:java //:web //:wasm //:native //:sites //datacube:app`; then `bazel build --nobuild --config=bazel10 //...`; the A25 cross-platform analysis of `//warehouse //pct //datacube`; the lane guard (`bazel query 'tests(//...) except tests(//gates:all)'` is empty) | 6–7 / 6 / 8–9 |
+| `core` | `//core:core_tests` (24) `//core:duckdb_load_test` `//core:section_grammar_registry_test` `//core:corpus_differential_test` `//core:planner_on_java_base_test` `//spec:spec_tests` `//json:tests` `//pure-protocol:twins_test` `//tools/engine-runner:smoke_test` | 4 / 3 / 4 |
+| `checks` | `//:generated` `//projects:tests` `//tools/deps:all` `//tools/guards:classpath_test` `:compile_only_test` `:inventory_test` `:locks_test` `:markdown_inputs_test` `//tools/junit:pins_test` `:runner_test` `//tools/java_run:pins_test` `//tools/python:lock_matches_requirements` `//tools/browser:revision_test` `//tools/bump:bump_test` `//tools/js:lock_matches_package_json_test` `//scripts/corpus:density_gate` `:executed_gate` `:stacking_gate` `:scoreboard_gate` `:functions_gate` `//core:guardrails` `//core:census` + new `//tools/guards:tools_build_test` (every hand tool compiles; bazel-skylib's `build_test`) + new `//tools/guards:workflows_test` (actionlint from a pinned archive, replacing `gate.yml`'s `curl` job) | 10 / 8 / 13 |
+| `corpus_duckdb` | `//spec:corpus_duckdb` (host and database pass, verdict, roster diff tests; gates 4 and 11) | 7 / 5 / 7 |
+| `corpus_h2` | `//spec:corpus_h2` (gate 5) | 6 / 6 / 5 |
+| `pct_duckdb` | `//pct:pct_duckdb` (five suites) `//pct:pct_discipline` (gate 6) | 6 / 6 / 4 |
+| `pct_h2` | `//pct:pct_h2` (gate 7) | 5 / 3 / 3 |
+| `pct_postgres` | `//pct:pct_postgres` (five suites) `//core:postgres_arm_test` (gate 7P; the same embedded Postgres 16) | 6 / 6 / 6 |
+| `pct_channel_b` | `//pct:pct_channel_b` (five suites; gate 9) | 5 / 4 / 4 |
+| `parser_equivalence` | `//parser-equivalence:parser_parity` (gate 8) | 7 / 7 / 5 |
+| `stress` | `//core:stress_suites` `//core:stress_suites_h2` (gate 10; the H2 suite's 292 serial seconds are the lane's floor until it is split per suite, L12) | 8 / 8 / 4 |
+| `warehouse` (also linux-arm) | `//warehouse:tests` `:sqlapi_wasm_build_test` `:tests_native` `:launcher_test` (builds the image itself: the one duplicate left) + `:postgres_live` `:postgres_live_native` once a throwaway run shows they pass (Test-8) | 6 / 6 / 7 |
+| `datacube` | `//datacube:tests` (the Node tests, typecheck, bundle budget, `live_snap_test`, `verify_app_test`) `//datacube:verify_smoke_test` + the nine harnesses as tests (Linux-only): `run_stress`, `verify_charts`, `verify_cubes`, `verify_features` (sharded by section), `verify_page`, `verify_real_data`, `verify_remote`, `verify_upload`, `verify_wasm_browser`; `//wasm:differential_test` `//wasm:zone_test` (the planner in WebAssembly, which DataCube runs in the tab; kept out of `core` because of the TeaVM build) | 10–11 / 7 / 8–10 |
+| `ui` | `//studio:tests` `//query:tests` `//query-store:local_test` `:share_test` `:lite_test` + (Linux-only) `//studio:verify_test` `//query:verify_test` `//site:verify_test` | 8 / 3 / 5 |
+| `sdlc` | `//sdlc-server:git_repository_test` `//sdlc-client:tests` `//depot-client:tests` (the model home: SDLC and Depot, server and page) | 4 / 3 / 4 |
+| `heavy` (manual; a weekly scheduled run, Test-11) | `//spec:reference_lane` `//spec:update_reference_lane_test` `//spec:corpus_warehouse_verdict` `//spec:manifest_world_census` `//parser-equivalence:diagnostics` `//pct:update_ratchets_test` `//tools/python:requirements.test` | — |
+| `local` (`//gates:local`, not a job) | `core` + `checks` + `warehouse` (its JVM tests) + `datacube` + `ui` + `sdlc`, without the Linux-only and the native-image tests: what a session runs before pushing, as today | — |
+
+15 jobs per platform, the same names everywhere; every test target in the repository (337 non-manual on 2026-10-07,
+7 manual) has exactly one home, so there is no "misc" and the guard is strict. Expected wall clock: Linux ~11
+(`datacube`), Windows ~13 (`checks`), macOS ~15 (fifteen lanes through the five-at-a-time queue): **about 15
+minutes**, against 40 to 57 today.
+
+**What is gone from CI.** `bazel build //...` as a lane; the `lint workflows` job (`curl`); the Chromium install step;
+the shell loop of `bazel run` harnesses and their fixed ports; the jq list of hand-typed targets (the keys stay for
+`-f gates=`, now suite names); the output-cache tarballs and their 2–3 minute saves (only `~/.cache/bazel-repo` is
+cached: one key per platform and pin hash, shared by every lane). **Built by no wildcard any more (`manual`):** the six
+judge passes, `//pct:ratchets`, `//:update_generated`, the hand tools (`//tools/census:render_census`, `:lanes_diff`,
+`//tools/junit:compare_testcases`, `//wasm:startup`), the 30 layer queries.
+
+**Not L1's, with its landing:** `checks`' generator builds (L6 deletes `gen_natives`, `gen_claims` and `core_next`;
+L8's seal takes the upstream generators out of `//:generated`; L12 carves the measurements: if `//:generated` still
+dominates after L1's run, `generated` becomes its own lane, one line once suites exist); the H2 stress suite's serial
+five minutes (L12); the Node tests' 14 minutes on Windows in `datacube` (L11); the native image built twice (the
+remote cache, OD-5, decided in L10 with L1's hit rates); `core_tests_integration` at 173 s on Windows (sharding; third
+order).
 
 ---
 

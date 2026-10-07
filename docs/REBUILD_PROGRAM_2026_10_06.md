@@ -498,7 +498,9 @@ stays a guard that must not get worse, not a target. Small: days (the Phase 3b b
 - D8 (delete `ide` and `probe`), D9 (warehouse server paths as flags; runfiles jars out of the product), D10 (one
   shape per app), D5 (DataCube fixtures out of the site), D13 (the warehouse client), D15; the TS typecheck cleanup.
 - Node out of the tests: a CDP client driving pinned Chromium.
-- CI lanes from `//gates`, and caching (an open decision: there is no "D14" in the design; the Phase 8 brief's OD-5).
+- CI lanes from `//gates`, and caching: **pulled forward as L1, the first landing (§4), agreed 2026-10-07**; the lane
+  set is the Phase 8 brief's §8. The cache is the downloads only, per platform (GitHub's 10 GB cap rules out output
+  caches); a remote cache stays an open decision (OD-5) for L10, with L1's measured hit rates.
 - The old Bazel plan's parked work: `bazel/exec`'s Phase 4 commits and fixes, and P3-25.
 - The build's own carried shortcuts (listed 2026-10-07, the user: fixed correctly, not worked around), complete in
   the Phase 8 brief's §2.8 (26 rows): of the Windows PR's (#14) four follow-ups, two are already fixed on main (the
@@ -518,15 +520,44 @@ stays a guard that must not get worse, not a target. Small: days (the Phase 3b b
   ladder. Decide what each is and carve it by its true trigger.
 - Last: the renames (D11: core, db, sdlc, depot; D12: depot its own server).
 
-## 4. Order and what can move
+## 4. Order and what can move (agreed with the user 2026-10-07; the live state is START_HERE §3)
 
-**Order: 0, 1, 2, 2b, 3, 3b, 6, 4, 5, 7**, with Phase 8's items interleaved where they do not touch the same files.
-- 2b informs 3's design; 3 needs 2's tables.
-- 3b needs 3 and runs before 6 and 4: it loads the files those phases need (the boot layer's twins, the mapping
-  files) and fixes what users would meet.
-- 6 needs 3 (the table owns what the manifest's files redefine) and runs before 4, so the result views can move off
-  startup at the moment the default world changes, with nothing temporary in between.
-- 4 needs 3's ownership and 6's manifest; 5 needs 4's world; 7 needs all.
+The remaining work is a numbered list of **landings** (one branch, one audit, one full CI run, one push to main).
+**The CI landing comes first** and **the bump is done at L8**: the user, 2026-10-07, "we do all the L2 stuff first
+right now, make our build super amazingly awesome, and then we go back to all the code including phase three and the
+rest of the bump program in order; then pushes will be much faster and we move fast". Measured reason (the Phase 8
+brief's §8 and `docs/build-inventory/program/evidence/phase8/CI_LANES_2026_10_07.md`): a full run took 40 to 57
+minutes because the build lane built everything (`//...`, the corpus passes and the 2 GB ratchets included), the
+browser lane ran its harnesses one at a time by a shell loop, and Linux and Windows fetched everything cold on every
+run (GitHub's 10 GB cache cap had evicted every cache but macOS's). After L1 a run is about 15 minutes, bounded by
+GitHub's five-at-a-time macOS queue; every later landing pays that instead of an hour.
+
+| # | Landing | Contains | Needs |
+|---|---|---|---|
+| **L1** | **The CI landing** (Phase 8's CI work, pulled forward; the lane set is the Phase 8 brief's §8) | (a) every lane a `//gates` suite with a guard that every test is in one; the build lane builds the product (`//:java //:web //:wasm //:native //:sites //datacube:app`) plus the two analysis checks; `manual` on the six judge passes, `//:update_generated`, the hand tools and the layer queries; actionlint as a Bazel test and the actions pinned by commit; the cache reduced to the downloads, one per platform. (b) the browser harnesses as Bazel tests (the parked `bazel/exec` commits P4-02, P4-03, P4-04, P4-08 rebased), the Linux-only ones by `target_compatible_with`, no install step, no loop | nothing; Phase 3's branch stays untouched meanwhile and rebases after (L1 touches no file Phase 3 touched) |
+| **L2** | **Phase 3 lands** | the five commits as they are, rebased onto main after L1; PARK-5 recorded (option (a) below), its full fix scheduled as L7; the ledger rows PARK-13 and PARK-14 get their "fixed in 3b" line in the same rebase | L1; one CI run on the fast CI |
+| **L3** | **Phase 3b** | its five items (3b.5), with: 3b-O1 (b) the "platform's own Pure" row kind (PARK-12 closed, `shadows` deleted); 3b-O2 (a) import scopes per element; **PARK-14 decided in item 4's code and PARK-13's trace deleted** | L2; the 3b brief's homework H1 to H7; its open decisions |
+| **L4** | **Phase 6** | the corpus on its manifest, as the 6 brief describes; 6-H3 decides whether PARK-11's rows must come here instead of Phase 4 | L3; homework 6-H1 to H9 (experiment 8 rerun at the real heap) |
+| **L5** | **Phase 4** | the default world from upstream, the result views off startup through L4's loader, the legacy TDS rows by id (PARK-11), the 109 unrowed versions each rowed or refused, the rule texts, the boot profiled, 4b decided on numbers | L3, L4; U4-1 (the real world measured: run right after L2, it needs no 3b or 6 code) and U4-2 to U4-9 |
+| **L6** | **Phase 5** | Pure.java as rows by id; the catalog, the membership list, the claims, `core_next`, `gen_claims`, `gen_natives`, `native_declarations` retired | L5 |
+| **L7** | **PARK-5's full fix** (moved into the program) | the resolver records every platform call's names once; calls built after it are built resolved; `BareNames.catalog` goes; typing on the eager probe at or below main's | L6: Phases 4 and 5 touch the same ~200 call sites and change where declarations come from; the fix is done once, on the final shape |
+| **L8** | **Phase 7: the bump** | `//:update_upstream`, the seal and its test, the measurements' writers out of `//:update_generated` (D7-4: here, not Phase 8), `Bump.java`, one real bump to the release after 4.145.0 | L6 (L7 helps). **The bump is done here.** |
+| **L9** | **The typer's order** (PARK-6, 7, 8, 9, 10 as one design) | arguments typed once, the function chosen on typed arguments, legend-pure's acceptance test, the tie-breaks checked against legend-pure | L8; earlier only if U4-1 shows wrong picks in the real world |
+| **L10** | **Phase 8, the build part** (several landings) | D8, D9 (OD-1: runfiles trees stay on Windows), D10/D5, the Node-independent parts of `bazel/exec` (OD-3 (b) for the rest), the small items, the remote cache if the numbers say so | L1 |
+| **L11** | **Phase 8, no Node** (several landings) | the CDP spike, the driver, the tests, the harnesses, the servers, the JS generators, TypeScript as a build action, Node removed, then the Windows bash path and runfiles | L5: the boot measure `//wasm:startup` is a Node program Phase 4 needs |
+| **L12** | **Phase 8, the tests untangled and the measurement group** | the corpus passes narrowed, the ledgers committed as goldens (the run-against-run comparison, the Bazel way), `spec_tests_lib` split, the ladder and ratchets carved, the core test libraries per package, the H2 stress suite split per suite, the weekly heavy suite, the run-vs-run comparison design | L4, L6 |
+| **L13** | **The rest** | PARK-1 to PARK-4 (product debts, not this program's: one select-merge pass closes PARK-2 and PARK-4), the script review and documents, NullAway and Error Prone, the remaining guards, the renames (D11, D12), the final audit | everything |
+
+**Why this order.** 2b informed 3's design; 3 needs 2's tables. 3b needs 3 and runs before 6 and 4: it loads the files
+those phases need (the boot layer's twins, the mapping files) and fixes what users would meet. 6 needs 3 (the table
+owns what the manifest's files redefine) and runs before 4: Phase 4's default world lacks the ten classes the result
+views name, so the views must leave startup the moment the world changes, and only Phase 6's loader gives them a
+home. 4 needs 3's ownership and 6's manifest; 5 needs 4's world; 7 needs all. Phase 8 waits for the bump except L1,
+which pays for itself at once.
+
+**The debts, placed.** PARK-5: L7 (the user chose option (a), 2026-10-07: land Phase 3 with it recorded; the fix inside
+the program, after Phase 5, not after the program). PARK-6 to PARK-10: L9. PARK-11: L5 (or L4 if 6-H3 says so).
+PARK-12, PARK-13, PARK-14: L3. PARK-1 to PARK-4: L13.
 
 ## 5. Working on this program (for any session that picks it up)
 
@@ -534,10 +565,10 @@ stays a guard that must not get worse, not a target. Small: days (the Phase 3b b
 simplifications this program carries in the compiler (a platform call never resolved once, arguments typed more than
 once, the ranking's adjustments and unported parts, legacy TDS functions by name, the boot layer's versions, a debug
 trace, the dot-call fallback), each with its cost, what closes it and an anchor test that goes red when the code
-changes. The user, 2026-10-07: they are fixed after the program lands, correctly, with a design agreed first; none is
-worked around in the meantime, and a new shortcut is a new row, not a quiet one. Two close inside the program (PARK-11
-in Phase 4, PARK-12 in Phase 3b); PARK-5's timing is the user's open decision (land Phase 3 with it recorded, or fix it
-first: `docs/build-inventory/program/START_HERE.md` §3).
+changes. The user, 2026-10-07: they are fixed correctly, with a design agreed first; none is worked around in the
+meantime, and a new shortcut is a new row, not a quiet one. Each row's landing is in §4 ("The debts, placed"): PARK-11
+in Phase 4, PARK-12 to PARK-14 in Phase 3b, PARK-5 as L7 right after Phase 5 (decided 2026-10-07: the fix is inside the
+program, once, on the final shape), PARK-6 to PARK-10 as L9 after the bump.
 
 **Process (the user's rules):**
 - Plan each phase and get the user's agreement before writing code; explain plainly, without jargon; never invent a

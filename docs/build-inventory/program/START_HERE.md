@@ -53,13 +53,19 @@ generated file, never a signature we typed ourselves.
 
 ## 3. State, and the next action
 
-**State at the end of 2026-10-07** (the one place this is kept; other documents point here):
-- **One branch holds everything:** `main` has every document (since 2026-10-07: the plan branch merged, `AGENTS.md`'s
-  pointer, IN_FLIGHT's update), and `build/phase3` is main plus the five Phase 3 commits, rebased onto main the same
-  day and pushed (not landed). Its commits by subject: step 1 (ranking), step 2 (candidates and implementations by id),
-  step 3 (forms, TDS functions, `agg`, boot-layer versions by resolved names), the corpus fixes, the audit's fixes. List
-  them with `git log --oneline origin/main..origin/build/phase3` (a rebase changes the ids; these documents name
-  subjects, not ids). If main moves again with documents only, rebase again: no rerun. Worktree clean.
+**State on 2026-10-07, after the planning session** (the one place this is kept; other documents point here):
+- **The order is agreed and recorded in the plan's §4**: thirteen landings, L1 the CI landing first, L2 Phase 3, then
+  3b, 6, 4, 5, PARK-5's fix, 7 (the bump is done there), then the typer's order and Phase 8. The next action is **L1**
+  on branch `build/ci-lanes` from `origin/main`: the lane set and what it contains is `PHASE_8.md` §8; the
+  measurements behind it are `evidence/phase8/CI_LANES_2026_10_07.md`.
+- **`build/phase3` is untouched and waits for L1:** main plus the five Phase 3 commits, pushed, not landed. Its
+  commits by subject: step 1 (ranking), step 2 (candidates and implementations by id), step 3 (forms, TDS functions,
+  `agg`, boot-layer versions by resolved names), the corpus fixes, the audit's fixes. List them with `git log
+  --oneline origin/main..origin/build/phase3` (a rebase changes the ids; these documents name subjects, not ids).
+  After L1 lands it is rebased onto main (L1 touches no file it touched; L1 is code, so its CI run is rerun, on the
+  fast CI), the ledger rows PARK-5, PARK-13 and PARK-14 get their landing line (plan §4, "The debts, placed") in a
+  small commit on top, the tip carries `[skip ci]`, and it lands as L2. The user, 2026-10-07: no docs commit on the
+  branch before then. Worktree clean.
 - Old ids the briefs and the first audit cite, by subject: `5bc1550ae` and `d0041969c` step 1; `38566af11` and
   `a2f4da2fc` step 2; `165a1dbff` and `3912d3c12` step 3; `bc0de1f70` and `5e8a7c263` the corpus fixes; `ad1ed0175` the
   audit's fixes (amended after the local gate with documents, reason text and one comment only). Line numbers in the
@@ -70,8 +76,10 @@ generated file, never a signature we typed ourselves.
   with the evidence folder.
 - Phases 0, 1, 2, 2b: done (2 is on main; 2b was an experiment). **Phase 3: built, audited twice, every finding fixed
   or recorded, checked; not landed.** What is left: `PHASE_3_LANDING.md` §5.
-- Next phases, in order: **3b, 6, 4, 5, 7**, with Phase 8's items interleaved where they touch other files. Each phase
-  branches from `origin/main` after the previous one lands (not from the old `build/rebuild`).
+- Next, in order (plan §4): **L1 the CI landing, L2 Phase 3, then 3b, 6, 4, 5, PARK-5's fix, 7**; Phase 8 after the
+  bump. Each landing branches from `origin/main` after the previous one lands (not from the old `build/rebuild`).
+  Homework pulled forward: U4-1 (the real Phase 4 world measured with the harness) runs right after L2; the bump's
+  pins-only dry run (U7-3) during L3's homework.
 
 **The briefs in this folder** (each: goal, agreed design with sources, what to read first, the code today, steps,
 checks, traps, open decisions, stale statements, homework):
@@ -88,18 +96,25 @@ checks, traps, open decisions, stale statements, homework):
 The briefs were written by read-only research passes before some corrections; each starts with a note of what was
 applied to the plan afterwards. Where a brief and the plan disagree, the plan wins.
 
+**Decided on 2026-10-07** (the planning session; each with its reason in the plan's §4 or the brief named):
+- PARK-5: option (a). Phase 3 lands with it recorded; the full fix is L7, right after Phase 5 (not after the program:
+  Phases 4 and 5 touch the same call sites and change where declarations come from). Homework for L2: one timing of
+  the in-tab compile, main's WebAssembly against Phase 3's, so the browser is not worse than the probe's +18%.
+- L1's shape (`PHASE_8.md` §8): OD-10 now (`//:update_generated` manual); Meas-1 (a) now (the judge passes manual);
+  Test-6 and Test-7 (suites and the lane guard); Test-8: run `postgres_live` once, then a lane or deleted with a
+  reason; CI-4 and CI-5 (actionlint as a test, actions pinned by commit); the cache: the downloads only, per
+  platform (OD-5's remote cache decided in L10 with L1's hit rates); OD-3 (a) for exec's four harness commits
+  (P4-02, P4-03, P4-04, P4-08: the harnesses as tests), (b) for the rest; the Linux-only browser tests by
+  `target_compatible_with`, not by a lane.
+- The lane names: `product`, `core`, `checks`, `corpus_duckdb`, `corpus_h2`, `pct_duckdb`, `pct_h2`, `pct_postgres`,
+  `pct_channel_b`, `parser_equivalence`, `stress`, `warehouse`, `datacube`, `ui`, `sdlc`, plus the manual `heavy`;
+  `spec`, `json`, `pure-protocol` and the engine-runner smoke test in `core`; `//wasm`'s tests in `datacube`.
+
 **Open decisions waiting for the user** (ask before the phase they block; each brief gives options and evidence):
-- **Before Phase 3 lands:**
-  - PARK-5 (calls to platform functions resolved again at every check: typing +18% on the eager compile probe, 0 to
-    4% end to end). Three options: (a) land Phase 3 now with PARK-5 recorded and fix it after the program; (b) the
-    contained fix first (the typer works out a call's names once and hands them to that call's checks: 4 or 5 files
-    in `compiler/spec`; leaves cross-call checks and other passes); (c) the full fix first (the resolver records every
-    call's names; about 200 places that build calls; the identity program's direction). Measure any fix with the same
-    probe (`DEBTS_RESOLVE_AND_TYPE_ONCE.md`, "The measurement").
-  - `AGENTS.md`'s "Pushing to main" still describes PRs (rule 2 "restored by P8-01", rule 3 "fix it in a PR"), and so
-    do `gates/BUILD.bazel`'s header ("goes through a PR instead") and the root `progress.txt` (stale since April);
-    since 2026-10-06 there are no PRs (`PHASE_8.md` OD-9). Since 2026-10-07 `AGENTS.md` says this program lands without
-    PRs; whether other work keeps a PR path is the open part.
+- `AGENTS.md`'s "Pushing to main" still describes PRs (rule 2 "restored by P8-01", rule 3 "fix it in a PR"), and so
+  do `gates/BUILD.bazel`'s header ("goes through a PR instead") and the root `progress.txt` (stale since April);
+  since 2026-10-06 there are no PRs (`PHASE_8.md` OD-9). Recommended: no PRs for any work in this repository; L1
+  rewrites `gates/BUILD.bazel`'s header; `AGENTS.md` is a docs-only commit when the user says so.
 - **Phase 3b and 6:** `PHASES_3B_6.md`, section 8 of each phase. Among them, 3b-O1 decides whether 3b builds the
   "platform's own Pure" row kind (the plan's decision 1 asks for it; Phase 4's D4-4 needs it): that is its one owner.
 - **Phase 4:** `PHASES_4_5_7.md` §2.8, D4-1 to D4-12 (which bodies the closure follows; the three legacy TDS functions
