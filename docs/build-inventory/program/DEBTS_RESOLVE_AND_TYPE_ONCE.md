@@ -64,6 +64,34 @@ built strings.
   written as string checks on names (the identity guard rejected it, rightly: it adds name-string identity code);
   reordering checks so the expensive question is asked less (it offset the cost elsewhere and fixed nothing).
 
+### When it is fixed: the user's open decision
+
+PARK-5 is the one debt whose timing is open (PARK-11 and PARK-12 close inside the program; the rest after it). The
+options, with sizes:
+- **(a) Land Phase 3 now with PARK-5 recorded**; fix it after the program, the full way.
+- **(b) The contained fix first:** the typer works out a call's names once, in `Typer.applyFunction`, and hands them to
+  the checks that run on that same call (form dispatch, the TDS desugars, the `instanceOf` rule, the receiver-owned
+  check). 4 or 5 files in `compiler/spec`. Estimated (not measured) to take this lookup from 29% to about 13% of
+  typing, below main's 19%. Leaves the checks on other calls and the passes outside the typer; two ways to ask the same
+  question until the full fix.
+- **(c) The full fix first:** the resolver records every call's names; the calls built after it are built resolved;
+  the checks read the record. The resolver plus about 200 call-building sites and the 10 files that read
+  `candidateFqns()`. Its own design and audit.
+
+### How to measure a fix
+
+The numbers above came from the audit's scripts, which are scratch (`runs/build-rebuild/runs/homework/phase3x/audit_tmp/`:
+`eager_run.sh` runs the probe from its Bazel execution root with a hard-coded macOS class path; `ab_run.sh` alternates
+two trees; `eager_jfr.sh` adds the recording; `jfr_agg.py` reads it). To redo them anywhere:
+- The probe is `com.legend.rcorpus.EagerCorpusCompileProbe`, the committed target `//spec:eager_corpus_compile`
+  (manual, a 4 GB `java_run`; its outputs land in `bazel-bin/spec/eager_corpus_compile/`, and the timing line
+  `build=<ms> typeAll=<ms>` is in its log).
+- Bazel caches the action, so to time it repeatedly run the same Java command outside Bazel: the action's command
+  line (`bazel aquery //spec:eager_corpus_compile`) gives the class path and flags; run it from the execution root.
+- Compare main's tree and the change's tree on the same machine, alternating runs (six pairs), and read the median.
+- For the profile, add `-XX:StartFlightRecording:filename=<file>,settings=profile,jdk.ExecutionSample#period=1ms`,
+  then `jfr print --json --stack-depth 200 --events jdk.ExecutionSample <file>`.
+
 ### What closes it
 
 PARK-5's acceptance: names worked out once and recorded; typing on the eager compile at or below main's; the six

@@ -1,8 +1,12 @@
 # Start here: the build rebuild and the self-contained bump (for a session picking the program up)
 
-Written 2026-10-07. Read this first, then the plan (`docs/REBUILD_PROGRAM_2026_10_06.md`), then the brief of the
-phase you are working on (this folder). The plan says what and why; the briefs say exactly how, with the files, the
-commands, the checks and the traps already hit.
+Written 2026-10-07, corrected the same day after a cold read (`COLD_READ_2026_10_07.md`). Read this first, then the
+plan (`docs/REBUILD_PROGRAM_2026_10_06.md`), then the brief of the phase you are working on (this folder). The plan
+says what and why; the briefs say exactly how, with the files, the commands, the checks and the traps already hit.
+
+Do not confuse this program, **the build rebuild**, with **the compiler rebuild**: the parked compiler plan
+(`docs/EXECUTION_PLAN_2026_09_26.md`), which `AGENTS.md` on main still names as "current work" (an open decision,
+§3). Do not follow that plan's §0 checklist: its worktree and branch belong to another line of work.
 
 ## 1. The program in two paragraphs
 
@@ -22,29 +26,34 @@ generated file, never a signature we typed ourselves.
 
 ## 2. Where everything is
 
-| What | Where |
-|---|---|
-| The plan, the designs, the research, these briefs | branch `docs/bazel-first-class-plan` (worktree `runs/bazel-plan`): `docs/REBUILD_PROGRAM_2026_10_06.md`, `docs/BUILD_REBUILD_DESIGN_2026_10_05.md`, `docs/GENERATORS.md`, `docs/UPSTREAM_ONLY_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md`, `docs/build-inventory/` (inventories, dossiers, experiments, censuses), `docs/build-inventory/program/` (this folder) |
-| The code | `main`. Phases 0, 1 and 2 are on it (PR #25, PR #26, `ff70aef01`). |
-| Phase 3 (not landed yet) | branch `build/phase3` (worktree `runs/build-rebuild`): 4 commits on `293318dda`, plus uncommitted audit fixes. `PHASE_3_LANDING.md` says what is left. |
-| The program's debts | `docs/PARKED_WORK_LEDGER.md` rows PARK-5 to PARK-14 (on `build/phase3`; they land with Phase 3), each anchored by `core/src/test/java/com/legend/ParkedWorkLedgerTest.java` |
-| Who works on what | `docs/IN_FLIGHT.md` on `main` (the program's entry lists every core file each phase touches) |
-| Gate results and what moved, per change | `docs/GATES.md` (one entry per landing) |
-| The parked compiler plan (not this program) | `docs/EXECUTION_PLAN_2026_09_26.md`: W2.1's `ids` and `catalog` items were taken over by Phase 3; W1.1b and the typing work stay there |
-| The pinned upstream sources | Bazel repositories `@legend_engine_src` and `@legend_pure_src` (`$(bazel info output_base)/external/+http_archive+legend_engine_src`, `...legend_pure_src`); release pins in `release.MODULE.bazel` (engine 4.145.0, pure 5.99.0) |
-| Scratch evidence of past runs (not in the repo) | each worktree's `runs/homework/` (for Phase 3: `runs/build-rebuild/runs/homework/phase3x/`, holding the audit report `AUDIT_PHASE3.md`, the corpus baseline `judges_base/`, probes). Anything a later phase needs from there is copied into a brief. |
+| What | Where | Pushed? (2026-10-07) |
+|---|---|---|
+| The plan, the designs, the research, these briefs | branch `docs/bazel-first-class-plan` (worktree `runs/bazel-plan`): `docs/REBUILD_PROGRAM_2026_10_06.md`, `docs/BUILD_REBUILD_DESIGN_2026_10_05.md`, `docs/GENERATORS.md`, `docs/UPSTREAM_ONLY_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md`, `docs/build-inventory/` (inventories, dossiers, experiments, censuses), `docs/build-inventory/program/` (this folder) | **No.** The remote branch is at `8c4655ddf`, without this folder. Push it before anything that cites it lands (§4) |
+| The code | `main` (`origin/main` `f306bd698`). Phases 0, 1 and 2 are on it (PR #25, PR #26, `ff70aef01`). | yes |
+| Phase 3 | branch `build/phase3` (worktree `runs/build-rebuild`); state in §3 | **No** (no remote branch) |
+| The program's debts | `docs/PARKED_WORK_LEDGER.md` rows PARK-5 to PARK-14 (on `build/phase3`; they land with Phase 3), anchored by `core/src/test/java/com/legend/ParkedWorkLedgerTest.java` | with Phase 3 |
+| Who works on what | `docs/IN_FLIGHT.md` on `main` (the program's entry lists every core file each phase touches) | yes |
+| Gate results and what moved, per change | `docs/GATES.md` (one entry per landing) | with each landing |
+| The pinned upstream sources | Bazel repositories `@legend_engine_src` and `@legend_pure_src` (`$(bazel info output_base)/external/+http_archive+legend_engine_src`, `...legend_pure_src`; use `find -L` inside them); release pins in `release.MODULE.bazel` (engine 4.145.0, pure 5.99.0) | — |
+| Scratch evidence of past runs (not in the repo) | each worktree's `runs/homework/`. Most of what a later phase needs is restated in a brief; what is not (the corpus baseline, the PARK-5 timing scripts, the prepared IN_FLIGHT update) is listed in `COLD_READ_2026_10_07.md` §4. On another machine, redo it from the briefs' prose. | never |
+| The audit agents | `~/.claude/agents/` (`auditor`, high effort, a 15-minute budget; `auditor-max`, maximum effort, no budget): session tooling, not in the repo; a new definition loads only when a session starts | — |
 
-**`AGENTS.md` on main still says "Current work: the compiler rebuild"** (the parked plan). That pointer is stale for
-this program; correct it when Phase 3 lands (it is a shared file: say so in the commit).
+## 3. State, and the next action
 
-## 3. State on 2026-10-07, and the next action
-
-- Phases 0, 1, 2, 2b: done (2 is on main; 2b was an experiment).
-- **Phase 3: done on `build/phase3`, audited (max effort, "ready after fixes"), fixes in progress, not landed.**
-  The blocker is fixed with tests; the rest is in `PHASE_3_LANDING.md`, with one decision open for the user:
-  land with PARKED_WORK_LEDGER PARK-5 (calls to platform functions resolved again at every check: typing +18% on the
-  compile probe, 0 to 4% end to end) recorded, or fix it first.
-- Next phases, in order: **3b, 6, 4, 5, 7**, with Phase 8's items interleaved where they touch other files.
+**State at the end of 2026-10-07** (the one place this is kept; other documents point here):
+- `origin/main`: `f306bd698`.
+- `build/phase3` (local only): five commits on `f306bd698`, the four Phase 3 commits and the audit's fixes:
+  `d0041969c` step 1, `a2f4da2fc` step 2, `3912d3c12` step 3, `5e8a7c263` the corpus fixes, `ad1ed0175` the audit's
+  fixes (amended after the local gate with documents, reason text and one comment only). Worktree clean. The briefs and the first audit cite the ids from before the rebase onto `f306bd698`:
+  `5bc1550ae` = `d0041969c`, `38566af11` = `a2f4da2fc`, `165a1dbff` = `3912d3c12`, `bc0de1f70` = `5e8a7c263`; line
+  numbers in the files the fix commit changed moved a little (cite the ledger's anchors by name).
+- Checks on that tree: core tests, guards, census, spec tests; the six corpus passes identical to the
+  pre-Phase-3 baseline; the reference lane byte-identical to its golden; PCT 17 of 17; the local gate 290 of 290.
+- `docs/bazel-first-class-plan` (local only): this folder and the plan's corrections, committed; not pushed.
+- Phases 0, 1, 2, 2b: done (2 is on main; 2b was an experiment). **Phase 3: built, audited twice, every finding fixed
+  or recorded, checked; not landed.** What is left: `PHASE_3_LANDING.md` §5.
+- Next phases, in order: **3b, 6, 4, 5, 7**, with Phase 8's items interleaved where they touch other files. Each phase
+  branches from `origin/main` after the previous one lands (not from the old `build/rebuild`).
 
 **The briefs in this folder** (each: goal, agreed design with sources, what to read first, the code today, steps,
 checks, traps, open decisions, stale statements, homework):
@@ -56,19 +65,39 @@ checks, traps, open decisions, stale statements, homework):
 | `PHASES_4_5_7.md` | Phase 4 (the default world), Phase 5 (Pure.java as rows by id), Phase 7 (the self-contained bump) |
 | `PHASE_8.md` | the rest of the build: about 80 items, both decision series, the old workplan mapped |
 | `DEBTS_RESOLVE_AND_TYPE_ONCE.md` | the research behind PARKED_WORK_LEDGER PARK-5 and PARK-6 |
+| `COLD_READ_2026_10_07.md` | a fresh session's read of all of the above: the gaps it found (fixed), the scratch files the briefs lean on, its first three actions for each phase |
+
+The briefs were written by read-only research passes before some corrections; each starts with a note of what was
+applied to the plan afterwards. Where a brief and the plan disagree, the plan wins.
 
 **Open decisions waiting for the user** (ask before the phase they block; each brief gives options and evidence):
-- Phase 3: land with PARK-5 recorded or fix it first; whether `AGENTS.md`'s "current work" pointer moves to this
-  program.
-- Phase 3b and 6: in `PHASES_3B_6.md`, section 8 of each phase.
-- Phase 4: `PHASES_4_5_7.md` §2.8, D4-1 to D4-12 (which bodies the closure follows; the three legacy TDS functions
-  legend-engine does not offer; the TDS row kind; where the result views load and who builds the "platform's own Pure"
-  row kind; which parser the generator uses; seeding by name or id; the name lists that change; the six hand enums; the
-  primitives; the file's name; the boot budget and Phase 4b; the 109 unrowed versions).
-- Phase 5: `PHASES_4_5_7.md` §3.8. Phase 7: §4.8.
-- Phase 8: `PHASE_8.md` §3.4, OD-1 to OD-17, and design D1, D4, D6, D7 (§3.2).
-- Across phases: `AGENTS.md`'s "Pushing to main" still describes PRs (rule 2 "restored by P8-01", rule 3 "fix it in
-  a PR"); since 2026-10-06 there are none (`PHASE_8.md` OD-9). A shared file: the user decides.
+- **Before Phase 3 lands:**
+  - PARK-5 (calls to platform functions resolved again at every check: typing +18% on the eager compile probe, 0 to
+    4% end to end). Three options: (a) land Phase 3 now with PARK-5 recorded and fix it after the program; (b) the
+    contained fix first (the typer works out a call's names once and hands them to that call's checks: 4 or 5 files
+    in `compiler/spec`; leaves cross-call checks and other passes); (c) the full fix first (the resolver records every
+    call's names; about 200 places that build calls; the identity program's direction). Measure any fix with the same
+    probe (`DEBTS_RESOLVE_AND_TYPE_ONCE.md`, "The measurement").
+  - Where the program's documents live: push the plan branch (needed: the ledger cites it), and whether this folder
+    should also land on main (docs only) so main never points at an unpushed branch.
+  - `AGENTS.md` on main: its "Current work" pointer (to this program and this file?), and a one-line "parked since
+    2026-10-06" note at the top of `docs/EXECUTION_PLAN_2026_09_26.md` §0. Shared files.
+  - `AGENTS.md`'s "Pushing to main" still describes PRs (rule 2 "restored by P8-01", rule 3 "fix it in a PR"), and so
+    do `gates/BUILD.bazel`'s header ("goes through a PR instead") and the root `progress.txt` (stale since April);
+    since 2026-10-06 there are no PRs (`PHASE_8.md` OD-9).
+- **Phase 3b and 6:** `PHASES_3B_6.md`, section 8 of each phase. Among them, 3b-O1 decides whether 3b builds the
+  "platform's own Pure" row kind (the plan's decision 1 asks for it; Phase 4's D4-4 needs it): that is its one owner.
+- **Phase 4:** `PHASES_4_5_7.md` §2.8, D4-1 to D4-12 (which bodies the closure follows; the three legacy TDS functions
+  legend-engine does not offer; the TDS row kind; where the result views load; which parser the generator uses;
+  seeding by name or id; the name lists that change; the six hand enums; the primitives; the file's name; the boot
+  budget and Phase 4b; the 109 unrowed versions). Also: which harness proves "the demos' queries executed"
+  (§1.4 item 3), and the boot measure `//wasm:startup` is a Node program Phase 8 removes (measure the boot before Node
+  goes, or port the measure).
+- **Phase 5:** `PHASES_4_5_7.md` §3.8. **Phase 7:** §4.8 (D7-4 and D7-7 are the same questions as `PHASE_8.md`
+  OD-6/OD-10 and GENERATORS.md's assignment of the writer-and-diff-test guard to Phase 7).
+- **Phase 8:** `PHASE_8.md` §3.4, OD-1 to OD-17, and design D1, D4, D6, D7 (§3.2); when its independent items start
+  relative to 3b (its §7 proposes the CI cache first: not agreed); deleting `//core:probe` (design D8) also takes away
+  the parked compiler plan's probe (`ChannelB.java:223`, a test service file, `tools/untangle/*.py`).
 
 ## 4. How we work (the user's rules; each one was learned the hard way)
 
@@ -80,57 +109,75 @@ checks, traps, open decisions, stale statements, homework):
 - Never invent a new mechanism when an existing one (the implementation table, modules, manifests, the generators,
   the ledger) does the job.
 - No hacks, no workarounds, nothing pushed around quietly. A shortcut that must stay is a row in
-  `docs/PARKED_WORK_LEDGER.md` (date, who decided, what we do today, cost, acceptance, an anchor test), and it leaves
-  only by being fixed. If a guard test rejects a change, the guard is usually right: stop and rethink.
+  `docs/PARKED_WORK_LEDGER.md` (date, who decided, why, what we do today, cost, acceptance, an anchor test), and it
+  leaves only by being fixed (or, where the row allows keeping a behavior, by a `docs/SEMANTICS_REGISTER.md` row that
+  replaces it). If a guard test rejects a change, the guard is usually right: stop and rethink.
 - Never write bare "native": "upstream native" is upstream's `native function` keyword (a Java body); "platform-lowered"
   is what our Pure.java declares.
 
 **While coding**
 - Core edits: the `docs/IN_FLIGHT.md` announcement lands on main first, listing every core file the change touches
-  (standing authorization to push IN_FLIGHT updates to main).
-- Never hand-edit a generated file; regenerate it (`bazel run //:update_generated`, or the phase's own writer).
+  (standing authorization to push IN_FLIGHT updates to main). No worktree sits on main: make one for the edit,
+  `git -C runs/build-rebuild worktree add --detach runs/inflight origin/main` (inside a worktree's ignored `runs/`),
+  edit and commit there with `[skip ci]`, `git -C runs/build-rebuild/runs/inflight push origin HEAD:refs/heads/main`,
+  then remove the worktree.
+- Never hand-edit a generated file; regenerate it with its narrow writer: `bazel run //core:update_generated` (DynaFn.java,
+  Pure.java, CoreImports.java, engine-handlers.tsv, native-claims.tsv, prelude.pure), or the phase's own writer. The
+  root `bazel run //:update_generated` also rewrites the ratchets, the ladder and other measurements (`BUILD.bazel`):
+  if you use it, read `git diff` and give every moved ratchet, golden or ladder line its own reason.
 - Any moved pin, ceiling, ratchet or allowlist entry carries a dated justification naming the task.
 - No local paths (home or temp directories) or binaries in anything committed. Temp files go in the worktree's
   `runs/`, never `/tmp`. Use `git -C <dir>` / `env -C <dir>`, never `cd <dir> &&`.
-- Run only the targets the change touches during the work; one heavy Bazel server at a time on the machine (check
-  for other sessions' builds first; do not stack worktrees or agents that run Bazel).
+- Run only the targets the change touches during the work. At most two heavy Bazel jobs on the machine at once
+  (`docs/IN_FLIGHT.md`, `gates/BUILD.bazel`'s header): check other sessions first (`ps` for Bazel servers and test
+  JVMs); do not stack worktrees or agents that run Bazel.
 
 **Landing (no PRs, since 2026-10-06)**
-1. An audit by an independent agent (the `auditor` agent type; `auditor-max` when the user asks for maximum effort).
-   Agent definitions load only at session start.
+1. An audit by an independent agent (`auditor`; `auditor-max` when the user asks for maximum effort).
 2. Fix what it finds; rerun the checks the fixes touch.
-3. Rebase onto the latest `origin/main`, then the local gate once: `bazel test --lockfile_mode=error //gates:local`.
-4. The tip commit message ends with `[skip ci]`; push the branch (a branch push runs no CI).
-5. Dispatch one full CI run on the branch: `gh workflow run gate.yml --ref <branch> -f gates= -f platforms=all`
-   (`gates=` empty means every lane). For a throwaway run of affected lanes only, name them in `-f gates=...`; a full
-   run is needed when `MODULE.bazel`, a toolchain, `.bazelrc` or a workflow changes.
-6. When it is green, push that exact commit to main: `git push origin "${SHA}:refs/heads/main"` (the braces are
+3. Write the change's `docs/GATES.md` entry (what moved and why, with the numbers).
+4. Push the plan branch if the change cites anything new there (docs only: no CI runs on a branch push).
+5. Push IN_FLIGHT's entry to main if it is not there yet (above).
+6. Rebase onto the latest `origin/main`, then the local gate once: `bazel test --lockfile_mode=error //gates:local`. The
+   commit message says "local gate: //gates:local green" (AGENTS.md, "Pushing to main", rule 1).
+7. The tip commit message ends with `[skip ci]`: it stops main from running CI a second time when the commit lands
+   (CI runs on pushes to main only; the branch run below is the verdict). Push the branch.
+8. Dispatch one full CI run on the branch: `gh workflow run gate.yml --ref <branch> -f gates= -f platforms=all`
+   (`gates=` empty means every lane; a run takes 40 to 57 minutes). For a throwaway run of affected lanes only, name
+   them in `-f gates=...`; a full run is needed when `MODULE.bazel`, a toolchain, `.bazelrc` or a workflow changes.
+   When the change touches the parser, lexer, protocol, parser-equivalence or `MODULE.bazel`, also
+   `gh workflow run diagnostics.yml --ref <branch>` (its own trigger is a push to main, which `[skip ci]` suppresses).
+9. When it is green, push that exact commit to main: `git push origin "${SHA}:refs/heads/main"` (the braces are
    required in zsh). If main moved meanwhile: docs-only commits, rebase and push; code commits, rerun CI.
-7. After a push, watch main's CI; revert your own commit at once if it goes red (AGENTS.md, "Pushing to main").
-8. Commit trailers as the session's instructions give them.
+10. No CI runs for the push itself (`[skip ci]`). Check the next nightly run on main
+    (`gh run list --workflow gate.yml --event schedule`; cron 06:23 UTC; that it fires is not yet confirmed,
+    `PHASE_8.md` CI-10); if it is red because of your commit, revert it at once (AGENTS.md, "Pushing to main", rule 3).
+11. Commit trailers as the session's instructions give them.
 
 ## 5. How to run each check (exact)
 
 | Check | Command | What "pass" means |
 |---|---|---|
-| Local gate | `bazel test --lockfile_mode=error //gates:local` | every test passes (about 306 targets) |
+| Local gate | `bazel test --lockfile_mode=error //gates:local` | every test passes (290 targets; it does not include PCT or the corpus passes) |
 | Core unit tests | `bazel test //core:core_tests` (24 per-package targets) | all pass |
 | Guards (incl. the ledger anchors, identity counts, error shapes) | `bazel test //core:guardrails //core:census` | all pass; a shrink-only count that grows is a real finding, not a pin to raise |
 | Spec tests (implementation table, ratchets) | `bazel test //spec:spec_tests` | all pass |
 | Generated files current | `bazel test //:generated` | every diff test passes |
-| PCT (heavy, 4 GB each) | `bazel test //pct:pct_duckdb //pct:pct_h2 //pct:pct_postgres //pct:pct_channel_b` | identical to before the change |
-| **The six corpus passes** | `bazel build //spec:judge_host_duckdb //spec:judge_database_duckdb //spec:judge_host_h2 //spec:judge_database_h2 //spec:judge_host_warehouse //spec:judge_database_warehouse` | every result file identical to a baseline built BEFORE the change (see below) |
+| PCT (heavy, 4 GB each) | `bazel test //pct:pct_duckdb //pct:pct_h2 //pct:pct_postgres //pct:pct_channel_b` (add `--local_test_jobs=2` when the machine is shared) | identical to before the change (17 targets) |
+| **The six corpus passes** | `bazel build //spec:judge_host_duckdb //spec:judge_database_duckdb //spec:judge_host_h2 //spec:judge_database_h2 //spec:judge_host_warehouse //spec:judge_database_warehouse` | every result file identical to a baseline built BEFORE the change (below) |
 | **The reference lane** (manual, about 8 GB) | `bazel build //spec:reference_lane_report`, then `diff bazel-bin/spec/reference-lane/core_relational.txt spec/src/test/resources/reference-lane/core_relational.txt`; re-bless a deliberate move with `bazel run //spec:update_reference_lane`; `bazel test //spec:reference_lane` checks every disagreement class has a reason in `reasons.tsv` | AGREE not down, no new disagreement class without a reason; every moved line explained in the GATES entry |
 
 **The corpus passes, done right.** `//gates:local`'s corpus checks only compare committed results; they do not rerun
 the corpus. A compiler change must rerun the six passes and compare them with a baseline:
-1. Before changing anything, build the six targets and copy each output directory
-   (`bazel-bin/spec/judge_<pass>/`) aside, e.g. to `runs/homework/<phase>/judges_base/judge_<pass>/`.
-2. After the change, build them again.
+1. Before changing anything, build the six targets and copy each output directory (`bazel-bin/spec/judge_<pass>/`)
+   aside, e.g. to `runs/homework/<phase>/judges_base/judge_<pass>/`.
+2. After the change, build them again (check the outputs' times: a cached result is not a rerun).
 3. Compare the RESULT files, not the logs: the rosters (`*-fail-roster.txt`, `*-skipped-roster.txt`), the registers
    (`*-engine-order-register.txt`, `*-unordered-register.txt`, `*-database-engine-order-register.txt`), the ledgers
-   (`judge-host.tsv`, `judge-database.tsv`) and `verdict.txt`. Compare their sorted lines without comment lines.
-   Logs (`host.log`, `database.log`) differ by timings; ignore them.
+   (`judge-host.tsv`, `judge-database.tsv`) and `verdict.txt`, 22 files in all. Compare their sorted lines without
+   comment lines. Logs (`host.log`, `database.log`) differ by timings; ignore them. (The SQL the executor sends,
+   seen only with `-Dlegend.diagnostics=dump-sql`, may renumber the reflection rows' function ids when the world
+   gains functions; that is not in the result files.)
 4. A database pass refuses to run after its host pass fails, so an empty database output means look at the host pass.
 5. A difference is fixed, or explained to the user, before landing.
 
@@ -138,17 +185,19 @@ Running a hand-made corpus command after another Bazel command: rebuild the corp
 execution root lacks the upstream trees ("legend-engine checkout not present").
 
 **World changes (Phases 4 and 6)** use the experiment harness: `docs/build-inventory/manifest-world/experiments/README.md`
-(swap `prelude.pure` on the classpath without code changes; rerun each corpus pass's exact command with `e6_lanes.py`;
-the user side with `UserSideProbe`; the browser with `bazel run //wasm:startup`).
+(it now builds its own inputs: `rerun.sh` runs `graph.py` and `index.py` first; swap `prelude.pure` on the classpath
+without code changes; rerun each corpus pass's exact command with `e6_lanes.py`; the user side with `UserSideProbe`;
+the browser with `bazel run //wasm:startup`).
 
 ## 6. Traps already hit (add to this list)
 
 - The reference lane's census walk does not follow the execution root's symlinks: point `-Dlegend.engine.root` and
-  `-Dlegend.pure.root` at the real directories (realpath) when running its programs by hand.
+  `-Dlegend.pure.root` at the real directories (realpath) when running its programs by hand. Inside the upstream
+  trees use `find -L` (a plain `find` finds nothing).
 - `jfr print` keeps only 5 frames per stack by default; use `--stack-depth 200` to see who calls a hot method.
 - macOS `strings` fails on class files (it reads `CAFEBABE` as a fat Mach-O); use `grep -a`.
 - zsh: `echo ====` fails (`=` expansion); an unquoted `$VAR` holding several paths is one word; `"${SHA}:refs/..."`
-  needs the braces.
+  needs the braces, and `"$c:spec/x"` is read as a modifier too.
 - Segmenting upstream Pure files: a doc string belongs to the element below it; keywords at a line start inside a doc
   string or block comment are prose; names come after every `<<stereotype>>` and `{tagged value}` (`docstart.py`).
 - Upstream marks tests with test stereotypes and `::tests::` packages; `::test::` packages are upstream's test
@@ -156,7 +205,11 @@ the user side with `UserSideProbe`; the browser with `bazel run //wasm:startup`)
 - An ownership filter must cover the functions Pure.java implements, `CoreFn`'s forms, the system metamodel's own
   versions, `TdsLegacy`'s functions and the helpers forms recognize (`agg`, `col`): missing one breaks hundreds of
   tests.
-- `bazel info` blocks while another build runs in the same workspace; use the known paths.
+- `bazel info` blocks while another build runs in the same workspace: run `bazel info output_base` once at session
+  start, before any build, and keep the path for the session (never commit it).
+- `e6_lanes.py` forces `-Xmx4g` on every pass (the DuckDB and warehouse passes really run with 1 GB) and names the
+  configuration directory `darwin_arm64-fastbuild`: adjust both before trusting a heap or another platform.
+- The warehouse corpus passes build the GraalVM server first: slow on a cold cache.
 - A guard's growth is a finding: do not raise a shrink-only pin to make a change pass.
 
 ## 7. Reading order

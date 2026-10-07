@@ -7,6 +7,15 @@
 kind is not built yet, decision 3's full list of rule texts, and Phase 5's "several landings, no PRs" with D5-4/D5-5
 noted. `docs/PARKED_WORK_LEDGER.md` PARK-11 is corrected the same way. The open decisions themselves are not decided.
 
+**After the cold read (`COLD_READ_2026_10_07.md`), these parts of the body are superseded:** D4-13 is decided (F-L1
+belongs to Phase 3b item 1); §2.6's quoted bar ("the 18 legacy TDS functions ... cannot hold as written") is replaced
+by the plan's corrected Phase 4 check (the 14 query handlers, `columnByName` as the class member, the other three as
+decided); §0 item 2 quotes PARK-11's old text (corrected); §3.2 and D5-8's "the plan still says Several PRs" (fixed:
+"several landings, no PRs"). D7-7 is assigned: GENERATORS.md's update note gives the writer-and-diff-test guard to
+Phase 7. D7-4 is the same question as `PHASE_8.md` OD-6 and OD-10: decide them together. The "platform's own Pure"
+row kind (D4-4) has one owner, the 3b brief's 3b-O1. `WORLD/` now regenerates from the repository: `rerun.sh` runs
+`graph.py` and `index.py` first, and `e1_handler_files.txt` is committed.
+
 
 Written 2026-10-07 for a session with no memory of the work so far. Read-only research: nothing in either repository
 was changed and no Bazel command was run. Every fact carries a path; **UNVERIFIED** marks what could not be checked.

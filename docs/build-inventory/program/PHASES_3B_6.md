@@ -8,6 +8,17 @@ be sized with the user; its Phase 6 carries what experiment 8 did not test (adde
 the corpus's own closure; the 4 GB heap; the throwing guard), the host-compared register, `;` as legend-pure treats it
 and `m3.pure`, and F-L1 and `routeFunction` owned by 3b. The open decisions themselves are not decided.
 
+**After the cold read (`COLD_READ_2026_10_07.md`):** 3b-O1 is the one owner of the "platform's own Pure" row kind
+(the plan's decision 1 and Phase 4's D4-4 point here). 3b-O2 is partly answered by the plan (multi-file projects meet
+the import-scope bug and Phase 6 needs it fixed): the plan implies option (a); confirm with the user. Phase 6's E-4
+(the H2 register entry) is open, not agreed: it is 6-O7. `//spec:manifest_world_census` is expected to fail its
+ceilings today (load walls 37 > 32, failing bodies 1,476 > 1,447; `PHASE_8.md` Short-21) and has no owner (Meas-9).
+Line numbers in files the fix commit changed moved (in `ParkedWorkLedgerTest.java`: PARK-6 now :84-96, PARK-12 :121-123,
+PARK-14 :127-130): cite anchors by name. C.1 step 5's "reflection rows renumber their function ids" is a difference in
+the SQL the executor sends (seen with `-Dlegend.diagnostics=dump-sql`), not in the 22 result files, which must be
+identical. The Phase 3 statements this brief found wrong (§3b.9 items 7 and 8: GATES on the 58 and on `routeFunction`;
+`Typer`'s comment; PARK-12's 7 files) are corrected in Phase 3's fix commit. Phase 3b branches from `origin/main`.
+
 
 Written 2026-10-07 for a fresh session that has none of the conversations behind the plan. It covers the plan's
 Phase 3b ("what the bump and users need from the compiler") and Phase 6 ("the corpus on its real manifest"). The plan

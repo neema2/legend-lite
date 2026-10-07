@@ -17,8 +17,9 @@ versions the corpus, PCT and the reference lane call, and reads forms by the nam
 ## 2. The branch
 
 **State at the end of 2026-10-07:** `build/phase3` is rebased on `origin/main` `f306bd698`: five local commits, the
-four Phase 3 commits (`d0041969c`, `a2f4da2fc`, `3912d3c12`, `5e8a7c263`) and the audit's fixes (`036bef950`), nothing
-pushed. The worktree is clean. The rest of this section describes the branch before the rebase (the old commit ids).
+four Phase 3 commits (`d0041969c`, `a2f4da2fc`, `3912d3c12`, `5e8a7c263`) and the audit's fixes (`ad1ed0175`), nothing
+pushed. The local gate passed on that tree (290 of 290; the fix commit was amended afterwards with documents, reason
+text and one comment only, and the affected checks re-passed). The current state is kept in `START_HERE.md` §3. The worktree is clean. The rest of this section describes the branch before the rebase (the old commit ids).
 
 - 4 commits on `293318dda` (main has moved to `f306bd698`, a docs-only IN_FLIGHT commit: rebase is clean):
   `5bc1550ae` step 1 (ranking), `38566af11` step 2 (candidates and implementations by id), `165a1dbff` step 3 (forms,
@@ -29,7 +30,7 @@ pushed. The worktree is clean. The rest of this section describes the branch bef
   `compiler/StatementInline.java`; `compiler/element/FunctionCompiler.java`; `platform/Implementation.java`,
   `ImplementationTable.java`; tests `InferenceKernelTest`, `CompileFunctionTest`, `IdentityGuardrailTest`,
   `ParkedWorkLedgerTest`; `docs/PARKED_WORK_LEDGER.md`.
-- Measured before the fixes: local gate 306/306; six corpus passes identical to main's own outputs (every result
+- Measured before the fixes: the local gate plus the 16 PCT targets, 306/306 (the local gate alone is 290); six corpus passes identical to main's own outputs (every result
   file); reference lane AGREE 73,103 -> 74,586, OVERLOAD 745 -> 58, DRIFT 32 -> 0, PROPERTY_AS_CALL 39 -> 1, our
   failed bodies 1,508 -> 1,469; PCT all pass.
 
@@ -79,14 +80,17 @@ back to a function.
    - the reference lane: build `//spec:reference_lane_report`, diff against the committed golden; if B1 moved lines,
      re-bless with `bazel run //spec:update_reference_lane` and say which lines moved and why;
    - PCT, all suites.
-3. **Correct the documents** (S2, S3, S4, S6, plus the stale ones found since). **Done 2026-10-07 (uncommitted, or in
+3. **Correct the documents** (S2, S3, S4, S6, plus the stale ones found since; and, after the cold read, the statements
+   the 3b brief had found wrong: GATES' "the 58 left are argument typing" and "the closure lacks `routeFunction`",
+   `Typer`'s comment pointing the double typing at Phase 3b instead of PARK-6, and PARK-12's "7 files", which are 5
+   twin files plus 2 F-L1 drops: all corrected in the fix commit). **Done 2026-10-07 (uncommitted, or in
    the local fix commit):** the GATES entry (numbers from the final golden: 51 newly typed, 12 newly failing; 27 rows;
    109; item 3's two plan changes; the departures sentence; "every result file"; a paragraph on the audit and the ledger
    rows); `reasons.tsv` (every row matches a class in the golden; `//spec:reference_lane` passes); the execution plan's
    W1.1b note removed; the plan's Phase 3 Status bullet. **Prepared, not pushed:** IN_FLIGHT's update, as a whole file
    and a diff in the worktree's scratch (`runs/homework/phase3x/IN_FLIGHT.next.md`, `IN_FLIGHT.diff`: 27 rows, the
    fix files, `reasons.tsv`, no PRs, F-L1 now this program's, the START_HERE pointer); push it to main before the code
-   (if main's IN_FLIGHT moved meanwhile, re-apply the diff's five edits to the new version). **Still a question for the
+   (if main's IN_FLIGHT moved meanwhile, re-apply the diff's six edits to the new version: the five above and line 10's superseded plan name). **Still a question for the
    user:** the `AGENTS.md` pointer. The items, for the record:
    - `docs/GATES.md`, the Phase 3 entry ("2026-10-06 — Build rebuild Phase 3"): "Bodies: 50 newly typed, 13 newly
      failing" becomes the counts from the final golden (the audit measured 51 and 12 before the fixes);
@@ -125,9 +129,11 @@ back to a function.
    in PARK-9, five more anchors for PARK-6 and PARK-10, `contravariantTypeFit` sharing the covariant distance
    (`generalizationDistance`), and the wording nits; report in the worktree's scratch, `AUDIT_FIXES.md`); the lanes
    rerun on the final code (six corpus passes identical, reference lane byte-identical, PCT 17 of 17); the fix
-   committed locally and the branch rebased; the local gate (result in the GATES entry once it is in). **Left for the
-   next session (the user, 2026-10-07: "leave the park decision and CI/push for next session"):** the PARK-5 decision;
-   push IN_FLIGHT's prepared update to main; put `[skip ci]` on the tip commit; then:
+   committed locally and the branch rebased; the local gate green, 290 of 290 (recorded in the GATES entry). **Left for the
+   next session (the user, 2026-10-07: "leave the park decision and CI/push for next session"):** the PARK-5 decision
+   (three options, `START_HERE.md` §3); push the plan branch first (the ledger and IN_FLIGHT cite files only there:
+   `git -C runs/bazel-plan push origin docs/bazel-first-class-plan`, docs only, no CI); push IN_FLIGHT's prepared update
+   to main (`START_HERE.md` §4 says how); put `[skip ci]` on the tip commit; then:
 6. **Land** (`START_HERE.md` section 4): one fix commit ("Phase 3: the audit's fixes ..."), rebase onto
    `origin/main`, `bazel test --lockfile_mode=error //gates:local`, tip commit with `[skip ci]`, push the branch,
    `gh workflow run gate.yml --ref build/phase3 -f gates= -f platforms=all`, then on green

@@ -1,8 +1,11 @@
 #!/bin/bash
 # The whole manifest-world pipeline, in order (homework scratch). Usage: rerun.sh <repo> <homework/world dir>
 set -euo pipefail
-B=$1; H=$2; ET=$(cat $H/et); P=$H/probe
+B=$1; H=$2; ET=$(cat $H/et); PT=$(cat $H/pt); P=$H/probe
 JDK=${JDK:?set JDK to a JDK 25 home (for example the remotejdk25 in Bazel's output base)}
+# the module graph and the declaration index first (the scripts one level up): repos.json, files.tsv, decl_repo.json
+python3 $H/../graph.py "$PT" "$ET" "$H"
+python3 $H/../index.py "$H" "$B" > $H/index.txt 2>&1
 python3 $H/enginepat.py "$H" "$B" > $H/enginepat.txt 2>&1
 python3 $H/englist.py "$H" "$B" "$ET" > /dev/null
 python3 $H/enggroups.py "$H" > $H/enggroups.txt

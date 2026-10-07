@@ -59,8 +59,9 @@ true trigger; no Node anywhere; one shape per app.
      function id: each has a row saying "the platform's version", here our Pure over the rows. That needs one more
      kind of row, **the platform's own Pure**, which the system metamodel's other upstream-named functions
      (`classMappingById`, `mainTable`, …) also use. (2026-10-07: Phase 3 replaced the name rule with hiding by function id, `SystemMetamodel.shadows`; the
-     row kind itself is not built yet. It comes with Phase 3b item 1, whose acceptance deletes `shadows`,
-     PARKED_WORK_LEDGER PARK-12, and Phase 4 needs it when the result views move.)
+     row kind itself is not built yet. Whether Phase 3b item 1 builds it, so that its acceptance can delete `shadows`
+     (PARKED_WORK_LEDGER PARK-12), is the 3b brief's open decision 3b-O1, its one owner; Phase 4 needs it when the
+     result views move.)
 2. **Boot speed: profile and optimize the boot first**; the pre-built boot layer (Phase 4b, the parked compiler plan's
    W2.1 "generated at build time, not parsed at class load") is decided with measured numbers.
 3. **The product ships a generated copy of upstream bodies** (the default world). AGENTS.md and TENET_CHARTER C6.3
@@ -156,8 +157,8 @@ on a branch, one CI run, then pushed to main.
    ratchet counts the upstream versions of our names without a row (184 at most) and only goes down.
 3. **Forms, TDS functions, the boot layer's versions and helpers, by id.** A call is a form only when its name resolves
    (through the imports) to a full name the form owns (`CoreFn`'s ownership list); a short name that could mean a
-   form's function and another function is refused, naming both; `^Class(...)` stays syntax. `TdsLegacy`'s 17
-   functions get rows by id. The boot layer's own versions of 29 upstream names get rows (ours runs). `GroupByChecker`
+   form's function and another function is refused, naming both; `^Class(...)` stays syntax. `TdsLegacy`'s 17 (18 in
+   the code) functions get rows by id. The boot layer's own versions of 29 upstream names get rows (ours runs). `GroupByChecker`
    recognizes `agg` by resolved id.
 4. **Check and land.** IN_FLIGHT on main first, every core file listed. During the work only the touched targets; at
    the end, once: the full local gate, the six corpus passes, all PCT suites, the reference lane report. Bar: corpus and
@@ -175,8 +176,8 @@ on a branch, one CI run, then pushed to main.
   drops by name (this phase's suppression removal brings them back), 79 are class-hierarchy choices (legend-pure
   measures hierarchy distance), 49 are numbers and optional values, likely argument typing.
 
-- **Status (2026-10-07): built and audited on `build/phase3`, not landed** (four commits on `293318dda` plus the
-  audit's fixes; GATES entry "Build rebuild Phase 3"; what is left: `docs/build-inventory/program/PHASE_3_LANDING.md`).
+- **Status (2026-10-07): built and audited on `build/phase3`, not landed** (the commits and their state:
+  `docs/build-inventory/program/START_HERE.md` §3; GATES entry "Build rebuild Phase 3"; what is left: `docs/build-inventory/program/PHASE_3_LANDING.md`).
   Reference lane: AGREE 73,103 -> 74,586, OVERLOAD 745 -> 58, DRIFT 32 -> 0, PROPERTY_AS_CALL 39 -> 1, bodies we fail
   to type 1,508 -> 1,469 (51 newly typed, 12 newly failing). The six corpus passes: four tests the step-2 change broke
   were fixed by the fourth commit (dot calls property-first, the statement inliner deferring to overload resolution,
@@ -188,8 +189,9 @@ on a branch, one CI run, then pushed to main.
   matches the calls in a lambda before their arguments are typed; run on legend-pure itself), m3's literal order settling
   a remaining tie; a fit only a platform rule accepts ranks after every real parent. A short name that could mean a form's
   function or another function stays decided by the argument types (`ReceiverOwnedFunctions`, as legend-pure decides),
-  not refused as first planned. Open, the user's call: about 12 upstream versions at the boot layer's 29 names
-  (`resolvePrimaryKey`, `propertyMappingsByPropertyName`, `inferRelationalType`, ...) run upstream's body as before.
+  not refused as first planned. About 12 upstream versions at the boot layer's 29 names (14 by a text count; `resolvePrimaryKey`,
+  `propertyMappingsByPropertyName`, `inferRelationalType`, ...) still run upstream's body: PARKED_WORK_LEDGER PARK-12,
+  closed by Phase 3b item 1.
   About 480 places still branch on a resolved callee's full name (the identity guard's shrink-only counts); Phase 3 did
   not take those. Phase 3b, re-scoped 2026-10-07, takes over neither W1.1b nor the typing work at large.
 - **Correction (2026-10-07): item 3's rows for the legacy TDS functions move to Phase 4.** A row is keyed by a function
@@ -208,8 +210,9 @@ upstream's own tests, 52 are library functions user code could call (mostly lega
 reflection not run here), 26 other. The six corpus passes and the PCT suites measure what users get; the reference lane
 stays a guard that must not get worse, not a target. Small: days (the Phase 3b brief, 2026-10-07, finds items 1b and
 5b larger than that: size it with the user). **The execution brief is `docs/build-inventory/program/PHASES_3B_6.md`.**
-1. **The boot layer's twins merge by function id, and the view lifted twice (F-L1) is fixed.** Today 7 upstream
-   platform files drop ("defined more than once"); Phases 4 and 6 load them. Found by the brief (inferred from the
+1. **The boot layer's twins merge by function id, and the view lifted twice (F-L1) is fixed.** Today 5 upstream
+   files drop as twins of the boot layer's versions ("defined more than once": 3 in `platform_dsl_mapping`, 1 in
+   `platform_store_relational`, the engine's `scanRelations.pure`), and 2 more for F-L1; Phases 4 and 6 load them. Found by the brief (inferred from the
    code): the twins fail because `SystemMetamodel.shadows` compares type spellings the two sides write differently
    (bare `String` against `meta::pure::metamodel::type::String`; `EnumerationMapping` against `EnumerationMapping<T>`)
    while their function ids are equal; once the files load, `superMapping` has two versions with identical parameters;
@@ -306,7 +309,8 @@ stays a guard that must not get worse, not a target. Small: days (the Phase 3b b
   with a 4 GB heap (the DuckDB and warehouse passes run with 1 GB); and it removed platform-namespace functions in
   Python with pre-Phase-3 ownership lists, where the runner's own guard throws. Each is a decision or a measurement
   before the runner changes (the brief's §6.8, §6.10).
-- The runner loads its manifest's repositories (the relational tree's 9 repositories and their closure, 38) with the
+- The runner loads its manifest's repositories (the relational tree's 9 repositories and their closure, 38: a path-prefix choice; the corpus's own
+  `core_relational` closure is 27, the brief's 6-O1) with the
   loading rule, replacing `LIBRARY_FILES`, `SHAPE_FILES` and the folder lists (`PreludeGenerator` and
   `FeatureFlagParityTest` read the same lists until Phase 4). The H2 register gains its one entry: it is the
   host-compared register, empty since 2026-09-21 and meant to stay at zero, so adding a row is the user's decision.
@@ -366,7 +370,9 @@ simplifications this program carries in the compiler (a platform call never reso
 once, the ranking's adjustments and unported parts, legacy TDS functions by name, the boot layer's versions, a debug
 trace, the dot-call fallback), each with its cost, what closes it and an anchor test that goes red when the code
 changes. The user, 2026-10-07: they are fixed after the program lands, correctly, with a design agreed first; none is
-worked around in the meantime, and a new shortcut is a new row, not a quiet one.
+worked around in the meantime, and a new shortcut is a new row, not a quiet one. Two close inside the program (PARK-11
+in Phase 4, PARK-12 in Phase 3b); PARK-5's timing is the user's open decision (land Phase 3 with it recorded, or fix it
+first: `docs/build-inventory/program/START_HERE.md` §3).
 
 **Process (the user's rules):**
 - Plan each phase and get the user's agreement before writing code; explain plainly, without jargon; never invent a

@@ -6,6 +6,16 @@ decision as open (no "D14" exists), lists design D1, D4, D6 and D7, and points a
 detail. The memory note on PR #14 is corrected. Statement #28 in §5 is out of date: the program folder now holds one
 brief per remaining phase. Everything else here is unchanged and its open decisions are still open.
 
+**After the cold read (`COLD_READ_2026_10_07.md`):** Compile-3's "no product user exists" misses the probe's test and
+tool users: `pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelB.java:223` calls
+`com.legend.probe.Shadow.CONTEXT.set(fqn)`; `core/src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe`
+names `com.legend.probe.Shadow`; `tools/untangle/probe_counts.py` and `bare_tiers.py` read its rows; and the parked
+compiler plan's §0 relies on those probe rows (`LL_SHADOW=1`). Deleting `//core:probe` takes that probe away: a
+question for the user before design D8 is applied. OD-9's list of PR texts also covers `gates/BUILD.bazel`'s header
+("goes through a PR instead") and the root `progress.txt` (stale since April). The landing rules in START_HERE §4 now
+say that `[skip ci]` stops main's push run and that the next nightly run is the check after a landing (CI-10: confirm
+it fires).
+
 
 Written 2026-10-07 by a read-only research pass. Nothing in any repository was changed and no Bazel command was run.
 Every claim below carries a path (with line or symbol), a commit, or a command; anything I could not check is marked
