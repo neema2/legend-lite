@@ -182,8 +182,11 @@ reflection not run here), 26 other. The six corpus passes and the PCT suites mea
 stays a guard that must not get worse, not a target. Small: days.
 1. **The boot layer's twins merge by function id, and the view lifted twice (F-L1) is fixed.** Today 7 upstream
    platform files drop ("defined more than once"); Phases 4 and 6 load them.
-2. **A file whose mapping uses an unsupported feature loads; the feature is refused when the mapping runs.** Today 18
-   files drop at model build (set-routed bindings, enum transformers, explosions); Phase 6 needs them loaded.
+2. **The reference lane loads the way the corpus does.** The 18 files whose mappings use an unsupported feature drop only
+   in the lane: it builds with the strict `Compiler.buildModel` and throws a failing file away, while the corpus builds
+   with `Compiler.buildModule`, which keeps every element and records why a broken one fails (a mapping that cannot be
+   normalized is left out, its absence recorded). So Phase 6 already has those files; the lane switches to the tolerant
+   build, and its numbers then show what the platform does. No compiler change.
 3. **The reference lane's 58 OVERLOAD and 14 PACKAGE rows, reviewed for user impact:** fix those that change results or a
    type users see; record the rest as type-only differences.
 4. **A dot call finds a qualified property when a plain property shares its name** (`Extension.serializerExtension(
