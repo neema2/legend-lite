@@ -1,5 +1,6 @@
 # legend-lite's planner, compiled ahead of time to WebAssembly (TeaVM), and the
 # differential that holds it to the JVM. See README.md.
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("//tools/js:defs.bzl", "node_test")
@@ -161,6 +162,12 @@ js_binary(
     entry_point = "startup.mjs",
     node_options = ["--experimental-wasm-exnref"],
     tags = ["manual"],
+)
+
+# the hand tool compiles (the build rebuild's L1b): the checks lane builds it, nothing runs
+build_test(
+    name = "tools_build_test",
+    targets = [":startup"],
 )
 
 guards_package()

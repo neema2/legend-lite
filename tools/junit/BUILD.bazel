@@ -1,3 +1,4 @@
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load(":defs.bzl", "junit_test")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -63,8 +64,14 @@ legend_java_binary(
     srcs = ["compare/CompareTestcases.java"],
     main_class = "com.legend.tools.junit.compare.CompareTestcases",
     # a hand tool: manual (2026-10-07, PHASE_8.md Gen-5), so a wildcard build does not build it; CI's product job
-    # still analyses it by name
+    # still analyses it by name, and :tools_build_test compiles it
     tags = ["manual"],
+)
+
+# the hand tool compiles (the build rebuild's L1b): the checks lane builds it, nothing runs
+build_test(
+    name = "tools_build_test",
+    targets = [":compare_testcases"],
 )
 
 guards_package()

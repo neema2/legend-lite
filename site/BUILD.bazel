@@ -5,6 +5,8 @@
 # ones DataCube opens, and the projects Studio keeps here (sdlc-client's legend-projects) are every app's. A
 # browser keeps storage per origin: two ports would be two stores.
 load("@aspect_rules_js//js:defs.bzl", "js_binary")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("//tools/browser:defs.bzl", "browser_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("//tools/guards:defs.bzl", "guards_package")
 
@@ -22,21 +24,48 @@ copy_to_directory(
 )
 
 # `bazel run //site:serve [-- --port 8200] [-- --host 0.0.0.0]`: that folder, on loopback.
+# a hand tool: manual (2026-10-07, PHASE_8.md Gen-5), built by :tools_build_test
 js_binary(
     name = "serve",
     data = [":dist"],
     entry_point = "serve.mjs",
+    tags = ["manual"],
 )
 
-# `bazel run //site:verify`: saved in Query, opened in DataCube, one origin and no server (Chromium).
-js_binary(
-    name = "verify",
+# THE ONE-ORIGIN PROMISE, AS A TEST (the build rebuild's L1b, 2026-10-07): saved in Query, opened in DataCube, one
+# origin and no server, in the pinned Chromium. CI runs it on Linux only (the tag; gates-run.yml filters it on macOS
+# and Windows); a desk runs it anywhere.
+browser_test(
+    name = "verify_test",
+    size = "large",
     data = [
         ":dist",
         "//datacube:node_modules/playwright",
     ],
     entry_point = "verify.mjs",
-    tags = ["browser-ci"],
+    tags = ["ci-linux-only"],
+)
+
+# `bazel run //site:verify`: the same by hand (manual, 2026-10-07)
+js_binary(
+    name = "verify",
+    data = [
+        ":dist",
+        "//datacube:node_modules/playwright",
+        # it imports pinned-chromium.mjs first, a no-op under bazel run
+        "//tools/browser:pinned_chromium",
+    ],
+    entry_point = "verify.mjs",
+    tags = ["manual"],
+)
+
+# every hand tool of this package compiles (the build rebuild's L1b)
+build_test(
+    name = "tools_build_test",
+    targets = [
+        ":serve",
+        ":verify",
+    ],
 )
 
 guards_package()

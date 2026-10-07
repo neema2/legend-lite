@@ -9,6 +9,7 @@ load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/browser:defs.bzl", "browser_test")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//warehouse:defs.bzl", "warehouse_run")
@@ -300,6 +301,8 @@ js_binary(
         "--experimental-strip-types",
         "--disable-warning=ExperimentalWarning",
     ],
+    # a hand tool: manual (2026-10-07, PHASE_8.md Gen-5), built by :tools_build_test
+    tags = ["manual"],
 )
 
 # The next version, from today's vocabulary: a tool run on demand, so not part of //... (manual; the build only
@@ -748,7 +751,8 @@ filegroup(
 # location (Bazel workplan P4-01, G-07)
 _SITE_ENV = {"SITE": "$(rlocationpath demo/index.html)"}
 
-# `bazel run //datacube:serve [-- --data FILE] [-- --open]`: the site, on loopback.
+# `bazel run //datacube:serve [-- --data FILE] [-- --open]`: the site, on loopback. A hand tool: manual (2026-10-07,
+# PHASE_8.md Gen-5), built by :tools_build_test.
 js_binary(
     name = "serve",
     data = [
@@ -764,6 +768,7 @@ js_binary(
         "--experimental-strip-types",
         "--disable-warning=ExperimentalWarning",
     ],
+    tags = ["manual"],
 )
 
 # THE APP (docs/DATACUBE_APP_PLAN_2026_10_02.md): the native warehouse serving this site, one user,
@@ -799,10 +804,9 @@ js_run_binary(
     tool = ":make_dist",
 )
 
-# THE BROWSER HARNESSES: `bazel run //datacube:<name>`. Each drives the built site
-# in headless Chromium (Playwright's own browser: `npx playwright install
-# chromium` once — a browser binary is not something Bazel fetches here). Run by
-# hand, not tests: several need a live engine as well (the script says which).
+# THE BROWSER HARNESSES, BY HAND: `bazel run //datacube:<name>`, the manual form of the browser_tests below
+# (the same scripts; as tests they drive the Chromium Bazel fetches, by hand Playwright's own, installed once with
+# :install_browser). Several need a live engine as well (the script says which) and are tools only.
 _HARNESS_HELPERS = [
     "demo/engine-cases.mjs",
     # the one module every harness shares: its server, the site root, outputs and temp paths, checks (P4-01)
@@ -835,23 +839,6 @@ _HARNESSES = [
     "verify-real-data",
     "verify-remote",
     "verify-smoke",
-    "verify-upload",
-    "verify-wasm-browser",
-]
-
-# THE ONES CI RUNS (the `browser` lane, Linux only: .github/workflows/gates-run.yml): every
-# harness that needs no server and no file of yours -- each exits non-zero on a failure. The
-# lane runs whatever carries the tag, so the list is here, beside the harnesses, not in CI.
-_CI_HARNESSES = [
-    "run-stress",
-    "verify-charts",
-    "verify-cubes",
-    "verify-features",
-    "verify-page",
-    # not verify-picker: it drives a site already served on :8000 (`bazel run //datacube:serve`)
-    "verify-real-data",
-    "verify-remote",
-    # not verify-smoke: it is a test, :verify_smoke_test (Bazel workplan P1-14's pilot)
     "verify-upload",
     "verify-wasm-browser",
 ]
@@ -889,7 +876,9 @@ _BROWSER_TESTS = {
         "--experimental-wasm-exnref",
         "--disable-warning=ExperimentalWarning",
     ],
-    tags = ["browser-ci"] if h in _CI_HARNESSES else [],
+    # hand tools, run by a person: manual (2026-10-07, PHASE_8.md Gen-5); CI runs the harnesses as the tests below,
+    # and :tools_build_test keeps these compiling
+    tags = ["manual"],
 ) for h in _HARNESSES]
 
 # THE SMOKE HARNESS AS A TEST (Bazel workplan P1-14, the pilot): against the Chromium Bazel fetched
@@ -923,6 +912,9 @@ browser_test(
     ],
     entry_point = "demo/" + h + ".mjs",
     env = _SITE_ENV,
+    # CI runs these on Linux only (gates-run.yml filters the tag on macOS and Windows): the same on every platform,
+    # and live-vs-snap already checks x86_64 against the arm64 desks (the build rebuild's L1b, 2026-10-07)
+    tags = ["ci-linux-only"],
     wasm = True,
 ) for h, size in _BROWSER_TESTS.items()]
 
@@ -935,13 +927,15 @@ browser_test(
         "demo/index.html",
         "demo/verify-real-data.mjs",
         "demo/verify-remote.mjs",
-        ":node_modules/@duckdb/duckdb-wasm",
+        # the package moved to engine-client after bazel/exec branched (2026-10-04)
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/playwright",
         ":site",
         ":src",
     ],
     entry_point = "demo/verify-remote-test.mjs",
     env = _SITE_ENV,
+    tags = ["ci-linux-only"],
     wasm = True,
 )
 
@@ -959,6 +953,7 @@ browser_test(
     ],
     entry_point = "demo/verify-features.mjs",
     env = _SITE_ENV | {"SAVED_QUERIES": "$(rlocationpaths //fixtures/saved-queries:records)"},
+    tags = ["ci-linux-only"],
     wasm = True,
 )
 
@@ -1042,12 +1037,26 @@ legend_java_binary(
     deps = ["//testing"],
 )
 
-# `bazel run //datacube:install_browser [-- --with-deps]`: the Chromium the harnesses drive, at
-# the version the lock file pins.
+# `bazel run //datacube:install_browser [-- --with-deps]`: Playwright's own Chromium, at the version the lock file
+# pins, for a desk that runs the harnesses outside Bazel; no test needs it (every harness is a test on the Chromium
+# Bazel fetches, since L1b). Manual (2026-10-07).
 js_binary(
     name = "install_browser",
     data = [":node_modules/playwright"],
     entry_point = "demo/install-browser.mjs",
+    tags = ["manual"],
+)
+
+# every hand tool of this package compiles (the build rebuild's L1b): the checks lane builds them, nothing runs
+build_test(
+    name = "tools_build_test",
+    targets = [":" + h.replace("-", "_") for h in _HARNESSES] + [
+        ":install_browser",
+        ":link_dictionary_next",
+        ":make_link_dictionary",
+        ":serve",
+        ":verify_app",
+    ],
 )
 
 guards_package()

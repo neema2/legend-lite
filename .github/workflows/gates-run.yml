@@ -29,6 +29,12 @@ on:
           PCT suites are one target per suite on every runner (P3-09).
         default: false
         type: boolean
+      linux-only-tests:
+        description: >-
+          What macOS and Windows do with the tests tagged ci-linux-only (the browser harnesses): "ci-policy" skips
+          them, as every push does; "everywhere" runs them, for a throwaway run that measures them on every platform.
+        default: ci-policy
+        type: string
 
 jobs:
   setup:
@@ -60,19 +66,15 @@ jobs:
             {"key":"warehouse",          "cmd":"test",  "name":"the warehouse: on the JVM, as a native image, its launcher, live Postgres"},
             {"key":"datacube",           "cmd":"test",  "name":"DataCube, and the planner in WebAssembly"},
             {"key":"ui",                 "cmd":"test",  "name":"Studio, Query, the saved-query store"},
-            {"key":"sdlc",               "cmd":"test",  "name":"the model home: SDLC and Depot, server and page"},
-            {"key":"browser",            "cmd":"test",  "name":"until L1b: DataCube and Studio in a real browser, and live against the warehouse"}
+            {"key":"sdlc",               "cmd":"test",  "name":"the model home: SDLC and Depot, server and page"}
           ]')
-          # until L1b, the browser lane runs on Linux only: its harnesses drive DuckDB-WASM in Chromium, the same on
-          # every platform, and live-vs-snap compares the native warehouse on x86_64 with the arm64 laptops'
-          if [ "$PLATFORM" != linux ]; then all=$(printf '%s' "$all" | jq -c '[.[] | select(.key != "browser")]'); fi
           if [ -n "${WANT:-}" ]; then
             lanes=$(printf '%s' "$all" | jq -c --arg w ",$WANT," '[.[] | . as $e | select($w | contains("," + $e.key + ","))]')
           else
             lanes=$all
           fi
           [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: product,core,checks,corpus_duckdb,corpus_h2,pct_duckdb,pct_h2,pct_postgres,pct_channel_b,parser_equivalence,stress,warehouse,datacube,ui,sdlc,browser"
+            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: product,core,checks,corpus_duckdb,corpus_h2,pct_duckdb,pct_h2,pct_postgres,pct_channel_b,parser_equivalence,stress,warehouse,datacube,ui,sdlc"
             exit 1
           }
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
@@ -152,16 +154,23 @@ jobs:
             echo "$sha  /usr/local/bin/bazel" | sha256sum -c -
             sudo chmod +x /usr/local/bin/bazel
           fi
-      - name: until L1b, Chromium for the browser harnesses (Playwright's, at the lock file's version)
-        if: matrix.lane.key == 'browser'
-        run: bazel run --config=ci --repository_cache="$HOME/.cache/bazel-repo" //datacube:install_browser -- --with-deps
       - name: bazel ${{ matrix.lane.cmd }} ${{ matrix.lane.key }}
         env:
           LOW_MEMORY: ${{ inputs.low-memory }}
+          PLATFORM: ${{ inputs.platform }}
+          LINUX_ONLY_TESTS: ${{ inputs.linux-only-tests }}
         run: |
           set -euo pipefail
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
+          # the browser harnesses run on Linux only (their tag, gates/BUILD.bazel): the same on every platform, and
+          # live-vs-snap already checks x86_64 against the arm64 desks; a desk still runs them anywhere. The filter
+          # applies to the test command alone, with --build_tests_only, so a skipped test's closure (the native image)
+          # is not built either; a dispatch with linux-only-tests=everywhere lifts it.
+          tflags=("${flags[@]}")
+          if [ "$LINUX_ONLY_TESTS" != everywhere ]; then
+            case "$PLATFORM" in linux*) ;; *) tflags+=(--test_tag_filters=-ci-linux-only --build_tests_only) ;; esac
+          fi
           if [ "${{ matrix.lane.key }}" = product ]; then
             # THE PRODUCT (docs/BUILD_REBUILD_DESIGN_2026_10_05.md §4.1): the compile targets and the app's packaging,
             # nothing else; //tools/guards:compile_only_test holds them to compiles and file plumbing
@@ -183,26 +192,8 @@ jobs:
             unlaned=$(bazel query 'tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)')
             [ -z "$unlaned" ] || { echo "::error ::tests in no lane of gates/BUILD.bazel:"; echo "$unlaned"; exit 1; }
           else
-            bazel test "${flags[@]}" "//gates:${{ matrix.lane.key }}"
+            bazel test "${tflags[@]}" "//gates:${{ matrix.lane.key }}"
           fi
-      - name: until L1b, the browser harnesses (every //datacube, //query and //site target tagged browser-ci)
-        if: matrix.lane.key == 'browser'
-        run: |
-          set -euo pipefail
-          flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
-          mkdir -p harness-logs
-          failed=()
-          # the list first, so a failed query fails the step instead of running no harness at all
-          harnesses=$(bazel query --repository_cache="$HOME/.cache/bazel-repo" 'attr(tags, "browser-ci", //datacube:* + //query:* + //site:*)')
-          [ -n "$harnesses" ] || { echo "::error ::no browser-ci harness found"; exit 1; }
-          # one at a time: each serves the site and drives its own browser
-          for t in $harnesses; do
-            name=${t##*:}
-            echo "::group::$t"
-            if bazel run "${flags[@]}" "$t" 2>&1 | tee "harness-logs/$name.log"; then :; else failed+=("$t"); fi
-            echo "::endgroup::"
-          done
-          if [ ${#failed[@]} -gt 0 ]; then echo "::error ::harnesses failed: ${failed[*]}"; exit 1; fi
       - name: test logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -217,7 +208,6 @@ jobs:
             bazel-bin/spec/judge_database_*/database.log
             bazel-bin/spec/judge_database_*/verdict.txt
             bazel-bin/spec/judge_*/*-*.txt
-            harness-logs/**
           if-no-files-found: ignore
       # the downloads saved once per platform and pin hash, by the job that fetched everything (above); even after a
       # red test, since the downloads are the pins' and not the tests'

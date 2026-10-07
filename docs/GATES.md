@@ -6833,3 +6833,56 @@ download: by design, so the saved cache is complete), 0.2 the two checks, 3.7 sa
 `ui` 7 / 3 / 5; `parser_equivalence` 6 / 6 / 8; `sdlc` 6 / 3 / 4. Wall clock 30.6 minutes, against 40 to 57 before, with
 nothing warm yet. Test-8 answered: `//warehouse:postgres_live` and `:postgres_live_native` passed on every platform;
 they stay in `warehouse`.
+
+## 2026-10-07 — Build rebuild L1b: the browser harnesses as tests; the install step, the loop and the transitional lane gone
+
+The plan: `docs/REBUILD_PROGRAM_2026_10_06.md` §4 (L1, second half); the lane set: `docs/build-inventory/program/PHASE_8.md`
+§8; the measurements that decided it: `evidence/phase8/CI_LANES_2026_10_07.md` §3 (the browser lane's 23 minutes: a
+Playwright install, a cold fetch, and ten minutes of `bazel run` harnesses one at a time on fixed ports).
+
+What changed:
+1. **The parked `bazel/exec` harness work, rebased** (its P4-01 to P4-04 and P4-08, and the harness parts of its audit
+   follow-up): one shared harness module (`datacube/demo/harness.mjs`: the site served on port 0, the run's own temp
+   directory, awaited conditions instead of fixed sleeps); the mechanical harnesses as `browser_test`s on the pinned
+   Chromium (`run_stress`, `verify_charts`, `verify_cubes`, `verify_page`, `verify_upload`, `verify_wasm_browser`);
+   `verify_remote` and `verify_real_data` one test in two shards; `verify_features` a test in four shards by section;
+   `verify_smoke` in four shards by sample; the dev tools on port 0 with an explicit output (and, from the follow-up,
+   `serve.mjs` opening a browser on Windows through the URL protocol handler, `rundll32`, since `cmd /c start`
+   split the URL at `&`). Not taken: the 7,824-line
+   file P4-01 added (never added here), P4-16's upload test (the no-Node port replaces it), P4-17's typecheck of the
+   harnesses, and anything of P4-18 (the servers' `--exit-with-parent`, still parked with its IN_FLIGHT note).
+   Three of the four fixes that sat uncommitted on exec came too (forward slashes in the paths DuckDB reads on
+   Windows; the applied query awaited on a slow runner).
+2. **Query and the site end to end as tests**: `//query:verify_test` (legend-lite's server and the warehouse both on
+   port 0 now, the server's port read from its "started on port" line, the warehouse started only once the site
+   listens since it is told the site's origin; outputs under the test's temp directory) and `//site:verify_test`;
+   each imports the pinned-Chromium shim first; both keep their own small static servers (they do not adopt
+   DataCube's harness module). The `bazel run` versions stay as manual hand tools.
+3. **Linux only in CI, by a tag**: the eleven harness tests (DataCube's eight, Query's, the site's, Studio's) carry
+   `ci-linux-only`, and `gates-run.yml` passes `--test_tag_filters=-ci-linux-only` on macOS and Windows. A tag, not
+   `target_compatible_with`: the tests run on every platform (the smoke harness and the app test already do), and a
+   desk should be able to run them anywhere; Linux-only is CI's cost policy (the same on every platform, and
+   live-vs-snap already checks x86_64 against the arm64 desks), so it lives in the workflow as a filter.
+4. **The lanes**: `datacube` gains `//datacube:browser` (every harness test), `ui` the three app harnesses; the
+   transitional `browser` suite, the Chromium install step, the `bazel run` loop and its artifact path are gone;
+   `//datacube:install_browser` stays as a manual tool for a desk that runs the harnesses outside Bazel.
+5. **Every hand tool compiles**: a `build_test` per package over its manual binaries (`datacube`'s harnesses and
+   dev tools, `query`, `site` and `studio`'s `serve` and `verify`, the census tools, `compare_testcases`,
+   `//wasm:startup`), in `checks`; the tools themselves are `manual` (dated), so a wildcard build does not build them.
+
+**The audit (2026-10-07, opus, high: no blocker, four should-fix, eight nits; all applied):** the Query test found its
+binaries by `../..` arithmetic on `import.meta.url` (the repository's rule, Bazel workplan P1-24, says never): it now
+takes every input by `$(rlocationpath)` through `tools/js/runfiles.mts`, the server as one `executable_of` file
+(`server.exe` on Windows), and on Windows stops the launcher's whole tree with `taskkill /T` (as `lite_test` does;
+a plain kill leaves the JVM holding the pipes). The tag filter skipped the tests but still built their closures, the
+native image included, on macOS and Windows: the filter now comes with `--build_tests_only`, on the test command
+only, and the three build tests whose closures hold the native image or the planner moved into the lanes that build
+those anyway (`datacube`'s and `wasm`'s into `datacube`, `query`'s into `ui`, Linux only like the test). The test's
+failure screenshots go under `TEST_UNDECLARED_OUTPUTS_DIR` (what CI uploads), the wait for the server's port is
+bounded (60 s) and both server promises reject on an early exit without becoming an unhandled rejection. A dispatch
+input, `linux_only_tests=everywhere`, lifts the filter for a throwaway run that measures the harness tests on every
+platform (the user's ask; the next step after this landing).
+
+Suites after this landing: `lanes` 345 tests, `local` 310 (the harness tests join it), `heavy` 7; the lane guard
+names nothing. Local gate on this tree: see the landing commit's message (the harness tests ran on this macOS desk,
+not Linux-only here: the tag is CI's).

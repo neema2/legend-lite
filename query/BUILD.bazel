@@ -3,6 +3,9 @@
 # (MODULE.bazel `npm_query`), so DataCube's lock never moves for it.
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
 load("//tools/js:defs.bzl", "node_test")
+load("//tools/browser:defs.bzl", "browser_test")
+load("//tools/runfiles:defs.bzl", "executable_of")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_query//:defs.bzl", "npm_link_all_packages")
 load("//tools/js:esbuild.bzl", "esbuild_bundle")
@@ -130,33 +133,83 @@ filegroup(
     ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [":vendor", ":cube_styles"],
 )
 
-# `bazel run //query:serve [-- --port 8100]`: the site, on loopback.
+# `bazel run //query:serve [-- --port 8100]`: the site, on loopback. A hand tool: manual (2026-10-07, PHASE_8.md
+# Gen-5), built by :tools_build_test.
 js_binary(
     name = "serve",
     data = [":site"],
     entry_point = "demo/serve.mjs",
+    tags = ["manual"],
 )
 
-# `bazel run //query:verify`: the app end to end in Chromium, in the browser, against a legend-lite
-# server and against a warehouse it starts (needs Playwright's Chromium, installed once).
+# THE APP END TO END, AS A TEST (the build rebuild's L1b, 2026-10-07): in the pinned Chromium, in the browser, against a
+# legend-lite server and against a warehouse the test starts, both on port 0. CI runs it on Linux only (the tag;
+# gates-run.yml filters it on macOS and Windows: the browser part is the same on every platform, and live-vs-snap
+# already checks x86_64 against the arm64 desks); a desk runs it anywhere.
+# legend-lite's server's launcher, exactly one file (server.exe on Windows), for the test to start by runfiles path
+# (Bazel workplan P1-24; as //query-store:lite_test does)
+executable_of(
+    name = "legend_server",
+    testonly = True,
+    binary = "//core:server",
+)
+
+_VERIFY_DATA = [
+    # named itself: SITE is its runfiles path, from which the site's directory follows
+    "demo/index.html",
+    ":site",
+    ":node_modules/playwright",
+    # legend-lite's server: its launcher's runfiles (the hermetic JDK, the jars) through the target itself, and the
+    # one launcher file to start through :legend_server
+    "//core:server",
+    ":legend_server",
+    # the warehouse, as DataCube's live_snap_test runs it: the native image and its DuckDB
+    "//warehouse:duckdb_library",
+    "//warehouse:server_native",
+]
+
+# every input by its runfiles path (tools/js/runfiles.mts), never by path arithmetic
+_VERIFY_ENV = {
+    "LEGEND_SERVER": "$(rlocationpath :legend_server)",
+    "SITE": "$(rlocationpath demo/index.html)",
+    "WAREHOUSE_BINARY": "$(rlocationpath //warehouse:server_native)",
+    "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath //warehouse:duckdb_library)",
+}
+
+browser_test(
+    name = "verify_test",
+    size = "large",
+    data = _VERIFY_DATA,
+    entry_point = "demo/verify.mjs",
+    env = _VERIFY_ENV,
+    tags = ["ci-linux-only"],
+)
+
+# `bazel run //query:verify`: the same by hand (manual, 2026-10-07; it writes under the checkout's .scratch/); test
+# tooling, so testonly like the server file it starts
 js_binary(
     name = "verify",
-    data = [
-        ":site",
-        ":node_modules/playwright",
-        # legend-lite's server through its Bazel launcher: the hermetic JDK, whatever `java` a machine has
-        "//core:server",
-        # the warehouse, as DataCube's live_snap_test runs it: the native image and its DuckDB
-        "//warehouse:duckdb_library",
-        "//warehouse:server_native",
+    testonly = True,
+    data = _VERIFY_DATA + [
+        # it imports pinned-chromium.mjs first, a no-op under bazel run
+        "//tools/browser:pinned_chromium",
+        # the runfiles helper (a node_test has it already)
+        "//tools/js:runfiles",
     ],
     entry_point = "demo/verify.mjs",
-    env = {
-        "WAREHOUSE_BINARY": "$(rootpath //warehouse:server_native)",
-        "WAREHOUSE_DUCKDB_LIBRARY": "$(rootpath //warehouse:duckdb_library)",
-    },
-    # CI's browser lane runs it (.github/workflows/gates-run.yml), with DataCube's harnesses
-    tags = ["browser-ci"],
+    env = _VERIFY_ENV,
+    tags = ["manual"],
+)
+
+# every hand tool of this package compiles (the build rebuild's L1b): built, nothing runs. In the ui lane, and on
+# Linux only in CI like the test (:verify's closure holds the native image, which that lane builds there anyway).
+build_test(
+    name = "tools_build_test",
+    tags = ["ci-linux-only"],
+    targets = [
+        ":serve",
+        ":verify",
+    ],
 )
 
 _TESTS = glob(["test/*.test.ts"])

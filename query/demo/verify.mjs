@@ -6,57 +6,57 @@
 // The same steps, each asserting what a person would see -- rows, not "a request was made". Exit
 // code 0 when every step holds in all three.
 //
-// Needs Playwright's Chromium (`bazel run //datacube:install_browser` once); legend-lite's server comes with its JDK.
+// A test (//query:verify_test) on the Chromium Bazel fetched; `bazel run //query:verify` runs the same by hand.
+// legend-lite's server comes with its JDK.
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { strict as assert } from 'node:assert';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { extname, join, resolve, sep } from 'node:path';
+import { dirname, extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chromium } from 'playwright';
+import { runfileFromEnv, runfilesRoot } from '../../tools/js/runfiles.mts';
 
-const ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
-// legend-lite's server: its Bazel launcher (//core:server) in this target's runfiles, which brings
-// its own JDK -- so a machine's `java` (or none) does not matter
-const RUNFILES = resolve(ROOT, '..', '..');
-const SERVER = resolve(ROOT, '..', 'core', 'server');
-const ENGINE_PORT = 18090 + Math.floor(Math.random() * 500);
-const SITE_PORT = ENGINE_PORT + 1000;
+// every input by its runfiles path from the BUILD file's env (Bazel workplan P1-24, tools/js/runfiles.mts; no `../..`
+// arithmetic): the site (its index.html names the package's directory), legend-lite's server launcher (one file,
+// server.exe on Windows; it brings its own JDK, so a machine's `java` or none does not matter), the warehouse's
+// native image and its DuckDB
+const ROOT = resolve(dirname(runfileFromEnv('SITE')), '..');
+const RUNFILES = runfilesRoot();
+const SERVER = runfileFromEnv('LEGEND_SERVER');
 
-// everything this writes (the server's store, failure screenshots) stays in the checkout, under .scratch/
-const OUT = join(process.env.BUILD_WORKSPACE_DIRECTORY ?? resolve(ROOT, '..'), '.scratch', 'verify');
+// everything this writes (the server's store, failure screenshots): under a test, the test's own temp directory;
+// by hand, the checkout's .scratch/
+const OUT = process.env.TEST_TMPDIR
+  ? join(process.env.TEST_TMPDIR, 'verify')
+  : join(process.env.BUILD_WORKSPACE_DIRECTORY ?? resolve(ROOT, '..'), '.scratch', 'verify');
 mkdirSync(OUT, { recursive: true });
 const store = mkdtempSync(join(OUT, 'run-'));
+const SHOTS = process.env.TEST_UNDECLARED_OUTPUTS_DIR ?? store;
 
 // ---- legend-lite's server, for the server mode
-const engine = spawn(SERVER, [String(ENGINE_PORT), '--query-store', store], {
+// port 0: the server picks a free port and prints it, so no two runs (or shards) collide
+const engine = spawn(SERVER, ['0', '--query-store', store], {
   env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 let engineLog = '';
 engine.stdout.on('data', (d) => { engineLog += d; });
 engine.stderr.on('data', (d) => { engineLog += d; });
-
-// ---- a warehouse, for the warehouse mode: the native image DataCube's live_snap_test runs, its
-// data in this run's directory; alice owns it (the demo's seed creates its tables as her)
-const SITE_ORIGIN = `http://127.0.0.1:${SITE_PORT}`;
-// the env's paths are Bazel rootpaths: from the main workspace, the directory above this package
-const MAIN = resolve(ROOT, '..');
-const warehouse = spawn(join(MAIN, process.env.WAREHOUSE_BINARY ?? ''), [
-  '--port', '0', '--data', join(store, 'warehouse'), '--user', 'alice:alice-pw', '--owner', 'alice',
-  '--allow-origin', SITE_ORIGIN, '--duckdb-library', join(MAIN, process.env.WAREHOUSE_DUCKDB_LIBRARY ?? ''),
-], { stdio: ['ignore', 'ignore', 'pipe'] });
-let warehouseLog = '';
-const warehouseUrl = new Promise((ok, fail) => {
-  warehouse.stderr.on('data', (d) => {
-    warehouseLog += d;
-    const m = /listening on 127\.0\.0\.1:(\d+)/.exec(warehouseLog);
-    if (m) ok(`http://127.0.0.1:${m[1]}`);
+const enginePort = new Promise((ok, fail) => {
+  engine.stdout.on('data', () => {
+    const m = /started on port (\d+)/.exec(engineLog);
+    if (m) ok(Number(m[1]));
   });
-  warehouse.on('exit', (code) => fail(new Error(`the warehouse exited (${code}):\n${warehouseLog}`)));
+  engine.on('exit', (code) => fail(new Error(`the engine exited (${code}):\n${engineLog}`)));
+  engine.on('error', (e) => fail(new Error(`the engine did not start (${SERVER}): ${e.message}`)));
 });
+// awaited where it matters; an early failure must not be an unhandled rejection that ends the run outside `finally`
+enginePort.catch(() => {});
 
 // ---- the site; config-server.json points at that server, config-warehouse.json at that warehouse
 const TYPES = {
@@ -68,7 +68,7 @@ const site = createServer(async (req, res) => {
   try {
     if (pathname === '/demo/config-server.json') {
       const config = JSON.parse(await readFile(join(ROOT, 'demo', 'config-server.json'), 'utf8'));
-      config.execution.engine = `http://127.0.0.1:${ENGINE_PORT}/api`;
+      config.execution.engine = `http://127.0.0.1:${await enginePort}/api`;
       res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify(config));
       return;
     }
@@ -86,12 +86,39 @@ const site = createServer(async (req, res) => {
   } catch {
     res.writeHead(404).end();
   }
-}).listen(SITE_PORT, '127.0.0.1');
+});
+// port 0 here too; the warehouse below is told this origin, so it starts after the site listens
+await new Promise((r) => site.listen(0, '127.0.0.1', r));
+const SITE_PORT = site.address().port;
+
+// ---- a warehouse, for the warehouse mode: the native image DataCube's live_snap_test runs, its
+// data in this run's directory; alice owns it (the demo's seed creates its tables as her)
+const SITE_ORIGIN = `http://127.0.0.1:${SITE_PORT}`;
+const warehouse = spawn(runfileFromEnv('WAREHOUSE_BINARY'), [
+  '--port', '0', '--data', join(store, 'warehouse'), '--user', 'alice:alice-pw', '--owner', 'alice',
+  '--allow-origin', SITE_ORIGIN, '--duckdb-library', runfileFromEnv('WAREHOUSE_DUCKDB_LIBRARY'),
+], { stdio: ['ignore', 'ignore', 'pipe'] });
+let warehouseLog = '';
+const warehouseUrl = new Promise((ok, fail) => {
+  warehouse.stderr.on('data', (d) => {
+    warehouseLog += d;
+    const m = /listening on 127\.0\.0\.1:(\d+)/.exec(warehouseLog);
+    if (m) ok(`http://127.0.0.1:${m[1]}`);
+  });
+  warehouse.on('exit', (code) => fail(new Error(`the warehouse exited (${code}):\n${warehouseLog}`)));
+  warehouse.on('error', (e) => fail(new Error(`the warehouse did not start: ${e.message}`)));
+});
+warehouseUrl.catch(() => {});
 
 async function waitForEngine() {
+  // bounded: a server that stays up but never prints its port would otherwise wait out the test's whole timeout
+  const port = await Promise.race([
+    enginePort,
+    new Promise((_, fail) => setTimeout(() => fail(new Error(`no "started on port" line in 60 s:\n${engineLog}`)), 60_000)),
+  ]);
   for (let i = 0; i < 120; i++) {
     try {
-      if ((await fetch(`http://127.0.0.1:${ENGINE_PORT}/health`)).ok) return;
+      if ((await fetch(`http://127.0.0.1:${port}/health`)).ok) return;
     } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 250));
   }
@@ -156,7 +183,8 @@ async function suite(title, query, signedIn = false) {
     } catch (e) {
       failures++;
       console.log(`  ✖ ${name}\n    ${String(e.message).split('\n').join('\n    ')}`);
-      await page.screenshot({ path: join(store, `${title.replace(/\W+/g, '-')}--${name.replace(/\W+/g, '-')}.png`) });
+      // under a test, where Bazel keeps a test's outputs (test.outputs/, uploaded by CI); by hand, the run's directory
+      await page.screenshot({ path: join(SHOTS, `${title.replace(/\W+/g, '-')}--${name.replace(/\W+/g, '-')}.png`) });
     } finally {
       await page.close();
     }
@@ -447,12 +475,21 @@ try {
 } finally {
   await browser?.close();
   site.close();
-  engine.kill();
+  // On Windows the server is Bazel's launcher (server.exe) whose child is the JVM: a kill stops the launcher alone
+  // and the orphaned JVM keeps the pipes open (query-store/test/lite.test.ts, 2026-10-02); taskkill /T takes the
+  // tree, by its full path (a test's PATH is Bazel's). The warehouse is one native process: kill() is enough.
+  if (process.platform === 'win32' && engine.exitCode === null && engine.signalCode === null) {
+    const root = process.env.SystemRoot ?? process.env.SYSTEMROOT;
+    if (!root) throw new Error('SystemRoot is not set: cannot find taskkill.exe');
+    spawnSync(join(root, 'System32', 'taskkill.exe'), ['/pid', String(engine.pid), '/t', '/f'], { encoding: 'utf8' });
+  } else {
+    engine.kill();
+  }
   warehouse.kill();
 }
 
 if (failures > 0) {
-  console.log(`\n${failures} step(s) failed; screenshots in ${store}`);
+  console.log(`\n${failures} step(s) failed; screenshots in ${SHOTS}`);
   process.exit(1);
 }
 console.log('\nevery step holds, in all three');

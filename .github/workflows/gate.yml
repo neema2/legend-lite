@@ -35,7 +35,7 @@ on:
   workflow_dispatch:
     inputs:
       gates:
-        description: "Comma-separated lanes to run (empty = all): product,core,checks,corpus_duckdb,corpus_h2,pct_duckdb,pct_h2,pct_postgres,pct_channel_b,parser_equivalence,stress,warehouse,datacube,ui,sdlc,browser (gates/BUILD.bazel; browser is Linux only, until L1b)."
+        description: "Comma-separated lanes to run (empty = all): product,core,checks,corpus_duckdb,corpus_h2,pct_duckdb,pct_h2,pct_postgres,pct_channel_b,parser_equivalence,stress,warehouse,datacube,ui,sdlc (gates/BUILD.bazel)."
         default: ""
         type: string
       platforms:
@@ -43,6 +43,11 @@ on:
         default: all
         type: choice
         options: [all, linux, macos, windows, linux-arm]
+      linux_only_tests:
+        description: "The tests tagged ci-linux-only (the browser harnesses) on macOS and Windows: skipped (ci-policy, as every push), or run (everywhere: a throwaway measuring them on every platform)."
+        default: ci-policy
+        type: choice
+        options: [ci-policy, everywhere]
 
 concurrency:
   group: gates-${{ github.workflow }}-${{ github.ref }}
@@ -60,6 +65,7 @@ jobs:
     with:
       runs-on: ubuntu-latest
       platform: linux
+      linux-only-tests: ${{ inputs.linux_only_tests || 'ci-policy' }}
       gates: ${{ inputs.gates }}
 
   macos:
@@ -70,6 +76,7 @@ jobs:
     with:
       runs-on: macos-14
       platform: macos
+      linux-only-tests: ${{ inputs.linux_only_tests || 'ci-policy' }}
       # 3 vCPU / 7 GB TOTAL: one test JVM at a time
       low-memory: true
       gates: ${{ inputs.gates }}
@@ -80,6 +87,7 @@ jobs:
     with:
       runs-on: windows-2022
       platform: windows
+      linux-only-tests: ${{ inputs.linux_only_tests || 'ci-policy' }}
       gates: ${{ inputs.gates }}
 
   # LINUX ARM64 (Bazel workplan P1-13): the native warehouse on a real arm64 runner, with the hermetic C

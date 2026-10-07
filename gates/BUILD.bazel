@@ -4,8 +4,10 @@
 # (`bazel test //gates:local`). A lane's members are listed here and nowhere else. `lanes` is every lane; CI's product
 # job holds that every test in the repository is in some lane or in `heavy` (`bazel query 'tests(//...) except
 # tests(//gates:lanes) except tests(//gates:heavy)'` is empty: a query's //... includes manual targets). A test that
-# runs on one platform only says so itself (target_compatible_with) and its suite skips it elsewhere. The heavy,
-# manual tests are `heavy`, for a scheduled run, never per push. No PRs: a landing is an audit,
+# cannot run on a platform says so itself (target_compatible_with) and its suite skips it there; a test CI runs on
+# Linux only as a matter of cost carries the tag `ci-linux-only`, which gates-run.yml filters on macOS and Windows
+# (`--test_tag_filters=-ci-linux-only`), so a desk still runs it anywhere. The heavy, manual tests are `heavy`, for a
+# scheduled run, never per push. No PRs: a landing is an audit,
 # the local gate, one full CI run on its branch, and a push of that commit to main
 # (docs/build-inventory/program/START_HERE.md §4).
 load("//tools/guards:defs.bzl", "guards_package")
@@ -66,6 +68,12 @@ test_suite(
         "//core:guardrails",
         "//core:census",
         "//pct:pct_discipline",
+        # every hand tool compiles (L1b): the manual binaries of each package, built and not run; the three whose
+        # closures hold the native image or the WebAssembly planner sit in the lanes that build those anyway
+        "//site:tools_build_test",
+        "//studio:tools_build_test",
+        "//tools/census:tools_build_test",
+        "//tools/junit:tools_build_test",
     ],
 )
 
@@ -143,23 +151,28 @@ test_suite(
     ],
 )
 
-# DataCube: its unit tests (the live-vs-snap test against the native warehouse among them), the app in Chromium, the
-# smoke harness (on every platform since 2026-10-07; Linux only before, in the browser lane), and the planner compiled
-# to WebAssembly, which the tab runs (its TeaVM build keeps it out of `core`). The other harnesses join as tests in
-# the landing after this one (L1b).
+# DataCube: its unit tests (the live-vs-snap test against the native warehouse among them), the app in Chromium, every
+# browser harness as a test (//datacube:browser: the smoke harness on every platform; features, page, charts, cubes,
+# real data, remote, upload, wasm-browser and stress on Linux only in CI, by their `ci-linux-only` tag, which
+# gates-run.yml filters on macOS and Windows), and the planner compiled to WebAssembly, which the tab runs (its TeaVM
+# build keeps it out of `core`)
 test_suite(
     name = "datacube",
     tests = [
         "//datacube:tests",
         "//datacube:verify_app_test",
-        "//datacube:verify_smoke_test",
+        "//datacube:browser",
         "//wasm:differential_test",
         "//wasm:zone_test",
+        # the hand tools of these two packages compile (their closures: the site, the planner this lane builds)
+        "//datacube:tools_build_test",
+        "//wasm:tools_build_test",
     ],
 )
 
-# the UI apps: Studio and Query, and the saved-query store they share (against the page's own store, legend-lite's
-# server, and the share link). Their browser harnesses join in L1b.
+# the UI apps: Studio and Query, the saved-query store they share (against the page's own store, legend-lite's
+# server, and the share link), and their browser harnesses as tests (Linux only in CI, the same tag): Studio's whole
+# loop, Query end to end against a legend-lite server and a warehouse it starts, the one-origin site
 test_suite(
     name = "ui",
     tests = [
@@ -168,6 +181,11 @@ test_suite(
         "//query-store:local_test",
         "//query-store:share_test",
         "//query-store:lite_test",
+        "//studio:verify_test",
+        "//query:verify_test",
+        "//site:verify_test",
+        # Query's hand tools compile (Linux only in CI, like the test: the closure holds the native image)
+        "//query:tools_build_test",
     ],
 )
 
@@ -179,17 +197,6 @@ test_suite(
         "//sdlc-server:git_repository_test",
         "//sdlc-client:tests",
         "//depot-client:tests",
-    ],
-)
-
-# UNTIL L1b: the three browser tests the browser lane ran (Linux only, by the workflow); L1b turns every harness
-# into a test, constrains the Linux-only ones, and deletes this suite with the workflow's install step and loop.
-test_suite(
-    name = "browser",
-    tests = [
-        "//datacube:live_snap_test",
-        "//datacube:verify_smoke_test",
-        "//studio:verify_test",
     ],
 )
 
@@ -212,7 +219,6 @@ test_suite(
         ":datacube",
         ":ui",
         ":sdlc",
-        ":browser",
     ],
 )
 
@@ -236,8 +242,8 @@ test_suite(
 # THE LOCAL GATE (decision D17's fast loop): what a session runs before it pushes to main, after rebasing onto the
 # latest origin/main: `bazel test //gates:local`. Light and cached: every lane but the heavy ones, which stay CI-only
 # under the desk's two-heavy-jobs cap (the PCT suites (4 GB each), the two corpus lanes, the stress corpus, parser
-# equivalence, Channel B, the native image's tests, the transitional browser suite). `datacube` brings the smoke
-# harness (a browser test on the pinned Chromium, about 100 s) and the live-vs-snap test (it builds the native image).
+# equivalence, Channel B, the native image's tests). `datacube` and `ui` bring the browser harnesses as tests (on
+# the pinned Chromium; several minutes together) and the live-vs-snap test (it builds the native image).
 test_suite(
     name = "local",
     tests = [

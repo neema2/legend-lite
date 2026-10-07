@@ -3,8 +3,10 @@
 // is listed in DataCube's Saved queries on the same origin, says it comes from this browser, and
 // opens as a grid with the rows it ran to in Query.
 //
-// Needs Playwright's Chromium (`bazel run //datacube:install_browser` once).
+// A test (//site:verify_test) on the Chromium Bazel fetched; `bazel run //site:verify` runs the same by hand.
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../tools/browser/pinned-chromium.mjs';
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, resolve, sep } from 'node:path';

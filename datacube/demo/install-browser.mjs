@@ -3,7 +3,7 @@
 // something Bazel fetches; this is the one command that puts it where Playwright looks.
 //
 //   bazel run //datacube:install_browser                  the browser
-//   bazel run //datacube:install_browser -- --with-deps   and its system libraries (CI's Linux)
+//   bazel run //datacube:install_browser -- --with-deps   and its system libraries (a Linux desk)
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';

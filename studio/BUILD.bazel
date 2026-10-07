@@ -4,6 +4,7 @@
 load("//tools/guards:defs.bzl", "guards_package")
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
 load("//tools/browser:defs.bzl", "browser_test")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("//tools/js:defs.bzl", "node_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_studio//:defs.bzl", "npm_link_all_packages")
@@ -115,11 +116,19 @@ filegroup(
     ]) + [":bundle", ":bundle_planner_worker", ":bundle_editor_worker", ":vendor"],
 )
 
-# `bazel run //studio:serve [-- --port 8200]`: the site, on loopback.
+# `bazel run //studio:serve [-- --port 8200]`: the site, on loopback. A hand tool: manual (2026-10-07, PHASE_8.md
+# Gen-5), built by :tools_build_test.
 js_binary(
     name = "serve",
     data = [":site"],
     entry_point = "demo/serve.mjs",
+    tags = ["manual"],
+)
+
+# every hand tool of this package compiles (the build rebuild's L1b)
+build_test(
+    name = "tools_build_test",
+    targets = [":serve"],
 )
 
 # The whole loop in the pinned Chromium (//tools/browser), in the page alone and against the model home's
@@ -136,6 +145,8 @@ browser_test(
     ],
     entry_point = "demo/verify.mjs",
     env = {"SDLC_SERVER": "$(rlocationpath //sdlc-client:sdlc_server)"},
+    # CI runs it on Linux only (gates-run.yml filters the tag on macOS and Windows; the build rebuild's L1b)
+    tags = ["ci-linux-only"],
 )
 
 # Studio's model over the real WebAssembly modules: the compiler (WASM_PLANNER) and the SDLC (SDLC_PAGE).
@@ -184,7 +195,7 @@ typescript.tsc_test(
     ],
 )
 
-# every test here but the browser harness (verify, tagged browser-ci): the local gate and CI run it
+# every test here but the browser harness (verify_test, in //gates:ui, tagged ci-linux-only): the local gate and CI run it
 test_suite(
     name = "tests",
     tests = [

@@ -42,8 +42,9 @@ bazel test //query:tests //query:typecheck_test   # builder round-trips, loader,
 bazel run //query:verify                          # end to end, in Chromium: every step in the browser AND on the server
 ```
 
-`verify` needs Playwright's Chromium once (`bazel run //datacube:install_browser`); it starts
-legend-lite's server itself (with Bazel's JDK). CI runs it in the browser lane.
+`bazel test //query:verify_test` runs the same end to end on the Chromium Bazel fetches (CI's `ui` lane, Linux);
+`bazel run //query:verify` by hand needs Playwright's Chromium once (`bazel run //datacube:install_browser`). Either
+starts legend-lite's server and a warehouse itself (with Bazel's JDK), on free ports.
 
 ## Layout
 
