@@ -174,31 +174,27 @@ on a branch, one CI run, then pushed to main.
   About 480 places still branch on a resolved callee's full name (the identity guard's shrink-only counts); Phase 3 did
   not take those.
 
-### Phase 3b: match legend-pure on upstream's own code (core compiler)
-Agreed with the user 2026-10-06: after Phase 3, before Phase 6. Every function legend-pure types, we type, and every
-call picks the same function with the same type as legend-pure, whether the fix is in overload logic or in typing. That
-includes engine code the platform never runs (protocol translation, the engine's SQL generator): a body we cannot type
-is a compiler gap that user code can hit too. Running that code stays refused, as today.
-- Where it starts (today's reference lane, core_relational): 830 calls disagree (745 other version, 14 other package,
-  32 drift, 39 property read against call); 68,643 positions the lane cannot match (a form, a property read or a
-  rewrite where legend-pure has a call); 15,938 calls of ours with no counterpart; 1,508 bodies we fail to type, 1,335
-  of them typed by legend-pure, whose calls are not compared (649 are the protocol translation layers, about 40
-  functions in each of 16 protocol versions; JSON format 78; model-to-model 71; the engine's SQL generator 72); 32
-  files dropped; types not compared at all.
-1. Complete the measurement: legend-pure's type at every call, compared with ours (the parked plan's W1.1b); form
-   nodes joined to the functions they stand for (Phase 3 gives every form its ids); why each body fails and why each
-   file is dropped.
-2. The causes, with counts, shown to the user before any fix.
-3. Fix by cause, biggest first, each measured by the lane.
-4. Done: every call the same function and type as legend-pure; every body legend-pure types, typed; every file loaded;
-   anything left written down with its reason and approved by the user; corpus and PCT identical or better at every
-   step.
-- Starts with (from Phase 3): the reference lane's 58 OVERLOAD rows (argument typing: `[0..1]` against `[1]`, `Number`
-  against `Integer`/`Float`, a more specific class, `range`'s arity); the 13 bodies that fail since Phase 3's step 2 (named
-  with causes in its GATES entry); the 110 upstream versions without a row (`unrowed-versions.txt`), which get rows or a
-  decision before Phase 4.
-- Takes over the parked compiler plan's items it covers (W1.1b and the typing work): said so in IN_FLIGHT and in that
-  plan. The biggest phase; step 2 sizes it.
+### Phase 3b: what the bump and users need from the compiler (core compiler)
+Re-scoped with the user 2026-10-07, after the census (`docs/build-inventory/manifest-world/experiments/phase3b-census/`):
+of the 1,469 bodies we fail to type, 931 (364 functions) are engine machinery the platform never runs, 460 are
+upstream's own tests, 52 are library functions user code could call (mostly legacy TDS functions the forms handle, or
+reflection not run here), 26 other. The six corpus passes and the PCT suites measure what users get; the reference lane
+stays a guard that must not get worse, not a target. Small: days.
+1. **The boot layer's twins merge by function id, and the view lifted twice (F-L1) is fixed.** Today 7 upstream
+   platform files drop ("defined more than once"); Phases 4 and 6 load them.
+2. **A file whose mapping uses an unsupported feature loads; the feature is refused when the mapping runs.** Today 18
+   files drop at model build (set-routed bindings, enum transformers, explosions); Phase 6 needs them loaded.
+3. **The reference lane's 58 OVERLOAD and 14 PACKAGE rows, reviewed for user impact:** fix those that change results or a
+   type users see; record the rest as type-only differences.
+4. **A dot call finds a qualified property when a plain property shares its name** (`Extension.serializerExtension(
+   version)`, about 391 bodies; a model of the user's can have the same shape).
+- Conditions: the reference lane and the six corpus passes (against a fresh baseline) run before every compiler change
+  lands; Phase 4 opens by re-measuring the library bodies upstream core brings in (each types or is refused with a
+  reason).
+- Not doing (decided 2026-10-07, reopenable with the census): typing the engine machinery (931 bodies) and upstream's
+  unrun tests (460); the lane instrumentation (forms compared as calls, our inserted calls marked, types per call: the
+  parked plan's W1.1b stays there). Known soft spot: Phase 3's adjustments (`Any` with the type parameters, the four kept
+  tie-breaks) are not checked against legend-pure's types; the first place to look if a wrong-version bug appears.
 
 ### Phase 4: the default world from upstream (replaces `PreludeGenerator`)
 - The generator: upstream core whole (legend-pure `platform*` and engine `core_functions_*`, tests stripped by
@@ -255,8 +251,8 @@ is a compiler gap that user code can hit too. Running that code stays refused, a
 
 **Order: 0, 1, 2, 2b, 3, 3b, 6, 4, 5, 7**, with Phase 8's items interleaved where they do not touch the same files.
 - 2b informs 3's design; 3 needs 2's tables.
-- 3b needs 3 (forms carry ids, so the lane can join them) and runs before 6 and 4, so the real manifest and the
-  upstream world arrive on a compiler that matches legend-pure.
+- 3b needs 3 and runs before 6 and 4: it loads the files those phases need (the boot layer's twins, the mapping
+  files) and fixes what users would meet.
 - 6 needs 3 (the table owns what the manifest's files redefine) and runs before 4, so the result views can move off
   startup at the moment the default world changes, with nothing temporary in between.
 - 4 needs 3's ownership and 6's manifest; 5 needs 4's world; 7 needs all.
