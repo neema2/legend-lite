@@ -105,8 +105,9 @@ with the compiler's plan/execution split**, in this order:
    steps 2–4 — the planner makes an execution plan, a runner in `exec` runs it, the server's execute paths switch to
    it** (files in the fourth line's 2026-10-07 note).
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
-   `datacube-chart-spec`. `native/` and `python/` (new); first landing: the compiler as a native library with Python
-   bindings; then DataCube on Python dataframes. Nothing in `core/` (its typing fix went to the compiler line).
+   `datacube-chart-spec`. `native/` and `python/` (new). **L1 landed 2026-10-07 (`bc8107c4e`)**: the compiler as a
+   native library with Python bindings. Next: DataCube on Python dataframes. Nothing in `core/` (its typing fix went to
+   the compiler line).
 
 **Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
 B2/B3 and the W6.2 runner wait for it); the server
@@ -453,7 +454,8 @@ DataCube on a Python dataframe, from a script and in a notebook, with Python run
 as WebAssembly (one compiler source, so Python and DataCube share models and answers). **Owns** two new packages:
 `native/` and `python/`.
 
-**Landing first, announced here before it lands: the compiler as a native library, with Python bindings (L1).**
+**Landed 2026-10-07 (`bc8107c4e`; GATES entry "The compiler as a native library"): the compiler as a native library, with
+Python bindings (L1).**
 `//native:compiler`: `//wasm:boundary` (`planner.Wasm` over `//core`) built by GraalVM native-image as a SHARED library, with the warehouse image's C
 toolchain (the host's checked, zlib from source, lld on Linux); Linux and macOS for now. `python/legend_lite`:
 bindings on the standard library alone (ctypes). `//python:bindings_test`, a `py_test` on the repository's Python
