@@ -57,13 +57,31 @@ generated file, never a signature we typed ourselves.
 - **The order is agreed and recorded in the plan's §4**: thirteen landings, L1 the CI landing first, L2 Phase 3, then
   3b, 6, 4, 5, PARK-5's fix, 7 (the bump is done there), then the typer's order and Phase 8. The lane set is
   `PHASE_8.md` §8; the measurements behind it are `evidence/phase8/CI_LANES_2026_10_07.md`.
-- **L1a landed** (main `fd1b0ba77`, 2026-10-07; GATES entry "Build rebuild L1a"): the lanes as suites, the product
-  job, the downloads cache, the pinned actionlint and shellcheck, the manual hand targets; its run green on all 51
-  jobs, 30.6 minutes cold. **Next: L1b** on a branch from `origin/main` (`build/ci-harnesses`): the browser harnesses as
-  tests (rebase `bazel/exec`'s P4-01 to P4-04 and P4-08, dropping the 7,824-line file; the four need P4-01 first), the
-  Linux-only tests by `target_compatible_with`, the transitional `browser` suite, the Chromium install step and the
-  harness loop deleted, DataCube's dev tools `manual`, the hand tools' build test. Studio's line owns `datacube/`,
-  `query/`, `site/`: announced in IN_FLIGHT, proceeding.
+- **L1a and L1b landed** (main `fd1b0ba77` and `d126b47e1`, 2026-10-07; GATES entries "Build rebuild L1a" and
+  "L1b"): the lanes as suites, the product job, the downloads cache, the pinned actionlint and shellcheck, the manual
+  hand targets; every browser harness a test on the pinned Chromium (DataCube's eight, Query's, the site's, Studio's),
+  Linux only in CI by the tag `ci-linux-only`, which a dispatch with `linux_only_tests=everywhere` lifts. Both runs
+  green on all 51 jobs. L1b's run was NOT warm (32 minutes): the runner image's version sat in the cache key and GitHub
+  rotates images run to run, the prefix fallback `bazel-repo-linux-` matched the `linux-arm` entry, and the Linux
+  cache was 19 GB because the product job saved after analysing everything (every pool's jars), past GitHub's 10 GB
+  cap (`evidence/phase8/CI_LANES_2026_10_07.md` §8). **The fix is L1b's follow-up** (branch `build/ci-cache`): the key
+  without the image, `=` before the hash so one platform cannot prefix-match another, the save right after the product
+  build and before the analysis; its throwaway run also runs the Linux-only tests everywhere (the user's ask) and
+  measures each platform's cache. If the downloads still do not fit the cap, GitHub's cache is dropped and OD-5 is a
+  remote cache, decided on those numbers.
+- **L1c agreed (2026-10-07, the user: "Yes to both"): the warehouse knows nothing about Bazel (design D9), done
+  properly.** The server finds DuckDB's library and the Postgres extension beside its own executable (or where
+  `--duckdb-library`/`--duckdb-extensions` point), the site beside it under `site/` (or `--site`); `--data` not given
+  means a fresh temporary directory, printed at start (never a silent folder in the current directory; a kept
+  warehouse says `--data /absolute`); a new `--app` flag means today's `--single-user --open` with the site beside
+  the program. `ServerRunfiles`, the runfiles dependency, the `BUILD_WORKING_DIRECTORY` read, `warehouse_run` and its
+  bash script, `hermetic_launcher`, the 10-argument limit and the "DO NOT RENAME" couplings go. `//datacube:app` is
+  the server copied beside the library, the extension and the site with `args = ["--app"]` (Bazel's own attribute;
+  `bazel run` on Windows runs an `.exe` directly, arguments intact); `//warehouse:serve` is the plain binary, a
+  developer tool; a package target (`.tar.gz` and `.zip`: the same five things in a folder) is the way to run the
+  product without Bazel. Relative paths under `bazel run` are Bazel's folder, documented, as for every Bazel user (the
+  user: "people can just give absolute path"). Tests: the beside-the-executable rule, the refusal with nothing
+  beside, an argument `x&y z` kept whole by the binary itself. Then **L2, Phase 3**.
 - **`build/phase3` is untouched and waits for L1:** main plus the five Phase 3 commits, pushed, not landed. Its
   commits by subject: step 1 (ranking), step 2 (candidates and implementations by id), step 3 (forms, TDS functions,
   `agg`, boot-layer versions by resolved names), the corpus fixes, the audit's fixes. List them with `git log
@@ -82,8 +100,8 @@ generated file, never a signature we typed ourselves.
   with the evidence folder.
 - Phases 0, 1, 2, 2b: done (2 is on main; 2b was an experiment). **Phase 3: built, audited twice, every finding fixed
   or recorded, checked; not landed.** What is left: `PHASE_3_LANDING.md` §5.
-- Next, in order (plan §4): **L1 the CI landing, L2 Phase 3, then 3b, 6, 4, 5, PARK-5's fix, 7**; Phase 8 after the
-  bump. Each landing branches from `origin/main` after the previous one lands (not from the old `build/rebuild`).
+- Next, in order (plan §4): **L1b's cache fix, L1c the warehouse without Bazel, L2 Phase 3, then 3b, 6, 4, 5, PARK-5's
+  fix, 7**; Phase 8 after the bump. Each landing branches from `origin/main` after the previous one lands (not from the old `build/rebuild`).
   Homework pulled forward: U4-1 (the real Phase 4 world measured with the harness) runs right after L2; the bump's
   pins-only dry run (U7-3) during L3's homework.
 

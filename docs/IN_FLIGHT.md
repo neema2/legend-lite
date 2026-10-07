@@ -30,7 +30,19 @@ with the compiler's plan/execution split**, in this order:
    `tools/browser/defs.bzl` (a Linux-only option), `datacube/BUILD.bazel`, `query/BUILD.bazel`, `site/BUILD.bazel`,
    `studio/BUILD.bazel` and `datacube/demo/*.mjs` (the harnesses as tests: `bazel/exec`'s P4-02, P4-03, P4-04 and
    P4-08 rebased) — Studio's line owns `datacube/`, `query/`, `site/` (below): noted here once, proceeding.
-   **L1a landed 2026-10-07 (`fd1b0ba77`); L1b in progress on `build/ci-harnesses`.**
+   **L1a landed 2026-10-07 (`fd1b0ba77`); L1b landed 2026-10-07 (`d126b47e1`).** Its cache fix follows on
+   `build/ci-cache` (`gates-run.yml` only).
+   **Announced 2026-10-07 — L1c, the warehouse knows nothing about Bazel (plan §4; agreed with the user), branch
+   `build/warehouse-no-bazel`.** `warehouse/`: `src/main/java/com/legend/warehouse/server/WarehouseServer.java` (the
+   command line: paths as given, a temporary `--data` by default, `--app`; no `BUILD_WORKING_DIRECTORY`),
+   `ServerRunfiles.java` (deleted), `server/duck/DuckLibrary.java` (beside the executable: the library, the extension
+   directory, the site), `defs.bzl` (`warehouse_run` and the launchers go; a package rule), `BUILD.bazel` (`serve` the
+   plain binary; `server_lib` without the runfiles library; the "DO NOT RENAME" outputs), the launcher test replaced
+   (`src/test/.../launcher/LauncherTest.java`, `AppModeTest.java`, a beside-the-executable test); `MODULE.bazel`
+   (`hermetic_launcher` removed); `datacube/BUILD.bazel` (`app`: the binary beside its files, `args = ["--app"]`; a
+   package); `datacube/demo/verify-app.mjs` (starts the app binary); `docs/DATACUBE_ON_POSTGRES.md`, `README.md`,
+   `docs/WINDOWS_APP_DESIGN_2026_10_02.md` (the known limits 1 and 2 closed), `docs/GATES.md`. The DataCube line edits
+   `warehouse/` too (its token and grants work, above): noted here, proceeding; whoever lands second merges.
    **The build rebuild and the self-contained bump** (`docs/REBUILD_PROGRAM_2026_10_06.md`, on main since 2026-10-07 with its research and
    evidence; a session picking it up starts at `docs/build-inventory/program/START_HERE.md`. Phases 0 and 1 landed as PRs;
    since 2026-10-06 there are no PRs: one full CI run on the branch, then that commit pushed to main). **Announced 2026-10-06, replacing the 2026-10-05 note — PR 1, Phase 0:** the build targets

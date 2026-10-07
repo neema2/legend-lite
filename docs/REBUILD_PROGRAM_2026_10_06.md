@@ -535,6 +535,7 @@ GitHub's five-at-a-time macOS queue; every later landing pays that instead of an
 | # | Landing | Contains | Needs |
 |---|---|---|---|
 | **L1** | **The CI landing** (Phase 8's CI work, pulled forward; the lane set is the Phase 8 brief's §8) | (a) every lane a `//gates` suite with a guard that every test is in one; the build lane builds the product (`//:java //:web //:wasm //:native //:sites //datacube:app`) plus the two analysis checks; `manual` on the six judge passes, `//:update_generated`, the hand tools and the layer queries; actionlint as a Bazel test and the actions pinned by commit; the cache reduced to the downloads, one per platform. (b) the browser harnesses as Bazel tests (the parked `bazel/exec` commits P4-02, P4-03, P4-04, P4-08 rebased), the Linux-only ones by `target_compatible_with`, no install step, no loop | nothing; Phase 3's branch stays untouched meanwhile and rebases after (L1 touches no file Phase 3 touched) |
+| **L1c** | **The warehouse knows nothing about Bazel** (design D9, done properly; agreed 2026-10-07, the user's two decisions: a temporary data directory by default, printed; an `--app` mode) | the server finds its DuckDB library, the extension and the site beside its own executable or by flags; `ServerRunfiles`, the `BUILD_WORKING_DIRECTORY` read, the runfiles jars, `warehouse_run`'s bash script and `hermetic_launcher` go; `//datacube:app` = the binary beside its files with `args = ["--app"]`; `//warehouse:serve` the plain binary (a developer tool); a package target (`.tar.gz`, `.zip`) is how the product runs without Bazel; relative paths under `bazel run` are Bazel's folder, documented. Closes OD-1, OD-2, Short-3, Short-24, PR #14's Windows known limits 1 and 2 | L1; a `warehouse/` change: IN_FLIGHT first (the DataCube line edits that folder) |
 | **L2** | **Phase 3 lands** | the five commits as they are, rebased onto main after L1; PARK-5 recorded (option (a) below), its full fix scheduled as L7; the ledger rows PARK-13 and PARK-14 get their "fixed in 3b" line in the same rebase | L1; one CI run on the fast CI |
 | **L3** | **Phase 3b** | its five items (3b.5), with: 3b-O1 (b) the "platform's own Pure" row kind (PARK-12 closed, `shadows` deleted); 3b-O2 (a) import scopes per element; **PARK-14 decided in item 4's code and PARK-13's trace deleted** | L2; the 3b brief's homework H1 to H7; its open decisions |
 | **L4** | **Phase 6** | the corpus on its manifest, as the 6 brief describes; 6-H3 decides whether PARK-11's rows must come here instead of Phase 4 | L3; homework 6-H1 to H9 (experiment 8 rerun at the real heap) |
@@ -554,6 +555,12 @@ owns what the manifest's files redefine) and runs before 4: Phase 4's default wo
 views name, so the views must leave startup the moment the world changes, and only Phase 6's loader gives them a
 home. 4 needs 3's ownership and 6's manifest; 5 needs 4's world; 7 needs all. Phase 8 waits for the bump except L1,
 which pays for itself at once.
+
+**L1's second run (2026-10-07) found the cache's design wrong**: the runner image's version in the key (GitHub rotates
+images run to run), a prefix fallback that matched another platform, and a 19 GB Linux cache (the product job saved
+after analysing everything) against GitHub's 10 GB cap. Fixed as L1b's follow-up (key without the image, no prefix
+overlap, the save right after the product build); if the downloads still do not fit, GitHub's cache goes and OD-5 is a
+remote cache (`PHASE_8.md` §8, the evidence file §8).
 
 **The debts, placed.** PARK-5: L7 (the user chose option (a), 2026-10-07: land Phase 3 with it recorded; the fix inside
 the program, after Phase 5, not after the program). PARK-6 to PARK-10: L9. PARK-11: L5 (or L4 if 6-H3 says so).
