@@ -19,8 +19,8 @@ checkout directories (the census's file walk does not follow the execroot's syml
 
 - 409 / 70 unknown function: 391 are `serializerExtension`, a qualified property of `Extension` that shares its name
   with a plain property (a dot call finds the property, misses the qualified one, then looks for a function).
-- 131 unknown element: mostly elements in dropped files; `system::imports::coreImport` as a value (31); functions
-  referenced by their mangled id as values (21).
+- 131 unknown element: `system::imports::coreImport` as a value (31); functions referenced by their mangled id as
+  values (21); the rest names elements the strict load lacks (some of them knock-ons of drops, below).
 - 121 / ~30 type-variable binding stricter than legend-pure (`Class<Any>` against `Type` and similar).
 - 106 / 62 no version with that many arguments (`toJsonBeta`/2 60, `routeFunction`/2,4,7,8, `newMap`/2, `eval`/8, ...).
 - about 220 a form refusing an older shape (`project` 65, `groupBy`'s `agg` 56, `match` 53, ...); 50 normalize-required
@@ -50,6 +50,7 @@ with its file), DROPPED (the strict drop's first error, and whether the file has
 
 ## The decision
 
-With the user (2026-10-07): Phase 3b does what the bump and users need (the twins, the dropped mapping files, the
+With the user (2026-10-07): Phase 3b does what the bump and users need (the boot layer's twins and F-L1, the
 qualified-property lookup, a user-impact review of the 58 OVERLOAD and 14 PACKAGE rows) and drops typing the machinery
-and upstream's unrun tests, and the lane instrumentation. See the plan's Phase 3b.
+and upstream's unrun tests, and the lane instrumentation. The reference lane stays strict: the 18 mapping files stay
+dropped and pinned (a recorded product gap; the corpus loads them tolerantly). See the plan's Phase 3b.
