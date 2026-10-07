@@ -94,10 +94,10 @@ with the compiler's plan/execution split**, in this order:
    function), `parser-equivalence`'s ratchets, `docs/GATES.md`, and `docs/EXECUTION_PLAN_2026_09_26.md`: W2.1's
    `ids`/`catalog` items now belong to this program (Phase 3), so nobody redoes them there; W1.1b stays with that plan
    (this program's Phase 3b was re-scoped on 2026-10-07 to the files Phases 4 and 6 load and what users meet).
-2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; PR #24 `studio-m1`, then `query-by-name`): `studio/`,
-   `legend-art/`, `query/`, `datacube/` (imports and labels; the Snap move, A6), `site/`, a `@fontsource` block in
-   `MODULE.bazel`; then, on `studio-engine`, core's test runner and model printer (A4, B1: files in the fifth line's
-   2026-10-05 note). Lands on the user's merge; `MODULE.bazel` is shared with the Bazel program (the second to land rebases).
+2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; `studio-m1` landed as PR #24 on 2026-10-05): `studio/`,
+   `legend-art/`, `query/`, `datacube/` (imports and labels; the Snap move, A6), `site/`, `engine-client/`,
+   `sdlc-*`/`depot-*`; and the **protocol program** in core (`docs/PROTOCOL_PROGRAM_2026_10_05.md`: files in the fifth
+   line's notes). **Resumed 2026-10-07 by session `neema-8f`**: see the fifth line's 2026-10-07 note.
 3. **The database owner** (the fourth line below; `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md`; since
    2026-10-05 also the execution plan boundary, `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`, which takes the rebuild's
    W6.1 and W6.2): C3c
@@ -393,6 +393,23 @@ emitter omits an absent span as the engine's `NON_NULL` does, `PmcdParser.parseM
 (`parseDocument` is its emit), and two shape flags (`EnumValue`, a connection's `element`) replace span-presence tests.
 Gate 8 holds the emitter byte-identical with the engine through it. A session editing `Protocol.java`, the emitters or
 the protocol parsers should expect to merge with `protocol` when it lands.
+
+**2026-10-07: the Studio line resumes (session `neema-8f`, worktree `legend-lite-query`).** Nothing lands on `main`
+today but this note. What it is doing now: bringing its three unlanded branches up to date with `main` (161 to 223
+commits behind), locally first: `query-by-name` (Query and DataCube open Studio's projects by name; 7 commits),
+`studio-engine` (running in the tab, the query builder in Studio, the editing features, the Snap move; 19 more) and
+`protocol` (the protocol program: the model printer and the model reader, both proven exact over the corpus; 21
+commits). The rebased branches are pushed under NEW names (rule 1: no force-push); the old ones stay as they are.
+Files the rebase touches beyond the line's own folders: the BUILD files of `query`, `sdlc-server`, `studio`,
+`datacube` and `engine-client`, `gates/BUILD.bazel` and the CI lane lists (moving the line's tests into the new
+`//gates` suites, the `ui` and `sdlc` lanes), and, for `protocol`, `core/src/main/java/com/legend/protocol/` (records,
+emitters, readers, composers), `core/src/main/java/com/legend/parser/` (mechanical: `parseModel`, nullable spans),
+`wasm/src/main/java/planner/Wasm.java` (one grammar export), `parser-equivalence/` (the oracles). Landing follows
+the rebuild program's rule (branch rebased on `main`, an audit, the local gate, one CI run on the branch, then a
+fast-forward), after the user decides the order. **Overlap to watch:** the compiler design's F1
+(`docs/COMPILER_RIGHT_DESIGN_2026_10_07.md`, names resolved once) changes how call nodes (`protocol.spec`
+`AppliedFunction`) are built, and the protocol program changes the same records (nullable spans, the `list` factory);
+whichever lands second merges, and the two should agree before either starts on those files.
 
 ## Rules between sessions
 
