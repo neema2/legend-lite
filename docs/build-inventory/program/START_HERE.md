@@ -43,7 +43,7 @@ generated file, never a signature we typed ourselves.
 |---|---|---|
 | The plan, the designs, the research, these briefs, the evidence | `main`: `docs/REBUILD_PROGRAM_2026_10_06.md`, `docs/BUILD_REBUILD_DESIGN_2026_10_05.md`, `docs/GENERATORS.md`, `docs/UPSTREAM_ONLY_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md`, `docs/build-inventory/` (inventories, dossiers, experiments, censuses), `docs/build-inventory/program/` (this folder; its `evidence/` holds the audits, scripts and recorded results) | yes, since 2026-10-07: merged from the plan branch `docs/bazel-first-class-plan` (pushed, kept as history). Edit them on main or a branch from it, not in `runs/bazel-plan` |
 | The code | `main`. Phases 0, 1 and 2 are on it (PR #25, PR #26, `ff70aef01`). | yes |
-| Phase 3 | branch `build/phase3` (worktree `runs/build-rebuild`); state in §3 | **No** (no remote branch) |
+| Phase 3 | branch `build/phase3` (worktree `runs/build-rebuild`): main plus the five Phase 3 commits; state in §3 | yes (pushed 2026-10-07; not landed) |
 | The program's debts | `docs/PARKED_WORK_LEDGER.md` rows PARK-5 to PARK-14 (on `build/phase3`; they land with Phase 3), anchored by `core/src/test/java/com/legend/ParkedWorkLedgerTest.java` | with Phase 3 |
 | Who works on what | `docs/IN_FLIGHT.md` on `main` (the program's entry lists every core file each phase touches) | yes |
 | Gate results and what moved, per change | `docs/GATES.md` (one entry per landing) | with each landing |
@@ -54,15 +54,17 @@ generated file, never a signature we typed ourselves.
 ## 3. State, and the next action
 
 **State at the end of 2026-10-07** (the one place this is kept; other documents point here):
-- `origin/main`: `f306bd698`, then the documents' landing on 2026-10-07 (docs only: the plan branch merged, `AGENTS.md`'s
-  pointer, IN_FLIGHT's update). `build/phase3` is based on `f306bd698`: rebase it onto `origin/main` before landing
-  (docs-only commits in between, so no rerun).
-- `build/phase3` (local only): five commits on `f306bd698`, the four Phase 3 commits and the audit's fixes:
-  `d0041969c` step 1, `a2f4da2fc` step 2, `3912d3c12` step 3, `5e8a7c263` the corpus fixes, `ad1ed0175` the audit's
-  fixes (amended after the local gate with documents, reason text and one comment only). Worktree clean. The briefs and the first audit cite the ids from before the rebase onto `f306bd698`:
-  `5bc1550ae` = `d0041969c`, `38566af11` = `a2f4da2fc`, `165a1dbff` = `3912d3c12`, `bc0de1f70` = `5e8a7c263`; line
-  numbers in the files the fix commit changed moved a little (cite the ledger's anchors by name).
-- Checks on that tree: core tests, guards, census, spec tests; the six corpus passes identical to the
+- **One branch holds everything:** `main` has every document (since 2026-10-07: the plan branch merged, `AGENTS.md`'s
+  pointer, IN_FLIGHT's update), and `build/phase3` is main plus the five Phase 3 commits, rebased onto main the same
+  day and pushed (not landed). Its commits by subject: step 1 (ranking), step 2 (candidates and implementations by id),
+  step 3 (forms, TDS functions, `agg`, boot-layer versions by resolved names), the corpus fixes, the audit's fixes. List
+  them with `git log --oneline origin/main..origin/build/phase3` (a rebase changes the ids; these documents name
+  subjects, not ids). If main moves again with documents only, rebase again: no rerun. Worktree clean.
+- Old ids the briefs and the first audit cite, by subject: `5bc1550ae` and `d0041969c` step 1; `38566af11` and
+  `a2f4da2fc` step 2; `165a1dbff` and `3912d3c12` step 3; `bc0de1f70` and `5e8a7c263` the corpus fixes; `ad1ed0175` the
+  audit's fixes (amended after the local gate with documents, reason text and one comment only). Line numbers in the
+  files the fix commit changed moved a little: cite the ledger's anchors by name.
+- Checks on that code (the rebase added documents only): core tests, guards, census, spec tests; the six corpus passes identical to the
   pre-Phase-3 baseline; the reference lane byte-identical to its golden; PCT 17 of 17; the local gate 290 of 290.
 - The program's documents: on main since 2026-10-07 (merged from `docs/bazel-first-class-plan`, pushed, kept as history),
   with the evidence folder.

@@ -16,9 +16,9 @@ versions the corpus, PCT and the reference lane call, and reads forms by the nam
 
 ## 2. The branch
 
-**State at the end of 2026-10-07:** `build/phase3` is rebased on `origin/main` `f306bd698`: five local commits, the
-four Phase 3 commits (`d0041969c`, `a2f4da2fc`, `3912d3c12`, `5e8a7c263`) and the audit's fixes (`ad1ed0175`), nothing
-pushed. The local gate passed on that tree (290 of 290; the fix commit was amended afterwards with documents, reason
+**State at the end of 2026-10-07:** `build/phase3` is main plus five commits, the four Phase 3 commits and the
+audit's fixes, rebased onto main's documents and pushed, not landed (on `f306bd698` they were `d0041969c`, `a2f4da2fc`,
+`3912d3c12`, `5e8a7c263` and `ad1ed0175`; ids change with each rebase, so take them from `git log origin/main..origin/build/phase3`). The local gate passed on that tree (290 of 290; the fix commit was amended afterwards with documents, reason
 text and one comment only, and the affected checks re-passed). The current state is kept in `START_HERE.md` §3. The worktree is clean. The rest of this section describes the branch before the rebase (the old commit ids).
 
 - 4 commits on `293318dda` (main has moved to `f306bd698`, a docs-only IN_FLIGHT commit: rebase is clean):
@@ -130,7 +130,7 @@ back to a function.
    committed locally and the branch rebased; the local gate green, 290 of 290 (recorded in the GATES entry). **Left for the
    next session (the user, 2026-10-07: "leave the park decision and CI/push for next session"):** the PARK-5 decision
    (three options, `START_HERE.md` §3); (done 2026-10-07: the documents and the evidence on main, IN_FLIGHT's update
-   pushed); rebase onto `origin/main` (docs-only commits since `f306bd698`); put `[skip ci]` on the tip commit; then:
+   pushed); rebase onto `origin/main` if it moved (documents only: no rerun); put `[skip ci]` on the tip commit; then:
 6. **Land** (`START_HERE.md` section 4): one fix commit ("Phase 3: the audit's fixes ..."), rebase onto
    `origin/main`, `bazel test --lockfile_mode=error //gates:local`, tip commit with `[skip ci]`, push the branch,
    `gh workflow run gate.yml --ref build/phase3 -f gates= -f platforms=all`, then on green
