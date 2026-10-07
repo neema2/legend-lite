@@ -117,6 +117,11 @@ passes (every roster, register, ledger and verdict) and every PCT case.
   implementation table deciding. Upstream has 184 overloads at names we implement that we do not, so overload
   resolution can change (a call binding to an overload that is not implemented).
 - Run that configuration through the experiment harness (emulated, as before) and record every change it causes.
+- **Done (2026-10-06):** `docs/build-inventory/manifest-world/experiments/phase2b/README.md`. Upstream core adds 45
+  extra overloads (6 native); one, `collection::get(T[*], String)`, causes every change (corpus, PCT), because our
+  compiler sums overload scores where legend-pure ranks parameter by parameter (the same root as the reference
+  lane's 745 `OVERLOAD` disagreements). Without it, all six corpus passes and all PCT suites are identical. Phase 3
+  ranks overloads as legend-pure does.
 
 ### Phase 3: the implementation table switched on (core compiler)
 - `ImplementationTable` (over `DeclarationTable` and `Registrations`) becomes the one authority at boot and at module
