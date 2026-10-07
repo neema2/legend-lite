@@ -6927,3 +6927,29 @@ Linux arm64's lost check of the beside-the-executable layout, the stale javadoc 
 gaps, the missing `site/` check, the Ctrl+C exit code softened to what was measured; and its section on the cache fix
 (sound; two efficiency items, in this landing). Local gate `//gates:local` green, 310 of 310, three times. The run:
 37668591690, dispatched 18:40 UTC; the Linux `ui` job failed once on a Maven Central 404 for duckdb_jdbc 1.5.5.1 (a fetch, before any test) and was rerun on the same commit, green on every job; the lane minutes in the evidence's §10.
+
+## 2026-10-07 — Build rebuild L1d and L1e: the downloads cache without the unpacked repositories; the package judged; BuildBuddy as the remote cache
+
+The plan: `docs/REBUILD_PROGRAM_2026_10_06.md` §4 (L1d: L1c's follow-ups; L1e: OD-5, the remote cache); the state:
+`docs/build-inventory/program/START_HERE.md` §3; the numbers: `evidence/phase8/CI_LANES_2026_10_07.md` §11.
+
+What changed:
+1. **The downloads cache without the unpacked repositories** (`gates-run.yml`: the cache path excludes `contents/`). L1c's run had measured the Linux
+   downloads cache at 16 GB, 13 of them Bazel 9's unpacked repositories, which it keeps in `{--repository_cache}/contents`
+   — inside the folder CI saves. Now the saved cache holds the downloads alone: 3.1 GB on Linux, 1.0 GB on macOS, 1.1 GB on Windows (the cold run's product jobs), under the 10 GB cap for the four platforms together; Bazel keeps using its contents cache during a job (`contents/` is left out of the saved path, not disabled: disabling it made the product job's `--config=bazel10` refetch re-extract the JDK over its own locked `java.dll` on Windows). The two measuring `du` lines left the
+   product job.
+2. **The package's entries, judged** (`//datacube:package_test`, `datacube/test/package/entries.ts`): Node reads
+   `datacube-app.tar.gz` itself (gunzip and the tar format's 512-byte headers; no host tar) and holds it to the app
+   folder's four things under `datacube/app/`, the server executable, nothing of Bazel's. In the `datacube` lane.
+3. **The app test's temporary data** (`//datacube:verify_app_test`): after SIGTERM the folder is gone on Linux and macOS
+   (the server's hook ran) and removed by the test on Windows, where a hard kill runs no hook.
+4. **The remote cache** (`.bazelrc`'s `remote` config; `gates-run.yml`; `gate.yml`): BuildBuddy's cache and build event
+   service for every CI job. Each job appends `--config=remote`, the key (on both the cache's and the event service's
+   headers) and `--remote_upload_local_results` to the runner's own `~/.bazelrc` (never a command line, never a log);
+   without the secret it warns and builds as before. Only CI writes to the cache; CI's tests always run. Measured against a dead endpoint before choosing the flags: an unreachable cache is a
+   warning (Bazel builds locally); an unreachable event service fails the build (exit 38) under the default upload
+   mode, so the upload is fully asynchronous: it can never turn a build red. A desk uses its own key, read-only by
+   default.
+
+The audit (the auditor agent, 2026-10-07, resumed after a session restart): one process blocker (the branch sat on the commit before the plan-rows fix: rebased), five should-fix, all taken — with a remote cache Bazel would have served cached *test results*, so CI now runs every test every time (`test:ci --nocache_test_results`; the user: start there, decide on the numbers); desks no longer write to CI's cache (the `remote` config uploads nothing, CI's own rc turns uploads on); the timeout justified (600 s); a failed folder removal no longer skips the test's Postgres shutdown; the key on the event service's header too; and four nits. CI runs every test every time, so what the cache gives is the build: the image, the planner, the bundles, the jars. Local gate `//gates:local` green, 311 of 311. The runs:
+cold, 37676021026 (19:38 UTC; the cache empty): 49 of 51 jobs green, the macOS and Windows product jobs red on the two things the amended commit corrected (`query` handed the build-only `ci-small` config; the Windows refetch under `--config=bazel10` re-extracting the JDK over a locked DLL once the contents cache was disabled); warm, 37679310981 (20:04 to 20:26 UTC, 22 minutes): green on every job, every job's build actions from the cache. What the remote cache bought, lane by lane: the evidence's §11 (the product job 14 / 8 / 14 → 12 / 3 / 9 minutes, Linux / macOS / Windows; the corpus lanes 9 / 6 / 8 → 5 / 3 / 3; checks 11 / 8 / 15 → 7 / 6 / 10; the test-bound lanes unchanged, since every test runs; the wall clock 26 → 22).
