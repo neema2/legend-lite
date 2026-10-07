@@ -106,7 +106,7 @@ with the compiler's plan/execution split**, in this order:
    it** (files in the fourth line's 2026-10-07 note).
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
    `datacube-chart-spec`. `native/` and `python/` (new); first landing: the compiler as a native library with Python
-   bindings, and a small typing fix in `core/compiler`; then DataCube on Python dataframes.
+   bindings; then DataCube on Python dataframes. Nothing in `core/` (its typing fix went to the compiler line).
 
 **Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
 B2/B3 and the W6.2 runner wait for it); the server
@@ -448,33 +448,28 @@ whichever lands second merges, and the two should agree before either starts on 
 
 ## A sixth line, 2026-10-07: DataCube + Python (the user's ask, rule 5)
 
-Worktree `legend-lite-dcsnap`, branch `datacube-chart-spec`, rebased on `main` (`9bc6e62ab`) on 2026-10-07. The goal:
+Worktree `legend-lite-dcsnap`, branch `datacube-chart-spec`, rebased on `main` (`fd3d007e4`) on 2026-10-07. The goal:
 DataCube on a Python dataframe, from a script and in a notebook, with Python running the SAME compiler the browser runs
 as WebAssembly (one compiler source, so Python and DataCube share models and answers). **Owns** two new packages:
 `native/` and `python/`.
 
-**Landing first: two commits, announced here before they land.**
-1. **The compiler as a native library, with Python bindings (L1).** `//native:compiler`: `//wasm:boundary`
-   (`planner.Wasm` over `//core`) built by GraalVM native-image as a SHARED library, with the warehouse image's C
-   toolchain (the host's checked, zlib from source, lld on Linux); Linux and macOS for now. `python/legend_lite`:
-   bindings on the standard library alone (ctypes). `//python:bindings_test`, a `py_test` on the repository's Python
-   3.12: the bindings' suite and the planner differential corpus, 69 of 69 answers identical to the JVM's. Cross-area:
-   `MODULE.bazel` and a new `maven_native_install.json` (a compile-only pool, `@maven_native`: GraalVM's `nativeimage`
-   and `word` API 25.0.2, in `@maven_teavm`'s shape), `tools/deps/pools.bzl` (its one user, `//native`),
-   `gates/BUILD.bazel` (`//python:bindings_test` in the `warehouse` lane, which builds native images already),
-   `wasm/BUILD.bazel` (visibility only). Nothing in `core/`. **The Bazel edits are shown to the Bazel program session
-   before landing.**
-2. **A typing fix in `core/compiler`.** An erased `TDSRow` (`PlatformTypes.eraseTdsRow`) becomes its own late-bound
-   marker, `Type.RelationType.erasedRow(owner)`, apart from the raw-SQL grid's wildcard, and is read only through its
-   accessors (`$r.getString('x')`, as on real pure's `TDSRow`). So `#>{db.T}#->filter(x|$x.nope == 1)` is refused at
-   typing, as legend-engine refuses it; it typed before, through the overload rollback to `meta::pure::tds::filter`.
-   Files: `core/.../element/type/Type.java`, `PlatformTypes.java` (one line), `compiler/spec/Typer.java`
-   (`relationColumn`, `rowCellReadOnRow`), a new test `TdsRowReceiverTest`, and parser equivalence's
-   `own_corpus.matched` (+1: the test's database). On 2026-10-02 the whole chain moved nothing: no corpus roster, no PCT
-   suite. **Overlap:** the build rebuild's Phase 3 (`build/phase3`) edits `Typer` and `PlatformTypes` too; merged with
-   both commits it is clean (`git merge-tree`, 2026-10-07). Phase 3 comes first by the order above; whichever lands
-   second rebases. The compiler design (`docs/COMPILER_RIGHT_DESIGN_2026_10_07.md`) is still for the user's
-   decision; this fix keeps the typer's current shape. Who reviews it is the user's call.
+**Landing first, announced here before it lands: the compiler as a native library, with Python bindings (L1).**
+`//native:compiler`: `//wasm:boundary` (`planner.Wasm` over `//core`) built by GraalVM native-image as a SHARED library, with the warehouse image's C
+toolchain (the host's checked, zlib from source, lld on Linux); Linux and macOS for now. `python/legend_lite`:
+bindings on the standard library alone (ctypes). `//python:bindings_test`, a `py_test` on the repository's Python
+3.12: the bindings' suite and the planner differential corpus, 69 of 69 answers identical to the JVM's. Cross-area:
+`MODULE.bazel` and a new `maven_native_install.json` (a compile-only pool, `@maven_native`: GraalVM's `nativeimage`
+and `word` API 25.0.2, in `@maven_teavm`'s shape), `tools/deps/pools.bzl` (its one user, `//native`),
+`gates/BUILD.bazel` (`//python:bindings_test` in the `warehouse` lane, which builds native images already),
+`wasm/BUILD.bazel` (visibility only). Nothing in `core/`. Also CI's product step (`gates-run.yml`: `//native:compiler` named
+on its own, with `--skip_incompatible_explicit_targets`) and `tools/guards` (the compile-only guard walks it in the
+native tier, except on Windows). **The Bazel program session reviewed and accepted the Bazel edits (2026-10-07).**
+
+**Moved to the compiler line (2026-10-07, the user):** the typing fix this line found while testing the native library
+(an erased `TDSRow` trusted any column name, so `#>{db.T}#->filter(x|$x.nope == 1)` typed; legend-engine refuses it at
+typing). It is branch `compiler/tdsrow-erased-row` (one commit on `main`: `Type.java`, `PlatformTypes.java`, `Typer.java`,
+`TdsRowReceiverTest`, `own_corpus.matched` +1), handed to the Compiler Rewrite session with its diagnosis and
+measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That line decides whether and when it lands.
 
 **Then, in this order** (each on the branch, each announced here with its files before it lands):
 - **Frames in duckdb-python** (`python/` only): a pandas, polars or Arrow frame registered as Arrow, Live (each query
