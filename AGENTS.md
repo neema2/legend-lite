@@ -332,9 +332,12 @@ numbering ("6g", "7a-c") that does **not** map to this list or to
 
 ## Standing documents
 
-**Current work: the compiler rebuild. Start at `docs/EXECUTION_PLAN_2026_09_26.md`
-§0** (the current item, the session checklist, the decisions); `docs/IN_FLIGHT.md`
-says who is working. Every deliberate difference from legend-pure/legend-engine is
+**Current work: the build rebuild and the self-contained upgrade bump. Start at
+`docs/build-inventory/program/START_HERE.md`** (the goal, the state, the rules, how to run
+every check, one brief per remaining phase); the plan is `docs/REBUILD_PROGRAM_2026_10_06.md`
+(its §0 says what the whole program is for). `docs/IN_FLIGHT.md` says who is working.
+**The compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`) is parked since 2026-10-04**
+(`docs/IN_FLIGHT.md`): do not follow its §0 checklist unless the user resumes it. Every deliberate difference from legend-pure/legend-engine is
 a row of `docs/SEMANTICS_REGISTER.md`. Older plans and queues (PROGRAM_MAP,
 ONE_PLATFORM_PLAN, END_TO_END_PLAN, OPEN_REGISTER, ENGINEERING_LOG's queue,
 REAL_PLAN_2026_09_25) are history, not instructions.
@@ -344,7 +347,8 @@ otherwise, which is how it drifted:
 
 | Doc | What it is |
 |---|---|
-| `docs/EXECUTION_PLAN_2026_09_26.md` | **The one living plan** (rebuild, rev H2): start at §0 |
+| `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
+| `docs/EXECUTION_PLAN_2026_09_26.md` | The compiler rebuild's plan (rev H4): **parked since 2026-10-04**, reference until the user resumes it |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |
 | `docs/ENGINEERING_LOG.md` | Standing tenets (its active queue is history; the plan above replaced it) |
@@ -373,6 +377,10 @@ by GitHub:
    goes through a PR (`.github/pull_request_template.md`).
 3. **Revert on red.** After a push, watch `main`'s CI. If it goes red, revert your own commit at once, then fix
    it in a PR. Tell the user either way.
+
+**The build rebuild program lands without PRs** (the user, 2026-10-06): an audit, the local gate, one full CI run on
+the branch, then that exact commit pushed to `main` (`docs/build-inventory/program/START_HERE.md` §4). Whether other
+work keeps rule 2's PR path is open (`docs/build-inventory/program/PHASE_8.md` OD-9).
 
 A documentation-only PR gets no gate run (`gate.yml`'s `paths-ignore`), so `gates green` never reports on it:
 the owner merges it by bypass.

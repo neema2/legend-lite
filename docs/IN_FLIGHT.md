@@ -7,20 +7,21 @@ in its own plan (plan rule 0b.16).
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
 with the compiler's plan/execution split**, in this order:
 
-1. **The Bazel program** (`docs/BAZEL_IMPLEMENTATION_PLAN.md`; log `docs/BAZEL_EXECUTION_LOG.md` on
-   `docs/bazel-first-class-plan`): build files — `core/BUILD.bazel`, `tools/deps`, `MODULE.bazel` (splitting out a
+1. **The Bazel program** (`docs/BAZEL_FIRST_CLASS_WORKPLAN_2026_10_03.md`, log `docs/BAZEL_EXECUTION_LOG.md`, both on
+   main since 2026-10-07; its remaining work is the build rebuild's Phase 8): build files — `core/BUILD.bazel`, `tools/deps`, `MODULE.bazel` (splitting out a
    `release.MODULE.bazel`), `pct`, `spec`, `parser-equivalence`, the guards. Batch 8 landed (`053e15006`); the old
    plan's remaining work lives in the rebuild program below. It also carries the
    reference-lane fix the user decided ("fix rule to match pure": legend-pure's overload for `min`/`max` over a list
    literal), in `core/compiler/spec` — no one else edits those files until it lands. **Announced 2026-10-05:** two small core edits the
    guards found — `core/src/main/duckdb/com/legend/exec/DuckDbAppenderLoad.java` (its `finally` replaced an in-flight
    unchecked error with the staging drop's; found when P3-27 put `src/main/duckdb` under the guards), and the core
-   test sources the guards and censuses read (declared file lists, P3-27/P3-05). Not fixed by this program: F-L1 in
-   `projects/FINDINGS.md` (a view inside a Schema is lifted twice; one line in `ModelBuilder`), for the compiler's owner. **Announced 2026-10-05 (P4-18):** `core/.../server/LegendHttpServer.java` and the warehouse server gain
+   test sources the guards and censuses read (declared file lists, P3-27/P3-05). F-L1 in `projects/FINDINGS.md` (a view
+   inside a Schema is lifted twice; one line in `ModelBuilder`) is now the build rebuild's (Phase 3b item 1). **Announced 2026-10-05 (P4-18):** `core/.../server/LegendHttpServer.java` and the warehouse server gain
    `--exit-with-parent` (exit when stdin reaches EOF; only tests set it), so no test stops a server with `taskkill`.
    **Parked (2026-10-06)** with the rebuild program's Phase 8: not landing now.
-   **The build rebuild and the self-contained bump** (`docs/REBUILD_PROGRAM_2026_10_06.md` on the plan branch; one
-   PR per phase). **Announced 2026-10-06, replacing the 2026-10-05 note — PR 1, Phase 0:** the build targets
+   **The build rebuild and the self-contained bump** (`docs/REBUILD_PROGRAM_2026_10_06.md`, on main since 2026-10-07 with its research and
+   evidence; a session picking it up starts at `docs/build-inventory/program/START_HERE.md`. Phases 0 and 1 landed as PRs;
+   since 2026-10-06 there are no PRs: one full CI run on the branch, then that commit pushed to main). **Announced 2026-10-06, replacing the 2026-10-05 note — PR 1, Phase 0:** the build targets
    (`//:java`, `//:web`, `//:wasm`, `//:native`, `//:sites`) and their compile-only guard, the product's jars on
    http_jar, `//:web` without Node, stamping off (`docs/BUILD_REBUILD_DESIGN_2026_10_05.md`, which the PR carries).
    Files: the root `BUILD.bazel`; `//:__pkg__` visibility on `//core:server`, `//sdlc-server:server`,
@@ -64,16 +65,18 @@ with the compiler's plan/execution split**, in this order:
    gone), `compiler/element/type/PlatformTypes.java` (the owned and assert-family lists gone), `Compiler.java`
    (`withoutPreludeShadows` by id), `builtin/Prelude.java`, `platform/ImplementationTable.java` and
    `Implementation.java` (a version of a function the platform implements with no row is refused),
-   `compiler/StatementInline.java`; `builtin/Pure.java` and `native-membership.tsv` (26 versions get rows),
+   `compiler/StatementInline.java`; `builtin/Pure.java` and `native-membership.tsv` (27 versions get rows),
    `native-claims.tsv` regenerated, `lowering/Aggregates.java`; `compiler/ResolvedNames.java` and `platform/CoreFn.java`
    (a form by the names a call resolves to) with the 21 form-dispatch sites (`compiler/spec/` DeferredArgs,
    GraphFetchChecker, MatchChecker, Overloads, ProjectChecker, SortChecker, SourceSubst, TdsDesugars, Typer;
    `lineage/ScanRelations.java`, `normalizer/MappingNormalizer.java`), `builtin/TdsLegacy.java`,
    `compiler/spec/GroupByChecker.java`, `builtin/SystemMetamodel.java`, `builtin/NativeFn.java` (executeInDb's
-   ConnectionStore version joins its family). core tests: `InferenceKernelTest`,
-   `PickByTableTest`, `DeclarationTableTest`, `IdentityGuardrailTest` (pins lowered, dated). spec:
+   ConnectionStore version joins its family), and with the audit's fixes (2026-10-07) `compiler/spec/UserCallInliner.java`
+   (a refused version reported as "no row for"). core tests: `InferenceKernelTest`, `CompileFunctionTest`,
+   `PickByTableTest`, `DeclarationTableTest`, `IdentityGuardrailTest` (pins lowered, dated), `ParkedWorkLedgerTest`
+   (PARK-5 to PARK-14 anchored), with `docs/PARKED_WORK_LEDGER.md`. spec:
    `ImplementationTableTest`, `SpecRatchets`, `DynaFnRegistryTest`, `SubsumedRegistryTest`, `ratchets.tsv`, the
-   reference lane golden. Also **Studio's** `datacube/src/generated/offer-facts.ts` (regenerated: one more offered
+   reference lane golden and its `reasons.tsv`. Also **Studio's** `datacube/src/generated/offer-facts.ts` (regenerated: one more offered
    function), `parser-equivalence`'s ratchets, `docs/GATES.md`, and `docs/EXECUTION_PLAN_2026_09_26.md`: W2.1's
    `ids`/`catalog` items now belong to this program (Phase 3), so nobody redoes them there; W1.1b stays with that plan
    (this program's Phase 3b was re-scoped on 2026-10-07 to the files Phases 4 and 6 load and what users meet).

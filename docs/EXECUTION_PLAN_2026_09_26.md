@@ -17,6 +17,10 @@ Keep it current: when an item lands, move it to §3 with its GATES.md heading, a
 
 ## 0. Start here (a fresh session with no context)
 
+**Parked since 2026-10-04** (the user; `docs/IN_FLIGHT.md`, `9a5aa4cee`). The current work is the build rebuild: start
+at `docs/build-inventory/program/START_HERE.md`. This plan resumes only when the user says so; the "Now" line below
+is where it stopped.
+
 **Now (update in every push):** **the D24 cleanup phase, one substitution engine first** (it is self-contained in `compiler/spec`; the variable ids touch 35 files and 30 of them are the store resolver's, so they go with the middle). D23's tool and damaged data are in (GATES "Rebuild D23 (1)", "(2)"; S22); attribution of the remaining seed disagreements and the next damage kinds continue beside the cleanup. The seed-data comparison is in (GATES "Rebuild D23 (1)": 22 row disagreements, 21 engine-only, 6 lite-only, dossier in `plan-audit-2026-09-26/wrongrows/`). Next: (a) `tools/wrongrows/damage.py`, the damaged data set from the seeds; both engines on it; (b) every disagreement, seed and damaged, attributed to a stage (H, I, J) and a side (engine defect → register; lite defect → the list) with the files a fix would touch; (c) the mapping-heavy set named by FQN. Then the remaining W0.6 pushes (9, 4, 5, 5b, 10 judged by the tool; 6, 6b; 12). The scope, design choice,
 tests and gate of every W0.6 push are in `plan-audit-2026-09-26/w0.6-homework/README.md` §"Push list" (homework and a
 dry run against the code done); **the order is §4 Phase 1's (D22, D23): the six small pushes now (2, 3, 7, 8, 11, 13);
