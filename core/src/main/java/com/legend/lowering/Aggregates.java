@@ -66,10 +66,11 @@ public final class Aggregates {
         // BOOL_AND/BOOL_OR (engine simpleGroupByAnd/Or goldens). The
         // 1-arg COLLECTION overloads only: the 2-arg logical and(a,b)
         // must never register as a reducer.
-        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(Pure.AND__BOOLEAN_MANY)) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_AND) {
             REDUCERS.put(f, SqlAgg.Fn.BOOL_AND);
         }
-        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(Pure.OR__BOOLEAN_MANY)) {
+        // the group: or(Boolean[*]) and or(Boolean[1..*]) (build rebuild Phase 3)
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_OR) {
             REDUCERS.put(f, SqlAgg.Fn.BOOL_OR);
         }
         // percentile: DuckDB QUANTILE family; the 4-arg overload's

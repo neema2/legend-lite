@@ -46,9 +46,12 @@ public final class SpecRatchets {
         // the engine handler ids the platform declares nowhere (DynaFnRegistryTest holds the ceiling): joined when
         // EngineHandlers loads, so a declaration removed from Pure.java or the prelude moves this as a reviewed diff
         out.put("engine.handlers.undeclared", com.legend.builtin.EngineHandlers.undeclaredIds().size());
-        // the implementation table's rows per kind
-        ImplementationTableTest.kindsOf(ImplementationTableTest.build().impl())
+        // the implementation table's rows per kind, and the versions of functions the platform implements that have
+        // no row of their own (ImplementationTableTest holds the shrink-only ceiling)
+        ImplementationTableTest.Built built = ImplementationTableTest.build();
+        ImplementationTableTest.kindsOf(built.impl())
                 .forEach((kind, n) -> out.put("implementation.kinds." + kind, n));
+        out.put("implementation.unrowed", ImplementationTableTest.unrowed(built.impl()).size());
         // the hardcoded upstream paths the tests resolve
         out.put("upstream.paths", UpstreamPathManifestTest.manifest().size());
         StringBuilder text = new StringBuilder("# spec's measured ratchet values (SpecRatchets) -- regenerate: bazel run"

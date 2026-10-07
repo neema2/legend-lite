@@ -128,6 +128,37 @@ class ImplementationTableTest {
                 "implementation kinds");
     }
 
+    /** The versions of functions the platform implements with no row of their own (refused, NO_ROW), by id. */
+    static List<String> unrowed(ImplementationTable impl) {
+        List<String> out = new ArrayList<>();
+        for (var e : impl.rows().entrySet()) {
+            if (e.getValue() instanceof Implementation.Refused r && r.reason() == Implementation.Reason.NO_ROW) {
+                out.add(e.getKey().qualified());
+            }
+        }
+        java.util.Collections.sort(out);
+        return out;
+    }
+
+    /** The upstream versions of functions the platform implements that have no row: shrink-only. A call that reaches
+     *  one fails, naming it; each gets a row (a membership line) before the default world takes upstream core whole
+     *  (build rebuild Phase 4). 110 when the table became the one authority (2026-10-06, Phase 3): the by-name drops
+     *  went, 26 versions got rows (the 14 the reference lane's OVERLOAD rows needed, the 12 Boolean comparisons PCT
+     *  calls), and the rest are listed in unrowed-versions.txt. */
+    static final int UNROWED_MAX = 110;
+
+    @Test
+    void theVersionsWithoutARowOnlyShrink() throws IOException {
+        List<String> unrowed = unrowed(build().impl());
+        Files.createDirectories(com.legend.testing.TestOutputs.dir());
+        Files.write(com.legend.testing.TestOutputs.file("unrowed-versions.txt"), unrowed);
+        assertEquals(UNROWED_MAX, unrowed.size(), "versions of functions the platform implements with no row: "
+                + unrowed.size() + " (shrink-only; lower UNROWED_MAX with the reason, never raise it) — the list is in"
+                + " unrowed-versions.txt");
+        assertEquals(SpecRatchets.measured("implementation.unrowed"), unrowed.size(),
+                "the unrowed versions moved -- bazel run //spec:update_ratchets");
+    }
+
     private static String detail(Implementation i) {
         return switch (i) {
             case Implementation.Form f -> f.form() + (f.alsoLowered().isEmpty() ? "" : " +" + f.alsoLowered())

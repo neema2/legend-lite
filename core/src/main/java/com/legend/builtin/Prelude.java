@@ -76,6 +76,13 @@ public final class Prelude {
                     .filter(e -> e instanceof com.legend.model.FunctionDefinition)
                     .map(PackageableElement::qualifiedName)
                     .collect(Collectors.toCollection(() -> new LinkedHashSet<String>())));
+    /** The platform library's functions by id: a graph declaration with one of these ids is that function
+     *  (Compiler.withoutPreludeShadows); a graph version under another id is its own function. */
+    private static final Set<com.legend.model.FunctionId> FUNCTION_IDS = Collections.unmodifiableSet(
+            PARSED.elements().stream()
+                    .filter(e -> e instanceof com.legend.model.FunctionDefinition)
+                    .map(e -> com.legend.model.FunctionId.of((com.legend.model.FunctionDefinition) e))
+                    .collect(Collectors.toCollection(() -> new LinkedHashSet<com.legend.model.FunctionId>())));
     private static final Set<String> ELEMENT_FQNS = Collections.unmodifiableSet(
             PARSED.elements().stream()
                     .map(PackageableElement::qualifiedName)
@@ -106,6 +113,10 @@ public final class Prelude {
 
     public static Set<String> functionFqns() {
         return FUNCTION_FQNS;
+    }
+
+    public static Set<com.legend.model.FunctionId> functionIds() {
+        return FUNCTION_IDS;
     }
 
     public static Set<String> enumFqns() {

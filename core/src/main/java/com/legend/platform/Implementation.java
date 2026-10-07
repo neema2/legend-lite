@@ -88,6 +88,10 @@ public sealed interface Implementation {
         MOOT,
         /** a native the platform cannot implement (an effect with no database
          *  meaning), or a capability it does not model (reflection) */
-        CANNOT_IMPLEMENT
+        CANNOT_IMPLEMENT,
+        /** a version of a function the platform implements, with no row of its own:
+         *  its upstream body is the spec, never the platform's implementation (build
+         *  rebuild Phase 3); a call that reaches it fails, naming it, until it has one */
+        NO_ROW
     }
 }

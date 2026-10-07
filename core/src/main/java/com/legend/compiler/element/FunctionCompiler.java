@@ -62,69 +62,28 @@ final class FunctionCompiler {
             }
             return all;
         }
+        // EVERY declaration at the FQN is a candidate, the catalog's and the model's, merged by function
+        // id (build rebuild Phase 3): a model declaration with exactly a catalog native's id IS that
+        // function, so the catalog's declaration stands and the implementation table says how it runs;
+        // every other model version joins, and the table gives it its own row or refuses it — a version
+        // of a function the platform implements never runs upstream's body (that body is the spec:
+        // core_functions_standard's or/and/max bodies once produced wrong SQL, chB-std testOr). No name
+        // is owned outright any more: the PCT rule and the platform-owned list are gone.
         List<Function> all = new ArrayList<>(Pure.nativeFunctionsAt(fqn));
-        // (the on-demand lift of NATIVE-CATALOG classes' derived properties
-        // is GONE — batch 167, HAND_SHAPE_DIVERGENCE §4 step 5: the catalog
-        // holds the primitives alone, every class with a body is a module
-        // or graph class and lifts in ModelNormalizer E.2)
-        // platform-owned FQNs: the native IS the definition; the corpus's
-        // own M3-reflective bodies (toDDL.pure) never join the overload set.
-        // The suppression is NOT silent — stderr once per FQN (audit 17;
-        // a structured wall channel does not reach this layer yet).
-        // a platform-IMPLEMENTED derived property (the row accessors — upstream
-        // declares them as qualified properties, batch 5 leg 4) keeps its lifted
-        // definition as the TYPING source: the call is never inlined
-        // (UserCallInliner) and RowGetters lowers it by property name
-        if (!com.legend.compiler.element.type.PlatformTypes
-                .isPlatformOwnedFunction(fqn)) {
-            addModelOverloads(all, model, fqn);
-        } else if (!model.findFunction(fqn).isEmpty()
-                && SUPPRESSED_ONCE.add(fqn)) {
-            System.err.println("[legend-lite] platform-owned function '" + fqn
-                    + "': " + model.findFunction(fqn).size()
-                    + " user definition(s) suppressed (native is the definition)");
+        java.util.Set<com.legend.model.FunctionId> catalogIds = new java.util.HashSet<>();
+        for (Function n : all) {
+            catalogIds.add(com.legend.model.FunctionId.of(n));
+        }
+        for (Function def : model.findFunction(fqn)) {
+            if (!catalogIds.contains(com.legend.model.FunctionId.of(def))) {
+                all.add(def);
+            }
         }
         if (com.legend.builtin.DecisionProbe.INSTALLED != null) {
             com.legend.builtin.DecisionProbe.overloads(fqn, all, model, model.functions());
         }
         return all;
     }
-
-    /** Model overloads join the set EXCEPT {@code <<PCT.function>>}
-     * redefinitions of natives the registry owns: that stereotype is the
-     * engine's own marker for "the platform function under conformance",
-     * and for those the NATIVE is the definition (tenet #2 — the
-     * reference pure body is the SPEC, never our implementation; witness:
-     * core_functions_standard redefines or/and/max... whose inlined fold
-     * bodies produced wrong SQL, chB-std testOr). A PCT.function with NO
-     * registered native keeps its body — the model IS the implementation
-     * (timeBucket, covarSample). Same stderr-once channel as the
-     * platform-owned rule. */
-    private static void addModelOverloads(
-            List<Function> all, ModelBuilder model, String fqn) {
-        for (Function def : model.findFunction(fqn)) {
-            boolean pctFunction = def
-                    instanceof com.legend.model.FunctionDefinition fd
-                    && fd.stereotypes() != null
-                    && fd.stereotypes().stream().anyMatch(st ->
-                            "function".equals(st.stereotypeName())
-                            && com.legend.compiler.element.type.PlatformTypes.isProfile(
-                                    st.profileName(),
-                                    com.legend.compiler.element.type.PlatformTypes.PCT_PROFILE));
-            if (pctFunction && !com.legend.builtin.Pure.nativeFunctionsAt(fqn).isEmpty()) {
-                if (SUPPRESSED_ONCE.add(fqn)) {
-                    System.err.println("[legend-lite] PCT.function '" + fqn
-                            + "' suppressed (native is the definition)");
-                }
-                continue;
-            }
-            all.add(def);
-        }
-    }
-
-    private static final java.util.Set<String> SUPPRESSED_ONCE =
-            java.util.Collections.newSetFromMap(
-                    new java.util.concurrent.ConcurrentHashMap<>());
 
     /** Pure existence check — symbol-table lookup only, no compilation. */
     boolean exists(String fqn) {

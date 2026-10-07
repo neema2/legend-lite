@@ -29,11 +29,13 @@ import java.util.Set;
  * it (whole key, never parsed); a family member's overloads ARE definitions; a
  * form, a wall, a walled body and a subsumed program name exact FQNs, and apply
  * to every declaration there. A declaration no registration names takes the
- * default of its kind — {@code Body} when it has a body, {@code Unimplemented}
- * when it is a native. The FQN-level suppressions the compiler applies today
- * (the PCT rule, the platform-owned list) are deliberately NOT inputs: they are
- * what this table replaces, so where they act, today's behaviour and this table
- * differ — the shadow diff (step 3) reports exactly those places.
+ * default of its kind — {@code Unimplemented} when it is a native; when it has a
+ * body, {@code Body}, unless the catalog declares a function at its FQN: then it is
+ * a version of a function the platform implements, with no row of its own, and is
+ * {@link Implementation.Reason#NO_ROW refused} — upstream's body is the spec, never
+ * the platform's implementation. This table is the one authority (build rebuild
+ * Phase 3): the compiler's by-name suppressions (the PCT rule, the platform-owned
+ * list) are gone, and every declaration at an FQN is a candidate.
  *
  * <p>A registration that names nothing the table declares is DANGLING; two
  * registrations that cannot both hold (a refusal and an implementation on one
@@ -156,6 +158,13 @@ public final class ImplementationTable {
                     declarations, refused, dangling);
         }
 
+        // the FQNs the catalog declares a function at: a bodied declaration there that no registration
+        // names is a version of a function the platform implements
+        Set<String> catalogFqns = new java.util.HashSet<>();
+        for (NativeFunctionDefinition n : registrations.catalog()) {
+            catalogFqns.add(n.qualifiedName());
+        }
+
         // one row per declaration
         Map<FunctionId, Implementation> rows = new LinkedHashMap<>();
         for (FunctionId id : declarations.ids()) {
@@ -178,8 +187,12 @@ public final class ImplementationTable {
                 row = refusal;
             } else if (implemented) {
                 row = new Implementation.Intrinsic(ps, fo, fs);
-            } else if (declarations.get(id) instanceof FunctionDefinition) {
-                row = new Implementation.Body();
+            } else if (declarations.get(id) instanceof FunctionDefinition fd) {
+                row = catalogFqns.contains(fd.qualifiedName())
+                        ? new Implementation.Refused(Implementation.Reason.NO_ROW,
+                                "the version " + id.qualified() + " of a function the platform implements has no row"
+                                        + " of its own (upstream's body is the spec, not this platform's implementation)")
+                        : new Implementation.Body();
             } else {
                 row = new Implementation.Unimplemented();
             }

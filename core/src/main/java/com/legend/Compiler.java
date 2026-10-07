@@ -333,9 +333,11 @@ public final class Compiler {
                     && com.legend.builtin.Prelude.enumFqns().contains(el.qualifiedName()))
                     // the platform library's FUNCTIONS too (batch 169): a graph copy
                     // of a legend-pure function (the census's sources, a corpus
-                    // tree's twin) yields to the module's, by name
-                    || (el instanceof com.legend.model.FunctionDefinition
-                    && com.legend.builtin.Prelude.functionFqns().contains(el.qualifiedName()));
+                    // tree's twin) yields to the module's — by function id (build
+                    // rebuild Phase 3): another version under the same name is its
+                    // own function and stays
+                    || (el instanceof com.legend.model.FunctionDefinition fd
+                    && com.legend.builtin.Prelude.functionIds().contains(com.legend.model.FunctionId.of(fd)));
             if (!shadow) {
                 kept.add(el);
             }

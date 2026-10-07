@@ -242,8 +242,6 @@ public final class PlatformTypes {
             "meta::relational::metamodel::execute::fetchDbPrimaryKeysMetaData";
 
 
-
-
     /** K-native sibling of {@link #EXECUTE_IN_DB}: model-derived drop+create DDL. */
     public static final String DROP_AND_CREATE_TABLE_IN_DB =
             "meta::relational::functions::toDDL::dropAndCreateTableInDb";
@@ -645,28 +643,6 @@ public final class PlatformTypes {
     }
 
 
-    /** The ASSERT FAMILY is platform-owned WHOLESALE (V7 tenet
-     * correction 2026-08-28: asserts are verdicts ALWAYS —
-     * AssertVerdicts/the K-arm IS the implementation; the real pure
-     * bodies are the SPEC, verified by signature in the registry,
-     * NEVER loaded as runtime components). Parsed twins — PCT trees,
-     * any corpus/library source — suppress loudly. */
-    private static final java.util.Set<String> ASSERT_FAMILY_OWNED =
-            java.util.Set.of(
-                    ASSERT,
-                    ASSERT_FALSE,
-                    "meta::pure::functions::asserts::assertEquals",
-                    "meta::pure::functions::asserts::assertNotEquals",
-                    "meta::pure::functions::asserts::assertSameElements",
-                    "meta::pure::functions::asserts::assertSize",
-                    "meta::pure::functions::asserts::assertEq",
-                    "meta::pure::functions::asserts::assertEmpty",
-                    "meta::pure::functions::asserts::assertNotEmpty",
-                    "meta::pure::functions::asserts::assertIs",
-                    "meta::pure::functions::asserts::assertContains",
-                    "meta::pure::functions::asserts::assertEqWithinTolerance",
-                    "meta::pure::functions::asserts::assertJsonStringsEqual");
-
     /** {@code meta::pure::functions::string::format}: its {@code %s} slots
      * print an argument by the argument's own {@code toString()} — real
      * pure's format calls toString on each value, so a CLASS-typed slot
@@ -688,45 +664,6 @@ public final class PlatformTypes {
         };
     }
 
-
-
-    public static boolean isPlatformOwnedFunction(String fqn) {
-        return PLATFORM_OWNED_FUNCTIONS.contains(fqn)
-                || TO_REPRESENTATION.equals(fqn)
-                || ASSERT_FAMILY_OWNED.contains(fqn)
-                || PLAN_TEST_DATA_GENERATION.equals(fqn)
-                || GENERATE_SEED_DATA_STRING.equals(fqn);
-    }
-
-    /** The registered natives whose NAME the platform owns outright — a
-     * per-FQN fact, NOT "every NativeFn member" (batch 4b measured that:
-     * owning executeInDb's name shadowed the corpus's own ConnectionStore
-     * overload and lost a test). Spelled through the family enums so the
-     * set cannot name a native the platform does not register. */
-    private static final java.util.Set<String> PLATFORM_OWNED_FUNCTIONS = java.util.Set.of(
-            com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB.fqn(),
-            com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB.fqn(),
-            com.legend.builtin.NativeFn.Effect.LOAD_CSV_TO_DB_TABLE.fqn(),
-            com.legend.builtin.NativeFn.Effect.SET_UP_DATA_SQLS.fqn(),
-            com.legend.builtin.NativeFn.ContextOwner.ASSERT_ERROR.fqn(),
-            com.legend.builtin.NativeFn.Verdict.ASSERT_INSTANCE_OF.fqn(),
-            com.legend.builtin.NativeFn.Verdict.TO_CSV.fqn(),
-            com.legend.builtin.NativeFn.DdlStatement.CREATE_SCHEMA_STATEMENT.fqn(),
-            com.legend.builtin.NativeFn.DdlStatement.CREATE_TABLE_STATEMENT.fqn(),
-            com.legend.builtin.NativeFn.DdlStatement.DROP_SCHEMA_STATEMENT.fqn(),
-            com.legend.builtin.NativeFn.DdlStatement.DROP_TABLE_STATEMENT.fqn(),
-            com.legend.builtin.NativeFn.Carrier.EXECUTE_IN_DB_TO_TDS.fqn(),
-            com.legend.builtin.NativeFn.Carrier.GET_RELATIONAL_CSV_DATA.fqn(),
-            com.legend.builtin.NativeFn.Carrier.GENERATE_TEST_DATA.fqn(),
-            com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING.fqn(),
-            com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING_PRETTY.fqn(),
-            com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn(),
-            com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING.fqn(),
-            com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING_WITHOUT_FORMATTING.fqn(),
-            com.legend.builtin.NativeFn.Handle.TO_SQL.fqn(),
-            com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN.fqn(),
-            com.legend.builtin.NativeFn.Handle.EXECUTE.fqn(),
-            com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN_EXECUTE.fqn());
 
     /** A call only the STATEMENT channel can run — an execution, a store
      * effect or a test-data generator: it never lowers inside an
@@ -765,8 +702,6 @@ public final class PlatformTypes {
                 || "sqlQueryPostProcessorsConnectionAware".equals(name)
                 || "queryPostProcessorsWithParameter".equals(name);
     }
-
-
 
     /** The top type. */
     public static boolean isAny(Type t) {
@@ -856,8 +791,6 @@ public final class PlatformTypes {
      * its dispatch site; ladder census §10m). */
     public static final String CONNECTION_BY_ELEMENT =
             "meta::core::runtime::connectionByElement";
-
-
 
 
 }

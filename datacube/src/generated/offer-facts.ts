@@ -692,6 +692,7 @@ export const CALC_FACTS: Readonly<Record<string, { readonly path: string; readon
     path: 'meta::pure::functions::collection::isEmpty',
     signatures: [
       'isEmpty(p:Any[*]):Boolean[1]',
+      'isEmpty(p:Any[0..1]):Boolean[1]',
     ],
   },
   isNotEmpty: {

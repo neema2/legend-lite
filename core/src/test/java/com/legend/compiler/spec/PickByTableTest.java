@@ -36,21 +36,37 @@ class PickByTableTest {
 
     private static final String TWIN_ID = "meta::pure::functions::string::toUpper_String_1__String_1_";
 
-    /** A user body under a catalog native's id: the table says Intrinsic (the
-     *  rule is registered by key), so the body's call is minted native. */
+    /** A user body under a catalog native's id IS that function (build rebuild Phase 3): resolution offers the
+     *  catalog's declaration alone, the table's row for the id is the rule (Intrinsic), and the call is minted
+     *  native — the max[1..*] class that regressed channel B once such a body was admitted. */
     @Test
-    void aBodiedDeclarationWithARuleIsMintedANativeCall() {
+    void aBodyUnderACatalogIdIsThatFunctionAndRunsByItsRule() {
         ModelContext ctx = Compiler.compileModel(
                 "function meta::pure::functions::string::toUpper(s:String[1]):String[1] { 'never' }");
-        TypedFunction body = ctx.findFunctionById(TWIN_ID).stream()
-                .filter(f -> f.definition() instanceof FunctionDefinition).findFirst().orElseThrow();
-        Implementation row = ctx.implementations().of(FunctionId.of(body.definition()));
+        List<TypedFunction> found = List.copyOf(ctx.findFunctionById(TWIN_ID));
+        assertEquals(1, found.size(), "the body under the catalog's id is not a second candidate: " + found);
+        TypedFunction fn = found.get(0);
+        assertFalse(fn.definition() instanceof FunctionDefinition, "the catalog's declaration stands");
+        Implementation row = ctx.implementations().of(FunctionId.of(fn.definition()));
         assertInstanceOf(Implementation.Intrinsic.class, row);
         assertTrue(((Implementation.Intrinsic) row).positions().contains(Implementation.Position.SCALAR));
-        TypedSpec call = CallNodes.mint(ctx.implementations(), body, List.of(),
-                new ExprType(body.returnType(), body.returnMultiplicity()));
+        TypedSpec call = CallNodes.mint(ctx.implementations(), fn, List.of(),
+                new ExprType(fn.returnType(), fn.returnMultiplicity()));
         assertInstanceOf(TypedNativeCall.class, call);
-        assertEquals(body, ((TypedNativeCall) call).callee());
+        assertEquals(fn, ((TypedNativeCall) call).callee());
+    }
+
+    /** Another version under a catalog FQN, with no row of its own, is a candidate and is refused (NO_ROW):
+     *  the platform never runs upstream's body for a function it implements (build rebuild Phase 3). */
+    @Test
+    void aVersionOfACatalogFunctionWithNoRowIsACandidateAndRefused() {
+        ModelContext ctx = Compiler.compileModel(
+                "function meta::pure::functions::string::toUpper(s:String[*]):String[*] { $s }");
+        TypedFunction version = ctx.findFunction("meta::pure::functions::string::toUpper").stream()
+                .filter(f -> f.definition() instanceof FunctionDefinition).findFirst().orElseThrow();
+        Implementation row = ctx.implementations().of(FunctionId.of(version.definition()));
+        assertInstanceOf(Implementation.Refused.class, row);
+        assertEquals(Implementation.Reason.NO_ROW, ((Implementation.Refused) row).reason());
     }
 
     /** A user body nothing registers is a Body row and is minted a user call — inlined. */

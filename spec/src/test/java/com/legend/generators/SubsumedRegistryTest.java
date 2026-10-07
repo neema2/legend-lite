@@ -44,9 +44,8 @@ class SubsumedRegistryTest {
                     }
                 }
             }
-            if (com.legend.compiler.element.type.PlatformTypes.isPlatformOwnedFunction(s.fqn())) {
-                problems.add(s + ": platform-owned name — the corpus definition must be the typing source");
-            }
+            // (no name is platform-owned any more, build rebuild Phase 3: the corpus definition is a candidate
+            // like any declaration, 2026-10-06)
             // 2. dead value: no main-tree source names the FQN outside Subsumed.java
             // core's main sources, as spec_tests declares them (SourceFiles; Bazel workplan P3-27b)
             try (Stream<Path> walk = com.legend.testing.SourceFiles.under("core/src/main/java").stream()) {

@@ -71,4 +71,15 @@ class DeclarationTableTest {
         assertEquals(fs.get(0), t.get(new FunctionId("my::pkg::one_Integer_1__Integer_1_")));
         assertEquals(1, t.size());
     }
+
+    /** The catalog declares each id once: the id spells types by their short names, so two catalog functions
+     *  that differ only by a package or a type argument would collide (build rebuild Phase 3, the parked
+     *  compiler plan's W2.1 collision guard). */
+    @Test
+    void theCatalogDeclaresEachIdOnce() {
+        // the table keeps one declaration per id, so a second catalog declaration under an id shows as a size gap
+        // (a catalog declaration and upstream's own declaration of that id are one function, not a collision)
+        DeclarationTable t = DeclarationTable.of(com.legend.builtin.Pure.all());
+        assertEquals(com.legend.builtin.Pure.all().size(), t.size(), "two catalog declarations share an id");
+    }
 }
