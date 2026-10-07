@@ -1,0 +1,1009 @@
+{
+ "texts": [
+  [
+   "legend-engine-xts-service/legend-engine-language-pure-dsl-service-execution/src/test/resources/plans/org/finos/service/SimpleRelationalService.json",
+   "sqlQuery",
+   "select \"root\".AGE as \"Age\", \"root\".FIRST_NAME as \"First Name\", \"root\".LAST_NAME as \"Last Name\" from MAIN_SCHEMA.PERSON_TABLE as \"root\""
+  ],
+  [
+   "legend-engine-xts-service/legend-engine-language-pure-dsl-service-execution/src/test/resources/plans/org/finos/service/SimpleRelationalService.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix defaultValue><#if collection?size == 0><#return defaultValue></#if><#return prefix + collection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-service/legend-engine-language-pure-dsl-service-execution/src/test/resources/plans/org/finos/service/SimpleRelationalService.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-service/legend-engine-language-pure-dsl-service-execution/src/test/resources/plans/org/finos/service/SimpleRelationalServiceRunnerTDS.json",
+   "sqlQuery",
+   "select \"root\".AGE as \"Age\", \"root\".FIRST_NAME as \"First Name\", \"root\".LAST_NAME as \"Last Name\" from MAIN_SCHEMA.PERSON_TABLE as \"root\""
+  ],
+  [
+   "legend-engine-xts-service/legend-engine-language-pure-dsl-service-execution/src/test/resources/plans/org/finos/service/SimpleRelationalServiceRunnerTDS.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix defaultValue><#if collection?size == 0><#return defaultValue></#if><#return prefix + collection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-service/legend-engine-language-pure-dsl-service-execution/src/test/resources/plans/org/finos/service/SimpleRelationalServiceRunnerTDS.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-config/legend-engine-server/legend-engine-server-http-server/src/test/resources/org/finos/legend/engine/server/testSemiStructured.json",
+   "sqlQuery",
+   "insert into Person_Table (FIRM, FIRST_NAME, KERBEROS, LAST_NAME) values ('${generatedColumnName_FIRM?replace(\"'\", \"''\")}', '${generatedColumnName_FIRST_NAME?replace(\"'\", \"''\")}', '${generatedColumnName_KERBEROS?replace(\"'\", \"''\")}', '${generatedColumnName_LAST_NAME?replace(\"'\", \"''\")}')"
+  ],
+  [
+   "legend-engine-config/legend-engine-server/legend-engine-server-http-server/src/test/resources/org/finos/legend/engine/server/testSemiStructuredWithProcessingDate.json",
+   "sqlQuery",
+   "insert into Person_Table (FIRM, FIRST_NAME, KERBEROS, LAST_NAME, in_z, out_z) values ('${generatedColumnName_FIRM?replace(\"'\", \"''\")}', '${generatedColumnName_FIRST_NAME?replace(\"'\", \"''\")}', '${generatedColumnName_KERBEROS?replace(\"'\", \"''\")}', '${generatedColumnName_LAST_NAME?replace(\"'\", \"''\")}', current_timestamp(), '9999-12-31T00:00:00.0000')"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writeMultiColumnPlan.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writeMultiColumnPlan.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writeMultiColumnPlan.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writeMultiColumnPlan.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writeMultiColumnPlan.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writeMultiColumnPlan.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writeMultiColumnPlan.json",
+   "sqlQuery",
+   "select \"root\".FIRSTNAME as \"firstname\", \"root\".LASTNAME as \"lastname\" from personTable as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writeMultiColumnPlan.json",
+   "sqlQuery",
+   "COMMIT;"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writeMultiColumnPlan.json",
+   "sqlQuery",
+   "INSERT INTO PersonTable2 select * from Temp_a as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writePersonExecutionPlan.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writePersonExecutionPlan.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writePersonExecutionPlan.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writePersonExecutionPlan.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writePersonExecutionPlan.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writePersonExecutionPlan.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writePersonExecutionPlan.json",
+   "sqlQuery",
+   "select \"root\".FIRSTNAME as \"firstname\" from personTable as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writePersonExecutionPlan.json",
+   "sqlQuery",
+   "COMMIT;"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/write/writePersonExecutionPlan.json",
+   "sqlQuery",
+   "INSERT INTO PersonTable3 select * from Temp_a as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoinExpectedFail.json",
+   "sqlQuery",
+   "select \"root\".FIRSTNAME as \"firstName\", \"firmtable_0\".ID as \"eID\", case when \"root\".MANAGERID = 0 then 0 else \"root\".MANAGERID end as \"managerID\" from personTable as \"root\" left outer join firmTable as \"firmtable_0\" on (\"firmtable_0\".ID = \"root\".FIRMID)"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoinExpectedFail.json",
+   "sqlQuery",
+   "select \"tdsvar0_0_0\".firstName as \"firstName\", \"tdsvar0_0_0\".eID as \"eID\", \"tdsvar0_0_0\".managerID as \"managerID\", \"tdsvar0_0_0\".\"fID\" as \"fID\", \"tdsvar0_0_0\".\"legalName\" as \"legalName\" from (select * from (${tdsVar0_0}) as \"tdsvar0_0_1\" inner join (select \"root\".ID as \"fID\", \"root\".LEGALNAME as \"legalName\" from firmTable as \"root\") as \"firmtable_0\" on (\"tdsvar0_0_1\".eID = \"firmtable_0\".\"fID\")) as \"tdsvar0_0_0\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoinExpectedFail.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix defaultValue><#if collection?size == 0><#return defaultValue></#if><#return prefix + collection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoinExpectedFail.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoinExpectedFail.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoinExpectedFail.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#return prefix + optionalParameter + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoin.json",
+   "sqlQuery",
+   "select \"root\".FIRSTNAME as \"firstName\", \"firmtable_0\".ID as \"eID\", case when \"root\".MANAGERID = 0 then 0 else \"root\".MANAGERID end as \"managerID\" from personTable as \"root\" left outer join firmTable as \"firmtable_0\" on (\"firmtable_0\".ID = \"root\".FIRMID)"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoin.json",
+   "sqlQuery",
+   "select \"tdsvar0_0_0\".firstName as \"firstName\", \"tdsvar0_0_0\".eID as \"eID\", \"tdsvar0_0_0\".managerID as \"managerID\", \"tdsvar0_0_0\".\"fID\" as \"fID\", \"tdsvar0_0_0\".\"legalName\" as \"legalName\" from (select * from (${tdsVar0_0}) as \"tdsvar0_0_1\" inner join (select \"root\".ID as \"fID\", \"root\".LEGALNAME as \"legalName\" from firmTable as \"root\") as \"firmtable_0\" on (\"tdsvar0_0_1\".eID = \"firmtable_0\".\"fID\")) as \"tdsvar0_0_0\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoin.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix defaultValue><#if collection?size == 0><#return defaultValue></#if><#return prefix + collection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoin.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoin.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/tdsJoin/TestTDSJoin.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#return prefix + optionalParameter + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "sqlQuery",
+   "SET LOCK_TIMEOUT 100000000;"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "freeMarkerBooleanExpression",
+   "${(instanceOf(str, \"Stream\") || ((collectionSize(str![])?number) > 50))?c}"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "sqlQuery",
+   "SET LOCK_TIMEOUT 100000000;"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "sqlQuery",
+   "SET LOCK_TIMEOUT 100000000;"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "sqlQuery",
+   "select case when \"root\".CptyrRole like 'ebusiness\\_%' then 'ebusiness_' else \"root\".CptyrRole end as \"userRole\" from user_view.UV_User_Roles_Public as \"root\" where (\"root\".UserID = '${userId!}' and \"root\".CptyrRole in ('cadm', 'sales_fg', 'rfq_mgmt', 'ebusiness_credit', 'ebusiness_rates', 'ebusiness_fx', 'ebusiness_commod', 'desk_sales_trading', 'sales_person'))"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "sqlQuery",
+   "SET LOCK_TIMEOUT 100000000;"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "sqlQuery",
+   "select \"root\".rpt_inq_sourceinquiryid as \"Source Inquiry ID\" from ${roleSpecificTable(role, \"user_view.UV_Inquiry__PL_Cadm\")} as \"root\" where \"root\".rpt_inq_sourceinquiryid in (${inFilterClause_str})"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "sqlQuery",
+   "SET LOCK_TIMEOUT 100000000;"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "templateFunctions",
+   "<#function roleSpecificTable roleMaps tableName>\n  <#assign roles = []> \n   <#list roleMaps as role>\n    <#assign roles += [role[\"userRole\"]]>\n   </#list>\n <#assign roleMap>\n  <#assign roleSorted = roles?sort?join(\", \")/>\n  <#if  \"\"==roleSorted>{\"user_view.UV_gross_credits_estimate__PL_Cadm\":\"user_view.UV_gross_credits_estimate__PL_IncomeFunction\"}\n    <#elseif \"cadm\" ==roleSorted>{\"user_view.UV_gross_credits_estimate__PL_Cadm\":\"user_view.UV_gross_credits_estimate__PL_Cadm\"}\n    <#elseif \"cadm, sales_fg\" ==roleSorted>{\"user_view.UV_gross_credits_estimate__PL_Cadm\":\"user_view.UV_gross_credits_estimate__PL_Cadm_sales_fg\"}\n  <#else> {\"user_view.UV_gross_credits_estimate__PL_Cadm\":\"user_view.UV_gross_credits_estimate__PL_Cadm_sales_fg\",\"user_view.UV_Inquiry_Risk__PL_TradingGroup\":\"user_view.UV_Inquiry_Risk__PL_RfqMgmt\",\"user_view.UV_NIRB__PL_Secdivregulatory\":\"user_view.UV_NIRB__PL_Secdivregulatory\"}\n  </#if>\n </#assign>\n <#return roleMap?eval[tableName]!tableName>\n</#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/functions/in/tempTableExecutionPlanWithPostProcessor.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan2.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_2_0\".addressName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".name as \"name\", \"cross_temp_table_node_2_0\".addressName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_2}) as \"root\") as \"cross_temp_table_node_2_0\" inner join addressTable as \"root\" on (1 = 1) where \"cross_temp_table_node_2_0\".addressName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan2.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_0_0\".firmName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".addressName as \"addressName\", \"root\".name as \"name\", \"cross_temp_table_node_0_0\".firmName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_0}) as \"root\") as \"cross_temp_table_node_0_0\" inner join firmTable as \"root\" on (1 = 1) where \"cross_temp_table_node_0_0\".firmName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan2.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_0_0\".addressName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".name as \"name\", \"cross_temp_table_node_0_0\".addressName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_0}) as \"root\") as \"cross_temp_table_node_0_0\" inner join addressTable as \"root\" on (1 = 1) where \"cross_temp_table_node_0_0\".addressName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan2.json",
+   "sqlQuery",
+   "select \"root\".fullName as \"pk_0\", \"root\".firmName as \"firmName\", \"root\".addressName as \"addressName\", \"root\".fullName as \"fullName\" from personTable as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan2.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan2.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan2.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan2.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan2.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan1.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_2_0\".addressName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".name as \"name\", \"cross_temp_table_node_2_0\".addressName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_2}) as \"root\") as \"cross_temp_table_node_2_0\" inner join addressTable as \"root\" on (1 = 1) where \"cross_temp_table_node_2_0\".addressName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan1.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_0_0\".firmName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".addressName as \"addressName\", \"root\".name as \"name\", \"cross_temp_table_node_0_0\".firmName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_0}) as \"root\") as \"cross_temp_table_node_0_0\" inner join firmTable as \"root\" on (1 = 1) where \"cross_temp_table_node_0_0\".firmName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan1.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_0_0\".addressName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".name as \"name\", \"cross_temp_table_node_0_0\".addressName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_0}) as \"root\") as \"cross_temp_table_node_0_0\" inner join addressTable as \"root\" on (1 = 1) where \"cross_temp_table_node_0_0\".addressName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan1.json",
+   "sqlQuery",
+   "select \"root\".fullName as \"pk_0\", \"root\".firmName as \"firmName\", \"root\".addressName as \"addressName\", \"root\".fullName as \"fullName\" from personTable as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan1.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix defaultValue><#if collection?size == 0><#return defaultValue></#if><#return prefix + collection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan1.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan1.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan1.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#return prefix + optionalParameter + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withSourceCode/plan1.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan2.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_2_0\".addressName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".name as \"name\", \"cross_temp_table_node_2_0\".addressName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_2}) as \"root\") as \"cross_temp_table_node_2_0\" inner join addressTable as \"root\" on (1 = 1) where \"cross_temp_table_node_2_0\".addressName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan2.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_0_0\".firmName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".addressName as \"addressName\", \"root\".name as \"name\", \"cross_temp_table_node_0_0\".firmName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_0}) as \"root\") as \"cross_temp_table_node_0_0\" inner join firmTable as \"root\" on (1 = 1) where \"cross_temp_table_node_0_0\".firmName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan2.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_0_0\".addressName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".name as \"name\", \"cross_temp_table_node_0_0\".addressName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_0}) as \"root\") as \"cross_temp_table_node_0_0\" inner join addressTable as \"root\" on (1 = 1) where \"cross_temp_table_node_0_0\".addressName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan2.json",
+   "sqlQuery",
+   "select \"root\".fullName as \"pk_0\", \"root\".firmName as \"firmName\", \"root\".addressName as \"addressName\", \"root\".fullName as \"fullName\" from personTable as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan2.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan2.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan2.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan2.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan2.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan1.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_2_0\".addressName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".name as \"name\", \"cross_temp_table_node_2_0\".addressName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_2}) as \"root\") as \"cross_temp_table_node_2_0\" inner join addressTable as \"root\" on (1 = 1) where \"cross_temp_table_node_2_0\".addressName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan1.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_0_0\".firmName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".addressName as \"addressName\", \"root\".name as \"name\", \"cross_temp_table_node_0_0\".firmName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_0}) as \"root\") as \"cross_temp_table_node_0_0\" inner join firmTable as \"root\" on (1 = 1) where \"cross_temp_table_node_0_0\".firmName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan1.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_0_0\".addressName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".name as \"name\", \"cross_temp_table_node_0_0\".addressName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_0}) as \"root\") as \"cross_temp_table_node_0_0\" inner join addressTable as \"root\" on (1 = 1) where \"cross_temp_table_node_0_0\".addressName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan1.json",
+   "sqlQuery",
+   "select \"root\".fullName as \"pk_0\", \"root\".firmName as \"firmName\", \"root\".addressName as \"addressName\", \"root\".fullName as \"fullName\" from personTable as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan1.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix defaultValue><#if collection?size == 0><#return defaultValue></#if><#return prefix + collection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan1.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan1.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan1.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#return prefix + optionalParameter + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan/src/test/resources/org/finos/legend/engine/plan/execution/stores/relational/test/full/graphFetch/crossStore/withByteCode/plan1.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithoutMiddleTierAuthNode.json",
+   "sqlQuery",
+   "select \"root\".fullName as \"fullName\" from PERSON as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithoutMiddleTierAuthNode.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix defaultValue><#if collection?size == 0><#return defaultValue></#if><#return prefix + collection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithoutMiddleTierAuthNode.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithoutMiddleTierAuthNode.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithoutMiddleTierAuthNode.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#return prefix + optionalParameter + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithMultipleMiddleTierAuthNodes.json",
+   "sqlQuery",
+   "select \"root\".fullName as \"fullName\" from PERSON as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithMultipleMiddleTierAuthNodes.json",
+   "sqlQuery",
+   "select \"root\".fullName as \"fullName\" from PERSON as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithMultipleMiddleTierAuthNodes.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix defaultValue><#if collection?size == 0><#return defaultValue></#if><#return prefix + collection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithMultipleMiddleTierAuthNodes.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithMultipleMiddleTierAuthNodes.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithMultipleMiddleTierAuthNodes.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#return prefix + optionalParameter + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/graphFetchPlanWithMiddleTierConnections.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_2_0\".addressName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".name as \"name\", \"cross_temp_table_node_2_0\".addressName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_2}) as \"root\") as \"cross_temp_table_node_2_0\" inner join addressTable as \"root\" on (1 = 1) where \"cross_temp_table_node_2_0\".addressName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/graphFetchPlanWithMiddleTierConnections.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_0_0\".firmName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".addressName as \"addressName\", \"root\".name as \"name\", \"cross_temp_table_node_0_0\".firmName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_0}) as \"root\") as \"cross_temp_table_node_0_0\" inner join firmTable as \"root\" on (1 = 1) where \"cross_temp_table_node_0_0\".firmName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/graphFetchPlanWithMiddleTierConnections.json",
+   "sqlQuery",
+   "select distinct \"cross_temp_table_node_0_0\".addressName = \"root\".name as \"cross_join_op$\", \"root\".name as \"pk_0\", \"root\".name as \"name\", \"cross_temp_table_node_0_0\".addressName as \"parent_cross_key_0\" from (select * from (${cross_temp_table_node_0}) as \"root\") as \"cross_temp_table_node_0_0\" inner join addressTable as \"root\" on (1 = 1) where \"cross_temp_table_node_0_0\".addressName = \"root\".name"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/graphFetchPlanWithMiddleTierConnections.json",
+   "sqlQuery",
+   "select \"root\".fullName as \"pk_0\", \"root\".firmName as \"firmName\", \"root\".addressName as \"addressName\", \"root\".fullName as \"fullName\" from personTable as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/graphFetchPlanWithMiddleTierConnections.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix defaultValue><#if collection?size == 0><#return defaultValue></#if><#return prefix + collection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/graphFetchPlanWithMiddleTierConnections.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/graphFetchPlanWithMiddleTierConnections.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/graphFetchPlanWithMiddleTierConnections.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#return prefix + optionalParameter + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/graphFetchPlanWithMiddleTierConnections.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithSingleMiddleTierAuthNode.json",
+   "sqlQuery",
+   "select \"root\".fullName as \"fullName\" from PERSON as \"root\""
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithSingleMiddleTierAuthNode.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix defaultValue><#if collection?size == 0><#return defaultValue></#if><#return prefix + collection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithSingleMiddleTierAuthNode.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithSingleMiddleTierAuthNode.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-execution/legend-engine-xt-relationalStore-executionPlan-authorizer/src/test/resources/plans/planWithSingleMiddleTierAuthNode.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#return prefix + optionalParameter + suffix></#if></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-protocol/src/test/resources/singleExecutionPlan.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator><#return collection?join(separator)></#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-protocol/src/test/resources/singleExecutionPlan.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size> </#function>"
+  ],
+  [
+   "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-protocol/src/test/resources/singleExecutionPlan.json",
+   "sqlQuery",
+   "select \"root\".ID as \"pk_0\", \"root\".FIRSTNAME as \"firstName\", \"root\".AGE as \"age\", \"root\".LASTNAME as \"lastName\" from personTable as \"root\" where \"root\".FIRSTNAME = '${var}'"
+  ],
+  [
+   "runs/plans/out/graphfetch_rel.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/graphfetch_rel.json",
+   "sqlQuery",
+   "select \"root\".ID as \"pk_0\", \"root\".NAME as \"name\", \"root\".AGE as \"age\" from PERSON as \"root\""
+  ],
+  [
+   "runs/plans/out/graphfetch_rel.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/graphfetch_rel.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/graphfetch_rel.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/graphfetch_rel.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/graphfetch_rel.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "runs/plans/out/let_sequence.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/let_sequence.json",
+   "sqlQuery",
+   "select \"root\".NAME as \"name\" from PERSON as \"root\" where \"root\".NAME = 'Ada'"
+  ],
+  [
+   "runs/plans/out/let_sequence.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/let_sequence.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/let_sequence.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/let_sequence.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/let_sequence.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "sqlQuery",
+   "select distinct \"temp_table_node_0_0\".pk_0 as \"parent_key_gen_0\", \"firm_0\".ID as \"pk_0\", \"firm_0\".LEGAL_NAME as \"legalName\" from (select * from (${temp_table_node_0}) as \"root\") as \"temp_table_node_0_0\" inner join PERSON as \"root\" on (\"temp_table_node_0_0\".pk_0 = \"root\".ID) left outer join FIRM as \"firm_0\" on (\"root\".FIRM_ID = \"firm_0\".ID) where \"firm_0\".ID is not null"
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "sqlQuery",
+   "select \"root\".ID as \"pk_0\", \"root\".NAME as \"name\" from PERSON as \"root\""
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "sqlQuery",
+   "CREATE LOCAL TEMPORARY TABLE temp_table_node_0(pk_0 INT);"
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "sqlQuery",
+   "Drop table if exists temp_table_node_0;"
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "sqlQuery",
+   "INSERT INTO temp_table_node_0 SELECT * FROM CSVREAD('${csv_file_location}');"
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/graphfetch_nested.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "runs/plans/out/relation_accessor.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/relation_accessor.json",
+   "sqlQuery",
+   "select \"person_0\".NAME as \"NAME\", \"person_0\".AGE as \"AGE\" from PERSON as \"person_0\" where \"person_0\".AGE is not null and \"person_0\".AGE > 30"
+  ],
+  [
+   "runs/plans/out/relation_accessor.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/relation_accessor.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/relation_accessor.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/relation_accessor.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/relation_accessor.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "runs/plans/out/sort_limit.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/sort_limit.json",
+   "sqlQuery",
+   "select top 10 \"root\".NAME as \"name\", \"root\".AGE as \"age\" from PERSON as \"root\" order by \"age\" asc"
+  ],
+  [
+   "runs/plans/out/sort_limit.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/sort_limit.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/sort_limit.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/sort_limit.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/sort_limit.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "runs/plans/out/class_query.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/class_query.json",
+   "sqlQuery",
+   "select \"root\".ID as \"pk_0\", \"root\".NAME as \"name\", \"root\".AGE as \"age\" from PERSON as \"root\""
+  ],
+  [
+   "runs/plans/out/class_query.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/class_query.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/class_query.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/class_query.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/class_query.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "runs/plans/out/groupby_agg.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/groupby_agg.json",
+   "sqlQuery",
+   "select \"firm_0\".LEGAL_NAME as \"firm\", sum(\"root\".AGE) as \"total\" from PERSON as \"root\" left outer join FIRM as \"firm_0\" on (\"root\".FIRM_ID = \"firm_0\".ID) group by \"firm\""
+  ],
+  [
+   "runs/plans/out/groupby_agg.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/groupby_agg.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/groupby_agg.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/groupby_agg.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/groupby_agg.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "runs/plans/out/in_list_param.json",
+   "freeMarkerBooleanExpression",
+   "${(instanceOf(names, \"Stream\") || instanceOf(names, \"StreamingResult\") || ((collectionSize(names![])?number) > 50))?c}"
+  ],
+  [
+   "runs/plans/out/in_list_param.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/in_list_param.json",
+   "sqlQuery",
+   "select \"root\".NAME as \"name\" from PERSON as \"root\" where \"root\".NAME in (${inFilterClause_names})"
+  ],
+  [
+   "runs/plans/out/in_list_param.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/in_list_param.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/in_list_param.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/in_list_param.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/in_list_param.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "runs/plans/out/tds_project.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/tds_project.json",
+   "sqlQuery",
+   "select \"root\".NAME as \"name\", \"firm_0\".LEGAL_NAME as \"firm\" from PERSON as \"root\" left outer join FIRM as \"firm_0\" on (\"root\".FIRM_ID = \"firm_0\".ID)"
+  ],
+  [
+   "runs/plans/out/tds_project.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/tds_project.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/tds_project.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/tds_project.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/tds_project.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "runs/plans/out/relation_groupby.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/relation_groupby.json",
+   "sqlQuery",
+   "select \"person_0\".FIRM_ID as \"FIRM_ID\", sum(\"person_0\".AGE) as \"total\" from PERSON as \"person_0\" group by \"FIRM_ID\""
+  ],
+  [
+   "runs/plans/out/relation_groupby.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/relation_groupby.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/relation_groupby.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/relation_groupby.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/relation_groupby.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ],
+  [
+   "runs/plans/out/param_filter.json",
+   "sqlComment",
+   "-- \"executionTraceID\" : \"${execID}\""
+  ],
+  [
+   "runs/plans/out/param_filter.json",
+   "sqlQuery",
+   "select \"root\".NAME as \"name\" from PERSON as \"root\" where \"root\".NAME = '${name?replace(\"'\", \"''\")}'"
+  ],
+  [
+   "runs/plans/out/param_filter.json",
+   "templateFunctions",
+   "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>"
+  ],
+  [
+   "runs/plans/out/param_filter.json",
+   "templateFunctions",
+   "<#function collectionSize collection> <#return collection?size?c> </#function>"
+  ],
+  [
+   "runs/plans/out/param_filter.json",
+   "templateFunctions",
+   "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>"
+  ],
+  [
+   "runs/plans/out/param_filter.json",
+   "templateFunctions",
+   "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>"
+  ],
+  [
+   "runs/plans/out/param_filter.json",
+   "templateFunctions",
+   "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+  ]
+ ]
+}

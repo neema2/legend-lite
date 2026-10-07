@@ -1,0 +1,84 @@
+###Pure
+Class model::Firm { legalName: String[1]; }
+Class model::Person { name: String[1]; age: Integer[1]; }
+Association model::Employment { firm: model::Firm[1]; employees: model::Person[*]; }
+Class model::src::RawPerson { first: String[1]; last: String[1]; }
+Class model::tgt::Contact { fullName: String[1]; }
+
+###Relational
+Database store::DB
+(
+  Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), AGE INTEGER, FIRM_ID INTEGER)
+  Table FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))
+  Join PersonFirm(PERSON.FIRM_ID = FIRM.ID)
+)
+
+###Mapping
+Mapping mapping::M
+(
+  model::Person: Relational
+  {
+    ~mainTable [store::DB]PERSON
+    name: [store::DB]PERSON.NAME,
+    age: [store::DB]PERSON.AGE
+  }
+  model::Firm: Relational
+  {
+    ~mainTable [store::DB]FIRM
+    legalName: [store::DB]FIRM.LEGAL_NAME
+  }
+  model::Employment: Relational
+  {
+    AssociationMapping
+    (
+      firm: [store::DB]@PersonFirm,
+      employees: [store::DB]@PersonFirm
+    )
+  }
+)
+
+Mapping mapping::M2M
+(
+  model::tgt::Contact: Pure
+  {
+    ~src model::src::RawPerson
+    fullName: $src.first + ' ' + $src.last
+  }
+)
+
+###Connection
+RelationalDatabaseConnection store::H2Conn
+{
+  store: store::DB;
+  type: H2;
+  specification: LocalH2
+  {
+    testDataSetupSqls: ['create table PERSON(ID INT PRIMARY KEY, NAME VARCHAR(100), AGE INT, FIRM_ID INT)', 'create table FIRM(ID INT PRIMARY KEY, LEGAL_NAME VARCHAR(100))'];
+  };
+  auth: DefaultH2;
+}
+
+###Runtime
+Runtime runtime::RT
+{
+  mappings: [ mapping::M ];
+  connections: [ store::DB: [ c1: store::H2Conn ] ];
+}
+
+Runtime runtime::M2MRT
+{
+  mappings: [ mapping::M2M ];
+  connections:
+  [
+    ModelStore:
+    [
+      json: #{
+        JsonModelConnection
+        {
+          class: model::src::RawPerson;
+          url: 'data:application/json,[{"first":"Ada","last":"Lovelace"}]';
+        }
+      }#
+    ]
+  ];
+}

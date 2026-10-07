@@ -1,0 +1,13 @@
+tds_project	|model::Person.all()->project([p|$p.name, p|$p.firm.legalName], ['name', 'firm'])->from(mapping::M, runtime::RT)
+relation_accessor	|#>{store::DB.PERSON}#->select(~[NAME, AGE])->filter(r|$r.AGE > 30)->from(runtime::RT)
+param_filter	{name: String[1]|model::Person.all()->filter(p|$p.name == $name)->project([p|$p.name], ['name'])->from(mapping::M, runtime::RT)}
+in_list_param	{names: String[*]|model::Person.all()->filter(p|$p.name->in($names))->project([p|$p.name], ['name'])->from(mapping::M, runtime::RT)}
+let_sequence	|let x = 'Ada'; model::Person.all()->filter(p|$p.name == $x)->project([p|$p.name], ['name'])->from(mapping::M, runtime::RT);
+groupby_agg	|model::Person.all()->groupBy([p|$p.firm.legalName], [agg(p|$p.age, y|$y->sum())], ['firm', 'total'])->from(mapping::M, runtime::RT)
+sort_limit	|model::Person.all()->project([p|$p.name, p|$p.age], ['name', 'age'])->sort('age')->limit(10)->from(mapping::M, runtime::RT)
+graphfetch_rel	|model::Person.all()->graphFetch(#{model::Person{name, age}}#)->serialize(#{model::Person{name, age}}#)->from(mapping::M, runtime::RT)
+graphfetch_nested	|model::Person.all()->graphFetch(#{model::Person{name, firm{legalName}}}#)->serialize(#{model::Person{name, firm{legalName}}}#)->from(mapping::M, runtime::RT)
+m2m_graphfetch	|model::tgt::Contact.all()->graphFetch(#{model::tgt::Contact{fullName}}#)->serialize(#{model::tgt::Contact{fullName}}#)->from(mapping::M2M, runtime::M2MRT)
+storeless_constant	|1 + 1
+class_query	|model::Person.all()->from(mapping::M, runtime::RT)
+relation_groupby	|#>{store::DB.PERSON}#->groupBy(~[FIRM_ID], ~[total: x|$x.AGE : y|$y->sum()])->from(runtime::RT)

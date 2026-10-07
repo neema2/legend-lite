@@ -39,7 +39,7 @@ lite has no `executePlan`.
 - Result types: `tds` (`tdsColumns[{name, type, relationalType, enumMapping, doc}]`), `class`, `partialClass`,
   `dataType`, `void`, `relation`.
 
-## 3. Real plans from the pinned engine (4.145.0 on :6300; `runs/plans/`)
+## 3. Real plans from the pinned engine (4.145.0 on :6300; `docs/execution-plan-boundary-2026-10-05/plans/`)
 
 One model (relational on H2 + a JSON M2M mapping), 13 queries, every one planned:
 
@@ -116,7 +116,7 @@ connection.
    plans use (interpolations, built-ins such as `?replace` `?c` `?number`, `!` defaults, `<#if>` `<#list>`
    `<#function>` `<#assign>` `<#return>`, the plan functions `renderCollection` `collectionSize` `instanceOf`) — the
    compatibility subset's exact size.
-   **DONE 2026-10-05 (`runs/plans/fm/`).** Sources: all 201 template texts in legend-engine's 22 fixture plans plus
+   **DONE 2026-10-05 (`docs/execution-plan-boundary-2026-10-05/plans/fm/`).** Sources: all 201 template texts in legend-engine's 22 fixture plans plus
    the 13 plans of §3, and every `.pure` file in legend-engine that writes templates (70 files: relational and its
    database extensions, core, service, Mongo, Elasticsearch — the upper bound a legacy plan can contain). The subset is
    a small FreeMarker INTERPRETER, not a function list — the standard functions are themselves FreeMarker:
@@ -227,6 +227,44 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    and returns the slots in order; a list slot in the target's array form (`= ANY(?)`, a list parameter, H2's array);
    the target per `Sql` node from `Compiler.executesOn`; setup statements and the in-memory identity computed at plan
    time.
+   **Step 2's decisions (the user, 2026-10-07; evidence `docs/execution-plan-boundary-2026-10-05/probes/`):**
+   - *One list of a query's parameters.* Today the legacy (legend-engine-shaped) plan builds its own, twice: its text
+     form (`StatementExecutor.sequencePlan`) and the form Pure code walks (`planModel`). One planner function reads
+     a typed lambda's parameters (name, Pure type, multiplicity, an enum's allowed names) and all three read it — the
+     legacy plan's two forms and the lite plan.
+   - *Values reach the database as values.* The dialect renders each `PlanParam` as `?` and returns the slots in
+     order; a list is one array (`= ANY(?)`). At run time nothing edits the SQL text: the runner hands typed values to
+     the driver. Measured on the pinned drivers: a quote, a list, an empty list, strings, a null — all three
+     databases (`bind-results.txt`). The typed SQL tree rides in the plan for lineage. A slot names a parameter, not a
+     SQL spelling, so a non-SQL store spells it its own way. Parameter values are plain values only — literals,
+     lists, enum values — as legend-engine's `execute` accepts (`PrimitiveValueSpecificationToObjectVisitor`). A
+     function value (`today()`) belongs in the query: legend-query-builder moves it there as a `let`
+     (`LambdaParameterState.ts`, `getExecutionQueryFromRawLambda`), and the Query app will do the same before step 4
+     (`query/src/builder/build.ts` sends them as values today; agreed with the Studio line, 2026-10-07).
+   - *Setup at plan time, one form per database.* The planner picks by the target's database: DuckDB gets the rows
+     to load in bulk (the measured reason: one giant INSERT cost DuckDB most of a 61 s first query, commit
+     `2c4c57816`), the others the INSERT statement they run today. Step 1's `Target.setup` becomes a list of steps,
+     a statement or rows. Upstream's form (`testDataSetupSqls`, text) is written only by the compatibility mode.
+   - *Which requests share an in-memory database: the plan's own content* (the connection and its setup), as
+     legend-engine keys a local H2 (`LocalH2DataSourceSpecificationKey`: a checksum of the setup statements). The
+     model-derived hash (`ConnectionResolver.storesKey`) and `Target.identity` go. NOT YET CHECKED, and checked before
+     step 2's code: that nothing creates tables outside the setup statements; if something does, this comes back to
+     the user.
+   - *`JsonResult` becomes `TextResult`* with a format — CSV, JSON, or one JSON object per row (the runner writes
+     the brackets and commas): the database builds the finished text, the runner passes it on. The format is fixed
+     when the plan is made (legend-engine chooses it at run time because Java formats its rows; here the database
+     does), so a CSV and a JSON request are two plans.
+   - *An enum parameter is translated by the database, at each place it is compared, keeping the column's index.*
+     Each place carries its own value table, rendered into the SQL at plan time:
+     `STATUS IN (SELECT code FROM (VALUES ('A','ACTIVE'), ('X','ACTIVE'), ('C','CLOSED')) m(code, name) WHERE name = ?)`.
+     The runner passes the name unchanged; the plan lists the enum's allowed names, so a wrong one is refused by
+     name. Per place, because one model can store an enum two ways in two tables. Measured (`enum-index-results.txt`,
+     400,000 rows): this form uses the index on DuckDB, H2 and Postgres and is right for a value stored under two
+     codes; decoding the column instead (`CASE STATUS WHEN 'A' THEN 'ACTIVE' … END = ?`) scans the table on all
+     three (Postgres ~24 ms against ~0.4 ms). Step 1's `EnumValue` database values leave the parameter.
+     The legacy printer picks one translation per parameter and, unsure, the first declared
+     (`PlanText.enumMappingIdFor`, "Falls back to first-declared") — wrong rows when an enum is mapped twice; it goes
+     on the parked-work ledger with step 2's first commit.
 3. **The runner, in `exec`** — `exec.PlanRunner.run(plan, parameterValues, Sessions.Source, out)`: validates and
    converts parameters (§8), opens or checks each node's session through `Sessions` (running its setup once; the
    identity from the plan — `Sessions.Source` no longer takes the model), binds, executes, streams the database's text.

@@ -1,0 +1,233 @@
+{
+ "_type": "simple",
+ "authDependent": false,
+ "globalImplementationSupport": {
+  "_type": "java",
+  "classes": [
+   {
+    "name": "Functions__meta_external_language_java_transform",
+    "package": "_pure.functions",
+    "source": "package _pure.functions;\n\nimport java.math.*;\nimport java.util.*;\nimport java.util.function.*;\nimport java.util.stream.*;\nimport org.finos.legend.engine.plan.dependencies.domain.date.DayOfWeek;\nimport org.finos.legend.engine.plan.dependencies.domain.date.DurationUnit;\nimport org.finos.legend.engine.plan.dependencies.domain.date.PureDate;\nimport org.finos.legend.engine.plan.dependencies.util.Library;\n\npublic class Functions__meta_external_language_java_transform\n{\n    public static boolean checkForReservedWordsForGet_String_1__Boolean_1_(String propertyName)\n    {\n        return Library.equals(propertyName, \"class\") || Library.equals(propertyName, \"Class\");\n    }\n}"
+   },
+   {
+    "name": "Functions__meta_pure_functions_string",
+    "package": "_pure.functions",
+    "source": "package _pure.functions;\n\nimport java.math.*;\nimport java.util.*;\nimport java.util.function.*;\nimport java.util.stream.*;\nimport org.finos.legend.engine.plan.dependencies.domain.date.DayOfWeek;\nimport org.finos.legend.engine.plan.dependencies.domain.date.DurationUnit;\nimport org.finos.legend.engine.plan.dependencies.domain.date.PureDate;\nimport org.finos.legend.engine.plan.dependencies.util.Library;\n\npublic class Functions__meta_pure_functions_string\n{\n    public static String toUpperFirstCharacter_String_1__String_1_(String str)\n    {\n        return (long) str.length() == 0L\n                         ? str\n                         : Arrays.asList(_pure.functions.Functions__meta_pure_functions_string.left_String_1__Integer_1__String_1_(str, 1L)\n                                                                                              .toUpperCase(),\n                                         _pure.functions.Functions__meta_pure_functions_string.substr_String_1__Integer_1__String_1_(str, 1L))\n                                 .stream()\n                                 .collect(Collectors.joining(\"\"));\n    }\n\n    public static String substr_String_1__Integer_1__String_1_(String str, long start)\n    {\n        return str.substring((int) start);\n    }\n\n    public static String left_String_1__Integer_1__String_1_(String string, long length)\n    {\n        Library.pureAssert(length >= 0L, () -> \"length must be >= 0\");\n        long strLength = (long) string.length();\n        long charsToKeep = length > strLength ? strLength : length;\n        return _pure.functions.Functions__meta_pure_functions_string.substr_String_1__Integer_1__Integer_1__String_1_(string,\n                                                                                                                      0L,\n                                                                                                                      charsToKeep);\n    }\n\n    public static String substr_String_1__Integer_1__Integer_1__String_1_(String str,\n                                                                          long start,\n                                                                          long end)\n    {\n        return str.substring((int) start, (int) end);\n    }\n}"
+   },
+   {
+    "name": "CreateAndPopulateTempTable",
+    "package": "_pure.plan.root.n2.n1.trueBlock.n1",
+    "source": "package _pure.plan.root.n2.n1.trueBlock.n1;\n\nimport _pure.functions.Functions__meta_external_language_java_transform;\nimport _pure.functions.Functions__meta_pure_functions_string;\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.stream.Collector;\nimport java.util.stream.Collectors;\nimport java.util.stream.Stream;\nimport org.finos.legend.engine.plan.dependencies.store.relational.IRelationalCreateAndPopulateTempTableExecutionNodeSpecifics;\nimport org.finos.legend.engine.plan.dependencies.util.Library;\n\npublic class CreateAndPopulateTempTable implements IRelationalCreateAndPopulateTempTableExecutionNodeSpecifics\n{\n    public String getGetterNameForProperty(String p)\n    {\n        return p == null ? null\n                         : Arrays.asList(\"get\",\n                                         Functions__meta_external_language_java_transform.checkForReservedWordsForGet_String_1__Boolean_1_(p)\n                                                                                         ? Arrays.asList(\"_\",\n                                                                                                         Library.toOne(Functions__meta_pure_functions_string.toUpperFirstCharacter_String_1__String_1_(p)))\n                                                                                                 .stream()\n                                                                                                 .collect(Collectors.joining(\"\"))\n                                                                                         : Library.toOne(Functions__meta_pure_functions_string.toUpperFirstCharacter_String_1__String_1_(p)))\n                                 .stream()\n                                 .collect(Collectors.joining(\"\"));\n    }\n}"
+   }
+  ]
+ },
+ "rootExecutionNode": {
+  "_type": "relationalBlock",
+  "authDependent": false,
+  "executionNodes": [
+   {
+    "_type": "function-parameters-validation",
+    "authDependent": false,
+    "executionNodes": [],
+    "functionParameters": [
+     {
+      "_type": "var",
+      "genericType": {
+       "multiplicityArguments": [],
+       "rawType": {
+        "_type": "packageableType",
+        "fullPath": "String"
+       },
+       "typeArguments": [],
+       "typeVariableValues": []
+      },
+      "multiplicity": {
+       "lowerBound": 0
+      },
+      "name": "names",
+      "supportsStream": true
+     }
+    ],
+    "resultType": {
+     "_type": "dataType",
+     "dataType": "Boolean"
+    }
+   },
+   {
+    "_type": "allocation",
+    "authDependent": false,
+    "executionNodes": [
+     {
+      "_type": "freeMarkerConditionalExecutionNode",
+      "authDependent": false,
+      "executionNodes": [],
+      "falseBlock": {
+       "_type": "constant",
+       "authDependent": false,
+       "executionNodes": [],
+       "resultType": {
+        "_type": "dataType",
+        "dataType": "String"
+       },
+       "values": {
+        "_type": "string",
+        "value": "${renderCollection(names![] \",\" \"'\" \"'\" {\"'\" : \"''\" } \"null\")}"
+       }
+      },
+      "freeMarkerBooleanExpression": "${(instanceOf(names, \"Stream\") || instanceOf(names, \"StreamingResult\") || ((collectionSize(names![])?number) > 50))?c}",
+      "resultType": {
+       "_type": "dataType",
+       "dataType": "String"
+      },
+      "trueBlock": {
+       "_type": "sequence",
+       "authDependent": false,
+       "executionNodes": [
+        {
+         "_type": "createAndPopulateTempTable",
+         "authDependent": false,
+         "connection": {
+          "_type": "RelationalDatabaseConnection",
+          "authenticationStrategy": {
+           "_type": "h2Default"
+          },
+          "datasourceSpecification": {
+           "_type": "h2Local",
+           "testDataSetupSqls": [
+            "create table PERSON(ID INT PRIMARY KEY, NAME VARCHAR(100), AGE INT, FIRM_ID INT)",
+            "create table FIRM(ID INT PRIMARY KEY, LEGAL_NAME VARCHAR(100))"
+           ]
+          },
+          "element": "",
+          "postProcessorWithParameter": [],
+          "postProcessors": [],
+          "type": "H2"
+         },
+         "executionNodes": [],
+         "implementation": {
+          "_type": "java",
+          "executionClassFullName": "_pure.plan.root.n2.n1.trueBlock.n1.CreateAndPopulateTempTable"
+         },
+         "inputVarNames": [
+          "names"
+         ],
+         "resultType": {
+          "_type": "void"
+         },
+         "tempTableColumnMetaData": [
+          {
+           "column": {
+            "dataType": "VARCHAR(1024)",
+            "label": "ColumnForStoringInCollection"
+           }
+          }
+         ],
+         "tempTableName": "tempTableForIn_names"
+        },
+        {
+         "_type": "constant",
+         "authDependent": false,
+         "executionNodes": [],
+         "resultType": {
+          "_type": "dataType",
+          "dataType": "String"
+         },
+         "values": {
+          "_type": "string",
+          "value": "select \"temptableforin_names_0\".ColumnForStoringInCollection as ColumnForStoringInCollection from tempTableForIn_names as \"temptableforin_names_0\""
+         }
+        }
+       ],
+       "resultType": {
+        "_type": "dataType",
+        "dataType": "String"
+       }
+      }
+     }
+    ],
+    "realizeInMemory": false,
+    "resultType": {
+     "_type": "dataType",
+     "dataType": "String"
+    },
+    "varName": "inFilterClause_names"
+   },
+   {
+    "_type": "relationalTdsInstantiation",
+    "authDependent": false,
+    "executionNodes": [
+     {
+      "_type": "sql",
+      "authDependent": false,
+      "connection": {
+       "_type": "RelationalDatabaseConnection",
+       "authenticationStrategy": {
+        "_type": "h2Default"
+       },
+       "datasourceSpecification": {
+        "_type": "h2Local",
+        "testDataSetupSqls": [
+         "create table PERSON(ID INT PRIMARY KEY, NAME VARCHAR(100), AGE INT, FIRM_ID INT)",
+         "create table FIRM(ID INT PRIMARY KEY, LEGAL_NAME VARCHAR(100))"
+        ]
+       },
+       "element": "",
+       "postProcessorWithParameter": [],
+       "postProcessors": [],
+       "type": "H2"
+      },
+      "executionNodes": [],
+      "isMutationSQL": false,
+      "resultColumns": [
+       {
+        "dataType": "VARCHAR(100)",
+        "label": "\"name\""
+       }
+      ],
+      "resultType": {
+       "_type": "dataType",
+       "dataType": "meta::pure::metamodel::type::Any"
+      },
+      "sqlComment": "-- \"executionTraceID\" : \"${execID}\"",
+      "sqlQuery": "select \"root\".NAME as \"name\" from PERSON as \"root\" where \"root\".NAME in (${inFilterClause_names})"
+     }
+    ],
+    "resultType": {
+     "_type": "tds",
+     "tdsColumns": [
+      {
+       "enumMapping": {},
+       "name": "name",
+       "relationalType": "VARCHAR(100)",
+       "type": "String"
+      }
+     ]
+    }
+   }
+  ],
+  "finallyExecutionNodes": [],
+  "isolationLevel": 0,
+  "resultType": {
+   "_type": "tds",
+   "tdsColumns": [
+    {
+     "enumMapping": {},
+     "name": "name",
+     "relationalType": "VARCHAR(100)",
+     "type": "String"
+    }
+   ]
+  }
+ },
+ "serializer": {
+  "name": "pure",
+  "version": "vX_X_X"
+ },
+ "templateFunctions": [
+  "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>",
+  "<#function collectionSize collection> <#return collection?size?c> </#function>",
+  "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>",
+  "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>",
+  "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+ ]
+}

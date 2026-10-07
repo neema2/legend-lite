@@ -1,0 +1,21 @@
+== DuckDB 1.0
+OK   scalar string with a quote -> [2]
+OK   list: = ANY(?) createArrayOf -> [1, 3]
+FAIL list: = ANY(?) setObject(Integer[]) -> SQLException: Invalid Input Error: Unsupported parameter type
+OK   list: = ANY(?) empty array -> []
+OK   list of strings: = ANY(?) -> [1, 2]
+OK   null scalar: NAME = ? (null) -> []
+== H2 2.1.214 (2022-06-13)
+OK   scalar string with a quote -> [2]
+OK   list: = ANY(?) createArrayOf -> [1, 3]
+OK   list: = ANY(?) setObject(Integer[]) -> [1, 3]
+OK   list: = ANY(?) empty array -> []
+OK   list of strings: = ANY(?) -> [1, 2]
+OK   null scalar: NAME = ? (null) -> []
+== PostgreSQL 42.7.13
+OK   scalar string with a quote -> [2]
+OK   list: = ANY(?) createArrayOf -> [1, 3]
+OK   list: = ANY(?) setObject(Integer[]) -> [1, 3]
+OK   list: = ANY(?) empty array -> []
+OK   list of strings: = ANY(?) -> [1, 2]
+OK   null scalar: NAME = ? (null) -> []

@@ -1,0 +1,77 @@
+{
+ "_type": "simple",
+ "authDependent": false,
+ "rootExecutionNode": {
+  "_type": "relationalTdsInstantiation",
+  "authDependent": false,
+  "executionNodes": [
+   {
+    "_type": "sql",
+    "authDependent": false,
+    "connection": {
+     "_type": "RelationalDatabaseConnection",
+     "authenticationStrategy": {
+      "_type": "h2Default"
+     },
+     "datasourceSpecification": {
+      "_type": "h2Local",
+      "testDataSetupSqls": [
+       "create table PERSON(ID INT PRIMARY KEY, NAME VARCHAR(100), AGE INT, FIRM_ID INT)",
+       "create table FIRM(ID INT PRIMARY KEY, LEGAL_NAME VARCHAR(100))"
+      ]
+     },
+     "element": "",
+     "postProcessorWithParameter": [],
+     "postProcessors": [],
+     "type": "H2"
+    },
+    "executionNodes": [],
+    "isMutationSQL": false,
+    "resultColumns": [
+     {
+      "dataType": "VARCHAR(100)",
+      "label": "\"name\""
+     },
+     {
+      "dataType": "VARCHAR(100)",
+      "label": "\"firm\""
+     }
+    ],
+    "resultType": {
+     "_type": "dataType",
+     "dataType": "meta::pure::metamodel::type::Any"
+    },
+    "sqlComment": "-- \"executionTraceID\" : \"${execID}\"",
+    "sqlQuery": "select \"root\".NAME as \"name\", \"firm_0\".LEGAL_NAME as \"firm\" from PERSON as \"root\" left outer join FIRM as \"firm_0\" on (\"root\".FIRM_ID = \"firm_0\".ID)"
+   }
+  ],
+  "resultType": {
+   "_type": "tds",
+   "tdsColumns": [
+    {
+     "enumMapping": {},
+     "name": "name",
+     "relationalType": "VARCHAR(100)",
+     "type": "String"
+    },
+    {
+     "enumMapping": {},
+     "name": "firm",
+     "relationalType": "VARCHAR(100)",
+     "type": "String"
+    }
+   ]
+  }
+ },
+ "serializer": {
+  "name": "pure",
+  "version": "vX_X_X"
+ },
+ "templateFunctions": [
+  "<#function renderCollection collection separator prefix suffix replacementMap defaultValue><#if collection?size == 0><#return defaultValue></#if><#assign newCollection = collection><#list replacementMap as oldValue, newValue>   <#assign newCollection = collection?map(ele -> ele?replace(oldValue, newValue))></#list><#return prefix + newCollection?join(suffix + separator + prefix) + suffix></#function>",
+  "<#function collectionSize collection> <#return collection?size?c> </#function>",
+  "<#function optionalVarPlaceHolderOperationSelector optionalParameter trueClause falseClause><#if optionalParameter?has_content || optionalParameter?is_string><#return trueClause><#else><#return falseClause></#if></#function>",
+  "<#function varPlaceHolderToString optionalParameter prefix suffix replacementMap defaultValue><#if optionalParameter?is_enumerable && !optionalParameter?has_content><#return defaultValue><#else><#assign newParam = optionalParameter><#list replacementMap as oldValue, newValue>   <#assign newParam = newParam?replace(oldValue, newValue)></#list><#return prefix + newParam + suffix></#if></#function>",
+  "<#function equalEnumOperationSelector enumVal inDyna equalDyna><#assign enumList = enumVal?split(\",\")><#if enumList?size = 1><#return equalDyna><#else><#return inDyna></#if></#function>"
+ ]
+}

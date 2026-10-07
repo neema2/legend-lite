@@ -1,0 +1,57 @@
+{
+ "_type": "simple",
+ "authDependent": false,
+ "globalImplementationSupport": {
+  "_type": "java",
+  "classes": [
+   {
+    "name": "Execute",
+    "package": "_pure.plan.root",
+    "source": "package _pure.plan.root;\n\nimport java.util.Arrays;\nimport java.util.List;\nimport java.util.stream.Stream;\nimport org.finos.legend.engine.plan.dependencies.store.shared.IExecutionNodeContext;\nimport org.finos.legend.engine.plan.dependencies.util.Library;\n\npublic class Execute\n{\n    public static long execute(IExecutionNodeContext context)\n    {\n        try\n        {\n            return Arrays.asList(1L, 1L).stream().reduce(0L, Library::integerPlus).longValue();\n        }\n        catch (Exception e)\n        {\n            throw new RuntimeException(\"Failed in node: root\", e);\n        }\n    }\n}"
+   }
+  ]
+ },
+ "rootExecutionNode": {
+  "_type": "platform",
+  "authDependent": false,
+  "executionNodes": [],
+  "implementation": {
+   "_type": "java",
+   "executionClassFullName": "_pure.plan.root.Execute",
+   "executionMethodName": "execute"
+  },
+  "pure": {
+   "_type": "func",
+   "fControl": "plus_Integer_MANY__Integer_1_",
+   "function": "plus",
+   "parameters": [
+    {
+     "_type": "collection",
+     "multiplicity": {
+      "lowerBound": 2,
+      "upperBound": 2
+     },
+     "values": [
+      {
+       "_type": "integer",
+       "value": 1
+      },
+      {
+       "_type": "integer",
+       "value": 1
+      }
+     ]
+    }
+   ]
+  },
+  "resultType": {
+   "_type": "dataType",
+   "dataType": "Integer"
+  }
+ },
+ "serializer": {
+  "name": "pure",
+  "version": "vX_X_X"
+ },
+ "templateFunctions": []
+}
