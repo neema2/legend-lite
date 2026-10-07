@@ -55,9 +55,15 @@ generated file, never a signature we typed ourselves.
 
 **State on 2026-10-07, after the planning session** (the one place this is kept; other documents point here):
 - **The order is agreed and recorded in the plan's §4**: thirteen landings, L1 the CI landing first, L2 Phase 3, then
-  3b, 6, 4, 5, PARK-5's fix, 7 (the bump is done there), then the typer's order and Phase 8. The next action is **L1**
-  on branch `build/ci-lanes` from `origin/main`: the lane set and what it contains is `PHASE_8.md` §8; the
-  measurements behind it are `evidence/phase8/CI_LANES_2026_10_07.md`.
+  3b, 6, 4, 5, PARK-5's fix, 7 (the bump is done there), then the typer's order and Phase 8. The lane set is
+  `PHASE_8.md` §8; the measurements behind it are `evidence/phase8/CI_LANES_2026_10_07.md`.
+- **L1a landed** (main `fd1b0ba77`, 2026-10-07; GATES entry "Build rebuild L1a"): the lanes as suites, the product
+  job, the downloads cache, the pinned actionlint and shellcheck, the manual hand targets; its run green on all 51
+  jobs, 30.6 minutes cold. **Next: L1b** on a branch from `origin/main` (`build/ci-harnesses`): the browser harnesses as
+  tests (rebase `bazel/exec`'s P4-01 to P4-04 and P4-08, dropping the 7,824-line file; the four need P4-01 first), the
+  Linux-only tests by `target_compatible_with`, the transitional `browser` suite, the Chromium install step and the
+  harness loop deleted, DataCube's dev tools `manual`, the hand tools' build test. Studio's line owns `datacube/`,
+  `query/`, `site/`: announced in IN_FLIGHT, proceeding.
 - **`build/phase3` is untouched and waits for L1:** main plus the five Phase 3 commits, pushed, not landed. Its
   commits by subject: step 1 (ranking), step 2 (candidates and implementations by id), step 3 (forms, TDS functions,
   `agg`, boot-layer versions by resolved names), the corpus fixes, the audit's fixes. List them with `git log

@@ -30,6 +30,7 @@ with the compiler's plan/execution split**, in this order:
    `tools/browser/defs.bzl` (a Linux-only option), `datacube/BUILD.bazel`, `query/BUILD.bazel`, `site/BUILD.bazel`,
    `studio/BUILD.bazel` and `datacube/demo/*.mjs` (the harnesses as tests: `bazel/exec`'s P4-02, P4-03, P4-04 and
    P4-08 rebased) — Studio's line owns `datacube/`, `query/`, `site/` (below): noted here once, proceeding.
+   **L1a landed 2026-10-07 (`fd1b0ba77`); L1b in progress on `build/ci-harnesses`.**
    **The build rebuild and the self-contained bump** (`docs/REBUILD_PROGRAM_2026_10_06.md`, on main since 2026-10-07 with its research and
    evidence; a session picking it up starts at `docs/build-inventory/program/START_HERE.md`. Phases 0 and 1 landed as PRs;
    since 2026-10-06 there are no PRs: one full CI run on the branch, then that commit pushed to main). **Announced 2026-10-06, replacing the 2026-10-05 note — PR 1, Phase 0:** the build targets

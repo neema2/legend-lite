@@ -668,6 +668,12 @@ Minutes are estimates, Linux / macOS / Windows; L1a's own run replaces them.
 (`datacube`), Windows ~13 (`checks`), macOS ~15 (fifteen lanes through the five-at-a-time queue): **about 15
 minutes**, against 40 to 57 today.
 
+**L1a landed 2026-10-07 (main `fd1b0ba77`); its run measured (cold, the cache fill included; the GATES entry has the
+table): wall clock 30.6 minutes, `product` 15 / 8 / 15 of which the product build itself is 2.2 minutes on Linux
+(the rest is the one-time fetch, the analysis of everything that fills the cache, and the save), `browser` 22 until
+L1b, `checks` 12 / 8 / 18, `datacube` 12 / 11 / 13, every other lane 3 to 11. `postgres_live` and
+`postgres_live_native` pass everywhere and stay (Test-8 closed). The warm numbers come from L1b's run.**
+
 **What is gone from CI.** `bazel build //...` as a lane; the `lint workflows` job (`curl`); the Chromium install step;
 the shell loop of `bazel run` harnesses and their fixed ports; the jq list of hand-typed targets (the keys stay for
 `-f gates=`, now suite names); the output-cache tarballs and their 2–3 minute saves (only `~/.cache/bazel-repo` is

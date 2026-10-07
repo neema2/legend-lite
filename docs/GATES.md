@@ -6819,5 +6819,17 @@ git only, in a scratch worktree): none of the four harness commits (P4-02, P4-03
 without P4-01's shared harness module, so L1b rebases the five, dropping the 7,824-line file P4-01 added and the
 audit follow-up removed.
 
-Local gate on this tree: `bazel test --lockfile_mode=error //gates:local`: see the landing commit's message. The
-lane times of the first full run on this branch replace the estimates in PHASE_8.md §8.
+Local gate on this tree: `bazel test --lockfile_mode=error //gates:local` green, 292 of 292. Landed on main as
+`fd1b0ba77` (the commit's message has the audit's account).
+
+**The first full run on the branch (37649064300, 2026-10-07 16:03 to 16:34 UTC): green, all 51 jobs.** It paid the
+cache fill on every platform (the new key had no entry), so its minutes are the cold ones; the second run (L1b's) is
+the first warm one. Minutes, Linux / macOS / Windows (/ Linux arm64): `browser` 22 (the transitional loop, gone in
+L1b); `product` 15 / 8 / 15 — of which, on Linux, 4.9 fetching before the first compile, **2.2 the product build**
+(652 actions, critical path 107 s: the native image), 3.8 analysing everything (which, cold, fetched every remaining
+download: by design, so the saved cache is complete), 0.2 the two checks, 3.7 saving the cache; `checks` 12 / 8 / 18;
+`datacube` 12 / 11 / 13; `core` 11 / 6 / 11; `corpus_duckdb` 9 / 3 / 8; `stress` 9 / 7 / 9; `pct_duckdb` 9 / 8 / 6;
+`corpus_h2` 9 / 6 / 8; `pct_postgres` 8 / 7 / 5; `pct_channel_b` 7 / 3 / 9; `warehouse` 7 / 4 / 5 / 8; `pct_h2` 7 / 4 / 5;
+`ui` 7 / 3 / 5; `parser_equivalence` 6 / 6 / 8; `sdlc` 6 / 3 / 4. Wall clock 30.6 minutes, against 40 to 57 before, with
+nothing warm yet. Test-8 answered: `//warehouse:postgres_live` and `:postgres_live_native` passed on every platform;
+they stay in `warehouse`.
