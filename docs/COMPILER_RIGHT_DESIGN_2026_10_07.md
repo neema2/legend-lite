@@ -1,6 +1,6 @@
 # The compiler done right, reconciled with the rebuild plan (2026-10-07, revision 2)
 
-**Status: for the user's decision; no code before it is agreed.** Revision 2 replaces the same day's revision 1
+**Status: ruled 2026-10-07 (§6); the plan's D25 carries the decision.** Revision 2 replaces the same day's revision 1
 (commit "Docs: the compiler done right -- the design for the user's decision, with its measurement"). Revision 1 was
 written from the code and one measurement **without reading the compiler rebuild's own plan**,
 `docs/EXECUTION_PLAN_2026_09_26.md` (revision H4, approved by the user on 2026-09-29; its work landed on main through
@@ -197,13 +197,18 @@ re-ordering of Phase 4 that the plan's catalogue already contains in better deta
   and W3.2 (`FunctionMatch`, legend-pure's ranking rules), not a landing; its five commits are read before those items
   start.
 
-## 6. Decisions for the user
+## 6. Decisions (ruled 2026-10-07; the user: "let's do the evidence way")
 
-1. Option A (recommended) or Option B in §4.
-2. The bump's Phase 3 branch as a reference, not a landing (A7; agreed in conversation on 2026-10-07; this confirms
-   it in writing).
+1. **Option A**, sharpened in conversation: the order after C1 is decided there on the attributed defect list with a stated
+   criterion (mostly local resolver fixes → the identity items W2.1, W2.5, W2.6, W2.3a before the middle; mostly structural →
+   the plan's order), with the names share in hand.
+2. The bump's Phase 3 branch is a reference, not a landing (A7).
+3. **The measurement base is the stress corpus and the eager probe; nothing new is built to measure** (the user: "use the
+   stress corpus instead of making a whole new thing to measure"). A2 is amended: W1.0b reads its numbers from the stress tool
+   (per-service compile latency, phase shares) and the eager probe, not from a new benchmark target.
 
-Everything else is the plan's own: D9, D11, D19, D20, D21 at C1, as its §4 says.
+Recorded in the plan as D25 (its §2), its Now line, W0.8 (new), W1.0b, W2.1, W3.1, W3.3, C1 and the Phase 4 note. Everything
+else is the plan's own: D9, D11, D19, D20, D21 at C1.
 
 ## 7. What does not change
 

@@ -21,7 +21,7 @@ Keep it current: when an item lands, move it to §3 with its GATES.md heading, a
 at `docs/build-inventory/program/START_HERE.md`. This plan resumes only when the user says so; the "Now" line below
 is where it stopped.
 
-**Now (update in every push):** **the D24 cleanup phase, one substitution engine first** (it is self-contained in `compiler/spec`; the variable ids touch 35 files and 30 of them are the store resolver's, so they go with the middle). D23's tool and damaged data are in (GATES "Rebuild D23 (1)", "(2)"; S22); attribution of the remaining seed disagreements and the next damage kinds continue beside the cleanup. The seed-data comparison is in (GATES "Rebuild D23 (1)": 22 row disagreements, 21 engine-only, 6 lite-only, dossier in `plan-audit-2026-09-26/wrongrows/`). Next: (a) `tools/wrongrows/damage.py`, the damaged data set from the seeds; both engines on it; (b) every disagreement, seed and damaged, attributed to a stage (H, I, J) and a side (engine defect → register; lite defect → the list) with the files a fix would touch; (c) the mapping-heavy set named by FQN. Then the remaining W0.6 pushes (9, 4, 5, 5b, 10 judged by the tool; 6, 6b; 12). The scope, design choice,
+**Now (update in every push):** **resumed 2026-10-07 (D25) after the build program's CI landing. First W1.0b's numbers from the stress corpus and the eager probe (nothing new is built to measure), then W0.8 (the islands read from the same stream), then the D24 cleanup phase, one substitution engine first** (it is self-contained in `compiler/spec`; the variable ids touch 35 files and 30 of them are the store resolver's, so they go with the middle). D23's tool and damaged data are in (GATES "Rebuild D23 (1)", "(2)"; S22); attribution of the remaining seed disagreements and the next damage kinds continue beside the cleanup. The seed-data comparison is in (GATES "Rebuild D23 (1)": 22 row disagreements, 21 engine-only, 6 lite-only, dossier in `plan-audit-2026-09-26/wrongrows/`). Next: (a) `tools/wrongrows/damage.py`, the damaged data set from the seeds; both engines on it; (b) every disagreement, seed and damaged, attributed to a stage (H, I, J) and a side (engine defect → register; lite defect → the list) with the files a fix would touch; (c) the mapping-heavy set named by FQN. Then the remaining W0.6 pushes (9, 4, 5, 5b, 10 judged by the tool; 6, 6b; 12). The scope, design choice,
 tests and gate of every W0.6 push are in `plan-audit-2026-09-26/w0.6-homework/README.md` §"Push list" (homework and a
 dry run against the code done); **the order is §4 Phase 1's (D22, D23): the six small pushes now (2, 3, 7, 8, 11, 13);
 then the wrong-rows tool over the stress corpus (W1.10, as rewritten under D23); then the remaining pushes, each judged by
@@ -355,6 +355,7 @@ over onto `ResolvedExpr`. Read `h2-resolved-expr-design-2026-09-29.md` with its 
 | D23 | The wrong-rows tool is built on the stress corpus, with swappable data | **RULED 2026-09-29 (the user):** the stress corpus (`core/src/test/resources/stress`, 4,745 service tests, engine grammar, expectations from an independent Python oracle, run through legend-engine once on the `test-corpus` branch; lite passes 4,700 on DuckDB) is the base of the wrong-rows work and of the mapping-heavy set; no new corpus. **The good data is kept:** the seed `###Data` elements are never edited; damaged data is a separate, generated set (deterministic, regenerable), and the runner takes WHICH data set to use as an argument, since every suite reaches its data by name (`Reference #{ … }#`). Every test runs on both: the original seed, where the expected rows are known, and the damaged set, where legend-engine's rows are the judge and every disagreement is recorded, not copied (the engine is not perfect: on `stress::F38_FirstDayTypes` it prints a week's first day as a timestamp where the test and lite say a date). Order: the six small W0.6 pushes first (2, 3, 7, 8, 11, 13; about three sessions), then the tool, then the remaining pushes judged by the tool; whether the four resolver pushes are fixed in place or left pinned as acceptance tests of the rebuilt store resolver is decided WHEN the tool has run over the damaged data and shows how many rows each gets wrong |
 | D22 | W0.6's resolver pushes and the engine row oracle | **RULED 2026-09-29 (the user):** pushes 4 (prefix keys), 5 and 5b (the killed head match, both channels) and 10 (the equality-kind node) change temporal joins and equality in the store resolver, and their expected rows were derived by reading. They run after W1.10c and take legend-engine's rows on their fixtures as the expected values (an engine defect is registered, not copied, rule 0b.13). Every other W0.6 push runs first, in the homework README's order |
 | D21 | Float literals: the magnitude cliff | **OPEN; blocks only its W0.6 fix.** Under NUMERIC_CHARTER Rule 1 literals render bare and the database types them; `AnsiSqlRenderer.plainFloat` (`:1370-1378`) switches to exponent form outside 1e-6..1e15, which DuckDB types DOUBLE, so `i * 0.00000013 == 0.00000039` is false on DuckDB and true on H2 and in the interpreter (report 4 G, ran). Whether the engine's `%s` formatting has the same cliff is not verified. Recommendation: no cliff (a value's kind must not depend on its magnitude, charter C2.2): spell plainly with per-value DECIMAL precision; register the engine difference if the engine has the cliff |
+| D25 | Resume after the build program; the order after C1; the measurement base | **RULED 2026-10-07 (the user: "let's do the evidence way"; `docs/COMPILER_RIGHT_DESIGN_2026_10_07.md` rev 2, §4 to §6):** the program resumes at its Now line and keeps §4's order through C1. The order after C1 — the identity items (W2.1, W2.5, W2.6, W2.3a) before or after the middle's rebuild — is decided at C1 on the attributed defect list with a stated criterion (mostly local resolver fixes → identities first; mostly structural → §4 as written), with the measured names share (40% of a whole-world compile) in hand. The measurement base is the stress corpus (D23) and `//spec:eager_corpus_compile`; no new query set or benchmark target (the user: "use the stress corpus instead of making a whole new thing to measure"). The design's amendments are folded in: W0.8 (new), W1.0b, W2.1, W3.1, W3.3, C1 and the Phase 4 note. The bump's Phase 3 branch (`build/phase3`) is reference material for W2.3a and W3.2, not a landing |
 
 ---
 
@@ -400,6 +401,8 @@ then build by risk and value, with the front end rebuilt where and when it pays.
 identifiers in the §5 catalogue, not an order; this section is the order.
 
 **Phase 1 — Correctness and knowledge** (≈14–20 sessions). Ends at **C1**.
+0. (D25, 2026-10-07) W1.0b first, from the stress corpus and the eager probe; then W0.8, the islands; then the D24 cleanup
+   (one substitution engine); then:
 1. W0.6, the six small pushes: 1 (done), 2, 3, 7, 8, 11, 13 (D23; about three sessions).
 2. **The wrong-rows tool on the stress corpus** (W1.10 as rewritten under D23; about three to four sessions): (c) the
    runner prints the engine's rows on demand and takes the data set as an argument; (a) the damaged data set, generated
@@ -411,7 +414,8 @@ identifiers in the §5 catalogue, not an order; this section is the order.
 4. W1.0b baselines, including **net product lines** (rule 0b.17's number).
 5. W3.7, the D11 experiment (on the mapping-heavy set, judged by the engine rows from step 2).
 6. W0.7, request-reachable static state.
-**C1 — decide** (the user): D11 on W3.7's report; D9 and D19; D20 and D21 if still open; the cut list and the minimum expert
+**C1 — decide** (the user): the order after C1 per D25 (the identity items before or after the middle, on the attributed defect
+list and the names share); D11 on W3.7's report; D9 and D19; D20 and D21 if still open; the cut list and the minimum expert
 compiler (§1a); budgets from W1.0b; C3's thresholds from the defect list; the scope boundaries in §1d; every size re-fitted
 from logged cost; the next cold read.
 
@@ -433,7 +437,8 @@ W5.0 (the dialect fuzzer) → W5.1a → W5.1b → W5.1c → W5.2 (semantic SQL t
 typing) → W5.6 (the engine SQL format as a dialect). Every Phase 3 item ends net-negative on product lines (rule 0b.17).
 
 **Phase 4 — The front end made expert** (≈35–55). Ends at **C5**.
-W2.1 → W2.2 → W2.2b(1) → W2.3a pushes 1a…5 (re-plan if more than 15 sessions) → W2.2b(2) → W1.13 (the engine-input lane,
+W2.1 → W2.2 → W2.2b(1) → W2.3a pushes 1a…5 (re-plan if more than 15 sessions; the bump's `build/phase3` branch is reference
+material for W2.3a and W3.2, D25) → W2.2b(2) → W1.13 (the engine-input lane,
 before the rule changes) → W2.3b → W2.4 → W2.5 (`VarId`; then G½, H and I re-keyed from names to ids) → W2.6 → W2.7 → W2.9
 → W3.1 → W3.2a → W3.2b → W3.0f → W3.3a → W3.3 (lite's own solver, D15) → W2.8 → W3.5 → W3.6 → W1.2(b–d) → W1.4.
 
@@ -477,7 +482,7 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
   phase (`wasm/startup.mjs`); `bazel run //core:scale -- 100k` build time plus a heap-after-GC read added to
   `StressTest100K.java` (:209-212 prints parse+build only); reference-lane buckets read from the last
   `bazel-testlogs/spec/reference_lane/test.log` (never re-run for metrics: 8 GB); the fail-roster sizes. Gate: the output
-  pinned in GATES with its receipt. Budgets are set from it at C1. Size 1–2.
+  pinned in GATES with its receipt. **Amended 2026-10-07 (D25): the base is the stress corpus and the eager probe; nothing new is built to measure.** The stress tool gains per-phase timers and prints per-service compile latency p50/p95 and the phase shares (names of a whole-world compile from the eager probe; parse of the stress run); `wasm/corpus/queries.tsv` stays a reading of the DataCube shape, not a new target; the two profiles in `docs/build-inventory/program/evidence/compiler/` are the first receipt. Runs first in Phase 1 (§4, step 0). Budgets are set from it at C1. Size 1–2.
 - **W0.4 The corpus certifies product SQL**, per D6. Facts [L5 #4–#8, T3]: the installed pass is
   `sql/dialect/StableScanOrder` (the key is `sql/ScanOrder.java`: every join tree rooted at a bare scan), installed in
   `sql/dialect/DuckDb.java:218-219` when `Boolean.getBoolean("legend.exec.engineScanOrder")`, set unconditionally at
@@ -505,6 +510,14 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
   under the single-threaded dispatcher (`LegendHttpServer.java:314`, `setExecutor(null)`) with a test pinning
   single-threadedness. Gate: the computed list in GATES; ArchUnit `staticFieldsAreFinal` still green. Number:
   request-reachable mutable statics → 0. Size ~1.
+- **W0.8 Islands read from the same stream** (D25; the design rev 2's A1; measured in
+  `docs/build-inventory/program/evidence/compiler/STRESS_PROFILE_2026_10_07.md`): `MappingProtocolParser.readIsland` copies every
+  island (`#{ … }#`) into a new string padded with one newline per line above it and one space per column, lexes it again and
+  indexes it again: 14.4% of the stress run (14,948 islands in `94-fanout-services.pure`, about 2.2 billion characters of
+  padding). The island becomes a slice of the outer token stream with the island's bounds and the shared line index (as
+  `TokenStream.slice` does for sections); the fourteen call sites in the three island parsers keep their spans. Gate:
+  parser-parity (spans unchanged), the stress corpus's rows, the profile (parse of the stress run from 16% to about 2%).
+  Deletes the padding and the second lexing. Size ≤ 0.5.
 
 ### W1 — Gates and foundations (catalogue; order in §4, Phases 1, 2 and 4)
 
@@ -661,7 +674,10 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
 ### W2 — The resolved tree (catalogue; order in §4, Phase 4)
 
 - **W2.0 = the ResolvedExpr note (H2)**, ruled (D12). Read its revision and reading guide.
-- **W2.1 World tables, the index in three layers, and the `ids`, `catalog`, `types` targets** [W2 #9, L4]: a cached
+- **W2.1 World tables, the index in three layers, and the `ids`, `catalog`, `types` targets** [W2 #9, L4] (D25: the mapping
+  include closure, walked on every binding lookup today — `MappingDefinition.withIncludes`, 2.5% of the stress run — becomes a
+  world-table fact computed once; mapping lookups go by `Ref<Kind>` in W2.6 instead of `ModelBuilder.findMapping`'s FQN
+  string): a cached
   boot index (platform declarations generated at build time as a serialized resource, not 854 parses at class load,
   `builtin/Pure.java:148/318/738`, `Prelude.java:55`, `SystemMetamodel.java:1517`; a generated class would exceed the 64 KB
   static-initializer limit; whether the WASM planner can load the resource is checked first), a graph index built before
@@ -746,7 +762,10 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
   (`InferenceKernel.java:1050`), `eraseTdsRow`/`TDS_ROW`, `TypeAnnotations:152-163`, `CastChecker:33-39`, the
   `isSchemaErased` inlining gates; how the schema fact rides on 557 `new ExprType(` sites (all of core) [W3 #14]. Carrier:
   nominal `TabularDataSet`, schema as a side fact. Gate: the inventory in GATES with each reader's fate; a §2 ruling if
-  the carrier changes. Size ~1.
+  the carrier changes. (D25: the inventory includes the shape-check family — the "expects literal" refusals, about 15 residue
+  bodies, and the 26 `validate` bodies that reach the typer, `evidence/compiler/EAGER_RESIDUE_2026_10_07.md`; each becomes a
+  typed argument in W3.3 or a D8-fenced evaluation in W4.2; a refusal kept on purpose is a `SEMANTICS_REGISTER.md` row.)
+  Size ~1.
 - **W3.2a Matcher prerequisites** as sub-pushes [W3 #10]: C3 linearization (ours is BFS, `KnowledgeLayer.java:139`,
   `InferenceKernel.java:1836`); class type-parameter variance (the parser drops `-U`); lambda values carrying
   `LambdaFunction<{…}>`; schema-algebra formals as NON_CONCRETE; a PrecisionDecimal row. Gate per sub-push: a unit test
@@ -769,7 +788,8 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
   `docs/TYPER_RULES.md` (first binding wins, relation concatenation/widening, reverse inference, the failure semantics of
   each of the 30 `catch (` sites in `compiler/spec` — 18 catch `TypeInferenceException`; LUB with variance is W3.5's) and
   firing counts per selector and per catch site (no behaviour change); **3.3-2** the new solver (one inference context per
-  call carried across candidates, keyed by (context, name); a deterministic tie rule of lite's own, declaration order, with
+  call carried across candidates, keyed by (context, name) — amended 2026-10-07 (D25): keyed by fresh type variables with identity, one per instantiation,
+  never by name (W2.5 gives binders ids; this gives type variables the same); a deterministic tie rule of lite's own, declaration order, with
   hash-order ties pinned as "reference-nondeterministic"; the merge-mode drop of `TypeInferenceContext` ("TIC",
   :472-480, a bug by its own comment) and candidate leftovers not copied unless a probe shows an observable class on the
   corpus) runs beside the old one under `LL_SHADOW`; the pick/type/instantiation disagreement set, bucketed, is the work
