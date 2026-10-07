@@ -69,7 +69,8 @@ with the compiler's plan/execution split**, in this order:
    (a form by the names a call resolves to) with the 21 form-dispatch sites (`compiler/spec/` DeferredArgs,
    GraphFetchChecker, MatchChecker, Overloads, ProjectChecker, SortChecker, SourceSubst, TdsDesugars, Typer;
    `lineage/ScanRelations.java`, `normalizer/MappingNormalizer.java`), `builtin/TdsLegacy.java`,
-   `compiler/spec/GroupByChecker.java`, `builtin/SystemMetamodel.java`. core tests: `InferenceKernelTest`,
+   `compiler/spec/GroupByChecker.java`, `builtin/SystemMetamodel.java`, `builtin/NativeFn.java` (executeInDb's
+   ConnectionStore version joins its family). core tests: `InferenceKernelTest`,
    `PickByTableTest`, `DeclarationTableTest`, `IdentityGuardrailTest` (pins lowered, dated). spec:
    `ImplementationTableTest`, `SpecRatchets`, `DynaFnRegistryTest`, `SubsumedRegistryTest`, `ratchets.tsv`, the
    reference lane golden. Also **Studio's** `datacube/src/generated/offer-facts.ts` (regenerated: one more offered
