@@ -100,9 +100,10 @@ with the compiler's plan/execution split**, in this order:
    line's notes). **Resumed 2026-10-07 by session `neema-8f`**: see the fifth line's 2026-10-07 note.
 3. **The database owner** (the fourth line below; `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md`; since
    2026-10-05 also the execution plan boundary, `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`, which takes the rebuild's
-   W6.1 and W6.2): C3c
-   now (no shared files); **C1/C2, the plan/execution split, starts only after the Bazel program's batch 8 is on
-   `main`** (both touch `core/BUILD.bazel` and `tools/deps`), announced to the other lines first.
+   W6.1 and W6.2). Session `neema-32`, worktree `legend-lite-pgspike`. C3a–C3c, C1, C2a and C2b landed; the plan's
+   step 1 (the plan records, `//core:execution_plan`) landed 2026-10-05. **Next (announced 2026-10-07): phase 1,
+   steps 2–4 — the planner makes an execution plan, a runner in `exec` runs it, the server's execute paths switch to
+   it** (files in the fourth line's 2026-10-07 note).
 
 **Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
 B2/B3 and the W6.2 runner wait for it); DataCube + Python (two local commits in `legend-lite-dcsnap`: a GraalVM native
@@ -305,6 +306,29 @@ below), not done here.
   `StatementExecutor` and `Compiler`), a new `//core:planner` library (the compile-once API replacing `Compiler`'s
   plan statics), a `com.legend.Execution` front door, and every `Compiler.*` caller switched (core, server, wasm, pct,
   spec, datacube tools); `core/BUILD.bazel`, `tools/deps`, `ArchitectureTest`, AGENTS.md's entry-point table.
+- **2026-10-07, announced before the first edit: the execution plan, phase 1 steps 2–4**
+  (`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §9; the user's question: can lite run legend-engine's plans). What it
+  does: the planner produces ONE plan (SQL rendered at plan time with typed bind slots, each statement's connection,
+  its setup statements and in-memory identity); a new runner in `exec` validates the caller's parameter values against
+  the plan, binds, runs and streams — with no compiled model. Then the server's execute paths run plans, and what they
+  replace is deleted. Each step lands alone with the full chain; no behaviour change (the same answers on DuckDB, H2
+  and Postgres, checked by a differential test until step 4). Files:
+  - step 2: `TypedQuery.java` and the planner (a new `executionPlan`), `lowering/PlanParams`, `lowering/WireRender`,
+    `sql/dialect/AnsiSqlRenderer` and its subclasses (`SqlExpr.PlanParam` rendered as a bind placeholder),
+    `StatementExecutor` (its plan-text parameter builder moves to the one shared function), `exec/CsvSeed`
+    (setup rendered at plan time), `server/ConnectionResolver` (the in-memory identity computed planner-side),
+    `executionplan/*`; `core/BUILD.bazel` (`:planner` depends on `:execution_plan`) and `tools/deps/core-layers.txt`
+    — Bazel edits shown to the Bazel program session before landing;
+  - step 3: `exec/PlanRunner` (new), `exec/Sessions` (`Source` no longer takes the model), a shrink-only guard on what
+    `exec` reads from planning libraries (`ArchitectureTest`);
+  - step 4: `server/PureV1Api` (`pure/v1/execution/execute` only: plan once, run with `parameterValues`;
+    `boundParameters` deleted), `Execution` (`wireOn`/`streamOn` deleted), `server/QueryService`,
+    `server/ConnectionResolver`, and their tests (`PureV1ApiTest`, `PureV1HttpTest`, the server and streaming tests).
+  **Overlaps:** `PureV1Api.java` with the protocol program (its `grammar/*` routes; different methods — whoever
+  lands second merges); `TypedQuery`/`Compiler` with the compiler design (`docs/COMPILER_RIGHT_DESIGN_2026_10_07.md`,
+  no code yet — this work adds a method beside `plan`, it does not change typing or naming) and with the rebuild's
+  Phase 3 reference branch (`Compiler.withoutPreludeShadows`, not touched here). Not touched: `generatePlan` (its
+  legend-engine shape waits for the compatibility mode, phase 4), judging and tests (Studio's A4 stays parked).
 
 **Handed to the rebuild (not touched here):** the effect scan's swallowed compile errors (`StatementExecutor
 .containsEffect`; D10's demand-driven rule), the `ExecutionContext` reader's `"H2"` defaults (`ContextReading`), the
