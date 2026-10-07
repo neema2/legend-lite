@@ -104,10 +104,12 @@ with the compiler's plan/execution split**, in this order:
    step 1 (the plan records, `//core:execution_plan`) landed 2026-10-05. **Next (announced 2026-10-07): phase 1,
    steps 2–4 — the planner makes an execution plan, a runner in `exec` runs it, the server's execute paths switch to
    it** (files in the fourth line's 2026-10-07 note).
+4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
+   `datacube-chart-spec`. `native/` and `python/` (new); first landing: the compiler as a native library with Python
+   bindings, and a small typing fix in `core/compiler`; then DataCube on Python dataframes.
 
 **Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
-B2/B3 and the W6.2 runner wait for it); DataCube + Python (two local commits in `legend-lite-dcsnap`: a GraalVM native
-library with Python bindings and a `Typer` fix, which meets the Bazel program's overload fix on rebase); the server
+B2/B3 and the W6.2 runner wait for it); the server
 program (`docs/SERVER_PROGRAM_2026_09_26.md`); NLQ (the untracked `nlq/` directory is not ours; leave it).
 
 **Shared machine:** at most two heavy Bazel/JVM jobs at once; before a full `bazel test //...`, check that another
@@ -434,6 +436,49 @@ fast-forward), after the user decides the order. **Overlap to watch:** the compi
 (`docs/COMPILER_RIGHT_DESIGN_2026_10_07.md`, names resolved once) changes how call nodes (`protocol.spec`
 `AppliedFunction`) are built, and the protocol program changes the same records (nullable spans, the `list` factory);
 whichever lands second merges, and the two should agree before either starts on those files.
+
+## A sixth line, 2026-10-07: DataCube + Python (the user's ask, rule 5)
+
+Worktree `legend-lite-dcsnap`, branch `datacube-chart-spec`, rebased on `main` (`9bc6e62ab`) on 2026-10-07. The goal:
+DataCube on a Python dataframe, from a script and in a notebook, with Python running the SAME compiler the browser runs
+as WebAssembly (one compiler source, so Python and DataCube share models and answers). **Owns** two new packages:
+`native/` and `python/`.
+
+**Landing first: two commits, announced here before they land.**
+1. **The compiler as a native library, with Python bindings (L1).** `//native:compiler`: `//wasm:boundary`
+   (`planner.Wasm` over `//core`) built by GraalVM native-image as a SHARED library, with the warehouse image's C
+   toolchain (the host's checked, zlib from source, lld on Linux); Linux and macOS for now. `python/legend_lite`:
+   bindings on the standard library alone (ctypes). `//python:bindings_test`, a `py_test` on the repository's Python
+   3.12: the bindings' suite and the planner differential corpus, 69 of 69 answers identical to the JVM's. Cross-area:
+   `MODULE.bazel` and a new `maven_native_install.json` (a compile-only pool, `@maven_native`: GraalVM's `nativeimage`
+   and `word` API 25.0.2, in `@maven_teavm`'s shape), `tools/deps/pools.bzl` (its one user, `//native`),
+   `gates/BUILD.bazel` (`//python:bindings_test` in the `warehouse` lane, which builds native images already),
+   `wasm/BUILD.bazel` (visibility only). Nothing in `core/`. **The Bazel edits are shown to the Bazel program session
+   before landing.**
+2. **A typing fix in `core/compiler`.** An erased `TDSRow` (`PlatformTypes.eraseTdsRow`) becomes its own late-bound
+   marker, `Type.RelationType.erasedRow(owner)`, apart from the raw-SQL grid's wildcard, and is read only through its
+   accessors (`$r.getString('x')`, as on real pure's `TDSRow`). So `#>{db.T}#->filter(x|$x.nope == 1)` is refused at
+   typing, as legend-engine refuses it; it typed before, through the overload rollback to `meta::pure::tds::filter`.
+   Files: `core/.../element/type/Type.java`, `PlatformTypes.java` (one line), `compiler/spec/Typer.java`
+   (`relationColumn`, `rowCellReadOnRow`), a new test `TdsRowReceiverTest`, and parser equivalence's
+   `own_corpus.matched` (+1: the test's database). On 2026-10-02 the whole chain moved nothing: no corpus roster, no PCT
+   suite. **Overlap:** the build rebuild's Phase 3 (`build/phase3`) edits `Typer` and `PlatformTypes` too; merged with
+   both commits it is clean (`git merge-tree`, 2026-10-07). Phase 3 comes first by the order above; whichever lands
+   second rebases. The compiler design (`docs/COMPILER_RIGHT_DESIGN_2026_10_07.md`) is still for the user's
+   decision; this fix keeps the typer's current shape. Who reviews it is the user's call.
+
+**Then, in this order** (each on the branch, each announced here with its files before it lands):
+- **Frames in duckdb-python** (`python/` only): a pandas, polars or Arrow frame registered as Arrow, Live (each query
+  reads the frame as it is now) or Snapped (a frozen copy); the SQL the compiler plans run by duckdb-python; results as
+  Arrow. pyarrow and duckdb join `tools/python/requirements.in`, locked by `bazel run
+  //tools/python:requirements.update`.
+- **`datacube.show(df)` from a script**: Python serves DataCube's built site on loopback (with a one-time token) and
+  answers two calls: the planner calls the WebAssembly module answers today, answered by the native library, and SQL
+  in, Arrow out. **Touches `datacube/`**, which the Studio line owns for imports, labels and the Snap move: a host page
+  that starts without DuckDB-WASM, its planner pointed at that transport, a small engine adapter. Agreed with the
+  Studio line (session `neema-8f`) before the first edit.
+- **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
+- Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
 ## Rules between sessions
 
