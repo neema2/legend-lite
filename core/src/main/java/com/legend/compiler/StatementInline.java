@@ -217,9 +217,9 @@ public final class StatementInline {
                 }
                 // and only a declaration the implementation table runs by its BODY
                 // is inlined as the user's — not one it runs by its rule or form
-                // (validate: a raw-space desugar), nor a version of a function the
-                // platform implements that it refuses (no row); asked by the
-                // definition's id
+                // (validate: a raw-space desugar), nor one it walls or subsumes;
+                // asked by the definition's id (a version with no row sits at a
+                // catalog name, which the check above already leaves to the typer)
                 FunctionDefinition d = null;
                 for (FunctionDefinition fd : ctx.findFunctionDefinitions(fqn)) {
                     if (fd.parameters().size() != af.parameters().size()) {

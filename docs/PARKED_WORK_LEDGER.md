@@ -178,9 +178,243 @@ moves at least one of those.
 
 ---
 
-## PARK-15 — The legacy plan picks an enumeration mapping without the place it is used
+# The build rebuild's debts (parked 2026-10-07)
 
-(Numbered 15: the build rebuild's Phase 3 branch holds PARK-5 to PARK-14.)
+**Parked** 2026-10-07 by the user: "we need a ledger of hacks that we need to come back and fix ... a detailed list
+of all of these to fix correctly after we land the bump and ... stick to actually fixing them correctly instead of
+hacks on hacks". Each row below is fixed after the build rebuild lands (`docs/REBUILD_PROGRAM_2026_10_06.md`, plan
+branch), correctly, with its own design agreed first, unless the row names the phase of the program that closes it;
+none is worked around in the meantime. Sources: the Phase 3 audit (2026-10-07) and the Phase 3b census. A row is
+closed only by deleting it here and its anchors in `ParkedWorkLedgerTest`, in the commit that does the fix; where a
+row allows keeping a behavior, keeping it means a `docs/SEMANTICS_REGISTER.md` row replaces this one.
+
+---
+
+## PARK-5 — A call to a platform function is never resolved once (the typing slowdown)
+
+**What we do today.** The resolver records which of the program's own functions a call can mean; a call to a
+platform function stays bare (the resolver adds the platform's only when it also found one of the program's). Every
+later check that asks what a bare call can be works it out again from the spelling (`ResolvedNames.referents` →
+`BareNames.catalog`: the name tried under each of the 32 core-import packages), about five times per call. The ~200
+calls the typer and the mapping normalizer build after the resolver are bare too.
+
+**Why parked.** The correct fix changes the resolver and about 200 places that build calls; the user put it on this
+list on 2026-10-07. Whether Phase 3 lands before it is fixed is the user's open decision.
+
+**Cost while parked.** Measured on the eager corpus compile (same machine, runs alternated): this one lookup is 19% of
+typing time on main and 29% after Phase 3, whose forms are read by the names a call resolves to (21 checks): typing
+2,147 → 2,533 ms (+18%); whole corpus passes 0–4% slower. The browser editor runs the typer and was not measured.
+
+**Acceptance (what closes this row).** Each call's names worked out once and recorded on the call: by the resolver for
+parsed calls; calls built after the resolver built resolved; every check reads the record. Typing time on the eager
+compile at or below main's; the six corpus passes, PCT and the reference lane unchanged.
+
+**Anchor.** `BareNames.catalog(` is called from exactly one product file, `ResolvedNames.java` (`referents`).
+Recording the names on the call removes that call.
+
+**Research.** `docs/build-inventory/program/DEBTS_RESOLVE_AND_TYPE_ONCE.md` (plan branch): the profile with every
+calling site, the cause, the options weighed and the ones rejected.
+
+---
+
+## PARK-6 — Arguments typed more than once
+
+**What we do today.** The typer often looks at an argument's type to choose a route, then rewrites the call and types
+the rewritten call from scratch, typing that argument again: a dot call's receiver (`Typer`'s qualified-property
+branch, then the route it takes), the generic path's auto-map probe (`CallShapes.autoMapReceiver`, before the
+arguments are typed), the derived-property shadow, the `map` rewrite, the legacy-TDS desugars, the receiver-owned
+function check, and functions that must be inlined (an argument typed once per use in the inlined body).
+
+**What legend-pure does.** It types each argument once and matches the function on the typed arguments.
+
+**Why parked.** The correct fix is legend-pure's typing order, a rework of the typer's call path; today it changes
+no result.
+
+**Cost while parked.** Time only: the typer records nothing per typing (checked 2026-10-07), so a second typing
+changes no result. In a chain of such calls the work doubles at each level.
+
+**Acceptance.** Arguments typed first, once; the route chosen on the typed arguments; the checkers take typed
+arguments. Same results on every lane; typing time measured against main.
+
+**Anchors** (one per place; the `map` rewrites sit inside the first two): a receiver typed only to choose a route
+(`recv = synth(af.parameters().get(0), env)`, and `grecv` in the TDS receiver checks) in exactly `Typer.java`,
+`CallShapes.java` and `TdsDesugars.java`; the property's body call re-applied after typing
+(`applyGeneric(new AppliedFunction(d.bodyFunctionFqn(), qargs), env)`) in exactly `Overloads.java` and `Typer.java`;
+the receiver-owned check's receiver typing (`Type rt = t.synth(recv, env)`) in exactly `ReceiverOwnedFunctions.java`;
+the must-inline substitution of untyped arguments (`subst.put(chosen.parameters().get(i).name(),
+af.parameters().get(i))`) in exactly `Overloads.java`.
+
+**Research.** `docs/build-inventory/program/DEBTS_RESOLVE_AND_TYPE_ONCE.md` (plan branch): the seven places, the facts
+that bound the fix, legend-pure's order.
+
+---
+
+## PARK-7 — `Any` ranked with the type parameters (our typing order is not legend-pure's)
+
+**What we do today.** The overload ranking puts an `Any` parameter, and a value typed `Any`, with the type parameters,
+and applies legend-pure's literal order (`Any` a concrete class) only to break a tie that is left, in
+`resolveOverload` only (`anyConcrete`).
+
+**Why.** legend-pure matches the calls inside a lambda before their arguments are typed; this compiler types them
+first. On the finished types legend-pure's literal rule picks `collection::in` where legend-pure itself picks
+`relation::in` (12 reference-lane calls). The adjustment imitates legend-pure's order instead of having it.
+
+**Why parked.** It goes with PARK-6's typing-order rework; until then the adjustment keeps the reference lane's calls
+right.
+
+**Cost while parked.** A wrong-version pick where the two orders differ and the adjustment does not cover it. Not
+checked against legend-pure's types (Phase 3's recorded soft spot).
+
+**Acceptance.** legend-pure's typing order (with PARK-6's rework); `Any` ranked as the concrete class m3 makes it, and
+the flag gone; the reference lane's OVERLOAD count not up.
+
+**Anchor.** `anyConcrete` appears in exactly one product file, `InferenceKernel.java`.
+
+---
+
+## PARK-8 — Tie-breaks legend-pure does not have
+
+**What we do today.** After the ranking, `resolveOverload` keeps four older tie-breaks: a duplicate signature (the
+first wins), a built-in over a program's function (`nativeWinners`), the most specific signature, and `Nil`
+narrowing. The lenient pass (lambda arguments not typed yet) leaves a tie to declaration order. legend-pure reports a
+tie as "too many matches".
+
+**Why parked.** Each tie-break needs legend-pure run on the calls that reach it; no lane result depends on them today.
+
+**Cost while parked.** A call legend-pure refuses as ambiguous may compile here, picked by an order a user cannot see.
+
+**Acceptance.** Each tie-break checked against legend-pure on the calls that reach it (legend-pure run on them, as the
+Phase 3 probe did); those legend-pure does not have removed, the rest recorded in `SEMANTICS_REGISTER.md`. Either way
+this row and its anchor are deleted (the section's closing rule).
+
+**Anchor.** `nativeWinners` appears in exactly one product file, `InferenceKernel.java`.
+
+---
+
+## PARK-9 — The acceptance test admits what legend-pure rejects (the platform-rule rank)
+
+**What we do today.** Some argument and parameter pairs pass this compiler's acceptance test that legend-pure
+rejects: a relation into `TabularDataSet`; a bare function type against a `Function<…>` parameter, or a function value
+against a bare function-type parameter; a property value where a `FunctionDefinition` is expected; a lambda whose
+parameter is narrower than the declared one. The ranking gives each the one fixed rank `PLATFORM_RULE_DISTANCE`
+(after every real parent class, before a type parameter).
+
+**Why parked.** Matching legend-pure's acceptance changes which programs compile (the TDS erasure among them): a
+design of its own.
+
+**Cost while parked.** Programs legend-pure rejects compile here, and their ranking is ours, not legend-pure's. One
+known consequence (the fixes' audit, 2026-10-07): for a value typed as a bare function type, which legend-pure matches
+to no carrier parameter, a carrier parameter ranks at the platform-rule distance, so it beats a type parameter and a
+bare function-type parameter whose type is not identical, where legend-pure would pick one of those.
+
+**Acceptance.** The acceptance test matches legend-pure's (its `GenericTypeMatch` with legend-pure's parameter
+behaviors), the TDS erasure decided on its own; `PLATFORM_RULE_DISTANCE` deleted.
+
+**Anchor.** `PLATFORM_RULE_DISTANCE` appears in exactly one product file, `InferenceKernel.java`.
+
+---
+
+## PARK-10 — Parts of legend-pure's ranking not ported
+
+**What we do today.** Three parts of legend-pure's match are simplified (`FunctionMatch`'s javadoc lists them): a
+relation-type parameter ranks without comparing columns (legend-pure's `RelationTypeMatch` compares column types and
+multiplicities); a type-operation parameter (`T+V`) ranks as untyped (legend-pure: non-concrete); type arguments are
+compared by position when their counts agree (legend-pure first maps them through the class hierarchy).
+
+**Why parked.** No lane result depends on these parts; each needs a port with tests against legend-pure.
+
+**Cost while parked.** A different pick where two candidates differ only there; none seen on the lanes.
+
+**Acceptance.** All three ported, each with a kernel test against legend-pure's answer.
+
+**Anchors** (one per part, all in exactly one product file, `InferenceKernel.java`): `Type.SchemaAlgebra ignored ->
+FunctionMatch.TypeFit.NULL` (type operations); `Type.RelationType ignored ->
+FunctionMatch.TypeFit.of(FunctionMatch.Kind.RELATION)` (relation columns); `if (actualArgs.size() ==
+fg.arguments().size())` (type arguments by position).
+
+---
+
+## PARK-11 — Legacy TDS functions and `agg` recognized by name, not by implementation rows (closes in Phase 4)
+
+**What we do today.** Phase 3's plan gave `TdsLegacy`'s functions (18) rows by function id and had `groupBy`'s `agg`
+recognized by resolved id. Built instead: recognition by the names a call resolves to, falling back to the spelling
+when nothing resolves (`TdsLegacy.matches`, `GroupByChecker.isAgg`); the spelling rule is older (2026-09-11).
+
+**Why it waits for Phase 4.** A row is keyed by a function id, and an id needs a declaration. The platform's own world
+declares none of these functions (neither the catalog nor the prelude): in a user program `restrict(...)` resolves to
+nothing, so only its spelling is left. Adding them to the catalog would grow what Phase 5 deletes. Phase 4's default
+world, generated from upstream, declares the 14 that are upstream query handlers. Of the other 4 (checked
+2026-10-07): `columnByName` is a qualified property of `TabularDataSet` (upstream `tds.pure:21`), not a function, so it
+comes with the class; `columnValues`, `renameColumn` and `window` are upstream functions no handler registers and only
+upstream's own tests call, which legend-engine does not let a user query call; whether they stay out of the default
+world is the user's decision (the plan's Phase 4).
+
+**Cost while parked.** These functions dispatch by name.
+
+**Acceptance.** The default world declares the 14 query handlers, each id with an implementation-table row (the
+platform's desugar); `columnByName` read as the class member; the other three as the user decides; recognition reads
+the row; the spelling fallback and `isAgg`'s name test deleted (the plan's Phase 4).
+
+**Anchor.** The spelling fallback `candidateFqns().isEmpty() ? name.equals(bare())` appears in exactly one product
+file, `TdsLegacy.java`.
+
+---
+
+## PARK-12 — The boot layer's versions of upstream functions (closes in Phase 3b, item 1)
+
+**What we do today.** The system metamodel defines its own versions of 29 upstream names; `SystemMetamodel.shadows`
+hides a loaded function with the same function id. About 12 upstream versions (14 by a text count in the Phase 3b brief, to verify by function id) at those names (`resolvePrimaryKey`,
+`propertyMappingsByPropertyName`, `inferRelationalType`, …) still run upstream's body. Five upstream files drop as "defined more than once" because they
+duplicate the boot layer's versions: `platform_dsl_mapping`'s `functions_EnumerationMapping.pure`, `functions_Mapping.pure`
+and `functions_PropertyMappingsImplementation.pure`, `platform_store_relational`'s `functions.pure`, and the engine's
+`core_relational/relational/lineage/scanRelations/scanRelations.pure` (two more drop for F-L1, a view lifted twice,
+which the same Phase 3b item fixes). The rule before Phase 3 also hid same-parameter versions with another multiplicity
+or return type, which the by-id rule keeps; which of them that affects was not checked.
+
+**Why parked.** Phase 3b item 1 does it, with the twins' merge by function id.
+
+**Cost while parked.** Upstream bodies run for functions the platform defines its own way; 5 files do not load.
+
+**Acceptance.** The boot layer's versions win by implementation rows ("the platform's version", the plan's decision
+1), not by hiding: `SystemMetamodel.shadows` deleted; each of those versions decided (a row or a refusal); the 5 files
+loading (Phase 3b item 1).
+
+**Anchor.** `boolean shadows(` appears in exactly one product file, `SystemMetamodel.java`.
+
+---
+
+## PARK-13 — A debug trace switched by an environment variable in product code
+
+**What we do today.** `Overloads.rawSchemaErasedExpansion` prints to standard error when
+`LEGEND_LITE_RAW_EXPAND_TRACE` is set (older than this program; `ObservabilityGuardrailTest` keeps such flags from
+growing).
+
+**Why parked.** Older than this program; found while reading the code for Phase 3.
+
+**Cost while parked.** Debug code in the product: when the variable is set, a raw print to standard error on a typing
+path; off by default.
+
+**Acceptance.** Removed, or replaced by the platform's existing diagnostics.
+
+**Anchor.** `LEGEND_LITE_RAW_EXPAND_TRACE` appears in exactly one product file, `Overloads.java`.
+
+---
+
+## PARK-14 — A dot call with no qualified property falls back to a function
+
+**What we do today.** A dot call with arguments tries the receiver's qualified property first (legend-pure's rule)
+and, when there is none, calls a function of that name. legend-pure refuses the call.
+
+**Why parked.** Refusing the call changes which programs compile; the user decides between legend-pure's rule and a
+recorded leniency.
+
+**Cost while parked.** Programs legend-pure rejects compile here.
+
+**Acceptance.** Decided: refused as legend-pure does, or kept and recorded in `SEMANTICS_REGISTER.md` with its reason.
+Either way this row and its anchor are deleted (the section's closing rule).
+
+**Anchor.** `af.propertyCall() || functionCandidates(af)` appears in exactly one product file, `Typer.java`.
+## PARK-15 — The legacy plan picks an enumeration mapping without the place it is used
 
 **Parked** 2026-10-08 by the user's step 2 decisions (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9), found while
 reading the legacy plan's parameter code for the one parameter list; widened by that landing's audit.

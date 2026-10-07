@@ -31,7 +31,7 @@ import java.util.Set;
  * to every declaration there. A declaration no registration names takes the
  * default of its kind — {@code Unimplemented} when it is a native; when it has a
  * body, {@code Body}, unless the catalog declares a function at its FQN: then it is
- * a version of a function the platform implements, with no row of its own, and is
+ * a version of a function the platform declares, with no row of its own, and is
  * {@link Implementation.Reason#NO_ROW refused} — upstream's body is the spec, never
  * the platform's implementation. This table is the one authority (build rebuild
  * Phase 3): the compiler's by-name suppressions (the PCT rule, the platform-owned
@@ -159,7 +159,7 @@ public final class ImplementationTable {
         }
 
         // the FQNs the catalog declares a function at: a bodied declaration there that no registration
-        // names is a version of a function the platform implements
+        // names is a version of a function the platform declares
         Set<String> catalogFqns = new java.util.HashSet<>();
         for (NativeFunctionDefinition n : registrations.catalog()) {
             catalogFqns.add(n.qualifiedName());
@@ -190,7 +190,7 @@ public final class ImplementationTable {
             } else if (declarations.get(id) instanceof FunctionDefinition fd) {
                 row = catalogFqns.contains(fd.qualifiedName())
                         ? new Implementation.Refused(Implementation.Reason.NO_ROW,
-                                "the version " + id.qualified() + " of a function the platform implements has no row"
+                                "the version " + id.qualified() + " of a function the platform declares has no row"
                                         + " of its own (upstream's body is the spec, not this platform's implementation)")
                         : new Implementation.Body();
             } else {

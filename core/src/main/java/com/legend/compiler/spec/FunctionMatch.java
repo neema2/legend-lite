@@ -20,6 +20,25 @@ import java.util.function.Function;
  * matches left to right; the first difference decides ({@code FunctionMatch.compareTo}). Nothing is
  * added up. Whether a candidate accepts the arguments at all is the kernel's acceptance test,
  * unchanged; this class only orders the candidates that accept.
+ *
+ * <p>Known departures from m3 (each documented in {@code InferenceKernel} where it is made):
+ * <ul>
+ *   <li>{@code Any} ranks with the type parameters in the primary ranking (legend-pure matches the
+ *       calls inside a lambda before their arguments are typed); m3's literal order, {@code Any} a
+ *       concrete class, settles a tie that leaves, in {@code resolveOverload} only — the lenient
+ *       pass ({@code rankNonLambda}) leaves a tie to declaration order.</li>
+ *   <li>A fit only this platform's acceptance admits ranks at one platform-rule distance, after
+ *       every class generalization and before a type parameter: a relation into
+ *       {@code TabularDataSet}; a bare function type against a carrier formal, or a carrier value
+ *       against a bare function-type formal (m3 matches a function type only to a function type
+ *       and to {@code Any}); a carrier the value's class does not extend; a value's function
+ *       parameter narrower than the formal's.</li>
+ *   <li>A relation-type formal ranks as a relation match without comparing its columns (m3's
+ *       {@code RelationTypeMatch} compares their types and multiplicities); a type-operation formal
+ *       ({@code T+V}) ranks as an untyped match (m3: non-concrete).</li>
+ *   <li>Type arguments are compared position by position when the counts agree; m3 first maps the
+ *       value's arguments to the formal's class through the hierarchy.</li>
+ * </ul>
  */
 final class FunctionMatch implements Comparable<FunctionMatch> {
 
@@ -171,7 +190,8 @@ final class FunctionMatch implements Comparable<FunctionMatch> {
      * The C3 linearization of a type's generalizations (m3 {@code C3Linearization}), the type itself
      * first and {@code Any} last; memoized. A class with no declared generalization generalizes
      * {@code Any}, as m3's post-processing makes it. A cyclic or inconsistent hierarchy (which m3
-     * refuses to compile) falls back to breadth-first order, so a ranking never throws.
+     * refuses to compile) falls back to breadth-first order; a class that fails to compile makes the
+     * ranking throw (nothing here catches it).
      */
     static final class Linearizer {
 

@@ -1319,6 +1319,15 @@ public final class InferenceKernel {
                 && ((formal instanceof Type.GenericType fg && FUNCTION_CARRIER_FQNS.contains(fg.rawFqn()))
                     || PlatformTypes.isAny(formal));
         Type na = formalKeepsCarrier ? actual : unwrapFunctionValue(actual, nf);
+        if (nf instanceof Type.FunctionType ff && na instanceof Type.FunctionType fa
+                && (nf != formal || na != actual)) {
+            // a function value against a function formal, a carrier on either side: m3 matches the
+            // carrier classes, and the function types only as the carrier's type argument — a
+            // simple match, ahead of a type parameter and of Any (Function<{->T[m]}> over T for
+            // from(FunctionDefinition<{->Integer[*]}>, Runtime))
+            return formal.equals(actual) ? FunctionMatch.TypeFit.EXACT
+                    : carrierFit(formal, actual).withArguments(List.of(typeFit(ff, fa, anyConcrete)), List.of());
+        }
         if (nf != formal || na != actual) {
             return typeFit(nf, na, anyConcrete);
         }
@@ -1356,6 +1365,23 @@ public final class InferenceKernel {
      *  (tds::filter(TabularDataSet) must not out-rank relation::filter(Relation<T>) for a relation accessor). */
     private static final int PLATFORM_RULE_DISTANCE = Integer.MAX_VALUE / 2;
 
+    /**
+     * The carrier classes' match of a function value against a function formal: the formal's carrier
+     * by its distance in the value's C3 linearization (a lambda's LambdaFunction is 1 from
+     * FunctionDefinition, 2 from Function). A fit m3 does not make ranks as a platform rule's: a bare
+     * function type on either side (m3 matches a function type only to itself and to Any), or a
+     * carrier the value's class does not extend (a property into FunctionDefinition).
+     */
+    private FunctionMatch.TypeFit carrierFit(Type formal, Type actual) {
+        String formalCarrier = formal instanceof Type.GenericType g ? g.rawFqn() : null;
+        String valueClass = nominalFqn(actual);
+        if (formalCarrier == null || valueClass == null) {
+            return FunctionMatch.TypeFit.simple(PLATFORM_RULE_DISTANCE);
+        }
+        int d = linearizer().distance(valueClass, formalCarrier);
+        return FunctionMatch.TypeFit.simple(d < 0 ? PLATFORM_RULE_DISTANCE : d);
+    }
+
     /** A nominal formal (a primitive, class, enumeration or generic class) against an accepted value. */
     private FunctionMatch.TypeFit nominalTypeFit(Type formal, Type actual, boolean anyConcrete) {
         if (PlatformTypes.isAny(formal) && !anyConcrete) {
@@ -1377,20 +1403,7 @@ public final class InferenceKernel {
             // m3 makes a function type a direct subtype of Any; any other fit here is a platform rule's
             return FunctionMatch.TypeFit.simple(PlatformTypes.isAny(formal) ? 1 : PLATFORM_RULE_DISTANCE);
         }
-        int distance;
-        if (formalRaw.equals(actualRaw) && !(actual instanceof Type.PrecisionDecimal && !(formal instanceof Type.PrecisionDecimal))) {
-            distance = 0;
-        } else if (actual instanceof Type.PrecisionDecimal) {
-            // a precise decimal generalizes Decimal (m3: an extended primitive type)
-            int d = linearizer().distance(Type.Primitive.DECIMAL.qualifiedName(), formalRaw);
-            distance = d < 0 ? -1 : d + 1;
-        } else if (actual instanceof Type.EnumType) {
-            // an enumeration generalizes Enum (m3)
-            int d = formalRaw.equals(PlatformTypes.ENUM) ? 0 : linearizer().distance(PlatformTypes.ENUM, formalRaw);
-            distance = d < 0 ? -1 : d + 1;
-        } else {
-            distance = linearizer().distance(actualRaw, formalRaw);
-        }
+        int distance = generalizationDistance(actual, actualRaw, formal, formalRaw);
         if (distance < 0) {
             return FunctionMatch.TypeFit.simple(PLATFORM_RULE_DISTANCE);
         }
@@ -1451,8 +1464,30 @@ public final class InferenceKernel {
         if (f == null || a == null) {
             return FunctionMatch.TypeFit.NULL;
         }
-        int d = linearizer().distance(f, a);
-        return FunctionMatch.TypeFit.simple(d < 0 ? 1 : d);
+        // the formal's parameter type must generalize to the value's (the covariant measure, roles swapped)
+        int d = generalizationDistance(formal, f, actual, a);
+        // a value's parameter narrower than the formal's: m3 rejects it, only the acceptance test admits it
+        return FunctionMatch.TypeFit.simple(d < 0 ? PLATFORM_RULE_DISTANCE : d);
+    }
+
+    /** The position of {@code general} in {@code specific}'s C3 linearization (m3's simple-match distance), -1 when
+     *  it is not there: a precise decimal generalizes Decimal and an enumeration Enum, as m3 makes them. */
+    private int generalizationDistance(Type specific, String specificRaw, Type general, String generalRaw) {
+        if (specificRaw.equals(generalRaw)
+                && !(specific instanceof Type.PrecisionDecimal && !(general instanceof Type.PrecisionDecimal))) {
+            return 0;
+        }
+        if (specific instanceof Type.PrecisionDecimal) {
+            // a precise decimal generalizes Decimal (m3: an extended primitive type)
+            int d = linearizer().distance(Type.Primitive.DECIMAL.qualifiedName(), generalRaw);
+            return d < 0 ? -1 : d + 1;
+        }
+        if (specific instanceof Type.EnumType) {
+            // an enumeration generalizes Enum (m3)
+            int d = generalRaw.equals(PlatformTypes.ENUM) ? 0 : linearizer().distance(PlatformTypes.ENUM, generalRaw);
+            return d < 0 ? -1 : d + 1;
+        }
+        return linearizer().distance(specificRaw, generalRaw);
     }
 
     /**

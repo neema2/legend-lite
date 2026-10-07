@@ -527,9 +527,6 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
 
 - **W1.0 This page executable** — done (rev H2, the cold read and its fixes, rev H3). Repeat the cold read at every
   checkpoint.
-- **Taken over (2026-10-06):** W1.1b and the typing work it measures belong to the build rebuild program's Phase 3b
-  (`docs/REBUILD_PROGRAM_2026_10_06.md` on the plan branch): every call the same function and type as legend-pure,
-  every body legend-pure types typed.
 - **W1.1b Type rows and recorded instantiations** [W0-W1 #2, L1 #2, L5 #11, T3]: the reference side prints
   `_genericType`, `_multiplicity`, `_resolvedTypeParameters` and `_resolvedMultiplicityParameters` per call (all on the
   pinned `legend-pure-m3-core-5.99.0.jar`'s `FunctionExpressionAccessor`; printing via

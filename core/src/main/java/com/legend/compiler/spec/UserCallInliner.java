@@ -327,8 +327,10 @@ public final class UserCallInliner {
         if (row instanceof com.legend.platform.Implementation.Refused refused
                 && refused.reason() != com.legend.platform.Implementation.Reason.MOOT) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "WALLED-BODY");
-            throw new com.legend.error.WalledBodyException("walled body '" + call.callee().qualifiedName()
-                    + "': " + refused.why());
+            // a version without a row is not a wall: say which it is
+            throw new com.legend.error.WalledBodyException(
+                    (refused.reason() == com.legend.platform.Implementation.Reason.NO_ROW ? "no row for '" : "walled body '")
+                    + call.callee().qualifiedName() + "': " + refused.why());
         }
         if (budget.exceeded()) {
             List<String> path = new ArrayList<>(names);

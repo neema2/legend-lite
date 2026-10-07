@@ -89,7 +89,7 @@ public sealed interface Implementation {
         /** a native the platform cannot implement (an effect with no database
          *  meaning), or a capability it does not model (reflection) */
         CANNOT_IMPLEMENT,
-        /** a version of a function the platform implements, with no row of its own:
+        /** a version of a function the platform declares (a catalog native at its name), with no row of its own:
          *  its upstream body is the spec, never the platform's implementation (build
          *  rebuild Phase 3); a call that reaches it fails, naming it, until it has one */
         NO_ROW

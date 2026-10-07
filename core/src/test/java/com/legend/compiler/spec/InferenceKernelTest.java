@@ -434,6 +434,52 @@ class InferenceKernelTest {
     }
 
     @Test
+    void overload_aFunctionCarrierBeatsATypeParameterAndAny() {
+        // from(FunctionDefinition<{->T[m]}>[1], Runtime) over from<T|m>(T[m], Runtime) for a function
+        // value: m3 matches the carrier classes (a simple match), the function types only as their type
+        // argument; ranking the bare function types put the type parameter first (audit B1, 2026-10-07)
+        String fd = com.legend.compiler.element.type.PlatformTypes.FUNCTION_DEFINITION;
+        Type.FunctionType thunk = new Type.FunctionType(List.of(),
+                new Type.Param(new Type.TypeVar("T"), new Multiplicity.Var("m")));
+        TypedFunction viaFunction = new TypedFunction("from", List.of("T"), List.of("m"),
+                List.of(new TypedParameter("func", new Type.GenericType(fd, List.of(thunk)), Multiplicity.Bounded.ONE),
+                        param(new Type.ClassType("model::Person"), Multiplicity.Bounded.ONE)),
+                new Type.ClassType("R::Fn"), Multiplicity.Bounded.ONE, Optional.empty(), true);
+        TypedFunction viaValue = new TypedFunction("from", List.of("T"), List.of("m"),
+                List.of(new TypedParameter("t", new Type.TypeVar("T"), new Multiplicity.Var("m")),
+                        param(new Type.ClassType("model::Person"), Multiplicity.Bounded.ONE)),
+                new Type.ClassType("R::Value"), Multiplicity.Bounded.ONE, Optional.empty(), true);
+        TypedFunction viaAny = overload("R::Any",
+                List.of(param(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY), Multiplicity.Bounded.ONE),
+                        param(new Type.ClassType("model::Person"), Multiplicity.Bounded.ONE)));
+        Type.FunctionType ints = new Type.FunctionType(List.of(),
+                new Type.Param(Type.Primitive.INTEGER, Multiplicity.Bounded.ZERO_MANY));
+        ExprType person = et(new Type.ClassType("model::Person"), Multiplicity.Bounded.ONE);
+        // a lambda and a FunctionDefinition value: m3's rule; a bare function type, which m3 matches to no carrier,
+        // is our acceptance's own fit, ranked by the platform rule (PARKED_WORK_LEDGER PARK-9)
+        for (Type value : List.of(com.legend.compiler.element.type.PlatformTypes.lambdaType(ints),
+                new Type.GenericType(fd, List.of(ints)), ints)) {
+            InferenceKernel.Resolution r = kernel().resolveOverload(List.of(viaValue, viaAny, viaFunction),
+                    List.of(et(value, Multiplicity.Bounded.ONE), person));
+            assertEquals(new Type.ClassType("R::Fn"), r.output().type(), "for a " + value.typeName());
+        }
+    }
+
+    @Test
+    void overload_theNearerFunctionCarrierWins() {
+        // a lambda (LambdaFunction) is 1 from FunctionDefinition and 2 from Function in m3's C3 order
+        Type.FunctionType ints = new Type.FunctionType(List.of(),
+                new Type.Param(Type.Primitive.INTEGER, Multiplicity.Bounded.ZERO_MANY));
+        TypedFunction viaFunction = overload("R::Function", List.of(param(new Type.GenericType(
+                com.legend.compiler.element.type.PlatformTypes.FUNCTION, List.of(ints)), Multiplicity.Bounded.ONE)));
+        TypedFunction viaDefinition = overload("R::Definition", List.of(param(new Type.GenericType(
+                com.legend.compiler.element.type.PlatformTypes.FUNCTION_DEFINITION, List.of(ints)), Multiplicity.Bounded.ONE)));
+        InferenceKernel.Resolution r = kernel().resolveOverload(List.of(viaFunction, viaDefinition),
+                List.of(et(com.legend.compiler.element.type.PlatformTypes.lambdaType(ints), Multiplicity.Bounded.ONE)));
+        assertEquals(new Type.ClassType("R::Definition"), r.output().type());
+    }
+
+    @Test
     void overload_multiplicityParameterRanksRightAfterExact() {
         // m3 MultiplicityMatch: for a [1] argument, [1] then m then [0..1] then [1..*] then [*]
         TypedFunction optional = overload("R::Optional",

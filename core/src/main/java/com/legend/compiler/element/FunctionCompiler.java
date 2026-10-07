@@ -66,7 +66,7 @@ final class FunctionCompiler {
         // id (build rebuild Phase 3): a model declaration with exactly a catalog native's id IS that
         // function, so the catalog's declaration stands and the implementation table says how it runs;
         // every other model version joins, and the table gives it its own row or refuses it — a version
-        // of a function the platform implements never runs upstream's body (that body is the spec:
+        // of a function the platform declares never runs upstream's body (that body is the spec:
         // core_functions_standard's or/and/max bodies once produced wrong SQL, chB-std testOr). No name
         // is owned outright any more: the PCT rule and the platform-owned list are gone.
         List<Function> all = new ArrayList<>(Pure.nativeFunctionsAt(fqn));

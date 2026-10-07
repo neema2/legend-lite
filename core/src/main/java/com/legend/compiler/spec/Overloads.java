@@ -468,8 +468,10 @@ final class Overloads {
     }
 
     /** The generic check over ALREADY-TYPED arguments (ConcatenateChecker
-     * reads a type before choosing its rule; each argument synths ONCE —
-     * a second synth re-registers typer state: TDS literals, plan params). */
+     * reads a type before choosing its rule; each argument synths ONCE — a
+     * second synth repeats the typing, and nested, multiplies it; the typer
+     * records no state per synth, so the cost is time: checked 2026-10-07,
+     * Phase 3 audit S5). */
     Application checkGenericTyped(AppliedFunction af, List<TypedSpec> args) {
         return checkGenericTyped(af, args, null);
     }

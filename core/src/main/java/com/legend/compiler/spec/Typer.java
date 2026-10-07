@@ -497,7 +497,10 @@ final class Typer {
         // candidate, toSQL(...).toSQLString(t) met toSQLString functions of its
         // arity). A call spelled with -> tries the property only when no
         // function of its arity exists (tds::join beside SchemaState.join(other);
-        // Phase 5 batch 147).
+        // Phase 5 batch 147). The receiver typed here is typed again by the
+        // route taken (applyGeneric), as the generic path's own auto-map probe
+        // types a dot call's receiver before its arguments: a time cost, recorded as
+        // PARKED_WORK_LEDGER PARK-6 (type each receiver once; Phase 3 audit S5, 2026-10-07).
         if (!af.parameters().isEmpty() && (af.propertyCall() || functionCandidates(af).stream()
                 .noneMatch(f -> f.parameters().size() == af.parameters().size()))) {
             TypedSpec recv = synth(af.parameters().get(0), env);

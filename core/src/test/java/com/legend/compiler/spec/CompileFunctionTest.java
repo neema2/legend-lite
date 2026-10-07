@@ -48,6 +48,21 @@ class CompileFunctionTest {
     }
 
     @Test
+    void fromOverAFunctionTypedParameterRunsTheFunction() {
+        // from(FunctionDefinition<{->T[m]}>, Runtime) beats from<T|m>(T[m], Runtime) for a function value,
+        // as in legend-pure: the result is the function's Integer[*], not the function (audit B1, 2026-10-07)
+        String model = "function test::viaParam(q: FunctionDefinition<{->Integer[*]}>[1]): Integer[*]"
+                + " { $q->from(^meta::core::runtime::Runtime())->map(x|$x + 1) }\n"
+                + "function test::viaParamToOne(q: FunctionDefinition<{->Integer[*]}>[1]): Integer[*]"
+                + " { $q->from(^meta::core::runtime::Runtime()) }\n";
+        for (String fn : java.util.List.of("test::viaParam", "test::viaParamToOne")) {
+            CompiledFunction cf = compile(model, fn);
+            assertEquals(Type.Primitive.INTEGER, cf.result().info().type(), fn);
+            assertEquals(Multiplicity.Bounded.ZERO_MANY, cf.result().info().multiplicity(), fn);
+        }
+    }
+
+    @Test
     void evalOnFunctionTypedParameter() {
         // $f is a function-typed PARAMETER — the concrete lambda arrives per call site,
         // so eval types from the declared function type's result (engine EvalChecker's

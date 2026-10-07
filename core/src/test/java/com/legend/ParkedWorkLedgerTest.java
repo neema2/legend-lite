@@ -45,18 +45,23 @@ class ParkedWorkLedgerTest {
             // the engine's model is per-end. The wall is the anchor, and its
             // two sites also pin the duplicated implementation.
             Map.entry("PARK-1 xstore per-end predicates",
+            new Anchor("has direction-specific conditions",
+                    List.of("MappingNormalizer.java", "XStorePureEnds.java"))),
                     new Anchor("has direction-specific conditions",
                             List.of("MappingNormalizer.java", "XStorePureEnds.java"))),
             // PARK-2: no common-subexpression pass in the normal lowering
             // path, so a union read twice is built twice. The CTE builder is
             // reachable ONLY from the opt-in parity post-processor.
             Map.entry("PARK-2 union common-subexpression pass (call site)",
+            new Anchor("extractSubqueriesAsCtes\\(", List.of("SqlPostProcessors.java"))),
+            Map.entry("PARK-2 union common-subexpression pass (construction)",
                     new Anchor("extractSubqueriesAsCtes\\(", List.of("SqlPostProcessors.java"))),
             // leg 3.1 (2026-09-18): VerdictSql builds a WITH too — the
             // database-mode verdict statement (two side CTEs + one verdict
             // row), NOT a common-subexpression pass; PARK-2 stays parked
             // leg 3.4 step 2 (2026-09-20): SqlWith.prepend hoists a statement's
             // frame CTEs to its head — a construction helper, not a pass
+            new Anchor("new SqlWith\\(", List.of("SqlRewriter.java", "SqlWith.java", "VerdictSql.java"))),
             Map.entry("PARK-2 union common-subexpression pass (construction)",
                     new Anchor("new SqlWith\\(", List.of("SqlRewriter.java", "SqlWith.java", "VerdictSql.java"))),
             // PARK-3: the relational toString renders as the DATABASE's cast
@@ -68,12 +73,66 @@ class ParkedWorkLedgerTest {
             // names every decided member, TO_STRING's PURE decision among them.
             // That row is the one site; an arm naming it anywhere else is red.
             Map.entry("PARK-3 toString emits pure's ISO form, not the database's cast",
+            new Anchor("DynaFn\\.TO_STRING", List.of("DynaFnDecisions.java"))),
                     new Anchor("DynaFn\\.TO_STRING", List.of("DynaFnDecisions.java"))),
             // PARK-4: the ~groupBy wrapper. The prune's refusal to touch a
             // grouped select is NOT the cause (the engine projects those
             // columns too — lifting it LOST a row); the wrapper needs a
             // select-merge pass. The refusal is the anchor.
             Map.entry("PARK-4 the ~groupBy wrapper projects unread columns",
+            new Anchor("projections\\(\\)\\.isEmpty\\(\\) \\|\\| sel\\.distinct\\(\\)\\s*\\n\\s*\\|\\| !sel\\.groupBy\\(\\)",
+                    List.of("SubselectPrune.java"))),
+            // PARK-5 to PARK-14: the build rebuild's debts (2026-10-07, the user: fixed correctly after the program
+            // lands, never worked around meanwhile). PARK-5: a platform call's names are worked out again at every
+            // check, from the spelling.
+            Map.entry("PARK-5 a platform call is never resolved once",
+                    new Anchor("BareNames\\.catalog\\(", List.of("ResolvedNames.java"))),
+            // PARK-6: a receiver typed to choose a route, then typed again by the route (the dot-call branch, the
+            // auto-map probe, the legacy-TDS receiver checks)
+            Map.entry("PARK-6 arguments typed more than once",
+                    new Anchor("recv = (t\\.)?synth\\(af\\.parameters\\(\\)\\.get\\(0\\), env\\)",
+                            List.of("CallShapes.java", "TdsDesugars.java", "Typer.java"))),
+            Map.entry("PARK-6 arguments typed more than once (the property's body call re-applied)",
+                    new Anchor("applyGeneric\\(new AppliedFunction\\(d\\.bodyFunctionFqn\\(\\), qargs\\), env\\)",
+                            List.of("Overloads.java", "Typer.java"))),
+            Map.entry("PARK-6 arguments typed more than once (the receiver-owned check)",
+                    new Anchor("Type rt = t\\.synth\\(recv, env\\)", List.of("ReceiverOwnedFunctions.java"))),
+            Map.entry("PARK-6 arguments typed more than once (the must-inline substitution)",
+                    new Anchor("subst\\.put\\(chosen\\.parameters\\(\\)\\.get\\(i\\)\\.name\\(\\), af\\.parameters\\(\\)\\.get\\(i\\)\\)",
+                            List.of("Overloads.java"))),
+            // PARK-7: Any ranked with the type parameters, legend-pure's literal order as the last tie-break
+            Map.entry("PARK-7 Any ranked with the type parameters",
+                    new Anchor("anyConcrete", List.of("InferenceKernel.java"))),
+            // PARK-8: tie-breaks legend-pure does not have
+            Map.entry("PARK-8 tie-breaks legend-pure does not have",
+                    new Anchor("nativeWinners", List.of("InferenceKernel.java"))),
+            // PARK-9: fits only this compiler's acceptance test admits, ranked at one fixed distance
+            Map.entry("PARK-9 the acceptance test admits what legend-pure rejects",
+                    new Anchor("PLATFORM_RULE_DISTANCE", List.of("InferenceKernel.java"))),
+            // PARK-10: relation columns, type operations and type arguments not ported
+            Map.entry("PARK-10 parts of legend-pure's ranking not ported",
+                    new Anchor("Type\\.SchemaAlgebra ignored -> FunctionMatch\\.TypeFit\\.NULL",
+                            List.of("InferenceKernel.java"))),
+            Map.entry("PARK-10 parts of legend-pure's ranking not ported (relation columns)",
+                    new Anchor("Type\\.RelationType ignored -> FunctionMatch\\.TypeFit\\.of\\(FunctionMatch\\.Kind\\.RELATION\\)",
+                            List.of("InferenceKernel.java"))),
+            Map.entry("PARK-10 parts of legend-pure's ranking not ported (type arguments by position)",
+                    new Anchor("if \\(actualArgs\\.size\\(\\) == fg\\.arguments\\(\\)\\.size\\(\\)\\)",
+                            List.of("InferenceKernel.java"))),
+            // PARK-11: legacy TDS functions recognized by name, falling back to the spelling
+            Map.entry("PARK-11 legacy TDS functions and agg by name, not rows",
+                    new Anchor("candidateFqns\\(\\)\\.isEmpty\\(\\) \\? name\\.equals\\(bare\\(\\)\\)",
+                            List.of("TdsLegacy.java"))),
+            // PARK-12: the boot layer hides upstream versions by id; about 12 still run upstream's body
+            Map.entry("PARK-12 the boot layer's versions of upstream functions",
+                    new Anchor("boolean shadows\\(", List.of("SystemMetamodel.java"))),
+            // PARK-13: a debug trace switched by an environment variable
+            Map.entry("PARK-13 a debug trace in product code",
+                    new Anchor("LEGEND_LITE_RAW_EXPAND_TRACE", List.of("Overloads.java"))),
+            // PARK-14: a dot call with no qualified property falls back to a function
+            Map.entry("PARK-14 a dot call falls back to a function",
+                    new Anchor("af\\.propertyCall\\(\\) \\|\\| functionCandidates\\(af\\)",
+                            List.of("Typer.java")))));
                     new Anchor("projections\\(\\)\\.isEmpty\\(\\) \\|\\| sel\\.distinct\\(\\)\\s*\\n\\s*\\|\\| !sel\\.groupBy\\(\\)",
                             List.of("SubselectPrune.java"))),
             // PARK-15 (2026-10-08, execution plan boundary step 2): the legacy plan

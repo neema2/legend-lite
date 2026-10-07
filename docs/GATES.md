@@ -7989,15 +7989,21 @@ The plan: `docs/REBUILD_PROGRAM_2026_10_06.md` (plan branch), Phase 3; the pre-e
    matches; the first difference decides. Two adaptations, each measured: `Any` ranks with the type parameters (legend-pure
    matches the calls in a lambda before their arguments are typed: `relation::in` over `collection::in` for
    `$d.col->in($rel)`, seen by running legend-pure itself), m3's literal order settling a remaining tie; a fit only a
-   platform rule accepts (a relation into `TabularDataSet`) ranks after every real parent.
+   platform rule accepts (a relation into `TabularDataSet`) ranks after every real parent. The port's departures from m3
+   are listed in `FunctionMatch`'s javadoc and recorded as `docs/PARKED_WORK_LEDGER.md` PARK-7 to PARK-10.
 2. **Candidates by id**: every declaration at a name is a candidate, merged by function id; the PCT rule, the
-   platform-owned list and `withoutPreludeShadows`' by-name drop are gone. A version of a function the platform implements
-   with no row is refused (`Implementation.Reason.NO_ROW`); 26 versions got rows (`native-membership.tsv`): the 14 the
-   OVERLOAD rows needed and the 12 Boolean comparisons PCT calls. This reverses the 2026-10-05 entry's "the date `[1..*]`
-   overloads stay out": legend-pure resolves 22 of the lane's calls to them. The unrowed versions are a shrink-only
-   ratchet, 110.
+   platform-owned list and `withoutPreludeShadows`' by-name drop are gone. A version of a function the platform declares
+   with no row is refused (`Implementation.Reason.NO_ROW`); 27 versions got rows (`native-membership.tsv`): the 14 the
+   OVERLOAD rows needed, the 12 Boolean comparisons PCT calls, and the corpus's `executeInDb(String, ConnectionStore)`
+   (below). This reverses the 2026-10-05 entry's "the date `[1..*]` overloads stay out": legend-pure resolves 22 of the
+   lane's calls to them. The unrowed versions are a shrink-only ratchet, 109.
 3. **Forms, the legacy TDS functions, `agg` and the boot layer's versions by the names a call resolves to**
-   (`ResolvedNames.form`, `TdsLegacy.matches`, `SystemMetamodel.shadows` by id).
+   (`ResolvedNames.form`, `TdsLegacy.matches`, `SystemMetamodel.shadows` by id). Two parts of the plan were done
+   differently. The legacy TDS functions and `agg` were planned as implementation rows by function id; the platform's
+   own world declares none of them, so a row has no id to key on, and they are read by resolved names, falling back to
+   the spelling when nothing resolves: the rows move to Phase 4, when the default world declares them (PARK-11). About 12 (14 by a text count, to verify by id)
+   upstream versions at the boot layer's 29 names (`resolvePrimaryKey`, `propertyMappingsByPropertyName`,
+   `inferRelationalType`, ...) still run upstream's body (PARK-12, Phase 3b item 1).
 
 **The reference lane moved, in the right direction** (golden re-blessed in this push, `bazel run
 //spec:update_reference_lane`):
@@ -8017,19 +8023,25 @@ The plan: `docs/REBUILD_PROGRAM_2026_10_06.md` (plan branch), Phase 3; the pre-e
 Step 1 fixed the class-hierarchy rows (`elementToPath` 32, `hasGeneratedMilestoningPropertyStereotype` 42); step 2 the
 617 calls whose legend-pure overload the by-name drops removed (`isEmpty` 523 among them). ABSENT and EXTRA grow by the
 form nodes and calls of the newly typed bodies. One new OVERLOAD class (`average` on `Number` against our `Integer`, 3
-calls: legend-pure types the argument `Number`). The 58 left are argument typing (Phase 3b).
+calls: legend-pure types the argument `Number`). Of the 58 left, most are argument typing (legend-pure types the
+argument differently), two classes are not (`range`: a parse difference; `propertyMappingsByPropertyName`: the boot
+layer's twin); Phase 3b reviews each for user impact and does not take on argument typing.
 
-Bodies: 50 newly typed, 13 newly failing, all from step 2. Three were on the removed platform-owned list and are typed
-for the first time (`executionPlan`, `router::execute`, `loadCsvToDbTable(String, Table, ConnectionStore)`: the closure
-lacks the 4-argument `routeFunction` and `loadCsvToDbTable` they call). The rest call a name whose candidates grew and
-fail in typing: `getSignFunctions` (5 protocol versions; `Pair<Any,String>` where `Pair<Function<Any>,String>` is
-declared), `extractMappingsFromFunctionDefinition`, `shouldStopFunctions`, `varToString` (multiplicity unions),
-`flattenConcatenate` (no common supertype of `T` and `TabularDataSet`), `testViewChainsWithBusinessDate`
-(`toSQLString` over an `SQLResult`). legend-pure types them all: Phase 3b's list.
+Bodies: 51 newly typed, 12 newly failing (the final golden against the one before Phase 3). Three newly failing were
+on the removed platform-owned list and are typed for the first time (`executionPlan`, `router::execute`,
+`loadCsvToDbTable(String, Table, ConnectionStore)`: the 4-argument `routeFunction` and the `loadCsvToDbTable` they
+call are not loaded: `router_main.pure` is in the closure but drops because overloads in different files share one
+import scope, a bug Phase 3b item 5b fixes). The rest call a name whose candidates grew and fail in typing: `getSignFunctions` (5
+protocol versions; `Pair<Any,String>` where `Pair<Function<Any>,String>` is declared),
+`extractMappingsFromFunctionDefinition`, `shouldStopFunctions`, `varToString` (multiplicity unions),
+`flattenConcatenate` (no common supertype of `T` and `TabularDataSet`). legend-pure types them all; Phase 3b's census
+covers them. (`testViewChainsWithBusinessDate`, failing after step 2, types again with the dot-call rule below.)
 
 **The corpus, pass by pass.** The gate's corpus checks compare committed results and do not rerun the corpus; the six
 passes, rerun against outputs built before Phase 3, found 4 tests the step-2 change broke (and the database passes,
-which refuse to run after a host failure, empty). Fixed, and the six passes are now identical, every output file:
+which refuse to run after a host failure, empty). Fixed, and every result file of the six passes is now identical
+(rosters, registers, ledgers, verdicts; the logs differ by timings, and the host passes' reflection rows renumber their
+function ids):
 
 - A dot call is a qualified-property expression in legend-pure: `toSQL(...).toSQLString($type)` reads `SQLResult`'s
   qualified property first, whatever functions share the name (`Typer`; before, a function of the call's arity won,
@@ -8039,3 +8051,25 @@ which refuse to run after a host failure, empty). Fixed, and the six passes are 
   `intersection` was not loaded); step 2 had replaced that guard by the definition's own row alone.
 - The corpus's own `executeInDb(String, ConnectionStore)` adapter gets a row: it joins `NativeFn`'s `executeInDb` family,
   whose arm reads the SQL only (unrowed versions 110 -> 109).
+
+**The audit (2026-10-07, an independent agent at maximum effort): ready after fixes.** One blocker, fixed: a function
+value ranked a function-typed parameter after a type parameter and after `Any` (`from(FunctionDefinition<{->T[m]}>,
+Runtime)` lost to `from<T>(T[m], Runtime)`, so a program that compiled on main failed). legend-pure matches the carrier
+classes first and the function types only as their type argument; `InferenceKernel.typeFit` now does the same
+(`carrierFit`), and a pairing legend-pure rejects (a bare function type on one side, or a carrier the value's class
+does not extend) ranks at the platform-rule distance; a function parameter's own type is measured as the covariant
+one is (an enumeration generalizes `Enum`, a precise decimal `Decimal`). Three tests (`InferenceKernelTest` two, `CompileFunctionTest` one) fail on the old code and pass on the new.
+The other findings: the typing cost and the double typing below are recorded, stale numbers and wording corrected here,
+the port's departures listed, the pin comments' dated history restored, a refused version reported as "no row for",
+not "walled body". After the fixes: core tests, guards, census and spec tests pass; the six passes are identical
+again, every result file; the reference lane is byte-identical (no line moved); PCT 17 of 17. A second, short audit of
+the fixes: ready after fixes, all applied. Local gate on the branch rebased on `f306bd698`: `//gates:local` green,
+290 of 290.
+
+**Recorded, not fixed (`docs/PARKED_WORK_LEDGER.md`, PARK-5 to PARK-14, each anchored by `ParkedWorkLedgerTest`):** a
+call to a platform function is resolved again at every check from its spelling (PARK-5): typing on the eager corpus
+compile 2,147 -> 2,533 ms (+18%), whole corpus passes 0 to 4% slower; that lookup is 19% of typing on main and 29%
+after this phase. An argument typed more than once (PARK-6); `Any` with the type parameters (PARK-7); tie-breaks
+legend-pure lacks (PARK-8); the platform-rule rank (PARK-9); unported ranking parts (PARK-10); the legacy TDS functions
+by name (PARK-11, Phase 4); the boot layer's versions (PARK-12, Phase 3b); a debug trace (PARK-13); the dot-call
+fallback (PARK-14). Whether PARK-5 is fixed before this phase lands is the user's decision.
