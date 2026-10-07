@@ -1,0 +1,35 @@
+== M0
+today's boot (cold, first in JVM) ms=375
+world files=440 chars=738,615 elements=1124 parseWalls=3 buildWalls=63 | per-graph constant (empty module, warm) ms=1
+world cold: parse ms=54 build ms=30 | warm median: parse ms=14 build ms=14
+today's boot (cold, first in JVM) ms=377
+world files=440 chars=738,615 elements=1124 parseWalls=3 buildWalls=63 | per-graph constant (empty module, warm) ms=1
+world cold: parse ms=53 build ms=30 | warm median: parse ms=14 build ms=15
+== U
+today's boot (cold, first in JVM) ms=383
+world files=516 chars=1,019,811 elements=1584 parseWalls=3 buildWalls=83 | per-graph constant (empty module, warm) ms=0
+world cold: parse ms=67 build ms=59 | warm median: parse ms=21 build ms=32
+today's boot (cold, first in JVM) ms=369
+world files=516 chars=1,019,811 elements=1584 parseWalls=3 buildWalls=83 | per-graph constant (empty module, warm) ms=1
+world cold: parse ms=65 build ms=55 | warm median: parse ms=20 build ms=31
+== Uuser
+today's boot (cold, first in JVM) ms=377
+world files=457 chars=921,434 elements=1331 parseWalls=3 buildWalls=48 | per-graph constant (empty module, warm) ms=0
+world cold: parse ms=62 build ms=49 | warm median: parse ms=17 build ms=26
+today's boot (cold, first in JVM) ms=372
+world files=457 chars=921,434 elements=1331 parseWalls=3 buildWalls=48 | per-graph constant (empty module, warm) ms=1
+world cold: parse ms=64 build ms=55 | warm median: parse ms=18 build ms=28
+== M1
+today's boot (cold, first in JVM) ms=367
+world files=841 chars=6,663,921 elements=8710 parseWalls=3 buildWalls=214 | per-graph constant (empty module, warm) ms=0
+world cold: parse ms=211 build ms=309 | warm median: parse ms=101 build ms=252
+today's boot (cold, first in JVM) ms=373
+world files=841 chars=6,663,921 elements=8710 parseWalls=3 buildWalls=214 | per-graph constant (empty module, warm) ms=0
+world cold: parse ms=210 build ms=308 | warm median: parse ms=105 build ms=248
+== M3
+today's boot (cold, first in JVM) ms=356
+world files=1295 chars=13,467,267 elements=15712 parseWalls=3 buildWalls=378 | per-graph constant (empty module, warm) ms=0
+world cold: parse ms=341 build ms=648 | warm median: parse ms=185 build ms=533
+today's boot (cold, first in JVM) ms=352
+world files=1295 chars=13,467,267 elements=15712 parseWalls=3 buildWalls=378 | per-graph constant (empty module, warm) ms=0
+world cold: parse ms=333 build ms=632 | warm median: parse ms=191 build ms=549

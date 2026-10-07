@@ -1,0 +1,32 @@
+
+functions Pure.java implements (upstream names): 313
+    268  in the world
+     44  engine harness (outside the world)
+      1  upstream TEST element only
+      harness by group: {'D': 21, 'E': 5, 'G': 8, 'H': 10}
+
+prelude declarations (minus m3): 539
+    429  in the world
+    109  engine harness (outside the world)
+      1  no upstream element found
+      harness by group: {'D': 18, 'E': 39, 'F': 23, 'G': 12, 'H': 3, 'I': 14}
+
+no upstream element found (1):
+   meta::pure::tools::GrammarInfoStub  (prelude) 
+
+names the 15 files mention that exist only outside the world (short-name match, so an over-count):
+   core/pure/corefunctions/collectionExtension.pure: 14  e.g. ['Class', 'S', 'String', 'collection', 'default', 'defaultValue', 'e', 'f', 'graphFetch', 'index']
+   core/pure/corefunctions/dateExtension.pure: 4  e.g. ['DateTime', 'String', 'number', 'relational']
+   core/pure/corefunctions/langExtension.pure: 3  e.g. ['String', 'boolean', 'lang']
+   core/pure/corefunctions/stringExtension.pure: 13  e.g. ['Class', 'Enum', 'Lower', 'String', 'Upper', 'boolean', 'collection', 'index', 'lower', 'p']
+   core/pure/mapping/modelToModel.pure: 99  e.g. ['Checked', 'Class', 'ClusteredGraphFetchTree', 'ClusteredValueSpecification', 'ExecutionNode', 'Extension', 'FunctionRoutedValueSpecification', 'FunctionType', 'GenericType', 'GlobalGraphFetchExecutionNode']
+   core/pure/runtime/runtimeExtension.pure: 14  e.g. ['Binding', 'Class', 'Extension', 'PackageableElement', 'String', 'e', 'execution', 'extensions', 'graphFetch', 'internalize']
+   core/pure/tds/tds.pure: 21  e.g. ['Class', 'DateTime', 'Enum', 'String', 'Type', 'collection', 'documentation', 'extensions', 'f', 'functionReturnType']
+   core/pure/tds/tdsSchema.pure: 20  e.g. ['Class', 'Extension', 'FunctionType', 'LambdaFunction', 'String', 'ValueSpecification', 'collection', 'columnValueDifference', 'e', 'extensions']
+   core_relational/relational/functions/tableToTDS.pure: 7  e.g. ['Class', 'TabularDataSetImplementation', 'index', 'mapping', 'name', 'relation', 'relational']
+   core_relational/relational/metamodel/metamodel.pure: 9  e.g. ['Class', 'PackageableElement', 'String', 'VarPlaceHolder', 'config', 'from', 'name', 'relation', 'relational']
+   core_relational/relational/runtime/connection/authenticationStrategy.pure: 3  e.g. ['Class', 'String', 'abstract']
+   core_relational/relational/runtime/connection/connection.pure: 3  e.g. ['Class', 'mapping', 'relational']
+   core_relational/relational/runtime/connection/datasourceSpecification.pure: 3  e.g. ['Class', 'String', 'abstract']
+   core_relational/relational/runtime/connection/postprocessor.pure: 13  e.g. ['Class', 'PostProcessorResult', 'String', 'abstract', 'from', 'mapping', 'name', 'p', 'query', 'relation']
+   core_relational/relational/runtime/executionContext/executionContext.pure: 7  e.g. ['Class', 'String', 'allContextsOfType', 'execute', 'executionPlan', 'relation', 'relational']

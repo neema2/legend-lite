@@ -1,0 +1,12 @@
+legend-engine-xts-dataquality/legend-engine-xt-dataquality-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/DataQualityCompilerExtension.java
+legend-engine-xts-service/legend-engine-language-pure-dsl-service/src/main/java/org/finos/legend/engine/language/pure/dsl/service/compiler/toPureGraph/ServiceCompilerExtensionImpl.java
+legend-engine-xts-json/legend-engine-xt-json-model/src/main/java/org/finos/legend/engine/external/format/json/compile/JsonSchemaCompiler.java
+legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-grammar/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/RelationalCompilerExtension.java
+legend-engine-core/legend-engine-core-external-format/legend-engine-external-format-language/legend-engine-external-format-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/ExternalFormatCompilerExtension.java
+legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/CoreCompilerExtension.java
+legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/handlers/FunctionExpressionBuilderRegistrationInfo.java
+legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/handlers/FunctionHandlerRegistrationInfo.java
+legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/handlers/Handlers.java
+legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/handlers/FunctionHandlerDispatchBuilderInfo.java
+legend-engine-xts-elasticsearch/legend-engine-xt-elasticsearch-V7-grammar/src/main/java/org/finos/legend/engine/language/stores/elasticsearch/v7/compiler/ElasticsearchCompilerExtension.java
+legend-engine-xts-data-space/legend-engine-xt-data-space-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/DataSpaceCompilerExtension.java

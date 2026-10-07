@@ -1,0 +1,6 @@
+judge_host_duckdb              37s verdict=0 exit=0 differing outputs: none
+judge_database_duckdb          43s verdict=0 exit=0 differing outputs: none
+judge_host_h2                  25s verdict=0 exit=0 differing outputs: none
+judge_database_h2              61s verdict=0 exit=0 differing outputs: none
+judge_host_warehouse          100s verdict=0 exit=0 differing outputs: none
+judge_database_warehouse       99s verdict=0 exit=0 differing outputs: none

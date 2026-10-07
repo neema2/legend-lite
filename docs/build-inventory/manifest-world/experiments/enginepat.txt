@@ -1,0 +1,147 @@
+carried: 852; in platform+core_functions: 580; ENGINE-SIDE: 270; only as upstream TEST elements: 1; nowhere: 1
+engine-side needed elements (overloads counted): 409, 203 KB; kinds: {'function': 252, 'Class': 143, 'Enum': 5, 'native function': 9}
+by module: {'core': 232, 'core_relational': 159, 'core_external_language_java_compiler': 11, 'core_external_compiler': 3, 'core_external_store_relational_postgres_sql_parser': 2, 'core_external_store_relational_sdt': 1, 'pure_ide_debug': 1}
+
+PACKAGES (exact): 71 hold needed names. needed/total elements, needed KB / total KB
+     48/70       8.9/   13.6 KB   69%  meta::pure::functions::date
+     35/44      11.6/   15.4 KB   80%  meta::relational::functions::toDDL
+     32/32      20.9/   20.9 KB  100%  meta::pure::functions::date::calendar
+     25/74      11.1/   34.1 KB   34%  meta::pure::executionPlan
+     21/89       9.0/   45.5 KB   24%  meta::pure::tds
+     21/39       3.7/    6.7 KB   54%  meta::relational::metamodel
+     17/51      11.3/   57.3 KB   33%  meta::relational::testDataGeneration
+     16/111     21.7/   82.5 KB   14%  meta::relational::functions::sqlQueryToString
+     16/103      4.3/   52.4 KB   16%  meta::json
+     14/15      10.6/   11.4 KB   93%  meta::relational::functions::sqlstring
+     11/39      13.2/   58.5 KB   28%  meta::pure::lineage::scanRelations
+     11/18       2.2/    4.0 KB   61%  meta::external::language::java::compiler
+     11/56       4.0/   63.8 KB   20%  meta::pure::lineage::scanProperties
+      9/16       3.6/   11.2 KB   56%  meta::pure::alloy::connections
+      6/99       1.1/  102.9 KB    6%  meta::relational::mapping
+      6/14       2.2/    8.1 KB   43%  meta::alloy::service::execution
+      6/20       4.2/    8.6 KB   30%  meta::pure::graphFetch::execution
+      5/16       1.1/    4.2 KB   31%  meta::legend
+      5/10       3.6/    5.0 KB   50%  meta::external::format::shared
+      5/34       1.0/   10.3 KB   15%  meta::pure::functions::string
+      5/9        0.8/    2.8 KB   56%  meta::pure::dataQuality
+      4/33       1.4/   24.3 KB   12%  meta::pure::lineage::scanColumns
+      4/16       8.5/   51.2 KB   25%  meta::relational::testDataGeneration::executionPlan
+      4/35       0.7/    7.6 KB   11%  meta::pure::functions::collection
+      4/9        7.0/    9.6 KB   44%  meta::pure::extension
+      3/8        1.6/    7.0 KB   38%  meta::alloy::objectReference
+      3/12       0.8/   10.2 KB   25%  meta::pure::executionPlan::toString
+      3/7        1.5/    3.1 KB   43%  meta::pure::executionPlan::platformBinding
+      3/31       1.3/   39.0 KB   10%  meta::pure::graphFetch::executionPlan
+      3/8        1.2/    4.8 KB   38%  meta::pure::lineage::scanProperties::propertyTree
+      3/12       0.3/    3.3 KB   25%  meta::external::store::model
+      3/30       0.7/   37.6 KB   10%  meta::pure::graphFetch::routing
+      2/2        0.3/    0.3 KB  100%  meta::relational::metamodel::data
+      2/42       0.5/   71.8 KB    5%  meta::relational::postProcessor
+      2/18       0.5/    6.6 KB   11%  meta::pure::alloy::connections::alloy::specification
+      2/4        0.3/    1.0 KB   50%  meta::external::store::relational::postgresSql::parser
+      2/39       0.3/   13.3 KB    5%  meta::pure::mapping
+      2/2        3.4/    3.4 KB  100%  meta::pure::router::metamodel
+      2/47       0.7/  118.1 KB    4%  meta::pure::router::routing
+      2/14       1.2/    7.5 KB   14%  meta::core::runtime
+   -> taking all 71 whole: 1689 elements, 1.31 MB (needed alone: 0.20 MB)
+
+FILES: 74 hold needed names. needed/total elements, needed KB / total KB
+     80/102     29.9/   34.5 KB   78%  core/pure/corefunctions/dateExtension.pure
+     25/33       8.9/   12.6 KB   76%  core_relational/relational/helperFunctions/toDDL.pure
+     21/67      19.8/  108.5 KB   31%  core_relational/relational/testDataGeneration/testDataGeneration.pure
+     20/83       8.4/   37.6 KB   24%  core/pure/tds/tds.pure
+     19/30       3.2/    4.8 KB   63%  core_relational/relational/metamodel/metamodel.pure
+     16/109     21.7/   81.0 KB   15%  core_relational/relational/sqlQueryToString/dbExtension.pure
+     15/37       8.8/   24.6 KB   41%  core/pure/executionPlan/executionPlan_generation.pure
+     14/15      10.6/   11.4 KB   93%  core_relational/relational/transform/fromPure/toSQLString.pure
+     14/65       5.1/   68.7 KB   22%  core/pure/lineage/scanProperties.pure
+     13/20       4.1/   10.7 KB   65%  core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+     12/47       2.5/   24.4 KB   26%  core/external/format/json/toJSON.pure
+     11/39      13.2/   58.5 KB   28%  core_relational/relational/lineage/scanRelations/scanRelations.pure
+     11/18       2.2/    4.0 KB   61%  core_external_language_java_compiler/compiler.pure
+      9/20       3.6/   12.6 KB   45%  core_relational/relational/runtime/connection/postprocessor.pure
+      9/31       1.8/    5.0 KB   29%  core/pure/executionPlan/executionPlan.pure
+      6/20       4.2/    8.6 KB   30%  core/pure/graphFetch/graphFetch.pure
+      5/6        3.6/    3.8 KB   83%  core/pure/binding/externalFormat/externalFormatContract.pure
+      5/34       1.0/   10.3 KB   15%  core/pure/corefunctions/stringExtension.pure
+      5/9        0.8/    2.8 KB   56%  core/pure/dataQuality/dataQuality.pure
+      4/16       0.7/    3.1 KB   25%  core_relational/relational/executionPlan/executionPlan.pure
+      4/33       1.4/   24.3 KB   12%  core_relational/relational/lineage/scanColumns/scanColumns.pure
+      4/35       0.7/    7.6 KB   11%  core/pure/corefunctions/collectionExtension.pure
+      4/12       7.0/   10.3 KB   33%  core/pure/extensions/extension.pure
+      3/41       0.7/   27.6 KB    7%  core_relational/relational/helperFunctions/helperFunctions.pure
+      3/18       0.7/    3.5 KB   17%  core_relational/relational/pureToSQLQuery/metamodel.pure
+      3/3        0.2/    0.2 KB  100%  core_external_compiler/compiler.pure
+      3/11       1.5/    4.9 KB   27%  core/external/format/json/json.pure
+      3/3        0.8/    0.8 KB  100%  core/pure/binding/transformation/generation.pure
+      3/11       0.8/   10.0 KB   27%  core/pure/executionPlan/executionPlan_print.pure
+      3/11       1.5/    4.9 KB   27%  core/pure/executionPlan/platformBinding/platformBinding.pure
+   -> taking all 74 whole: 1551 elements, 1.21 MB (needed alone: 0.20 MB)
+
+FOLDERS (exact): 50 hold needed names. needed/total elements, needed KB / total KB
+     92/318     32.4/  130.5 KB   29%  core/pure/corefunctions
+     31/93      13.8/   49.4 KB   33%  core/pure/executionPlan
+     28/99       9.6/   58.6 KB   28%  core_relational/relational/helperFunctions
+     21/67      19.8/  108.5 KB   31%  core_relational/relational/testDataGeneration
+     21/95      13.3/   54.9 KB   22%  core/pure/tds
+     19/30       3.2/    4.8 KB   63%  core_relational/relational/metamodel
+     16/185     21.7/  139.1 KB    9%  core_relational/relational/sqlQueryToString
+     16/122      4.3/   64.1 KB   13%  core/external/format/json
+     14/19      10.6/   15.1 KB   74%  core_relational/relational/transform/fromPure
+     14/103      5.1/   99.3 KB   14%  core/pure/lineage
+     13/36       4.6/   16.8 KB   36%  core_relational/relational/runtime/connection
+     13/20       4.1/   10.7 KB   65%  core_relational/relational/sqlQueryToString/DDL
+     11/42      13.2/   59.0 KB   26%  core_relational/relational/lineage/scanRelations
+     11/18       2.2/    4.0 KB   61%  core_external_language_java_compiler
+      9/141      5.5/  163.9 KB    6%  core/pure/graphFetch
+      5/6        3.6/    3.8 KB   83%  core/pure/binding/externalFormat
+      5/9        0.8/    2.8 KB   56%  core/pure/dataQuality
+      5/115      0.7/  101.6 KB    4%  core/pure/mapping
+      4/16       0.7/    3.1 KB   25%  core_relational/relational/executionPlan
+      4/33       1.4/   24.3 KB   12%  core_relational/relational/lineage/scanColumns
+      4/17       7.0/   12.9 KB   24%  core/pure/extensions
+      4/13       4.3/   13.5 KB   31%  core/pure/router/metamodel
+      3/7        1.0/    2.5 KB   43%  core_relational/relational/functions
+      3/26       1.3/   42.1 KB   12%  core_relational/relational/postprocessor
+      3/651      0.7/ 1303.8 KB    0%  core_relational/relational/pureToSQLQuery
+      3/3        0.2/    0.2 KB  100%  core_external_compiler
+      3/3        0.8/    0.8 KB  100%  core/pure/binding/transformation
+      3/11       1.5/    4.9 KB   27%  core/pure/executionPlan/platformBinding
+      3/17       1.4/    8.4 KB   18%  core/pure/runtime
+      2/2        0.3/    0.3 KB  100%  core_relational/relational/metamodel/test
+   -> taking all 50 whole: 2864 elements, 3.25 MB (needed alone: 0.20 MB)
+
+FOLDERS (3 levels): 37 hold needed names. needed/total elements, needed KB / total KB
+     92/324     32.4/  131.5 KB   28%  core/pure/corefunctions
+     34/174     15.2/   88.6 KB   20%  core/pure/executionPlan
+     29/380     25.8/  299.8 KB    8%  core_relational/relational/sqlQueryToString
+     28/99       9.6/   58.6 KB   28%  core_relational/relational/helperFunctions
+     22/128     13.4/   84.0 KB   17%  core/pure/tds
+     21/32       3.5/    5.1 KB   66%  core_relational/relational/metamodel
+     21/67      19.8/  108.5 KB   31%  core_relational/relational/testDataGeneration
+     16/137      4.3/   69.1 KB   12%  core/external/format
+     15/75      14.6/   83.3 KB   20%  core_relational/relational/lineage
+     14/42       5.1/   19.4 KB   33%  core_relational/relational/runtime
+     14/19      10.6/   15.1 KB   74%  core_relational/relational/transform
+     14/103      5.1/   99.3 KB   14%  core/pure/lineage
+     11/18       2.2/    4.0 KB   61%  core_external_language_java_compiler
+     11/154      4.8/   95.2 KB    7%  core/pure/binding
+      9/188      5.5/  183.6 KB    5%  core/pure/graphFetch
+      9/299      6.5/  493.9 KB    3%  core/pure/router
+      5/9        0.8/    2.8 KB   56%  core/pure/dataQuality
+      5/115      0.7/  101.6 KB    4%  core/pure/mapping
+      4/16       0.7/    3.1 KB   25%  core_relational/relational/executionPlan
+      4/112      1.6/  160.0 KB    4%  core_relational/relational/postprocessor
+      4/17       7.0/   12.9 KB   24%  core/pure/extensions
+      3/7        1.0/    2.5 KB   43%  core_relational/relational/functions
+      3/651      0.7/ 1303.8 KB    0%  core_relational/relational/pureToSQLQuery
+      3/3        0.2/    0.2 KB  100%  core_external_compiler
+      3/17       1.4/    8.4 KB   18%  core/pure/runtime
+      2/4        0.3/    1.0 KB   50%  core_external_store_relational_postgres_sql_parser
+      2/3        0.9/    1.9 KB   67%  core/legend/objectReference
+      2/9        0.8/    2.7 KB   22%  core/legend/tools
+      1/5        0.7/    5.1 KB   20%  core_relational/legend/objectReference
+      1/106      1.4/   91.9 KB    1%  core_relational/relational/milestoning
+   -> taking all 37 whole: 3460 elements, 3.74 MB (needed alone: 0.20 MB)
+
+whole modules ['core', 'core_external_compiler', 'core_external_language_java_compiler', 'core_external_store_relational_postgres_sql_parser', 'core_external_store_relational_sdt', 'core_relational', 'pure_ide_debug']: 13193 elements, 11.04 MB

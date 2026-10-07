@@ -8,6 +8,12 @@ two executed.
 > corpus figure in this file predates the current ledger — **2,398 pass of 2,798** (2,298 of the
 > 2,575 runnable). Take numbers from `docs/GATES.md` and `docs/RELATIONAL_CORPUS.md`, not from here.
 
+### The 2026-10 build round
+
+| Doc | Covers |
+|---|---|
+| [`BAZEL_FIRST_CLASS_PLAN_2026_10_02.md`](BAZEL_FIRST_CLASS_PLAN_2026_10_02.md) | **The build, made fully Bazel first class**: no scripts, hand-run recipes or host tools in the build; every derived file produced by an action and diff-tested; hermetic tests; policy in BUILD files; CI as a list of labels. Seven phases plus guard tests, and a traceability table mapping every finding to its fix. Part 0 rebases it onto `23b441852`. Evidence in [`bazel-audit-2026-10-02/`](bazel-audit-2026-10-02/): seven slice audits that read every file (`01`–`07`), the spikes that test the plan's riskiest assumptions (`spikes/`), and the per-script review awaiting the user's decisions (`script-review.md`). **Headline: the core build is principled, but its edges are not.** For example: nine tests in no CI lane; lock files not enforced; a test runner that ignores Bazel's test protocol (`--test_filter`, `test.xml`, sharding); committed derived files with no generator target (the stress corpus, saved-query fixtures, `icons.ts`, native-image metadata, about 25 hand-edited goldens); and browser harnesses run as binaries against a Chromium installed into `$HOME`. |
+
 ### The 2026-09 round
 
 | Doc | Covers |

@@ -1,0 +1,271 @@
+fqn	kind	repo	file	why	java	parent	corpus_full	corpus_short
+meta::alloy::objectReference::decodeObjectReferencesAndGetPkMap	function	core_relational	core_relational/legend/objectReference/objectReference.pure	lowered	NativeFn		1	1
+meta::alloy::objectReference::generateObjectReferences	function	core	core/legend/objectReference/objectReference.pure	lowered	NativeFn		0	1
+meta::alloy::objectReference::generateObjectReferencesForGivenSetId	function	core	core/legend/objectReference/objectReference.pure	lowered	NativeFn		0	0
+meta::alloy::service::execution::setUpDataSQLs	function	core_relational	core_relational/relational/helperFunctions/helperFunctions.pure	lowered	NativeFn,PlatformTypes		4	2
+meta::alloy::service::execution::setUpDataSQLsV2	function	core_relational	core_relational/relational/sqlQueryToString/DDL/toDDL.pure	lowered	NativeFn,PlatformTypes		2	2
+meta::core::runtime::EngineRuntime	Class	core	core/pure/runtime/runtimeExtension.pure	closure		meta::pure::runtime::PackageableRuntime	1	3
+meta::core::runtime::connectionByElement	function	core	core/pure/runtime/runtimeExtension.pure	lowered	NativeFn,PlatformTypes	meta::core::runtime::Runtime	0	48
+meta::external::format::shared::ExternalFormatContract	Class	core	core/pure/binding/externalFormat/externalFormatContract.pure	closure		meta::pure::extension::Extension	0	0
+meta::external::format::shared::ExternalFormatExternalizeConfig	Class	core	core/pure/binding/externalFormat/externalFormatContract.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::external::format::shared::ExternalFormatFromPureDescriptor	Class	core	core/pure/binding/externalFormat/externalFormatContract.pure	java	WalledBodies	meta::relational::functions::sqlstring::SQLResult	0	0
+meta::external::format::shared::ExternalFormatInternalizeConfig	Class	core	core/pure/binding/externalFormat/externalFormatContract.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::external::format::shared::ExternalFormatToPureDescriptor	Class	core	core/pure/binding/externalFormat/externalFormatContract.pure	java	WalledBodies	meta::relational::functions::sqlstring::SQLResult	0	0
+meta::external::format::shared::binding::Binding	Class	core	core/pure/binding/binding/binding.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	1
+meta::external::format::shared::binding::validation::BindingDetail	Class	core	core/pure/binding/binding/validation.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::external::format::shared::metamodel::SchemaSet	Class	core	core/pure/binding/schemaSet/metamodel.pure	closure		meta::external::format::shared::ExternalFormatToPureDescriptor	0	0
+meta::external::format::shared::transformation::GenerationConfiguration	Class	core	core/pure/binding/transformation/generation.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::external::format::shared::transformation::fromPure::ModelToSchemaConfiguration	Class	core	core/pure/binding/transformation/generation.pure	closure		meta::external::format::shared::ExternalFormatFromPureDescriptor	0	0
+meta::external::format::shared::transformation::toPure::SchemaToModelConfiguration	Class	core	core/pure/binding/transformation/generation.pure	closure		meta::external::format::shared::ExternalFormatToPureDescriptor	0	0
+meta::external::language::java::compiler::CompilationConfiguration	Class	core_external_language_java_compiler	core_external_language_java_compiler/compiler.pure	closure		meta::external::language::java::compiler::compileJava	0	0
+meta::external::language::java::compiler::CompilationResult	Class	core_external_language_java_compiler	core_external_language_java_compiler/compiler.pure	closure		meta::external::language::java::compiler::CompileAndExecuteResult	0	0
+meta::external::language::java::compiler::CompileAndExecuteResult	Class	core_external_language_java_compiler	core_external_language_java_compiler/compiler.pure	closure		meta::external::language::java::compiler::compileAndExecuteJava	0	0
+meta::external::language::java::compiler::ExecutionConfiguration	Class	core_external_language_java_compiler	core_external_language_java_compiler/compiler.pure	closure		meta::external::language::java::compiler::compileAndExecuteJava	0	0
+meta::external::language::java::compiler::ExecutionResult	Class	core_external_language_java_compiler	core_external_language_java_compiler/compiler.pure	closure		meta::external::language::java::compiler::CompileAndExecuteResult	0	0
+meta::external::language::java::compiler::JavaSource	Class	core_external_language_java_compiler	core_external_language_java_compiler/compiler.pure	closure		meta::external::language::java::compiler::compileJava	0	0
+meta::external::language::java::compiler::JavaValue	Class	core_external_language_java_compiler	core_external_language_java_compiler/compiler.pure	closure		meta::external::language::java::compiler::ExecutionResult	0	0
+meta::external::language::java::compiler::compileAndExecuteJava	function	core_external_language_java_compiler	core_external_language_java_compiler/compiler.pure	untraced			0	0
+meta::external::language::java::compiler::compileJava	function	core_external_language_java_compiler	core_external_language_java_compiler/compiler.pure	untraced			0	0
+meta::external::store::model::JsonModelConnection	Class	core	core/pure/mapping/modelToModel.pure	java	PlatformTypes	meta::relational::functions::sqlstring::SQLResult	5	6
+meta::external::store::model::ModelChainConnection	Class	core	core/pure/mapping/modelToModel.pure	java	PlatformTypes	meta::relational::functions::sqlstring::SQLResult	6	7
+meta::external::store::model::PureModelConnection	Class	core	core/pure/mapping/modelToModel.pure	closure		meta::external::store::model::JsonModelConnection	0	0
+meta::external::store::relational::postgresSql::parser::parsePostgresDate	native function	core_external_store_relational_postgres_sql_parser	core_external_store_relational_postgres_sql_parser/parsePostgresDate.pure	untraced			0	0
+meta::external::store::relational::postgresSql::parser::parseSqlStatementToJson	native function	core_external_store_relational_postgres_sql_parser	core_external_store_relational_postgres_sql_parser/postgresSqlParser.pure	untraced			0	0
+meta::external::store::relational::runtime::RelationalDatabaseConnection	Class	core_relational	core_relational/relational/runtime/connection/connection.pure	java	PlatformTypes,SystemMetamodel	meta::relational::functions::sqlstring::SQLResult	7	8
+meta::external::store::relational::sdt::framework::runSqlDialectTestQuery	native function	core_external_store_relational_sdt	core_external_store_relational_sdt/sdtFramework.pure	untraced			0	0
+meta::json::getValue	function	core	core/external/format/json/jsonExtension.pure	lowered			1	3
+meta::json::tdsToJSONKeyValueObjectString	function	core	core/external/format/json/toJSON.pure	lowered	CoreFn,TdsJsonChecker		1	1
+meta::json::toCompactJSONString	function	core	core/external/format/json/json.pure	lowered			0	1
+meta::json::toJSON	function	core	core/external/format/json/toJSON.pure	lowered	CoreFn,TdsJsonChecker		1	2
+meta::json::toPrettyJSONString	function	core	core/external/format/json/json.pure	lowered	SqlFn,VerdictQueries		0	1
+meta::legend::compile	native function	core_external_compiler	core_external_compiler/compiler.pure	java	QuotedSpecParser	meta::pure::functions::lang::evaluate	4	4
+meta::legend::compilePMCD	native function	core_external_compiler	core_external_compiler/compiler.pure	untraced			0	0
+meta::legend::compileVS	native function	core_external_compiler	core_external_compiler/compiler.pure	untraced			0	0
+meta::legend::executeLegendQuery	function	core	core/legend/tools/devUtils.pure	lowered	ExecuteChainAssembly,NativeFn,PlatformTypes,StatementExecutor,TypedJsonResult		9	9
+meta::pure::alloy::connections::Mapper	Class	core_relational	core_relational/relational/runtime/connection/postprocessor.pure	java	ContextReading	meta::pure::alloy::connections::MapperPostProcessor	0	0
+meta::pure::alloy::connections::MapperPostProcessor	Class	core_relational	core_relational/relational/runtime/connection/postprocessor.pure	java	ContextReading	meta::relational::functions::sqlstring::SQLResult	0	1
+meta::pure::alloy::connections::PostProcessor	Class	core_relational	core_relational/relational/runtime/connection/postprocessor.pure	closure		meta::relational::runtime::PostProcessor	0	0
+meta::pure::alloy::connections::RelationalMapperPostProcessor	Class	core_relational	core_relational/relational/runtime/connection/postprocessor.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	1
+meta::pure::alloy::connections::SchemaNameMapper	Class	core_relational	core_relational/relational/runtime/connection/postprocessor.pure	java	ContextReading	meta::pure::alloy::connections::TableNameMapper	0	1
+meta::pure::alloy::connections::TableNameMapper	Class	core_relational	core_relational/relational/runtime/connection/postprocessor.pure	java	ContextReading	meta::relational::functions::sqlstring::SQLResult	0	1
+meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy	Class	core_relational	core_relational/relational/runtime/connection/authenticationStrategy.pure	closure		meta::external::store::relational::runtime::RelationalDatabaseConnection	0	0
+meta::pure::alloy::connections::alloy::specification::DatasourceSpecification	Class	core_relational	core_relational/relational/runtime/connection/datasourceSpecification.pure	java	SystemMetamodel	meta::external::store::relational::runtime::RelationalDatabaseConnection	0	0
+meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification	Class	core_relational	core_relational/relational/runtime/connection/datasourceSpecification.pure	java	PlatformTypes,SystemMetamodel	meta::relational::functions::sqlstring::SQLResult	8	8
+meta::pure::alloy::connections::relationalMapperPostProcessor	function	core_relational	core_relational/relational/runtime/connection/postprocessor.pure	lowered	NativeFn		0	1
+meta::pure::data::EmbeddedData	Class	core	core/pure/data/data.pure	closure		meta::relational::metamodel::data::RelationalCSVData	2	2
+meta::pure::dataQuality::Checked	Class	core	core/pure/dataQuality/dataQuality.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::dataQuality::Defect	Class	core	core/pure/dataQuality/dataQuality.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::dataQuality::EnforcementLevel	Enum	core	core/pure/dataQuality/dataQuality.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::dataQuality::RelativePathNode	Class	core	core/pure/dataQuality/dataQuality.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::dataQuality::RuleType	Enum	core	core/pure/dataQuality/dataQuality.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::executionPlan::ExecutionNode	Class	core	core/pure/executionPlan/executionPlan.pure	java	SystemMetamodel	meta::pure::executionPlan::ExecutionPlan	0	1
+meta::pure::executionPlan::ExecutionOption	Class	core	core/pure/executionPlan/executionPlan_generation.pure	java	PlatformTypes	meta::pure::executionPlan::featureFlag::FeatureFlagOption	0	1
+meta::pure::executionPlan::ExecutionOptionContext	Class	core	core/pure/executionPlan/executionPlan_generation.pure	java	PlatformTypes	meta::relational::functions::sqlstring::SQLResult	0	1
+meta::pure::executionPlan::ExecutionPlan	Class	core	core/pure/executionPlan/executionPlan.pure	java	GenerateTestDataChecker,SystemMetamodel	meta::relational::functions::sqlstring::SQLResult	0	3
+meta::pure::executionPlan::FunctionParameter	Class	core	core/pure/executionPlan/executionPlan.pure	java	SystemMetamodel	meta::pure::executionPlan::FunctionParametersValidationNode	0	0
+meta::pure::executionPlan::FunctionParametersValidationNode	Class	core	core/pure/executionPlan/executionPlan.pure	java	SystemMetamodel	meta::relational::functions::sqlstring::SQLResult	0	7
+meta::pure::executionPlan::MultiExecutionContext	Class	core	core/pure/executionPlan/executionPlan_generation.pure	java	WalledBodies	meta::pure::executionPlan::ExecutionOptionContext	0	0
+meta::pure::executionPlan::ParameterValidationContext	Class	core	core/pure/executionPlan/executionPlan.pure	closure		meta::pure::executionPlan::FunctionParametersValidationNode	0	0
+meta::pure::executionPlan::PlanVarPlaceHolder	Class	core	core/pure/executionPlan/executionPlan_generation.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	1
+meta::pure::executionPlan::PlatformImplementation	Class	core	core/pure/executionPlan/executionPlan.pure	closure		meta::pure::executionPlan::ExecutionPlan	0	0
+meta::pure::executionPlan::ResultType	Class	core	core/pure/executionPlan/executionPlan.pure	closure		meta::pure::executionPlan::ExecutionNode	0	0
+meta::pure::executionPlan::SequenceExecutionNode	Class	core	core/pure/executionPlan/executionPlan.pure	java	SystemMetamodel	meta::relational::functions::sqlstring::SQLResult	0	1
+meta::pure::executionPlan::VariableInput	Class	core	core/pure/executionPlan/executionPlan.pure	closure		meta::pure::executionPlan::ExecutionNode	0	0
+meta::pure::executionPlan::execute	function	core	core/pure/executionPlan/executionPlan_execution.pure	lowered	NativeFn,PlatformTypes	meta::relational::metamodel::execute::Row	1	220
+meta::pure::executionPlan::executionPlan	function	core	core/pure/executionPlan/executionPlan_generation.pure	lowered	NativeFn,PlatformTypes	meta::pure::executionPlan::ExecutionPlan	11	65
+meta::pure::executionPlan::extension::ExecutionPlanExtension	Class	core	core/pure/executionPlan/extensions.pure	closure		meta::pure::extension::Extension	0	0
+meta::pure::executionPlan::featureFlag::FeatureFlagOption	Class	core	core/pure/executionPlan/executionPlanFeature.pure	java	PlatformTypes	meta::relational::functions::sqlstring::SQLResult	0	1
+meta::pure::executionPlan::features::Feature	Enum	core	core/pure/executionPlan/executionPlanFeature.pure	java	Feature	meta::pure::extension::Extension	3	3
+meta::pure::executionPlan::platformBinding::PlatformBinding	Class	core	core/pure/executionPlan/platformBinding/platformBinding.pure	closure		meta::pure::extension::Extension	0	0
+meta::pure::executionPlan::platformBinding::PlatformBindingConfig	Class	core	core/pure/executionPlan/platformBinding/platformBinding.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::executionPlan::platformBinding::PlatformBindingExtension	Class	core	core/pure/executionPlan/platformBinding/platformBinding.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::executionPlan::toString::planToString	function	core	core/pure/executionPlan/executionPlan_print.pure	lowered	NativeFn,PlatformTypes		8	10
+meta::pure::executionPlan::toString::planToStringWithoutFormatting	function	core	core/pure/executionPlan/executionPlan_print.pure	lowered	NativeFn,PlatformTypes		5	7
+meta::pure::extension::Extension	Class	core	core/pure/extensions/extension.pure	java	SystemMetamodel,WalledBodies	meta::pure::router::extension::RouterExtension	2	4
+meta::pure::extension::FeatureExtension	Class	core	core/pure/extensions/extension.pure	closure		meta::pure::extension::Extension	1	1
+meta::pure::extension::ModuleExtension	Class	core	core/pure/extensions/extension.pure	closure		meta::pure::extension::Extension	0	0
+meta::pure::extension::SerializerExtension	Class	core	core/pure/extensions/extension.pure	closure		meta::pure::extension::Extension	0	0
+meta::pure::functions::asserts::assertJsonStringsEqual	function	core	core/pure/corefunctions/testExtension.pure	lowered	NativeFn,PlatformTypes		0	24
+meta::pure::functions::boolean::isTrue	function	core	core/pure/corefunctions/langExtension.pure	lowered			0	0
+meta::pure::functions::collection::AggregateValue	Class	core	core/pure/corefunctions/collectionExtension.pure	java	Overloads,ProtocolUpgrade		1	1
+meta::pure::functions::collection::objectReferenceIn	function	core	core/pure/corefunctions/collectionExtension.pure	lowered	DynaFn,NativeFn		0	3
+meta::pure::functions::collection::removeAll	function	core	core/pure/corefunctions/collectionExtension.pure	closure		meta::pure::tds::schema::SchemaState	0	0
+meta::pure::functions::date::add	function	core	core/pure/corefunctions/dateExtension.pure	lowered		meta::relational::functions::sqlstring::SQLResult	0	8
+meta::pure::functions::date::calendar::CYMinus2	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::CYMinus3	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::annualized	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::cme	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::cw	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::cw_fm	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::mtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::p12mtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::p12wa	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::p12wtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::p4wa	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::p4wtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::p52wa	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::p52wtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pma	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pmtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pqtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::priorDay	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::priorYear	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pw	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pw_fm	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pwa	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pwtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pymtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pyqtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pytd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pywa	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::pywtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::qtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::reportEndDay	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	1
+meta::pure::functions::date::calendar::wtd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	2
+meta::pure::functions::date::calendar::ytd	function	core	core/pure/corefunctions/dateExtension.pure	lowered	NativeFn		0	3
+meta::pure::functions::date::firstDayOfMonth	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	2
+meta::pure::functions::date::firstDayOfQuarter	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	2
+meta::pure::functions::date::firstDayOfThisMonth	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	1
+meta::pure::functions::date::firstDayOfThisQuarter	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	2
+meta::pure::functions::date::firstDayOfThisYear	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	3
+meta::pure::functions::date::firstDayOfWeek	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	2
+meta::pure::functions::date::firstDayOfYear	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	2
+meta::pure::functions::date::firstHourOfDay	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	0
+meta::pure::functions::date::firstMillisecondOfSecond	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	0
+meta::pure::functions::date::firstMinuteOfHour	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	0
+meta::pure::functions::date::firstSecondOfMinute	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	0
+meta::pure::functions::date::fromEpochValue	function	core	core/pure/corefunctions/dateExtension.pure	lowered			0	0
+meta::pure::functions::date::isAfterDay	function	core	core/pure/corefunctions/dateExtension.pure	lowered			0	0
+meta::pure::functions::date::isBeforeDay	function	core	core/pure/corefunctions/dateExtension.pure	lowered			0	0
+meta::pure::functions::date::isOnDay	function	core	core/pure/corefunctions/dateExtension.pure	lowered			0	0
+meta::pure::functions::date::isOnOrAfterDay	function	core	core/pure/corefunctions/dateExtension.pure	lowered			0	0
+meta::pure::functions::date::isOnOrBeforeDay	function	core	core/pure/corefunctions/dateExtension.pure	lowered			0	0
+meta::pure::functions::date::month	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	6
+meta::pure::functions::date::mostRecentDayOfWeek	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	3
+meta::pure::functions::date::previousDayOfWeek	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	1
+meta::pure::functions::date::quarter	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	4
+meta::pure::functions::date::quarterNumber	function	core	core/pure/corefunctions/dateExtension.pure	lowered	DynaFn		0	1
+meta::pure::functions::date::toEpochValue	function	core	core/pure/corefunctions/dateExtension.pure	lowered			0	0
+meta::pure::functions::string::isAlphaNumeric	function	core	core/pure/corefunctions/stringExtension.pure	lowered	DynaFn		0	1
+meta::pure::functions::string::makeString	function	core	core/pure/corefunctions/stringExtension.pure	lowered	PlatformTypes	meta::pure::tds::TDSColumn	0	66
+meta::pure::functions::test::TestedByResult	Class	core	core/pure/corefunctions/testExtension.pure	closure		meta::pure::extension::Extension	0	0
+meta::pure::graphFetch::execution::AlloySerializationConfig	Class	core	core/pure/graphFetch/graphFetch.pure	java	GraphEmission		2	2
+meta::pure::graphFetch::execution::alloyConfig	function	core	core/pure/graphFetch/graphFetch.pure	lowered	NativeFn		0	2
+meta::pure::graphFetch::executionPlan::LocalGraphFetchExecutionNode	Class	core	core/pure/graphFetch/graphFetchExecutionPlan.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::graphFetch::executionPlan::StoreMappingCrossLocalGraphFetchExecutionNodeGenerationInput	Class	core	core/pure/graphFetch/graphFetchExecutionPlan.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::graphFetch::executionPlan::StoreMappingLocalGraphFetchExecutionNodeGenerationInput	Class	core	core/pure/graphFetch/graphFetchExecutionPlan.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::graphFetch::routing::ClusteredGraphFetchTree	Class	core	core/pure/router/metamodel/clustering.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::graphFetch::routing::RoutedGraphFetchTree	Class	core	core/pure/router/store/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::graphFetch::routing::StoreMappingClusteredGraphFetchTree	Class	core	core/pure/router/store/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::ide::debug	native function	pure_ide_debug	pure_ide_debug/debug.pure	closure		meta::external::store::relational::runtime::DatabaseConnection	0	7
+meta::pure::lineage::scanColumns::ColumnWithContext	Class	core_relational	core_relational/relational/lineage/scanColumns/scanColumns.pure	java	SystemMetamodel	meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::lineage::scanColumns::scanColumns	function	core_relational	core_relational/relational/lineage/scanColumns/scanColumns.pure	lowered	NativeFn,PlatformTypes	meta::pure::lineage::scanColumns::ColumnWithContext	0	0
+meta::pure::lineage::scanProperties::PropertyPathNode	Class	core	core/pure/lineage/scanProperties.pure	closure		meta::pure::lineage::scanProperties::Res	0	0
+meta::pure::lineage::scanProperties::Res	Class	core	core/pure/lineage/scanProperties.pure	untraced			0	0
+meta::pure::lineage::scanProperties::propertyTree::PropertyPathTree	Class	core	core/pure/lineage/scanProperties.pure	untraced			0	0
+meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree	function	core	core/pure/lineage/scanProperties.pure	lowered	NativeFn,PlatformTypes		0	0
+meta::pure::lineage::scanProperties::scanProperties	function	core	core/pure/lineage/scanProperties.pure	lowered	NativeFn,PlatformTypes	meta::pure::lineage::scanProperties::PropertyPathNode	0	0
+meta::pure::lineage::scanRelations::RelationTree	Class	core_relational	core_relational/relational/lineage/scanRelations/scanRelations.pure	java	SystemMetamodel	meta::relational::testDataGeneration::TestDataGenResult	0	0
+meta::pure::lineage::scanRelations::scanRelations	function	core_relational	core_relational/relational/lineage/scanRelations/scanRelations.pure	lowered	NativeFn,PlatformTypes	meta::pure::lineage::scanRelations::RelationTree	0	1
+meta::pure::mapping::StoreQuery	Class	core	core/pure/mapping/mappingExtension.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::mapping::TabularDataSetImplementation	Class	core	core/pure/mapping/mappingExtension.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::mapping::aggregationAware::AggregationAwareActivity	Class	core	core/store/aggregationAware/aggregationAware.pure	java	SystemMetamodel	meta::relational::functions::sqlstring::SQLResult	3	3
+meta::pure::model::unit::ModelUnit	Class	core	core/pure/model/modelUnit.pure	closure		meta::external::format::shared::ExternalFormatFromPureDescriptor	0	0
+meta::pure::router::extension::RouterExtension	Class	core	core/pure/router/extension/router_extension.pure	java	SystemMetamodel	meta::pure::extension::Extension	0	0
+meta::pure::router::metamodel::ExtendedRoutedValueSpecification	Class	core	core/pure/router/metamodel/routing.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::router::metamodel::RoutingStrategy	Class	core	core/pure/router/metamodel/routing.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::router::metamodel::clustering::ClusteredValueSpecification	Class	core	core/pure/router/metamodel/clustering.pure	closure		meta::pure::executionPlan::ExecutionNode	1	1
+meta::pure::router::routing::PropertyMap	Class	core	core/pure/router/routing/router_routing.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::router::routing::RoutingState	Class	core	core/pure/router/routing/router_routing.pure	closure		meta::pure::router::extension::RouterExtension	1	1
+meta::pure::runtime::PackageableRuntime	Class	core	core/pure/runtime/runtimeExtension.pure	java	PlatformTypes	meta::relational::functions::sqlstring::SQLResult	1	1
+meta::pure::store::StoreContract	Class	core	core/pure/store/storeContract.pure	closure		meta::pure::extension::Extension	0	0
+meta::pure::tds::BasicColumnSpecification	Class	core	core/pure/tds/tds.pure	java	ExtendChecker,Overloads,ProtocolEmitter,ProtocolUpgrade		0	4
+meta::pure::tds::ColumnSpecification	Class	core	core/pure/tds/tds.pure	java	Overloads	meta::pure::extension::Extension	0	2
+meta::pure::tds::OlapOperation	Class	core	core/pure/tds/tds.pure	closure		meta::pure::tds::TdsOlapRank	0	0
+meta::pure::tds::SortDirection	Enum	core	core/pure/tds/tds.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	1
+meta::pure::tds::SortInformation	Class	core	core/pure/tds/tds.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::tds::TDSColumn	Class	core	core/pure/tds/tds.pure	java	Overloads	meta::pure::tds::TabularDataSet	0	2
+meta::pure::tds::TDSNull	Class	core	core/pure/tds/tds.pure	java	PlatformTypes,TdsNullForms,Typer	meta::pure::tds::TDSRow	2	57
+meta::pure::tds::TDSRow	Class	core	core/pure/tds/tds.pure	java	NativeFn,VerdictRoutes	meta::pure::extension::Extension	1	22
+meta::pure::tds::TabularDataSet	Class	core	core/pure/tds/tds.pure	java	PlatformTypes,VerdictRoutes	meta::pure::extension::Extension	1	19
+meta::pure::tds::TdsOlapRank	Class	core	core/pure/tds/tds.pure	java	ProtocolEmitter,ProtocolUpgrade	meta::relational::functions::sqlstring::SQLResult	0	0
+meta::pure::tds::asc	function	core	core/pure/tds/tds.pure	lowered	CoreFn		0	31
+meta::pure::tds::desc	function	core	core/pure/tds/tds.pure	lowered	CoreFn		0	10
+meta::pure::tds::filter	function	core	core/pure/tds/tds.pure	lowered	CoreFn	meta::core::runtime::Runtime	1	179
+meta::pure::tds::limit	function	core	core/pure/tds/tds.pure	lowered	CoreFn	meta::relational::functions::sqlstring::SQLResult	0	13
+meta::pure::tds::schema::SchemaState	Class	core	core/pure/tds/tdsSchema.pure	java	WalledBodies	meta::pure::extension::Extension	0	0
+meta::pure::tds::sort	function	core	core/pure/tds/tds.pure	lowered	CoreFn	meta::relational::functions::sqlstring::SQLResult	0	69
+meta::pure::tds::tableToTDS	function	core_relational	core_relational/relational/functions/tableToTDS.pure	lowered	CoreFn		0	11
+meta::pure::tds::toRelation::TdsToRelationExtension	Class	core	core/pure/tds/relation/tdsToRelation.pure	closure		meta::pure::extension::Extension	0	0
+meta::relational::functions::database::tableReference	function	core_relational	core_relational/relational/functions/tableReference.pure	lowered	CoreFn		9	11
+meta::relational::functions::pureToSqlQuery::metamodel::VarPlaceHolder	Class	core_relational	core_relational/relational/pureToSQLQuery/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::functions::sqlQueryToString::Config	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::functions::sqlQueryToString::DbConfig	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	java	WalledBodies	meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::functions::sqlQueryToString::DbExtension	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::functions::sqlQueryToString::DynaFunctionToSql	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	java	WalledBodies	meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::functions::sqlQueryToString::Format	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	closure		meta::external::format::shared::ExternalFormatToPureDescriptor	1	1
+meta::relational::functions::sqlQueryToString::GenerationSide	Enum	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::functions::sqlQueryToString::GenerationState	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	closure		meta::relational::functions::sqlQueryToString::DynaFunctionToSql	0	0
+meta::relational::functions::sqlQueryToString::LiteralProcessor	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::functions::sqlQueryToString::LiteralReplacement	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::functions::sqlQueryToString::NullOrderingSupport	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	java	WalledBodies	meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::functions::sqlQueryToString::RelationalDDLCommandsTranslator	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::functions::sqlQueryToString::SqlGenerationContext	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::functions::sqlQueryToString::ToSql	Class	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	closure		meta::relational::functions::sqlQueryToString::DynaFunctionToSql	0	0
+meta::relational::functions::sqlQueryToString::sqlFalse	function	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	lowered	DynaFn		0	1
+meta::relational::functions::sqlQueryToString::sqlNull	function	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	lowered	DynaFn		0	4
+meta::relational::functions::sqlQueryToString::sqlTrue	function	core_relational	core_relational/relational/sqlQueryToString/dbExtension.pure	lowered	DynaFn		0	1
+meta::relational::functions::sqlstring::SQLResult	Class	core_relational	core_relational/relational/transform/fromPure/toSQLString.pure	java	NativeFn		0	0
+meta::relational::functions::sqlstring::toNonExecutableSQLString	function	core_relational	core_relational/relational/transform/fromPure/toSQLString.pure	lowered	NativeFn,PlatformTypes		0	1
+meta::relational::functions::sqlstring::toSQL	function	core_relational	core_relational/relational/transform/fromPure/toSQLString.pure	lowered	NativeFn,PlatformTypes		5	2
+meta::relational::functions::sqlstring::toSQLString	function	core_relational	core_relational/relational/transform/fromPure/toSQLString.pure	lowered	NativeFn,PlatformTypes	meta::relational::functions::sqlstring::SQLResult	5	13
+meta::relational::functions::sqlstring::toSQLStringPretty	function	core_relational	core_relational/relational/transform/fromPure/toSQLString.pure	lowered	NativeFn,PlatformTypes		2	2
+meta::relational::functions::toDDL::createSchemaStatement	function	core_relational	core_relational/relational/helperFunctions/toDDL.pure	lowered	NativeFn,PlatformTypes		0	1
+meta::relational::functions::toDDL::createTableStatement	function	core_relational	core_relational/relational/helperFunctions/toDDL.pure	lowered	NativeFn,PlatformTypes		0	2
+meta::relational::functions::toDDL::dropAndCreateSchemaInDb	function	core_relational	core_relational/relational/helperFunctions/toDDL.pure	lowered	NativeFn,PlatformTypes		1	4
+meta::relational::functions::toDDL::dropAndCreateTableInDb	function	core_relational	core_relational/relational/helperFunctions/toDDL.pure	lowered	NativeFn,PlatformTypes		19	37
+meta::relational::functions::toDDL::dropSchemaStatement	function	core_relational	core_relational/relational/helperFunctions/toDDL.pure	lowered	NativeFn,PlatformTypes		0	1
+meta::relational::functions::toDDL::dropTableStatement	function	core_relational	core_relational/relational/helperFunctions/toDDL.pure	lowered	NativeFn,PlatformTypes		0	1
+meta::relational::mapping::PreAndFinallyExecutionSQLQuery	Class	core_relational	core_relational/relational/postprocessor/defaultPostProcessor/dbSpecificProcessor.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::mapping::QueryMetadata	Class	core_relational	core_relational/relational/executionPlan/executionPlan.pure	closure		meta::relational::mapping::SQLExecutionNode	0	0
+meta::relational::mapping::RelationalInstantiationExecutionNode	Class	core_relational	core_relational/relational/executionPlan/executionPlan.pure	java	SystemMetamodel	meta::relational::functions::sqlstring::SQLResult	0	1
+meta::relational::mapping::SQLExecutionNode	Class	core_relational	core_relational/relational/executionPlan/executionPlan.pure	java	SystemMetamodel	meta::relational::functions::sqlstring::SQLResult	1	5
+meta::relational::mapping::SQLResultColumn	Class	core_relational	core_relational/relational/executionPlan/executionPlan.pure	closure		meta::relational::mapping::SQLExecutionNode	0	0
+meta::relational::mapping::TableTDS	Class	core_relational	core_relational/relational/functions/tableToTDS.pure	closure		meta::pure::extension::Extension	0	0
+meta::relational::metamodel::CommitQuery	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::metamodel::CreateFunctionSQL	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::metamodel::CreatePipelineSQL	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::metamodel::CreateProcedureSQL	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::metamodel::CreateSchemaSQL	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::metamodel::CreateTableSQL	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::metamodel::CreateViewSQL	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::metamodel::DatabaseMapper	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	1
+meta::relational::metamodel::DropSchemaSQL	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::metamodel::DropTableSQL	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::metamodel::LoadTableSQL	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::metamodel::ObjectQuery	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::metamodel::ParameterizedQuery	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::metamodel::RelationalLambda	Class	core_relational	core_relational/relational/pureToSQLQuery/metamodel.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::metamodel::RelationalLambdaParameter	Class	core_relational	core_relational/relational/pureToSQLQuery/metamodel.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::metamodel::RelationalMapper	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	1
+meta::relational::metamodel::SQLParameter	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::metamodel::SchemaMapper	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	1
+meta::relational::metamodel::TableMapper	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlstring::SQLResult	0	1
+meta::relational::metamodel::UpsertSQLQuery	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::metamodel::VariableDeclaration	Class	core_relational	core_relational/relational/metamodel/metamodel.pure	closure		meta::relational::functions::sqlQueryToString::DbConfig	0	0
+meta::relational::metamodel::data::RelationalCSVData	Class	core_relational	core_relational/relational/metamodel/test/relationalTest.pure	java	CsvCensusChecker,TestDataGenerationNatives	meta::relational::functions::sqlstring::SQLResult	2	2
+meta::relational::metamodel::data::RelationalCSVTable	Class	core_relational	core_relational/relational/metamodel/test/relationalTest.pure	java	CsvCensusChecker,TestDataGenerationNatives	meta::relational::metamodel::data::RelationalCSVData	2	2
+meta::relational::metamodel::execute::executeInDbToTDS	function	core_relational	core_relational/relational/relationalExtension.pure	lowered	NativeFn,PlatformTypes		1	1
+meta::relational::milestoning::concatenateTemporalTdsQueries	function	core_relational	core_relational/relational/milestoning/milestoning.pure	lowered	NativeFn		1	2
+meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs	function	core_relational	core_relational/relational/postprocessor/cteExtractionPostProcessor.pure	lowered	NativeFn		0	0
+meta::relational::postProcessor::nonExecutable	function	core_relational	core_relational/relational/postprocessor/nonExecutablePostProcessor.pure	lowered	NativeFn		0	1
+meta::relational::postProcessor::replaceTables	function	core_relational	core_relational/relational/postprocessor/postProcessor.pure	lowered	NativeFn		1	2
+meta::relational::runtime::RelationalExecutionContext	Class	core_relational	core_relational/relational/runtime/executionContext/executionContext.pure	java	PlatformTypes	meta::relational::functions::sqlstring::SQLResult	1	6
+meta::relational::testDataGeneration::RowIdentifier	Class	core_relational	core_relational/relational/testDataGeneration/testDataGeneration.pure	java	SourceSubst,TestDataGenerationNatives	meta::relational::testDataGeneration::TableRowIdentifiers	0	0
+meta::relational::testDataGeneration::TableRowIdentifiers	Class	core_relational	core_relational/relational/testDataGeneration/testDataGeneration.pure	java	SourceSubst,TestDataGenerationNatives	meta::relational::functions::sqlstring::SQLResult	0	1
+meta::relational::testDataGeneration::TemporalMilestoningDates	Class	core_relational	core_relational/relational/testDataGeneration/testDataGeneration.pure	java	SourceSubst,TestDataGenerationNatives	meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::testDataGeneration::TestDataGenResult	Class	core_relational	core_relational/relational/testDataGeneration/testDataGeneration.pure	java	CsvCensusChecker,GenerateTestDataChecker,SqlTextVerdicts	meta::relational::functions::sqlstring::SQLResult	0	0
+meta::relational::testDataGeneration::executionPlan::planTestDataGeneration	function	core_relational	core_relational/relational/testDataGeneration/testDataGeneration.pure	lowered	CoreFn,PlatformTypes		1	1
+meta::relational::testDataGeneration::generateSeedDataString	function	core_relational	core_relational/relational/testDataGeneration/testDataGeneration.pure	lowered	CoreFn,PlatformTypes		1	1
+meta::relational::testDataGeneration::generateTestData	function	core_relational	core_relational/relational/testDataGeneration/testDataGeneration.pure	lowered	CoreFn,NativeFn,PlatformTypes,TestDataGenerator		0	1
+meta::relational::testDataGeneration::getRelationalCSVDataFromQuery	function	core_relational	core_relational/relational/testDataGeneration/testDataGeneration.pure	lowered	CoreFn,NativeFn,PlatformTypes		1	1

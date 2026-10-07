@@ -1,0 +1,99 @@
+meta::pure::profiles::doc	Duplicated element 'meta::pure::profiles::doc'
+meta::pure::profiles::typemodifiers	Duplicated element 'meta::pure::profiles::typemodifiers'
+meta::pure::test::fct::FCT	Duplicated element 'meta::pure::test::fct::FCT'
+meta::pure::test::pct::PCT	Duplicated element 'meta::pure::test::pct::PCT'
+meta::pure::profiles::test	Duplicated element 'meta::pure::profiles::test'
+meta::pure::profiles::temporaryLazyExclusion	Duplicated element 'meta::pure::profiles::temporaryLazyExclusion'
+meta::pure::profiles::access	Duplicated element 'meta::pure::profiles::access'
+meta::pure::profiles::equality	Duplicated element 'meta::pure::profiles::equality'
+meta::pure::profiles::temporal	Duplicated element 'meta::pure::profiles::temporal'
+meta::pure::profiles::milestoning	Duplicated element 'meta::pure::profiles::milestoning'
+meta::pure::profiles::functionType	Duplicated element 'meta::pure::profiles::functionType'
+meta::pure::service::service	Duplicated element 'meta::pure::service::service'
+meta::pure::diagram::DiagramTypeViews	Duplicated element 'meta::pure::diagram::DiagramTypeViews'
+meta::pure::diagram::DiagramAssociationViews	Duplicated element 'meta::pure::diagram::DiagramAssociationViews'
+meta::pure::diagram::DiagramPropertyViews	Duplicated element 'meta::pure::diagram::DiagramPropertyViews'
+meta::pure::diagram::DiagramGeneralizationViews	Duplicated element 'meta::pure::diagram::DiagramGeneralizationViews'
+meta::pure::profiles::cipher	Duplicated element 'meta::pure::profiles::cipher'
+meta::pure::mapping::modelToModel::test::units::dest::HealthProfile	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::pure::mapping::modelToModel::test::units::dest::HealthProfile_ExtendedPrimitives	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::pure::mapping::modelToModel::test::units::dest::ClassWithPound	Unknown type: 'Mass~Pound' is not a known primitive, class, or enum
+meta::pure::mapping::modelToModel::test::units::src::_HealthProfile	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::pure::mapping::modelToModel::test::units::src::_HealthProfile_ExtendedPrimitives	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::pure::mapping::modelToModel::test::units::src::_ClassWithKilogram	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::external::format::json::executionPlan::test::types::AllTypes	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::external::store::relational::sqlDialectTranslation::functionRegistry::SqlFunctionTest	Unknown type: 'TestSetupData' is not a known primitive, class, or enum
+meta::pure::unit::massScalarTimes	Unknown type: 'meta::pure::unit::Mass' is not a known primitive, class, or enum
+meta::pure::unit::massScalarDivision	Unknown type: 'meta::pure::unit::Mass' is not a known primitive, class, or enum
+meta::pure::lineage::scanProperties::test::getZipCodes	Unknown type: 'Location' is not a known primitive, class, or enum
+meta::pure::lineage::scanProperties::test::getStreetNames	Unknown type: 'Street' is not a known primitive, class, or enum
+meta::pure::lineage::scanProperties::test::func	Unknown type: '_D' is not a known primitive, class, or enum
+meta::pure::lineage::scanProperties::test::func2	Unknown type: '_D' is not a known primitive, class, or enum
+meta::pure::lineage::scanProperties::test::func3	Unknown type: '_D' is not a known primitive, class, or enum
+meta::pure::lineage::scanProperties::test::func4	Unknown type: '_D' is not a known primitive, class, or enum
+meta::pure::lineage::scanProperties::test::test::func4	Unknown type: '_D' is not a known primitive, class, or enum
+meta::pure::router::routeFunction	Unknown type: 'Extension' is not a known primitive, class, or enum
+meta::external::store::relational::sqlDialectTranslation::defaults::createTestTableProcessor_default	Unknown type: 'CreateTestTable' is not a known primitive, class, or enum
+meta::external::store::relational::sqlDialectTranslation::defaults::dropTestTableProcessor_default	Unknown type: 'DropTestTable' is not a known primitive, class, or enum
+meta::external::store::relational::sqlDialectTranslation::defaults::insertIntoTestTableProcessor_default	Unknown type: 'InsertIntoTestTable' is not a known primitive, class, or enum
+meta::external::store::relational::sqlDialectTranslation::functionRegistry::sqlFunctionTest	Unknown type: 'TestSetupData' is not a known primitive, class, or enum
+meta::pure::functions::boolean::is	function 'meta::pure::functions::boolean::is' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::collection::getIfAbsentPutWithKey	function 'meta::pure::functions::collection::getIfAbsentPutWithKey' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::collection::getMapStats	function 'meta::pure::functions::collection::getMapStats' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::collection::replaceAll	function 'meta::pure::functions::collection::replaceAll' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::collection::removeAllOptimized	function 'meta::pure::functions::collection::removeAllOptimized' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::lang::evaluate	function 'meta::pure::functions::lang::evaluate' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::lang::rawEvalProperty	function 'meta::pure::functions::lang::rawEvalProperty' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::getUnitValue	function 'meta::pure::functions::meta::getUnitValue' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::newUnit	function 'meta::pure::functions::meta::newUnit' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::math::random	function 'meta::pure::functions::math::random' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::elementPath	function 'meta::pure::functions::meta::elementPath' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::lenientPathToElement	function 'meta::pure::functions::meta::lenientPathToElement' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::pathToElement	function 'meta::pure::functions::meta::pathToElement' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::tag	function 'meta::pure::functions::meta::tag' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::canReactivateDynamically	function 'meta::pure::functions::meta::canReactivateDynamically' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::openVariableValues	function 'meta::pure::functions::meta::openVariableValues' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::reactivate	function 'meta::pure::functions::meta::reactivate' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::lang::removeOverride	function 'meta::pure::functions::lang::removeOverride' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::sourceInformation	function 'meta::pure::functions::meta::sourceInformation' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::genericTypeClass	function 'meta::pure::functions::meta::genericTypeClass' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::enumName	function 'meta::pure::functions::meta::enumName' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::generalizations	function 'meta::pure::functions::meta::generalizations' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::subTypeOf	function 'meta::pure::functions::meta::subTypeOf' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::string::lastIndexOf	function 'meta::pure::functions::string::lastIndexOf' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::test::pct::loadPCTManifest	function 'meta::pure::test::pct::loadPCTManifest' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::test::surveyor::executeTest	function 'meta::pure::test::surveyor::executeTest' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::test::surveyor::executePCTTest	function 'meta::pure::test::surveyor::executePCTTest' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::lang::copy	function 'meta::pure::functions::lang::copy' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::metamodel::relation::stringToTDS	function 'meta::pure::metamodel::relation::stringToTDS' is defined more than once with the same signature — calls would be ambiguous
+meta::relational::metamodel::execute::loadValuesToDbTable	function 'meta::relational::metamodel::execute::loadValuesToDbTable' is defined more than once with the same signature — calls would be ambiguous
+meta::relational::metamodel::execute::fetchDbImportedKeysMetaData	function 'meta::relational::metamodel::execute::fetchDbImportedKeysMetaData' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::io::logActivities	function 'meta::pure::functions::io::logActivities' is defined more than once with the same signature — calls would be ambiguous
+meta::json::fromJsonDeprecated	function 'meta::json::fromJsonDeprecated' is defined more than once with the same signature — calls would be ambiguous
+meta::json::fromJsonNative	function 'meta::json::fromJsonNative' is defined more than once with the same signature — calls would be ambiguous
+meta::json::toJsonBeta	function 'meta::json::toJsonBeta' is defined more than once with the same signature — calls would be ambiguous
+meta::json::escape	function 'meta::json::escape' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::boolean::equalJsonStrings	function 'meta::pure::functions::boolean::equalJsonStrings' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::relation::offset	function 'meta::pure::functions::relation::offset' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::relation::wrapPrimitiveInTDS	function 'meta::pure::functions::relation::wrapPrimitiveInTDS' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::cipher::decrypt	function 'meta::pure::functions::cipher::decrypt' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::cipher::encrypt	function 'meta::pure::functions::cipher::encrypt' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::io::readFile	function 'meta::pure::functions::io::readFile' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::compileValueSpecification	function 'meta::pure::functions::meta::compileValueSpecification' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::newAssociation	function 'meta::pure::functions::meta::newAssociation' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::newClass	function 'meta::pure::functions::meta::newClass' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::newEnumeration	function 'meta::pure::functions::meta::newEnumeration' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::newLambdaFunction	function 'meta::pure::functions::meta::newLambdaFunction' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::newProperty	function 'meta::pure::functions::meta::newProperty' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::newQualifiedProperty	function 'meta::pure::functions::meta::newQualifiedProperty' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::isSourceReadOnly	function 'meta::pure::functions::meta::isSourceReadOnly' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::functionDescriptorToId	function 'meta::pure::functions::meta::functionDescriptorToId' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::meta::isValidFunctionDescriptor	function 'meta::pure::functions::meta::isValidFunctionDescriptor' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::tools::profile	function 'meta::pure::functions::tools::profile' is defined more than once with the same signature — calls would be ambiguous
+meta::core::runtime::isOptionSet	function 'meta::core::runtime::isOptionSet' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::string::decodeUrl	function 'meta::pure::functions::string::decodeUrl' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::string::encodeUrl	function 'meta::pure::functions::string::encodeUrl' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::string::parseCSV	function 'meta::pure::functions::string::parseCSV' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::tracing::traceSpan	function 'meta::pure::functions::tracing::traceSpan' is defined more than once with the same signature — calls would be ambiguous
+meta::vcs::metamodel::versionHistory	function 'meta::vcs::metamodel::versionHistory' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::functions::variant::convert::toJson	function 'meta::pure::functions::variant::convert::toJson' is defined more than once with the same signature — calls would be ambiguous

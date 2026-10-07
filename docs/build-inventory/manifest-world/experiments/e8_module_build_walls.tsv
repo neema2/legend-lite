@@ -1,0 +1,14 @@
+meta::pure::mapping::modelToModel::test::units::dest::HealthProfile	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::pure::mapping::modelToModel::test::units::dest::HealthProfile_ExtendedPrimitives	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::pure::mapping::modelToModel::test::units::dest::ClassWithPound	Unknown type: 'Mass~Pound' is not a known primitive, class, or enum
+meta::pure::mapping::modelToModel::test::units::src::_HealthProfile	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::pure::mapping::modelToModel::test::units::src::_HealthProfile_ExtendedPrimitives	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::pure::mapping::modelToModel::test::units::src::_ClassWithKilogram	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::external::format::json::executionPlan::test::types::AllTypes	Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+meta::pure::unit::massScalarTimes	Unknown type: 'meta::pure::unit::Mass' is not a known primitive, class, or enum
+meta::pure::unit::massScalarDivision	Unknown type: 'meta::pure::unit::Mass' is not a known primitive, class, or enum
+meta::pure::router::routeFunction	Unknown type: 'Mapping' is not a known primitive, class, or enum
+meta::pure::lineage::scanRelations::test::DB2$view$E.AltID_View	function 'meta::pure::lineage::scanRelations::test::DB2$view$E.AltID_View' is defined more than once with the same signature — calls would be ambiguous
+meta::pure::lineage::scanRelations::test::DB2$view$ViewSchema.AltID_View	function 'meta::pure::lineage::scanRelations::test::DB2$view$ViewSchema.AltID_View' is defined more than once with the same signature — calls would be ambiguous
+meta::external::store::relational::modelJoins::test::EntityDatabase$view$Entity.LegalEntity_View	function 'meta::external::store::relational::modelJoins::test::EntityDatabase$view$Entity.LegalEntity_View' is defined more than once with the same signature — calls would be ambiguous
+meta::relational::grammar::serialization::tests::TestDB$view$MySchema.View1	function 'meta::relational::grammar::serialization::tests::TestDB$view$MySchema.View1' is defined more than once with the same signature — calls would be ambiguous

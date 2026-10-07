@@ -1,0 +1,46 @@
+seed corpus tests       269 files ->   893 elements
+seed model projects     166 files ->    25 elements
+seed demo models         23 files ->     0 elements
+seed our Java (Pure.java + FQN strings)  ->   213 elements
+
+universe 1595 elements 0.52 MB; used 1381 (0.47 MB); UNUSED 214 (0.05 MB); closure rounds 5
+used by first reason: {'corpus tests': 893, 'model projects': 25, 'our Java': 213, 'closure': 250}
+
+packages: 115; ENTIRELY unused: 9 (7 KB)
+      4.0 KB   18 el  meta::external::language::java::compiler
+      0.8 KB    3 el  meta::pure::functions::tracing
+      0.7 KB    1 el  meta::external::format::shared::binding::toString
+      0.4 KB    4 el  meta::vcs::metamodel
+      0.4 KB    4 el  meta::pure::functions::cipher
+      0.3 KB    2 el  meta::external::store::relational::postgresSql::parser
+      0.2 KB    1 el  meta::external::store::relational::sdt::framework
+      0.2 KB    1 el  meta::pure::metamodel::valuespecification
+      0.2 KB    1 el  meta::pure::functions::relation::write
+files: 517; ENTIRELY unused: 63 (27 KB)
+      4.0 KB   18 el  core_external_language_java_compiler/compiler.pure
+      2.0 KB    3 el  core_functions_unclassified/milestoning/reverseMilestoningTransforms.pure
+      1.0 KB    2 el  core_functions_unclassified/meta/getAllPackageableElements.pure
+      0.9 KB    4 el  platform/pure/essential/tests/assertNotContains.pure
+      0.8 KB    3 el  core_functions_unclassified/tracing/traceSpan.pure
+      0.8 KB    4 el  platform/pure/essential/tests/assertNotSize.pure
+      0.8 KB    4 el  platform/pure/essential/tests/assetNotEq.pure
+      0.8 KB    4 el  platform/pure/essential/tests/assertIsNot.pure
+      0.7 KB    1 el  platform/pure/grammar/functions/meta/type/relation/aggColSpecArray2.pure
+      0.7 KB    1 el  platform/pure/grammar/functions/meta/type/relation/aggColSpec2.pure
+      0.6 KB    2 el  platform/pure/essential/meta/graph/lenientPathToElement.pure
+      0.6 KB    1 el  platform/pure/grammar/functions/meta/type/relation/funcColSpecArray2.pure
+      0.6 KB    1 el  platform/pure/grammar/functions/meta/type/relation/aggColSpec.pure
+      0.6 KB    1 el  platform/pure/grammar/functions/meta/type/relation/aggColSpecArray.pure
+      0.6 KB    1 el  platform/pure/grammar/functions/meta/type/relation/funcColSpec2.pure
+
+packages partly used (most unused bytes first):
+   meta::pure::functions::relation                              used 122/135 elements, unused 6.1 KB
+   meta::pure::functions::meta                                  used 43/66 elements, unused 4.7 KB
+   meta::pure::mapping                                          used 44/55 elements, unused 4.2 KB
+   meta::pure::milestoning                                      used 4/19 elements, unused 4.2 KB
+   meta::pure::functions::asserts                               used 61/77 elements, unused 3.2 KB
+   meta::relational::metamodel                                  used 65/81 elements, unused 2.8 KB
+   meta::pure::functions::date                                  used 128/135 elements, unused 2.0 KB
+   meta::json                                                   used 25/32 elements, unused 1.5 KB
+   meta::relational::metamodel::relation                        used 12/22 elements, unused 1.3 KB
+   meta::pure::functions                                        used 5/7 elements, unused 1.2 KB

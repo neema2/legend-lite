@@ -1,0 +1,60 @@
+===== W0
+files=267 chars=1,841,050 elements=1912 parseWalls=1 duplicates=0 parseMs=155
+Exception in thread "main" java.lang.StringIndexOutOfBoundsException: Range [0, 53) out of bounds for length 51
+	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:55)
+	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:52)
+	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:213)
+	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:210)
+	at java.base/jdk.internal.util.Preconditions.outOfBounds(Preconditions.java:98)
+	at java.base/jdk.internal.util.Preconditions.outOfBoundsCheckFromToIndex(Preconditions.java:112)
+	at java.base/jdk.internal.util.Preconditions.checkFromToIndex(Preconditions.java:349)
+	at java.base/java.lang.String.checkBoundsBeginEnd(String.java:4937)
+	at java.base/java.lang.String.substring(String.java:2899)
+	at Probe.lambda$main$2(Probe.java:22)
+	at java.base/java.util.LinkedHashMap.forEach(LinkedHashMap.java:987)
+	at Probe.main(Probe.java:22)
+===== W1
+files=460 chars=3,005,491 elements=3283 parseWalls=1 duplicates=0 parseMs=191
+Exception in thread "main" java.lang.StringIndexOutOfBoundsException: Range [0, 53) out of bounds for length 51
+	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:55)
+	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:52)
+	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:213)
+	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:210)
+	at java.base/jdk.internal.util.Preconditions.outOfBounds(Preconditions.java:98)
+	at java.base/jdk.internal.util.Preconditions.outOfBoundsCheckFromToIndex(Preconditions.java:112)
+	at java.base/jdk.internal.util.Preconditions.checkFromToIndex(Preconditions.java:349)
+	at java.base/java.lang.String.checkBoundsBeginEnd(String.java:4937)
+	at java.base/java.lang.String.substring(String.java:2899)
+	at Probe.lambda$main$2(Probe.java:22)
+	at java.base/java.util.LinkedHashMap.forEach(LinkedHashMap.java:987)
+	at Probe.main(Probe.java:22)
+===== W2
+files=536 chars=4,356,123 elements=4953 parseWalls=1 duplicates=0 parseMs=233
+Exception in thread "main" java.lang.StringIndexOutOfBoundsException: Range [0, 53) out of bounds for length 51
+	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:55)
+	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:52)
+	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:213)
+	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:210)
+	at java.base/jdk.internal.util.Preconditions.outOfBounds(Preconditions.java:98)
+	at java.base/jdk.internal.util.Preconditions.outOfBoundsCheckFromToIndex(Preconditions.java:112)
+	at java.base/jdk.internal.util.Preconditions.checkFromToIndex(Preconditions.java:349)
+	at java.base/java.lang.String.checkBoundsBeginEnd(String.java:4937)
+	at java.base/java.lang.String.substring(String.java:2899)
+	at Probe.lambda$main$2(Probe.java:22)
+	at java.base/java.util.LinkedHashMap.forEach(LinkedHashMap.java:987)
+	at Probe.main(Probe.java:22)
+===== CORPUS
+files=1772 chars=23,542,664 elements=24451 parseWalls=5 duplicates=0 parseMs=643
+Exception in thread "main" java.lang.StringIndexOutOfBoundsException: Range [0, 53) out of bounds for length 51
+	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:55)
+	at java.base/jdk.internal.util.Preconditions$1.apply(Preconditions.java:52)
+	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:213)
+	at java.base/jdk.internal.util.Preconditions$4.apply(Preconditions.java:210)
+	at java.base/jdk.internal.util.Preconditions.outOfBounds(Preconditions.java:98)
+	at java.base/jdk.internal.util.Preconditions.outOfBoundsCheckFromToIndex(Preconditions.java:112)
+	at java.base/jdk.internal.util.Preconditions.checkFromToIndex(Preconditions.java:349)
+	at java.base/java.lang.String.checkBoundsBeginEnd(String.java:4937)
+	at java.base/java.lang.String.substring(String.java:2899)
+	at Probe.lambda$main$2(Probe.java:22)
+	at java.base/java.util.LinkedHashMap.forEach(LinkedHashMap.java:987)
+	at Probe.main(Probe.java:22)

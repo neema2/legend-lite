@@ -1,0 +1,48 @@
+===== W0
+functions in world=1245 bodyWalls=200 bodiesMs=188
+  body wall x159: in function 'X': in call to 'X', argument N: expected String, got FQN
+  body wall x9: in function 'X': in call to 'X', argument N: expected String, got List<String>
+  body wall x8: in function 'X': unknown class 'X' in ^(…)
+  body wall x4: in function 'X': in call to 'X', argument N: expected String, got CC_List<String>
+  body wall x3: in function 'X': in call to 'X', argument N: expected String, got Pair<String, String>
+  body wall x2: in function 'X': in call to 'X', argument N: expected String, got LA_GenericPair<String, I
+  body wall x2: in function 'X': in call to 'X', argument N: expected String, got LA_List<String>
+  body wall x2: in function 'X': in call to 'X', argument N: expected String, got List<FQN>
+  body wall x1: in function 'X': in call to 'X', argument N: expected String, got List<Integer>
+  body wall x1: in function 'X': in call to 'X', argument N: expected String, got M<I, P>
+  body wall x1: in function 'X': in call to 'X', argument N: expected String, got RelationType<FQN>
+  body wall x1: in function 'X': in call to 'X', argument N: expected String, got ST_List<String>
+  body wall x1: in function 'X': in call to 'X', argument N: expected String, got Structure<A, B>
+  body wall x1: in function 'X': in call to 'X', argument N: expected String, got Structure<Integer, Strin
+===== W1
+functions in world=2407 bodyWalls=232 bodiesMs=401
+  body wall x179: in function 'X': in call to 'X', argument N: expected String, got FQN
+  body wall x9: in function 'X': in call to 'X', argument N: expected String, got List<String>
+  body wall x9: in function 'X': unknown class 'X' in ^(…)
+  body wall x5: in function 'X': class FQN has no property 'X'
+  body wall x4: in function 'X': in call to 'X', argument N: expected String, got CC_List<String>
+  body wall x3: in function 'X': FQN expects (source, @Type)
+  body wall x3: in function 'X': in call to 'X', argument N: expected String, got Pair<String, String>
+  body wall x2: in function 'X': in call to 'X', argument N: expected String, got LA_GenericPair<String, I
+  body wall x2: in function 'X': in call to 'X', argument N: expected String, got LA_List<String>
+  body wall x2: in function 'X': in call to 'X', argument N: expected String, got List<FQN>
+  body wall x1: in function 'X': in call to 'X', argument N: expected String, got List<Integer>
+  body wall x1: in function 'X': in call to 'X', argument N: expected String, got M<I, P>
+  body wall x1: in function 'X': in call to 'X', argument N: expected String, got RelationType<FQN>
+  body wall x1: in function 'X': in call to 'X', argument N: expected String, got RowMapper<T, U>
+===== W2
+functions in world=3730 bodyWalls=807 bodiesMs=548
+  body wall x326: in function 'X': in call to 'X', argument N: expected String, got FQN
+  body wall x113: in function 'X': unknown class 'X' in ^(…)
+  body wall x98: in function 'X': unknown function 'X' — no function of this name in the native or user cat
+  body wall x54: Unknown type: 'X' is not a known primitive, class, or enum
+  body wall x16: in function 'X': ambiguous overload of 'X': N candidates tie for the argument types [FQN/N
+  body wall x14: in function 'X': class FQN has no property 'X'
+  body wall x14: in function 'X': unknown type 'X' in @Union
+  body wall x11: 'X' is not a known class, mapping, runtime, connection, or database — user elements in a q
+  body wall x10: 'X' is not a known class, mapping, runtime, connection, or database
+  body wall x9: in function 'X': in call to 'X', argument N: expected String, got List<String>
+  body wall x7: in function 'X': FQN expects (source, @Type)
+  body wall x6: in function 'X': JSONKeyValue.key reads only inside keyValuePairs->filter(kv|$kv.key.value
+  body wall x6: in function 'X': from() argument N must be a mapping or runtime reference, got TypedVariab
+  body wall x6: walled body 'X': the engine'X's compiler is the implementation (the post-processor design 

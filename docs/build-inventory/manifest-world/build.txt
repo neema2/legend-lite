@@ -1,0 +1,29 @@
+===== W0
+files=267 chars=1,841,050 elements=1912 parseWalls=1 duplicates=0 parseMs=163
+  parse wall x1: [N:N] top-level ^Instance must be followed by (...)
+  e.g. platform/pure/grammar/m3.pure: [15:10] top-level ^Instance must be followed by (...)
+buildWalls=42 buildMs=441
+  build wall x42: function 'X' is defined more than once with the same signature — calls would be ambiguous
+===== W1
+files=460 chars=3,005,491 elements=3283 parseWalls=1 duplicates=0 parseMs=224
+  parse wall x1: [N:N] top-level ^Instance must be followed by (...)
+  e.g. platform/pure/grammar/m3.pure: [15:10] top-level ^Instance must be followed by (...)
+buildWalls=67 buildMs=489
+  build wall x67: function 'X' is defined more than once with the same signature — calls would be ambiguous
+===== W2
+files=536 chars=4,356,123 elements=4953 parseWalls=1 duplicates=0 parseMs=243
+  parse wall x1: [N:N] top-level ^Instance must be followed by (...)
+  e.g. platform/pure/grammar/m3.pure: [15:10] top-level ^Instance must be followed by (...)
+buildWalls=132 buildMs=531
+  build wall x75: function 'X' is defined more than once with the same signature — calls would be ambiguous
+  build wall x57: Unknown type: 'X' is not a known primitive, class, or enum
+files=1772 chars=23,542,664 elements=24451 parseWalls=5 duplicates=0 parseMs=633
+  parse wall x2: [N:N] a property mapping binds ONE expression and is separated by 'X' — 'X' is not a mappi
+  parse wall x1: [N:N] top-level ^Instance must be followed by (...)
+  parse wall x1: [N:N] trailing tokens after code block: VALID_STRING ('X')
+  parse wall x1: [N:N] unsupported expression token: ARROW ('X')
+  e.g. platform/pure/grammar/m3.pure: [15:10] top-level ^Instance must be followed by (...)
+  e.g. core/pure/binding/executionPlan/tests/executionPlanTests.pure: [693:52] a property mapping binds ONE expression and is separated by ',' — ';' is not a mapping separator
+  e.g. core/pure/corefunctions/tests/language/testLambda.pure: [71:42] unsupported expression token: ARROW ('->')
+  e.g. core/pure/graphFetch/tests/sourceTreeCalc/subType/testOnSourceRoot.pure: [336:127] a property mapping binds ONE expression and is separated by ',' — ';' is not a mapping separator
+  e.g. core/store/m2m/tests/legend/simpleObject.pure: [1869:5] trailing tokens after code block: VALID_STRING ('i')

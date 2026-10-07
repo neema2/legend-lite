@@ -1,0 +1,2637 @@
+{
+ "platform": {
+  "name": "platform",
+  "side": "pure",
+  "pattern": "((meta)|(system)|(apps::pure))(::.*)?",
+  "deps": [],
+  "definition": "legend-pure-core/legend-pure-m3-core/src/main/resources/platform.json",
+  "resources": "<output_base>/external/+http_archive+legend_pure_src/legend-pure-core/legend-pure-m3-core/src/main/resources",
+  "lines": 23714,
+  "nfiles": 244
+ },
+ "platform_precise_primitives": {
+  "name": "platform_precise_primitives",
+  "side": "pure",
+  "pattern": "(meta::pure::precisePrimitives)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-pure-core/legend-pure-m3-precisePrimitives/src/main/resources/platform_precise_primitives.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_pure_src/legend-pure-core/legend-pure-m3-precisePrimitives/src/main/resources",
+  "lines": 78,
+  "nfiles": 1
+ },
+ "platform_dsl_graph": {
+  "name": "platform_dsl_graph",
+  "side": "pure",
+  "pattern": "(meta::pure::graphFetch|meta::pure::functions::meta)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-pure-dsl/legend-pure-dsl-graph/legend-pure-m2-dsl-graph-pure/src/main/resources/platform_dsl_graph.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_pure_src/legend-pure-dsl/legend-pure-dsl-graph/legend-pure-m2-dsl-graph-pure/src/main/resources",
+  "lines": 60,
+  "nfiles": 2
+ },
+ "platform_dsl_store": {
+  "name": "platform_dsl_store",
+  "side": "pure",
+  "pattern": "(meta::external::store::model|meta::pure::metamodel::valuespecification|meta::pure::store|meta::pure::runtime|meta::core::runtime)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-pure-dsl/legend-pure-dsl-store/legend-pure-m2-dsl-store-pure/src/main/resources/platform_dsl_store.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_pure_src/legend-pure-dsl/legend-pure-dsl-store/legend-pure-m2-dsl-store-pure/src/main/resources",
+  "lines": 91,
+  "nfiles": 2
+ },
+ "platform_dsl_path": {
+  "name": "platform_dsl_path",
+  "side": "pure",
+  "pattern": "(meta::pure::metamodel::path)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-pure-dsl/legend-pure-dsl-path/legend-pure-m2-dsl-path-pure/src/main/resources/platform_dsl_path.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_pure_src/legend-pure-dsl/legend-pure-dsl-path/legend-pure-m2-dsl-path-pure/src/main/resources",
+  "lines": 46,
+  "nfiles": 1
+ },
+ "platform_dsl_tds": {
+  "name": "platform_dsl_tds",
+  "side": "pure",
+  "pattern": "(meta::pure::metamodel::relation)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-pure-dsl/legend-pure-dsl-tds/legend-pure-m2-dsl-tds-pure/src/main/resources/platform_dsl_tds.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_pure_src/legend-pure-dsl/legend-pure-dsl-tds/legend-pure-m2-dsl-tds-pure/src/main/resources",
+  "lines": 69,
+  "nfiles": 1
+ },
+ "platform_dsl_diagram": {
+  "name": "platform_dsl_diagram",
+  "side": "pure",
+  "pattern": "(meta::pure::diagram)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-pure-dsl/legend-pure-dsl-diagram/legend-pure-m2-dsl-diagram-pure/src/main/resources/platform_dsl_diagram.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_pure_src/legend-pure-dsl/legend-pure-dsl-diagram/legend-pure-m2-dsl-diagram-pure/src/main/resources",
+  "lines": 150,
+  "nfiles": 1
+ },
+ "platform_dsl_mapping": {
+  "name": "platform_dsl_mapping",
+  "side": "pure",
+  "pattern": "(meta::pure::mapping|meta::external::store::model|meta::pure::metamodel)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store"
+  ],
+  "definition": "legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_pure_src/legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources",
+  "lines": 621,
+  "nfiles": 6
+ },
+ "platform_store_relational": {
+  "name": "platform_store_relational",
+  "side": "pure",
+  "pattern": "(meta::relational|meta::external::store::relational|meta::pure::functions::io)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_store"
+  ],
+  "definition": "legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_pure_src/legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources",
+  "lines": 1476,
+  "nfiles": 9
+ },
+ "core_external_format_arrow": {
+  "name": "core_external_format_arrow",
+  "side": "engine",
+  "pattern": "(meta::external::format::arrow|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core"
+  ],
+  "definition": "legend-engine-xts-arrow/legend-engine-xt-arrow-pure/src/main/resources/core_external_format_arrow.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-arrow/legend-engine-xt-arrow-pure/src/main/resources",
+  "lines": 77,
+  "nfiles": 2
+ },
+ "core_analytics_search": {
+  "name": "core_analytics_search",
+  "side": "engine",
+  "pattern": "(meta::analytics::search|meta::pure::search)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_mapping",
+   "platform_store_relational",
+   "core_functions_json",
+   "core_functions_unclassified",
+   "core",
+   "core_relational",
+   "core_service",
+   "core_diagram",
+   "core_diagram_metamodel",
+   "core_data_space_metamodel",
+   "core_analytics_lineage",
+   "core_external_compiler",
+   "core_analytics_mapping"
+  ],
+  "definition": "legend-engine-xts-analytics/legend-engine-xts-analytics-search/legend-engine-xt-analytics-search-pure/src/main/resources/core_analytics_search.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-analytics/legend-engine-xts-analytics-search/legend-engine-xt-analytics-search-pure/src/main/resources",
+  "lines": 1374,
+  "nfiles": 4
+ },
+ "core_analytics_quality": {
+  "name": "core_analytics_quality",
+  "side": "engine",
+  "pattern": "(meta::analytics::quality|meta::pure::quality)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_mapping",
+   "platform_store_relational",
+   "core_functions_json",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_external_compiler",
+   "core_data_space_metamodel"
+  ],
+  "definition": "legend-engine-xts-analytics/legend-engine-xts-analytics-quality/legend-engine-xt-analytics-quality-pure/src/main/resources/core_analytics_quality.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-analytics/legend-engine-xts-analytics-quality/legend-engine-xt-analytics-quality-pure/src/main/resources",
+  "lines": 2332,
+  "nfiles": 13
+ },
+ "core_analytics_function": {
+  "name": "core_analytics_function",
+  "side": "engine",
+  "pattern": "(meta::analytics::function)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core"
+  ],
+  "definition": "legend-engine-xts-analytics/legend-engine-xts-analytics-function/legend-engine-xt-analytics-function-pure/src/main/resources/core_analytics_function.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-analytics/legend-engine-xts-analytics-function/legend-engine-xt-analytics-function-pure/src/main/resources",
+  "lines": 57,
+  "nfiles": 1
+ },
+ "core_analytics_mapping": {
+  "name": "core_analytics_mapping",
+  "side": "engine",
+  "pattern": "(meta::analytics::mapping)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_store_relational",
+   "core_functions_json",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_analytics_class",
+   "core_relational",
+   "core_external_compiler",
+   "core"
+  ],
+  "definition": "legend-engine-xts-analytics/legend-engine-xts-analytics-mapping/legend-engine-xt-analytics-mapping-pure/src/main/resources/core_analytics_mapping.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-analytics/legend-engine-xts-analytics-mapping/legend-engine-xt-analytics-mapping-pure/src/main/resources",
+  "lines": 1787,
+  "nfiles": 6
+ },
+ "core_analytics_test_coverage": {
+  "name": "core_analytics_test_coverage",
+  "side": "engine",
+  "pattern": "(meta::analytics::testCoverage)(::.*)?|meta::pure(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_tds",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core_external_compiler",
+   "core_functions_relation",
+   "core",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_functions_relation",
+   "core_functions_json",
+   "core_relational",
+   "core_relational_mft",
+   "core_analytics_lineage"
+  ],
+  "definition": "legend-engine-xts-analytics/legend-engine-xts-analytics-test-coverage/legend-engine-xt-analytics-test-coverage-pure/src/main/resources/core_analytics_test_coverage.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-analytics/legend-engine-xts-analytics-test-coverage/legend-engine-xt-analytics-test-coverage-pure/src/main/resources",
+  "lines": 399,
+  "nfiles": 3
+ },
+ "core_analytics_binding": {
+  "name": "core_analytics_binding",
+  "side": "engine",
+  "pattern": "(meta::analytics::binding)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core"
+  ],
+  "definition": "legend-engine-xts-analytics/legend-engine-xts-analytics-binding/legend-engine-xt-analytics-binding-pure/src/main/resources/core_analytics_binding.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-analytics/legend-engine-xts-analytics-binding/legend-engine-xt-analytics-binding-pure/src/main/resources",
+  "lines": 37,
+  "nfiles": 1
+ },
+ "core_analytics_lineage": {
+  "name": "core_analytics_lineage",
+  "side": "engine",
+  "pattern": "(meta::analytics::lineage|meta::pure::lineage)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_mapping",
+   "platform_precise_primitives",
+   "platform_store_relational",
+   "core_functions_json",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_functions_relation",
+   "core_relational",
+   "core_external_query_sql_expression",
+   "core"
+  ],
+  "definition": "legend-engine-xts-analytics/legend-engine-xts-analytics-lineage/legend-engine-xt-analytics-lineage-pure/src/main/resources/core_analytics_lineage.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-analytics/legend-engine-xts-analytics-lineage/legend-engine-xt-analytics-lineage-pure/src/main/resources",
+  "lines": 4029,
+  "nfiles": 12
+ },
+ "core_analytics_class": {
+  "name": "core_analytics_class",
+  "side": "engine",
+  "pattern": "(meta::analytics::class)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core_functions_standard"
+  ],
+  "definition": "legend-engine-xts-analytics/legend-engine-xts-analytics-class/legend-engine-xt-analytics-class-pure/src/main/resources/core_analytics_class.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-analytics/legend-engine-xts-analytics-class/legend-engine-xt-analytics-class-pure/src/main/resources",
+  "lines": 181,
+  "nfiles": 2
+ },
+ "core_dataquality": {
+  "name": "core_dataquality",
+  "side": "engine",
+  "pattern": "(meta::external::dataquality|meta::protocols)(::.*)?",
+  "deps": [
+   "core",
+   "core_relational",
+   "core_data_space_metamodel",
+   "core_functions_unclassified",
+   "core_functions_relation",
+   "core_functions_standard",
+   "core_functions_standard",
+   "core_external_query_sql",
+   "core_external_store_relational_postgres_sql_model",
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "platform_precise_primitives",
+   "platform_store_relational"
+  ],
+  "definition": "legend-engine-xts-dataquality/legend-engine-xt-dataquality-pure/src/main/resources/core_dataquality.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-dataquality/legend-engine-xt-dataquality-pure/src/main/resources",
+  "lines": 3293,
+  "nfiles": 11
+ },
+ "core_dataquality_test": {
+  "name": "core_dataquality_test",
+  "side": "engine",
+  "pattern": "(meta::external::dataquality::tests|meta::protocols)(::.*)?",
+  "deps": [
+   "core",
+   "core_relational",
+   "core_functions_relation",
+   "core_data_space_metamodel",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "platform_store_relational",
+   "platform_precise_primitives",
+   "core_dataquality",
+   "core_external_compiler",
+   "core_external_query_sql"
+  ],
+  "definition": "legend-engine-xts-dataquality/legend-engine-xt-dataquality-pure-test/src/main/resources/core_dataquality_test.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-dataquality/legend-engine-xt-dataquality-pure-test/src/main/resources",
+  "lines": 2992,
+  "nfiles": 9
+ },
+ "core_hostedservice": {
+  "name": "core_hostedservice",
+  "side": "engine",
+  "pattern": "(meta::external::function::activator::hostedService|meta::protocols)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_functions_json",
+   "core_relational",
+   "core_function_activator",
+   "core_service",
+   "core",
+   "core_data_space_metamodel",
+   "core_analytics_lineage"
+  ],
+  "definition": "legend-engine-xts-hostedService/legend-engine-xt-hostedService-pure/src/main/resources/core_hostedservice.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-hostedService/legend-engine-xt-hostedService-pure/src/main/resources",
+  "lines": 1026,
+  "nfiles": 4
+ },
+ "core_service": {
+  "name": "core_service",
+  "side": "engine",
+  "pattern": "(meta::legend::service|meta::pure::mapping)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_diagram",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "core_functions_standard",
+   "core_data_space_metamodel",
+   "core_external_format_json",
+   "core"
+  ],
+  "definition": "legend-engine-xts-service/legend-engine-language-pure-dsl-service-pure/src/main/resources/core_service.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-service/legend-engine-language-pure-dsl-service-pure/src/main/resources",
+  "lines": 618,
+  "nfiles": 5
+ },
+ "core_external_format_avro": {
+  "name": "core_external_format_avro",
+  "side": "engine",
+  "pattern": "(meta::external::format::avro|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_json",
+   "core_functions_unclassified",
+   "core",
+   "core_generation"
+  ],
+  "definition": "legend-engine-xts-avro/legend-engine-xt-avro-pure/src/main/resources/core_external_format_avro.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-avro/legend-engine-xt-avro-pure/src/main/resources",
+  "lines": 2801,
+  "nfiles": 28
+ },
+ "core_function_activator": {
+  "name": "core_function_activator",
+  "side": "engine",
+  "pattern": "(meta::external::function::activator|meta::protocols)(::.*)?",
+  "deps": [
+   "core_analytics_lineage",
+   "core_functions_standard",
+   "platform",
+   "core"
+  ],
+  "definition": "legend-engine-xts-functionActivator/legend-engine-xt-functionActivator-pure/src/main/resources/core_function_activator.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-functionActivator/legend-engine-xt-functionActivator-pure/src/main/resources",
+  "lines": 97,
+  "nfiles": 2
+ },
+ "core_external_language_daml": {
+  "name": "core_external_language_daml",
+  "side": "engine",
+  "pattern": "(meta::external::language::daml)(::.*)?",
+  "deps": [
+   "platform",
+   "core",
+   "core_generation",
+   "core_external_language_haskell"
+  ],
+  "definition": "legend-engine-xts-daml/legend-engine-xt-daml-pure/src/main/resources/core_external_language_daml.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-daml/legend-engine-xt-daml-pure/src/main/resources",
+  "lines": 251,
+  "nfiles": 7
+ },
+ "core_external_format_json": {
+  "name": "core_external_format_json",
+  "side": "engine",
+  "pattern": "(meta::external::format::json|meta::json)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_path",
+   "platform_dsl_graph",
+   "core_functions_json",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_generation"
+  ],
+  "definition": "legend-engine-xts-json/legend-engine-xt-json-pure/src/main/resources/core_external_format_json.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-json/legend-engine-xt-json-pure/src/main/resources",
+  "lines": 10931,
+  "nfiles": 25
+ },
+ "core_external_format_json_java_platform_binding": {
+  "name": "core_external_format_json_java_platform_binding",
+  "side": "engine",
+  "pattern": "(meta::external::format::json::executionPlan::platformBinding::legendJava)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_graph",
+   "core_functions_standard",
+   "core",
+   "core_external_format_json",
+   "core_external_language_java",
+   "core_java_platform_binding",
+   "core_java_platform_binding_external_format",
+   "core_external_language_java_conventions_essential"
+  ],
+  "definition": "legend-engine-xts-json/legend-engine-xt-json-javaPlatformBinding-pure/src/main/resources/core_external_format_json_java_platform_binding.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-json/legend-engine-xt-json-javaPlatformBinding-pure/src/main/resources",
+  "lines": 1125,
+  "nfiles": 6
+ },
+ "core_persistence": {
+  "name": "core_persistence",
+  "side": "engine",
+  "pattern": "(meta::pure::persistence)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "platform_dsl_graph",
+   "platform_dsl_path",
+   "platform_store_relational",
+   "core",
+   "core_service",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-persistence/legend-engine-xt-persistence-pure/src/main/resources/core_persistence.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-persistence/legend-engine-xt-persistence-pure/src/main/resources",
+  "lines": 4228,
+  "nfiles": 13
+ },
+ "core_persistence_relational": {
+  "name": "core_persistence_relational",
+  "side": "engine",
+  "pattern": "(meta::pure::persistence::relational)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "platform_dsl_mapping",
+   "platform_dsl_graph",
+   "platform_dsl_path",
+   "platform_store_relational",
+   "core",
+   "core_relational",
+   "core_persistence"
+  ],
+  "definition": "legend-engine-xts-persistence/legend-engine-xt-persistence-target-relational-pure/src/main/resources/core_persistence_relational.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-persistence/legend-engine-xt-persistence-target-relational-pure/src/main/resources",
+  "lines": 595,
+  "nfiles": 3
+ },
+ "core_persistence_cloud": {
+  "name": "core_persistence_cloud",
+  "side": "engine",
+  "pattern": "(meta::pure::persistence)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "platform_dsl_store",
+   "platform_dsl_graph",
+   "platform_store_relational",
+   "core",
+   "core_persistence"
+  ],
+  "definition": "legend-engine-xts-persistence/legend-engine-xt-persistence-cloud-pure/src/main/resources/core_persistence_cloud.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-persistence/legend-engine-xt-persistence-cloud-pure/src/main/resources",
+  "lines": 257,
+  "nfiles": 2
+ },
+ "core_configuration": {
+  "name": "core_configuration",
+  "side": "engine",
+  "pattern": "(meta::pure::extension::configuration)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core",
+   "core_service",
+   "core_external_language_java",
+   "core_java_platform_binding",
+   "core_java_platform_binding_external_format",
+   "core_external_language_java_conventions_essential",
+   "core_relational",
+   "core_relational_java_platform_binding",
+   "core_servicestore",
+   "core_servicestore_java_platform_binding",
+   "core_external_format_flatdata_java_platform_binding",
+   "core_external_format_json_java_platform_binding",
+   "core_external_format_xml_java_platform_binding"
+  ],
+  "definition": "legend-engine-config/legend-engine-configuration/legend-engine-configuration-contract-extension-pure/src/main/resources/core_configuration.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-config/legend-engine-configuration/legend-engine-configuration-contract-extension-pure/src/main/resources",
+  "lines": 71,
+  "nfiles": 1
+ },
+ "core_relational_store_entitlement": {
+  "name": "core_relational_store_entitlement",
+  "side": "engine",
+  "pattern": "(meta::analytics::store::entitlements)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-analytics/legend-engine-xt-relationalStore-store-entitlement-pure/src/main/resources/core_relational_store_entitlement.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-analytics/legend-engine-xt-relationalStore-store-entitlement-pure/src/main/resources",
+  "lines": 196,
+  "nfiles": 2
+ },
+ "core_external_test_connection": {
+  "name": "core_external_test_connection",
+  "side": "engine",
+  "pattern": "(meta::pure::testConnection|meta::relational::relation|meta::relational::tests::pct)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "platform_dsl_tds",
+   "platform_store_relational",
+   "core_external_compiler",
+   "core_functions_relation",
+   "core_functions_json",
+   "core",
+   "core_functions_standard",
+   "core_functions_variant",
+   "core_functions_unclassified",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-PCT/legend-engine-pure-functions-relationalStore-PCT-pure/src/main/resources/core_external_test_connection.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-PCT/legend-engine-pure-functions-relationalStore-PCT-pure/src/main/resources",
+  "lines": 1162,
+  "nfiles": 3
+ },
+ "core_relational_postgres": {
+  "name": "core_relational_postgres",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::postgres|meta::relational::tests::sqlQueryToString::postgres|meta::relational::tests::query::function::postgres|meta::relational::functions::sqlToString::postgres|meta::relational::tests::mapping::function::postgres|meta::relational::tests::tds::postgres|meta::pure::executionPlan::tests::postgres|meta::pure::alloy::connections|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational",
+   "core_external_store_relational_sql_dialect_translation"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-postgres/legend-engine-xt-relationalStore-postgres-pure/src/main/resources/core_relational_postgres.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-postgres/legend-engine-xt-relationalStore-postgres-pure/src/main/resources",
+  "lines": 1402,
+  "nfiles": 12
+ },
+ "core_relational_postgres_pct": {
+  "name": "core_relational_postgres_pct",
+  "side": "engine",
+  "pattern": "(meta::relational::tests::pct::postgres)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_external_compiler",
+   "core_relational",
+   "core_external_test_connection",
+   "core_external_store_relational_sql_dialect_translation"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-postgres/legend-engine-xt-relationalStore-postgres-PCT/src/main/resources/core_relational_postgres_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-postgres/legend-engine-xt-relationalStore-postgres-PCT/src/main/resources",
+  "lines": 53,
+  "nfiles": 2
+ },
+ "core_relational_clickhouse": {
+  "name": "core_relational_clickhouse",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::clickhouse|meta::relational::tests::sqlQueryToString::clickhouse|meta::relational::tests::query::function::clickhouse|meta::relational::functions::sqlToString::clickhouse|meta::relational::tests::functions::sqlstring::clickhouse|meta::relational::tests::mapping::function::clickhouse|meta::relational::tests::tds::clickhouse|meta::pure::executionPlan::tests::clickhouse|meta::pure::alloy::connections|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-clickhouse/legend-engine-xt-relationalStore-clickhouse-pure/src/main/resources/core_relational_clickhouse.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-clickhouse/legend-engine-xt-relationalStore-clickhouse-pure/src/main/resources",
+  "lines": 475,
+  "nfiles": 4
+ },
+ "core_relational_clickhouse_pct": {
+  "name": "core_relational_clickhouse_pct",
+  "side": "engine",
+  "pattern": "(meta::relational::tests::pct::clickhouse)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_external_compiler",
+   "core_relational",
+   "core_external_test_connection"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-clickhouse/legend-engine-xt-relationalStore-clickhouse-PCT/src/main/resources/core_relational_clickhouse_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-clickhouse/legend-engine-xt-relationalStore-clickhouse-PCT/src/main/resources",
+  "lines": 27,
+  "nfiles": 1
+ },
+ "core_relational_duckdb_pct": {
+  "name": "core_relational_duckdb_pct",
+  "side": "engine",
+  "pattern": "(meta::relational::tests::pct::duckDB)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_external_compiler",
+   "core_relational",
+   "core_external_test_connection",
+   "core_external_store_relational_sql_dialect_translation_duckdb"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-duckdb/legend-engine-xt-relationalStore-duckdb-PCT/src/main/resources/core_relational_duckdb_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-duckdb/legend-engine-xt-relationalStore-duckdb-PCT/src/main/resources",
+  "lines": 79,
+  "nfiles": 3
+ },
+ "core_relational_duckdb": {
+  "name": "core_relational_duckdb",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::typeConversion::duckDB|meta::relational::functions::sqlQueryToString::duckDB|meta::relational::tests::sqlQueryToString::duckDB|meta::pure::alloy::connections|meta::external::store::relational::runtime|meta::protocols::pure|meta::relational::tests::connEquality)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_relational",
+   "core_external_store_relational_sql_dialect_translation_duckdb"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-duckdb/legend-engine-xt-relationalStore-duckdb-pure/src/main/resources/core_relational_duckdb.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-duckdb/legend-engine-xt-relationalStore-duckdb-pure/src/main/resources",
+  "lines": 1360,
+  "nfiles": 11
+ },
+ "core_external_store_relational_sql_dialect_translation_duckdb": {
+  "name": "core_external_store_relational_sql_dialect_translation_duckdb",
+  "side": "engine",
+  "pattern": "(meta::external::store::relational::sqlDialectTranslation::duckDB)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_external_store_relational_postgres_sql_model",
+   "core_external_store_relational_postgres_sql_model_extensions",
+   "core_external_store_relational_sql_dialect_translation"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-duckdb/legend-engine-xt-relationalStore-duckdb-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation_duckdb.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-duckdb/legend-engine-xt-relationalStore-duckdb-sqlDialectTranslation-pure/src/main/resources",
+  "lines": 862,
+  "nfiles": 2
+ },
+ "core_relational_redshift": {
+  "name": "core_relational_redshift",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::redshift|meta::relational::tests::sqlQueryToString::redshift|meta::relational::functions::sqlQueryToString::tests::redshift|meta::pure::executionPlan::tests::redshift|meta::pure::legend::connections::legend::specification|meta::pure::alloy::connections|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "platform_dsl_store",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-redshift/legend-engine-xt-relationalStore-redshift-pure/src/main/resources/core_relational_redshift.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-redshift/legend-engine-xt-relationalStore-redshift-pure/src/main/resources",
+  "lines": 1091,
+  "nfiles": 27
+ },
+ "core_external_store_relational_sql_dialect_translation_h2": {
+  "name": "core_external_store_relational_sql_dialect_translation_h2",
+  "side": "engine",
+  "pattern": "(meta::external::store::relational::sqlDialectTranslation::h2)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_external_store_relational_postgres_sql_model",
+   "core_external_store_relational_postgres_sql_model_extensions",
+   "core_external_store_relational_sql_dialect_translation"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-h2/legend-engine-xt-relationalStore-h2-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation_h2.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-h2/legend-engine-xt-relationalStore-h2-sqlDialectTranslation-pure/src/main/resources",
+  "lines": 1303,
+  "nfiles": 2
+ },
+ "core_relational_h2_pct": {
+  "name": "core_relational_h2_pct",
+  "side": "engine",
+  "pattern": "(meta::relational::tests::pct::h2)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_external_compiler",
+   "core_relational",
+   "core_external_test_connection",
+   "core_external_store_relational_sql_dialect_translation_h2"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-h2/legend-engine-xt-relationalStore-h2-PCT/src/main/resources/core_relational_h2_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-h2/legend-engine-xt-relationalStore-h2-PCT/src/main/resources",
+  "lines": 79,
+  "nfiles": 3
+ },
+ "core_relational_sqlserver": {
+  "name": "core_relational_sqlserver",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::sqlServer|meta::relational::tests::sqlQueryToString::sqlServer|meta::relational::sqlServer::tests)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core",
+   "core_relational",
+   "core_functions_standard"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-sqlserver/legend-engine-xt-relationalStore-sqlserver-pure/src/main/resources/core_relational_sqlserver.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-sqlserver/legend-engine-xt-relationalStore-sqlserver-pure/src/main/resources",
+  "lines": 393,
+  "nfiles": 2
+ },
+ "core_relational_databricks_pct": {
+  "name": "core_relational_databricks_pct",
+  "side": "engine",
+  "pattern": "(meta::relational::tests::pct::databricks)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_external_compiler",
+   "core_relational",
+   "core_external_test_connection"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-databricks/legend-engine-xt-relationalStore-databricks-PCT/src/main/resources/core_relational_databricks_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-databricks/legend-engine-xt-relationalStore-databricks-PCT/src/main/resources",
+  "lines": 50,
+  "nfiles": 2
+ },
+ "core_relational_databricks": {
+  "name": "core_relational_databricks",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::typeConversion::databricks|meta::relational::tests::sqlToString::databricks|meta::relational::functions::sqlQueryToString::databricks|meta::relational::tests::sqlQueryToString::databricks|meta::relational::tests::connEquality|meta::relational::databricks::tests|meta::relational::tests::functions::sqlstring::databricks|meta::pure::alloy::connections|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "platform_dsl_store",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-databricks/legend-engine-xt-relationalStore-databricks-pure/src/main/resources/core_relational_databricks.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-databricks/legend-engine-xt-relationalStore-databricks-pure/src/main/resources",
+  "lines": 2684,
+  "nfiles": 33
+ },
+ "core_relational_athena": {
+  "name": "core_relational_athena",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::athena|meta::relational::tests::sqlQueryToString::athena|meta::pure::alloy::connections|meta::external::store::relational::runtime|meta::protocols::pure|meta::relational::tests::connEquality)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-athena/legend-engine-xt-relationalStore-athena-pure/src/main/resources/core_relational_athena.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-athena/legend-engine-xt-relationalStore-athena-pure/src/main/resources",
+  "lines": 208,
+  "nfiles": 6
+ },
+ "core_relational_spanner": {
+  "name": "core_relational_spanner",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::spanner|meta::relational::tests::sqlQueryToString::spanner|meta::pure::alloy::connections|meta::external::store::relational::runtime|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-spanner/legend-engine-xt-relationalStore-spanner-pure/src/main/resources/core_relational_spanner.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-spanner/legend-engine-xt-relationalStore-spanner-pure/src/main/resources",
+  "lines": 879,
+  "nfiles": 16
+ },
+ "core_relational_sybase": {
+  "name": "core_relational_sybase",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::sybaseASE|meta::relational::functions::sqlQueryToString::sybase|meta::pure::alloy::connections::tests::sybase|meta::relational::tests::sqlQueryToString::sybase|meta::pure::executionPlan::tests::sybase|meta::relational::tests::tds::sybase|meta::relational::tests::ddl::sybase|meta::relational::tests::functions::sqlstring::sybase|meta::relational::tests::mapping::sqlFunction::sybase|meta::pure::alloy::connections|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-sybase/legend-engine-xt-relationalStore-sybase-pure/src/main/resources/core_relational_sybase.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-sybase/legend-engine-xt-relationalStore-sybase-pure/src/main/resources",
+  "lines": 680,
+  "nfiles": 8
+ },
+ "core_relational_memsql": {
+  "name": "core_relational_memsql",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::memsql|meta::pure::alloy::connections|meta::protocols::pure|meta::relational::tests::sqlQueryToString::memsql|meta::relational::memsql::tests)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-memsql/legend-engine-xt-relationalStore-memsql-pure/src/main/resources/core_relational_memsql.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-memsql/legend-engine-xt-relationalStore-memsql-pure/src/main/resources",
+  "lines": 1487,
+  "nfiles": 12
+ },
+ "core_external_store_relational_sql_dialect_translation_memsql": {
+  "name": "core_external_store_relational_sql_dialect_translation_memsql",
+  "side": "engine",
+  "pattern": "(meta::external::store::relational::sqlDialectTranslation::memSQL)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_external_store_relational_postgres_sql_model",
+   "core_external_store_relational_postgres_sql_model_extensions",
+   "core_external_store_relational_sql_dialect_translation"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-memsql/legend-engine-xt-relationalStore-memsql-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation_memsql.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-memsql/legend-engine-xt-relationalStore-memsql-sqlDialectTranslation-pure/src/main/resources",
+  "lines": 1976,
+  "nfiles": 1
+ },
+ "core_relational_sparksql": {
+  "name": "core_relational_sparksql",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::sparkSQL|meta::relational::tests::sqlQueryToString::sparkSQL|meta::relational::tests::sqlToString::sparkSQL|meta::pure::executionPlan::tests::sparkSQL|meta::relational::tests::mapping::sqlFunction::sparkSQL|meta::relational::tests::postProcessor::sparkSQL|meta::relational::tests::query::function::sparkSQL|meta::relational::tests::functions::sqlstring::sparkSQL|meta::relational::tests::tds::sparkSQL|meta::relational::tests::projection::sparkSQL|meta::pure::alloy::connections|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "platform_dsl_mapping",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-sparksql/legend-engine-xt-relationalStore-sparksql-pure/src/main/resources/core_relational_sparksql.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-sparksql/legend-engine-xt-relationalStore-sparksql-pure/src/main/resources",
+  "lines": 574,
+  "nfiles": 3
+ },
+ "core_relational_presto": {
+  "name": "core_relational_presto",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::presto|meta::relational::tests::sqlQueryToString::presto|meta::pure::executionPlan::tests::presto|meta::relational::tests::query::function::presto|meta::relational::tests::projection::presto|meta::relational::tests::tds::presto|meta::relational::tests::mapping::sqlFunction::presto|meta::relational::tests::functions::sqlstring::presto|meta::pure::alloy::connections|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-presto/legend-engine-xt-relationalStore-presto-pure/src/main/resources/core_relational_presto.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-presto/legend-engine-xt-relationalStore-presto-pure/src/main/resources",
+  "lines": 1219,
+  "nfiles": 9
+ },
+ "core_relational_aurora": {
+  "name": "core_relational_aurora",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::aurora|meta::relational::tests::sqlQueryToString::aurora|meta::pure::alloy::connections|meta::external::store::relational::runtime|meta::protocols::pure|meta::relational::tests::connEquality)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational",
+   "core_relational_postgres"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-aurora/legend-engine-xt-relationalStore-aurora-pure/src/main/resources/core_relational_aurora.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-aurora/legend-engine-xt-relationalStore-aurora-pure/src/main/resources",
+  "lines": 294,
+  "nfiles": 7
+ },
+ "core_relational_trino_pct": {
+  "name": "core_relational_trino_pct",
+  "side": "engine",
+  "pattern": "(meta::relational::tests::pct::trino)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_external_compiler",
+   "core_relational",
+   "core_external_test_connection"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-trino/legend-engine-xt-relationalStore-trino-PCT/src/main/resources/core_relational_trino_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-trino/legend-engine-xt-relationalStore-trino-PCT/src/main/resources",
+  "lines": 28,
+  "nfiles": 1
+ },
+ "core_relational_trino": {
+  "name": "core_relational_trino",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::trino|meta::relational::tests::sqlQueryToString::trino|meta::pure::alloy::connections|meta::external::store::relational::runtime|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-trino/legend-engine-xt-relationalStore-trino-pure/src/main/resources/core_relational_trino.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-trino/legend-engine-xt-relationalStore-trino-pure/src/main/resources",
+  "lines": 775,
+  "nfiles": 10
+ },
+ "core_relational_snowflake_pct": {
+  "name": "core_relational_snowflake_pct",
+  "side": "engine",
+  "pattern": "(meta::relational::tests::pct::snowflake)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_external_compiler",
+   "core_relational",
+   "core_external_test_connection"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-snowflake/legend-engine-xt-relationalStore-snowflake-PCT/src/main/resources/core_relational_snowflake_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-snowflake/legend-engine-xt-relationalStore-snowflake-PCT/src/main/resources",
+  "lines": 79,
+  "nfiles": 3
+ },
+ "core_external_store_relational_sql_dialect_translation_snowflake": {
+  "name": "core_external_store_relational_sql_dialect_translation_snowflake",
+  "side": "engine",
+  "pattern": "(meta::external::store::relational::sqlDialectTranslation::snowflake)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_external_store_relational_postgres_sql_model",
+   "core_external_store_relational_postgres_sql_model_extensions",
+   "core_external_store_relational_sql_dialect_translation"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-snowflake/legend-engine-xt-relationalStore-snowflake-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation_snowflake.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-snowflake/legend-engine-xt-relationalStore-snowflake-sqlDialectTranslation-pure/src/main/resources",
+  "lines": 953,
+  "nfiles": 2
+ },
+ "core_relational_snowflake": {
+  "name": "core_relational_snowflake",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::typeConversion::snowflake|meta::relational::functions::sqlQueryToString::snowflake|meta::relational::tests::connEquality|meta::relational::tests::sqlQueryToString::snowflake|meta::relational::tests::sqlToString::snowflake|meta::pure::executionPlan::tests::snowflake|meta::relational::tests::projection::snowflake|meta::relational::tests::query::snowflake|meta::relational::tests::tds::snowflake|meta::relational::tests::mapping::function::snowflake|meta::relational::tests::postProcessor::snowflake|meta::pure::alloy::connections|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "platform_dsl_mapping",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-snowflake/legend-engine-xt-relationalStore-snowflake-pure/src/main/resources/core_relational_snowflake.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-snowflake/legend-engine-xt-relationalStore-snowflake-pure/src/main/resources",
+  "lines": 4351,
+  "nfiles": 47
+ },
+ "core_relational_hive": {
+  "name": "core_relational_hive",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::hive|meta::relational::tests::sqlQueryToString::hive|meta::pure::executionPlan::tests::hive|meta::relational::tests::mapping::sqlFunction::hive|meta::pure::alloy::connections|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-hive/legend-engine-xt-relationalStore-hive-pure/src/main/resources/core_relational_hive.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-hive/legend-engine-xt-relationalStore-hive-pure/src/main/resources",
+  "lines": 153,
+  "nfiles": 3
+ },
+ "core_relational_bigquery": {
+  "name": "core_relational_bigquery",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::bigQuery|meta::relational::tests::sqlQueryToString::bigQuery|meta::relational::bigQuery::tests|meta::pure::alloy::connections|meta::external::store::relational::runtime|meta::protocols::pure|meta::relational::tests::connEquality)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-bigquery/legend-engine-xt-relationalStore-bigquery-pure/src/main/resources/core_relational_bigquery.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-bigquery/legend-engine-xt-relationalStore-bigquery-pure/src/main/resources",
+  "lines": 1059,
+  "nfiles": 31
+ },
+ "core_relational_oracle": {
+  "name": "core_relational_oracle",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::oracle|meta::relational::tests::sqlQueryToString::oracle|meta::relational::tests::query::function::oracle|meta::relational::functions::sqlToString::oracle|meta::relational::tests::mapping::function::oracle|meta::relational::tests::tds::oracle|meta::pure::executionPlan::tests::oracle|meta::pure::alloy::connections|meta::protocols::pure|meta::relational::tests::connEquality)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-oracle/legend-engine-xt-relationalStore-oracle-pure/src/main/resources/core_relational_oracle.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-oracle/legend-engine-xt-relationalStore-oracle-pure/src/main/resources",
+  "lines": 669,
+  "nfiles": 6
+ },
+ "core_relational_oracle_pct": {
+  "name": "core_relational_oracle_pct",
+  "side": "engine",
+  "pattern": "(meta::relational::tests::pct::oracle)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_external_compiler",
+   "core_relational",
+   "core_external_test_connection"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-oracle/legend-engine-xt-relationalStore-oracle-PCT/src/main/resources/core_relational_oracle_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-oracle/legend-engine-xt-relationalStore-oracle-PCT/src/main/resources",
+  "lines": 27,
+  "nfiles": 1
+ },
+ "core_relational_sybaseiq": {
+  "name": "core_relational_sybaseiq",
+  "side": "engine",
+  "pattern": "(meta::relational::functions::sqlQueryToString::sybaseIQ|meta::relational::tests::sqlQueryToString::sybaseIQ|meta::relational::tests::sqlToString::sybaseIQ|meta::pure::executionPlan::tests::sybaseIQ|meta::relational::tests::mapping::sqlFunction::sybaseIQ|meta::relational::tests::postProcessor::sybaseIQ|meta::relational::tests::query::function::sybaseIQ|meta::relational::tests::functions::sqlstring::sybaseIQ|meta::relational::tests::tds::sybaseIQ|meta::relational::tests::projection::sybaseIQ|meta::pure::alloy::connections|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_store_relational",
+   "platform_dsl_store",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-sybaseiq/legend-engine-xt-relationalStore-sybaseiq-pure/src/main/resources/core_relational_sybaseiq.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-sybaseiq/legend-engine-xt-relationalStore-sybaseiq-pure/src/main/resources",
+  "lines": 2842,
+  "nfiles": 16
+ },
+ "core_relational_mft": {
+  "name": "core_relational_mft",
+  "side": "engine",
+  "pattern": "meta::relational::mft(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "platform_dsl_tds",
+   "platform_store_relational",
+   "core_external_compiler",
+   "core_functions_relation",
+   "core_functions_json",
+   "core",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_relational",
+   "core_service",
+   "core_external_test_connection"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-MFT-pure/src/main/resources/core_relational_mft.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-MFT-pure/src/main/resources",
+  "lines": 199,
+  "nfiles": 1
+ },
+ "core_external_store_relational_sql_dialect_translation": {
+  "name": "core_external_store_relational_sql_dialect_translation",
+  "side": "engine",
+  "pattern": "(meta::external::store::relational::sqlDialectTranslation)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_external_store_relational_postgres_sql_model",
+   "core_external_store_relational_postgres_sql_model_extensions"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources",
+  "lines": 12056,
+  "nfiles": 116
+ },
+ "core_external_store_relational_sql_planning": {
+  "name": "core_external_store_relational_sql_planning",
+  "side": "engine",
+  "pattern": "(meta::external::store::relational::sqlPlanning)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core",
+   "core_external_store_relational_postgres_sql_model",
+   "core_external_store_relational_postgres_sql_parser",
+   "core_external_store_relational_sql_dialect_translation"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlPlanning-pure/src/main/resources/core_external_store_relational_sql_planning.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlPlanning-pure/src/main/resources",
+  "lines": 2040,
+  "nfiles": 8
+ },
+ "core_relational_java_platform_binding": {
+  "name": "core_relational_java_platform_binding",
+  "side": "engine",
+  "pattern": "(meta::relational::executionPlan::platformBinding::legendJava)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "platform_store_relational",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_relational",
+   "core_external_language_java",
+   "core_java_platform_binding",
+   "core_java_platform_binding_external_format",
+   "core_external_language_java_conventions_essential"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-javaPlatformBinding-pure/src/main/resources/core_relational_java_platform_binding.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-javaPlatformBinding-pure/src/main/resources",
+  "lines": 3681,
+  "nfiles": 6
+ },
+ "core_relational": {
+  "name": "core_relational",
+  "side": "engine",
+  "pattern": "(meta::relational|meta::external::store::relational|meta::pure::mapping|meta::protocols::pure|meta::relational::tests::csv|meta::alloy::service::execution|meta::pure::tds|meta::pure::executionPlan|meta::pure::legend::connections|meta::pure::alloy::connections|meta::external::store::relational::runtime|meta::pure::milestoning|meta::pure::router|meta::alloy::objectReference|meta::pure::lineage|meta::pure::graphFetch)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_mapping",
+   "platform_dsl_graph",
+   "platform_dsl_path",
+   "platform_dsl_tds",
+   "platform_store_relational",
+   "platform_precise_primitives",
+   "core_functions_json",
+   "core_functions_standard",
+   "core_functions_relation",
+   "core_functions_variant",
+   "core_functions_unclassified",
+   "core_service",
+   "core",
+   "core_external_store_relational_postgres_sql_model",
+   "core_external_store_relational_postgres_sql_model_extensions",
+   "core_external_store_relational_sql_dialect_translation",
+   "core_external_store_relational_sql_planning",
+   "core_external_store_relational_sql_dialect_translation_h2"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources",
+  "lines": 171040,
+  "nfiles": 553
+ },
+ "core_relational_test": {
+  "name": "core_relational_test",
+  "side": "engine",
+  "pattern": "(meta::relational)(::.*)?",
+  "deps": [
+   "platform",
+   "core",
+   "core_relational",
+   "core_external_compiler",
+   "core_functions_unclassified",
+   "platform_dsl_mapping",
+   "platform_dsl_graph",
+   "platform_dsl_path",
+   "core_functions_json",
+   "platform_store_relational",
+   "core_java_platform_binding",
+   "core_java_platform_binding_external_format",
+   "core_external_format_json",
+   "core_external_format_json_java_platform_binding",
+   "core_external_language_java_conventions_essential"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-test/src/main/resources/core_relational_test.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-test/src/main/resources",
+  "lines": 603,
+  "nfiles": 2
+ },
+ "core_external_store_relational_sdt": {
+  "name": "core_external_store_relational_sdt",
+  "side": "engine",
+  "pattern": "(meta::external::store::relational::sdt)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_mapping",
+   "platform_dsl_path",
+   "platform_dsl_graph",
+   "platform_dsl_diagram",
+   "platform_store_relational",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core",
+   "core_external_store_relational_postgres_sql_model",
+   "core_external_store_relational_postgres_sql_model_extensions",
+   "core_external_store_relational_postgres_sql_parser",
+   "core_external_store_relational_sql_dialect_translation"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-SDT-pure/src/main/resources/core_external_store_relational_sdt.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-SDT-pure/src/main/resources",
+  "lines": 2621,
+  "nfiles": 9
+ },
+ "core_external_store_relational_postgres_sql_model_extensions": {
+  "name": "core_external_store_relational_postgres_sql_model_extensions",
+  "side": "engine",
+  "pattern": "(meta::external::query::sql)(::.*)?",
+  "deps": [
+   "platform",
+   "core_external_store_relational_postgres_sql_model"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlModel-extensions-pure/src/main/resources/core_external_store_relational_postgres_sql_model_extensions.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlModel-extensions-pure/src/main/resources",
+  "lines": 168,
+  "nfiles": 1
+ },
+ "core_external_store_relational_postgres_sql_model": {
+  "name": "core_external_store_relational_postgres_sql_model",
+  "side": "engine",
+  "pattern": "(meta::external::query::sql)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlModel-pure/src/main/resources/core_external_store_relational_postgres_sql_model.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlModel-pure/src/main/resources",
+  "lines": 679,
+  "nfiles": 2
+ },
+ "core_external_store_relational_postgres_sql_parser": {
+  "name": "core_external_store_relational_postgres_sql_parser",
+  "side": "engine",
+  "pattern": "(meta::external::store::relational::postgresSql::parser)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core",
+   "core_external_store_relational_postgres_sql_model"
+  ],
+  "definition": "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlParser-pure/src/main/resources/core_external_store_relational_postgres_sql_parser.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlParser-pure/src/main/resources",
+  "lines": 208,
+  "nfiles": 2
+ },
+ "core_external_query_relationalai": {
+  "name": "core_external_query_relationalai",
+  "side": "engine",
+  "pattern": "(meta::external::store::rel)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_mapping",
+   "platform_dsl_path",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core_functions_standard",
+   "core",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-relationalai/legend-engine-xt-relationalai-pure/src/main/resources/core_external_query_relationalai.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-relationalai/legend-engine-xt-relationalai-pure/src/main/resources",
+  "lines": 8899,
+  "nfiles": 50
+ },
+ "core_external_query_graphql_metamodel": {
+  "name": "core_external_query_graphql_metamodel",
+  "side": "engine",
+  "pattern": "(meta::external::query::graphQL)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_diagram",
+   "core_functions_standard"
+  ],
+  "definition": "legend-engine-xts-graphQL/legend-engine-xt-graphQL-pure-metamodel/src/main/resources/core_external_query_graphql_metamodel.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-graphQL/legend-engine-xt-graphQL-pure-metamodel/src/main/resources",
+  "lines": 1579,
+  "nfiles": 4
+ },
+ "core_external_query_graphql": {
+  "name": "core_external_query_graphql",
+  "side": "engine",
+  "pattern": "(meta::external::query::graphQL)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_generation",
+   "core_external_compiler",
+   "core_relational",
+   "core_external_query_graphql_metamodel"
+  ],
+  "definition": "legend-engine-xts-graphQL/legend-engine-xt-graphQL-pure/src/main/resources/core_external_query_graphql.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-graphQL/legend-engine-xt-graphQL-pure/src/main/resources",
+  "lines": 8347,
+  "nfiles": 45
+ },
+ "core_functionjar": {
+  "name": "core_functionjar",
+  "side": "engine",
+  "pattern": "(meta::external::function::activator::functionJar|meta::protocols)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_functions_json",
+   "core_relational",
+   "core_function_activator",
+   "core_service",
+   "core",
+   "core_data_space_metamodel",
+   "core_analytics_lineage",
+   "core_hostedservice"
+  ],
+  "definition": "legend-engine-xts-functionJar/legend-engine-xt-functionJar-pure/src/main/resources/core_functionjar.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-functionJar/legend-engine-xt-functionJar-pure/src/main/resources",
+  "lines": 160,
+  "nfiles": 2
+ },
+ "core_external_format_powerbi": {
+  "name": "core_external_format_powerbi",
+  "side": "engine",
+  "pattern": "(meta::external::powerbi)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core_functions_relation",
+   "core_functions_standard",
+   "platform_dsl_mapping",
+   "platform_dsl_path",
+   "platform_dsl_store",
+   "platform_dsl_graph",
+   "core",
+   "core_generation",
+   "core_service",
+   "core_relational",
+   "core_relational_snowflake",
+   "platform_store_relational",
+   "core_data_space_metamodel"
+  ],
+  "definition": "legend-engine-xts-powerbi/legend-engine-xt-powerbi-pure/src/main/resources/core_external_format_powerbi.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-powerbi/legend-engine-xt-powerbi-pure/src/main/resources",
+  "lines": 1095,
+  "nfiles": 6
+ },
+ "core_text_metamodel": {
+  "name": "core_text_metamodel",
+  "side": "engine",
+  "pattern": "(meta::pure::metamodel::text)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-engine-xts-text/legend-engine-xt-text-pure-metamodel/src/main/resources/core_text_metamodel.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-text/legend-engine-xt-text-pure-metamodel/src/main/resources",
+  "lines": 19,
+  "nfiles": 1
+ },
+ "core_external_query_sql_expression": {
+  "name": "core_external_query_sql_expression",
+  "side": "engine",
+  "pattern": "(meta::external::query::sql::expression)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "core",
+   "core_external_store_relational_postgres_sql_model"
+  ],
+  "definition": "legend-engine-xts-sql/legend-engine-xt-sql-expression/legend-engine-xt-sql-expression-pure/src/main/resources/core_external_query_sql_expression.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-sql/legend-engine-xt-sql-expression/legend-engine-xt-sql-expression-pure/src/main/resources",
+  "lines": 75,
+  "nfiles": 2
+ },
+ "core_external_query_sql_expression_tests": {
+  "name": "core_external_query_sql_expression_tests",
+  "side": "engine",
+  "pattern": "(meta::external::query::sql::expression)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "core_functions_unclassified",
+   "core",
+   "core_external_extensions",
+   "core_external_compiler",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-sql/legend-engine-xt-sql-expression/legend-engine-xt-sql-expression-tests-pure/src/main/resources/core_external_query_sql_expression_tests.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-sql/legend-engine-xt-sql-expression/legend-engine-xt-sql-expression-tests-pure/src/main/resources",
+  "lines": 128,
+  "nfiles": 2
+ },
+ "core_external_query_sql": {
+  "name": "core_external_query_sql",
+  "side": "engine",
+  "pattern": "(meta::external::query::sql)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "platform_store_relational",
+   "platform_dsl_tds",
+   "platform_precise_primitives",
+   "core_functions_unclassified",
+   "core_functions_variant",
+   "core_functions_standard",
+   "core_functions_json",
+   "core_functions_relation",
+   "core",
+   "core_service",
+   "core_relational",
+   "core_external_compiler",
+   "core_external_store_relational_postgres_sql_parser",
+   "core_external_store_relational_postgres_sql_model",
+   "core_external_extensions",
+   "core_external_query_sql_expression"
+  ],
+  "definition": "legend-engine-xts-sql/legend-engine-xt-sql-transformation/legend-engine-xt-sql-pure/src/main/resources/core_external_query_sql.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-sql/legend-engine-xt-sql-transformation/legend-engine-xt-sql-pure/src/main/resources",
+  "lines": 14732,
+  "nfiles": 19
+ },
+ "core_external_query_sql_reverse_pct": {
+  "name": "core_external_query_sql_reverse_pct",
+  "side": "engine",
+  "pattern": "(meta::external::query::sql::reversePCT|meta::external::query::reversePCT::generator)(::.*)?",
+  "deps": [
+   "platform",
+   "core",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_functions_relation",
+   "core_functions_variant",
+   "core_external_query_sql",
+   "core_reverse_pct",
+   "platform_dsl_store",
+   "platform_dsl_tds",
+   "platform_store_relational",
+   "core_external_compiler",
+   "core_relational",
+   "core_external_test_connection"
+  ],
+  "definition": "legend-engine-xts-sql/legend-engine-xt-sql-transformation/legend-engine-xt-sql-reversePCT/src/main/resources/core_external_query_sql_reverse_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-sql/legend-engine-xt-sql-transformation/legend-engine-xt-sql-reversePCT/src/main/resources",
+  "lines": 15323,
+  "nfiles": 136
+ },
+ "core_memsqlfunction": {
+  "name": "core_memsqlfunction",
+  "side": "engine",
+  "pattern": "(meta::external::function::activator::memSqlFunction|meta::protocols)(::.*)?",
+  "deps": [
+   "core",
+   "platform",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "platform_store_relational",
+   "core_functions_json",
+   "core_functions_unclassified",
+   "core_relational",
+   "core_function_activator",
+   "core_relational",
+   "core_analytics_lineage"
+  ],
+  "definition": "legend-engine-xts-memsqlFunction/legend-engine-xt-memsqlFunction-pure/src/main/resources/core_memsqlfunction.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-memsqlFunction/legend-engine-xt-memsqlFunction-pure/src/main/resources",
+  "lines": 87,
+  "nfiles": 2
+ },
+ "core_external_format_flatdata": {
+  "name": "core_external_format_flatdata",
+  "side": "engine",
+  "pattern": "(meta::external::format::flatdata)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_diagram",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "core_functions_unclassified",
+   "core"
+  ],
+  "definition": "legend-engine-xts-flatdata/legend-engine-xt-flatdata-pure/src/main/resources/core_external_format_flatdata.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-flatdata/legend-engine-xt-flatdata-pure/src/main/resources",
+  "lines": 2885,
+  "nfiles": 13
+ },
+ "core_external_format_flatdata_java_platform_binding": {
+  "name": "core_external_format_flatdata_java_platform_binding",
+  "side": "engine",
+  "pattern": "(meta::external::format::flatdata::executionPlan::platformBinding::legendJava)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_graph",
+   "core",
+   "core_external_format_flatdata",
+   "core_external_language_java",
+   "core_java_platform_binding",
+   "core_java_platform_binding_external_format",
+   "core_external_language_java_conventions_essential"
+  ],
+  "definition": "legend-engine-xts-flatdata/legend-engine-xt-flatdata-javaPlatformBinding-pure/src/main/resources/core_external_format_flatdata_java_platform_binding.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-flatdata/legend-engine-xt-flatdata-javaPlatformBinding-pure/src/main/resources",
+  "lines": 1226,
+  "nfiles": 5
+ },
+ "core_external_language_haskell": {
+  "name": "core_external_language_haskell",
+  "side": "engine",
+  "pattern": "(meta::external::language::haskell)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core"
+  ],
+  "definition": "legend-engine-xts-haskell/legend-engine-xt-haskell-pure/src/main/resources/core_external_language_haskell.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-haskell/legend-engine-xt-haskell-pure/src/main/resources",
+  "lines": 1096,
+  "nfiles": 8
+ },
+ "core_snowflake": {
+  "name": "core_snowflake",
+  "side": "engine",
+  "pattern": "(meta::external::function::activator::snowflakeApp|meta::external::function::activator::snowflakeM2MUdf|meta::protocols)(::.*)?",
+  "deps": [
+   "core",
+   "platform",
+   "platform_dsl_graph",
+   "platform_dsl_store",
+   "platform_dsl_mapping",
+   "platform_store_relational",
+   "core_functions_json",
+   "core_functions_standard",
+   "core_relational",
+   "core_analytics_lineage",
+   "core_function_activator",
+   "core_relational",
+   "core_relational_snowflake"
+  ],
+  "definition": "legend-engine-xts-snowflake/legend-engine-xt-snowflake-pure/src/main/resources/core_snowflake.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-snowflake/legend-engine-xt-snowflake-pure/src/main/resources",
+  "lines": 750,
+  "nfiles": 8
+ },
+ "core_snowflake_test": {
+  "name": "core_snowflake_test",
+  "side": "engine",
+  "pattern": "(meta::external::function::activator::snowflakeApp|meta::external::function::activator::snowflakeM2MUdf|meta::protocols)(::.*)?",
+  "deps": [
+   "core",
+   "core_relational",
+   "core_functions_relation",
+   "core_function_activator",
+   "core_functions_json",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "platform_store_relational",
+   "platform_precise_primitives",
+   "core_snowflake",
+   "core_external_compiler"
+  ],
+  "definition": "legend-engine-xts-snowflake/legend-engine-xt-snowflake-pure-test/src/main/resources/core_snowflake_test.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-snowflake/legend-engine-xt-snowflake-pure-test/src/main/resources",
+  "lines": 980,
+  "nfiles": 3
+ },
+ "core_authentication": {
+  "name": "core_authentication",
+  "side": "engine",
+  "pattern": "(meta::pure::runtime::connection::authentication|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core"
+  ],
+  "definition": "legend-engine-xts-authentication/legend-engine-xt-authentication-pure/src/main/resources/core_authentication.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-authentication/legend-engine-xt-authentication-pure/src/main/resources",
+  "lines": 2671,
+  "nfiles": 77
+ },
+ "core_external_format_rosetta": {
+  "name": "core_external_format_rosetta",
+  "side": "engine",
+  "pattern": "(meta::external::format::rosetta|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_generation"
+  ],
+  "definition": "legend-engine-xts-rosetta/legend-engine-xt-rosetta-pure/src/main/resources/core_external_format_rosetta.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-rosetta/legend-engine-xt-rosetta-pure/src/main/resources",
+  "lines": 552,
+  "nfiles": 6
+ },
+ "core_external_tableformat_iceberg": {
+  "name": "core_external_tableformat_iceberg",
+  "side": "engine",
+  "pattern": "(meta::external::catalog::iceberg|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "core"
+  ],
+  "definition": "legend-engine-xts-iceberg/legend-engine-xt-iceberg-pure/src/main/resources/core_external_tableformat_iceberg.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-iceberg/legend-engine-xt-iceberg-pure/src/main/resources",
+  "lines": 124,
+  "nfiles": 1
+ },
+ "core_nonrelational_mongodb": {
+  "name": "core_nonrelational_mongodb",
+  "side": "engine",
+  "pattern": "(meta::external::store::mongodb|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "platform_dsl_graph",
+   "platform_dsl_path",
+   "core_functions_json",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_authentication"
+  ],
+  "definition": "legend-engine-xts-mongodb/legend-engine-xt-nonrelationalStore-mongodb-pure/src/main/resources/core_nonrelational_mongodb.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-mongodb/legend-engine-xt-nonrelationalStore-mongodb-pure/src/main/resources",
+  "lines": 3829,
+  "nfiles": 26
+ },
+ "core_mongodb_execution_test": {
+  "name": "core_mongodb_execution_test",
+  "side": "engine",
+  "pattern": "(meta::external::store::mongodb::executionTest)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "platform_dsl_graph",
+   "core",
+   "core_external_compiler",
+   "core_external_execution",
+   "core_external_format_json",
+   "core_nonrelational_mongodb"
+  ],
+  "definition": "legend-engine-xts-mongodb/legend-engine-xt-nonrelationalStore-mongodb-executionPlan-test/src/main/resources/core_mongodb_execution_test.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-mongodb/legend-engine-xt-nonrelationalStore-mongodb-executionPlan-test/src/main/resources",
+  "lines": 937,
+  "nfiles": 4
+ },
+ "core_nonrelational_mongodb_java_platform_binding": {
+  "name": "core_nonrelational_mongodb_java_platform_binding",
+  "side": "engine",
+  "pattern": "(meta::external::store::mongodb::executionPlan::platformBinding)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_external_format_json",
+   "core_nonrelational_mongodb",
+   "core_external_language_java",
+   "core_java_platform_binding",
+   "core_java_platform_binding_external_format",
+   "core_external_language_java_conventions_essential",
+   "core_external_format_json_java_platform_binding"
+  ],
+  "definition": "legend-engine-xts-mongodb/legend-engine-xt-nonrelationalStore-mongodb-javaPlatformBinding-pure/src/main/resources/core_nonrelational_mongodb_java_platform_binding.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-mongodb/legend-engine-xt-nonrelationalStore-mongodb-javaPlatformBinding-pure/src/main/resources",
+  "lines": 476,
+  "nfiles": 1
+ },
+ "core_protocol_generation": {
+  "name": "core_protocol_generation",
+  "side": "engine",
+  "pattern": "(meta::protocols::generation::java|meta::protocols::generation::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_mapping",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_external_language_java",
+   "core_external_language_java_conventions_essential",
+   "core_external_language_java_conventions_standard",
+   "core"
+  ],
+  "definition": "legend-engine-xts-protocol-java-generation/legend-engine-protocol-generation-pure/src/main/resources/core_protocol_generation.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-protocol-java-generation/legend-engine-protocol-generation-pure/src/main/resources",
+  "lines": 3788,
+  "nfiles": 14
+ },
+ "core_external_format_openapi": {
+  "name": "core_external_format_openapi",
+  "side": "engine",
+  "pattern": "(meta::external::function::description::openapi)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_functions_relation",
+   "core_functions_json",
+   "platform_dsl_mapping",
+   "platform_dsl_path",
+   "platform_dsl_graph",
+   "core",
+   "core_generation",
+   "core_service",
+   "core_relational",
+   "platform_store_relational"
+  ],
+  "definition": "legend-engine-xts-openapi/legend-engine-xt-openapi-pure/src/main/resources/core_external_format_openapi.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-openapi/legend-engine-xt-openapi-pure/src/main/resources",
+  "lines": 2320,
+  "nfiles": 7
+ },
+ "core_external_language_morphir": {
+  "name": "core_external_language_morphir",
+  "side": "engine",
+  "pattern": "(meta::external::language::morphir)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_json",
+   "core",
+   "core_generation"
+  ],
+  "definition": "legend-engine-xts-morphir/legend-engine-xt-morphir-pure/src/main/resources/core_external_language_morphir.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-morphir/legend-engine-xt-morphir-pure/src/main/resources",
+  "lines": 2970,
+  "nfiles": 6
+ },
+ "core_compiler_test": {
+  "name": "core_compiler_test",
+  "side": "engine",
+  "pattern": "(meta::legend)(::.*)?",
+  "deps": [
+   "platform",
+   "core"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler-test-pure/src/main/resources/core_compiler_test.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler-test-pure/src/main/resources",
+  "lines": 19,
+  "nfiles": 1
+ },
+ "core_functions_relation": {
+  "name": "core_functions_relation",
+  "side": "engine",
+  "pattern": "(meta::pure::functions::relation)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_tds",
+   "platform_precise_primitives",
+   "core_functions_unclassified",
+   "core_functions_variant"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources/core_functions_relation.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources",
+  "lines": 18942,
+  "nfiles": 65
+ },
+ "core_external_extensions": {
+  "name": "core_external_extensions",
+  "side": "engine",
+  "pattern": "(meta::pure::extension::runtime)(::.*)?",
+  "deps": [
+   "platform",
+   "core"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-pureExtensions/legend-engine-pure-functions-pureExtensions-pure/src/main/resources/core_external_extensions.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-pureExtensions/legend-engine-pure-functions-pureExtensions-pure/src/main/resources",
+  "lines": 44,
+  "nfiles": 2
+ },
+ "core_external_compiler": {
+  "name": "core_external_compiler",
+  "side": "engine",
+  "pattern": "(meta::legend)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-legendCompiler/legend-engine-pure-functions-legendCompiler-pure/src/main/resources/core_external_compiler.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-legendCompiler/legend-engine-pure-functions-legendCompiler-pure/src/main/resources",
+  "lines": 23,
+  "nfiles": 1
+ },
+ "core_external_language_java_compiler": {
+  "name": "core_external_language_java_compiler",
+  "side": "engine",
+  "pattern": "meta::external::language::java::compiler(::.*)?",
+  "deps": [
+   "platform",
+   "core_external_language_java"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-javaCompiler/legend-engine-pure-functions-javaCompiler-pure/src/main/resources/core_external_language_java_compiler.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-javaCompiler/legend-engine-pure-functions-javaCompiler-pure/src/main/resources",
+  "lines": 141,
+  "nfiles": 1
+ },
+ "core_functions_variant": {
+  "name": "core_functions_variant",
+  "side": "engine",
+  "pattern": "(meta::pure::functions::variant)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_json"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-variant/legend-engine-pure-functions-variant-pure/src/main/resources/core_functions_variant.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-variant/legend-engine-pure-functions-variant-pure/src/main/resources",
+  "lines": 819,
+  "nfiles": 7
+ },
+ "core_functions_unclassified": {
+  "name": "core_functions_unclassified",
+  "side": "engine",
+  "pattern": "(meta::pure::functions|meta::pure|meta::core|meta::alloy|meta::legend|meta::vcs)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources",
+  "lines": 2850,
+  "nfiles": 65
+ },
+ "core_external_execution": {
+  "name": "core_external_execution",
+  "side": "engine",
+  "pattern": "(meta::legend)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "core"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-planExecution/legend-engine-pure-functions-planExecution-pure/src/main/resources/core_external_execution.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-planExecution/legend-engine-pure-functions-planExecution-pure/src/main/resources",
+  "lines": 40,
+  "nfiles": 1
+ },
+ "core_reverse_pct": {
+  "name": "core_reverse_pct",
+  "side": "engine",
+  "pattern": "(meta::pure::test::pct::reversePCT)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core_external_extensions",
+   "core"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-reversePCT/legend-engine-pure-code-reversePCT-pure/src/main/resources/core_reverse_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-reversePCT/legend-engine-pure-code-reversePCT-pure/src/main/resources",
+  "lines": 240,
+  "nfiles": 2
+ },
+ "core_functions_standard": {
+  "name": "core_functions_standard",
+  "side": "engine",
+  "pattern": "(meta::pure::milestoning|meta::pure::functions)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_variant",
+   "core_functions_relation"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-standard/legend-engine-pure-functions-standard-pure/src/main/resources/core_functions_standard.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-standard/legend-engine-pure-functions-standard-pure/src/main/resources",
+  "lines": 5442,
+  "nfiles": 55
+ },
+ "core": {
+  "name": "core",
+  "side": "engine",
+  "pattern": "(meta::json|meta::protocols|meta::external::format::shared|meta::pure|meta::core|meta::external::store::model|meta::alloy|meta::external::format::yaml|meta::legend)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_mapping",
+   "platform_dsl_path",
+   "platform_dsl_graph",
+   "platform_dsl_tds",
+   "platform_dsl_diagram",
+   "platform_store_relational",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core_functions_relation"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources",
+  "lines": 135215,
+  "nfiles": 574
+ },
+ "pure_ide_debug": {
+  "name": "pure_ide_debug",
+  "side": "engine",
+  "pattern": "(meta::pure::ide)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-ide/legend-engine-pure-ide-light-pure-debug/src/main/resources/pure_ide_debug.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-ide/legend-engine-pure-ide-light-pure-debug/src/main/resources",
+  "lines": 15,
+  "nfiles": 1
+ },
+ "pure_ide": {
+  "name": "pure_ide",
+  "side": "engine",
+  "pattern": "(meta::pure::ide)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_diagram",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-ide/legend-engine-pure-ide-light-pure/src/main/resources/pure_ide.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-ide/legend-engine-pure-ide-light-pure/src/main/resources",
+  "lines": 617,
+  "nfiles": 4
+ },
+ "core_functions_json": {
+  "name": "core_functions_json",
+  "side": "engine",
+  "pattern": "(meta::json|meta::pure::functions)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-json/legend-engine-pure-functions-json-pure/src/main/resources/core_functions_json.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-json/legend-engine-pure-functions-json-pure/src/main/resources",
+  "lines": 99,
+  "nfiles": 1
+ },
+ "core_scenario_quant": {
+  "name": "core_scenario_quant",
+  "side": "engine",
+  "pattern": "(meta::external::scenario::quant)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_precise_primitives",
+   "core_functions_relation",
+   "core_functions_unclassified",
+   "core_functions_standard"
+  ],
+  "definition": "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-scenario-quant-pure/src/main/resources/core_scenario_quant.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-scenario-quant-pure/src/main/resources",
+  "lines": 755,
+  "nfiles": 8
+ },
+ "core_pure_changetoken_test": {
+  "name": "core_pure_changetoken_test",
+  "side": "engine",
+  "pattern": "(meta::pure::changetoken)(::.*)?",
+  "deps": [
+   "core_pure_changetoken",
+   "platform",
+   "core_functions_standard",
+   "core_functions_json",
+   "core",
+   "core_external_language_java",
+   "core_external_language_java_compiler"
+  ],
+  "definition": "legend-engine-xts-changetoken/legend-engine-xt-changetoken-test-pure/src/main/resources/core_pure_changetoken_test.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-changetoken/legend-engine-xt-changetoken-test-pure/src/main/resources",
+  "lines": 6438,
+  "nfiles": 47
+ },
+ "core_pure_changetoken": {
+  "name": "core_pure_changetoken",
+  "side": "engine",
+  "pattern": "(meta::pure::changetoken)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core",
+   "core_external_language_java"
+  ],
+  "definition": "legend-engine-xts-changetoken/legend-engine-xt-changetoken-pure/src/main/resources/core_pure_changetoken.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-changetoken/legend-engine-xt-changetoken-pure/src/main/resources",
+  "lines": 2315,
+  "nfiles": 26
+ },
+ "core_generation": {
+  "name": "core_generation",
+  "side": "engine",
+  "pattern": "(meta::pure::generation|meta::protocols)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_standard",
+   "core_functions_unclassified"
+  ],
+  "definition": "legend-engine-xts-generation/legend-engine-language-pure-dsl-generation-pure/src/main/resources/core_generation.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-generation/legend-engine-language-pure-dsl-generation-pure/src/main/resources",
+  "lines": 824,
+  "nfiles": 18
+ },
+ "core_servicestore_java_platform_binding": {
+  "name": "core_servicestore_java_platform_binding",
+  "side": "engine",
+  "pattern": "(meta::external::store::service::executionPlan::platformBinding::legendJava)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "core",
+   "core_external_format_json",
+   "core_servicestore",
+   "core_external_language_java",
+   "core_java_platform_binding",
+   "core_java_platform_binding_external_format",
+   "core_external_language_java_conventions_essential"
+  ],
+  "definition": "legend-engine-xts-serviceStore/legend-engine-xt-serviceStore-javaPlatformBinding-pure/src/main/resources/core_servicestore_java_platform_binding.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-serviceStore/legend-engine-xt-serviceStore-javaPlatformBinding-pure/src/main/resources",
+  "lines": 285,
+  "nfiles": 3
+ },
+ "core_servicestore": {
+  "name": "core_servicestore",
+  "side": "engine",
+  "pattern": "(meta::external::store::service|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_graph",
+   "platform_dsl_path",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_external_format_json",
+   "core_authentication"
+  ],
+  "definition": "legend-engine-xts-serviceStore/legend-engine-xt-serviceStore-pure/src/main/resources/core_servicestore.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-serviceStore/legend-engine-xt-serviceStore-pure/src/main/resources",
+  "lines": 10485,
+  "nfiles": 115
+ },
+ "core_external_format_protobuf": {
+  "name": "core_external_format_protobuf",
+  "side": "engine",
+  "pattern": "(meta::external::format::protobuf|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_diagram",
+   "core_functions_json",
+   "core_functions_unclassified",
+   "core",
+   "core_generation"
+  ],
+  "definition": "legend-engine-xts-protobuf/legend-engine-xt-protobuf-pure/src/main/resources/core_external_format_protobuf.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-protobuf/legend-engine-xt-protobuf-pure/src/main/resources",
+  "lines": 3524,
+  "nfiles": 20
+ },
+ "core_bigqueryfunction": {
+  "name": "core_bigqueryfunction",
+  "side": "engine",
+  "pattern": "(meta::external::function::activator::bigQueryFunction|meta::protocols)(::.*)?",
+  "deps": [
+   "platform",
+   "core_function_activator",
+   "core_relational"
+  ],
+  "definition": "legend-engine-xts-bigqueryFunction/legend-engine-xt-bigqueryFunction-pure/src/main/resources/core_bigqueryfunction.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-bigqueryFunction/legend-engine-xt-bigqueryFunction-pure/src/main/resources",
+  "lines": 26,
+  "nfiles": 1
+ },
+ "core_elasticsearch_seven_metamodel": {
+  "name": "core_elasticsearch_seven_metamodel",
+  "side": "engine",
+  "pattern": "(meta::external::store::elasticsearch::v7)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_authentication"
+  ],
+  "definition": "legend-engine-xts-elasticsearch/legend-engine-xt-elasticsearch-V7-pure-metamodel/src/main/resources/core_elasticsearch_seven_metamodel.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-elasticsearch/legend-engine-xt-elasticsearch-V7-pure-metamodel/src/main/resources",
+  "lines": 14250,
+  "nfiles": 15
+ },
+ "core_elasticsearch_specification_metamodel": {
+  "name": "core_elasticsearch_specification_metamodel",
+  "side": "engine",
+  "pattern": "(meta::external::store::elasticsearch::specification::metamodel)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_json",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_external_language_java",
+   "core_protocol_generation"
+  ],
+  "definition": "legend-engine-xts-elasticsearch/legend-engine-xt-elasticsearch-pure-specification-metamodel/src/main/resources/core_elasticsearch_specification_metamodel.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-elasticsearch/legend-engine-xt-elasticsearch-pure-specification-metamodel/src/main/resources",
+  "lines": 1813,
+  "nfiles": 3
+ },
+ "core_elasticsearch_execution_test": {
+  "name": "core_elasticsearch_execution_test",
+  "side": "engine",
+  "pattern": "(meta::external::store::elasticsearch::executionTest)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "core_functions_json",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_authentication",
+   "core_elasticsearch_seven_metamodel",
+   "core_external_execution",
+   "core_external_compiler"
+  ],
+  "definition": "legend-engine-xts-elasticsearch/legend-engine-xt-elasticsearch-executionPlan-test/src/main/resources/core_elasticsearch_execution_test.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-elasticsearch/legend-engine-xt-elasticsearch-executionPlan-test/src/main/resources",
+  "lines": 3809,
+  "nfiles": 30
+ },
+ "core_diagram": {
+  "name": "core_diagram",
+  "side": "engine",
+  "pattern": "(meta::pure::milestoning|meta::pure::functions::meta|meta::pure::metamodel::diagram|meta::protocols::pure::vX_X_X::diagram)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core_diagram_metamodel",
+   "core",
+   "core_external_compiler"
+  ],
+  "definition": "legend-engine-xts-diagram/legend-engine-xt-diagram-pure/src/main/resources/core_diagram.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-diagram/legend-engine-xt-diagram-pure/src/main/resources",
+  "lines": 262,
+  "nfiles": 3
+ },
+ "core_diagram_metamodel": {
+  "name": "core_diagram_metamodel",
+  "side": "engine",
+  "pattern": "(meta::pure::metamodel::diagram)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_diagram"
+  ],
+  "definition": "legend-engine-xts-diagram/legend-engine-xt-diagram-pure-metamodel/src/main/resources/core_diagram_metamodel.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-diagram/legend-engine-xt-diagram-pure-metamodel/src/main/resources",
+  "lines": 352,
+  "nfiles": 2
+ },
+ "core_java_platform_binding": {
+  "name": "core_java_platform_binding",
+  "side": "engine",
+  "pattern": "(meta::pure::executionPlan::platformBinding::legendJava|meta::pure::mapping::modelToModel::executionPlan::platformBinding::legendJava)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_mapping",
+   "platform_dsl_graph",
+   "core_functions_json",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core",
+   "core_external_language_java",
+   "core_external_language_java_conventions_essential",
+   "core_external_language_java_conventions_standard",
+   "core_external_language_java_feature_based_generation"
+  ],
+  "definition": "legend-engine-xts-java/legend-engine-xt-javaPlatformBinding-pure/src/main/resources/core_java_platform_binding.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-java/legend-engine-xt-javaPlatformBinding-pure/src/main/resources",
+  "lines": 10523,
+  "nfiles": 46
+ },
+ "core_external_language_java_feature_based_generation": {
+  "name": "core_external_language_java_feature_based_generation",
+  "side": "engine",
+  "pattern": "(meta::external::language::java::generation::featureBased)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_unclassified",
+   "core",
+   "core_generation",
+   "core_external_language_java"
+  ],
+  "definition": "legend-engine-xts-java/legend-engine-xt-javaGeneration-featureBased-pure/src/main/resources/core_external_language_java_feature_based_generation.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-java/legend-engine-xt-javaGeneration-featureBased-pure/src/main/resources",
+  "lines": 2567,
+  "nfiles": 3
+ },
+ "core_external_language_java_conventions_standard": {
+  "name": "core_external_language_java_conventions_standard",
+  "side": "engine",
+  "pattern": "(meta::external::language::java|meta::protocols::generation::java|meta::pure::executionPlan::platformBinding::legendJava)(::.*)?",
+  "deps": [
+   "platform",
+   "core_functions_standard",
+   "core_external_language_java",
+   "core_external_language_java_conventions_essential"
+  ],
+  "definition": "legend-engine-xts-java/legend-engine-xt-javaGeneration-conventions-standard-pure/src/main/resources/core_external_language_java_conventions_standard.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-java/legend-engine-xt-javaGeneration-conventions-standard-pure/src/main/resources",
+  "lines": 109,
+  "nfiles": 3
+ },
+ "core_external_language_java": {
+  "name": "core_external_language_java",
+  "side": "engine",
+  "pattern": "(meta::external::language::java|meta::protocols::generation::java)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_diagram",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "core_functions_json",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core"
+  ],
+  "definition": "legend-engine-xts-java/legend-engine-xt-javaGeneration-pure/src/main/resources/core_external_language_java.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-java/legend-engine-xt-javaGeneration-pure/src/main/resources",
+  "lines": 10088,
+  "nfiles": 9
+ },
+ "core_external_language_java_conventions_essential": {
+  "name": "core_external_language_java_conventions_essential",
+  "side": "engine",
+  "pattern": "(meta::external::language::java|meta::protocols::generation::java|meta::pure::executionPlan::platformBinding::legendJava)(::.*)?",
+  "deps": [
+   "platform",
+   "core_external_language_java"
+  ],
+  "definition": "legend-engine-xts-java/legend-engine-xt-javaGeneration-conventions-essential-pure/src/main/resources/core_external_language_java_conventions_essential.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-java/legend-engine-xt-javaGeneration-conventions-essential-pure/src/main/resources",
+  "lines": 1259,
+  "nfiles": 16
+ },
+ "core_java_platform_binding_external_format": {
+  "name": "core_java_platform_binding_external_format",
+  "side": "engine",
+  "pattern": "(meta::pure::executionPlan::platformBinding::legendJava|meta::external::format::shared::executionPlan::platformBinding::legendJava)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "platform_dsl_graph",
+   "core_functions_standard",
+   "core",
+   "core_external_language_java",
+   "core_java_platform_binding",
+   "core_external_language_java_conventions_essential"
+  ],
+  "definition": "legend-engine-xts-java/legend-engine-xt-javaPlatformBinding-externalFormat-pure/src/main/resources/core_java_platform_binding_external_format.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-java/legend-engine-xt-javaPlatformBinding-externalFormat-pure/src/main/resources",
+  "lines": 942,
+  "nfiles": 5
+ },
+ "core_external_python_reverse_pct_pandas_api": {
+  "name": "core_external_python_reverse_pct_pandas_api",
+  "side": "engine",
+  "pattern": "(meta::external::python::reversePCT::pandasAPI)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_tds",
+   "platform_store_relational",
+   "core",
+   "core_reverse_pct",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_functions_relation",
+   "core_external_python_execution",
+   "core_external_python_reverse_pct_shared"
+  ],
+  "definition": "legend-engine-xts-python/legend-engine-xt-python-reversePCT-pandasAPI/src/main/resources/core_external_python_reverse_pct_pandas_api.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-python/legend-engine-xt-python-reversePCT-pandasAPI/src/main/resources",
+  "lines": 8501,
+  "nfiles": 3
+ },
+ "core_external_python_reverse_pct_shared": {
+  "name": "core_external_python_reverse_pct_shared",
+  "side": "engine",
+  "pattern": "(meta::external::python::reversePCT::shared)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_tds",
+   "platform_store_relational",
+   "core",
+   "core_reverse_pct",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_functions_relation",
+   "core_external_python_execution"
+  ],
+  "definition": "legend-engine-xts-python/legend-engine-xt-python-reversePCT-shared/src/main/resources/core_external_python_reverse_pct_shared.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-python/legend-engine-xt-python-reversePCT-shared/src/main/resources",
+  "lines": 3236,
+  "nfiles": 14
+ },
+ "core_external_python_reverse_pct_legend_ql": {
+  "name": "core_external_python_reverse_pct_legend_ql",
+  "side": "engine",
+  "pattern": "(meta::external::python::reversePCT::legendQL)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_tds",
+   "platform_store_relational",
+   "core",
+   "core_reverse_pct",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core_functions_relation",
+   "core_external_python_execution",
+   "core_external_python_reverse_pct_shared"
+  ],
+  "definition": "legend-engine-xts-python/legend-engine-xt-python-reversePCT-legendQL/src/main/resources/core_external_python_reverse_pct_legend_ql.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-python/legend-engine-xt-python-reversePCT-legendQL/src/main/resources",
+  "lines": 7161,
+  "nfiles": 3
+ },
+ "core_external_python_execution": {
+  "name": "core_external_python_execution",
+  "side": "engine",
+  "pattern": "(meta::python::execution)(::.*)?",
+  "deps": [
+   "platform"
+  ],
+  "definition": "legend-engine-xts-python/legend-engine-xt-python-functions-execution/legend-engine-xt-python-functions-execution-pure/src/main/resources/core_external_python_execution.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-python/legend-engine-xt-python-functions-execution/legend-engine-xt-python-functions-execution-pure/src/main/resources",
+  "lines": 22,
+  "nfiles": 1
+ },
+ "core_deephaven_execution_test": {
+  "name": "core_deephaven_execution_test",
+  "side": "engine",
+  "pattern": "(meta::external::store::deephaven::executionTest)(::.*)?",
+  "deps": [
+   "core_deephaven_java_platform_binding",
+   "platform",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "platform_dsl_mapping",
+   "platform_dsl_store",
+   "core_functions_standard",
+   "core",
+   "core_authentication",
+   "core_external_compiler",
+   "core_external_execution",
+   "core_external_format_json",
+   "core_deephaven_pure"
+  ],
+  "definition": "legend-engine-xts-deephaven/legend-engine-xt-deephaven-executionPlan-test/src/main/resources/core_deephaven_execution_test.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-deephaven/legend-engine-xt-deephaven-executionPlan-test/src/main/resources",
+  "lines": 18,
+  "nfiles": 1
+ },
+ "core_deephaven_pure": {
+  "name": "core_deephaven_pure",
+  "side": "engine",
+  "pattern": "(meta::external::store::deephaven|meta::external::function::activator::deephavenApp|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_tds",
+   "platform_dsl_mapping",
+   "platform_precise_primitives",
+   "core_functions_unclassified",
+   "core_functions_json",
+   "core_functions_standard",
+   "core_functions_relation",
+   "core",
+   "core_authentication",
+   "core_function_activator"
+  ],
+  "definition": "legend-engine-xts-deephaven/legend-engine-xt-deephaven-pure/src/main/resources/core_deephaven_pure.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-deephaven/legend-engine-xt-deephaven-pure/src/main/resources",
+  "lines": 2168,
+  "nfiles": 13
+ },
+ "core_deephaven_java_platform_binding": {
+  "name": "core_deephaven_java_platform_binding",
+  "side": "engine",
+  "pattern": "(meta::external::store::deephaven::executionPlan::platformBinding)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "core_functions_standard",
+   "core_functions_unclassified",
+   "core",
+   "core_deephaven_pure",
+   "core_external_language_java",
+   "core_java_platform_binding",
+   "core_external_language_java_conventions_essential"
+  ],
+  "definition": "legend-engine-xts-deephaven/legend-engine-xt-deephaven-javaPlatformBinding-pure/src/main/resources/core_deephaven_java_platform_binding.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-deephaven/legend-engine-xt-deephaven-javaPlatformBinding-pure/src/main/resources",
+  "lines": 886,
+  "nfiles": 2
+ },
+ "core_deephaven_pct": {
+  "name": "core_deephaven_pct",
+  "side": "engine",
+  "pattern": "(meta::external::store::deephaven::tests::pct)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_store",
+   "platform_dsl_tds",
+   "core",
+   "core_deephaven_execution_test",
+   "core_deephaven_pure",
+   "core_deephaven_java_platform_binding",
+   "core_external_compiler",
+   "core_external_execution",
+   "core_functions_json",
+   "core_functions_relation",
+   "core_functions_standard",
+   "core_functions_unclassified"
+  ],
+  "definition": "legend-engine-xts-deephaven/legend-engine-xt-deephaven-PCT/src/main/resources/core_deephaven_pct.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-deephaven/legend-engine-xt-deephaven-PCT/src/main/resources",
+  "lines": 447,
+  "nfiles": 1
+ },
+ "core_external_format_xml": {
+  "name": "core_external_format_xml",
+  "side": "engine",
+  "pattern": "(meta::external::format::xml|meta::protocols::pure)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_diagram",
+   "platform_dsl_graph",
+   "platform_dsl_mapping",
+   "core_functions_unclassified",
+   "core_functions_standard",
+   "core"
+  ],
+  "definition": "legend-engine-xts-xml/legend-engine-xt-xml-pure/src/main/resources/core_external_format_xml.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-xml/legend-engine-xt-xml-pure/src/main/resources",
+  "lines": 4374,
+  "nfiles": 13
+ },
+ "core_external_format_xml_java_platform_binding": {
+  "name": "core_external_format_xml_java_platform_binding",
+  "side": "engine",
+  "pattern": "(meta::external::format::xml::executionPlan::platformBinding::legendJava)(::.*)?",
+  "deps": [
+   "platform",
+   "core",
+   "core_external_format_xml",
+   "core_external_language_java",
+   "core_java_platform_binding",
+   "core_java_platform_binding_external_format",
+   "core_external_language_java_conventions_essential"
+  ],
+  "definition": "legend-engine-xts-xml/legend-engine-xt-xml-javaPlatformBinding-pure/src/main/resources/core_external_format_xml_java_platform_binding.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-xml/legend-engine-xt-xml-javaPlatformBinding-pure/src/main/resources",
+  "lines": 665,
+  "nfiles": 5
+ },
+ "core_data_space": {
+  "name": "core_data_space",
+  "side": "engine",
+  "pattern": "(meta::pure::metamodel::dataSpace)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "core_functions_unclassified",
+   "core",
+   "core_diagram_metamodel",
+   "core_diagram",
+   "core_analytics_mapping",
+   "core_external_compiler",
+   "core_data_space_metamodel"
+  ],
+  "definition": "legend-engine-xts-data-space/legend-engine-xt-data-space-pure/src/main/resources/core_data_space.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-data-space/legend-engine-xt-data-space-pure/src/main/resources",
+  "lines": 241,
+  "nfiles": 1
+ },
+ "core_data_space_metamodel": {
+  "name": "core_data_space_metamodel",
+  "side": "engine",
+  "pattern": "(meta::pure::metamodel::dataSpace|meta::pure::mapping)(::.*)?",
+  "deps": [
+   "platform",
+   "platform_dsl_mapping",
+   "core_functions_unclassified",
+   "core",
+   "core_diagram_metamodel"
+  ],
+  "definition": "legend-engine-xts-data-space/legend-engine-xt-data-space-pure-metamodel/src/main/resources/core_data_space_metamodel.definition.json",
+  "resources": "<output_base>/external/+http_archive+legend_engine_src/legend-engine-xts-data-space/legend-engine-xt-data-space-pure-metamodel/src/main/resources",
+  "lines": 587,
+  "nfiles": 4
+ }
+}

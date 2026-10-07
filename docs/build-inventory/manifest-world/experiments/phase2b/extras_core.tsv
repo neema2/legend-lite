@@ -1,0 +1,45 @@
+EXTRA	meta::pure::functions::collection::newMap_Pair_MANY__Property_MANY__Map_1_	native function	platform/pure/essential/collection/anonymous/map/newMap.pure
+EXTRA	meta::pure::functions::lang::eval_Function_1__S_n__T_o__U_p__W_q__X_r__Y_s__Z_t__V_m_	native function	platform/pure/essential/lang/eval/eval.pure
+EXTRA	meta::pure::functions::asserts::fail_String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/fail.pure
+EXTRA	meta::pure::functions::asserts::fail_Function_1__Boolean_1_	function	platform/pure/essential/tests/fail.pure
+EXTRA	meta::pure::functions::boolean::greaterThan_Boolean_1__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+EXTRA	meta::pure::functions::boolean::greaterThan_Boolean_$0_1$__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+EXTRA	meta::pure::functions::boolean::greaterThan_Boolean_1__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+EXTRA	meta::pure::functions::boolean::greaterThanEqual_Boolean_1__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+EXTRA	meta::pure::functions::boolean::greaterThanEqual_Boolean_$0_1$__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+EXTRA	meta::pure::functions::boolean::greaterThanEqual_Boolean_1__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+EXTRA	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+EXTRA	meta::pure::functions::boolean::lessThan_Boolean_$0_1$__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+EXTRA	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+EXTRA	meta::pure::functions::boolean::lessThanEqual_Boolean_1__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+EXTRA	meta::pure::functions::boolean::lessThanEqual_Boolean_$0_1$__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+EXTRA	meta::pure::functions::boolean::lessThanEqual_Boolean_1__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+EXTRA	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/collection/size/isEmpty.pure
+EXTRA	meta::relational::metamodel::execute::loadCsvToDbTable_String_1__Table_1__DatabaseConnection_1__Integer_$0_1$__Nil_0_	native function	platform_store_relational/functions.pure
+EXTRA	meta::pure::functions::relation::reduce_Relation_1__Function_1__Function_1__U_m_	function	core_functions_relation/relation/functions/aggregation/reduce.pure
+EXTRA	meta::pure::functions::relation::reduce_Relation_1__Function_1__Function_1__SortInfo_MANY__U_m_	function	core_functions_relation/relation/functions/aggregation/reduce.pure
+EXTRA	meta::pure::functions::variant::convert::to_Variant_$0_1$__T_$0_1$__String_1__Pair_MANY__T_$0_1$_	native function	core_functions_variant/functions/convert/to.pure
+EXTRA	meta::pure::functions::variant::convert::toMany_Variant_$0_1$__T_$0_1$__String_1__Pair_MANY__T_MANY_	native function	core_functions_variant/functions/convert/toMany.pure
+EXTRA	meta::pure::functions::collection::get_T_MANY__String_1__T_$0_1$_	native function	core_functions_unclassified/meta/get.pure
+EXTRA	meta::pure::functions::collection::or_Boolean_$1_MANY$__Boolean_1_	function	core_functions_standard/collection/or.pure
+EXTRA	meta::pure::functions::date::max_Date_$1_MANY$__Date_1_	function	core_functions_standard/date/aggregator/max.pure
+EXTRA	meta::pure::functions::date::max_StrictDate_$1_MANY$__StrictDate_1_	function	core_functions_standard/date/aggregator/max.pure
+EXTRA	meta::pure::functions::date::max_DateTime_$1_MANY$__DateTime_1_	function	core_functions_standard/date/aggregator/max.pure
+EXTRA	meta::pure::functions::date::min_Date_$1_MANY$__Date_1_	function	core_functions_standard/date/aggregator/min.pure
+EXTRA	meta::pure::functions::date::min_StrictDate_$1_MANY$__StrictDate_1_	function	core_functions_standard/date/aggregator/min.pure
+EXTRA	meta::pure::functions::date::min_DateTime_$1_MANY$__DateTime_1_	function	core_functions_standard/date/aggregator/min.pure
+EXTRA	meta::pure::functions::date::dayOfWeek_Integer_1__DayOfWeek_1_	function	core_functions_standard/date/extract/dayOfWeek.pure
+EXTRA	meta::pure::functions::date::dayOfWeekNumber_DayOfWeek_1__Integer_1_	function	core_functions_standard/date/extract/dayOfWeekNumber.pure
+EXTRA	meta::pure::functions::date::timeBucket_DateTime_$0_1$__Integer_1__DurationUnit_1__DateTime_$0_1$_	function	core_functions_standard/date/operation/timeBucket.pure
+EXTRA	meta::pure::functions::date::timeBucket_StrictDate_$0_1$__Integer_1__DurationUnit_1__StrictDate_$0_1$_	function	core_functions_standard/date/operation/timeBucket.pure
+EXTRA	meta::pure::functions::math::average_Integer_MANY__Float_1_	function	core_functions_standard/math/aggregator/average.pure
+EXTRA	meta::pure::functions::math::average_Float_MANY__Float_1_	function	core_functions_standard/math/aggregator/average.pure
+EXTRA	meta::pure::functions::math::maxBy_RowMapper_MANY__Integer_1__T_MANY_	function	core_functions_standard/math/aggregator/maxBy.pure
+EXTRA	meta::pure::functions::math::mean_Integer_MANY__Float_1_	function	core_functions_standard/math/aggregator/mean.pure
+EXTRA	meta::pure::functions::math::mean_Float_MANY__Float_1_	function	core_functions_standard/math/aggregator/mean.pure
+EXTRA	meta::pure::functions::math::median_Integer_MANY__Float_1_	function	core_functions_standard/math/aggregator/median.pure
+EXTRA	meta::pure::functions::math::median_Float_MANY__Float_1_	function	core_functions_standard/math/aggregator/median.pure
+EXTRA	meta::pure::functions::math::minBy_RowMapper_MANY__Integer_1__T_MANY_	function	core_functions_standard/math/aggregator/minBy.pure
+EXTRA	meta::pure::functions::math::stdDevPopulation_Number_$1_MANY$__Number_1_	function	core_functions_standard/math/aggregator/stdDevPopulation.pure
+EXTRA	meta::pure::functions::math::stdDevSample_Number_$1_MANY$__Number_1_	function	core_functions_standard/math/aggregator/stdDevSample.pure
+EXTRA	meta::pure::functions::math::wavg_Number_MANY__Number_MANY__Float_1_	function	core_functions_standard/math/aggregator/wavg.pure

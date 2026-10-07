@@ -1,0 +1,66 @@
+universe 14710 names; upstream core 805 names 0.49 MB; 15 files: 15
+
+S1 upstream lists (611 seeds, 0 not in universe) — declarations: +339 names, +172 KB on top of upstream core; by area: {'A': 40, 'B': 76, 'C': 54, 'D': 6, 'E': 47, 'F': 25, 'G': 12, 'H': 14, 'other': 65}
+     harness: ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatExternalizeConfig <- ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatFromPureDescriptor <- ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatInternalizeConfig <- ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatToPureDescriptor <- ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: Binding <- BindingTransformer
+
+S1 upstream lists (611 seeds, 0 not in universe) — with bodies: +563 names, +402 KB on top of upstream core; by area: {'A': 43, 'B': 84, 'C': 66, 'D': 7, 'E': 100, 'F': 27, 'G': 59, 'H': 24, 'other': 153}
+     harness: ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatExternalizeConfig <- ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatFromPureDescriptor <- ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatInternalizeConfig <- ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatToPureDescriptor <- ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: Binding <- BindingTransformer
+
+S2 our 101 names (101 seeds, 0 not in universe) — declarations: +108 names, +55 KB on top of upstream core; by area: {'A': 22, 'B': 60, 'C': 19, 'E': 7}
+     harness: ExecutionNode <- PostProcessorResult <- relationalMapperPostProcessor
+     harness: PlatformImplementation <- ExecutionNode <- PostProcessorResult <- relationalMapperPostProcessor
+     harness: ResultType <- ExecutionNode <- PostProcessorResult <- relationalMapperPostProcessor
+     harness: VariableInput <- ExecutionNode <- PostProcessorResult <- relationalMapperPostProcessor
+     harness: TabularDataSetImplementation <- TableTDS
+     harness: ClusteredValueSpecification <- ExecutionNode <- PostProcessorResult <- relationalMapperPostProcessor
+
+S2 our 101 names (101 seeds, 0 not in universe) — with bodies: +218 names, +152 KB on top of upstream core; by area: {'A': 24, 'B': 63, 'C': 31, 'D': 7, 'E': 55, 'F': 19, 'other': 19}
+     harness: ExternalFormatContract <- Extension <- StoreContract <- StoreClusteredValueSpecification <- toString <- findOneNode <- transform <- relationalMapperPostProcessor
+     harness: ExternalFormatExternalizeConfig <- ExternalFormatContract <- Extension <- StoreContract <- StoreClusteredValueSpecification <- toString <- findOneNode <- transform
+     harness: ExternalFormatFromPureDescriptor <- ExternalFormatContract <- Extension <- StoreContract <- StoreClusteredValueSpecification <- toString <- findOneNode <- transform
+     harness: ExternalFormatInternalizeConfig <- ExternalFormatContract <- Extension <- StoreContract <- StoreClusteredValueSpecification <- toString <- findOneNode <- transform
+     harness: ExternalFormatToPureDescriptor <- ExternalFormatContract <- Extension <- StoreContract <- StoreClusteredValueSpecification <- toString <- findOneNode <- transform
+     harness: Binding <- ExternalFormatContract <- Extension <- StoreContract <- StoreClusteredValueSpecification <- toString <- findOneNode <- transform
+
+S3 the 15 files whole (320 seeds, 0 not in universe) — declarations: +372 names, +222 KB on top of upstream core; by area: {'A': 63, 'B': 95, 'C': 65, 'D': 18, 'E': 66, 'F': 18, 'H': 1, 'other': 46}
+     harness: ExternalFormatContract <- Extension <- planInMemoryStoreMergeGraphFetchExecution
+     harness: ExternalFormatExternalizeConfig <- ExternalFormatContract <- Extension <- planInMemoryStoreMergeGraphFetchExecution
+     harness: ExternalFormatFromPureDescriptor <- ExternalFormatContract <- Extension <- planInMemoryStoreMergeGraphFetchExecution
+     harness: ExternalFormatInternalizeConfig <- ExternalFormatContract <- Extension <- planInMemoryStoreMergeGraphFetchExecution
+     harness: ExternalFormatToPureDescriptor <- ExternalFormatContract <- Extension <- planInMemoryStoreMergeGraphFetchExecution
+     harness: Binding <- ExternalFormatContract <- Extension <- planInMemoryStoreMergeGraphFetchExecution
+
+S3 the 15 files whole (320 seeds, 0 not in universe) — with bodies: +979 names, +1133 KB on top of upstream core; by area: {'A': 63, 'B': 95, 'C': 66, 'D': 26, 'E': 464, 'F': 41, 'G': 47, 'H': 14, 'other': 163}
+     harness: ExternalFormatContract <- Extension <- findExpressionsForFunctionInValueSpecification <- findMainClassInGetAllExpression
+     harness: ExternalFormatExternalizeConfig <- ExternalFormatContract <- Extension <- findExpressionsForFunctionInValueSpecification <- findMainClassInGetAllExpression
+     harness: ExternalFormatFromPureDescriptor <- ExternalFormatContract <- Extension <- findExpressionsForFunctionInValueSpecification <- findMainClassInGetAllExpression
+     harness: ExternalFormatInternalizeConfig <- ExternalFormatContract <- Extension <- findExpressionsForFunctionInValueSpecification <- findMainClassInGetAllExpression
+     harness: ExternalFormatToPureDescriptor <- ExternalFormatContract <- Extension <- findExpressionsForFunctionInValueSpecification <- findMainClassInGetAllExpression
+     harness: Binding <- ExternalFormatContract <- Extension <- findExpressionsForFunctionInValueSpecification <- findMainClassInGetAllExpression
+
+functions whose upstream body never runs (lowered, forms, walled): 408
+S1 upstream lists — bodies of runnable functions only: +483 names, +328 KB; by area: {'A': 43, 'B': 84, 'C': 62, 'D': 7, 'E': 97, 'F': 27, 'G': 58, 'H': 14, 'other': 91}
+     harness: ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatExternalizeConfig <- ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatFromPureDescriptor <- ExternalFormatContract <- Extension <- calculateSourceTree
+     harness: ExternalFormatInternalizeConfig <- ExternalFormatContract <- Extension <- calculateSourceTree
+S2 our 101 names — bodies of runnable functions only: +121 names, +68 KB; by area: {'A': 22, 'B': 60, 'C': 27, 'E': 7, 'other': 5}
+     harness: ExecutionNode <- PostProcessorResult <- relationalMapperPostProcessor
+     harness: PlatformImplementation <- ExecutionNode <- PostProcessorResult <- relationalMapperPostProcessor
+     harness: ResultType <- ExecutionNode <- PostProcessorResult <- relationalMapperPostProcessor
+     harness: VariableInput <- ExecutionNode <- PostProcessorResult <- relationalMapperPostProcessor
+S3 the 15 files whole — bodies of runnable functions only: +928 names, +1071 KB; by area: {'A': 63, 'B': 95, 'C': 66, 'D': 24, 'E': 446, 'F': 41, 'G': 46, 'H': 4, 'other': 143}
+     harness: ExternalFormatContract <- Extension <- findExpressionsForFunctionInValueSpecification <- findMainClassInGetAllExpression
+     harness: ExternalFormatExternalizeConfig <- ExternalFormatContract <- Extension <- findExpressionsForFunctionInValueSpecification <- findMainClassInGetAllExpression
+     harness: ExternalFormatFromPureDescriptor <- ExternalFormatContract <- Extension <- findExpressionsForFunctionInValueSpecification <- findMainClassInGetAllExpression
+     harness: ExternalFormatInternalizeConfig <- ExternalFormatContract <- Extension <- findExpressionsForFunctionInValueSpecification <- findMainClassInGetAllExpression

@@ -1,0 +1,975 @@
+CATALOG	meta::pure::functions::collection::list_U_MANY__List_1_	function	platform/pure/essential/collection/anonymous/list/list.pure
+CATALOG	meta::pure::functions::collection::get_Map_1__U_1__V_$0_1$_	native function	platform/pure/essential/collection/anonymous/map/get.pure
+CATALOG	meta::pure::functions::collection::groupBy_X_MANY__Function_1__Map_1_	native function	platform/pure/essential/collection/anonymous/map/groupBy.pure
+CATALOG	meta::pure::functions::collection::keyValues_Map_1__Pair_MANY_	native function	platform/pure/essential/collection/anonymous/map/keyValues.pure
+CATALOG	meta::pure::functions::collection::keys_Map_1__U_MANY_	native function	platform/pure/essential/collection/anonymous/map/keys.pure
+CATALOG	meta::pure::functions::collection::newMap_Pair_MANY__Map_1_	native function	platform/pure/essential/collection/anonymous/map/newMap.pure
+EXTRA	meta::pure::functions::collection::newMap_Pair_MANY__Property_MANY__Map_1_	native function	platform/pure/essential/collection/anonymous/map/newMap.pure
+CATALOG	meta::pure::functions::collection::put_Map_1__U_1__V_1__Map_1_	native function	platform/pure/essential/collection/anonymous/map/put.pure
+CATALOG	meta::pure::functions::collection::putAll_Map_1__Pair_MANY__Map_1_	native function	platform/pure/essential/collection/anonymous/map/putAll.pure
+CATALOG	meta::pure::functions::collection::putAll_Map_1__Map_1__Map_1_	native function	platform/pure/essential/collection/anonymous/map/putAll.pure
+CATALOG	meta::pure::functions::collection::values_Map_1__V_MANY_	native function	platform/pure/essential/collection/anonymous/map/values.pure
+CATALOG	meta::pure::functions::collection::pair_U_1__V_1__Pair_1_	function	platform/pure/essential/collection/anonymous/pair/pair.pure
+CATALOG	meta::pure::functions::collection::replaceTreeNode_TreeNode_1__TreeNode_1__TreeNode_1__TreeNode_1_	native function	platform/pure/essential/collection/anonymous/tree/replaceTreeNode.pure
+CATALOG	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	function	platform/pure/essential/collection/boolean/contains.pure
+CATALOG	meta::pure::functions::collection::contains_Z_MANY__Z_1__Function_1__Boolean_1_	function	platform/pure/essential/collection/boolean/contains.pure
+CATALOG	meta::pure::functions::collection::exists_T_MANY__Function_1__Boolean_1_	native function	platform/pure/essential/collection/boolean/quantification/exists.pure
+CATALOG	meta::pure::functions::collection::forAll_T_MANY__Function_1__Boolean_1_	native function	platform/pure/essential/collection/boolean/quantification/forAll.pure
+CATALOG	meta::pure::functions::collection::at_T_MANY__Integer_1__T_1_	native function	platform/pure/essential/collection/index/at.pure
+CATALOG	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	native function	platform/pure/essential/collection/index/indexOf.pure
+CATALOG	meta::pure::functions::collection::find_T_MANY__Function_1__T_$0_1$_	native function	platform/pure/essential/collection/iteration/find.pure
+CATALOG	meta::pure::functions::collection::fold_T_MANY__Function_1__V_m__V_m_	native function	platform/pure/essential/collection/iteration/fold.pure
+CATALOG	meta::pure::functions::collection::reverse_T_m__T_m_	native function	platform/pure/essential/collection/order/reverse.pure
+CATALOG	meta::pure::functions::collection::sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	native function	platform/pure/essential/collection/order/sort.pure
+CATALOG	meta::pure::functions::collection::sort_T_m__T_m_	function	platform/pure/essential/collection/order/sort.pure
+CATALOG	meta::pure::functions::collection::sort_T_m__Function_$0_1$__T_m_	function	platform/pure/essential/collection/order/sort.pure
+CATALOG	meta::pure::functions::collection::drop_T_MANY__Integer_1__T_MANY_	native function	platform/pure/essential/collection/slice/drop.pure
+CATALOG	meta::pure::functions::collection::head_T_MANY__T_$0_1$_	function	platform/pure/essential/collection/slice/head.pure
+CATALOG	meta::pure::functions::collection::init_T_MANY__T_MANY_	native function	platform/pure/essential/collection/slice/init.pure
+CATALOG	meta::pure::functions::collection::last_T_MANY__T_$0_1$_	native function	platform/pure/essential/collection/slice/last.pure
+CATALOG	meta::pure::functions::collection::slice_T_MANY__Integer_1__Integer_1__T_MANY_	native function	platform/pure/essential/collection/slice/slice.pure
+CATALOG	meta::pure::functions::collection::tail_T_MANY__T_MANY_	native function	platform/pure/essential/collection/slice/tail.pure
+CATALOG	meta::pure::functions::collection::take_T_MANY__Integer_1__T_MANY_	native function	platform/pure/essential/collection/slice/take.pure
+CATALOG	meta::pure::functions::collection::add_T_MANY__Integer_1__T_1__T_$1_MANY$_	native function	platform/pure/essential/collection/transformation/add.pure
+CATALOG	meta::pure::functions::collection::add_T_MANY__T_1__T_$1_MANY$_	native function	platform/pure/essential/collection/transformation/add.pure
+CATALOG	meta::pure::functions::collection::concatenate_T_MANY__T_MANY__T_MANY_	native function	platform/pure/essential/collection/transformation/concatenate.pure
+CATALOG	meta::pure::functions::collection::removeDuplicates_T_MANY__Function_$0_1$__Function_$0_1$__T_MANY_	native function	platform/pure/essential/collection/transformation/removeDuplicates.pure
+CATALOG	meta::pure::functions::collection::removeDuplicates_T_MANY__Function_1__T_MANY_	function	platform/pure/essential/collection/transformation/removeDuplicates.pure
+CATALOG	meta::pure::functions::collection::removeDuplicates_T_MANY__T_MANY_	function	platform/pure/essential/collection/transformation/removeDuplicates.pure
+CATALOG	meta::pure::functions::collection::removeDuplicatesBy_T_MANY__Function_1__T_MANY_	function	platform/pure/essential/collection/transformation/removeDuplicatesBy.pure
+CATALOG	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	native function	platform/pure/essential/collection/transformation/zip.pure
+CATALOG	meta::pure::functions::date::date_Integer_1__Date_1_	native function	platform/pure/essential/date/creation/date.pure
+CATALOG	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	native function	platform/pure/essential/date/creation/date.pure
+CATALOG	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__StrictDate_1_	native function	platform/pure/essential/date/creation/date.pure
+CATALOG	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	native function	platform/pure/essential/date/creation/date.pure
+CATALOG	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__DateTime_1_	native function	platform/pure/essential/date/creation/date.pure
+CATALOG	meta::pure::functions::date::date_Integer_1__Integer_1__Integer_1__Integer_1__Integer_1__Number_1__DateTime_1_	native function	platform/pure/essential/date/creation/date.pure
+CATALOG	meta::pure::functions::date::datePart_Date_1__Date_1_	native function	platform/pure/essential/date/extract/datePart.pure
+CATALOG	meta::pure::functions::date::dayOfMonth_Date_1__Integer_1_	native function	platform/pure/essential/date/extract/dayOfMonth.pure
+CATALOG	meta::pure::functions::date::hour_Date_1__Integer_1_	native function	platform/pure/essential/date/extract/hour.pure
+CATALOG	meta::pure::functions::date::minute_Date_1__Integer_1_	native function	platform/pure/essential/date/extract/minute.pure
+CATALOG	meta::pure::functions::date::monthNumber_Date_1__Integer_1_	native function	platform/pure/essential/date/extract/monthNumber.pure
+CATALOG	meta::pure::functions::date::second_Date_1__Integer_1_	native function	platform/pure/essential/date/extract/second.pure
+CATALOG	meta::pure::functions::date::year_Date_1__Integer_1_	native function	platform/pure/essential/date/extract/year.pure
+CATALOG	meta::pure::functions::date::hasDay_Date_1__Boolean_1_	native function	platform/pure/essential/date/has/hasDay.pure
+CATALOG	meta::pure::functions::date::hasHour_Date_1__Boolean_1_	native function	platform/pure/essential/date/has/hasHour.pure
+CATALOG	meta::pure::functions::date::hasMinute_Date_1__Boolean_1_	native function	platform/pure/essential/date/has/hasMinute.pure
+CATALOG	meta::pure::functions::date::hasMonth_Date_1__Boolean_1_	native function	platform/pure/essential/date/has/hasMonth.pure
+CATALOG	meta::pure::functions::date::hasSecond_Date_1__Boolean_1_	native function	platform/pure/essential/date/has/hasSecond.pure
+CATALOG	meta::pure::functions::date::hasSubsecond_Date_1__Boolean_1_	native function	platform/pure/essential/date/has/hasSubsecond.pure
+CATALOG	meta::pure::functions::date::hasSubsecondWithAtLeastPrecision_Date_1__Integer_1__Boolean_1_	native function	platform/pure/essential/date/has/hasSubsecondWithAtLeastPrecision.pure
+CATALOG	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	native function	platform/pure/essential/date/operation/adjust.pure
+CATALOG	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	native function	platform/pure/essential/date/operation/dateDiff.pure
+CATALOG	meta::pure::functions::io::print_Any_MANY__Integer_1__Nil_0_	native function	platform/pure/essential/io/print.pure
+CATALOG	meta::pure::functions::io::print_Any_MANY__Nil_0_	function	platform/pure/essential/io/print.pure
+CATALOG	meta::pure::functions::io::println_Any_MANY__Integer_1__Nil_0_	function	platform/pure/essential/io/println.pure
+CATALOG	meta::pure::functions::io::println_Any_MANY__Nil_0_	function	platform/pure/essential/io/println.pure
+CATALOG	meta::pure::functions::lang::cast_Any_m__T_1__T_m_	native function	platform/pure/essential/lang/cast/cast.pure
+CATALOG	meta::pure::functions::math::toDecimal_Number_1__Decimal_1_	native function	platform/pure/essential/lang/cast/toDecimal.pure
+CATALOG	meta::pure::functions::math::toFloat_Number_1__Float_1_	native function	platform/pure/essential/lang/cast/toFloat.pure
+CATALOG	meta::pure::functions::lang::toMultiplicity_T_MANY__Any_z__T_z_	native function	platform/pure/essential/lang/cast/toMultiplicity.pure
+CATALOG	meta::pure::functions::lang::dynamicNew_Class_1__KeyValue_MANY__Any_1_	native function	platform/pure/essential/lang/creation/dynamicNew.pure
+CATALOG	meta::pure::functions::lang::dynamicNew_GenericType_1__KeyValue_MANY__Any_1_	native function	platform/pure/essential/lang/creation/dynamicNew.pure
+CATALOG	meta::pure::functions::lang::dynamicNew_Class_1__KeyValue_MANY__Function_$0_1$__Function_$0_1$__Any_$0_1$__Function_$0_1$__Any_1_	native function	platform/pure/essential/lang/creation/dynamicNew.pure
+CATALOG	meta::pure::functions::lang::dynamicNew_GenericType_1__KeyValue_MANY__Function_$0_1$__Function_$0_1$__Any_$0_1$__Function_$0_1$__Any_1_	native function	platform/pure/essential/lang/creation/dynamicNew.pure
+CATALOG	meta::pure::functions::lang::dynamicNew_Class_1__KeyValue_MANY__Function_$0_1$__Function_$0_1$__Any_$0_1$__Any_1_	native function	platform/pure/essential/lang/creation/dynamicNew.pure
+CATALOG	meta::pure::functions::lang::dynamicNew_GenericType_1__KeyValue_MANY__Function_$0_1$__Function_$0_1$__Any_$0_1$__Any_1_	native function	platform/pure/essential/lang/creation/dynamicNew.pure
+CATALOG	meta::pure::functions::lang::eval_Function_1__V_m_	native function	platform/pure/essential/lang/eval/eval.pure
+CATALOG	meta::pure::functions::lang::eval_Function_1__T_n__V_m_	native function	platform/pure/essential/lang/eval/eval.pure
+CATALOG	meta::pure::functions::lang::eval_Function_1__T_n__U_p__V_m_	native function	platform/pure/essential/lang/eval/eval.pure
+CATALOG	meta::pure::functions::lang::eval_Function_1__T_n__U_p__W_q__V_m_	native function	platform/pure/essential/lang/eval/eval.pure
+CATALOG	meta::pure::functions::lang::eval_Function_1__T_n__U_p__W_q__X_r__V_m_	native function	platform/pure/essential/lang/eval/eval.pure
+CATALOG	meta::pure::functions::lang::eval_Function_1__T_n__U_p__W_q__X_r__Y_s__V_m_	native function	platform/pure/essential/lang/eval/eval.pure
+CATALOG	meta::pure::functions::lang::eval_Function_1__T_n__U_p__W_q__X_r__Y_s__Z_t__V_m_	native function	platform/pure/essential/lang/eval/eval.pure
+EXTRA	meta::pure::functions::lang::eval_Function_1__S_n__T_o__U_p__W_q__X_r__Y_s__Z_t__V_m_	native function	platform/pure/essential/lang/eval/eval.pure
+CATALOG	meta::pure::functions::lang::if_Boolean_1__Function_1__Function_1__T_m_	native function	platform/pure/essential/lang/flow/if.pure
+CATALOG	meta::pure::functions::lang::if_Pair_MANY__Function_1__T_m_	function	platform/pure/essential/lang/flow/if.pure
+CATALOG	meta::pure::functions::lang::match_Any_MANY__Function_$1_MANY$__T_m_	native function	platform/pure/essential/lang/flow/match.pure
+CATALOG	meta::pure::functions::lang::match_Any_MANY__Function_$1_MANY$__P_o__T_m_	native function	platform/pure/essential/lang/flow/match.pure
+CATALOG	meta::pure::functions::math::exp_Number_1__Float_1_	native function	platform/pure/essential/math/exponential/exp.pure
+CATALOG	meta::pure::functions::math::log_Number_1__Float_1_	native function	platform/pure/essential/math/exponential/log.pure
+CATALOG	meta::pure::functions::math::log10_Number_1__Float_1_	native function	platform/pure/essential/math/exponential/log10.pure
+CATALOG	meta::pure::functions::math::abs_Integer_1__Integer_1_	native function	platform/pure/essential/math/operation/abs.pure
+CATALOG	meta::pure::functions::math::abs_Float_1__Float_1_	native function	platform/pure/essential/math/operation/abs.pure
+CATALOG	meta::pure::functions::math::abs_Number_1__Number_1_	native function	platform/pure/essential/math/operation/abs.pure
+CATALOG	meta::pure::functions::math::abs_Decimal_1__Decimal_1_	native function	platform/pure/essential/math/operation/abs.pure
+CATALOG	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_	native function	platform/pure/essential/math/operation/mod.pure
+CATALOG	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_	native function	platform/pure/essential/math/operation/rem.pure
+CATALOG	meta::pure::functions::math::sign_Number_1__Integer_1_	native function	platform/pure/essential/math/operation/sign.pure
+CATALOG	meta::pure::functions::math::cbrt_Number_1__Float_1_	native function	platform/pure/essential/math/power/cbrt.pure
+CATALOG	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_	native function	platform/pure/essential/math/power/pow.pure
+CATALOG	meta::pure::functions::math::sqrt_Number_1__Float_1_	native function	platform/pure/essential/math/power/sqrt.pure
+CATALOG	meta::pure::functions::math::ceiling_Number_1__Integer_1_	native function	platform/pure/essential/math/round/ceiling.pure
+CATALOG	meta::pure::functions::math::floor_Number_1__Integer_1_	native function	platform/pure/essential/math/round/floor.pure
+CATALOG	meta::pure::functions::math::round_Number_1__Integer_1_	native function	platform/pure/essential/math/round/round.pure
+CATALOG	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_	native function	platform/pure/essential/math/round/round.pure
+CATALOG	meta::pure::functions::math::round_Float_1__Integer_1__Float_1_	native function	platform/pure/essential/math/round/round.pure
+CATALOG	meta::pure::functions::math::acos_Number_1__Float_1_	native function	platform/pure/essential/math/trigonometry/acos.pure
+CATALOG	meta::pure::functions::math::asin_Number_1__Float_1_	native function	platform/pure/essential/math/trigonometry/asin.pure
+CATALOG	meta::pure::functions::math::atan_Number_1__Float_1_	native function	platform/pure/essential/math/trigonometry/atan.pure
+CATALOG	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_	native function	platform/pure/essential/math/trigonometry/atan2.pure
+CATALOG	meta::pure::functions::math::cos_Number_1__Float_1_	native function	platform/pure/essential/math/trigonometry/cos.pure
+CATALOG	meta::pure::functions::math::cot_Number_1__Float_1_	native function	platform/pure/essential/math/trigonometry/cot.pure
+CATALOG	meta::pure::functions::math::sin_Number_1__Float_1_	native function	platform/pure/essential/math/trigonometry/sin.pure
+CATALOG	meta::pure::functions::math::tan_Number_1__Float_1_	native function	platform/pure/essential/math/trigonometry/tan.pure
+CATALOG	meta::pure::functions::meta::elementToPath_PackageableElement_1__String_1_	function	platform/pure/essential/meta/graph/elementToPath.pure
+CATALOG	meta::pure::functions::meta::elementToPath_PackageableElement_1__Boolean_1__String_1_	function	platform/pure/essential/meta/graph/elementToPath.pure
+CATALOG	meta::pure::functions::meta::elementToPath_PackageableElement_1__String_1__String_1_	function	platform/pure/essential/meta/graph/elementToPath.pure
+CATALOG	meta::pure::functions::meta::elementToPath_PackageableElement_1__String_1__Boolean_1__String_1_	native function	platform/pure/essential/meta/graph/elementToPath.pure
+CATALOG	meta::pure::functions::meta::elementToPath_Type_1__String_1_	function	platform/pure/essential/meta/graph/elementToPath.pure
+CATALOG	meta::pure::functions::meta::elementToPath_Type_1__String_1__String_1_	function	platform/pure/essential/meta/graph/elementToPath.pure
+CATALOG	meta::pure::functions::meta::elementToPath_Function_1__String_1_	function	platform/pure/essential/meta/graph/elementToPath.pure
+CATALOG	meta::pure::functions::meta::id_Any_1__String_1_	native function	platform/pure/essential/meta/instance/id.pure
+CATALOG	meta::pure::functions::meta::stereotype_Profile_1__String_1__Stereotype_1_	native function	platform/pure/essential/meta/profile/stereotype.pure
+CATALOG	meta::pure::functions::meta::deactivate_Any_MANY__ValueSpecification_1_	native function	platform/pure/essential/meta/reflect/deactivate.pure
+CATALOG	meta::pure::functions::meta::evaluateAndDeactivate_T_m__T_m_	native function	platform/pure/essential/meta/reflect/evaluateAndDeactivate.pure
+CATALOG	meta::pure::functions::meta::enumValues_Enumeration_1__T_MANY_	native function	platform/pure/essential/meta/type/enum/enumValues.pure
+CATALOG	meta::pure::functions::meta::genericType_Any_MANY__GenericType_1_	native function	platform/pure/essential/meta/type/genericType.pure
+CATALOG	meta::pure::functions::meta::instanceOf_Any_1__Type_1__Boolean_1_	native function	platform/pure/essential/meta/type/instanceOf.pure
+CATALOG	meta::pure::functions::meta::addColumns_RelationType_1__ColSpecArray_1__RelationType_1_	native function	platform/pure/essential/meta/type/relation/addColumns.pure
+CATALOG	meta::pure::functions::meta::type_Any_MANY__Type_1_	function	platform/pure/essential/meta/type/type.pure
+CATALOG	meta::pure::functions::string::contains_String_1__String_1__Boolean_1_	native function	platform/pure/essential/string/boolean/contains.pure
+CATALOG	meta::pure::functions::string::endsWith_String_1__String_1__Boolean_1_	native function	platform/pure/essential/string/boolean/endsWith.pure
+CATALOG	meta::pure::functions::string::startsWith_String_1__String_1__Boolean_1_	native function	platform/pure/essential/string/boolean/startsWith.pure
+CATALOG	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1_	native function	platform/pure/essential/string/index/indexOf.pure
+CATALOG	meta::pure::functions::string::indexOf_String_1__String_1__Integer_1__Integer_1_	native function	platform/pure/essential/string/index/indexOf.pure
+CATALOG	meta::pure::functions::string::length_String_1__Integer_1_	native function	platform/pure/essential/string/length/length.pure
+CATALOG	meta::pure::functions::string::parseBoolean_String_1__Boolean_1_	native function	platform/pure/essential/string/parse/parseBoolean.pure
+CATALOG	meta::pure::functions::string::parseDate_String_1__Date_1_	native function	platform/pure/essential/string/parse/parseDate.pure
+CATALOG	meta::pure::functions::string::parseDecimal_String_1__Decimal_1_	native function	platform/pure/essential/string/parse/parseDecimal.pure
+CATALOG	meta::pure::functions::string::parseDecimal_String_1__Integer_1__Integer_1__Decimal_1_	native function	platform/pure/essential/string/parse/parseDecimal.pure
+CATALOG	meta::pure::functions::string::parseFloat_String_1__Float_1_	native function	platform/pure/essential/string/parse/parseFloat.pure
+CATALOG	meta::pure::functions::string::parseInteger_String_1__Integer_1_	native function	platform/pure/essential/string/parse/parseInteger.pure
+CATALOG	meta::pure::functions::string::left_String_1__Integer_1__String_1_	function	platform/pure/essential/string/slice/left.pure
+CATALOG	meta::pure::functions::string::right_String_1__Integer_1__String_1_	function	platform/pure/essential/string/slice/right.pure
+CATALOG	meta::pure::functions::string::substr_String_1__Integer_1__String_1_	function	platform/pure/essential/string/slice/substr.pure
+CATALOG	meta::pure::functions::string::substr_String_1__Integer_1__Integer_1__String_1_	function	platform/pure/essential/string/slice/substr.pure
+CATALOG	meta::pure::functions::string::substring_String_1__Integer_1__String_1_	native function	platform/pure/essential/string/slice/substring.pure
+CATALOG	meta::pure::functions::string::substring_String_1__Integer_1__Integer_1__String_1_	native function	platform/pure/essential/string/slice/substring.pure
+CATALOG	meta::pure::functions::string::split_String_1__String_1__String_MANY_	native function	platform/pure/essential/string/split/split.pure
+CATALOG	meta::pure::functions::string::format_String_1__Any_MANY__String_1_	native function	platform/pure/essential/string/toString/format.pure
+CATALOG	meta::pure::functions::string::joinStrings_String_MANY__String_1__String_1_	function	platform/pure/essential/string/toString/joinStrings.pure
+CATALOG	meta::pure::functions::string::toRepresentation_Any_1__String_1_	function	platform/pure/essential/string/toString/toRepresentation.pure
+CATALOG	meta::pure::functions::string::toString_Any_1__String_1_	native function	platform/pure/essential/string/toString/toString.pure
+CATALOG	meta::pure::functions::string::replace_String_1__String_1__String_1__String_1_	native function	platform/pure/essential/string/transformation/replace.pure
+CATALOG	meta::pure::functions::string::reverseString_String_1__String_1_	native function	platform/pure/essential/string/transformation/reverse.pure
+CATALOG	meta::pure::functions::string::toLower_String_1__String_1_	native function	platform/pure/essential/string/transformation/toLower.pure
+CATALOG	meta::pure::functions::string::toUpper_String_1__String_1_	native function	platform/pure/essential/string/transformation/toUpper.pure
+CATALOG	meta::pure::functions::string::ltrim_String_1__String_1_	native function	platform/pure/essential/string/transformation/trim/lTrim.pure
+CATALOG	meta::pure::functions::string::rtrim_String_1__String_1_	native function	platform/pure/essential/string/transformation/trim/rTrim.pure
+CATALOG	meta::pure::functions::string::trim_String_1__String_1_	native function	platform/pure/essential/string/transformation/trim/trim.pure
+CATALOG	meta::pure::functions::asserts::assert_Boolean_1__Function_1__Boolean_1_	native function	platform/pure/essential/tests/assert.pure
+CATALOG	meta::pure::functions::asserts::assert_Boolean_1__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assert.pure
+CATALOG	meta::pure::functions::asserts::assert_Boolean_1__String_1__Boolean_1_	function	platform/pure/essential/tests/assert.pure
+CATALOG	meta::pure::functions::asserts::assert_Boolean_1__Boolean_1_	function	platform/pure/essential/tests/assert.pure
+CATALOG	meta::pure::functions::asserts::assertFalse_Boolean_1__Boolean_1_	function	platform/pure/essential/tests/assert.pure
+CATALOG	meta::pure::functions::asserts::assertContains_Any_MANY__Any_1__Boolean_1_	function	platform/pure/essential/tests/assertContains.pure
+CATALOG	meta::pure::functions::asserts::assertContains_Any_MANY__Any_1__String_1__Boolean_1_	function	platform/pure/essential/tests/assertContains.pure
+CATALOG	meta::pure::functions::asserts::assertContains_Any_MANY__Any_1__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertContains.pure
+CATALOG	meta::pure::functions::asserts::assertContains_Any_MANY__Any_1__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertContains.pure
+CATALOG	meta::pure::functions::asserts::assertEmpty_Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertEmpty.pure
+CATALOG	meta::pure::functions::asserts::assertEmpty_Any_MANY__String_1__Boolean_1_	function	platform/pure/essential/tests/assertEmpty.pure
+CATALOG	meta::pure::functions::asserts::assertEmpty_Any_MANY__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertEmpty.pure
+CATALOG	meta::pure::functions::asserts::assertEmpty_Any_MANY__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertEmpty.pure
+CATALOG	meta::pure::functions::asserts::assertEq_Any_1__Any_1__Boolean_1_	function	platform/pure/essential/tests/assertEq.pure
+CATALOG	meta::pure::functions::asserts::assertEq_Any_1__Any_1__String_1__Boolean_1_	function	platform/pure/essential/tests/assertEq.pure
+CATALOG	meta::pure::functions::asserts::assertEq_Any_1__Any_1__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertEq.pure
+CATALOG	meta::pure::functions::asserts::assertEq_Any_1__Any_1__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertEq.pure
+CATALOG	meta::pure::functions::asserts::assertEqWithinTolerance_Number_1__Number_1__Number_1__Boolean_1_	function	platform/pure/essential/tests/assertEqWithinTolerance.pure
+CATALOG	meta::pure::functions::asserts::assertEqWithinTolerance_Number_1__Number_1__Number_1__String_1__Boolean_1_	function	platform/pure/essential/tests/assertEqWithinTolerance.pure
+CATALOG	meta::pure::functions::asserts::assertEqWithinTolerance_Number_1__Number_1__Number_1__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertEqWithinTolerance.pure
+CATALOG	meta::pure::functions::asserts::assertEqWithinTolerance_Number_1__Number_1__Number_1__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertEqWithinTolerance.pure
+CATALOG	meta::pure::functions::asserts::assertEquals_Any_MANY__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertEquals.pure
+CATALOG	meta::pure::functions::asserts::assertEquals_Any_MANY__Any_MANY__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertEquals.pure
+CATALOG	meta::pure::functions::asserts::assertEquals_Any_MANY__Any_MANY__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertEquals.pure
+CATALOG	meta::pure::functions::asserts::assertEquals_Any_MANY__Any_MANY__String_1__Boolean_1_	function	platform/pure/essential/tests/assertEquals.pure
+CATALOG	meta::pure::functions::asserts::assertError_Function_1__Function_1__Boolean_1_	native function	platform/pure/essential/tests/assertError.pure
+CATALOG	meta::pure::functions::asserts::assertError_Function_1__String_1__Integer_$0_1$__Integer_$0_1$__Boolean_1_	function	platform/pure/essential/tests/assertError.pure
+CATALOG	meta::pure::functions::asserts::assertError_Function_1__String_1__Boolean_1_	function	platform/pure/essential/tests/assertError.pure
+CATALOG	meta::pure::functions::asserts::assertFalse_Boolean_1__String_1__Boolean_1_	function	platform/pure/essential/tests/assertFalse.pure
+CATALOG	meta::pure::functions::asserts::assertFalse_Boolean_1__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertFalse.pure
+CATALOG	meta::pure::functions::asserts::assertFalse_Boolean_1__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertFalse.pure
+CATALOG	meta::pure::functions::asserts::assertInstanceOf_Any_1__Type_1__Boolean_1_	function	platform/pure/essential/tests/assertInstanceOf.pure
+CATALOG	meta::pure::functions::asserts::assertInstanceOf_Any_1__Type_1__String_1__Boolean_1_	function	platform/pure/essential/tests/assertInstanceOf.pure
+CATALOG	meta::pure::functions::asserts::assertInstanceOf_Any_1__Type_1__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertInstanceOf.pure
+CATALOG	meta::pure::functions::asserts::assertInstanceOf_Any_1__Type_1__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertInstanceOf.pure
+CATALOG	meta::pure::functions::asserts::assertIs_Any_1__Any_1__Boolean_1_	function	platform/pure/essential/tests/assertIs.pure
+CATALOG	meta::pure::functions::asserts::assertIs_Any_1__Any_1__String_1__Boolean_1_	function	platform/pure/essential/tests/assertIs.pure
+CATALOG	meta::pure::functions::asserts::assertIs_Any_1__Any_1__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertIs.pure
+CATALOG	meta::pure::functions::asserts::assertIs_Any_1__Any_1__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertIs.pure
+CATALOG	meta::pure::functions::asserts::assertNotEmpty_Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertNotEmpty.pure
+CATALOG	meta::pure::functions::asserts::assertNotEmpty_Any_MANY__String_1__Boolean_1_	function	platform/pure/essential/tests/assertNotEmpty.pure
+CATALOG	meta::pure::functions::asserts::assertNotEmpty_Any_MANY__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertNotEmpty.pure
+CATALOG	meta::pure::functions::asserts::assertNotEmpty_Any_MANY__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertNotEmpty.pure
+CATALOG	meta::pure::functions::asserts::assertNotEquals_Any_MANY__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertNotEquals.pure
+CATALOG	meta::pure::functions::asserts::assertNotEquals_Any_MANY__Any_MANY__String_1__Boolean_1_	function	platform/pure/essential/tests/assertNotEquals.pure
+CATALOG	meta::pure::functions::asserts::assertNotEquals_Any_MANY__Any_MANY__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertNotEquals.pure
+CATALOG	meta::pure::functions::asserts::assertNotEquals_Any_MANY__Any_MANY__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertNotEquals.pure
+CATALOG	meta::pure::functions::asserts::assertSameElements_Any_MANY__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertSameElements.pure
+CATALOG	meta::pure::functions::asserts::assertSameElements_Any_MANY__Any_MANY__String_1__Boolean_1_	function	platform/pure/essential/tests/assertSameElements.pure
+CATALOG	meta::pure::functions::asserts::assertSameElements_Any_MANY__Any_MANY__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertSameElements.pure
+CATALOG	meta::pure::functions::asserts::assertSameElements_Any_MANY__Any_MANY__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertSameElements.pure
+CATALOG	meta::pure::functions::asserts::assertSize_Any_MANY__Integer_1__Boolean_1_	function	platform/pure/essential/tests/assertSize.pure
+CATALOG	meta::pure::functions::asserts::assertSize_Any_MANY__Integer_1__String_1__Boolean_1_	function	platform/pure/essential/tests/assertSize.pure
+CATALOG	meta::pure::functions::asserts::assertSize_Any_MANY__Integer_1__String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/assertSize.pure
+CATALOG	meta::pure::functions::asserts::assertSize_Any_MANY__Integer_1__Function_1__Boolean_1_	function	platform/pure/essential/tests/assertSize.pure
+CATALOG	meta::pure::functions::asserts::fail__Boolean_1_	function	platform/pure/essential/tests/fail.pure
+CATALOG	meta::pure::functions::asserts::fail_String_1__Boolean_1_	function	platform/pure/essential/tests/fail.pure
+EXTRA	meta::pure::functions::asserts::fail_String_1__Any_MANY__Boolean_1_	function	platform/pure/essential/tests/fail.pure
+EXTRA	meta::pure::functions::asserts::fail_Function_1__Boolean_1_	function	platform/pure/essential/tests/fail.pure
+CATALOG	meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_	native function	platform/pure/grammar/functions/boolean/equality/eq.pure
+CATALOG	meta::pure::functions::boolean::equal_Any_MANY__Any_MANY__Boolean_1_	native function	platform/pure/grammar/functions/boolean/equality/equal.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_Number_1__Number_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_Number_$0_1$__Number_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_Number_1__Number_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_Number_$0_1$__Number_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_Date_$0_1$__Date_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_Date_1__Date_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_Date_$0_1$__Date_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_String_$0_1$__String_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_String_1__String_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_String_$0_1$__String_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_Boolean_$0_1$__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+EXTRA	meta::pure::functions::boolean::greaterThan_Boolean_1__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+EXTRA	meta::pure::functions::boolean::greaterThan_Boolean_$0_1$__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_String_1__String_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThan_Date_1__Date_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+EXTRA	meta::pure::functions::boolean::greaterThan_Boolean_1__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThan.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_Number_1__Number_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_Number_$0_1$__Number_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_Number_1__Number_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_Number_$0_1$__Number_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_Date_$0_1$__Date_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_Date_1__Date_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_Date_$0_1$__Date_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_String_$0_1$__String_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_String_1__String_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_String_$0_1$__String_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_Boolean_$0_1$__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+EXTRA	meta::pure::functions::boolean::greaterThanEqual_Boolean_1__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+EXTRA	meta::pure::functions::boolean::greaterThanEqual_Boolean_$0_1$__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_String_1__String_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::greaterThanEqual_Date_1__Date_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+EXTRA	meta::pure::functions::boolean::greaterThanEqual_Boolean_1__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/greaterThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThan_Number_1__Number_1__Boolean_1_	native function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_Number_$0_1$__Number_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_Number_1__Number_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_Number_$0_1$__Number_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_Date_$0_1$__Date_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_Date_1__Date_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_Date_$0_1$__Date_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_String_$0_1$__String_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_String_1__String_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_String_$0_1$__String_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_Boolean_$0_1$__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+EXTRA	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+EXTRA	meta::pure::functions::boolean::lessThan_Boolean_$0_1$__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_Date_1__Date_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThan_String_1__String_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+EXTRA	meta::pure::functions::boolean::lessThan_Boolean_1__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThan.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_Number_1__Number_1__Boolean_1_	native function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_Number_$0_1$__Number_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_Number_1__Number_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_Number_$0_1$__Number_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_Date_$0_1$__Date_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_Date_1__Date_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_Date_$0_1$__Date_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_String_$0_1$__String_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_String_1__String_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_String_$0_1$__String_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_Boolean_$0_1$__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+EXTRA	meta::pure::functions::boolean::lessThanEqual_Boolean_1__Boolean_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+EXTRA	meta::pure::functions::boolean::lessThanEqual_Boolean_$0_1$__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_Date_1__Date_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::lessThanEqual_String_1__String_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+EXTRA	meta::pure::functions::boolean::lessThanEqual_Boolean_1__Boolean_1__Boolean_1_	function	platform/pure/grammar/functions/boolean/inequality/lessThanEqual.pure
+CATALOG	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	native function	platform/pure/grammar/functions/boolean/operation/and.pure
+CATALOG	meta::pure::functions::boolean::not_Boolean_1__Boolean_1_	native function	platform/pure/grammar/functions/boolean/operation/not.pure
+CATALOG	meta::pure::functions::boolean::or_Boolean_1__Boolean_1__Boolean_1_	native function	platform/pure/grammar/functions/boolean/operation/or.pure
+CATALOG	meta::pure::functions::collection::filter_T_MANY__Function_1__T_MANY_	native function	platform/pure/grammar/functions/collection/iteration/filter.pure
+CATALOG	meta::pure::functions::collection::map_T_m__Function_1__V_m_	native function	platform/pure/grammar/functions/collection/iteration/map.pure
+CATALOG	meta::pure::functions::collection::map_T_MANY__Function_1__V_MANY_	native function	platform/pure/grammar/functions/collection/iteration/map.pure
+CATALOG	meta::pure::functions::collection::map_T_$0_1$__Function_1__V_$0_1$_	native function	platform/pure/grammar/functions/collection/iteration/map.pure
+CATALOG	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	native function	platform/pure/grammar/functions/collection/size/isEmpty.pure
+EXTRA	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/collection/size/isEmpty.pure
+CATALOG	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	function	platform/pure/grammar/functions/collection/size/isNotEmpty.pure
+CATALOG	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	function	platform/pure/grammar/functions/collection/size/isNotEmpty.pure
+CATALOG	meta::pure::functions::collection::size_Any_MANY__Integer_1_	native function	platform/pure/grammar/functions/collection/size/size.pure
+CATALOG	meta::pure::functions::collection::first_T_MANY__T_$0_1$_	native function	platform/pure/grammar/functions/collection/slice/first.pure
+CATALOG	meta::pure::functions::collection::getAll_Class_1__T_MANY_	native function	platform/pure/grammar/functions/lang/all/all.pure
+CATALOG	meta::pure::functions::collection::getAllVersions_Class_1__T_MANY_	native function	platform/pure/grammar/functions/lang/all/allVersions.pure
+CATALOG	meta::pure::functions::multiplicity::toOne_T_MANY__T_1_	native function	platform/pure/grammar/functions/lang/cast/toOne.pure
+CATALOG	meta::pure::functions::multiplicity::toOne_T_MANY__String_1__T_1_	native function	platform/pure/grammar/functions/lang/cast/toOne.pure
+CATALOG	meta::pure::functions::multiplicity::toOneMany_T_MANY__T_$1_MANY$_	native function	platform/pure/grammar/functions/lang/cast/toOneMany.pure
+CATALOG	meta::pure::functions::multiplicity::toOneMany_T_MANY__String_1__T_$1_MANY$_	native function	platform/pure/grammar/functions/lang/cast/toOneMany.pure
+CATALOG	meta::pure::functions::lang::compare_T_1__T_1__Integer_1_	native function	platform/pure/grammar/functions/lang/compare.pure
+CATALOG	meta::pure::functions::lang::extractEnumValue_Enumeration_1__String_1__T_1_	native function	platform/pure/grammar/functions/lang/enum/extractEnumValue.pure
+CATALOG	meta::pure::functions::lang::extractEnumValue_Enumeration_1__String_$0_1$__T_$0_1$_	function	platform/pure/grammar/functions/lang/enum/extractEnumValue.pure
+CATALOG	meta::pure::functions::lang::letFunction_String_1__T_m__T_m_	native function	platform/pure/grammar/functions/lang/let.pure
+CATALOG	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	native function	platform/pure/grammar/functions/math/operation/divide.pure
+CATALOG	meta::pure::functions::math::divide_Decimal_1__Decimal_1__Integer_1__Decimal_1_	native function	platform/pure/grammar/functions/math/operation/divide.pure
+CATALOG	meta::pure::functions::math::minus_Integer_MANY__Integer_1_	native function	platform/pure/grammar/functions/math/operation/minus.pure
+CATALOG	meta::pure::functions::math::minus_Float_MANY__Float_1_	native function	platform/pure/grammar/functions/math/operation/minus.pure
+CATALOG	meta::pure::functions::math::minus_Decimal_MANY__Decimal_1_	native function	platform/pure/grammar/functions/math/operation/minus.pure
+CATALOG	meta::pure::functions::math::minus_Number_MANY__Number_1_	native function	platform/pure/grammar/functions/math/operation/minus.pure
+CATALOG	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	native function	platform/pure/grammar/functions/math/operation/plus.pure
+CATALOG	meta::pure::functions::math::plus_Float_MANY__Float_1_	native function	platform/pure/grammar/functions/math/operation/plus.pure
+CATALOG	meta::pure::functions::math::plus_Decimal_MANY__Decimal_1_	native function	platform/pure/grammar/functions/math/operation/plus.pure
+CATALOG	meta::pure::functions::math::plus_Number_MANY__Number_1_	native function	platform/pure/grammar/functions/math/operation/plus.pure
+CATALOG	meta::pure::functions::math::times_Integer_MANY__Integer_1_	native function	platform/pure/grammar/functions/math/operation/times.pure
+CATALOG	meta::pure::functions::math::times_Float_MANY__Float_1_	native function	platform/pure/grammar/functions/math/operation/times.pure
+CATALOG	meta::pure::functions::math::times_Decimal_MANY__Decimal_1_	native function	platform/pure/grammar/functions/math/operation/times.pure
+CATALOG	meta::pure::functions::math::times_Number_MANY__Number_1_	native function	platform/pure/grammar/functions/math/operation/times.pure
+CATALOG	meta::pure::functions::collection::range_Integer_1__Integer_1__Integer_1__Integer_MANY_	native function	platform/pure/grammar/functions/math/sequence/range.pure
+CATALOG	meta::pure::functions::collection::range_Integer_1__Integer_MANY_	function	platform/pure/grammar/functions/math/sequence/range.pure
+CATALOG	meta::pure::functions::collection::range_Integer_1__Integer_1__Integer_MANY_	function	platform/pure/grammar/functions/math/sequence/range.pure
+CATALOG	meta::pure::functions::relation::unbounded__UnboundedFrameValue_1_	function	platform/pure/grammar/functions/meta/type/relation/window/frame.pure
+CATALOG	meta::pure::functions::string::joinStrings_String_MANY__String_1__String_1__String_1__String_1_	native function	platform/pure/grammar/functions/string/operation/joinStrings.pure
+CATALOG	meta::pure::functions::string::plus_String_MANY__String_1_	function	platform/pure/grammar/functions/string/operation/plus.pure
+CATALOG	meta::pure::functions::collection::getAllVersionsInRange_Class_1__Date_1__Date_1__T_MANY_	native function	platform/pure/grammar/milestoning.pure
+CATALOG	meta::pure::functions::collection::getAll_Class_1__Date_1__T_MANY_	native function	platform/pure/grammar/milestoning.pure
+CATALOG	meta::pure::functions::collection::getAll_Class_1__Date_1__Date_1__T_MANY_	native function	platform/pure/grammar/milestoning.pure
+CATALOG	meta::pure::metamodel::relation::newTDSRelationAccessor_TDS_1__TDSRelationAccessor_1_	function	platform_dsl_tds/tds.pure
+CATALOG	meta::relational::metamodel::execute::executeInDb_String_1__DatabaseConnection_1__Integer_1__Integer_1__ResultSet_1_	native function	platform_store_relational/functions.pure
+EXTRA	meta::relational::metamodel::execute::loadCsvToDbTable_String_1__Table_1__DatabaseConnection_1__Integer_$0_1$__Nil_0_	native function	platform_store_relational/functions.pure
+CATALOG	meta::relational::metamodel::execute::fetchDbTablesMetaData_DatabaseConnection_1__String_$0_1$__String_$0_1$__ResultSet_1_	native function	platform_store_relational/functions.pure
+CATALOG	meta::relational::metamodel::execute::fetchDbColumnsMetaData_DatabaseConnection_1__String_$0_1$__String_$0_1$__String_$0_1$__ResultSet_1_	native function	platform_store_relational/functions.pure
+CATALOG	meta::relational::metamodel::execute::fetchDbSchemasMetaData_DatabaseConnection_1__String_$0_1$__ResultSet_1_	native function	platform_store_relational/functions.pure
+CATALOG	meta::relational::metamodel::execute::fetchDbPrimaryKeysMetaData_DatabaseConnection_1__String_$0_1$__String_1__ResultSet_1_	native function	platform_store_relational/functions.pure
+CATALOG	meta::relational::metamodel::execute::createTempTable_String_1__Column_MANY__Function_1__DatabaseConnection_1__Nil_0_	native function	platform_store_relational/functions.pure
+CATALOG	meta::relational::metamodel::execute::createTempTable_String_1__Column_MANY__Function_1__Boolean_1__DatabaseConnection_1__Nil_0_	native function	platform_store_relational/functions.pure
+CATALOG	meta::relational::metamodel::execute::dropTempTable_String_1__DatabaseConnection_1__Nil_0_	native function	platform_store_relational/functions.pure
+EXTRA	meta::pure::mapping::from_T_m__SingleExecutionParameters_1__T_m_	function	core_service/service/mappingExtension.pure
+EXTRA	meta::pure::mapping::from_T_m__ExecutionEnvironmentInstance_1__T_m_	function	core_service/service/mappingExtension.pure
+CATALOG	meta::alloy::objectReference::decodeObjectReferencesAndGetPkMap_String_1__String_1__Extension_MANY__String_1_	function	core_relational/legend/objectReference/objectReference.pure
+CATALOG	meta::relational::functions::database::tableReference_Database_1__String_1__String_1__Table_1_	function	core_relational/relational/functions/tableReference.pure
+CATALOG	meta::pure::tds::tableToTDS_Table_1__TableTDS_1_	function	core_relational/relational/functions/tableToTDS.pure
+EXTRA	meta::alloy::service::execution::setUpDataSQLs_String_1__Database_MANY__DatabaseType_1__String_MANY_	function	core_relational/relational/helperFunctions/helperFunctions.pure
+CATALOG	meta::alloy::service::execution::setUpDataSQLs_String_1__Database_MANY__String_MANY_	function	core_relational/relational/helperFunctions/helperFunctions.pure
+EXTRA	meta::alloy::service::execution::setUpDataSQLs_List_MANY__Database_MANY__String_MANY_	function	core_relational/relational/helperFunctions/helperFunctions.pure
+CATALOG	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__DatabaseConnection_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__ConnectionStore_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+CATALOG	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__String_1__DatabaseConnection_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__String_1__ConnectionStore_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__String_1__DatabaseConnection_1__Boolean_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__String_1__ConnectionStore_1__Boolean_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__String_1__Function_1__DatabaseConnection_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__String_1__Function_1__ConnectionStore_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__String_1__Function_1__DatabaseConnection_1__Boolean_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__String_1__Function_1__ConnectionStore_1__Boolean_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__String_1__Function_1__DatabaseConnection_1__Boolean_1__Boolean_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateTableInDb_Database_1__String_1__String_1__Function_1__ConnectionStore_1__Boolean_1__Boolean_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+CATALOG	meta::relational::functions::toDDL::dropAndCreateSchemaInDb_String_1__DatabaseConnection_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateSchemaInDb_String_1__ConnectionStore_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+CATALOG	meta::relational::functions::toDDL::dropAndCreateSchemaInDb_String_1__DatabaseConnection_1__Boolean_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropAndCreateSchemaInDb_String_1__ConnectionStore_1__Boolean_1__Boolean_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+CATALOG	meta::relational::functions::toDDL::createSchemaStatement_String_1__String_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+CATALOG	meta::relational::functions::toDDL::dropSchemaStatement_String_1__String_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+CATALOG	meta::relational::functions::toDDL::dropTableStatement_Database_1__String_1__String_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+CATALOG	meta::relational::functions::toDDL::dropTableStatement_Database_1__String_1__String_1__String_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropTableStatement_Database_1__String_1__String_1__Function_1__String_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+CATALOG	meta::relational::functions::toDDL::createTableStatement_Database_1__String_1__String_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+CATALOG	meta::relational::functions::toDDL::createTableStatement_Database_1__String_1__String_1__String_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::createTableStatement_Database_1__String_1__String_1__Function_1__Boolean_1__String_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::createTableStatement_Database_1__DatabaseType_1__String_1__String_1__Function_1__Boolean_1__String_1_	function	core_relational/relational/helperFunctions/toDDL.pure
+CATALOG	meta::pure::lineage::scanColumns::scanColumns_PropertyPathTree_1__Mapping_1__ColumnWithContext_MANY_	function	core_relational/relational/lineage/scanColumns/scanColumns.pure
+EXTRA	meta::pure::lineage::scanColumns::scanColumns_PropertyPathTree_1__Mapping_1__Map_1__Map_1__ColResWithState_MANY_	function	core_relational/relational/lineage/scanColumns/scanColumns.pure
+EXTRA	meta::pure::lineage::scanColumns::scanColumns_PropertyPathTree_1__SetImplementation_MANY__Map_1__Map_1__ColResWithState_MANY_	function	core_relational/relational/lineage/scanColumns/scanColumns.pure
+CATALOG	meta::pure::lineage::scanRelations::scanRelations_FunctionDefinition_1__Mapping_1__Extension_MANY__RelationTree_1_	function	core_relational/relational/lineage/scanRelations/scanRelations.pure
+EXTRA	meta::pure::lineage::scanRelations::scanRelations_FunctionDefinition_1__Mapping_1__Extension_MANY__DebugContext_1__RelationTree_1_	function	core_relational/relational/lineage/scanRelations/scanRelations.pure
+EXTRA	meta::pure::lineage::scanRelations::scanRelations_ValueSpecification_1__Map_1__Mapping_1__Extension_MANY__DebugContext_1__RelationTree_1_	function	core_relational/relational/lineage/scanRelations/scanRelations.pure
+EXTRA	meta::pure::lineage::scanRelations::scanRelations_PropertyPathTree_1__Mapping_1__RelationTree_1_	function	core_relational/relational/lineage/scanRelations/scanRelations.pure
+EXTRA	meta::pure::lineage::scanRelations::scanRelations_PropertyPathTree_1__Mapping_1__DebugContext_1__RelationTree_1_	function	core_relational/relational/lineage/scanRelations/scanRelations.pure
+EXTRA	meta::pure::lineage::scanRelations::scanRelations_PropertyPathTree_1__Mapping_1__RootRelationalInstanceSetImplementation_$0_1$__EmbeddedRelationalInstanceSetImplementation_$0_1$__DebugContext_1__RelationTree_MANY_	function	core_relational/relational/lineage/scanRelations/scanRelations.pure
+EXTRA	meta::pure::lineage::scanRelations::scanRelations_View_1__RelationTree_1_	function	core_relational/relational/lineage/scanRelations/scanRelations.pure
+CATALOG	meta::pure::lineage::scanRelations::scanRelations_FunctionDefinition_1__Mapping_1__Runtime_1__Extension_MANY__RelationTree_1_	function	core_relational/relational/lineage/scanRelations/scanRelations.pure
+EXTRA	meta::pure::lineage::scanRelations::scanRelations_FunctionDefinition_1__Mapping_1__Runtime_1__Pair_MANY__Extension_MANY__RelationTree_1_	function	core_relational/relational/lineage/scanRelations/scanRelations.pure
+EXTRA	meta::pure::lineage::scanRelations::scanRelations_FunctionDefinition_1__Mapping_1__Runtime_1__Pair_MANY__DebugContext_1__Extension_MANY__RelationTree_1_	function	core_relational/relational/lineage/scanRelations/scanRelations.pure
+CATALOG	meta::relational::milestoning::concatenateTemporalTdsQueries_LambdaFunction_MANY__LambdaFunction_1_	function	core_relational/relational/milestoning/milestoning.pure
+CATALOG	meta::relational::postProcessor::cteExtraction::extractSubqueriesAsCTEs_SelectSQLQuery_1__SelectSQLQuery_1_	function	core_relational/relational/postprocessor/cteExtractionPostProcessor.pure
+CATALOG	meta::relational::postProcessor::nonExecutable_SelectSQLQuery_1__Extension_MANY__Result_1_	function	core_relational/relational/postprocessor/nonExecutablePostProcessor.pure
+CATALOG	meta::relational::postProcessor::replaceTables_SelectSQLQuery_1__Pair_MANY__Result_1_	function	core_relational/relational/postprocessor/postProcessor.pure
+EXTRA	meta::relational::metamodel::execute::executeInDb_String_1__Function_1__ResultSet_1_	function	core_relational/relational/relationalExtension.pure
+CATALOG	meta::relational::metamodel::execute::executeInDb_String_1__DatabaseConnection_1__ResultSet_1_	function	core_relational/relational/relationalExtension.pure
+EXTRA	meta::relational::metamodel::execute::executeInDb_String_1__ConnectionStore_1__ResultSet_1_	function	core_relational/relational/relationalExtension.pure
+CATALOG	meta::relational::metamodel::execute::loadCsvToDbTable_String_1__Table_1__DatabaseConnection_1__Nil_0_	function	core_relational/relational/relationalExtension.pure
+EXTRA	meta::relational::metamodel::execute::loadCsvToDbTable_String_1__Table_1__ConnectionStore_1__Nil_0_	function	core_relational/relational/relationalExtension.pure
+CATALOG	meta::relational::metamodel::execute::executeInDbToTDS_String_1__Function_1__TabularDataSet_1_	function	core_relational/relational/relationalExtension.pure
+CATALOG	meta::pure::alloy::connections::relationalMapperPostProcessor_RelationalMapperPostProcessor_1__PostProcessorWithParameter_1_	function	core_relational/relational/runtime/connection/postprocessor.pure
+EXTRA	meta::pure::alloy::connections::relationalMapperPostProcessor_SQLQuery_1__Mapping_$0_1$__Runtime_1__Database_$0_1$__ExecutionContext_1__PostProcessorParameter_MANY__PostProcessorResult_1_	function	core_relational/relational/runtime/connection/postprocessor.pure
+EXTRA	meta::pure::alloy::connections::relationalMapperPostProcessor_DatabaseMapper_MANY__SchemaMapper_MANY__TableMapper_MANY__Function_1_	function	core_relational/relational/runtime/connection/postprocessor.pure
+EXTRA	meta::relational::functions::toDDL::createSchemaStatement_String_1__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropSchemaStatement_String_1__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropTableStatement_Database_1__String_1__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropTableStatement_Database_1__String_1__String_1__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropTableStatement_Table_1__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::dropTableStatement_Database_1__String_1__String_1__Function_1__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::createTableStatement_Database_1__String_1__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::createTableStatement_Database_1__String_1__String_1__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::createTableStatement_Table_1__Boolean_1__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+EXTRA	meta::relational::functions::toDDL::createTableStatement_Database_1__String_1__String_1__Function_1__Boolean_1__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+CATALOG	meta::alloy::service::execution::setUpDataSQLs_String_1__Database_MANY__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+CATALOG	meta::alloy::service::execution::setUpDataSQLs_List_MANY__Database_MANY__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+CATALOG	meta::alloy::service::execution::setUpDataSQLsV2_String_1__Database_MANY__DbConfig_1__String_MANY_	function	core_relational/relational/sqlQueryToString/DDL/toDDL.pure
+CATALOG	meta::relational::functions::sqlQueryToString::sqlNull__SQLNull_1_	function	core_relational/relational/sqlQueryToString/dbExtension.pure
+CATALOG	meta::relational::functions::sqlQueryToString::sqlTrue__Boolean_1_	function	core_relational/relational/sqlQueryToString/dbExtension.pure
+CATALOG	meta::relational::functions::sqlQueryToString::sqlFalse__Boolean_1_	function	core_relational/relational/sqlQueryToString/dbExtension.pure
+CATALOG	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__TableRowIdentifiers_MANY__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__Any_MANY__TableRowIdentifiers_MANY__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__TableRowIdentifiers_MANY__Boolean_1__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__Any_MANY__TableRowIdentifiers_MANY__Boolean_1__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__TableRowIdentifiers_MANY__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__Any_MANY__ExecutionContext_1__TableRowIdentifiers_MANY__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__TableRowIdentifiers_MANY__Boolean_1__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__Any_MANY__ExecutionContext_1__TableRowIdentifiers_MANY__Boolean_1__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__TableRowIdentifiers_MANY__Boolean_1__TemporalMilestoningDates_$0_1$__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__Any_MANY__ExecutionContext_1__TableRowIdentifiers_MANY__Boolean_1__TemporalMilestoningDates_$0_1$__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::generateTestData_FunctionDefinition_1__Mapping_1__Runtime_1__Any_MANY__ExecutionContext_1__TestDataGenerationConfig_1__Extension_MANY__TestDataGenResult_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+CATALOG	meta::relational::testDataGeneration::generateSeedDataString_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__Any_MANY__Extension_MANY__String_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+CATALOG	meta::relational::testDataGeneration::getRelationalCSVDataFromQuery_FunctionDefinition_1__Mapping_1__RelationalCSVData_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+CATALOG	meta::relational::testDataGeneration::executionPlan::planTestDataGeneration_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__TableRowIdentifiers_MANY__Boolean_1__Extension_MANY__ExecutionPlan_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+CATALOG	meta::relational::testDataGeneration::executionPlan::planTestDataGeneration_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__TableRowIdentifiers_MANY__Boolean_1__TemporalMilestoningDates_$0_1$__Extension_MANY__ExecutionPlan_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::executionPlan::planTestDataGeneration_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__TableRowIdentifiers_MANY__Boolean_1__TemporalMilestoningDates_$0_1$__Any_MANY__Extension_MANY__ExecutionPlan_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+EXTRA	meta::relational::testDataGeneration::executionPlan::planTestDataGeneration_RelationTree_1__Runtime_1__ExecutionContext_1__DatabaseConnection_1__Map_1__String_MANY__TestDataGenerationConfig_1__Extension_MANY__ExecutionNode_1_	function	core_relational/relational/testDataGeneration/testDataGeneration.pure
+CATALOG	meta::relational::functions::sqlstring::toSQLStringPretty_FunctionDefinition_1__Mapping_1__DatabaseType_1__Extension_MANY__String_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+CATALOG	meta::relational::functions::sqlstring::toSQLStringPretty_FunctionDefinition_1__Mapping_1__Runtime_1__Extension_MANY__String_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+EXTRA	meta::relational::functions::sqlstring::toSQLStringPretty_FunctionDefinition_1__Mapping_1__DatabaseType_1__String_$0_1$__Extension_MANY__String_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+CATALOG	meta::relational::functions::sqlstring::toSQL_FunctionDefinition_1__Mapping_1__Runtime_1__Extension_MANY__SQLResult_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+EXTRA	meta::relational::functions::sqlstring::toSQL_FunctionDefinition_1__Mapping_1__DatabaseType_1__String_$0_1$__Function_MANY__Extension_MANY__DebugContext_1__SQLResult_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+EXTRA	meta::relational::functions::sqlstring::toSQL_ClusteredValueSpecification_MANY__Map_1__Mapping_1__DatabaseType_1__String_$0_1$__Function_MANY__Extension_MANY__DebugContext_1__SQLResult_1__SQLResult_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+CATALOG	meta::relational::functions::sqlstring::toSQLString_FunctionDefinition_1__Mapping_1__DatabaseType_1__Extension_MANY__String_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+EXTRA	meta::relational::functions::sqlstring::toSQLString_FunctionDefinition_1__Mapping_1__DatabaseType_1__Boolean_$0_1$__Extension_MANY__String_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+EXTRA	meta::relational::functions::sqlstring::toSQLString_FunctionDefinition_1__Mapping_1__DatabaseType_1__Extension_MANY__DebugContext_1__String_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+EXTRA	meta::relational::functions::sqlstring::toSQLString_FunctionDefinition_1__Mapping_1__DatabaseType_1__String_$0_1$__Extension_MANY__String_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+EXTRA	meta::relational::functions::sqlstring::toSQLString_FunctionDefinition_1__Mapping_1__DatabaseType_1__String_$0_1$__Function_MANY__Format_1__Extension_MANY__DebugContext_1__String_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+EXTRA	meta::relational::functions::sqlstring::toSQLString_FunctionDefinition_1__Mapping_1__DatabaseType_1__String_$0_1$__Boolean_$0_1$__Function_MANY__Format_1__Extension_MANY__DebugContext_1__String_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+CATALOG	meta::relational::functions::sqlstring::toNonExecutableSQLString_FunctionDefinition_1__Mapping_1__DatabaseType_1__Extension_MANY__String_1_	function	core_relational/relational/transform/fromPure/toSQLString.pure
+CATALOG	meta::pure::functions::relation::joinStrings_Relation_1__ColSpec_1__String_1__String_1_	function	core_functions_relation/relation/functions/aggregation/joinStrings.pure
+CATALOG	meta::pure::functions::relation::joinStrings_Relation_1__ColSpec_1__String_1__SortInfo_MANY__String_1_	function	core_functions_relation/relation/functions/aggregation/joinStrings.pure
+CATALOG	meta::pure::functions::relation::joinStrings_Relation_1__Function_1__String_1__String_1_	function	core_functions_relation/relation/functions/aggregation/joinStrings.pure
+CATALOG	meta::pure::functions::relation::joinStrings_Relation_1__Function_1__String_1__SortInfo_MANY__String_1_	function	core_functions_relation/relation/functions/aggregation/joinStrings.pure
+EXTRA	meta::pure::functions::relation::reduce_Relation_1__Function_1__Function_1__U_m_	function	core_functions_relation/relation/functions/aggregation/reduce.pure
+EXTRA	meta::pure::functions::relation::reduce_Relation_1__Function_1__Function_1__SortInfo_MANY__U_m_	function	core_functions_relation/relation/functions/aggregation/reduce.pure
+CATALOG	meta::pure::functions::relation::columns_Relation_1__Column_MANY_	native function	core_functions_relation/relation/functions/columns.pure
+CATALOG	meta::pure::functions::relation::project_C_MANY__FuncColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/graph/project.pure
+CATALOG	meta::pure::functions::relation::project_Relation_1__FuncColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/graph/project.pure
+CATALOG	meta::pure::functions::relation::filter_Relation_1__Function_1__Relation_1_	native function	core_functions_relation/relation/functions/iteration/filter.pure
+CATALOG	meta::pure::functions::relation::map_Relation_1__Function_1__V_MANY_	native function	core_functions_relation/relation/functions/iteration/map.pure
+CATALOG	meta::pure::functions::relation::_range_Number_1__Number_1___Range_1_	function	core_functions_relation/relation/functions/olap/frame/range.pure
+CATALOG	meta::pure::functions::relation::_range_UnboundedFrameValue_1__Number_1___Range_1_	function	core_functions_relation/relation/functions/olap/frame/range.pure
+CATALOG	meta::pure::functions::relation::_range_Number_1__UnboundedFrameValue_1___Range_1_	function	core_functions_relation/relation/functions/olap/frame/range.pure
+CATALOG	meta::pure::functions::relation::_range_UnboundedFrameValue_1__UnboundedFrameValue_1___Range_1_	function	core_functions_relation/relation/functions/olap/frame/range.pure
+CATALOG	meta::pure::functions::relation::_range_Integer_1__DurationUnit_1__Integer_1__DurationUnit_1___RangeInterval_1_	function	core_functions_relation/relation/functions/olap/frame/range.pure
+CATALOG	meta::pure::functions::relation::_range_UnboundedFrameValue_1__Integer_1__DurationUnit_1___RangeInterval_1_	function	core_functions_relation/relation/functions/olap/frame/range.pure
+CATALOG	meta::pure::functions::relation::_range_Integer_1__DurationUnit_1__UnboundedFrameValue_1___RangeInterval_1_	function	core_functions_relation/relation/functions/olap/frame/range.pure
+CATALOG	meta::pure::functions::relation::rows_Integer_1__Integer_1__Rows_1_	function	core_functions_relation/relation/functions/olap/frame/rows.pure
+CATALOG	meta::pure::functions::relation::rows_UnboundedFrameValue_1__Integer_1__Rows_1_	function	core_functions_relation/relation/functions/olap/frame/rows.pure
+CATALOG	meta::pure::functions::relation::rows_Integer_1__UnboundedFrameValue_1__Rows_1_	function	core_functions_relation/relation/functions/olap/frame/rows.pure
+CATALOG	meta::pure::functions::relation::rows_UnboundedFrameValue_1__UnboundedFrameValue_1__Rows_1_	function	core_functions_relation/relation/functions/olap/frame/rows.pure
+CATALOG	meta::pure::functions::relation::over_String_MANY__SortInfo_MANY__Frame_$0_1$___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpec_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpec_1__Rows_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpecArray_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpecArray_1__Rows_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_SortInfo_MANY___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_SortInfo_1___Range_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_SortInfo_1___RangeInterval_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpec_1__SortInfo_MANY___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpec_1__SortInfo_MANY__Rows_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpec_1__SortInfo_1___Range_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpec_1__SortInfo_1___RangeInterval_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpecArray_1__SortInfo_MANY___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpecArray_1__SortInfo_MANY__Rows_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpecArray_1__SortInfo_1___Range_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::over_ColSpecArray_1__SortInfo_1___RangeInterval_1___Window_1_	function	core_functions_relation/relation/functions/olap/over.pure
+CATALOG	meta::pure::functions::relation::reduce_Relation_1___Window_1__T_1__Function_1__Function_1__U_m_	native function	core_functions_relation/relation/functions/olap/reduce.pure
+CATALOG	meta::pure::functions::relation::ascending_ColSpec_1__SortInfo_1_	function	core_functions_relation/relation/functions/order/ascending.pure
+CATALOG	meta::pure::functions::relation::ascending_ColSpec_1__NullOrder_1__SortInfo_1_	function	core_functions_relation/relation/functions/order/ascending.pure
+CATALOG	meta::pure::functions::relation::descending_ColSpec_1__SortInfo_1_	function	core_functions_relation/relation/functions/order/descending.pure
+CATALOG	meta::pure::functions::relation::descending_ColSpec_1__NullOrder_1__SortInfo_1_	function	core_functions_relation/relation/functions/order/descending.pure
+CATALOG	meta::pure::functions::relation::emptyFirst_SortInfo_1__SortInfo_1_	function	core_functions_relation/relation/functions/order/emptyFirst.pure
+CATALOG	meta::pure::functions::relation::emptyLast_SortInfo_1__SortInfo_1_	function	core_functions_relation/relation/functions/order/emptyLast.pure
+CATALOG	meta::pure::functions::relation::sort_Relation_1__SortInfo_MANY__Relation_1_	native function	core_functions_relation/relation/functions/order/sort.pure
+CATALOG	meta::pure::functions::relation::equalAll_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/equalAll.pure
+CATALOG	meta::pure::functions::relation::equalAny_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/equalAny.pure
+CATALOG	meta::pure::functions::relation::exists_Relation_1__Function_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/exists.pure
+CATALOG	meta::pure::functions::relation::greaterThanAll_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/greaterThanAll.pure
+CATALOG	meta::pure::functions::relation::greaterThanAny_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/greaterThanAny.pure
+CATALOG	meta::pure::functions::relation::greaterThanEqualAll_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/greaterThanEqualAll.pure
+CATALOG	meta::pure::functions::relation::greaterThanEqualAny_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/greaterThanEqualAny.pure
+CATALOG	meta::pure::functions::relation::in_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/in.pure
+CATALOG	meta::pure::functions::relation::lessThanAll_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/lessThanAll.pure
+CATALOG	meta::pure::functions::relation::lessThanAny_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/lessThanAny.pure
+CATALOG	meta::pure::functions::relation::lessThanEqualAll_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/lessThanEqualAll.pure
+CATALOG	meta::pure::functions::relation::lessThanEqualAny_U_$0_1$__Relation_1__Boolean_1_	function	core_functions_relation/relation/functions/quantification/lessThanEqualAny.pure
+CATALOG	meta::pure::functions::relation::cumulativeDistribution_Relation_1___Window_1__T_1__Float_1_	native function	core_functions_relation/relation/functions/ranking/cumulativeDistribution.pure
+CATALOG	meta::pure::functions::relation::denseRank_Relation_1___Window_1__T_1__Integer_1_	native function	core_functions_relation/relation/functions/ranking/denseRank.pure
+CATALOG	meta::pure::functions::relation::ntile_Relation_1__T_1__Integer_1__Integer_1_	native function	core_functions_relation/relation/functions/ranking/ntile.pure
+CATALOG	meta::pure::functions::relation::percentRank_Relation_1___Window_1__T_1__Float_1_	native function	core_functions_relation/relation/functions/ranking/percentRank.pure
+CATALOG	meta::pure::functions::relation::rank_Relation_1___Window_1__T_1__Integer_1_	native function	core_functions_relation/relation/functions/ranking/rank.pure
+CATALOG	meta::pure::functions::relation::rowNumber_Relation_1__T_1__Integer_1_	native function	core_functions_relation/relation/functions/ranking/rowNumber.pure
+CATALOG	meta::pure::functions::relation::size_Relation_1__Integer_1_	native function	core_functions_relation/relation/functions/size/size.pure
+CATALOG	meta::pure::functions::relation::drop_Relation_1__Integer_1__Relation_1_	native function	core_functions_relation/relation/functions/slice/drop.pure
+CATALOG	meta::pure::functions::relation::first_Relation_1___Window_1__T_1__T_$0_1$_	native function	core_functions_relation/relation/functions/slice/first.pure
+CATALOG	meta::pure::functions::relation::lag_Relation_1__T_1__T_$0_1$_	function	core_functions_relation/relation/functions/slice/lag.pure
+CATALOG	meta::pure::functions::relation::lag_Relation_1__T_1__Integer_1__T_$0_1$_	function	core_functions_relation/relation/functions/slice/lag.pure
+CATALOG	meta::pure::functions::relation::last_Relation_1___Window_1__T_1__T_$0_1$_	native function	core_functions_relation/relation/functions/slice/last.pure
+CATALOG	meta::pure::functions::relation::lead_Relation_1__T_1__T_$0_1$_	function	core_functions_relation/relation/functions/slice/lead.pure
+CATALOG	meta::pure::functions::relation::lead_Relation_1__T_1__Integer_1__T_$0_1$_	function	core_functions_relation/relation/functions/slice/lead.pure
+CATALOG	meta::pure::functions::relation::limit_Relation_1__Integer_1__Relation_1_	native function	core_functions_relation/relation/functions/slice/limit.pure
+CATALOG	meta::pure::functions::relation::nth_Relation_1___Window_1__T_1__Integer_1__T_$0_1$_	native function	core_functions_relation/relation/functions/slice/nth.pure
+CATALOG	meta::pure::functions::relation::slice_Relation_1__Integer_1__Integer_1__Relation_1_	native function	core_functions_relation/relation/functions/slice/slice.pure
+CATALOG	meta::pure::functions::relation::assertTdsEquivalent_Relation_1__Relation_1__Number_1__Boolean_1_	function	core_functions_relation/relation/functions/tdsEquivalent.pure
+CATALOG	meta::pure::functions::relation::assertTdsEquivalent_Relation_1__Relation_1__Number_1__Number_1__Boolean_1_	function	core_functions_relation/relation/functions/tdsEquivalent.pure
+CATALOG	meta::pure::functions::relation::toString_Relation_1__String_1_	function	core_functions_relation/relation/functions/toString.pure
+CATALOG	meta::pure::functions::relation::toString_Relation_1__Boolean_1__String_1_	function	core_functions_relation/relation/functions/toString.pure
+CATALOG	meta::pure::functions::relation::aggregate_Relation_1__AggColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/aggregate.pure
+CATALOG	meta::pure::functions::relation::aggregate_Relation_1__AggColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/aggregate.pure
+CATALOG	meta::pure::functions::relation::aggregate_Relation_1__FuncColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/aggregate.pure
+CATALOG	meta::pure::functions::relation::aggregate_Relation_1__FuncColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/aggregate.pure
+CATALOG	meta::pure::functions::relation::asOfJoin_Relation_1__Relation_1__Function_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/asofjoin.pure
+CATALOG	meta::pure::functions::relation::asOfJoin_Relation_1__Relation_1__Function_1__Function_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/asofjoin.pure
+CATALOG	meta::pure::functions::relation::concatenate_Relation_1__Relation_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/concatenate.pure
+CATALOG	meta::pure::functions::relation::distinct_Relation_1__ColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/distinct.pure
+CATALOG	meta::pure::functions::relation::distinct_Relation_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/distinct.pure
+CATALOG	meta::pure::functions::relation::extend_Relation_1__FuncColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/extend.pure
+CATALOG	meta::pure::functions::relation::extend_Relation_1__FuncColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/extend.pure
+CATALOG	meta::pure::functions::relation::extend_Relation_1__AggColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/extend.pure
+CATALOG	meta::pure::functions::relation::extend_Relation_1__AggColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/extend.pure
+CATALOG	meta::pure::functions::relation::extend_Relation_1___Window_1__FuncColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/extend.pure
+CATALOG	meta::pure::functions::relation::extend_Relation_1___Window_1__FuncColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/extend.pure
+CATALOG	meta::pure::functions::relation::extend_Relation_1___Window_1__AggColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/extend.pure
+CATALOG	meta::pure::functions::relation::extend_Relation_1___Window_1__AggColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/extend.pure
+CATALOG	meta::pure::functions::relation::groupBy_Relation_1__ColSpecArray_1__AggColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/groupBy.pure
+CATALOG	meta::pure::functions::relation::groupBy_Relation_1__ColSpec_1__AggColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/groupBy.pure
+CATALOG	meta::pure::functions::relation::groupBy_Relation_1__ColSpecArray_1__AggColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/groupBy.pure
+CATALOG	meta::pure::functions::relation::groupBy_Relation_1__ColSpec_1__AggColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/groupBy.pure
+CATALOG	meta::pure::functions::relation::groupBy_Relation_1__ColSpecArray_1__FuncColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/groupBy.pure
+CATALOG	meta::pure::functions::relation::groupBy_Relation_1__ColSpec_1__FuncColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/groupBy.pure
+CATALOG	meta::pure::functions::relation::groupBy_Relation_1__ColSpecArray_1__FuncColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/groupBy.pure
+CATALOG	meta::pure::functions::relation::groupBy_Relation_1__ColSpec_1__FuncColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/groupBy.pure
+CATALOG	meta::pure::functions::relation::join_Relation_1__Relation_1__JoinKind_1__Function_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/join.pure
+CATALOG	meta::pure::functions::relation::lateral_Relation_1__Function_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/lateral.pure
+CATALOG	meta::pure::functions::relation::pivot_Relation_1__ColSpecArray_1__AggColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/pivot.pure
+CATALOG	meta::pure::functions::relation::pivot_Relation_1__ColSpec_1__AggColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/pivot.pure
+CATALOG	meta::pure::functions::relation::pivot_Relation_1__ColSpec_1__Any_$1_MANY$__AggColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/pivot.pure
+CATALOG	meta::pure::functions::relation::pivot_Relation_1__ColSpecArray_1__AggColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/pivot.pure
+CATALOG	meta::pure::functions::relation::pivot_Relation_1__ColSpec_1__AggColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/pivot.pure
+CATALOG	meta::pure::functions::relation::rename_Relation_1__ColSpec_1__ColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/rename.pure
+CATALOG	meta::pure::functions::relation::select_Relation_1__ColSpecArray_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/select.pure
+CATALOG	meta::pure::functions::relation::select_Relation_1__ColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/select.pure
+CATALOG	meta::pure::functions::relation::select_Relation_1__Relation_1_	native function	core_functions_relation/relation/functions/transformation/select.pure
+CATALOG	meta::pure::functions::relation::variant::flatten_T_MANY__ColSpec_1__Relation_1_	native function	core_functions_relation/relation/functions/variant/flatten.pure
+CATALOG	meta::pure::functions::relation::write_Relation_1__RelationElementAccessor_1__Integer_1_	native function	core_functions_relation/relation/functions/write/write.pure
+CATALOG	meta::pure::functions::variant::convert::fromJson_String_1__Variant_1_	native function	core_functions_variant/functions/convert/fromJson.pure
+EXTRA	meta::pure::functions::variant::convert::to_Variant_$0_1$__T_$0_1$__String_1__Pair_MANY__T_$0_1$_	native function	core_functions_variant/functions/convert/to.pure
+CATALOG	meta::pure::functions::variant::convert::to_Variant_$0_1$__T_$0_1$__T_$0_1$_	native function	core_functions_variant/functions/convert/to.pure
+EXTRA	meta::pure::functions::variant::convert::toMany_Variant_$0_1$__T_$0_1$__String_1__Pair_MANY__T_MANY_	native function	core_functions_variant/functions/convert/toMany.pure
+CATALOG	meta::pure::functions::variant::convert::toMany_Variant_$0_1$__T_$0_1$__T_MANY_	native function	core_functions_variant/functions/convert/toMany.pure
+CATALOG	meta::pure::functions::variant::convert::toVariant_Any_MANY__Variant_1_	native function	core_functions_variant/functions/convert/toVariant.pure
+CATALOG	meta::pure::functions::variant::navigation::get_Variant_$0_1$__String_1__Variant_$0_1$_	function	core_functions_variant/functions/navigation/get.pure
+CATALOG	meta::pure::functions::variant::navigation::get_Variant_$0_1$__Integer_1__Variant_$0_1$_	function	core_functions_variant/functions/navigation/get.pure
+CATALOG	meta::pure::functions::collection::distinct_T_MANY__T_MANY_	function	core_functions_unclassified/collection/operation/distinct.pure
+CATALOG	meta::pure::functions::date::now__DateTime_1_	native function	core_functions_unclassified/date/creation/now.pure
+CATALOG	meta::pure::functions::date::today__StrictDate_1_	native function	core_functions_unclassified/date/creation/today.pure
+CATALOG	meta::pure::functions::flow::coalesce_T_$0_1$__T_1__T_1_	function	core_functions_unclassified/flow/coalesce.pure
+CATALOG	meta::pure::functions::flow::coalesce_T_$0_1$__T_$0_1$__T_1__T_1_	function	core_functions_unclassified/flow/coalesce.pure
+CATALOG	meta::pure::functions::flow::coalesce_T_$0_1$__T_$0_1$__T_$0_1$__T_1__T_1_	function	core_functions_unclassified/flow/coalesce.pure
+CATALOG	meta::pure::functions::flow::coalesce_T_$0_1$__T_$0_1$__T_$0_1$_	function	core_functions_unclassified/flow/coalesce.pure
+CATALOG	meta::pure::functions::flow::coalesce_T_$0_1$__T_$0_1$__T_$0_1$__T_$0_1$_	function	core_functions_unclassified/flow/coalesce.pure
+CATALOG	meta::pure::functions::flow::coalesce_T_$0_1$__T_$0_1$__T_$0_1$__T_$0_1$__T_$0_1$_	function	core_functions_unclassified/flow/coalesce.pure
+CATALOG	meta::pure::functions::hash::hash_String_1__HashType_1__String_1_	native function	core_functions_unclassified/hash/hash.pure
+CATALOG	meta::pure::functions::io::http::executeHTTPRaw_URL_1__HTTPMethod_1__String_$0_1$__String_$0_1$__HTTPResponse_1_	native function	core_functions_unclassified/io/http/executeHTTPRaw.pure
+CATALOG	meta::pure::functions::lang::mutateAdd_T_1__String_1__Any_MANY__T_1_	native function	core_functions_unclassified/lang/mutateAdd.pure
+CATALOG	meta::pure::functions::collection::repeat_T_1__Integer_1__T_MANY_	native function	core_functions_unclassified/math/sequence/repeat.pure
+EXTRA	meta::pure::functions::collection::get_T_MANY__String_1__T_$0_1$_	native function	core_functions_unclassified/meta/get.pure
+CATALOG	meta::core::runtime::currentUserId__String_1_	native function	core_functions_unclassified/runtime/currentUserId.pure
+CATALOG	meta::pure::functions::runtime::currentUserId__String_1_	function	core_functions_unclassified/runtime/currentUserId.pure
+CATALOG	meta::pure::functions::string::ascii_String_1__Integer_1_	native function	core_functions_unclassified/string/ascii/ascii.pure
+CATALOG	meta::pure::functions::string::char_Integer_1__String_1_	native function	core_functions_unclassified/string/ascii/char.pure
+CATALOG	meta::pure::functions::string::decodeBase64_String_1__String_1_	native function	core_functions_unclassified/string/codec/decodeBase64.pure
+CATALOG	meta::pure::functions::string::encodeBase64_String_1__String_1_	native function	core_functions_unclassified/string/codec/encodeBase64.pure
+CATALOG	meta::pure::functions::string::lpad_String_1__Integer_1__String_1__String_1_	function	core_functions_unclassified/string/padding/lpad.pure
+CATALOG	meta::pure::functions::string::lpad_String_1__Integer_1__String_1_	function	core_functions_unclassified/string/padding/lpad.pure
+CATALOG	meta::pure::functions::string::repeatString_String_$0_1$__Integer_1__String_$0_1$_	function	core_functions_unclassified/string/padding/repeatString.pure
+CATALOG	meta::pure::functions::string::rpad_String_1__Integer_1__String_1__String_1_	function	core_functions_unclassified/string/padding/rpad.pure
+CATALOG	meta::pure::functions::string::rpad_String_1__Integer_1__String_1_	function	core_functions_unclassified/string/padding/rpad.pure
+CATALOG	meta::pure::functions::string::matches_String_1__String_1__Boolean_1_	native function	core_functions_unclassified/string/regex/matches.pure
+CATALOG	meta::pure::functions::string::regexpCount_String_1__String_1__Integer_1_	function	core_functions_unclassified/string/regex/regexpCount.pure
+CATALOG	meta::pure::functions::string::regexpCount_String_1__String_1__RegexpParameter_$1_MANY$__Integer_1_	native function	core_functions_unclassified/string/regex/regexpCount.pure
+CATALOG	meta::pure::functions::string::regexpExtract_String_1__String_1__Boolean_1__String_MANY_	function	core_functions_unclassified/string/regex/regexpExtract.pure
+CATALOG	meta::pure::functions::string::regexpExtract_String_1__String_1__Boolean_1__Integer_1__String_MANY_	function	core_functions_unclassified/string/regex/regexpExtract.pure
+CATALOG	meta::pure::functions::string::regexpExtract_String_1__String_1__Boolean_1__RegexpParameter_$1_MANY$__String_MANY_	function	core_functions_unclassified/string/regex/regexpExtract.pure
+CATALOG	meta::pure::functions::string::regexpExtract_String_1__String_1__Boolean_1__Integer_1__RegexpParameter_$1_MANY$__String_MANY_	native function	core_functions_unclassified/string/regex/regexpExtract.pure
+CATALOG	meta::pure::functions::string::regexpIndexOf_String_1__String_1__Integer_1_	function	core_functions_unclassified/string/regex/regexpIndexOf.pure
+CATALOG	meta::pure::functions::string::regexpIndexOf_String_1__String_1__Integer_1__Integer_1_	function	core_functions_unclassified/string/regex/regexpIndexOf.pure
+CATALOG	meta::pure::functions::string::regexpIndexOf_String_1__String_1__RegexpParameter_$1_MANY$__Integer_1_	function	core_functions_unclassified/string/regex/regexpIndexOf.pure
+CATALOG	meta::pure::functions::string::regexpIndexOf_String_1__String_1__Integer_1__RegexpParameter_$1_MANY$__Integer_1_	native function	core_functions_unclassified/string/regex/regexpIndexOf.pure
+CATALOG	meta::pure::functions::string::regexpLike_String_1__String_1__Boolean_1_	function	core_functions_unclassified/string/regex/regexpLike.pure
+CATALOG	meta::pure::functions::string::regexpLike_String_1__String_1__RegexpParameter_$1_MANY$__Boolean_1_	native function	core_functions_unclassified/string/regex/regexpLike.pure
+CATALOG	meta::pure::functions::string::regexpReplace_String_1__String_1__String_1__Boolean_1__String_1_	function	core_functions_unclassified/string/regex/regexpReplace.pure
+CATALOG	meta::pure::functions::string::regexpReplace_String_1__String_1__String_1__Boolean_1__RegexpParameter_$1_MANY$__String_1_	native function	core_functions_unclassified/string/regex/regexpReplace.pure
+CATALOG	meta::pure::functions::string::jaroWinklerSimilarity_String_1__String_1__Float_1_	native function	core_functions_unclassified/string/similarity/jaroWinklerSimilarity.pure
+CATALOG	meta::pure::functions::string::levenshteinDistance_String_1__String_1__Integer_1_	native function	core_functions_unclassified/string/similarity/levenshteinDistance.pure
+CATALOG	meta::pure::functions::string::chunk_String_1__Integer_1__String_MANY_	native function	core_functions_unclassified/string/split/chunk.pure
+CATALOG	meta::pure::functions::string::splitPart_String_$0_1$__String_1__Integer_1__String_$0_1$_	function	core_functions_unclassified/string/split/splitPart.pure
+CATALOG	meta::pure::functions::string::toLowerFirstCharacter_String_1__String_1_	function	core_functions_unclassified/string/transformation/toLowerFirstCharacter.pure
+CATALOG	meta::pure::functions::string::toUpperFirstCharacter_String_1__String_1_	function	core_functions_unclassified/string/transformation/toUpperFirstCharacter.pure
+CATALOG	meta::alloy::test::mayExecuteAlloyTest_Function_1__Function_1__X_k_	native function	core_functions_unclassified/test.pure
+CATALOG	meta::legend::test::mayExecuteLegendTest_Function_1__Function_1__X_k_	native function	core_functions_unclassified/test.pure
+CATALOG	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	function	core_functions_standard/boolean/inequality/between.pure
+CATALOG	meta::pure::functions::boolean::between_String_$0_1$__String_$0_1$__String_$0_1$__Boolean_1_	function	core_functions_standard/boolean/inequality/between.pure
+CATALOG	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	function	core_functions_standard/boolean/inequality/between.pure
+CATALOG	meta::pure::functions::boolean::xor_Boolean_1__Boolean_1__Boolean_1_	function	core_functions_standard/boolean/operation/xor.pure
+CATALOG	meta::pure::functions::collection::and_Boolean_MANY__Boolean_1_	function	core_functions_standard/collection/and.pure
+CATALOG	meta::pure::functions::collection::count_Any_MANY__Integer_1_	function	core_functions_standard/collection/count.pure
+CATALOG	meta::pure::functions::collection::greatest_X_$1_MANY$__X_1_	function	core_functions_standard/collection/greatest.pure
+CATALOG	meta::pure::functions::collection::greatest_X_MANY__X_$0_1$_	function	core_functions_standard/collection/greatest.pure
+CATALOG	meta::pure::functions::collection::in_Any_$0_1$__Any_MANY__Boolean_1_	function	core_functions_standard/collection/in.pure
+CATALOG	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean_1_	function	core_functions_standard/collection/in.pure
+CATALOG	meta::pure::functions::collection::least_X_MANY__X_$0_1$_	function	core_functions_standard/collection/least.pure
+CATALOG	meta::pure::functions::collection::least_X_$1_MANY$__X_1_	function	core_functions_standard/collection/least.pure
+CATALOG	meta::pure::functions::collection::max_X_$1_MANY$__X_1_	function	core_functions_standard/collection/max.pure
+CATALOG	meta::pure::functions::collection::max_X_MANY__X_$0_1$_	function	core_functions_standard/collection/max.pure
+CATALOG	meta::pure::functions::collection::max_T_$1_MANY$__Function_1__T_1_	function	core_functions_standard/collection/max.pure
+CATALOG	meta::pure::functions::collection::min_X_$1_MANY$__X_1_	function	core_functions_standard/collection/min.pure
+CATALOG	meta::pure::functions::collection::min_X_MANY__X_$0_1$_	function	core_functions_standard/collection/min.pure
+CATALOG	meta::pure::functions::collection::min_T_$1_MANY$__Function_1__T_1_	function	core_functions_standard/collection/min.pure
+CATALOG	meta::pure::functions::collection::or_Boolean_MANY__Boolean_1_	function	core_functions_standard/collection/or.pure
+EXTRA	meta::pure::functions::collection::or_Boolean_$1_MANY$__Boolean_1_	function	core_functions_standard/collection/or.pure
+CATALOG	meta::pure::functions::date::max_Date_1__Date_1__Date_1_	function	core_functions_standard/date/aggregator/max.pure
+CATALOG	meta::pure::functions::date::max_StrictDate_1__StrictDate_1__StrictDate_1_	function	core_functions_standard/date/aggregator/max.pure
+CATALOG	meta::pure::functions::date::max_DateTime_1__DateTime_1__DateTime_1_	function	core_functions_standard/date/aggregator/max.pure
+CATALOG	meta::pure::functions::date::max_Date_MANY__Date_$0_1$_	function	core_functions_standard/date/aggregator/max.pure
+EXTRA	meta::pure::functions::date::max_Date_$1_MANY$__Date_1_	function	core_functions_standard/date/aggregator/max.pure
+CATALOG	meta::pure::functions::date::max_StrictDate_MANY__StrictDate_$0_1$_	function	core_functions_standard/date/aggregator/max.pure
+EXTRA	meta::pure::functions::date::max_StrictDate_$1_MANY$__StrictDate_1_	function	core_functions_standard/date/aggregator/max.pure
+CATALOG	meta::pure::functions::date::max_DateTime_MANY__DateTime_$0_1$_	function	core_functions_standard/date/aggregator/max.pure
+EXTRA	meta::pure::functions::date::max_DateTime_$1_MANY$__DateTime_1_	function	core_functions_standard/date/aggregator/max.pure
+CATALOG	meta::pure::functions::date::min_Date_1__Date_1__Date_1_	function	core_functions_standard/date/aggregator/min.pure
+CATALOG	meta::pure::functions::date::min_StrictDate_1__StrictDate_1__StrictDate_1_	function	core_functions_standard/date/aggregator/min.pure
+CATALOG	meta::pure::functions::date::min_DateTime_1__DateTime_1__DateTime_1_	function	core_functions_standard/date/aggregator/min.pure
+CATALOG	meta::pure::functions::date::min_Date_MANY__Date_$0_1$_	function	core_functions_standard/date/aggregator/min.pure
+EXTRA	meta::pure::functions::date::min_Date_$1_MANY$__Date_1_	function	core_functions_standard/date/aggregator/min.pure
+CATALOG	meta::pure::functions::date::min_StrictDate_MANY__StrictDate_$0_1$_	function	core_functions_standard/date/aggregator/min.pure
+EXTRA	meta::pure::functions::date::min_StrictDate_$1_MANY$__StrictDate_1_	function	core_functions_standard/date/aggregator/min.pure
+CATALOG	meta::pure::functions::date::min_DateTime_MANY__DateTime_$0_1$_	function	core_functions_standard/date/aggregator/min.pure
+EXTRA	meta::pure::functions::date::min_DateTime_$1_MANY$__DateTime_1_	function	core_functions_standard/date/aggregator/min.pure
+CATALOG	meta::pure::functions::date::dayOfWeek_Date_1__DayOfWeek_1_	function	core_functions_standard/date/extract/dayOfWeek.pure
+EXTRA	meta::pure::functions::date::dayOfWeek_Integer_1__DayOfWeek_1_	function	core_functions_standard/date/extract/dayOfWeek.pure
+CATALOG	meta::pure::functions::date::dayOfWeekNumber_Date_1__Integer_1_	native function	core_functions_standard/date/extract/dayOfWeekNumber.pure
+CATALOG	meta::pure::functions::date::dayOfWeekNumber_Date_1__DayOfWeek_1__Integer_1_	function	core_functions_standard/date/extract/dayOfWeekNumber.pure
+EXTRA	meta::pure::functions::date::dayOfWeekNumber_DayOfWeek_1__Integer_1_	function	core_functions_standard/date/extract/dayOfWeekNumber.pure
+CATALOG	meta::pure::functions::date::dayOfYear_Date_1__Integer_1_	native function	core_functions_standard/date/extract/dayOfYear.pure
+CATALOG	meta::pure::functions::date::weekOfYear_Date_1__Integer_1_	native function	core_functions_standard/date/extract/weekOfYear.pure
+CATALOG	meta::pure::functions::date::formatDate_StrictDate_1__StrictDateFormat_1__String_1_	function	core_functions_standard/date/operation/formatDate.pure
+CATALOG	meta::pure::functions::date::formatDate_DateTime_1__DateTimeFormat_1__String_1_	function	core_functions_standard/date/operation/formatDate.pure
+CATALOG	meta::pure::functions::date::timeBucket_DateTime_1__Integer_1__DurationUnit_1__DateTime_1_	native function	core_functions_standard/date/operation/timeBucket.pure
+EXTRA	meta::pure::functions::date::timeBucket_DateTime_$0_1$__Integer_1__DurationUnit_1__DateTime_$0_1$_	function	core_functions_standard/date/operation/timeBucket.pure
+CATALOG	meta::pure::functions::date::timeBucket_StrictDate_1__Integer_1__DurationUnit_1__StrictDate_1_	native function	core_functions_standard/date/operation/timeBucket.pure
+EXTRA	meta::pure::functions::date::timeBucket_StrictDate_$0_1$__Integer_1__DurationUnit_1__StrictDate_$0_1$_	function	core_functions_standard/date/operation/timeBucket.pure
+CATALOG	meta::pure::functions::math::average_Number_MANY__Float_1_	function	core_functions_standard/math/aggregator/average.pure
+EXTRA	meta::pure::functions::math::average_Integer_MANY__Float_1_	function	core_functions_standard/math/aggregator/average.pure
+EXTRA	meta::pure::functions::math::average_Float_MANY__Float_1_	function	core_functions_standard/math/aggregator/average.pure
+CATALOG	meta::pure::functions::math::average_Relation_1___Window_1__T_1__ColSpec_1__Float_1_	function	core_functions_standard/math/aggregator/average.pure
+CATALOG	meta::pure::functions::math::corr_Number_MANY__Number_MANY__Number_$0_1$_	function	core_functions_standard/math/aggregator/corr.pure
+CATALOG	meta::pure::functions::math::corr_RowMapper_MANY__Number_$0_1$_	function	core_functions_standard/math/aggregator/corr.pure
+CATALOG	meta::pure::functions::math::covarPopulation_Number_MANY__Number_MANY__Number_$0_1$_	function	core_functions_standard/math/aggregator/covarPopulation.pure
+CATALOG	meta::pure::functions::math::covarPopulation_RowMapper_MANY__Number_$0_1$_	function	core_functions_standard/math/aggregator/covarPopulation.pure
+CATALOG	meta::pure::functions::math::covarSample_Number_MANY__Number_MANY__Number_$0_1$_	function	core_functions_standard/math/aggregator/covarSample.pure
+CATALOG	meta::pure::functions::math::covarSample_RowMapper_MANY__Number_$0_1$_	function	core_functions_standard/math/aggregator/covarSample.pure
+CATALOG	meta::pure::functions::math::mathUtility::rowMapper_T_$0_1$__U_$0_1$__RowMapper_1_	function	core_functions_standard/math/aggregator/mathUtility.pure
+CATALOG	meta::pure::functions::math::wavgUtility::wavgRowMapper_Number_$0_1$__Number_$0_1$__WavgRowMapper_1_	function	core_functions_standard/math/aggregator/mathUtility.pure
+CATALOG	meta::pure::functions::math::max_Integer_1__Integer_1__Integer_1_	function	core_functions_standard/math/aggregator/max.pure
+CATALOG	meta::pure::functions::math::max_Float_1__Float_1__Float_1_	function	core_functions_standard/math/aggregator/max.pure
+CATALOG	meta::pure::functions::math::max_Number_1__Number_1__Number_1_	function	core_functions_standard/math/aggregator/max.pure
+CATALOG	meta::pure::functions::math::max_Integer_MANY__Integer_$0_1$_	function	core_functions_standard/math/aggregator/max.pure
+CATALOG	meta::pure::functions::math::max_Integer_$1_MANY$__Integer_1_	function	core_functions_standard/math/aggregator/max.pure
+CATALOG	meta::pure::functions::math::max_Float_MANY__Float_$0_1$_	function	core_functions_standard/math/aggregator/max.pure
+CATALOG	meta::pure::functions::math::max_Float_$1_MANY$__Float_1_	function	core_functions_standard/math/aggregator/max.pure
+CATALOG	meta::pure::functions::math::max_Number_MANY__Number_$0_1$_	function	core_functions_standard/math/aggregator/max.pure
+CATALOG	meta::pure::functions::math::max_Number_$1_MANY$__Number_1_	function	core_functions_standard/math/aggregator/max.pure
+CATALOG	meta::pure::functions::math::maxBy_T_MANY__Number_MANY__T_$0_1$_	function	core_functions_standard/math/aggregator/maxBy.pure
+CATALOG	meta::pure::functions::math::maxBy_RowMapper_MANY__T_$0_1$_	function	core_functions_standard/math/aggregator/maxBy.pure
+CATALOG	meta::pure::functions::math::maxBy_T_MANY__Number_MANY__Integer_1__T_MANY_	function	core_functions_standard/math/aggregator/maxBy.pure
+EXTRA	meta::pure::functions::math::maxBy_RowMapper_MANY__Integer_1__T_MANY_	function	core_functions_standard/math/aggregator/maxBy.pure
+CATALOG	meta::pure::functions::math::mean_Number_MANY__Float_1_	function	core_functions_standard/math/aggregator/mean.pure
+EXTRA	meta::pure::functions::math::mean_Integer_MANY__Float_1_	function	core_functions_standard/math/aggregator/mean.pure
+EXTRA	meta::pure::functions::math::mean_Float_MANY__Float_1_	function	core_functions_standard/math/aggregator/mean.pure
+CATALOG	meta::pure::functions::math::median_Number_MANY__Float_1_	function	core_functions_standard/math/aggregator/median.pure
+EXTRA	meta::pure::functions::math::median_Integer_MANY__Float_1_	function	core_functions_standard/math/aggregator/median.pure
+EXTRA	meta::pure::functions::math::median_Float_MANY__Float_1_	function	core_functions_standard/math/aggregator/median.pure
+CATALOG	meta::pure::functions::math::min_Integer_1__Integer_1__Integer_1_	function	core_functions_standard/math/aggregator/min.pure
+CATALOG	meta::pure::functions::math::min_Float_1__Float_1__Float_1_	function	core_functions_standard/math/aggregator/min.pure
+CATALOG	meta::pure::functions::math::min_Number_1__Number_1__Number_1_	function	core_functions_standard/math/aggregator/min.pure
+CATALOG	meta::pure::functions::math::min_Integer_$1_MANY$__Integer_1_	function	core_functions_standard/math/aggregator/min.pure
+CATALOG	meta::pure::functions::math::min_Integer_MANY__Integer_$0_1$_	function	core_functions_standard/math/aggregator/min.pure
+CATALOG	meta::pure::functions::math::min_Float_$1_MANY$__Float_1_	function	core_functions_standard/math/aggregator/min.pure
+CATALOG	meta::pure::functions::math::min_Float_MANY__Float_$0_1$_	function	core_functions_standard/math/aggregator/min.pure
+CATALOG	meta::pure::functions::math::min_Number_$1_MANY$__Number_1_	function	core_functions_standard/math/aggregator/min.pure
+CATALOG	meta::pure::functions::math::min_Number_MANY__Number_$0_1$_	function	core_functions_standard/math/aggregator/min.pure
+CATALOG	meta::pure::functions::math::minBy_T_MANY__Number_MANY__T_$0_1$_	function	core_functions_standard/math/aggregator/minBy.pure
+CATALOG	meta::pure::functions::math::minBy_T_MANY__Number_MANY__Integer_1__T_MANY_	function	core_functions_standard/math/aggregator/minBy.pure
+CATALOG	meta::pure::functions::math::minBy_RowMapper_MANY__T_$0_1$_	function	core_functions_standard/math/aggregator/minBy.pure
+EXTRA	meta::pure::functions::math::minBy_RowMapper_MANY__Integer_1__T_MANY_	function	core_functions_standard/math/aggregator/minBy.pure
+CATALOG	meta::pure::functions::math::mode_Number_MANY__Number_1_	function	core_functions_standard/math/aggregator/mode.pure
+CATALOG	meta::pure::functions::math::mode_Float_MANY__Float_1_	function	core_functions_standard/math/aggregator/mode.pure
+CATALOG	meta::pure::functions::math::mode_Integer_MANY__Integer_1_	function	core_functions_standard/math/aggregator/mode.pure
+CATALOG	meta::pure::functions::math::percentile_Number_MANY__Float_1__Number_$0_1$_	function	core_functions_standard/math/aggregator/percentile.pure
+CATALOG	meta::pure::functions::math::percentile_Number_MANY__Float_1__Boolean_1__Boolean_1__Number_$0_1$_	function	core_functions_standard/math/aggregator/percentile.pure
+CATALOG	meta::pure::functions::math::stdDev_Number_$1_MANY$__Boolean_1__Number_1_	function	core_functions_standard/math/aggregator/stdDev.pure
+CATALOG	meta::pure::functions::math::stdDevPopulation_Number_MANY__Number_1_	function	core_functions_standard/math/aggregator/stdDevPopulation.pure
+EXTRA	meta::pure::functions::math::stdDevPopulation_Number_$1_MANY$__Number_1_	function	core_functions_standard/math/aggregator/stdDevPopulation.pure
+CATALOG	meta::pure::functions::math::stdDevPopulation_Relation_1___Window_1__T_1__ColSpec_1__Number_1_	function	core_functions_standard/math/aggregator/stdDevPopulation.pure
+CATALOG	meta::pure::functions::math::stdDevSample_Number_MANY__Number_1_	function	core_functions_standard/math/aggregator/stdDevSample.pure
+EXTRA	meta::pure::functions::math::stdDevSample_Number_$1_MANY$__Number_1_	function	core_functions_standard/math/aggregator/stdDevSample.pure
+CATALOG	meta::pure::functions::math::sum_Number_MANY__Number_1_	function	core_functions_standard/math/aggregator/sum.pure
+CATALOG	meta::pure::functions::math::sum_Integer_MANY__Integer_1_	function	core_functions_standard/math/aggregator/sum.pure
+CATALOG	meta::pure::functions::math::sum_Float_MANY__Float_1_	function	core_functions_standard/math/aggregator/sum.pure
+CATALOG	meta::pure::functions::math::variance_Number_MANY__Boolean_1__Number_1_	function	core_functions_standard/math/aggregator/variance.pure
+CATALOG	meta::pure::functions::math::variancePopulation_Number_MANY__Number_1_	function	core_functions_standard/math/aggregator/variancePopulation.pure
+CATALOG	meta::pure::functions::math::varianceSample_Number_MANY__Number_1_	function	core_functions_standard/math/aggregator/varianceSample.pure
+EXTRA	meta::pure::functions::math::wavg_Number_MANY__Number_MANY__Float_1_	function	core_functions_standard/math/aggregator/wavg.pure
+CATALOG	meta::pure::functions::math::wavg_RowMapper_MANY__Float_1_	function	core_functions_standard/math/aggregator/wavg.pure
+CATALOG	meta::pure::functions::math::zScore_Relation_1___Window_1__T_1__ColSpec_1__Float_1_	function	core_functions_standard/math/aggregator/zScore.pure
+CATALOG	meta::pure::functions::math::pi__Float_1_	function	core_functions_standard/math/numeric/pi.pure
+CATALOG	meta::pure::functions::math::toDegrees_Number_1__Float_1_	function	core_functions_standard/math/numeric/toDegrees.pure
+CATALOG	meta::pure::functions::math::toRadians_Number_1__Float_1_	function	core_functions_standard/math/numeric/toRadians.pure
+CATALOG	meta::pure::functions::math::cosh_Number_1__Float_1_	native function	core_functions_standard/math/trigonometry/cosh.pure
+CATALOG	meta::pure::functions::math::sinh_Number_1__Float_1_	native function	core_functions_standard/math/trigonometry/sinh.pure
+CATALOG	meta::pure::functions::math::tanh_Number_1__Float_1_	native function	core_functions_standard/math/trigonometry/tanh.pure
+CATALOG	meta::pure::functions::math::bitAnd_Integer_1__Integer_1__Integer_1_	native function	core_functions_standard/tbd/bitAnd.pure
+CATALOG	meta::pure::functions::math::bitNot_Integer_1__Integer_1_	native function	core_functions_standard/tbd/bitNot.pure
+CATALOG	meta::pure::functions::math::bitOr_Integer_1__Integer_1__Integer_1_	native function	core_functions_standard/tbd/bitOr.pure
+CATALOG	meta::pure::functions::math::bitShiftLeft_Integer_1__Integer_1__Integer_1_	native function	core_functions_standard/tbd/bitShiftLeft.pure
+CATALOG	meta::pure::functions::math::bitShiftRight_Integer_1__Integer_1__Integer_1_	native function	core_functions_standard/tbd/bitShiftRight.pure
+CATALOG	meta::pure::functions::math::bitXor_Integer_1__Integer_1__Integer_1_	native function	core_functions_standard/tbd/bitXor.pure
+CATALOG	meta::pure::functions::string::generation::generateGuid__String_1_	native function	core_functions_standard/tbd/generateGuid.pure
+CATALOG	meta::pure::functions::hash::hashCode_Any_MANY__Integer_1_	native function	core_functions_standard/tbd/hashCode.pure
+CATALOG	meta::json::toCompactJSONString_JSONElement_1__String_1_	function	core/external/format/json/json.pure
+CATALOG	meta::json::toPrettyJSONString_JSONElement_1__String_1_	function	core/external/format/json/json.pure
+EXTRA	meta::json::toPrettyJSONString_JSONElement_1__Integer_1__String_1_	function	core/external/format/json/json.pure
+CATALOG	meta::json::getValue_JSONObject_1__String_1__JSONElement_$0_1$_	function	core/external/format/json/jsonExtension.pure
+CATALOG	meta::json::toJSON_Any_MANY__String_1_	function	core/external/format/json/toJSON.pure
+EXTRA	meta::json::toJSON_T_MANY__LambdaFunction_MANY__String_1_	function	core/external/format/json/toJSON.pure
+EXTRA	meta::json::toJSON_Any_MANY__Function_MANY__String_1_	function	core/external/format/json/toJSON.pure
+EXTRA	meta::json::toJSON_Any_MANY__Integer_$0_1$__String_1_	function	core/external/format/json/toJSON.pure
+EXTRA	meta::json::toJSON_Any_MANY__Function_MANY__Integer_$0_1$__String_1_	function	core/external/format/json/toJSON.pure
+EXTRA	meta::json::toJSON_Any_MANY__Integer_$0_1$__Config_1__String_1_	function	core/external/format/json/toJSON.pure
+EXTRA	meta::json::toJSON_Any_MANY__Boolean_1__String_1__String_1_	function	core/external/format/json/toJSON.pure
+EXTRA	meta::json::toJSON_Any_MANY__Integer_$0_1$__Boolean_1__String_1_	function	core/external/format/json/toJSON.pure
+EXTRA	meta::json::toJSON_Any_MANY__Function_MANY__Integer_$0_1$__Config_1__String_1_	function	core/external/format/json/toJSON.pure
+EXTRA	meta::json::toJSON_T_MANY__GraphFetchTree_1__String_1_	function	core/external/format/json/toJSON.pure
+EXTRA	meta::json::toJSON_T_MANY__GraphFetchTree_1__Config_1__String_1_	function	core/external/format/json/toJSON.pure
+CATALOG	meta::json::tdsToJSONKeyValueObjectString_TabularDataSet_1__String_MANY_	function	core/external/format/json/toJSON.pure
+CATALOG	meta::alloy::objectReference::generateObjectReferences_String_1__String_1__String_1__String_1__Map_MANY__Extension_MANY__String_1_	function	core/legend/objectReference/objectReference.pure
+CATALOG	meta::alloy::objectReference::generateObjectReferencesForGivenSetId_String_1__String_1__String_1__String_1__String_1__Map_MANY__Extension_MANY__String_1_	function	core/legend/objectReference/objectReference.pure
+CATALOG	meta::legend::executeLegendQuery_FunctionDefinition_1__Pair_MANY__Extension_MANY__String_1_	function	core/legend/tools/devUtils.pure
+CATALOG	meta::legend::executeLegendQuery_FunctionDefinition_1__Pair_MANY__ExecutionContext_1__Extension_MANY__String_1_	function	core/legend/tools/devUtils.pure
+CATALOG	meta::pure::functions::collection::isDistinct_T_MANY__Boolean_1_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::isDistinct_T_MANY__RootGraphFetchTree_1__Boolean_1_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::objectReferenceIn_Any_1__String_MANY__Boolean_1_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::union_T_MANY__T_MANY__T_MANY_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::defaultIfEmpty_T_MANY__T_$1_MANY$__T_$1_MANY$_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::uniqueValueOnly_T_MANY__T_$0_1$_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::uniqueValueOnly_T_MANY__T_$0_1$__T_$0_1$_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::sortBy_T_m__Function_$0_1$__T_m_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::sortByReversed_T_m__Function_$0_1$__T_m_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::limit_T_MANY__Integer_1__T_MANY_	function	core/pure/corefunctions/collectionExtension.pure
+EXTRA	meta::pure::functions::collection::get_List_1__Integer_1__U_1_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::getAllForEachDate_Class_1__Date_MANY__T_MANY_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::collection::paginated_T_MANY__Integer_1__Integer_1__T_MANY_	function	core/pure/corefunctions/collectionExtension.pure
+CATALOG	meta::pure::functions::date::calendar::annualized_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::cme_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::cw_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::cw_fm_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::CYMinus2_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::CYMinus3_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::mtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::p12wa_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::p12wtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::p4wa_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::p4wtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::p52wtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::p52wa_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::p12mtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pma_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pmtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pqtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::priorDay_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::priorYear_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pw_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pw_fm_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pwa_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pwtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pymtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pyqtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pytd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pywa_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::pywtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::qtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::reportEndDay_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::wtd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::calendar::ytd_Date_$0_1$__String_1__Date_1__Number_$0_1$__Number_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstDayOfThisQuarter__StrictDate_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstDayOfQuarter_Date_1__StrictDate_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstDayOfWeek_Date_1__Date_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstHourOfDay_Date_1__DateTime_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstMinuteOfHour_Date_1__DateTime_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstSecondOfMinute_Date_1__DateTime_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstMillisecondOfSecond_Date_1__DateTime_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::datePart_Date_$0_1$__Date_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::weekOfYear_Date_$0_1$__Integer_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::monthNumber_Date_$0_1$__Integer_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::monthNumber_Month_1__Integer_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::year_Date_$0_1$__Integer_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::dateDiff_Date_$0_1$__Date_$0_1$__DurationUnit_1__Integer_$0_1$_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::isOnDay_Date_1__Date_1__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isOnDay_Date_$0_1$__Date_$0_1$__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isOnDay_Date_1__Date_$0_1$__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isOnDay_Date_$0_1$__Date_1__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::isOnOrAfterDay_Date_1__Date_1__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isOnOrAfterDay_Date_$0_1$__Date_$0_1$__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isOnOrAfterDay_Date_1__Date_$0_1$__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isOnOrAfterDay_Date_$0_1$__Date_1__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::isAfterDay_Date_1__Date_1__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isAfterDay_Date_$0_1$__Date_$0_1$__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isAfterDay_Date_1__Date_$0_1$__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isAfterDay_Date_$0_1$__Date_1__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::isOnOrBeforeDay_Date_1__Date_1__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isOnOrBeforeDay_Date_$0_1$__Date_$0_1$__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isOnOrBeforeDay_Date_1__Date_$0_1$__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isOnOrBeforeDay_Date_$0_1$__Date_1__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::isBeforeDay_Date_1__Date_1__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isBeforeDay_Date_$0_1$__Date_$0_1$__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isBeforeDay_Date_1__Date_$0_1$__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::isBeforeDay_Date_$0_1$__Date_1__Boolean_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::month_Date_1__Month_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::month_Integer_1__Month_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::quarterNumber_Date_1__Integer_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::quarterNumber_Quarter_1__Integer_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::quarter_Date_1__Quarter_1_	function	core/pure/corefunctions/dateExtension.pure
+EXTRA	meta::pure::functions::date::quarter_Integer_1__Quarter_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::mostRecentDayOfWeek_Date_1__DayOfWeek_1__Date_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::mostRecentDayOfWeek_DayOfWeek_1__Date_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::previousDayOfWeek_Date_1__DayOfWeek_1__Date_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::previousDayOfWeek_DayOfWeek_1__Date_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstDayOfMonth_Date_1__Date_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstDayOfThisMonth__Date_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstDayOfYear_Date_1__Date_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::firstDayOfThisYear__Date_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::add_Date_1__Duration_1__Date_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::add_StrictDate_1__Duration_1__StrictDate_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::add_DateTime_1__Duration_1__DateTime_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::fromEpochValue_Integer_1__DateTime_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::fromEpochValue_Integer_1__DurationUnit_1__DateTime_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::toEpochValue_Date_1__Integer_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::date::toEpochValue_Date_1__DurationUnit_1__Integer_1_	function	core/pure/corefunctions/dateExtension.pure
+CATALOG	meta::pure::functions::boolean::isTrue_Boolean_$0_1$__Boolean_1_	function	core/pure/corefunctions/langExtension.pure
+CATALOG	meta::pure::functions::lang::subType_Any_m__T_1__T_m_	function	core/pure/corefunctions/langExtension.pure
+CATALOG	meta::pure::functions::lang::whenSubType_Any_1__T_1__T_$0_1$_	function	core/pure/corefunctions/langExtension.pure
+CATALOG	meta::pure::functions::lang::whenSubType_Any_$0_1$__T_1__T_$0_1$_	function	core/pure/corefunctions/langExtension.pure
+CATALOG	meta::pure::functions::lang::whenSubType_Any_MANY__T_1__T_MANY_	function	core/pure/corefunctions/langExtension.pure
+CATALOG	meta::pure::functions::string::contains_String_$0_1$__String_1__Boolean_1_	function	core/pure/corefunctions/stringExtension.pure
+CATALOG	meta::pure::functions::string::startsWith_String_$0_1$__String_1__Boolean_1_	function	core/pure/corefunctions/stringExtension.pure
+CATALOG	meta::pure::functions::string::endsWith_String_$0_1$__String_1__Boolean_1_	function	core/pure/corefunctions/stringExtension.pure
+EXTRA	meta::pure::functions::string::toUpperFirstCharacter_String_MANY__String_MANY_	function	core/pure/corefunctions/stringExtension.pure
+EXTRA	meta::pure::functions::string::toLowerFirstCharacter_String_MANY__String_MANY_	function	core/pure/corefunctions/stringExtension.pure
+CATALOG	meta::pure::functions::string::isAlphaNumeric_String_1__Boolean_1_	function	core/pure/corefunctions/stringExtension.pure
+EXTRA	meta::pure::functions::string::makeString_Pair_MANY__String_1_	function	core/pure/corefunctions/stringExtension.pure
+CATALOG	meta::pure::functions::string::makeString_Any_MANY__String_1_	function	core/pure/corefunctions/stringExtension.pure
+CATALOG	meta::pure::functions::string::makeString_Any_MANY__String_1__String_1_	function	core/pure/corefunctions/stringExtension.pure
+CATALOG	meta::pure::functions::string::makeString_Any_MANY__String_1__String_1__String_1__String_1_	function	core/pure/corefunctions/stringExtension.pure
+CATALOG	meta::pure::functions::string::joinStrings_String_MANY__String_1_	function	core/pure/corefunctions/stringExtension.pure
+CATALOG	meta::pure::functions::asserts::assertJsonStringsEqual_String_1__String_1__Boolean_1_	function	core/pure/corefunctions/testExtension.pure
+EXTRA	meta::pure::functions::asserts::assert_T_MANY__Function_1__Boolean_1_	function	core/pure/corefunctions/testExtension.pure
+EXTRA	meta::pure::functions::math::plus_Mass_MANY__Mass~Gram_1_	function	core/pure/corefunctions/unit.pure
+EXTRA	meta::pure::functions::math::minus_Mass_MANY__Mass~Gram_1_	function	core/pure/corefunctions/unit.pure
+CATALOG	meta::pure::executionPlan::featureFlag::withFeatureFlags_T_MANY__Enum_MANY__T_MANY_	function	core/pure/executionPlan/executionPlanFeature.pure
+CATALOG	meta::pure::executionPlan::execute_ExecutionPlan_1__Any_MANY__Extension_MANY__Result_1_	function	core/pure/executionPlan/executionPlan_execution.pure
+CATALOG	meta::pure::executionPlan::executionPlan_FunctionDefinition_1__Extension_MANY__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+EXTRA	meta::pure::executionPlan::executionPlan_FunctionDefinition_1__Extension_MANY__DebugContext_1__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+CATALOG	meta::pure::executionPlan::executionPlan_FunctionDefinition_1__ExecutionContext_1__Extension_MANY__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+CATALOG	meta::pure::executionPlan::executionPlan_FunctionDefinition_1__Mapping_1__Runtime_1__Extension_MANY__DebugContext_1__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+CATALOG	meta::pure::executionPlan::executionPlan_FunctionDefinition_1__Mapping_1__Runtime_1__Extension_MANY__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+CATALOG	meta::pure::executionPlan::executionPlan_FunctionDefinition_1__Mapping_1__Runtime_1__Boolean_1__Extension_MANY__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+CATALOG	meta::pure::executionPlan::executionPlan_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__Extension_MANY__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+EXTRA	meta::pure::executionPlan::executionPlan_FunctionDefinition_1__ExecutionContext_1__Extension_MANY__DebugContext_1__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+EXTRA	meta::pure::executionPlan::executionPlan_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__Extension_MANY__DebugContext_1__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+EXTRA	meta::pure::executionPlan::executionPlan_FunctionDefinition_1__FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__Extension_MANY__DebugContext_1__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+EXTRA	meta::pure::executionPlan::executionPlan_ClusteredValueSpecification_MANY__FunctionDefinition_1__FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__Map_1__Extension_MANY__DebugContext_1__ExecutionPlan_1_	function	core/pure/executionPlan/executionPlan_generation.pure
+CATALOG	meta::pure::executionPlan::toString::planToStringWithoutFormatting_ExecutionPlan_1__Extension_MANY__String_1_	function	core/pure/executionPlan/executionPlan_print.pure
+CATALOG	meta::pure::executionPlan::toString::planToString_ExecutionPlan_1__Extension_MANY__String_1_	function	core/pure/executionPlan/executionPlan_print.pure
+EXTRA	meta::pure::executionPlan::toString::planToString_ExecutionPlan_1__Boolean_1__Extension_MANY__String_1_	function	core/pure/executionPlan/executionPlan_print.pure
+CATALOG	meta::pure::graphFetch::execution::graphFetch_T_MANY__RootGraphFetchTree_1__T_MANY_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::graphFetch::execution::graphFetch_T_MANY__RootGraphFetchTree_1__Integer_1__T_MANY_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::graphFetch::execution::graphFetchChecked_T_MANY__RootGraphFetchTree_1__Checked_MANY_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::graphFetch::execution::graphFetchChecked_T_MANY__RootGraphFetchTree_1__Integer_1__Checked_MANY_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::graphFetch::execution::serialize_T_MANY__RootGraphFetchTree_1__String_1_	function	core/pure/graphFetch/graphFetch.pure
+EXTRA	meta::pure::graphFetch::execution::serialize_Checked_MANY__RootGraphFetchTree_1__String_1_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::graphFetch::execution::serialize_T_MANY__RootGraphFetchTree_1__AlloySerializationConfig_1__String_1_	function	core/pure/graphFetch/graphFetch.pure
+EXTRA	meta::pure::graphFetch::execution::serialize_Checked_MANY__RootGraphFetchTree_1__AlloySerializationConfig_1__String_1_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::graphFetch::execution::alloyConfig_Boolean_1__Boolean_1__Boolean_1__Boolean_1__AlloySerializationConfig_1_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::graphFetch::execution::alloyConfig_Boolean_1__Boolean_1__Boolean_1__Boolean_1__Boolean_1__AlloySerializationConfig_1_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::graphFetch::execution::alloyConfig_Boolean_1__Boolean_1__Boolean_1__Boolean_1__String_1__Boolean_1__AlloySerializationConfig_1_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::graphFetch::execution::alloyConfig_Boolean_1__Boolean_1__String_1__Boolean_1__Boolean_1__String_1__Boolean_1__Boolean_1__AlloySerializationConfig_1_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::graphFetch::execution::alloyConfig_Boolean_1__Boolean_1__Boolean_1__Boolean_1__String_1__Boolean_1__Boolean_1__AlloySerializationConfig_1_	function	core/pure/graphFetch/graphFetch.pure
+CATALOG	meta::pure::lineage::scanProperties::scanProperties_ValueSpecification_1__List_1__Function_MANY__Map_$0_1$__Res_$0_1$_	function	core/pure/lineage/scanProperties.pure
+EXTRA	meta::pure::lineage::scanProperties::scanProperties_ValueSpecification_1__List_1__Function_MANY__Map_$0_1$__ScanConfig_1__ScanPropertiesState_$0_1$_	function	core/pure/lineage/scanProperties.pure
+EXTRA	meta::pure::lineage::scanProperties::scanProperties_ValueSpecification_1__List_1__Function_MANY__Map_$0_1$__DebugContext_1__ScanPropertiesState_$0_1$_	function	core/pure/lineage/scanProperties.pure
+EXTRA	meta::pure::lineage::scanProperties::scanProperties_ValueSpecification_1__List_1__Function_MANY__Map_$0_1$__ScanConfig_1__DebugContext_1__ScanPropertiesState_$0_1$_	function	core/pure/lineage/scanProperties.pure
+EXTRA	meta::pure::lineage::scanProperties::scanProperties_ValueSpecification_1__ScanPropertiesState_$0_1$_	function	core/pure/lineage/scanProperties.pure
+EXTRA	meta::pure::lineage::scanProperties::scanProperties_ValueSpecification_1__ScanConfig_1__ScanPropertiesState_$0_1$_	function	core/pure/lineage/scanProperties.pure
+EXTRA	meta::pure::lineage::scanProperties::scanProperties_ValueSpecification_1__DebugContext_1__ScanPropertiesState_$0_1$_	function	core/pure/lineage/scanProperties.pure
+EXTRA	meta::pure::lineage::scanProperties::scanProperties_ValueSpecification_1__DebugContext_1__ScanConfig_1__ScanPropertiesState_$0_1$_	function	core/pure/lineage/scanProperties.pure
+EXTRA	meta::pure::lineage::scanProperties::scanProperties_ValueSpecification_1__DebugContext_1__ScanConfig_1__Map_1__ScanPropertiesState_$0_1$_	function	core/pure/lineage/scanProperties.pure
+EXTRA	meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree_Execute_MANY__PropertyPathTree_1_	function	core/pure/lineage/scanProperties.pure
+CATALOG	meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree_List_MANY__PropertyPathTree_1_	function	core/pure/lineage/scanProperties.pure
+CATALOG	meta::pure::mapping::from_T_m__PackageableRuntime_1__T_m_	function	core/pure/mapping/mappingExtension.pure
+CATALOG	meta::pure::mapping::from_T_m__Mapping_1__PackageableRuntime_1__T_m_	function	core/pure/mapping/mappingExtension.pure
+EXTRA	meta::pure::mapping::from_TabularDataSet_1__Mapping_1__PackageableRuntime_1__TabularDataSet_1_	function	core/pure/mapping/mappingExtension.pure
+EXTRA	meta::pure::mapping::from_TabularDataSet_1__Mapping_1__PackageableRuntime_1__ExecutionContext_1__TabularDataSet_1_	function	core/pure/mapping/mappingExtension.pure
+CATALOG	meta::pure::mapping::from_FunctionDefinition_1__PackageableRuntime_1__T_m_	function	core/pure/mapping/mappingExtension.pure
+CATALOG	meta::pure::mapping::from_FunctionDefinition_1__Runtime_1__T_m_	function	core/pure/mapping/mappingExtension.pure
+EXTRA	meta::pure::mapping::from_FunctionDefinition_1__Mapping_1__PackageableRuntime_1__T_m_	function	core/pure/mapping/mappingExtension.pure
+EXTRA	meta::pure::mapping::from_FunctionDefinition_1__Mapping_1__Runtime_1__T_m_	function	core/pure/mapping/mappingExtension.pure
+CATALOG	meta::pure::mapping::from_T_m__Runtime_1__T_m_	function	core/pure/mapping/mappingExtension.pure
+CATALOG	meta::pure::mapping::from_T_m__Mapping_1__Runtime_1__T_m_	function	core/pure/mapping/mappingExtension.pure
+EXTRA	meta::pure::mapping::from_TabularDataSet_1__Mapping_1__Runtime_1__TabularDataSet_1_	function	core/pure/mapping/mappingExtension.pure
+EXTRA	meta::pure::mapping::from_TabularDataSet_1__Mapping_1__Runtime_1__ExecutionContext_1__TabularDataSet_1_	function	core/pure/mapping/mappingExtension.pure
+CATALOG	meta::pure::mapping::withMapping_T_m__Mapping_1__T_m_	function	core/pure/mapping/mappingExtension.pure
+CATALOG	meta::pure::mapping::withChainedMappings_T_m__Mapping_MANY__T_m_	function	core/pure/mapping/mappingExtension.pure
+CATALOG	meta::pure::router::preeval::preval_FunctionDefinition_1__Extension_MANY__FunctionDefinition_1_	function	core/pure/router/preeval/preeval.pure
+CATALOG	meta::pure::router::preeval::preval_FunctionDefinition_1__Extension_MANY__DebugContext_1__FunctionDefinition_1_	function	core/pure/router/preeval/preeval.pure
+EXTRA	meta::pure::router::preeval::preval_FunctionDefinition_1__Map_1__Map_1__Extension_MANY__PrevalWrapper_1_	function	core/pure/router/preeval/preeval.pure
+EXTRA	meta::pure::router::preeval::preval_FunctionDefinition_1__Map_1__Map_1__Extension_MANY__DebugContext_1__PrevalWrapper_1_	function	core/pure/router/preeval/preeval.pure
+EXTRA	meta::pure::router::preeval::preval_FunctionDefinition_1__State_1__Extension_MANY__PrevalWrapper_1_	function	core/pure/router/preeval/preeval.pure
+EXTRA	meta::pure::router::preeval::preval_FunctionExpression_1__Map_1__Extension_MANY__DebugContext_1__ValueSpecification_1_	function	core/pure/router/preeval/preeval.pure
+CATALOG	meta::pure::router::execute_FunctionDefinition_1__Mapping_1__Runtime_1__Extension_MANY__Result_1_	function	core/pure/router/router_entry.pure
+CATALOG	meta::pure::router::execute_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__Extension_MANY__Result_1_	function	core/pure/router/router_entry.pure
+CATALOG	meta::pure::router::execute_FunctionDefinition_1__Mapping_1__Runtime_1__Extension_MANY__DebugContext_1__Result_1_	function	core/pure/router/router_entry.pure
+EXTRA	meta::pure::router::execute_FunctionDefinition_1__Mapping_1__Runtime_1__ExecutionContext_1__Extension_MANY__DebugContext_1__Result_1_	function	core/pure/router/router_execution.pure
+CATALOG	meta::core::runtime::connectionByElement_Runtime_1__Store_1__Connection_1_	function	core/pure/runtime/runtimeExtension.pure
+EXTRA	meta::pure::tds::project_T_MANY__ColumnSpecification_MANY__TabularDataSet_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::project_K_MANY__Function_MANY__String_MANY__TabularDataSet_1_	function	core/pure/tds/tds.pure
+EXTRA	meta::pure::tds::project_T_MANY__Path_MANY__TabularDataSet_1_	function	core/pure/tds/tds.pure
+EXTRA	meta::pure::tds::project_TabularDataSet_1__ColumnSpecification_MANY__TabularDataSet_1_	function	core/pure/tds/tds.pure
+EXTRA	meta::pure::tds::sort_TabularDataSet_1__SortInformation_MANY__TabularDataSet_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::sort_TabularDataSet_1__String_1__SortDirection_1__TabularDataSet_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::sort_TabularDataSet_1__String_MANY__TabularDataSet_1_	function	core/pure/tds/tds.pure
+EXTRA	meta::pure::tds::limit_TabularDataSet_1__Integer_1__TabularDataSet_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::limit_TabularDataSet_1__Integer_$0_1$__TabularDataSet_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::filter_TabularDataSet_1__Function_1__TabularDataSet_1_	function	core/pure/tds/tds.pure
+EXTRA	meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::groupBy_K_MANY__Function_MANY__AggregateValue_MANY__String_MANY__TabularDataSet_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::desc_String_1__SortInformation_1_	function	core/pure/tds/tds.pure
+EXTRA	meta::pure::tds::desc_String_1__NullOrder_1__SortInformation_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::asc_String_1__SortInformation_1_	function	core/pure/tds/tds.pure
+EXTRA	meta::pure::tds::asc_String_1__NullOrder_1__SortInformation_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::tdsContains_T_1__Function_MANY__TabularDataSet_1__Boolean_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::tdsContains_T_1__Function_MANY__String_MANY__TabularDataSet_1__Function_1__Boolean_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::groupByWithWindowSubset_K_MANY__Function_MANY__AggregateValue_MANY__String_MANY__String_MANY__String_MANY__TabularDataSet_1_	function	core/pure/tds/tds.pure
+CATALOG	meta::pure::tds::extensions::firstNotNull_T_MANY__T_$0_1$_	function	core/pure/tds/tdsExtensions.pure
+CATALOG	meta::json::parseJSON_String_1__JSONElement_1_	native function	core_functions_json/json.pure
+EXTRA	meta::pure::mapping::from_T_m__DataSpace_1__T_m_	function	core_data_space_metamodel/mappingExtension.pure
+EXTRA	meta::pure::mapping::from_T_m__DataSpaceExecutionContext_1__T_m_	function	core_data_space_metamodel/mappingExtension.pure
