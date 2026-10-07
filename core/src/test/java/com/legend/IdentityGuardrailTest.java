@@ -143,7 +143,7 @@ class IdentityGuardrailTest {
             Map.entry("NAME_AFFIX_TEST", 51),
             Map.entry("NAME_CUTTING", 105),   // 106 -> 105 (2026-10-06, build rebuild Phase 3: measured)
             Map.entry("SIGNATURE_ID_CUTTING", 1),
-            Map.entry("CATALOG_LOOKUP_BY_NAME", 8),   // 10 -> 8 (2026-10-06, build rebuild Phase 3: candidates merge by function id, StatementInline asks the definition's own row)
+            Map.entry("CATALOG_LOOKUP_BY_NAME", 9),   // 10 -> 9 (2026-10-06, build rebuild Phase 3: candidates merge by function id; StatementInline still leaves a call to overload resolution when a function it names has a built-in)
             Map.entry("FAMILY_LOOKUP_BY_NAME", 13),   // 33 -> 13 (2026-10-06, build rebuild Phase 3: a form is read off the names a call resolves to, ResolvedNames.form)
             Map.entry("FUNCTION_CATEGORY_CHECK", 9),   // 14 -> 9 (2026-10-06, build rebuild Phase 3: the PCT rule and the platform-owned and assert-family lists are gone)
             Map.entry("MINT_BY_NAME", 142),   // 143 -> 142 (2026-09-27: the #>{}# island's record is built by ONE factory, AppliedFunction.tableReference, for the parser and the protocol reader; the parser's two mints went into it)

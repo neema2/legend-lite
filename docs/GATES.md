@@ -8002,16 +8002,17 @@ The plan: `docs/REBUILD_PROGRAM_2026_10_06.md` (plan branch), Phase 3; the pre-e
 **The reference lane moved, in the right direction** (golden re-blessed in this push, `bazel run
 //spec:update_reference_lane`):
 
-| line | before | step 1 | step 2 | step 3 |
-|---|---|---|---|---|
-| our bodies FAILED | 1,508 | 1,508 | 1,490 | 1,471 |
-| reference typed, we FAILED | 1,335 | 1,335 | 1,318 | 1,300 |
-| AGREE | 73,103 | 73,176 | 73,977 | 74,578 |
-| OVERLOAD | 745 | 672 | 58 | 58 |
-| DRIFT | 32 | 32 | 0 | 0 |
-| PACKAGE, PROPERTY_AS_CALL | 14, 39 | unchanged | unchanged | unchanged |
-| ABSENT | 68,643 | 68,643 | 69,160 | 69,825 |
-| EXTRA | 15,938 | 15,938 | 15,988 | 16,223 |
+| line | before | step 1 | step 2 | step 3 | corpus fixes |
+|---|---|---|---|---|---|
+| our bodies FAILED | 1,508 | 1,508 | 1,490 | 1,471 | 1,469 |
+| reference typed, we FAILED | 1,335 | 1,335 | 1,318 | 1,300 | 1,298 |
+| AGREE | 73,103 | 73,176 | 73,977 | 74,578 | 74,586 |
+| OVERLOAD | 745 | 672 | 58 | 58 | 58 |
+| DRIFT | 32 | 32 | 0 | 0 | 0 |
+| PACKAGE | 14 | 14 | 14 | 14 | 14 |
+| PROPERTY_AS_CALL | 39 | 39 | 39 | 39 | 1 |
+| ABSENT | 68,643 | 68,643 | 69,160 | 69,825 | 69,837 |
+| EXTRA | 15,938 | 15,938 | 15,988 | 16,223 | 16,223 |
 
 Step 1 fixed the class-hierarchy rows (`elementToPath` 32, `hasGeneratedMilestoningPropertyStereotype` 42); step 2 the
 617 calls whose legend-pure overload the by-name drops removed (`isEmpty` 523 among them). ABSENT and EXTRA grow by the
@@ -8025,3 +8026,16 @@ fail in typing: `getSignFunctions` (5 protocol versions; `Pair<Any,String>` wher
 declared), `extractMappingsFromFunctionDefinition`, `shouldStopFunctions`, `varToString` (multiplicity unions),
 `flattenConcatenate` (no common supertype of `T` and `TabularDataSet`), `testViewChainsWithBusinessDate`
 (`toSQLString` over an `SQLResult`). legend-pure types them all: Phase 3b's list.
+
+**The corpus, pass by pass.** The gate's corpus checks compare committed results and do not rerun the corpus; the six
+passes, rerun against outputs built before Phase 3, found 4 tests the step-2 change broke (and the database passes,
+which refuse to run after a host failure, empty). Fixed, and the six passes are now identical, every output file:
+
+- A dot call is a qualified-property expression in legend-pure: `toSQL(...).toSQLString($type)` reads `SQLResult`'s
+  qualified property first, whatever functions share the name (`Typer`; before, a function of the call's arity won,
+  and with every upstream version a candidate one existed). The reference lane's PROPERTY_AS_CALL 39 -> 1 is this rule.
+- `StatementInline` leaves a call to overload resolution when a function it may name has a built-in (the relational
+  `tds::join(..., String[1..*], String[1..*])` body spliced in where the join form owns `relation::join`, and its
+  `intersection` was not loaded); step 2 had replaced that guard by the definition's own row alone.
+- The corpus's own `executeInDb(String, ConnectionStore)` adapter gets a row: it joins `NativeFn`'s `executeInDb` family,
+  whose arm reads the SQL only (unrowed versions 110 -> 109).

@@ -899,8 +899,11 @@ public final class NativeFn {
 
     /** EFFECTFUL Java routines at the execution boundary, run via their registered arm when evaluation reaches the call (never staged). */
     public enum Effect implements Member {
+        // the ConnectionStore version (relationalExtension.pure's adapter) joins: the arm reads the SQL only
+        // (build rebuild Phase 3: no name is owned, so the corpus's own adapter needs this row)
         EXECUTE_IN_DB("meta::relational::metamodel::execute::executeInDb",
-                Pure.EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1, Pure.EXECUTE_IN_DB__STRING_1__CONN_1),
+                Pure.EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1, Pure.EXECUTE_IN_DB__STRING_1__CONN_1,
+                Pure.EXECUTE_IN_DB__STRING_1__CONNECTION_STORE_1),
         DROP_AND_CREATE_TABLE_IN_DB("meta::relational::functions::toDDL::dropAndCreateTableInDb",
                 Pure.DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__CONN_1, Pure.DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__STRING_1__CONN_1),
         DROP_AND_CREATE_SCHEMA_IN_DB("meta::relational::functions::toDDL::dropAndCreateSchemaInDb",

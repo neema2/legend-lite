@@ -489,12 +489,17 @@ final class Typer {
         }
         // PARAMETERIZED qualified property: $p.synonymByType(X) routes to the
         // externalized body function <owner>$prop$<name>(this, args...) and
-        // β-inlines with every other user call — never shadows a real function
-        // OF THIS ARITY (a same-name function family elsewhere — tds::join
-        // beside SchemaState.join(other) — does not hide the receiver's
-        // property: real pure routes the property first; Phase 5 batch 147)
-        if (!af.parameters().isEmpty() && functionCandidates(af).stream()
-                .noneMatch(f -> f.parameters().size() == af.parameters().size())) {
+        // β-inlines with every other user call. A DOT call ($r.toSQLString(t))
+        // is a qualified-property expression in real pure: the receiver's
+        // property comes first and the function library only when it has none
+        // (FunctionExpressionProcessor.matchFunction), whatever functions share
+        // the name (build rebuild Phase 3: with every upstream version a
+        // candidate, toSQL(...).toSQLString(t) met toSQLString functions of its
+        // arity). A call spelled with -> tries the property only when no
+        // function of its arity exists (tds::join beside SchemaState.join(other);
+        // Phase 5 batch 147).
+        if (!af.parameters().isEmpty() && (af.propertyCall() || functionCandidates(af).stream()
+                .noneMatch(f -> f.parameters().size() == af.parameters().size()))) {
             TypedSpec recv = synth(af.parameters().get(0), env);
             String classFqn = recv.info().type() instanceof Type.ClassType ct ? ct.fqn()
                     : recv.info().type() instanceof Type.GenericType g ? g.rawFqn() : null;

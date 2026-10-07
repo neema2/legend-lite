@@ -203,12 +203,23 @@ public final class StatementInline {
                     ? List.of(af.function()) : af.candidateFqns();
             FunctionDefinition found = null;
             for (String fqn : names) {
-                // THE PLATFORM'S OWN: only a declaration the implementation table
-                // runs by its BODY is inlined as the user's — not one it runs by
-                // its rule or form (validate: a raw-space desugar), nor a version of
-                // a function the platform implements that it refuses (no row).
-                // Asked of the table, by the definition's id, so neither a pass order
-                // nor the name carries this fact (build rebuild Phase 3).
+                // THE TYPER'S TO RESOLVE: a call one of whose referents the
+                // platform implements (a catalog function with a rule or form) is
+                // decided by overload resolution among every candidate, never by
+                // this arity pick — the relational tds::join(..., String[1..*],
+                // String[1..*]) body must not splice in where the join form owns
+                // relation::join (build rebuild Phase 3).
+                for (var n : com.legend.builtin.Pure.nativeFunctionsAt(fqn)) {
+                    if (!(ctx.implementations().of(com.legend.model.FunctionId.of(n))
+                            instanceof com.legend.platform.Implementation.Body)) {
+                        return null;
+                    }
+                }
+                // and only a declaration the implementation table runs by its BODY
+                // is inlined as the user's — not one it runs by its rule or form
+                // (validate: a raw-space desugar), nor a version of a function the
+                // platform implements that it refuses (no row); asked by the
+                // definition's id
                 FunctionDefinition d = null;
                 for (FunctionDefinition fd : ctx.findFunctionDefinitions(fqn)) {
                     if (fd.parameters().size() != af.parameters().size()) {

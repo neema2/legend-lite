@@ -144,8 +144,9 @@ class ImplementationTableTest {
      *  one fails, naming it; each gets a row (a membership line) before the default world takes upstream core whole
      *  (build rebuild Phase 4). 110 when the table became the one authority (2026-10-06, Phase 3): the by-name drops
      *  went, 26 versions got rows (the 14 the reference lane's OVERLOAD rows needed, the 12 Boolean comparisons PCT
-     *  calls), and the rest are listed in unrowed-versions.txt. */
-    static final int UNROWED_MAX = 110;
+     *  calls), and the rest are listed in unrowed-versions.txt. 110 -> 109 (2026-10-06, the same push): the corpus's
+     *  own executeInDb(String, ConnectionStore) adapter got its row (NativeFn's executeInDb family). */
+    static final int UNROWED_MAX = 109;
 
     @Test
     void theVersionsWithoutARowOnlyShrink() throws IOException {

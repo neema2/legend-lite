@@ -6,8 +6,8 @@ dynafn.unsupported	41
 engine.handlers.undeclared	142
 implementation.kinds.Body	2051
 implementation.kinds.Form	217
-implementation.kinds.Intrinsic	697
-implementation.kinds.Refused	130
+implementation.kinds.Intrinsic	698
+implementation.kinds.Refused	129
 implementation.kinds.Unimplemented	71
-implementation.unrowed	110
+implementation.unrowed	109
 upstream.paths	91

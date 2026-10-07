@@ -4,21 +4,21 @@
 == coverage
 reference functions	12380
 our functions	16094
-our bodies typed	17205
-our bodies FAILED	1471
+our bodies typed	17204
+our bodies FAILED	1469
 our sources DROPPED	32
 functions in both	11858
 reference only	522
 ours only	4236
-reference typed, we FAILED	1300
+reference typed, we FAILED	1298
 
 == buckets
-AGREE	74578
+AGREE	74586
 OVERLOAD	58
 PACKAGE	14
 DRIFT	0
-ABSENT	69825
-PROPERTY_AS_CALL	39
+ABSENT	69837
+PROPERTY_AS_CALL	1
 EXTRA	16223
 
 == dropped sources
@@ -936,7 +936,6 @@ meta::pure::functions::collection::tests::get::testGetWithVariable__Boolean_1_
 meta::pure::functions::collection::tests::get::testGet__Boolean_1_
 meta::pure::functions::collection::tests::map::testMapWithPathInFunctionReflective__Boolean_1_
 meta::pure::functions::collection::tests::map::testMapWithPathInFunction__Boolean_1_
-meta::pure::functions::collection::tests::map::testMapWithVariableThisAsParameter__Boolean_1_
 meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesLongList__Boolean_1_
 meta::pure::functions::lang::tests::new::testNewGenericFunc__Boolean_1_
 meta::pure::functions::meta::allNestedPropertyTypes_Class_1__Type_MANY_
@@ -1420,7 +1419,6 @@ meta::relational::tests::milestoning::businessdate::testConstraintUsageOfVarRefe
 meta::relational::tests::milestoning::businessdate::testMilestonedThisBusinessDateUsedAsParameterToFunctionInMilestoningQualifiedPropertyMappedToView__Boolean_1_
 meta::relational::tests::milestoning::businessdate::testMilestoningQueryWithGroupByFilterWithMilestoning__Boolean_1_
 meta::relational::tests::milestoning::businessdate::testProcessedMilestonedExchangeNameConstraint__Boolean_1_
-meta::relational::tests::milestoning::businessdate::testViewChainsWithBusinessDate__Boolean_1_
 meta::relational::tests::postProcessor::nonExecutable::testReplaceTablePostProcessorWithSubQueries__Boolean_1_
 meta::relational::tests::projection::association::toMany::testAssociationToManyColumnProtocolOneColumn__Boolean_1_
 meta::relational::tests::projection::enumeration::testTdsProjectWithEnumInequalityComparison__Boolean_1_
@@ -1565,7 +1563,7 @@ ABSENT	buildClass			1
 ABSENT	buildUniqueName			1
 ABSENT	builderGeneration			1
 ABSENT	byPassRouterInfo			1
-ABSENT	cast			4283
+ABSENT	cast			4284
 ABSENT	class			1
 ABSENT	classMappingById			1
 ABSENT	col			650
@@ -1628,7 +1626,7 @@ ABSENT	fetchDbColumnsMetaData			6
 ABSENT	fetchDbPrimaryKeysMetaData			6
 ABSENT	fetchDbSchemasMetaData			4
 ABSENT	fetchDbTablesMetaData			7
-ABSENT	filter			2573
+ABSENT	filter			2574
 ABSENT	findFunctionSequenceMultiplicity			1
 ABSENT	firmProjected			12
 ABSENT	firmProjected1			1
@@ -1644,7 +1642,7 @@ ABSENT	generateProjectPath			1
 ABSENT	generateTestData			35
 ABSENT	genericType			2
 ABSENT	genericTypeClass			2
-ABSENT	getAll			2989
+ABSENT	getAll			2990
 ABSENT	getAllForEachDate			11
 ABSENT	getAllTypeGeneralisations			2
 ABSENT	getAllVersions			18
@@ -1692,7 +1690,7 @@ ABSENT	length			4
 ABSENT	lenientPathToElement			1
 ABSENT	lessThan			4
 ABSENT	lessThanEqual			4
-ABSENT	letFunction			18491
+ABSENT	letFunction			18494
 ABSENT	limit			36
 ABSENT	list			264
 ABSENT	literal			1
@@ -1701,7 +1699,7 @@ ABSENT	loadPCTManifest			1
 ABSENT	loadValuesToDbTable2			1
 ABSENT	mainTable			2
 ABSENT	makeString			20
-ABSENT	map			7533
+ABSENT	map			7535
 ABSENT	match			1294
 ABSENT	maxBy			2
 ABSENT	meta::alloy::service::execution::schemaAndTableSetup			2
@@ -1744,7 +1742,7 @@ ABSENT	meta::relational::functions::sqlQueryToString::processOperation			6
 ABSENT	meta::relational::functions::toDDL::createSchemaStatement			1
 ABSENT	meta::relational::mapping::sqlQueryDefaultPostProcessors			1
 ABSENT	meta::relational::mapping::syntheticRelationalAccessorExtension			1
-ABSENT	meta::relational::metamodel::execute::executeInDb			2
+ABSENT	meta::relational::metamodel::execute::executeInDb			3
 ABSENT	meta::relational::metamodel::execute::executeInDbToTDS			1
 ABSENT	meta::relational::testDataGeneration::createTempTableStatement			2
 ABSENT	meta::relational::testDataGeneration::executionPlan::planTestDataGeneration			6
@@ -1764,7 +1762,7 @@ ABSENT	mod			2
 ABSENT	month			1
 ABSENT	monthNumber			3
 ABSENT	mutateAdd			5
-ABSENT	new			6458
+ABSENT	new			6460
 ABSENT	newLambdaFunction			1
 ABSENT	newMap			2
 ABSENT	newTDSRelationAccessor			1
@@ -1794,7 +1792,7 @@ ABSENT	printDebugWithDepth			2
 ABSENT	printProperty			2
 ABSENT	printRelationalTreeNode			2
 ABSENT	println			44
-ABSENT	project			1834
+ABSENT	project			1835
 ABSENT	projectWithColumnSubset			5
 ABSENT	putAll			1
 ABSENT	quarter			1
@@ -3667,6 +3665,4 @@ PACKAGE	divide	meta::pure::functions::math::divide_Number_1__Number_1__Float_1_	
 PACKAGE	plus	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	meta::pure::functions::string::plus_String_MANY__String_1_	1
 PACKAGE	plus	meta::pure::functions::string::plus_String_MANY__String_1_	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	1
 PACKAGE	size	meta::pure::functions::collection::size_Any_MANY__Integer_1_	meta::pure::functions::relation::size_Relation_1__Integer_1_	9
-PROPERTY_AS_CALL	meta::core::runtime::connectionByElement			36
-PROPERTY_AS_CALL	meta::pure::functions::lang::tests::newInferenceAtRuntime::put			2
 PROPERTY_AS_CALL	meta::pure::functions::string::toString			1
