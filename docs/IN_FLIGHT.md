@@ -426,6 +426,9 @@ commits behind), locally first: `query-by-name` (Query and DataCube open Studio'
 `studio-engine` (running in the tab, the query builder in Studio, the editing features, the Snap move; 19 more) and
 `protocol` (the protocol program: the model printer and the model reader, both proven exact over the corpus; 21
 commits). The rebased branches are pushed under NEW names (rule 1: no force-push); the old ones stay as they are.
+Done the same day: `query-by-name-1007`, `studio-engine-1007` (the first plus 20; its BUILD diff reviewed by the build
+program's session) and `protocol-1007`, each on `c9a18b1ed`; the two touch disjoint files and merge cleanly. Each
+landing waits on the user's word on order.
 Files the rebase touches beyond the line's own folders: the BUILD files of `query`, `sdlc-server`, `studio`,
 `datacube` and `engine-client`, `gates/BUILD.bazel` and the CI lane lists (moving the line's tests into the new
 `//gates` suites, the `ui` and `sdlc` lanes), and, for `protocol`, `core/src/main/java/com/legend/protocol/` (records,
