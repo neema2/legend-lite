@@ -518,6 +518,7 @@ public final class PlatformTypes {
     public static final String TEST_RUNTIME =
             "meta::external::store::relational::tests::testRuntime";
     public static final String IS_EMPTY = "meta::pure::functions::collection::isEmpty";
+    public static final String IS_NOT_EMPTY = "meta::pure::functions::collection::isNotEmpty";
     // -- exact identities the front-end reads through ResolvedNames.names
     // (the 2026-09-11 simple-name census: no bare or suffix compares)
     public static final String FIRST = "meta::pure::functions::collection::first";

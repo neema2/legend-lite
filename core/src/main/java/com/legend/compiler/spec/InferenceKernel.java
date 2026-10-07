@@ -1904,6 +1904,12 @@ public final class InferenceKernel {
 
     /** The union of two row-structs, keeping first-seen order; a repeated name must agree. */
     private static Type.RelationType unionRows(Type.RelationType a, Type.RelationType b) {
+        // two LATE-BOUND rows (a raw-SQL grid, an erased TDSRow or execute::Row): the join
+        // keeps the wildcard -- any row conforms to either, so it conforms to the join; the
+        // column merge below would drop the marker and leave an empty, bound schema
+        if (a.isLateBound() && b.isLateBound()) {
+            return a.equals(b) ? a : Type.RelationType.lateBound();
+        }
         List<Type.Column> merged = new ArrayList<>(a.columns());
         for (Type.Column c : b.columns()) {
             Type.Column prior = merged.stream().filter(m -> sameColumn(m.name(), c.name())).findFirst().orElse(null);

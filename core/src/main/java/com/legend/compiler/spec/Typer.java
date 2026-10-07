@@ -1522,8 +1522,13 @@ final class Typer {
                         .findFirst()
                         .orElseGet(() -> {
                             if (rel.isErasedRow()) {
-                                throw new TypeInferenceException("a "
-                                        + ((Type.ClassType) rel.dynamicColumns().get(0).type()).fqn()
+                                // a bare $r.col on an ERASED row: refused -- the owner's
+                                // accessors (get, isNull, getString, ...) read its cells
+                                // (rowCellReadOnRow, TdsDesugars.erasedCell); real pure
+                                // has no bare column on a TDSRow either
+                                String owner = rel.dynamicColumns().get(0).type()
+                                        instanceof Type.ClassType oc ? oc.fqn() : "row";
+                                throw new TypeInferenceException("a " + owner
                                         + " has no property '" + name
                                         + "' (read a cell with its accessor, e.g. getString('"
                                         + name + "'))");

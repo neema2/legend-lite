@@ -88,6 +88,38 @@ final class TdsDesugars {
      * isNull/isNotNull cell tests, get()->toString() TDSNull print,
      * and the untyped $r.get('COL') getter (row frame: toOne cell;
      * relation frame: TDSNull-total auto-map). Null = not one of these. */
+    /** An ERASED row (a TDSRow or execute::Row in a type position; the raw-SQL grid
+     *  takes the same path): its cells are read only through the owner's accessors. */
+    private static boolean erasedRow(TypedSpec recv) {
+        return Type.schemaView(recv.info().type()) instanceof Type.RelationType rt
+                && rt.isLateBound();
+    }
+
+    /** The cell of an erased row by name, for the untyped accessors ({@code get},
+     *  {@code isNull}, {@code isNotNull}): the trusted {@code Any[0..1]} read the typed
+     *  getters start from too (Typer.rowCellReadOnRow). A bare {@code $r.col} on an
+     *  erased row is refused (Typer.relationColumn); an accessor's read is the row's
+     *  one honest read -- the engine's tds.pure:76-120 declares the accessors as
+     *  TDSRow's qualified properties and no bare column. Built on the TYPED receiver:
+     *  no second synthesis of the receiver's syntax. */
+    private static TypedSpec erasedCell(TypedSpec recv, String col) {
+        return new com.legend.compiler.spec.typed.TypedPropertyAccess(recv, col,
+                new ExprType(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY),
+                        Multiplicity.Bounded.ZERO_ONE));
+    }
+
+    /** A native call over TYPED arguments: the overload the kernel picks for their
+     *  types, as for any call; no syntax is rebuilt and re-typed. */
+    private TypedSpec nativeCall(String fqn, List<TypedSpec> args) {
+        List<com.legend.compiler.element.TypedFunction> fns = t.model().findFunction(fqn);
+        if (fns.isEmpty()) {
+            throw new TypeInferenceException("the module carries no declaration of " + fqn);
+        }
+        InferenceKernel.Resolution r = t.kernel().resolveOverload(fns,
+                args.stream().map(TypedSpec::info).toList());
+        return new com.legend.compiler.spec.typed.TypedNativeCall(r.chosen(), args, r.output());
+    }
+
     @com.legend.base.Nullable TypedSpec tdsGetterDesugars(AppliedFunction af, Env env) {
         // $r.isNotNull('COL') / isNull — TDSRow null tests on the named
         // cell (tds.pure); the cell read is optional-typed, so the tests
@@ -95,16 +127,21 @@ final class TdsDesugars {
         // spellings in RelOpTranslator)
         if ((rowGetter(af, com.legend.builtin.NativeFn.RowGetter.IS_NOT_NULL) || rowGetter(af, com.legend.builtin.NativeFn.RowGetter.IS_NULL))
                 && af.parameters().size() == 2
-                && literalColName(af.parameters().get(1)) != null
-                && Typer.tdsReceiver(synth(af.parameters().get(0), env)
-                        .info().type())) {
-            return synth(new AppliedFunction(
-                    rowGetter(af, com.legend.builtin.NativeFn.RowGetter.IS_NOT_NULL) ? "isNotEmpty" : "isEmpty",
-                    List.of(new AppliedProperty(af.parameters().get(0),
-                            java.util.Objects.requireNonNull(
-                                    literalColName(af.parameters().get(1)),
-                                    "TDS null test requires a literal column"
-                                    + " name")))), env);
+                && literalColName(af.parameters().get(1)) != null) {
+            TypedSpec nrecv = synth(af.parameters().get(0), env);
+            if (Typer.tdsReceiver(nrecv.info().type())) {
+                boolean notNull = rowGetter(af, com.legend.builtin.NativeFn.RowGetter.IS_NOT_NULL);
+                String ncol = java.util.Objects.requireNonNull(
+                        literalColName(af.parameters().get(1)),
+                        "TDS null test requires a literal column name");
+                if (erasedRow(nrecv)) {
+                    return nativeCall(notNull ? com.legend.compiler.element.type.PlatformTypes.IS_NOT_EMPTY
+                            : com.legend.compiler.element.type.PlatformTypes.IS_EMPTY,
+                            List.of(erasedCell(nrecv, ncol)));
+                }
+                return synth(new AppliedFunction(notNull ? "isNotEmpty" : "isEmpty",
+                        List.of(new AppliedProperty(af.parameters().get(0), ncol))), env);
+            }
         }
         // engine TDSRow.get()->toString(): a NULL cell prints 'TDSNull'
         // (tds.pure:131-133 — the engine materializes ^TDSNull() instances;
@@ -115,6 +152,17 @@ final class TdsDesugars {
                 && g.parameters().get(1) instanceof CString gc) {
             TypedSpec grecv0 = synth(g.parameters().get(0), env);
             if (Typer.tdsReceiver(grecv0.info().type())) {
+                if (erasedRow(grecv0)) {
+                    TypedSpec cell = erasedCell(grecv0, gc.value());
+                    var str1 = new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
+                    return new com.legend.compiler.spec.typed.TypedIf(
+                            nativeCall(com.legend.compiler.element.type.PlatformTypes.IS_EMPTY, List.of(cell)),
+                            new com.legend.compiler.spec.typed.TypedCString(
+                                    com.legend.compiler.element.type.PlatformTypes.TDS_NULL_CELL, str1),
+                            java.util.Optional.of(nativeCall(com.legend.compiler.element.type.PlatformTypes.TO_STRING,
+                                    List.of(nativeCall(com.legend.builtin.Pure.Lite.TRUST_ONE, List.of(cell))))),
+                            str1);
+                }
                 var read = new AppliedProperty(g.parameters().get(0), gc.value());
                 return synth(new AppliedFunction("if", List.of(
                         new AppliedFunction("isEmpty", List.of(read)),
@@ -136,6 +184,13 @@ final class TdsDesugars {
                 && af.parameters().get(1) instanceof CString gcol) {
             TypedSpec grecv = synth(af.parameters().get(0), env);
             if (Typer.tdsReceiver(grecv.info().type())) {
+                if (erasedRow(grecv)) {
+                    // the engine's get is Any[1] (tds.pure); the cell under the
+                    // SQL-lane conformance wrap, the shape the trusted-column
+                    // read took before the erased row refused bare names
+                    return nativeCall(com.legend.builtin.Pure.Lite.TRUST_ONE,
+                            List.of(erasedCell(grecv, gcol.value())));
+                }
                 TypedSpec gcell = synth(new AppliedProperty(
                         af.parameters().get(0), gcol.value()), env);
                 // Exactly-[1] cell: the read IS the getter. MANY-stamped
