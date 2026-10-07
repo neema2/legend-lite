@@ -57,6 +57,18 @@ async function loop(browser, name, query) {
   // data-errors): upstream's bar shows icons and counts, not words
   const waitCompiled = () => page.waitForFunction(() => { const b = document.querySelector('[data-testid=problems-count]'); return b?.dataset.state === 'idle' && b.dataset.errors === '0'; }, undefined, { timeout: 120_000 });
   const statusOf = async (id) => ((await page.getByTestId(id).textContent()) ?? '').trim();
+  // Run, and THIS run's answer: Studio's Run starts with an asynchronous step (it asks the compiler for the
+  // parameters), so the previous run's result is still on screen when the click returns; wait for it to be replaced
+  // (or, the first time, for one to appear) and for the new one to be done. `between`: what the run asks first (its
+  // parameter dialog).
+  const run = async (between = async () => {}) => {
+    const shown = await page.$('[data-testid=run-status]');
+    await page.getByTestId('run-function').click();
+    await between();
+    await page.waitForFunction((old) => (!old || !old.isConnected)
+      && !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), shown, { timeout: 120_000 });
+    return statusOf('run-status');
+  };
   const waitStatus = (id, pattern) => page.waitForFunction(([id, source]) => new RegExp(source).test(document.querySelector(`[data-testid=${id}]`)?.textContent ?? ''), [id, pattern.source], { timeout: 120_000 });
   try {
     await page.goto(`${SITE}/demo/index.html${query}`);
@@ -171,9 +183,7 @@ async function loop(browser, name, query) {
     await page.keyboard.press('ControlOrMeta+A');
     await page.keyboard.insertText('// every party, by name: run in the tab\nfunction demo::trading::parties(): meta::pure::metamodel::relation::Relation<Any>[1]\n{\ndemo::party::Party.all()->project(~[name: p | $p.name, country: p | $p.country])->from(demo::party::PartyMapping, demo::party::Runtime)\n}\n');
     await waitCompiled();
-    await page.getByTestId('run-function').click();
-    await page.waitForFunction(() => !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), undefined, { timeout: 120_000 });
-    const ran = await statusOf('run-status');
+    const ran = await run();
     if (!/^5 rows in \d+ ms/.test(ran)) throw new Error(`the function's run said: ${ran}`);
     assert.ok((await page.getByTestId('run-rows').textContent()).includes('Banque Lumière'), 'the run shows the party rows');
     await shot('2b-ran');
@@ -192,11 +202,7 @@ async function loop(browser, name, query) {
     assert.match(body, /->\s*from\(\s*demo::party::PartyMapping,\s*demo::party::Runtime\s*\)/, `the body keeps its from(): ${body}`);
     assert.doesNotMatch(body, /country/, 'the removed column is gone');
     await waitCompiled();
-    const ranBefore = await page.getByTestId('run-status').elementHandle();
-    await page.getByTestId('run-function').click();
-    await page.waitForFunction((old) => !old.isConnected
-      && !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), ranBefore, { timeout: 120_000 });
-    assert.match(await statusOf('run-status'), /^5 rows in \d+ ms/);
+    assert.match(await run(), /^5 rows in \d+ ms/);
     assert.equal(await page.getByTestId('run-rows').locator('thead th').count(), 1, 'one column now');
     // 3c. a service, run in the tab: its query, with its mapping and runtime (plan A3)
     await page.getByTestId('new-element').click();
@@ -207,9 +213,7 @@ async function loop(browser, name, query) {
     await page.keyboard.press('ControlOrMeta+A');
     await page.keyboard.insertText("###Service\nService demo::trading::PartiesService\n{\npattern: '/trading/parties';\ndocumentation: 'Every party, by name.';\nexecution: Single\n{\nquery: |demo::party::Party.all()->project(~[name: p | $p.name]);\nmapping: demo::party::PartyMapping;\nruntime: demo::party::Runtime;\n}\n}\n");
     await waitCompiled();
-    await page.getByTestId('run-function').click();
-    await page.waitForFunction(() => !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), undefined, { timeout: 120_000 });
-    const served = await statusOf('run-status');
+    const served = await run();
     if (!/^5 rows in \d+ ms/.test(served)) throw new Error(`the service's run said: ${served}`);
     // 3f. the service's query in Query's builder (plan A5): opened on its one column, a column added in the form and run
     // there, saved into the service's text (Save Query), and that text run
@@ -232,12 +236,7 @@ async function loop(browser, name, query) {
     assert.match(kept, /query: \|demo::party::Party\.all\(\).*\$\w+\.country/, `the service's text holds the built query: ${kept}`);
     assert.match(kept, /mapping: demo::party::PartyMapping;/, "the rest of the service's text is as written");
     await waitCompiled();
-    // 3c's result is still shown (5 rows too): wait for this run's to replace it
-    const before = await page.getByTestId('run-status').elementHandle();
-    await page.getByTestId('run-function').click();
-    await page.waitForFunction((old) => !old.isConnected
-      && !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), before, { timeout: 120_000 });
-    const rebuilt = await statusOf('run-status');
+    const rebuilt = await run();
     if (!/^5 rows in \d+ ms/.test(rebuilt)) throw new Error(`the service's run, its query from the builder, said: ${rebuilt}`);
     assert.equal(await page.getByTestId('run-rows').locator('thead th').count(), 2, 'the run shows the two columns built');
     // 3d. a function with a parameter: Run asks for its value, as Pure, and binds it (plan A3)
@@ -249,11 +248,10 @@ async function loop(browser, name, query) {
     await page.keyboard.press('ControlOrMeta+A');
     await page.keyboard.insertText('function demo::trading::partiesNamed(prefix: String[1]): meta::pure::metamodel::relation::Relation<Any>[1]\n{\ndemo::party::Party.all()->filter(p | $p.name->startsWith($prefix))->project(~[name: p | $p.name])->from(demo::party::PartyMapping, demo::party::Runtime)\n}\n');
     await waitCompiled();
-    await page.getByTestId('run-function').click();
-    await page.locator('.dialog input[data-param=prefix]').fill("'K'");
-    await page.locator('.dialog .btn-primary').click();
-    await page.waitForFunction(() => !/^Running/.test(document.querySelector('[data-testid=run-status]')?.textContent ?? 'Running'), undefined, { timeout: 120_000 });
-    const named = await statusOf('run-status');
+    const named = await run(async () => {
+      await page.locator('.dialog input[data-param=prefix]').fill("'K'");
+      await page.locator('.dialog .btn-primary').click();
+    });
     if (!/^1 row in \d+ ms/.test(named)) throw new Error(`the run with prefix 'K' said: ${named}`);
     assert.ok((await page.getByTestId('run-rows').textContent()).includes('Kestrel Partners'), "prefix 'K' finds Kestrel");
     // 3e. the SQL playground: SQL on the tab's DuckDB, the model's own rows loaded (plan A3)
