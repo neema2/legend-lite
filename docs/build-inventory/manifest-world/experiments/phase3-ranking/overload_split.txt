@@ -1,0 +1,5 @@
+our built-in ids parsed: 837 | the ours-column ids found among them: 30
+A legend-pure's pick is dropped from our world (suppressed by name): 617
+   isEmpty 523, average 45, max 11, min 11, stdDevSample 10, median 8, or 7, stdDevPopulation 2
+B legend-pure's pick is in our world; we chose another: 128
+   hasGeneratedMilestoningPropertyStereotype 42, elementToPath 32, greaterThan 24, sum 7, propertyMappingsByPropertyName 5, max 3, contains 2, in 2, lessThanEqual 2, plus 2, startsWith 2, times 2, greaterThanEqual 1, lessThan 1, range 1

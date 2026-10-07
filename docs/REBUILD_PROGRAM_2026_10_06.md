@@ -119,9 +119,9 @@ passes (every roster, register, ledger and verdict) and every PCT case.
 - Run that configuration through the experiment harness (emulated, as before) and record every change it causes.
 - **Done (2026-10-06):** `docs/build-inventory/manifest-world/experiments/phase2b/README.md`. Upstream core adds 45
   extra overloads (6 native); one, `collection::get(T[*], String)`, causes every change (corpus, PCT), because our
-  compiler sums overload scores where legend-pure ranks parameter by parameter (the same root as the reference
-  lane's 745 `OVERLOAD` disagreements). Without it, all six corpus passes and all PCT suites are identical. Phase 3
-  ranks overloads as legend-pure does.
+  compiler sums overload scores where legend-pure ranks parameter by parameter. Without it, all six corpus passes
+  and all PCT suites are identical. Phase 3 ranks overloads as legend-pure does. (This note first said the reference
+  lane's 745 `OVERLOAD` rows share that root; the Phase 3 pre-experiment showed they do not, below.)
 
 ### Phase 3: the implementation table switched on (core compiler)
 - `ImplementationTable` (over `DeclarationTable` and `Registrations`) becomes the one authority at boot and at module
@@ -134,6 +134,12 @@ passes (every roster, register, ledger and verdict) and every PCT case.
   (`agg`, `col`) by resolved id, never by spelling.
 - Check: today's prelude is unchanged in this phase, so the experiment harness must be identical, and the table's
   shadow diff zero. The riskiest phase; several PRs.
+- **Pre-experiment (2026-10-06):** `docs/build-inventory/manifest-world/experiments/phase3-ranking/README.md`.
+  legend-pure's ranking rule changes nothing on today's world (local gate 289 of 290, the one failure a unit test
+  asserting the old rule's tie; corpus identical; PCT 17 of 17; reference lane byte-identical) and fixes Phase 2b's
+  `get`. The 745 `OVERLOAD` rows are not the ranking rule: 617 are calls whose legend-pure overload our compiler
+  drops by name (this phase's suppression removal brings them back), 79 are class-hierarchy choices (legend-pure
+  measures hierarchy distance), 49 are numbers and optional values, likely argument typing.
 
 ### Phase 4: the default world from upstream (replaces `PreludeGenerator`)
 - The generator: upstream core whole (legend-pure `platform*` and engine `core_functions_*`, tests stripped by
