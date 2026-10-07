@@ -163,6 +163,17 @@ on a branch, one CI run, then pushed to main.
   drops by name (this phase's suppression removal brings them back), 79 are class-hierarchy choices (legend-pure
   measures hierarchy distance), 49 are numbers and optional values, likely argument typing.
 
+- **Status (2026-10-06):** done on `build/phase3` (three commits; GATES entry "Build rebuild Phase 3"). Reference lane:
+  AGREE 73103 -> 74578, OVERLOAD 745 -> 58, DRIFT 32 -> 0, bodies we fail to type 1508 -> 1471; the local gate, all PCT
+  suites and the corpus ratchets pass. Adjustments, each measured: `Any` ranks with the type parameters (legend-pure
+  matches the calls in a lambda before their arguments are typed; run on legend-pure itself), m3's literal order settling
+  a remaining tie; a fit only a platform rule accepts ranks after every real parent. A short name that could mean a form's
+  function or another function stays decided by the argument types (`ReceiverOwnedFunctions`, as legend-pure decides),
+  not refused as first planned. Open, the user's call: about 12 upstream versions at the boot layer's 29 names
+  (`resolvePrimaryKey`, `propertyMappingsByPropertyName`, `inferRelationalType`, ...) run upstream's body as before.
+  About 480 places still branch on a resolved callee's full name (the identity guard's shrink-only counts); Phase 3 did
+  not take those.
+
 ### Phase 3b: match legend-pure on upstream's own code (core compiler)
 Agreed with the user 2026-10-06: after Phase 3, before Phase 6. Every function legend-pure types, we type, and every
 call picks the same function with the same type as legend-pure, whether the fix is in overload logic or in typing. That
@@ -182,6 +193,10 @@ is a compiler gap that user code can hit too. Running that code stays refused, a
 4. Done: every call the same function and type as legend-pure; every body legend-pure types, typed; every file loaded;
    anything left written down with its reason and approved by the user; corpus and PCT identical or better at every
    step.
+- Starts with (from Phase 3): the reference lane's 58 OVERLOAD rows (argument typing: `[0..1]` against `[1]`, `Number`
+  against `Integer`/`Float`, a more specific class, `range`'s arity); the 13 bodies that fail since Phase 3's step 2 (named
+  with causes in its GATES entry); the 110 upstream versions without a row (`unrowed-versions.txt`), which get rows or a
+  decision before Phase 4.
 - Takes over the parked compiler plan's items it covers (W1.1b and the typing work): said so in IN_FLIGHT and in that
   plan. The biggest phase; step 2 sizes it.
 
