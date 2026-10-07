@@ -41,20 +41,22 @@ generated file, never a signature we typed ourselves.
 
 | What | Where | Pushed? (2026-10-07) |
 |---|---|---|
-| The plan, the designs, the research, these briefs | branch `docs/bazel-first-class-plan` (worktree `runs/bazel-plan`): `docs/REBUILD_PROGRAM_2026_10_06.md`, `docs/BUILD_REBUILD_DESIGN_2026_10_05.md`, `docs/GENERATORS.md`, `docs/UPSTREAM_ONLY_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md`, `docs/build-inventory/` (inventories, dossiers, experiments, censuses), `docs/build-inventory/program/` (this folder) | **No.** The remote branch is at `8c4655ddf`, without this folder. Push it before anything that cites it lands (§4) |
-| The code | `main` (`origin/main` `f306bd698`). Phases 0, 1 and 2 are on it (PR #25, PR #26, `ff70aef01`). | yes |
+| The plan, the designs, the research, these briefs, the evidence | `main`: `docs/REBUILD_PROGRAM_2026_10_06.md`, `docs/BUILD_REBUILD_DESIGN_2026_10_05.md`, `docs/GENERATORS.md`, `docs/UPSTREAM_ONLY_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md`, `docs/build-inventory/` (inventories, dossiers, experiments, censuses), `docs/build-inventory/program/` (this folder; its `evidence/` holds the audits, scripts and recorded results) | yes, since 2026-10-07: merged from the plan branch `docs/bazel-first-class-plan` (pushed, kept as history). Edit them on main or a branch from it, not in `runs/bazel-plan` |
+| The code | `main`. Phases 0, 1 and 2 are on it (PR #25, PR #26, `ff70aef01`). | yes |
 | Phase 3 | branch `build/phase3` (worktree `runs/build-rebuild`); state in §3 | **No** (no remote branch) |
 | The program's debts | `docs/PARKED_WORK_LEDGER.md` rows PARK-5 to PARK-14 (on `build/phase3`; they land with Phase 3), anchored by `core/src/test/java/com/legend/ParkedWorkLedgerTest.java` | with Phase 3 |
 | Who works on what | `docs/IN_FLIGHT.md` on `main` (the program's entry lists every core file each phase touches) | yes |
 | Gate results and what moved, per change | `docs/GATES.md` (one entry per landing) | with each landing |
 | The pinned upstream sources | Bazel repositories `@legend_engine_src` and `@legend_pure_src` (`$(bazel info output_base)/external/+http_archive+legend_engine_src`, `...legend_pure_src`; use `find -L` inside them); release pins in `release.MODULE.bazel` (engine 4.145.0, pure 5.99.0) | — |
-| Scratch evidence of past runs (not in the repo) | each worktree's `runs/homework/`. Most of what a later phase needs is restated in a brief; what is not (the corpus baseline, the PARK-5 timing scripts, the prepared IN_FLIGHT update) is listed in `COLD_READ_2026_10_07.md` §4. On another machine, redo it from the briefs' prose. | never |
+| Evidence of past runs | `evidence/` in this folder: its README lists every audit report, script and recorded result the briefs cite, and what stayed in the code worktree's scratch (`runs/build-rebuild/runs/homework/`: raw logs, build outputs, big experiment outputs) with how to regenerate each | yes (since 2026-10-07) |
 | The audit agents | `~/.claude/agents/` (`auditor`, high effort, a 15-minute budget; `auditor-max`, maximum effort, no budget): session tooling, not in the repo; a new definition loads only when a session starts | — |
 
 ## 3. State, and the next action
 
 **State at the end of 2026-10-07** (the one place this is kept; other documents point here):
-- `origin/main`: `f306bd698`.
+- `origin/main`: `f306bd698`, then the documents' landing on 2026-10-07 (docs only: the plan branch merged, `AGENTS.md`'s
+  pointer, IN_FLIGHT's update). `build/phase3` is based on `f306bd698`: rebase it onto `origin/main` before landing
+  (docs-only commits in between, so no rerun).
 - `build/phase3` (local only): five commits on `f306bd698`, the four Phase 3 commits and the audit's fixes:
   `d0041969c` step 1, `a2f4da2fc` step 2, `3912d3c12` step 3, `5e8a7c263` the corpus fixes, `ad1ed0175` the audit's
   fixes (amended after the local gate with documents, reason text and one comment only). Worktree clean. The briefs and the first audit cite the ids from before the rebase onto `f306bd698`:
@@ -62,7 +64,8 @@ generated file, never a signature we typed ourselves.
   numbers in the files the fix commit changed moved a little (cite the ledger's anchors by name).
 - Checks on that tree: core tests, guards, census, spec tests; the six corpus passes identical to the
   pre-Phase-3 baseline; the reference lane byte-identical to its golden; PCT 17 of 17; the local gate 290 of 290.
-- `docs/bazel-first-class-plan` (local only): this folder and the plan's corrections, committed; not pushed.
+- The program's documents: on main since 2026-10-07 (merged from `docs/bazel-first-class-plan`, pushed, kept as history),
+  with the evidence folder.
 - Phases 0, 1, 2, 2b: done (2 is on main; 2b was an experiment). **Phase 3: built, audited twice, every finding fixed
   or recorded, checked; not landed.** What is left: `PHASE_3_LANDING.md` §5.
 - Next phases, in order: **3b, 6, 4, 5, 7**, with Phase 8's items interleaved where they touch other files. Each phase
@@ -91,13 +94,10 @@ applied to the plan afterwards. Where a brief and the plan disagree, the plan wi
     in `compiler/spec`; leaves cross-call checks and other passes); (c) the full fix first (the resolver records every
     call's names; about 200 places that build calls; the identity program's direction). Measure any fix with the same
     probe (`DEBTS_RESOLVE_AND_TYPE_ONCE.md`, "The measurement").
-  - Where the program's documents live: push the plan branch (needed: the ledger cites it), and whether this folder
-    should also land on main (docs only) so main never points at an unpushed branch.
-  - `AGENTS.md` on main: its "Current work" pointer (to this program and this file?), and a one-line "parked since
-    2026-10-06" note at the top of `docs/EXECUTION_PLAN_2026_09_26.md` §0. Shared files.
   - `AGENTS.md`'s "Pushing to main" still describes PRs (rule 2 "restored by P8-01", rule 3 "fix it in a PR"), and so
     do `gates/BUILD.bazel`'s header ("goes through a PR instead") and the root `progress.txt` (stale since April);
-    since 2026-10-06 there are no PRs (`PHASE_8.md` OD-9).
+    since 2026-10-06 there are no PRs (`PHASE_8.md` OD-9). Since 2026-10-07 `AGENTS.md` says this program lands without
+    PRs; whether other work keeps a PR path is the open part.
 - **Phase 3b and 6:** `PHASES_3B_6.md`, section 8 of each phase. Among them, 3b-O1 decides whether 3b builds the
   "platform's own Pure" row kind (the plan's decision 1 asks for it; Phase 4's D4-4 needs it): that is its one owner.
 - **Phase 4:** `PHASES_4_5_7.md` §2.8, D4-1 to D4-12 (which bodies the closure follows; the three legacy TDS functions
@@ -149,7 +149,8 @@ applied to the plan afterwards. Where a brief and the plan disagree, the plan wi
 1. An audit by an independent agent (`auditor`; `auditor-max` when the user asks for maximum effort).
 2. Fix what it finds; rerun the checks the fixes touch.
 3. Write the change's `docs/GATES.md` entry (what moved and why, with the numbers).
-4. Push the plan branch if the change cites anything new there (docs only: no CI runs on a branch push).
+4. Anything the change cites must be on main (the program's documents are, since 2026-10-07). A docs-only commit to main
+   carries `[skip ci]` when it holds any file that is not `.md` (CI skips only Markdown and `progress*.txt`).
 5. Push IN_FLIGHT's entry to main if it is not there yet (above).
 6. Rebase onto the latest `origin/main`, then the local gate once: `bazel test --lockfile_mode=error //gates:local`. The
    commit message says "local gate: //gates:local green" (AGENTS.md, "Pushing to main", rule 1).
@@ -188,7 +189,7 @@ the corpus. A compiler change must rerun the six passes and compare them with a 
 3. Compare the RESULT files, not the logs: the rosters (`*-fail-roster.txt`, `*-skipped-roster.txt`), the registers
    (`*-engine-order-register.txt`, `*-unordered-register.txt`, `*-database-engine-order-register.txt`), the ledgers
    (`judge-host.tsv`, `judge-database.tsv`) and `verdict.txt`, 22 files in all. Compare their sorted lines without
-   comment lines. Logs (`host.log`, `database.log`) differ by timings; ignore them. (The SQL the executor sends,
+   comment lines (`evidence/phase3/compare_judges.py <baseline dir> bazel-bin/spec` does it). Logs (`host.log`, `database.log`) differ by timings; ignore them. (The SQL the executor sends,
    seen only with `-Dlegend.diagnostics=dump-sql`, may renumber the reflection rows' function ids when the world
    gains functions; that is not in the result files.)
 4. A database pass refuses to run after its host pass fails, so an empty database output means look at the host pass.

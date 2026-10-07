@@ -9,7 +9,7 @@ agreed with the user first.
 ### The measurement
 
 - Probe: the audit's eager corpus compile (`com.legend.rcorpus.EagerCorpusCompileProbe`, run outside Bazel from its
-  execution root, scripts in `runs/build-rebuild/runs/homework/phase3x/audit_tmp/`), main's jars against Phase 3's,
+  execution root, scripts and each run's numbers in `evidence/phase3/park5/`), main's jars against Phase 3's,
   runs alternated. Typing (`typeAll`): main 2,147 ms mean, Phase 3 2,533 ms (+18%, slower in every pair). Whole corpus
   passes: H2 host unchanged, DuckDB host +3.6%.
 - Profile: JFR, 1 ms sampling, one run each. `jfr print` keeps 5 frames per stack by default, which hides the
@@ -80,7 +80,7 @@ options, with sizes:
 
 ### How to measure a fix
 
-The numbers above came from the audit's scripts, which are scratch (`runs/build-rebuild/runs/homework/phase3x/audit_tmp/`:
+The numbers above came from the audit's scripts, copied with the runs' numbers to `evidence/phase3/park5/` (`eager_timings.tsv`;
 `eager_run.sh` runs the probe from its Bazel execution root with a hard-coded macOS class path; `ab_run.sh` alternates
 two trees; `eager_jfr.sh` adds the recording; `jfr_agg.py` reads it). To redo them anywhere:
 - The probe is `com.legend.rcorpus.EagerCorpusCompileProbe`, the committed target `//spec:eager_corpus_compile`

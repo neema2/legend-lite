@@ -1,0 +1,14 @@
+run	tree	build_ms	typeAll_ms	bodies	failed
+eager_main_1	main	1918	1973	9942	1620
+eager_main_2	main	1933	2030	9942	1620
+eager_main_3	main	1865	2051	9942	1620
+eager_main_4	main	1979	2136	9942	1620
+eager_main_5	main	1898	2218	9942	1620
+eager_main_6	main	1946	2231	9942	1620
+eager_main_7	main	1938	2217	9942	1620
+eager_tip_1	phase3	1879	2305	9976	1630
+eager_tip_2	phase3	1892	2494	9976	1630
+eager_tip_3	phase3	2043	2526	9976	1630
+eager_tip_4	phase3	1909	2606	9976	1630
+eager_tip_5	phase3	1979	2623	9976	1630
+eager_tip_6	phase3	1935	2642	9976	1630

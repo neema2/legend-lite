@@ -1,0 +1,12 @@
+bazel-out/darwin_arm64-fastbuild/bin/parser-equivalence/generated/engine-grammar-fixtures.jsonl
+bazel-out/darwin_arm64-fastbuild/bin/parser-equivalence/generated/corpus-manifest.tsv
+bazel-out/darwin_arm64-fastbuild/bin/tools/engine-runner/generated/vocab.tsv
+bazel-out/darwin_arm64-fastbuild/bin/spec/generated/NameResolver.java
+bazel-out/darwin_arm64-fastbuild/bin/spec/generated/Pure.java
+bazel-out/darwin_arm64-fastbuild/bin/spec/generated/DynaFn.java
+bazel-out/darwin_arm64-fastbuild/bin/spec/generated/engine-handlers.tsv
+bazel-out/darwin_arm64-fastbuild/bin/spec/generated/com/legend/builtin/prelude.pure
+bazel-out/darwin_arm64-fastbuild/bin/tools/reference/ref-imports.tsv
+bazel-out/darwin_arm64-fastbuild/bin/parser-equivalence/pmcd_reachability_census/pmcd-reachability-census.txt
+bazel-out/darwin_arm64-fastbuild/bin/parser-equivalence/pmcd_reachability_census/run.log
+bazel-out/darwin_arm64-fastbuild/bin/spec/generated/native-declarations.tsv

@@ -1,0 +1,77 @@
+--- a/spec/src/test/java/com/legend/generators/OurResolutions.java
++++ b/spec/src/test/java/com/legend/generators/OurResolutions.java
+@@ -39,8 +39,10 @@
+  */
+ final class OurResolutions {
+ 
+-    /** What the dump saw: the sources dropped to make the model build, the bodies it could not type. */
+-    record Result(List<String> droppedSources, int functions, List<String> failedFunctions, long rows) {
++    /** What the dump saw: the sources dropped to make the model build, the bodies it could not type, and WHY each
++     *  (keyed by the dropped source's reference id or the body's function id), so the report pins the cause too. */
++    record Result(List<String> droppedSources, int functions, List<String> failedFunctions, long rows,
++            Map<String, String> reasons) {
+     }
+ 
+     private OurResolutions() {
+@@ -61,6 +63,7 @@
+             }
+         }
+         List<String> dropped = new ArrayList<>();
++        Map<String, String> reasons = new java.util.TreeMap<>();
+         ModelContext ctx = null;
+         Map<String, String> elementSources = Map.of();
+         for (int round = 0; round < 4000 && ctx == null; round++) {
+@@ -85,6 +88,7 @@
+                 }
+                 final String drop = src;
+                 dropped.add(referenceSourceId(drop));
++                reasons.put(referenceSourceId(drop), reason(e));
+                 sources.removeIf(s -> s.name().equals(drop));
+             }
+         }
+@@ -115,6 +119,7 @@
+                     compiled = specs.compile(fn);
+                 } catch (RuntimeException | StackOverflowError e) {
+                     failed.add(idOf(fn).isEmpty() ? fqn : idOf(fn));
++                    reasons.put(idOf(fn).isEmpty() ? fqn : idOf(fn), reason(e));
+                     w.println(src + "\t\t\tFAILED\t" + e.getClass().getSimpleName() + "\t\t" + enclosing);
+                     continue;
+                 }
+@@ -123,9 +128,19 @@
+                 }
+             }
+         }
+-        return new Result(List.copyOf(new TreeSet<>(dropped)), functions, List.copyOf(new TreeSet<>(failed)), rows);
++        return new Result(List.copyOf(new TreeSet<>(dropped)), functions, List.copyOf(new TreeSet<>(failed)), rows,
++                Map.copyOf(reasons));
+     }
+ 
++    /** Why a source dropped or a body failed, one line: the error's class and its message, without the enclosing
++     *  function's name the row already carries, whitespace collapsed, at most 200 characters. */
++    static String reason(Throwable e) {
++        String m = e.getMessage() == null ? "" : e.getMessage();
++        m = m.replaceFirst("^in function '[^']*':\\s*", "").replaceAll("\\s+", " ").trim();
++        String r = e.getClass().getSimpleName() + (m.isEmpty() ? "" : ": " + m);
++        return r.length() <= 200 ? r : r.substring(0, 199) + "…";
++    }
++
+     /** The callee's identity in upstream's own spelling (FunctionId), blank for a synthetic callee. */
+     private static String idOf(TypedFunction f) {
+         return f.definition() == null ? "" : com.legend.model.FunctionId.of(f.definition()).qualified();
+--- a/spec/src/test/java/com/legend/generators/ReferenceLaneReport.java
++++ b/spec/src/test/java/com/legend/generators/ReferenceLaneReport.java
+@@ -90,10 +90,10 @@
+         cov.forEach((k, v) -> sb.append(k).append('\t').append(v).append('\n'));
+         sb.append("\n== buckets\n");
+         j.buckets().forEach((k, v) -> sb.append(k).append('\t').append(v).append('\n'));
+-        sb.append("\n== dropped sources\n");
+-        dump.droppedSources().forEach(s -> sb.append(s).append('\n'));
+-        sb.append("\n== failed bodies\n");
+-        dump.failedFunctions().forEach(s -> sb.append(s).append('\n'));
++        sb.append("\n== dropped sources (source, why)\n");
++        dump.droppedSources().forEach(s -> sb.append(s).append('\t').append(dump.reasons().getOrDefault(s, "")).append('\n'));
++        sb.append("\n== failed bodies (function, why)\n");
++        dump.failedFunctions().forEach(s -> sb.append(s).append('\t').append(dump.reasons().getOrDefault(s, "")).append('\n'));
+         sb.append("\n== disagreement classes (kind, spelling, reference id, our id, count)\n");
+         j.classes().forEach((k, n) -> sb.append(k.kind()).append('\t').append(k.spelling()).append('\t')
+                 .append(k.refId()).append('\t').append(k.ourId()).append('\t').append(n).append('\n'));

@@ -36,7 +36,7 @@ text and one comment only, and the affected checks re-passed). The current state
 
 ## 3. The audit (2026-10-07, max effort): "ready after fixes"
 
-The full report is in the worktree's scratch: `runs/build-rebuild/runs/homework/phase3x/AUDIT_PHASE3.md`. Its
+The full report: `evidence/phase3/AUDIT_PHASE3.md` (this folder). Its
 findings and where each stands:
 
 | Finding | What | Status |
@@ -87,11 +87,9 @@ back to a function.
    the local fix commit):** the GATES entry (numbers from the final golden: 51 newly typed, 12 newly failing; 27 rows;
    109; item 3's two plan changes; the departures sentence; "every result file"; a paragraph on the audit and the ledger
    rows); `reasons.tsv` (every row matches a class in the golden; `//spec:reference_lane` passes); the execution plan's
-   W1.1b note removed; the plan's Phase 3 Status bullet. **Prepared, not pushed:** IN_FLIGHT's update, as a whole file
-   and a diff in the worktree's scratch (`runs/homework/phase3x/IN_FLIGHT.next.md`, `IN_FLIGHT.diff`: 27 rows, the
-   fix files, `reasons.tsv`, no PRs, F-L1 now this program's, the START_HERE pointer); push it to main before the code
-   (if main's IN_FLIGHT moved meanwhile, re-apply the diff's six edits to the new version: the five above and line 10's superseded plan name). **Still a question for the
-   user:** the `AGENTS.md` pointer. The items, for the record:
+   W1.1b note removed; the plan's Phase 3 Status bullet. **Pushed to main on 2026-10-07:** IN_FLIGHT's update (27 rows, the
+   fix files, `reasons.tsv`, no PRs, F-L1 now this program's, the START_HERE pointer, line 10's superseded plan name),
+   and `AGENTS.md`'s pointer to this program (the user: "Fix agents.MD"). The items, for the record:
    - `docs/GATES.md`, the Phase 3 entry ("2026-10-06 — Build rebuild Phase 3"): "Bodies: 50 newly typed, 13 newly
      failing" becomes the counts from the final golden (the audit measured 51 and 12 before the fixes);
      `testViewChainsWithBusinessDate` types again (commit 4's dot-call rule): remove it from the newly failing list;
@@ -120,20 +118,19 @@ back to a function.
      program's, Phase 3b item 1. This lands on main before the code (standing authorization).
    - The plan's Phase 3 Status bullet (plan branch): four commits plus the fix commit, the final numbers, the audit, the
      ledger rows, PROPERTY_AS_CALL 39 -> 1, the corpus account (four tests the step-2 change broke, fixed by commit 4).
-   - `AGENTS.md` on main ("Current work: the compiler rebuild"): point this program's sessions at the plan branch and
-     `docs/build-inventory/program/START_HERE.md`. A shared file: ask the user before changing it.
+   - `AGENTS.md` on main ("Current work: the compiler rebuild"): **done 2026-10-07** (the user: "Fix agents.MD"): it
+     points at `docs/build-inventory/program/START_HERE.md` and marks the compiler plan parked.
 4. **A short audit of the fix delta** (B1's code and tests, the ledger and its anchors, the wording fixes).
 5. **Done 2026-10-07:** the short audit of the fix delta ("ready after fixes": 0 blockers, 6 should-fix, 5 nits; all
    applied: two reasons rows for `range` and `propertyMappingsByPropertyName`, the `PACKAGE *` row removed, the ledger's
    closing rule, a "why parked" line per row, PARK-12's acceptance by rows, PARK-13's cost, the bare-function-type case
    in PARK-9, five more anchors for PARK-6 and PARK-10, `contravariantTypeFit` sharing the covariant distance
-   (`generalizationDistance`), and the wording nits; report in the worktree's scratch, `AUDIT_FIXES.md`); the lanes
+   (`generalizationDistance`), and the wording nits; report: `evidence/phase3/AUDIT_FIXES.md`); the lanes
    rerun on the final code (six corpus passes identical, reference lane byte-identical, PCT 17 of 17); the fix
    committed locally and the branch rebased; the local gate green, 290 of 290 (recorded in the GATES entry). **Left for the
    next session (the user, 2026-10-07: "leave the park decision and CI/push for next session"):** the PARK-5 decision
-   (three options, `START_HERE.md` §3); push the plan branch first (the ledger and IN_FLIGHT cite files only there:
-   `git -C runs/bazel-plan push origin docs/bazel-first-class-plan`, docs only, no CI); push IN_FLIGHT's prepared update
-   to main (`START_HERE.md` §4 says how); put `[skip ci]` on the tip commit; then:
+   (three options, `START_HERE.md` §3); (done 2026-10-07: the documents and the evidence on main, IN_FLIGHT's update
+   pushed); rebase onto `origin/main` (docs-only commits since `f306bd698`); put `[skip ci]` on the tip commit; then:
 6. **Land** (`START_HERE.md` section 4): one fix commit ("Phase 3: the audit's fixes ..."), rebase onto
    `origin/main`, `bazel test --lockfile_mode=error //gates:local`, tip commit with `[skip ci]`, push the branch,
    `gh workflow run gate.yml --ref build/phase3 -f gates= -f platforms=all`, then on green

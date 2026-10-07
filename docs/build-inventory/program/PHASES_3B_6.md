@@ -546,7 +546,7 @@ Acceptance (from the plan, PARK-12 and this brief's findings):
    3b's (items 5 and 1); Phase 6 checks them.
 4. code:`docs/IN_FLIGHT.md` on main (Bazel line, 2026-10-05 note): "Not fixed by this program: F-L1 ... for the
    compiler's owner" → F-L1 is this program's (3b item 1). PHASE_3_LANDING section 5.3 says a corrected IN_FLIGHT is
-   prepared in code:`runs/homework/phase3x/IN_FLIGHT.next.md` and lands before the Phase 3 code.
+   prepared; it was pushed to main on 2026-10-07, before the Phase 3 code.
 5. code:`projects/FINDINGS.md:137-140`, plan:`docs/BAZEL_EXECUTION_LOG.md:301` and the IN_FLIGHT note: "one line in
    ModelBuilder (walk `defaultSchemaViews()`)" → right for every measured case, but it relies on object identity that
    `NameResolver.resolveDatabase` can break (3b.4, item 1a).
@@ -738,7 +738,7 @@ removed `plus`/`minus`); the reference lane counts 11 in 3 files plus 1 knock-on
 **The H2 register.** In experiment 8 the H2 database pass failed with
 `[h2] host-compared register != committed (full run): NEW 1 (an assert was decided outside a verdict row ...)`,
 naming `testPlanWithLocalH2ConnectionWithSQL` (code:`runs/homework/world/e6_lanes/e8_manifest/judge_database_h2/database.log:1606-1607`,
-scratch). The register is `spec/src/test/resources/rcorpus/h2-database-host-compared-register.txt`, **empty** (0 lines), as is
+scratch, not committed: a raw log; rerun experiment 8 with `experiments/rerun.sh` to see it). The register is `spec/src/test/resources/rcorpus/h2-database-host-compared-register.txt`, **empty** (0 lines), as is
 DuckDB's; it is checked by `pinArtifactRegister` (code:`spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java:435-445, 1022-1068`),
 described as "exact, shrink-only — the number that must reach zero"; it reached zero on 2026-09-21 (commit `dc80d4891`,
 "the host-compared register reaches zero — every assert is a verdict row"). The test is already in both fail rosters
@@ -951,8 +951,8 @@ whatever its tests say; the verdict is a file.
    `<lane>-engine-order-register.txt`); DuckDB and H2 database passes — `judge-database.tsv`, `verdict.txt`,
    `<lane>-database-engine-order-register.txt`; warehouse passes — the ledger and `verdict.txt` (no rosters of their
    own: `golden = False`, they check against DuckDB's committed ones). Compare sorted lines without lines starting with
-   `#`; skip `*.log` (timings) and `*.params`. A ready script: code:`runs/homework/phase3x/compare_judges.py` (scratch;
-   usage `python3 -I compare_judges.py <judges_base> bazel-bin/spec`; copy it, it is not committed).
+   `#`; skip `*.log` (timings) and `*.params`. A ready script: `docs/build-inventory/program/evidence/phase3/compare_judges.py`
+   (usage `python3 -I compare_judges.py <judges_base> bazel-bin/spec`).
 5. Known benign difference: the H2 and DuckDB host passes' reflection rows renumber their function ids
    (PHASE_3_LANDING, S6). Anything else is fixed or explained to the user before landing.
 6. One pass by hand, scoped to a test: `bazel run //spec:corpus_one -- <duckdb|h2> <host|database> [<test fqn>]`
@@ -978,8 +978,8 @@ whatever its tests say; the verdict is a file.
 `FailureCensus.java` and `StrictGapCensus.java` (plan:`docs/build-inventory/manifest-world/experiments/phase3b-census/`)
 are in package `com.legend.generators` because they call `ManifestWorldCensusTest.manifests/closure` (package-private).
 Outline (census README; the exact command is UNVERIFIED): compile them against the classpath of
-`//spec:reference_lane_report`'s action (a scratch copy of it, from Phase 3: code:`runs/homework/phase3x/refcp.txt`,
-exec-root-relative paths), run from the execution root with `-Dlegend.engine.root=<realpath of the engine tree>
+`//spec:reference_lane_report`'s action (take it from `bazel aquery //spec:reference_lane_report`; Phase 3's scratch copy, `phase3x/refcp.txt`, has one
+machine's paths and is not committed), run from the execution root with `-Dlegend.engine.root=<realpath of the engine tree>
 -Dlegend.pure.root=<realpath of the pure tree>`, `-Xss16m` (the report's flag), a large heap, and an output path:
 `StrictGapCensus <out.tsv>`. Compare `DROPPED`/`BROKEN`/`FAILED` rows with the committed `strict-gaps.tsv`. Remember the
 file attribution of overloaded functions is unreliable until item 5b is fixed.
