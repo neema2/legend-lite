@@ -27,12 +27,26 @@ checkout directories (the census's file walk does not follow the execroot's syml
   functions not inlinable; 44 a JSON key-value restriction; 41 `validate` in a body; 27 walls enforced while typing;
   about 270 in some 30 smaller causes (9 index-out-of-bounds crashes).
 
-## The 32 dropped files
+## The 32 dropped files, completely (`strict-gaps.tsv`, `StrictGapCensus.java`)
 
-18 use model-to-model mapping features the platform does not support yet (set-routed bindings, enum transformers,
-explosions, two others): the model build refuses the whole file. 7 are "defined more than once": five upstream platform
-files whose functions the boot layer also declares (the twin check fails), two the view lifted twice (F-L1). 7 name an
-unknown type: units of measure (3), `Runtime`/`Mapping` (3), `HealthProfile` (1).
+The strict load (the reference lane's) drops a file at its first broken element. `StrictGapCensus` also runs the
+tolerant build (`Compiler.buildModule`) as a DIAGNOSTIC, which records every broken element with its first failure, and
+marks each failing body whose error names an element only a dropped file declares. Rows: BROKEN (every broken element,
+with its file), DROPPED (the strict drop's first error, and whether the file has broken elements of its own), FAILED
+(every failing body, `knockOn=<file>` when it is a consequence of a drop).
+
+- **12 files have broken elements of their own, 27 elements:** units of measure (`Mass~Kilogram`, the unit arithmetic:
+  11 elements, 3 files); the boot layer's twins (`classMappingById`, `toDomainValue`, `enumerationMappingByName`,
+  `propertyMappingsByPropertyName`, `schema`/`table`/`view`/`column`/`childByJoinName`, `relationTreeAsString`: 11
+  elements, 5 files); views lifted twice (F-L1: 3 elements, 2 files); `Runtime`/`Mapping` not found as type names (the
+  service's `from`, the router's `routeFunction`: 2 elements).
+- **18 files fail only under the strict build:** their mappings use a model-to-model feature the platform does not
+  support yet (set-routed bindings, enum transformers, explosions); the strict build normalizes mappings eagerly and
+  refuses, the tolerant build defers the refusal to use, so the corpus has these files.
+- **2 drops are knock-ons:** `testUnitMeasure.pure` (its class needs `unitMeasure.pure`'s) and the data-space
+  `mappingExtension.pure`.
+- Of the 1,469 failing bodies, **47 are knock-ons** of drops (23 from `modelJoinAdvancedSetup.pure`, 15 from the M2M
+  `simple.pure`, 5 from `router_main.pure`, 4 from the scan-relations files); **1,422 fail on their own**.
 
 ## The decision
 
