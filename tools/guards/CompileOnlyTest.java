@@ -55,7 +55,11 @@ class CompileOnlyTest {
                     "jvm_import CreateCompileJar", "rules_jvm_external's compile-only copy of a TeaVM jar",
                     "_teavm_wasm TeaVM", "compiles Java to WebAssembly")),
             "native", with(JAVA_LIBRARY, Map.of(
-                    "_native_image NativeImage", "compiles the database server to a native executable",
+                    "_native_image NativeImage",
+                    "compiles the database server to a native executable, and the compiler to a native library",
+                    "jvm_import CreateCompileJar", "rules_jvm_external's compile-only copy of a jar the compiler's"
+                            + " native library compiles against: GraalVM's native-image API, and TeaVM's, which"
+                            + " //wasm:boundary names",
                     "cc_library CppCompile", "compiles zlib, which the native image links",
                     "cc_library CppArchive", "archives zlib for the image (libz.a)",
                     "cc_library CppLink", "zlib's shared library: registered on Linux and Windows, unused",

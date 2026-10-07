@@ -1,0 +1,45 @@
+# legend_lite: the Legend compiler in Python (README.md), over the native library //native:compiler. Plain Python on
+# its standard library alone.
+load("@rules_python//python:py_library.bzl", "py_library")
+load("@rules_python//python:py_test.bzl", "py_test")
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/platforms:defs.bzl", "compatible_with")
+
+py_library(
+    name = "legend_lite",
+    srcs = glob(["legend_lite/**/*.py"]),
+    imports = ["."],
+)
+
+# The bindings over the BUILT library, on the repository's own Python (MODULE.bazel: 3.12, never the machine's): the
+# planner differential corpus against the JVM's answers (as //wasm:differential_test holds the WebAssembly build),
+# and the bindings' own suite. Where the library builds (//native:compiler).
+py_test(
+    name = "bindings_test",
+    # seconds alone (6 s), but past `small`'s 60 s under the whole gate on this desk (2026-10-07), as
+    # //wasm:differential_test
+    size = "medium",
+    srcs = glob(["tests/*.py"]),
+    data = [
+        "//native:compiler",
+        "//wasm:corpus/model.pure",
+        "//wasm:corpus/queries.tsv",
+        "//wasm:jvm_answers",
+    ],
+    env = {
+        "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+        "LEGEND_LITE_CORPUS_MODEL": "$(rlocationpath //wasm:corpus/model.pure)",
+        "LEGEND_LITE_CORPUS_QUERIES": "$(rlocationpath //wasm:corpus/queries.tsv)",
+        "LEGEND_LITE_JVM_ANSWERS": "$(rlocationpath //wasm:jvm_answers)",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUTF8": "1",
+    },
+    main = "tests/main.py",
+    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64"]),
+    deps = [
+        ":legend_lite",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+guards_package()

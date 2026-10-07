@@ -41,6 +41,8 @@ legend_java_library(
     ],
     resources = ["src/main/resources/META-INF/services/org.teavm.classlib.ResourceSupplier"],
     resource_strip_prefix = "wasm/src/main/resources",
+    # the same boundary, built native too (//native:compiler)
+    visibility = ["//native:__pkg__"],
     deps = [
         ":teavm_api",
         # the plan side only (C2a): the WebAssembly planner carries no execution library, no database, no driver
@@ -109,7 +111,15 @@ java_run(
         "{OUT}",
     ],
     main_class = "planner.JvmMain",
+    # the native build is held to the same answers (//python:bindings_test)
+    visibility = ["//python:__pkg__"],
     deps = [":jvm_main"],
+)
+
+# the corpus itself, for the native build's differential
+exports_files(
+    ["corpus/model.pure", "corpus/queries.tsv"],
+    visibility = ["//python:__pkg__"],
 )
 
 node_test(

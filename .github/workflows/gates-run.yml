@@ -190,8 +190,11 @@ jobs:
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
           # the app package too (L1c, 2026-10-07): packaging, so the product job's (the datacube lane builds it again, as
-          # package_test's data)
-          bazel build "${flags[@]}" //:java //:web //:wasm //:native //:sites //datacube:app //datacube:app_package
+          # package_test's data). The compiler as a native library (//native:compiler) is named on its own, never in
+          # //:native: it does not build on Windows yet, and an incompatible member would make //:native, and so the
+          # warehouse's image, skipped there; --skip_incompatible_explicit_targets skips the library alone
+          bazel build "${flags[@]}" --skip_incompatible_explicit_targets //:java //:web //:wasm //:native //:sites \
+            //datacube:app //datacube:app_package //native:compiler
           # the folder, what is saved (content_addressable/, the downloads: 3.1 GB on Linux, about 1 GB on macOS and Windows in
           # the cold run of L1e, under the 10 GB cap) and what is not (contents/, the unpacked repositories)
           du -sh "$HOME/.cache/bazel-repo" "$HOME/.cache/bazel-repo/content_addressable" "$HOME/.cache/bazel-repo/contents" 2>/dev/null || true

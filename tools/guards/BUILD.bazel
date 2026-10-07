@@ -104,19 +104,27 @@ junit_test(
 # THE BUILD IS ONLY COMPILES (docs/BUILD_REBUILD_DESIGN_2026_10_05.md, step 1): every kind of action the build targets
 # perform (compile_only.bzl), and the test that holds them to compiling and file plumbing. The fixture tier is the
 # test's proof that it still catches what it exists to catch.
+_TIERS = {
+    "//:java": "java",
+    "//:native": "native",
+    "//:wasm": "wasm",
+    "//:web": "web",
+    ":compile_only_fixture_genrule": "fixture",
+    ":compile_only_fixture_generator": "fixture",
+    ":compile_only_fixture_impostor": "fixture",
+    ":compile_only_fixture_validated": "fixture",
+}
+
 action_kinds_report(
     name = "build_action_kinds",
     testonly = True,
-    tiers = {
-        "//:java": "java",
-        "//:native": "native",
-        "//:wasm": "wasm",
-        "//:web": "web",
-        ":compile_only_fixture_genrule": "fixture",
-        ":compile_only_fixture_generator": "fixture",
-        ":compile_only_fixture_impostor": "fixture",
-        ":compile_only_fixture_validated": "fixture",
-    },
+    # the compiler as a native library (//native:compiler) shares the native tier: the same native-image compile and
+    # zlib. Not where it does not build (Windows, for now): an incompatible tier would make this report, and so the
+    # guard, incompatible there too
+    tiers = select({
+        "@platforms//os:windows": _TIERS,
+        "//conditions:default": _TIERS | {"//native:compiler": "native"},
+    }),
 )
 
 junit_test(

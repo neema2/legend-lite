@@ -1,0 +1,60 @@
+# LEGEND-LITE'S COMPILER AS A NATIVE LIBRARY: the very boundary the browser runs as WebAssembly (//wasm:boundary,
+# planner.Wasm over //core), built by GraalVM's native-image as a SHARED LIBRARY, for hosts that load native code --
+# first Python (//python, legend_lite). One compiler source, two builds, one differential corpus.
+load("@rules_graalvm//graalvm:defs.bzl", "native_image")
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/platforms:defs.bzl", "compatible_with")
+
+# GraalVM's native-image API (@CEntryPoint and its C types): compile-only, native-image supplies its own
+legend_java_library(
+    name = "graal_api",
+    neverlink = True,
+    exports = [
+        "@maven_native//:org_graalvm_sdk_nativeimage",
+        "@maven_native//:org_graalvm_sdk_word",
+    ],
+)
+
+# The C entry points, over planner.Wasm, and the resources the image must carry (META-INF/native-image)
+legend_java_library(
+    name = "entry",
+    srcs = glob(["src/main/java/**/*.java"]),
+    resources = glob(["src/main/resources/**"]),
+    resource_strip_prefix = "native/src/main/resources",
+    deps = [
+        ":graal_api",
+        "//wasm:boundary",
+    ],
+)
+
+# libcompiler.dylib (macOS) / libcompiler.so (Linux). Everything links when the image is built
+# (--link-at-build-time), as the warehouse's image does: a missing class fails the build, never a call. The C
+# toolchain is the warehouse image's (//warehouse:server_native): the host's checked first, zlib from source, lld on
+# Linux. The library's own name is set, never the path of the sandbox that built it: libcompiler.so (its soname) on
+# Linux, @rpath/libcompiler.dylib (its install name) on macOS. Not on Windows yet: the bindings load a .dylib or a
+# .so (python/legend_lite/_library.py).
+native_image(
+    name = "compiler",
+    executable_name = "libcompiler",
+    extra_args = ["--link-at-build-time"] + select({
+        "@platforms//os:linux": ["-H:NativeLinkerOption=-Wl,-soname,libcompiler.so"],
+        "@platforms//os:macos": ["-H:NativeLinkerOption=-Wl,-install_name,@rpath/libcompiler.dylib"],
+        "//conditions:default": [],
+    }),
+    data = ["@host_cc//:present"],
+    shared_library = True,
+    static_zlib = "@zlib",
+    c_compiler_option = select({
+        "@platforms//os:linux": ["-fuse-ld=lld"],
+        "//conditions:default": [],
+    }),
+    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64"]),
+    visibility = [
+        "//python:__pkg__",
+        "//tools/guards:__pkg__",
+    ],
+    deps = [":entry"],
+)
+
+guards_package()

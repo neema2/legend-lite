@@ -24,6 +24,9 @@ load(":jars_table.bzl", "JARS", "jar_of_label")
 POOL_USERS = {
     # legend-engine's execution stack, for the engine runner tool only
     "maven_runner": ["tools/engine-runner"],
+    # GraalVM's native-image API (@CEntryPoint and its C types), compile-only: the compiler's C entry points, which
+    # native-image builds into a shared library (//native:compiler, for the Python bindings in //python)
+    "maven_native": ["native"],
     # TeaVM: the WebAssembly compiler and the class library the planner compiles against; and sdlc-server, whose
     # rules (with depot-server's) compile to the page's SDLC module the same way (2026-10-04, the Studio line,
     # docs/STUDIO_DESIGN_2026_10_02.md S21: its :teavm_api and :page targets, as //wasm's)

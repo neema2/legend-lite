@@ -6953,3 +6953,45 @@ What changed:
 
 The audit (the auditor agent, 2026-10-07, resumed after a session restart): one process blocker (the branch sat on the commit before the plan-rows fix: rebased), five should-fix, all taken — with a remote cache Bazel would have served cached *test results*, so CI now runs every test every time (`test:ci --nocache_test_results`; the user: start there, decide on the numbers); desks no longer write to CI's cache (the `remote` config uploads nothing, CI's own rc turns uploads on); the timeout justified (600 s); a failed folder removal no longer skips the test's Postgres shutdown; the key on the event service's header too; and four nits. CI runs every test every time, so what the cache gives is the build: the image, the planner, the bundles, the jars. Local gate `//gates:local` green, 311 of 311. The runs:
 cold, 37676021026 (19:38 UTC; the cache empty): 49 of 51 jobs green, the macOS and Windows product jobs red on the two things the amended commit corrected (`query` handed the build-only `ci-small` config; the Windows refetch under `--config=bazel10` re-extracting the JDK over a locked DLL once the contents cache was disabled); warm, 37679310981 (20:04 to 20:26 UTC, 22 minutes): green on every job, every job's build actions from the cache. What the remote cache bought, lane by lane: the evidence's §11 (the product job 14 / 8 / 14 → 12 / 3 / 9 minutes, Linux / macOS / Windows; the corpus lanes 9 / 6 / 8 → 5 / 3 / 3; checks 11 / 8 / 15 → 7 / 6 / 10; the test-bound lanes unchanged, since every test runs; the wall clock 26 → 22).
+
+## 2026-10-07 — The compiler as a native library, with Python bindings (the DataCube + Python line, L1)
+
+The line: `docs/IN_FLIGHT.md`, "A sixth line, 2026-10-07: DataCube + Python". What it adds: `//native:compiler`, the
+browser's compiler (`//wasm:boundary`, `planner.Wasm` over `//core`) built by GraalVM native-image as a shared library
+(`libcompiler.dylib` on macOS, `libcompiler.so` on Linux), and `python/legend_lite`, Python bindings on the standard
+library alone (ctypes). Nothing in `core/`.
+
+What judges it:
+1. **`//python:bindings_test`** (a `py_test` on the repository's Python 3.12), in the `warehouse` lane:
+   - the planner differential corpus through the library: **69 of 69 answers identical to the JVM's**
+     (`//wasm:jvm_answers`; 13 of them refusals), as `//wasm:differential_test` holds the WebAssembly build;
+   - the bindings' own suite (13 tests): trees in and out, exact numbers, refusals as `LegendError`, typing and
+     planning, a model's elements, a Database from a catalog, UTF-8 text, a NUL refused before the call, eight threads
+     at once, and **every answer freed**. That last one reads `lite_unfreed`, the library's own count of answers handed
+     out and not yet freed, which must come back to where it started. The process's size cannot show a leak: over
+     1,000 calls answering 364 KB each (a 400-class model), it swung between 265 and 580 MB as the isolate's heap
+     grew and shrank, its peak flat at 696 MB after 200 calls (this desk, 2026-10-07). The test the count replaced read
+     that size through `ps`, a host program, and ran 3,200 plans; under the whole gate it timed out at 60 s.
+2. **The product**: CI's product step builds `//native:compiler` by name with `--skip_incompatible_explicit_targets`,
+   never inside `//:native` (an incompatible member would skip the warehouse's image on Windows).
+   `//tools/guards:compile_only_test` walks it in the `native` tier, except on Windows (the tier map is a `select`):
+   the one new action, `jvm_import CreateCompileJar` (the compile-only copy of GraalVM's native-image API and of
+   TeaVM's, which the boundary names), is allowed there with its reason.
+
+Measured on this desk (macOS arm64): the library builds in 26 to 35 s; the bindings' test runs in about 1 s.
+
+Not yet: Windows (the bindings load a `.dylib` or a `.so`; the targets are skipped there). Threads stay attached to
+the isolate once they have called in (a few kilobytes each after they exit), and the isolate is not used across
+`os.fork`: both are documented in `python/README.md`.
+
+The review: the Bazel program session reviewed the Bazel edits and accepted them as they are (2026-10-07). The audit
+(the auditor agent, 2026-10-07): one process blocker (no CI run yet: the run below), six should-fix items, a missing
+test and seven nits, all fixed. The ones that change behaviour:
+- a Java `Error` in the planner (the isolate's heap exhausted, say) would have aborted the host process, through
+  GraalVM's default entry-point handler; it is now an `ERR` answer;
+- the library was named `compiler-bin.dylib` and recorded the path of its build sandbox as its own name; it is now
+  `libcompiler`, with an install name (macOS) and a soname (Linux) of its own;
+- threads never detach, which is now documented;
+- a NUL in a text argument silently cut it short; it is now refused before the call;
+- a test comment pointed at nothing; it now names the compiler line's branch;
+- non-ASCII text had no test; it now has one, and the library reads C strings as UTF-8 by name.
