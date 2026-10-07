@@ -107,27 +107,24 @@ jobs:
           git config --global core.eol lf
           git config --global core.longpaths true
       - uses: actions/checkout@v4
-      # The runner image's version (GitHub sets ImageVersion on hosted runners): an image update brings a new
-      # Xcode or Visual Studio, whose versions are a native-image input (@host_cc), so it starts a fresh cache.
-      - id: image
-        run: echo "version=${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
-      # THE DOWNLOADS ONLY (docs/build-inventory/program/evidence/phase8/CI_LANES_2026_10_07.md §4): Bazel's repository
-      # cache (the JDK, the jar pools, the npm packages, the upstream archives, Chromium, GraalVM), one entry per
-      # platform shared by every lane, keyed by every pin (the lock files, the product jars' table and MODULE.bazel's
-      # own archives, which no lock file records). Build outputs are not cached: GitHub keeps 10 GB per repository,
-      # and one lane's outputs crowded out every other platform's downloads. Every lane restores the entry; only the
-      # product job saves it (last step), after its analysis of //... has fetched everything the build can reach — a
-      # lane that saved first would keep only its own downloads, and actions/cache never adds to an existing key.
-      # linux-arm has no product job, so its one lane (warehouse) saves.
+      # THE PRODUCT'S DOWNLOADS ONLY (docs/build-inventory/program/evidence/phase8/CI_LANES_2026_10_07.md §4 and §8):
+      # Bazel's repository cache as the product build leaves it (the JDK, the product's jars, GraalVM, esbuild, Node
+      # and the bundles' npm packages), one entry per platform shared by every lane, keyed by every pin (the lock
+      # files, the product jars' table and MODULE.bazel's own archives, which no lock file records). Not in the key:
+      # the runner image's version (GitHub rotates images run to run, so such a key almost never matched twice), and
+      # the separator is '=' so one platform's prefix cannot match another's (linux matched linux-arm once). Not
+      # cached: build outputs (GitHub keeps 10 GB per repository), and the test pools' jars (the product job saves
+      # right after the product build, before its analysis of //... fetches every pool: that cache was 19 GB). Every
+      # lane restores the entry; only the product job saves it, since actions/cache never adds to an existing key.
+      # linux-arm has no product job, so its one lane (warehouse) saves at its end.
       - name: Bazel downloads, keyed by the pins
         id: repo
         uses: actions/cache/restore@v4
         with:
           path: ~/.cache/bazel-repo
-          key: bazel-repo-${{ inputs.platform }}-${{ steps.image.outputs.version }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}
+          key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}
           restore-keys: |
-            bazel-repo-${{ inputs.platform }}-${{ steps.image.outputs.version }}-
-            bazel-repo-${{ inputs.platform }}-
+            bazel-repo-${{ inputs.platform }}=
       - name: a zone that is not UTC (the Windows warehouse, datacube and ui lanes)
         # The hosted runners are UTC, which hides a test that reads the machine's zone where it should set its
         # own: on Windows DuckDB reads the system zone and ignores TZ (WarehouseJdbcTest's reference session,
@@ -154,6 +151,27 @@ jobs:
             echo "$sha  /usr/local/bin/bazel" | sha256sum -c -
             sudo chmod +x /usr/local/bin/bazel
           fi
+      # THE PRODUCT (docs/BUILD_REBUILD_DESIGN_2026_10_05.md §4.1): the compile targets and the app's packaging, nothing
+      # else; //tools/guards:compile_only_test holds them to compiles and file plumbing. A step of its own, so the
+      # downloads cache is saved right after it (below), before the analysis of everything fetches every pool.
+      - name: bazel build product
+        if: matrix.lane.key == 'product'
+        env:
+          LOW_MEMORY: ${{ inputs.low-memory }}
+        run: |
+          set -euo pipefail
+          flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
+          if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
+          bazel build "${flags[@]}" //:java //:web //:wasm //:native //:sites //datacube:app
+          du -sh "$HOME/.cache/bazel-repo"
+      # the downloads saved once per platform and pin hash, by the product job once the product is built (above);
+      # the lanes never save (actions/cache never adds to an existing key: the first saver would fix the content)
+      - name: Bazel downloads, saved by the product job
+        if: matrix.lane.key == 'product' && steps.repo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/bazel-repo
+          key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}
       - name: bazel ${{ matrix.lane.cmd }} ${{ matrix.lane.key }}
         env:
           LOW_MEMORY: ${{ inputs.low-memory }}
@@ -172,9 +190,7 @@ jobs:
             case "$PLATFORM" in linux*) ;; *) tflags+=(--test_tag_filters=-ci-linux-only --build_tests_only) ;; esac
           fi
           if [ "${{ matrix.lane.key }}" = product ]; then
-            # THE PRODUCT (docs/BUILD_REBUILD_DESIGN_2026_10_05.md §4.1): the compile targets and the app's packaging,
-            # nothing else; //tools/guards:compile_only_test holds them to compiles and file plumbing
-            bazel build "${flags[@]}" //:java //:web //:wasm //:native //:sites //datacube:app
+            # the product is built (the step above); here everything is analysed, and every test's lane checked
             # G14 (Bazel workplan P6-14): every target still analyzes under Bazel 10's incompatible flags (.bazelrc);
             # the manual hand targets by name, since //... leaves them out and no lane reaches them
             bazel build --nobuild --config=bazel10 "${flags[@]}" //... //:update_generated //tools/census:render_census //tools/census:lanes_diff //tools/junit:compare_testcases //wasm:startup
@@ -209,11 +225,11 @@ jobs:
             bazel-bin/spec/judge_database_*/verdict.txt
             bazel-bin/spec/judge_*/*-*.txt
           if-no-files-found: ignore
-      # the downloads saved once per platform and pin hash, by the job that fetched everything (above); even after a
-      # red test, since the downloads are the pins' and not the tests'
-      - name: Bazel downloads, saved by the product job
-        if: always() && steps.repo.outputs.cache-hit != 'true' && (matrix.lane.key == 'product' || inputs.platform == 'linux-arm')
+      # linux-arm has no product job: its one lane (warehouse) saves the downloads at its end, even after a red test
+      # (the downloads are the pins', not the tests')
+      - name: Bazel downloads, saved by the linux-arm lane
+        if: always() && inputs.platform == 'linux-arm' && steps.repo.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ~/.cache/bazel-repo
-          key: bazel-repo-${{ inputs.platform }}-${{ steps.image.outputs.version }}-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}
+          key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion') }}
