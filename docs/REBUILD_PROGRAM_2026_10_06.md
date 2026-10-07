@@ -123,23 +123,67 @@ passes (every roster, register, ledger and verdict) and every PCT case.
   and all PCT suites are identical. Phase 3 ranks overloads as legend-pure does. (This note first said the reference
   lane's 745 `OVERLOAD` rows share that root; the Phase 3 pre-experiment showed they do not, below.)
 
-### Phase 3: the implementation table switched on (core compiler)
-- `ImplementationTable` (over `DeclarationTable` and `Registrations`) becomes the one authority at boot and at module
-  load, keyed by `FunctionId`. The compiler's name-based suppressions go (function shadowing by name, the
-  platform-owned checks); the generator's drops go in Phase 4.
+### Phase 3: one table decides, by exact function id (core compiler)
+Agreed with the user 2026-10-06. Today the compiler collects a call's candidates by name, drops some by name (the PCT
+rule and the platform-owned list in `FunctionCompiler`), ranks the rest by adding per-parameter scores, then asks
+`ImplementationTable` how the winner runs; language forms, `TdsLegacy` and `groupBy`'s `agg` are recognized by spelling.
+After: candidates and implementations come from the table by `FunctionId`, and the ranking is legend-pure's. One batch
+on a branch, one CI run, then pushed to main.
+1. **Ranking as legend-pure's `FunctionMatch`.** The parameters' type matches left to right, then their multiplicity
+   matches; the first difference decides. Per parameter, legend-pure's measure: an exact type, then the nearer parent
+   class (hierarchy distance), then a type parameter; `Any` is a concrete class; multiplicity by upper-bound distance,
+   then lower. `InferenceKernelTest.overload_incomparableSignaturesAreAmbiguous` changes to legend-pure's answer.
+   Target: the reference lane's 79 class-hierarchy rows.
+2. **Candidates by id.** Every function with the call's name is a candidate; both by-name drops are deleted. A built-in
+   with exactly an upstream function's id is that function: ours runs, upstream's copy is not a second candidate. Every
+   other upstream version of a name we implement needs its own row, usually "runs as built-in X"; a version without one
+   is refused (a call to it fails before anything runs, naming it), never run from upstream's Pure body: for a function
+   the platform implements, upstream's body is the spec (the PCT rule's own lesson: upstream's `or`/`and`/`max` bodies
+   produced wrong SQL). Names the platform does not implement keep running their bodies. W2.1's id checks come along:
+   two upstream declarations with one id are an error, and a collision guard on the id (it uses short type names).
+   Rows added now: the versions the corpus, PCT and the reference lane call (the reference lane's 617 need 14). A
+   ratchet counts the upstream versions of our names without a row (184 at most) and only goes down.
+3. **Forms, TDS functions, the boot layer's versions and helpers, by id.** A call is a form only when its name resolves
+   (through the imports) to a full name the form owns (`CoreFn`'s ownership list); a short name that could mean a
+   form's function and another function is refused, naming both; `^Class(...)` stays syntax. `TdsLegacy`'s 17
+   functions get rows by id. The boot layer's own versions of 29 upstream names get rows (ours runs). `GroupByChecker`
+   recognizes `agg` by resolved id.
+4. **Check and land.** IN_FLIGHT on main first, every core file listed. During the work only the touched targets; at
+   the end, once: the full local gate, the six corpus passes, all PCT suites, the reference lane report. Bar: corpus and
+   PCT identical (a difference fixed, or explained to the user, before landing); the reference lane's `AGREE` up and the
+   new report committed. Auditor, fixes, one CI run, push to main.
+- Not here: the 49 typing rows (Phase 3b); the default world (Phase 4, before which the rest of the 184 rows come);
+  `Pure.java`'s signature text (Phase 5).
 - This takes over W2.1's `ids` and `catalog` items from the parked compiler plan (`docs/EXECUTION_PLAN_2026_09_26.md`):
   said so in IN_FLIGHT and in that plan, so nobody redoes them.
-- Folds in what the experiments found: `CoreFn`'s bare-name forms become rows; `TdsLegacy`'s Java-implemented
-  functions become rows; the system metamodel's own versions become rows; forms recognize their helpers
-  (`agg`, `col`) by resolved id, never by spelling.
-- Check: today's prelude is unchanged in this phase, so the experiment harness must be identical, and the table's
-  shadow diff zero. The riskiest phase; several PRs.
 - **Pre-experiment (2026-10-06):** `docs/build-inventory/manifest-world/experiments/phase3-ranking/README.md`.
   legend-pure's ranking rule changes nothing on today's world (local gate 289 of 290, the one failure a unit test
   asserting the old rule's tie; corpus identical; PCT 17 of 17; reference lane byte-identical) and fixes Phase 2b's
   `get`. The 745 `OVERLOAD` rows are not the ranking rule: 617 are calls whose legend-pure overload our compiler
   drops by name (this phase's suppression removal brings them back), 79 are class-hierarchy choices (legend-pure
   measures hierarchy distance), 49 are numbers and optional values, likely argument typing.
+
+### Phase 3b: match legend-pure on upstream's own code (core compiler)
+Agreed with the user 2026-10-06: after Phase 3, before Phase 6. Every function legend-pure types, we type, and every
+call picks the same function with the same type as legend-pure, whether the fix is in overload logic or in typing. That
+includes engine code the platform never runs (protocol translation, the engine's SQL generator): a body we cannot type
+is a compiler gap that user code can hit too. Running that code stays refused, as today.
+- Where it starts (today's reference lane, core_relational): 830 calls disagree (745 other version, 14 other package,
+  32 drift, 39 property read against call); 68,643 positions the lane cannot match (a form, a property read or a
+  rewrite where legend-pure has a call); 15,938 calls of ours with no counterpart; 1,508 bodies we fail to type, 1,335
+  of them typed by legend-pure, whose calls are not compared (649 are the protocol translation layers, about 40
+  functions in each of 16 protocol versions; JSON format 78; model-to-model 71; the engine's SQL generator 72); 32
+  files dropped; types not compared at all.
+1. Complete the measurement: legend-pure's type at every call, compared with ours (the parked plan's W1.1b); form
+   nodes joined to the functions they stand for (Phase 3 gives every form its ids); why each body fails and why each
+   file is dropped.
+2. The causes, with counts, shown to the user before any fix.
+3. Fix by cause, biggest first, each measured by the lane.
+4. Done: every call the same function and type as legend-pure; every body legend-pure types, typed; every file loaded;
+   anything left written down with its reason and approved by the user; corpus and PCT identical or better at every
+   step.
+- Takes over the parked compiler plan's items it covers (W1.1b and the typing work): said so in IN_FLIGHT and in that
+  plan. The biggest phase; step 2 sizes it.
 
 ### Phase 4: the default world from upstream (replaces `PreludeGenerator`)
 - The generator: upstream core whole (legend-pure `platform*` and engine `core_functions_*`, tests stripped by
@@ -194,8 +238,10 @@ passes (every roster, register, ledger and verdict) and every PCT case.
 
 ## 4. Order and what can move
 
-**Order: 0, 1, 2, 2b, 3, 6, 4, 5, 7**, with Phase 8's items interleaved where they do not touch the same files.
+**Order: 0, 1, 2, 2b, 3, 3b, 6, 4, 5, 7**, with Phase 8's items interleaved where they do not touch the same files.
 - 2b informs 3's design; 3 needs 2's tables.
+- 3b needs 3 (forms carry ids, so the lane can join them) and runs before 6 and 4, so the real manifest and the
+  upstream world arrive on a compiler that matches legend-pure.
 - 6 needs 3 (the table owns what the manifest's files redefine) and runs before 4, so the result views can move off
   startup at the moment the default world changes, with nothing temporary in between.
 - 4 needs 3's ownership and 6's manifest; 5 needs 4's world; 7 needs all.
