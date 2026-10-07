@@ -21,6 +21,9 @@ single_version_override(
 # tenet: core never builds from the upstream trees) are build outputs, written back
 # by `bazel run //:update_generated` and held equal by the diff tests it makes.
 bazel_dep(name = "bazel_lib", version = "3.7.2")
+# native_test (//tools/guards:workflows_test runs a pinned binary as a test): at the version the module graph
+# already resolved through aspect_rules_js (`bazel mod explain bazel_skylib`), so naming it moves nothing.
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
 
 # THE DATACUBE APP (datacube/): TypeScript on Node. rules_js installs its npm
 # packages from datacube/pnpm-lock.yaml (converted from npm's lock with
@@ -342,6 +345,39 @@ http_archive(
     ("linux_x64", "linux-x64", "bin/esbuild", "sha512-4xTZr1FUmSoQW4XIWmit3tzQrUTZM+N3P0XV8xROKYF50XfI7xeO90+1bZvNwxIufQ9hDQVRJH5YhgPVF8A/HQ=="),
     ("windows_arm64", "win32-arm64", "esbuild.exe", "sha512-PIhhEkE9uPBleRBrQEJpUn7MBnibZzbGzYWPmY3x+YoVg/95zbjB4CxPPOQ8l5tYYM4mMaCthF8/1DIfBQQyWQ=="),
     ("windows_x64", "win32-x64", "esbuild.exe", "sha512-5ebpxr3nWMzrL/rnUI755Jkuee0bHL/Gq0WTF9lvcpv73wAp5eu8MfBUgWK9bhWvZjj7yX8etf/8tI8Ney695g=="),
+]]
+
+# ACTIONLINT (//tools/guards:workflows_test): the workflows' linter, one release archive per platform, each pinned
+# by the sha256 the release publishes beside it (actionlint_1.7.7_checksums.txt). Until the build rebuild's first
+# landing, gate.yml fetched it with `curl | tar` and no checksum on every run.
+[http_archive(
+    name = "actionlint_" + name,
+    build_file_content = 'exports_files(["%s"])' % binary,
+    sha256 = sha256,
+    urls = ["https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_%s.%s" % (name, ext)],
+) for name, ext, binary, sha256 in [
+    ("darwin_amd64", "tar.gz", "actionlint", "28e5de5a05fc558474f638323d736d822fff183d2d492f0aecb2b73cc44584f5"),
+    ("darwin_arm64", "tar.gz", "actionlint", "2693315b9093aeacb4ebd91a993fea54fc215057bf0da2659056b4bc033873db"),
+    ("linux_amd64", "tar.gz", "actionlint", "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"),
+    ("linux_arm64", "tar.gz", "actionlint", "401942f9c24ed71e4fe71b76c7d638f66d8633575c4016efd2977ce7c28317d0"),
+    ("windows_amd64", "zip", "actionlint.exe", "7f12f1801bca3d480d67aaf7774f4c2a6359a3ca8eebe382c95c10c9704aa731"),
+]]
+
+# SHELLCHECK (the same test hands it to actionlint for the workflows' embedded shell): the release archives of
+# v0.10.0, each pinned by the sha256 of the archive as downloaded on 2026-10-07 (the release publishes no checksums
+# file). The tarballs hold the binary under `shellcheck-v0.10.0/`; the Windows zip holds `shellcheck.exe` at its root.
+[http_archive(
+    name = "shellcheck_" + name,
+    build_file_content = 'exports_files(["%s"])' % binary,
+    sha256 = sha256,
+    strip_prefix = prefix,
+    urls = ["https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.%s" % archive],
+) for name, archive, prefix, binary, sha256 in [
+    ("darwin_aarch64", "darwin.aarch64.tar.xz", "shellcheck-v0.10.0", "shellcheck", "bbd2f14826328eee7679da7221f2bc3afb011f6a928b848c80c321f6046ddf81"),
+    ("darwin_x86_64", "darwin.x86_64.tar.xz", "shellcheck-v0.10.0", "shellcheck", "ef27684f23279d112d8ad84e0823642e43f838993bbb8c0963db9b58a90464c2"),
+    ("linux_aarch64", "linux.aarch64.tar.xz", "shellcheck-v0.10.0", "shellcheck", "324a7e89de8fa2aed0d0c28f3dab59cf84c6d74264022c00c22af665ed1a09bb"),
+    ("linux_x86_64", "linux.x86_64.tar.xz", "shellcheck-v0.10.0", "shellcheck", "6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbedf87"),
+    ("windows", "zip", "", "shellcheck.exe", "eb6cd53a54ea97a56540e9d296ce7e2fa68715aa507ff23574646c1e12b2e143"),
 ]]
 
 # Upstream Legend's type (legend-art _fonts.scss): Roboto, Roboto Mono and Raleway, at the @fontsource version the

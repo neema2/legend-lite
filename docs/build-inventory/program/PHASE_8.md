@@ -645,14 +645,14 @@ Minutes are estimates, Linux / macOS / Windows; L1a's own run replaces them.
 
 | Lane | Members (exact) | min |
 |---|---|---|
-| `product` | `bazel build //:java //:web //:wasm //:native //:sites //datacube:app`; then `bazel build --nobuild --config=bazel10 //...`; the A25 cross-platform analysis of `//warehouse //pct //datacube`; the lane guard (`bazel query 'tests(//...) except tests(//gates:all)'` is empty) | 6–7 / 6 / 8–9 |
-| `core` | `//core:core_tests` (24) `//core:duckdb_load_test` `//core:section_grammar_registry_test` `//core:corpus_differential_test` `//core:planner_on_java_base_test` `//spec:spec_tests` `//json:tests` `//pure-protocol:twins_test` `//tools/engine-runner:smoke_test` | 4 / 3 / 4 |
-| `checks` | `//:generated` `//projects:tests` `//tools/deps:all` `//tools/guards:classpath_test` `:compile_only_test` `:inventory_test` `:locks_test` `:markdown_inputs_test` `//tools/junit:pins_test` `:runner_test` `//tools/java_run:pins_test` `//tools/python:lock_matches_requirements` `//tools/browser:revision_test` `//tools/bump:bump_test` `//tools/js:lock_matches_package_json_test` `//scripts/corpus:density_gate` `:executed_gate` `:stacking_gate` `:scoreboard_gate` `:functions_gate` `//core:guardrails` `//core:census` + new `//tools/guards:tools_build_test` (every hand tool compiles; bazel-skylib's `build_test`) + new `//tools/guards:workflows_test` (actionlint from a pinned archive, replacing `gate.yml`'s `curl` job) | 10 / 8 / 13 |
+| `product` | `bazel build //:java //:web //:wasm //:native //:sites //datacube:app`; then `bazel build --nobuild --config=bazel10 //...`; the A25 cross-platform analysis of `//warehouse //pct //datacube`; the lane guard (`bazel query 'tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)'` is empty: a query's `//...` includes manual targets, so every test is in a lane or in `heavy`) | 6–7 / 6 / 8–9 |
+| `core` | `//core:core_tests` (24) `//core:duckdb_load_test` `//core:section_grammar_registry_test` `//core:corpus_differential_test` `//core:planner_on_java_base_test` `//core:postgres_arm_test` (kept with core, as the local gate had it) `//spec:spec_tests` `//json:tests` `//pure-protocol:twins_test` `//tools/engine-runner:smoke_test` | 4 / 3 / 4 |
+| `checks` | `//:generated` `//projects:tests` `//tools/deps:all` `//tools/guards:classpath_test` `:compile_only_test` `:inventory_test` `:locks_test` `:markdown_inputs_test` `//tools/junit:pins_test` `:runner_test` `//tools/java_run:pins_test` `//tools/python:lock_matches_requirements` `//tools/browser:revision_test` `//tools/bump:bump_test` `//tools/js:lock_matches_package_json_test` `//scripts/corpus:density_gate` `:executed_gate` `:stacking_gate` `:scoreboard_gate` `:functions_gate` `//core:guardrails` `//core:census` `//pct:pct_discipline` (its home; `//pct:pct_duckdb`'s own suite also holds it) + new `//tools/guards:workflows_test` (actionlint and shellcheck from pinned archives, replacing `gate.yml`'s `curl` job); `tools_build_test` (every hand tool compiles) comes with L1b, whose packages it reaches | 10 / 8 / 13 |
 | `corpus_duckdb` | `//spec:corpus_duckdb` (host and database pass, verdict, roster diff tests; gates 4 and 11) | 7 / 5 / 7 |
 | `corpus_h2` | `//spec:corpus_h2` (gate 5) | 6 / 6 / 5 |
-| `pct_duckdb` | `//pct:pct_duckdb` (five suites) `//pct:pct_discipline` (gate 6) | 6 / 6 / 4 |
+| `pct_duckdb` | `//pct:pct_duckdb` (five suites, and PCT's discipline guard inside it; gate 6) | 6 / 6 / 4 |
 | `pct_h2` | `//pct:pct_h2` (gate 7) | 5 / 3 / 3 |
-| `pct_postgres` | `//pct:pct_postgres` (five suites) `//core:postgres_arm_test` (gate 7P; the same embedded Postgres 16) | 6 / 6 / 6 |
+| `pct_postgres` | `//pct:pct_postgres` (five suites; gate 7P) | 6 / 6 / 6 |
 | `pct_channel_b` | `//pct:pct_channel_b` (five suites; gate 9) | 5 / 4 / 4 |
 | `parser_equivalence` | `//parser-equivalence:parser_parity` (gate 8) | 7 / 7 / 5 |
 | `stress` | `//core:stress_suites` `//core:stress_suites_h2` (gate 10; the H2 suite's 292 serial seconds are the lane's floor until it is split per suite, L12) | 8 / 8 / 4 |
@@ -671,9 +671,11 @@ minutes**, against 40 to 57 today.
 **What is gone from CI.** `bazel build //...` as a lane; the `lint workflows` job (`curl`); the Chromium install step;
 the shell loop of `bazel run` harnesses and their fixed ports; the jq list of hand-typed targets (the keys stay for
 `-f gates=`, now suite names); the output-cache tarballs and their 2–3 minute saves (only `~/.cache/bazel-repo` is
-cached: one key per platform and pin hash, shared by every lane). **Built by no wildcard any more (`manual`):** the six
-judge passes, `//pct:ratchets`, `//:update_generated`, the hand tools (`//tools/census:render_census`, `:lanes_diff`,
-`//tools/junit:compare_testcases`, `//wasm:startup`), the 30 layer queries.
+cached: one key per platform and pin hash, restored by every lane and saved by the product job once it has fetched
+everything, since `actions/cache` never adds to an existing key). **Built by no wildcard any more (`manual`):**
+`//:update_generated` (and through it `//pct:ratchets`) and the hand tools (`//tools/census:render_census`,
+`:lanes_diff`, `//tools/junit:compare_testcases`, `//wasm:startup`); the product job analyses them by name. The
+judge passes and the layer queries stay as they are: the lanes' tests depend on them, so a tag would change nothing.
 
 **Not L1's, with its landing:** `checks`' generator builds (L6 deletes `gen_natives`, `gen_claims` and `core_next`;
 L8's seal takes the upstream generators out of `//:generated`; L12 carves the measurements: if `//:generated` still

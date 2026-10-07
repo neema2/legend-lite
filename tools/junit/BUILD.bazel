@@ -62,6 +62,9 @@ legend_java_binary(
     name = "compare_testcases",
     srcs = ["compare/CompareTestcases.java"],
     main_class = "com.legend.tools.junit.compare.CompareTestcases",
+    # a hand tool: manual (2026-10-07, PHASE_8.md Gen-5), so a wildcard build does not build it; CI's product job
+    # still analyses it by name
+    tags = ["manual"],
 )
 
 guards_package()

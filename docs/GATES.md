@@ -2,37 +2,36 @@
 
 ## THE GATES UNDER BAZEL (since 2026-09-22) — read this first
 
-Every gate is a test target. `bazel test //...` runs them all, plus the checks
-below; CI runs the same targets as parallel lanes on Linux, macOS and Windows
-(`.github/workflows/gate.yml`). Gate numbers are unchanged, so the log below
-still reads — but **everything under this section is the Maven-era log**: its
-commands (`mvn`, `tools/allgates.sh`, `-Dx.generate=1`) no longer exist.
+Every gate is a test target, and every CI lane is a suite of them in `gates/BUILD.bazel` (since 2026-10-07, the
+build rebuild's first landing; the lane set and why: `docs/build-inventory/program/PHASE_8.md` §8). CI runs
+`bazel test //gates:<lane>` per lane, in parallel, on Linux, macOS and Windows, and builds the product in its own
+job (`.github/workflows/gate.yml`, `gates-run.yml`). The gate numbers are unchanged, so the log below still reads —
+but **everything under this section is the Maven-era log**: its commands (`mvn`, `tools/allgates.sh`,
+`-Dx.generate=1`) no longer exist.
 
-**Before pushing to `main`: `bazel test --lockfile_mode=error //gates:local`** (`gates/BUILD.bazel`): the light
-lanes (checks, gates 1 and 3, app, misc, gate 6's source-scan guard `//pct:pct_discipline`, and gate 7P's one-query `//core:postgres_arm_test`). The heavy lanes
-(gates 4–10, the native image, the browser lane) and `bazel build //...` run in CI only. The push rule is
-`AGENTS.md`'s "Pushing to main".
+**Before pushing to `main`: `bazel test --lockfile_mode=error //gates:local`** (`gates/BUILD.bazel`): a suite of the
+light lanes (`core`, `checks`, the warehouse's JVM tests, `datacube`, `ui`, `sdlc`). The heavy lanes (the corpus,
+PCT, the stress corpus, parser equivalence, Channel B, the native image's tests) run in CI only; the manual tests are
+`//gates:heavy`. The push rule is `AGENTS.md`'s "Pushing to main".
 
-| Gate | Target | What it holds |
-|---|---|---|
-| 1 | `//core:core_tests` | the compiler suite + guardrails (NullAway runs on every compile); with `//core:corpus_differential_test`, legend-lite's SQL over the stress seed against the corpus oracle (wired 2026-10-05, P3-18) |
-| 2 | *(the build itself)* | NullAway is a compile error; the jar pools are one version each by construction; `//tools/deps:all` (below) |
-| 3 | `//spec:spec_tests` | spec parity: generators, census, manifest |
-| 4 | `//spec:corpus_duckdb` | the relational corpus on DuckDB, host judge (the build action `:judge_host_duckdb`; the lane, a suite, is its verdict and the diff tests of what it measures; spec/corpus.bzl) |
-| 5 | `//spec:corpus_h2` | the relational corpus on H2, both judges and their per-assert join — :corpus_duckdb's shape (joined since 2026-09-23; `rcorpus/h2-database-untriaged-register.txt` lists what the first join found and has yet to be explained) |
-| 6 | `//pct:pct_duckdb` | the five PCT suites on DuckDB, a suite of one target per PCT suite (`//pct:pct_duckdb_<suite>`, each judged on its own census traffic; Bazel workplan P3-09) and the discipline guard `//pct:pct_discipline` |
-| 7 | `//pct:pct_h2` | PCT relation on H2 2.4.240: 469 tests, H2's 26 expected failures (27 -> 26, 2026-10-02: the self-referencing exists) each pinned by message (`Test_LegendLite_H2_RelationFunctions_PCT`) |
-| 7P | `//pct:pct_postgres` | PCT, all five suites, on Postgres 16.15 (one target per suite, `//pct:pct_postgres_<suite>`; P3-09) started by the test JVM from pinned binaries (`@embedded_postgres`, no Docker): 1,249 tests, Postgres's expected failures each pinned by message (`Test_LegendLite_Postgres_*Functions_PCT`), grouped as wrong answers, Postgres's own errors, leg P4's collections and Variant, and named refusals: 267 first measured, 242 after tier 1 (multi-column pivots, the self-referencing exists, half-even rounding to a scale, calendar buckets, whole-partition median/mode/quantile, maxBy/minBy, pow, ordered removeDuplicates), 230 after tier 2 (Variant over jsonb: key and index access, toVariant, parse, typed reads), 145 after tier 3 (lists of scalars as native arrays), 129 after tier 4 (structs and non-scalar lists as jsonb, held flat); its census divergence ceilings measured per suite (Essential 12, Grammar 4, the others 0; P3-09) |
-| 8 | `//parser-equivalence:parser_parity` | byte parity with legend-engine's parser |
-| 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites, one target per class (`//pct:pct_channel_b_<suite>`; P3-09) |
-| 10 | `//core:stress_suites`, `//core:stress_suites_h2` | the stress corpus, on DuckDB (shared sessions, MIN_PASS) and on H2 (a fresh session per test, the engine's shape, MIN_PASS_H2; enforced since 2026-10-05, Bazel workplan P3-12); its measuring knobs are `bazel run //core:stress_tool` |
-| 11 | `//spec:corpus_duckdb` | the database judge (the build action `:judge_database_duckdb`), joined per assert to the host pass's ledger (one lane with gate 4 since 2026-09-23 — the host pass ran twice before; both passes cached build actions since 2026-10-05, Bazel workplan P3-01, P2-15) |
-| app | `//datacube:tests`, `//datacube:verify_app_test`, `//wasm:all`, `//warehouse:tests`, `//query-store:lite_test` | the single-user app against Postgres 16 in the pinned Chromium, on every platform (`verify_app_test`, since 2026-10-04, Bazel workplan P1-14b: its own Postgres from the pinned binaries, no psql); DataCube's suite and typecheck; the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database; the warehouse's suite; legend-lite's server held to the query store's suite. On Windows the lane runs in Eastern time, not the runners' UTC, so a test that reads the machine's zone shows (since 2026-10-03) |
-| native | `//warehouse:tests_native`, `//warehouse:launcher_test`, `//datacube:app` | the warehouse suite against the native binary, on Linux, macOS and Windows x64 (since 2026-10-02) and Linux arm64 (since 2026-10-04, P1-13), linked on Linux by the hermetic LLVM toolchain (P1-09); the `bazel run` launchers (bash on Linux and macOS, hermetic-launcher on Windows) started as `bazel run` starts them; and `//datacube:app` built, not run. What the launcher test judges: `docs/WINDOWS_APP_DESIGN_2026_10_02.md` §3 |
-| checks | `//:generated`, `//tools/deps:all`, `//tools/guards:classpath_test`, `//tools/guards:compile_only_test`, `//tools/guards:inventory_test`, `//tools/guards:locks_test`, `//tools/guards:markdown_inputs_test`, `//tools/junit:pins_test`, `//tools/junit:runner_test`, `//tools/java_run:pins_test`, `//tools/python:lock_matches_requirements`, `//tools/browser:revision_test`, `//tools/bump:bump_test`, `//tools/js:lock_matches_package_json_test`, `//core:guardrails`, `//core:census` | the guards (since 2026-10-04, Bazel workplan Phase 6): every file inventoried and in some package's `all_files`, every jar pool locked and strict, no Markdown test input, no classpath with one Maven coordinate at two versions; the build targets (`//:java`, `//:web`, `//:wasm`, `//:native`) perform only compiles and file plumbing, and the guard's fixture tier proves it still catches a genrule, a java_run, one calling itself Javac, and a validation (since 2026-10-06); Bump's rewrites against the real pins; every pnpm lock equal to its package.json; the pinned Chromium equal to every locked Playwright's revision (since 2026-10-04, P1-14); the Python lock holding every pin of tools/python/requirements.in with hashes (offline; since 2026-10-04, P1-07); every committed generated file equal to its generator (`//:generated` holds each package's diff-test suite; a missing suite fails the build — since 2026-10-03, replacing a `bazel query` whose failure ran nothing); the dependency guards; the test environment's pins (in no lane until 2026-10-03, P0-14); the source checks |
-| misc | `//json:tests`, `//pure-protocol:twins_test`, `//query:tests`, `//query-store:local_test`, `//query-store:share_test` | tests no lane ran before 2026-10-03 (Bazel workplan P0-03) |
-| build | `bazel build //...` | every target builds on every platform, non-test targets included (since 2026-10-03); then `bazel build --nobuild --config=bazel10 //...`: everything still analyzes under Bazel 10's incompatible flags (G14, since 2026-10-04) |
-| browser | `//datacube:live_snap_test`, `//datacube:verify_smoke_test` (a test on the pinned Chromium since 2026-10-04, P1-14), then every `//datacube`, `//query` and `//site` target tagged `browser-ci` (`bazel run`; `//query:verify` and `//site:verify` since 2026-10-03) | **Linux only in CI.** Every cube case live on the native warehouse and snapped into DuckDB-WASM, the answers compared (plus receipts, sign-in again, token refresh); then the harnesses that drive the built site in headless Chromium and need no server (smoke is a `bazel test` on the pinned Chromium and needs no `install_browser`; the others are still `bazel run` after `install_browser`, until P4): features, page (two cubes on one page), charts (one live chart, Pin, Open in grid), cubes, real data, upload, remote, wasm-browser, stress (about 6 minutes together here). Locally: `bazel run //datacube:install_browser` once, then `bazel run` each |
+| Lane (`//gates:<lane>`) | Gates | Members | What it holds |
+|---|---|---|---|
+| `product` (a `bazel build`, not a suite) | 2 | `//:java //:web //:wasm //:native //:sites //datacube:app`; then `bazel build --nobuild --config=bazel10 //...`; then A25; then the lane guard | the product compiles and nothing else (`//tools/guards:compile_only_test` holds the four compile targets to compiles and file plumbing); NullAway is a compile error; the jar pools are one version each by construction; everything still analyzes under Bazel 10's incompatible flags (G14, since 2026-10-04); every test of the repository is in some lane or in `heavy` (`bazel query 'tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)'` is empty). Until 2026-10-07 this lane was `bazel build //...`, which also computed the six corpus passes and the 2 GB `//pct:ratchets` |
+| `core` | 1, 3 | `//core:core_tests`, `//core:duckdb_load_test`, `//core:section_grammar_registry_test`, `//core:corpus_differential_test`, `//core:planner_on_java_base_test`, `//core:postgres_arm_test`, `//spec:spec_tests`, `//json:tests`, `//pure-protocol:twins_test`, `//tools/engine-runner:smoke_test` | the compiler suite (NullAway runs on every compile); with `//core:corpus_differential_test`, legend-lite's SQL over the stress seed against the corpus oracle (wired 2026-10-05, P3-18); spec parity: generators, census, manifest; the JSON and protocol libraries; the engine-runner binaries through their launchers (P3-26); the server's Postgres arm, one query against the embedded Postgres 16 |
+| `checks` | — | `//:generated`, `//projects:tests`, `//tools/deps:all`, the five `//tools/guards:*_test` plus `workflows_test`, `//tools/junit:pins_test`, `//tools/junit:runner_test`, `//tools/java_run:pins_test`, `//tools/python:lock_matches_requirements`, `//tools/browser:revision_test`, `//tools/bump:bump_test`, `//tools/js:lock_matches_package_json_test`, the five `//scripts/corpus:*_gate`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline` | the guards (since 2026-10-04, Bazel workplan Phase 6): every file inventoried and in some package's `all_files`, every jar pool locked and strict, no Markdown test input, no classpath with one Maven coordinate at two versions; the build targets perform only compiles and file plumbing, and the guard's fixture tier proves it still catches a genrule, a java_run, one calling itself Javac, and a validation (since 2026-10-06); the workflows linted by the pinned actionlint (since 2026-10-07; it ran by `curl` before); Bump's rewrites against the real pins; every pnpm lock equal to its package.json; the pinned Chromium equal to every locked Playwright's revision (since 2026-10-04, P1-14); the Python lock holding every pin of tools/python/requirements.in with hashes (offline; since 2026-10-04, P1-07); every committed generated file equal to its generator (`//:generated` holds each package's diff-test suite; a missing suite fails the build — since 2026-10-03, replacing a `bazel query` whose failure ran nothing); the model projects, each compiled alone with its declared closure, the graph, the contract (P3-23); the dependency guards; the corpus ratchets (P2-04); PCT's discipline guard (no comparison machinery in the module); the source checks |
+| `corpus_duckdb` | 4, 11 | `//spec:corpus_duckdb` | the relational corpus on DuckDB: the host judge (the build action `:judge_host_duckdb`) and the database judge (`:judge_database_duckdb`), joined per assert to the host pass's ledger (one lane since 2026-09-23; both passes cached build actions since 2026-10-05, Bazel workplan P3-01, P2-15); the lane, a suite, is its verdict and the diff tests of what it measures (spec/corpus.bzl) |
+| `corpus_h2` | 5 | `//spec:corpus_h2` | the relational corpus on H2, both judges and their per-assert join — :corpus_duckdb's shape (joined since 2026-09-23; `rcorpus/h2-database-untriaged-register.txt` lists what the first join found and has yet to be explained) |
+| `pct_duckdb` | 6 | `//pct:pct_duckdb` | the five PCT suites on DuckDB, a suite of one target per PCT suite (`//pct:pct_duckdb_<suite>`, each judged on its own census traffic; Bazel workplan P3-09) |
+| `pct_h2` | 7 | `//pct:pct_h2` | PCT relation on H2 2.4.240: 469 tests, H2's 26 expected failures (27 -> 26, 2026-10-02: the self-referencing exists) each pinned by message (`Test_LegendLite_H2_RelationFunctions_PCT`) |
+| `pct_postgres` | 7P | `//pct:pct_postgres` | PCT, all five suites, on Postgres 16.15 (one target per suite, `//pct:pct_postgres_<suite>`; P3-09) started by the test JVM from pinned binaries (`@embedded_postgres`, no Docker): 1,249 tests, Postgres's expected failures each pinned by message (`Test_LegendLite_Postgres_*Functions_PCT`), grouped as wrong answers, Postgres's own errors, leg P4's collections and Variant, and named refusals: 267 first measured, 242 after tier 1 (multi-column pivots, the self-referencing exists, half-even rounding to a scale, calendar buckets, whole-partition median/mode/quantile, maxBy/minBy, pow, ordered removeDuplicates), 230 after tier 2 (Variant over jsonb: key and index access, toVariant, parse, typed reads), 145 after tier 3 (lists of scalars as native arrays), 129 after tier 4 (structs and non-scalar lists as jsonb, held flat); its census divergence ceilings measured per suite (Essential 12, Grammar 4, the others 0; P3-09) |
+| `pct_channel_b` | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites, one target per class (`//pct:pct_channel_b_<suite>`; P3-09) |
+| `parser_equivalence` | 8 | `//parser-equivalence:parser_parity` | byte parity with legend-engine's parser |
+| `stress` | 10 | `//core:stress_suites`, `//core:stress_suites_h2` | the stress corpus, on DuckDB (shared sessions, MIN_PASS) and on H2 (a fresh session per test, the engine's shape, MIN_PASS_H2; enforced since 2026-10-05, Bazel workplan P3-12); its measuring knobs are `bazel run //core:stress_tool` |
+| `warehouse` (also Linux arm64) | — | `//warehouse:tests`, `//warehouse:sqlapi_wasm_build_test`, `//warehouse:tests_native`, `//warehouse:launcher_test`, `//warehouse:postgres_live`, `//warehouse:postgres_live_native` | the warehouse's suite on the JVM, and its SQL API compiled to WebAssembly (P3-24); the suite against the native binary, on Linux, macOS and Windows x64 (since 2026-10-02) and Linux arm64 (since 2026-10-04, P1-13), linked on Linux by the hermetic LLVM toolchain (P1-09); the `bazel run` launchers (bash on Linux and macOS, hermetic-launcher on Windows) started as `bazel run` starts them (what the launcher test judges: `docs/WINDOWS_APP_DESIGN_2026_10_02.md` §3); the two tests against a live Postgres, in a lane for the first time on 2026-10-07. On Windows the lane runs in Eastern time, not the runners' UTC, so a test that reads the machine's zone shows (since 2026-10-03; the warehouse's reference session) |
+| `datacube` | — | `//datacube:tests`, `//datacube:verify_app_test`, `//datacube:verify_smoke_test`, `//wasm:differential_test`, `//wasm:zone_test` | DataCube's suite and typecheck, with every cube case live on the native warehouse and snapped into DuckDB-WASM, the answers compared (`live_snap_test`, plus receipts, sign-in again, token refresh); the single-user app against Postgres 16 in the pinned Chromium, on every platform (`verify_app_test`, since 2026-10-04, Bazel workplan P1-14b: its own Postgres from the pinned binaries, no psql); the smoke harness as a test on the pinned Chromium (since 2026-10-04, P1-14); the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database. The other harnesses (features, page, charts, cubes, real data, upload, remote, wasm-browser, stress) join as tests in the next landing (L1b); until then the transitional `browser` suite and the workflow's `bazel run` loop run them, Linux only |
+| `ui` | — | `//studio:tests`, `//query:tests`, `//query-store:local_test`, `//query-store:share_test`, `//query-store:lite_test` | Studio's and Query's suites and typechecks; the saved-query store's one suite against the page's own store and against legend-lite's server (started by the test), and a saved query's share link round trip. Their browser harnesses (`//studio:verify_test`, `//query:verify`, `//site:verify`) join in L1b |
+| `sdlc` | — | `//sdlc-server:git_repository_test`, `//sdlc-client:tests`, `//depot-client:tests` | the model home (`docs/STUDIO_DESIGN_2026_10_02.md`): the SDLC and Depot suites, each run on the page's WebAssembly module and on the server over git |
+| `heavy` (manual; no per-push lane) | — | `//spec:reference_lane`, `//spec:update_reference_lane_test`, `//spec:corpus_warehouse_verdict`, `//spec:manifest_world_census`, `//parser-equivalence:diagnostics`, `//pct:update_ratchets_test`, `//tools/python:requirements.test` | the reference lane (about 8 GB), the warehouse corpus passes (they build the GraalVM server), the manifest-world census, the parser-equivalence diagnostics battery, PCT's ratchet re-measure, the Python requirements test: a landing runs the ones it needs by hand (`docs/build-inventory/program/START_HERE.md` §5); a scheduled run is PHASE_8.md Test-11 |
 
 Beside the gates, in `bazel test //...`:
 
@@ -6764,3 +6763,61 @@ handler ids now map to our functions) regenerated. The date `[1..*]` overloads s
 properties and `getDynaFunctionTypeInferenceMap` now type), `reference typed, we FAILED` 1336 → 1335, `AGREE` 72271 →
 73103, `OVERLOAD` 769 → 745 (the six `[1..*]` classes gone); two new `EXTRA` classes (`math::min` 6, `math::max` 1)
 fall under the `EXTRA *` reason.
+
+## 2026-10-07 — Build rebuild L1a: the lanes as suites, the product lane, the downloads cached, the heavy targets out of the wildcard
+
+The plan: `docs/REBUILD_PROGRAM_2026_10_06.md` §4 (L1, the first landing, agreed 2026-10-07: the CI work before
+Phase 3 lands); the lane set and the reasons: `docs/build-inventory/program/PHASE_8.md` §8; the measurements:
+`docs/build-inventory/program/evidence/phase8/CI_LANES_2026_10_07.md`.
+
+What a full run was: 40 to 57 minutes, set by the build lane (`bazel build //...`: 42 minutes on Windows, because it
+built the six corpus passes, which lanes 4 and 5 then computed again, and the 2 GB `//pct:ratchets`), then the browser
+lane (23 minutes: a shell loop of `bazel run` harnesses, one at a time), with every Linux and Windows lane fetching
+everything cold (GitHub's 10 GB cache cap had evicted every cache but macOS's; the cache held build outputs).
+
+What changed:
+1. **Every lane is a suite in `gates/BUILD.bazel`** (`//gates:core`, `checks`, `corpus_duckdb`, `corpus_h2`,
+   `pct_duckdb`, `pct_h2`, `pct_postgres`, `pct_channel_b`, `parser_equivalence`, `stress`, `warehouse`, `datacube`,
+   `ui`, `sdlc`; `browser` until L1b), run as `bazel test //gates:<lane>` on every platform; `lanes` is every lane,
+   `heavy` the seven manual tests, `local` a suite of suites (292 tests, was 290: `//datacube:verify_smoke_test` and
+   `//tools/guards:workflows_test` join). The old `misc` is gone: `json`, `pure-protocol`, the engine-runner smoke test
+   and spec parity are `core`'s; Studio, Query and the query store are `ui`; SDLC and Depot are `sdlc`;
+   `//datacube:app` (the native warehouse serving DataCube's site, a product wrapper) is the product job's. Two
+   members differ from PHASE_8.md §8's table, to keep the local gate whole: `//core:postgres_arm_test` is in
+   `core` (the table said `pct_postgres`), and `//pct:pct_discipline` is in `checks` while `//pct:pct_duckdb`'s own
+   suite also holds it, so the `pct_duckdb` lane runs it too (seconds). `//datacube:verify_smoke_test` runs on macOS
+   and Windows for the first time (it was the Linux-only browser lane's).
+2. **The product job builds the product**: `//:java //:web //:wasm //:native //:sites //datacube:app`, then the two
+   analysis checks as before (Bazel 10's flags over `//...`, plus the manual hand targets by name; A25), then **the
+   lane guard**: `bazel query 'tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)'` must be empty
+   (a query's `//...` includes manual targets; today it names exactly nothing). `bazel build //...` is no longer a lane.
+3. **Manual**: `//:update_generated` (so a wildcard build no longer builds `//pct:ratchets`) and the hand tools
+   (`//tools/census:render_census`, `:lanes_diff`, `//tools/junit:compare_testcases`, `//wasm:startup`), each with a
+   dated reason; the product job analyses them by name. Not the corpus passes or the layer queries: the audit showed
+   the tag would change nothing there (the lanes' tests depend on them, so any build reaches them).
+4. **The cache is the downloads only** (`~/.cache/bazel-repo`), one entry per platform and pin hash: every lane
+   restores it; only the product job saves it, after its analysis of `//...` has fetched everything the build can
+   reach (`actions/cache` never adds to an existing key, so a small lane saving first would have kept only its own
+   downloads: the audit's blocker); `linux-arm`'s one lane saves for that platform. No build outputs are cached
+   (the cap). The second run on a branch is the first that starts warm.
+5. **actionlint as a test**: `//tools/guards:workflows_test` (bazel-skylib's `native_test` over the release archive
+   pinned per platform in `MODULE.bazel` by the release's own checksums) replaces `gate.yml`'s `curl | tar` job,
+   which fetched the binary with no checksum. shellcheck v0.10.0 is pinned the same way and handed to actionlint by
+   path (the old job used the runner image's; a test runs nothing from the machine), so the embedded shell is still
+   checked; pyflakes is off. A `.git` marker in the runfiles (`tools/guards/workflows.bzl`) makes them a project, so
+   the call from `gate.yml` into `gates-run.yml` and its inputs are checked too (without it actionlint skips that
+   check silently: the audit's finding, proven with a bogus input before and after). `bazel_skylib` is now a direct
+   dependency, at the version the graph already resolved (1.9.0; the lock file did not change). `linux-arm` runs
+   `warehouse` (was `native`).
+6. **`//warehouse:postgres_live` and `:postgres_live_native` run for the first time**, in `warehouse` (PHASE_8.md
+   Test-8): this landing's CI run decides whether they stay.
+
+Not here (L1b, next): the browser harnesses as Bazel tests (the parked `bazel/exec` commits), the Linux-only tests
+constrained by `target_compatible_with`, the Chromium install step and the harness loop deleted with the `browser`
+suite, the hand tools' build test (their packages are private; L1b edits them). Trial rebase for L1b (PHASE_8.md U-17,
+git only, in a scratch worktree): none of the four harness commits (P4-02, P4-03, P4-04, P4-08) applies onto main
+without P4-01's shared harness module, so L1b rebases the five, dropping the 7,824-line file P4-01 added and the
+audit follow-up removed.
+
+Local gate on this tree: `bazel test --lockfile_mode=error //gates:local`: see the landing commit's message. The
+lane times of the first full run on this branch replace the estimates in PHASE_8.md §8.

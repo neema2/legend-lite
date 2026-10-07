@@ -149,7 +149,8 @@ node_test(
 )
 
 # `bazel run //wasm:startup`: where the module's cold start goes, phase by phase.
-# It TIMES things — run it on an idle machine, never as a test.
+# It TIMES things — run it on an idle machine, never as a test. Manual (2026-10-07, PHASE_8.md Gen-5): a hand tool,
+# built when run; CI's product job still analyses it by name.
 js_binary(
     name = "startup",
     data = [
@@ -159,6 +160,7 @@ js_binary(
     ],
     entry_point = "startup.mjs",
     node_options = ["--experimental-wasm-exnref"],
+    tags = ["manual"],
 )
 
 guards_package()

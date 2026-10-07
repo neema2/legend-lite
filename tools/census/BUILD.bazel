@@ -7,11 +7,14 @@ load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//tools/java:defs.bzl", "legend_java_binary")
 load("//tools/guards:defs.bzl", "guards_package")
 
+# hand tools, run by a person: manual (2026-10-07, PHASE_8.md Gen-5), so a wildcard build does not build them; CI's
+# product job still analyses them by name
 legend_java_binary(
     name = "render_census",
     srcs = ["RenderCensus.java"],
     jvm_flags = ["-Xss16m"],
     main_class = "RenderCensus",
+    tags = ["manual"],
     deps = ["//core"],
 )
 
@@ -20,6 +23,7 @@ legend_java_binary(
 py_binary(
     name = "lanes_diff",
     srcs = ["lanes_diff.py"],
+    tags = ["manual"],
 )
 
 guards_package()

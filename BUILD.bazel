@@ -103,9 +103,12 @@ test_suite(
 # One exception: the corpus rosters (//spec:update_rcorpus_duckdb, //spec:update_rcorpus_h2) are re-blessed only
 # deliberately, lane by lane, never as a side effect of regenerating something else: a newly failing test must be a
 # decision (Bazel workplan P2-15, D9). Their diff tests run in the corpus lanes, not in //:generated.
+# Manual (2026-10-07, the build rebuild's first landing, PHASE_8.md OD-10): a writer runs when a person runs it, and a
+# wildcard build (`bazel build //...`) no longer builds what it lists, the 2 GB //pct:ratchets among them.
 write_source_files(
     name = "update_generated",
     testonly = True,
+    tags = ["manual"],
     additional_update_targets = [
         "//core:update_generated",
         "//core:update_ladder",
@@ -123,6 +126,14 @@ write_source_files(
         "//tools/engine-runner:update_vocab",
         "//warehouse:update_reachability_metadata",
     ],
+)
+
+# the CI workflows, for their linter (//tools/guards:workflows_test): the root package owns .github (no BUILD file
+# below it)
+filegroup(
+    name = "workflows",
+    srcs = glob([".github/workflows/*.yml"]),
+    visibility = ["//tools/guards:__pkg__"],
 )
 
 guards_package()

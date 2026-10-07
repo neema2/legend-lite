@@ -1,20 +1,46 @@
-# THE LOCAL GATE (Bazel workplan P0-14, decision D17's fast loop): what a session runs before it pushes
-# to main, after rebasing onto the latest origin/main: `bazel test //gates:local`. Light and cached:
-# every CI lane except the heavy ones, which stay CI-only under the desk's two-heavy-jobs cap (the
-# PCT suites (4 GB each), the two corpus lanes, the stress corpus, parser equivalence, Channel B, the native
-# image, the browser lane) and `bazel build //...`. A change under a .github/CODEOWNERS path goes through
-# a PR instead (AGENTS.md, "Pushing to main"). CI names //tools/deps:all and //wasm:all by wildcard and
-# this suite names their tests: a test added there is added here too, until P5-01 makes the CI lanes
-# suites in this package.
+# THE LANES (the build rebuild's first landing, docs/build-inventory/program/PHASE_8.md §8; before it, Bazel workplan
+# P0-14 and P5-01): every CI lane is a suite here, run as `bazel test //gates:<lane>` on every platform
+# (.github/workflows/gates-run.yml), and the same suites are what a session runs before it pushes to main
+# (`bazel test //gates:local`). A lane's members are listed here and nowhere else. `lanes` is every lane; CI's product
+# job holds that every test in the repository is in some lane or in `heavy` (`bazel query 'tests(//...) except
+# tests(//gates:lanes) except tests(//gates:heavy)'` is empty: a query's //... includes manual targets). A test that
+# runs on one platform only says so itself (target_compatible_with) and its suite skips it elsewhere. The heavy,
+# manual tests are `heavy`, for a scheduled run, never per push. No PRs: a landing is an audit,
+# the local gate, one full CI run on its branch, and a push of that commit to main
+# (docs/build-inventory/program/START_HERE.md §4).
 load("//tools/guards:defs.bzl", "guards_package")
 
+# the engine: the compiler's unit tests (gate 1), spec parity (gate 3), the JSON and protocol libraries, the
+# engine-runner binaries through their launchers (P3-26), the server's Postgres arm (one query against the embedded
+# Postgres 16)
 test_suite(
-    name = "local",
+    name = "core",
     tests = [
-        # checks
+        "//core:core_tests",
+        "//core:duckdb_load_test",
+        "//core:section_grammar_registry_test",
+        # the cross-engine differential over the stress corpus (P3-18): seconds
+        "//core:corpus_differential_test",
+        # the planner on java.base alone (P3-19): seconds
+        "//core:planner_on_java_base_test",
+        "//core:postgres_arm_test",
+        "//spec:spec_tests",
+        "//json:tests",
+        "//pure-protocol:twins_test",
+        "//tools/engine-runner:smoke_test",
+    ],
+)
+
+# the checks: every committed generated file's diff test, the model projects (each compiled alone with its declared
+# closure, the graph, the contract: P3-23), the dependency guards, the source guards, the pins and lock files, the
+# corpus ratchets (P2-04), PCT's discipline guard (seconds, and it turned main red once when only CI ran it,
+# 2026-10-05; it is also inside //pct:pct_duckdb's own suite, so the pct_duckdb lane runs it too), the workflows'
+# linter
+test_suite(
+    name = "checks",
+    tests = [
         "//:generated",
-        "//core:census",
-        "//core:guardrails",
+        "//projects:tests",
         "//tools/deps:core_closure_test",
         "//tools/deps:core_layering_test",
         "//tools/deps:pools_list_test",
@@ -24,6 +50,7 @@ test_suite(
         "//tools/guards:inventory_test",
         "//tools/guards:locks_test",
         "//tools/guards:markdown_inputs_test",
+        "//tools/guards:workflows_test",
         "//tools/browser:revision_test",
         "//tools/bump:bump_test",
         "//tools/java_run:pins_test",
@@ -31,51 +58,195 @@ test_suite(
         "//tools/junit:pins_test",
         "//tools/junit:runner_test",
         "//tools/python:lock_matches_requirements",
-        # PCT's discipline guard (no comparison machinery in the module): seconds, and it turned main red once
-        # when only CI ran it (2026-10-05)
-        "//pct:pct_discipline",
-        # the model projects: each compiled alone with its declared closure, the graph, the contract (P3-23)
-        "//projects:tests",
-        # the corpus ratchets (P2-04)
         "//scripts/corpus:density_gate",
         "//scripts/corpus:executed_gate",
         "//scripts/corpus:stacking_gate",
         "//scripts/corpus:scoreboard_gate",
         "//scripts/corpus:functions_gate",
-        # gate 1, gate 3
-        "//core:core_tests",
-        "//core:duckdb_load_test",
-        "//core:section_grammar_registry_test",
-        # the cross-engine differential over the stress corpus (P3-18): seconds
-        "//core:corpus_differential_test",
-        # the planner on java.base alone (P3-19): seconds
-        "//core:planner_on_java_base_test",
-        "//spec:spec_tests",
-        # the server's Postgres arm: one query against the embedded Postgres 16
-        "//core:postgres_arm_test",
-        # app
+        "//core:guardrails",
+        "//core:census",
+        "//pct:pct_discipline",
+    ],
+)
+
+# the relational corpus on DuckDB (gates 4 and 11): the host and database passes, their verdict, the roster diff tests
+test_suite(
+    name = "corpus_duckdb",
+    tests = ["//spec:corpus_duckdb"],
+)
+
+# the relational corpus on H2 (gate 5)
+test_suite(
+    name = "corpus_h2",
+    tests = ["//spec:corpus_h2"],
+)
+
+# PCT on DuckDB (gate 6): the five suites, one target each (P3-09)
+test_suite(
+    name = "pct_duckdb",
+    tests = ["//pct:pct_duckdb"],
+)
+
+# PCT on H2 (gate 7)
+test_suite(
+    name = "pct_h2",
+    tests = ["//pct:pct_h2"],
+)
+
+# PCT on Postgres 16 (gate 7P): the five suites
+test_suite(
+    name = "pct_postgres",
+    tests = ["//pct:pct_postgres"],
+)
+
+# PCT Channel B (gate 9): lite's own compiler over the PCT sources, the dual verdict
+test_suite(
+    name = "pct_channel_b",
+    tests = ["//pct:pct_channel_b"],
+)
+
+# parser equivalence (gate 8)
+test_suite(
+    name = "parser_equivalence",
+    tests = ["//parser-equivalence:parser_parity"],
+)
+
+# the stress corpus (gate 10)
+test_suite(
+    name = "stress",
+    tests = [
+        "//core:stress_suites",
+        "//core:stress_suites_h2",
+    ],
+)
+
+# the warehouse's tests on the JVM: the server, and its SQL API compiled to WebAssembly (P3-24)
+test_suite(
+    name = "warehouse_jvm",
+    tests = [
+        "//warehouse:tests",
+        "//warehouse:sqlapi_wasm_build_test",
+    ],
+)
+
+# the warehouse: the JVM tests, the native image's tests and its launcher (the image is built here), and the two
+# tests against a live Postgres that no lane ran before this landing (PHASE_8.md Test-8: the first run decides
+# whether they stay)
+test_suite(
+    name = "warehouse",
+    tests = [
+        ":warehouse_jvm",
+        "//warehouse:tests_native",
+        "//warehouse:launcher_test",
+        "//warehouse:postgres_live",
+        "//warehouse:postgres_live_native",
+    ],
+)
+
+# DataCube: its unit tests (the live-vs-snap test against the native warehouse among them), the app in Chromium, the
+# smoke harness (on every platform since 2026-10-07; Linux only before, in the browser lane), and the planner compiled
+# to WebAssembly, which the tab runs (its TeaVM build keeps it out of `core`). The other harnesses join as tests in
+# the landing after this one (L1b).
+test_suite(
+    name = "datacube",
+    tests = [
         "//datacube:tests",
         "//datacube:verify_app_test",
-        "//query-store:lite_test",
+        "//datacube:verify_smoke_test",
         "//wasm:differential_test",
         "//wasm:zone_test",
-        "//warehouse:tests",
-        # the SQL API compiled to WebAssembly (P3-24)
-        "//warehouse:sqlapi_wasm_build_test",
-        # the engine-runner binaries through their launchers (P3-26)
-        "//tools/engine-runner:smoke_test",
-        # misc
-        "//json:tests",
-        "//pure-protocol:twins_test",
+    ],
+)
+
+# the UI apps: Studio and Query, and the saved-query store they share (against the page's own store, legend-lite's
+# server, and the share link). Their browser harnesses join in L1b.
+test_suite(
+    name = "ui",
+    tests = [
+        "//studio:tests",
+        "//query:tests",
         "//query-store:local_test",
         "//query-store:share_test",
-        "//query:tests",
-        # Studio and its model home (docs/STUDIO_DESIGN_2026_10_02.md): the SDLC and Depot suites, each run on the
-        # page's WebAssembly module and on the server over git; Studio's model and demo
-        "//depot-client:tests",
-        "//sdlc-client:tests",
+        "//query-store:lite_test",
+    ],
+)
+
+# the model home (docs/STUDIO_DESIGN_2026_10_02.md): the SDLC and Depot suites, each run on the page's WebAssembly
+# module and on the server over git
+test_suite(
+    name = "sdlc",
+    tests = [
         "//sdlc-server:git_repository_test",
-        "//studio:tests",
+        "//sdlc-client:tests",
+        "//depot-client:tests",
+    ],
+)
+
+# UNTIL L1b: the three browser tests the browser lane ran (Linux only, by the workflow); L1b turns every harness
+# into a test, constrains the Linux-only ones, and deletes this suite with the workflow's install step and loop.
+test_suite(
+    name = "browser",
+    tests = [
+        "//datacube:live_snap_test",
+        "//datacube:verify_smoke_test",
+        "//studio:verify_test",
+    ],
+)
+
+# EVERY LANE: what the product job's guard compares the repository's tests against (not `all`: that name is also
+# Bazel's wildcard for a package)
+test_suite(
+    name = "lanes",
+    tests = [
+        ":core",
+        ":checks",
+        ":corpus_duckdb",
+        ":corpus_h2",
+        ":pct_duckdb",
+        ":pct_h2",
+        ":pct_postgres",
+        ":pct_channel_b",
+        ":parser_equivalence",
+        ":stress",
+        ":warehouse",
+        ":datacube",
+        ":ui",
+        ":sdlc",
+        ":browser",
+    ],
+)
+
+# THE HEAVY ONES, manual: no per-push lane runs them (the reference lane needs about 8 GB; the warehouse corpus
+# passes build the GraalVM server; the census and the diagnostics battery are measurements). A landing runs the ones
+# it needs by hand (START_HERE.md §5); a scheduled run is PHASE_8.md Test-11.
+test_suite(
+    name = "heavy",
+    tags = ["manual"],
+    tests = [
+        "//spec:reference_lane",
+        "//spec:update_reference_lane_test",
+        "//spec:corpus_warehouse_verdict",
+        "//spec:manifest_world_census",
+        "//parser-equivalence:diagnostics",
+        "//pct:update_ratchets_test",
+        "//tools/python:requirements.test",
+    ],
+)
+
+# THE LOCAL GATE (decision D17's fast loop): what a session runs before it pushes to main, after rebasing onto the
+# latest origin/main: `bazel test //gates:local`. Light and cached: every lane but the heavy ones, which stay CI-only
+# under the desk's two-heavy-jobs cap (the PCT suites (4 GB each), the two corpus lanes, the stress corpus, parser
+# equivalence, Channel B, the native image's tests, the transitional browser suite). `datacube` brings the smoke
+# harness (a browser test on the pinned Chromium, about 100 s) and the live-vs-snap test (it builds the native image).
+test_suite(
+    name = "local",
+    tests = [
+        ":core",
+        ":checks",
+        ":warehouse_jvm",
+        ":datacube",
+        ":ui",
+        ":sdlc",
     ],
 )
 

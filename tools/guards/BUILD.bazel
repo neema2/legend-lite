@@ -1,12 +1,15 @@
 # THE GUARDS (Bazel workplan Phase 6): tests over the repository itself. inventory.bzl lists every file and package
 # (@repo_inventory); defs.bzl's guards_package gives each package an `all_files` the content guards read.
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary", "native_test")
 load("@repo_inventory//:packages.bzl", "PACKAGES")
 load(":compile_only.bzl", "action_kinds_report", "compile_only_validated_fixture")
 load(":defs.bzl", "guards_package")
+load(":workflows.bzl", "git_marker")
 load("//tools/deps:pools.bzl", "POOLS")
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/platforms:defs.bzl", "platform_select")
 
 # Every package's files (guards_package), from the inventory's package list: a package without guards_package()
 # fails analysis here (G0, Bazel workplan P6-00).
@@ -172,6 +175,61 @@ compile_only_validated_fixture(
     name = "compile_only_fixture_validated",
     testonly = True,
     tags = ["manual"],
+)
+
+# THE WORKFLOWS' LINTER (the build rebuild's first landing, PHASE_8.md CI-4; old G8's first half): actionlint over
+# every workflow file (//:workflows), as the test that replaces gate.yml's `curl | tar` job, which fetched the
+# binary with no checksum. The binary is the release archive for this platform, pinned in MODULE.bazel by the
+# release's own checksums. The embedded shell is checked by shellcheck, pinned the same way and handed to actionlint
+# by path (the old job used the runner image's shellcheck; a test runs nothing from the machine); pyflakes is off
+# (no workflow embeds Python). The `.git` marker (workflows.bzl) makes the runfiles a project, so the call from
+# gate.yml into gates-run.yml and its inputs are checked too.
+_ACTIONLINT, _ACTIONLINT_PLATFORMS = platform_select({
+    "linux_aarch64": "@actionlint_linux_arm64//:actionlint",
+    "linux_x86_64": "@actionlint_linux_amd64//:actionlint",
+    "macos_arm64": "@actionlint_darwin_arm64//:actionlint",
+    "macos_x86_64": "@actionlint_darwin_amd64//:actionlint",
+    "windows_x86_64": "@actionlint_windows_amd64//:actionlint.exe",
+}, "actionlint")
+
+_SHELLCHECK, _SHELLCHECK_PLATFORMS = platform_select({
+    "linux_aarch64": "@shellcheck_linux_aarch64//:shellcheck",
+    "linux_x86_64": "@shellcheck_linux_x86_64//:shellcheck",
+    "macos_arm64": "@shellcheck_darwin_aarch64//:shellcheck",
+    "macos_x86_64": "@shellcheck_darwin_x86_64//:shellcheck",
+    "windows_x86_64": "@shellcheck_windows//:shellcheck.exe",
+}, "shellcheck")
+
+# shellcheck copied into this package, so its runfiles path is a plain `$(rootpath)` (an external file's is not,
+# without the legacy external runfiles layout); native_binary names the copy after the target, `.exe` on Windows,
+# which runs no extensionless file
+native_binary(
+    name = "shellcheck",
+    testonly = True,
+    src = _SHELLCHECK,
+    target_compatible_with = _SHELLCHECK_PLATFORMS,
+)
+
+git_marker(
+    name = "workflows_git_marker",
+    testonly = True,
+)
+
+native_test(
+    name = "workflows_test",
+    size = "small",
+    src = _ACTIONLINT,
+    args = [
+        "-shellcheck=$(rootpath :shellcheck)",
+        "-pyflakes=",
+        "$(rootpaths //:workflows)",
+    ],
+    data = [
+        ":shellcheck",
+        ":workflows_git_marker",
+        "//:workflows",
+    ],
+    target_compatible_with = _SHELLCHECK_PLATFORMS,
 )
 
 guards_package()

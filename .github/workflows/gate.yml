@@ -1,7 +1,7 @@
-# THE STANDING GATE — every gate (docs/GATES.md) on Linux, macOS and Windows,
-# in parallel, on every push: `bazel test` on each gate's targets, one lane per
-# gate (gates-run.yml). Gate policy lives in the BUILD files — each gate is a
-# test target — so adding a gate adds a target and a lane, never a script.
+# THE STANDING GATE — every lane (gates/BUILD.bazel, one suite each) on Linux, macOS and
+# Windows, in parallel, on every push to main: `bazel test //gates:<lane>` per lane and
+# `bazel build` of the product (gates-run.yml). Lane policy lives in the BUILD files — each
+# lane is a suite — so adding a test adds it to a suite, never to a script.
 #
 # WHY THREE PLATFORMS. On 2026-09-09 the first CI run found that DuckDB's
 # percentile_cont returns a different double on x86_64 than on arm64, reddening
@@ -28,14 +28,14 @@ on:
       - "**/*.md"
       - progress*.txt
   # Every night on main. A PR merged up to date carries [skip ci] in its merge message (its run already tested
-  # exactly the merged result), so this is main's own verdict, and it refreshes the build cache every PR run
-  # starts from (a PR's run can read main's cache; main cannot read a PR's).
+  # exactly the merged result), so this is main's own verdict, and it refreshes the downloads cache every branch
+  # run starts from (a branch's run can read main's cache; main cannot read a branch's).
   schedule:
     - cron: "23 6 * * *"
   workflow_dispatch:
     inputs:
       gates:
-        description: "Comma-separated lanes to run (empty = all): 1,checks,3,4,5,6,7,7p,8,9,10,app,misc,build,native,browser (4 includes the judge differential, once gate 11; browser is Linux only)."
+        description: "Comma-separated lanes to run (empty = all): product,core,checks,corpus_duckdb,corpus_h2,pct_duckdb,pct_h2,pct_postgres,pct_channel_b,parser_equivalence,stress,warehouse,datacube,ui,sdlc,browser (gates/BUILD.bazel; browser is Linux only, until L1b)."
         default: ""
         type: string
       platforms:
@@ -51,21 +51,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # A workflow whose OWN file is invalid never runs (GitHub reports zero jobs
-  # and names the run after the file path — how the first version of this file
-  # failed). So workflows are linted LOCALLY before a push, and here as well,
-  # which catches an edit to any OTHER workflow before it is merged.
-  workflows:
-    name: lint workflows
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v4
-      - run: |
-          curl -fsSL https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz \
-            | tar xz actionlint
-          ./actionlint -color
-
+  # A workflow whose OWN file is invalid never runs (GitHub reports zero jobs and names the run after the file
+  # path — how the first version of this file failed). So the workflows are linted by a test in the checks lane,
+  # //tools/guards:workflows_test (actionlint, pinned in MODULE.bazel), which runs locally before a push too.
   linux:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'linux' }}
     uses: ./.github/workflows/gates-run.yml
@@ -96,14 +84,14 @@ jobs:
 
   # LINUX ARM64 (Bazel workplan P1-13): the native warehouse on a real arm64 runner, with the hermetic C
   # toolchain. CI had never run Linux arm64; the native-image crash seen under Docker Desktop on Apple silicon
-  # does not happen on real hardware (run 37139357779). The native lane only, until P5-03.
+  # does not happen on real hardware (run 37139357779). The warehouse lane only.
   linux-arm:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'linux-arm' }}
     uses: ./.github/workflows/gates-run.yml
     with:
       runs-on: ubuntu-24.04-arm
       platform: linux-arm
-      gates: native
+      gates: warehouse
 
   # THE ONE REQUIRED CHECK (Bazel workplan P0-14, D17): main's ruleset requires this job, not the ~50 lane
   # jobs, whose names move with every lane change. It fails unless every job above succeeded. It does not
@@ -112,7 +100,7 @@ jobs:
   green:
     name: gates green
     if: ${{ always() && github.event_name != 'workflow_dispatch' }}
-    needs: [workflows, linux, macos, windows, linux-arm]
+    needs: [linux, macos, windows, linux-arm]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
