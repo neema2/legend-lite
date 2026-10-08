@@ -3,17 +3,21 @@
 
 package com.legend.executionplan;
 
-import com.legend.executionplan.ExecutionPlan.EnumValue;
-import com.legend.executionplan.ExecutionPlan.JsonResult;
+import com.legend.executionplan.ExecutionPlan.Format;
 import com.legend.executionplan.ExecutionPlan.Multiplicity;
 import com.legend.executionplan.ExecutionPlan.Node;
 import com.legend.executionplan.ExecutionPlan.Parameter;
+import com.legend.executionplan.ExecutionPlan.Relation;
+import com.legend.executionplan.ExecutionPlan.ResultType;
 import com.legend.executionplan.ExecutionPlan.Sequence;
+import com.legend.executionplan.ExecutionPlan.SetupStep;
 import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
 import com.legend.executionplan.ExecutionPlan.TdsColumn;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
+import com.legend.executionplan.ExecutionPlan.TextResult;
+import com.legend.executionplan.ExecutionPlan.Value;
 import com.legend.json.Json;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
@@ -33,14 +37,19 @@ public final class PlanJson {
 
     /** The format's name and version, the first two fields of every plan. */
     public static final String FORMAT = "legend-lite-plan";
-    public static final int VERSION = 1;
+    /** 2 since 2026-10-08: step 2's records (enum values by name, {@code textResult}, setup steps, no identity). */
+    public static final int VERSION = 2;
 
     private PlanJson() {
     }
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, jsonResult }
+    enum NodeTag { sequence, tdsResult, textResult }
+
+    enum ResultTypeTag { relation, value }
+
+    enum SetupTag { statement, rows }
 
     enum SpecificationTag { InMemory, LocalFile, LocalH2, EmbeddedH2, StaticDatasource, Snowflake, Spanner, Databricks,
         BigQuery }
@@ -50,13 +59,16 @@ public final class PlanJson {
         GcpWorkloadIdentityFederation }
 
     private static <E extends Enum<E>> E tag(Class<E> family, Json.Obj o, String what) {
-        String t = o.getString("_type");
+        return named(family, o.getString("_type"), what + " _type");
+    }
+
+    private static <E extends Enum<E>> E named(Class<E> family, String name, String what) {
         for (E e : family.getEnumConstants()) {
-            if (e.name().equals(t)) {
+            if (e.name().equals(name)) {
                 return e;
             }
         }
-        throw new IllegalArgumentException("unknown " + what + " _type '" + t + "'");
+        throw new IllegalArgumentException("unknown " + what + " '" + name + "'");
     }
 
     // ---- write ------------------------------------------------------------------------------------------------------
@@ -75,16 +87,7 @@ public final class PlanJson {
         o.put("name", p.name());
         o.put("type", p.type());
         o.put("multiplicity", multiplicity(p.multiplicity()));
-        if (!p.enumValues().isEmpty()) {
-            List<Object> values = new ArrayList<>();
-            for (EnumValue v : p.enumValues()) {
-                Map<String, Object> e = new LinkedHashMap<>();
-                e.put("name", v.name());
-                e.put("databaseValues", v.databaseValues());
-                values.add(e);
-            }
-            o.put("enumValues", values);
-        }
+        o.put("enumValues", p.enumValues());
         return o;
     }
 
@@ -106,22 +109,42 @@ public final class PlanJson {
             }
             case TdsResult t -> {
                 o.put("_type", NodeTag.tdsResult.name());
-                List<Object> cols = new ArrayList<>();
-                for (TdsColumn c : t.columns()) {
-                    Map<String, Object> co = new LinkedHashMap<>();
-                    co.put("name", c.name());
-                    co.put("type", c.type());
-                    co.put("sqlType", c.sqlType());
-                    cols.add(co);
-                }
-                o.put("columns", cols);
+                o.put("columns", columns(t.columns()));
                 o.put("sql", sql(t.sql()));
             }
-            case JsonResult j -> {
-                o.put("_type", NodeTag.jsonResult.name());
-                o.put("type", j.type());
-                o.put("multiplicity", multiplicity(j.multiplicity()));
-                o.put("sql", sql(j.sql()));
+            case TextResult x -> {
+                o.put("_type", NodeTag.textResult.name());
+                o.put("format", x.format().name());
+                o.put("type", resultType(x.type()));
+                o.put("sql", sql(x.sql()));
+            }
+        }
+        return o;
+    }
+
+    private static List<Object> columns(List<TdsColumn> columns) {
+        List<Object> cols = new ArrayList<>();
+        for (TdsColumn c : columns) {
+            Map<String, Object> co = new LinkedHashMap<>();
+            co.put("name", c.name());
+            co.put("type", c.type());
+            co.put("sqlType", c.sqlType());
+            cols.add(co);
+        }
+        return cols;
+    }
+
+    private static Map<String, Object> resultType(ResultType type) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        switch (type) {
+            case Relation r -> {
+                o.put("_type", ResultTypeTag.relation.name());
+                o.put("columns", columns(r.columns()));
+            }
+            case Value v -> {
+                o.put("_type", ResultTypeTag.value.name());
+                o.put("type", v.type());
+                o.put("multiplicity", multiplicity(v.multiplicity()));
             }
         }
         return o;
@@ -143,9 +166,27 @@ public final class PlanJson {
         Target t = s.target();
         Map<String, Object> to = new LinkedHashMap<>();
         to.put("connection", connection(t.connection()));
-        to.put("setup", t.setup());
-        to.put("identity", t.identity());
+        to.put("setup", t.setup().stream().map(PlanJson::setupStep).toList());
         o.put("target", to);
+        return o;
+    }
+
+    private static Map<String, Object> setupStep(SetupStep step) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        switch (step) {
+            case SetupStep.Statement s -> {
+                o.put("_type", SetupTag.statement.name());
+                o.put("sql", s.sql());
+            }
+            case SetupStep.Rows r -> {
+                o.put("_type", SetupTag.rows.name());
+                o.put("stagingTable", r.stagingTable());
+                o.put("createStaging", r.createStaging());
+                o.put("copy", r.copy());
+                o.put("dropStaging", r.dropStaging());
+                o.put("rows", r.rows());
+            }
+        }
         return o;
     }
 
@@ -303,34 +344,8 @@ public final class PlanJson {
     }
 
     private static Parameter readParameter(Json.Obj o) {
-        List<EnumValue> values = new ArrayList<>();
-        Json.Arr ev = o.getArrOr("enumValues", null);
-        if (ev != null) {
-            for (Json.Node n : ev.items()) {
-                Json.Obj e = (Json.Obj) n;
-                List<Object> db = new ArrayList<>();
-                for (Json.Node v : e.getArr("databaseValues").items()) {
-                    db.add(switch (v) {
-                        case Json.Str s -> s.value();
-                        case Json.Num num when num.isInteger() -> num.longValue();
-                        case Json.Num num -> throw new IllegalArgumentException("enum value '" + e.getString("name")
-                                + "': a database value is a String or an integer, not " + num.doubleValue());
-                        case Json.Obj x -> throw notADatabaseValue(e);
-                        case Json.Arr x -> throw notADatabaseValue(e);
-                        case Json.Bool x -> throw notADatabaseValue(e);
-                        case Json.Null x -> throw notADatabaseValue(e);
-                    });
-                }
-                values.add(new EnumValue(e.getString("name"), db));
-            }
-        }
         return new Parameter(o.getString("name"), o.getString("type"), readMultiplicity(o.getObj("multiplicity")),
-                values);
-    }
-
-    private static IllegalArgumentException notADatabaseValue(Json.Obj e) {
-        return new IllegalArgumentException("enum value '" + e.getString("name")
-                + "': a database value is a String or an integer");
+                o.getStringArray("enumValues"));
     }
 
     private static Multiplicity readMultiplicity(Json.Obj o) {
@@ -346,16 +361,25 @@ public final class PlanJson {
                 }
                 yield new Sequence(steps);
             }
-            case tdsResult -> {
-                List<TdsColumn> cols = new ArrayList<>();
-                for (Json.Node n : o.getArr("columns").items()) {
-                    Json.Obj c = (Json.Obj) n;
-                    cols.add(new TdsColumn(c.getString("name"), c.getString("type"), c.getString("sqlType")));
-                }
-                yield new TdsResult(cols, readSql(o.getObj("sql")));
-            }
-            case jsonResult -> new JsonResult(o.getString("type"), readMultiplicity(o.getObj("multiplicity")),
-                    readSql(o.getObj("sql")));
+            case tdsResult -> new TdsResult(readColumns(o.getArr("columns")), readSql(o.getObj("sql")));
+            case textResult -> new TextResult(named(Format.class, o.getString("format"), "text result format"),
+                    readResultType(o.getObj("type")), readSql(o.getObj("sql")));
+        };
+    }
+
+    private static List<TdsColumn> readColumns(Json.Arr columns) {
+        List<TdsColumn> cols = new ArrayList<>();
+        for (Json.Node n : columns.items()) {
+            Json.Obj c = (Json.Obj) n;
+            cols.add(new TdsColumn(c.getString("name"), c.getString("type"), c.getString("sqlType")));
+        }
+        return cols;
+    }
+
+    private static ResultType readResultType(Json.Obj o) {
+        return switch (tag(ResultTypeTag.class, o, "result type")) {
+            case relation -> new Relation(readColumns(o.getArr("columns")));
+            case value -> new Value(o.getString("type"), readMultiplicity(o.getObj("multiplicity")));
         };
     }
 
@@ -366,9 +390,45 @@ public final class PlanJson {
             slots.add(new Slot(s.getString("parameter"), s.getStringOr("arrayElementSqlType", null)));
         }
         Json.Obj t = o.getObj("target");
-        Target target = new Target(readConnection(t.getObj("connection")), t.getStringArray("setup"),
-                t.getString("identity"));
-        return new Sql(o.getString("statement"), slots, target, null);
+        List<SetupStep> setup = new ArrayList<>();
+        for (Json.Node n : t.getArr("setup").items()) {
+            setup.add(readSetupStep((Json.Obj) n));
+        }
+        return new Sql(o.getString("statement"), slots, new Target(readConnection(t.getObj("connection")), setup), null);
+    }
+
+    private static SetupStep readSetupStep(Json.Obj o) {
+        return switch (tag(SetupTag.class, o, "setup step")) {
+            case statement -> new SetupStep.Statement(o.getString("sql"));
+            case rows -> {
+                List<List<String>> rows = new ArrayList<>();
+                for (Json.Node r : o.getArr("rows").items()) {
+                    if (!(r instanceof Json.Arr cells)) {
+                        throw new IllegalArgumentException("rows for " + o.getString("stagingTable")
+                                + ": a row is an array of cells");
+                    }
+                    List<String> row = new ArrayList<>();
+                    for (Json.Node cell : cells.items()) {
+                        row.add(switch (cell) {
+                            case Json.Str s -> s.value();
+                            case Json.Null x -> null;
+                            case Json.Num x -> throw notTextCell(o);
+                            case Json.Bool x -> throw notTextCell(o);
+                            case Json.Obj x -> throw notTextCell(o);
+                            case Json.Arr x -> throw notTextCell(o);
+                        });
+                    }
+                    rows.add(row);
+                }
+                yield new SetupStep.Rows(o.getString("stagingTable"), o.getString("createStaging"), o.getString("copy"),
+                        o.getString("dropStaging"), rows);
+            }
+        };
+    }
+
+    private static IllegalArgumentException notTextCell(Json.Obj rows) {
+        return new IllegalArgumentException("rows for " + rows.getString("stagingTable")
+                + ": a cell is text or null (the database types it)");
     }
 
     private static ConnectionDefinition readConnection(Json.Obj o) {

@@ -3,22 +3,26 @@
 
 package com.legend.executionplan;
 
-import com.legend.executionplan.ExecutionPlan.EnumValue;
-import com.legend.executionplan.ExecutionPlan.JsonResult;
+import com.legend.executionplan.ExecutionPlan.Format;
 import com.legend.executionplan.ExecutionPlan.Multiplicity;
 import com.legend.executionplan.ExecutionPlan.Parameter;
+import com.legend.executionplan.ExecutionPlan.Relation;
 import com.legend.executionplan.ExecutionPlan.Sequence;
+import com.legend.executionplan.ExecutionPlan.SetupStep;
 import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
 import com.legend.executionplan.ExecutionPlan.TdsColumn;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
+import com.legend.executionplan.ExecutionPlan.TextResult;
+import com.legend.executionplan.ExecutionPlan.Value;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.model.ConnectionSpecification;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -53,7 +57,7 @@ class PlanJsonTest {
 
     private static Target target(ConnectionSpecification spec, AuthenticationSpec auth) {
         return new Target(new ConnectionDefinition("store::Conn", "store::DB", DatabaseType.H2, spec, auth),
-                List.of("create table T(ID INT)"), "c_0123456789abcdef");
+                List.of(new SetupStep.Statement("create table T(ID INT)")));
     }
 
     @Test
@@ -62,15 +66,40 @@ class PlanJsonTest {
         ExecutionPlan plan = new ExecutionPlan(
                 List.of(new Parameter("name", "String", new Multiplicity(1, 1), List.of()),
                         new Parameter("ids", "Integer", new Multiplicity(0, null), List.of()),
-                        new Parameter("status", "model::Status", new Multiplicity(1, 1),
-                                List.of(new EnumValue("ACTIVE", List.of("A", 1L)), new EnumValue("CLOSED", List.of("C"))))),
+                        new Parameter("status", "model::Status", new Multiplicity(1, 1), List.of("ACTIVE", "CLOSED"))),
                 new Sequence(List.of(
                         new TdsResult(List.of(new TdsColumn("name", "String", "VARCHAR(100)")),
                                 new Sql("select NAME as \"name\" from T where NAME = ? and ID = ANY(?)",
                                         List.of(new Slot("name", null), new Slot("ids", "INTEGER")), t, null)),
-                        new JsonResult("model::Person", new Multiplicity(0, null),
-                                new Sql("select json_group_array(...) from T", List.of(), t, null)))));
+                        new TextResult(Format.JSON, new Value("model::Person", new Multiplicity(0, null)),
+                                new Sql("select json_group_array(...) from T", List.of(), t, null)),
+                        new TextResult(Format.CSV, new Relation(List.of(new TdsColumn("name", "String", "VARCHAR(100)"))),
+                                new Sql("select ... from T", List.of(), t, null)),
+                        new TextResult(Format.JSON_PER_ROW, new Relation(List.of()),
+                                new Sql("select ... from T", List.of(), t, null)))));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
+    }
+
+    @Test
+    void bothSetupStepKindsReadBack_aNullCellStaysNull() {
+        Target t = new Target(new ConnectionDefinition("store::Conn", "store::DB", DatabaseType.DuckDB,
+                new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth()),
+                List.of(new SetupStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
+                        new SetupStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
+                                "insert into T(ID, NAME) select c0, c1 from legend_row_load", "drop table legend_row_load",
+                                List.of(List.of("1", "O'Brien"), Arrays.asList("2", null)))));
+        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(List.of(), new Sql("select 1", List.of(), t, null)));
+        ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
+        assertEquals(plan, back);
+        SetupStep.Rows rows = (SetupStep.Rows) ((TdsResult) back.root()).sql().target().setup().get(1);
+        assertEquals(null, rows.rows().get(1).get(1));
+    }
+
+    @Test
+    void rowsOfDifferentWidthsAreRefused() {
+        var refused = assertThrows(IllegalArgumentException.class, () -> new SetupStep.Rows("s", "c", "i", "d",
+                List.of(List.of("1", "a"), List.of("2"))));
+        assertTrue(refused.getMessage().contains("a row of 1 cells among rows of 2"), refused.getMessage());
     }
 
     @Test
@@ -89,13 +118,38 @@ class PlanJsonTest {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(List.of(),
                 new Sql("select 1", List.of(), t, null))));
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":1,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":2,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v1 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v2 plan"), refused.getMessage());
+    }
+
+    @Test
+    void aParameterWithoutItsEnumValuesIsRefused_neverReadAsNone() {
+        Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
+        String json = PlanJson.write(new ExecutionPlan(List.of(new Parameter("s", "model::Status",
+                new Multiplicity(1, 1), List.of("A"))), new TdsResult(List.of(), new Sql("select 1", List.of(), t, null))))
+                .replace(",\"enumValues\":[\"A\"]", "");
+        assertThrows(RuntimeException.class, () -> PlanJson.read(json));
+    }
+
+    @Test
+    void theFirstVersionIsRefused() {
+        var refused = assertThrows(IllegalArgumentException.class,
+                () -> PlanJson.read("{\"format\":\"legend-lite-plan\",\"version\":1,\"parameters\":[],\"root\":{}}"));
+        assertTrue(refused.getMessage().contains("(format legend-lite-plan, version 1)"), refused.getMessage());
+    }
+
+    @Test
+    void anUnknownFormatOfTextIsRefusedByName() {
+        Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
+        String json = PlanJson.write(new ExecutionPlan(List.of(), new TextResult(Format.CSV, new Relation(List.of()),
+                new Sql("select 1", List.of(), t, null)))).replace("\"format\":\"CSV\"", "\"format\":\"XML\"");
+        var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(json));
+        assertTrue(refused.getMessage().contains("unknown text result format 'XML'"), refused.getMessage());
     }
 }
