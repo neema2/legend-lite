@@ -107,7 +107,7 @@ with the compiler's plan/execution split**, in this order:
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
    `datacube-chart-spec`. `native/` and `python/` (new). **L1 landed 2026-10-07 (`bc8107c4e`)**: the compiler as a
    native library with Python bindings. Next: DataCube on Python dataframes. Nothing in `core/` (its typing fix went to
-   the compiler line).
+   the compiler line; one additive `CatalogModel` method, below).
 
 **Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
 B2/B3 and the W6.2 runner wait for it); the server
@@ -484,7 +484,9 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
      (`DuckDb.CATALOG_COLUMNS_SQL`, filled). Then `native/` (two entry points), `python/legend_lite` (`register(name,
      frame, mode)`, Live the default: the frame re-read as Arrow at each query; Snapped: copied into DuckDB once;
      `execute(query)` -> an Arrow table), `python/BUILD.bazel`, `tools/python/requirements.in` and its lock (duckdb,
-     pandas and polars for the tests; pyarrow is already pinned). Nothing in `core/`.
+     pandas and polars for the tests; pyarrow is already pinned). In `core/`, one additive method:
+     `core/.../sql/dialect/CatalogModel.java`, `Database.copySelectList()` -- the select list a copy applies, beside the
+     writer's own identifier quoting -- with its test in `CatalogModelTest`.
   2. **DataCube moves to the same code** (after Studio's `studio-engine` lands; files agreed with the Studio line
      first): `datacube/src/infer.ts` (`inferModel` becomes the planner's `tableModel`), `upload.ts`, `catalog-model.ts`
      (its TypeScript copy of the writer deleted), `generated/catalog-facts.ts` and its generator where nothing else
