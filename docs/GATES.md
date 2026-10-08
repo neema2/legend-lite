@@ -7081,6 +7081,12 @@ The audit (the auditor agent, 2026-10-07, read-only): two blockers, six should-f
   fill the same tables, and test data was loaded once per version): one model's test data is now current at a time,
   made current whenever a version is opened (Query) or in the same turn as each query of a version's cube (DataCube).
 
-Local gate `//gates:local` green on the rebased branch. Known flaky, not this change's: `//datacube:verify_features_test`
-shard 4 (a settle that stops waiting silently after 20 s; reported by the DataCube + Python line, 2026-10-08), the
-Studio line's next fix.
+Local gate `//gates:local` green on the rebased branch. The run: 37791261009 on `studio-engine-1008` (c0ec1fa15), lanes
+product, checks, ui, datacube and sdlc on all platforms, dispatched 14:17 UTC 2026-10-08. Green on every job but
+Linux `datacube`, where `//datacube:verify_features_test` failed in two of its four shards (the compound filter's SQL
+read before it changed; a new column not yet on screen); rerun on the same commit, green. Not this change's: the same
+test failed the same way on a branch that touches no DataCube file (run 37695660855, reported by the DataCube +
+Python line). The cause, found the same day: the cube counts a change as in flight only from its query on, but the
+filter window's Apply and the column window's OK first ask the planner (a compile check, a parse), so a harness that
+waits for the cube to go quiet moves on while that round trip is still out on a loaded runner. The Studio line's next
+fix. Pushed to main as 61ad2dbaa: the tested commit over two IN_FLIGHT-only commits.
