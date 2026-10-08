@@ -189,6 +189,7 @@ _PLANNER_SRCS = [
     "src/main/java/com/legend/Compiler.java",
     "src/main/java/com/legend/CrossStoreGuard.java",
     "src/main/java/com/legend/ProgramFacts.java",
+    "src/main/java/com/legend/QueryParameters.java",
     "src/main/java/com/legend/TypedQuery.java",
 ]
 
@@ -198,7 +199,7 @@ legend_java_library(
     srcs = _PLANNER_SRCS,
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error",
-        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
+        ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
         ":protocol", ":resolver", ":sql", ":sql_dialect", ":validation", ":values",
     ],
 )

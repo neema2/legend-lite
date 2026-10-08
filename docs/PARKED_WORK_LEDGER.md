@@ -175,3 +175,39 @@ subtree once and points both readers at the name, with the measurement above clo
 (`SqlPostProcessors.java`, the opt-in path) and `new SqlWith(` is constructed in exactly
 one (`SqlRewriter.java`, its structural copy-on-write). A real common-subexpression pass
 moves at least one of those.
+
+---
+
+## PARK-15 — The legacy plan picks an enumeration mapping without the place it is used
+
+(Numbered 15: the build rebuild's Phase 3 branch holds PARK-5 to PARK-14.)
+
+**Parked** 2026-10-08 by the user's step 2 decisions (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9), found while
+reading the legacy plan's parameter code for the one parameter list; widened by that landing's audit.
+
+**What happens today.** One mapping may map an enum twice — two columns storing it two ways. The legacy,
+legend-engine-shaped plan (`executionPlan(...)`'s text and node model) then picks an enumeration mapping without
+knowing where it is used:
+- an enum PARAMETER's translation is one template function per parameter: `PlanText.enumMapFnOf` asks
+  `enumMappingOf(ctx, mappingFqn, enumFqn)`, the first enumeration mapping over that enum (the mapping's own, then its
+  includes', an exact path before a simple name), and `PlanAllocations.planTemplateFunctions` emits that one
+  `enumMap_` function the same way;
+- a RESULT column's enumeration-mapping id (`PlanText.enumMappingIdFor`) is chosen by the physical column when the
+  property mapping names it, and otherwise falls back to the first one declared.
+legend-engine chooses at the place of use, from the property mapping there (`pureToSQLQuery.pure:8511`:
+`'enumMap_' + fetchEnumFullPath($propertyMapping.currentPropertyMapping->at(0)->getEnumPropMappingTransformer() ...)`).
+So for an enum mapped twice the legacy plan names the wrong translation at one of the two places, and a plan
+executed from that text would compare or decode against the other column's codes.
+
+**Who it touches.** Only the legacy plan (Pure code's `executionPlan`, the corpus and PCT plan-text checks). The lite
+plan does not choose in Java at all: the database translates a parameter at each place it is compared, from a value
+table written into that place's SQL (the user, 2026-10-07).
+
+**Acceptance (what closes this row).** The legacy plan's enumeration mapping is chosen at each place from that place's
+property mapping — parameter template functions and result-column ids alike — and a test with one enum mapped twice
+in one mapping shows each place naming its own, as legend-engine's plan does.
+
+**Anchor.** The three choices with no place of use: `enumMapFnOf`'s call `enumMappingOf(ctx, mappingFqn, enumFqn)` in
+`PlanText.java`; `planTemplateFunctions`' call `PlanText.enumMappingOf(env.ctx(), pmr.fullPath(), et.fqn())` in
+`PlanAllocations.java`; and `enumMappingIdFor`'s `candidates.get(0)` fallback in `PlanText.java`. Choosing per place
+changes all three.

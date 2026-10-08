@@ -272,6 +272,11 @@ public final class SpecCompiler {
         return typer.typeBody(expr, env, Expected.infer());
     }
 
+    /** A lambda parameter's declared type and multiplicity, as {@link #typeQueryBody} puts it in scope. */
+    public com.legend.compiler.element.type.ExprType declaredParameterType(com.legend.protocol.spec.Variable parameter) {
+        return typer.declaredType(parameter);
+    }
+
     /**
      * Type a standalone query as a STATEMENT SEQUENCE (the corpus/engine
      * convention: queries arrive as lambdas -- "|let a = ...; $a;" -- with lets

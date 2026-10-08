@@ -17,6 +17,7 @@
 # NO testdatagen; driver, test and server_lib reach it.
 # 2026-10-08: `setup` (a connection's setup as text and rows, moved out of exec: execution plan boundary step 2's
 # opening piece, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9); exec, testdatagen and driver reach it.
+# 2026-10-08: planner reaches `execution_plan` (QueryParameters, the one parameter list: step 2).
 spi	
 cache	base
 values	base
@@ -44,7 +45,7 @@ exec	base compiler compiler_element_type database diagnostics error lowering mod
 probe	base builtin lowering model platform
 testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql_dialect values
 execution_plan	base json model sql
-planner	base builtin cache compiler compiler_element_type database error lineage lowering model normalizer parser plan platform protocol resolver sql sql_dialect validation values
+planner	base builtin cache compiler compiler_element_type database error execution_plan lineage lowering model normalizer parser plan platform protocol resolver sql sql_dialect validation values
 driver	base builtin cache compiler compiler_element_type database diagnostics error exec lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values
 ide	base lexer model parser
 test	base compiler driver error exec model planner protocol sql values
