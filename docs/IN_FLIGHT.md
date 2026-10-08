@@ -525,6 +525,19 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   its tests); `engine-client/src/engine-remote.ts` and `pure-v1.ts` (Arrow as well as JSON, each engine's format
   declared); DataCube's start for an engine at an address (`datacube/demo/boot.ts`, `planners.ts` -- the Studio line's,
   agreed with it before the first edit); a browser test in `live_snap_test`'s shape; `gates/BUILD.bazel` (its lane).
+  **Amended 2026-10-08, before the first core edit:** Python's answers come from legend-lite's own server code, not a
+  second copy in the boundary. `core/src/main/java/com/legend/server/PureV1Api.java` keeps its package and name and
+  moves into a plan-side library of its own, `//core:pure_v1` (as `:planner` sits beside `:driver`), so the boundary
+  can call it. Its one database call, execute's run, is handed in by the caller (`PureV1Api.Runner`; legend-lite's
+  server passes `QueryService.executeUpstream`, unchanged). The path-to-endpoint switch moves from
+  `LegendHttpServer.PureV1Handler` into `PureV1Api.route`, so the two servers share one routing table. New in it:
+  execute's Arrow half (`?serializationFormat=ARROW_IPC`): the SQL to run and the Arrow schema metadata, in the layout
+  measured against legend-engine 4.145.0. Files: `PureV1Api.java`, `LegendHttpServer.java` (the switch only),
+  `core/BUILD.bazel` (the library; the plan side and `:server_lib` reach it), `tools/deps/core-layers.txt`,
+  `ArchitectureTest` (the library's sample class), the tests that call `execute` (`PureV1ApiTest`,
+  `ConnectionLeaseTest`). **Overlaps:** the protocol program's `grammar/*` routes and the execution-plan line's step 4
+  (`execute`) are in the same file, in other methods: whoever lands second merges, and step 4's "plan once, then run"
+  fits the runner. The Bazel edits go to the Bazel program session before landing.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
