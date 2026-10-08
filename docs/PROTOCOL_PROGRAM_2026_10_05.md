@@ -77,6 +77,24 @@ not be written back, so it is refused.
 2. **Compose over records.** `PureComposer` and every family composer move from `Json.Obj` to records. Rules unchanged;
    field access changes. The parity counts must hold exactly at every step (a family at a time, the test run each time).
    The JSON-taking entry points remain only as `compose(read(J))` wrappers for the routes.
+   **Decided 2026-10-08 (the user), before it starts:**
+   - *JSON the reader does not know.* The reader reads every field and older shape legend-engine 4.145.0 reads (its
+     deprecated protocol fields, about 26 across 35 classes, and its two protocol converters, already ported); where
+     the engine silently ignores an unknown field (its about 24 `@JsonIgnoreProperties(ignoreUnknown = true)` protocol
+     classes: Service, DataSpace, Diagram, the model context, ...), the reader refuses it, naming the field and the
+     element, rather than drop it: nothing a person wrote is lost silently. Proven by the read oracle
+     (`emit(read(J)) == J`, which catches a field read and not written back) and a parity test feeding the same JSON
+     to the engine and to lite; the one difference (refuse where the engine drops) is a `SEMANTICS_REGISTER.md` row.
+     (The other choices were: strict, refusing the engine's older fields too; and the engine exactly, dropping
+     unknown fields where it does.)
+   - *A table reference keeps how it was written.* `#>{db.schema.table}#` and the ordinary call
+     `tableReference(db, 'schema.table')` are one record, told apart today only by whether the table name has a
+     source position, which JSON without positions (Depot entities, a browser's save) does not carry. The record
+     gets a written-form flag beside `propertyCall`, `grouped` and `infix`, set by the parser's island rule and the
+     reader's `classInstance ">"` (through `AppliedFunction.tableReference`), read by the emitter and the printer;
+     the compiler ignores it. The field is agreed with the compiler line first (the record is its W2.3a's). (The other
+     choices were: a separate record for the island, as path literals have; and inferring from positions, wrong
+     without them.)
 3. **One public face** (invariant 5), and the consumers moved onto it: `PureV1Api`'s grammar routes, `Wasm.java`'s
    `modelJsonOrError` / `lambdaJsonOrError` / `composeLambdaOrError` / `jsonToGrammarModelOrError`, and the apps'
    clients (engine-client's grammar interface) unchanged in shape.
