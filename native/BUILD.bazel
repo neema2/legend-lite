@@ -51,6 +51,8 @@ native_image(
     }),
     target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64"]),
     visibility = [
+        # //datacube:python_engine_test hands the library to the Python engine it starts
+        "//datacube:__pkg__",
         "//python:__pkg__",
         "//tools/guards:__pkg__",
     ],

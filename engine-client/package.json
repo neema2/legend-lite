@@ -5,7 +5,8 @@
   "description": "Where a query runs, for every app here: the engine interface, results and receipts, legend-engine's pure/v1 client, DuckDB in the tab, and the warehouse.",
   "dependencies": {
     "@duckdb/duckdb-wasm": "1.33.1-dev57.0",
-    "apache-arrow": "17.0.0"
+    "apache-arrow": "17.0.0",
+    "fzstd": "0.1.1"
   },
   "pnpm": {
     "onlyBuiltDependencies": []

@@ -14,8 +14,11 @@
 //
 // So this is not a planner. Pure in, ROWS out.
 
+import { tableFromIPC } from 'apache-arrow';
+
 import type { ResultColumn, ResultTable, Scalar } from './result.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
+import { toRawTable, type ArrowishTable } from './duckdb.ts';
 import { hostOf } from './receipt.ts';
 import { PureV1Client, type PrintStyle, type PureV1Options } from './pure-v1.ts';
 import { pureType, relationColumns, type PlanColumn } from './relation-type.ts';
@@ -109,9 +112,54 @@ export function toResultTable(
   return { columns, rowCount: rows.length, epoch, elapsedMs };
 }
 
+/** The Arrow answer's schema metadata, as upstream writes it (RelationalResultToArrowIPCSerializer). */
+interface ArrowAnswer {
+  readonly numRows: number;
+  readonly schema: ArrowishTable['schema'] & { readonly metadata: Map<string, string> };
+}
+
+/**
+ * An ARROW_IPC answer (upstream's Arrow: the stream out of its zstd frame) as a ResultTable. The values are decoded
+ * exactly from what the database wrote (toRawTable, as the warehouse's chunks are); what they MEAN is the builder's
+ * (`legend.builder`, the compiler's types), never the Arrow type -- legend-engine types its Arrow columns from the
+ * JDBC metadata (docs/SEMANTICS_REGISTER.md S28). A column the builder does not type, or a builder that is missing,
+ * is refused.
+ */
+export function arrowResultTable(
+  stream: Uint8Array,
+  epoch: number,
+  elapsedMs: number,
+): { readonly rows: ResultTable; readonly activities: readonly { readonly sql?: string; readonly comment?: string }[] } {
+  const table = tableFromIPC(stream) as unknown as ArrowishTable & ArrowAnswer;
+  const metadata = table.schema.metadata;
+  const builder = metadata.get('legend.builder');
+  if (builder === undefined) {
+    throw new Error('the engine answered Arrow without its legend.builder: its columns have no types');
+  }
+  const declared = (JSON.parse(builder) as TdsResponse['builder'])?.columns;
+  if (declared === undefined) throw new Error('the engine answered Arrow with a legend.builder that has no columns');
+  const raw = toRawTable(table, epoch, elapsedMs);
+  // the builder and the stream name the same columns, in the same order: a difference is the engine's bug, refused
+  const named = raw.columns.map((c) => c.name);
+  if (JSON.stringify(named) !== JSON.stringify(declared.map((c) => c.name))) {
+    throw new Error(`the engine's Arrow columns ${JSON.stringify(named)} are not its builder's `
+      + JSON.stringify(declared.map((c) => c.name)));
+  }
+  const columns: ResultColumn[] = raw.columns.map((c, i) => {
+    const declaredType = declared[i]?.type;
+    if (declaredType === undefined) throw new Error(`the engine typed no column '${c.name}'`);
+    return { name: c.name, type: pureType(declaredType), values: c.values };
+  });
+  // upstream's answer always carries its activities (the SQL that ran): one without is refused, not read as none
+  const ran = metadata.get('legend.activities');
+  if (ran === undefined) throw new Error('the engine answered Arrow without its legend.activities: the SQL that ran');
+  const activities = JSON.parse(ran) as { sql?: string; comment?: string }[];
+  return { rows: { columns, rowCount: raw.rowCount, epoch, elapsedMs }, activities };
+}
+
 /**
  * A query in, rows out, through a running server's `pure/v1` API: the query's protocol tree to
- * `execution/execute`.
+ * `execution/execute`, its rows read in the format the engine is declared to serve (`serializationFormat`).
  */
 export class LegendEngineExecutor implements RemoteExecutor {
   readonly #client: PureV1Client;
@@ -126,15 +174,24 @@ export class LegendEngineExecutor implements RemoteExecutor {
 
   async execute(query: Lambda, epoch: number, signal?: AbortSignal): Promise<RemoteResult> {
     const started = Date.now();
-    const body = (await this.#client.execute(query, signal)) as TdsResponse;
+    let rows: ResultTable;
+    let activities: readonly { readonly sql?: string; readonly comment?: string }[];
+    if (this.#client.serializationFormat === 'ARROW_IPC') {
+      const stream = await this.#client.executeArrow(query, signal);
+      ({ rows, activities } = arrowResultTable(stream, epoch, Date.now() - started));
+    } else {
+      const body = (await this.#client.execute(query, signal)) as TdsResponse;
+      rows = toResultTable(body, epoch, Date.now() - started);
+      activities = body.activities ?? [];
+    }
     // The receipt is the response's own: the address it came back from and the SQL its
     // `activities` report. The pure/v1 API issues no statement id and keeps no history to
     // ask, so the receipt has none -- nothing is added to what the engine sends.
-    const ran = (body.activities ?? []).map((a) => a.sql).filter((s): s is string => s !== undefined);
-    const notes = (body.activities ?? []).map((a) => a.comment).filter((s): s is string => !!s);
+    const ran = activities.map((a) => a.sql).filter((s): s is string => s !== undefined);
+    const notes = activities.map((a) => a.comment).filter((s): s is string => !!s);
     return {
       rows: {
-        ...toResultTable(body, epoch, Date.now() - started),
+        ...rows,
         receipt: {
           plane: 'engine',
           where: `the engine at ${hostOf(this.#client.baseUrl)}`,
@@ -142,7 +199,7 @@ export class LegendEngineExecutor implements RemoteExecutor {
           ...(notes.length > 0 ? { serverNote: notes.join('; ') } : {}),
         },
       },
-      sql: body.activities?.at(-1)?.sql ?? '',
+      sql: activities.at(-1)?.sql ?? '',
     };
   }
 

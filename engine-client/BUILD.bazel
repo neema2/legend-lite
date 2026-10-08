@@ -2,7 +2,8 @@
 # results and receipts, the one reader of a column's type, legend-engine's pure/v1 client and its
 # executor, DuckDB in the tab, and the warehouse. Moved out of datacube/ (2026-10-04) so DataCube, Query
 # and Studio share it instead of reaching into one another. Its npm packages are its own lock (MODULE.bazel
-# `npm_engine_client`): Apache Arrow, for the warehouse's result chunks.
+# `npm_engine_client`): Apache Arrow, for the warehouse's result chunks and an engine's Arrow answers, and fzstd, the
+# zstd frame those answers come in.
 load("//tools/guards:defs.bzl", "guards_package")
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("//tools/js:defs.bzl", "node_test")
@@ -31,6 +32,13 @@ js_library(
         # one copy every bundle carries, which the warehouse's Arrow IPC chunks are read with too
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/apache-arrow",
+        # fzstd 0.1.1, exact (2026-10-08, the user's approval): legend-engine's Arrow answer to execute (ARROW_IPC) is
+        # ALWAYS one zstd frame (RelationalResultToArrowIPCSerializer wraps its stream in a ZstdOutputStream; measured,
+        # core/src/test/resources/upstream-api/e8-arrow-groupby-sort.json), Python's engine answers the same bytes so
+        # one reader serves both, and the browser's DecompressionStream reads no zstd (the pinned Chromium 153,
+        # measured). A decoder, pure JavaScript, MIT, no dependencies, loaded on the first Arrow answer only
+        # (pure-v1.ts arrowIpcStream: the bundles that never meet one do not carry it).
+        ":node_modules/fzstd",
     ],
 )
 
