@@ -5,7 +5,7 @@ import type { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import type { Project } from '../../../sdlc-client/src/wire.ts';
 import { icon } from '../../../legend-art/src/icon.ts';
 import { clear, dialog, h, toast } from './dom.ts';
-import { selector } from './selector.ts';
+import { selector, type Selector } from './selector.ts';
 import { theme, toggleTheme } from './theme.ts';
 
 export interface SetupContext {
@@ -17,11 +17,22 @@ export interface SetupContext {
   loadDemo?(progress: (message: string) => void): Promise<void>;
 }
 
+/** Upstream's words for the workspace list before a project is chosen. */
+const NO_PROJECT = 'In order to choose a workspace, a project must be chosen';
+
+/** A list whose options could not be read: disabled, saying why, and the reason as a toast. */
+function failed(list: Selector, what: string, e: unknown): void {
+  const reason = e instanceof Error ? e.message : String(e);
+  list.reset([], `Could not load ${what}`, true);
+  toast(`Could not load ${what}: ${reason}`, 'error');
+}
+
 /**
  * upstream's workspace setup page (census 1): the slim activity bar (the theme switch), and the big card --
  * "Welcome to Legend Studio", the project search and the workspace choice (each behind its icon cell), "Need to
  * create a new workspace?", Go, OR, Create New Project -- over the blue status bar. Lite's own: "Load demo
- * projects" beside the project heading, and where the projects live, in the status bar.
+ * projects" beside the project heading, where the projects live, in the status bar, and the project list's
+ * "Loading projects..." and either list's "Could not load ..." (upstream shows a loading state of its own).
  */
 export async function renderSetup(root: HTMLElement, ctx: SetupContext, selected?: string): Promise<void> {
   clear(root);
@@ -48,20 +59,41 @@ export async function renderSetup(root: HTMLElement, ctx: SetupContext, selected
     viewLink.disabled = project === undefined;
     void showWorkspaces();
   });
+  // each list disabled until it has loaded: drawn enabled and empty, a list opened before its options came showed
+  // nothing, and closed when they came (a person, or a harness, then had to open it again)
+  projects.reset([], 'Loading projects...', true);
+  workspaces.reset([], NO_PROJECT, true);
 
+  // the workspaces of the project chosen LAST: an answer for one chosen before it is dropped
+  let asked = 0;
   const showWorkspaces = async (): Promise<void> => {
-    if (!project) {
-      workspaces.reset([], 'In order to choose a workspace, a project must be chosen', true);
+    const ask = (asked += 1);
+    const of = project;
+    if (!of) {
+      workspaces.reset([], NO_PROJECT, true);
       return;
     }
     workspaces.reset([], 'Loading workspaces...', true);
-    const found = await ctx.client.workspaces(project);
+    let found: Awaited<ReturnType<SdlcClient['workspaces']>>;
+    try {
+      found = await ctx.client.workspaces(of);
+    } catch (e) {
+      if (ask === asked) failed(workspaces, 'the workspaces', e);
+      return;
+    }
+    if (ask !== asked) return;
     workspaces.reset(found.map((w) => ({ value: w.workspaceId, label: w.workspaceId, detail: w.userId ?? 'group' })),
       found.length ? 'Choose an existing workspace' : 'You have no workspaces. Please create one to proceed...', found.length === 0);
   };
 
   const showProjects = async (choose?: string): Promise<void> => {
-    const found = await ctx.client.projects();
+    let found: Project[];
+    try {
+      found = await ctx.client.projects();
+    } catch (e) {
+      failed(projects, 'the projects', e);
+      return;
+    }
     projects.reset(found.map((p: Project) => ({ value: p.projectId, label: p.name, detail: p.projectId })), 'Search for project...');
     if (choose && found.some((p) => p.projectId === choose)) projects.choose(choose);
     else await showWorkspaces();
@@ -106,8 +138,9 @@ export async function renderSetup(root: HTMLElement, ctx: SetupContext, selected
     if (!ctx.loadDemo) return;
     try {
       await ctx.loadDemo((m) => { status.textContent = `Publishing ${m}…`; });
-      status.textContent = 'Demo projects published.';
+      // said once the list shows them: said before, a person (or a harness) could open the list before it had them
       await showProjects(project);
+      status.textContent = 'Demo projects published.';
     } catch (e) {
       status.textContent = '';
       toast(e instanceof Error ? e.message : String(e), 'error');
