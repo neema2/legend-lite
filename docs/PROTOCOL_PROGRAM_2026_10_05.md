@@ -79,7 +79,12 @@ not be written back, so it is refused.
    The JSON-taking entry points remain only as `compose(read(J))` wrappers for the routes.
    **Decided 2026-10-08 (the user), before it starts:**
    - *JSON the reader does not know.* The reader reads every field and older shape legend-engine 4.145.0 reads (its
-     deprecated protocol fields, about 26 across 35 classes, and its two protocol converters, already ported); where
+     deprecated protocol fields, about 26 across 35 classes, and its two protocol converters, already ported; and the
+     older expression shapes `PureComposer` prints today that have no record and that the emitter never writes --
+     `qualifiedProperty`, `hackedClass`/`hackedUnit`, the `class`/`enum`/`mappingInstance`/`primitiveType` pointers,
+     `unitInstance`, `listInstance`, `aggregateValue`, the `tdsOlap*` shapes, legacy `values` arrays -- each read as
+     the engine reads it, brought up to today's record where the engine brings it up, so `compose(read(J))` loses
+     none of what `compose(J)` prints); where
      the engine silently ignores an unknown field (its about 24 `@JsonIgnoreProperties(ignoreUnknown = true)` protocol
      classes: Service, DataSpace, Diagram, the model context, ...), the reader refuses it, naming the field and the
      element, rather than drop it: nothing a person wrote is lost silently. Proven by the read oracle
