@@ -6764,6 +6764,36 @@ properties and `getDynaFunctionTypeInferenceMap` now type), `reference typed, we
 73103, `OVERLOAD` 769 → 745 (the six `[1..*]` classes gone); two new `EXTRA` classes (`math::min` 6, `math::max` 1)
 fall under the `EXTRA *` reason.
 
+## 2026-10-08 — W0.8: an island's content is lexed in place, sharing the document's line index; no padded copy
+
+The compiler plan's W0.8 (`docs/EXECUTION_PLAN_2026_09_26.md` §5, added by D25 from the design's A1). Landed as d069cc5c9
+(branch `compiler/w0.8-islands`; run 37837960900 (20:14 to 20:40 UTC, 26 minutes, the tip 926d4c7c5 rebased over the setup-move and DataCube landings): green on every job on the first attempt).
+
+**What it was.** `MappingProtocolParser.readIsland` copied every island's content (`#{ … }#`: test data, external-format
+blocks, embedded values, assertions) into a new string padded with one newline per line above it and one space per
+column, so that a second lexing reported the island's true position; the padded string was lexed and given its own line
+index. A 2026-08 deep audit had removed the prefix rescan (the cached line index) and left the padding. The 2026-10-07
+profile of the executed stress corpus (`evidence/compiler/STRESS_PROFILE_2026_10_07.md`) put 14.4% of the run in that
+method: 14,948 of the corpus's 15,134 islands sit in `94-fanout-services.pure` (291,278 lines), about 2.2 billion
+characters of padding appended, skipped by the lexer and indexed per run. `SpecParser.parseGraphFetchTree` did the same
+for graph-fetch trees.
+
+**What changed.** `TokenStream.lexRange(from, to)` lexes the characters `[from, to)` of the same source in normal mode
+(the `Lexer` gains a range constructor: the scan starts at `from`, stops at `to`, every offset is the source's own) and
+hands the result the parent's line index, as `slice` already does for sections. `readIsland` and `parseGraphFetchTree`
+use it. Spans are unchanged in meaning: a span inside an island was always the document's span, which is what the padding
+existed to produce; one edge moves to the plan's UTF-16 column convention (H4): a token on an island's first line after a non-BMP character earlier on that line now reports a UTF-16 column, where the padding counted code points. The two other padded re-lexes in `MappingProtocolParser` stay by design: the aggregate lambda lays its
+text at a shifted line (the engine's span-shift emulation, `aggLambdaShift`) and the merge-validation lambda re-lexes a
+whitespace-free concatenation of token texts; neither is a contiguous range.
+
+**Measured (a quiet desk).** The stress model's parse+build (7,610 elements): 5,645 ms before, 1.5 s (1,516 ms in the executed run; 1,848 / 1,622 / 1,451 ms in three runs of `//core:compile_latency --corpus stress --passes 1`), against 5,645 ms in the same run minutes earlier on main without the fix
+after. The executed stress run under Flight Recorder: parse 3.9% from 45.5% of the quiet before-run (19 of 488 samples from 368 of 808); the run 15.7 s from 19.3 s wall; `evidence/compiler/STRESS_PROFILE_2026_10_08_W08.md` has both runs by phase.
+
+**Checked.** `LexRangeTest` (the range's first token at the source's own offset with the document's line and column, the
+source shared, no token past the range, a range outside the source refused); the parser-parity lane (every span
+unchanged), the corpus rosters and the stress corpus's rows on CI; the local gate green; run 37837960900 (20:14 to 20:40 UTC, 26 minutes, the tip 926d4c7c5 rebased over the setup-move and DataCube landings): green on every job on the first attempt. Net product lines
+(rule 0b.17): the padding loops gone, the range lexer added; see the commit.
+
 ## 2026-10-08 — W1.0b, the baseline: compile-only latency over the stress corpus and the DataCube set; one receipt
 
 The compiler plan's W1.0b (`docs/EXECUTION_PLAN_2026_09_26.md` §5) under D25 (the stress corpus and the eager probe
