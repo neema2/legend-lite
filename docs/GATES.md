@@ -7122,3 +7122,23 @@ Local gate `//gates:local` and `//gates:parser_equivalence` green (317/317) but 
 on a machine at load 30: at its server level the project menu did not open on the click after the demo projects were
 published (the publish itself, every release through the compile gate, had passed); 3 of 3 runs green alone. A UI
 race in the harness or the page, not this change's; the Studio line's to find.
+
+## 2026-10-08 — DataCube is busy from a change's ask on: the cause of `verify_features_test`'s flakes
+
+`//datacube:verify_features_test` failed on CI's Linux runner and passed on a rerun, twice in two days (runs
+37695660855 and 37791261009; the first on a main commit with no DataCube change). The cause: the cube's `busy` was
+true only while a change's query ran, but the Filter and Properties windows' Apply and the column window first ask the
+planner (a compile check, a parse), and Snap first copies the rows into the tab; while that work was out the cube
+read as quiet, so a harness waiting for quiet read the page before the change had landed. Now that work is counted
+until it settles (`datacube/src/app.ts` `#check`), and `busy` is the owner's or that work's. Only the harnesses read
+`busy`; the Loading overlay is the owner's, so nothing a person sees changes.
+
+Tests: `apply-refusal.test.ts`, the Filter and Properties windows' Apply with a planner that holds its compile check
+(the Filter test fails without the fix); `//gates:datacube` green with the features check's four shards run three
+times each; local gate `//gates:local` green (316/316). The audit (the auditor agent, 2026-10-08): no blockers; two
+should-fix (the commit message's account of the first run, and Snap's copy not counted) and two nits, taken but one (a
+stuck count cannot be cleared: only harnesses read it, and it would only slow them).
+
+Two more harness races seen on loaded runs today, each green on three reruns, for the Studio line next: the site
+harness read DataCube's party grid before its second column had rendered (`//site:verify_test`), and Studio's project
+menu did not open on the click after the demo projects were published (`//studio:verify_test`, server level).
