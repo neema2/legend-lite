@@ -1,43 +1,98 @@
-# legend_lite: the Legend compiler in Python (README.md), over the native library //native:compiler. Plain Python on
-# its standard library alone.
+# legend_lite: the Legend compiler in Python (README.md), over the native library //native:compiler. The compiler's
+# bindings are plain Python on its standard library alone; the frames (legend_lite/frames.py: dataframes as Legend
+# tables) add duckdb and pyarrow, pinned in //tools/python.
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/platforms:defs.bzl", "compatible_with")
 
+# the compiler's bindings: no package beyond Python's own
 py_library(
-    name = "legend_lite",
-    srcs = glob(["legend_lite/**/*.py"]),
+    name = "compiler",
+    srcs = glob(
+        ["legend_lite/**/*.py"],
+        exclude = ["legend_lite/frames.py"],
+    ),
     imports = ["."],
 )
 
-# The bindings over the BUILT library, on the repository's own Python (MODULE.bazel: 3.12, never the machine's): the
-# planner differential corpus against the JVM's answers (as //wasm:differential_test holds the WebAssembly build),
-# and the bindings' own suite. Where the library builds (//native:compiler).
+# the whole package: the bindings and the frames
+py_library(
+    name = "legend_lite",
+    srcs = ["legend_lite/frames.py"],
+    imports = ["."],
+    deps = [
+        ":compiler",
+        "@pypi//duckdb",
+        "@pypi//pyarrow",
+    ],
+)
+
+_PLATFORMS = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64"])
+
+_ENV = {
+    "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUTF8": "1",
+}
+
+# The bindings over the BUILT library, on the repository's own Python (MODULE.bazel: 3.12, never the machine's), with
+# nothing but :compiler -- so the bindings are shown to need no other package: the planner differential corpus against
+# the JVM's answers (as //wasm:differential_test holds the WebAssembly build), and the bindings' own suite. Where the
+# library builds (//native:compiler).
 py_test(
     name = "bindings_test",
     # seconds alone (6 s), but past `small`'s 60 s under the whole gate on this desk (2026-10-07), as
     # //wasm:differential_test
     size = "medium",
-    srcs = glob(["tests/*.py"]),
+    srcs = [
+        "tests/main.py",
+        "tests/test_compiler.py",
+        "tests/test_corpus.py",
+    ],
+    args = [
+        "test_compiler",
+        "test_corpus",
+    ],
     data = [
         "//native:compiler",
         "//wasm:corpus/model.pure",
         "//wasm:corpus/queries.tsv",
         "//wasm:jvm_answers",
     ],
-    env = {
-        "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+    env = _ENV | {
         "LEGEND_LITE_CORPUS_MODEL": "$(rlocationpath //wasm:corpus/model.pure)",
         "LEGEND_LITE_CORPUS_QUERIES": "$(rlocationpath //wasm:corpus/queries.tsv)",
         "LEGEND_LITE_JVM_ANSWERS": "$(rlocationpath //wasm:jvm_answers)",
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "PYTHONUTF8": "1",
     },
     main = "tests/main.py",
-    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64"]),
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":compiler",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+# The frames: queries over pandas, polars and Arrow frames answered as pandas computes them, Live and Snapped, the
+# model writer's conversions, the refusals.
+py_test(
+    name = "frames_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_frames.py",
+    ],
+    args = ["test_frames"],
+    data = ["//native:compiler"],
+    # zone names (a zoned timestamp's) from the pinned tzdata, never the machine's (as scripts/corpus's gates)
+    env = _ENV | {"PYTHONTZPATH": ""},
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
     deps = [
         ":legend_lite",
+        "@pypi//pandas",
+        "@pypi//polars",
+        "@pypi//tzdata",
         "@rules_python//python/runfiles",
     ],
 )

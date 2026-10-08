@@ -146,6 +146,42 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** The model for a table, from its catalog rows: Database, connection and runtime (Wasm.tableModelOrError). */
+    @CEntryPoint(name = "lite_table_model")
+    static CCharPointer tableModel(IsolateThread thread, CCharPointer tableJson) {
+        String a;
+        try {
+            a = Wasm.tableModelOrError(text(tableJson));
+        } catch (Throwable failure) {
+            a = failed(failure);
+        }
+        return answer(a);
+    }
+
+    /** The catalog question for one table of a DuckDB, its names filled in (Wasm.catalogColumnsSqlOrError). */
+    @CEntryPoint(name = "lite_catalog_columns_sql")
+    static CCharPointer catalogColumnsSql(IsolateThread thread, CCharPointer schema, CCharPointer table) {
+        String a;
+        try {
+            a = Wasm.catalogColumnsSqlOrError(text(schema), text(table));
+        } catch (Throwable failure) {
+            a = failed(failure);
+        }
+        return answer(a);
+    }
+
+    /** What a session of the given database runs before it is queried (Wasm.sessionSetupOrError). */
+    @CEntryPoint(name = "lite_session_setup")
+    static CCharPointer sessionSetup(IsolateThread thread, CCharPointer databaseType) {
+        String a;
+        try {
+            a = Wasm.sessionSetupOrError(text(databaseType));
+        } catch (Throwable failure) {
+            a = failed(failure);
+        }
+        return answer(a);
+    }
+
     /** Releases a string this library returned. */
     @CEntryPoint(name = "lite_free")
     static void free(IsolateThread thread, CCharPointer p) {
