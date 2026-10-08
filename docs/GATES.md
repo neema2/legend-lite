@@ -7420,3 +7420,22 @@ all fixed -- the two edits above had been left out of the commit; the typed-valu
 a module that failed to load would have passed it (it now fails on anything but the compiler's refusal); the
 WebAssembly GC need on the server planners was unstated. Noted, not changed: `Wasm.databaseFromCatalogOrError` stays
 for Python's `database_from_catalog` (the same `CatalogModel` writer behind both).
+
+## 2026-10-08 — E-1: the dialects' clause layer writes into one SqlWriter; PARK-16 recorded
+
+`f804dba9a` (with `700f0d1ba`, PARK-16). The execution plan boundary's E (`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`
+§10, the user: "use this to build dialect correctly"): every dialect will write SQL into ONE ordered `SqlWriter` — text,
+and each bound parameter where its `?` is written — so a statement's parameters are in placeholder order by
+construction. E-1 is its first stage: `SqlWriter` and `RenderedStatement`; `SqlDialect.renderStatement` beside the three
+`render`s (the legacy engine-text printer refuses it: its parameters are template variables); the clause layer — query,
+select, sources, QUALIFY, the newline helper, in `AnsiSqlRenderer`, `DuckDb`, `H2` and `EngineStyleH2` — moved from a
+StringBuilder onto the writer; expressions still arrive as strings through a bridge. AGENTS.md invariant 3 restated.
+PARK-16 (DDL and DML spell a table or schema name raw where queries quote it; found by the Studio line) parked with
+three anchors, closed by E's DDL stage.
+
+The judge: the render census (`docs/execution-plan-boundary-2026-10-05/render-census/`, E-0): every statement the JVM
+suites render, before and after — 0 of 52,085 entries differ (`e1-result.txt`). Its probe became `probe.py`, applied
+by method signature. The audit (auditor agent): no blockers, byte-identity confirmed by a normalised diff; its four
+should-fix items taken. Local gate `//gates:local` green (315/315); CI run 37845237800 green on `e58319191` (the
+datacube lane's one failure, `verify_remote_test` fetching a DuckDB-WASM extension from extensions.duckdb.org, passed
+on rerun); `f804dba9a` is that commit rebased over one docs-only commit.

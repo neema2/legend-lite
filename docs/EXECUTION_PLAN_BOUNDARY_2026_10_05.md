@@ -342,7 +342,7 @@ parameters.
   52,085 entries once three things are normalised — a quoted temporary path, the activity comment's random
   `executionTraceID`, and a lambda's scope id that varies between runs (a product defect in
   `resolver/FunctionBodyRows.scopeId`, reported to the resolver's owner, who will fix it with this census as judge).
-- **E-1, the writer and a bridge — on branch 2026-10-08.** `SqlWriter` (text, and `bind` writing `?` and recording the
+- **E-1, the writer and a bridge — LANDED 2026-10-08 (`f804dba9a`; `docs/GATES.md`).** `SqlWriter` (text, and `bind` writing `?` and recording the
   parameter) and `RenderedStatement` (text and parameters in placeholder order); `SqlDialect.renderStatement` beside the
   three `render`s (the legacy engine-text printer refuses it: its parameters are template variables). The clause layer
   — `query`, `select`, `source`, `subselectSource`, `valuesSource`, `pivotSource`, `appendQualify`, `nl`, in
