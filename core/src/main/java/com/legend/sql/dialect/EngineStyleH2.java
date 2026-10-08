@@ -360,9 +360,17 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         rootConsumed.clear();
         placeholders.clear();
         planQuery(query, new LinkedHashMap<>());
-        StringBuilder sb = new StringBuilder();
-        query(sb, query, 0);
-        return sb.toString();
+        SqlWriter writer = new SqlWriter();
+        query(writer, query, 0);
+        return writer.text();
+    }
+
+    /** The legacy plan text binds nothing: its parameters are the engine's template variables ({@code ${name}}),
+     *  written into the text ({@link #render}). */
+    @Override
+    public RenderedStatement renderStatement(com.legend.sql.SqlQuery query) {
+        throw new DialectCapability("the legacy engine-text plan binds no parameters: its parameters are template"
+                + " variables in its text (render)");
     }
 
     /** The engine ISOLATES a user TDS join's result (isolateTdsSelect):
@@ -841,21 +849,21 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     @Override
-    protected void query(StringBuilder sb, com.legend.sql.SqlQuery q,
+    protected void query(SqlWriter writer, com.legend.sql.SqlQuery q,
             int depth) {
         // engine CTE text: 'with a as (...), b as (...) select ...'
         if (q instanceof com.legend.sql.SqlWith w) {
-            sb.append("with ");
+            writer.append("with ");
             for (int i = 0; i < w.ctes().size(); i++) {
                 if (i > 0) {
-                    sb.append(", ");
+                    writer.append(", ");
                 }
-                sb.append(w.ctes().get(i).name()).append(" as (");
-                query(sb, w.ctes().get(i).query(), depth);
-                sb.append(')');
+                writer.append(w.ctes().get(i).name()).append(" as (");
+                query(writer, w.ctes().get(i).query(), depth);
+                writer.append(')');
             }
-            sb.append(' ');
-            query(sb, w.body(), depth);
+            writer.append(' ');
+            query(writer, w.body(), depth);
             return;
         }
         // engine union text: one line, lowercase, branches joined inline
@@ -863,34 +871,34 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             String op = u.all() ? " union all " : " union ";
             for (int i = 0; i < u.branches().size(); i++) {
                 if (i > 0) {
-                    sb.append(op);
+                    writer.append(op);
                 }
-                query(sb, u.branches().get(i), depth);
+                query(writer, u.branches().get(i), depth);
             }
             return;
         }
-        super.query(sb, q, depth);
+        super.query(writer, q, depth);
     }
 
     @Override
-    protected void select(StringBuilder sb, SqlSelect s, int depth) {
+    protected void select(SqlWriter writer, SqlSelect s, int depth) {
         if (s.qualify() != null) {
             throw new IllegalStateException(
                     "QUALIFY has no engine-H2 golden spelling");
         }
-        sb.append("select ");
+        writer.append("select ");
         // H2: a bare row cap is TOP; a slice is OFFSET .. FETCH NEXT
         if (s.limit() != null && s.offset() == null) {
-            sb.append("top ").append(s.limit()).append(' ');
+            writer.append("top ").append(s.limit()).append(' ');
         }
         if (s.distinct()) {
-            sb.append("distinct ");
+            writer.append("distinct ");
         }
         // engine reAliasQuery text: an ANONYMOUS DISTINCT-key subselect
         // spells exact self-aliased columns BARE (golden: select distinct
         // "persontable_2".FIRMID); top-level/named frames keep their as
         boolean bareKeys = s.distinct() && anonDistinctDepth > 0;
-        sb.append(s.projections().isEmpty() ? "*"
+        writer.append(s.projections().isEmpty() ? "*"
                 : s.projections().stream()
                         .map(p -> bareKeys
                                 && p.expr() instanceof SqlExpr.Column pc
@@ -901,28 +909,28 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         .map(this::projection)
                         .collect(Collectors.joining(", ")));
         if (!(s.from() instanceof SqlSource.Dual)) {
-            sb.append(" from ");
-            source(sb, s.from(), depth);
+            writer.append(" from ");
+            source(writer, s.from(), depth);
         }
         if (s.where() != null) {
-            sb.append(" where ").append(whereSql(s.where()));
+            writer.append(" where ").append(whereSql(s.where()));
         }
         if (!s.groupBy().isEmpty()) {
-            sb.append(" group by ").append(s.groupBy().stream()
+            writer.append(" group by ").append(s.groupBy().stream()
                     .map(e -> groupKey(s, e))
                     .collect(Collectors.joining(groupBySeparator())));
         }
         if (s.having() != null) {
-            sb.append(" having ").append(expr(s.having(), 0));
+            writer.append(" having ").append(expr(s.having(), 0));
         }
         if (!s.orderBy().isEmpty()) {
-            sb.append(" order by ").append(s.orderBy().stream()
+            writer.append(" order by ").append(s.orderBy().stream()
                     .map(this::sortKey).collect(Collectors.joining(", ")));
         }
         if (s.offset() != null) {
-            sb.append(" offset ").append(s.offset()).append(" rows");
+            writer.append(" offset ").append(s.offset()).append(" rows");
             if (s.limit() != null) {
-                sb.append(" fetch next ").append(s.limit()).append(" rows only");
+                writer.append(" fetch next ").append(s.limit()).append(" rows only");
             }
         }
     }
@@ -973,25 +981,25 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     @Override
-    protected void source(StringBuilder sb, SqlSource src, int depth) {
+    protected void source(SqlWriter writer, SqlSource src, int depth) {
         switch (src) {
-            case SqlSource.Cte c -> sb.append(c.name()).append(" as ").append(aliasIdent(c.alias()));
+            case SqlSource.Cte c -> writer.append(c.name()).append(" as ").append(aliasIdent(c.alias()));
             case SqlSource.Table t -> {
-                sb.append(quoteIdentifiers
+                writer.append(quoteIdentifiers
                         ? java.util.Arrays.stream(t.name().split("\\.", -1))
                                 .map(x -> '"' + x + '"')
                                 .collect(java.util.stream.Collectors
                                         .joining("."))
                         : t.name());
                 if (t.call()) {
-                    sb.append("()");   // a tabular function is called
+                    writer.append("()");   // a tabular function is called
                 }
                 if (t.alias() != null) {
-                    sb.append(" as \"").append(rename(t.alias())).append('"');
+                    writer.append(" as \"").append(rename(t.alias())).append('"');
                 }
             }
             case SqlSource.Subselect sub -> {
-                sb.append('(');
+                writer.append('(');
                 // union frames keep the QUOTED alias interior (tds
                 // goldens); only VIEW frames unquote their projections
                 boolean viewFrame = sub.frameName() != null
@@ -1007,7 +1015,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     anonDistinctDepth++;
                 }
                 try {
-                    query(sb, sub.inner(), depth);
+                    query(writer, sub.inner(), depth);
                 } finally {
                     if (viewFrame) {
                         frameDepth--;
@@ -1016,24 +1024,24 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         anonDistinctDepth--;
                     }
                 }
-                sb.append(") as \"").append(rename(sub.alias())).append('"');
+                writer.append(") as \"").append(rename(sub.alias())).append('"');
             }
-            case SqlSource.VarSetPlaceholder vp -> sb.append("(${")
+            case SqlSource.VarSetPlaceholder vp -> writer.append("(${")
                     .append(vp.varName()).append("}) as \"")
                     .append(rename(vp.alias())).append('"');
             case SqlSource.Join j -> {
-                source(sb, j.left(), depth);
-                sb.append(' ')
+                source(writer, j.left(), depth);
+                writer.append(' ')
                         .append(j.kind() == SqlSource.Join.Kind.INNER
                                 ? "inner join"
                                 : j.kind().sql.toLowerCase(Locale.ROOT))
                         .append(' ');
-                source(sb, j.right(), depth);
+                source(writer, j.right(), depth);
                 if (j.on() != null) {
-                    sb.append(" on (").append(expr(j.on(), 0)).append(')');
+                    writer.append(" on (").append(expr(j.on(), 0)).append(')');
                 }
             }
-            default -> super.source(sb, src, depth);
+            default -> super.source(writer, src, depth);
         }
     }
 

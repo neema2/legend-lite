@@ -312,8 +312,8 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     @Override
-    protected void appendQualify(StringBuilder sb, SqlSelect s, int depth) {
-        nl(sb, depth).append("QUALIFY ").append(expr(
+    protected void appendQualify(SqlWriter writer, SqlSelect s, int depth) {
+        nl(writer, depth).append("QUALIFY ").append(expr(
                 java.util.Objects.requireNonNull(s.qualify(),
                         "appendQualify without a qualify clause"), 0));
     }
@@ -325,30 +325,30 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     /** Native PIVOT; DuckDB forbids qualified column refs inside ON/USING. */
     @Override
-    protected void pivotSource(StringBuilder sb, SqlSource.Pivot p, int depth) {
-        sb.append("(PIVOT ");
-        source(sb, p.source(), depth);
+    protected void pivotSource(SqlWriter writer, SqlSource.Pivot p, int depth) {
+        writer.append("(PIVOT ");
+        source(writer, p.source(), depth);
         // ON columns quote UNCONDITIONALLY (the corpus pins "year" — the
         // usual pivot keys are date-part words DuckDB half-reserves).
         // args arrive pre-unqualified (the UnqualifyPivotArgs pass)
-        sb.append(" ON ").append(p.on().stream()
+        writer.append(" ON ").append(p.on().stream()
                 .map(e -> e instanceof SqlExpr.Column c
                         ? delimited(c.name())
                         : expr(e, 0))
                 .collect(Collectors.joining(", ")));
         if (!p.in().isEmpty()) {
-            sb.append(" IN (").append(p.in().stream()
+            writer.append(" IN (").append(p.in().stream()
                     .map(e -> expr(e, 0))
                     .collect(Collectors.joining(", "))).append(")");
         }
-        sb.append(" USING ").append(p.usings().stream()
+        writer.append(" USING ").append(p.usings().stream()
                 .map(u -> reducer(u.agg())
                         // real pure names pivot columns value__|__agg; DuckDB
                         // joins value + '_' + alias, so the alias carries the
                         // '_|__agg' tail.
                         + " AS " + ident("_|__" + u.alias()))
                 .collect(Collectors.joining(", ")));
-        sb.append(") AS ").append(ident(p.alias()));
+        writer.append(") AS ").append(ident(p.alias()));
     }
 
     // ---- list idioms: DuckDB is the lambda backend ----

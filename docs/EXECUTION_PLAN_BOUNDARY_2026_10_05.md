@@ -332,7 +332,7 @@ recursive render calls; ~740 lines join with `+`, 45 stream joins, 42 `StringBui
 quote, escape or parse names and values; 4 edit rendered SQL, all in the legacy engine-text printer (lowercasing `OVER`,
 `PARTITION BY`, a function name; escaping a rendered expression into a FreeMarker argument). The real dialects never edit
 their output. `SqlDialect` has three entry points, not one — `render(SqlQuery)`, `render(SqlDdl)`, `render(SqlDml)`
-(AGENTS.md invariant 3 is stale) — with 54 callers; E keeps them and adds one entry returning a statement and its ordered
+(AGENTS.md invariant 3 was stale until E-1 restated it) — with 54 callers; E keeps them and adds one entry returning a statement and its ordered
 parameters.
 
 **The stages, each landed alone and each rendering exactly what its parent renders:**
@@ -342,9 +342,14 @@ parameters.
   52,085 entries once three things are normalised — a quoted temporary path, the activity comment's random
   `executionTraceID`, and a lambda's scope id that varies between runs (a product defect in
   `resolver/FunctionBodyRows.scopeId`, reported to the resolver's owner, who will fix it with this census as judge).
-- **E-1, the writer and a bridge.** `SqlWriter`; the three entry points unchanged; one new entry returning statement and
-  parameters; unconverted methods reached as strings through a bridge, where a parameter is refused as today. AGENTS.md
-  invariant 3 restated.
+- **E-1, the writer and a bridge — on branch 2026-10-08.** `SqlWriter` (text, and `bind` writing `?` and recording the
+  parameter) and `RenderedStatement` (text and parameters in placeholder order); `SqlDialect.renderStatement` beside the
+  three `render`s (the legacy engine-text printer refuses it: its parameters are template variables). The clause layer
+  — `query`, `select`, `source`, `subselectSource`, `valuesSource`, `pivotSource`, `appendQualify`, `nl`, in
+  `AnsiSqlRenderer`, `DuckDb`, `H2` and `EngineStyleH2` — writes into the writer; expressions still arrive as strings
+  through the bridge (`inline`, and `writer.append(expr(...))`), where a parameter is refused as before. AGENTS.md
+  invariant 3 restated. Census: 0 of 52,085 entries differ (`render-census/e1-result.txt`). The census probe became
+  `probe.py` (by signature; E-1 reshaped `render`, so the E-0 patch no longer applied), and records `renderStatement`.
 - **E-2 onwards, by method family** (a base method with every dialect's override of it), from the entry points down to
   expressions, where parameters live. The stage that moves the DDL and DML renderers closes **PARK-16** (DDL and DML
   spell a table or schema name raw where queries quote it; `docs/PARKED_WORK_LEDGER.md`): its own landing right after

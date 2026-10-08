@@ -11,7 +11,12 @@ import com.legend.sql.SqlQuery;
  */
 public interface SqlDialect {
 
+    /** A query as SQL text: a statement with no bound parameters (one reaching the text is refused). */
     String render(SqlQuery query);
+
+    /** A query as a statement for execution with bound values: its text with a {@code ?} for each bound parameter, and
+     *  the parameters in placeholder order (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10, E). */
+    RenderedStatement renderStatement(SqlQuery query);
 
     /** B6 (truthfulness burn) — SESSION SETUP IS DIALECT-OWNED as a
      * FACT: the statements a backend's session needs for the

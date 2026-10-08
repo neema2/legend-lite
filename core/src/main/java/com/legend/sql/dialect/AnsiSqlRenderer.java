@@ -80,13 +80,23 @@ public class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public String render(SqlQuery query) {
+        return write(query).text();
+    }
+
+    @Override
+    public RenderedStatement renderStatement(SqlQuery query) {
+        return write(query).statement();
+    }
+
+    /** The query after this dialect's passes, written. */
+    private SqlWriter write(SqlQuery query) {
         SqlQuery q = query;
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             q = pass.rewriteRoot(q);
         }
-        StringBuilder sb = new StringBuilder();
-        query(sb, q, 0);
-        return sb.toString();
+        SqlWriter writer = new SqlWriter();
+        query(writer, q, 0);
+        return writer;
     }
 
     /**
@@ -151,85 +161,85 @@ public class AnsiSqlRenderer implements SqlDialect {
     // Queries and clause assembly
     // ==================================================================
 
-    protected void query(StringBuilder sb, SqlQuery q, int depth) {
+    protected void query(SqlWriter writer, SqlQuery q, int depth) {
         switch (q) {
             case com.legend.sql.SqlWith w -> {
-                sb.append("WITH ");
+                writer.append("WITH ");
                 for (int i = 0; i < w.ctes().size(); i++) {
                     if (i > 0) {
-                        sb.append(", ");
+                        writer.append(", ");
                     }
-                    sb.append(w.ctes().get(i).name()).append(cteAs(w.ctes().get(i)));
-                    query(sb, w.ctes().get(i).query(), depth + 1);
-                    sb.append(')');
+                    writer.append(w.ctes().get(i).name()).append(cteAs(w.ctes().get(i)));
+                    query(writer, w.ctes().get(i).query(), depth + 1);
+                    writer.append(')');
                 }
-                nl(sb, depth);
-                query(sb, w.body(), depth);
+                nl(writer, depth);
+                query(writer, w.body(), depth);
             }
-            case SqlSelect s -> select(sb, s, depth);
+            case SqlSelect s -> select(writer, s, depth);
             case SqlUnion u -> {
                 String op = u.all() ? "UNION ALL" : "UNION";
                 for (int i = 0; i < u.branches().size(); i++) {
                     if (i > 0) {
-                        nl(sb, depth).append(op);
-                        nl(sb, depth);
+                        nl(writer, depth).append(op);
+                        nl(writer, depth);
                     }
-                    query(sb, u.branches().get(i), depth);
+                    query(writer, u.branches().get(i), depth);
                 }
             }
         }
     }
 
-    protected void select(StringBuilder sb, SqlSelect s, int depth) {
+    protected void select(SqlWriter writer, SqlSelect s, int depth) {
         if (s.qualify() != null && !supportsQualify()) {
             // The QualifyToSubselect PASS owns this rewrite — a QUALIFY
             // reaching the writer means the pass did not run: our bug.
             throw new IllegalStateException("QUALIFY reached a writer without"
                     + " QUALIFY support — the QualifyToSubselect pass must run");
         }
-        sb.append("SELECT ");
+        writer.append("SELECT ");
         if (s.distinct()) {
-            sb.append("DISTINCT ");
+            writer.append("DISTINCT ");
         }
         if (s.projections().isEmpty()) {
-            sb.append("*");
+            writer.append("*");
         } else {
             // each projection CARRIES its declared output (outputs-from-
             // projections, SQL-IR slice 2) — the old positional
             // projection↔outputs pairing and its star guard are gone
             for (int i = 0; i < s.projections().size(); i++) {
                 if (i > 0) {
-                    sb.append(", ");
+                    writer.append(", ");
                 }
-                sb.append(projection(s.projections().get(i)));
+                writer.append(projection(s.projections().get(i)));
             }
         }
         if (!(s.from() instanceof SqlSource.Dual)) {
-            nl(sb, depth).append("FROM ");
-            source(sb, s.from(), depth);
+            nl(writer, depth).append("FROM ");
+            source(writer, s.from(), depth);
         }
         if (s.where() != null) {
-            nl(sb, depth).append("WHERE ").append(expr(s.where(), 0));
+            nl(writer, depth).append("WHERE ").append(expr(s.where(), 0));
         }
         if (!s.groupBy().isEmpty()) {
-            nl(sb, depth).append("GROUP BY ")
+            nl(writer, depth).append("GROUP BY ")
                     .append(s.groupBy().stream().map(e -> expr(e, 0)).collect(Collectors.joining(", ")));
         }
         if (s.having() != null) {
-            nl(sb, depth).append("HAVING ").append(expr(s.having(), 0));
+            nl(writer, depth).append("HAVING ").append(expr(s.having(), 0));
         }
         if (s.qualify() != null) {
-            appendQualify(sb, s, depth);
+            appendQualify(writer, s, depth);
         }
         if (!s.orderBy().isEmpty()) {
-            nl(sb, depth).append("ORDER BY ")
+            nl(writer, depth).append("ORDER BY ")
                     .append(s.orderBy().stream().map(this::sortKey).collect(Collectors.joining(", ")));
         }
         if (s.limit() != null) {
-            nl(sb, depth).append("LIMIT ").append(s.limit());
+            nl(writer, depth).append("LIMIT ").append(s.limit());
         }
         if (s.offset() != null) {
-            nl(sb, depth).append("OFFSET ").append(s.offset());
+            nl(writer, depth).append("OFFSET ").append(s.offset());
         }
     }
 
@@ -248,7 +258,7 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** Emit the native QUALIFY clause (only called when {@link #supportsQualify()}). */
-    protected void appendQualify(StringBuilder sb, SqlSelect s, int depth) {
+    protected void appendQualify(SqlWriter writer, SqlSelect s, int depth) {
         throw new DialectCapability("QUALIFY reached a dialect without native support");
     }
 
@@ -330,48 +340,48 @@ public class AnsiSqlRenderer implements SqlDialect {
     // Sources
     // ==================================================================
 
-    protected void source(StringBuilder sb, SqlSource src, int depth) {
+    protected void source(SqlWriter writer, SqlSource src, int depth) {
         switch (src) {
             case SqlSource.Dual d -> throw new IllegalStateException(
                     "Dual renders as FROM-clause omission — caller bug");
             case SqlSource.Table t -> {
                 // a tabular function is CALLED (upstream: schema.fn())
-                sb.append(tableName(t.name())).append(t.call() ? "()" : "");
+                writer.append(tableName(t.name())).append(t.call() ? "()" : "");
                 if (t.alias() != null) {
-                    sb.append(" AS ").append(aliasIdent(t.alias()));
+                    writer.append(" AS ").append(aliasIdent(t.alias()));
                 }
             }
-            case SqlSource.Cte c -> sb.append(c.name()).append(" AS ").append(aliasIdent(c.alias()));
-            case SqlSource.Subselect sub -> subselectSource(sb, sub, depth);
+            case SqlSource.Cte c -> writer.append(c.name()).append(" AS ").append(aliasIdent(c.alias()));
+            case SqlSource.Subselect sub -> subselectSource(writer, sub, depth);
             // cross-store plan variable: freemarker splice at execution
             // (engine VarSetPlaceHolder — plan text only; a DuckDB
             // execution reaching this dies loudly at SQL parse)
-            case SqlSource.VarSetPlaceholder vp -> sb.append("(${")
+            case SqlSource.VarSetPlaceholder vp -> writer.append("(${")
                     .append(vp.varName()).append("}) as ")
                     .append(aliasIdent(vp.alias()));
-            case SqlSource.Values v -> valuesSource(sb, v);
+            case SqlSource.Values v -> valuesSource(writer, v);
             // corpus-authored raw SQL as a relation source (Phase 1:
             // the typed executeInDb grid) — carried text, parenthesized
-            case SqlSource.RawSql r -> sb.append("(").append(r.sql())
+            case SqlSource.RawSql r -> writer.append("(").append(r.sql())
                     .append(") AS ").append(aliasIdent(r.alias()));
             case SqlSource.SourceUrl u -> {
-                sb.append("(");
-                nl(sb, depth + 1).append(sourceUrl(u.url()));
-                nl(sb, depth).append(") AS ").append(aliasIdent(u.alias()));
+                writer.append("(");
+                nl(writer, depth + 1).append(sourceUrl(u.url()));
+                nl(writer, depth).append(") AS ").append(aliasIdent(u.alias()));
             }
-            case SqlSource.Pivot p -> pivotSource(sb, p, depth);
+            case SqlSource.Pivot p -> pivotSource(writer, p, depth);
             case SqlSource.Join j -> {
-                source(sb, j.left(), depth);
-                nl(sb, depth);
+                source(writer, j.left(), depth);
+                nl(writer, depth);
                 if (j.kind() == SqlSource.Join.Kind.ASOF_LEFT) {
-                    sb.append(asOfJoinClause());
+                    writer.append(asOfJoinClause());
                 } else {
-                    sb.append(j.kind().sql);
+                    writer.append(j.kind().sql);
                 }
-                sb.append(" ");
-                source(sb, j.right(), depth);
+                writer.append(" ");
+                source(writer, j.right(), depth);
                 if (j.on() != null) {
-                    sb.append(" ON ").append(expr(j.on(), 0));
+                    writer.append(" ON ").append(expr(j.on(), 0));
                 }
             }
         }
@@ -385,16 +395,16 @@ public class AnsiSqlRenderer implements SqlDialect {
         return " AS (";
     }
 
-    protected void subselectSource(StringBuilder sb,
+    protected void subselectSource(SqlWriter writer,
             SqlSource.Subselect sub, int depth) {
-        sb.append("(");
-        nl(sb, depth + 1);
-        query(sb, sub.inner(), depth + 1);
-        nl(sb, depth).append(") AS ").append(aliasIdent(sub.alias()));
+        writer.append("(");
+        nl(writer, depth + 1);
+        query(writer, sub.inner(), depth + 1);
+        nl(writer, depth).append(") AS ").append(aliasIdent(sub.alias()));
     }
 
-    protected void valuesSource(StringBuilder sb, SqlSource.Values v) {
-        sb.append("(VALUES ")
+    protected void valuesSource(SqlWriter writer, SqlSource.Values v) {
+        writer.append("(VALUES ")
                 .append(v.rows().stream()
                         .map(row -> "(" + row.stream().map(e -> expr(e, 0))
                                 .collect(Collectors.joining(", ")) + ")")
@@ -406,7 +416,7 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** Native PIVOT or a CASE-WHEN aggregation rewrite — no ANSI form exists. */
-    protected void pivotSource(StringBuilder sb, SqlSource.Pivot p, int depth) {
+    protected void pivotSource(SqlWriter writer, SqlSource.Pivot p, int depth) {
         throw new DialectCapability("pivot reached a dialect without a PIVOT strategy");
     }
 
@@ -1207,9 +1217,9 @@ public class AnsiSqlRenderer implements SqlDialect {
         boolean previous = inlineMode;
         inlineMode = true;
         try {
-            StringBuilder sb = new StringBuilder();
-            query(sb, q, 0);
-            return sb.toString();
+            SqlWriter writer = new SqlWriter();
+            query(writer, q, 0);
+            return writer.text();
         } finally {
             inlineMode = previous;
         }
@@ -1399,9 +1409,9 @@ public class AnsiSqlRenderer implements SqlDialect {
         return q + name.replace(String.valueOf(q), String.valueOf(q) + q) + q;
     }
 
-    protected StringBuilder nl(StringBuilder sb, int depth) {
-        return inlineMode ? sb.append(" ")
-                : sb.append("\n").append("  ".repeat(depth));
+    protected SqlWriter nl(SqlWriter writer, int depth) {
+        return inlineMode ? writer.append(" ")
+                : writer.append("\n").append("  ".repeat(depth));
     }
 
     /** Nested CONCAT calls splice into ONE flat argument list (the engine

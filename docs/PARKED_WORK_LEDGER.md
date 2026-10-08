@@ -233,6 +233,11 @@ overriding both (`ddlQualified` and `render(SqlDdl)`, through its `ident`, which
 Postgres's two overrides go; the test-data generator's names spell through the dialect's `physicalName` too. Measured with the render census (`docs/execution-plan-boundary-2026-10-05/render-census/`)
 before it lands: every statement whose text changes is listed, and only quoted reserved or non-plain names may change.
 
+**Not in scope (reviewed 2026-10-08, the audit of E-1).** `StatementExecutor.ddlStatementString` also writes a schema
+name raw (`Drop schema if exists <s> cascade;`, `Create Schema if not exists <s>;`): that is the Pure natives
+`dropSchemaStatement`/`createSchemaStatement` returning legend-engine's own text as a value (`toDDL.pure`), parity by
+design, not a statement lite spells for a database.
+
 **Acceptance (what closes this row).** A model with a default-schema table named `order`, and a table in a schema
 named `select`, seeds and answers a query on DuckDB, H2 and Postgres; the census shows nothing else changing.
 
