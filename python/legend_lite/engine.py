@@ -34,7 +34,7 @@ import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from pathlib import Path
-from urllib.parse import SplitResult, unquote, urlsplit
+from urllib.parse import SplitResult, parse_qs, unquote, urlsplit
 
 import duckdb
 import pyarrow as pa
@@ -223,8 +223,14 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         """A file of the engine's site (DataCube's built pages, given as ``site``), to a Host naming this machine;
         the files are the page's own and carry no secret, so no token is asked (the page holds it)."""
-        path = urlsplit(self.path).path
+        url = urlsplit(self.path)
+        path = url.path
         site = self.server.engine.site
+        if path == '/cube.json':
+            # what a page shows: asked with the token, as every API call is
+            if self._admitted():
+                self._send(*_workers().submit(self._cube, url.query).result())
+            return
         if self.headers.get('Host') not in self.server.engine._hosts:
             self._refuse_unread(403, 'this engine answers requests to 127.0.0.1 and localhost only')
             return
@@ -239,6 +245,25 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             self._refuse_unread(404, f'no such path: {path}')
             return
         self._send(200, _SITE_TYPES.get(file.suffix, 'application/octet-stream'), file.read_bytes(), {})
+
+    def _cube(self, query: str) -> tuple[int, str, bytes, dict[str, str]]:
+        """The cube a page of the site shows (DataCube's demo/engine.html): ``table`` (a frame's name), its model,
+        runtime and source as they are now (a Live frame read again), and its title. Computed on the compiler's
+        pool."""
+        name = parse_qs(query).get('table', [''])[0]
+        frames = self.server.engine.frames
+        try:
+            with frames.serving():
+                if name not in frames:
+                    return 404, 'text/plain; charset=utf-8', f'this engine serves no frame named {name!r}'.encode(), {}
+                table = frames[name]
+                cube = {'title': table.name, 'model': table.model, 'runtime': table.runtime, 'source': table.source}
+            body = json.dumps(cube).encode('utf-8')
+        except Exception as failure:
+            # a frame that could not be read: said, never a dropped connection
+            traceback.print_exc()
+            return 500, 'text/plain; charset=utf-8', f'{type(failure).__name__}: {failure}'.encode(), {}
+        return 200, 'application/json', body, {}
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         # no cross-origin request is answered: only the engine's own page calls it

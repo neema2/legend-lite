@@ -23,15 +23,15 @@ function staticImports(file: string): string[] {
     .map((m) => join(dir, m[1] ?? m[2]!));
 }
 
-/** Every file the page loads before any chart: the bundle and what it imports, transitively. */
-function startup(): string[] {
+/** Every file a page loads before any chart: its bundle and what it imports, transitively. */
+function startup(bundle = join(DEMO, 'bundle.js')): string[] {
   const seen = new Set<string>();
   const walk = (file: string): void => {
     if (seen.has(file)) return;
     seen.add(file);
     staticImports(file).forEach(walk);
   };
-  walk(join(DEMO, 'bundle.js'));
+  walk(bundle);
   return [...seen];
 }
 
@@ -41,6 +41,11 @@ function startup(): string[] {
  *  Not lowered with the TypeScript writer's removal (2026-10-08, the model written by legend-lite's
  *  module): a budget is raised on purpose, and measured down when the user asks. */
 const BUDGET = 352_000;
+
+/** The engine page's (demo/engine.html: one cube on an engine that runs its queries, Python's) startup download,
+ *  gzipped: the grid and the remote client, no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure
+ *  (288,876 bytes) and the app's headroom (about 4%), so its growth is a decision too. */
+const ENGINE_BUDGET = 300_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
   it('no file the page loads at startup contains ECharts', () => {
@@ -61,5 +66,15 @@ describe('the page loads ECharts only when a chart draws', () => {
   it(`a grid-only page downloads at most ${BUDGET.toLocaleString()} bytes of script, gzipped`, () => {
     const size = startup().reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= BUDGET, `the grid's script is ${size.toLocaleString()} bytes gzipped, over its budget of ${BUDGET.toLocaleString()}`);
+  });
+
+  it(`the engine page downloads at most ${ENGINE_BUDGET.toLocaleString()} bytes of script, gzipped, and no ECharts`, () => {
+    const files = startup(runfileFromEnv('ENGINE_BUNDLE'));
+    for (const f of files) {
+      assert.ok(!readFileSync(f, 'utf8').includes('node_modules/echarts/'), `${f} carries ECharts`);
+    }
+    const size = files.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
+    assert.ok(size <= ENGINE_BUDGET,
+      `the engine page's script is ${size.toLocaleString()} bytes gzipped, over its budget of ${ENGINE_BUDGET.toLocaleString()}`);
   });
 });

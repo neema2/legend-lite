@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DataCube</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="../src/theme.css">
+<link rel="stylesheet" href="../src/grid/grid.css">
+<link rel="stylesheet" href="../src/app.css">
+<style>
+  :root { color-scheme: light; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font: 12px/16px Roboto, ui-sans-serif, system-ui, sans-serif;
+    background: #fff;
+    color: #000;
+  }
+  /* ONE CUBE, the whole page: an engine's table (engine.ts) */
+  #cube {
+    position: relative;
+    height: 100vh;
+    box-sizing: border-box;
+  }
+</style>
+</head>
+<body>
+<div id="cube"></div>
+<script type="module" src="./bundle-engine.js"></script>
+</body>
+</html>

@@ -65,6 +65,10 @@ read as they are then. Only queries over the models the frames' tables were writ
 the compiler wrote. It listens on 127.0.0.1 alone and answers only requests that carry its token and name this
 machine as their Host; it sends no cross-origin header. Design: `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`.
 
+`Engine(frames, site=...)` also serves a site's files (DataCube's built pages, `//datacube:dist`) at its origin, and
+`cube.json?table=<name>` (with the token): a frame's model, runtime and source as they are now, which DataCube's
+`engine.html` opens a cube over (`<url>/engine.html?table=<name>#token=<token>`).
+
 Frames and the engine need duckdb and pyarrow; the compiler itself needs neither, and `import legend_lite`
 loads them only when `Frames` or `Engine` is first used.
 

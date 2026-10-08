@@ -25,29 +25,36 @@ const v = (f) => join(ROOT, 'demo', 'vendor', f);
 await rm(DIST, { recursive: true, force: true });
 await mkdir(join(DIST, 'vendor'), { recursive: true });
 
-// The page, its bundles, its model, and the two WebAssembly runtimes.
-for (const f of ['bundle.js', 'planner-worker.js', 'trades.pure']) {
+// The planner's worker, the page's model, and the two WebAssembly runtimes.
+for (const f of ['planner-worker.js', 'trades.pure']) {
   await cp(join(ROOT, 'demo', f), join(DIST, f));
 }
-// what the bundle loads when it needs it (ECharts, the first time a chart draws)
-await cp(join(ROOT, 'demo', 'chunks-bundle'), join(DIST, 'chunks-bundle'), { recursive: true });
 for (const f of ['classes.wasm', 'wasm-gc-module-runtime.js',
   'duckdb-eh.wasm', 'duckdb-mvp.wasm',
   'duckdb-browser-eh.worker.js', 'duckdb-browser-mvp.worker.js']) {
   await cp(v(f), join(DIST, 'vendor', f));
 }
+// the pages' type: fonts.css and the files it names (vendor/fonts, Roboto from //legend-art:fonts), served with the site
+await cp(join(ROOT, 'demo', 'fonts.css'), join(DIST, 'fonts.css'));
+await cp(v('fonts'), join(DIST, 'vendor', 'fonts'), { recursive: true });
 
-// index.html links ../src/*.css, which does not exist in a flat
-// deployment; inline them so the folder is self-contained.
-let html = await readFile(join(ROOT, 'demo', 'index.html'), 'utf8');
-const links = [...html.matchAll(/<link rel="stylesheet" href="\.\.\/([^"]+)">/g)];
-let css = '';
-for (const m of links) {
-  css += `/* ${m[1]} */\n${await readFile(join(ROOT, m[1]), 'utf8')}\n`;
+// THE PAGES, each with its bundle and what that loads when it needs it (ECharts, the first time a chart draws): the
+// app (index.html), and one cube on an engine that runs its queries (engine.html: Python's engine serves this folder,
+// docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md). Each links ../src/*.css, which does not exist in a flat
+// deployment; they are inlined so the folder is self-contained.
+for (const [page, bundle] of [['index.html', 'bundle'], ['engine.html', 'bundle-engine']]) {
+  await cp(join(ROOT, 'demo', `${bundle}.js`), join(DIST, `${bundle}.js`));
+  await cp(join(ROOT, 'demo', `chunks-${bundle}`), join(DIST, `chunks-${bundle}`), { recursive: true });
+  let html = await readFile(join(ROOT, 'demo', page), 'utf8');
+  const links = [...html.matchAll(/<link rel="stylesheet" href="\.\.\/([^"]+)">/g)];
+  let css = '';
+  for (const m of links) {
+    css += `/* ${m[1]} */\n${await readFile(join(ROOT, m[1]), 'utf8')}\n`;
+  }
+  html = html.replace(/<link rel="stylesheet" href="\.\.\/[^"]+">\n?/g, '');
+  html = html.replace('</head>', `<style>\n${css}</style>\n</head>`);
+  await writeFile(join(DIST, page), html);
 }
-html = html.replace(/<link rel="stylesheet" href="\.\.\/[^"]+">\n?/g, '');
-html = html.replace('</head>', `<style>\n${css}</style>\n</head>`);
-await writeFile(join(DIST, 'index.html'), html);
 
 const { size } = await import('node:fs').then((fs) =>
   fs.promises.stat(join(DIST, 'vendor', 'classes.wasm')));

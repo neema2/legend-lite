@@ -68,6 +68,26 @@ try {
     console.log(`FAIL ${verdict.outcomes.length} checks ran, not 4`);
     failed = true;
   }
+
+  // THE PAGE A PERSON OPENS (demo/engine.html, from the engine's site): the link names the frame and carries the
+  // token in its fragment; the cube opens over the engine and shows the frame's rows, with nothing run in the tab
+  const cube = await browser.newPage();
+  cube.on('pageerror', (e) => { console.log(`engine page error: ${e.message}`); failed = true; });
+  cube.on('requestfailed', (r) => console.log(`engine page request failed: ${r.url()} -- ${r.failure()?.errorText ?? ''}`));
+  cube.on('console', (m) => console.log(`engine page console ${m.type()}: ${m.text()}`));
+  // every file and call the page asks for is answered: a refusal (a missing file, a refused call) fails the test
+  cube.on('response', (r) => {
+    if (r.status() >= 400) { console.log(`FAIL engine page answer ${r.status()}: ${r.url()}`); failed = true; }
+  });
+  const token = served.authorization.slice('Bearer '.length);
+  await cube.goto(`${origin}/engine.html?table=trades#token=${encodeURIComponent(token)}`);
+  const shown = await cube.waitForFunction(() => /\b10 rows\b/.test(document.body.innerText)
+    && document.body.innerText.includes('APAC'), undefined, { timeout: 60_000 }).then(() => true, () => false);
+  console.log(`${shown ? 'ok  ' : 'FAIL'} the engine's page opens the frame's cube and shows its rows`);
+  if (!shown) {
+    console.log(`  the page showed: ${(await cube.evaluate(() => document.body.innerText)).slice(0, 400)}`);
+    failed = true;
+  }
 } finally {
   await browser?.close();
   // stopped and WAITED for: the engine serves until its input closes, and is gone before the test reports
