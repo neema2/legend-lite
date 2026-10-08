@@ -85,6 +85,7 @@ final class ArchitectureTest {
             java.util.Map.entry("testdatagen", "com.legend.testdatagen.TestDataGenerationNatives"),
             java.util.Map.entry("execution_plan", "com.legend.executionplan.ExecutionPlan"),
             java.util.Map.entry("planner", "com.legend.Compiler"),
+            java.util.Map.entry("pure_v1", "com.legend.server.PureV1Api"),
             java.util.Map.entry("driver", "com.legend.Execution"),
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
@@ -659,6 +660,27 @@ final class ArchitectureTest {
             .as("E4: the metamodel channel evaluates model constants"
                     + " only — grid chains compile to SQL at the"
                     + " GridReads.tryLower exec seam")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The pure/v1 API is plan side (2026-10-08, //core:pure_v1).</strong>
+     * {@code PureV1Api} lives in {@code com.legend.server}, which the
+     * JDBC funnel above exempts, but it is the plan side's: the compiler's
+     * boundary answers with it (Python's engine for DataCube,
+     * docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md), and its one run is
+     * handed in by its host. Bazel keeps the driver and exec out of its
+     * library; this rule keeps out what Bazel cannot, the JDK's
+     * {@code java.sql}.
+     */
+    @Test
+    void thePureV1ApiReachesNoDatabase() {
+        noClasses()
+            .that().haveNameMatching("com\\.legend\\.server\\.PureV1Api(\\$.*)?")
+            .should().dependOnClassesThat()
+            .resideInAnyPackage("java.sql..", "javax.sql..",
+                    "org.duckdb..", "org.h2..")
+            .as("the pure/v1 API is plan side: its host runs its queries")
             .check(CORE_PROD_CLASSES);
     }
 

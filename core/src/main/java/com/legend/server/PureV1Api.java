@@ -25,7 +25,13 @@ import java.util.function.Supplier;
  * (docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md; the user's ruling of 2026-09-27: lite's
  * client surface is upstream's APIs and nothing of its own). Each call is a pure function
  * of its request -- text in, a status and JSON out -- so it is tested without HTTP;
- * {@link LegendHttpServer} only carries it.
+ * {@code LegendHttpServer} only carries it, through {@link #route}.
+ *
+ * <p>THE PLAN SIDE ({@code //core:pure_v1}): no database and no driver, so the compiler's
+ * boundary answers with this same code -- Python's engine serves DataCube through it
+ * (docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md). Execute's run is its host's, handed in
+ * as a {@link Runner}: the server's driver; a host that runs SQL itself takes
+ * {@link #arrowPlan}'s SQL and metadata.
  *
  * <ul>
  *   <li>E1 {@code grammar/grammarToJson/lambda}: Pure text to lambda JSON (the parser's
@@ -36,6 +42,8 @@ import java.util.function.Supplier;
  *       text ({@link PureComposer}, byte parity with upstream's printer).</li>
  *   <li>E5 {@code compilation/lambdaRelationType}: a query's result columns as the
  *       compiler types them ({@link UpstreamRelationType}).</li>
+ *   <li>E8 {@code execution/execute}: the query run on its runtime's connection, answered in
+ *       the engine's TDS JSON; in upstream's Arrow format ({@code ARROW_IPC}), its plan half.</li>
  *   <li>E9 {@code execution/generatePlan}: the relational TDS execution plan.</li>
  * </ul>
  *
@@ -62,6 +70,54 @@ public final class PureV1Api {
      * cube query; 1024 still bounds a hostile body.
      */
     static final Json.Config REQUEST = new Json.Config(1024);
+
+    /**
+     * How a host runs an execute: the query planned and run on its runtime's connection, its rows written as
+     * the database renders them ({@code [{column: value}, ...]}), and the plan that ran returned. legend-lite's
+     * server hands in its driver ({@code QueryService.executeUpstream}).
+     */
+    @FunctionalInterface
+    public interface Runner {
+        QueryPlan run(String model, LambdaFunction lambda, String runtime, java.io.Writer rows);
+    }
+
+    /**
+     * One call by its path ({@code /api/pure/v1/...}) and raw query string, as both of legend-lite's hosts
+     * route it: its server ({@code LegendHttpServer}) and the compiler's boundary. An execute runs through
+     * {@code runner}; a path this API does not serve is answered 404 in the engine's error shape.
+     */
+    public static Answer route(String path, @com.legend.base.Nullable String rawQuery, String body, Runner runner) {
+        boolean sourceInformation = rawQuery == null || !rawQuery.contains("returnSourceInformation=false");
+        return switch (path) {
+            case "/api/pure/v1/grammar/grammarToJson/lambda" -> grammarToJsonLambda(body, sourceInformation);
+            case "/api/pure/v1/grammar/grammarToJson/model" -> grammarToJsonModel(body, sourceInformation);
+            case "/api/pure/v1/grammar/jsonToGrammar/lambda" ->
+                    jsonToGrammarLambda(body, queryParam(rawQuery, "renderStyle"));
+            case "/api/pure/v1/grammar/jsonToGrammar/lambda/batch" ->
+                    jsonToGrammarLambdaBatch(body, queryParam(rawQuery, "renderStyle"));
+            case "/api/pure/v1/compilation/lambdaRelationType" -> lambdaRelationType(body);
+            case "/api/pure/v1/compilation/compile" -> compile(body);
+            case "/api/pure/v1/compilation/lambdaReturnType" -> lambdaReturnType(body);
+            case "/api/pure/v1/execution/generatePlan" -> generatePlan(body);
+            case "/api/pure/v1/execution/execute" -> execute(body, runner);
+            default -> error(404, null, "no such legend-engine API in legend-lite: " + path);
+        };
+    }
+
+    /** One query parameter's (decoded) value, or null. */
+    private static @com.legend.base.Nullable String queryParam(@com.legend.base.Nullable String rawQuery, String name) {
+        if (rawQuery == null) {
+            return null;
+        }
+        for (String pair : rawQuery.split("&")) {
+            int eq = pair.indexOf('=');
+            String k = eq < 0 ? pair : pair.substring(0, eq);
+            if (k.equals(name)) {
+                return eq < 0 ? "" : java.net.URLDecoder.decode(pair.substring(eq + 1), java.nio.charset.StandardCharsets.UTF_8);
+            }
+        }
+        return null;
+    }
 
     private static Json.Obj request(String body) {
         Json.Node n = Json.parse(body, REQUEST);
@@ -221,11 +277,11 @@ public final class PureV1Api {
     // ---------------------------------------------------------------------
 
     /**
-     * E8: an {@code ExecuteInput} run on its runtime's connection -- established first, as
-     * legend-engine does on acquisition -- answered in the engine's TDS result shape. The
+     * E8: an {@code ExecuteInput} run on its runtime's connection by {@code runner} -- established
+     * first, as legend-engine does on acquisition -- answered in the engine's TDS result shape. The
      * database renders every value; Java arranges the rows into {@code {"values": [...]}}.
      */
-    public static Answer execute(String body) {
+    public static Answer execute(String body, Runner runner) {
         return answer(500, "COMPILATION", () -> {
             Json.Obj request = request(body);
             String model = modelText(request.getObj("model"));
@@ -233,7 +289,7 @@ public final class PureV1Api {
                     boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
             String runtime = runtimeOf(request, com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda).target());
             java.io.StringWriter rows = new java.io.StringWriter();
-            QueryPlan plan = new QueryService().executeUpstream(model, lambda, runtime, rows);
+            QueryPlan plan = runner.run(model, lambda, runtime, rows);
             if (plan.shape() == com.legend.plan.ResultShape.GRAPH) {
                 // a graph fetch: the engine's JSON result (measured, 4.145.0, 2026-09-30) -- the
                 // objects' array, or the one object bare when there is exactly one (as Pure's
@@ -247,6 +303,54 @@ public final class PureV1Api {
             }
             return tdsResult(plan, rows.toString());
         });
+    }
+
+    /**
+     * E8 in upstream's Arrow format ({@code ?serializationFormat=ARROW_IPC}), its plan half, for a host that runs
+     * the SQL itself (Python's engine, over duckdb-python): the {@code ExecuteInput} read and planned as
+     * {@link #execute} plans it, answered {@code {"sql", "metadata"}} -- the SQL to run, and the Arrow schema
+     * metadata upstream's answer carries, each value JSON text as upstream writes it (measured against legend-engine
+     * 4.145.0, 2026-10-08): {@code legend.builder}, the TDS builder as the JSON answer's; {@code legend.activities},
+     * the activities WITHOUT their {@code _type}; {@code legend.columns}, the column names. The host writes the rows
+     * as upstream does: an Arrow IPC stream with this metadata, compressed as one zstd frame. {@code models} are the
+     * only models the host runs: a request over any other is refused.
+     */
+    public static Answer arrowPlan(String body, java.util.Collection<String> models) {
+        return answer(500, "COMPILATION", () -> {
+            Json.Obj request = request(body);
+            String model = modelText(request.getObj("model"));
+            if (!models.contains(model)) {
+                // a host's models change (Python's: a Live frame whose columns changed is written a new model), so
+                // the refusal says what to do
+                throw new IllegalArgumentException("this engine runs queries over the models it serves only, "
+                        + "and the request's model is not one of them: if the engine's model changed since it was "
+                        + "read (a frame whose columns changed), read it again");
+            }
+            LambdaFunction lambda = ProtocolReader.lambda(
+                    boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
+            com.legend.TypedQuery query = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda);
+            QueryPlan plan = query.plan(runtimeOf(request, query.target()));
+            if (plan.shape() == com.legend.plan.ResultShape.GRAPH) {
+                // upstream's Arrow answer is a relational result's (RelationalResultToArrowIPCSerializer)
+                throw new IllegalArgumentException("ARROW_IPC answers a relation query; a graph fetch is answered in JSON");
+            }
+            Map<String, Object> metadata = new LinkedHashMap<>();
+            metadata.put("legend.builder", Json.toCompact(tdsBuilder(plan)));
+            metadata.put("legend.activities", Json.toCompact(List.of(activity(plan, false))));
+            metadata.put("legend.columns", Json.toCompact(columnNames(plan)));
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("sql", plan.sql());
+            out.put("metadata", metadata);
+            return Json.toCompact(out);
+        });
+    }
+
+    /**
+     * A host's refusal of a call it could not finish -- its database refusing the SQL, say -- answered as
+     * {@link #answer} answers a database's refusal: 500, the engine's error shape, no {@code errorType}.
+     */
+    public static Answer refused(String message) {
+        return error(500, null, message);
     }
 
     /**
@@ -315,27 +419,10 @@ public final class PureV1Api {
      * the {@code relational} activity carrying the SQL, then the columns and rows.
      */
     static String tdsResult(QueryPlan plan, String wireRows) {
-        List<com.legend.compiler.element.type.Type.Column> cols = UpstreamRelationType.columns(plan.rootType());
-        List<Map<String, Object>> builderCols = new ArrayList<>();
-        List<String> names = new ArrayList<>();
-        for (var c : cols) {
-            Map<String, Object> col = new LinkedHashMap<>();
-            col.put("name", c.name());
-            col.put("type", UpstreamRelationType.tdsTypePath(c.type()));
-            col.put("relationalType", UpstreamRelationType.relationalSpelling(c.type()));
-            builderCols.add(col);
-            names.add(c.name());
-        }
-        Map<String, Object> builder = new LinkedHashMap<>();
-        builder.put("_type", "tdsBuilder");
-        builder.put("columns", builderCols);
-        Map<String, Object> activity = new LinkedHashMap<>();
-        activity.put("_type", "relational");
-        activity.put("comment", "-- \"executionTraceID\" : \"" + java.util.UUID.randomUUID() + "\"");
-        activity.put("sql", plan.sql());
+        List<String> names = columnNames(plan);
         StringBuilder out = new StringBuilder();
-        out.append("{\"builder\": ").append(Json.toCompact(builder))
-                .append(", \"activities\": ").append(Json.toCompact(List.of(activity)))
+        out.append("{\"builder\": ").append(Json.toCompact(tdsBuilder(plan)))
+                .append(", \"activities\": ").append(Json.toCompact(List.of(activity(plan, true))))
                 .append(", \"result\" : {\"columns\" : ").append(Json.toCompact(names))
                 .append(", \"rows\" : [");
         Json.Node wire = wireRows.isEmpty() ? new Json.Arr(List.of()) : Json.parse(wireRows);
@@ -350,6 +437,44 @@ public final class PureV1Api {
             first = false;
         }
         return out.append("]}}").toString();
+    }
+
+    /** The TDS builder: each column's name, Pure type and relational spelling. */
+    private static Map<String, Object> tdsBuilder(QueryPlan plan) {
+        List<Map<String, Object>> columns = new ArrayList<>();
+        for (var c : UpstreamRelationType.columns(plan.rootType())) {
+            Map<String, Object> col = new LinkedHashMap<>();
+            col.put("name", c.name());
+            col.put("type", UpstreamRelationType.tdsTypePath(c.type()));
+            col.put("relationalType", UpstreamRelationType.relationalSpelling(c.type()));
+            columns.add(col);
+        }
+        Map<String, Object> builder = new LinkedHashMap<>();
+        builder.put("_type", "tdsBuilder");
+        builder.put("columns", columns);
+        return builder;
+    }
+
+    /**
+     * The relational activity, carrying the SQL: with its {@code _type} first, as the JSON answer writes it, or
+     * without, as the Arrow answer's metadata does (measured, 4.145.0).
+     */
+    private static Map<String, Object> activity(QueryPlan plan, boolean typed) {
+        Map<String, Object> activity = new LinkedHashMap<>();
+        if (typed) {
+            activity.put("_type", "relational");
+        }
+        activity.put("comment", "-- \"executionTraceID\" : \"" + java.util.UUID.randomUUID() + "\"");
+        activity.put("sql", plan.sql());
+        return activity;
+    }
+
+    private static List<String> columnNames(QueryPlan plan) {
+        List<String> names = new ArrayList<>();
+        for (var c : UpstreamRelationType.columns(plan.rootType())) {
+            names.add(c.name());
+        }
+        return names;
     }
 
     /**

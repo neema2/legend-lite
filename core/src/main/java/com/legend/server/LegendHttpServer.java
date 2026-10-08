@@ -211,49 +211,11 @@ public class LegendHttpServer {
             try (InputStream in = exchange.getRequestBody()) {
                 body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             }
-            String query = exchange.getRequestURI().getRawQuery();
-            boolean sourceInformation = query == null
-                    || !query.contains("returnSourceInformation=false");
-            PureV1Api.Answer answer = switch (exchange.getRequestURI().getPath()) {
-                case "/api/pure/v1/grammar/grammarToJson/lambda" ->
-                        PureV1Api.grammarToJsonLambda(body, sourceInformation);
-                case "/api/pure/v1/grammar/grammarToJson/model" ->
-                        PureV1Api.grammarToJsonModel(body, sourceInformation);
-                case "/api/pure/v1/grammar/jsonToGrammar/lambda" ->
-                        PureV1Api.jsonToGrammarLambda(body, queryParam(query, "renderStyle"));
-                case "/api/pure/v1/grammar/jsonToGrammar/lambda/batch" ->
-                        PureV1Api.jsonToGrammarLambdaBatch(body, queryParam(query, "renderStyle"));
-                case "/api/pure/v1/compilation/lambdaRelationType" ->
-                        PureV1Api.lambdaRelationType(body);
-                case "/api/pure/v1/compilation/compile" ->
-                        PureV1Api.compile(body);
-                case "/api/pure/v1/compilation/lambdaReturnType" ->
-                        PureV1Api.lambdaReturnType(body);
-                case "/api/pure/v1/execution/generatePlan" ->
-                        PureV1Api.generatePlan(body);
-                case "/api/pure/v1/execution/execute" ->
-                        PureV1Api.execute(body);
-                default -> new PureV1Api.Answer(404,
-                        "{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: "
-                                + exchange.getRequestURI().getPath() + "\",\"status\":\"error\"}");
-            };
+            // the routes are the API's own (PureV1Api.route, the plan side); execute runs through the driver
+            PureV1Api.Answer answer = PureV1Api.route(exchange.getRequestURI().getPath(),
+                    exchange.getRequestURI().getRawQuery(), body, new QueryService()::executeUpstream);
             sendResponse(exchange, answer.status(), answer.json(), answer.contentType());
         }
-    }
-
-    /** One query parameter's (decoded) value, or null. */
-    private static @com.legend.base.Nullable String queryParam(@com.legend.base.Nullable String rawQuery, String name) {
-        if (rawQuery == null) {
-            return null;
-        }
-        for (String pair : rawQuery.split("&")) {
-            int eq = pair.indexOf('=');
-            String k = eq < 0 ? pair : pair.substring(0, eq);
-            if (k.equals(name)) {
-                return eq < 0 ? "" : java.net.URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8);
-            }
-        }
-        return null;
     }
 
     /** The CORS answer for an ALLOWED origin (the route's check ran first): it names that origin, never {@code *}. */
