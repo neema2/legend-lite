@@ -85,16 +85,15 @@ class DropInSurfaceTextRuleTest {
             // com.legend.parser can extract island chunks; the one source
             // read is the same coarse-chunk necessity it always was
             "parser/TokenStreamCursor.java", 1,
-            // 2: the graph-fetch island + the GQL island — GraphQL is a
-            // FOREIGN language (commas-as-whitespace, $, @, ...), so its
-            // content parses from the raw slice by design, like the URL
-            // fix in the ES connection
-            "parser/SpecParser.java", 2,
-            // ISLAND-CONTENT re-lex: mapping test-suite #{ }# data blocks
-            // arrive as RAW island chunks — the content is re-lexed with
-            // position padding (the engine reparses the same text via its
-            // data sub-parsers); same category as ElementParser's island
-            // reads; +1: aggregate-lambda padded re-lex (engine reparses
+            // 1: the GQL island — GraphQL is a FOREIGN language
+            // (commas-as-whitespace, $, @, ...), so its content parses from
+            // the raw slice by design, like the URL fix in the ES
+            // connection. The graph-fetch island's padded re-lex is gone
+            // (W0.8, 2026-10-08: lexed in place by TokenStream.lexRange)
+            "parser/SpecParser.java", 1,
+            // The mapping test-suite #{ }# island re-lex no longer reads
+            // the source here (W0.8, 2026-10-08: TokenStream.lexRange
+            // lexes the content in place). +1: aggregate-lambda padded re-lex (engine reparses
             // the expr text standalone with the tilde-anchor quirk);
             // +1: Relation-island CSV char walk (a raw sub-format the
             // engine also parses from chars)
@@ -106,7 +105,7 @@ class DropInSurfaceTextRuleTest {
             // today. This is the same necessity as the OVERLAY handoff
             // above, and it DIES with the legacy mapping parser only if the
             // model stops storing suites as text.
-            "parser/MappingProtocolParser.java", 4);
+            "parser/MappingProtocolParser.java", 3);
 
     @Test
     void regexFamilyIsConfinedToTheFrozenWhitelist() throws IOException {

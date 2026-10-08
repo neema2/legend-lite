@@ -302,6 +302,20 @@ public final class TokenStream {
         return list;
     }
 
+    /** The characters {@code [from, to)} of this stream's source lexed again in NORMAL mode, in place: an
+     *  island's content ({@code #{ ... }#}: test data, a graph-fetch tree, an embedded value), whose outer tokens
+     *  are the island lexer's coarse chunks. The result's offsets are this source's own and its line index is
+     *  this stream's, shared (W0.8: before, every island was copied into a string padded with one newline per
+     *  line above it, lexed and indexed again -- 14% of the stress corpus's run). */
+    public TokenStream lexRange(int from, int to) {
+        if (from < 0 || to > source.length() || from > to) {
+            throw new IndexOutOfBoundsException("lexRange(" + from + ", " + to + ") outside the source");
+        }
+        TokenStream s = Lexer.tokenizeRange(source, from, to);
+        s.lineStarts = lineStarts();
+        return s;
+    }
+
     /**
      * Return a new {@code TokenStream} containing the tokens at indices
      * {@code [fromInclusive, toExclusive)} of this stream.

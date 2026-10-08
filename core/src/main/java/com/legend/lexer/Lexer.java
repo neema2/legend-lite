@@ -127,10 +127,17 @@ public final class Lexer {
     private int count;
 
     private Lexer(String source) {
+        this(source, 0, source.length());
+    }
+
+    /** A scan of {@code source} from {@code from} to {@code to} only: the offsets it emits are the source's
+     *  own. An island's content is lexed this way, in place (W0.8): no padded copy, no second line index. */
+    private Lexer(String source, int from, int to) {
         this.source = source;
-        this.length = source.length();
+        this.pos = from;
+        this.length = to;
         // Heuristic: ~3.5 chars per token on average for Pure source.
-        int estimated = Math.max(INITIAL_CAPACITY, source.length() / 3);
+        int estimated = Math.max(INITIAL_CAPACITY, (to - from) / 3);
         this.types = new int[estimated];
         this.starts = new int[estimated];
         this.ends = new int[estimated];
@@ -149,6 +156,15 @@ public final class Lexer {
      */
     public static TokenStream tokenize(String source) {
         Lexer lexer = new Lexer(source);
+        lexer.run();
+        return new TokenStream(source, lexer.count, lexer.types, lexer.starts,
+                lexer.ends, lexer.skippedSections, lexer.sectionHeaders);
+    }
+
+    /** {@link #tokenize} over {@code source}'s characters {@code [from, to)} only, in normal mode, every offset
+     *  the source's own; {@link TokenStream#lexRange} is the caller (it shares the line index). */
+    static TokenStream tokenizeRange(String source, int from, int to) {
+        Lexer lexer = new Lexer(source, from, to);
         lexer.run();
         return new TokenStream(source, lexer.count, lexer.types, lexer.starts,
                 lexer.ends, lexer.skippedSections, lexer.sectionHeaders);
@@ -340,6 +356,9 @@ public final class Lexer {
         int rLine = -1;
         int rCol = -1;
         int lineEnd = source.indexOf('\n', nameEnd);
+        if (lineEnd > length) {
+            lineEnd = length;   // a range scan (W0.8) stops at its bound
+        }
         if (lineEnd < 0) {
             lineEnd = length;
         }
@@ -378,7 +397,7 @@ public final class Lexer {
             // but the SKIP is data, not silence
             int skipStart = pos;
             while (pos < length) {
-                if (source.charAt(pos) == '#' && source.startsWith("###", pos)
+                if (source.charAt(pos) == '#' && pos + 3 <= length && source.startsWith("###", pos)
                         && (pos == 0 || source.charAt(pos - 1) == '\n')) {
                     break;
                 }
@@ -506,7 +525,7 @@ public final class Lexer {
         if (pos >= length) { emit(TokenType.INVALID, start, pos); return; }
 
         // %latest
-        if (source.startsWith("latest", pos) && (pos + 6 >= length || !isIdentPart(source.charAt(pos + 6)))) {
+        if (pos + 6 <= length && source.startsWith("latest", pos) && (pos + 6 >= length || !isIdentPart(source.charAt(pos + 6)))) {
             pos += 6; emit(TokenType.LATEST_DATE, start, pos); return;
         }
 

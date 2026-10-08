@@ -3225,12 +3225,8 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private com.legend.protocol.spec.GraphFetchLiteral parseGraphFetchTree(int from, int to,
             int islandStart) {
-        String src = tokens.source();
-        int line = tokens.lineOf(from);
-        int column = tokens.columnOf(from);
-        StringBuilder laid = new StringBuilder(line + column + (to - from));
-        laid.append("\n".repeat(line - 1)).append(" ".repeat(column - 1)).append(src, from, to);
-        TokenStream innerTokens = Lexer.tokenize(laid.toString());
+        // lexed in place at its real offsets, the line index shared (W0.8; before: a padded copy)
+        TokenStream innerTokens = tokens.lexRange(from, to);
         if (innerTokens.count() == 0) {
             // ENGINE-VERBATIM (reprobe TestMappingGrammarParser#12):
             // #{}# refuses at the island opener

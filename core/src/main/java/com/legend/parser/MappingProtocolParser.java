@@ -2890,11 +2890,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                         island.endColumn()));
     }
 
-    /** One {@code #{ ... }#} island: RE-LEXES the raw content with
-     *  line/column padding so inner spans stay absolute (island content
-     *  arrives as raw chunks; same emulation as the merge getText
-     *  reparse). Nested islands re-lex recursively through the SAME
-     *  machinery. */
+    /** An island's content ({@code #{ ... }#}) lexed IN PLACE in normal mode by {@link TokenStream#lexRange}, its
+     *  offsets the document's own and its line index the document's (W0.8); {@code endLine}/{@code endColumn} are
+     *  the closing }#'s, {@code contentStart}/{@code contentEnd} the content's offsets in the document. */
     record IslandBlock(TokenStream tokens, int endLine,
             int endColumn, int contentStart, int contentEnd) { }
 
@@ -2917,23 +2915,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         int endTok = pos;
         int contentEnd = tokens.start(endTok);
         expect(TokenType.ISLAND_END);
-        String source = tokens.source();
-        // the stream's CACHED line index, not a char scan from offset 0
-        // (deep-audit H2: the island path was O(K*N) — twelve call sites
-        // each rescanned the whole prefix per island)
-        int line = tokens.lineOf(contentStart);
-        int col = tokens.columnOf(contentStart);
-        StringBuilder padded = new StringBuilder(
-                (line - 1) + (col - 1) + (contentEnd - contentStart));
-        for (int i = 1; i < line; i++) {
-            padded.append('\n');
-        }
-        for (int i = 1; i < col; i++) {
-            padded.append(' ');
-        }
-        padded.append(source, contentStart, contentEnd);
-        return new IslandBlock(
-                com.legend.lexer.Lexer.tokenize(padded.toString()),
+        // the content lexed IN PLACE, in normal mode, sharing this stream's line index (W0.8): the
+        // outer tokens are the island lexer's coarse chunks; before, the content was copied into a
+        // string padded with one newline per line above it and lexed and indexed again (deep-audit
+        // H2 had removed the prefix rescan; the padding, 2.2 billion characters over the stress
+        // corpus, stayed until the 2026-10-07 profile)
+        return new IslandBlock(tokens.lexRange(contentStart, contentEnd),
                 tokens.endLine(endTok), tokens.endColumn(endTok),
                 contentStart, contentEnd);
     }
