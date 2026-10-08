@@ -1,0 +1,88 @@
+// PROBE 2026-10-08 (execution plan boundary, E-0: the render census) -- never committed; applied from
+// docs/execution-plan-boundary-2026-10-05/render-census/probe.py, measured, removed.
+package com.legend.sql.dialect;
+
+/** Records every OUTERMOST render (a dialect's call up to its super is not counted twice): dialect, kind, the text's
+ *  SHA-256, one line per render; each text once per process in a second file. */
+final class RenderCensus {
+
+    private static final ThreadLocal<int[]> DEPTH = ThreadLocal.withInitial(() -> new int[1]);
+    private static final java.util.Set<String> SEEN = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final java.io.@com.legend.base.Nullable PrintWriter LINES;
+    private static final java.io.@com.legend.base.Nullable PrintWriter TEXTS;
+
+    static {
+        String dir = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
+        if (dir == null) {
+            dir = System.getenv("LEGEND_RENDER_CENSUS");
+        }
+        String ledger = System.getProperty("legend.judge.ledger");
+        java.nio.file.@com.legend.base.Nullable Path ledgerDir = ledger == null ? null : java.nio.file.Path.of(ledger).getParent();
+        if (dir == null && ledgerDir != null) {
+            // a corpus judge action (unsandboxed: --spawn_strategy=local): beside its ledger
+            dir = ledgerDir.resolve("census").toString();
+        }
+        java.io.@com.legend.base.Nullable PrintWriter lines = null;
+        java.io.@com.legend.base.Nullable PrintWriter texts = null;
+        if (dir != null) {
+            try {
+                java.nio.file.Path d = java.nio.file.Path.of(dir);
+                java.nio.file.Files.createDirectories(d);
+                long pid = ProcessHandle.current().pid();
+                lines = new java.io.PrintWriter(java.nio.file.Files.newBufferedWriter(d.resolve("census-" + pid + ".tsv")), true);
+                texts = new java.io.PrintWriter(java.nio.file.Files.newBufferedWriter(d.resolve("texts-" + pid + ".tsv")), true);
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        }
+        LINES = lines;
+        TEXTS = texts;
+    }
+
+    private RenderCensus() {
+    }
+
+    static String record(String kind, Object dialect, java.util.function.Supplier<String> render) {
+        int[] depth = DEPTH.get();
+        depth[0]++;
+        try {
+            String text = render.get();
+            java.io.PrintWriter lines = LINES;
+            java.io.PrintWriter texts = TEXTS;
+            if (depth[0] == 1 && lines != null && texts != null) {
+                String hash = sha256(text);
+                synchronized (lines) {
+                    lines.println(dialect.getClass().getSimpleName() + "\t" + kind + "\t" + hash);
+                }
+                if (SEEN.add(hash)) {
+                    synchronized (texts) {
+                        texts.println(hash + "\t" + text.replace("\\", "\\\\").replace("\n", "\\n").replace("\t", "\\t"));
+                    }
+                }
+            }
+            return text;
+        } finally {
+            depth[0]--;
+        }
+    }
+
+    /** A statement for execution with bound values: its text is recorded like a query's, as kind {@code kind}. */
+    static RenderedStatement recordStatement(String kind, Object dialect,
+            java.util.function.Supplier<RenderedStatement> render) {
+        RenderedStatement[] out = new RenderedStatement[1];
+        record(kind, dialect, () -> {
+            out[0] = render.get();
+            return out[0].sql();
+        });
+        return out[0];
+    }
+
+    private static String sha256(String s) {
+        try {
+            byte[] d = java.security.MessageDigest.getInstance("SHA-256").digest(s.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(d);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+}

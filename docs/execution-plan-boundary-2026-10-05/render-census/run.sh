@@ -1,10 +1,11 @@
 #!/bin/zsh
 # THE RENDER CENSUS (E-0, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10): every SQL statement the JVM suites render,
-# recorded by the probe in census-probe.patch, so two commits can be compared byte for byte (compare.py).
+# recorded by the probe (probe.py), so two trees can be compared byte for byte (compare.py).
 #
 #   docs/execution-plan-boundary-2026-10-05/render-census/run.sh <outdir>
 #
-# Run from the repository root, on a clean tree. It applies the probe, runs every lane, and removes the probe again.
+# Run from the repository root. It applies the probe (probe.py, by signature: any stage of E), runs every lane, and
+# removes the probe again; uncommitted work is measured as it stands.
 # The browser lanes are not run: the probe uses JVM-only APIs the WebAssembly planner cannot compile
 # (//pure-protocol:twins_test needs that planner, so it fails to build here, by design; --keep_going).
 set -u
@@ -12,8 +13,8 @@ OUT=$1
 HERE=${0:a:h}
 P=core/src/main/java/com/legend/sql/dialect/RenderCensus.java
 mkdir -p "$OUT"
-git apply "$HERE/census-probe.patch" || { echo "the probe does not apply to this tree"; exit 2; }
-trap 'git apply -R "$HERE/census-probe.patch" 2>/dev/null || { sed -i "" "/^\/\/ census run /d" $P; git apply -R "$HERE/census-probe.patch"; }' EXIT
+python3 -I "$HERE/probe.py" apply || { echo "the probe does not apply to this tree"; exit 2; }
+trap 'python3 -I "$HERE/probe.py" remove' EXIT
 # a run id stamped into the probe: the renderer's jar changes (its interface does not), so every test and corpus judge
 # action that renders runs again instead of answering from Bazel's cache
 echo "// census run $(date +%s)" >> $P

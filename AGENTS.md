@@ -209,18 +209,27 @@ The Lowerer emits typed MIR records — never raw SQL, never SQL function names.
 Type-name mapping, keyword spellings, function names, syntactic quirks, and
 dialect-specific decompositions all live **here**, not in lowering.
 
-**Core has exactly ONE render entry point:**
+**Core's render entry points are on one interface** (`core/src/main/java/com/legend/sql/dialect/SqlDialect.java`):
 
 ```java
-// core/src/main/java/com/legend/sql/dialect/SqlDialect.java:14
-String render(SqlQuery query);
+String render(SqlQuery query);                       // a query as text: no bound parameters
+RenderedStatement renderStatement(SqlQuery query);   // a query to execute with bound values: text + its ? parameters
+String render(SqlDdl ddl);                           // a table's or schema's DDL
+String render(SqlDml dml);                           // rows in, rows out
 ```
 
-plus three defaults on the same interface: `normalize(Object, SqlType)`,
-`needsStaticPivot()`, `rawH2IsNative()`. Base impl `AnsiSqlRenderer`.
+Base impl `AnsiSqlRenderer`. **A dialect writes SQL into ONE `SqlWriter`** (2026-10-08,
+docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10, "E"): text in order, and each bound parameter at the place its `?` is
+written, so a statement's parameters are in placeholder order by construction. A render method writes and returns
+nothing — never a rendered string that a caller pastes (a piece pasted twice would carry its parameter once); a method
+that only spells a name, a literal or a type returns its text. E is landing in stages: the clause layer (queries,
+selects, sources) writes into the writer; expressions, and the DDL and DML entries, still build strings, reached through
+a bridge where a bound parameter is refused, until their stage moves them. Never edit rendered SQL after it is written —
+the legacy engine-text printer's four edits (lowercasing `OVER`, `PARTITION BY` and a function name; escaping a rendered
+expression into a FreeMarker argument) are the known exceptions, until E's stage for that printer writes them directly.
 
 > **If you have read otherwise:** `SQLDialect`, `SqlAggregate`, `SqlRelation`
-> and the three-render-method contract are **engine-only**. They do not exist
+> and legend-engine's three-render-method contract on that `SQLDialect` are **engine-only**. They do not exist
 > in core. `WindowAggregate` exists in neither tree.
 
 Dialects: `AnsiSqlRenderer` → `DuckDb`; `H2` → `H2Modern`; `EngineStyleH2` →

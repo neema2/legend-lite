@@ -187,9 +187,9 @@ public class H2 extends AnsiSqlRenderer {
      * renders like DuckDB's; the base default walls, which stranded
      * the one PCT qualify test despite supportsQualify(). */
     @Override
-    protected void appendQualify(StringBuilder sb, com.legend.sql.SqlSelect s,
+    protected void appendQualify(SqlWriter writer, com.legend.sql.SqlSelect s,
             int depth) {
-        nl(sb, depth).append("QUALIFY ").append(expr(
+        nl(writer, depth).append("QUALIFY ").append(expr(
                 java.util.Objects.requireNonNull(s.qualify(),
                         "appendQualify without a qualify clause"), 0));
     }
