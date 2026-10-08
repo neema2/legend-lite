@@ -3,12 +3,17 @@
 // This is what lets someone open the page and drop a file in, rather
 // than hand-authoring a Pure model that happens to match their
 // columns. DuckDB sniffs the types and its catalog reports them, structured
-// (`catalogColumnsSql`, or a warehouse's listing); legend-lite's writer, generated
-// and tested against legend-lite (catalog-model.ts -- this file holds no type
-// table), declares them in the `###Relational Database`; this wraps it in the
-// `###Connection` + `###Runtime` the planner needs. The cube's COLUMNS are not decided here: the
-// compiler types the source once the model is in (`sourceColumns`,
-// docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md).
+// (the catalog question, `TableModels.catalogColumnsSql`, or a warehouse's listing); legend-lite's
+// compiler writes the whole model from those rows -- the `###Relational Database`, and the
+// `###Connection` + `###Runtime` the planner needs -- in its WebAssembly module
+// (`planner.Wasm.tableModelOrError`), the ONE writer, which Python's frames use too. The cube's
+// COLUMNS are not decided here: the compiler types the source once the model is in
+// (`sourceColumns`, docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md).
+//
+// The writer is legend-lite's module whichever planner the page chose (the user, 2026-10-08,
+// replacing the TypeScript copy of 2026-10-01): on the planners on a server the tab loads the module
+// to write a model, and the chosen planner still compiles, types and plans it. legend-engine has
+// no such writer to ask, and no server can read a database inside the tab.
 //
 // Generating the model rather than special-casing "uploaded" data is
 // the whole point. Everything downstream -- the planner, the tree
@@ -25,7 +30,21 @@
 // makes it no harder.
 
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { catalogType, databaseFromCatalog, type CatalogColumn, type CatalogDatabase } from './catalog-model.ts';
+
+/** One column, as its database's catalog describes it (the catalog question's row). */
+export interface CatalogColumn {
+  readonly name: string;
+  /** Its own type name, as the catalog writes it: for an alias and for messages, never parsed. */
+  readonly dataType: string;
+  /** Its canonical type (DuckDB's `duckdb_types().logical_type`; Postgres's base type name, or its kind:
+   *  `ARRAY`, `ENUM`, ...), or null when the catalog names none. */
+  readonly logicalType: string | null;
+  /** A DECIMAL's precision and scale, as numbers; null for any other type. */
+  readonly precision: number | null;
+  readonly scale: number | null;
+  /** The catalog says it holds no NULL: declared `NOT NULL`, so the compiler types it `[1]`. */
+  readonly notNull: boolean;
+}
 
 export interface InferredModel {
   /** Pure source: database, connection, runtime. */
@@ -33,9 +52,15 @@ export interface InferredModel {
   readonly runtime: string;
   /** The relation the cube reads from, as protocol. */
   readonly source: ValueSpecification;
-  /** What the source must apply, and what was left out (see `CatalogDatabase`). */
-  readonly conversions: CatalogDatabase['conversions'];
-  readonly excluded: CatalogDatabase['excluded'];
+  /**
+   * SQL over a column that a COPY of the table applies so it holds its declared type: an upload's
+   * rewrite, a Snap. A read-only source reads such a column (a zoned timestamp) as stored.
+   */
+  readonly conversions: readonly { readonly column: string; readonly sql: string }[];
+  /** The select list a copy applies: `* REPLACE (<conversion> AS "<column>", ...)`, or `*`. */
+  readonly copySelectList: string;
+  /** Columns left out: the source cannot convert them, or no Database type holds them (bytes). */
+  readonly excluded: readonly string[];
   /**
    * The columns declared BIT (DuckDB's BOOLEAN): legend-engine types them TinyInt, and a planner
    * on engine reads them Boolean (relation-type.ts, ENGINE DEFECT S23).
@@ -60,7 +85,11 @@ export interface InferOptions {
   readonly schema?: string;
   /** Package for the generated elements. Must be a valid Pure path. */
   readonly pkg?: string;
-  /** See `CatalogTable.convertible`. */
+  /**
+   * Whether the source can apply a conversion: an upload, rewritten at ingest, can; a read-only
+   * warehouse table cannot, and a column that needs one to be read at all is left out (a zoned
+   * timestamp needs one only in a copy: read in place, it is its UTC instant under the UTC session).
+   */
   readonly convertible: boolean;
   /**
    * The table's database type, as a Pure connection names it (`DuckDB`, `Postgres`): the runtime's
@@ -80,75 +109,16 @@ export interface InferOptions {
 }
 
 /**
- * Turn a table's catalog into a model the planner can compile: legend-lite's Database (written
- * here, catalog-model.ts), wrapped in a DuckDB connection and a runtime. A column of a type no
- * Database declares is refused (`CatalogRefusal`), naming it. Given `snapDatabaseType`, the model
- * carries the snap runtime too, and says so in its type.
+ * THE MODEL WRITER for a table (legend-lite's module: `WasmPlanner` implements it). A column of a
+ * type no Database declares is refused, naming it (a `PlanError` with the compiler's words); given
+ * `snapDatabaseType`, the model carries the snap runtime too, and says so in its type.
  */
-export function inferModel(
-  columns: readonly CatalogColumn[],
-  options: InferOptions & { readonly snapDatabaseType: string },
-): InferredModel & { readonly snapRuntime: string };
-export function inferModel(columns: readonly CatalogColumn[], options: InferOptions): InferredModel;
-export function inferModel(
-  columns: readonly CatalogColumn[],
-  options: InferOptions,
-): InferredModel {
-  const pkg = options.pkg ?? 'local';
-  const db = databaseFromCatalog({
-    path: `${pkg}::DB`,
-    ...(options.schema === undefined ? {} : { schema: options.schema }),
-    table: options.table,
-    columns,
-    convertible: options.convertible,
-    databaseType: options.databaseType,
-  });
-
-  const model = `${db.text}
-###Connection
-RelationalDatabaseConnection ${pkg}::Conn
-{
-    type: ${options.databaseType};
-    specification: DuckDB { };
-    auth: Test;
-}
-
-###Runtime
-Runtime ${pkg}::RT
-{
-    mappings: [];
-    connections:
-    [
-        ${pkg}::DB: [ c1: ${pkg}::Conn ]
-    ];
-}
-${options.snapDatabaseType === undefined ? '' : `
-###Connection
-RelationalDatabaseConnection ${pkg}::SnapConn
-{
-    type: ${options.snapDatabaseType};
-    specification: DuckDB { };
-    auth: Test;
-}
-
-###Runtime
-Runtime ${pkg}::SnapRT
-{
-    mappings: [];
-    connections:
-    [
-        ${pkg}::DB: [ c1: ${pkg}::SnapConn ]
-    ];
-}
-`}`;
-
-  return {
-    model,
-    runtime: `${pkg}::RT`,
-    ...(options.snapDatabaseType === undefined ? {} : { snapRuntime: `${pkg}::SnapRT` }),
-    source: db.source,
-    conversions: db.conversions,
-    excluded: db.excluded,
-    bitColumns: columns.filter((c) => !db.excluded.includes(c.name) && catalogType(c, options.databaseType).declared === 'BIT').map((c) => c.name),
-  };
+export interface TableModels {
+  tableModel(
+    columns: readonly CatalogColumn[],
+    options: InferOptions & { readonly snapDatabaseType: string },
+  ): Promise<InferredModel & { readonly snapRuntime: string }>;
+  tableModel(columns: readonly CatalogColumn[], options: InferOptions): Promise<InferredModel>;
+  /** THE catalog question for one table of a DuckDB: its rows are `tableModel`'s columns (`catalogColumns`). */
+  catalogColumnsSql(schema: string, table: string): Promise<string>;
 }

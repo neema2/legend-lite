@@ -19,9 +19,8 @@ import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../../src/snapshot.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
-import { inferModel } from '../../src/infer.ts';
+import { PlanError } from '../../src/planner.ts';
 import { catalogColumns } from '../../src/upload.ts';
-import { CATALOG_RULES } from '../../src/generated/catalog-facts.ts';
 import { sourceColumns } from '../../src/source-columns.ts';
 import { familyOf } from '../../../engine-client/src/types.ts';
 import { toCsv } from '../../src/export.ts';
@@ -228,8 +227,8 @@ describe('step 1: types from the compiler', () => {
 describe('a source\'s columns come from the compiler', () => {
   it('an inferred model of every DuckDB type compiles, and the compiler types each column', async () => {
     // A REAL table of DuckDB-WASM (the browser's DuckDB), read through the catalog question as the
-    // page reads an opened file (catalog-model.ts); this compiles its model for real and reads
-    // the types the compiler gives back.
+    // page reads an opened file, its model written by legend-lite's writer (infer.ts); this compiles
+    // it for real and reads the types the compiler gives back.
     const declared = [
       ['s', 'VARCHAR'], ['big', 'BIGINT'], ['huge', 'HUGEINT'], ['ubig', 'UBIGINT'], ['i', 'INTEGER'],
       ['ti', 'TINYINT'], ['si', 'SMALLINT'], ['d', 'DOUBLE'], ['f', 'FLOAT'], ['r', 'REAL'],
@@ -239,7 +238,7 @@ describe('a source\'s columns come from the compiler', () => {
     ];
     const duck = new DuckDbEngine(conn);
     await duck.run(`CREATE TABLE every_type (${declared.map(([n, t]) => `${n} ${t}`).join(', ')})`, 0);
-    const m = inferModel(await catalogColumns(duck, 'every_type'), { table: 'every_type', convertible: true, databaseType: 'DuckDB' });
+    const m = await planner.tableModel(await catalogColumns(duck, planner, 'every_type'), { table: 'every_type', convertible: true, databaseType: 'DuckDB' });
     const own = new WasmPlanner({ model: m.model, runtime: m.runtime, assetBaseUrl: MODULE_DIR, cache: false });
     const columns = await sourceColumns(own, m.source, [{ name: 'big', kind: 'dimension' }]);
     const family = Object.fromEntries(columns.map((c) => [c.name, familyOf(c.type)]));
@@ -259,22 +258,31 @@ describe('a source\'s columns come from the compiler', () => {
 
   it('every canonical type of the browser\'s DuckDB has a decision (declared, DECIMAL, or refused)', async () => {
     // the browser runs its own DuckDB, a version apart from legend-lite's: a type it adds must be
-    // decided in legend-lite (DuckDb.CATALOG_RULES), not met by a person first
+    // decided in legend-lite (DuckDb.CATALOG_RULES), not met by a person first. The writer is asked
+    // for each one: declared, left out, or refused with its reason are decisions; "a type this
+    // dialect does not read" (CatalogRules.typeOf) is none
     const types = await new DuckDbEngine(conn).run(
       'SELECT DISTINCT logical_type FROM duckdb_types() WHERE internal AND type_oid IS NOT NULL', 0);
-    const undecided = (types.columns[0]?.values ?? []).map(String)
-      .filter((t) => t !== 'DECIMAL' && !(t in CATALOG_RULES.DuckDB!.types) && !(t in CATALOG_RULES.DuckDB!.refused));
+    const undecided: string[] = [];
+    for (const t of (types.columns[0]?.values ?? []).map(String).filter((t) => t !== 'DECIMAL')) {
+      const column = { name: 'c', dataType: t, logicalType: t, precision: null, scale: null, notNull: false };
+      await planner.tableModel([column], { table: 't', convertible: true, databaseType: 'DuckDB' }).catch((e: unknown) => {
+        // only the compiler's own refusal is a verdict on the type; anything else (the module not loading) fails here
+        if (!(e instanceof PlanError)) throw e;
+        if (/a type this dialect does not read/.test(e.message)) undecided.push(t);
+      });
+    }
     assert.deepEqual(undecided, []);
   });
 
   it('a type no Database holds is left out, naming the column', async () => {
     const duck = new DuckDbEngine(conn);
     await duck.run('CREATE TABLE blobs (id INTEGER, payload BLOB)', 0);
-    const blobs = await catalogColumns(duck, 'blobs');
-    assert.deepEqual(inferModel(blobs, { table: 'blobs', convertible: true, databaseType: 'DuckDB' }).excluded, ['payload']);
+    const blobs = await catalogColumns(duck, planner, 'blobs');
+    assert.deepEqual((await planner.tableModel(blobs, { table: 'blobs', convertible: true, databaseType: 'DuckDB' })).excluded, ['payload']);
     await duck.run('CREATE TABLE only_blobs (payload BLOB)', 0);
-    const onlyBlobs = await catalogColumns(duck, 'only_blobs');
-    assert.throws(() => inferModel(onlyBlobs, { table: 'only_blobs', convertible: true, databaseType: 'DuckDB' }),
+    const onlyBlobs = await catalogColumns(duck, planner, 'only_blobs');
+    await assert.rejects(planner.tableModel(onlyBlobs, { table: 'only_blobs', convertible: true, databaseType: 'DuckDB' }),
       /no column of 'only_blobs' can be read from its source: payload/);
   });
 

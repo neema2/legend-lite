@@ -85,7 +85,8 @@ async function read(name: string, text: string): Promise<{
   relation: ValueSpecification; columns: CubeSnapshot['columns']; source: FileSource;
 }> {
   const file = new File([text], name, { type: 'text/csv' });
-  const opened = await ingestFile(engine, files, file);
+  // the planner is the writer, as in the page's tab (infer.ts `TableModels`)
+  const opened = await ingestFile(engine, files, file, planner);
   planner.useModel(opened.model, opened.runtime);
   const columns = await sourceColumns(planner, opened.source);
   return { relation: opened.source, columns, source: await fileSource(file, 'csv', columns) };

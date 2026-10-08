@@ -26,7 +26,7 @@
 
 import { element, fn, fromJson, lambda, readLambda, readValueSpecification, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { Planner } from './cube.ts';
-import type { CatalogDatabase, CatalogTable } from './catalog-model.ts';
+import type { CatalogColumn, InferOptions, InferredModel, TableModels } from './infer.ts';
 import { PlanError, type ModelOptions } from './planner.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
@@ -36,7 +36,8 @@ interface TeavmModule {
   readonly exports: {
     planOrError(model: string, query: string, runtime: string): string;
     relationTypeOrError(model: string, query: string): string;
-    databaseFromCatalogOrError(catalog: string): string;
+    tableModelOrError(table: string): string;
+    catalogColumnsSqlOrError(schema: string, table: string): string;
     planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
     relationTypeJsonOrError(model: string, lambdaJson: string): string;
     composeLambdaOrError(lambdaJson: string, style: string): string;
@@ -119,7 +120,7 @@ interface Transport {
   nextId: number;
 }
 
-export class WasmPlanner implements Planner {
+export class WasmPlanner implements Planner, TableModels {
   #options: WasmPlannerOptions;
   readonly #cache = new Map<string, Plan>();
   readonly #types = new Map<string, PlanColumn[]>();
@@ -461,20 +462,34 @@ export class WasmPlanner implements Planner {
   }
 
   /**
-   * A Pure Database for a table, from the rows its CATALOG reports (structured: catalog-model.ts),
-   * read by legend-lite's DuckDB dialect
-   * (docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md, T2): the declared types, the accessor that
-   * reads it, and the conversions the source must apply -- or, for a source that cannot
-   * convert, the columns left out. The compiler decides every column; nothing here does.
+   * THE MODEL FOR A TABLE, from the rows its CATALOG reports (structured: `catalogColumnsSql`):
+   * legend-lite's one writer (planner.Wasm.tableModelOrError) -- the Database, read by the table's
+   * own dialect, its connection and runtime, and the snap runtime when asked; the conversions a copy
+   * applies, and the columns left out. The compiler decides every column; nothing here does. The
+   * same function answers Python's frames.
    */
-  async databaseFromCatalog(table: CatalogTable): Promise<CatalogDatabase> {
-    const catalog = JSON.stringify(table);
+  tableModel(
+    columns: readonly CatalogColumn[],
+    options: InferOptions & { readonly snapDatabaseType: string },
+  ): Promise<InferredModel & { readonly snapRuntime: string }>;
+  tableModel(columns: readonly CatalogColumn[], options: InferOptions): Promise<InferredModel>;
+  async tableModel(columns: readonly CatalogColumn[], options: InferOptions): Promise<InferredModel> {
+    const table = JSON.stringify({ ...options, columns });
     const answer = this.#useWorker()
-      ? await this.#ask({ kind: 'databaseFromCatalog', catalog })
-      : (await this.#load()).exports.databaseFromCatalogOrError(catalog);
-    const { source, ...db } = fromJson(decode(answer, `the columns of ${table.table}`)) as
-      Omit<CatalogDatabase, 'source'> & { readonly source: unknown };
-    return { ...db, source: readValueSpecification(source) };
+      ? await this.#ask({ kind: 'tableModel', table })
+      : (await this.#load()).exports.tableModelOrError(table);
+    const { source, ...written } = fromJson(decode(answer, `the columns of ${options.table}`)) as
+      Omit<InferredModel, 'source'> & { readonly source: unknown; readonly accessor: string };
+    const { accessor: _accessor, ...model } = written;
+    return { ...model, source: readValueSpecification(source) };
+  }
+
+  /** THE catalog question for one table of a DuckDB, its schema and table as SQL string literals. */
+  async catalogColumnsSql(schema: string, table: string): Promise<string> {
+    const answer = this.#useWorker()
+      ? await this.#ask({ kind: 'catalogColumnsSql', schema, table })
+      : (await this.#load()).exports.catalogColumnsSqlOrError(schema, table);
+    return decode(answer, `the catalog of ${table}`);
   }
 
   /**

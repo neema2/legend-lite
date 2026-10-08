@@ -37,7 +37,9 @@ function startup(): string[] {
 
 /** The page's grid-only download, gzipped, in bytes: what it costs before any chart. Raise it on purpose.
  *  350,000 -> 352,000 (2026-10-02, store types step 7): Postgres's catalog rules -- DataCube writes a
- *  Postgres table's model by Postgres's own rules (generated/catalog-facts.ts), about 0.5 KB gzipped. */
+ *  Postgres table's model by Postgres's own rules (generated/catalog-facts.ts), about 0.5 KB gzipped.
+ *  Not lowered with the TypeScript writer's removal (2026-10-08, the model written by legend-lite's
+ *  module): a budget is raised on purpose, and measured down when the user asks. */
 const BUDGET = 352_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

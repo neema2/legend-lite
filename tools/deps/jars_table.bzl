@@ -25,7 +25,8 @@ JARS = {
     "duckdb_jdbc_warehouse": struct(
         coordinate = "org.duckdb:duckdb_jdbc:1.5.5.1",
         sha256 = "22343dd258db1b0b51d37afc776c8dff5b19282829fa5b47f7d5d6fe02b3377a",
-        users = ["datacube", "warehouse"],
+        # datacube's one use, the catalog-facts generator, went with DataCube's TypeScript model writer (2026-10-08)
+        users = ["warehouse"],
     ),
     # core's H2
     "h2": struct(

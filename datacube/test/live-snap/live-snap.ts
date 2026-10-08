@@ -18,7 +18,7 @@
 //     fails this test rather than passing unnoticed.
 //
 // Plus the source path a person takes: the catalog lists what the reader may
-// read, inferModel turns it into a model, and a query over it agrees on both
+// read, legend-lite's writer turns it into a model, and a query over it agrees on both
 // engines; a table the reader was not granted is refused.
 
 import assert from 'node:assert/strict';
@@ -30,7 +30,6 @@ import path from 'node:path';
 import { after, before, it } from 'node:test';
 
 import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
-import { inferModel } from '../../src/infer.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
 import { PlanThenRun } from '../../src/runner.ts';
 import { SnapManager } from '../../../engine-client/src/snap.ts';
@@ -190,7 +189,8 @@ it('a person\'s path: the catalog, a model from it, the same answer on both engi
   assert.deepEqual(objects.map((o) => `${o.schema}.${o.name}`), ['main.TRADES'],
     'the reader sees exactly what it was granted');
   const trades = objects[0]!;
-  const m = inferModel(trades.columns.map((c) => ({ ...c, dataType: c.type })),
+  const writer = new WasmPlanner({ model: '', runtime: 'local::RT', assetBaseUrl: MODULE_DIR, cache: false });
+  const m = await writer.tableModel(trades.columns.map((c) => ({ ...c, dataType: c.type })),
     { table: trades.name, schema: trades.schema, convertible: false, databaseType: 'DuckDB' });
   assert.deepEqual(m.excluded, []);
   const own = new WasmPlanner({ model: m.model, runtime: m.runtime, assetBaseUrl: MODULE_DIR, cache: false });

@@ -97,7 +97,7 @@ export interface SnapTable {
    * `conversions`, CatalogModel.database): a zoned timestamp read in place under the source's
    * UTC session is copied as its UTC wall time, so the tab's store, in whatever zone, reads the
    * same values (docs/DATACUBE_APP_PLAN_2026_10_02.md, leg B). SQL in the catalog's own terms --
-   * DuckDB's, whose catalog describes every column (catalog-model.ts) -- so it is applied by the
+   * DuckDB's, whose catalog describes every column (the catalog question) -- so it is applied by the
    * store the copy is written to, after the pull: the pull runs where the rows are, in that
    * database's SQL (a Postgres catalog's is Postgres), and a rewrite there would have to be
    * spelled in it.

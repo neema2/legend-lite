@@ -88,9 +88,9 @@ async function boot() {
   const engine = new DuckDbEngine(conn as unknown as ArrowishConnection);
   // the planner the page's ?planner= names (in this tab unless said): each file's model is
   // written and swapped in as it is opened (`models`)
-  const { planner, models } = await plannerFor(chosenPlane(), '');
+  const { planner, models, tables } = await plannerFor(chosenPlane(), '');
   if (!models) throw new Error('the chosen planner cannot take a file\'s model');
-  return { db, engine, planner, models };
+  return { db, engine, planner, models, tables };
 }
 
 /** Plan and run one snapshot, classifying whatever happens. */
@@ -161,14 +161,14 @@ function base(source: ValueSpecification, columns: CubeSnapshot['columns']): Cub
 }
 
 export async function runStress(): Promise<Outcome[]> {
-  const { db, engine, planner, models } = await boot();
+  const { db, engine, planner, models, tables } = await boot();
   const out: Outcome[] = [];
 
   for (const entry of CORPUS) {
     const file = new File([entry.text], entry.name, { type: 'text/csv' });
     let opened;
     try {
-      opened = await ingestFile(engine, db, file);
+      opened = await ingestFile(engine, db, file, tables);
     } catch (e) {
       // Refusing a malformed file is fine; the message must name the
       // problem. Crashing is not.

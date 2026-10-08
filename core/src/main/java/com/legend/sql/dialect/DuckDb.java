@@ -93,9 +93,9 @@ public final class DuckDb extends AnsiSqlRenderer {
      * Every canonical DuckDB type ({@code duckdb_types().logical_type}) a Database declares, and how.
      * DECIMAL is declared from its precision and scale ({@link #catalogType}). A canonical type is
      * here, in {@link #CATALOG_REFUSED}, or DECIMAL: a test holds the three to every canonical type
-     * the DuckDB this builds with has, so a new one is a decision, not a silent refusal. Public, as
-     * data, so a writer outside this JVM (DataCube's, datacube/tools/catalogfacts) is generated from
-     * it and tested against {@link CatalogModel}.
+     * the DuckDB this builds with has, so a new one is a decision, not a silent refusal (and DataCube's
+     * typed-values test holds every canonical type of the browser's DuckDB to a decision, asking the
+     * writer).
      */
     public static final java.util.Map<String, CatalogType> CATALOG_TYPES = catalogTypes();
 
