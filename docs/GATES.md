@@ -7047,3 +7047,40 @@ test and seven nits, all fixed. The ones that change behaviour:
 - a NUL in a text argument silently cut it short; it is now refused before the call;
 - a test comment pointed at nothing; it now names the compiler line's branch;
 - non-ASCII text had no test; it now has one, and the library reads C strings as UTF-8 by name.
+
+## 2026-10-08 — The Studio line: queries run in the tab for every app; Query and DataCube open projects by name
+
+The plan: `docs/STUDIO_FULL_PLAN_2026_10_04.md` (A0½, A1, A2, A3, A5, A6, A7). Branch `studio-engine` (27 commits; its
+first six were `query-by-name`), rebased onto main and landed without a PR (`docs/build-inventory/program/START_HERE.md`
+§4). No engine code: Studio, Query, DataCube, engine-client, depot-client, sdlc-client, sdlc-server.
+
+What changed:
+1. **Projects by name**: Query and DataCube open what Studio publishes, from Depot (the page's own SDLC and Depot as
+   WebAssembly, or servers): a version picker, versions loaded when opened, saved queries pinned to theirs.
+2. **One in-tab engine for every app** (`engine-client/src/legend/`): legend-lite's planner (WebAssembly, in a worker:
+   `//engine-client:planner_worker`, a native `esbuild_bundle` listed in `//:web`) writes the SQL, DuckDB in the tab
+   runs it, answered in legend-engine's own shapes. Studio runs a function, a service, a function with parameters and
+   SQL in the tab; it embeds Query's builder; a model's own test data (its relational Data elements) fills the tab's
+   tables, and a person's CSV or Parquet file can fill one instead (the Data panel).
+3. **Editing**: element search, a change's diff, rename and move, the review's changes, a History tab, discard,
+   approvals, whole-project text mode, the model importer, the project viewer, upstream's conflict resolution.
+4. **Snap's engine half** moves from DataCube to engine-client.
+
+The tests: `//engine-client:tests` (new: the model's test data in DuckDB, Snap), in the `ui` lane; Studio's unit tests
+and its whole loop in Chromium, Query's, DataCube's, the SDLC's and Depot's. The build session reviewed the BUILD and
+lane changes (2026-10-07: two fixes, a comment and a test size, both taken; two more small ones after the audit,
+accepted).
+
+The audit (the auditor agent, 2026-10-07, read-only): two blockers, six should-fix, five nits; all taken
+(commit "studio-engine: the landing audit's findings"). The two blockers:
+- the tab typed test-data tables differently from the server (a `Float` column was DuckDB's single-precision FLOAT, so
+  0.1 read back as 0.100000001...): the tab now spells every column type as the server does. It is a copy of the
+  server's rule, decided with the user, until the planner hands the tab the server's own seed statements (the plan/exec
+  split's step 2); the plan records it (A2, "The tab's table types") and `//engine-client:model_data_test` pins it;
+- Query and DataCube read another version's rows after switching back to an earlier version of a project (versions
+  fill the same tables, and test data was loaded once per version): one model's test data is now current at a time,
+  made current whenever a version is opened (Query) or in the same turn as each query of a version's cube (DataCube).
+
+Local gate `//gates:local` green on the rebased branch. Known flaky, not this change's: `//datacube:verify_features_test`
+shard 4 (a settle that stops waiting silently after 20 s; reported by the DataCube + Python line, 2026-10-08), the
+Studio line's next fix.
