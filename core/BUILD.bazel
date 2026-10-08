@@ -18,6 +18,13 @@ load(":stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED", "stress_index", "stre
 # PRIVATE BY DEFAULT (Bazel workplan P1-20): a target is visible outside core only where it says to whom.
 package(default_visibility = ["//visibility:private"])
 
+# legend-engine's own Arrow answer to execute (4.145.0, recorded with upstream-api/e8-arrow-groupby-sort.json): DataCube's
+# remote client reads it in //datacube:python_engine_test, as it reads Python's engine
+exports_files(
+    ["src/test/resources/upstream-api/e8-arrow-groupby-sort.arrows.zst"],
+    visibility = ["//datacube:__pkg__"],
+)
+
 # core's sources, exported for spec's generator parity checks (they compare the
 # committed generated files — prelude.pure, Pure.java's signature text — against
 # what upstream says they should be).

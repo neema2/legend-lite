@@ -23,6 +23,8 @@ py_library(
 # the whole package: the bindings, the frames and the engine
 py_library(
     name = "legend_lite",
+    # //datacube:engine_fixture serves a frame to DataCube's browser test
+    visibility = ["//datacube:__pkg__"],
     srcs = [
         "legend_lite/engine.py",
         "legend_lite/frames.py",

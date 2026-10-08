@@ -6,6 +6,8 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary")
 load("//tools/js:defs.bzl", "node_test")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/browser:defs.bzl", "browser_test")
@@ -610,6 +612,72 @@ browser_test(
         "LIVE_SNAP_PAGE": "$(rlocationpath :live_snap_page)",
         "WAREHOUSE_BINARY": "$(rlocationpath //warehouse:server_native)",
         "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath //warehouse:duckdb_library)",
+    },
+)
+
+# DATACUBE AGAINST PYTHON'S ENGINE (docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md), in the pinned Chromium as
+# live_snap_test is: Python's engine (//python:engine_fixture) serves the site and the API, one origin; the page
+# (test/python-engine/page.ts) runs the cube corpus through DataCube's remote-run path against it, and again in the tab
+# on the same rows, and they must agree; it also reads legend-engine's own recorded Arrow answer. Where the compiler's
+# library builds (//native:compiler: not Windows). In the warehouse lane (gates/BUILD.bazel), where that library's image
+# is built before the tests, not here beside the planner's TeaVM build (the Bazel program session, 2026-10-08).
+esbuild_bundle(
+    name = "python_engine_page",
+    testonly = True,
+    srcs = [
+        "test/python-engine/page.ts",
+        "test/wasm-differential/cases.ts",
+        ":src",
+    ],
+    outs = ["test/python-engine/python-engine.js"],
+    args = [
+        "test/python-engine/page.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=test/python-engine/python-engine.js",
+    ],
+)
+
+# Python's engine for the test (test/python-engine/engine_fixture.py): the cube corpus's rows as a Live frame, the site
+# beside the API. It prints the engine's address, its token and the frame's model, then serves until its input closes;
+# the library comes by LEGEND_LITE_LIBRARY from the test (a binary a test starts gets no BUILD env).
+py_binary(
+    name = "engine_fixture",
+    testonly = True,
+    srcs = ["test/python-engine/engine_fixture.py"],
+    main = "test/python-engine/engine_fixture.py",
+    deps = ["//python:legend_lite"],
+)
+
+# legend-engine's own Arrow answer, recorded in core (upstream-api/): a file of this package, as rules_js's tests take
+copy_file(
+    name = "upstream_arrow_answer",
+    testonly = True,
+    src = "//core:src/test/resources/upstream-api/e8-arrow-groupby-sort.arrows.zst",
+    out = "test/python-engine/upstream.arrows.zst",
+)
+
+browser_test(
+    name = "python_engine_test",
+    size = "medium",
+    data = [
+        "test/python-engine/python-engine.mjs",
+        ":dist",
+        ":node_modules/playwright",
+        ":python_engine_page",
+        ":engine_fixture",
+        ":upstream_arrow_answer",
+        "//native:compiler",
+    ],
+    entry_point = "test/python-engine/python-engine.mjs",
+    env = {
+        "DATACUBE_SITE": "$(rlocationpath :dist)",
+        "ENGINE_FIXTURE": "$(rlocationpath :engine_fixture)",
+        "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+        "PYTHON_ENGINE_PAGE": "$(rlocationpath :python_engine_page)",
+        "UPSTREAM_ARROW_ANSWER": "$(rlocationpath :upstream_arrow_answer)",
     },
 )
 

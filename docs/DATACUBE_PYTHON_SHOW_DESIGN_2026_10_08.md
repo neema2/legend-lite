@@ -67,7 +67,9 @@ S28): its Arrow columns are typed from the JDBC metadata and decimals rounded to
 arrives whole: 135.2 as 135, recorded in `upstream-api/e8-arrow-fractional-sum.json`), and it needs `--add-opens=java.base/java.nio=ALL-UNNAMED` on its JVM or every Arrow answer
 is a 500. So a reader types each column by `legend.builder`, never by its Arrow type. No upstream client reads this
 format yet (legend-engine has no test of it; pylegend does not use it): DataCube's is the first. A browser reads zstd
-only through a decoder of its own (the next step measures what the pinned Chromium offers).
+only through a decoder of its own: the pinned Chromium (153) refuses `DecompressionStream('zstd')` (measured
+2026-10-08), so DataCube's client carries fzstd (pure JavaScript, MIT, no dependencies; agreed with the user), and fflate,
+already DataCube's, reads no zstd.
 
 DataCube's client reads BOTH formats, and each engine connection DECLARES its format when it is set up -- never tried and
 fallen back from at runtime (DataCube's rule, held by `test/guardrails.test.ts`: a silent fallback once hid three bugs).
@@ -122,6 +124,12 @@ Loopback only. A one-time token in the link, sent with every request. A page is 
   into the tab, by design.
 
 ## Order
+
+Built so far (2026-10-08, branch `datacube-show`): 1, the engine (it also serves a site, so the page and the API are one
+origin); 2, DataCube's remote client reading Arrow, declared per engine (`serializationFormat: 'ARROW_IPC'`, with the
+engine's token as `authorization`), held by `//datacube:python_engine_test`: in the pinned Chromium, every case of the
+cube corpus through DataCube's remote-run path on Python's engine and again in the tab on the same rows, the same SQL,
+columns, types and rows; and legend-engine's own recorded Arrow answer read by the same reader.
 
 1. The boundary's builders; the Python server; its Python tests.
 2. Arrow in DataCube's remote client.

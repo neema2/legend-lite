@@ -5,10 +5,13 @@ engine's own page answered (its token, a local Host, no cross-origin answer)."""
 
 import http.client
 import json
+import os
 import socket
+import tempfile
 import threading
 import time
 import unittest
+from pathlib import Path
 import urllib.error
 import urllib.request
 
@@ -266,3 +269,55 @@ class OnlyItsOwnPage(Served):
             for connection in idle:
                 connection.close()
             self.engine = Engine(self.frames)  # tearDown closes this one
+
+
+class Site(unittest.TestCase):
+    """The site's files (DataCube's built pages), at the engine's origin: to a local Host, under the site only."""
+
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR')))
+        (self.root / 'index.html').write_text('<!doctype html>cube')
+        (self.root / 'vendor').mkdir()
+        (self.root / 'vendor' / 'planner.wasm').write_bytes(b'\0asm')
+        (self.root.parent / 'outside.txt').write_text('not the site')
+        self.frames = ll.Frames()
+        self.engine = Engine(self.frames, site=self.root)
+
+    def tearDown(self):
+        self.engine.close()
+
+    def get(self, path, host=None):
+        port = int(self.engine.url.rsplit(':', 1)[1])
+        connection = http.client.HTTPConnection('127.0.0.1', port, timeout=30)
+        try:
+            connection.putrequest('GET', path, skip_host=True)
+            connection.putheader('Host', host or f'127.0.0.1:{port}')
+            connection.endheaders()
+            r = connection.getresponse()
+            return r.status, r.getheader('Content-Type'), r.read()
+        finally:
+            connection.close()
+
+    def test_its_files_with_their_types(self):
+        self.assertEqual(self.get('/'), (200, 'text/html; charset=utf-8', b'<!doctype html>cube'))
+        self.assertEqual(self.get('/vendor/planner.wasm'), (200, 'application/wasm', b'\0asm'))
+
+    def test_nothing_outside_it_nor_a_folder(self):
+        for path in ('/../outside.txt', '/%2e%2e/outside.txt', '/vendor/', '/vendor', '/nope.js', '/vendor//planner.wasm',
+                     '/C:/Windows/win.ini', '/C%3A/x', '/index.html%00.js'):
+            self.assertEqual(self.get(path)[0], 404, path)
+
+    def test_to_a_local_host_only(self):
+        port = self.engine.url.rsplit(':', 1)[1]
+        self.assertEqual(self.get('/', host=f'evil.example:{port}')[0], 403)
+
+    def test_an_engine_without_a_site_serves_no_file(self):
+        bare = Engine(self.frames)
+        try:
+            port = int(bare.url.rsplit(':', 1)[1])
+            connection = http.client.HTTPConnection('127.0.0.1', port, timeout=30)
+            connection.request('GET', '/')
+            self.assertEqual(connection.getresponse().status, 404)
+            connection.close()
+        finally:
+            bare.close()
