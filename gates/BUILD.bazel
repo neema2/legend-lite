@@ -18,6 +18,9 @@ load("//tools/guards:defs.bzl", "guards_package")
 test_suite(
     name = "core",
     tests = [
+        # the baseline receipt (W1.0b): its runfiles hold the compile-latency tool over core_tests_lib, built here anyway;
+        # the probe and the planner it also reads are not its inputs (tools/metrics/README.md)
+        "//tools/metrics:tools_build_test",
         "//core:core_tests",
         "//core:duckdb_load_test",
         "//core:section_grammar_registry_test",

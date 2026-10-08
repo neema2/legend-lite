@@ -1,0 +1,45 @@
+# THE BASELINE (the compiler plan's W1.0b, under D25): one receipt of the numbers every compiler push must move.
+#   bazel run //tools/metrics:baseline -- [--out FILE] [--skip-latency]
+# A hand tool, run alone on a quiet machine, never a test (timings cannot be test actions): manual; the core lane
+# builds it (tools_build_test) and nothing runs. Its inputs are the timed binary (//core:compile_latency, over
+# core_tests_lib, which that lane builds anyway) and small committed files; the eager probe's output and the planner
+# module it also reports are read from bazel-bin when built (README.md), never pulled into a lane.
+
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//tools/guards:defs.bzl", "guards_package")
+
+py_binary(
+    name = "baseline",
+    testonly = True,
+    srcs = ["baseline.py"],
+    args = [
+        "--latency",
+        "$(rlocationpath //core:compile_latency)",
+        "--golden",
+        "$(rlocationpath //spec:src/test/resources/reference-lane/core_relational.txt)",
+        "--rosters",
+        "$(rlocationpaths //spec:rosters)",
+        "--model",
+        "$(rlocationpath //wasm:corpus/model.pure)",
+        "--queries",
+        "$(rlocationpath //wasm:corpus/queries.tsv)",
+    ],
+    data = [
+        "//core:compile_latency",
+        "//spec:rosters",
+        "//spec:src/test/resources/reference-lane/core_relational.txt",
+        "//wasm:corpus/model.pure",
+        "//wasm:corpus/queries.tsv",
+    ],
+    tags = ["manual"],
+    deps = ["@rules_python//python/runfiles"],
+)
+
+# the hand tool compiles (the build rebuild's L1b): the core lane builds it, nothing runs
+build_test(
+    name = "tools_build_test",
+    targets = [":baseline"],
+)
+
+guards_package()

@@ -119,7 +119,10 @@ java_run(
 # the corpus itself, for the native build's differential
 exports_files(
     ["corpus/model.pure", "corpus/queries.tsv"],
-    visibility = ["//python:__pkg__"],
+    visibility = [
+        "//python:__pkg__",
+        "//tools/metrics:__pkg__",
+    ],
 )
 
 node_test(

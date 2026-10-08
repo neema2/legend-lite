@@ -713,6 +713,22 @@ legend_java_binary(
     ],
 )
 
+# COMPILE-ONLY LATENCY (the compiler plan's W1.0b under D25): what a user feels per query, no database; the stress
+# corpus's service tests or a NAME-TAB-QUERY set against a model. A measuring tool for a quiet machine, never a test:
+#   bazel run //core:compile_latency -- --corpus stress [--passes 2] [--out DIR]
+#   bazel run //core:compile_latency -- --model FILE.pure --queries SET.tsv --runtime FQN [--out DIR]
+# //tools/metrics:baseline runs it from its runfiles and folds the numbers into the one receipt.
+legend_java_binary(
+    name = "compile_latency",
+    testonly = True,
+    jvm_flags = ["-Duser.timezone=GMT"],
+    main_class = "com.legend.integration.CompileLatency",
+    tags = ["manual"],
+    visibility = ["//tools/metrics:__pkg__"],
+    # it only plans: no database driver (the comment at :drivers)
+    runtime_deps = [":core_tests_lib"],
+)
+
 # ── GENERATED FILES ─────────────────────────────────────────────────────────────
 # Committed files that are generator OUTPUTS (their generators: //spec, "THE
 # GENERATORS"). `bazel run //core:update_generated` (or //:update_generated)

@@ -544,6 +544,19 @@ java_run(
     deps = [":spec_tests_lib"],
 )
 
+# what //tools/metrics:baseline reads of this tree (the compiler plan's W1.0b): the reference lane's committed golden
+# (its buckets, never re-run for metrics) and the corpus rosters (their sizes)
+exports_files(
+    ["src/test/resources/reference-lane/core_relational.txt"],
+    visibility = ["//tools/metrics:__pkg__"],
+)
+
+filegroup(
+    name = "rosters",
+    srcs = ["src/test/resources/rcorpus/%s-%s-roster.txt" % (lane, m) for lane in ("duckdb", "h2") for m in ("accepted", "fail", "skipped")],
+    visibility = ["//tools/metrics:__pkg__"],
+)
+
 # THE MANIFEST-WORLD CENSUS (ManifestWorldCensusTest, charter step 7 / D7): a module's dependency closure loaded
 # whole, every body typed once; core_relational's walls and failing bodies are ceilings. Heavy, so in no default
 # lane: `bazel test //spec:manifest_world_census`, another module by --jvmopt=-Dmanifest.census=<module>.

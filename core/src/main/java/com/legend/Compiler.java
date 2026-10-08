@@ -472,6 +472,13 @@ public final class Compiler {
         return new TypedQuery(ctx, NameResolver.resolveQuery(query));
     }
 
+    /** {@link #query(ModelContext, ValueSpecification)} for a query that is ALREADY RESOLVED, the output of
+     *  {@link #resolveQuery}: nothing is resolved twice. The path a measurement takes when it must count the
+     *  resolution once (W1.0b's compile-only latency); the executor's own entry is {@link Execution}. */
+    public static TypedQuery queryResolved(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved) {
+        return new TypedQuery(ctx, resolved);
+    }
+
     /** THE dialect of a query planned without a session: the database its runtime executes on. */
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn) {
