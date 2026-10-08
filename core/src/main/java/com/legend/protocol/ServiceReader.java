@@ -213,7 +213,7 @@ final class ServiceReader {
             SourceInfo inner = v.span();
             StoreReader.sameSpan(outer, inner, "list instance");
             List<ValueSpecification> values = v.done(v.list("values", ProtocolReader::valueSpec));
-            return c.done(new AppliedFunction("list", List.of(new PureCollection(values)), List.of(), outer));
+            return c.done(AppliedFunction.list(new PureCollection(values), outer));
         }
         return ProtocolReader.valueSpec(node);
     }
