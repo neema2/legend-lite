@@ -79,6 +79,7 @@ final class ArchitectureTest {
             java.util.Map.entry("lowering", "com.legend.lowering.Lowerer"),
             java.util.Map.entry("plan", "com.legend.plan.QueryPlan"),
             java.util.Map.entry("resolver", "com.legend.resolver.StoreResolver"),
+            java.util.Map.entry("setup", "com.legend.setup.CsvSeed"),
             java.util.Map.entry("exec", "com.legend.exec.Executor"),
             java.util.Map.entry("probe", "com.legend.probe.Shadow"),
             java.util.Map.entry("testdatagen", "com.legend.testdatagen.TestDataGenerationNatives"),

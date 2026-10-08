@@ -9,8 +9,8 @@ import com.legend.exec.ExecutionResult;
 /**
  * The TWO faces of {@code setUpDataSQLs} (engine toDDL.pure): the
  * ASSERT surface carries the engine's H2 statement TEXT verbatim
- * ({@link com.legend.exec.Ddl#setUpDataSqlsText}); the EXECUTION surface
- * keeps the DuckDB-safe {@link com.legend.exec.CsvSeed} forms — the
+ * ({@link com.legend.setup.Ddl#setUpDataSqlsText}); the EXECUTION surface
+ * keeps the DuckDB-safe {@link com.legend.setup.CsvSeed} forms — the
  * engine runs its text on EPHEMERAL per-connection H2 dbs, while our
  * DuckDB catalog is SHARED across a family's seeds, where the text's
  * schema cascades would destroy sibling seeds.
@@ -43,7 +43,7 @@ final class SeedSqlForms {
                     : env.ctx().findDatabase(dbFqn2).orElse(null);
             if (db2 != null) {
                 return new ExecutionResult.Collection(new java.util.ArrayList<>(
-                        com.legend.exec.Ddl.setUpDataSqlsTextFromRecords(
+                        com.legend.setup.Ddl.setUpDataSqlsTextFromRecords(
                                 records, db2,
                                 f -> env.ctx().findDatabase(f), StatementExecutor.ENGINE_TEXT)),
                         com.legend.compiler.element.type.Type.Primitive.STRING);
@@ -56,9 +56,9 @@ final class SeedSqlForms {
         var dbDef = dbFqn == null ? null
                 : env.ctx().findDatabase(dbFqn).orElse(null);
         return new ExecutionResult.Collection(new java.util.ArrayList<>(
-                dbDef != null ? com.legend.exec.Ddl.setUpDataSqlsText(csv,
+                dbDef != null ? com.legend.setup.Ddl.setUpDataSqlsText(csv,
                         dbDef, f -> env.ctx().findDatabase(f), StatementExecutor.ENGINE_TEXT)
-                        : com.legend.exec.CsvSeed.sqls(csv, dbFqn, env.ctx(), env.dialect())),
+                        : com.legend.setup.CsvSeed.sqls(csv, dbFqn, env.ctx(), env.dialect())),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
@@ -109,7 +109,7 @@ final class SeedSqlForms {
                 instanceof com.legend.compiler.spec.typed.TypedPackageableRef spr
                 ? spr.fullPath() : null;
         return new ExecutionResult.Collection(new java.util.ArrayList<>(
-                com.legend.exec.CsvSeed.sqls(seedCsv, seedDb, env.ctx(), env.dialect())),
+                com.legend.setup.CsvSeed.sqls(seedCsv, seedDb, env.ctx(), env.dialect())),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 }
