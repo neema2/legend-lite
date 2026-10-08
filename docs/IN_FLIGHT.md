@@ -102,14 +102,16 @@ with the compiler's plan/execution split**, in this order:
    2026-10-05 also the execution plan boundary, `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md`, which takes the rebuild's
    W6.1 and W6.2). Session "Plan Gen / Exec Split" (was `neema-20`), worktree `legend-lite-pgspike`. C3a–C3c, C1, C2a and C2b
    landed; the plan's step 1 (the plan records, `//core:execution_plan`) landed 2026-10-05; step 2's first piece,
-   a connection's setup moved to the plan side (`//core:setup`), landed 2026-10-08 (`847b41df4`). **Next: the rest of
-   phase 1 step 2 (landing 1 on branch `dbowner/step2-records`: the plan records, `QueryParameters` — a new planner
-   class, the one parameter list — `TypedQuery.parameters()`, one public `SpecCompiler.declaredParameterType`, the
-   legacy plan's two parameter readers in `StatementExecutor`, `:planner` reaching `:execution_plan`, PARK-15; the
-   build session reviewed its Bazel part and the `SpecCompiler` method), then steps 3–4 — the planner makes an
-   execution plan, a runner in `exec` runs it, the server's
-   execute paths switch to it** (files in the fourth line's 2026-10-07 note; step 2's decisions, the user's,
-   2026-10-07/08, in the plan's §9).
+   a connection's setup moved to the plan side (`//core:setup`), landed 2026-10-08 (`847b41df4`), and its landing 1 (the
+   records, one parameter list) the same day (`f05fe7ada`). **Announced 2026-10-08: E, the dialects write through one
+   writer** (`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §10): `core/src/main/java/com/legend/sql/dialect/` — every
+   renderer (`AnsiSqlRenderer`, `DuckDb`, `H2`, `H2Modern`, `Postgres`, `EngineStyleH2`, `EngineStyleDB2`,
+   `EngineStyleComposite`, `DdlSpelling`) — a new `SqlWriter`, and AGENTS.md invariant 3; in stages, each
+   byte-identical on the render census (its tool in `docs/execution-plan-boundary-2026-10-05/render-census/`). First a
+   small fix: DDL and DML spell a table name through the dialect's `physicalName`, as queries do (a reserved-word table
+   in the default schema, found by the Studio line). **Then** step 2's landing 2 and steps 3–4 — the planner makes an
+   execution plan, a runner in `exec` runs it, the server's execute paths switch to it (files in the fourth line's
+   2026-10-07 note; step 2's decisions, the user's, 2026-10-07/08, in the plan's §9).
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
    `datacube-chart-spec`. `native/` and `python/` (new). **L1 landed 2026-10-07 (`bc8107c4e`)**: the compiler as a
    native library with Python bindings. Next: DataCube on Python dataframes. Nothing in `core/` (its typing fix went to

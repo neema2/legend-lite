@@ -307,3 +307,45 @@ read from the model at execution (`ConnectionResolver.storesKey`).
 answers; the same query answered identically through the plan and through today's path on DuckDB, H2 and Postgres (a
 differential test kept until step 4 deletes the old path); `:planner`'s closure without execution libraries; the `exec`
 guard's counts only going down.
+
+## 10. E — the dialects write through one writer (the user, 2026-10-08)
+
+**Why.** Step 2's landing 2 needs, for each `?` in a statement, the parameter that fills it: JDBC binds by position, and
+Postgres's driver accepts only positional `?` (numbered `$1` refused, measured 2026-10-08; DuckDB and H2 accept both).
+The dialects build SQL as returned strings and paste pieces: 25 places render a piece once and place it twice (DuckDB's
+XOR is `(a | b) - (a & b)`), so recording a parameter as its `?` is written would miss the second. The alternatives were
+measured and set aside: numbered placeholders (Postgres), binding every parameter once in a `WITH params` header (keeps
+the index for scalars and enums everywhere, but a list loses it on H2 or reads 0 rows), and markers turned into `?`
+after rendering (exact, but a text step). The user: "would rather do this correctly and use this to build dialect
+correctly — if not now, then when!"
+
+**What E is.** Every render method writes into ONE ordered `SqlWriter` — text, and each bound parameter at the place it
+is written — and returns nothing, the way jOOQ, Calcite and Hibernate generate SQL. Not typed fragments: Java's `+`
+turns any object into text, so a missed site would compile; a `void` cannot be joined, so the compiler finds every one.
+A piece placed twice is written twice, so its parameter is recorded twice, by construction. The writer can also record
+which tree node wrote each span of the SQL — lineage from text back to the typed tree.
+
+**The homework (2026-10-08).** The renderers are ~8,300 of the dialect package's 11,575 lines, one hierarchy under
+`AnsiSqlRenderer` (DuckDb; H2 → H2Modern; Postgres; EngineStyleH2 → EngineStyleDB2 → EngineStyleComposite); the
+`SqlRewriter` passes are tree to tree and untouched. 250 methods return rendered SQL, 13 write a shared buffer; 525
+recursive render calls; ~740 lines join with `+`, 45 stream joins, 42 `StringBuilder` sites. Of 133 text operations, 129
+quote, escape or parse names and values; 4 edit rendered SQL, all in the legacy engine-text printer (lowercasing `OVER`,
+`PARTITION BY`, a function name; escaping a rendered expression into a FreeMarker argument). The real dialects never edit
+their output. `SqlDialect` has three entry points, not one — `render(SqlQuery)`, `render(SqlDdl)`, `render(SqlDml)`
+(AGENTS.md invariant 3 is stale) — with 54 callers; E keeps them and adds one entry returning a statement and its ordered
+parameters.
+
+**The stages, each landed alone and each rendering exactly what its parent renders:**
+- **E-0, the judge — DONE 2026-10-08.** The render census (`docs/execution-plan-boundary-2026-10-05/render-census/`):
+  every statement the JVM suites render (core, stress, the four PCT lanes, both relational corpus lanes), compared byte for
+  byte. Baseline on `daa78d0eb`: 5,706,332 renders, 47,904 distinct texts. Three runs on unchanged code agree on all
+  52,085 entries once three things are normalised — a quoted temporary path, the activity comment's random
+  `executionTraceID`, and a lambda's scope id that varies between runs (a product defect in
+  `resolver/FunctionBodyRows.scopeId`, reported to the resolver's owner, who will fix it with this census as judge).
+- **E-1, the writer and a bridge.** `SqlWriter`; the three entry points unchanged; one new entry returning statement and
+  parameters; unconverted methods reached as strings through a bridge, where a parameter is refused as today. AGENTS.md
+  invariant 3 restated.
+- **E-2 onwards, by method family** (a base method with every dialect's override of it), from the entry points down to
+  expressions, where parameters live.
+- **The bridge removed;** the legacy printer's 4 text edits become direct writes.
+- **Then step 2's landing 2**: a parameter is `bind(...)`.

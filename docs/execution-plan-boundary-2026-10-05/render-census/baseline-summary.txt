@@ -1,0 +1,25 @@
+lane                                  renders   distinct
+__gates_core                            14294       3029
+__gates_stress                        5581730      10713
+__pct_pct_channel_b                      4932       3118
+__pct_pct_duckdb                         2599       1906
+__pct_pct_h2                              489        311
+__pct_pct_postgres                       2309       1720
+__spec_corpus_duckdb                    50761      15780
+__spec_corpus_h2                        49218      14784
+ALL                                   5706332      47904
+
+H2                     ddl       3741165
+H2                     dml       1837923
+DuckDb                 query       36213
+DuckDb                 ddl         33138
+H2                     query       24388
+EngineStyleH2          ddl         17512
+EngineStyleH2          query        7843
+DuckDb                 dml          5073
+Postgres               query        2333
+H2Modern               query         489
+EngineStyleDB2         query         172
+AnsiSqlRenderer        query          49
+EngineStyleComposite   query          32
+H2Modern               dml             2
