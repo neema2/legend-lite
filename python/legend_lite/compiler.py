@@ -36,6 +36,16 @@ class Column:
 
 
 @dataclass(frozen=True)
+class Answer:
+    """An HTTP answer of legend-engine's ``pure/v1`` API, as legend-lite's server gives it: its status, media
+    type and body."""
+
+    status: int
+    content_type: str
+    body: str
+
+
+@dataclass(frozen=True)
 class Plan:
     """A query planned: the SQL to run, and the compiler's type of what it returns."""
 
@@ -52,6 +62,11 @@ def _answer(text: str) -> str:
         kind, _, message = rest.partition('\n')
         raise LegendError(message or 'the compiler refused it', kind)
     raise OSError(f'the native library answered something unrecognised: {text[:120]!r}')
+
+
+def _http(text: str) -> Answer:
+    status, content_type, body = _answer(text).split('\n', 2)
+    return Answer(int(status), content_type, body)
 
 
 def _columns(relation_type: dict[str, Any]) -> tuple[Column, ...]:
@@ -124,3 +139,22 @@ def session_setup(database_type: str) -> list[str]:
     SQL expects: the dialect's own setup (a DuckDB session in UTC)."""
     return _json.loads(_answer(library().call('lite_session_setup', database_type)))
 
+
+
+def pure_v1(path: str, query: str, body: str) -> Answer:
+    """One call of legend-engine's ``pure/v1`` API, answered by legend-lite's server code (``PureV1Api``) --
+    every endpoint it serves but execute's run: ``path`` as requested (``/api/pure/v1/...``), ``query`` its raw
+    query string (``''`` for none)."""
+    return _http(library().call('lite_pure_v1', path, query, body))
+
+
+def execute_plan(body: str, models: list[str]) -> Answer:
+    """The plan half of execute in upstream's Arrow format: for an ``ExecuteInput`` over one of ``models``
+    (the only models this host runs), an answer whose body is ``{"sql", "metadata"}`` -- the SQL to run, and
+    the Arrow schema metadata upstream's answer carries; any other answer is a refusal, to be sent as it is."""
+    return _http(library().call('lite_execute_plan', body, _json.dumps(models)))
+
+
+def refusal(message: str) -> Answer:
+    """A database's refusal, as legend-lite's server answers one (``500``, legend-engine's error shape)."""
+    return _http(library().call('lite_pure_v1_refusal', message))

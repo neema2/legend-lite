@@ -1,6 +1,7 @@
 # legend_lite: the Legend compiler in Python (README.md), over the native library //native:compiler. The compiler's
 # bindings are plain Python on its standard library alone; the frames (legend_lite/frames.py: dataframes as Legend
-# tables) add duckdb and pyarrow, pinned in //tools/python.
+# tables) and the engine over them (legend_lite/engine.py: legend-engine's pure/v1 API, for DataCube) add duckdb and
+# pyarrow, pinned in //tools/python.
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -11,15 +12,21 @@ py_library(
     name = "compiler",
     srcs = glob(
         ["legend_lite/**/*.py"],
-        exclude = ["legend_lite/frames.py"],
+        exclude = [
+            "legend_lite/engine.py",
+            "legend_lite/frames.py",
+        ],
     ),
     imports = ["."],
 )
 
-# the whole package: the bindings and the frames
+# the whole package: the bindings, the frames and the engine
 py_library(
     name = "legend_lite",
-    srcs = ["legend_lite/frames.py"],
+    srcs = [
+        "legend_lite/engine.py",
+        "legend_lite/frames.py",
+    ],
     imports = ["."],
     deps = [
         ":compiler",
@@ -93,6 +100,28 @@ py_test(
         "@pypi//pandas",
         "@pypi//polars",
         "@pypi//tzdata",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+# The engine: legend-engine's pure/v1 API over frames, as DataCube's remote client calls it -- the compiler's answers
+# through HTTP, execute in upstream's Arrow format with DuckDB's rows over the frame as it is then, the refusals in the
+# engine's error shape, and only its own page answered (its token, a local Host, no cross-origin answer).
+py_test(
+    name = "engine_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_engine.py",
+    ],
+    args = ["test_engine"],
+    data = ["//native:compiler"],
+    env = _ENV,
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":legend_lite",
+        "@pypi//pandas",
         "@rules_python//python/runfiles",
     ],
 )

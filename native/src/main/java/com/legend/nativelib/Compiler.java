@@ -182,6 +182,42 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** One legend-engine pure/v1 call by its path and raw query, as legend-lite's server answers it (Wasm.pureV1OrError). */
+    @CEntryPoint(name = "lite_pure_v1")
+    static CCharPointer pureV1(IsolateThread thread, CCharPointer path, CCharPointer rawQuery, CCharPointer body) {
+        String a;
+        try {
+            a = Wasm.pureV1OrError(text(path), text(rawQuery), text(body));
+        } catch (Throwable failure) {
+            a = failed(failure);
+        }
+        return answer(a);
+    }
+
+    /** Execute's plan half in upstream's Arrow format: the SQL and the schema metadata (Wasm.executePlanOrError). */
+    @CEntryPoint(name = "lite_execute_plan")
+    static CCharPointer executePlan(IsolateThread thread, CCharPointer body, CCharPointer models) {
+        String a;
+        try {
+            a = Wasm.executePlanOrError(text(body), text(models));
+        } catch (Throwable failure) {
+            a = failed(failure);
+        }
+        return answer(a);
+    }
+
+    /** A host's refusal of a call it could not finish, in the engine's error shape (Wasm.refusalOrError). */
+    @CEntryPoint(name = "lite_pure_v1_refusal")
+    static CCharPointer refusal(IsolateThread thread, CCharPointer message) {
+        String a;
+        try {
+            a = Wasm.refusalOrError(text(message));
+        } catch (Throwable failure) {
+            a = failed(failure);
+        }
+        return answer(a);
+    }
+
     /** Releases a string this library returned. */
     @CEntryPoint(name = "lite_free")
     static void free(IsolateThread thread, CCharPointer p) {
