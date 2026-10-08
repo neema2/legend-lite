@@ -149,8 +149,9 @@ test_suite(
         ":warehouse_jvm",
         "//warehouse:tests_native",
         # the compiler as a native shared library (//native:compiler, built here as the warehouse's image is), through
-        # its Python bindings: the planner differential corpus and the bindings' own suite
+        # its Python bindings: the planner differential corpus, the bindings' own suite, the frames and the engine
         "//python:bindings_test",
+        "//python:engine_test",
         "//python:frames_test",
         "//warehouse:postgres_live",
         "//warehouse:postgres_live_native",

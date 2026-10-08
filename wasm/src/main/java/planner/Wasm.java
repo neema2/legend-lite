@@ -496,6 +496,64 @@ public final class Wasm {
         }
     }
 
+    // ---- legend-engine's pure/v1 API as legend-lite's server answers it (PureV1Api, the plan side): how Python's
+    // ---- engine answers DataCube (docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md). Not exported to the tab: the
+    // ---- native library's (//native:compiler)
+
+    /** An answer as text: {@code "OK\n" + status + "\n" + media type + "\n" + body}. */
+    private static String http(com.legend.server.PureV1Api.Answer a) {
+        return "OK\n" + a.status() + "\n" + a.contentType() + "\n" + a.json();
+    }
+
+    /**
+     * One {@code pure/v1} call by its path and raw query string ({@code ""} for none), routed and answered as
+     * legend-lite's server answers it. An execute's run is the host's (its rows come from
+     * {@link #executePlanOrError}), so one asked for here is refused, naming the format that is served.
+     */
+    public static String pureV1OrError(String path, String rawQuery, String body) {
+        try {
+            return http(com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body,
+                    (model, lambda, runtime, rows) -> {
+                        throw new IllegalArgumentException("this engine answers execute in upstream's Arrow format: "
+                                + "ask with ?serializationFormat=ARROW_IPC");
+                    }));
+        } catch (RuntimeException | StackOverflowError e) {
+            return folded(e);
+        }
+    }
+
+    /**
+     * Execute's plan half in upstream's Arrow format (PureV1Api.arrowPlan): the SQL to run and the Arrow schema
+     * metadata, or the refusal to send. {@code modelsJson}: the only models the host runs, a JSON array of their
+     * texts.
+     */
+    public static String executePlanOrError(String body, String modelsJson) {
+        try {
+            java.util.List<String> models = new java.util.ArrayList<>();
+            if (!(com.legend.json.Json.parse(modelsJson) instanceof com.legend.json.Json.Arr arr)) {
+                throw new IllegalArgumentException("the models: not a JSON array");
+            }
+            for (com.legend.json.Json.Node n : arr.items()) {
+                if (!(n instanceof com.legend.json.Json.Str text)) {
+                    throw new IllegalArgumentException("the models: an entry that is not a model's text");
+                }
+                models.add(text.value());
+            }
+            return http(com.legend.server.PureV1Api.arrowPlan(body, models));
+        } catch (RuntimeException | StackOverflowError e) {
+            return folded(e);
+        }
+    }
+
+    /** A host's refusal of a call it could not finish (its database refusing the SQL), in the engine's shape. */
+    public static String refusalOrError(String message) {
+        try {
+            return http(com.legend.server.PureV1Api.refused(message));
+        } catch (RuntimeException | StackOverflowError e) {
+            return folded(e);
+        }
+    }
+
     private static String sqlLiteral(String text) {
         return "'" + text.replace("'", "''") + "'";
     }

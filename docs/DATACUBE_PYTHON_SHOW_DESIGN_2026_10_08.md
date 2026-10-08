@@ -39,6 +39,14 @@ styles, types 67 of 67, refusal messages 13 of 13, byte for byte). The few shape
 answer, the execute answer's metadata -- are built by the compiler's boundary (`planner.Wasm`), not written in Python.
 Python carries the web server and the data.
 
+**One copy of the answers (step 1, 2026-10-08).** The boundary does not write them again: it calls legend-lite's own
+server code. `PureV1Api` (the pure/v1 answers) was plan-side code in a server library, its one database call being
+execute's run; it is now its own plan-side library, `//core:pure_v1`, and that run is handed in by the caller
+(`PureV1Api.Runner`: the server passes its driver). The path-to-endpoint table moved into it too (`PureV1Api.route`),
+so legend-lite's server and Python's engine route the same way. Python's engine sends every call but execute to
+`route` through one native entry (`lite_pure_v1`); for execute it takes `PureV1Api.arrowPlan` -- the SQL and the Arrow
+schema metadata, for the models it serves only -- runs the SQL in duckdb-python, and writes the Arrow.
+
 **It also serves DataCube's built pages,** with a page configuration naming itself as the engine, and the frame's model,
 runtime and table (Frames writes them, `python/legend_lite/frames.py`).
 
@@ -48,6 +56,18 @@ Upstream's execute answers in Arrow when asked: `?serializationFormat=ARROW_IPC`
 in the pinned legend-engine 4.145.0), with the SQL that ran in the schema's metadata (`legend.activities`, beside
 `legend.columns`). It is chosen between the engine and the browser, not by the database: an engine converts JDBC rows
 from any database. For Python it is native: duckdb-python produces Arrow, so JSON would be the extra conversion.
+
+**Measured against legend-engine 4.145.0 (2026-10-08; the answer recorded,
+`core/src/test/resources/upstream-api/e8-arrow-groupby-sort.json` and its bytes).** Status 200, labelled
+`Content-Type: application/json` with `x-legend-response-format: FormatNotSet`; the body is one zstd frame around an
+Arrow IPC stream; the schema metadata is `legend.builder` (the JSON answer's builder), `legend.activities` (the activities
+WITHOUT their `_type`) and `legend.columns`. An empty result is the schema with no batches; a refusal is the JSON error,
+as in the JSON format. Python's engine answers the same way. Two upstream defects, not copied (`docs/SEMANTICS_REGISTER.md`
+S28): its Arrow columns are typed from the JDBC metadata and decimals rounded to its scale (on H2 a fractional `sum`
+arrives whole: 135.2 as 135, recorded in `upstream-api/e8-arrow-fractional-sum.json`), and it needs `--add-opens=java.base/java.nio=ALL-UNNAMED` on its JVM or every Arrow answer
+is a 500. So a reader types each column by `legend.builder`, never by its Arrow type. No upstream client reads this
+format yet (legend-engine has no test of it; pylegend does not use it): DataCube's is the first. A browser reads zstd
+only through a decoder of its own (the next step measures what the pinned Chromium offers).
 
 DataCube's client reads BOTH formats, and each engine connection DECLARES its format when it is set up -- never tried and
 fallen back from at runtime (DataCube's rule, held by `test/guardrails.test.ts`: a silent fallback once hid three bugs).
@@ -62,6 +82,10 @@ server gains Arrow after the database owner's execution-plan step 4: a new binar
   DuckDB.
 - **Refresh**: the grid re-queries when it is used. In IPython and notebooks, after a command or cell finishes, Python
   tells the page to re-query, so a change shows by itself. At the plain `>>>` prompt the next click shows it.
+- **A Live frame whose columns change** is written a new model at its next query. The page still holds the old one,
+  so that query is refused, saying to read the engine's model again; the page's start (step 3) re-reads it.
+- **One query at a time**: the engine holds the frames still while a query is planned and run (a Live frame read,
+  its SQL run), so queries take turns, and Frames' own calls wait for one; the answer is compressed outside.
 - **A half-made change**: a frame changed at the same moment the cube reads it can give one odd query (pandas is not
   thread-safe); the next query is right. Accepted (the user, 2026-10-08): hand edits rarely meet a read; a frame a
   program keeps changing belongs in Snapped mode. A notebook-only snapshot at each cell's end is the fix to reach for if
@@ -81,7 +105,8 @@ Loopback only. A one-time token in the link, sent with every request. A page is 
 
 ## What changes outside Python
 
-1. The compiler's boundary (`wasm/src/main/java/planner/Wasm.java`): the refusal answer and the execute metadata.
+1. The compiler's boundary (`wasm/src/main/java/planner/Wasm.java`): three calls into `PureV1Api` (`route`, `arrowPlan`,
+   `refused`), which became a plan-side library of its own (`//core:pure_v1`; above, "One copy of the answers").
 2. DataCube's remote client (`engine-client/src/engine-remote.ts`): read Arrow as well as JSON, its format declared.
 3. DataCube's page: a start for "an engine at this address", chosen once as the page loads -- the Studio line's files,
    agreed with it before the first edit.

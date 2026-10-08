@@ -49,8 +49,25 @@ out. Frames never replaces a table it did not make, and it sets the connection's
 planner's SQL expects (UTC), on a connection it opens or one it is given. A pandas frame's index is
 not a column (`reset_index()` keeps it as one).
 
-Frames need duckdb and pyarrow; the compiler itself needs neither, and `import legend_lite` loads them
-only when `Frames` is first used.
+## An engine for DataCube
 
-Tests: `//python:bindings_test` (the compiler, on Python's standard library alone) and
-`//python:frames_test` (the frames, against pandas), on the repository's own Python (3.12).
+```python
+engine = ll.Engine(frames)     # legend-engine's pure/v1 API at engine.url, from a background thread
+engine.authorization           # "Bearer <token>": every request carries it
+engine.close()
+```
+
+The engine answers the calls DataCube's remote client makes, as legend-engine answers them: parse, print and a
+query's types by legend-lite's own server code (`PureV1Api`, through the native library), and execute in
+upstream's Arrow format (`?serializationFormat=ARROW_IPC`: one zstd frame around an Arrow IPC stream, its schema
+carrying the builder, the SQL that ran and the columns) with the rows DuckDB computes over the frames, Live ones
+read as they are then. Only queries over the models the frames' tables were written with are run, and only SQL
+the compiler wrote. It listens on 127.0.0.1 alone and answers only requests that carry its token and name this
+machine as their Host; it sends no cross-origin header. Design: `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`.
+
+Frames and the engine need duckdb and pyarrow; the compiler itself needs neither, and `import legend_lite`
+loads them only when `Frames` or `Engine` is first used.
+
+Tests: `//python:bindings_test` (the compiler, on Python's standard library alone), `//python:frames_test`
+(the frames, against pandas) and `//python:engine_test` (the engine, over HTTP), on the repository's own Python
+(3.12).

@@ -19,10 +19,11 @@ compiler reads its catalog and writes its model exactly as it does for a DataCub
 
 from __future__ import annotations
 
+import contextlib
 import re
 import sys
 import threading
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 import duckdb
 import pyarrow as pa
@@ -193,6 +194,17 @@ class Frames:
             table._load(arrow)
             self._tables[key] = table
             return table
+
+    @contextlib.contextmanager
+    def serving(self) -> Iterator[list[str]]:
+        """The frames held still for one query that another host plans and runs (the engine): the lock taken,
+        each Live table read as its frame is now (its model written again if its columns changed), and their
+        models given -- the only models such a query may be over. Run its SQL on ``connection`` inside."""
+        with self._lock:
+            for table in self._tables.values():
+                if table.mode == LIVE:
+                    table._ready()
+            yield [table.model for table in self._tables.values()]
 
     def _exists(self, name: str) -> bool:
         found = self.connection.execute(
