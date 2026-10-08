@@ -7090,3 +7090,35 @@ Python line). The cause, found the same day: the cube counts a change as in flig
 filter window's Apply and the column window's OK first ask the planner (a compile check, a parse), so a harness that
 waits for the cube to go quiet moves on while that round trip is still out on a loaded runner. The Studio line's next
 fix. Pushed to main as 61ad2dbaa: the tested commit over two IN_FLIGHT-only commits.
+
+## 2026-10-08 — The protocol program, first half: the model printer and the model reader, exact over the corpus
+
+The plan: `docs/PROTOCOL_PROGRAM_2026_10_05.md` (typed protocol records as the one hub between Pure text and
+legend-engine's protocol JSON). Branch `protocol` (22 commits), landed without a PR. Engine code: `core/.../protocol/`,
+eleven files of `core/.../parser/` (mechanical: `parseModel`, spans that may be absent, one factory for the legacy
+`list([...])` parameter, `TdsLiteral.of` the one owner of the tds desugaring), `builtin/native-claims.tsv`
+(regenerated), `wasm/.../Wasm.java` (one export), and parser-equivalence's tests.
+
+What it does:
+1. **The model printer** (`ModelComposer`): a whole model's protocol JSON as Pure text, byte for byte as legend-engine's
+   own composer prints it. Gate 8's `ModelComposerParityTest`: 14,383 models matched, 0 mismatched, over the corpus's
+   6,755 sources and upstream's 471 round-trip texts; 34 refused by name (shapes upstream cannot print either, or whose
+   print upstream gets wrong), 3 deliberate (exact decimals: `10.10D`, where upstream's reader drops the zero).
+2. **The model reader** (`ModelReader` and its family readers): legend-engine's model JSON read back into the records,
+   the emitter's exact inverse; every field taken or refused by name, never dropped. Gate 8's `ModelReaderParityTest`:
+   lite's own JSON 37,739 elements and 13,514 documents read and written back byte for byte, with spans and without;
+   legend-engine's JSON 38,702 elements and 205 lambdas the same; 0 mismatched, 0 refused.
+3. The ratchet: `own_corpus.matched` 2686 → 2719, measured at each commit that moves it (the printer's round-trip test
+   texts and the reader's join the own corpus the census harvests from core's tests, and parse exactly as the oracle
+   does; a parse-site improvement adds five).
+
+The audit (the auditor agent, 2026-10-08, read-only): no blockers, four should-fix and three nits; all taken (commit
+"protocol: the landing audit's findings"). The emitter's no-op span check is gone, with what guards a parse site that
+forgets its span said where spans are written (gate 8's byte comparison, spans included); the reader takes a path
+literal's part spans all or none and refuses a mix; the WebAssembly JSON printer reads its input strictly first;
+`EnumValue`'s docs say what its constructors do.
+
+Local gate `//gates:local` and `//gates:parser_equivalence` green (317/317) but for one run of `//studio:verify_test`
+on a machine at load 30: at its server level the project menu did not open on the click after the demo projects were
+published (the publish itself, every release through the compile gate, had passed); 3 of 3 runs green alone. A UI
+race in the harness or the page, not this change's; the Studio line's to find.
