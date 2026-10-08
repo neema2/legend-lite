@@ -8,7 +8,7 @@ load("//tools/js:defs.bzl", "node_test")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@rules_python//python:py_binary.bzl", "py_binary")
-load("//tools/platforms:defs.bzl", "compatible_with")
+load("//tools/platforms:defs.bzl", "COMPILER_LIBRARY_PLATFORMS", "compatible_with")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/browser:defs.bzl", "browser_test")
@@ -135,7 +135,10 @@ _NEXT_LINK_VERSION = "p2"
 _NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
 
 _EXTRA_ENV = {
-    "bundle-budget": {"BUNDLE": "$(rlocationpath :demo/bundle.js)"},
+    "bundle-budget": {
+        "BUNDLE": "$(rlocationpath :demo/bundle.js)",
+        "ENGINE_BUNDLE": "$(rlocationpath :demo/bundle-engine.js)",
+    },
     # every dictionary version in the tree, and the next one's name: each version needs its hash pinned, and the
     # next one is not cut yet
     "share-link": {
@@ -155,7 +158,7 @@ _DUCKDB_USERS = ["duckdb", "group-derived", "saved-queries", "sorting", "treevie
 # entry points too (they ship), so they are declared, not assumed.
 _EXTRA_DATA = {
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
-    "bundle-budget": [":bundle_bundle", ":demo/bundle.js"],
+    "bundle-budget": [":bundle_bundle", ":bundle_bundle_engine", ":demo/bundle-engine.js", ":demo/bundle.js"],
     # the saved queries Query writes, and the project they compile against
     "saved-queries": ["//fixtures/saved-queries:records", ":projects"],
     # the in-memory source the Ad Hoc Analysis tests query
@@ -651,7 +654,7 @@ py_binary(
     main = "test/python-engine/engine_fixture.py",
     # where the compiler's library and the Python wheels exist (//python's tests: the same platforms); elsewhere it is
     # skipped as incompatible, never analysed against a wheel there is none of (CI's A25 analysis, the product step)
-    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64"]),
+    target_compatible_with = compatible_with(COMPILER_LIBRARY_PLATFORMS),
     deps = ["//python:legend_lite"],
 )
 
@@ -698,6 +701,8 @@ _BUNDLES = {
     "src/planner-worker.ts": "demo/planner-worker.js",
     "demo/remote-harness.ts": "demo/remote-bundle.js",
     "demo/stress.ts": "demo/stress.js",
+    # one cube on an engine that runs its queries (Python's: docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md)
+    "demo/engine.ts": "demo/bundle-engine.js",
 }
 
 # Split: what a page loads only when it needs it (ECharts, the first time a chart draws -- plan
@@ -725,13 +730,14 @@ _UNSPLIT = ["src/planner-worker.ts"]
     ]),
 ) for entry, out in _BUNDLES.items()]
 
-# THE BUNDLES DATACUBE SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the app, the embeddable page and
-# the planner's worker. remote-bundle and stress are fixtures of their harnesses (verify_remote, run_stress), not
-# product: they leave the site with D5.
+# THE BUNDLES DATACUBE SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the app, the embeddable page, the
+# page of one cube on an engine (engine.html: Python's engine serves it) and the planner's worker. remote-bundle and
+# stress are fixtures of their harnesses (verify_remote, run_stress), not product: they leave the site with D5.
 filegroup(
     name = "bundles",
     srcs = [
         ":bundle_bundle",
+        ":bundle_bundle_engine",
         ":bundle_bundle_page",
         ":bundle_planner_worker",
     ],

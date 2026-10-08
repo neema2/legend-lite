@@ -321,3 +321,29 @@ class Site(unittest.TestCase):
             connection.close()
         finally:
             bare.close()
+
+
+class Cube(Served):
+    """cube.json: what DataCube's engine page shows -- a frame's model, runtime and source, asked with the token."""
+
+    def get(self, path, headers=None):
+        request = urllib.request.Request(self.engine.url + path, headers=headers or {})
+        try:
+            with urllib.request.urlopen(request, timeout=30) as r:
+                return r.status, r.headers['Content-Type'], r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers['Content-Type'], e.read()
+
+    def test_a_frame_s_cube_as_it_is_now(self):
+        status, content_type, body = self.get('/cube.json?table=trades', {'Authorization': self.engine.authorization})
+        self.assertEqual((status, content_type), (200, 'application/json'))
+        self.assertEqual(json.loads(body), {'title': 'trades', 'model': self.table.model, 'runtime': self.table.runtime,
+                                            'source': self.table.source})
+        # a Live frame read again: a new column, a new model
+        self.df['extra'] = 1
+        _, _, body = self.get('/cube.json?table=TRADES', {'Authorization': self.engine.authorization})
+        self.assertIn('extra', json.loads(body)['model'])
+
+    def test_asked_with_the_token_only_and_for_a_frame_it_serves(self):
+        self.assertEqual(self.get('/cube.json?table=trades')[0], 401)
+        self.assertEqual(self.get('/cube.json?table=nope', {'Authorization': self.engine.authorization})[0], 404)

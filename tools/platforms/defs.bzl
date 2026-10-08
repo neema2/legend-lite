@@ -45,6 +45,11 @@ def compatible_with(names):
     compatible["//conditions:default"] = ["@platforms//:incompatible"]
     return select(compatible)
 
+# Where legend-lite's compiler builds as a native library (//native:compiler: GraalVM's native-image with the host's C
+# toolchain; not Windows yet), and so where everything that loads it runs: //python's tests, and DataCube's test
+# against Python's engine with the engine it starts (2026-10-08: one list, its three users name it).
+COMPILER_LIBRARY_PLATFORMS = ["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64"]
+
 INCOMPATIBLE_WINDOWS = select({
     "@platforms//os:windows": ["@platforms//:incompatible"],
     "//conditions:default": [],

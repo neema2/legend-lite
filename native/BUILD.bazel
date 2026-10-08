@@ -4,7 +4,7 @@
 load("@rules_graalvm//graalvm:defs.bzl", "native_image")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/java:defs.bzl", "legend_java_library")
-load("//tools/platforms:defs.bzl", "compatible_with")
+load("//tools/platforms:defs.bzl", "COMPILER_LIBRARY_PLATFORMS", "compatible_with")
 
 # GraalVM's native-image API (@CEntryPoint and its C types): compile-only, native-image supplies its own
 legend_java_library(
@@ -49,7 +49,7 @@ native_image(
         "@platforms//os:linux": ["-fuse-ld=lld"],
         "//conditions:default": [],
     }),
-    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64"]),
+    target_compatible_with = compatible_with(COMPILER_LIBRARY_PLATFORMS),
     visibility = [
         # //datacube:python_engine_test hands the library to the Python engine it starts
         "//datacube:__pkg__",

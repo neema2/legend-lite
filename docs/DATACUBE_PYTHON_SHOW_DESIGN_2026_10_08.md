@@ -18,8 +18,9 @@ Later, in a notebook: `DataCube(df)`, the same thing over the notebook's own cha
 ## The shape
 
 **DataCube is only the UI.** It runs in its remote-run mode (`datacube/src/runner.ts` `RemoteRun`), the way the Query
-app already embeds it (`query/src/app/cube.ts`): one call per change, query in, rows out. The page loads no compiler and
-no DuckDB-WASM, so it is small, starts at once, and needs no WebAssembly GC.
+app already embeds it (`query/src/app/cube.ts`): one call per change, query in, rows out. The page loads no compiler
+module (about 5 MB) and no DuckDB-WASM: its script is the grid and the remote client, about 290 KB gzipped at startup
+(measured 2026-10-08, held under a budget by `datacube/test/bundle-budget.test.ts`), and it needs no WebAssembly GC.
 
 **Python is a small Legend engine on the developer's machine.** It answers upstream's public `pure/v1` slice that
 DataCube's remote client (`engine-client/src/engine-remote.ts`) calls:
@@ -85,7 +86,8 @@ server gains Arrow after the database owner's execution-plan step 4: a new binar
 - **Refresh**: the grid re-queries when it is used. In IPython and notebooks, after a command or cell finishes, Python
   tells the page to re-query, so a change shows by itself. At the plain `>>>` prompt the next click shows it.
 - **A Live frame whose columns change** is written a new model at its next query. The page still holds the old one,
-  so that query is refused, saying to read the engine's model again; the page's start (step 3) re-reads it.
+  so that query is refused, saying to read the engine's model again; today that is a reload of the page (it reads
+  `cube.json` again), and `show()` (step 5) makes the page re-read it by itself.
 - **One query at a time**: the engine holds the frames still while a query is planned and run (a Live frame read,
   its SQL run), so queries take turns, and Frames' own calls wait for one; the answer is compressed outside.
 - **A half-made change**: a frame changed at the same moment the cube reads it can give one odd query (pandas is not
@@ -103,15 +105,19 @@ process stays alive anyway.
 ## Safety
 
 Loopback only. A one-time token in the link, sent with every request. A page is refused unless its `Host` is local
-(DNS rebinding; the warehouse's rule). No cross-origin access. The browser never sends SQL.
+(DNS rebinding; the warehouse's rule). No cross-origin access. The browser never sends SQL. The token rides in the
+link's fragment, which a browser never sends to a server (nor in a Referer), and it stays in the address bar and the
+browser's history while the page is open, so a reload works -- as the warehouse's launch key does; the engine's
+lifetime is the token's.
 
 ## What changes outside Python
 
 1. The compiler's boundary (`wasm/src/main/java/planner/Wasm.java`): three calls into `PureV1Api` (`route`, `arrowPlan`,
    `refused`), which became a plan-side library of its own (`//core:pure_v1`; above, "One copy of the answers").
 2. DataCube's remote client (`engine-client/src/engine-remote.ts`): read Arrow as well as JSON, its format declared.
-3. DataCube's page: a start for "an engine at this address", chosen once as the page loads -- the Studio line's files,
-   agreed with it before the first edit.
+3. DataCube's page of one cube on an engine (`datacube/demo/engine.html`, `engine.ts`; `make-dist.mjs` and the
+   `_BUNDLES` entry): a page of its own in remote-run mode, as Query's results run, so the demo's `boot.ts` and
+   `planners.ts` are untouched -- the Studio line's files, agreed with it before the first edit (2026-10-08).
 
 ## How it is held
 
@@ -129,11 +135,16 @@ Built so far (2026-10-08, branch `datacube-show`): 1, the engine (it also serves
 origin); 2, DataCube's remote client reading Arrow, declared per engine (`serializationFormat: 'ARROW_IPC'`, with the
 engine's token as `authorization`), held by `//datacube:python_engine_test`: in the pinned Chromium, every case of the
 cube corpus through DataCube's remote-run path on Python's engine and again in the tab on the same rows, the same SQL,
-columns, types and rows; and legend-engine's own recorded Arrow answer read by the same reader.
+columns, types and rows; and legend-engine's own recorded Arrow answer read by the same reader. 3, DataCube's page of
+one cube on an engine (`datacube/demo/engine.html`, agreed with the Studio line: a page of its own in remote-run mode,
+as Query's results run, so `boot.ts` is untouched and the page loads neither DuckDB-WASM nor the compiler): the link
+names the frame (`?table=`) and carries the token in its fragment; the page asks the engine `cube.json` (with the
+token) for the frame's model, runtime and source, and opens the cube over `RemoteRun`; held by the same browser test
+(the real page, from the engine's site, shows the frame's rows).
 
 1. The boundary's builders; the Python server; its Python tests.
 2. Arrow in DataCube's remote client.
-3. DataCube's start for an engine at an address (with the Studio line).
+3. DataCube's page of one cube on an engine (with the Studio line).
 4. The browser test.
 5. `show()`: opening the browser, the handle, the wait at a script's end, the notebook refresh.
 
