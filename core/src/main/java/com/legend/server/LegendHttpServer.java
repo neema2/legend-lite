@@ -67,7 +67,7 @@ public class LegendHttpServer {
         private final java.util.Set<String> extra;
 
         private Origins(java.util.Set<String> extra) {
-            this.extra = java.util.Set.copyOf(extra);
+            this.extra = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(extra));
         }
 
         /** {@code LEGEND_LITE_ALLOWED_ORIGINS}: comma-separated exact origins, e.g. {@code https://studio.example}. */

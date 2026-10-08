@@ -31,7 +31,13 @@ final class FunctionBodyRows {
     }
 
     /** The lambda's scope id — a content id (a lambda has no source span
-     * of its own; the same object meets the resolver as the chain root). */
+     * of its own; the same object meets the resolver as the chain root).
+     * It is the printed typed tree, so it is stable only while every
+     * collection a typed node holds iterates in insertion order: no
+     * {@code Map.copyOf}/{@code Set.copyOf}/{@code toUnmodifiable*} (a JVM
+     * salts their order; NoSaltedIterationOrderTest keeps them out of the
+     * typed tree's producers), no {@code Map.of}/{@code Set.of} of several
+     * entries printed, no hash map keyed by identity (W1.5). */
     static String scopeId(TypedLambda lam) {
         String text = lam.toString();
         return "fn:" + Integer.toHexString(text.hashCode()) + ":" + text.length();

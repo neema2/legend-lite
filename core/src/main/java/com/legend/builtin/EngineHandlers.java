@@ -87,8 +87,8 @@ public final class EngineHandlers {
         }
         fqns.replaceAll((k, v) -> List.copyOf(v));
         ids.replaceAll((k, v) -> List.copyOf(v));
-        FQNS = Map.copyOf(fqns);
-        IDS = Map.copyOf(ids);
+        FQNS = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(fqns));
+        IDS = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(ids));
         UNDECLARED = List.copyOf(undeclared);
         UNMATCHED_SURFACE = List.copyOf(unmatched);
     }

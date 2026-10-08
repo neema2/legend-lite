@@ -225,7 +225,7 @@ public enum CoreFn {
                 }
             }
         }
-        return Map.copyOf(out);
+        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(out));
     }
 
     private static Map<CoreFn, java.util.Set<String>> owns() {
@@ -385,7 +385,7 @@ public enum CoreFn {
                 "meta::pure::graphFetch::execution::serialize"));
         m.put(OVER, java.util.Set.of(
                 "meta::pure::functions::relation::over"));
-        return Map.copyOf(m);
+        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
     }
 
     /** The FQNs whose every overload this form owns (empty for {@code NEW}). */

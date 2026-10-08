@@ -266,7 +266,7 @@ public final class DynaFnDecisions {
                 }
                 of.put(d, fqns);
             }
-            OF = Map.copyOf(of);
+            OF = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(of));
         }
     }
 

@@ -48,7 +48,7 @@ public record NormalizedModel(List<PackageableElement> elements, ImportScope imp
             imports = ImportScope.empty();
         }
         legacySurfaces = legacySurfaces == null
-                ? java.util.Map.of() : java.util.Map.copyOf(legacySurfaces);
+                ? java.util.Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(legacySurfaces));
     }
 
 }

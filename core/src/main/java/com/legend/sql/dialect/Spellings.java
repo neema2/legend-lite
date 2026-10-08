@@ -18,7 +18,7 @@ import java.util.Map;
 public record Spellings(Map<SqlFn, String> fnNames) {
 
     public Spellings {
-        fnNames = Map.copyOf(fnNames);
+        fnNames = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(fnNames));
     }
 
     public static final Spellings DUCKDB = new Spellings(build());

@@ -31,7 +31,7 @@ public final class AggregatesDeliverDouble extends SqlRewriter {
     private final Set<SqlAgg.Fn> fns;
 
     public AggregatesDeliverDouble(Set<SqlAgg.Fn> fns) {
-        this.fns = Set.copyOf(fns);
+        this.fns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(fns));
     }
 
     @Override

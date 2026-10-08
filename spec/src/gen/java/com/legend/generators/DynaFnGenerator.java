@@ -224,7 +224,7 @@ public final class DynaFnGenerator {
                     for (DynaFn d : values()) {
                         m.put(d.name, d);
                     }
-                    BY_NAME = Map.copyOf(m);
+                    BY_NAME = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
                 }
 
                 /** The registry entry for an engine operator name, or empty when the engine

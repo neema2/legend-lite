@@ -66,7 +66,7 @@ final class StoredReads extends SqlRewriter {
                         }
                     });
                     if (!cols.isEmpty()) {
-                        read.put(t.alias(), Map.copyOf(cols));
+                        read.put(t.alias(), java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(cols)));
                     }
                 }
                 return s;

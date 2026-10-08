@@ -77,7 +77,7 @@ final class MappingLedger {
                 out.add(cm.className());
             }
         }
-        return Set.copyOf(out);
+        return java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(out));
     }
 
     /** The compiled mapping's facts: what this synthesis recorded, plus

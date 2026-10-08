@@ -431,7 +431,7 @@ final class StaticFold {
 
         FoldOp(String... fqns) {
             // several overload constants spell one FQN: copyOf tolerates the repeats
-            this.fqns = java.util.Set.copyOf(java.util.Arrays.asList(fqns));
+            this.fqns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(java.util.Arrays.asList(fqns)));
         }
 
         /** The operation {@code af} names, or null when it names none of them. */

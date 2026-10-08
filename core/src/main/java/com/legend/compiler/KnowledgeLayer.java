@@ -131,7 +131,7 @@ public final class KnowledgeLayer {
                 hierarchyClass(cur).ifPresent(cd -> work.addAll(superClassFqns(cd)));
             }
         }
-        java.util.Set<String> frozen = java.util.Set.copyOf(out);
+        java.util.Set<String> frozen = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(out));
         reach.putIfAbsent(cls, frozen);
         return frozen;
     }

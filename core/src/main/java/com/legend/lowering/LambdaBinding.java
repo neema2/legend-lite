@@ -62,7 +62,7 @@ final class LambdaBinding {
      * the recognizer's structural equality (gate-caught: G9
      * chB-std testMax/testMin, 'must apply the SAME key'). */
     private static final java.util.Set<com.legend.model.FunctionId> COMPARATOR_NATIVES =
-            java.util.Set.copyOf(com.legend.model.FunctionId.all(com.legend.builtin.Pure.AT_COLLECTION_REMOVE_DUPLICATES, com.legend.builtin.Pure.AT_RELATION_SORT, com.legend.builtin.Pure.AT_TDS_SORT, com.legend.builtin.Pure.AT_COLLECTION_SORT, com.legend.builtin.Pure.AT_COLLECTION_CONTAINS, com.legend.builtin.Pure.AT_STRING_CONTAINS));
+            java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(com.legend.model.FunctionId.all(com.legend.builtin.Pure.AT_COLLECTION_REMOVE_DUPLICATES, com.legend.builtin.Pure.AT_RELATION_SORT, com.legend.builtin.Pure.AT_TDS_SORT, com.legend.builtin.Pure.AT_COLLECTION_SORT, com.legend.builtin.Pure.AT_COLLECTION_CONTAINS, com.legend.builtin.Pure.AT_STRING_CONTAINS)));
 
     /** Inner-lambda scope: ALL its parameters shadow; everything else
      * resolves outward through the enclosing resolver. */

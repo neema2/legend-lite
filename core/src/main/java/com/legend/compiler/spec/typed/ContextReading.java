@@ -371,7 +371,7 @@ final class ContextReading {
                 literalFlags(flags, out);
             }
         }
-        return java.util.Set.copyOf(out);
+        return java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(out));
     }
 
     /** The engine's SECOND flag carrier: {@code withFeatureFlags(query, flags)}
@@ -383,7 +383,7 @@ final class ContextReading {
         for (TypedSpec s : body) {
             collectTreeFeatures(s, out);
         }
-        return out.isEmpty() ? java.util.Set.of() : java.util.Set.copyOf(out);
+        return out.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(out));
     }
 
     private static void collectTreeFeatures(TypedSpec n, java.util.Set<Feature> out) {

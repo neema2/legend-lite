@@ -46,13 +46,13 @@ public record Registrations(
 
     public Registrations {
         catalog = List.copyOf(catalog);
-        loweringKeys = Map.copyOf(loweringKeys);
-        featureOverrides = Map.copyOf(featureOverrides);
-        families = Map.copyOf(families);
-        forms = Map.copyOf(forms);
-        walledNatives = Map.copyOf(walledNatives);
-        walledBodies = Map.copyOf(walledBodies);
-        subsumed = Set.copyOf(subsumed);
-        members = Map.copyOf(members);
+        loweringKeys = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(loweringKeys));
+        featureOverrides = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(featureOverrides));
+        families = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(families));
+        forms = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(forms));
+        walledNatives = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(walledNatives));
+        walledBodies = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(walledBodies));
+        subsumed = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(subsumed));
+        members = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(members));
     }
 }

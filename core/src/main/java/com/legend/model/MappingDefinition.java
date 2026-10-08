@@ -85,18 +85,18 @@ public record MappingDefinition(
             // route of the property lands on one class), and the SOLE set id
             // every route of a property names across the include closure
             // (class-PM joins, otherwise fallbacks, association PMs)
-            unionMembers = unionMembers == null ? java.util.Map.of() : java.util.Map.copyOf(unionMembers);
+            unionMembers = unionMembers == null ? java.util.Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(unionMembers));
             if (routedTargetClasses == null) {
                 routedTargetClasses = java.util.Map.of();
             } else {
                 java.util.Map<String, java.util.Map<String, String>> copy = new java.util.LinkedHashMap<>();
-                routedTargetClasses.forEach((k, v) -> copy.put(k, java.util.Map.copyOf(v)));
+                routedTargetClasses.forEach((k, v) -> copy.put(k, java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(v))));
                 routedTargetClasses = java.util.Collections.unmodifiableMap(copy);
             }
-            poisons = poisons == null ? java.util.Map.of() : java.util.Map.copyOf(poisons);
-            mixedUnions = mixedUnions == null ? java.util.Map.of() : java.util.Map.copyOf(mixedUnions);
+            poisons = poisons == null ? java.util.Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(poisons));
+            mixedUnions = mixedUnions == null ? java.util.Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(mixedUnions));
             unionKeyThreads = unionKeyThreads == null
-                    ? java.util.Map.of() : java.util.Map.copyOf(unionKeyThreads);
+                    ? java.util.Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(unionKeyThreads));
         }
     }
 
@@ -114,7 +114,7 @@ public record MappingDefinition(
         // maps, in include order — never re-walked); the system database's
         // mapping_store_resolutions projects it
         resolvedStores = resolvedStores == null
-                ? java.util.Map.of() : java.util.Map.copyOf(resolvedStores);
+                ? java.util.Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(resolvedStores));
     }
 
     /** The class bindings keyed the ways a resolver asks of them (the

@@ -33,8 +33,8 @@ public record TypedTableReference(String store, String table, ExprType info,
                                   java.util.Map<String, com.legend.sql.SqlDdl.ColumnType> storedTypes)
         implements TypedSpec {
     public TypedTableReference {
-        quotedColumns = java.util.Set.copyOf(quotedColumns);
-        storedTypes = java.util.Map.copyOf(storedTypes);
+        quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
+        storedTypes = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(storedTypes));
     }
 
     public TypedTableReference(String store, String table, ExprType info, boolean accessor,

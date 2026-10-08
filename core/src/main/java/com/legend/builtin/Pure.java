@@ -530,7 +530,7 @@ public final class Pure {
                     Lite.GROUP_BY_OVER_INSTANCES, Lite.GROUP_BY_COMPUTED_KEYS,
                     Lite.TUPLE)
                     .map(Pure::liteLocalName)
-                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+                    .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
     /** Bare names of the engine-vocabulary typing shims (see
      *  {@link Lite}). Pinned shrink-only. */
@@ -542,7 +542,7 @@ public final class Pure {
                     Lite.PARSE_DATE_FORMAT, Lite.CONVERT_DATE_FORMAT,
                     Lite.CONVERT_DATE_TIME_FORMAT, Lite.CONVERT_TIME_ZONE_FORMAT)
                     .map(Pure::liteLocalName)
-                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+                    .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
 
     /** Bare names of the user-facing lite product natives (see
      *  {@link Lite#NAVIGATE}, {@link Lite#SOURCE_URL}): these STAY
@@ -666,7 +666,7 @@ public final class Pure {
             // IMMUTABLE (Invariant 3: static collection state)
             java.util.Map<String, List<String>> frozen = new java.util.HashMap<>();
             out.forEach((k, v) -> frozen.put(k, List.copyOf(v)));
-            return java.util.Map.copyOf(frozen);
+            return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(frozen));
         }
     }
 

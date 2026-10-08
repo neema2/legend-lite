@@ -64,7 +64,7 @@ public sealed interface SqlSource {
     record Table(String name, String alias, List<OutputCol> outputs, boolean call,
             java.util.Map<String, SqlDdl.ColumnType> storedTypes) implements SqlSource {
         public Table {
-            storedTypes = java.util.Map.copyOf(storedTypes);
+            storedTypes = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(storedTypes));
         }
     }
 

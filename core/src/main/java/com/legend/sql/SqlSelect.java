@@ -66,7 +66,7 @@ public record SqlSelect(List<Projection> projections, boolean distinct,
                 expandStar(from, s.table(), false, null, out);
             } else if (p.expr() instanceof SqlExpr.StarExcept se) {
                 expandStar(from, se.table(), false,
-                        java.util.Set.copyOf(se.except()), out);
+                        java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(se.except())), out);
             } else if (p.out() != null) {
                 out.add(SqlTyping.reconcileSlot(p.expr(), p.out(), grouped));
             }

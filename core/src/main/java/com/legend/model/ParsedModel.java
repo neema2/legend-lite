@@ -37,11 +37,11 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
             imports = ImportScope.empty();
         }
         elementOffsets = elementOffsets == null ? java.util.Map.of()
-                : java.util.Map.copyOf(elementOffsets);
+                : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(elementOffsets));
         elementImports = elementImports == null ? java.util.Map.of()
-                : java.util.Map.copyOf(elementImports);
+                : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(elementImports));
         elementSources = elementSources == null ? java.util.Map.of()
-                : java.util.Map.copyOf(elementSources);
+                : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(elementSources));
         unclaimedSections = unclaimedSections == null ? List.of()
                 : List.copyOf(unclaimedSections);
     }

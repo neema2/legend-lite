@@ -24,8 +24,8 @@ public sealed interface Implementation {
             implements Implementation {
         public Form {
             Objects.requireNonNull(form, "form");
-            alsoLowered = Set.copyOf(alsoLowered);
-            alsoFamilies = Set.copyOf(alsoFamilies);
+            alsoLowered = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(alsoLowered));
+            alsoFamilies = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(alsoFamilies));
         }
     }
 
@@ -36,9 +36,9 @@ public sealed interface Implementation {
     record Intrinsic(Set<Position> positions, Set<Feature> featureOverrides,
             Set<Class<? extends NativeFn.Member>> families) implements Implementation {
         public Intrinsic {
-            positions = Set.copyOf(positions);
-            featureOverrides = Set.copyOf(featureOverrides);
-            families = Set.copyOf(families);
+            positions = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(positions));
+            featureOverrides = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(featureOverrides));
+            families = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(families));
             if (positions.isEmpty() && families.isEmpty()) {
                 throw new IllegalArgumentException("an intrinsic registers at least one position or family");
             }

@@ -30,7 +30,7 @@ public final class Diagnostics {
             "dump-sql", "pct-cases", "corpus-trace", "detach-trace", "progress", "timing",
             "corpus-containing", "chb-only");
 
-    private static final Map<String, String> ON = Map.copyOf(parse(System.getProperty("legend.diagnostics", "")));
+    private static final Map<String, String> ON = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(parse(System.getProperty("legend.diagnostics", ""))));
 
     static Map<String, String> parse(String option) {
         Map<String, String> on = new LinkedHashMap<>();

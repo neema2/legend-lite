@@ -96,7 +96,7 @@ public final class WalledBodies {
         REASONS.put("meta::pure::functions::lang::tests::new::testNewGenericFunc",
                 new Wall(Kind.CANNOT_IMPLEMENT,
                         "REFLECTION: instantiation from a Class value (new(class, id)) — not modeled"));
-        return Map.copyOf(REASONS);   // immutable (ArchitectureTest invariant 3)
+        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(REASONS));   // immutable (ArchitectureTest invariant 3)
     }
 
     /** Every walled FQN with its reason, read-only (the implementation table's

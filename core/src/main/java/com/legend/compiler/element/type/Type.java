@@ -141,7 +141,7 @@ public sealed interface Type permits
             m.put(pp + "Varchar", STRING);       // Varchar(x) extends String
             m.put(pp + "Timestamp", DATE_TIME);  // Timestamp extends DateTime
             m.put(pp + "Numeric", DECIMAL);      // Numeric(precision, scale) extends Decimal
-            BY_FQN = Map.copyOf(m);
+            BY_FQN = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
         }
 
         /** Looks up a built-in primitive by FQN; empty if {@code fqn} is not a known primitive. */

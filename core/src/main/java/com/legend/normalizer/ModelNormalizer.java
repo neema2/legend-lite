@@ -159,7 +159,7 @@ public final class ModelNormalizer {
         for (PackageableElement el : elements) {
             universe.add(el.qualifiedName());
         }
-        universe = java.util.Set.copyOf(universe);
+        universe = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(universe));
         com.legend.model.ImportScope none = new com.legend.model.ImportScope.Builder().build();
         List<PackageableElement> out = new ArrayList<>(elements.size());
         for (PackageableElement el : elements) {

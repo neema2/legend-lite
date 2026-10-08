@@ -61,7 +61,7 @@ public final class NativeFn {
         for (E e : values) {
             m.put(e.fqn(), e);
         }
-        return Map.copyOf(m);
+        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
     }
 
     /** Every member of {@code values} by the identity of each of its catalog
@@ -77,7 +77,7 @@ public final class NativeFn {
                 }
             }
         }
-        return Map.copyOf(out);
+        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(out));
     }
 
     /** Every family, by name — THE registration the claim registry reads. A
@@ -1167,7 +1167,7 @@ public final class NativeFn {
             for (RowGetter g : values()) {
                 m.putIfAbsent(g.property, g);
             }
-            BY_PROPERTY = Map.copyOf(m);
+            BY_PROPERTY = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
         }
 
         /** The accessor an APPLIED (bare) name spells, or empty. */

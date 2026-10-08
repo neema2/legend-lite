@@ -117,7 +117,7 @@ public enum Subsumed {
         for (Subsumed s : values()) {
             m.put(s.fqn, s);
         }
-        BY_FQN = Map.copyOf(m);
+        BY_FQN = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
     }
 
     /** The subsumed program a callee FQN names — empty for every other callee. */

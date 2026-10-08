@@ -108,7 +108,7 @@ public final class Compiler {
                                java.util.Map<String, String> sourceTexts) {
         public ParsedModule {
             duplicateElements = List.copyOf(duplicateElements);
-            sourceTexts = java.util.Map.copyOf(sourceTexts);
+            sourceTexts = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(sourceTexts));
         }
     }
 
@@ -312,7 +312,7 @@ public final class Compiler {
             java.util.Set<String> out = new java.util.HashSet<>(
                     com.legend.builtin.SystemMetamodel.elementFqns());
             out.addAll(com.legend.builtin.Prelude.elementFqns());
-            return java.util.Set.copyOf(out);
+            return java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(out));
         }
     }
 

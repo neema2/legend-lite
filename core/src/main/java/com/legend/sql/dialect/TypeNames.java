@@ -21,7 +21,7 @@ public record TypeNames(Map<SqlType.Scalar, String> scalarNames,
         boolean structSupport) {
 
     public TypeNames {
-        scalarNames = Map.copyOf(scalarNames);
+        scalarNames = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(scalarNames));
     }
 
     /** ANSI baseline: no JSON, no STRUCT. */

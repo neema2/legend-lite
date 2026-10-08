@@ -114,14 +114,19 @@ final class TableReferenceChecker {
         // the columns the DDL declared quoted: a spelling the SQL keeps
         var def = t.model().findTableDefinition(dbRef.fullPath(), resolvedName);
         java.util.Set<String> quoted = def
-                .map(d -> d.columns().stream().filter(c -> c.quoted()).map(c -> c.name())
-                        .collect(java.util.stream.Collectors.toUnmodifiableSet()))
+                .<java.util.Set<String>>map(d -> d.columns().stream().filter(c -> c.quoted()).map(c -> c.name())
+                        .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet)))
                 .orElse(java.util.Set.of());
         // each column's DECLARED store type: what the database holds, which the relation type (the
         // value as read) does not say -- the dialect reads what the platform cannot use as held
         java.util.Map<String, com.legend.sql.SqlDdl.ColumnType> stored = def
-                .map(d -> d.columns().stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
-                        c -> c.name(), c -> com.legend.compiler.element.StoreCompiler.declaredType(c.dataType()))))
+                // DECLARATION ORDER (W1.5): the record prints these, and an id hashes the print; a
+                // toUnmodifiableMap/Set iterates in an order the JVM salts
+                .<java.util.Map<String, com.legend.sql.SqlDdl.ColumnType>>map(d -> d.columns().stream().collect(
+                        java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toMap(
+                                c -> c.name(), c -> com.legend.compiler.element.StoreCompiler.declaredType(c.dataType()),
+                                (a, b) -> { throw new IllegalStateException("duplicate column name"); },
+                                java.util.LinkedHashMap::new), java.util.Collections::unmodifiableMap)))
                 .orElse(java.util.Map.of());
         // a TABULAR FUNCTION is read as a call
         boolean call = def.map(d -> d.function()).orElse(false);

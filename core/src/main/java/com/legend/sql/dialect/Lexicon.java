@@ -16,7 +16,7 @@ import java.util.Set;
 public record Lexicon(char quoteChar, Set<String> reservedWords) {
 
     public Lexicon {
-        reservedWords = Set.copyOf(reservedWords);
+        reservedWords = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(reservedWords));
     }
 
     /** DuckDB (the execution backend): every keyword DuckDB will not take as a table or column name (its
@@ -97,7 +97,7 @@ public record Lexicon(char quoteChar, Set<String> reservedWords) {
             java.util.stream.Stream.concat(
                     H2_ENGINE_TEXT.reservedWords().stream(),
                     java.util.stream.Stream.of("right"))
-                    .collect(java.util.stream.Collectors.toUnmodifiableSet()));
+                    .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet)));
 
     public static final Lexicon ENGINE_STYLE = new Lexicon('"', Set.of());
 

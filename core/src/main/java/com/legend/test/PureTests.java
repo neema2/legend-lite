@@ -47,7 +47,7 @@ public final class PureTests {
     public record Discovery(List<TestCase> tests, Map<String, List<String>> setupsByPackage) {
         public Discovery {
             tests = List.copyOf(tests);
-            setupsByPackage = Map.copyOf(setupsByPackage);
+            setupsByPackage = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(setupsByPackage));
         }
 
         /** The tests the engine's own marks do not exclude. */

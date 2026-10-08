@@ -104,7 +104,7 @@ final class ElementFamilies {
                 m.put(t, f);
             }
         }
-        BY_TYPE = Map.copyOf(m);
+        BY_TYPE = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
     }
 
     private ElementFamilies() {

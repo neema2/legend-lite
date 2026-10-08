@@ -289,7 +289,7 @@ public final class NameResolver {
                 ids.add(com.legend.model.SignatureMangle.mangle(f));
             }
         }
-        return Set.copyOf(ids);
+        return java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(ids));
     }
 
     /** Every platform function's FQN a user may name — the user-resolvable
@@ -303,14 +303,14 @@ public final class NameResolver {
                 fqns.add(f.qualifiedName());
             }
         }
-        return Set.copyOf(fqns);
+        return java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(fqns));
     }
 
     private static Set<String> platformNames() {
         Set<String> all = new HashSet<>(PLATFORM_TYPE_FQNS);
         all.addAll(computePlatformFunctionIds());
         all.addAll(computePlatformFunctionFqns());
-        return Set.copyOf(all);
+        return java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(all));
     }
 
     /** CALL position (real pure): the candidates are every function the name
@@ -521,7 +521,7 @@ public final class NameResolver {
 
     private static Scope querycope() {
         Set<String> known = new HashSet<>(PLATFORM_FQNS);
-        return Scope.preludeOf(new ImportScope.Builder().build(), Set.copyOf(known));
+        return Scope.preludeOf(new ImportScope.Builder().build(), java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(known)));
     }
 
     private static @com.legend.base.Nullable TypeExpression resolveType(
@@ -2048,7 +2048,7 @@ public final class NameResolver {
             if (params == null || params.isEmpty()) return this;
             HashSet<String> merged = new HashSet<>(typeParams);
             merged.addAll(params);
-            return new Scope(imports, knownFqns, Set.copyOf(merged), ownPackage,
+            return new Scope(imports, knownFqns, java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(merged)), ownPackage,
                     prelude);
         }
     }

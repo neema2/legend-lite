@@ -1655,8 +1655,8 @@ public final class Protocol {
                                      @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public PFunctionActivator {
-            scalars = java.util.Map.copyOf(scalars);
-            booleans = java.util.Map.copyOf(booleans);
+            scalars = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(scalars));
+            booleans = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(booleans));
             if (ownerId != null && userListUsers != null) {
                 throw new IllegalArgumentException(
                         "ownership is Deployment OR UserList, not both");

@@ -737,7 +737,7 @@ final class StatementExecutor {
         }
         if (!flags.isEmpty()) {
             flags.addAll(env.options().features());
-            env = env.withOptions(env.options().withFeatures(java.util.Set.copyOf(flags)));
+            env = env.withOptions(env.options().withFeatures(java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(flags))));
         }
         boolean quote = pc != null && pc.quoteIdentifiers();
         String tz = pc != null ? pc.timeZone() : null;
@@ -1125,7 +1125,7 @@ final class StatementExecutor {
         }
         all.addAll(env.options().features());
         all.addAll(com.legend.compiler.spec.typed.ExecutionContext.treeFeatures(body));
-        return all.isEmpty() ? java.util.Set.of() : java.util.Set.copyOf(all);
+        return all.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(all));
     }
 
     static com.legend.compiler.spec.typed.ExecutionContext boundContext(
@@ -1721,7 +1721,7 @@ final class StatementExecutor {
                         com.legend.compiler.element.type.Type.Primitive.STRING));
         m.put(com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT.fqn(),
                 (body, nc, env) -> new ExecutionResult.Scalar(null, nc.info().type()));
-        return java.util.Map.copyOf(m);
+        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
     }
 
     /** Governance surface: the registry's keys — pinned equal to the

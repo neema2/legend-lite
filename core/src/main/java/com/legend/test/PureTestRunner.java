@@ -144,7 +144,7 @@ public final class PureTestRunner implements AutoCloseable {
         this.runtimeFqn = runtimeFqn;
         this.sessions = sessions;
         this.sharedSetups = List.copyOf(sharedSetups);
-        this.setupsByPackage = Map.copyOf(setupsByPackage);
+        this.setupsByPackage = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(setupsByPackage));
         this.observer = observer;
         this.judgeMode = judgeMode;
     }

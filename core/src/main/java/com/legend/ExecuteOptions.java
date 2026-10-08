@@ -46,7 +46,7 @@ public record ExecuteOptions(boolean pctRender,
      *  call's own ({@code ExecutionContext.features}); the one ambient
      *  source (the engine's testable runner has the same knob). */
     public ExecuteOptions withFeatures(java.util.Set<com.legend.platform.Feature> f) {
-        return new ExecuteOptions(pctRender, recorder, resources, java.util.Set.copyOf(f), judgeMode);
+        return new ExecuteOptions(pctRender, recorder, resources, java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(f)), judgeMode);
     }
 
     /** The raw-SQL ledger this execution appends to (Phase 2b) and the

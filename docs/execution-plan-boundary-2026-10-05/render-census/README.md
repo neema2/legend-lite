@@ -24,10 +24,10 @@ be compared byte for byte. It is the judge for E, the dialects' move to one writ
 **Measured determinism (2026-10-08, three runs on unchanged code).** Byte-identical across runs except three things
 the comparison normalises, and nothing else: an absolute temporary path quoted in SQL (sandbox folders, random temp file
 names); a random UUID (any UUID is masked; the one measured is the activity comment's `executionTraceID`, legend-engine's
-per-execution trace id); and a lambda's
-scope id `fn:<hex>:<length>` — a product defect (`resolver/FunctionBodyRows.scopeId` hashes a `toString` that varies
-between runs), reported to the resolver's owner and to be fixed there. With those normalised, two full runs agree on all
-52,085 entries.
+per-execution trace id); and, until 2026-10-08, a lambda's
+scope id `fn:<hex>:<length>` (`resolver/FunctionBodyRows.scopeId` hashes the typed lambda's print, and the typed tree held
+collections whose iteration order a JVM salts: fixed in the product by the compiler line, W1.5, and checked by the census
+since). With those normalised, two full runs agree on all 52,085 entries.
 
 **The baseline** (`baseline-summary.txt`, main `daa78d0eb`): 5,706,332 renders, 47,904 distinct texts.
 

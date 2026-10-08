@@ -27,6 +27,6 @@ public record GenericSectionElementDefinition(
         Objects.requireNonNull(section, "Section cannot be null");
         Objects.requireNonNull(kind, "Kind cannot be null");
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
-        fields = Map.copyOf(fields);
+        fields = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(fields));
     }
 }

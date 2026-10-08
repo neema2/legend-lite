@@ -1534,7 +1534,7 @@ public final class SystemMetamodel {
     private static final class Fqns {
         static final java.util.Set<String> ALL = ELEMENTS.stream()
                 .map(PackageableElement::qualifiedName)
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+                .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
     }
 
     /** Whether {@code fqn} names a system ELEMENT (class, association,

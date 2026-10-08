@@ -34,6 +34,6 @@ public record ProgramFacts(boolean effects, boolean seedsInlineCsv, boolean verd
      * element reference ({@link com.legend.compiler.spec.SeededStores}):
      * the corpus runner's fixture-on-demand index. */
     public ProgramFacts {
-        seedsStores = java.util.Set.copyOf(seedsStores);
+        seedsStores = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(seedsStores));
     }
 }

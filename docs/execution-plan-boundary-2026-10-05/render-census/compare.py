@@ -13,14 +13,14 @@ import sys
 PATH = re.compile(r"'(/Users|/private|/var|/tmp)[^']*'")
 # and a random UUID: the activity comment's "executionTraceID" (the engine's per-execution trace id)
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-# and a lambda's scope id, fn:<hex>:<length> (resolver/FunctionBodyRows.scopeId hashes the typed lambda's toString,
-# which differs between runs at the same length: a PRODUCT nondeterminism, reported to its owner, masked here only)
-FN_ID = re.compile(r"fn:[0-9a-f]+:")
+# (a lambda's scope id, fn:<hex>:<length>, was masked here until 2026-10-08: it differed between runs because
+# the typed tree held collections in a JVM-salted order, Map.copyOf/Set.copyOf and Collectors.toUnmodifiableMap/Set;
+# fixed in the product, so the census checks it now)
 
 
 def norm(text):
     """Every other byte must match."""
-    return FN_ID.sub("fn:<id>:", UUID.sub("<uuid>", PATH.sub("'<path>'", text)))
+    return UUID.sub("<uuid>", PATH.sub("'<path>'", text))
 
 
 def load(root):

@@ -260,7 +260,7 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
             primaryKey = primaryKey == null ? List.of() : List.copyOf(primaryKey);
             propertyMappings = propertyMappings == null ? List.of() : List.copyOf(propertyMappings);
             propertyTargetSets = propertyTargetSets == null
-                    ? java.util.Map.of() : java.util.Map.copyOf(propertyTargetSets);
+                    ? java.util.Map.of() : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(propertyTargetSets));
         }
     }
 

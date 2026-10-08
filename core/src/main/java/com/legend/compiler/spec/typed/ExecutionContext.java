@@ -76,7 +76,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         public static final PostProcessors NONE = new PostProcessors(Map.of(), false, false);
 
         public PostProcessors {
-            tableReplace = Map.copyOf(tableReplace);
+            tableReplace = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(tableReplace));
         }
 
         public PostProcessors withNonExecutable(boolean on) {
@@ -93,7 +93,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
 
     public ExecutionContext {
         chainMappings = List.copyOf(chainMappings);
-        jsonSources = Map.copyOf(jsonSources);
+        jsonSources = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(jsonSources));
         sqlSetups = List.copyOf(sqlSetups);
         csvSetups = List.copyOf(csvSetups);
         importDataFlowColumns = List.copyOf(importDataFlowColumns);
@@ -194,7 +194,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
         return new ExecutionContext(mapping, runtime, chainMappings, jsonSources, sqlSetups,
                 csvSetups, connectionName, quoteIdentifiers, timeZone, databaseType,
                 connectionInstance, storeFqn, driverTablePk, importDataFlowColumns, postProcessors,
-                java.util.Set.copyOf(all));
+                java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(all)));
     }
 
     public ExecutionContext withPostProcessors(PostProcessors pp) {

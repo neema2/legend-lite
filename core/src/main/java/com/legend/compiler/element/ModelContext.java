@@ -54,7 +54,7 @@ public interface ModelContext extends StoreLookups {
     default java.util.Set<String> resolutionUniverse() {
         java.util.Set<String> u = new java.util.HashSet<>(elementFqns());
         u.addAll(com.legend.compiler.NameResolver.platformFqns());
-        return java.util.Set.copyOf(u);
+        return java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(u));
     }
 
     /**

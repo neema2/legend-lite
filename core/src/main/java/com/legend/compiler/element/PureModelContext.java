@@ -238,7 +238,7 @@ public final class PureModelContext implements ModelContext {
                 }
             }
         }
-        Walked walked = new Walked(java.util.Set.copyOf(out), failure);
+        Walked walked = new Walked(java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(out)), failure);
         memo.of.putIfAbsent(cls, walked);
         return walked;
     }

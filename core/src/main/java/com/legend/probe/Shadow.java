@@ -81,7 +81,7 @@ public final class Shadow implements DecisionProbe {
                     out.put(fqn, e.getKey());
                 }
             }
-            return Map.copyOf(out);
+            return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(out));
         }
 
         private static PrintWriter open() {

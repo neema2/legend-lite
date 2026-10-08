@@ -1122,7 +1122,7 @@ public final class Postgres extends AnsiSqlRenderer {
             m.put(u, "TIMESTAMP '1970-01-01 00:00:00'");
         }
         m.put("week", "TIMESTAMP '1969-12-29 00:00:00'");
-        return java.util.Map.copyOf(m);
+        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
     }
 
     /** Pure round is half-EVEN: Postgres' round(double precision) is rint (probed:

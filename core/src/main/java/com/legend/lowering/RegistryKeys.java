@@ -47,7 +47,7 @@ public final class RegistryKeys {
         java.util.Map<com.legend.platform.Feature, Set<com.legend.model.FunctionId>> out =
                 new java.util.EnumMap<>(com.legend.platform.Feature.class);
         for (var e : FeatureRules.UNDER.entrySet()) {
-            out.put(e.getKey(), Set.copyOf(e.getValue().keySet()));
+            out.put(e.getKey(), java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(e.getValue().keySet())));
         }
         return Collections.unmodifiableMap(out);
     }
