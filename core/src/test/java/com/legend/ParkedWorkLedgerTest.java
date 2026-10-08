@@ -40,25 +40,25 @@ class ParkedWorkLedgerTest {
     /** Ledger row id &rarr; (what the anchor matches, the product files that
      * may contain it). The file LIST is the pin: a new site, a removed site
      * or a moved site all fail. */
-    private static final Map<String, Anchor> REGISTER = new TreeMap<>(Map.of(
+    private static final Map<String, Anchor> REGISTER = new TreeMap<>(Map.ofEntries(
             // PARK-1: cross-store associations require ONE shared predicate;
             // the engine's model is per-end. The wall is the anchor, and its
             // two sites also pin the duplicated implementation.
-            "PARK-1 xstore per-end predicates",
-            new Anchor("has direction-specific conditions",
-                    List.of("MappingNormalizer.java", "XStorePureEnds.java")),
+            Map.entry("PARK-1 xstore per-end predicates",
+                    new Anchor("has direction-specific conditions",
+                            List.of("MappingNormalizer.java", "XStorePureEnds.java"))),
             // PARK-2: no common-subexpression pass in the normal lowering
             // path, so a union read twice is built twice. The CTE builder is
             // reachable ONLY from the opt-in parity post-processor.
-            "PARK-2 union common-subexpression pass (call site)",
-            new Anchor("extractSubqueriesAsCtes\\(", List.of("SqlPostProcessors.java")),
-            "PARK-2 union common-subexpression pass (construction)",
+            Map.entry("PARK-2 union common-subexpression pass (call site)",
+                    new Anchor("extractSubqueriesAsCtes\\(", List.of("SqlPostProcessors.java"))),
             // leg 3.1 (2026-09-18): VerdictSql builds a WITH too — the
             // database-mode verdict statement (two side CTEs + one verdict
             // row), NOT a common-subexpression pass; PARK-2 stays parked
             // leg 3.4 step 2 (2026-09-20): SqlWith.prepend hoists a statement's
             // frame CTEs to its head — a construction helper, not a pass
-            new Anchor("new SqlWith\\(", List.of("SqlRewriter.java", "SqlWith.java", "VerdictSql.java")),
+            Map.entry("PARK-2 union common-subexpression pass (construction)",
+                    new Anchor("new SqlWith\\(", List.of("SqlRewriter.java", "SqlWith.java", "VerdictSql.java"))),
             // PARK-3: the relational toString renders as the DATABASE's cast
             // in the engine; ours passes through to pure's ISO form. The
             // obvious arm collapses multiplicity (it LOST a corpus row), so
@@ -67,28 +67,40 @@ class ParkedWorkLedgerTest {
             // decisions left the generated registry for DynaFnDecisions, which
             // names every decided member, TO_STRING's PURE decision among them.
             // That row is the one site; an arm naming it anywhere else is red.
-            "PARK-3 toString emits pure's ISO form, not the database's cast",
-            new Anchor("DynaFn\\.TO_STRING", List.of("DynaFnDecisions.java")),
+            Map.entry("PARK-3 toString emits pure's ISO form, not the database's cast",
+                    new Anchor("DynaFn\\.TO_STRING", List.of("DynaFnDecisions.java"))),
             // PARK-4: the ~groupBy wrapper. The prune's refusal to touch a
             // grouped select is NOT the cause (the engine projects those
             // columns too — lifting it LOST a row); the wrapper needs a
             // select-merge pass. The refusal is the anchor.
-            "PARK-4 the ~groupBy wrapper projects unread columns",
-            new Anchor("projections\\(\\)\\.isEmpty\\(\\) \\|\\| sel\\.distinct\\(\\)\\s*\\n\\s*\\|\\| !sel\\.groupBy\\(\\)",
-                    List.of("SubselectPrune.java")),
+            Map.entry("PARK-4 the ~groupBy wrapper projects unread columns",
+                    new Anchor("projections\\(\\)\\.isEmpty\\(\\) \\|\\| sel\\.distinct\\(\\)\\s*\\n\\s*\\|\\| !sel\\.groupBy\\(\\)",
+                            List.of("SubselectPrune.java"))),
             // PARK-15 (2026-10-08, execution plan boundary step 2): the legacy plan
             // picks an enumeration mapping without the place it is used — the first
             // over the enum for a parameter, the first declared for a result column
             // whose mapping names none; legend-engine chooses per place, from the
             // property mapping. The three choices with no place are the anchors.
-            "PARK-15 the legacy plan's enum parameter map (PlanText)",
-            new Anchor("var em = enumMappingOf\\(ctx, mappingFqn, enumFqn\\);", List.of("PlanText.java")),
-            "PARK-15 the legacy plan's enum parameter map (PlanAllocations)",
-            new Anchor("PlanText\\.enumMappingOf\\(\\s*env\\.ctx\\(\\), pmr\\.fullPath\\(\\), et\\.fqn\\(\\)\\)",
-                    List.of("PlanAllocations.java")),
-            "PARK-15 the legacy plan's enum result-column fallback",
-            new Anchor("candidates\\.isEmpty\\(\\) \\? null\\s*\\n\\s*: candidates\\.get\\(0\\)\\.mappingId\\(\\)",
-                    List.of("PlanText.java"))));
+            Map.entry("PARK-15 the legacy plan's enum parameter map (PlanText)",
+                    new Anchor("var em = enumMappingOf\\(ctx, mappingFqn, enumFqn\\);", List.of("PlanText.java"))),
+            Map.entry("PARK-15 the legacy plan's enum parameter map (PlanAllocations)",
+                    new Anchor("PlanText\\.enumMappingOf\\(\\s*env\\.ctx\\(\\), pmr\\.fullPath\\(\\), et\\.fqn\\(\\)\\)",
+                            List.of("PlanAllocations.java"))),
+            Map.entry("PARK-15 the legacy plan's enum result-column fallback",
+                    new Anchor("candidates\\.isEmpty\\(\\) \\? null\\s*\\n\\s*: candidates\\.get\\(0\\)\\.mappingId\\(\\)",
+                            List.of("PlanText.java"))),
+            // PARK-16 (2026-10-08, the user: "record the ddl fix so that we actually
+            // do it"): DDL and DML spell a table or schema name RAW where queries
+            // spell it through physicalName; only Postgres overrides. The raw
+            // spelling, the test-data generator's hand-built SQL (the same raw
+            // rule, outside the dialects) and the override are the anchors.
+            Map.entry("PARK-16 DDL and DML spell names raw (the base)",
+                    new Anchor("\\n\\s+\\? table : schema \\+ \"\\.\" \\+ table;", List.of("AnsiSqlRenderer.java"))),
+            Map.entry("PARK-16 the test-data generator's hand-built SQL spells names raw",
+                    new Anchor("\\|\\| \"default\"\\.equals\\(schema\\) \\? table : schema \\+ \"\\.\" \\+ table;",
+                            List.of("TestDataGenerator.java"))),
+            Map.entry("PARK-16 DDL and DML spell names raw (Postgres's override)",
+                    new Anchor("protected String ddlQualified\\(", List.of("AnsiSqlRenderer.java", "Postgres.java")))));
 
     private record Anchor(String pattern, List<String> files) {
     }
