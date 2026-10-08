@@ -974,38 +974,51 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
   };
 
   // ---- status bar ----
-  const renderStatus = (): void => {
-    clear(status);
-    const changed = ws.removed().length + ws.files().filter((f) => ws.isChanged(f.key)).length;
-    // upstream's status bar (census 7): left, the branch icon, project / workspace (a * for unpushed changes; each
-    // goes back to setup) and the problems counts (they open Problems); right, the sync text, the push button,
-    // Compile (the hammer wiggles while compiling) and the panel toggle. `data-*` are the harness's to read.
-    const errors = problems.length;
+  // upstream's status bar (census 7): left, the branch icon, project / workspace (a * for unpushed changes; each goes
+  // back to setup) and the problems counts (they open Problems); right, the sync text, the push button, Compile (the
+  // hammer wiggles while compiling) and the panel toggle. `data-*` are the harness's to read. Its controls are made once
+  // and updated in place: drawn afresh on every change (a compile ending, a save), a click whose press and release
+  // straddled a redraw was lost -- the button pressed was gone before it was released.
+  const makeStatusBar = () => {
+    const workspace = readOnly
+      ? h('span', { class: 'status-bar__workspace__workspace', 'data-testid': 'viewing', title: 'Viewed read-only: nothing is saved from here' },
+        `${ws.view?.version ?? 'HEAD'} (read only)`)
+      : h('button', { class: 'status-bar__workspace__workspace', title: 'Go back to workspace setup using the specified workspace', onclick: () => ctx.back() });
+    const errorCount = h('div', { class: 'status-bar__problems__count' });
+    const problemsButton = h('button', { class: 'status-bar__problems', 'data-testid': 'problems-count', onclick: () => openPanel() },
+      icon('error'), errorCount, icon('vscWarning'), h('div', { class: 'status-bar__problems__count' }, '0'));
+    const sync = h('div', { class: 'status-bar__sync', 'data-testid': 'changes-count' });
+    const push = readOnly ? undefined : h('button', { class: 'status-bar__push', title: 'Push local changes (Ctrl + S)', 'data-testid': 'save-status', onclick: () => void save() },
+      icon('cloudUpload', '16px'));
+    const compileButton = h('button', { title: 'Compile (F9)', 'data-testid': 'compile', onclick: () => void compile() }, icon('hammer'));
+    const toggler = h('button', { title: 'Toggle panel (Ctrl + `)', onclick: () => { panelOpen = !panelOpen; renderPanel(); renderStatus(); } },
+      icon('terminal'));
     status.append(
       h('div', { class: 'status-bar__left' },
         h('div', { class: 'status-bar__workspace' },
           icon('codeBranch'),
           h('button', { class: 'status-bar__workspace__project', title: 'Go back to workspace setup using the specified project', onclick: () => ctx.back() }, ctx.project),
           '/',
-          readOnly
-            ? h('span', { class: 'status-bar__workspace__workspace', 'data-testid': 'viewing', title: 'Viewed read-only: nothing is saved from here' },
-              `${ws.view?.version ?? 'HEAD'} (read only)`)
-            : h('button', { class: 'status-bar__workspace__workspace', title: 'Go back to workspace setup using the specified workspace', onclick: () => ctx.back() },
-              `${ctx.workspace}${changed ? '*' : ''}`)),
-        h('button', { class: 'status-bar__problems', title: `Error: ${errors}, Warnings: 0`, 'data-testid': 'problems-count',
-          'data-errors': errors, 'data-state': compiling ? 'compiling' : 'idle', onclick: openPanel },
-        icon('error'), h('div', { class: 'status-bar__problems__count' }, String(errors)),
-        icon('vscWarning'), h('div', { class: 'status-bar__problems__count' }, '0'))),
-      h('div', { class: 'status-bar__right' },
-        h('div', { class: 'status-bar__sync', 'data-testid': 'changes-count', title: ws.revision?.id ?? '' },
-          changed ? `${changed} unpushed change${changed === 1 ? '' : 's'}` : 'no changes detected'),
-        readOnly ? null : h('button', { class: 'status-bar__push', title: 'Push local changes (Ctrl + S)', 'data-testid': 'save-status', disabled: changed === 0, onclick: () => void save() },
-          icon('cloudUpload', '16px')),
-        h('button', { class: `status-bar__action${compiling ? ' status-bar__action--compiling' : ''}`, title: 'Compile (F9)', 'data-testid': 'compile', onclick: () => void compile() },
-          icon('hammer')),
-        h('button', { class: `status-bar__action status-bar__toggler${panelOpen ? ' status-bar__toggler--on' : ''}`, title: 'Toggle panel (Ctrl + `)',
-          onclick: () => { panelOpen = !panelOpen; renderPanel(); renderStatus(); } },
-        icon('terminal'))));
+          workspace),
+        problemsButton),
+      h('div', { class: 'status-bar__right' }, sync, push, compileButton, toggler));
+    return { workspace, errorCount, problemsButton, sync, push, compileButton, toggler };
+  };
+  let bar: ReturnType<typeof makeStatusBar> | undefined;
+  const renderStatus = (): void => {
+    bar ??= makeStatusBar();
+    const changed = ws.removed().length + ws.files().filter((f) => ws.isChanged(f.key)).length;
+    const errors = problems.length;
+    if (!readOnly) bar.workspace.textContent = `${ctx.workspace}${changed ? '*' : ''}`;
+    bar.problemsButton.title = `Error: ${errors}, Warnings: 0`;
+    bar.problemsButton.dataset.errors = String(errors);
+    bar.problemsButton.dataset.state = compiling ? 'compiling' : 'idle';
+    bar.errorCount.textContent = String(errors);
+    bar.sync.title = ws.revision?.id ?? '';
+    bar.sync.textContent = changed ? `${changed} unpushed change${changed === 1 ? '' : 's'}` : 'no changes detected';
+    if (bar.push) bar.push.disabled = changed === 0;
+    bar.compileButton.className = `status-bar__action${compiling ? ' status-bar__action--compiling' : ''}`;
+    bar.toggler.className = `status-bar__action status-bar__toggler${panelOpen ? ' status-bar__toggler--on' : ''}`;
     renderActivityBar();     // its local-change counter follows the same count
   };
 
