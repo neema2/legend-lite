@@ -1,6 +1,6 @@
-// legend-engine's wire shapes the Query app reads and writes, beyond the model (model/pmcd.ts)
-// and the lambda (pure-protocol): execution input and results, relation types, the query
-// store's records. Types only; each named after the engine's own class.
+// legend-engine's wire shapes the apps read and write, beyond the model (pmcd.ts) and the lambda
+// (pure-protocol): execution input and results, relation types, the query store's records. Types
+// only; each named after the engine's own class.
 
 import type { GenericType, Lambda, Multiplicity, ValueSpecification } from '../../../pure-protocol/src/index.ts';
 

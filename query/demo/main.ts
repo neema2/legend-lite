@@ -9,7 +9,7 @@
 // and saved queries stay in this browser (the same records and rules as a server's store).
 
 import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
-import type { DataSink } from '../../engine-client/src/model-data.ts';
+import { TestData, type DataSink } from '../../engine-client/src/model-data.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { signIn, WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { connectModelHome } from '../../depot-client/src/model-home.ts';
@@ -82,7 +82,7 @@ async function boot(): Promise<void> {
     starting('Listing the projects in Depot');
     const { depot } = await connectModelHome(config.depot);
     byName = {
-      load: (g: string, a: string, v: string) => loadByName(depot, grammar, g, a, v, data),
+      load: (g: string, a: string, v: string) => loadByName(depot, grammar, g, a, v, data !== undefined),
       versions: (g: string, a: string) => versionsOf(depot, g, a),
     };
     depotProjects = (await depot.projects()).map((p) => ({ groupId: p.groupId, artifactId: p.artifactId }));
@@ -105,7 +105,7 @@ async function boot(): Promise<void> {
       starting('Starting DuckDB in this tab');
       const tab = await startDuckDbInTab('./vendor/');
       runner = tab.engine;
-      data = tab.data;     // a project opened by name loads its own test data here (by-name.ts)
+      data = tab.data;     // a project opened by name brings its own test data, made here when opened (AppContext.ensure)
       user = exec.user;
     } else {
       const creds = await askSignIn(root, exec.url);
@@ -127,6 +127,7 @@ async function boot(): Promise<void> {
   ctx.byName = byName?.load;
   ctx.versions = byName?.versions;
   ctx.depotProjects = depotProjects;
+  ctx.testData = data && new TestData(data);
   // warm the planner on the first model while the person looks at the landing page
   if (planner && projects[0]) void planner.warm(projects[0].context).catch(() => undefined);
   new App(ctx, root).start();

@@ -1444,9 +1444,6 @@ public final class Sdlc {
      * against the stale state first, so a stale save may answer 500, quirk 8); two changes to one path are
      * refused (quirk 10).
      */
-    /** One text change of a pure-changes command, read and checked. */
-    private record PureOp(String type, String path, @Nullable String text) {}
-
     private Response pureChanges(String p, String w, Json.@Nullable Node body) {
         if (!(body instanceof Json.Obj cmd)) throw new Refusal("Input required to perform entity changes", 400);
         // upstream's order of refusals: the changes' shape, the message, then each change
@@ -1467,6 +1464,9 @@ public final class Sdlc {
         storage.put(workspaceRef(p, w), next);
         return ok(revisionView(next));
     }
+
+    /** One text change of a pure-changes command, read and checked. */
+    private record PureOp(String type, String path, @Nullable String text) {}
 
     private static String messageOf(Json.Obj cmd) {
         if (!(cmd.getOr("message", null) instanceof Json.Str messageNode)) throw new Refusal("message may not be null", 400);

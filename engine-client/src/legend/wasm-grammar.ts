@@ -110,12 +110,15 @@ export class WasmGrammar implements Grammar {
 
   /**
    * A whole model compiled (`compilation/compile` in the tab): every error, [] when it compiles -- the first element
-   * error stops the compile, as the server's does; every body error is collected (Studio's live problems).
+   * error stops the compile, as the server's does; every body error is collected (Studio's live problems). A parse or
+   * compile refusal is a problem listed; anything else (the planner failing) is thrown, as HttpEngine's is.
    */
   async compileErrors(code: string): Promise<string[]> {
-    const answer = await this.#port.ask({ kind: 'compile', model: code });
-    if (answer.startsWith('OK\n')) return JSON.parse(answer.slice(3)) as string[];
-    const [, kind = '', ...rest] = answer.split('\n');
-    return [rest.join('\n') || kind];
+    try {
+      return JSON.parse(unfold(await this.#port.ask({ kind: 'compile', model: code }))) as string[];
+    } catch (e) {
+      if (e instanceof EngineError && e.status < 500) return [e.message];
+      throw e;
+    }
   }
 }
