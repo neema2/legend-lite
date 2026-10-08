@@ -516,11 +516,14 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
      `warehouse.ts` (they named the deleted files). Diffs of `boot.ts` and `live-snap.ts` sent to the Studio line (no
      collision); the Bazel edits reviewed by the Bazel program session (accepted; with them `tools/deps/jars_table.bzl`
      drops `datacube` from `duckdb_jdbc_warehouse`'s users, and `docs/GENERATORS.md` loses the two generators).
-- **`datacube.show(df)` from a script**: Python serves DataCube's built site on loopback (with a one-time token) and
-  answers two calls: the planner calls the WebAssembly module answers today, answered by the native library, and SQL
-  in, Arrow out. **Touches `datacube/`**, which the Studio line owns for imports, labels and the Snap move: a host page
-  that starts without DuckDB-WASM, its planner pointed at that transport, a small engine adapter. Agreed with the
-  Studio line (session `neema-8f`) before the first edit.
+- **`datacube.show(df)` (announced 2026-10-08, before the first edit; the design, agreed with the user:
+  `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`).** DataCube as the UI in its remote-run mode; Python a small Legend
+  engine answering upstream's `pure/v1` slice (parse, print, a query's types, execute with Arrow results) through the
+  native library and duckdb-python. Files, in order: `wasm/src/main/java/planner/Wasm.java` (the refusal answer and the
+  execute metadata, beside the boundary's functions), `native/` (their entry points), `python/` (the server, `show()`,
+  its tests); `engine-client/src/engine-remote.ts` and `pure-v1.ts` (Arrow as well as JSON, each engine's format
+  declared); DataCube's start for an engine at an address (`datacube/demo/boot.ts`, `planners.ts` -- the Studio line's,
+  agreed with it before the first edit); a browser test in `live_snap_test`'s shape; `gates/BUILD.bazel` (its lane).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
