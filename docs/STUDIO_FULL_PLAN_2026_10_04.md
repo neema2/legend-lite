@@ -41,7 +41,7 @@ are lite's own), and most of upstream Studio's features beyond text editing and 
 not **look** like upstream Studio (re-skin pending, look census done).
 
 What exists to build on:
-- **Query's in-tab engine** (`query/src/backend/browser-engine.ts`): planner (WebAssembly) → SQL → DuckDB-WASM or the
+- **The in-tab engine** (`engine-client/src/legend/browser-engine.ts`; Query's own until A1 moved it): planner (WebAssembly) → SQL → DuckDB-WASM or the
   warehouse, answered in the engine's own `execute` shapes (TDS, graph fetch JSON). Refuses what only a server answers.
 - **`engine-client/`** (2026-10-04): `QueryEngine`, results, receipts, DuckDB in the tab, the warehouse, legend-engine's
   `pure/v1` client — shared by DataCube, Query, Studio.
@@ -160,6 +160,18 @@ A model's mapping points at a database the browser cannot reach. Rows come, in o
   reset it. The runtime is the model's own with its connection redirected to the in-tab DuckDB (a session override,
   never written into the model).
 - **Done when:** the S18 demo's party mapping, with a `Data` element of parties, answers a query in the tab.
+- **The tab's table types: a copy, for now (2026-10-07, the user; the landing audit's B1).** The tab makes a test-data
+  table with the same column types the server makes it with: `Float` is DOUBLE, `Bit` is BOOLEAN, `SemiStructured` and
+  `Json` are JSON (before, the tab used each type's own name, so a Float column was single precision in the tab and
+  answered differently from the server). The rule is the server's (core: `FromProtocol.dataType`,
+  `StoreCompiler.declaredType`, `DuckDb.ddlType`, `DdlSpelling.h2Type`), copied into `engine-client/src/model-data.ts`
+  `sqlType`, because the WebAssembly planner cannot yet give it: the seed's SQL (`CsvSeed`, `Ddl`, `RowLoad`) lives in
+  core's execution side, which the planner does not carry. **It goes when** the plan/exec split's step 2 (session "Plan
+  Gen / Exec Split", which owns that code) moves the seed's SQL to the plan side: the planner then hands the tab the
+  server's own statements for a model's test data (tables and rows), the tab runs them, and `sqlType` and its copy are
+  deleted. **Anchor:** `//engine-client:model_data_test` ("spells every column type as the server's DuckDB tables do")
+  pins every kind's spelling; a change on the server's side is a change there until the switch. The core ledger
+  (`docs/PARKED_WORK_LEDGER.md`) does not hold this row: its anchors scan core's sources only.
 
 ### A3. Running things (upstream census B §6)
 - **Run function** (F5 / button): parameter dialog (types from the signature), result in DataCube's grid

@@ -257,6 +257,7 @@ typescript.tsc_test(
         "package.json",
         "tsconfig.json",
         "//engine-client:engine_client",
+        "//engine-client:typescript_sources",
         "//depot-client:depot_client",
         "//sdlc-client:sdlc_client",
         "//pure-protocol:typescript_sources",
@@ -741,6 +742,7 @@ copy_to_directory(
     root_paths = ["query/demo/models"],
 )
 
+# Everything a browser fetches: pages, styles, models, bundles, runtimes.
 filegroup(
     name = "site",
     # served beside the other app from one origin (//site): they share the browser's query store

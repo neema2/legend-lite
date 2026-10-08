@@ -3,6 +3,7 @@
 
 import type { ModelHomeConfig } from '../../../depot-client/src/model-home.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
+import type { DataTable, TestData } from '../../../engine-client/src/model-data.ts';
 import type { Engine, QueryStore } from '../backend/engine.ts';
 import type { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { PureModelContextText } from '../backend/wire.ts';
@@ -57,6 +58,11 @@ export interface LoadedProject {
   readonly gav: string;
   readonly context: PureModelContextText;
   readonly graph: ModelGraph;
+  /**
+   * Its own test data, where queries run in this tab (a project opened by name: its relational Data elements' tables,
+   * by-name.ts): made the tab's rows whenever it is the version opened (AppContext.ensure).
+   */
+  readonly tables?: readonly DataTable[];
 }
 
 export function gavOf(p: ProjectConfig): string {
@@ -142,15 +148,25 @@ export class AppContext {
   depotProjects: readonly { readonly groupId: string; readonly artifactId: string }[] = [];
   readonly #loading = new Map<string, Promise<LoadedProject>>();
 
+  /** Where a project's test data goes: DuckDB in this tab (set by the page; none when queries run elsewhere). */
+  testData: TestData | undefined;
+
   /**
-   * The project at `gav`, loading it from Depot the first time it is asked for (a release, or a snapshot not loaded
-   * at start): a route, a saved query or the version picker names a version, and this makes it there.
+   * The project at `gav`, opened: loaded from Depot the first time it is asked for (a release, or a snapshot not loaded
+   * at start), and its test data made the tab's rows -- every time, since another version, filling the same tables,
+   * may have been opened since. A route, a saved query or the version picker names a version, and this makes it there.
    */
   async ensure(gav: string): Promise<LoadedProject> {
+    const p = await this.#loaded(gav);
+    if (p.tables && this.testData) await this.testData.use(p.gav, p.tables);
+    return p;
+  }
+
+  #loaded(gav: string): Promise<LoadedProject> {
     const have = this.projects.find((x) => x.gav === gav);
-    if (have) return have;
+    if (have) return Promise.resolve(have);
     const parts = gav.split(':');
-    if (!this.byName || parts.length !== 3) return this.project(gav);
+    if (!this.byName || parts.length !== 3) return Promise.resolve(this.project(gav));
     let loading = this.#loading.get(gav);
     if (!loading) {
       loading = this.byName(parts[0]!, parts[1]!, parts[2]!).then((p) => {

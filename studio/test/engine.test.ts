@@ -6,9 +6,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { HttpEngine } from '../../engine-client/src/legend/engine.ts';
+import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import { BrowserEngine } from '../../engine-client/src/legend/browser-engine.ts';
+import { EngineError, HttpEngine } from '../../engine-client/src/legend/engine.ts';
+import { WasmGrammar } from '../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler } from '../src/backend/planner.ts';
-import { compiler as inTab } from './modules.ts';
+import { compiler as inTab, grammar } from './modules.ts';
 
 const GOOD = 'Class demo::Desk\n{\n  name: String[1];\n}\n';
 const BAD = 'Class demo::Desk\n{\n  name: Strin[1];\n}\n';
@@ -53,5 +56,20 @@ describe("Studio's compiler over the session's engine", () => {
       'POST /api/pure/v1/compilation/compile',
       'POST /api/pure/v1/compilation/compile',
     ]);
+  });
+
+  it("the in-tab engine's compilation/compile answers as the server's: OK, or the first failure, 400 COMPILATION", async () => {
+    const noSql = {} as QueryEngine;     // compiling runs no SQL
+    const engine = new BrowserEngine(grammar, noSql, () => false, 'local');
+    assert.deepEqual(await engine.compile({ _type: 'text', code: GOOD }), { message: 'OK', defects: [] });
+    await assert.rejects(engine.compile({ _type: 'text', code: BAD }),
+      (e: unknown) => e instanceof EngineError && e.status === 400 && e.errorType === 'COMPILATION' && /Strin/.test(e.message));
+  });
+
+  it("in the tab, a compile refusal is a problem listed; the planner failing is thrown, as a server's 500 is", async () => {
+    const answering = (answer: string) => new WasmGrammar({ ask: async () => answer });
+    assert.deepEqual(await answering('ERR\ncom.legend.error.LegendCompileException\nno such type').compileErrors('x'), ['no such type']);
+    await assert.rejects(answering('ERR\njava.lang.IllegalStateException\nthe planner broke').compileErrors('x'),
+      (e: unknown) => e instanceof EngineError && e.status === 500);
   });
 });

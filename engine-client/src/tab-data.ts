@@ -3,9 +3,24 @@
 // Parquet) -- which stays, whatever the model's test data says, until it is reset -- or from nowhere yet.
 
 import type { QueryEngine } from './engine.ts';
-import { databaseTables, dataTables, dropTable, loadDataTables, loadFileTable, type FileSink } from './model-data.ts';
+import { databaseTables, dataTables, dropTable, loadFileTable, TestData, type DataTable, type FileSink } from './model-data.ts';
 
 type Elements = Parameters<typeof dataTables>[0];
+
+/**
+ * The tab's engine, for queries over one version of a project (`key`): each query it runs reads that version's test
+ * data, made the tab's rows in the same turn (TestData.with) -- whatever version another query on the page opened
+ * since. The engine itself is the tab's, shared: closing this closes it, as closing the engine would.
+ */
+export function withTestData(engine: QueryEngine, data: TestData, key: string, tables: readonly DataTable[]): QueryEngine {
+  return {
+    name: engine.name,
+    execute: (plan, epoch, signal) => data.with(key, tables, () => engine.execute(plan, epoch, signal)),
+    stream: (plan, epoch, onChunk, signal) => data.with(key, tables, () => engine.stream(plan, epoch, onChunk, signal)),
+    run: (sql, epoch, signal) => data.with(key, tables, () => engine.run(sql, epoch, signal)),
+    close: () => engine.close(),
+  };
+}
 
 /** Where a table's rows are from: a Data element of the model, a person's file, or nothing yet. */
 export type TableSource =
@@ -29,6 +44,7 @@ const ident = (s: string): string => `"${s.replace(/"/g, '""')}"`;
 export class TabTables {
   readonly #sink: FileSink;
   readonly #engine: QueryEngine;
+  readonly #tests: TestData;
   /** The tables a person's file fills: its file's name, by `schema.table`. */
   readonly #files = new Map<string, string>();
   #uploads = 0;
@@ -36,18 +52,23 @@ export class TabTables {
   constructor(sink: FileSink, engine: QueryEngine) {
     this.#sink = sink;
     this.#engine = engine;
+    this.#tests = new TestData(sink);
   }
 
-  /** The model's test data loaded, each table made afresh -- but a table a person's file fills keeps that file's rows. */
+  /**
+   * The model's test data loaded, each table made afresh, and a table the model's test data no longer fills (its Data
+   * element deleted or renamed) dropped -- but a table a person's file fills keeps that file's rows. Loaded each time:
+   * the workspace's model may have changed since.
+   */
   async load(elements: Elements): Promise<void> {
-    await loadDataTables(this.#sink, dataTables(elements).filter((t) => !this.#files.has(key(t.schema, t.table))));
+    await this.#tests.use(undefined, dataTables(elements), new Set(this.#files.keys()));
   }
 
   /** `schema.table` filled from a person's file (a .csv or .parquet), until reset. */
   async put(elements: Elements, schema: string, table: string, file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void> {
     const target = databaseTables(elements).find((t) => t.schema === schema && t.table === table);
     if (!target) throw new Error(`no Database of the model declares ${schema}.${table}`);
-    await loadFileTable(this.#sink, target, file, `upload-${++this.#uploads}-${file.name}`);
+    await loadFileTable(this.#sink, target, file, `upload-${++this.#uploads}`);
     this.#files.set(key(schema, table), file.name);
   }
 

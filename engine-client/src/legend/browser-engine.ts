@@ -4,8 +4,8 @@
 // only where the SQL runs differs.
 //
 // It answers execute in the engine's own shapes (a TDS result, or a graph fetch's JSON), so the
-// app above cannot tell which plane ran it. What only a legend server can answer (compiling a
-// whole model, generating an execution plan) is refused, naming why -- never approximated.
+// app above cannot tell which plane ran it. What only a legend server can answer (a lambda's
+// return type, an execution plan) is refused, naming why -- never approximated.
 
 import { findAll, isFunction, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../engine.ts';
@@ -98,8 +98,11 @@ export class BrowserEngine implements Engine {
     });
   }
 
-  compile(): Promise<CompileResult> {
-    return Promise.reject(new EngineError('compiling a whole model needs a legend server; this page runs without one', 501));
+  /** `compilation/compile` in the tab, the planner's whole-model compile: the server's answer, OK or its first failure. */
+  async compile(model: PureModelContext): Promise<CompileResult> {
+    const [first] = await this.#planner.compileErrors(model.code);
+    if (first !== undefined) throw new EngineError(first, 400, 'COMPILATION');
+    return { message: 'OK', defects: [] };
   }
 
   returnType(): Promise<string> {

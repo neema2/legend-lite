@@ -100,6 +100,7 @@ export function runner(session: RunSession): Runner {
         const text = values.get(p.name);
         if (text === undefined || text.trim() === '') throw new Error(`a value for ${p.name} is needed`);
         const parsed = await session.lambdaJson(`|${text}`);
+        if (parsed.body.length !== 1) throw new Error(`a value for ${p.name} is one expression; "${text}" is ${parsed.body.length}`);
         parameterValues.push({ name: p.name, value: parsed.body[0]! });
       }
       const engine = await session.engine();

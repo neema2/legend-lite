@@ -1,7 +1,8 @@
 // The query builder in Studio (plan A5): Query's builder (query/src/embed.ts), opened over the workspace's model on
 // the session's engine -- for a service, its query, which Save Query writes back into the service's text (upstream's
-// "Edit Query"); for a class, a new query on it (upstream's "Query…"), and for a mapping, a query on its first class
-// (upstream's mapping execution) -- which run but are kept nowhere.
+// "Edit Query"); for a function, its body, saved back the same way; for a class, a new query on it (upstream's
+// "Query…"), and for a mapping, a query on its first class (upstream's mapping execution) -- which run but are kept
+// nowhere.
 
 import type { Lambda, ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { PClass, PFunction, PMapping, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
@@ -25,7 +26,10 @@ export interface BuilderSession {
 }
 
 export interface QueryBuilder {
-  /** The builder in `root`, on the element `elementText` declares (a service or a class), over `modelText`. */
+  /**
+   * The builder in `root`, on the element `elementText` declares (a service, a function, a class or a mapping), over
+   * `modelText`.
+   */
   open(root: HTMLElement, elementText: string, modelText: string, host: EmbedHost): Promise<EditorHandle>;
   /** The service's text with its query replaced by `content`, read back to check it holds exactly that query. */
   serviceWithQuery(serviceText: string, content: string): Promise<string>;

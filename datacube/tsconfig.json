@@ -23,5 +23,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "test", "bench", "demo", "tools", "../depot-client/src", "../engine-client/src", "../pure-protocol/src", "../pure-protocol/test", "../query-store/src", "../query-store/test", "../sdlc-client/src"]
+  "include": ["src", "test", "bench", "demo", "tools", "../depot-client/src", "../engine-client/src", "../engine-client/test", "../pure-protocol/src", "../pure-protocol/test", "../query-store/src", "../query-store/test", "../sdlc-client/src"]
 }

@@ -16,6 +16,8 @@ import {
 import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
+import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import type { TestData } from '../../engine-client/src/model-data.ts';
 import { inferFormat, mountRemote, type S3Credentials } from '../src/remote.ts';
 import { catalogColumns, forgetUpload, formatOf, ingestFile, tableNameOf } from '../src/upload.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../src/ui/source-picker.ts';
@@ -531,6 +533,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       readonly tree?: TreeState;
       /** The rows are a copy in this tab already: an opened file, generated rows. */
       readonly heldCopy?: HeldCopy;
+      /** Where its queries run when not on the tab's engine as it is: a saved query's version, which brings its own rows. */
+      readonly engine?: QueryEngine;
     } = {},
   ): CubeApp {
     // PARK THE STATUS TEXT FIRST.
@@ -546,7 +550,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     host.replaceChildren();
     let printed = 0;
     const created: CubeApp = new CubeApp(host, snap, {
-      engine,
+      engine: place.engine ?? engine,
       planner,
       // Where the rows are (Live on a warehouse, or Snapped in this tab) is the title bar's plane
       // button, and who read them the status bar's receipt: the host's word stays the planner's
@@ -1383,6 +1387,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       readonly planner: Planner;
       /** The cube's source, as Save and Share write it down: the query itself (cube-document.ts). */
       readonly cubeSource: QuerySource;
+      /** A project opened by name: the tab's engine with its version's own rows made there for each query (withTestData). */
+      readonly engine?: QueryEngine;
     };
     const fetchText = async (url: string): Promise<string> => {
       const r = await fetch(url);
@@ -1391,8 +1397,10 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     };
     /** Each project's model text, fetched once. */
     const projectModels = new Map<string, Promise<string>>();
-    /** Each project's rows, in this tab's DuckDB once. */
+    /** Each configured project's rows (its seed), in this tab's DuckDB once. */
     const seeded = new Map<string, Promise<void>>();
+    /** Where a project opened by name puts its test data in this tab (each query its cubes run makes its version's rows there). */
+    let testData: TestData | undefined;
     /** The model home a depot names (the page's own SDLC and Depot, or servers), opened once. */
     let home: Promise<ModelHome> | undefined;
     // loaded only when a saved query's project is opened by name: the grid-only page's budget does not carry it
@@ -1434,21 +1442,24 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         if (parsed.body[0]) values.set(v.name, parsed.body[0]);
       }
       let source = sourceOf(lambdaOf, values);
-      await once(seeded, key, async () => {
-        if (!project) {
-          // a project opened by name brings its own rows: its Data elements' tables (plan A2, model-data.ts)
-          const { dataTables, loadDataTables } = await import('../../engine-client/src/model-data.ts');
-          await loadDataTables({ registerFileText: (n, t) => db.registerFileText(n, t), run: (sql) => engine.run(sql, 0) },
-            dataTables(elements as Parameters<typeof dataTables>[0]));
-          return;
-        }
-        for (const url of project.seed) {
-          for (const line of (await fetchText(url)).split('\n')) {
-            const sql = line.trim();
-            if (sql && !sql.startsWith('--')) await engine.run(sql, 0);
+      // a project opened by name brings its own rows: its Data elements' tables (plan A2, model-data.ts), made the tab's
+      // for each query its cube runs -- another version, filling the same tables, may be on the page beside it
+      let versioned: QueryEngine | undefined;
+      if (!project) {
+        const { dataTables, TestData } = await import('../../engine-client/src/model-data.ts');
+        const { withTestData } = await import('../../engine-client/src/tab-data.ts');
+        testData ??= new TestData({ registerFileText: (n, t) => db.registerFileText(n, t), run: (sql) => engine.run(sql, 0) });
+        versioned = withTestData(engine, testData, key, dataTables(elements as Parameters<typeof dataTables>[0]));
+      } else {
+        await once(seeded, key, async () => {
+          for (const url of project.seed) {
+            for (const line of (await fetchText(url)).split('\n')) {
+              const sql = line.trim();
+              if (sql && !sql.startsWith('--')) await engine.run(sql, 0);
+            }
           }
-        }
-      });
+        });
+      }
       const how: ModelOptions = { mapping: context.mapping, enumerations: [...enumerationsOf(elements)] };
       const own = local.another(model, context.runtime, how);
       // rule 4: an enumeration column is read as its value's name
@@ -1459,14 +1470,14 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       const cubeSource: QuerySource = {
         _type: 'savedQuery', name: q.name, query: sharedPart(q), columns: columns.map((c) => ({ name: c.name, type: c.type })),
       };
-      return { label: q.name, model, runtime: context.runtime, how, source, columns, planner: own, cubeSource };
+      return { label: q.name, model, runtime: context.runtime, how, source, columns, planner: own, cubeSource, ...(versioned ? { engine: versioned } : {}) };
     }
 
     /** A grid over the chosen source, beside the others: its own planner over its own model. */
     async function gridOver(chosen: Chosen): Promise<GridSource> {
       if (chosen.kind === 'saved') {
         const o = chosen.query;
-        return { snapshot: rawRows(o.source, o.columns), place: { engine, planner: o.planner }, cubeSource: o.cubeSource, label: o.label };
+        return { snapshot: rawRows(o.source, o.columns), place: { engine: o.engine ?? engine, planner: o.planner }, cubeSource: o.cubeSource, label: o.label };
       }
       if (chosen.kind === 'file') {
         const opened = await ingestFile(engine, db, chosen.file, { table: freshTable(tableNameOf(chosen.file.name)) });
@@ -1505,7 +1516,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
      */
     async function openQueryCube(o: OpenedQuery, saved?: Saved): Promise<readonly string[]> {
       local.use(o.model, o.runtime, o.how);
-      return landCube({ relation: o.source, columns: o.columns, label: o.label, cubeSource: o.cubeSource, ...(saved ? { saved } : {}) });
+      return landCube({ relation: o.source, columns: o.columns, label: o.label, cubeSource: o.cubeSource, ...(o.engine ? { place: { engine: o.engine } } : {}), ...(saved ? { saved } : {}) });
     }
 
     /**
@@ -1519,7 +1530,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       readonly columns: CubeSnapshot['columns'];
       readonly label: string;
       readonly cubeSource: CubeSource;
-      readonly place?: { readonly live?: WarehouseEngine; readonly snapTarget?: SnapTarget };
+      readonly place?: { readonly live?: WarehouseEngine; readonly snapTarget?: SnapTarget; readonly engine?: QueryEngine };
       readonly saved?: Saved;
     }): Promise<readonly string[]> {
       const saved = o.saved;
