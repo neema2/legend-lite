@@ -25,6 +25,7 @@ import planner.Wasm;
  * <p>Its own package, not {@code planner}: native-image finds no entry point in a class whose
  * package is split with another jar's (measured, 2026-10-02).
  */
+// (throwaway: forces this image to rebuild for a CI measurement; never lands)
 public final class Compiler {
 
     /** The answers handed out and not yet freed (this isolate's): the library's own accounting, so a host can
