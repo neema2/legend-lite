@@ -6764,6 +6764,60 @@ properties and `getDynaFunctionTypeInferenceMap` now type), `reference typed, we
 73103, `OVERLOAD` 769 → 745 (the six `[1..*]` classes gone); two new `EXTRA` classes (`math::min` 6, `math::max` 1)
 fall under the `EXTRA *` reason.
 
+## 2026-10-08 — W1.0b, the baseline: compile-only latency over the stress corpus and the DataCube set; one receipt
+
+The compiler plan's W1.0b (`docs/EXECUTION_PLAN_2026_09_26.md` §5) under D25 (the stress corpus and the eager probe
+are the measure; nothing new is built to measure; the user, 2026-10-08: "do the measurements", "you dont have to use
+stress corpus if we already have better version to use whole world core_relational - really up to you"): both, because
+they measure different halves — the eager probe is the front half over legend-pure's own platform bodies (nothing
+planned against a store); the stress corpus is a user's query end to end, through store resolution and lowering to SQL.
+Landed as 6be695aed (branch `compiler/w1.0b-baseline`; run 37822457596 (18:12 to 18:34 UTC, 22 minutes, the tip 6be695aed): green on every job; the same change had been green before on 37805046340 after one rerun of the Linux ui job, whose site verification test is flaky, and was rebased three times as the Studio, protocol and setup-move programs landed under it).
+
+**What landed.** `//core:compile_latency` (core/src/test, beside the stress tool): each stress service test built
+exactly as `ServiceTestRunner` builds it and planned for the service's declared runtime, or each line of a
+NAME-TAB-QUERY set against a model, compiled with no database and timed in four stages — names (the resolver once,
+then the typed query from the resolved spec through the one product-code line this landing adds,
+`Compiler.queryResolved`, so nothing is resolved twice), type, lower (inline, store resolution, lowering), render —
+with the effects check after the clock; two passes, the last reported (a warm session's query, the model's demand
+caches filled), the first pass's wall clock and its first case as the cold number; per-case timings as TSV, not
+committed. `//tools/metrics:baseline` (a py_binary, manual; `tools/metrics/README.md`): one markdown receipt — Java
+lines per directory with a total and per core package (rule 0b.17's number), the eager probe's output and the planner
+module's bytes read from bazel-bin when built, the two latency sets, the reference lane's buckets from the committed
+golden (never re-run for metrics), the rosters' sizes, the load averages at its start in its header. Its build test
+sits in the core lane (its runfiles hold only the latency tool over core_tests_lib). spec and wasm export the small
+files it reads. The audit's fourteen findings and its verification's four are folded in — the first cut counted a
+typing pass inside "names" (the effects check types the body) and stamped "measured alone" on every receipt; the probe
+and the planner were pulled into a lane; the lines count mixed resources into the Java number.
+
+**The receipt** (`docs/build-inventory/program/evidence/compiler/BASELINE_2026_10_08.md`; a quiet desk, load
+average 3.0 at its start, taken by a poll that waited for the other sessions' gates to end; two receipts taken under
+those gates at load 35 showed 5 to 7× and were discarded — the numbers are a quiet-machine measure, rule 0b.7):
+
+| measure | number |
+|---|---|
+| Java lines, `core/src/main` | 223,021 (compiler 39,762; resolver 35,943; parser 24,857; lowering 23,800; protocol 16,870; sql 16,842); every `*/src/main` 239,580; the prelude and other resources 7,519 more |
+| whole-world compile (the probe) | 9,942 bodies, 1,620 fail (365 ours); alone: build 1.8 s, typing 2.0 s (`EAGER_COMPILE_PROFILE_2026_10_07.md`) |
+| stress corpus, per query, compile only | 4,736 tests, 4,723 planned, 2 skipped, 11 not planned; **p50 0.38 ms, p95 1.02 ms, p99 1.63 ms, max 6.4 ms**; the set 2.9 s; cold first case 106 ms |
+| of which | lower 79% (p50 0.30 ms), type 8% (0.04), names 4% (0.02), render 3% (0.01) |
+| the stress model | 7,610 elements, parse+build 6.6 s (the islands: 14.4% of the executed run, `STRESS_PROFILE_2026_10_07.md`) |
+| DataCube set, per query | 69 queries, 56 planned (the 13 refusals are the ones `//wasm:jvm_answers` records); **p50 0.45 ms, p95 0.87 ms, max 1.4 ms**; type 42% of a query here (0.19 ms), lower 33%; cold first case 52 ms; the model 434 ms |
+| reference lane (golden) | AGREE 73,103; OVERLOAD 745; our bodies FAILED 1,508; reference typed / we FAILED 1,335 |
+| rosters | DuckDB fail 107, H2 fail 361 |
+| planner module | classes.wasm 4,667,861 bytes |
+
+**What the numbers say.** A query's compile is under a millisecond: not what a user waits for. What a user waits for
+is the model's build (5.7 s for the stress model, the islands a known share; the 100K model is W1.0b's `//core:scale`
+number, not taken here) and, on the platform's own bodies, the whole-world typing where 40% re-derives bare names. The
+eleven stress tests that do not plan compile-only are the two multi-execution services and real refusals the executed
+run also reports (a hierarchy property typed String, a cross-connection query, a runtime with two mappings for a
+class); the DataCube refusals are the differential's expected errors.
+
+**Not taken** (W1.0b's list): `//core:scale -- 100k` build time and heap after GC (the Scale tool exists; a separate
+run on a quiet machine), `//wasm:startup`'s cold start (needs Node; the no-Node goal decides its future), the phase
+shares (the two Flight Recorder profiles of 2026-10-07 stand in). Budgets are set from the receipt at C1.
+
+**Checked.** The tool's build test in `//gates:datacube`; the local gate (`//gates:local`) green; run 37822457596 (18:12 to 18:34 UTC, 22 minutes, the tip 6be695aed): green on every job; the same change had been green before on 37805046340 after one rerun of the Linux ui job, whose site verification test is flaky, and was rebased three times as the Studio, protocol and setup-move programs landed under it.
+
 ## 2026-10-07 — The erased TDS row is read only through its accessors; a filter on a column the relation lacks is refused at typing
 
 The compiler line's first landing after the plan resumed (`docs/EXECUTION_PLAN_2026_09_26.md` D25); the fix was
