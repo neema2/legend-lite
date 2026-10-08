@@ -493,7 +493,13 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
      first): `datacube/src/infer.ts` (`inferModel` becomes the planner's `tableModel`), `upload.ts`, `catalog-model.ts`
      (its TypeScript copy of the writer deleted), `generated/catalog-facts.ts` and its generator where nothing else
      reads them, `wasm-planner.ts` and `planner-worker.ts` (the two calls), `demo/boot.ts` (its callers), and the tests
-     that call `inferModel` or the TypeScript writer.
+     that call `inferModel` or the TypeScript writer. **Settled 2026-10-08 (the user):** the writer is legend-lite's
+     module whichever planner the page chose (`Engine.tables`: the planner in the tab; beside a server's planner, the
+     module loaded in a worker on first use), so the TypeScript writer and both generators (`datacube/tools/
+     catalogfacts`, their `datacube/BUILD.bazel` rules) go; also `demo/planners.ts`, `demo/stress.ts`, and comments
+     only in `core/.../sql/dialect/CatalogRules.java` and `DuckDb.java` and `engine-client/src/snap.ts` and
+     `warehouse.ts` (they named the deleted files). Diffs of `boot.ts` and `live-snap.ts` sent to the Studio line;
+     the Bazel edits to the Bazel program session.
 - **`datacube.show(df)` from a script**: Python serves DataCube's built site on loopback (with a one-time token) and
   answers two calls: the planner calls the WebAssembly module answers today, answered by the native library, and SQL
   in, Arrow out. **Touches `datacube/`**, which the Studio line owns for imports, labels and the Snap move: a host page
