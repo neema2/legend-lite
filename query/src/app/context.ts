@@ -60,7 +60,7 @@ export interface LoadedProject {
   readonly graph: ModelGraph;
   /**
    * Its own test data, where queries run in this tab (a project opened by name: its relational Data elements' tables,
-   * by-name.ts): made the tab's rows whenever it is the version opened (AppContext.ensure).
+   * by-name.ts): made the tab's rows whenever it is the version opened (AppContext.activate).
    */
   readonly tables?: readonly DataTable[];
 }
@@ -114,7 +114,7 @@ export class AppContext {
   readonly engine: Engine;
   readonly store: QueryStore;
   readonly planner: WasmGrammar | undefined;
-  /** The projects loaded so far: the configured ones, and each version opened by name since (ensure). */
+  /** The projects loaded so far: the configured ones, and each version opened by name since (load). */
   readonly projects: LoadedProject[];
   readonly user: string;
   /** Where the results grid (a DataCube) reads rows. */
@@ -126,7 +126,7 @@ export class AppContext {
     this.engine = engine;
     this.store = store;
     this.planner = planner;
-    this.projects = projects;     // the caller's own list: what loads later (ensure) is seen by whoever holds it
+    this.projects = projects;     // the caller's own list: what loads later (load) is seen by whoever holds it
     this.user = user;
     this.cubeRows = cubeRows;
   }
@@ -143,7 +143,7 @@ export class AppContext {
   versions: ((groupId: string, artifactId: string) => Promise<string[]>) | undefined;
   /**
    * The projects in Depot, by name only: none is loaded at start (a Depot may hold many); the start page lists them,
-   * and opening one loads its HEAD (ensure).
+   * and opening one loads its HEAD (load).
    */
   depotProjects: readonly { readonly groupId: string; readonly artifactId: string }[] = [];
   readonly #loading = new Map<string, Promise<LoadedProject>>();
@@ -152,21 +152,24 @@ export class AppContext {
   testData: TestData | undefined;
 
   /**
-   * The project at `gav`, opened: loaded from Depot the first time it is asked for (a release, or a snapshot not loaded
-   * at start), and its test data made the tab's rows -- every time, since another version, filling the same tables,
-   * may have been opened since. A route, a saved query or the version picker names a version, and this makes it there.
+   * A project's test data made the tab's rows -- every time it is the one opened, since another version, filling the
+   * same tables, may have been opened since. Only the screen that will show the project asks (App's #render, once it
+   * knows no later navigation overtook it), so a load that answered late cannot swap the rows under another screen.
    */
-  async ensure(gav: string): Promise<LoadedProject> {
-    const p = await this.#loaded(gav);
+  async activate(p: LoadedProject): Promise<void> {
     if (p.tables && this.testData) await this.testData.use(p.gav, p.tables);
-    return p;
   }
 
-  #loaded(gav: string): Promise<LoadedProject> {
+  /**
+   * The project at `gav`, loaded from Depot the first time it is asked for (a release, or a snapshot not loaded at
+   * start): a route, a saved query or the version picker names a version, and this makes it there. Its rows are not
+   * touched (`activate`).
+   */
+  async load(gav: string): Promise<LoadedProject> {
     const have = this.projects.find((x) => x.gav === gav);
-    if (have) return Promise.resolve(have);
+    if (have) return have;
     const parts = gav.split(':');
-    if (!this.byName || parts.length !== 3) return Promise.resolve(this.project(gav));
+    if (!this.byName || parts.length !== 3) return this.project(gav);
     let loading = this.#loading.get(gav);
     if (!loading) {
       loading = this.byName(parts[0]!, parts[1]!, parts[2]!).then((p) => {

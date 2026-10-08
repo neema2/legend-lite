@@ -105,7 +105,7 @@ async function boot(): Promise<void> {
       starting('Starting DuckDB in this tab');
       const tab = await startDuckDbInTab('./vendor/');
       runner = tab.engine;
-      data = tab.data;     // a project opened by name brings its own test data, made here when opened (AppContext.ensure)
+      data = tab.data;     // a project opened by name brings its own test data, made here when opened (AppContext.activate)
       user = exec.user;
     } else {
       const creds = await askSignIn(root, exec.url);

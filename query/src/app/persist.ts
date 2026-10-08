@@ -81,7 +81,7 @@ export function contextOf(project: LoadedProject, q: Query): { mapping: string; 
 export async function openQuery(app: AppContext, q: Query, urlParams: ReadonlyMap<string, string>, asSaved = true): Promise<Session> {
   // the version it was saved on, exactly (upstream pins it too): a snapshot follows the line, a release does not
   const gav = `${q.groupId}:${q.artifactId}:${q.versionId}`;
-  const project = await app.ensure(gav).catch(() => undefined);
+  const project = await app.load(gav).catch(() => undefined);
   if (!project) throw new Error(`the query belongs to ${gav}, which is not configured here and not in Depot`);
   const ctx = contextOf(project, q);
   const lambda = await app.engine.lambdaJson(q.content);

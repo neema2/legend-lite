@@ -179,7 +179,7 @@ function depotSection(app: AppContext, term: string, redraw: () => void): Child 
         open.disabled = true;
         open.textContent = 'Opening…';
         try {
-          await app.ensure(`${name}:master-SNAPSHOT`);
+          await app.load(`${name}:master-SNAPSHOT`);
         } catch (e) {
           open.disabled = false;
           open.textContent = 'Open at HEAD';

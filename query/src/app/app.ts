@@ -23,6 +23,8 @@ export class App {
   #editor: EditorHandle | undefined;
   #session: Session | undefined;
   #hash = '';
+  /** Navigations begun: one whose render a later navigation overtook (a version still loading) draws nothing. */
+  #navigations = 0;
 
   constructor(ctx: AppContext, root: HTMLElement) {
     this.#ctx = ctx;
@@ -48,16 +50,23 @@ export class App {
         dispatchEvent(new Event('q-navigation-cancelled'));
         return;
       }
+      // the address moved again while this one asked (a second ask stacked on it): that move is the one to follow
+      if ((location.hash || '#/') !== hash) return;
     }
     this.#hash = hash;
+    const at = (this.#navigations += 1);
     this.#editor?.dispose();
     this.#editor = undefined;
     this.#session = undefined;
+    // the old screen goes now, not when the new one is ready: while a version loads (by name, its test data) it stayed
+    // on screen and took clicks its disposed editor dropped. A route with nothing to load replaces this before a paint.
+    mount(this.#main, h('div', { class: 'q-landing', role: 'status' }, h('p', null, 'Opening…')));
     const route = parseRoute(hash);
     this.#drawHeader();
     try {
-      await this.#render(route);
+      await this.#render(route, at);
     } catch (e) {
+      if (at !== this.#navigations) return;
       mount(this.#main, h('div', { class: 'q-landing' }, h('h1', null, 'Could not open this'), h('div', { class: 'q-error-box' }, (e as Error).message),
         h('p', null, h('a', { href: '#/' }, 'Back to the start'))));
     }
@@ -90,9 +99,16 @@ export class App {
     this.#editor = renderEditor(this.#main, this.#ctx, session);
   }
 
-  async #render(r: Route): Promise<void> {
-    // a route names a version; one opened by name is loaded the first time it is asked for (AppContext.ensure)
-    if ('gav' in r) await this.#ctx.ensure(r.gav);
+  async #render(r: Route, at: number): Promise<void> {
+    // a route names a version; one opened by name is loaded the first time it is asked for (AppContext.load), and its
+    // test data made the tab's rows (activate) -- unless a newer navigation overtook this one meanwhile: the newer one's
+    // screen and rows stay
+    if ('gav' in r) {
+      const p = await this.#ctx.load(r.gav);
+      if (at !== this.#navigations) return;
+      await this.#ctx.activate(p);
+    }
+    if (at !== this.#navigations) return;
     const app = this.#ctx;
     switch (r.kind) {
       // as upstream: / opens the query builder; the setup page (every way to start) is /setup
@@ -146,13 +162,22 @@ export class App {
       case 'shared': {
         // the query as the link carries it, unsaved: Save keeps a copy in this person's store
         const shared = await readQueryFragment(r.link);
-        this.#edit(await openQuery(app, { ...shared, id: '' }, new Map(), false));
+        if (at !== this.#navigations) return;
+        const session = await openQuery(app, { ...shared, id: '' }, new Map(), false);
+        if (at !== this.#navigations) return;
+        await app.activate(session.project);
+        if (at !== this.#navigations) return;
+        this.#edit(session);
         return;
       }
       case 'edit': {
         const q = await app.store.get(r.id);
+        const session = await openQuery(app, q, r.parameters);
+        if (at !== this.#navigations) return;
+        await app.activate(session.project);
+        if (at !== this.#navigations) return;
         recent.query(q.id);
-        this.#edit(await openQuery(app, q, r.parameters));
+        this.#edit(session);
         return;
       }
     }
