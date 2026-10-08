@@ -239,6 +239,36 @@ public final class Wasm {
     }
 
     /**
+     * A model's test data as the SQL the server seeds a database with, for the tab's DuckDB
+     * (docs/STUDIO_FULL_PLAN_2026_10_04.md A2, "The tab's table types"): each of {@code blocksJson}'s
+     * blocks is one table the Database {@code database} declares, as {@code schema\ntable\n} and its CSV
+     * (header first); each gets the statements {@code CsvSeed.sqls} gives DuckDB -- the schema, the
+     * table made with the server's column types, its rows as one multi-row INSERT (none for a header
+     * alone). The model is compiled once. {@code "OK\n" + [[sql, ...], ...]}, one list per block, or the
+     * folded refusal.
+     */
+    @org.teavm.jso.JSExport
+    public static String testDataSqlOrError(String model, String database, String blocksJson) {
+        try {
+            com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(model);
+            com.legend.sql.dialect.DuckDb duckDb = new com.legend.sql.dialect.DuckDb();
+            if (!(com.legend.json.Json.parse(blocksJson) instanceof com.legend.json.Json.Arr blocks)) {
+                throw new IllegalArgumentException("test data: the blocks are not a JSON array");
+            }
+            java.util.List<Object> out = new java.util.ArrayList<>();
+            for (com.legend.json.Json.Node block : blocks.items()) {
+                if (!(block instanceof com.legend.json.Json.Str text)) {
+                    throw new IllegalArgumentException("test data: a block is not a string");
+                }
+                out.add(new java.util.ArrayList<>(com.legend.setup.CsvSeed.sqls(text.value(), database, ctx, duckDb)));
+            }
+            return "OK\n" + com.legend.json.Json.toCompact(out);
+        } catch (RuntimeException | StackOverflowError e) {
+            return folded(e);
+        }
+    }
+
+    /**
      * C1's twin, for Studio's in-tab compile (docs/STUDIO_DESIGN_2026_10_02.md S4): exactly what the
      * server's {@code compilation/compile} does -- the model's elements ({@code Compiler.compileModel},
      * which refuses on the first element error), then every body in it

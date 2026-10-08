@@ -121,4 +121,13 @@ export class WasmGrammar implements Grammar {
       throw e;
     }
   }
+
+  /**
+   * A model's test data as the statements the server seeds DuckDB with (setup.CsvSeed, on the plan side): for each
+   * block -- one table `database` declares, `schema\ntable\n` and its CSV -- the table made with the server's column
+   * types, then its rows as one INSERT (none for a header alone). One list per block, in order.
+   */
+  async testDataSql(model: string, database: string, blocks: readonly string[]): Promise<string[][]> {
+    return JSON.parse(unfold(await this.#port.ask({ kind: 'testData', model, database, blocks: JSON.stringify(blocks) }))) as string[][];
+  }
 }

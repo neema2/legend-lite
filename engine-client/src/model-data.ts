@@ -1,7 +1,8 @@
 // A model's own test data, in the tab's DuckDB (plan A2, the first source of rows): every relational Data element's
-// tables (`relationalCSVData`: schema, table, CSV text) made tables named as the model's Database declares them, typed
-// as its columns are, so a query planned on the model reads them. DuckDB parses the CSV (read_csv with the declared
-// types); this file only says where each table goes and what its columns are.
+// tables (`relationalCSVData`: schema, table, CSV text), made and filled by the statements the server seeds a database
+// with -- legend-lite's own (setup.CsvSeed, on the plan side), asked of the planner in the tab (a SeedSource) -- so a
+// table here holds what the same table on the server holds, its column types the server's. This file says which tables
+// a model's test data fills and which Database declares each, and runs the statements it is given.
 
 /** The model JSON parts read here (grammarToJson/model). */
 interface ModelElement {
@@ -10,56 +11,43 @@ interface ModelElement {
   readonly package?: string;
   readonly schemas?: readonly {
     readonly name: string;
-    readonly tables: readonly { readonly name: string; readonly columns: readonly { readonly name: string; readonly type: { readonly _type: string; readonly size?: number; readonly precision?: number; readonly scale?: number } }[] }[];
+    readonly tables: readonly { readonly name: string; readonly columns: readonly { readonly name: string }[] }[];
   }[];
   readonly data?: { readonly _type: string; readonly tables?: readonly { readonly schema: string; readonly table: string; readonly values: string }[] };
 }
 
-/** A table a model's Database declares: where it is, and its columns' SQL types. */
+/** A table a model's Database declares: where it is, and its columns' names. */
 export interface DeclaredTable {
   /** The Database's path. */
   readonly database: string;
   readonly schema: string;
   readonly table: string;
-  readonly columns: readonly { readonly name: string; readonly type: string }[];
+  readonly columns: readonly { readonly name: string }[];
 }
 
-/** One table of test data: where it goes, its columns' SQL types, its CSV (header first), and the Data element's path. */
+/** One table of test data: the Database that declares it, where it goes, its CSV (header first), the Data element. */
 export interface DataTable {
+  readonly database: string;
   readonly schema: string;
   readonly table: string;
-  readonly columns: readonly { readonly name: string; readonly type: string }[];
   readonly csv: string;
   readonly element: string;
 }
 
-/**
- * A relational column type as DuckDB's DDL spells it -- the server's spelling, so a table made here holds what the same
- * table on the server holds: `Float` is DOUBLE (DuckDB's FLOAT is single precision), `Bit` is BOOLEAN (DuckDB's BIT is a
- * bit string), `SemiStructured` and `Json` are JSON; a sized or scaled type keeps its size (`Varchar` 200 ->
- * VARCHAR(200), `Decimal` 10,2 -> DECIMAL(10, 2)); `Distinct` and `Other` have no DDL, and a kind the server's model does
- * not know is refused, in the server's words.
- *
- * A COPY, for now (docs/STUDIO_FULL_PLAN_2026_10_04.md, "The tab's table types"): the server's rule is
- * FromProtocol.dataType, StoreCompiler.declaredType, DuckDb.ddlType and DdlSpelling.h2Type, in core. It goes when the
- * planner hands the tab the server's own seed statements (the plan/exec split's step 2 moves them to the plan side);
- * test/model-data.test.ts pins every kind's spelling until then.
- */
-export function sqlType(t: { readonly _type: string; readonly size?: number; readonly precision?: number; readonly scale?: number }): string {
-  const plain = PLAIN_TYPES.get(t._type);
-  if (plain !== undefined) return plain;
-  if (SIZED_TYPES.has(t._type)) return t.size === undefined ? t._type.toUpperCase() : `${t._type.toUpperCase()}(${t.size})`;
-  if (SCALED_TYPES.has(t._type)) return `${t._type.toUpperCase()}(${t.precision ?? 0}, ${t.scale ?? 0})`;
-  if (t._type === 'Distinct' || t._type === 'Other') throw new Error(`no DDL spelling for declared column type ${t._type.toUpperCase()}`);
-  throw new Error(`no model data type for protocol kind '${t._type}'`);
+/** A table of test data with the statements, the server's, that make and fill it. */
+export interface SeededTable extends DataTable {
+  readonly statements: readonly string[];
 }
 
-const PLAIN_TYPES: ReadonlyMap<string, string> = new Map(Object.entries({
-  BigInt: 'BIGINT', SmallInt: 'SMALLINT', TinyInt: 'TINYINT', Integer: 'INTEGER', Float: 'DOUBLE', Double: 'DOUBLE',
-  Real: 'REAL', Bit: 'BOOLEAN', Timestamp: 'TIMESTAMP', Date: 'DATE', SemiStructured: 'JSON', Json: 'JSON',
-}));
-const SIZED_TYPES: ReadonlySet<string> = new Set(['Varchar', 'Char', 'Binary', 'Varbinary']);
-const SCALED_TYPES: ReadonlySet<string> = new Set(['Decimal', 'Numeric']);
+/**
+ * Where a model's test-data statements come from: legend-lite's planner in the tab (engine-client's
+ * WasmGrammar.testDataSql, DataCube's WasmPlanner.testDataSql). For each block -- one table `database` declares,
+ * `schema\ntable\n` and its CSV -- the table made with the server's column types, then its rows as one INSERT (none
+ * for a header alone); one list per block, in order.
+ */
+export interface SeedSource {
+  testDataSql(model: string, database: string, blocks: readonly string[]): Promise<string[][]>;
+}
 
 /** Every table the model's Databases declare (its JSON's elements), in the order declared. */
 export function databaseTables(elements: readonly ModelElement[]): DeclaredTable[] {
@@ -68,31 +56,57 @@ export function databaseTables(elements: readonly ModelElement[]): DeclaredTable
     if (e._type !== 'relational') continue;
     for (const s of e.schemas ?? []) {
       for (const t of s.tables) {
-        out.push({ database: `${e.package}::${e.name}`, schema: s.name, table: t.name, columns: t.columns.map((c) => ({ name: c.name, type: sqlType(c.type) })) });
+        out.push({ database: `${e.package}::${e.name}`, schema: s.name, table: t.name, columns: t.columns.map((c) => ({ name: c.name })) });
       }
     }
   }
   return out;
 }
 
-/** The test data of a model (its JSON's elements): one entry per table of every relational Data element. */
+const tableKey = (schema: string, table: string): string => `${schema}.${table}`;
+
+/**
+ * The test data of a model (its JSON's elements): one entry per table of every relational Data element, with the one
+ * Database that declares it. A table no Database declares, or two do, is refused: which one would be a guess.
+ */
 export function dataTables(elements: readonly ModelElement[]): DataTable[] {
-  const columns = new Map(databaseTables(elements).map((t) => [`${t.schema}.${t.table}`, t.columns]));
+  const declaring = new Map<string, string[]>();
+  for (const t of databaseTables(elements)) {
+    const k = tableKey(t.schema, t.table);
+    declaring.set(k, [...(declaring.get(k) ?? []), t.database]);
+  }
   const out: DataTable[] = [];
   for (const e of elements) {
     if (e._type !== 'dataElement' || e.data?._type !== 'relationalCSVData') continue;
+    const element = `${e.package}::${e.name}`;
     for (const t of e.data.tables ?? []) {
-      const cols = columns.get(`${t.schema}.${t.table}`);
-      if (!cols) throw new Error(`the Data element ${e.package}::${e.name} fills ${t.schema}.${t.table}, which no Database of the model declares`);
-      out.push({ schema: t.schema, table: t.table, columns: cols, csv: t.values, element: `${e.package}::${e.name}` });
+      const dbs = declaring.get(tableKey(t.schema, t.table)) ?? [];
+      if (dbs.length === 0) throw new Error(`the Data element ${element} fills ${t.schema}.${t.table}, which no Database of the model declares`);
+      if (dbs.length > 1) throw new Error(`the Data element ${element} fills ${t.schema}.${t.table}, which more than one Database declares (${dbs.join(', ')})`);
+      out.push({ database: dbs[0]!, schema: t.schema, table: t.table, csv: t.values, element });
     }
   }
   return out;
 }
 
-/** What loading needs of the tab's DuckDB: a file named by text, and SQL. */
+/** The block a table's statements are asked for: CsvSeed's form, `schema\ntable\n` and the CSV (header first). */
+const block = (schema: string, table: string, csv: string): string => `${schema}\n${table}\n${csv}`;
+
+/** Each table's statements, from `source`: one ask per Database, so the model is compiled once for each. */
+export async function seeded(source: SeedSource, model: string, tables: readonly DataTable[]): Promise<SeededTable[]> {
+  const byDatabase = new Map<string, DataTable[]>();
+  for (const t of tables) byDatabase.set(t.database, [...(byDatabase.get(t.database) ?? []), t]);
+  const statements = new Map<DataTable, readonly string[]>();
+  for (const [database, ts] of byDatabase) {
+    const answers = await source.testDataSql(model, database, ts.map((t) => block(t.schema, t.table, t.csv)));
+    if (answers.length !== ts.length) throw new Error(`the planner answered ${answers.length} tables of test data for ${database}'s ${ts.length}`);
+    ts.forEach((t, i) => statements.set(t, answers[i]!));
+  }
+  return tables.map((t) => ({ ...t, statements: statements.get(t)! }));
+}
+
+/** What loading needs of the tab's DuckDB: SQL. */
 export interface DataSink {
-  registerFileText(name: string, text: string): Promise<void>;
   run(sql: string): Promise<unknown>;
 }
 
@@ -105,21 +119,26 @@ const ident = (s: string): string => `"${s.replace(/"/g, '""')}"`;
 const literal = (s: string): string => `'${s.replace(/'/g, "''")}'`;
 
 /**
- * A table made from a person's own file (plan A2's second source): CSV (a header row, read with the declared types) or
- * Parquet (each declared column, by name, cast to its declared type). The file's name says which; DuckDB refuses a file
- * that lacks a column or holds a value its type cannot take. The file is registered as `<as>.csv` or `<as>.parquet`,
- * never by the person's own name: read_csv and read_parquet read a name as a glob (`sales[2024].csv` matches nothing).
+ * A table made from a person's own file (plan A2's second source): the table made empty by the server's statements
+ * (`source`, for a header alone: its column types the server's), then the file's rows put in, each declared column by
+ * name -- a CSV's as text, a Parquet's as typed -- and DuckDB converting each value to its column's type. The file's
+ * name says which kind it is; DuckDB refuses a file that lacks a declared column or holds a value its type cannot take.
+ * The file is registered as `<as>.csv` or `<as>.parquet`, never by the person's own name: read_csv and read_parquet read
+ * a name as a glob (`sales[2024].csv` matches nothing).
  */
-export async function loadFileTable(sink: FileSink, target: DeclaredTable, file: { readonly name: string; readonly bytes: Uint8Array }, as: string): Promise<void> {
+export async function loadFileTable(sink: FileSink, source: SeedSource, model: string, target: DeclaredTable,
+  file: { readonly name: string; readonly bytes: Uint8Array }, as: string): Promise<void> {
   const format = /\.csv$/i.test(file.name) ? 'csv' : /\.parquet$/i.test(file.name) ? 'parquet' : undefined;
   if (!format) throw new Error(`${file.name}: a table is filled from a .csv or a .parquet file`);
+  const [made] = await seeded(source, model, [{
+    database: target.database, schema: target.schema, table: target.table, element: file.name,
+    csv: target.columns.map((c) => c.name).join(','),
+  }]);
   const registered = `${as}.${format}`;
   await sink.registerFileBuffer(registered, file.bytes);
-  const select = format === 'csv'
-    ? `SELECT * FROM read_csv(${literal(registered)}, header = true, columns = {${target.columns.map((c) => `${literal(c.name)}: ${literal(c.type)}`).join(', ')}})`
-    : `SELECT ${target.columns.map((c) => `CAST(${ident(c.name)} AS ${c.type}) AS ${ident(c.name)}`).join(', ')} FROM read_parquet(${literal(registered)})`;
-  await sink.run(`CREATE SCHEMA IF NOT EXISTS ${ident(target.schema)}`);
-  await sink.run(`CREATE OR REPLACE TABLE ${ident(target.schema)}.${ident(target.table)} AS ${select}`);
+  const read = format === 'csv' ? `read_csv(${literal(registered)}, header = true, all_varchar = true)` : `read_parquet(${literal(registered)})`;
+  for (const sql of made!.statements) await sink.run(sql);
+  await sink.run(`INSERT INTO ${ident(target.schema)}.${ident(target.table)} SELECT ${target.columns.map((c) => ident(c.name)).join(', ')} FROM ${read}`);
 }
 
 /** A table dropped (a file's rows put back to the model's own). */
@@ -127,18 +146,12 @@ export async function dropTable(sink: DataSink, schema: string, table: string): 
   await sink.run(`DROP TABLE IF EXISTS ${ident(schema)}.${ident(table)}`);
 }
 
-/** Each table created (or replaced) and filled from its CSV, which DuckDB reads with the declared column types. */
-export async function loadDataTables(sink: DataSink, tables: readonly DataTable[]): Promise<void> {
-  for (const [i, t] of tables.entries()) {
-    const file = `model-data-${i}.csv`;
-    await sink.registerFileText(file, t.csv);
-    const types = t.columns.map((c) => `${literal(c.name)}: ${literal(c.type)}`).join(', ');
-    await sink.run(`CREATE SCHEMA IF NOT EXISTS ${ident(t.schema)}`);
-    await sink.run(`CREATE OR REPLACE TABLE ${ident(t.schema)}.${ident(t.table)} AS SELECT * FROM read_csv(${literal(file)}, header = true, columns = {${types}})`);
+/** Each table made and filled: its statements, the server's, run in order. */
+export async function loadDataTables(sink: DataSink, tables: readonly SeededTable[]): Promise<void> {
+  for (const t of tables) {
+    for (const sql of t.statements) await sink.run(sql);
   }
 }
-
-const tableKey = (schema: string, table: string): string => `${schema}.${table}`;
 
 /**
  * The tab's test data, one model's at a time. Tables are named as a model's Databases declare them, so two versions of
@@ -161,12 +174,12 @@ export class TestData {
     this.#sink = sink;
   }
 
-  use(key: string | undefined, tables: readonly DataTable[], keep: ReadonlySet<string> = new Set()): Promise<void> {
+  use(key: string | undefined, tables: readonly SeededTable[], keep: ReadonlySet<string> = new Set()): Promise<void> {
     return this.with(key, tables, () => Promise.resolve(), keep);
   }
 
   /** `tables` made the rows there (as `use`), then `query` run, before any other call's turn. */
-  with<T>(key: string | undefined, tables: readonly DataTable[], query: () => Promise<T>, keep: ReadonlySet<string> = new Set()): Promise<T> {
+  with<T>(key: string | undefined, tables: readonly SeededTable[], query: () => Promise<T>, keep: ReadonlySet<string> = new Set()): Promise<T> {
     const next = this.#queue.then(async () => {
       await this.#make(key, tables, keep);
       return query();
@@ -175,7 +188,7 @@ export class TestData {
     return next;
   }
 
-  async #make(key: string | undefined, tables: readonly DataTable[], keep: ReadonlySet<string>): Promise<void> {
+  async #make(key: string | undefined, tables: readonly SeededTable[], keep: ReadonlySet<string>): Promise<void> {
     if (key !== undefined && key === this.#current) return;
     this.#current = undefined;
     const filled = tables.filter((t) => !keep.has(tableKey(t.schema, t.table)));

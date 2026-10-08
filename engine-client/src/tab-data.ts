@@ -3,16 +3,22 @@
 // Parquet) -- which stays, whatever the model's test data says, until it is reset -- or from nowhere yet.
 
 import type { QueryEngine } from './engine.ts';
-import { databaseTables, dataTables, dropTable, loadFileTable, TestData, type DataTable, type FileSink } from './model-data.ts';
+import { databaseTables, dataTables, dropTable, loadFileTable, seeded, TestData, type FileSink, type SeededTable, type SeedSource } from './model-data.ts';
 
 type Elements = Parameters<typeof dataTables>[0];
+
+/** A model: its text (what the planner compiles) and its JSON's elements (what this file reads). */
+export interface Model {
+  readonly text: string;
+  readonly elements: Elements;
+}
 
 /**
  * The tab's engine, for queries over one version of a project (`key`): each query it runs reads that version's test
  * data, made the tab's rows in the same turn (TestData.with) -- whatever version another query on the page opened
  * since. The engine itself is the tab's, shared: closing this closes it, as closing the engine would.
  */
-export function withTestData(engine: QueryEngine, data: TestData, key: string, tables: readonly DataTable[]): QueryEngine {
+export function withTestData(engine: QueryEngine, data: TestData, key: string, tables: readonly SeededTable[]): QueryEngine {
   return {
     name: engine.name,
     execute: (plan, epoch, signal) => data.with(key, tables, () => engine.execute(plan, epoch, signal)),
@@ -49,9 +55,13 @@ export class TabTables {
   readonly #files = new Map<string, string>();
   #uploads = 0;
 
-  constructor(sink: FileSink, engine: QueryEngine) {
+  readonly #source: SeedSource;
+
+  /** `source`: where the server's statements for the model's test data come from (the planner in this tab). */
+  constructor(sink: FileSink, engine: QueryEngine, source: SeedSource) {
     this.#sink = sink;
     this.#engine = engine;
+    this.#source = source;
     this.#tests = new TestData(sink);
   }
 
@@ -60,23 +70,25 @@ export class TabTables {
    * element deleted or renamed) dropped -- but a table a person's file fills keeps that file's rows. Loaded each time:
    * the workspace's model may have changed since.
    */
-  async load(elements: Elements): Promise<void> {
-    await this.#tests.use(undefined, dataTables(elements), new Set(this.#files.keys()));
+  async load(model: Model): Promise<void> {
+    const keep = new Set(this.#files.keys());
+    const tables = dataTables(model.elements).filter((t) => !keep.has(key(t.schema, t.table)));
+    await this.#tests.use(undefined, await seeded(this.#source, model.text, tables), keep);
   }
 
   /** `schema.table` filled from a person's file (a .csv or .parquet), until reset. */
-  async put(elements: Elements, schema: string, table: string, file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void> {
-    const target = databaseTables(elements).find((t) => t.schema === schema && t.table === table);
+  async put(model: Model, schema: string, table: string, file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void> {
+    const target = databaseTables(model.elements).find((t) => t.schema === schema && t.table === table);
     if (!target) throw new Error(`no Database of the model declares ${schema}.${table}`);
-    await loadFileTable(this.#sink, target, file, `upload-${++this.#uploads}`);
+    await loadFileTable(this.#sink, this.#source, model.text, target, file, `upload-${++this.#uploads}`);
     this.#files.set(key(schema, table), file.name);
   }
 
   /** `schema.table` back to the model's own rows (none: no table). */
-  async reset(elements: Elements, schema: string, table: string): Promise<void> {
+  async reset(model: Model, schema: string, table: string): Promise<void> {
     this.#files.delete(key(schema, table));
     await dropTable(this.#sink, schema, table);
-    await this.load(elements);
+    await this.load(model);
   }
 
   /** Every table the model declares: where its rows are from, and how many there are. */

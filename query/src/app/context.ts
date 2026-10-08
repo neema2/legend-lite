@@ -3,7 +3,7 @@
 
 import type { ModelHomeConfig } from '../../../depot-client/src/model-home.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
-import type { DataTable, TestData } from '../../../engine-client/src/model-data.ts';
+import type { SeededTable, TestData } from '../../../engine-client/src/model-data.ts';
 import type { Engine, QueryStore } from '../backend/engine.ts';
 import type { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { PureModelContextText } from '../backend/wire.ts';
@@ -62,7 +62,7 @@ export interface LoadedProject {
    * Its own test data, where queries run in this tab (a project opened by name: its relational Data elements' tables,
    * by-name.ts): made the tab's rows whenever it is the version opened (AppContext.activate).
    */
-  readonly tables?: readonly DataTable[];
+  readonly tables?: readonly SeededTable[];
 }
 
 export function gavOf(p: ProjectConfig): string {

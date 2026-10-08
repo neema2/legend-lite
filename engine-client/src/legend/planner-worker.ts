@@ -10,6 +10,7 @@ interface TeavmModule {
     planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
     warmModel(model: string): number;
     compileOrError(model: string): string;
+    testDataSqlOrError(model: string, database: string, blocksJson: string): string;
   };
 }
 
@@ -21,7 +22,9 @@ export type PlannerRequest =
   | { readonly kind: 'plan'; readonly model: string; readonly lambda: string; readonly runtime: string }
   | { readonly kind: 'warm'; readonly model: string }
   // the whole model compiled, its errors as a list (Studio's live problems)
-  | { readonly kind: 'compile'; readonly model: string };
+  | { readonly kind: 'compile'; readonly model: string }
+  // a model's test data as the statements the server seeds DuckDB with: one list per block (one table each)
+  | { readonly kind: 'testData'; readonly model: string; readonly database: string; readonly blocks: string };
 
 export type PlannerMessage = PlannerRequest & { readonly id: number; readonly base: string };
 
@@ -52,6 +55,7 @@ function answer(m: TeavmModule, r: PlannerRequest): string {
     case 'plan': return m.exports.planJsonOrError(r.model, r.lambda, r.runtime);
     case 'warm': m.exports.warmModel(r.model); return 'OK\n';
     case 'compile': return m.exports.compileOrError(r.model);
+    case 'testData': return m.exports.testDataSqlOrError(r.model, r.database, r.blocks);
   }
 }
 

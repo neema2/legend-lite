@@ -42,6 +42,7 @@ interface TeavmModule {
     composeLambdaOrError(lambdaJson: string, style: string): string;
     lambdaJsonOrError(text: string): string;
     modelJsonOrError(text: string): string;
+    testDataSqlOrError(model: string, database: string, blocksJson: string): string;
     warmModel(model: string): number;
   };
 }
@@ -467,6 +468,19 @@ export class WasmPlanner implements Planner {
    * reads it, and the conversions the source must apply -- or, for a source that cannot
    * convert, the columns left out. The compiler decides every column; nothing here does.
    */
+  /**
+   * A model's test data as the statements the server seeds DuckDB with (engine-client's SeedSource, model-data.ts): one
+   * list per block -- one table `database` declares, `schema\ntable\n` and its CSV -- the table made with the server's
+   * column types, then its rows as one INSERT. The model is the one given, not this planner's own.
+   */
+  async testDataSql(model: string, database: string, blocks: readonly string[]): Promise<string[][]> {
+    const blocksJson = JSON.stringify(blocks);
+    const answer = this.#useWorker()
+      ? await this.#ask({ kind: 'testData', model, database, blocks: blocksJson })
+      : (await this.#load()).exports.testDataSqlOrError(model, database, blocksJson);
+    return JSON.parse(decode(answer, `the test data of ${database}`)) as string[][];
+  }
+
   async databaseFromCatalog(table: CatalogTable): Promise<CatalogDatabase> {
     const catalog = JSON.stringify(table);
     const answer = this.#useWorker()

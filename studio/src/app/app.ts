@@ -113,7 +113,7 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
   type Started = { engine: BrowserEngine; sql: QueryEngine; tables: TabTables };
   let started: Promise<Started> | undefined;
   const start = (): Promise<Started> => (started ??= startDuckDbInTab(duckdbVendor)
-    .then((tab) => ({ engine: new BrowserEngine(grammar, tab.engine, (t) => enumerations.has(t), user), sql: tab.engine, tables: new TabTables(tab.data, tab.engine) })));
+    .then((tab) => ({ engine: new BrowserEngine(grammar, tab.engine, (t) => enumerations.has(t), user), sql: tab.engine, tables: new TabTables(tab.data, tab.engine, grammar) })));
   return {
     modelJson: (text) => grammar.modelJson(text),
     lambdaJson: (text) => grammar.lambdaJson(text),
@@ -124,10 +124,10 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
       const tab = await start();
       return { execution: { kind: 'duckdb-wasm', user }, engine: tab.engine, planner: grammar, cubeRows: { kind: 'sql', engine: tab.sql }, user };
     },
-    async loadData(model) {
+    async loadData(model, text) {
       enumerations = new Set(model.elements.filter((e) => e._type === 'Enumeration').map((e) => `${e.package}::${e.name}`));
       // the model's own rows, but a table a person's file fills keeps that file's (the Data panel)
-      await (await start()).tables.load(model.elements as Parameters<TabTables['load']>[0]);
+      await (await start()).tables.load({ text, elements: model.elements as Parameters<TabTables['load']>[0]['elements'] });
     },
     tabTables: async () => (await start()).tables,
   };
