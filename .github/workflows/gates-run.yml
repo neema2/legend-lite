@@ -63,7 +63,7 @@ jobs:
             {"key":"pct_channel_b",      "cmd":"test",  "name":"PCT Channel B, the dual verdict"},
             {"key":"parser_equivalence", "cmd":"test",  "name":"parser equivalence"},
             {"key":"stress",             "cmd":"test",  "name":"the stress corpus"},
-            {"key":"warehouse",          "cmd":"test",  "name":"the warehouse: on the JVM, as a native image, its launcher, live Postgres"},
+            {"key":"warehouse",          "cmd":"test",  "name":"the warehouse (on the JVM, as a native image, live Postgres) and the legend-lite compiler as a native library"},
             {"key":"datacube",           "cmd":"test",  "name":"DataCube, and the planner in WebAssembly"},
             {"key":"ui",                 "cmd":"test",  "name":"Studio, Query, the saved-query store"},
             {"key":"sdlc",               "cmd":"test",  "name":"the model home: SDLC and Depot, server and page"}
