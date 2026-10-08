@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.setup;
 
 import com.legend.compiler.element.ModelContext;
 
@@ -11,11 +11,13 @@ import java.util.List;
  * The engine's {@code setUpDataSQLsV2} semantics: CSV seed blocks
  * ({@code schema\ntable\nheader\nrows...}, blocks joined by {@code \n-\n})
  * become DDL + INSERT statements derived from the PARSED store's column
- * types ({@link ModelContext#findTable}). Returns SQL text — execution
+ * types ({@link ModelContext#findTable}). Returns SQL text and rows — execution
  * stays with the caller's executeInDb loop (the corpus's own
  * {@code setupTestData} body maps the strings through executeInDb;
  * audit 19d B5 moved this synthesis out of the harness so that body runs
- * through the platform).
+ * through the platform) or with {@code exec.SetupRunner}, which runs the steps
+ * on a session. Plan side since 2026-10-08 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): text only, no
+ * connection, so that the planner and the browser planner can write the same setup the server runs.
  */
 public final class CsvSeed {
 
@@ -36,7 +38,7 @@ public final class CsvSeed {
     }
 
     /** One step of a seed, in order: a statement (the dialect's DDL text), or
-     *  rows to load ({@link Executor#load} &mdash; an engine's bulk API when
+     *  rows to load ({@code exec.Executor.load} &mdash; an engine's bulk API when
      *  it has one; its text is the one multi-row insert). */
     public sealed interface Step permits Step.Sql, Step.Rows {
         record Sql(String text) implements Step {
@@ -244,38 +246,6 @@ public final class CsvSeed {
             }
         }
         return out;
-    }
-
-    /** Runs a connection's setup steps on the session, as the engine does when it
-     *  ESTABLISHES the connection; {@code recorder} is the referee's ledger (null = none). */
-    public static void run(List<Step> setups, java.sql.Connection connection,
-            com.legend.sql.dialect.SqlDialect dialect,
-            com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder) {
-        for (Step step : setups) {
-            switch (step) {
-                case Step.Sql blob -> {
-                    for (String stmt : com.legend.sql.RawSql.splitStatements(blob.text())) {
-                        boolean query;
-                        try (var __o = StatementOrigin.enter(StatementOrigin.SEED)) {
-                            query = Executor.executeRaw(connection, adaptRaw(stmt, dialect));
-                        }
-                        if (recorder != null) {
-                            recorder.recordExecuted(stmt, query);
-                        }
-                    }
-                }
-                // test data's ROWS: the engine's bulk load when it has one; the
-                // referee's ledger records the one insert that lands the same rows
-                case Step.Rows rows -> {
-                    try (var __o = StatementOrigin.enter(StatementOrigin.SEED)) {
-                        Executor.load(connection, dialect, rows.load());
-                    }
-                    if (recorder != null) {
-                        recorder.recordExecuted(rows.text(dialect), false);
-                    }
-                }
-            }
-        }
     }
 
     /** A raw (H2-spelled) setup statement for the session's dialect. */

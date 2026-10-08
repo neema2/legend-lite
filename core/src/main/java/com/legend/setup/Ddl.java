@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.exec;
+package com.legend.setup;
 
 import com.legend.model.DatabaseDefinition;
 import com.legend.model.RelationalDataType;
@@ -10,9 +10,11 @@ import com.legend.model.RelationalDataType;
  * DDL rendering from the COMPILED store model — the K-native
  * {@code dropAndCreateTableInDb} boundary (the real engine's
  * {@code toDDL.pure} walks the Database metamodel; legend-lite renders
- * from {@link DatabaseDefinition}). Lives in the EXEC (K-phase) package —
- * the SQL layer ({@code com.legend.sql}) stays standalone and never sees
- * the store model. Model-derived DDL is spelled correctly for its
+ * from {@link DatabaseDefinition}). Lives in the SETUP library (the plan
+ * side's setup text, moved out of exec 2026-10-08,
+ * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9) — the SQL layer
+ * ({@code com.legend.sql}) stays standalone and never sees the store model.
+ * Model-derived DDL is spelled correctly for its
  * TARGET the first time (F7.4, audit S4): the type switch carries both
  * flavors, and the {@link RawSqlBoundary} translator serves
  * HAND-WRITTEN corpus text only — text whose origin really is another
