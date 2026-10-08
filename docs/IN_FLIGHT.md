@@ -474,10 +474,22 @@ typing). It is branch `compiler/tdsrow-erased-row` (one commit on `main`: `Type.
 measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That line decides whether and when it lands.
 
 **Then, in this order** (each on the branch, each announced here with its files before it lands):
-- **Frames in duckdb-python** (`python/` only): a pandas, polars or Arrow frame registered as Arrow, Live (each query
-  reads the frame as it is now) or Snapped (a frozen copy); the SQL the compiler plans run by duckdb-python; results as
-  Arrow. pyarrow and duckdb join `tools/python/requirements.in`, locked by `bazel run
-  //tools/python:requirements.update`.
+- **Frames in duckdb-python, and ONE model writer for a table (announced 2026-10-07, before the first edit; the
+  user: "make sure Datacube actually does move to this exact same code").** Two commits, in order:
+  1. **The writer moves into the compiler's boundary; Python uses it.** `wasm/src/main/java/planner/Wasm.java` gains
+     `tableModelOrError` -- a table's catalog rows in; the whole model out (the Database, its connection and runtime,
+     and the snap runtime when asked), the relation that reads it, the conversions as data AND as the converting
+     select list in the dialect's own quoting, the columns left out, the BIT columns -- what DataCube's `infer.ts`
+     writes by hand today -- and `catalogColumnsSqlOrError(schema, table)`, the catalog question
+     (`DuckDb.CATALOG_COLUMNS_SQL`, filled). Then `native/` (two entry points), `python/legend_lite` (`register(name,
+     frame, mode)`, Live the default: the frame re-read as Arrow at each query; Snapped: copied into DuckDB once;
+     `execute(query)` -> an Arrow table), `python/BUILD.bazel`, `tools/python/requirements.in` and its lock (duckdb,
+     pandas and polars for the tests; pyarrow is already pinned). Nothing in `core/`.
+  2. **DataCube moves to the same code** (after Studio's `studio-engine` lands; files agreed with the Studio line
+     first): `datacube/src/infer.ts` (`inferModel` becomes the planner's `tableModel`), `upload.ts`, `catalog-model.ts`
+     (its TypeScript copy of the writer deleted), `generated/catalog-facts.ts` and its generator where nothing else
+     reads them, `wasm-planner.ts` and `planner-worker.ts` (the two calls), `demo/boot.ts` (its callers), and the tests
+     that call `inferModel` or the TypeScript writer.
 - **`datacube.show(df)` from a script**: Python serves DataCube's built site on loopback (with a one-time token) and
   answers two calls: the planner calls the WebAssembly module answers today, answered by the native library, and SQL
   in, Arrow out. **Touches `datacube/`**, which the Studio line owns for imports, labels and the Snap move: a host page
