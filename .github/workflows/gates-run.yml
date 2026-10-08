@@ -183,12 +183,15 @@ jobs:
       # downloads cache is saved right after it (below), before the analysis of everything fetches every pool.
       - name: bazel build product
         if: matrix.lane.key == 'product'
+        # what tools/ci/lane-flags.sh reads, as every step that sources it is given it
         env:
           LOW_MEMORY: ${{ inputs.low-memory }}
+          PLATFORM: ${{ inputs.platform }}
+          LINUX_ONLY_TESTS: ${{ inputs.linux-only-tests }}
         run: |
           set -euo pipefail
-          flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
-          if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
+          # the lane's Bazel flags, one file for every step (tools/ci/lane-flags.sh)
+          . tools/ci/lane-flags.sh
           # the app package too (L1c, 2026-10-07): packaging, so the product job's (the datacube lane builds it again, as
           # package_test's data). The compiler as a native library (//native:compiler) is named on its own, never in
           # //:native: it does not build on Windows yet, and an incompatible member would make //:native, and so the
@@ -212,8 +215,8 @@ jobs:
         # beside an image build timed out (//warehouse:tests_native, run 37830923226, 2026-10-08), and two images at
         # once on a 7 GB runner risk its memory. The compiler's image is skipped where it does not build (Windows, for
         # now). A step of its own: inside the lane step's script, shellcheck never finished on Windows
-        # (//tools/guards:workflows_test timed out, probe run 37848560951). Its flags are the lane step's (keep them the
-        # same), so the tests there reuse what is built here.
+        # (//tools/guards:workflows_test timed out, probe run 37848560951). Its flags are the lane's, one file for both
+        # steps (tools/ci/lane-flags.sh), so the tests reuse what is built here.
         if: matrix.lane.key == 'warehouse'
         env:
           LOW_MEMORY: ${{ inputs.low-memory }}
@@ -221,12 +224,7 @@ jobs:
           LINUX_ONLY_TESTS: ${{ inputs.linux-only-tests }}
         run: |
           set -euo pipefail
-          flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
-          if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
-          tflags=("${flags[@]}")
-          if [ "$LINUX_ONLY_TESTS" != everywhere ]; then
-            case "$PLATFORM" in linux*) ;; *) tflags+=(--test_tag_filters=-ci-linux-only --build_tests_only) ;; esac
-          fi
+          . tools/ci/lane-flags.sh
           bazel build "${tflags[@]}" --skip_incompatible_explicit_targets //native:compiler
           bazel build "${tflags[@]}" --build_tests_only //gates:warehouse
       - name: bazel ${{ matrix.lane.cmd }} ${{ matrix.lane.key }}
@@ -236,19 +234,9 @@ jobs:
           LINUX_ONLY_TESTS: ${{ inputs.linux-only-tests }}
         run: |
           set -euo pipefail
-          flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
-          # the queries take these, before ci-small: a build-only config, which `query` refuses by name (the cold run of
-          # L1e, macOS's product job, 2026-10-07)
-          qflags=("${flags[@]}")
-          if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
-          # the browser harnesses run on Linux only (their tag, gates/BUILD.bazel): the same on every platform, and
-          # live-vs-snap already checks x86_64 against the arm64 desks; a desk still runs them anywhere. The filter
-          # applies to the test command alone, with --build_tests_only, so a skipped test's closure (the native image)
-          # is not built either; a dispatch with linux-only-tests=everywhere lifts it.
-          tflags=("${flags[@]}")
-          if [ "$LINUX_ONLY_TESTS" != everywhere ]; then
-            case "$PLATFORM" in linux*) ;; *) tflags+=(--test_tag_filters=-ci-linux-only --build_tests_only) ;; esac
-          fi
+          # the lane's Bazel flags -- flags, qflags (the queries'), tflags (the builds' and tests') -- one file for every
+          # step (tools/ci/lane-flags.sh says what each holds and why)
+          . tools/ci/lane-flags.sh
           if [ "${{ matrix.lane.key }}" = product ]; then
             # the product is built (the step above); here everything is analysed, and every test's lane checked
             # G14 (Bazel workplan P6-14): every target still analyzes under Bazel 10's incompatible flags (.bazelrc);

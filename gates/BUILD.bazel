@@ -56,6 +56,7 @@ test_suite(
         "//tools/guards:locks_test",
         "//tools/guards:markdown_inputs_test",
         "//tools/guards:workflows_test",
+        "//tools/guards:ci_scripts_test",
         "//tools/browser:revision_test",
         "//tools/bump:bump_test",
         "//tools/java_run:pins_test",
