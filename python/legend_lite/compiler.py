@@ -99,3 +99,28 @@ def database_from_catalog(catalog: dict[str, Any]) -> dict[str, Any]:
     "logicalType", ...}]}``, where ``databaseType`` is the database whose catalog it is (e.g. ``"DuckDB"``).
     Returns ``{"text", "source", "conversions", "excluded"}``: ``text`` is the Database's Pure text."""
     return _json.loads(_answer(library().call('lite_database_from_catalog', _json.dumps(catalog))))
+
+
+def table_model(table: dict[str, Any]) -> dict[str, Any]:
+    """The model for a table, from its catalog rows: the Database, its connection and runtime -- the one
+    writer DataCube's tables and Python's frames share (the compiler's ``tableModelOrError``).
+
+    Takes ``{"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType",
+    "snapDatabaseType"?, "columns": [catalog rows]}``. Returns ``{"model", "runtime", "snapRuntime"?,
+    "source", "accessor", "conversions", "copySelectList", "excluded", "bitColumns"}``: ``model`` is Pure
+    text, ``source`` the relation that reads the table (a tree; ``accessor`` its text), ``copySelectList``
+    the select list a copy applies so it holds the declared types."""
+    return _json.loads(_answer(library().call('lite_table_model', _json.dumps(table))))
+
+
+def catalog_columns_sql(schema: str, table: str) -> str:
+    """The catalog question for one table of a DuckDB: SQL whose rows (``column_name``, ``data_type``,
+    ``logical_type``, ``numeric_precision``, ``numeric_scale``, ``not_null``) describe its columns."""
+    return _answer(library().call('lite_catalog_columns_sql', schema, table))
+
+
+def session_setup(database_type: str) -> list[str]:
+    """What a session of the given database runs before it is queried, so that it answers as the planner's
+    SQL expects: the dialect's own setup (a DuckDB session in UTC)."""
+    return _json.loads(_answer(library().call('lite_session_setup', database_type)))
+

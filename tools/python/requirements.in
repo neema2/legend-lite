@@ -2,3 +2,9 @@
 # Change this file, then `bazel run //tools/python:requirements.update`.
 pyarrow==23.0.1
 tzdata==2026.5
+# legend_lite's frames (//python): duckdb-python at the warehouse's DuckDB (tools/deps/jars_table.bzl:
+# duckdb_jdbc_warehouse 1.5.5), and pyarrow above
+duckdb==1.5.5
+# the frames' tests only: the two dataframe libraries a frame comes from
+pandas==3.0.6
+polars==2.0.0

@@ -73,6 +73,49 @@ class Compiling(unittest.TestCase):
             ll.relation_type(MODEL, ll.parse("|#>{trades::DB.TRADES}#->select(~[nope])"))
         self.assertIn('nope', e.exception.message)
 
+    def test_writes_a_tables_whole_model_from_its_catalog(self):
+        m = ll.table_model({'table': 'orders', 'pkg': 'shop', 'convertible': True, 'databaseType': 'DuckDB',
+                            'columns': [{'name': 'id', 'dataType': 'BIGINT', 'logicalType': 'BIGINT', 'notNull': True},
+                                        {'name': 'big', 'dataType': 'UBIGINT', 'logicalType': 'UBIGINT'}]})
+        self.assertEqual(m['runtime'], 'shop::RT')
+        self.assertIn('Database shop::DB', m['model'])
+        self.assertIn('RelationalDatabaseConnection shop::Conn', m['model'])
+        self.assertEqual(m['copySelectList'], '* REPLACE (CAST("big" AS DECIMAL(20,0)) AS "big")')
+        self.assertEqual([(c.name, c.type) for c in ll.relation_type(m['model'], {'_type': 'lambda', 'body': [m['source']], 'parameters': []})],
+                         [('id', 'Integer'), ('big', 'Decimal')])
+        self.assertNotIn('snapRuntime', m)
+
+    def test_the_whole_model_is_exactly_what_datacube_writes(self):
+        # DataCube's infer.ts wrote this text by hand; the compiler's boundary writes it now, for both
+        m = ll.table_model({'table': 'orders', 'pkg': 'shop', 'convertible': True, 'databaseType': 'DuckDB',
+                            'snapDatabaseType': 'DuckDB',
+                            'columns': [{'name': 'id', 'dataType': 'BIGINT', 'logicalType': 'BIGINT', 'notNull': True},
+                                        {'name': 'open', 'dataType': 'BOOLEAN', 'logicalType': 'BOOLEAN'}]})
+        connection = lambda conn, rt: (
+            '###Connection\nRelationalDatabaseConnection shop::' + conn + '\n{\n    type: DuckDB;\n'
+            '    specification: DuckDB { };\n    auth: Test;\n}\n\n###Runtime\nRuntime shop::' + rt + '\n{\n'
+            '    mappings: [];\n    connections:\n    [\n        shop::DB: [ c1: shop::' + conn + ' ]\n    ];\n}\n')
+        database = ('###Relational\nDatabase shop::DB\n(\n    Table orders\n    (\n        id BIGINT NOT NULL,\n'
+                    '        open BIT\n    )\n)\n')
+        self.assertEqual(m['model'], database + '\n' + connection('Conn', 'RT') + '\n' + connection('SnapConn', 'SnapRT'))
+        self.assertEqual((m['runtime'], m['snapRuntime'], m['accessor']), ('shop::RT', 'shop::SnapRT', '#>{shop::DB.orders}#'))
+        self.assertEqual((m['conversions'], m['copySelectList'], m['excluded'], m['bitColumns']), ([], '*', [], ['open']))
+
+    def test_a_duckdb_session_answers_in_utc(self):
+        self.assertEqual(ll.session_setup('DuckDB'), ["SET TimeZone='UTC'"])
+
+    def test_the_compiler_needs_no_package_beyond_pythons_own(self):
+        # this suite runs with nothing but the bindings on the path: a star import brings no duckdb
+        names = {}
+        exec('from legend_lite import *', names)
+        self.assertIn('plan', names)
+        self.assertNotIn('Frames', names)
+
+    def test_the_catalog_question_names_its_table_as_literals(self):
+        sql = ll.catalog_columns_sql('my s', "o'{table}brien")
+        self.assertIn("c.schema_name = 'my s'", sql)
+        self.assertIn("c.table_name = 'o''{table}brien'", sql)
+
     def test_reads_a_model_into_its_elements(self):
         kinds = {e['_type'] for e in ll.model_elements(MODEL)}
         self.assertIn('relational', kinds)
