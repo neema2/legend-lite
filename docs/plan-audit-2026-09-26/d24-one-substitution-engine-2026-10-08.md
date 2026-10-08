@@ -67,6 +67,13 @@ to `b_<k>` can therefore move bytes. The probe, with no code change:
 - count the inliner's renames per corpus run (a counter printed once, under a local-only switch) against `TypedSubst`'s
   on the same trees: how often the conservative `namesIn` set renames where the exact `FreeVars` set would not.
 
+**The probe's first receipt (2026-10-08, a throwaway branch, never landed):** counters in `UserCallInliner.bind` and in
+`//core:compile_latency`'s render step, over the stress corpus's 4,736 service tests (4,723 planned): the inliner renamed
+**0** binders (the capture hazard never fired), **0** rendered SQL texts contain an `_i<N>` name; 48 contain some
+`<name>_<k>` identifier, which the loose pattern cannot tell from SQL aliases such as `t_1`. On this population the
+switch to `TypedSubst` moves no name. The relational corpus (the corpus lanes) is the other population; the same two
+counters run there in the push itself before the switch.
+
 If the diff is empty, the switch is a pure deletion. If names move only where no SQL moves (plan surfaces), the GATES
 entry says so and the affected goldens are re-blessed once with the policy named. If SQL text moves, the slice stops
 and the policy is decided first (a deterministic name is the better one: the same input gives the same bytes).
