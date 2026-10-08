@@ -7285,3 +7285,22 @@ attributes in place. Tests: `//studio:verify_test` twice, `//studio:tests`; loca
 The audit (the auditor agent, 2026-10-08): ready, no should-fix; one nit taken. Also measured today:
 `//studio:demo_test` takes 3.7 s on a quiet desk (three runs); its 58.6 s earlier was the machine at load 50, so its
 size (`small`, 60 s) stays.
+
+## 2026-10-08 — The execution plan, step 2 landing 1: the plan records for step 2's decisions, and one parameter list
+
+`f05fe7ada`. `ExecutionPlan` takes the user's step 2 decisions (`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §9): an
+enum parameter carries the names a value may take; `TextResult` (CSV, JSON, or one JSON object per row, of a relation's
+columns or a value's type) replaces `JsonResult`; a target's setup is a list of steps — a statement, or rows for the bulk
+loader with every statement it needs written at plan time; the in-memory identity is gone (decision A). `PlanJson`
+version 2, every field required. `QueryParameters` (planner) reads a query's declared parameters once; the legacy
+plan's three readers (its text form, its walkable node model, its enum template functions) read it, their output
+unchanged, and `TypedQuery.parameters()` reads the same declarations for the lite plan. PARK-15 parks the legacy
+plan's enum-mapping choices with no place of use (three anchors). No behaviour change: nothing runs a lite plan yet.
+
+Pins: `JavaEvalLedgerTest` registers `QueryParameters` (it evaluates nothing) and re-pins `StatementExecutor` 2314 ->
+2281 (the readers gone); `own_corpus.matched` 2719 -> 2720 (the new test's Enum model is an own-corpus snippet that
+matches legend-engine). The audit (auditor agent): no blockers; the legacy output confirmed unchanged line by line; its
+five should-fix items taken (the third reader, a misplaced javadoc, an untyped parameter refused by name, required
+enum values, the plan document's citation). Local gate `//gates:local` green (318/318); CI run 37826388791 green on
+`15fea6c9f` (50 jobs); `f05fe7ada` is that commit rebased over two docs-only commits. One run before it (37821912308)
+was cancelled to let W1.0b land first, by agreement.
