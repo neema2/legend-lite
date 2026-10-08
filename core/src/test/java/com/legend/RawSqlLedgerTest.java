@@ -57,6 +57,9 @@ class RawSqlLedgerTest {
             // CsvSeed.adaptRaw: the raw-statement boundary, moved from StatementExecutor
             // (2026-09-27) with the setup loop it serves (CsvSeed.run); the executor's
             // raw effects call it -- one site still
+            // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
+            // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: adaptRaw is in setup/CsvSeed.java now
+            // (exec.SetupRunner calls it); same file name, one site
             "CsvSeed.java", 1,
             // Phase 1c: the ONE render-time adapter — the DuckDb pass
             // (slice 3: ResultNav's pre-adaptation DIED; it had begun

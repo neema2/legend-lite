@@ -1,5 +1,6 @@
 package com.legend.exec;
 
+import com.legend.setup.RowLoad;
 import org.duckdb.DuckDBAppender;
 import org.duckdb.DuckDBConnection;
 

@@ -1631,7 +1631,7 @@ public final class Pure {
     // flat (every golden compare strips formatting).
     // dropAndCreateTableInDb: ordinary pure in the real engine (toDDL.pure
     // walks the Database metamodel to spell DDL) — a K-native here, DDL
-    // rendered from the compiled store model (com.legend.exec.Ddl). The
+    // rendered from the compiled store model (com.legend.setup.Ddl). The
     // database argument types as the store METACLASS, exactly like real
     // pure (audit 17: Any[1] let string literals type-check).
     public static final NativeFunctionDefinition DDL_DROP_SCHEMA_STATEMENT__STRING_1 = signature("native function meta::relational::functions::toDDL::dropSchemaStatement(schema:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");

@@ -115,7 +115,7 @@ public final class TestDataGenerationNatives {
             // COMPILER-minted literals (invariant 7): the factory owns
             // node construction; this layer computes the strings only
             return com.legend.compiler.spec.CsvCensusChecker.literalStrings(
-                    com.legend.exec.Ddl.setUpDataSqlsText(
+                    com.legend.setup.Ddl.setUpDataSqlsText(
                             csv.value(), db, f -> ctx.findDatabase(f), engineText),
                     nc.info());
         }

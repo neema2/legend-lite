@@ -1,5 +1,7 @@
 package com.legend.exec;
 
+import com.legend.setup.RowLoad;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 
