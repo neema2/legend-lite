@@ -145,14 +145,10 @@ final class PlanAllocations {
                         .typed.TypedLambda plam
                 && pep.args().size() > 1
                 && pep.args().get(1) instanceof com.legend.compiler
-                        .spec.typed.TypedPackageableRef pmr
-                && com.legend.compiler.element.type.PlatformTypes
-                        .functionTypeOf(plam.info().type())
-                        instanceof com.legend.compiler
-                        .element.type.Type.FunctionType pft) {
+                        .spec.typed.TypedPackageableRef pmr) {
             java.util.Set<String> seenFns =
                     new java.util.LinkedHashSet<>();
-            for (var prm : pft.params()) {
+            for (QueryParameters.Declared prm : QueryParameters.of(plam)) {
                 if (!(prm.type() instanceof com.legend.compiler
                         .element.type.Type.EnumType et)) {
                     continue;

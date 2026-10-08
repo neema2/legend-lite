@@ -75,7 +75,20 @@ class ParkedWorkLedgerTest {
             // select-merge pass. The refusal is the anchor.
             "PARK-4 the ~groupBy wrapper projects unread columns",
             new Anchor("projections\\(\\)\\.isEmpty\\(\\) \\|\\| sel\\.distinct\\(\\)\\s*\\n\\s*\\|\\| !sel\\.groupBy\\(\\)",
-                    List.of("SubselectPrune.java"))));
+                    List.of("SubselectPrune.java")),
+            // PARK-15 (2026-10-08, execution plan boundary step 2): the legacy plan
+            // picks an enumeration mapping without the place it is used — the first
+            // over the enum for a parameter, the first declared for a result column
+            // whose mapping names none; legend-engine chooses per place, from the
+            // property mapping. The three choices with no place are the anchors.
+            "PARK-15 the legacy plan's enum parameter map (PlanText)",
+            new Anchor("var em = enumMappingOf\\(ctx, mappingFqn, enumFqn\\);", List.of("PlanText.java")),
+            "PARK-15 the legacy plan's enum parameter map (PlanAllocations)",
+            new Anchor("PlanText\\.enumMappingOf\\(\\s*env\\.ctx\\(\\), pmr\\.fullPath\\(\\), et\\.fqn\\(\\)\\)",
+                    List.of("PlanAllocations.java")),
+            "PARK-15 the legacy plan's enum result-column fallback",
+            new Anchor("candidates\\.isEmpty\\(\\) \\? null\\s*\\n\\s*: candidates\\.get\\(0\\)\\.mappingId\\(\\)",
+                    List.of("PlanText.java"))));
 
     private record Anchor(String pattern, List<String> files) {
     }

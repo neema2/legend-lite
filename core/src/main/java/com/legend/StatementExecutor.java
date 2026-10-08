@@ -972,44 +972,26 @@ final class StatementExecutor {
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, boolean quote, @com.legend.base.Nullable String timeZone,
             @com.legend.base.Nullable String connName, com.legend.model.ConnectionDefinition.DatabaseType dbType) {
-        var fnType = lam.functionType();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
                 params = new java.util.LinkedHashMap<>();
         java.util.LinkedHashMap<String, String> paramSpells =
                 new java.util.LinkedHashMap<>();
         java.util.List<String> children = new java.util.ArrayList<>();
-        if (!lam.parameters().isEmpty()) {
-            StringBuilder ps = new StringBuilder();
-            for (int i = 0; i < lam.parameters().size(); i++) {
-                var p = fnType.params().get(i);
-                if (i > 0) {
-                    ps.append(", ");
-                }
-                ps.append(lam.parameters().get(i)).append(':')
-                        .append(com.legend.plan.PlanText
-                                .pureTypeName(p.type()))
-                        .append('[').append(com.legend.plan.PurePrint.sizeRange(p.multiplicity())).append(']');
-                paramSpells.put(lam.parameters().get(i),
-                        com.legend.plan.PlanText.pureTypeName(p.type())
-                                + "[" + com.legend.plan.PurePrint.sizeRange(p.multiplicity()) + "]");
-                boolean opt = p.multiplicity() instanceof
-                        com.legend.compiler.element.type.Multiplicity
-                                .Bounded ob
-                        && ob.lower() == 0
-                        && Integer.valueOf(1).equals(ob.upper());
+        java.util.List<QueryParameters.Declared> declared = QueryParameters.of(lam);
+        if (!declared.isEmpty()) {
+            java.util.List<String> ps = new java.util.ArrayList<>(declared.size());
+            for (QueryParameters.Declared p : declared) {
+                ps.add(p.name() + ":" + p.signature());
+                paramSpells.put(p.name(), p.signature());
                 String emFn = p.type() instanceof com.legend.compiler
                         .element.type.Type.EnumType et
                         ? com.legend.plan.PlanText.enumMapFnOf(env.ctx(),
                                 mappingFqn, et.fqn())
                         : null;
-                params.put(lam.parameters().get(i),
-                        new com.legend.sql.SqlExpr.PlanParam(
-                                lam.parameters().get(i),
-                                com.legend.lowering.PlanParams.kindOf(
-                                        p.type()), opt, emFn));
+                params.put(p.name(), p.planParam(emFn));
             }
             children.add(com.legend.plan.PlanText
-                    .functionParametersNode(ps.toString()));
+                    .functionParametersNode(String.join(", ", ps)));
         }
         for (int i = 0; i < lam.body().size() - 1; i++) {
             if (!(lam.body().get(i)
@@ -1206,34 +1188,19 @@ final class StatementExecutor {
                 ? boundContext(ep.args().get(2), specs) : null;
         boolean quote = pc2 != null && pc2.quoteIdentifiers();
         String tz = pc2 != null ? pc2.timeZone() : null;
-        var fnType = lam.functionType();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
                 params = new java.util.LinkedHashMap<>();
         java.util.List<com.legend.plan.PlanNode.Param> fps =
                 new java.util.ArrayList<>();
-        for (int i = 0; i < lam.parameters().size(); i++) {
-            var p = fnType.params().get(i);
-            boolean many = !(p.multiplicity()
-                    instanceof com.legend.compiler.element.type.Multiplicity
-                            .Bounded ob
-                    && Integer.valueOf(1).equals(ob.upper()));
-            boolean opt = p.multiplicity()
-                    instanceof com.legend.compiler.element.type.Multiplicity
-                            .Bounded ob2
-                    && ob2.lower() == 0
-                    && Integer.valueOf(1).equals(ob2.upper());
-            params.put(lam.parameters().get(i),
-                    new com.legend.sql.SqlExpr.PlanParam(
-                            lam.parameters().get(i),
-                            com.legend.lowering.PlanParams.kindOf(p.type()),
-                            opt));
+        for (QueryParameters.Declared p : QueryParameters.of(lam)) {
+            params.put(p.name(), p.planParam(null));
             // supportsStream (engine storeContract:221 + executionPlan_
             // generation findParamsSupportedForStreamInput): the param
             // streams iff it is read under an in(...) call at least once
             // and NEVER in any other call position
             fps.add(new com.legend.plan.PlanNode.Param(
-                    lam.parameters().get(i),
-                    supportsStream(lam, lam.parameters().get(i),
+                    p.name(),
+                    supportsStream(lam, p.name(),
                             src -> streamStoreOf(src, env.ctx(), pmFqn))));
         }
         TypedSpec term = lam.body().get(lam.body().size() - 1);

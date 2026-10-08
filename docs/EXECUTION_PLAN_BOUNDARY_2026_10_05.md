@@ -225,12 +225,22 @@ read from the model at execution (`ConnectionResolver.storesKey`).
 2. **The planner makes plans** — `TypedQuery.executionPlan(runtime, output)` (`output`: JSON, CSV, streamed JSON —
    the wire statement the database builds, `lowering.WireRender`). Each dialect renders `PlanParam` as a bind placeholder
    and returns the slots in order; a list slot in the target's array form (`= ANY(?)`, a list parameter, H2's array);
-   the target per `Sql` node from `Compiler.executesOn`; setup statements and the in-memory identity computed at plan
-   time.
+   the target per `Sql` node from `Compiler.executesOn`; setup statements computed at plan time (the in-memory
+   identity this step first named is gone: decision A below shares by the target's own content).
    **Step 2's first piece DONE 2026-10-08 (`847b41df4`; `docs/GATES.md`):** a connection's setup — its `CREATE
    TABLE`s with each column's type, and its rows — moved from `exec` to the plan-side `//core:setup`, so the planner
    can write it into the plan and the Studio tab can take the server's exact statements; running the steps stays in
    `exec` (`SetupRunner`). No behaviour change.
+   **Step 2, landing 1 (2026-10-08): the records and the one parameter list.** `ExecutionPlan`: a parameter's enum
+   values are names; `TextResult` (format CSV, JSON or one JSON object per row; result type a relation's columns or a
+   value's type) replaces `JsonResult`; a target's setup is a list of steps, a statement or rows for the bulk loader
+   with every statement it needs; the identity is gone (decision A). `PlanJson` version 2 (version 1 refused).
+   The audit's fixes are in: the third parameter reader (`PlanAllocations`, the enum template functions) reads
+   `QueryParameters` too, and PARK-15 covers every place the legacy plan picks an enumeration mapping with no place of
+   use.
+   `QueryParameters` reads a query's declared parameters once: the legacy plan's text and walkable forms read it
+   (their two readers deleted, a dead flag with them) and `TypedQuery.parameters()` reads the same declarations for
+   the lite plan. PARK-15 parks the legacy plan's per-parameter enum map (`docs/PARKED_WORK_LEDGER.md`).
    **Step 2's decisions (the user, 2026-10-07 and 2026-10-08; evidence `docs/execution-plan-boundary-2026-10-05/`):**
    - *One list of a query's parameters.* Today the legacy (legend-engine-shaped) plan builds its own, twice: its text
      form (`StatementExecutor.sequencePlan`) and the form Pure code walks (`planModel`). One planner function reads
@@ -279,12 +289,14 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      400,000 rows): this form uses the index on DuckDB, H2 and Postgres and is right for a value stored under two
      codes; decoding the column instead (`CASE STATUS WHEN 'A' THEN 'ACTIVE' … END = ?`) scans the table on all
      three (Postgres ~24 ms against ~0.4 ms). Step 1's `EnumValue` database values leave the parameter.
-     The legacy printer picks one translation per parameter and, unsure, the first declared
-     (`PlanText.enumMappingIdFor`, "Falls back to first-declared") — wrong rows when an enum is mapped twice; it goes
-     on the parked-work ledger with step 2's first commit.
+     The legacy printer picks one translation per parameter, the first enumeration mapping over the enum
+     (`PlanText.enumMapFnOf` → `enumMappingOf`, and `PlanAllocations.planTemplateFunctions`), and a result column's
+     the first declared when its mapping names none (`PlanText.enumMappingIdFor`) — wrong rows when an enum is
+     mapped twice; parked as PARK-15 with step 2's landing 1.
 3. **The runner, in `exec`** — `exec.PlanRunner.run(plan, parameterValues, Sessions.Source, out)`: validates and
-   converts parameters (§8), opens or checks each node's session through `Sessions` (running its setup once; the
-   identity from the plan — `Sessions.Source` no longer takes the model), binds, executes, streams the database's text.
+   converts parameters (§8), opens or checks each node's session through `Sessions` (running its setup once; shared by
+   the target's own content, decision A — `Sessions.Source` no longer takes the model), binds, executes, streams the
+   database's text.
    The shrink-only guard on `exec`'s planning-library references starts here.
 4. **Switch the callers, delete what they replace** — `pure/v1/execution/execute`: plan once, run with
    `parameterValues`; `Execution.executeWire` / `executeStreaming` and `QueryService`'s wire and streaming paths: plan +

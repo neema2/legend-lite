@@ -52,6 +52,26 @@ public final class TypedQuery {
         return b.get(b.size() - 1).info();
     }
 
+    /** The query's declared parameters ({@code {minQty: Integer[1]|...}}), in order, at the types its body is typed
+     *  with; none for a query that declares none. A parameter must declare its type: a query lambda with an untyped
+     *  parameter is typed as a lambda VALUE ({@link SpecCompiler#typeQueryBody}), not as a query over parameters, and is
+     *  refused here by name. */
+    public List<QueryParameters.Declared> parameters() {
+        if (!(resolved instanceof com.legend.protocol.spec.LambdaFunction lf)) {
+            return List.of();
+        }
+        List<QueryParameters.Declared> out = new java.util.ArrayList<>(lf.parameters().size());
+        for (com.legend.protocol.spec.Variable p : lf.parameters()) {
+            if (p.type() == null) {
+                throw new IllegalArgumentException("query parameter '" + p.name()
+                        + "' declares no type: a query's parameters are typed ({" + p.name() + ": String[1]|...})");
+            }
+            com.legend.compiler.element.type.ExprType t = specs.declaredParameterType(p);
+            out.add(new QueryParameters.Declared(p.name(), t.type(), t.multiplicity()));
+        }
+        return List.copyOf(out);
+    }
+
     /** The query typed as ONE expression (Phase G): its typed HIR, the front half only. */
     public TypedSpec expression() {
         return specs.typeExpression(resolved);

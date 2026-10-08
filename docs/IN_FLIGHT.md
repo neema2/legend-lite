@@ -103,7 +103,11 @@ with the compiler's plan/execution split**, in this order:
    W6.1 and W6.2). Session "Plan Gen / Exec Split" (was `neema-20`), worktree `legend-lite-pgspike`. C3a–C3c, C1, C2a and C2b
    landed; the plan's step 1 (the plan records, `//core:execution_plan`) landed 2026-10-05; step 2's first piece,
    a connection's setup moved to the plan side (`//core:setup`), landed 2026-10-08 (`847b41df4`). **Next: the rest of
-   phase 1 step 2, then steps 3–4 — the planner makes an execution plan, a runner in `exec` runs it, the server's
+   phase 1 step 2 (landing 1 on branch `dbowner/step2-records`: the plan records, `QueryParameters` — a new planner
+   class, the one parameter list — `TypedQuery.parameters()`, one public `SpecCompiler.declaredParameterType`, the
+   legacy plan's two parameter readers in `StatementExecutor`, `:planner` reaching `:execution_plan`, PARK-15; the
+   build session reviewed its Bazel part and the `SpecCompiler` method), then steps 3–4 — the planner makes an
+   execution plan, a runner in `exec` runs it, the server's
    execute paths switch to it** (files in the fourth line's 2026-10-07 note; step 2's decisions, the user's,
    2026-10-07/08, in the plan's §9).
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
