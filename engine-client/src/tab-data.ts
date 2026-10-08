@@ -38,7 +38,7 @@ export interface TableState {
   readonly database: string;
   readonly schema: string;
   readonly table: string;
-  readonly columns: readonly { readonly name: string; readonly type: string }[];
+  readonly columns: readonly { readonly name: string }[];
   readonly source: TableSource;
   /** How many rows it has; undefined when there is no table yet. */
   readonly rows: number | undefined;
