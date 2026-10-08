@@ -142,6 +142,17 @@ class CatalogModelTest {
         assertEquals("#>{t::DB.s.orders}#", db.accessor());
     }
 
+    /** A copy's select list names each converted column once, quoted as the writer quotes it, and is a plain star
+     *  when nothing converts. */
+    @Test
+    void aCopyAppliesEveryConversionUnderItsColumnsName() {
+        CatalogModel.Database db = CatalogModel.database("t::DB", null, "orders",
+                catalog("id BIGINT, \"at\" TIMESTAMP WITH TIME ZONE, big UBIGINT"), new DuckDb(), true);
+        assertEquals("* REPLACE (CAST(timezone('UTC', \"at\") AS TIMESTAMP) AS \"at\", CAST(\"big\" AS DECIMAL(20,0)) AS \"big\")",
+                db.copySelectList());
+        assertEquals("*", CatalogModel.database("t::DB", null, "t", catalog("id BIGINT"), new DuckDb(), true).copySelectList());
+    }
+
     @Test
     void aNestedColumnIsAVariantAsStored_evenOnAReadOnlySource() {
         CatalogModel.Database db = CatalogModel.database("t::DB", null, "orders", catalog("items STRUCT(sku VARCHAR)[], attrs MAP(VARCHAR, INTEGER)"), new DuckDb(), false);

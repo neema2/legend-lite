@@ -48,6 +48,23 @@ public final class CatalogModel {
      * left out, because their source cannot convert them or no Database type holds them.
      */
     public record Database(String text, String accessor, List<Conversion> conversions, List<String> excluded) {
+
+        /**
+         * The select list a COPY of the table applies so that it holds the declared types:
+         * {@code * REPLACE (<conversion> AS "<column>", ...)}, or {@code *} when no column converts. In
+         * DuckDB's spelling (its star modifier), because every copy is a DuckDB table: an upload's
+         * rewrite, a Snap into the tab, a Python frame. The one place this list is written.
+         */
+        public String copySelectList() {
+            if (conversions.isEmpty()) {
+                return "*";
+            }
+            List<String> items = new ArrayList<>();
+            for (Conversion c : conversions) {
+                items.add(c.sql() + " AS " + sqlIdent(c.column()));
+            }
+            return "* REPLACE (" + String.join(", ", items) + ")";
+        }
     }
 
     /**
