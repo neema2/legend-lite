@@ -112,7 +112,7 @@ def main():
     files = [f for f in glob.glob(f"{ROOT}/core/src/main/java/**/*.java", recursive=True)
              if not f.endswith("builtin/Pure.java")]
     CONST_ONLY = {"compiler/element/type/PlatformTypes.java", "builtin/SystemMetamodel.java", "builtin/Prelude.java"}
-    LOW = ("lowering/", "sql/", "exec/")
+    LOW = ("lowering/", "sql/", "exec/", "setup/")
     ROOT_VERDICT = {"StatementExecutor", "AssertVerdicts", "SqlTextVerdicts", "LineageTreeVerdicts", "CsvLoad",
                     "SeedSqlForms", "PlanAllocations", "ConnectionLets", "AggAwareActivities"}
     handlers = collections.defaultdict(set)

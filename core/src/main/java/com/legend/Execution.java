@@ -154,7 +154,7 @@ public final class Execution {
             // a graph fetch: the database renders the objects' JSON array, as the text
             // path above does (the Query app's G2)
             com.legend.sql.dialect.SqlDialect dialect = dialectOf(l.ctx(), runtimeFqn, connection);
-            com.legend.exec.CsvSeed.run(com.legend.exec.CsvSeed.declaredSteps(runtimeFqn, l.ctx(), dialect),
+            com.legend.exec.SetupRunner.run(com.legend.setup.CsvSeed.declaredSteps(runtimeFqn, l.ctx(), dialect),
                     connection, dialect, null);
             String sql = dialect.render(l.plan());
             var r = com.legend.exec.Executor.execute(sql, l.plan(), l.root().info(), shape, connection, dialect, null);
@@ -166,7 +166,7 @@ public final class Execution {
                     "execute: a " + shape + " result's serialization is unprobed");
         }
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(l.ctx(), runtimeFqn, connection);
-        com.legend.exec.CsvSeed.run(com.legend.exec.CsvSeed.declaredSteps(runtimeFqn, l.ctx(), dialect),
+        com.legend.exec.SetupRunner.run(com.legend.setup.CsvSeed.declaredSteps(runtimeFqn, l.ctx(), dialect),
                 connection, dialect, null);
         out.write(com.legend.exec.Executor.wireText(dialect.render(com.legend.lowering.WireRender.wrap(
                 l.plan(), wireSchema(l.root().info()), com.legend.lowering.WireRender.Format.JSON)),

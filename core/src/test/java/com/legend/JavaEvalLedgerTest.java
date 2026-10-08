@@ -942,7 +942,9 @@ class JavaEvalLedgerTest {
         // setUpDataSQLs walkers, now composing THROUGH the one
         // generator — engine-golden text of the model's own seed data
         // (compilation-class; asserted against engine goldens).
-        EVICT_NAMES.put("core/src/main/java/com/legend/exec/Ddl.java",
+        // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
+        // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9 (path only)
+        EVICT_NAMES.put("core/src/main/java/com/legend/setup/Ddl.java",
                 new Object[]{"(dropTableStatementText|createTableStatementText|engineSpell)\\(",
                         0});
         // E2 LANDED (2026-08-17): the host-side row explosion is DEAD
@@ -1000,8 +1002,13 @@ class JavaEvalLedgerTest {
      * surface and registers consciously. Exact in both directions. */
     private static final java.util.Set<String> EXEC_CLASSES =
             java.util.Set.of(
-                    "Column.java", "CsvSeed.java",
-                    "Ddl.java", "DynamicPivot.java",
+                    // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution
+                    // plan boundary step 2's opening piece (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
+                    // §9): CsvSeed.java, Ddl.java and RowLoad.java left the register (no JDBC, no
+                    // egress: they write text and rows); SetupRunner.java is CsvSeed.run, the half
+                    // that runs them on a connection
+                    "Column.java", "SetupRunner.java",
+                    "DynamicPivot.java",
                     "ExecutionResult.java", "Executor.java",
                     // leg 3.4 (2026-09-20): the body's DEFERRED verdict
                     // statements sent as one statement and reported in body
@@ -1011,11 +1018,11 @@ class JavaEvalLedgerTest {
                     // THE ONE CENSUS OWNER (cleanup move 3, 2026-09-22): counters only —
                     // one storage, one snapshot; no value is produced or compared
                     "Census.java",
-                    // bulk load (2026-09-23): rows for one table as TEXT cells
-                    // the database casts (the seed's, test data's), and the
-                    // seam an engine's own bulk API joins through. Egress
-                    // only: nothing is typed, produced or compared here
-                    "RowLoad.java", "BulkLoad.java",
+                    // bulk load (2026-09-23): the seam an engine's own bulk API
+                    // joins through, for rows of TEXT cells the database casts
+                    // (setup.RowLoad since 2026-10-08). Egress only: nothing is
+                    // typed, produced or compared here
+                    "BulkLoad.java",
                     // C3c (2026-10-04): a driver's own cell types, found beside the
                     // driver as BulkLoad is (DuckDB's JSON node to its text); the
                     // executor names no driver class. Carriage only

@@ -60,7 +60,7 @@ final class CsvLoad {
         }
         // the seed's rows (CsvSeed) — one producer, the dialect spells the
         // insert, the database casts every cell
-        com.legend.exec.RowLoad load = com.legend.exec.CsvSeed.rowLoad(env.dialect(),
+        com.legend.setup.RowLoad load = com.legend.setup.CsvSeed.rowLoad(env.dialect(),
                 "default".equals(ref[1]) ? null : ref[1], ref[2], cols, rows);
         if (load != null) {
             StatementExecutor.sendEffect(env, env.dialect().render(load.values()), null,

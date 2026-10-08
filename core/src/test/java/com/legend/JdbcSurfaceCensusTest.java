@@ -99,7 +99,10 @@ class JdbcSurfaceCensusTest {
             // 2026-09-27: CsvSeed.run establishes a connection -- its declared setup
             // statements and rows, through Executor.executeRaw / Executor.load under the SEED
             // origin; a Connection in, the database executes (moved from StatementExecutor)
-            "core/src/main/java/com/legend/exec/CsvSeed.java",
+            // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
+            // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: run() is exec.SetupRunner's; CsvSeed (now setup/)
+            // holds no JDBC
+            "core/src/main/java/com/legend/exec/SetupRunner.java",
             // the execution side's ONE session owner (C3b, 2026-10-04; it absorbed JdbcMetadata, the
             // driver's one metadata read kept out of Compiler so the plan surface needs no java.sql):
             // the product/version read a handed session is checked by, and opening a declared

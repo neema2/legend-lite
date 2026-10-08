@@ -29,7 +29,7 @@ public final class MetamodelSeeds {
      * context's facts as rows of strings ({@code null} = an absent
      * optional fact). Pure data: the registry lookups and the row
      * derivations live here; the SQL spelling belongs to the one DDL
-     * owner ({@code exec/Ddl.metamodelSeed}), called by the one
+     * owner ({@code setup/Ddl.metamodelSeed}), called by the one
      * execution-setup owner. Rows keep the registry's sorted-by-FQN
      * order. An unknown table is a loud bug (the store's DDL and this
      * switch grow together).

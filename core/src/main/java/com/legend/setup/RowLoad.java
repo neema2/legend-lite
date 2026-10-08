@@ -1,4 +1,4 @@
-package com.legend.exec;
+package com.legend.setup;
 
 import com.legend.sql.SqlDml;
 import com.legend.sql.SqlExpr;
@@ -11,7 +11,7 @@ import java.util.List;
  * type ({@code null} is SQL NULL) &mdash; the shape of the data legend-lite
  * holds as values: the system metamodel seed, test data. The DATABASE does the
  * typing on every load path: the text path writes each cell as a string
- * literal; a {@link BulkLoad} stages the cells as text and casts in one
+ * literal; a {@code exec.BulkLoad} stages the cells as text and casts in one
  * {@code INSERT ... SELECT}. Nothing here converts a value, and nothing here
  * spells SQL: the dialect renders the {@link SqlDml} this becomes.
  *
@@ -40,7 +40,7 @@ public record RowLoad(@com.legend.base.Nullable String schema, String table, Lis
     }
 
     /** The load as ONE multi-row insert of string literals &mdash; the path
-     *  every engine without a {@link BulkLoad} takes. */
+     *  every engine without a {@code exec.BulkLoad} takes. */
     public SqlDml.InsertValues values() {
         List<List<SqlExpr>> out = new ArrayList<>(rows.size());
         for (List<String> row : rows) {
