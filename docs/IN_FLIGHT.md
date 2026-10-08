@@ -156,6 +156,8 @@ included), and the writer cannot drift from the compiler's:
   question) and `datacube/test/generated/catalog-corpus.ts` (what `CatalogModel.database` answers for real DuckDB
   tables); `datacube/src/catalog-model.ts` is DataCube's writer, tested against the corpus case for case.
   `WasmPlanner.databaseFromCatalog` is kept (its input is now the structured column); DataCube no longer calls it.
+  (2026-10-08: the generators, `catalog-model.ts` and `WasmPlanner.databaseFromCatalog` are deleted; DataCube calls
+  the compiler's writer, `tableModelOrError` -- the sixth line.)
 
 **2026-10-01, announced before landing (rule 5): a cross-area edit in `core/`** (the user: "i think we should fix calc
 column"). legend-engine refused 13 DataCube features that legend-lite passes; one cause is legend-lite's own leniency:
@@ -296,7 +298,7 @@ below), not done here.
   subclasses (the `jdbcProduct` constructor argument leaves); `DialectBoundaryTest`; `tools/deps/core-layers.txt`.
   C3a landed 2026-10-03: `//core:database` (`core/BUILD.bazel`, `tools/deps/BUILD.bazel`), `PlanEnvelope`,
   `ArchitectureTest`'s library map, and the `dialectFor` callers `wasm/.../Wasm.java` and
-  `datacube/tools/catalogfacts/CatalogFacts.java` (now `Databases.dialect`).
+  `datacube/tools/catalogfacts/CatalogFacts.java` (now `Databases.dialect`; that generator is deleted 2026-10-08).
   C3b announced 2026-10-03 (plan doc §4 C3b and its audit): the connecting side's one owner, a new `exec/Sessions`
   (`exec/JdbcMetadata` deleted into it); `Compiler` (`executesOn` returns the target, `dialectOf`'s session check, new
   execute/executeWire/executeStreaming entries taking a connection opener, `NO_RUNTIME` replaced); `CrossStoreGuard`
@@ -498,8 +500,9 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
      module loaded in a worker on first use), so the TypeScript writer and both generators (`datacube/tools/
      catalogfacts`, their `datacube/BUILD.bazel` rules) go; also `demo/planners.ts`, `demo/stress.ts`, and comments
      only in `core/.../sql/dialect/CatalogRules.java` and `DuckDb.java` and `engine-client/src/snap.ts` and
-     `warehouse.ts` (they named the deleted files). Diffs of `boot.ts` and `live-snap.ts` sent to the Studio line;
-     the Bazel edits to the Bazel program session.
+     `warehouse.ts` (they named the deleted files). Diffs of `boot.ts` and `live-snap.ts` sent to the Studio line (no
+     collision); the Bazel edits reviewed by the Bazel program session (accepted; with them `tools/deps/jars_table.bzl`
+     drops `datacube` from `duckdb_jdbc_warehouse`'s users, and `docs/GENERATORS.md` loses the two generators).
 - **`datacube.show(df)` from a script**: Python serves DataCube's built site on loopback (with a one-time token) and
   answers two calls: the planner calls the WebAssembly module answers today, answered by the native library, and SQL
   in, Arrow out. **Touches `datacube/`**, which the Studio line owns for imports, labels and the Snap move: a host page
