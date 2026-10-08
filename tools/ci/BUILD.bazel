@@ -1,0 +1,11 @@
+# The scripts CI's workflows source (.github/workflows): checked by shellcheck (//tools/guards:ci_scripts_test), as the
+# workflows' own embedded shell is by actionlint.
+load("//tools/guards:defs.bzl", "guards_package")
+
+filegroup(
+    name = "scripts",
+    srcs = ["lane-flags.sh"],
+    visibility = ["//tools/guards:__pkg__"],
+)
+
+guards_package()

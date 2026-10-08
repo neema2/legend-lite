@@ -240,4 +240,15 @@ native_test(
     target_compatible_with = _SHELLCHECK_PLATFORMS,
 )
 
+# THE SCRIPTS THE WORKFLOWS SOURCE (//tools/ci): shellcheck over each, as actionlint checks the workflows' embedded
+# shell; a sourced file actionlint does not follow, so it is checked here
+native_test(
+    name = "ci_scripts_test",
+    size = "small",
+    src = ":shellcheck",
+    args = ["$(rootpaths //tools/ci:scripts)"],
+    data = ["//tools/ci:scripts"],
+    target_compatible_with = _SHELLCHECK_PLATFORMS,
+)
+
 guards_package()
