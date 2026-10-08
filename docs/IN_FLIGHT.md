@@ -488,7 +488,9 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
 
 **Then, in this order** (each on the branch, each announced here with its files before it lands):
 - **Frames in duckdb-python, and ONE model writer for a table (announced 2026-10-07, before the first edit; the
-  user: "make sure Datacube actually does move to this exact same code").** Two commits, in order:
+  user: "make sure Datacube actually does move to this exact same code").** **Landed 2026-10-08 (`0a20eb895`, with
+  `live_snap_test` moved into the browser; GATES entries "Frames" and "DataCube writes every table's model").** Two
+  commits, in order:
   1. **The writer moves into the compiler's boundary; Python uses it.** `wasm/src/main/java/planner/Wasm.java` gains
      `tableModelOrError` -- a table's catalog rows in; the whole model out (the Database, its connection and runtime,
      and the snap runtime when asked), the relation that reads it, the conversions as data AND as the converting
