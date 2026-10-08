@@ -108,8 +108,9 @@ with the compiler's plan/execution split**, in this order:
    renderer (`AnsiSqlRenderer`, `DuckDb`, `H2`, `H2Modern`, `Postgres`, `EngineStyleH2`, `EngineStyleDB2`,
    `EngineStyleComposite`, `DdlSpelling`) — a new `SqlWriter`, and AGENTS.md invariant 3; in stages, each
    byte-identical on the render census (its tool in `docs/execution-plan-boundary-2026-10-05/render-census/`). First a
-   small fix: DDL and DML spell a table name through the dialect's `physicalName`, as queries do (a reserved-word table
-   in the default schema, found by the Studio line). **Then** step 2's landing 2 and steps 3–4 — the planner makes an
+   known fix, parked by the user to keep this line on plans and recorded as **PARK-16** (DDL and DML spell a table name
+   raw where queries quote it — a reserved-word table in the default schema, found by the Studio line): the row and its
+   anchor land with E-1, and E's DDL stage closes it. **Then** step 2's landing 2 and steps 3–4 — the planner makes an
    execution plan, a runner in `exec` runs it, the server's execute paths switch to it (files in the fourth line's
    2026-10-07 note; step 2's decisions, the user's, 2026-10-07/08, in the plan's §9).
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch

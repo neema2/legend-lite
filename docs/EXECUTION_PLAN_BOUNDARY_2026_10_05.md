@@ -346,6 +346,8 @@ parameters.
   parameters; unconverted methods reached as strings through a bridge, where a parameter is refused as today. AGENTS.md
   invariant 3 restated.
 - **E-2 onwards, by method family** (a base method with every dialect's override of it), from the entry points down to
-  expressions, where parameters live.
+  expressions, where parameters live. The stage that moves the DDL and DML renderers closes **PARK-16** (DDL and DML
+  spell a table or schema name raw where queries quote it; `docs/PARKED_WORK_LEDGER.md`): its own landing right after
+  that stage, measured on the census — the stage rewrites `ddlQualified`, so the row's anchor goes red there.
 - **The bridge removed;** the legacy printer's 4 text edits become direct writes.
 - **Then step 2's landing 2**: a parameter is `bind(...)`.
