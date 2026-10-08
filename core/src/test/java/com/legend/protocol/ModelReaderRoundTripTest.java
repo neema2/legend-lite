@@ -122,6 +122,32 @@ class ModelReaderRoundTripTest {
         assertTrue(constant.getMessage().contains("originalMilestonedProperties"), constant.getMessage());
     }
 
+    /**
+     * A path literal's parts carry spans exactly when the literal does (the record keeps a part's position as an
+     * offset into the literal): a part's span under a literal without one could not be written back, so it is
+     * refused -- never dropped.
+     */
+    @Test
+    void refusesAPathSegmentSpanUnderALiteralWithoutOne() {
+        String json = SourceInformation.stripAll(PmcdParser.parseDocument("""
+                Class my::P
+                {
+                  name: String[1];
+                }
+
+                function my::f(): Any[*]
+                {
+                  #/my::P/name#
+                }
+                """));
+        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(json)));
+        String mixed = json.replace("{\"_type\":\"propertyPath\",", "{\"_type\":\"propertyPath\",\"sourceInformation\":"
+                + "{\"endColumn\":13,\"endLine\":8,\"sourceId\":\"\",\"startColumn\":10,\"startLine\":8},");
+        assertTrue(!mixed.equals(json), "the spanless JSON holds a path segment: " + json);
+        IllegalArgumentException mix = assertThrows(IllegalArgumentException.class, () -> ModelReader.read(mixed));
+        assertTrue(mix.getMessage().contains("path segment with a span in a path literal without one"), mix.getMessage());
+    }
+
     /** Numbers stay exact: a decimal keeps its digits as written. */
     @Test
     void keepsExactDecimals() {

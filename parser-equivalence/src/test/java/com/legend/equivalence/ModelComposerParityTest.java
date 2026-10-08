@@ -74,6 +74,7 @@ class ModelComposerParityTest {
      */
     private static final String EXACT_DECIMAL_UPSTREAM = "10.1D->divide(";
     private static final String EXACT_DECIMAL_LITE = "10.10D->divide(";
+    private static final String EXACT_DECIMAL_JSON = "\"value\":10.10";
 
     @Test
     void litePrintsEveryModelAsUpstreamDoes() throws Exception {
@@ -227,7 +228,8 @@ class ModelComposerParityTest {
         if (expected.equals(actual)) {
             return 0;
         }
-        if (actual.equals(expected.replace(EXACT_DECIMAL_UPSTREAM, EXACT_DECIMAL_LITE))) {
+        // only where the JSON holds the exact 10.10: there lite's 10.10D is the value, and upstream's 10.1D the loss
+        if (json.contains(EXACT_DECIMAL_JSON) && actual.equals(expected.replace(EXACT_DECIMAL_UPSTREAM, EXACT_DECIMAL_LITE))) {
             deliberate++;
             return 0;
         }

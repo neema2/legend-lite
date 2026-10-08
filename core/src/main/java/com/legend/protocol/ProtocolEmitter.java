@@ -1220,8 +1220,7 @@ public final class ProtocolEmitter {
             com.legend.protocol.spec.GqlIsland gi,
             @com.legend.base.Nullable com.legend.protocol.SourceInfo spanOverride) {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
-        srcInfo(b, requirePos(spanOverride != null ? spanOverride : gi.pos(),
-                "GQL island"));
+        srcInfo(b, spanOverride != null ? spanOverride : gi.pos());
         b.append(",\"type\":\"GQL\",\"value\":");
         GqlEmitter.document(b, gi.document());
         b.append('}');
@@ -1287,7 +1286,7 @@ public final class ProtocolEmitter {
             b.append(",\"name\":");
             str(b, p.name());
             b.append(",\"sourceInformation\":");
-            srcInfo(b, requirePos(p.pos(), "function parameter " + p.name()));
+            srcInfo(b, p.pos());
             b.append('}');
         }
         b.append("],\"postConstraints\":[],\"preConstraints\":[],\"returnGenericType\":");
@@ -1826,7 +1825,7 @@ public final class ProtocolEmitter {
                     b.append(",\"name\":");
                     str(b, col.name());
                     b.append(",\"sourceInformation\":");
-                    srcInfo(b, requirePos(col.pos(), "relation column " + col.name()));
+                    srcInfo(b, col.pos());
                     b.append('}');
                 }
                 b.append("]},\"typeArguments\":[],\"typeVariableValues\":[]}");
@@ -1970,7 +1969,7 @@ public final class ProtocolEmitter {
             b.append(",\"name\":");
             str(b, p.name());
             b.append(",\"sourceInformation\":");
-            srcInfo(b, requirePos(p.pos(), "qualified-property parameter " + p.name()));
+            srcInfo(b, p.pos());
             b.append('}');
         }
         b.append("],\"returnGenericType\":");
@@ -1978,7 +1977,7 @@ public final class ProtocolEmitter {
         b.append(",\"returnMultiplicity\":");
         multiplicity(b, d.multiplicity());
         b.append(",\"sourceInformation\":");
-        srcInfo(b, requirePos(d.pos(), "qualified property " + d.name()));
+        srcInfo(b, d.pos());
         b.append(",\"stereotypes\":");
         stereotypes(b, d.stereotypes());
         b.append(",\"taggedValues\":");
@@ -2021,7 +2020,7 @@ public final class ProtocolEmitter {
                 // _type, sourceInformation, base64 value
                 b.append("{\"_type\":\"byteArray\","
                         + "\"sourceInformation\":");
-                srcInfo(b, requirePos(c.pos(), "byteArray"));
+                srcInfo(b, c.pos());
                 b.append(",\"value\":");
                 str(b, c.value());
                 b.append('}');
@@ -2034,7 +2033,7 @@ public final class ProtocolEmitter {
                     // between _type and sourceInformation
                     b.append("{\"_type\":\"string\",\"multiLine\":true,"
                             + "\"sourceInformation\":");
-                    srcInfo(b, requirePos(c.pos(), "multiLine string"));
+                    srcInfo(b, c.pos());
                     b.append(",\"value\":");
                     str(b, c.value());
                     b.append('}');
@@ -2050,7 +2049,7 @@ public final class ProtocolEmitter {
                 b.append("{\"_type\":\"var\",\"name\":");
                 str(b, var.name());
                 b.append(",\"sourceInformation\":");
-                srcInfo(b, requirePos(var.pos(), "var " + var.name()));
+                srcInfo(b, var.pos());
                 b.append('}');
             }
             case com.legend.protocol.spec.AppliedProperty p -> {
@@ -2059,11 +2058,11 @@ public final class ProtocolEmitter {
                 b.append("],\"property\":");
                 str(b, p.property());
                 b.append(",\"sourceInformation\":");
-                srcInfo(b, requirePos(p.pos(), "property " + p.property()));
+                srcInfo(b, p.pos());
                 b.append('}');
             }
             case com.legend.protocol.spec.PureCollection c -> collection(b, c.values(),
-                    requirePos(c.pos(), "collection literal"));
+                    c.pos());
             case com.legend.protocol.spec.AppliedFunction f -> appliedFunction(b, f, null);
             case com.legend.protocol.spec.CFloat c ->
                     literal(b, "float", String.valueOf(c.value()), c.pos());
@@ -2082,7 +2081,7 @@ public final class ProtocolEmitter {
                         : "{\"_type\":\"packageableElementPtr\",\"fullPath\":");
                 str(b, ptr.fullPath());
                 b.append(",\"sourceInformation\":");
-                srcInfo(b, requirePos(ptr.pos(), "packageableElementPtr " + ptr.fullPath()));
+                srcInfo(b, ptr.pos());
                 b.append('}');
             }
             case com.legend.protocol.spec.EnumValue e -> {
@@ -2093,7 +2092,7 @@ public final class ProtocolEmitter {
                     b.append("{\"_type\":\"enumValue\",\"fullPath\":");
                     str(b, e.fullPath());
                     b.append(",\"sourceInformation\":");
-                    srcInfo(b, requirePos(e.pos(), "enumValue " + e.value()));
+                    srcInfo(b, e.pos());
                     b.append(",\"value\":");
                     str(b, e.value());
                     b.append('}');
@@ -2105,16 +2104,16 @@ public final class ProtocolEmitter {
                         + "{\"_type\":\"packageableElementPtr\",\"fullPath\":");
                 str(b, e.fullPath());
                 b.append(",\"sourceInformation\":");
-                srcInfo(b, requirePos(e.enumerationPos(), "enum ptr " + e.fullPath()));
+                srcInfo(b, e.enumerationPos());
                 b.append("}],\"property\":");
                 str(b, e.value());
                 b.append(",\"sourceInformation\":");
-                srcInfo(b, requirePos(e.pos(), "enum value " + e.value()));
+                srcInfo(b, e.pos());
                 b.append('}');
             }
             case com.legend.protocol.spec.CLatestDate l -> {
                 b.append("{\"_type\":\"latestDate\",\"sourceInformation\":");
-                srcInfo(b, requirePos(l.pos(), "%latest"));
+                srcInfo(b, l.pos());
                 b.append('}');
             }
             case com.legend.protocol.spec.CDecimal dec ->
@@ -2136,11 +2135,11 @@ public final class ProtocolEmitter {
                     // the OUTER span also excludes the '@' here — it is the NAME span
                     b.append("},\"typeArguments\":[],\"typeVariableValues\":[]}");
                     b.append(",\"sourceInformation\":");
-                    srcInfo(b, requirePos(un.pos(), "unit type annotation " + un.name()));
+                    srcInfo(b, un.pos());
                 } else {
                     genericType(b, named.type());
                     b.append(",\"sourceInformation\":");
-                    srcInfo(b, requirePos(named.pos(), "@-type annotation"));
+                    srcInfo(b, named.pos());
                 }
                 b.append('}');
             }
@@ -2163,7 +2162,7 @@ public final class ProtocolEmitter {
                     // fullPath is the name AS SPELLED — simple or FQN (inline-snippet corpus)
                     str(b, spelled);
                     b.append(",\"sourceInformation\":");
-                    srcInfo(b, requirePos(rs.typeSpan(), "@Relation<(...)> type"));
+                    srcInfo(b, rs.typeSpan());
                     b.append("},\"typeArguments\":[{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"relationType\",\"columns\":[");
                 }
                 for (int i = 0; i < rs.columns().size(); i++) {
@@ -2189,7 +2188,7 @@ public final class ProtocolEmitter {
                     b.append(",\"name\":");
                     str(b, col.name());
                     b.append(",\"sourceInformation\":");
-                    srcInfo(b, requirePos(col.pos(), "@Relation column " + col.name()));
+                    srcInfo(b, col.pos());
                     b.append('}');
                 }
                 if (bare) {
@@ -2197,7 +2196,7 @@ public final class ProtocolEmitter {
                 } else {
                     b.append("]},\"typeArguments\":[],\"typeVariableValues\":[]}],\"typeVariableValues\":[]},\"sourceInformation\":");
                 }
-                srcInfo(b, requirePos(rs.pos(), "@Relation annotation"));
+                srcInfo(b, rs.pos());
                 b.append('}');
             }
             case com.legend.protocol.spec.NewInstance ni -> newInstance(b, ni, null);
@@ -2233,7 +2232,7 @@ public final class ProtocolEmitter {
                 boolean month = d.value().precision() == com.legend.values.PureDateLiteral.Precision.MONTH;
                 b.append(day ? "{\"_type\":\"strictDate\",\"sourceInformation\":"
                         : "{\"_type\":\"dateTime\",\"sourceInformation\":");
-                srcInfo(b, requirePos(d.pos(), "date literal"));
+                srcInfo(b, d.pos());
                 b.append(",\"value\":");
                 str(b, month ? "%" + d.written() : d.written());
                 b.append('}');
@@ -2286,7 +2285,7 @@ public final class ProtocolEmitter {
                 b.append(",\"name\":");
                 str(b, p.name());
                 b.append(",\"sourceInformation\":");
-                srcInfo(b, requirePos(p.pos(), "typed lambda parameter " + p.name()));
+                srcInfo(b, p.pos());
                 b.append('}');
             }
         }
@@ -2465,7 +2464,7 @@ public final class ProtocolEmitter {
             str(b, f.function());
             b.append(",\"sourceInformation\":");
             srcInfo(b, topSpanOverride != null ? topSpanOverride
-                    : requirePos(f.pos(), "property call " + f.function()));
+                    : f.pos());
             b.append('}');
             return;
         }
@@ -2475,7 +2474,7 @@ public final class ProtocolEmitter {
             require(f.parameters().size() == 2
                             && f.parameters().get(0) instanceof com.legend.protocol.spec.CString,
                     "malformed letFunction", String.valueOf(f.parameters().size()));
-            SourceInfo letSpan = requirePos(f.pos(), "letFunction");
+            SourceInfo letSpan = f.pos();
             b.append("{\"_type\":\"func\",\"function\":\"letFunction\",\"parameters\":["
                     + "{\"_type\":\"string\",\"value\":");
             str(b, ((com.legend.protocol.spec.CString) f.parameters().get(0)).value());
@@ -2510,7 +2509,7 @@ public final class ProtocolEmitter {
             // STORE-ONLY island (#>{my::Store}#): ONE path element (probe "pf named
             // new and store tref" b); spans as in the two-part form
             SourceInfo span = topSpanOverride != null ? topSpanOverride
-                    : requirePos(f.pos(), "table reference");
+                    : f.pos();
             b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
             srcInfo(b, span);
             b.append(",\"type\":\">\",\"value\":{\"path\":[");
@@ -2531,7 +2530,7 @@ public final class ProtocolEmitter {
             // the ORDINARY tableReference(db,'s','t') function call — which emits as a
             // plain func below — by the island's synthesised, pos-less table-name string.
             SourceInfo span = topSpanOverride != null ? topSpanOverride
-                    : requirePos(f.pos(), "table reference");
+                    : f.pos();
             b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
             srcInfo(b, span);
             b.append(",\"type\":\">\",\"value\":{\"path\":[");
@@ -2563,7 +2562,7 @@ public final class ProtocolEmitter {
         }
         b.append("],\"sourceInformation\":");
         srcInfo(b, topSpanOverride != null ? topSpanOverride
-                : requirePos(f.pos(), "func " + f.function()));
+                : f.pos());
         b.append('}');
     }
 
@@ -2836,7 +2835,7 @@ public final class ProtocolEmitter {
      *  keeps the class-name span (probe "gft as let value"). */
     private static void graphFetch(StringBuilder b, com.legend.protocol.spec.GraphFetchLiteral gf,
             @com.legend.base.Nullable SourceInfo outerSpan) {
-        SourceInfo pos = requirePos(gf.pos(), "graph fetch " + gf.className());
+        SourceInfo pos = gf.pos();
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
         srcInfo(b, outerSpan != null ? outerSpan : pos);
         // the engine DOUBLES the _type key here (Jackson subtype + explicit property — probe "gft in let arg")
@@ -2862,7 +2861,7 @@ public final class ProtocolEmitter {
             }
             com.legend.protocol.spec.GraphFetchLiteral.SubTypeNode st = sts.get(i);
             b.append("{\"_type\":\"subTypeGraphFetchTree\",\"_type\":\"subTypeGraphFetchTree\",\"sourceInformation\":");
-            srcInfo(b, requirePos(st.pos(), "graph-fetch subType " + st.subTypeClass()));
+            srcInfo(b, st.pos());
             b.append(",\"subTrees\":[");
             graphNodes(b, st.subTrees());
             b.append("],\"subTypeClass\":");
@@ -2894,7 +2893,7 @@ public final class ProtocolEmitter {
             b.append("],\"property\":");
             str(b, n.property());
             b.append(",\"sourceInformation\":");
-            srcInfo(b, requirePos(n.pos(), "graph-fetch property " + n.property()));
+            srcInfo(b, n.pos());
             b.append(",\"subTrees\":[");
             graphNodes(b, n.subTrees());
             b.append(']');
@@ -2921,7 +2920,7 @@ public final class ProtocolEmitter {
         switch (p) {
             case com.legend.protocol.spec.CDate d -> {
                 b.append("{\"_type\":\"dateTime\",\"sourceInformation\":");
-                srcInfo(b, requirePos(d.pos(), "graph-fetch date argument"));
+                srcInfo(b, d.pos());
                 b.append(",\"value\":");
                 str(b, "%" + java.util.Objects.requireNonNull(d.written(),
                         "graph-fetch date argument written form"));
@@ -3024,7 +3023,7 @@ public final class ProtocolEmitter {
     private static void colSpec(StringBuilder b, com.legend.protocol.spec.ColSpec cs) {
         require(cs.alias() == null && cs.args().isEmpty() && !cs.qualified(),
                 "colSpec with alias/args", cs.name());
-        SourceInfo pos = requirePos(cs.pos(), "colSpec " + cs.name());
+        SourceInfo pos = cs.pos();
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
         srcInfo(b, pos);
         b.append(",\"type\":\"colSpec\",\"value\":");
@@ -3078,14 +3077,14 @@ public final class ProtocolEmitter {
      *  brackets, entries spanning their name tokens. */
     private static void colSpecArray(StringBuilder b, com.legend.protocol.spec.ColSpecArray ca) {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
-        srcInfo(b, requirePos(ca.pos(), "colSpecArray"));
+        srcInfo(b, ca.pos());
         b.append(",\"type\":\"colSpecArray\",\"value\":{\"colSpecs\":[");
         for (int i = 0; i < ca.colSpecs().size(); i++) {
             if (i > 0) {
                 b.append(',');
             }
             com.legend.protocol.spec.ColSpec cs = ca.colSpecs().get(i);
-            colSpecValue(b, cs, requirePos(cs.pos(), "colSpec " + cs.name()));
+            colSpecValue(b, cs, cs.pos());
         }
         b.append("]}}");
     }
@@ -3169,17 +3168,12 @@ public final class ProtocolEmitter {
             // our two carriers hold those halves separately (probe enum-refs)
             case com.legend.protocol.spec.EnumValue e ->
                     enumValueNode(b, e.fullPath(), e.value(),
-                            joinSpans(requirePos(e.enumerationPos(),
-                                            "enum ptr " + e.fullPath()),
-                                    requirePos(e.pos(), "enum value " + e.value())));
+                            joinSpans(e.enumerationPos(), e.pos()));
             case com.legend.protocol.spec.AppliedProperty p
                     when p.receiver() instanceof com.legend.protocol.spec
                             .PackageableElementPtr ptr ->
                     enumValueNode(b, ptr.fullPath(), p.property(),
-                            joinSpans(requirePos(ptr.pos(),
-                                            "enum ptr " + ptr.fullPath()),
-                                    requirePos(p.pos(),
-                                            "enum value " + p.property())));
+                            joinSpans(ptr.pos(), p.pos()));
             default -> valueSpec(b, foldNegation(v));
         }
     }
@@ -3291,15 +3285,6 @@ public final class ProtocolEmitter {
         b.append("]}]}");
     }
 
-    /**
-     * A node's span, which may be ABSENT: protocol read without source information (the engine's
-     * {@code returnSourceInformation=false}, entity JSON) has none, and the wire then omits the key, as
-     * the engine's {@code NON_NULL} does ({@link #srcInfo}). {@code what} names the node for the reader.
-     */
-    private static @com.legend.base.Nullable SourceInfo requirePos(@com.legend.base.Nullable SourceInfo pos,
-            String what) {
-        return pos;
-    }
 
     /** {@code {"_type":…,"sourceInformation":…,"value":…}} — {@code rendered} is emitted verbatim. */
     private static void literal(StringBuilder b, String type, String rendered,
@@ -3376,6 +3361,9 @@ public final class ProtocolEmitter {
      * carries no spans, and the wire then omits each span's key, as the engine's {@code NON_NULL} omits a
      * null field. The mark (a NUL character, which the string escaper never writes raw) is taken out
      * with its key and one comma by {@link #finish}, the last step of every public entry point.
+     * The emitter cannot tell a record read without spans from a parsed one whose parser forgot a
+     * span: the second is caught by gate 8, which compares the emitted JSON, every span included,
+     * byte for byte with legend-engine's over the corpus (CorpusSweepTest, claim 1a).
      */
     static void srcInfo(StringBuilder b, @com.legend.base.Nullable SourceInfo s) {
         if (s == null) {

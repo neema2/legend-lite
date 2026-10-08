@@ -2,8 +2,8 @@
 
 The user, 2026-10-05: "Yes let's do the protocol program the right way as experts." It replaces the Studio plan's B1
 (`docs/STUDIO_FULL_PLAN_2026_10_04.md`) as the one program for everything that turns Pure text into protocol JSON
-and back. Owner: `com.legend.protocol` in core. Branch `protocol` (from `studio-b1`); core work announced in
-`docs/IN_FLIGHT.md` before each landing.
+and back. Owner: `com.legend.protocol` in core. Branch `protocol` (on the Studio line's `studio-engine`); core work
+announced in `docs/IN_FLIGHT.md` before each landing.
 
 ## 1. Why
 
@@ -51,7 +51,12 @@ JSON ──read───▶ records ──compose─▶ text
 
 **Source information.** Records carry `SourceInfo` (the parser fills it; the emitter writes it when asked). The reader
 fills it from JSON when present; equality for the round trips is on records with source information stripped, as the
-existing tests do (`SourceInformation.strip`), and the named spans (`classSourceInformation`, ...) with it.
+existing tests do (`SourceInformation.strip`), and the named spans (`classSourceInformation`, ...) with it. A span may
+be absent (a model read without source information), and the emitter then omits its key, as the engine's `NON_NULL`
+does; so the emitter cannot catch a parse site that forgot its span. Gate 8 does: the corpus sweep's claim 1a compares
+the parser's emitted JSON, every span included, byte for byte with the engine's. The reader takes spans all or none
+where a record keeps a part's position relative to its whole (a path literal's segments and arguments): a mix could
+not be written back, so it is refused.
 
 ## 3. The oracles
 

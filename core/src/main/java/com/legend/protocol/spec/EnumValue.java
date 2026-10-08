@@ -50,22 +50,25 @@ public record EnumValue(String fullPath, String value,
         Objects.requireNonNull(value, "value");
     }
 
-    /** The parser's form: a positioned enumeration is the property spelling, an unpositioned one the
-     *  real node (the legacy-test parameter position, the only one that writes it). */
+    /** The parser's form, which INFERS the wire spelling from the enumeration's span: the parser
+     *  positions the enumeration wherever it writes the property spelling, and leaves it unpositioned
+     *  only for the real node (the legacy-test parameter position, the only one that writes it). A
+     *  reader, which may have no spans, passes {@code node} itself. */
     public EnumValue(String fullPath, String value,
             @com.legend.base.Nullable com.legend.protocol.SourceInfo enumerationPos,
             @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
         this(fullPath, value, enumerationPos, pos, enumerationPos == null);
     }
 
-    /** Position-free form for synthesis and tests. On the wire this node is a plain
-     *  {@code property} access on a {@code packageableElementPtr}: {@code enumerationPos}
-     *  is the enumeration-FQN span, {@code pos} the value-name token span. */
+    /** Position-free form for synthesis and tests: no spans, so (by the parser's form) the real
+     *  {@code enumValue} node on the wire. */
     public EnumValue(String fullPath, String value) {
         this(fullPath, value, null, null);
     }
 
-    /** Positions are excluded from equality — see {@code ValueSpecEqualityTest}. */
+    /** Positions and the wire spelling ({@code node}) are excluded from equality — see
+     *  {@code ValueSpecEqualityTest}: the JSON comparisons (ModelReaderRoundTripTest, gate 8) hold
+     *  the spelling. */
     @Override
     public boolean equals(Object o) {
         return o instanceof EnumValue other

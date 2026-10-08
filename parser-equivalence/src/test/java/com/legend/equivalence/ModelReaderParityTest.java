@@ -260,6 +260,7 @@ class ModelReaderParityTest {
             emitted = ProtocolEmitter.emit(ModelReader.read(doc));
         } catch (IllegalArgumentException refused) {
             counts[2]++;
+            refusals.merge("documents: " + refused.getMessage(), 1, Integer::sum);
             return;
         } catch (RuntimeException crash) {
             counts[1]++;

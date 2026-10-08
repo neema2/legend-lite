@@ -358,7 +358,7 @@ final class SpecIslandReader {
             pos = new SourceInfo(outer.sourceId(), outer.startLine(), s, outer.startLine(), s + len - 1);
         }
         int at = base;
-        List<PathLiteral.Segment> segments = v.list("path", n -> segment(n, at));
+        List<PathLiteral.Segment> segments = v.list("path", n -> segment(n, at, outer != null));
         ValueSpecification body = new Variable("_path");
         boolean dated = false;
         for (PathLiteral.Segment seg : segments) {
@@ -379,28 +379,28 @@ final class SpecIslandReader {
         return v.done(new PathLiteral(startType, segments, fn, alias, dated, pos, len));
     }
 
-    private static PathLiteral.Segment segment(Json.Node node, int base) {
+    private static PathLiteral.Segment segment(Json.Node node, int base, boolean spanned) {
         Wire p = Wire.of(node, "path segment");
         p.constant("_type", "propertyPath");
-        List<PathLiteral.PathArg> args = p.list("parameters", a -> pathArg(a, base));
-        SourceInfo s = p.span();
+        List<PathLiteral.PathArg> args = p.list("parameters", a -> pathArg(a, base, spanned));
+        SourceInfo s = spanAsLiteral(p, spanned, "path segment");
         int innerStart = s == null ? 0 : s.startColumn() - base + 2;
         int innerEnd = s == null ? 0 : s.endColumn() - base + 1;
         return p.done(new PathLiteral.Segment(p.str("property"), innerStart, innerEnd, args, false));
     }
 
-    private static PathLiteral.PathArg pathArg(Json.Node node, int base) {
+    private static PathLiteral.PathArg pathArg(Json.Node node, int base, boolean spanned) {
         Wire a = Wire.of(node, "path argument");
         String type = a.type();
         if ("enumValue".equals(type)) {
             return a.done(new PathLiteral.PathArg.EnumArg(a.str("fullPath"), a.str("value")));
         }
         if ("collection".equals(type)) {
-            List<PathLiteral.PathArg> elements = a.list("values", n -> pathArg(n, base));
+            List<PathLiteral.PathArg> elements = a.list("values", n -> pathArg(n, base, spanned));
             ProtocolReader.multiplicityOfSize(a.take("multiplicity"), elements.size(), "path collection");
             return a.done(new PathLiteral.PathArg.CollectionArg(elements));
         }
-        SourceInfo s = a.span();
+        SourceInfo s = spanAsLiteral(a, spanned, "path argument");
         int start = s == null ? 0 : s.startColumn() - base + 1;
         int end = s == null ? 0 : s.endColumn() - base + 1;
         PathLiteral.PathArg out;
@@ -416,6 +416,20 @@ final class SpecIslandReader {
             throw Wire.refuse("no reader rule for a path argument of _type '" + type + "'");
         }
         return a.done(out);
+    }
+
+    /**
+     * A segment's or an argument's span, present exactly when its path literal's is: the record keeps
+     * a part's position as an offset into the literal, so a part's span under a literal without one,
+     * or none under a literal with one, cannot be written back as it came -- refused, never dropped.
+     */
+    private static @com.legend.base.Nullable SourceInfo spanAsLiteral(Wire w, boolean spanned, String what) {
+        SourceInfo s = w.span();
+        if ((s != null) != spanned) {
+            throw Wire.refuse("a " + what + (s != null ? " with a span in a path literal without one"
+                    : " without a span in a path literal with one"));
+        }
+        return s;
     }
 
     /** A dated segment's argument as the expression the grammar parses it to. */
