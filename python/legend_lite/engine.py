@@ -33,7 +33,8 @@ import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
-from urllib.parse import SplitResult, urlsplit
+from pathlib import Path
+from urllib.parse import SplitResult, unquote, urlsplit
 
 import duckdb
 import pyarrow as pa
@@ -220,11 +221,42 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         return 200, 'application/json', _arrow_ipc(rows, planned['metadata']), {'x-legend-response-format': 'FormatNotSet'}
 
     def do_GET(self) -> None:  # noqa: N802
-        self._refuse_unread(404, f'no such path: {urlsplit(self.path).path}')
+        """A file of the engine's site (DataCube's built pages, given as ``site``), to a Host naming this machine;
+        the files are the page's own and carry no secret, so no token is asked (the page holds it)."""
+        path = urlsplit(self.path).path
+        site = self.server.engine.site
+        if self.headers.get('Host') not in self.server.engine._hosts:
+            self._refuse_unread(403, 'this engine answers requests to 127.0.0.1 and localhost only')
+            return
+        relative = 'index.html' if path == '/' else unquote(path).lstrip('/')
+        parts = relative.split('/')
+        file = site / relative if site is not None else None
+        # the path as written, never resolved: a built site's files are links into the build's output (Bazel's), as
+        # the warehouse serves them (WarehouseServer.site)
+        # a part holding ':' would be a drive on Windows ('C:/x' replaces the root), one holding NUL no file name
+        if (file is None or '\\' in relative or '..' in parts or '' in parts
+                or any(':' in part or '\0' in part for part in parts) or not file.is_file()):
+            self._refuse_unread(404, f'no such path: {path}')
+            return
+        self._send(200, _SITE_TYPES.get(file.suffix, 'application/octet-stream'), file.read_bytes(), {})
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         # no cross-origin request is answered: only the engine's own page calls it
         self._refuse_unread(405, 'this engine answers no cross-origin request')
+
+
+# the site's media types (the warehouse's, WarehouseServer.SITE_TYPES)
+_SITE_TYPES = {
+    '.html': 'text/html; charset=utf-8',
+    '.js': 'text/javascript; charset=utf-8',
+    '.mjs': 'text/javascript; charset=utf-8',
+    '.css': 'text/css; charset=utf-8',
+    '.json': 'application/json',
+    '.wasm': 'application/wasm',
+    '.pure': 'text/plain; charset=utf-8',
+    '.svg': 'image/svg+xml',
+    '.woff2': 'font/woff2',
+}
 
 
 def _arrow_requested(query: str) -> bool:
@@ -247,10 +279,14 @@ def _arrow_ipc(rows: pa.Table, metadata: dict[str, str]) -> bytes:
 
 class Engine:
     """legend-engine's ``pure/v1`` API over the frames' tables, served at ``url`` from a background thread until
-    ``close()``. Requests carry ``authorization`` (the token)."""
+    ``close()``. Requests carry ``authorization`` (the token). ``site``: a directory whose files are served too
+    (DataCube's built pages), at the same origin, so the page needs no cross-origin access."""
 
-    def __init__(self, frames: Frames) -> None:
+    def __init__(self, frames: Frames, site: str | Path | None = None) -> None:
         self.frames = frames
+        self.site = Path(site).resolve() if site is not None else None
+        if self.site is not None and not self.site.is_dir():
+            raise ValueError(f'the site {site} is not a directory')
         self.token = secrets.token_urlsafe(32)
         self._authorization = f'Bearer {self.token}'.encode('utf-8')
         self._server = _Server(self)

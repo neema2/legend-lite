@@ -48,8 +48,42 @@ export interface PureV1Options {
    * mapping from the runtime alone. A store source (`#>{db.t}#`) has none.
    */
   readonly mapping?: string;
+  /**
+   * The format `execute` answers in, as this engine is set up to serve it: DECLARED, never tried and fallen back
+   * from (DataCube's rule, test/guardrails.test.ts). Absent, upstream's default: the TDS as JSON. `ARROW_IPC`,
+   * upstream's Arrow (`?serializationFormat=ARROW_IPC`): one zstd frame around an Arrow IPC stream, its schema's
+   * metadata carrying the builder and the SQL that ran. Python's engine serves ARROW_IPC
+   * (docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md); legend-engine and legend-lite's server are read as JSON.
+   */
+  readonly serializationFormat?: 'ARROW_IPC';
+  /**
+   * The `Authorization` header every call carries, when the engine asks for one: Python's engine answers only a page
+   * holding its one-time token (`Bearer <token>`).
+   */
+  readonly authorization?: string;
   /** Defaults to the global fetch; injectable for tests. */
   readonly fetch?: typeof fetch;
+}
+
+/** The first four bytes of a zstd frame (RFC 8878 §3.1.1): how an ARROW_IPC answer begins. */
+const ZSTD_MAGIC = [0x28, 0xb5, 0x2f, 0xfd];
+
+/**
+ * An ARROW_IPC answer's body as its Arrow IPC stream: upstream writes the stream as one zstd frame
+ * (RelationalResultToArrowIPCSerializer). A body that is not one -- the JSON an engine answers when it does not serve
+ * the format -- is refused, naming what came instead; it is never read in its place. The decoder (fzstd) is loaded on
+ * the first Arrow answer, so a page whose engines answer JSON never carries it (datacube's bundle budget).
+ */
+export async function arrowIpcStream(body: Uint8Array): Promise<Uint8Array> {
+  if (!ZSTD_MAGIC.every((b, i) => body[i] === b)) {
+    throw new Error(`the answer is not ARROW_IPC (a zstd frame); it begins: ${new TextDecoder().decode(body.subarray(0, 120))}`);
+  }
+  const { decompress } = await import('fzstd');
+  try {
+    return decompress(body);
+  } catch (e) {
+    throw new Error(`the ARROW_IPC answer does not decompress: ${String(e)}`);
+  }
 }
 
 /**
@@ -132,12 +166,43 @@ export class PureV1Client {
     return parseExact(await this.#post('/execution/generatePlan', this.#input(this.fromRuntime(query), {}), query, signal, 'json'));
   }
 
-  /** E8 `execution/execute`: the rows for a query, run by the server. */
+  get serializationFormat(): 'ARROW_IPC' | undefined {
+    return this.#options.serializationFormat;
+  }
+
+  /** E8 `execution/execute`: the rows for a query, run by the server, as the TDS JSON (an engine read as JSON). */
   async execute(query: Lambda, signal?: AbortSignal): Promise<unknown> {
-    return parseExact(await this.#post('/execution/execute', this.#input(this.fromRuntime(query), {
+    if (this.#options.serializationFormat !== undefined) {
+      throw this.#fail(`this engine is read as ${this.#options.serializationFormat}: its rows come from executeArrow`, query);
+    }
+    const response = await this.#send('/execution/execute', this.#executeInput(query), query, signal, 'json');
+    return parseExact(await response.text());
+  }
+
+  /**
+   * E8 in upstream's Arrow format (`?serializationFormat=ARROW_IPC`, an engine read as ARROW_IPC): the Arrow IPC
+   * stream, out of its zstd frame (arrowIpcStream).
+   */
+  async executeArrow(query: Lambda, signal?: AbortSignal): Promise<Uint8Array> {
+    if (this.#options.serializationFormat !== 'ARROW_IPC') {
+      throw this.#fail('this engine is read as JSON: its rows come from execute', query);
+    }
+    const response = await this.#send('/execution/execute?serializationFormat=ARROW_IPC', this.#executeInput(query),
+      query, signal, 'json');
+    // the body read outside: an abort while it arrives is the caller's signal, as #send keeps it
+    const body = new Uint8Array(await response.arrayBuffer());
+    try {
+      return await arrowIpcStream(body);
+    } catch (e) {
+      throw this.#fail(`the server at ${this.baseUrl}: ${e instanceof Error ? e.message : String(e)}`, query);
+    }
+  }
+
+  #executeInput(query: Lambda): object {
+    return this.#input(this.fromRuntime(query), {
       queryTimeOutInSeconds: 60,
       enableConstraints: true,
-    }), query, signal, 'json'));
+    });
   }
 
   #input(query: Lambda, context: object): object {
@@ -166,12 +231,27 @@ export class PureV1Client {
     signal: AbortSignal | undefined,
     as: 'text' | 'json',
   ): Promise<string> {
+    return (await this.#send(path, body, subject, signal, as)).text();
+  }
+
+  /** One call; its answer, refused unless the server answered 200. */
+  async #send(
+    path: string,
+    body: unknown,
+    subject: Lambda | string,
+    signal: AbortSignal | undefined,
+    as: 'text' | 'json',
+  ): Promise<Response> {
     const url = `${this.baseUrl}/api/pure/v1${path}`;
+    const { authorization } = this.#options;
     let response: Response;
     try {
       response = await this.#fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': as === 'text' ? 'text/plain' : 'application/json' },
+        headers: {
+          'Content-Type': as === 'text' ? 'text/plain' : 'application/json',
+          ...(authorization === undefined ? {} : { Authorization: authorization }),
+        },
         body: as === 'text' ? (body as string) : toJson(body),
         ...(signal ? { signal } : {}),
       });
@@ -182,11 +262,11 @@ export class PureV1Client {
       if (signal?.aborted) throw signal.reason ?? cause;
       throw this.#fail(`could not reach the server at ${url}: ${String(cause)}`, subject);
     }
-    const raw = await response.text();
     if (!response.ok) {
+      const raw = await response.text();
       throw this.#fail(serverMessage(raw) ?? `the server returned ${response.status}`, subject);
     }
-    return raw;
+    return response;
   }
 }
 
