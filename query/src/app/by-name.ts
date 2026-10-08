@@ -5,7 +5,7 @@
 
 import type { DepotClient } from '../../../depot-client/src/client.ts';
 import { modelText } from '../../../depot-client/src/model-text.ts';
-import { dataTables } from '../../../engine-client/src/model-data.ts';
+import { dataTables, seeded, type SeedSource } from '../../../engine-client/src/model-data.ts';
 import { SNAPSHOT } from '../../../depot-client/src/wire.ts';
 import type { Grammar } from '../backend/engine.ts';
 import { ModelGraph } from '../model/graph.ts';
@@ -13,17 +13,18 @@ import { gavOf, type LoadedProject, type ProjectConfig } from './context.ts';
 
 /**
  * One version of a project, loaded: its model text and graph, as the demo's files are -- and, where queries run in
- * this tab (`tabData`), the model's own test data (plan A2: its relational Data elements' tables, made as its Databases
- * declare), which AppContext.activate makes the tab's rows each time this version is opened.
+ * this tab (`seeds`, the planner there), the model's own test data (plan A2: its relational Data elements' tables, with
+ * the server's statements that make and fill them), which AppContext.activate makes the tab's rows each time this
+ * version is opened.
  */
 export async function loadByName(depot: DepotClient, grammar: Grammar, groupId: string, artifactId: string, versionId: string,
-  tabData: boolean): Promise<LoadedProject> {
+  seeds?: SeedSource): Promise<LoadedProject> {
   const code = await modelText(depot, groupId, artifactId, versionId);
   const pmcd = await grammar.modelJson(code);
   const config: ProjectConfig = { groupId, artifactId, versionId, title: artifactId, models: [] };
   return {
     config, gav: gavOf(config), context: { _type: 'text', code }, graph: new ModelGraph(pmcd),
-    ...(tabData ? { tables: dataTables(pmcd.elements) } : {}),
+    ...(seeds ? { tables: await seeded(seeds, code, dataTables(pmcd.elements)) } : {}),
   };
 }
 

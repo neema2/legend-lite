@@ -17,7 +17,7 @@ import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
-import type { TestData } from '../../engine-client/src/model-data.ts';
+import type { SeedSource, TestData } from '../../engine-client/src/model-data.ts';
 import { inferFormat, mountRemote, type S3Credentials } from '../src/remote.ts';
 import { catalogColumns, forgetUpload, formatOf, ingestFile, tableNameOf } from '../src/upload.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../src/ui/source-picker.ts';
@@ -266,6 +266,11 @@ export interface Engine {
    */
   readonly tables: TableModels;
   /**
+   * legend-lite's planner in this tab for a project's test data (a saved query opened by name): the server's statements
+   * that make and fill its tables (engine-client's model-data.ts) -- the same module as `tables`.
+   */
+  readonly seeds: SeedSource;
+  /**
    * A file opened in this tab: the planner repointed at the model written for it from DuckDB's
    * catalog (`tables`, infer.ts). Every planner takes one (planners.ts); absent, the page
    * offers no file to open -- the capability and the affordance are the same fact.
@@ -447,7 +452,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
 
   performance.mark('dc:data-ready');
   status.textContent = 'starting planner…';
-  const { planner, source, snapTarget, label, models, tables } = await engineReady;
+  const { planner, source, snapTarget, label, models, tables, seeds } = await engineReady;
   status.textContent = label;
 
   /** The sample cube's opening view. */
@@ -1448,14 +1453,15 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         if (parsed.body[0]) values.set(v.name, parsed.body[0]);
       }
       let source = sourceOf(lambdaOf, values);
-      // a project opened by name brings its own rows: its Data elements' tables (plan A2, model-data.ts), made the tab's
-      // for each query its cube runs -- another version, filling the same tables, may be on the page beside it
+      // a project opened by name brings its own rows: its Data elements' tables, made and filled by the server's
+      // statements (`seeds`; plan A2, model-data.ts), made the tab's for each query its cube runs -- another version,
+      // filling the same tables, may be on the page beside it
       let versioned: QueryEngine | undefined;
       if (!project) {
-        const { dataTables, TestData } = await import('../../engine-client/src/model-data.ts');
+        const { dataTables, seeded: seedTables, TestData } = await import('../../engine-client/src/model-data.ts');
         const { withTestData } = await import('../../engine-client/src/tab-data.ts');
-        testData ??= new TestData({ registerFileText: (n, t) => db.registerFileText(n, t), run: (sql) => engine.run(sql, 0) });
-        versioned = withTestData(engine, testData, key, dataTables(elements as Parameters<typeof dataTables>[0]));
+        testData ??= new TestData({ run: (sql) => engine.run(sql, 0) });
+        versioned = withTestData(engine, testData, key, await seedTables(seeds, model, dataTables(elements as Parameters<typeof dataTables>[0])));
       } else {
         await once(seeded, key, async () => {
           for (const url of project.seed) {

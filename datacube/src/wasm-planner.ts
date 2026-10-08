@@ -30,6 +30,7 @@ import type { CatalogColumn, InferOptions, InferredModel, TableModels } from './
 import { PlanError, type ModelOptions } from './planner.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
+import type { SeedTable, TableSeed } from '../../engine-client/src/model-data.ts';
 
 /** The subset of TeaVM's module surface this file uses. */
 interface TeavmModule {
@@ -43,6 +44,7 @@ interface TeavmModule {
     composeLambdaOrError(lambdaJson: string, style: string): string;
     lambdaJsonOrError(text: string): string;
     modelJsonOrError(text: string): string;
+    testDataSqlOrError(model: string, database: string, tablesJson: string): string;
     warmModel(model: string): number;
   };
 }
@@ -459,6 +461,19 @@ export class WasmPlanner implements Planner, TableModels {
       ? await this.#ask({ kind: 'lambdaJson', text })
       : (await this.#load()).exports.lambdaJsonOrError(text);
     return readLambda(decode(answer, text));
+  }
+
+  /**
+   * A model's test data as the statements the server seeds DuckDB with, and each table's names as they spell them
+   * (engine-client's SeedSource, model-data.ts): for each table `database` declares, its TableSeed, in order. The model
+   * is the one given, not this planner's own.
+   */
+  async testDataSql(model: string, database: string, tables: readonly SeedTable[]): Promise<TableSeed[]> {
+    const tablesJson = JSON.stringify(tables);
+    const answer = this.#useWorker()
+      ? await this.#ask({ kind: 'testData', model, database, tables: tablesJson })
+      : (await this.#load()).exports.testDataSqlOrError(model, database, tablesJson);
+    return JSON.parse(decode(answer, `the test data of ${database}`)) as TableSeed[];
   }
 
   /**

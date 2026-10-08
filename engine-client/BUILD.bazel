@@ -99,18 +99,18 @@ write_source_files(
     visibility = ["//:__pkg__"],
 )
 
-# a model's test data in DuckDB (model-data.ts, plan A2): lite's own model JSON for a Database and a Data element
+# a model's test data in DuckDB (model-data.ts, plan A2): made and filled by the server's statements, which the planner
+# (WebAssembly) gives for a model's text
 node_test(
     name = "model_data_test",
-    # 4 s measured on a desk (2026-10-07)
+    # 7.5 s measured on a desk, the planner loaded (2026-10-08)
     size = "small",
     data = [
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
-        "test/party-model.json",
     ],
     entry_point = "test/model-data.test.ts",
-    env = {"PARTY_MODEL": "$(rlocationpath test/party-model.json)"},
+    wasm = True,
 )
 
 # Snap's engine half (plan A6, moved from DataCube): freezing rows into the tab's DuckDB, the stamp, the refusals

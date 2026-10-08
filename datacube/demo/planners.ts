@@ -47,6 +47,7 @@ async function inTab(model: string): Promise<Engine> {
     source: SOURCE,
     snapTarget: { ...SNAP_TARGET, planner },
     tables: planner,
+    seeds: planner,
     label: 'local',
     models: {
       use: (next, runtime, how) => planner.useModel(next, runtime, how),
@@ -69,12 +70,15 @@ async function onServer(model: string, which: 'remote' | 'engine'): Promise<Engi
   const answered = await fetch(health, { signal: AbortSignal.timeout(2500) }).then((r) => r.ok, () => false);
   if (!answered) refusePlanner(name, url, start);
   const planner = new UpstreamPlanner({ baseUrl: url, model, runtime: RUNTIME });
+  // legend-lite's module beside the server's planner, nothing loaded until first asked: it writes a table's model, and a
+  // saved query's project's test data as the server's statements
+  const writer = new WasmPlanner({ model: '', runtime: RUNTIME, workerUrl: WORKER() });
   return {
     planner,
     source: SOURCE,
     snapTarget: { ...SNAP_TARGET, planner },
-    // legend-lite's writer beside the server's planner: nothing is loaded until a table is opened
-    tables: new WasmPlanner({ model: '', runtime: RUNTIME, workerUrl: WORKER() }),
+    tables: writer,
+    seeds: writer,
     label: which,
     models: {
       use: (next, runtime, how) => planner.useModel(next, runtime, how),

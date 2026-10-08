@@ -8,6 +8,7 @@ import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, type Grammar } from './engine.ts';
 import type { PlannerRequest, PlannerResponse } from './planner-worker.ts';
 import type { PureModelContext, RelationTypeAnswer } from './wire.ts';
+import type { SeedTable, TableSeed } from '../model-data.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
 export interface PlannerPort {
@@ -120,5 +121,14 @@ export class WasmGrammar implements Grammar {
       if (e instanceof EngineError && e.status < 500) return [e.message];
       throw e;
     }
+  }
+
+  /**
+   * A model's test data as the statements the server seeds DuckDB with (setup.CsvSeed, on the plan side), and each
+   * table's names as those statements spell them: for each table `database` declares, its SeedSource answer
+   * (model-data.ts), in order.
+   */
+  async testDataSql(model: string, database: string, tables: readonly SeedTable[]): Promise<TableSeed[]> {
+    return JSON.parse(unfold(await this.#port.ask({ kind: 'testData', model, database, tables: JSON.stringify(tables) }))) as TableSeed[];
   }
 }

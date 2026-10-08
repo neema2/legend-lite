@@ -43,6 +43,7 @@ class DirectPort implements PlannerPort {
       case 'relationType': return e.relationTypeJsonOrError!(r.model, r.lambda) as string;
       case 'plan': return e.planJsonOrError!(r.model, r.lambda, r.runtime) as string;
       case 'warm': e.warmModel!(r.model); return 'OK\n';
+      case 'testData': return e.testDataSqlOrError!(r.model, r.database, r.tables) as string;
     }
   }
 }
