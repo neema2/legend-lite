@@ -62,6 +62,11 @@ class OwnCorpusParityTest {
         StringBuilder report = new StringBuilder();
         diffs.forEach((k, d) -> report.append(k).append('\t').append(d).append('\n'));
         Files.writeString(com.legend.testing.TestOutputs.file("own-corpus-protocol-diffs.txt"), report.toString());
+        // the sources the reference parser rejected, and why: two runs whose matched counts differ by one diff here
+        // to the source that flipped (a load-sensitive throw in the reference parse, the compiler line's reading)
+        StringBuilder rejections = new StringBuilder();
+        pass.rejected().forEach((k, d) -> rejections.append(k).append('\t').append(d.replace('\n', ' ')).append('\n'));
+        Files.writeString(com.legend.testing.TestOutputs.file("own-corpus-reference-rejected.tsv"), rejections.toString());
         Map<String, String> ledger = readLedger();
         List<String> unledgered = new ArrayList<>();
         diffs.forEach((k, d) -> {

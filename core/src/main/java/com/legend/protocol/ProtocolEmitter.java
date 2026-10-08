@@ -2503,11 +2503,13 @@ public final class ProtocolEmitter {
             newInstance(b, ni, topSpanOverride);
             return;
         }
-        if ("tableReference".equals(f.function())
+        if (f.island()
                 && f.parameters().size() == 1
                 && f.parameters().get(0) instanceof com.legend.protocol.spec.PackageableElementPtr store) {
             // STORE-ONLY island (#>{my::Store}#): ONE path element (probe "pf named
-            // new and store tref" b); spans as in the two-part form
+            // new and store tref" b); spans as in the two-part form. Written as the island
+            // (AppliedFunction.island), not the ordinary call tableReference(db), which emits
+            // as a plain func below.
             SourceInfo span = topSpanOverride != null ? topSpanOverride
                     : f.pos();
             b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
@@ -2519,16 +2521,16 @@ public final class ProtocolEmitter {
             b.append("}}");
             return;
         }
-        if ("tableReference".equals(f.function())
+        if (f.island()
                 && f.parameters().size() == 2
                 && f.parameters().get(0) instanceof com.legend.protocol.spec.PackageableElementPtr db
-                && f.parameters().get(1) instanceof com.legend.protocol.spec.CString tbl
-                && tbl.pos() == null) {
+                && f.parameters().get(1) instanceof com.legend.protocol.spec.CString tbl) {
             // The ISLAND form #>{db.schema.TBL}#: classInstance of type ">" with
             // {path:[db, schema, TBL], sourceInformation} — outer and inner spans identical,
-            // covering the whole literal (ProbeWireShapes tref/tref2). Discriminated from
-            // the ORDINARY tableReference(db,'s','t') function call — which emits as a
-            // plain func below — by the island's synthesised, pos-less table-name string.
+            // covering the whole literal (ProbeWireShapes tref/tref2). Told from the ORDINARY
+            // tableReference(db,'s.t') function call — which emits as a plain func below — by
+            // the record's written form (AppliedFunction.island), never by whether a span is
+            // there: a model read without source positions keeps which it was.
             SourceInfo span = topSpanOverride != null ? topSpanOverride
                     : f.pos();
             b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");

@@ -34,7 +34,10 @@ public final class PeRatchets {
         }
         Map<String, Integer> out = new TreeMap<>();
         out.put("mutation.deck", MutationFuzzTest.deckSize());
-        out.put("own_corpus.matched", OwnCorpusLedgerDraft.diffs().matched());
+        OwnCorpusLedgerDraft.Diffs own = OwnCorpusLedgerDraft.diffs();
+        out.put("own_corpus.matched", own.matched());
+        // the count's verdicts by kind on one line: two measurements that differ diff to one line
+        System.out.println("[pe-ratchets] own_corpus " + own.kinds());
         StringBuilder text = new StringBuilder("# parser-equivalence's measured ratchet values (PeRatchets) --"
                 + " regenerate: bazel run //parser-equivalence:update_ratchets\n");
         out.forEach((k, v) -> text.append(k).append('\t').append(v).append('\n'));

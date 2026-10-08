@@ -148,6 +148,33 @@ class ModelReaderRoundTripTest {
         assertTrue(mix.getMessage().contains("path segment with a span in a path literal without one"), mix.getMessage());
     }
 
+    /**
+     * A table reference keeps how it was written, with source positions and without (leg 2's decision, 2026-10-08): the
+     * {@code #>{...}#} island and the ordinary {@code tableReference(...)} call are one record, told apart by its written
+     * form, not by whether a span is there -- JSON without positions (Depot entities, a browser's save) used to bring
+     * the ordinary call back as an island.
+     */
+    @Test
+    void keepsHowATableReferenceWasWritten() {
+        String text = """
+                function my::islands(): Any[*]
+                {
+                  [#>{my::DB.S.T}#, #>{my::DB}#]
+                }
+
+                function my::calls(): Any[*]
+                {
+                  [tableReference(my::DB, 'S.T'), tableReference(my::DB)]
+                }
+                """;
+        String json = PmcdParser.parseDocument(text);
+        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(json)));
+        String spanless = SourceInformation.stripAll(json);
+        assertEquals(spanless, ProtocolEmitter.emit(ModelReader.read(spanless)));
+        assertEquals(2, spanless.split("\"type\":\">\"", -1).length - 1, "the two islands stay islands: " + spanless);
+        assertTrue(spanless.contains("\"function\":\"tableReference\""), "the two calls stay calls: " + spanless);
+    }
+
     /** Numbers stay exact: a decimal keeps its digits as written. */
     @Test
     void keepsExactDecimals() {

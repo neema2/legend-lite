@@ -61,6 +61,13 @@ import java.util.Objects;
  *                    {@code "my::pkg::add"})
  * @param parameters  every parameter in source order; for arrow-form
  *                    source the receiver is at index 0
+ * @param island      a written form, as {@code propertyCall}, {@code grouped} and {@code infix} are: the
+ *                    {@code #>{db[.schema.table]}#} island, not the ordinary call
+ *                    {@code tableReference(db[, 'schema.table'])} it means. The two are one record and one
+ *                    meaning; only the wire (a {@code classInstance} of type {@code ">"}, not a {@code func})
+ *                    and the printed text tell them apart, so a model read without source positions keeps
+ *                    it. Set only by {@link #tableReference}; never read by the compiler
+ *                    (docs/PROTOCOL_PROGRAM_2026_10_05.md leg 2, agreed with the compiler line 2026-10-08).
  */
 public record AppliedFunction(
         String function,
@@ -69,7 +76,8 @@ public record AppliedFunction(
         @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
         boolean propertyCall,
         boolean grouped,
-        boolean infix) implements ValueSpecification {
+        boolean infix,
+        boolean island) implements ValueSpecification {
 
     /** An OPERATOR RUN — {@code a + b (+ …)} as the parser spells it: the
      *  engine's n-ary carrier (one collection parameter holding the whole
@@ -89,7 +97,7 @@ public record AppliedFunction(
             @com.legend.base.Nullable com.legend.protocol.SourceInfo span) {
         PackageableElementPtr store = new PackageableElementPtr(db);
         return new AppliedFunction("tableReference", rest == null ? List.of(store)
-                : List.of(store, new CString(rest)), List.of(), span);
+                : List.of(store, new CString(rest)), List.of(), span, false, false, false, true);
     }
 
     public AppliedFunction {
@@ -98,6 +106,14 @@ public record AppliedFunction(
         parameters = List.copyOf(parameters);
         candidateFqns = candidateFqns == null ? List.of()
                 : List.copyOf(candidateFqns);
+    }
+
+    /** Seven-component compatibility constructor: every form but the island (only {@link #tableReference} makes
+     *  one). */
+    public AppliedFunction(String function, List<ValueSpecification> parameters,
+            List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+            boolean propertyCall, boolean grouped, boolean infix) {
+        this(function, parameters, candidateFqns, pos, propertyCall, grouped, infix, false);
     }
 
     /** Six-component compatibility constructor (non-infix). */
@@ -115,7 +131,7 @@ public record AppliedFunction(
      *  (sum(VARCHAR) regression during the 2026-08-12 burn-down). */
     public AppliedFunction withParameters(List<ValueSpecification> newParameters) {
         return new AppliedFunction(function, newParameters, candidateFqns, pos,
-                propertyCall, grouped, infix);
+                propertyCall, grouped, infix, island);
     }
 
     /** Position-free form (resolver rewrites, synthesis, tests). The parser's span
@@ -146,10 +162,10 @@ public record AppliedFunction(
      *  (harness DIFF on mostRecentDayOfWeek). Excluded from equality like pos. */
     public AppliedFunction asGrouped() {
         return new AppliedFunction(function, parameters, candidateFqns, pos, propertyCall,
-                true, infix);
+                true, infix, island);
     }
 
-    /** Position and the dot-call spelling marker are excluded from equality — see
+    /** Position and the written-form markers (propertyCall, grouped, infix, island) are excluded from equality — see
      *  {@code ValueSpecEqualityTest}. {@code propertyCall} records that the source spelled
      *  this application as {@code receiver.name(args)}: the WIRE emits that form as a
      *  property node, not a func (harness DIFF on AccountWithConstraints), while the

@@ -23,7 +23,9 @@ public final class OwnCorpusLedgerDraft {
     private OwnCorpusLedgerDraft() {}
 
     /** One pass of the own corpus through the byte comparison. */
-    public record Diffs(Map<String, Integer> kinds, Map<String, String> diffs, int matched) {
+    /** The verdicts by kind; each DIFF, and each source the reference parser rejected, by source and element, with its
+     *  detail (a rejection's names the throwable: a run that counts one fewer match names the source that flipped). */
+    public record Diffs(Map<String, Integer> kinds, Map<String, String> diffs, Map<String, String> rejected, int matched) {
     }
 
     public static Diffs diffs() throws Exception {
@@ -34,6 +36,7 @@ public final class OwnCorpusLedgerDraft {
         ParserEquivalence eq = new ParserEquivalence();
         Map<String, Integer> kinds = new TreeMap<>();
         Map<String, String> diffs = new TreeMap<>();
+        Map<String, String> rejected = new TreeMap<>();
         int matched = 0;
         for (Corpus.Source src : ours) {
             for (ParserEquivalence.Verdict v : eq.compare(src)) {
@@ -42,10 +45,12 @@ public final class OwnCorpusLedgerDraft {
                     matched++;
                 } else if (v.kind() == ParserEquivalence.Kind.DIFF) {
                     diffs.put(v.sourceId() + v.element(), v.detail());
+                } else if (v.kind() == ParserEquivalence.Kind.REFERENCE_REJECTED) {
+                    rejected.put(v.sourceId() + v.element(), v.detail());
                 }
             }
         }
-        return new Diffs(kinds, diffs, matched);
+        return new Diffs(kinds, diffs, rejected, matched);
     }
 
     public static void main(String[] args) throws Exception {
