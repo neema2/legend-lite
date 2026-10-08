@@ -7420,3 +7420,19 @@ all fixed -- the two edits above had been left out of the commit; the typed-valu
 a module that failed to load would have passed it (it now fails on anything but the compiler's refusal); the
 WebAssembly GC need on the server planners was unstated. Noted, not changed: `Wasm.databaseFromCatalogOrError` stays
 for Python's `database_from_catalog` (the same `CatalogModel` writer behind both).
+
+## 2026-10-08 — The tab's test data is the server's: the planner's statements for every app
+
+A model's test data in the tab's DuckDB was made by the tab itself, its column types spelled by a copy of the server's
+rule (`engine-client/src/model-data.ts` `sqlType`, the Studio line's landing audit's B1). The plan/exec split moved
+the server's seed text to the plan side (`//core:setup`, 847b41df4), and the tab now runs the server's own statements:
+`planner.Wasm.testDataSqlOrError` (TeaVM's first compile of `com.legend.setup`) gives, for each table a Database
+declares, `setup.CsvSeed.sqls` for DuckDB and the names those statements make (the table, its drop, each column), so
+the tab spells no table or column name of the model's. Query, Studio and DataCube (the page's `seeds`, the same module
+as its `tables`) ask it through engine-client's `SeedSource`; a person's file fills a table the same statements make,
+in one transaction. The copy is gone. Tests: `//engine-client:model_data_test` runs the planner: the server's types
+(Float DOUBLE, keeping 0.1 exactly; Bit BOOLEAN), versions swapping rows, files, refusals, a table with no Schema and a
+quoted column by the planner's names; `//gates:datacube`, `//gates:ui`, `//gates:checks` green (273/273). The audit
+(the auditor agent, 2026-10-08, running the planner and DuckDB): no blockers; four should-fix and five nits, all taken;
+one core finding sent to its owner (a default-schema table named by a reserved word is left unquoted in the seed's DDL,
+server and tab alike; the plan/exec line will spell DDL names as queries do).

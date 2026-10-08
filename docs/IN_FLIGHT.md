@@ -441,10 +441,11 @@ commits). The rebased branches are pushed under NEW names (rule 1: no force-push
 Done the same day: `query-by-name-1007`, `studio-engine-1007` (the first plus 20; its BUILD diff reviewed by the build
 program's session) and `protocol-1007`, each on `c9a18b1ed`; the two touch disjoint files and merge cleanly.
 **Landed 2026-10-08: `studio-engine` (with `query-by-name`), as 61ad2dbaa (GATES.md, "The Studio line"); `protocol`,
-as e5640e35a (its core files: the list below); DataCube's busy signal, as 355a86035.** Next, the Studio line's own:
-Studio's setup lists (this entry's commit); the site harness's one-column grid; the tab's test-data statements from the
-planner once the plan/exec split's setup move lands (it replaces `engine-client/src/model-data.ts` `sqlType`'s copy).
-The protocol program's leg 2 waits on two decisions of the user's.
+as e5640e35a (its core files: the list below); DataCube's busy signal, as 355a86035; Studio's setup lists and Query's
+navigation, as 609fae95e; Studio's status bar, as 8ab4a5bdc; the tab's test data from the planner's statements (this
+entry's commit: `sqlType`'s copy gone; `planner.Wasm.testDataSqlOrError`, `wasm/` one export).** Next, the Studio
+line's own: moving its harnesses' sites off Node's file server (the warehouse serves the page, as live_snap_test now
+does). The protocol program's leg 2 waits on two decisions of the user's.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
 (engine code: `core/.../protocol/`, eleven files of `core/.../parser/`, `native-claims.tsv`; the engine's lanes). For
