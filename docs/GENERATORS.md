@@ -2,7 +2,8 @@
 
 Status: AGREED SHAPE (the user, 2026-10-05). Section 6 steps 1 to 3 and the small upstream generators are done on
 `build/phase1-generators` (the program's Phase 1, 2026-10-06); see the program's Phase 1 status for what changed from
-this file (ref_imports deleted; offer_queries and catalog_corpus reclassified).
+this file (ref_imports deleted; offer_queries and catalog_corpus reclassified). 2026-10-08: `//datacube:catalog_rules` and
+`catalog_corpus` deleted with DataCube's TypeScript model writer (DataCube calls the compiler's writer).
 
 **Update 2026-10-06:** the program's phases are now in `docs/REBUILD_PROGRAM_2026_10_06.md`. The homework and
 experiments replaced section 2's "basic split now" (option (a)) for items 5 to 8 with the full design: the
@@ -98,7 +99,6 @@ clock-stamped jar), and `//tools/reference:ref_dump`.
 | `//scripts/corpus:gen_dense` | stress 59, 60, 64 | the dense builder, hand-written stress files, linked projects | its 14 modules; drop queries.pure (never read) |
 | `//scripts/corpus:gen_stress` | stress 92 to 98 | build.py, queries.pure, stress files, gen_dense output | its 27 modules |
 | `//core:stress_layout` | stress-layout.json | core/stress.bzl | (written at analysis time) |
-| `//datacube:catalog_rules` | catalog-facts.ts (shipped) | the sql_dialect catalog classes | 3 libraries instead of 31 |
 | `//datacube:offer_facts` | offer-facts.ts (shipped) | our compiler, DataCube's query builder | the `//core:planner` closure |
 | `//datacube:test_imports` | test_imports.bzl | import lines of DataCube's src and test | the files it reads, not 122 npm files |
 | `//engine-client:lite_facts` | lite-facts.ts (shipped) | `compiler/element/type` | `//core:compiler_element_type` |
@@ -114,7 +114,6 @@ These stay in `//:update_generated` (run by people), with their diff tests in th
   `judge_host_warehouse`, `judge_database_warehouse`;
 - `//core:ladder_report`;
 - the spec, parser-equivalence and PCT ratchets;
-- `//datacube:catalog_corpus`;
 - `//fixtures/saved-queries:gen` (its records are ours; its row counts are a test);
 - `//spec:reference_lane_report`;
 - the coverage measurements `//parser-equivalence:gen_roster` and `//scripts/parser:keyword_coverage`;

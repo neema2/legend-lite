@@ -47,7 +47,8 @@ export interface CatalogObject {
   readonly databaseType: string;
   /**
    * Its columns, as the warehouse's DuckDB catalog reports them: `type` its own name, and
-   * STRUCTURED (catalog-model.ts) its canonical type and a DECIMAL's precision and scale.
+   * STRUCTURED (as the catalog question reads one, DuckDb.CATALOG_COLUMNS_SQL) its canonical type and a
+   * DECIMAL's precision and scale.
    */
   readonly columns: readonly {
     readonly name: string;

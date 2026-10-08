@@ -122,7 +122,6 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
   const FOR_A_PERSON = new Map([
     ['src/calc.ts', 'the column editor\'s examples and completions'],
     ['src/query.ts', 'a refusal suggesting what to type'],
-    ['src/catalog-model.ts', 'a refusal naming the accessor a name cannot be read through, in legend-lite\'s words'],
   ]);
 
   it('builds no Pure text outside what a person types', () => {

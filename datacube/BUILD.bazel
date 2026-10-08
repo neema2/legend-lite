@@ -153,8 +153,6 @@ _DUCKDB_USERS = ["duckdb", "group-derived", "saved-queries", "sorting", "treevie
 _EXTRA_DATA = {
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
     "bundle-budget": [":bundle_bundle", ":demo/bundle.js"],
-    # legend-lite's own answers for the TypeScript Database writer to match
-    "catalog-model": ["test/generated/catalog-corpus.ts"],
     # the saved queries Query writes, and the project they compile against
     "saved-queries": ["//fixtures/saved-queries:records", ":projects"],
     # the in-memory source the Ad Hoc Analysis tests query
@@ -374,52 +372,6 @@ java_run(
     deps = [":offer_facts_main"],
 )
 
-# A DUCKDB TABLE'S MODEL, written in TypeScript with no WebAssembly on any planner (the user,
-# 2026-10-01): legend-lite's catalog decisions and THE catalog question, generated as data; and
-# CatalogModel's answers for a corpus of real DuckDB tables, which src/catalog-model.ts is tested
-# against (test/catalog-model.test.ts). Nothing parses a type string.
-# the rules alone, over the dialects alone: only a change to them reruns catalog_rules
-legend_java_library(
-    name = "catalog_rules_main",
-    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
-    nullaway = False,
-    srcs = ["tools/catalogfacts/CatalogRulesFacts.java"],
-    deps = ["//core:sql_dialect"],
-)
-
-legend_java_library(
-    name = "catalog_facts_main",
-    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
-    nullaway = False,
-    srcs = ["tools/catalogfacts/CatalogFacts.java"],
-    deps = [
-        ":catalog_rules_main",
-        "//core:database",
-        "//core:parser",
-        "//core:protocol",
-        "//core:sql_dialect",
-        "//json",
-    ],
-    # the DuckDB DataCube meets -- the warehouse's 1.5.x, as the tab's DuckDB-WASM is -- not core's 1.4.4
-    runtime_deps = ["@duckdb_jdbc_warehouse//jar"],
-)
-
-java_run(
-    name = "catalog_rules",
-    outs = ["generated/catalog-facts.gen.ts"],
-    arguments = ["{OUT}"],
-    main_class = "catalogfacts.CatalogRulesFacts",
-    deps = [":catalog_rules_main"],
-)
-
-java_run(
-    name = "catalog_corpus",
-    outs = ["generated/catalog-corpus.gen.ts"],
-    arguments = ["{OUT}"],
-    main_class = "catalogfacts.CatalogFacts",
-    deps = [":catalog_facts_main"],
-)
-
 # THE TESTS' IMPORT CLOSURES (P3-34): test_imports.bzl, generated from the imports themselves, diff-tested below
 js_binary(
     name = "test_imports_tool",
@@ -452,8 +404,6 @@ write_source_files(
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows; a changed offer fact changes what a column is offered)",
     files = {
         "src/generated/offer-facts.ts": ":offer_facts",
-        "src/generated/catalog-facts.ts": ":catalog_rules",
-        "test/generated/catalog-corpus.ts": ":catalog_corpus",
         "test_imports.bzl": ":test_imports",
     },
     visibility = ["//:__pkg__"],

@@ -64,7 +64,7 @@ import {
   type PageDocument,
   type SavedDocument,
 } from '../src/page-document.ts';
-import { inferModel, type InferredModel } from '../src/infer.ts';
+import type { InferredModel, TableModels } from '../src/infer.ts';
 import type { ModelHome } from '../../depot-client/src/model-home.ts';
 import { pageConfig, type DepotConfig, type PageConfig, type ProjectConfig } from './page-config.ts';
 import type { ModelElement } from '../src/saved-queries.ts';
@@ -260,8 +260,14 @@ export interface Engine {
   readonly source: ValueSpecification;
   readonly snapTarget: SnapTarget;
   /**
+   * legend-lite's model writer for a table opened on the page -- a file, a remote file, a warehouse
+   * table -- whichever planner plans it (infer.ts): the planner itself in this tab; legend-lite's
+   * module, loaded when first asked, beside a planner on a server (planners.ts).
+   */
+  readonly tables: TableModels;
+  /**
    * A file opened in this tab: the planner repointed at the model written for it from DuckDB's
-   * catalog (src/catalog-model.ts). Every planner takes one (planners.ts); absent, the page
+   * catalog (`tables`, infer.ts). Every planner takes one (planners.ts); absent, the page
    * offers no file to open -- the capability and the affordance are the same fact.
    */
   readonly models?: {
@@ -441,7 +447,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
 
   performance.mark('dc:data-ready');
   status.textContent = 'starting planner…';
-  const { planner, source, snapTarget, label, models } = await engineReady;
+  const { planner, source, snapTarget, label, models, tables } = await engineReady;
   status.textContent = label;
 
   /** The sample cube's opening view. */
@@ -720,8 +726,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
 
   // OPENING A FILE.
   //
-  // DuckDB reads it and sniffs the schema, legend-lite's writer declares what its
-  // catalog found and `inferModel` writes a Pure model around that, and the cube is rebuilt against that.
+  // DuckDB reads it and sniffs the schema, legend-lite's writer (`tables.tableModel`) writes the
+  // Pure model from what its catalog found, and the cube is rebuilt against that.
   // Nothing downstream learns the data was uploaded: the planner
   // compiles an ordinary model over an ordinary table, which is why
   // the SQL panel, the tree and the snap plane all keep working
@@ -754,7 +760,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
      * A warehouse table's model: its own runtime (the catalog's database type), and the runtime its
      * Snap -- a copy into this tab's engine -- is planned against (the tab engine's type).
      */
-    const warehouseModel = (o: CatalogObject): InferredModel & { readonly snapRuntime: string } => inferModel(o.columns.map((c) => ({ ...c, dataType: c.type })),
+    const warehouseModel = (o: CatalogObject): Promise<InferredModel & { readonly snapRuntime: string }> => tables.tableModel(o.columns.map((c) => ({ ...c, dataType: c.type })),
       { table: o.name, schema: o.schema, convertible: false, databaseType: o.databaseType, snapDatabaseType: engine.databaseType });
     /**
      * A warehouse table's Snap: the rows pulled with the live plan, into a table of the same name in
@@ -773,7 +779,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     }> {
       // A warehouse table is read-only: a column the compiler says must be
       // converted to be declared cannot be, so it is left out, and named.
-      const m = warehouseModel(chosen);
+      const m = await warehouseModel(chosen);
       local.use(m.model, m.runtime, { bitColumns: m.bitColumns });
       const columns = await sourceColumns(planner, m.source);
       const live = track(new WarehouseEngine(signedIn, chosen.catalog));
@@ -875,7 +881,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       const newest = opens.start();
       latestTable = tableNameOf(file.name);
       try {
-        const opened = await ingestFile(engine, db, file);
+        const opened = await ingestFile(engine, db, file, tables);
         const loadedAt = new Date();
         if (!newest()) {
           // overtaken: nothing of this open is kept -- unless a newer open, or the cube on
@@ -1368,7 +1374,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     async function mountedRemote(url: string, s3: S3Credentials | undefined, name: string) {
       await mountRemote(engine, { sources: [{ name, url }], ...(s3 ? { s3 } : {}) });
       // a view of a remote file cannot be rewritten: a column that needs a conversion is left out
-      return inferModel(await catalogColumns(engine, name), { table: name, convertible: false, databaseType: engine.databaseType });
+      return tables.tableModel(await catalogColumns(engine, tables, name), { table: name, convertible: false, databaseType: engine.databaseType });
     }
 
     // A SAVED QUERY (the picker's Saved queries; the user, 2026-10-01: "load from a saved Query"):
@@ -1480,7 +1486,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         return { snapshot: rawRows(o.source, o.columns), place: { engine: o.engine ?? engine, planner: o.planner }, cubeSource: o.cubeSource, label: o.label };
       }
       if (chosen.kind === 'file') {
-        const opened = await ingestFile(engine, db, chosen.file, { table: freshTable(tableNameOf(chosen.file.name)) });
+        const opened = await ingestFile(engine, db, chosen.file, tables, { table: freshTable(tableNameOf(chosen.file.name)) });
         const own = local.another(opened.model, opened.runtime, { bitColumns: opened.bitColumns });
         return {
           snapshot: rawRows(opened.source, await sourceColumns(own, opened.source)),
@@ -1491,7 +1497,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       }
       if (chosen.kind === 'table') {
         const o = chosen.object;
-        const m = warehouseModel(o);
+        const m = await warehouseModel(o);
         const own = local.another(m.model, m.runtime, { bitColumns: m.bitColumns });
         return {
           snapshot: rawRows(m.source, await sourceColumns(own, m.source)),
