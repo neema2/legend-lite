@@ -63,7 +63,7 @@ jobs:
             {"key":"pct_channel_b",      "cmd":"test",  "name":"PCT Channel B, the dual verdict"},
             {"key":"parser_equivalence", "cmd":"test",  "name":"parser equivalence"},
             {"key":"stress",             "cmd":"test",  "name":"the stress corpus"},
-            {"key":"warehouse",          "cmd":"test",  "name":"the warehouse: on the JVM, as a native image, its launcher, live Postgres"},
+            {"key":"warehouse",          "cmd":"test",  "name":"the warehouse (on the JVM, as a native image, live Postgres) and the legend-lite compiler as a native library"},
             {"key":"datacube",           "cmd":"test",  "name":"DataCube, and the planner in WebAssembly"},
             {"key":"ui",                 "cmd":"test",  "name":"Studio, Query, the saved-query store"},
             {"key":"sdlc",               "cmd":"test",  "name":"the model home: SDLC and Depot, server and page"}
@@ -246,6 +246,15 @@ jobs:
             unlaned=$(bazel query "${qflags[@]}" 'tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)')
             [ -z "$unlaned" ] || { echo "::error ::tests in no lane of gates/BUILD.bazel:"; echo "$unlaned"; exit 1; }
           else
+            if [ "${{ matrix.lane.key }}" = warehouse ]; then
+              # TWO NATIVE IMAGES in this lane, the warehouse's and the compiler's (//native:compiler, for
+              # //python's tests): each is a whole-machine build, so they are built first, one after the other,
+              # and the tests run after. A test beside an image build timed out (//warehouse:tests_native, run
+              # 37830923226, 2026-10-08), and two images at once on a 7 GB runner risk its memory. The compiler's
+              # image is skipped where it does not build (Windows, for now).
+              bazel build "${tflags[@]}" --skip_incompatible_explicit_targets //native:compiler
+              bazel build "${tflags[@]}" --build_tests_only "//gates:${{ matrix.lane.key }}"
+            fi
             bazel test "${tflags[@]}" "//gates:${{ matrix.lane.key }}"
             if [ "${{ matrix.lane.key }}" = warehouse ]; then
               # L1c (2026-10-07): the native server started by `bazel run` itself, with no script between, keeps an
