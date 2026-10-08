@@ -7121,7 +7121,11 @@ literal's part spans all or none and refuses a mix; the WebAssembly JSON printer
 Local gate `//gates:local` and `//gates:parser_equivalence` green (317/317) but for one run of `//studio:verify_test`
 on a machine at load 30: at its server level the project menu did not open on the click after the demo projects were
 published (the publish itself, every release through the compile gate, had passed); 3 of 3 runs green alone. A UI
-race in the harness or the page, not this change's; the Studio line's to find.
+race in the harness or the page, not this change's; the Studio line's to find (found: "Studio's setup page" below).
+
+The runs: 37798308415 on `protocol-1008` (e5640e35a), every lane on every platform, green on every job; and
+`diagnostics.yml` 37798312706 (the parser and protocol are touched), green. Pushed to main as e5640e35a, the tested
+commit itself (main had not moved).
 
 ## 2026-10-08 — DataCube is busy from a change's ask on: the cause of `verify_features_test`'s flakes
 
@@ -7139,9 +7143,14 @@ times each; local gate `//gates:local` green (316/316). The audit (the auditor a
 should-fix (the commit message's account of the first run, and Snap's copy not counted) and two nits, taken but one (a
 stuck count cannot be cleared: only harnesses read it, and it would only slow them).
 
-Two more harness races seen on loaded runs today, each green on three reruns, for the Studio line next: the site
-harness read DataCube's party grid before its second column had rendered (`//site:verify_test`), and Studio's project
-menu did not open on the click after the demo projects were published (`//studio:verify_test`, server level).
+Two more harness races seen on loaded runs today, each green on three reruns, for the Studio line next: in
+`//site:verify_test`, DataCube showed the saved query "Parties at 1.0.0" with one column where the check expects the
+party names too ("5 rows × 1 cols"; found and fixed: "Query: a route change clears the screen" below); and Studio's
+project menu did not open on the click after the demo projects were published (`//studio:verify_test`, server level;
+found and fixed: "Studio's setup page" below).
+
+The run: 37800677694 on `datacube-busy` (355a86035), lanes checks, datacube and ui on every platform, green on every
+job. Pushed to main as 355a86035, the tested commit itself.
 
 ## 2026-10-08 — A connection's setup moves to the plan side: `//core:setup` (the execution plan boundary, step 2's first piece)
 
@@ -7166,3 +7175,47 @@ CI run 37808358514 green on `da5c8c8c8` (50 jobs; `//site:verify_test`'s known p
 on the rerun); `847b41df4` is that commit rebased over two `IN_FLIGHT`-only commits. Landing took three CI runs
 (37795237937, 37803524038, 37808358514): each of the first two was green, but code landed on `main` before the push;
 the third landed while the other lines held their code pushes.
+
+## 2026-10-08 — Studio's setup page: each list opens only once it has loaded
+
+`//studio:verify_test` failed at its server level on loaded runs, in two places, and passed alone: the project menu
+did not offer `trading` after the demo projects were published, and the workspace menu did not offer `exec` after a
+review was committed (the page drawn again). One cause, `studio/src/ui/setup.ts`'s: both lists were drawn enabled and
+empty and filled when their requests answered; a list opened in between showed "No match found", and the reset that
+brought its options (or the "Loading workspaces..." before it) closed it, so the option never appeared until the list
+was opened again. And "Demo projects published." was said before the project list had been read again. Now each list
+is drawn disabled with its own words until its options are in, and the publish is said once the list shows it; a list
+whose request fails says "Could not load ..." (and the reason as a toast) instead of loading for good; and the
+workspace list keeps the answer for the project chosen last.
+
+Tests: `//studio:verify_test` three times and `//site:verify_test` (which publishes through Studio too), green on a
+machine at load 50 to 110; `//studio:tests` green (`//studio:demo_test` took 58.6 s of its 60 s at that load: its size
+is the next thing to measure). The failure paths have no automated test (Studio has no DOM test setup). The audit (the
+auditor agent, 2026-10-08): no blockers; a failed project request left "Loading projects..." for good, and the commit
+message called both lists' words upstream's (only the workspace list's are); both fixed, with the nits and the
+workspace list's older two (late answers, a failed request).
+
+## 2026-10-08 — Query: a route change clears the screen at once
+
+`//site:verify_test` failed on loaded runs (twice here, and on CI run 37798368585 on another line's branch) and passed
+alone: DataCube showed the saved query "Parties at 1.0.0" with one column, Country, where Name and Country were
+expected. The cause was Query's: switching to version 1.0.0 disposed the old editor but left its screen up, clickable,
+while 1.0.0 loaded (by name, with its test data); the harness's double-click on Name landed on the dead editor and was
+dropped, the one on Country on the new editor, and the query was saved with Country alone. Now `#navigate`
+(`query/src/app/app.ts`) puts "Opening…" in place of the old screen as it leaves it. And, found by its audit, a
+navigation overtaken by a later one (a version still loading when the person moves on) drew over the later screen and
+left a second editor listening for Ctrl+S: each navigation is now counted and `#render` stops where a later one has
+begun; loading a project and making its test data the tab's rows are two steps (`AppContext.load`, `activate`), and only
+the current navigation activates, so a late load cannot swap the rows under another screen. Tests: `//site:verify_test`
+three times, `//query:verify_test`, `//query:tests` and `//studio:verify_test`, green.
+
+The run, for this entry and the one before: 37814120542 on `studio-races-2` (a05026d1a: both fixes, rebased onto the
+setup move 847b41df4), lanes checks, ui and datacube on every platform, green on every job; local gate 315/317, the two
+others each the known case of another line or this one (`//datacube:live_snap_test`'s sign-in reset, whose cause the
+DataCube + Python line has found: a pooled keep-alive socket left dead while DuckDB-WASM's blocking build holds Node's
+main thread; and `//studio:verify_test`'s Problems panel, whose click a status-bar redraw can swallow, the Studio line's
+next fix), `//studio:verify_test` green on its rerun. PUSHED WRONGLY: the landing's rebase over one `IN_FLIGHT`-only
+commit (d1345d07b) stopped on a conflict in this file, and the push that followed in the same command sent the
+rebase's state as it was -- main 609fae95e, the two code commits as tested, without this documentation commit, whose
+`[skip ci]` would have kept main's CI from running on it. The code is the tested code; main's own run judges it once
+more. This commit is the documentation, landed after.
