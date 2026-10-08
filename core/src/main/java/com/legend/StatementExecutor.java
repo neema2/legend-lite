@@ -4,7 +4,7 @@
 package com.legend;
 
 import com.legend.compiler.element.ModelContext;
-import com.legend.exec.Ddl;
+import com.legend.setup.Ddl;
 import com.legend.exec.ExecutionResult;
 import com.legend.exec.Executor;
 import com.legend.compiler.spec.SpecCompiler;
@@ -1099,7 +1099,7 @@ final class StatementExecutor {
                 ? c.value() : null;
         java.util.List<String> sqls = java.util.List.of();
         if (csv != null && db != null) {
-            sqls = com.legend.exec.Ddl.setUpDataSqlsText(csv, db, lookup, ENGINE_TEXT);
+            sqls = com.legend.setup.Ddl.setUpDataSqlsText(csv, db, lookup, ENGINE_TEXT);
         }
         com.legend.plan.PlanConn.DsSpec spec = null;
         if (ni.properties().get("datasourceSpecification")
@@ -1112,7 +1112,7 @@ final class StatementExecutor {
                             .TypedCString sc2
                     ? sc2.value() : null;
             java.util.List<String> specSqls = specCsv != null && db != null
-                    ? com.legend.exec.Ddl.setUpDataSqlsText(specCsv, db,
+                    ? com.legend.setup.Ddl.setUpDataSqlsText(specCsv, db,
                             lookup, ENGINE_TEXT)
                     : java.util.List.of();
             spec = new com.legend.plan.PlanConn.DsSpec(
@@ -1919,24 +1919,24 @@ final class StatementExecutor {
         if (!state.dirty && state.done.contains(key)) {
             return;
         }
-        java.util.List<com.legend.exec.CsvSeed.Step> setups = new java.util.ArrayList<>();
+        java.util.List<com.legend.setup.CsvSeed.Step> setups = new java.util.ArrayList<>();
         for (com.legend.compiler.spec.typed.TypedFrom fr : froms) {
             for (String sql : fr.sqlSetups()) {
-                setups.add(new com.legend.exec.CsvSeed.Step.Sql(sql));
+                setups.add(new com.legend.setup.CsvSeed.Step.Sql(sql));
             }
-            setups.addAll(com.legend.exec.CsvSeed.setupSteps(fr, env.ctx(), env.dialect()));
+            setups.addAll(com.legend.setup.CsvSeed.setupSteps(fr, env.ctx(), env.dialect()));
             // an ELEMENT runtime named by the from(): its declared
             // connections' test data (the instance form above carries the
             // same facts on the instance)
             fr.context().runtime().ifPresent(ref ->
-                    setups.addAll(com.legend.exec.CsvSeed.declaredSteps(ref.fullPath(), env.ctx(), env.dialect())));
+                    setups.addAll(com.legend.setup.CsvSeed.declaredSteps(ref.fullPath(), env.ctx(), env.dialect())));
         }
         // the AMBIENT runtime (the driver's execution context): its
         // declared connections' test data seeds the session the same way
         if (env.runtimeFqn() != null) {
-            setups.addAll(com.legend.exec.CsvSeed.declaredSteps(env.runtimeFqn(), env.ctx(), env.dialect()));
+            setups.addAll(com.legend.setup.CsvSeed.declaredSteps(env.runtimeFqn(), env.ctx(), env.dialect()));
         }
-        com.legend.exec.CsvSeed.run(setups, env.connection(), env.dialect(), env.options().recorder());
+        com.legend.exec.SetupRunner.run(setups, env.connection(), env.dialect(), env.options().recorder());
         state.done.add(key);
         state.dirty = false;
     }
@@ -2853,7 +2853,7 @@ final class StatementExecutor {
      * DuckDB reference target (H2_BACKEND.md §12 step 12 — the rewrite
      * is a DuckDB-target adaptation, never generic). */
     private static String adaptRaw(String sql, ExecEnv env) {
-        return com.legend.exec.CsvSeed.adaptRaw(sql, env.dialect());
+        return com.legend.setup.CsvSeed.adaptRaw(sql, env.dialect());
     }
 
     /** THE ONE SEND of an effect native (block-compiler stage 3, 2026-09-21): with a
@@ -2967,7 +2967,7 @@ final class StatementExecutor {
      * The K-native {@code dropAndCreateTableInDb}
      * (PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB): the real engine spells
      * DDL by walking the Database metamodel; here it renders from the
-     * compiled store model ({@link com.legend.exec.Ddl}) and executes over
+     * compiled store model ({@link com.legend.setup.Ddl}) and executes over
      * the ambient connection — same connection convention as executeInDb.
      */
     static ExecutionResult dropAndCreateTableInDb(

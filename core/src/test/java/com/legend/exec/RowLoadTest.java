@@ -1,6 +1,7 @@
 package com.legend.exec;
 
 import com.legend.error.DataError;
+import com.legend.setup.RowLoad;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

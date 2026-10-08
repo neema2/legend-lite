@@ -79,6 +79,7 @@ final class ArchitectureTest {
             java.util.Map.entry("lowering", "com.legend.lowering.Lowerer"),
             java.util.Map.entry("plan", "com.legend.plan.QueryPlan"),
             java.util.Map.entry("resolver", "com.legend.resolver.StoreResolver"),
+            java.util.Map.entry("setup", "com.legend.setup.CsvSeed"),
             java.util.Map.entry("exec", "com.legend.exec.Executor"),
             java.util.Map.entry("probe", "com.legend.probe.Shadow"),
             java.util.Map.entry("testdatagen", "com.legend.testdatagen.TestDataGenerationNatives"),
@@ -681,8 +682,9 @@ final class ArchitectureTest {
      * 2026-08-18 after a user challenge found it missing): the
      * compile-side layers produce ONE semantic MIR; every backend
      * difference is a dialect rewrite/render rule applied AFTER them.
-     * Only the execution layer (exec, root) may see
-     * {@code com.legend.sql.dialect} — it must render and normalize.
+     * Only the execution layer (exec, root) and the connection-setup writer
+     * (setup, since 2026-10-08: it spells DDL through the target's dialect) may see
+     * {@code com.legend.sql.dialect} — they must render and normalize.
      * ZERO exceptions (Phase 1 audit: the last breach — Scalars'
      * SUBSTRING TextGoldens branch — moved to DuckDb's SubstringClamp
      * rewrite pass; the frozen carve-out is retired).
