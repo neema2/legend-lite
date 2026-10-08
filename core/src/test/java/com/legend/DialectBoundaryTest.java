@@ -55,6 +55,9 @@ class DialectBoundaryTest {
 
     /** {@code rawH2IsNative()} CALLS outside the dialect package, by file. */
     private static final Map<String, Integer> RAW_H2_CALLERS = Map.of(
+            // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
+            // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: adaptRaw moved with the text half
+            // (setup/CsvSeed.java), the file name and count unchanged
             "CsvSeed.java", 1);   // adaptRaw — the raw-SQL boundary (moved from StatementExecutor 2026-09-27 with the setup loop, CsvSeed.run; one site still)
 
     /** Lines naming a target ({@code DatabaseType.H2} / {@code .DuckDB} / {@code .Postgres})

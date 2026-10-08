@@ -10,6 +10,7 @@ import com.legend.error.DataError;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlQuery;
 import com.legend.values.PureDateLiteral;
+import com.legend.setup.RowLoad;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
