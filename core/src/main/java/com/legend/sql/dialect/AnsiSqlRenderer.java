@@ -54,17 +54,6 @@ public class AnsiSqlRenderer implements SqlDialect {
     protected record Infix(String sql, int prec) {
     }
 
-    /**
-     * A composite arm whose SPELLING expands to operator text: the WALK
-     * decides the parens — the expansion is declared WEAKEST-binDING, so
-     * any enclosing operator wraps it and no arm ever hand-parenthesizes
-     * (remediation T1.6/T3.2: the misbind class is dead structurally, and
-     * a new composite arm cannot reintroduce it by forgetting parens).
-     */
-    protected final String opSpelling(String spelling, int parentPrec) {
-        return parentPrec > 0 ? "(" + spelling + ")" : spelling;
-    }
-
     private static final Map<SqlFn, Infix> INFIX = Map.ofEntries(
             Map.entry(SqlFn.OR, new Infix("OR", 1)),
             Map.entry(SqlFn.AND, new Infix("AND", 2)),
@@ -94,9 +83,8 @@ public class AnsiSqlRenderer implements SqlDialect {
         for (com.legend.sql.SqlRewriter pass : renderPasses()) {
             q = pass.rewriteRoot(q);
         }
-        SqlWriter writer = new SqlWriter();
-        query(writer, q, 0);
-        return writer;
+        SqlWriter writer = newWriter();
+        return query(writer, q, 0);
     }
 
     /**
@@ -161,8 +149,8 @@ public class AnsiSqlRenderer implements SqlDialect {
     // Queries and clause assembly
     // ==================================================================
 
-    protected void query(SqlWriter writer, SqlQuery q, int depth) {
-        switch (q) {
+    protected SqlWriter query(SqlWriter writer, SqlQuery q, int depth) {
+        return switch (q) {
             case com.legend.sql.SqlWith w -> {
                 writer.append("WITH ");
                 for (int i = 0; i < w.ctes().size(); i++) {
@@ -174,7 +162,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                     writer.append(')');
                 }
                 nl(writer, depth);
-                query(writer, w.body(), depth);
+                yield query(writer, w.body(), depth);
             }
             case SqlSelect s -> select(writer, s, depth);
             case SqlUnion u -> {
@@ -186,11 +174,12 @@ public class AnsiSqlRenderer implements SqlDialect {
                     }
                     query(writer, u.branches().get(i), depth);
                 }
+                yield writer;
             }
-        }
+        };
     }
 
-    protected void select(SqlWriter writer, SqlSelect s, int depth) {
+    protected SqlWriter select(SqlWriter writer, SqlSelect s, int depth) {
         if (s.qualify() != null && !supportsQualify()) {
             // The QualifyToSubselect PASS owns this rewrite — a QUALIFY
             // reaching the writer means the pass did not run: our bug.
@@ -219,14 +208,16 @@ public class AnsiSqlRenderer implements SqlDialect {
             source(writer, s.from(), depth);
         }
         if (s.where() != null) {
-            nl(writer, depth).append("WHERE ").append(expr(s.where(), 0));
+            nl(writer, depth).append("WHERE ");
+            writer.expr(s.where(), 0);
         }
         if (!s.groupBy().isEmpty()) {
-            nl(writer, depth).append("GROUP BY ")
-                    .append(s.groupBy().stream().map(e -> expr(e, 0)).collect(Collectors.joining(", ")));
+            nl(writer, depth).append("GROUP BY ");
+            writer.list(s.groupBy());
         }
         if (s.having() != null) {
-            nl(writer, depth).append("HAVING ").append(expr(s.having(), 0));
+            nl(writer, depth).append("HAVING ");
+            writer.expr(s.having(), 0);
         }
         if (s.qualify() != null) {
             appendQualify(writer, s, depth);
@@ -241,6 +232,7 @@ public class AnsiSqlRenderer implements SqlDialect {
         if (s.offset() != null) {
             nl(writer, depth).append("OFFSET ").append(s.offset());
         }
+        return writer;
     }
 
     /**
@@ -258,7 +250,7 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** Emit the native QUALIFY clause (only called when {@link #supportsQualify()}). */
-    protected void appendQualify(SqlWriter writer, SqlSelect s, int depth) {
+    protected SqlWriter appendQualify(SqlWriter writer, SqlSelect s, int depth) {
         throw new DialectCapability("QUALIFY reached a dialect without native support");
     }
 
@@ -340,8 +332,8 @@ public class AnsiSqlRenderer implements SqlDialect {
     // Sources
     // ==================================================================
 
-    protected void source(SqlWriter writer, SqlSource src, int depth) {
-        switch (src) {
+    protected SqlWriter source(SqlWriter writer, SqlSource src, int depth) {
+        return switch (src) {
             case SqlSource.Dual d -> throw new IllegalStateException(
                     "Dual renders as FROM-clause omission — caller bug");
             case SqlSource.Table t -> {
@@ -350,6 +342,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                 if (t.alias() != null) {
                     writer.append(" AS ").append(aliasIdent(t.alias()));
                 }
+                yield writer;
             }
             case SqlSource.Cte c -> writer.append(c.name()).append(" AS ").append(aliasIdent(c.alias()));
             case SqlSource.Subselect sub -> subselectSource(writer, sub, depth);
@@ -367,7 +360,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlSource.SourceUrl u -> {
                 writer.append("(");
                 nl(writer, depth + 1).append(sourceUrl(u.url()));
-                nl(writer, depth).append(") AS ").append(aliasIdent(u.alias()));
+                yield nl(writer, depth).append(") AS ").append(aliasIdent(u.alias()));
             }
             case SqlSource.Pivot p -> pivotSource(writer, p, depth);
             case SqlSource.Join j -> {
@@ -381,10 +374,11 @@ public class AnsiSqlRenderer implements SqlDialect {
                 writer.append(" ");
                 source(writer, j.right(), depth);
                 if (j.on() != null) {
-                    writer.append(" ON ").append(expr(j.on(), 0));
+                    writer.append(" ON ").expr(j.on(), 0);
                 }
+                yield writer;
             }
-        }
+        };
     }
 
     /** ANSI row-constructor VALUES with column aliases; SQLite overrides (UNION ALL). */
@@ -395,28 +389,28 @@ public class AnsiSqlRenderer implements SqlDialect {
         return " AS (";
     }
 
-    protected void subselectSource(SqlWriter writer,
+    protected SqlWriter subselectSource(SqlWriter writer,
             SqlSource.Subselect sub, int depth) {
         writer.append("(");
         nl(writer, depth + 1);
         query(writer, sub.inner(), depth + 1);
-        nl(writer, depth).append(") AS ").append(aliasIdent(sub.alias()));
+        return nl(writer, depth).append(") AS ").append(aliasIdent(sub.alias()));
     }
 
-    protected void valuesSource(SqlWriter writer, SqlSource.Values v) {
-        writer.append("(VALUES ")
-                .append(v.rows().stream()
-                        .map(row -> "(" + row.stream().map(e -> expr(e, 0))
-                                .collect(Collectors.joining(", ")) + ")")
-                        .collect(Collectors.joining(", ")))
-                .append(") AS ").append(aliasIdent(v.alias()))
-                .append("(")
-                .append(v.columns().stream().map(this::aliasIdent).collect(Collectors.joining(", ")))
-                .append(")");
+    protected SqlWriter valuesSource(SqlWriter writer, SqlSource.Values v) {
+        writer.append("(VALUES ");
+        for (int r = 0; r < v.rows().size(); r++) {
+            if (r > 0) {
+                writer.append(", ");
+            }
+            writer.append("(").list(v.rows().get(r)).append(")");
+        }
+        return writer.append(") AS ").append(aliasIdent(v.alias())).append("(")
+                .append(v.columns().stream().map(this::aliasIdent).collect(Collectors.joining(", "))).append(")");
     }
 
     /** Native PIVOT or a CASE-WHEN aggregation rewrite — no ANSI form exists. */
-    protected void pivotSource(SqlWriter writer, SqlSource.Pivot p, int depth) {
+    protected SqlWriter pivotSource(SqlWriter writer, SqlSource.Pivot p, int depth) {
         throw new DialectCapability("pivot reached a dialect without a PIVOT strategy");
     }
 
@@ -503,34 +497,40 @@ public class AnsiSqlRenderer implements SqlDialect {
                 parentPrec);
     }
 
-    protected String expr(SqlExpr e, int parentPrec) {
+    /** An expression as text, for a method that still builds a string (E's bridge): a bound parameter is refused. */
+    protected final String expr(SqlExpr e, int parentPrec) {
+        return newWriter().expr(e, parentPrec).bridged();
+    }
+
+    /** An expression, written: a leaf is spelled as text; a sub-expression is written into the same writer, so a
+     *  parameter anywhere below is bound where its placeholder is written. */
+    protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         return switch (e) {
-            case SqlExpr.Group g -> "(" + expr(g.inner(), 0) + ")";
+            case SqlExpr.Group g -> writer.append("(").expr(g.inner(), 0).append(")");
             case SqlExpr.TempTableInSplice t -> throw new IllegalStateException(
                     "temp-table IN splice '" + t.tempTableName() + "'"
                     + " reached an executable dialect — plan-text"
                     + " vocabulary only");
-            case SqlExpr.PlanParam p -> throw new IllegalStateException(
-                    "plan parameter '${" + p.name() + "}' reached an"
-                    + " executable dialect — plan templates render via the"
-                    + " engine-style dialect only");
-            case SqlExpr.RowOrder r -> (r.table() == null ? ""
-                    : aliasIdent(r.table()) + ".") + rowOrderColumn();
+            // a plan parameter is BOUND where it is written: a statement (renderStatement) lists it; text
+            // (render) refuses it
+            case SqlExpr.PlanParam p -> writer.bind(scalarBind(p));
+            case SqlExpr.RowOrder r -> writer.append((r.table() == null ? ""
+                    : aliasIdent(r.table()) + ".") + rowOrderColumn());
             // the QUALIFIER is structurally always a source ALIAS (the
             // lowerer aliases every FROM source) — it spells with the
             // alias rule; the NAME spells by its ORIGIN (columnName)
-            case SqlExpr.Column c -> columnRef(c);
-            case SqlExpr.StoredRead r -> storedRead(r);
-            case SqlExpr.Star s -> s.table() == null ? "*" : aliasIdent(s.table()) + ".*";
+            case SqlExpr.Column c -> writer.append(columnRef(c));
+            case SqlExpr.StoredRead r -> writer.append(storedRead(r));
+            case SqlExpr.Star s -> writer.append(s.table() == null ? "*" : aliasIdent(s.table()) + ".*");
             // DuckDB's EXCLUDE spelling (the one PIVOT backend); the dropped
             // names quote UNCONDITIONALLY — the corpus pins the quoted form.
-            case SqlExpr.StarExcept se -> (se.table() == null ? "*" : aliasIdent(se.table()) + ".*")
+            case SqlExpr.StarExcept se -> writer.append((se.table() == null ? "*" : aliasIdent(se.table()) + ".*")
                     + " " + starExceptKeyword() + " (" + se.except().stream()
                             .map(this::starExceptName)
-                            .collect(java.util.stream.Collectors.joining(", ")) + ")";
-            case SqlExpr.StringLit s -> stringLit(s.value());
-            case SqlExpr.FormatLit fl -> stringLit(formatText(fl));
-            case SqlExpr.IntLit i -> String.valueOf(i.value());
+                            .collect(java.util.stream.Collectors.joining(", ")) + ")");
+            case SqlExpr.StringLit s -> writer.append(stringLit(s.value()));
+            case SqlExpr.FormatLit fl -> writer.append(stringLit(formatText(fl)));
+            case SqlExpr.IntLit i -> writer.append(String.valueOf(i.value()));
             // NUMERIC CHARTER Rule 1 (docs/NUMERIC_CHARTER_2026_09_17.md): a
             // Float literal renders BARE in the plain Float spelling — the
             // engine's own literal processor (extensionDefaults.pure:134,
@@ -539,7 +539,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             // declared kind converts ONCE at the root select (Rule 2).
             // (Retired: `CAST(x AS DOUBLE)`, 6975118a6 — double arithmetic
             // everywhere: 55.00000000000001 for 55.0.)
-            case SqlExpr.FloatLit f -> floatLiteral(f.value());
+            case SqlExpr.FloatLit f -> writer.append(floatLiteral(f.value()));
             // a scale-0 DECIMAL-fact literal (a pure d-suffixed integer:
             // 17774d) CASTS so the wire reads DECIMAL — bare digits read
             // INTEGER by magnitude (probed 1.5.0; the (10,3)<>(15,3)
@@ -547,55 +547,71 @@ public class AnsiSqlRenderer implements SqlDialect {
             // decimals render bare; engine-TEXT renderers intercept
             // upstream with the goldens' own spelling.
             case SqlExpr.DecimalLit d ->
-                    d.type() instanceof com.legend.sql.TypeFact.Typed t
+                    writer.append(d.type() instanceof com.legend.sql.TypeFact.Typed t
                             && t.type() instanceof com.legend.sql.SqlType
                                     .Decimal dd && dd.scale() == 0
                     ? "CAST(" + d.value().toPlainString() + " AS DECIMAL("
                             + dd.precision() + ",0))"
-                    : d.value().toPlainString();
-            case SqlExpr.BoolLit b -> boolLit(b.value());
-            case SqlExpr.NullLit n -> "NULL";
-            case SqlExpr.DateLit d -> dateLit(d.iso());
-            case SqlExpr.TimestampLit t -> timestampLit(t.iso());
-            case SqlExpr.OrderedListAgg ola -> "list(" + expr(ola.value(), 0)
-                    + " ORDER BY " + expr(ola.orderBy(), 0) + ")";
-            case SqlExpr.ArrayLit a -> arrayLit(a.elements());
-            case SqlExpr.StructLit s -> structLit(s);
-            case SqlExpr.StructGet g -> structGet(g);
-            case SqlExpr.Call c -> call(c, parentPrec);
-            case SqlExpr.Case c -> caseExpr(c);
-            case SqlExpr.Exists ex -> "EXISTS (" + inline(ex.subquery()) + ")";
-            case SqlExpr.InSubquery i -> expr(i.value(), 4) + " IN (" + inline(i.subquery()) + ")";
+                    : d.value().toPlainString());
+            case SqlExpr.BoolLit b -> writer.append(boolLit(b.value()));
+            case SqlExpr.NullLit n -> writer.append("NULL");
+            case SqlExpr.DateLit d -> writer.append(dateLit(d.iso()));
+            case SqlExpr.TimestampLit t -> writer.append(timestampLit(t.iso()));
+            case SqlExpr.OrderedListAgg ola -> writer.append("list(").expr(ola.value(), 0).append(" ORDER BY ")
+                    .expr(ola.orderBy(), 0).append(")");
+            case SqlExpr.ArrayLit a -> writer.append(arrayLit(a.elements()));
+            case SqlExpr.StructLit s -> writer.append(structLit(s));
+            case SqlExpr.StructGet g -> writer.append(structGet(g));
+            case SqlExpr.Call c -> call(writer, c, parentPrec);
+            case SqlExpr.Case c -> writer.append(caseExpr(c));
+            case SqlExpr.Exists ex -> {
+                writer.append("EXISTS (");
+                inline(writer, ex.subquery());
+                yield writer.append(")");
+            }
+            case SqlExpr.InSubquery i -> {
+                writer.expr(i.value(), 4).append(" IN (");
+                inline(writer, i.subquery());
+                yield writer.append(")");
+            }
             case SqlExpr.CheckedDefects ignored -> throw new DialectCapability(
                     "nested checked defects reached a dialect without list lambdas");
             case SqlExpr.CheckedChildValue ignored -> throw new DialectCapability(
                     "a checked child's value reached a dialect without list lambdas");
-            case SqlExpr.Quantified q -> expr(q.value(), 4) + " "
-                    + java.util.Objects.requireNonNull(INFIX.get(q.comparison()),
-                            "quantified comparison must be an infix operator: " + q.comparison()).sql()
-                    + " " + q.quantifier() + " (" + inline(q.subquery()) + ")";
-            case SqlExpr.ScalarSubquery sq -> "(" + inline(sq.subquery()) + ")";
+            case SqlExpr.Quantified q -> {
+                writer.expr(q.value(), 4);
+                writer.append(" ").append(java.util.Objects.requireNonNull(INFIX.get(q.comparison()),
+                        "quantified comparison must be an infix operator: " + q.comparison()).sql())
+                        .append(" ").append(q.quantifier().toString()).append(" (");
+                inline(writer, q.subquery());
+                yield writer.append(")");
+            }
+            case SqlExpr.ScalarSubquery sq -> {
+                writer.append("(");
+                inline(writer, sq.subquery());
+                yield writer.append(")");
+            }
             // CHECKED NARROWING (the ONE semantic node, D1): execution
             // dialects spell pure's toOne size guard — >1 raises pure's
             // message, 1 extracts, 0/NULL flows the engine-noOp empty.
             // Engine-TEXT renderers override with the verbatim inner
             // value (processNoOp view).
-            case SqlExpr.CheckedOne co -> checkedOne(co, parentPrec);
-            case SqlExpr.CompactList cl -> compactList(cl, parentPrec);
+            case SqlExpr.CheckedOne co -> writer.append(checkedOne(co, parentPrec));
+            case SqlExpr.CompactList cl -> writer.append(compactList(cl, parentPrec));
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
                     "deferred relation-toString reached the renderer — the"
                     + " execution boundary must resolve the dynamic column"
                     + " list first (DeferredTdsString id " + d.id() + ")");
-            case SqlExpr.WindowCall w -> windowCall(w);
-            case SqlExpr.Lambda l -> lambda(l);
-            case SqlExpr.Cast c -> variantAwareCast(c);
-            case SqlExpr.FoldCall f -> foldCall(f);
-            case SqlExpr.JsonObject j -> jsonObject(j);
-            case SqlExpr.JsonArray j -> jsonArray(j);
-            case SqlExpr.JsonArrayAgg j -> jsonArrayAgg(j);
-            case SqlExpr.ReduceCollection rc -> reduceCollection(rc);
-            case SqlExpr.Membership m -> membership(m);
-            case SqlAgg.Reducer r -> reducer(r);
+            case SqlExpr.WindowCall w -> writer.append(windowCall(w));
+            case SqlExpr.Lambda l -> writer.append(lambda(l));
+            case SqlExpr.Cast c -> writer.append(variantAwareCast(c));
+            case SqlExpr.FoldCall f -> writer.append(foldCall(f));
+            case SqlExpr.JsonObject j -> writer.append(jsonObject(j));
+            case SqlExpr.JsonArray j -> writer.append(jsonArray(j));
+            case SqlExpr.JsonArrayAgg j -> writer.append(jsonArrayAgg(j));
+            case SqlExpr.ReduceCollection rc -> writer.append(reduceCollection(rc));
+            case SqlExpr.Membership m -> membership(writer, m);
+            case SqlAgg.Reducer r -> writer.append(reducer(r));
         };
     }
 
@@ -610,20 +626,26 @@ public class AnsiSqlRenderer implements SqlDialect {
         return "rowid";
     }
 
-    /** Reduce a collection VALUE with a named aggregate — a backend
-     * DATA-MODEL capability; the ANSI base has no collection values.
-     * The portable route is the CarrierStrategies FUSION into the
-     * collecting subselect; a node that survives to rendering here is
-     * an honest budget-counted wall. */
+    /** A membership test as text, for a method that still builds a string (E's bridge): a bound parameter is
+     *  refused. */
+    protected final String membership(SqlExpr.Membership m) {
+        return membership(newWriter(), m).bridged();
+    }
+
     /** Collection membership — backend data-model capability; the
      * portable route is the CarrierStrategies IN-rewrite. */
-    protected String membership(SqlExpr.Membership m) {
+    protected SqlWriter membership(SqlWriter writer, SqlExpr.Membership m) {
         throw new DialectCapability("collection membership reached a"
                 + " dialect without a list encoding [collection: "
                 + m.collection().getClass().getSimpleName()
                 + (m.collection() instanceof SqlExpr.Call c ? " " + c.fn() : "") + "]");
     }
 
+    /** Reduce a collection VALUE with a named aggregate — a backend
+     * DATA-MODEL capability; the ANSI base has no collection values.
+     * The portable route is the CarrierStrategies FUSION into the
+     * collecting subselect; a node that survives to rendering here is
+     * an honest budget-counted wall. */
     protected String reduceCollection(SqlExpr.ReduceCollection rc) {
         throw new DialectCapability("collection reduction '" + rc.reducer()
                 + "' reached a dialect without a list encoding");
@@ -664,13 +686,19 @@ public class AnsiSqlRenderer implements SqlDialect {
                         + ")), '[]')";
     }
 
+    /** A call as text, for a method that still builds a string (E's bridge): a bound parameter is refused. */
+    protected final String call(SqlExpr.Call c, int parentPrec) {
+        return call(newWriter(), c, parentPrec).bridged();
+    }
+
     /**
-     * ONE exhaustive switch over the {@link SqlFn} vocabulary — javac fails a
-     * dialect the moment a semantic function lacks a rendering decision.
-     * ANSI-expressible entries render here; idiom entries delegate to the
-     * dialect hooks (which THROW in this base).
+     * ONE switch over the {@link SqlFn} vocabulary: ANSI-expressible entries
+     * render here; idiom entries delegate to the dialect hooks (which THROW
+     * in this base). Its last arm throws for an unclassified function, so
+     * javac does not check its cases: SpellingsTest.everySqlFnClassified
+     * does (every SqlFn a spelling row or a rule here).
      */
-    protected String call(SqlExpr.Call c, int parentPrec) {
+    protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         Infix infix = INFIX.get(c.fn());
         if (infix != null) {
             // NON-COMMUTATIVE ops (-): trailing SAME-precedence operands
@@ -681,17 +709,23 @@ public class AnsiSqlRenderer implements SqlDialect {
             // a = b = TRUE is a type error, (a = b) = TRUE is the value.
             boolean nonCommutative = c.fn() == SqlFn.MINUS;
             boolean nonAssociative = infix.prec() == 4;
-            StringBuilder joined = new StringBuilder();
+            boolean wrap = infix.prec() < parentPrec;
             String pad = infixPad(c.fn());
+            if (wrap) {
+                writer.append("(");
+            }
             for (int i = 0; i < c.args().size(); i++) {
                 if (i > 0) {
-                    joined.append(pad).append(infix.sql()).append(pad);
+                    writer.append(pad).append(infix.sql()).append(pad);
                 }
-                joined.append(expr(c.args().get(i),
+                writer.expr(c.args().get(i),
                         (i > 0 && nonCommutative) || nonAssociative
-                                ? infix.prec() + 1 : infix.prec()));
+                                ? infix.prec() + 1 : infix.prec());
             }
-            return infix.prec() < parentPrec ? "(" + joined + ")" : joined.toString();
+            if (wrap) {
+                writer.append(")");
+            }
+            return writer;
         }
         List<SqlExpr> a = c.args();
         // B7 (RaisedErrors): a message WE raise carries the U+001F
@@ -704,15 +738,16 @@ public class AnsiSqlRenderer implements SqlDialect {
             // the envelope behind a U+001E divider so RaisedErrors can
             // hand assertError the position and production text stays
             // clean (the funnel strips the whole envelope)
-            String position = a.size() > 1
-                    ? expr(a.get(1), 0) + " || chr(30) || " : "";
-            return spellings.fnNames().get(SqlFn.ERROR) + "(chr(31) || "
-                    + position + "(" + expr(a.get(0), 0) + ") || chr(31))";
+            writer.append(spellings.fnNames().get(SqlFn.ERROR) + "(chr(31) || ");
+            if (a.size() > 1) {
+                writer.expr(a.get(1), 0).append(" || chr(30) || ");
+            }
+            return writer.append("(").expr(a.get(0), 0).append(") || chr(31))");
         }
         // PURE spellings are DATA (Spellings row): name(args), nothing else.
         String plain = spellings.fnNames().get(c.fn());
         if (plain != null) {
-            return fn(plain, a);
+            return writer.append(plain).append("(").list(a).append(")");
         }
         return switch (c.fn()) {
             case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
@@ -723,35 +758,41 @@ public class AnsiSqlRenderer implements SqlDialect {
             // a LEFT-JOIN-missed operand yields the other side, never
             // NULL. The '||' spelling propagates NULL — a row-value
             // divergence on join misses (testQualifierWithVariableArg).
-            case JSON_MERGE_PATCH -> "json_merge_patch("
-                    + a.stream().map(x -> expr(x, 0))
-                            .collect(java.util.stream.Collectors.joining(", "))
-                    + ")";
-            case CONCAT -> "concat(" + flattenConcat(a).stream()
-                    .map(x -> expr(x, 0))
-                    .collect(java.util.stream.Collectors.joining(", ")) + ")";
+            case JSON_MERGE_PATCH -> writer.append("json_merge_patch(").list(a).append(")");
+            case CONCAT -> writer.append("concat(").list(flattenConcat(a)).append(")");
             // never flattened into an enclosing concat (see SqlFn)
-            case CONCAT_JOIN -> "concat(" + a.stream()
-                    .map(x -> expr(x, 0))
-                    .collect(java.util.stream.Collectors.joining(", ")) + ")";
+            case CONCAT_JOIN -> writer.append("concat(").list(a).append(")");
             case NOT -> {
-                String inner = "NOT " + expr(a.get(0), 3);
-                yield 3 < parentPrec ? "(" + inner + ")" : inner;
+                if (3 < parentPrec) {
+                    writer.append("(");
+                }
+                writer.append("NOT ").expr(a.get(0), 3);
+                if (3 < parentPrec) {
+                    writer.append(")");
+                }
+                yield writer;
             }
-            case NEGATE -> "-" + expr(a.get(0), 7);
-            case HASH -> hashSigned(a);
-            case IS_NULL -> expr(a.get(0), 4) + " IS NULL";
-            case IS_NOT_NULL -> expr(a.get(0), 4) + " IS NOT NULL";
-            case IN -> expr(a.get(0), 4) + " IN (" + list(a.subList(1, a.size())) + ")";
-            case IS_DISTINCT_FROM -> "(" + expr(a.get(0), 4) + " IS DISTINCT FROM "
-                    + expr(a.get(1), 4) + ")";
+            case NEGATE -> writer.append("-").expr(a.get(0), 7);
+            case HASH -> writer.append(hashSigned(a));
+            case IS_NULL -> writer.expr(a.get(0), 4).append(" IS NULL");
+            case IS_NOT_NULL -> writer.expr(a.get(0), 4).append(" IS NOT NULL");
+            case IN -> {
+                // a plan parameter as the WHOLE list is a collection: one array, bound in step 2's landing 2
+                if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
+                    throw new DialectCapability("plan parameter '" + p.name() + "' is IN's whole list (a collection):"
+                            + " binding it as an array is step 2's landing 2, not yet");
+                }
+                yield writer.expr(a.get(0), 4).append(" IN (").list(a.subList(1, a.size())).append(")");
+            }
+            case IS_DISTINCT_FROM -> writer.append("(").expr(a.get(0), 4).append(" IS DISTINCT FROM ").expr(a.get(1), 4)
+                    .append(")");
             // the SEMANTIC null-safe (in)equality nodes (engine
             // nullSafeEqual/nullSafeNotEqual DynaFunctions) — dialects
             // re-spell; execution backends use the native form
-            case NULL_SAFE_EQUAL -> "(" + expr(a.get(0), 4)
-                    + " IS NOT DISTINCT FROM " + expr(a.get(1), 4) + ")";
-            case NULL_SAFE_NOT_EQUAL -> "(" + expr(a.get(0), 4)
-                    + " IS DISTINCT FROM " + expr(a.get(1), 4) + ")";
+            case NULL_SAFE_EQUAL -> writer.append("(").expr(a.get(0), 4).append(" IS NOT DISTINCT FROM ")
+                    .expr(a.get(1), 4).append(")");
+            case NULL_SAFE_NOT_EQUAL -> writer.append("(").expr(a.get(0), 4).append(" IS DISTINCT FROM ")
+                    .expr(a.get(1), 4).append(")");
             // MUST-honor semantics (PHASE_HIJ_LOWERING.md): Pure's
             // divide(Number, Number) IS a Float — the division itself is a
             // DOUBLE division, so both operands cast BEFORE it (a cast
@@ -760,58 +801,56 @@ public class AnsiSqlRenderer implements SqlDialect {
             // to a double the engine's double division need not reach;
             // stress corpus 2026-09-16: 936 notionalPerRiskPoint rows).
             // The former `1.0 *` promotion only dodged integer truncation.
-            case DIVIDE -> "(CAST(" + expr(a.get(0), 0) + " AS DOUBLE) / CAST("
-                    + expr(a.get(1), 0) + " AS DOUBLE))";
-            case MOD -> "MOD(MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ") + "
-                    + expr(a.get(1), 0) + ", " + expr(a.get(1), 0) + ")";
-            case REM -> "MOD(" + expr(a.get(0), 0) + ", " + expr(a.get(1), 0) + ")";
+            case DIVIDE -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS DOUBLE) / CAST(").expr(a.get(1), 0)
+                    .append(" AS DOUBLE))");
+            case MOD -> writer.append("MOD(MOD(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(") + ")
+                    .expr(a.get(1), 0).append(", ").expr(a.get(1), 0).append(")");
+            case REM -> writer.append("MOD(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(")");
             // Math — ANSI/portable spellings; ROUND is banker's (dialect maps).
-            case PI -> "pi()";
-            case CEILING -> "CAST(ceil(" + expr(a.get(0), 0) + ") AS BIGINT)";
-            case FLOOR -> "CAST(floor(" + expr(a.get(0), 0) + ") AS BIGINT)";
-            case ROUND -> roundHalfEven(a);
+            case PI -> writer.append("pi()");
+            case CEILING -> writer.append("CAST(ceil(").expr(a.get(0), 0).append(") AS BIGINT)");
+            case FLOOR -> writer.append("CAST(floor(").expr(a.get(0), 0).append(") AS BIGINT)");
+            case ROUND -> writer.append(roundHalfEven(a));
             // Pure's divide-with-scale is BigDecimal HALF_UP — plain SQL
             // ROUND (half away from zero) says exactly that.
-            case ROUND_HALF_UP -> fn("ROUND", a);
+            case ROUND_HALF_UP -> writer.append("ROUND(").list(a).append(")");
             // Runtime assertion: raises with the message when evaluated
             // (guards that must fail LOUD, never clamp).
             // floor WITHOUT the BIGINT cast (FLOOR casts — overflows at
             // 1e18): fraction-free tests over the full double range.
-            case SIGN -> "CAST(sign(" + expr(a.get(0), 0) + ") AS BIGINT)";
-            case XOR -> {
-                String x = expr(a.get(0), 3);
-                String y = expr(a.get(1), 3);
-                // the OR-chain misbinds under an enclosing AND — the WALK
-                // wraps it (opSpelling), never this arm by hand
-                yield opSpelling("(" + x + " AND NOT " + y + ") OR (NOT " + x
-                        + " AND " + y + ")", parentPrec);
-            }
-            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(c.fn(), a);
+            case SIGN -> writer.append("CAST(sign(").expr(a.get(0), 0).append(") AS BIGINT)");
+            case XOR -> // the OR-chain misbinds under an enclosing AND — the WALK
+                    // wraps it (op), never this arm by hand; each operand is WRITTEN twice
+                    op(writer, parentPrec, () -> writer.append("(").expr(a.get(0), 3).append(" AND NOT ")
+                            .expr(a.get(1), 3).append(") OR (NOT ").expr(a.get(0), 3).append(" AND ").expr(a.get(1), 3)
+                            .append(")"));
+            case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> writer.append(bitOp(c.fn(), a));
             // Strings
             // MATCHES is the PARTIAL regexp test (regexpLike's SQL
             // semantics); pure matches() is REGEXP_FULL_MATCH (the engine
             // anchors ^...$).
-            case MAP_EMPTY -> "MAP {}";
-            case BIT_NOT -> "xor(" + expr(a.get(0), 0) + ", -1)";   // ~x without negation overflow at MIN_LONG
+            case MAP_EMPTY -> writer.append("MAP {}");
+            // ~x without negation overflow at MIN_LONG
+            case BIT_NOT -> writer.append("xor(").expr(a.get(0), 0).append(", -1)");
             // the PAD CHAR is optional in Pure; SQL requires it — ' '.
-            case LPAD -> fn("lpad", a.size() == 2
-                    ? List.of(a.get(0), a.get(1), new SqlExpr.StringLit(" ")) : a);
-            case RPAD -> fn("rpad", a.size() == 2
-                    ? List.of(a.get(0), a.get(1), new SqlExpr.StringLit(" ")) : a);
+            case LPAD -> writer.append("lpad(").list(a.size() == 2
+                    ? List.of(a.get(0), a.get(1), new SqlExpr.StringLit(" ")) : a).append(")");
+            case RPAD -> writer.append("rpad(").list(a.size() == 2
+                    ? List.of(a.get(0), a.get(1), new SqlExpr.StringLit(" ")) : a).append(")");
             // the || concat misbinds under +/comparison — walk-wrapped
-            case UC_FIRST -> opSpelling("upper(substr(" + expr(a.get(0), 0)
-                    + ", 1, 1)) || substr(" + expr(a.get(0), 0) + ", 2)", parentPrec);
-            case LC_FIRST -> opSpelling("lower(substr(" + expr(a.get(0), 0)
-                    + ", 1, 1)) || substr(" + expr(a.get(0), 0) + ", 2)", parentPrec);
-            case ENCODE_BASE64 -> "to_base64(CAST(" + expr(a.get(0), 0) + " AS BLOB))";
+            case UC_FIRST -> op(writer, parentPrec, () -> writer.append("upper(substr(").expr(a.get(0), 0)
+                    .append(", 1, 1)) || substr(").expr(a.get(0), 0).append(", 2)"));
+            case LC_FIRST -> op(writer, parentPrec, () -> writer.append("lower(substr(").expr(a.get(0), 0)
+                    .append(", 1, 1)) || substr(").expr(a.get(0), 0).append(", 2)"));
+            case ENCODE_BASE64 -> writer.append("to_base64(CAST(").expr(a.get(0), 0).append(" AS BLOB))");
             // pure generateGuid : String[1] — the CONTRACT is text, so
             // the emission conforms (bare uuid() wires UUID; §4bZ-V C
             // adjudication: fix-emitter, the CEILING pattern)
-            case GUID -> "CAST(uuid() AS VARCHAR)";
+            case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
             // Temporal
-            case TODAY -> "current_date";
-            case NOW -> "now()";
-            case DATE_TRUNC_DAY -> "CAST(" + expr(a.get(0), 0) + " AS DATE)";
+            case TODAY -> writer.append("current_date");
+            case NOW -> writer.append("now()");
+            case DATE_TRUNC_DAY -> writer.append("CAST(").expr(a.get(0), 0).append(" AS DATE)");
             // DAY-GRAINED truncation delivers a DATE (§8.3a carrier
             // burn, dialect-owned per the single-compiler tenet: the
             // SEMANTIC fact is pure's firstDayOf*(Date):Date; whether
@@ -820,68 +859,67 @@ public class AnsiSqlRenderer implements SqlDialect {
             // engine-TEXT channel never sees this arm: EngineStyleH2
             // owns its own verbatim DATE_TRUNC spelling, golden text
             // spells whatever each engine dialect spells.)
-            case DATE_TRUNC -> a.get(0) instanceof SqlExpr.StringLit part
+            case DATE_TRUNC -> writer.append(a.get(0) instanceof SqlExpr.StringLit part
                     && switch (part.value()) {
                         case "month", "year", "week", "quarter" -> true;
                         default -> false;
                     }
                     ? "CAST(" + fn("date_trunc", a) + " AS DATE)"
-                    : fn("date_trunc", a);
+                    : fn("date_trunc", a));
             // make_timestamp wants DOUBLE seconds.
-            case MAKE_TIMESTAMP -> a.size() == 6
+            case MAKE_TIMESTAMP -> writer.append(a.size() == 6
                     ? "make_timestamp(" + a.subList(0, 5).stream()
                             .map(x -> expr(x, 0)).collect(Collectors.joining(", "))
                             + ", CAST(" + expr(a.get(5), 0) + " AS DOUBLE))"
-                    : fn("make_timestamp", a);           // (part, value)
+                    : fn("make_timestamp", a));           // (part, value)
             // (unitFn literal, amount, date) — the unit FUNCTION NAME rides
             // as a string literal and renders bare: d + to_years(n).
-            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> opSpelling(expr(a.get(2), 5) + " + "
-                    + ((SqlExpr.StringLit) a.get(0)).value()
-                    + "(" + expr(a.get(1), 0) + ")", parentPrec);              // (part, d1, d2)               // (zone, ts) — ICU
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> op(writer, parentPrec, () -> writer.expr(a.get(2), 5)
+                    .append(" + ").append(((SqlExpr.StringLit) a.get(0)).value()).append("(").expr(a.get(1), 0)
+                    .append(")"));
             // Week buckets align to the Monday ON/BEFORE the epoch
             // (1969-12-29 — real pure's origin, PCT-pinned); every other
             // unit aligns to the 1970 epoch.
-            case TIME_BUCKET -> "time_bucket("
-                    + ((SqlExpr.StringLit) a.get(0)).value()
-                    + "(" + expr(a.get(1), 0) + "), " + expr(a.get(2), 0)
-                    + ("to_weeks".equals(((SqlExpr.StringLit) a.get(0)).value())
+            case TIME_BUCKET -> {
+                writer.append("time_bucket(").append(((SqlExpr.StringLit) a.get(0)).value()).append("(")
+                        .expr(a.get(1), 0).append("), ").expr(a.get(2), 0);
+                writer.append(("to_weeks".equals(((SqlExpr.StringLit) a.get(0)).value())
                             ? ", TIMESTAMP '1969-12-29 00:00:00'"
-                            : ", TIMESTAMP '1970-01-01 00:00:00'")
-                    + ")";
-            case FROM_EPOCH_MS -> "epoch_ms(CAST(" + expr(a.get(0), 0) + " AS BIGINT))";
-            case INT_DIVIDE -> "(" + expr(a.get(0), 6) + " // " + expr(a.get(1), 6) + ")";
+                            : ", TIMESTAMP '1970-01-01 00:00:00'"));
+                yield writer.append(")");
+            }
+            case FROM_EPOCH_MS -> writer.append("epoch_ms(CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
+            case INT_DIVIDE -> writer.append("(").expr(a.get(0), 6).append(" // ").expr(a.get(1), 6).append(")");
             // decode(blob) — a CAST of the blob to VARCHAR ESCAPES quotes and
             // non-printables (\x22), never the text itself (batch 72b)
-            case DECODE_BASE64 -> "decode(from_base64(" + expr(a.get(0), 0) + "))";
-            case CURRENT_USER_FN -> "current_user";
+            case DECODE_BASE64 -> writer.append("decode(from_base64(").expr(a.get(0), 0).append("))");
+            case CURRENT_USER_FN -> writer.append("current_user");
             // Lists (dialect-owned; base throws like the lambda family)
             case LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
                  LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, REPEAT_VALUE,
                  LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND, LIST_BOOL_OR,
-                 LIST_REVERSE, TYPEOF ->
-                    listCall(c.fn(), a);
-            case TO_VARIANT -> variantConstruct(a);
+                 LIST_REVERSE, TYPEOF -> writer.append(listCall(c.fn(), a));
+            case TO_VARIANT -> writer.append(variantConstruct(a));
             // boolean text: the reference cast spelling (semantic node —
             // dialects with a diverging bool print override)
-            case BOOL_TO_TEXT -> "CAST(" + expr(a.get(0), 0) + " AS VARCHAR)";
+            case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS VARCHAR)");
             // Idiom points — no ANSI spelling; the dialect decides or dies.
-            case UNNEST -> unnestProjection(a);
+            case UNNEST -> writer.append(unnestProjection(a));
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET,
-                 LIST_POSITION ->
-                    listCall(c.fn(), a);
-            case STRUCT_INSERT -> structInsert(a);
-            case PURE_SPLIT_PART -> splitPartCall(a);
-            case LIST_EXISTS -> listExists(a);
-            case ALL_DISTINCT -> allDistinct(a);
-            case LIST_FOR_ALL -> listForAll(a);
+                 LIST_POSITION -> writer.append(listCall(c.fn(), a));
+            case STRUCT_INSERT -> writer.append(structInsert(a));
+            case PURE_SPLIT_PART -> writer.append(splitPartCall(a));
+            case LIST_EXISTS -> writer.append(listExists(a));
+            case ALL_DISTINCT -> writer.append(allDistinct(a));
+            case LIST_FOR_ALL -> writer.append(listForAll(a));
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> "CAST(" + expr(a.get(0), 0) + " AS BIGINT)";
+            case PARSE_INT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS BIGINT)");
             // parseDate(text): the ISO text as a timestamp (the semantic
             // node; the engine-style H2 spells its parsedatetime idiom)
-            case PARSE_DATE -> "CAST(" + expr(a.get(0), 0) + " AS TIMESTAMP)";
-            case VARIANT_ELEMENTS -> variantElements(a);
-            case VARIANT_GET -> variantGet(a);
+            case PARSE_DATE -> writer.append("CAST(").expr(a.get(0), 0).append(" AS TIMESTAMP)");
+            case VARIANT_ELEMENTS -> writer.append(variantElements(a));
+            case VARIANT_GET -> writer.append(variantGet(a));
             // Not a spelling row, not a coded rule: LOUD. Exhaustiveness is
             // pinned by SpellingsTest.everySqlFnClassified (a new SqlFn must
             // be classified there as data or code).
@@ -1208,21 +1246,71 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
+     * A plan parameter bound as ONE value. What one value cannot carry yet is refused by name, never bound as
+     * something it is not: a RAW splice (plan text), an optional parameter (its absence), an enum parameter (its
+     * mapping: a value table) — the last two are step 2's landing 2 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9),
+     * as is a collection (IN's whole list, refused at IN).
+     */
+    private static RenderedStatement.Bind scalarBind(SqlExpr.PlanParam p) {
+        if (p.kind() == SqlExpr.PlanParam.Kind.RAW) {
+            throw new DialectCapability("plan parameter '" + p.name() + "' is RAW: it splices plan text, never a"
+                    + " bound value");
+        }
+        if (p.optional()) {
+            throw new DialectCapability("optional plan parameter '" + p.name() + "': binding its absence is step 2's"
+                    + " landing 2, not yet");
+        }
+        if (p.enumMapFn() != null) {
+            throw new DialectCapability("enum plan parameter '" + p.name() + "': its mapping (a value table) is"
+                    + " step 2's landing 2, not yet");
+        }
+        return new RenderedStatement.Bind(p.name(), null);
+    }
+
+    /** A writer for this dialect: its {@link SqlWriter#expr} writes a sub-expression in this dialect's spelling. */
+    protected final SqlWriter newWriter() {
+        return new SqlWriter(this::expr);
+    }
+
+    /**
+     * A composite arm whose SPELLING expands to operator text: the WALK
+     * decides the parens — the expansion is declared WEAKEST-binding, so
+     * any enclosing operator wraps it and no arm ever hand-parenthesizes
+     * (remediation T1.6/T3.2: the misbind class is dead structurally, and
+     * a new composite arm cannot reintroduce it by forgetting parens).
+     * Writes {@code body}, parenthesized when an enclosing operator binds tighter.
+     */
+    protected final SqlWriter op(SqlWriter writer, int parentPrec, Runnable body) {
+        if (parentPrec > 0) {
+            writer.append("(");
+        }
+        body.run();
+        if (parentPrec > 0) {
+            writer.append(")");
+        }
+        return writer;
+    }
+
+    /**
      * A subquery rendered inline (EXISTS / scalar position): SINGLE-LINE mode
      * — {@link #nl} emits a space instead of a newline while set. Structural,
      * never text post-processing (collapsing rendered text would corrupt
      * whitespace inside string LITERALS).
      */
     protected String inline(SqlQuery q) {
+        return inline(newWriter(), q).bridged();
+    }
+
+    /** {@link #inline}, written into {@code writer}: a parameter inside the subquery is bound in place. */
+    protected final SqlWriter inline(SqlWriter writer, SqlQuery q) {
         boolean previous = inlineMode;
         inlineMode = true;
         try {
-            SqlWriter writer = new SqlWriter();
             query(writer, q, 0);
-            return writer.text();
         } finally {
             inlineMode = previous;
         }
+        return writer;
     }
 
     /** When set, clause separators render as single spaces (see {@link #inline}). */

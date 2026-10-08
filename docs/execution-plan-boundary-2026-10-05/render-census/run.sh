@@ -26,9 +26,11 @@ for lane in $LANES; do
   echo "exit=$? $(grep -E 'Executed' "$OUT/$name.log" | tail -1)"
   for t in $(bazel query "tests($lane)" 2>/dev/null); do
     d="bazel-testlogs/${${t#//}/://}/test.outputs"
-    if [ -d "$d" ]; then
+    # (N): a test that renders nothing has no records; neither glob may abort the copy of the other
+    records=("$d"/census-*.tsv(N) "$d"/texts-*.tsv(N))
+    if (( ${#records} )); then
       mkdir -p "$OUT/$name/${${t#//}//[\/:]/_}"
-      cp "$d"/census-*.tsv "$d"/texts-*.tsv "$OUT/$name/${${t#//}//[\/:]/_}/" 2>/dev/null || true
+      cp "${records[@]}" "$OUT/$name/${${t#//}//[\/:]/_}/"
     fi
   done
 done

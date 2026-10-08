@@ -68,7 +68,7 @@ public class H2Modern extends H2 {
      * of the idiom dispatch. The Array-cast wrapper only re-types and
      * unwraps. */
     @Override
-    protected String call(SqlExpr.Call c, int parentPrec) {
+    protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         if (c.fn() == com.legend.sql.SqlFn.LIST_LENGTH
                 && c.args().size() == 1) {
             SqlExpr arg = c.args().get(0);
@@ -76,9 +76,9 @@ public class H2Modern extends H2 {
                     && ac.target() instanceof com.legend.sql.SqlType.Array) {
                 arg = ac.value();
             }
-            return "CARDINALITY(" + expr(arg, 0) + ")";
+            return writer.append("CARDINALITY(").expr(arg, 0).append(")");
         }
-        return super.call(c, parentPrec);
+        return super.call(writer, c, parentPrec);
     }
 
     /** A cast TO JSON is the PARSE intent (DuckDB's CAST parses) — but

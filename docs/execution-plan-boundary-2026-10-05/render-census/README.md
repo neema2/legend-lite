@@ -31,4 +31,5 @@ since). With those normalised, two full runs agree on all 52,085 entries.
 
 **The baseline** (`baseline-summary.txt`, main `daa78d0eb`): 5,706,332 renders, 47,904 distinct texts.
 
-**Stage results.** `e1-result.txt` — E-1: 0 of 52,085 entries differ.
+**Stage results.** `e1-result.txt` — E-1: 0 of 52,085 entries differ. `e2-result.txt` — E-2, against main: of 52,094
+entries, the 3 that differ are E-2's new test statements; every statement main renders, E-2 renders identically.

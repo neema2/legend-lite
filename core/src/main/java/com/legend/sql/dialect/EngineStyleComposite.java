@@ -15,17 +15,14 @@ import com.legend.sql.SqlFn;
 public final class EngineStyleComposite extends EngineStyleDB2 {
 
     @Override
-    protected String call(SqlExpr.Call c, int parentPrec) {
+    protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         if (c.fn() == SqlFn.LENGTH) {
-            return "char_length(" + expr(c.args().get(0), 0) + ")";
+            return writer.append("char_length(").expr(c.args().get(0), 0).append(")");
         }
         if (c.fn() == SqlFn.SUBSTRING) {
             // Composite keeps the FULL substring keyword (DB2 shortens)
-            return "substring(" + c.args().stream()
-                    .map(x -> expr(x, 0))
-                    .collect(java.util.stream.Collectors.joining(", "))
-                    + ")";
+            return writer.append("substring(").list(c.args()).append(")");
         }
-        return super.call(c, parentPrec);
+        return super.call(writer, c, parentPrec);
     }
 }

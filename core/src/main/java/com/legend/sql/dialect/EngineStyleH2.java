@@ -360,7 +360,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         rootConsumed.clear();
         placeholders.clear();
         planQuery(query, new LinkedHashMap<>());
-        SqlWriter writer = new SqlWriter();
+        SqlWriter writer = newWriter();
         query(writer, query, 0);
         return writer.text();
     }
@@ -849,7 +849,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     @Override
-    protected void query(SqlWriter writer, com.legend.sql.SqlQuery q,
+    protected SqlWriter query(SqlWriter writer, com.legend.sql.SqlQuery q,
             int depth) {
         // engine CTE text: 'with a as (...), b as (...) select ...'
         if (q instanceof com.legend.sql.SqlWith w) {
@@ -863,8 +863,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 writer.append(')');
             }
             writer.append(' ');
-            query(writer, w.body(), depth);
-            return;
+            return query(writer, w.body(), depth);
         }
         // engine union text: one line, lowercase, branches joined inline
         if (q instanceof com.legend.sql.SqlUnion u) {
@@ -875,13 +874,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 }
                 query(writer, u.branches().get(i), depth);
             }
-            return;
+            return writer;
         }
-        super.query(writer, q, depth);
+        return super.query(writer, q, depth);
     }
 
     @Override
-    protected void select(SqlWriter writer, SqlSelect s, int depth) {
+    protected SqlWriter select(SqlWriter writer, SqlSelect s, int depth) {
         if (s.qualify() != null) {
             throw new IllegalStateException(
                     "QUALIFY has no engine-H2 golden spelling");
@@ -921,7 +920,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     .collect(Collectors.joining(groupBySeparator())));
         }
         if (s.having() != null) {
-            writer.append(" having ").append(expr(s.having(), 0));
+            writer.append(" having ").expr(s.having(), 0);
         }
         if (!s.orderBy().isEmpty()) {
             writer.append(" order by ").append(s.orderBy().stream()
@@ -933,6 +932,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 writer.append(" fetch next ").append(s.limit()).append(" rows only");
             }
         }
+        return writer;
     }
 
     /** The WHERE clause text — DB2-family dialects wrap a top-level
@@ -981,8 +981,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     @Override
-    protected void source(SqlWriter writer, SqlSource src, int depth) {
-        switch (src) {
+    protected SqlWriter source(SqlWriter writer, SqlSource src, int depth) {
+        return switch (src) {
             case SqlSource.Cte c -> writer.append(c.name()).append(" as ").append(aliasIdent(c.alias()));
             case SqlSource.Table t -> {
                 writer.append(quoteIdentifiers
@@ -997,6 +997,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 if (t.alias() != null) {
                     writer.append(" as \"").append(rename(t.alias())).append('"');
                 }
+                yield writer;
             }
             case SqlSource.Subselect sub -> {
                 writer.append('(');
@@ -1024,7 +1025,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         anonDistinctDepth--;
                     }
                 }
-                writer.append(") as \"").append(rename(sub.alias())).append('"');
+                yield writer.append(") as \"").append(rename(sub.alias())).append('"');
             }
             case SqlSource.VarSetPlaceholder vp -> writer.append("(${")
                     .append(vp.varName()).append("}) as \"")
@@ -1038,11 +1039,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         .append(' ');
                 source(writer, j.right(), depth);
                 if (j.on() != null) {
-                    writer.append(" on (").append(expr(j.on(), 0)).append(')');
+                    writer.append(" on (").expr(j.on(), 0).append(')');
                 }
+                yield writer;
             }
             default -> super.source(writer, src, depth);
-        }
+        };
     }
 
     /** Nesting depth of NAMED frames (view-backed subselects) currently
@@ -1143,7 +1145,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String expr(SqlExpr e, int parentPrec) {
+    protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         // plan-template parameter (engine freemarker): strings are
         // single-quoted with the engine's escape template
         // engine text spells float LITERALS bare (testProp3 golden:
@@ -1157,46 +1159,47 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // sum(case ... then cast(5.0 as float) else cast(1.0 as float))
             // — sqlstring goldens); the bare spelling was pinned on
             // testProp3's LEGACY-H2 alternative, a failing test's golden
-            return "cast(" + f.value() + " as float)";
+            return writer.append("cast(").append(String.valueOf(f.value())).append(" as float)");
         }
         if (e instanceof SqlExpr.DecimalLit d) { // engine H2 decimal spelling (testDecimal)
-            return "cast(" + d.value().toPlainString() + " as Decimal(32,16))";
+            return writer.append("cast(").append(d.value().toPlainString()).append(" as Decimal(32,16))");
         }
         if (e instanceof SqlExpr.Exists xx
                 && xx.subquery() instanceof SqlSelect xs) {
-            return correlatedExistsSpelling(xs);
+            return writer.append(correlatedExistsSpelling(xs));
         }
         if (e instanceof SqlExpr.Call ac
                 && mixedOperandArithmetic(ac, parentPrec)) {
-            return "(" + super.expr(e, 0) + ")";
+            writer.append("(");
+            super.expr(writer, e, 0);
+            return writer.append(")");
         }
         if (e instanceof SqlExpr.PlanParam p) {
             // an OPTIONAL parameter spells the varPlaceHolderToString
             // template in EVERY position (comparisons, null guards) —
             // the selector arm below owns only the equality form
             if (p.optional()) {
-                return holder(p);
+                return writer.append(holder(p));
             }
             return switch (p.kind()) {
-                case RAW -> "${" + p.name() + "}";
-                case STRING -> "'${" + p.name()
-                        + "?replace(\"'\", \"''\")}'";
+                case RAW -> writer.append("${").append(p.name()).append("}");
+                case STRING -> writer.append("'${").append(p.name()).append("?replace(\"'\", \"''\")}'");
                 // h2New spells date-typed placeholders with the type
                 // keyword by PURE TYPE: Date and DateTime TIMESTAMP (the
                 // bare-quoted '${bd}' is the LEGACY H2 1.4.200 golden of
                 // the assertEqualsH2Compatible pairs), StrictDate DATE
                 // (SqlExpr.PlanParam.Kind); a non-default connection
                 // timeZone wraps DATETIME in GMTtoTZ like the holder
-                case DATE -> "TIMESTAMP'${" + p.name() + "}'";
-                case STRICT_DATE -> "DATE'${" + p.name() + "}'";
+                case DATE -> writer.append("TIMESTAMP'${").append(p.name()).append("}'");
+                case STRICT_DATE -> writer.append("DATE'${").append(p.name()).append("}'");
                 case DATETIME -> timeZone != null
-                        ? "TIMESTAMP'${GMTtoTZ( \"[" + timeZone + "]\" "
-                                + p.name() + ")}'"
-                        : "TIMESTAMP'${" + p.name() + "}'";
+                        ? writer.append("TIMESTAMP'${GMTtoTZ( \"[").append(timeZone).append("]\" ").append(p.name())
+                                .append(")}'")
+                        : writer.append("TIMESTAMP'${").append(p.name()).append("}'");
                 // enum params spell QUOTED, no escape template
                 // ('\${yesOrNo}' = 'NO' — testIfEnumParameterInProject)
-                case ENUM -> "'${" + p.name() + "}'";
-                case FLOAT, BOOLEAN, OTHER -> "${" + p.name() + "}";
+                case ENUM -> writer.append("'${").append(p.name()).append("}'");
+                case FLOAT, BOOLEAN, OTHER -> writer.append("${").append(p.name()).append("}");
             };
         }
         // ENUM parameter comparison: one selector template covers = and
@@ -1207,16 +1210,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 && nc.args().size() == 1) {
             String et = enumSelector(nc.args().get(0));
             if (et != null) {
-                return "not " + et;
+                return writer.append("not ").append(et);
             }
         }
         String et0 = enumSelector(e);
         if (et0 != null) {
-            return et0;
+            return writer.append(et0);
         }
         String optEq = optionalParamEquality(e);
         if (optEq != null) {
-            return optEq;
+            return writer.append(optEq);
         }
         // a property read THROUGH a plan parameter spells the engine's
         // dotted placeholder ('${reportEndDate.date}' — Allocation-bound
@@ -1232,8 +1235,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 cur = g2.source();
             }
             if (cur instanceof SqlExpr.PlanParam pp) {
-                return "'${" + pp.name() + "." + String.join(".", path)
-                        + "}'";
+                return writer.append("'${").append(pp.name()).append(".").append(String.join(".", path)).append("}'");
             }
             // engine-H2 text has no struct vocabulary — a named wall
             // (SHAPE in the plan branch), not a dialect bug
@@ -1244,7 +1246,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // read ("root".* — the dated-head nav frame; batch 4: the star
         // was the ONE reference class that bypassed rename())
         if (e instanceof SqlExpr.Star st && st.table() != null) {
-            return '"' + rename(st.table()) + "\".*";
+            return writer.append('"').append(rename(st.table())).append("\".*");
         }
         // alias part quoted, physical column bare — "root".FIRSTNAME;
         // reads of a frame's PROJECTED TDS aliases quote the column too
@@ -1252,19 +1254,20 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.Column c) {
             if (c.table() != null && quotedFrameRead(c)) {
                 if (placeholders.contains(c.table())) { // placeholder reads: unquoted col
-                    return '"' + rename(c.table()) + "\"." + stripQuotes(c.name());
+                    return writer.append('"').append(rename(c.table())).append("\".").append(stripQuotes(c.name()));
                 }
-                return '"' + rename(c.table()) + "\".\"" + c.name() + '"';
+                return writer.append('"').append(rename(c.table())).append("\".\"").append(c.name()).append('"');
             }
-            return c.table() == null ? physColumn(c)
-                    : '"' + rename(c.table()) + "\"." + physColumn(c);
+            return c.table() == null
+                    ? writer.append(physColumn(c))
+                    : writer.append('"').append(rename(c.table())).append("\".").append(physColumn(c));
         }
         if (e instanceof SqlExpr.RowOrder ro) {
-            return rowOrder(ro);
+            return writer.append(rowOrder(ro));
         }
         String dd = engineDateDiff(e);
         if (dd != null) {
-            return dd;
+            return writer.append(dd);
         }
         // engine boolean text: lowercase keywords, AND groups
         // parenthesized once around the flattened chain —
@@ -1272,7 +1275,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.Call bc) {
             switch (bc.fn()) {
                 case NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL -> {
-                    return nullSafeSpelling(bc);
+                    return writer.append(nullSafeSpelling(bc));
                 }
                 case AND -> {
                     // engine 'and' renders FLAT with no parens at any
@@ -1281,7 +1284,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     // nesting (the OR arm below)
                     java.util.List<String> terms = new java.util.ArrayList<>();
                     flattenAnd(bc, terms);
-                    return String.join(" and ", terms);
+                    return writer.append(String.join(" and ", terms));
                 }
                 case OR -> {
                     // and-under-or parenthesizes (the engine's
@@ -1294,7 +1297,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         ops.add(andLike ? "(" + expr(o, 0) + ")"
                                 : expr(o, 0));
                     }
-                    return String.join(" or ", ops);
+                    return writer.append(String.join(" or ", ops));
                 }
                 case COALESCE -> {
                     // the null-guarded in() (pure in never returns null;
@@ -1316,7 +1319,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         }
                         if (in0 instanceof SqlExpr.Call ic0
                                 && ic0.fn() == com.legend.sql.SqlFn.IN) {
-                            return expr(ic0, parentPrec);
+                            return writer.expr(ic0, parentPrec);
                         }
                     }
                 }
@@ -1329,12 +1332,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                                     instanceof SqlExpr.TempTableInSplice ts) {
                         String a = ts.tempTableName().toLowerCase(
                                 java.util.Locale.ROOT) + "_0";
-                        return expr(bc.args().get(0), 4)
-                                + " in (select \"" + a
-                                + "\".ColumnForStoringInCollection as"
-                                + " ColumnForStoringInCollection from "
-                                + ts.tempTableName() + " as \"" + a
-                                + "\")";
+                        return writer.expr(bc.args().get(0), 4).append(" in (select \"").append(a)
+                                .append("\".ColumnForStoringInCollection as")
+                                .append(" ColumnForStoringInCollection from ").append(ts.tempTableName())
+                                .append(" as \"").append(a).append("\")");
                     }
                     // a COLLECTION-typed plan parameter spells the
                     // engine's renderCollection template — separator ","
@@ -1345,8 +1346,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         // the temp-table protocol's wrapper variable —
                         // a bare splice, never a collection template
                         if (cp.kind() == SqlExpr.PlanParam.Kind.RAW) {
-                            return expr(bc.args().get(0), 4)
-                                    + " in (${" + cp.name() + "})";
+                            return writer.expr(bc.args().get(0), 4).append(" in (${").append(cp.name()).append("})");
                         }
                         // a non-default connection timeZone spells the
                         // TZ-SHIFTING template (renderCollectionWithTz —
@@ -1355,41 +1355,32 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                                 && timeZone != null) {
                             // top-of-sql template — quotes UNESCAPED
                             // (only freemarker-nested args escape)
-                            return expr(bc.args().get(0), 4)
-                                    + " in (${renderCollectionWithTz("
-                                    + cp.name() + "![] \"[" + timeZone
-                                    + "]\" \",\" \"TIMESTAMP'\" \"'\""
-                                    + " \"null\")})";
+                            return writer.expr(bc.args().get(0), 4).append(" in (${renderCollectionWithTz(")
+                                    .append(cp.name()).append("![] \"[").append(timeZone)
+                                    .append("]\" \",\" \"TIMESTAMP'\" \"'\"").append(" \"null\")})");
                         }
-                        return expr(bc.args().get(0), 4)
-                                + " in (" + collectionSplice(cp) + ")";
+                        return writer.expr(bc.args().get(0), 4).append(" in (").append(collectionSplice(cp))
+                                .append(")");
                     }
                     // the engine collapses a SINGLETON literal in-list
                     // to equality ('x in ([v])' text = 'x = v')
                     if (bc.args().size() == 2) {
-                        return expr(bc.args().get(0), 4) + " = "
-                                + expr(bc.args().get(1), 4);
+                        return writer.expr(bc.args().get(0), 4).append(" = ").expr(bc.args().get(1), 4);
                     }
                     // engine keyword text is lowercase
-                    StringBuilder items = new StringBuilder();
-                    for (int i = 1; i < bc.args().size(); i++) {
-                        if (items.length() > 0) {
-                            items.append(", ");
-                        }
-                        items.append(expr(bc.args().get(i), 0));
-                    }
-                    return expr(bc.args().get(0), 4) + " in (" + items + ")";
+                    return writer.expr(bc.args().get(0), 4).append(" in (")
+                            .list(bc.args().subList(1, bc.args().size())).append(")");
                 }
                 case IS_NULL -> {
-                    return expr(bc.args().get(0), 4) + " is null";
+                    return writer.expr(bc.args().get(0), 4).append(" is null");
                 }
                 case IS_NOT_NULL -> {
-                    return expr(bc.args().get(0), 4) + " is not null";
+                    return writer.expr(bc.args().get(0), 4).append(" is not null");
                 }
                 default -> { }
             }
         }
-        return super.expr(e, parentPrec);
+        return super.expr(writer, e, parentPrec);
     }
 
     private void flattenAnd(SqlExpr e, java.util.List<String> out) {
@@ -1631,11 +1622,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String call(SqlExpr.Call c, int parentPrec) {
+    protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         java.util.List<SqlExpr> a = c.args();
         String flat = joinStringsFlat(c);
         if (flat != null) {
-            return flat;
+            return writer.append(flat);
         }
         // H2 digest spelling: rawtohex(hash('SHA-256', x)) — the engine's
         // relational H2 codegen for every HashType
@@ -1645,8 +1636,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             String digest = c.fn() == com.legend.sql.SqlFn.MD5 ? "MD5"
                     : c.fn() == com.legend.sql.SqlFn.SHA1 ? "SHA-1"
                     : "SHA-256";
-            return "rawtohex(hash('" + digest + "', "
-                    + expr(c.args().get(0), 0) + "))";
+            return writer.append("rawtohex(hash('").append(digest).append("', ").expr(c.args().get(0), 0).append("))");
         }
         // an OPTIONAL COLLECTION plan parameter's size (isEmpty/isNotEmpty
         // over a String[*] param): the engine's collectionSize template —
@@ -1658,68 +1648,53 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 && len.args().size() == 1
                 && len.args().get(0) instanceof SqlExpr.PlanParam cp
                 && a.get(1) instanceof SqlExpr.IntLit zero && zero.value() == 0) {
-            return "(${collectionSize(" + cp.name() + "![])})";
+            return writer.append("(${collectionSize(").append(cp.name()).append("![])})");
         }
         return switch (c.fn()) {
             // engine-H2 spellings (sqlstring goldens): cbrt has no H2
             // native; the trim family spells regexp; pads ride the
             // legend H2 extension with the pad char EXPLICIT
-            case CBRT -> "power(" + expr(a.get(0), 0) + ", 1.0/3)";
+            case CBRT -> writer.append("power(").expr(a.get(0), 0).append(", 1.0/3)");
             // engine spells the FULL substring keyword and indexOf as
             // locate(needle, haystack)
-            case SUBSTRING -> "substring(" + a.stream()
-                    .map(x -> expr(x, 0))
-                    .collect(java.util.stream.Collectors.joining(", "))
-                    + ")";
-            case STRPOS -> "locate(" + expr(a.get(1), 0) + ", "
-                    + expr(a.get(0), 0) + ")";
-            case LTRIM -> "regexp_replace(" + expr(a.get(0), 0)
-                    + ", '^[ ]+', '')";
-            case RTRIM -> "regexp_replace(" + expr(a.get(0), 0)
-                    + ", '[ ]+$', '')";
-            case LPAD -> "legend_h2_extension_lpad(" + expr(a.get(0), 0)
-                    + ", " + expr(a.get(1), 0) + ", "
-                    + (a.size() > 2 ? expr(a.get(2), 0) : "' '") + ")";
-            case RPAD -> "legend_h2_extension_rpad(" + expr(a.get(0), 0)
-                    + ", " + expr(a.get(1), 0) + ", "
-                    + (a.size() > 2 ? expr(a.get(2), 0) : "' '") + ")";
+            case SUBSTRING -> writer.append("substring(").list(a).append(")");
+            case STRPOS -> writer.append("locate(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
+            case LTRIM -> writer.append("regexp_replace(").expr(a.get(0), 0).append(", '^[ ]+', '')");
+            case RTRIM -> writer.append("regexp_replace(").expr(a.get(0), 0).append(", '[ ]+$', '')");
+            case LPAD -> writer.append("legend_h2_extension_lpad(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
+                    .append(", ").append((a.size() > 2 ? expr(a.get(2), 0) : "' '")).append(")");
+            case RPAD -> writer.append("legend_h2_extension_rpad(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
+                    .append(", ").append((a.size() > 2 ? expr(a.get(2), 0) : "' '")).append(")");
             // n-ary concat: nested CONCAT calls SPLICE (the engine emits
             // one flat concat(a, '_', b), never concat(concat(a,'_'),b))
-            case CONCAT -> "concat(" + flattenConcat(a).stream()
-                    .map(x -> expr(x, 0))
-                    .collect(Collectors.joining(", ")) + ")";
+            case CONCAT -> writer.append("concat(").list(flattenConcat(a)).append(")");
             // datediff(<bare unit>, a, b); composite elapsed-time forms
             // built at lowering (weeks/hours/...) have no re-spelling here
             case DATE_DIFF -> a.get(0) instanceof SqlExpr.StringLit u
-                    ? "datediff(" + u.value() + ", " + expr(a.get(1), 0)
-                            + ", " + expr(a.get(2), 0) + ")"
-                    : super.call(c, parentPrec);
+                    ? writer.append("datediff(").append(u.value()).append(", ").expr(a.get(1), 0).append(", ")
+                            .expr(a.get(2), 0).append(")")
+                    : super.call(writer, c, parentPrec);
             // engine H2 adjust: dateadd(UNIT, n, x) (h2Extension dynaFn
             // 'adjust' + extensionDefaults mapToDBUnitType) — the ANSI
             // base's d + to_days(n) is the DuckDB-executable spelling
-            case ADD_INTERVAL -> "dateadd("
-                    + dbUnitOf(((SqlExpr.StringLit) a.get(0)).value()) + ", "
-                    + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
+            case ADD_INTERVAL -> writer.append("dateadd(").append(dbUnitOf(((SqlExpr.StringLit) a.get(0)).value()))
+                    .append(", ").expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
             // milestoning adjust channel: the same lowercase unit — the
             // UPPERCASE dateadd(DAY, ...) corpus spellings are all LEGACY
             // (H2 1.4.200) goldens of assertEqualsH2Compatible pairs
-            case ADD_INTERVAL_TEMPORAL -> "dateadd("
-                    + dbUnitOf(((SqlExpr.StringLit) a.get(0)).value()) + ", "
-                    + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
+            case ADD_INTERVAL_TEMPORAL -> writer.append("dateadd(")
+                    .append(dbUnitOf(((SqlExpr.StringLit) a.get(0)).value())).append(", ").expr(a.get(1), 0)
+                    .append(", ").expr(a.get(2), 0).append(")");
             // engine h2 parseInteger dynaFn golden spelling; execution
             // dialects keep the 64-bit BIGINT cast
-            case PARSE_INT -> "cast(" + expr(a.get(0), 0) + " as integer)";
+            case PARSE_INT -> writer.append("cast(").expr(a.get(0), 0).append(" as integer)");
             // bool text keeps the golden cast spelling byte-for-byte
-            case BOOL_TO_TEXT -> "cast(" + expr(a.get(0), 0)
-                    + " as varchar)";
-            case CHR -> "char(" + expr(a.get(0), 0) + ")";
-            case LENGTH -> "char_length(" + expr(a.get(0), 0) + ")";
-            case REVERSE_STRING -> "legend_h2_extension_reverse_string("
-                    + expr(a.get(0), 0) + ")";
-            case SPLIT_PART -> "legend_h2_extension_split_part("
-                    + a.stream().map(x -> expr(x, 0))
-                            .collect(Collectors.joining(", ")) + ")";
-            case TODAY -> "cast(now() as date)";
+            case BOOL_TO_TEXT -> writer.append("cast(").expr(a.get(0), 0).append(" as varchar)");
+            case CHR -> writer.append("char(").expr(a.get(0), 0).append(")");
+            case LENGTH -> writer.append("char_length(").expr(a.get(0), 0).append(")");
+            case REVERSE_STRING -> writer.append("legend_h2_extension_reverse_string(").expr(a.get(0), 0).append(")");
+            case SPLIT_PART -> writer.append("legend_h2_extension_split_part(").list(a).append(")");
+            case TODAY -> writer.append("cast(now() as date)");
             // enum-by-name temporals: the engine's H2 formatdatetime forms.
             // UNMATCHED formats THROW — falling back to strftime() would
             // leak a DuckDB spelling into engine-H2 golden text (audit 19)
@@ -1733,39 +1708,48 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         default -> null;
                     };
                     if (java != null) {
-                        yield "formatdatetime(" + expr(a.get(0), 0) + ", '"
-                                + java + "')";
+                        yield writer.append("formatdatetime(").expr(a.get(0), 0).append(", '").append(java)
+                                .append("')");
                     }
                 }
                 throw new IllegalStateException("strftime format has no"
                         + " engine-H2 formatdatetime spelling yet: " + a);
             }
             case TRIM -> a.size() == 1
-                    ? "trim(both from " + expr(a.get(0), 0) + ")"
-                    : super.call(c, parentPrec);
-            case DATE_TRUNC_DAY -> "cast(truncate(" + expr(a.get(0), 0)
-                    + ") as date)";
+                    ? writer.append("trim(both from ").expr(a.get(0), 0).append(")")
+                    : super.call(writer, c, parentPrec);
+            case DATE_TRUNC_DAY -> writer.append("cast(truncate(").expr(a.get(0), 0).append(") as date)");
             // contains(x, 'lit') lowers strpos(x, lit) > 0; the engine's
             // H2 spelling is the LIKE form (extensionDefaults 'contains'
             // — m2m2rShowcase golden: description like '%RECEIVE CASH%')
-            case GREATER -> a.size() == 2
+            case GREATER -> {
+                if (a.size() == 2
                     && a.get(0) instanceof SqlExpr.Call sp
                     && sp.fn() == com.legend.sql.SqlFn.STRPOS
                     && sp.args().size() == 2
                     && sp.args().get(1) instanceof SqlExpr.StringLit lit
                     && a.get(1) instanceof SqlExpr.IntLit z
-                    && z.value() == 0
-                    ? expr(sp.args().get(0), 0) + " like '%"
-                            + lit.value().replace("'", "''") + "%'"
-                    : super.call(c, parentPrec);
+                    && z.value() == 0) {
+                    writer.expr(sp.args().get(0), 0).append(" like '%").append(lit.value().replace("'", "''"))
+                            .append("%'");
+                } else {
+                    super.call(writer, c, parentPrec);
+                }
+                yield writer;
+            }
             // extract-part goldens spell the SQL-standard extract form
             // (testToSQLString.pure:368 'extract(doy from ...)'; the
             // engine's spelling of that form: oracleExtension.pure:204)
-            case EXTRACT -> a.size() == 2
+            case EXTRACT -> {
+                if (a.size() == 2
                     && a.get(0) instanceof SqlExpr.StringLit part
-                    && "doy".equals(part.value())
-                    ? "extract(doy from " + expr(a.get(1), 0) + ")"
-                    : super.call(c, parentPrec);
+                    && "doy".equals(part.value())) {
+                    writer.append("extract(doy from ").expr(a.get(1), 0).append(")");
+                } else {
+                    super.call(writer, c, parentPrec);
+                }
+                yield writer;
+            }
             // firstDayOf* family: every H2 golden spells the uniform
             // double cast; a TODAY anchor renders bare now() inside
             case DATE_TRUNC -> {
@@ -1775,10 +1759,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     String anchor = a.get(1) instanceof SqlExpr.Call tc
                             && tc.fn() == com.legend.sql.SqlFn.TODAY
                             ? "now()" : expr(a.get(1), 0);
-                    yield "cast(cast(date_trunc('" + u.value() + "', "
-                            + anchor + ") as timestamp) as date)";
+                    yield writer.append("cast(cast(date_trunc('").append(u.value()).append("', ").append(anchor)
+                            .append(") as timestamp) as date)");
                 }
-                yield super.call(c, parentPrec);
+                yield super.call(writer, c, parentPrec);
             }
             // parse-date family: the engine's rule (convertToDateH2) is
             // substring(x, 1, 10) + the Java pattern for ALL date-only
@@ -1786,8 +1770,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // formats THROW rather than leak DuckDB strptime() text.
             // parseDate: the engine's toTimestamp dyna function on H2
             // (h2Extension2_1_214 transformToTimestampH2 — ONE fixed pattern)
-            case PARSE_DATE -> "cast(parsedatetime(" + expr(a.get(0), 0)
-                    + ", 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][.SSSSSS][.SSSSS][.SSSS][.SSS][.SS][.S]') as timestamp)";
+            case PARSE_DATE -> writer.append("cast(parsedatetime(").expr(a.get(0), 0)
+                    .append(", 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS][.SSSSSSSS][.SSSSSSS][.SSSSSS][.SSSSS][.SSSS][.SSS][.SS][.S]') as timestamp)");
             case STRPTIME -> {
                 if (a.size() == 2 && a.get(1) instanceof SqlExpr.FormatLit fl) {
                     String java = h2Pattern(fl);
@@ -1797,20 +1781,20 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         // the engine's MMMyyyy hack (convertToDateH2 FIXME):
                         // a month-year text parses with a '01' day prepended
                         if (java.equals("MMMyyyy")) {
-                            yield "parsedatetime(concat('01', " + expr(a.get(0), 0)
-                                    + "), 'ddMMMyyyy')";
+                            yield writer.append("parsedatetime(concat('01', ").expr(a.get(0), 0)
+                                    .append("), 'ddMMMyyyy')");
                         }
                         yield dateOnly
-                                ? "parsedatetime(substring(" + expr(a.get(0), 0)
-                                        + ", 1, 10), '" + java + "')"
-                                : "parsedatetime(" + expr(a.get(0), 0)
-                                        + ", '" + java + "')";
+                                ? writer.append("parsedatetime(substring(").expr(a.get(0), 0).append(", 1, 10), '")
+                                        .append(java).append("')")
+                                : writer.append("parsedatetime(").expr(a.get(0), 0).append(", '").append(java)
+                                        .append("')");
                     }
                 }
                 throw new IllegalStateException("strptime format has no"
                         + " engine-H2 parsedatetime spelling yet: " + a);
             }
-            default -> super.call(c, parentPrec);
+            default -> super.call(writer, c, parentPrec);
         };
     }
 
@@ -1885,7 +1869,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
 
     @Override
-    protected String membership(SqlExpr.Membership m) {
+    protected SqlWriter membership(SqlWriter writer, SqlExpr.Membership m) {
         // engine golden spelling for expression membership:
         // x in (<collection expr>) — ledger cluster 35. A LITERAL
         // collection (a let-bound list, ['a', 'b']->contains(x), an
@@ -1902,9 +1886,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             for (int i = 0; i < elements.size(); i++) {
                 sb.append(i > 0 ? ", " : "").append(expr(elements.get(i), 0));
             }
-            return sb.append(')').toString();
+            return writer.append(sb.append(')').toString());
         }
-        return expr(m.needle(), 4) + " in (" + expr(coll, 0) + ")";
+        return writer.expr(m.needle(), 4).append(" in (").expr(coll, 0).append(")");
     }
 
     /** splitPart = the engine's own H2 extension function (commons split:

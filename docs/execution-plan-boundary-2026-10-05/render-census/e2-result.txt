@@ -1,0 +1,46 @@
+E-2's census (2026-10-08). Before: main 1818c89f7, E-2's parent (after W1.5, so compare.py no longer masks a lambda's
+scope id: it is deterministic now). After: that tree plus E-2. Same machine, same lanes, run.sh then compare.py. In both
+runs //pure-protocol:twins_test fails to build under the probe, by design (README); every other test passes.
+
+The 3 entries that differ are SqlWriterTest's bound statements, new with E-2: every statement main renders, E-2 renders
+identically. (On the way: E-2's final shape -- chains, a render method returning its writer -- against its first,
+statement-per-piece shape: 0 of 52,093 entries differ.)
+
+$ compare.py before after
+52094 (lane, dialect, kind, text) entries; 3 differ
+__gates_core DuckDb statement before=0 after=1
+    SELECT *\nFROM T_PERSON AS t0\nWHERE (t0.NAME = ? AND NOT t0.AGE <= ?) OR (NOT t0.NAME = ? AND t0.AGE <= ?)
+__gates_core DuckDb statement before=0 after=1
+    SELECT *\nFROM T_PERSON AS t0\nWHERE NOT t0.NAME = ? AND t0.AGE <= ?
+__gates_core DuckDb statement before=0 after=1
+    SELECT *\nFROM T_PERSON AS t0\nWHERE t0.NAME IN (SELECT t1.NAME FROM T_PERSON AS t1 WHERE t1.AGE <= ?) AND NOT t0.NAME = ?
+
+$ compare.py after   (the after run's totals)
+lane                                  renders   distinct
+__gates_core                            14307       3035
+__gates_stress                        5581730      10713
+__pct_pct_channel_b                      4932       3118
+__pct_pct_duckdb                         2599       1906
+__pct_pct_h2                              489        311
+__pct_pct_postgres                       2309       1720
+__spec_corpus_duckdb                    50761      15780
+__spec_corpus_h2                        49218      14784
+ALL                                   5706345      47910
+
+H2                     ddl       3741165
+H2                     dml       1837923
+DuckDb                 query       36214
+DuckDb                 ddl         33138
+H2                     query       24393
+EngineStyleH2          ddl         17512
+EngineStyleH2          query        7843
+DuckDb                 dml          5073
+Postgres               query        2334
+H2Modern               query         489
+EngineStyleDB2         query         172
+AnsiSqlRenderer        query          49
+EngineStyleComposite   query          32
+DuckDb                 statement          4
+H2Modern               dml             2
+H2                     statement          1
+Postgres               statement          1

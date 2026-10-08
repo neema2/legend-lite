@@ -6,7 +6,6 @@ package com.legend.sql.dialect;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlType;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * The engine's DB2 SQL text (toSQLString parity) — shares the
@@ -39,23 +38,23 @@ public class EngineStyleDB2 extends EngineStyleH2 {
      *  strings carry their own parens (incl. around {@code not (..)}),
      *  so precedence is correct by construction. */
     @Override
-    protected String expr(com.legend.sql.SqlExpr e, int parentPrec) {
+    protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         if (e instanceof com.legend.sql.SqlExpr.Call c) {
             if (c.fn() == com.legend.sql.SqlFn.NULL_SAFE_EQUAL) {
                 String a = expr(c.args().get(0), 4);
                 String b = expr(c.args().get(1), 4);
-                return "(" + a + " = " + b + " or (" + a + " is null and "
-                        + b + " is null))";
+                return writer.append("(").append(a).append(" = ").append(b).append(" or (").append(a)
+                        .append(" is null and ").append(b).append(" is null))");
             }
             if (c.fn() == com.legend.sql.SqlFn.NULL_SAFE_NOT_EQUAL) {
                 String a = expr(c.args().get(0), 4);
                 String b = expr(c.args().get(1), 4);
-                return "(not (" + a + " = " + b + ") or (" + a
-                        + " is null and " + b + " is not null) or (" + a
-                        + " is not null and " + b + " is null))";
+                return writer.append("(not (").append(a).append(" = ").append(b).append(") or (").append(a)
+                        .append(" is null and ").append(b).append(" is not null) or (").append(a)
+                        .append(" is not null and ").append(b).append(" is null))");
             }
         }
-        return super.expr(e, parentPrec);
+        return super.expr(writer, e, parentPrec);
     }
 
     @Override
@@ -125,54 +124,48 @@ public class EngineStyleDB2 extends EngineStyleH2 {
     }
 
     @Override
-    protected String call(SqlExpr.Call c, int parentPrec) {
+    protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
             // DB2 string concatenation is the infix operator, the whole
             // chain parenthesized once: (a concat b concat c)
-            case CONCAT -> "(" + flattenConcat(a).stream()
-                    .map(x -> expr(x, 0))
-                    .collect(Collectors.joining(" concat ")) + ")";
+            case CONCAT -> writer.append("(").join(flattenConcat(a), " concat ", 0).append(")");
             // interleaved joinStrings unit: same infix chain, NEVER
             // spliced into the enclosing '+' chain (its parens pin it)
-            case CONCAT_JOIN -> "(" + a.stream()
-                    .map(x -> expr(x, 0))
-                    .collect(Collectors.joining(" concat ")) + ")";
+            case CONCAT_JOIN -> writer.append("(").join(a, " concat ", 0).append(")");
             case TRIM -> a.size() == 1
-                    ? "trim(" + expr(a.get(0), 0) + ")"
-                    : super.call(c, parentPrec);
+                    ? writer.append("trim(").expr(a.get(0), 0).append(")")
+                    : super.call(writer, c, parentPrec);
             // native spellings (sqlstring 'common' goldens — the H2
             // parent's regexp/extension forms are H2-specific)
-            case CBRT -> "cbrt(" + expr(a.get(0), 0) + ")";
-            case STRPOS -> "position(" + expr(a.get(1), 0) + ", "
-                    + expr(a.get(0), 0) + ")";
+            case CBRT -> writer.append("cbrt(").expr(a.get(0), 0).append(")");
+            case STRPOS -> writer.append("position(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
             // DB2 spells the SHORT substr keyword (Composite keeps the
             // parent's full 'substring')
-            case SUBSTRING -> "substr(" + a.stream().map(x -> expr(x, 0))
-                    .collect(Collectors.joining(", ")) + ")";
-            case LTRIM -> "ltrim(" + expr(a.get(0), 0) + ")";
-            case RTRIM -> "rtrim(" + expr(a.get(0), 0) + ")";
-            case LPAD -> "lpad(" + a.stream().map(x -> expr(x, 0))
-                    .collect(Collectors.joining(", ")) + ")";
-            case RPAD -> "rpad(" + a.stream().map(x -> expr(x, 0))
-                    .collect(Collectors.joining(", ")) + ")";
-            case REVERSE_STRING -> "reverse(" + expr(a.get(0), 0) + ")";
+            case SUBSTRING -> writer.append("substr(").list(a).append(")");
+            case LTRIM -> writer.append("ltrim(").expr(a.get(0), 0).append(")");
+            case RTRIM -> writer.append("rtrim(").expr(a.get(0), 0).append(")");
+            case LPAD -> writer.append("lpad(").list(a).append(")");
+            case RPAD -> writer.append("rpad(").list(a).append(")");
+            case REVERSE_STRING -> writer.append("reverse(").expr(a.get(0), 0).append(")");
             // DB2 spells dayOfYear as the bare function
             // (db2Extension.pure:91 — 'dayofyear(%s)')
-            case EXTRACT -> c.args().size() == 2
+            case EXTRACT -> {
+                if (c.args().size() == 2
                     && c.args().get(0) instanceof SqlExpr.StringLit pt
-                    && "doy".equals(pt.value())
-                    ? "dayofyear(" + expr(c.args().get(1), 0) + ")"
-                    : super.call(c, parentPrec);
+                    && "doy".equals(pt.value())) {
+                    writer.append("dayofyear(").expr(c.args().get(1), 0).append(")");
+                } else {
+                    super.call(writer, c, parentPrec);
+                }
+                yield writer;
+            }
             // DB2 wraps left/right in trim (db2Extension.pure:100/:115 —
             // 'trim(left(%s, %s))'/'trim(right(%s, %s))')
-            case LEFT -> "trim(left(" + expr(a.get(0), 0) + ", "
-                    + expr(a.get(1), 0) + "))";
-            case RIGHT -> "trim(right(" + expr(a.get(0), 0) + ", "
-                    + expr(a.get(1), 0) + "))";
-            case TODAY -> "date(current date)";
-            case LENGTH -> "CHARACTER_LENGTH(" + expr(a.get(0), 0)
-                    + ",CODEUNITS32)";
+            case LEFT -> writer.append("trim(left(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append("))");
+            case RIGHT -> writer.append("trim(right(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append("))");
+            case TODAY -> writer.append("date(current date)");
+            case LENGTH -> writer.append("CHARACTER_LENGTH(").expr(a.get(0), 0).append(",CODEUNITS32)");
             // firstDayOf* family: DB2 rebuilds the truncation from epoch
             // date(1) with labeled year/month arithmetic (per-unit golden
             // text, parens verbatim — quarter parenthesizes the YEARS
@@ -194,7 +187,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                         default -> null;
                     };
                     if (spelled != null) {
-                        yield spelled;
+                        yield writer.append(spelled);
                     }
                 }
                 throw new IllegalStateException("date_trunc unit has no"
@@ -223,9 +216,8 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                         v = v * 7;
                     }
                     if (unit != null) {
-                        yield expr(a.get(2), 0)
-                                + (v < 0 ? " - " + (-v) : " + " + v)
-                                + " " + unit;
+                        yield writer.expr(a.get(2), 0).append((v < 0 ? " - " + (-v) : " + " + v)).append(" ")
+                                .append(unit);
                     }
                 }
                 throw new IllegalStateException("interval shape has no"
@@ -240,14 +232,14 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                     if (java != null) {
                         boolean dateOnly = !fl.parts()
                                 .contains(com.legend.sql.DateFmt.Part.HOUR2);
-                        yield (dateOnly ? "to_date(" : "timestamp_format(")
-                                + expr(a.get(0), 0) + ",'" + java + "')";
+                        yield writer.append((dateOnly ? "to_date(" : "timestamp_format(")).expr(a.get(0), 0)
+                                .append(",'").append(java).append("')");
                     }
                 }
                 throw new IllegalStateException("strptime format has no"
                         + " engine-DB2 spelling yet: " + a);
             }
-            default -> super.call(c, parentPrec);
+            default -> super.call(writer, c, parentPrec);
         };
     }
 

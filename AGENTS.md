@@ -220,11 +220,14 @@ String render(SqlDml dml);                           // rows in, rows out
 
 Base impl `AnsiSqlRenderer`. **A dialect writes SQL into ONE `SqlWriter`** (2026-10-08,
 docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10, "E"): text in order, and each bound parameter at the place its `?` is
-written, so a statement's parameters are in placeholder order by construction. A render method writes and returns
-nothing — never a rendered string that a caller pastes (a piece pasted twice would carry its parameter once); a method
-that only spells a name, a literal or a type returns its text. E is landing in stages: the clause layer (queries,
-selects, sources) writes into the writer; expressions, and the DDL and DML entries, still build strings, reached through
-a bridge where a bound parameter is refused, until their stage moves them. Never edit rendered SQL after it is written —
+written, so a statement's parameters are in placeholder order by construction. A render method writes and returns the
+writer (so its dispatching switch stays an expression javac checks, below) — never a rendered string that a caller
+pastes (a piece pasted twice would carry its parameter once); a method that only spells a name, a literal or a type
+returns its text. E is landing in stages: the clause layer (queries, selects, sources, their WHERE/HAVING/ON/QUALIFY)
+and expressions (`expr`, `call`, `membership`, subqueries) write into the writer; the other composing helpers (CASE,
+casts, windows, aggregates, list and JSON functions, projections, sort keys), an arm that pastes a sub-expression it
+built as text, and the DDL and DML entries still build strings, reached through a bridge where a bound parameter is
+refused, until their stage moves them. Never edit rendered SQL after it is written —
 the legacy engine-text printer's four edits (lowercasing `OVER`, `PARTITION BY` and a function name; escaping a rendered
 expression into a FreeMarker argument) are the known exceptions, until E's stage for that printer writes them directly.
 

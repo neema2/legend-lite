@@ -350,9 +350,31 @@ parameters.
   through the bridge (`inline`, and `writer.append(expr(...))`), where a parameter is refused as before. AGENTS.md
   invariant 3 restated. Census: 0 of 52,085 entries differ (`render-census/e1-result.txt`). The census probe became
   `probe.py` (by signature; E-1 reshaped `render`, so the E-0 patch no longer applied), and records `renderStatement`.
-- **E-2 onwards, by method family** (a base method with every dialect's override of it), from the entry points down to
-  expressions, where parameters live. The stage that moves the DDL and DML renderers closes **PARK-16** (DDL and DML
-  spell a table or schema name raw where queries quote it; `docs/PARKED_WORK_LEDGER.md`): its own landing right after
-  that stage, measured on the census — the stage rewrites `ddlQualified`, so the row's anchor goes red there.
+- **E-2, expressions — on branch 2026-10-08.** `expr`, `call` (with Postgres's `postgresCall`) and `membership` write
+  into the writer in every dialect — `AnsiSqlRenderer`, `DuckDb`, `H2`, `H2Modern`, `Postgres`, `EngineStyleH2`,
+  `EngineStyleDB2`, `EngineStyleComposite`; the clause layer writes its expressions there too (`WHERE`, `GROUP BY`,
+  `HAVING`, `JOIN ... ON`, `QUALIFY`, `VALUES` rows; the legacy printer, which binds nothing, still spells its own
+  `WHERE` and `GROUP BY` as text); subqueries (`EXISTS`, `IN`, scalar, quantified) are written into the same writer. The
+  string forms of `expr`, `call` and `membership` are `final` bridges in the base, so a stale override cannot compile. A
+  plan parameter reaching `expr` is BOUND as one value (`renderStatement` lists it; `render` refuses it); what one value
+  cannot carry yet — a RAW splice, an optional or enum parameter, a collection as IN's whole list — is refused by name,
+  for step 2's landing 2. `SqlWriterTest` runs bound statements on DuckDB: two parameters under AND/NOT, one written
+  twice by XOR (bound twice), one inside an IN subquery. The other composing helpers (CASE, casts, windows, aggregates,
+  list and JSON functions, projections, sort keys), and about 25 arms that paste a sub-expression they built as text
+  (acos's domain guard; Postgres's regexp, date and JSON arms), still build strings through the bridge, where a
+  parameter is refused (tested) — the next stages. **A render method returns the writer it wrote into**, so the code
+  keeps its shape: an arm is one chain (`case SQRT -> writer.append("sqrt(").expr(a.get(0), 0).append(")")`),
+  `C ? A : B` stays a conditional over writers, and a dispatching switch stays a `return switch` EXPRESSION, whose cases javac
+  checks (AGENTS.md invariant 3; measured: deleting `GUID`'s arm from `postgresCall` fails to compile, "the switch
+  expression does not cover all possible input values"). The first conversion had written one statement per piece inside
+  switch STATEMENTS: javac stops checking an enum switch statement's cases, so a new function without a Postgres arm
+  would have written nothing, and two methods grew past the 250-line guard (`call` 219 → 370 lines, `postgresCall` 229 →
+  435). Returning the writer restored both (`call` 229, `postgresCall` 242). Checked by the compiler and the census:
+  every statement rendered before renders identically (`render-census/e2-result.txt`).
+- **E-3 onwards, by method family** (a base method with every dialect's override of it): the remaining composing
+  helpers, and the arms that paste a sub-expression built as text. The stage that moves the DDL and DML renderers closes
+  **PARK-16** (DDL and DML spell a table or schema name raw where queries quote it; `docs/PARKED_WORK_LEDGER.md`): its
+  own landing right after that stage, measured on the census — the stage rewrites `ddlQualified`, so the row's anchor
+  goes red there.
 - **The bridge removed;** the legacy printer's 4 text edits become direct writes.
 - **Then step 2's landing 2**: a parameter is `bind(...)`.

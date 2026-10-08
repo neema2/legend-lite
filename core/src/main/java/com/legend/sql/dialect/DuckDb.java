@@ -206,7 +206,7 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String call(SqlExpr.Call c, int parentPrec) {
+    protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         // ENGINE DOMAIN SEMANTICS (goal #18 dialect gaps, E2E §4.1):
         // the engine's H2 returns NaN for out-of-domain acos/asin;
         // DuckDB THROWS 'Unable to compute acos of 1.1'. Same rows on
@@ -217,15 +217,15 @@ public final class DuckDb extends AnsiSqlRenderer {
             String arg = expr(c.args().get(0), 0);
             String fn = c.fn() == com.legend.sql.SqlFn.ACOS
                     ? "acos" : "asin";
-            return "(CASE WHEN (" + arg + ") BETWEEN -1 AND 1 THEN " + fn
-                    + "(" + arg + ") ELSE 'NaN'::DOUBLE END)";
+            return writer.append("(CASE WHEN (").append(arg).append(") BETWEEN -1 AND 1 THEN ").append(fn).append("(")
+                    .append(arg).append(") ELSE 'NaN'::DOUBLE END)");
         }
         // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
         // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
         // implicit TIMESTAMP_NS<->TZ comparison — cast to the engine's
         // type (session TZ is pinned UTC).
         if (c.fn() == com.legend.sql.SqlFn.NOW) {
-            return "CAST(now() AS TIMESTAMP)";
+            return writer.append("CAST(now() AS TIMESTAMP)");
         }
         // len(DOUBLE): the corpus spells length() over numeric-typed
         // expressions (engine H2 coerces); DuckDB has no len(DOUBLE) —
@@ -233,8 +233,7 @@ public final class DuckDb extends AnsiSqlRenderer {
         // varchar coercion.
         if (c.fn() == com.legend.sql.SqlFn.LENGTH
                 && !(c.args().get(0) instanceof SqlExpr.StringLit)) {
-            return "length(CAST(" + expr(c.args().get(0), 0)
-                    + " AS VARCHAR))";
+            return writer.append("length(CAST(").expr(c.args().get(0), 0).append(" AS VARCHAR))");
         }
         // date_trunc('day', ts): DuckDB returns a DATE at day grain and
         // coarser (TIMESTAMP only for hour and finer); the semantic fact is
@@ -244,9 +243,11 @@ public final class DuckDb extends AnsiSqlRenderer {
         if (c.fn() == com.legend.sql.SqlFn.DATE_TRUNC
                 && c.args().get(0) instanceof SqlExpr.StringLit part
                 && part.value().equals("day")) {
-            return "CAST(" + super.call(c, 0) + " AS TIMESTAMP)";
+            writer.append("CAST(");
+            super.call(writer, c, 0);
+            return writer.append(" AS TIMESTAMP)");
         }
-        return super.call(c, parentPrec);
+        return super.call(writer, c, parentPrec);
     }
 
     @Override
@@ -299,9 +300,8 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     /** DuckDB native membership (byte-identical to the pre-R2 call). */
     @Override
-    protected String membership(SqlExpr.Membership m) {
-        return "list_contains(" + expr(m.collection(), 0) + ", "
-                + expr(m.needle(), 0) + ")";
+    protected SqlWriter membership(SqlWriter writer, SqlExpr.Membership m) {
+        return writer.append("list_contains(").expr(m.collection(), 0).append(", ").expr(m.needle(), 0).append(")");
     }
 
     // ---- structural capabilities ----
@@ -312,10 +312,9 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     @Override
-    protected void appendQualify(SqlWriter writer, SqlSelect s, int depth) {
-        nl(writer, depth).append("QUALIFY ").append(expr(
-                java.util.Objects.requireNonNull(s.qualify(),
-                        "appendQualify without a qualify clause"), 0));
+    protected SqlWriter appendQualify(SqlWriter writer, SqlSelect s, int depth) {
+        return nl(writer, depth).append("QUALIFY ").expr(java.util.Objects.requireNonNull(s.qualify(),
+                "appendQualify without a qualify clause"), 0);
     }
 
     @Override
@@ -325,7 +324,7 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     /** Native PIVOT; DuckDB forbids qualified column refs inside ON/USING. */
     @Override
-    protected void pivotSource(SqlWriter writer, SqlSource.Pivot p, int depth) {
+    protected SqlWriter pivotSource(SqlWriter writer, SqlSource.Pivot p, int depth) {
         writer.append("(PIVOT ");
         source(writer, p.source(), depth);
         // ON columns quote UNCONDITIONALLY (the corpus pins "year" — the
@@ -348,7 +347,7 @@ public final class DuckDb extends AnsiSqlRenderer {
                         // '_|__agg' tail.
                         + " AS " + ident("_|__" + u.alias()))
                 .collect(Collectors.joining(", ")));
-        writer.append(") AS ").append(ident(p.alias()));
+        return writer.append(") AS ").append(ident(p.alias()));
     }
 
     // ---- list idioms: DuckDB is the lambda backend ----

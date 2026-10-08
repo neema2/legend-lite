@@ -187,11 +187,10 @@ public class H2 extends AnsiSqlRenderer {
      * renders like DuckDB's; the base default walls, which stranded
      * the one PCT qualify test despite supportsQualify(). */
     @Override
-    protected void appendQualify(SqlWriter writer, com.legend.sql.SqlSelect s,
+    protected SqlWriter appendQualify(SqlWriter writer, com.legend.sql.SqlSelect s,
             int depth) {
-        nl(writer, depth).append("QUALIFY ").append(expr(
-                java.util.Objects.requireNonNull(s.qualify(),
-                        "appendQualify without a qualify clause"), 0));
+        return nl(writer, depth).append("QUALIFY ").expr(java.util.Objects.requireNonNull(s.qualify(),
+                "appendQualify without a qualify clause"), 0);
     }
 
     /** No native dynamic PIVOT — the two-phase staticization pre-pass
@@ -202,31 +201,29 @@ public class H2 extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String call(SqlExpr.Call c, int parentPrec) {
+    protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
         // integer division: the base renderer spells DuckDB's `a // b`,
         // and `//` is a LINE COMMENT on H2 — `SELECT 7 // 2` returns 7
         // silently (H2_BACKEND.md H5.2). H2's `/` over INT operands IS
         // integer division; CAST pins the operand type against widening.
         if (c.fn() == SqlFn.INT_DIVIDE) {
-            return "CAST(" + expr(a.get(0), 6) + " / " + expr(a.get(1), 6)
-                    + " AS BIGINT)";
+            return writer.append("CAST(").expr(a.get(0), 6).append(" / ").expr(a.get(1), 6).append(" AS BIGINT)");
         }
         // date arithmetic: the ANSI base spells DuckDB's interval idiom
         // `d + to_days(n)`; H2's form is dateadd(UNIT, n, d) — probed
         // 2.1.214 for DAY/MONTH/MICROSECOND, negative amounts, and
         // CAST-around composition.
         if (c.fn() == SqlFn.ADD_INTERVAL || c.fn() == SqlFn.ADD_INTERVAL_TEMPORAL) {
-            return "dateadd(" + dateUnit(((SqlExpr.StringLit) a.get(0))
-                    .value()) + ", " + expr(a.get(1), 0) + ", "
-                    + expr(a.get(2), 0) + ")";
+            return writer.append("dateadd(").append(dateUnit(((SqlExpr.StringLit) a.get(0)).value())).append(", ")
+                    .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
         }
         // H2 has no date_part — the SQL-standard extract(UNIT FROM x)
         // form (probed 2.1.214: HOUR over TIMESTAMP and TIME)
         if (c.fn() == SqlFn.EXTRACT) {
-            return "extract(" + ((SqlExpr.StringLit) a.get(0)).value()
-                    .toUpperCase(java.util.Locale.ROOT) + " FROM "
-                    + expr(a.get(1), 0) + ")";
+            return writer.append("extract(")
+                    .append(((SqlExpr.StringLit) a.get(0)).value().toUpperCase(java.util.Locale.ROOT))
+                    .append(" FROM ").expr(a.get(1), 0).append(")");
         }
         // format(template, args…) over a LITERAL template: H2 has no printf
         // (probed absent, 2026-07-31) — the template is a concatenation of
@@ -235,25 +232,24 @@ public class H2 extends AnsiSqlRenderer {
         // any other specifier is a capability gap, loud.
         if (c.fn() == SqlFn.FORMAT && !a.isEmpty()
                 && a.get(0) instanceof SqlExpr.StringLit tpl) {
-            return formatAsConcat(tpl.value(), a.subList(1, a.size()));
+            return writer.append(formatAsConcat(tpl.value(), a.subList(1, a.size())));
         }
         // H2 has no starts_with — LEFT/CHAR_LENGTH equality (probed,
         // incl. '%' in the prefix: no LIKE-escaping hazard)
         if (c.fn() == SqlFn.STARTS_WITH) {
-            return "(LEFT(" + expr(a.get(0), 0) + ", CHAR_LENGTH("
-                    + expr(a.get(1), 0) + ")) = " + expr(a.get(1), 0) + ")";
+            return writer.append("(LEFT(").expr(a.get(0), 0).append(", CHAR_LENGTH(").expr(a.get(1), 0).append(")) = ")
+                    .expr(a.get(1), 0).append(")");
         }
         // strpos (P3): H2 spells LOCATE with SWAPPED args — probed
         // 2.1.214 parity on all edges (1-based, miss 0, empty needle 1).
         if (c.fn() == SqlFn.STRPOS) {
-            return "LOCATE(" + expr(a.get(1), 0) + ", " + expr(a.get(0), 0)
-                    + ")";
+            return writer.append("LOCATE(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
         }
         // ends_with (P3): the RIGHT/CHAR_LENGTH twin of STARTS_WITH
         // (probed incl. '%' suffix and needle-longer-than-string).
         if (c.fn() == SqlFn.ENDS_WITH) {
-            return "(RIGHT(" + expr(a.get(0), 0) + ", CHAR_LENGTH("
-                    + expr(a.get(1), 0) + ")) = " + expr(a.get(1), 0) + ")";
+            return writer.append("(RIGHT(").expr(a.get(0), 0).append(", CHAR_LENGTH(").expr(a.get(1), 0).append(")) = ")
+                    .expr(a.get(1), 0).append(")");
         }
         // bool = text (P8): the reference COERCES the string to bool
         // ('N' -> false, probed) where strict H2 rejects the compare —
@@ -270,8 +266,8 @@ public class H2 extends AnsiSqlRenderer {
                         default -> null;
                     };
                     if (b != null) {
-                        return "(" + expr(a.get(i), 4) + " = "
-                                + (b ? "TRUE" : "FALSE") + ")";
+                        return writer.append("(").expr(a.get(i), 4).append(" = ").append((b ? "TRUE" : "FALSE"))
+                                .append(")");
                     }
                 }
             }
@@ -280,16 +276,15 @@ public class H2 extends AnsiSqlRenderer {
         // prints 'true'; NULL stays NULL through the CASE.
         if (c.fn() == SqlFn.BOOL_TO_TEXT) {
             String v = expr(a.get(0), 0);
-            return "CASE WHEN " + v + " THEN 'true' WHEN NOT " + v
-                    + " THEN 'false' END";
+            return writer.append("CASE WHEN ").append(v).append(" THEN 'true' WHEN NOT ").append(v)
+                    .append(" THEN 'false' END");
         }
         // date_diff (P7): DATEDIFF(UNIT, a, b) — probed sign parity
         // (10 / -10) with the reference date_diff('unit', a, b).
         if (c.fn() == SqlFn.DATE_DIFF
                 && a.get(0) instanceof SqlExpr.StringLit du) {
-            return "DATEDIFF(" + du.value()
-                    .toUpperCase(java.util.Locale.ROOT) + ", "
-                    + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
+            return writer.append("DATEDIFF(").append(du.value().toUpperCase(java.util.Locale.ROOT)).append(", ")
+                    .expr(a.get(1), 0).append(", ").expr(a.get(2), 0).append(")");
         }
         // full-regexp match (P7): REGEXP_LIKE anchored '^(?:p)$' —
         // probed partial-vs-full parity; literal patterns anchor at
@@ -298,7 +293,7 @@ public class H2 extends AnsiSqlRenderer {
             String pat = a.get(1) instanceof SqlExpr.StringLit pl
                     ? stringLit("^(?:" + pl.value() + ")$")
                     : "CONCAT('^(?:', " + expr(a.get(1), 0) + ", ')$')";
-            return "REGEXP_LIKE(" + expr(a.get(0), 0) + ", " + pat + ")";
+            return writer.append("REGEXP_LIKE(").expr(a.get(0), 0).append(", ").append(pat).append(")");
         }
         // error(msg) (P3): SIGNAL raises with the message and is LAZY
         // under CASE (probed 2.1.214: guarded branches do not fire,
@@ -309,8 +304,8 @@ public class H2 extends AnsiSqlRenderer {
             // same in-envelope U+001E convention as the ANSI arm
             String position = c.args().size() > 1
                     ? expr(c.args().get(1), 0) + " || CHAR(30) || " : "";
-            return "SIGNAL('45000', CHAR(31) || " + position + "("
-                    + expr(a.get(0), 0) + ") || CHAR(31))";
+            return writer.append("SIGNAL('45000', CHAR(31) || ").append(position).append("(").expr(a.get(0), 0)
+                    .append(") || CHAR(31))");
         }
         // split_part (R5c): H2 has no token pick — the probed EXACT
         // spelling (empty tokens KEPT, missing token -> '', matching
@@ -328,32 +323,28 @@ public class H2 extends AnsiSqlRenderer {
             String cls = "[^" + q + "]*";
             String pat = stringLit("^(?:" + cls + q + "){"
                     + (ix.value() - 1) + "}(" + cls + ").*$");
-            return "CASE WHEN (CHAR_LENGTH(" + str
-                    + ") - CHAR_LENGTH(REPLACE(" + str + ", " + sepLit
-                    + ", ''))) < " + (ix.value() - 1)
-                    + " THEN '' ELSE REGEXP_REPLACE(" + str + ", " + pat
-                    + ", '$1') END";
+            return writer.append("CASE WHEN (CHAR_LENGTH(").append(str).append(") - CHAR_LENGTH(REPLACE(").append(str)
+                    .append(", ").append(sepLit).append(", ''))) < ").append((ix.value() - 1))
+                    .append(" THEN '' ELSE REGEXP_REPLACE(").append(str).append(", ").append(pat).append(", '$1') END");
         }
         // regexp_extract(s, p[, g]): H2 spells REGEXP_SUBSTR(s, p, 1, 1,
         // NULL, g) — probed 2.1.214: group g returns the capture ('-1.3421E-8'
         // -> '1.3421'); a MISS is NULL where DuckDB yields '' — COALESCE
         // keeps the contract the callers read ('' = the group did not match).
         if (c.fn() == SqlFn.REGEXP_EXTRACT && (a.size() == 2 || a.size() == 3)) {
-            return "COALESCE(REGEXP_SUBSTR(" + expr(a.get(0), 0) + ", "
-                    + expr(a.get(1), 0) + ", 1, 1, NULL, "
-                    + (a.size() == 3 ? expr(a.get(2), 0) : "0") + "), '')";
+            return writer.append("COALESCE(REGEXP_SUBSTR(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
+                    .append(", 1, 1, NULL, ").append((a.size() == 3 ? expr(a.get(2), 0) : "0")).append("), '')");
         }
         // epoch(ts) / epoch_ms(ts): H2 has neither — the standard
         // EXTRACT(EPOCH FROM ts) (seconds with the subsecond fraction;
         // probed 2.1.214: 1417706543.123) and its millisecond scaling.
         if (c.fn() == SqlFn.EPOCH_SECONDS) {
-            return "EXTRACT(EPOCH FROM " + expr(a.get(0), 0) + ")";
+            return writer.append("EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(")");
         }
         if (c.fn() == SqlFn.EPOCH_MS) {
-            return "CAST(EXTRACT(EPOCH FROM " + expr(a.get(0), 0)
-                    + ") * 1000 AS BIGINT)";
+            return writer.append("CAST(EXTRACT(EPOCH FROM ").expr(a.get(0), 0).append(") * 1000 AS BIGINT)");
         }
-        return super.call(c, parentPrec);
+        return super.call(writer, c, parentPrec);
     }
 
     /** H2 window-frame interval bounds want the SQL-standard QUOTED
