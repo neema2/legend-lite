@@ -182,3 +182,84 @@ describe('Filter > Apply with a value the compiler refuses', () => {
     assert.match(filters.textContent ?? '', /Invalid month: 13/);
   });
 });
+
+/** Holds every plan until released, when `hold` is set: a compile check still out. */
+class HeldPlanner implements Planner {
+  hold = false;
+  #release: () => void = () => {};
+  readonly #held = new Promise<void>((resolve) => {
+    this.#release = resolve;
+  });
+  async plan(): Promise<Plan> {
+    if (this.hold) await this.#held;
+    return { sql: 'SELECT 1', columns: [] };
+  }
+  release(): void {
+    this.#release();
+  }
+  async relationType(): Promise<PlanColumn[]> {
+    return [];
+  }
+  parse = fakeParse;
+  print = fakePrint;
+}
+
+// THE CUBE IS BUSY FROM A CHANGE'S ASK ON (2026-10-08): it was busy only once the change's query ran, so while Apply's
+// compile check was out it read as quiet, and a harness waiting for quiet moved on before the change landed (the cause
+// of //datacube:verify_features_test's flakes on a loaded runner).
+describe('Filter > Apply is in flight from the click on', () => {
+  it('busy while its compile check is out, then applied and quiet', async () => {
+    const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
+    (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame =
+      (fn: () => void) => { fn(); return 0; };
+    const root = dom.window.document.getElementById('r') as HTMLElement;
+    const planner = new HeldPlanner();
+    const app = new CubeApp(root, SNAPSHOT, { engine: new Engine(), planner });
+    await app.open();
+    app.openFilters();
+    const filters = root.querySelector('[data-window="Filters"]') as HTMLElement;
+    (filters.querySelector('.dc-filter-btn') as HTMLButtonElement).click();
+    const value = filters.querySelector('input.dc-filter-value') as HTMLInputElement;
+    value.value = 'EMEA';
+    value.dispatchEvent(new dom.window.Event('change'));
+    planner.hold = true;
+    (filters.querySelector('.dc-filter-apply') as HTMLButtonElement).click();
+    await flush();
+    assert.equal(app.busy, true, 'quiet while the compile check was out');
+    planner.release();
+    await flush();
+    assert.equal(app.busy, false);
+    assert.notEqual(app.snapshot.filter, undefined, 'the filter applied');
+  });
+});
+
+describe('Properties > Apply is in flight from the click on', () => {
+  it('busy while its compile check is out, then applied and quiet', async () => {
+    const dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
+    (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame =
+      (fn: () => void) => { fn(); return 0; };
+    const root = dom.window.document.getElementById('r') as HTMLElement;
+    const planner = new HeldPlanner();
+    const app = new CubeApp(root, SNAPSHOT, { engine: new Engine(), planner });
+    await app.open();
+    app.openEditor();
+    const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
+    [...overlay.querySelectorAll('.dc-editor-tab')]
+      .find((b) => b.textContent === 'General Properties')
+      ?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const limit = [...overlay.querySelectorAll('.dc-field')]
+      .find((f) => f.querySelector('.dc-field-label')?.textContent === 'Row Limit:')
+      ?.querySelector('input') as HTMLInputElement;
+    limit.value = '7';
+    limit.dispatchEvent(new dom.window.Event('change'));
+    planner.hold = true;
+    ([...overlay.querySelectorAll('.dc-editor-footer button')]
+      .find((b) => b.textContent === 'Apply') as HTMLButtonElement).click();
+    await flush();
+    assert.equal(app.busy, true, 'quiet while the compile check was out');
+    planner.release();
+    await flush();
+    assert.equal(app.busy, false);
+    assert.equal(app.snapshot.maxRows, 7, 'the row limit applied');
+  });
+});

@@ -442,6 +442,8 @@ export class CubeApp {
   readonly #open = new Map<string, HTMLElement>();
   /** What is running, for the status bar's progress (upstream's TaskService). */
   readonly #tasks: { readonly description: string }[] = [];
+  /** Work a change waits on before its query runs, still out (busy). */
+  #checking = 0;
   #endFetch: (() => void) | null = null;
   readonly #progress: HTMLElement;
   /** Where the grid was scrolled when the context menu opened. */
@@ -779,9 +781,13 @@ export class CubeApp {
   get view(): CubeView | null {
     return this.#view;
   }
-  /** A change is in flight: its query has not answered yet. */
+  /**
+   * A change is in flight: the work it waits on before its query runs (#check: the Filter and Properties windows'
+   * compile checks, the column window's parse and live check, Snap's copy) or its query has not answered yet. The
+   * harnesses wait on this; the Loading overlay is the owner's alone.
+   */
   get busy(): boolean {
-    return this.#owner.busy;
+    return this.#owner.busy || this.#checking > 0;
   }
   get canUndo(): boolean {
     return this.#owner.canUndo;
@@ -1416,6 +1422,18 @@ export class CubeApp {
     const { right } = this.#statusFrame();
     this.#readout(right, `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
     this.#statusTail(right);
+  }
+
+  /**
+   * Work a change waits on before its query runs, counted from the moment it starts until it settles: the cube is
+   * busy while it is out, not only once the query starts. (The column window's live check starts after its typing
+   * pause; it is counted from then.)
+   */
+  #check<T>(call: Promise<T>): Promise<T> {
+    this.#checking += 1;
+    return call.finally(() => {
+      this.#checking -= 1;
+    });
   }
 
   /** A task on the status bar's progress, until the returned end is called. */
@@ -2967,10 +2985,10 @@ export class CubeApp {
         snapshot: () => this.#snapshot,
         pivotColumns: () => this.#view?.pivot?.columns ?? [],
         start,
-        parse: (text) => this.#controller.parse(text),
+        parse: (text) => this.#check(this.#controller.parse(text)),
         print: (query) => this.#controller.print(query),
-        compile: (candidate, signal) => this.#controller.compile(
-          { snapshot: candidate, tree: this.#owner.current.tree }, this.#view, signal),
+        compile: (candidate, signal) => this.#check(this.#controller.compile(
+          { snapshot: candidate, tree: this.#owner.current.tree }, this.#view, signal)),
         apply: (row, group, rename) => this.#setCalc(row, group, rename),
         readJson: (column) => this.#jsonReader(column),
         // the rail's choice: another calculated column, in this window's place
@@ -3118,8 +3136,8 @@ export class CubeApp {
       ? { ...snapshot, filter }
       : (({ filter: _drop, ...rest }) => rest)(snapshot));
     try {
-      const checked = await this.#controller.compile(
-        { snapshot: withFilter(this.#snapshot), tree: this.#owner.current.tree }, this.#view);
+      const checked = await this.#check(this.#controller.compile(
+        { snapshot: withFilter(this.#snapshot), tree: this.#owner.current.tree }, this.#view));
       if (checked && checked.refusal !== null) {
         this.#status(checked.refusal, 'error');
         return checked.refusal;
@@ -3169,10 +3187,10 @@ export class CubeApp {
     const target = merge(this.#owner.current);
     let checked: Awaited<ReturnType<CubeController['compile']>>;
     try {
-      checked = await this.#controller.compile({
+      checked = await this.#check(this.#controller.compile({
         snapshot: applyToSnapshot(target.snapshot, target.configuration),
         tree: target.tree,
-      }, this.#view);
+      }, this.#view));
     } catch (error: unknown) {
       // A compile that could not run at all is said, never swallowed: the
       // Apply button's promise has nobody waiting on it (P2-152).
@@ -3643,9 +3661,10 @@ export class CubeApp {
         // the old plane back, so the badge never names a plane the rows are
         // not from (a dead warehouse left a dropped snap's rows under "Live").
         const rerun = () => this.#owner.refresh();
-        const work = this.#controller.snaps.isSnapped
+        // the copy into the tab comes before the re-run, which is when the owner turns busy: counted from the click
+        const work = this.#check(this.#controller.snaps.isSnapped
           ? this.#controller.goLive(rerun)
-          : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun);
+          : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun));
         work.then(done, (e: unknown) => {
           this.#status(e instanceof Error ? e.message : String(e), 'error');
           done();
