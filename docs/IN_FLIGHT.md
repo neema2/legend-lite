@@ -431,8 +431,11 @@ commits behind), locally first: `query-by-name` (Query and DataCube open Studio'
 commits). The rebased branches are pushed under NEW names (rule 1: no force-push); the old ones stay as they are.
 Done the same day: `query-by-name-1007`, `studio-engine-1007` (the first plus 20; its BUILD diff reviewed by the build
 program's session) and `protocol-1007`, each on `c9a18b1ed`; the two touch disjoint files and merge cleanly.
-**Landed 2026-10-08: `studio-engine` (with `query-by-name`), as 61ad2dbaa (GATES.md, "The Studio line").** Next:
-`protocol`, rebased onto it; then DataCube's busy signal (the cause of `verify_features_test`'s flakes).
+**Landed 2026-10-08: `studio-engine` (with `query-by-name`), as 61ad2dbaa (GATES.md, "The Studio line"); `protocol`,
+as e5640e35a (its core files: the list below); DataCube's busy signal, as 355a86035.** Next, the Studio line's own:
+Studio's setup lists (this entry's commit); the site harness's one-column grid; the tab's test-data statements from the
+planner once the plan/exec split's setup move lands (it replaces `engine-client/src/model-data.ts` `sqlType`'s copy).
+The protocol program's leg 2 waits on two decisions of the user's.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
 (engine code: `core/.../protocol/`, eleven files of `core/.../parser/`, `native-claims.tsv`; the engine's lanes). For
