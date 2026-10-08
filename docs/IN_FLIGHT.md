@@ -442,10 +442,21 @@ Done the same day: `query-by-name-1007`, `studio-engine-1007` (the first plus 20
 program's session) and `protocol-1007`, each on `c9a18b1ed`; the two touch disjoint files and merge cleanly.
 **Landed 2026-10-08: `studio-engine` (with `query-by-name`), as 61ad2dbaa (GATES.md, "The Studio line"); `protocol`,
 as e5640e35a (its core files: the list below); DataCube's busy signal, as 355a86035; Studio's setup lists and Query's
-navigation, as 609fae95e; Studio's status bar, as 8ab4a5bdc; the tab's test data from the planner's statements (this
-entry's commit: `sqlType`'s copy gone; `planner.Wasm.testDataSqlOrError`, `wasm/` one export).** Next, the Studio
-line's own: moving its harnesses' sites off Node's file server (the warehouse serves the page, as live_snap_test now
-does). The protocol program's leg 2 waits on two decisions of the user's.
+navigation, as 609fae95e; Studio's status bar, as 8ab4a5bdc; the tab's test data from the planner's statements, as
+fb3acc2f1 (`sqlType`'s copy gone; `planner.Wasm.testDataSqlOrError`, `wasm/` one export).** Parked on the Studio
+line (the user, 2026-10-08: the round trip first): its harnesses' sites off Node's file server; `verify_remote_test`'s
+fetch of DuckDB-WASM's httpfs extension from the network, to be vendored as a pinned file.
+**Now (2026-10-08): the protocol program's leg 2, on branch `protocol-leg2`** (`docs/PROTOCOL_PROGRAM_2026_10_05.md`
+§4.2, its two decisions recorded there). Core files it touches: `core/src/main/java/com/legend/protocol/` -- the 31
+`*Composer.java` printers moved from JSON onto the records, family by family; the readers (`ModelReader`,
+`ProtocolReader`, `SpecIslandReader`, the family readers) learning the older shapes legend-engine 4.145.0 reads and
+refusing, by name, a field it would silently drop; `spec/AppliedFunction.java`, a written-form flag `island` beside
+`propertyCall`, `grouped` and `infix` (agreed with the compiler line, 2026-10-08: set only by the `tableReference`
+factory, read by the emitter and the printer, never by `compiler/`, `resolver/` or `lowering/`); and
+`core/src/test/java/com/legend/protocol/`. Outside core: `parser-equivalence`'s parity tests and `PeRatchets` (the
+verdict kinds printed beside `own_corpus.matched`), `docs/SEMANTICS_REGISTER.md` (one row: refuse where the engine
+drops). Not touched: `parser/` (the factory is already shared), `compiler/`, `server/` (legs 3 and 4 add the routes,
+after `PureV1Api` moves into `//core:pure_v1`).
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
 (engine code: `core/.../protocol/`, eleven files of `core/.../parser/`, `native-claims.tsv`; the engine's lanes). For

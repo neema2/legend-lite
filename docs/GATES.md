@@ -7455,3 +7455,7 @@ quoted column by the planner's names; `//gates:datacube`, `//gates:ui`, `//gates
 (the auditor agent, 2026-10-08, running the planner and DuckDB): no blockers; four should-fix and five nits, all taken;
 one core finding sent to its owner (a default-schema table named by a reserved word is left unquoted in the seed's DDL,
 server and tab alike; the plan/exec line will spell DDL names as queries do).
+
+The run: 37854254901 on `tab-seed` (3bdb4314b, on f804dba9a), lanes product, checks, ui and datacube on every
+platform, green on every job; pushed to main as fb3acc2f1, the tested commit rebased over one docs-only commit (the
+E-1 entry), its GATES entry merged after E-1's. Local gate `//gates:local` green (315/315) on f804dba9a.
