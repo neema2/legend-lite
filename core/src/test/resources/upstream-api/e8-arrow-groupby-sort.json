@@ -1,0 +1,44 @@
+{
+  "recorded": "legend-engine 4.145.0 (java --add-opens=java.base/java.nio=ALL-UNNAMED, as Arrow's memory needs), 2026-10-08: POST /api/pure/v1/execution/execute?serializationFormat=ARROW_IPC with e8's request (e1-groupby-sort.json over trades-h2.pure); the answer's bytes are e8-arrow-groupby-sort.arrows.zst",
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json",
+    "x-legend-response-format": "FormatNotSet"
+  },
+  "compression": "one zstd frame around an Arrow IPC stream",
+  "fields": [
+    {
+      "name": "region",
+      "type": "string",
+      "nullable": true
+    },
+    {
+      "name": "total",
+      "type": "decimal128(27, 0)",
+      "nullable": true
+    }
+  ],
+  "metadata": {
+    "legend.builder": "{\"_type\":\"tdsBuilder\",\"columns\":[{\"name\":\"region\",\"type\":\"meta::pure::precisePrimitives::Varchar\",\"relationalType\":\"VARCHAR(1024)\"},{\"name\":\"total\",\"type\":\"Float\",\"relationalType\":\"FLOAT\"}]}",
+    "legend.activities": "[{\"comment\":\"-- \\\"executionTraceID\\\" : \\\"e6fa1716-b0b5-4937-a076-2f37665face1\\\"\",\"sql\":\"select \\\"trades_0\\\".region as \\\"region\\\", sum(\\\"trades_0\\\".notional) as \\\"total\\\" from TRADES_SCHEMA.TRADES as \\\"trades_0\\\" group by \\\"region\\\" order by \\\"region\\\" asc\"}]",
+    "legend.columns": "[\"region\",\"total\"]"
+  },
+  "rows": [
+    [
+      "AMER",
+      "528"
+    ],
+    [
+      "APAC",
+      "3088"
+    ],
+    [
+      "EMEA",
+      "2712"
+    ],
+    [
+      "LATAM",
+      "1928"
+    ]
+  ]
+}

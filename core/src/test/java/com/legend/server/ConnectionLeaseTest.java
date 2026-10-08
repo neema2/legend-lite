@@ -118,7 +118,7 @@ class ConnectionLeaseTest {
                 + lambda + ",\"model\":" + com.legend.json.Json.toCompact(
                         java.util.Map.of("_type", "text", "code", duckModel))
                 + ",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"test::TestRuntime\"}"
-                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}");
+                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}", qs::executeUpstream);
         assertEquals(200, executed.status(), executed.json());
 
         // 3. execute(…, OutputStream, OutputFormat) — QueryService:138

@@ -32,6 +32,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class PureV1ApiTest {
 
+    /** A runner for a route that must not run anything. */
+    private static final PureV1Api.Runner NO_RUN = (model, lambda, runtime, rows) -> {
+        throw new AssertionError("nothing is run here");
+    };
+
+    /** E8 through the server's driver, as {@code LegendHttpServer} runs it. */
+    private static PureV1Api.Answer execute(String body) {
+        return PureV1Api.execute(body, new QueryService()::executeUpstream);
+    }
+
     /**
      * RECORDED DIFFERENCE 1, the type vocabulary: legend-engine types a relation's
      * columns with precise primitives; legend-lite's typer has none (the untangle's
@@ -144,7 +154,7 @@ class PureV1ApiTest {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        PureV1Api.Answer a = PureV1Api.execute(request);
+        PureV1Api.Answer a = execute(request);
         assertEquals(200, a.status(), a.json());
         String engineText = resource("upstream-api/e8-groupby-sort.json");
 
@@ -173,7 +183,7 @@ class PureV1ApiTest {
                 + "#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#"
                 + "->filter(r|(($r.region == $region) && ($r.qty > $minQty)) && $r.book->in($books))"
                 + "->select(~[region, book, qty])->from(trades::h2::RT)}", false).json();
-        PureV1Api.Answer a = PureV1Api.execute("{\"function\":" + lam + ",\"model\":" + textModel()
+        PureV1Api.Answer a = execute("{\"function\":" + lam + ",\"model\":" + textModel()
                 + ",\"parameterValues\":["
                 + "{\"name\":\"region\",\"value\":{\"_type\":\"string\",\"value\":\"EMEA\"}},"
                 + "{\"name\":\"minQty\",\"value\":{\"_type\":\"integer\",\"value\":5}},"
@@ -194,15 +204,103 @@ class PureV1ApiTest {
     void e8_execute_aParameterWithNoValue_isRefused_aStrayValueIgnored_asTheEngineAnswers() {
         String lam = PureV1Api.grammarToJsonLambda("{region:String[1]|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#"
                 + "->filter(r|$r.region == $region)->from(trades::h2::RT)}", false).json();
-        PureV1Api.Answer missing = PureV1Api.execute("{\"function\":" + lam + ",\"model\":" + textModel() + "}");
+        PureV1Api.Answer missing = execute("{\"function\":" + lam + ",\"model\":" + textModel() + "}");
         assertEquals(500, missing.status(), missing.json());
         assertTrue(Json.parseObject(missing.json()).getString("message").contains("Missing external parameter(s): region:String[1]"),
                 missing.json());
-        PureV1Api.Answer stray = PureV1Api.execute("{\"function\":" + lam + ",\"model\":" + textModel()
+        PureV1Api.Answer stray = execute("{\"function\":" + lam + ",\"model\":" + textModel()
                 + ",\"parameterValues\":[{\"name\":\"region\",\"value\":{\"_type\":\"string\",\"value\":\"EMEA\"}},"
                 + "{\"name\":\"nope\",\"value\":{\"_type\":\"integer\",\"value\":1}}]}");
         // measured, 4.145.0: a value for no parameter of the lambda is ignored
         assertEquals(200, stray.status(), stray.json());
+    }
+
+    /**
+     * E8 in upstream's Arrow format, its plan half ({@code arrowPlan}): the schema metadata is the engine's answer
+     * to the same request (recorded with its bytes, {@code e8-arrow-groupby-sort.json}), recorded difference 1
+     * applied to the builder; the activity's fields are the engine's (no {@code _type}); the SQL gives the engine's
+     * rows on H2.
+     */
+    @Test
+    void e8_arrowPlan_isTheEnginesMetadata_andItsSqlGivesTheEnginesRows() throws Exception {
+        String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
+                + ",\"model\":" + textModel()
+                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+        PureV1Api.Answer a = PureV1Api.arrowPlan(request, List.of(model));
+        assertEquals(200, a.status(), a.json());
+        Json.Obj lite = Json.parseObject(a.json());
+        Json.Obj liteMeta = lite.getObj("metadata");
+        Json.Obj engineMeta = Json.parseObject(resource("upstream-api/e8-arrow-groupby-sort.json")).getObj("metadata");
+        assertEquals(new ArrayList<>(engineMeta.fields().keySet()), new ArrayList<>(liteMeta.fields().keySet()));
+        assertEquals(Json.toCompact(inLitesVocabulary(Json.parse(engineMeta.getString("legend.builder")))),
+                liteMeta.getString("legend.builder"));
+        assertEquals(engineMeta.getString("legend.columns"), liteMeta.getString("legend.columns"));
+        Json.Obj engineActivity = (Json.Obj) ((Json.Arr) Json.parse(engineMeta.getString("legend.activities"))).items().get(0);
+        Json.Obj liteActivity = (Json.Obj) ((Json.Arr) Json.parse(liteMeta.getString("legend.activities"))).items().get(0);
+        assertEquals(new ArrayList<>(engineActivity.fields().keySet()), new ArrayList<>(liteActivity.fields().keySet()));
+        assertEquals(lite.getString("sql"), liteActivity.getString("sql"));
+        List<String> setup = sqlNode(Json.parseObject(resource("upstream-api/e9-groupby-sort.json")))
+                .getObj("connection").getObj("datasourceSpecification")
+                .getStringArray("testDataSetupSqls");
+        assertEquals(rows(setup, engineActivity.getString("sql")), rows(setup, lite.getString("sql")));
+
+        // the JSON answer's builder is the same, from the same writer
+        assertEquals(Json.toCompact(Json.parseObject(execute(request).json()).getObj("builder")),
+                liteMeta.getString("legend.builder"));
+    }
+
+    /** The Arrow plan half runs only the models its host serves; a graph fetch has no Arrow answer. */
+    @Test
+    void e8_arrowPlan_refusesAModelItsHostDoesNotServe_andAGraphFetch() throws IOException {
+        String request = "{\"function\":" + lambda + ",\"model\":" + textModel() + "}";
+        PureV1Api.Answer other = PureV1Api.arrowPlan(request, List.of(model + "\n"));
+        assertEquals(500, other.status(), other.json());
+        assertTrue(Json.parseObject(other.json()).getString("message").contains("the models it serves"), other.json());
+
+        String trading = resource("upstream-api/query-app/trading.pure");
+        String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
+                + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
+        PureV1Api.Answer graph = PureV1Api.arrowPlan("{\"function\":" + fetch + ",\"model\":"
+                + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading));
+        assertEquals(500, graph.status(), graph.json());
+        assertTrue(Json.parseObject(graph.json()).getString("message").contains("graph fetch"), graph.json());
+    }
+
+    /** route: each path answers as its endpoint does; any other is 404 in the engine's shape; execute runs through the runner. */
+    @Test
+    void route_answersEachPathAsItsEndpoint() {
+        assertEquals(PureV1Api.grammarToJsonLambda(query, false),
+                PureV1Api.route("/api/pure/v1/grammar/grammarToJson/lambda", "returnSourceInformation=false", query, NO_RUN));
+        assertEquals(PureV1Api.grammarToJsonLambda(query, true),
+                PureV1Api.route("/api/pure/v1/grammar/grammarToJson/lambda", null, query, NO_RUN));
+        assertEquals(PureV1Api.jsonToGrammarLambda(lambda, "STANDARD"),
+                PureV1Api.route("/api/pure/v1/grammar/jsonToGrammar/lambda", "renderStyle=STANDARD", lambda, NO_RUN));
+        String typed = "{\"model\":" + textModel() + ",\"lambda\":" + lambda + "}";
+        assertEquals(PureV1Api.lambdaRelationType(typed),
+                PureV1Api.route("/api/pure/v1/compilation/lambdaRelationType", null, typed, NO_RUN));
+
+        PureV1Api.Answer missing = PureV1Api.route("/api/pure/v1/nope", null, "", NO_RUN);
+        assertEquals(404, missing.status());
+        assertEquals("{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: /api/pure/v1/nope\",\"status\":\"error\"}",
+                missing.json());
+
+        String[] ran = new String[1];
+        PureV1Api.Answer refused = PureV1Api.route("/api/pure/v1/execution/execute", null,
+                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (m, l, runtime, rows) -> {
+                    ran[0] = runtime;
+                    throw new IllegalArgumentException("not here");
+                });
+        assertEquals("trades::h2::RT", ran[0]);
+        assertEquals(500, refused.status(), refused.json());
+        assertEquals("IllegalArgumentException: not here", Json.parseObject(refused.json()).getString("message"));
+    }
+
+    /** A host's own refusal (its database refusing, say) is a database's refusal in the engine's shape. */
+    @Test
+    void refused_isTheEnginesErrorShape() {
+        PureV1Api.Answer a = PureV1Api.refused("ConversionException: no");
+        assertEquals(500, a.status());
+        assertEquals("{\"code\":-1,\"message\":\"ConversionException: no\",\"status\":\"error\"}", a.json());
     }
 
     /**
@@ -219,7 +317,7 @@ class PureV1ApiTest {
             Json.Obj c = (Json.Obj) n;
             String q = c.getString("query");
             String lam = PureV1Api.grammarToJsonLambda(q, false).json();
-            PureV1Api.Answer a = PureV1Api.execute("{\"function\":" + lam + ",\"model\":" + modelContext + "}");
+            PureV1Api.Answer a = execute("{\"function\":" + lam + ",\"model\":" + modelContext + "}");
             assertEquals(200, a.status(), q + " -> " + a.json());
             assertEquals(Json.toCompact(c.get("engine")), Json.toCompact(Json.parse(a.json())), q);
         }
@@ -231,7 +329,7 @@ class PureV1ApiTest {
         String trading = resource("upstream-api/query-app/trading.pure");
         String lam = PureV1Api.grammarToJsonLambda("|demo::trading::Firm.all()->project(~[r:x|$x.region, n:x|$x.legalName])"
                 + "->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
-        PureV1Api.Answer a = PureV1Api.execute("{\"function\":" + lam + ",\"model\":"
+        PureV1Api.Answer a = execute("{\"function\":" + lam + ",\"model\":"
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}");
         assertEquals(200, a.status(), a.json());
         Json.Obj col = (Json.Obj) Json.parseObject(a.json()).getObj("builder").getArr("columns").items().get(0);

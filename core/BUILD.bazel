@@ -220,17 +220,28 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
     deps = ["//base", ":compiler", ":driver", ":error", ":exec", ":model", ":planner", ":protocol", ":sql", ":values"],
 )
+# legend-engine's pure/v1 API as legend-lite answers it (server/PureV1Api.java): THE PLAN SIDE -- no database and
+# no driver, so the compiler's boundary (//wasm:boundary, and Python's engine through //native:compiler) answers
+# with the same code as the server. execute's run is its host's: the server hands in its driver (QueryService).
+legend_java_library(
+    name = "pure_v1",
+    srcs = ["src/main/java/com/legend/server/PureV1Api.java"],
+    deps = ["//base", "//json", ":compiler_element_type", ":error", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
+)
 legend_java_library(
     name = "server_lib",
-    srcs = glob(["src/main/java/com/legend/server/**/*.java"]),
-    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":driver", ":error", ":exec", ":lowering", ":model", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
+    srcs = glob(
+        ["src/main/java/com/legend/server/**/*.java"],
+        exclude = ["src/main/java/com/legend/server/PureV1Api.java"],
+    ),
+    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":driver", ":error", ":exec", ":lowering", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":sql_dialect"],
 )
 
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":probe", ":testdatagen",
-    ":execution_plan", ":planner", ":driver", ":ide", ":test", ":server_lib",
+    ":execution_plan", ":planner", ":pure_v1", ":driver", ":ide", ":test", ":server_lib",
 ]
 
 # THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it
@@ -239,7 +250,7 @@ _CORE_TARGETS = [
 _PLAN_SIDE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":planner",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":planner", ":pure_v1",
 ]
 
 legend_java_library(

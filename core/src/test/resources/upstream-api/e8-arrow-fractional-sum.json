@@ -1,0 +1,69 @@
+{
+  "recorded": "legend-engine 4.145.0 (java --add-opens=java.base/java.nio=ALL-UNNAMED), 2026-10-08: POST /api/pure/v1/execution/execute over trades-h2.pure, the query below (parsed by the same engine), once with ?serializationFormat=ARROW_IPC (the bytes: e8-arrow-fractional-sum.arrows.zst) and once without (its JSON rows below). The Arrow answer's sum is typed from the JDBC metadata, decimal128(27, 0), and each value set to that scale: the fractions are lost (docs/SEMANTICS_REGISTER.md S28)",
+  "query": "|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->extend(~[half: x|$x.notional->toOne() * 0.25 + 0.1])->groupBy(~[region], ~[s: x|$x.half : y|$y->sum()])->sort(~region->ascending())->from(trades::h2::RT)",
+  "arrow": {
+    "fields": [
+      {
+        "name": "region",
+        "type": "string"
+      },
+      {
+        "name": "s",
+        "type": "decimal128(27, 0)"
+      }
+    ],
+    "rows": [
+      [
+        "AMER",
+        "135"
+      ],
+      [
+        "APAC",
+        "775"
+      ],
+      [
+        "EMEA",
+        "683"
+      ],
+      [
+        "LATAM",
+        "484"
+      ]
+    ]
+  },
+  "json": {
+    "builder": {
+      "_type": "tdsBuilder",
+      "columns": [
+        {
+          "name": "region",
+          "type": "meta::pure::precisePrimitives::Varchar",
+          "relationalType": "VARCHAR(1024)"
+        },
+        {
+          "name": "s",
+          "type": "Float",
+          "relationalType": "FLOAT"
+        }
+      ]
+    },
+    "rows": [
+      [
+        "AMER",
+        135.2
+      ],
+      [
+        "APAC",
+        775.2
+      ],
+      [
+        "EMEA",
+        682.8
+      ],
+      [
+        "LATAM",
+        483.6
+      ]
+    ]
+  }
+}
