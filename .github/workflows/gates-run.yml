@@ -63,7 +63,7 @@ jobs:
             {"key":"pct_channel_b",      "cmd":"test",  "name":"PCT Channel B, the dual verdict"},
             {"key":"parser_equivalence", "cmd":"test",  "name":"parser equivalence"},
             {"key":"stress",             "cmd":"test",  "name":"the stress corpus"},
-            {"key":"warehouse",          "cmd":"test",  "name":"the warehouse: on the JVM, as a native image, its launcher, live Postgres"},
+            {"key":"warehouse",          "cmd":"test",  "name":"the warehouse (on the JVM, as a native image, its launcher, live Postgres) and the legend-lite compiler as a native library"},
             {"key":"datacube",           "cmd":"test",  "name":"DataCube, and the planner in WebAssembly"},
             {"key":"ui",                 "cmd":"test",  "name":"Studio, Query, the saved-query store"},
             {"key":"sdlc",               "cmd":"test",  "name":"the model home: SDLC and Depot, server and page"}
@@ -206,6 +206,29 @@ jobs:
         with:
           path: ~/.cache/bazel-repo/content_addressable
           key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
+      - name: the warehouse lane's two native images, built before its tests
+        # TWO NATIVE IMAGES in this lane, the warehouse's and the compiler's (//native:compiler, for //python's tests):
+        # each is a whole-machine build, so they are built first, one after the other, and the tests run after. A test
+        # beside an image build timed out (//warehouse:tests_native, run 37830923226, 2026-10-08), and two images at
+        # once on a 7 GB runner risk its memory. The compiler's image is skipped where it does not build (Windows, for
+        # now). A step of its own: inside the lane step's script, shellcheck never finished on Windows
+        # (//tools/guards:workflows_test timed out, probe run 37848560951). Its flags are the lane step's (keep them the
+        # same), so the tests there reuse what is built here.
+        if: matrix.lane.key == 'warehouse'
+        env:
+          LOW_MEMORY: ${{ inputs.low-memory }}
+          PLATFORM: ${{ inputs.platform }}
+          LINUX_ONLY_TESTS: ${{ inputs.linux-only-tests }}
+        run: |
+          set -euo pipefail
+          flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
+          if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
+          tflags=("${flags[@]}")
+          if [ "$LINUX_ONLY_TESTS" != everywhere ]; then
+            case "$PLATFORM" in linux*) ;; *) tflags+=(--test_tag_filters=-ci-linux-only --build_tests_only) ;; esac
+          fi
+          bazel build "${tflags[@]}" --skip_incompatible_explicit_targets //native:compiler
+          bazel build "${tflags[@]}" --build_tests_only //gates:warehouse
       - name: bazel ${{ matrix.lane.cmd }} ${{ matrix.lane.key }}
         env:
           LOW_MEMORY: ${{ inputs.low-memory }}
