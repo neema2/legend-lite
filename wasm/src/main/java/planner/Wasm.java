@@ -290,39 +290,156 @@ public final class Wasm {
     public static String databaseFromCatalogOrError(String catalogJson) {
         try {
             com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(catalogJson);
-            java.util.List<com.legend.sql.dialect.CatalogModel.Column> columns = new java.util.ArrayList<>();
-            for (com.legend.json.Json.Node n : in.getArr("columns").items()) {
-                com.legend.json.Json.Obj c = (com.legend.json.Json.Obj) n;
-                // structured, as the catalog question answers it (DuckDb.CATALOG_COLUMNS_SQL): no type string parsed
-                columns.add(new com.legend.sql.dialect.CatalogModel.Column(c.getString("name"), c.getString("dataType"),
-                        c.getStringOr("logicalType", null), intOrNull(c, "precision"), intOrNull(c, "scale"),
-                        c.getBoolOr("notNull", false)));
-            }
             com.legend.sql.dialect.CatalogModel.Database db = com.legend.sql.dialect.CatalogModel.database(
-                    in.getString("path"), in.getStringOr("schema", null), in.getString("table"), columns,
-                    // the table's own database reads its catalog (a Postgres table's, Postgres's rules)
-                    com.legend.database.Databases.dialect(com.legend.database.Databases.named(
-                            in.getString("databaseType"))), in.getBool("convertible"));
-            java.util.List<java.util.Map<String, Object>> conversions = new java.util.ArrayList<>();
-            for (com.legend.sql.dialect.CatalogModel.Conversion c : db.conversions()) {
-                java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
-                m.put("column", c.column());
-                m.put("sql", c.sql());
-                conversions.add(m);
-            }
+                    in.getString("path"), in.getStringOr("schema", null), in.getString("table"), catalogColumns(in),
+                    dialectOf(in.getString("databaseType")), in.getBool("convertible"));
             java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
             out.put("text", db.text());
-            // the relation that reads the table, as protocol: the compiler's parse of its own accessor
-            com.legend.json.Json.Obj lambda = com.legend.json.Json.parseObject(com.legend.protocol.SourceInformation.strip(
-                    com.legend.protocol.ProtocolEmitter.emitLambda(com.legend.parser.SpecParser.parseLambda("|" + db.accessor()))));
-            out.put("source", lambda.getArr("body").items().get(0));
-            out.put("conversions", conversions);
+            out.put("source", sourceOf(db));
+            out.put("conversions", conversionsOf(db));
             out.put("excluded", db.excluded());
             return "OK\n" + com.legend.json.Json.toCompact(out);
         } catch (RuntimeException | StackOverflowError e) {
             String name = e.getClass().getName();
             return "ERR\n" + name + "\n" + (e.getMessage() == null ? "" : e.getMessage());
         }
+    }
+
+    /** A table's catalog rows, structured as the catalog question answers them (DuckDb.CATALOG_COLUMNS_SQL): no type
+     *  string parsed. */
+    private static java.util.List<com.legend.sql.dialect.CatalogModel.Column> catalogColumns(com.legend.json.Json.Obj in) {
+        java.util.List<com.legend.sql.dialect.CatalogModel.Column> columns = new java.util.ArrayList<>();
+        for (com.legend.json.Json.Node n : in.getArr("columns").items()) {
+            com.legend.json.Json.Obj c = (com.legend.json.Json.Obj) n;
+            columns.add(new com.legend.sql.dialect.CatalogModel.Column(c.getString("name"), c.getString("dataType"),
+                    c.getStringOr("logicalType", null), intOrNull(c, "precision"), intOrNull(c, "scale"),
+                    c.getBoolOr("notNull", false)));
+        }
+        return columns;
+    }
+
+    /** The table's own database reads its catalog (a Postgres table's, Postgres's rules). */
+    private static com.legend.sql.dialect.SqlDialect dialectOf(String databaseType) {
+        return com.legend.database.Databases.dialect(com.legend.database.Databases.named(databaseType));
+    }
+
+    /** The relation that reads the table, as protocol: the compiler's parse of its own accessor. */
+    private static Object sourceOf(com.legend.sql.dialect.CatalogModel.Database db) {
+        com.legend.json.Json.Obj lambda = com.legend.json.Json.parseObject(com.legend.protocol.SourceInformation.strip(
+                com.legend.protocol.ProtocolEmitter.emitLambda(com.legend.parser.SpecParser.parseLambda("|" + db.accessor()))));
+        return lambda.getArr("body").items().get(0);
+    }
+
+    private static java.util.List<java.util.Map<String, Object>> conversionsOf(com.legend.sql.dialect.CatalogModel.Database db) {
+        java.util.List<java.util.Map<String, Object>> conversions = new java.util.ArrayList<>();
+        for (com.legend.sql.dialect.CatalogModel.Conversion c : db.conversions()) {
+            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+            m.put("column", c.column());
+            m.put("sql", c.sql());
+            conversions.add(m);
+        }
+        return conversions;
+    }
+
+    /**
+     * THE MODEL FOR A TABLE, from its catalog rows: what a host plans a table it holds against -- DataCube's file or
+     * warehouse table, a Python frame. The Database (CatalogModel), wrapped in a connection and a runtime the
+     * planner compiles, and, when the table can be snapped, a second runtime over the SAME Database through a
+     * connection of the copy's store's type (the rows pulled with a plan against the table's own runtime; every query
+     * on the copy planned against this one).
+     * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "snapDatabaseType"?,
+     * "columns": [catalog rows]}} in;
+     * {@code "OK\n" + {"model", "runtime", "snapRuntime"?, "source" (protocol), "accessor" (its Pure text),
+     * "conversions": [{"column","sql"}], "copySelectList", "excluded": [name], "bitColumns": [name]}} or the refusal
+     * out. {@code bitColumns}: the
+     * columns declared BIT (DuckDB's BOOLEAN), which legend-engine types TinyInt.
+     */
+    @org.teavm.jso.JSExport
+    public static String tableModelOrError(String tableJson) {
+        try {
+            com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(tableJson);
+            String pkg = in.getStringOr("pkg", "local");
+            String databaseType = in.getString("databaseType");
+            String snapDatabaseType = in.getStringOr("snapDatabaseType", null);
+            java.util.List<com.legend.sql.dialect.CatalogModel.Column> columns = catalogColumns(in);
+            com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+            com.legend.sql.dialect.CatalogModel.Database db = com.legend.sql.dialect.CatalogModel.database(
+                    pkg + "::DB", in.getStringOr("schema", null), in.getString("table"), columns, dialect,
+                    in.getBool("convertible"));
+            String model = db.text() + "\n" + connectionAndRuntime(pkg, "Conn", "RT", databaseType)
+                    + (snapDatabaseType == null ? "" : "\n" + connectionAndRuntime(pkg, "SnapConn", "SnapRT", snapDatabaseType));
+            java.util.List<String> bitColumns = new java.util.ArrayList<>();
+            for (com.legend.sql.dialect.CatalogModel.Column c : columns) {
+                if (!db.excluded().contains(c.name()) && "BIT".equals(dialect.catalogType(c).declared())) {
+                    bitColumns.add(c.name());
+                }
+            }
+            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+            out.put("model", model);
+            out.put("runtime", pkg + "::RT");
+            if (snapDatabaseType != null) {
+                out.put("snapRuntime", pkg + "::SnapRT");
+            }
+            out.put("source", sourceOf(db));
+            out.put("accessor", db.accessor());
+            out.put("conversions", conversionsOf(db));
+            out.put("copySelectList", db.copySelectList());
+            out.put("excluded", db.excluded());
+            out.put("bitColumns", bitColumns);
+            return "OK\n" + com.legend.json.Json.toCompact(out);
+        } catch (RuntimeException | StackOverflowError e) {
+            String name = e.getClass().getName();
+            return "ERR\n" + name + "\n" + (e.getMessage() == null ? "" : e.getMessage());
+        }
+    }
+
+    /** A connection of the given type and the runtime that binds the table's Database to it. Every connection is a
+     *  DuckDB specification: the host runs the SQL on its own engine, and the planner reads only the type. */
+    private static String connectionAndRuntime(String pkg, String connection, String runtime, String databaseType) {
+        return "###Connection\nRelationalDatabaseConnection " + pkg + "::" + connection + "\n{\n    type: " + databaseType
+                + ";\n    specification: DuckDB { };\n    auth: Test;\n}\n\n###Runtime\nRuntime " + pkg + "::" + runtime
+                + "\n{\n    mappings: [];\n    connections:\n    [\n        " + pkg + "::DB: [ c1: " + pkg + "::" + connection
+                + " ]\n    ];\n}\n";
+    }
+
+    /**
+     * THE CATALOG QUESTION for one table of a DuckDB (DuckDb.CATALOG_COLUMNS_SQL), its schema and table filled in as
+     * SQL string literals: run it, and its rows are what {@link #tableModelOrError} reads. {@code "OK\n" + sql}.
+     */
+    @org.teavm.jso.JSExport
+    public static String catalogColumnsSqlOrError(String schema, String table) {
+        try {
+            // each placeholder filled by its place in the template, so a name holding "{table}" stays a name
+            String template = com.legend.sql.dialect.DuckDb.CATALOG_COLUMNS_SQL;
+            int s = template.indexOf("{schema}");
+            int t = template.indexOf("{table}");
+            if (s < 0 || t < s) {
+                throw new IllegalStateException("the catalog question names no {schema} before {table}");
+            }
+            return "OK\n" + template.substring(0, s) + sqlLiteral(schema) + template.substring(s + "{schema}".length(), t)
+                    + sqlLiteral(table) + template.substring(t + "{table}".length());
+        } catch (RuntimeException | StackOverflowError e) {
+            String name = e.getClass().getName();
+            return "ERR\n" + name + "\n" + (e.getMessage() == null ? "" : e.getMessage());
+        }
+    }
+
+    /**
+     * What a session of the given database runs before it is queried, so it answers as the planner's SQL expects
+     * (the dialect's own setup: a DuckDB session in UTC). {@code "OK\n" + [statement, ...]}.
+     */
+    @org.teavm.jso.JSExport
+    public static String sessionSetupOrError(String databaseType) {
+        try {
+            return "OK\n" + com.legend.json.Json.toCompact(dialectOf(databaseType).sessionSetup());
+        } catch (RuntimeException | StackOverflowError e) {
+            String name = e.getClass().getName();
+            return "ERR\n" + name + "\n" + (e.getMessage() == null ? "" : e.getMessage());
+        }
+    }
+
+    private static String sqlLiteral(String text) {
+        return "'" + text.replace("'", "''") + "'";
     }
 
     /**
