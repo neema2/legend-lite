@@ -158,10 +158,18 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/resolver/*.java"]),
     deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":values"],
 )
+# A CONNECTION'S SETUP, as text and rows (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, moved out of exec 2026-10-08):
+# a declared connection's test data and the store's DDL, spelled by the target's dialect. No connection: the planner
+# writes it into the plan, the browser planner hands the tab the server's exact statements, exec runs it (SetupRunner)
+legend_java_library(
+    name = "setup",
+    srcs = glob(["src/main/java/com/legend/setup/*.java"]),
+    deps = ["//base", ":compiler", ":model", ":sql", ":sql_dialect"],
+)
 legend_java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    deps = ["//base", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":sql_dialect", ":values"],
+    deps = ["//base", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":lowering", ":model", ":plan", ":platform", ":setup", ":sql", ":sql_dialect", ":values"],
 )
 legend_java_library(
     name = "probe",
@@ -171,7 +179,7 @@ legend_java_library(
 legend_java_library(
     name = "testdatagen",
     srcs = glob(["src/main/java/com/legend/testdatagen/*.java"]),
-    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":sql_dialect", ":values"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":setup", ":sql_dialect", ":values"],
 )
 
 # THE PLANNER (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the root package's plan side --
@@ -202,7 +210,7 @@ legend_java_library(
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
         ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner", ":platform",
-        ":protocol", ":resolver", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
+        ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":lexer", ":model", ":parser"])
@@ -220,7 +228,7 @@ legend_java_library(
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":exec", ":probe", ":testdatagen",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":probe", ":testdatagen",
     ":execution_plan", ":planner", ":driver", ":ide", ":test", ":server_lib",
 ]
 
@@ -230,7 +238,7 @@ _CORE_TARGETS = [
 _PLAN_SIDE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":execution_plan", ":planner",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":planner",
 ]
 
 legend_java_library(
@@ -418,6 +426,7 @@ _CORE_TEST_PACKAGES = [
     "protocol",
     "resolver",
     "server",
+    "setup",
     "sql",
     "test",
     "testdatagen",

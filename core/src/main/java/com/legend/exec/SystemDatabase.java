@@ -2,6 +2,7 @@ package com.legend.exec;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.model.DatabaseDefinition;
+import com.legend.setup.Ddl;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.sql.Connection;

@@ -320,8 +320,8 @@ below), not done here.
   and Postgres, checked by a differential test until step 4). Files:
   - step 2: `TypedQuery.java` and the planner (a new `executionPlan`), `lowering/PlanParams`, `lowering/WireRender`,
     `sql/dialect/AnsiSqlRenderer` and its subclasses (`SqlExpr.PlanParam` rendered as a bind placeholder),
-    `StatementExecutor` (its plan-text parameter builder moves to the one shared function), `exec/CsvSeed`
-    (setup rendered at plan time), `server/ConnectionResolver` (the in-memory identity computed planner-side),
+    `StatementExecutor` (its plan-text parameter builder moves to the one shared function), `setup/CsvSeed`
+    (setup rendered at plan time; moved out of exec 2026-10-08, the running half `exec/SetupRunner`), `server/ConnectionResolver` (the in-memory identity computed planner-side),
     `executionplan/*`; `core/BUILD.bazel` (`:planner` depends on `:execution_plan`) and `tools/deps/core-layers.txt`
     — Bazel edits shown to the Bazel program session before landing;
   - step 3: `exec/PlanRunner` (new), `exec/Sessions` (`Source` no longer takes the model), a shrink-only guard on what

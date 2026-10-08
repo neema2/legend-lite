@@ -41,7 +41,7 @@ class TypeSpellingParityTest {
                 new RelationalDataType.Bit());
         for (RelationalDataType t : shared) {
             assertEquals(
-                    com.legend.exec.Ddl.dataTypeToSqlText(t)
+                    com.legend.setup.Ddl.dataTypeToSqlText(t)
                             .replace(", ", ","),
                     com.legend.plan.PlanText.spell(t),
                     "type-text conventions drifted beyond the documented"
