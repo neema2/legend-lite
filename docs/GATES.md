@@ -7459,3 +7459,53 @@ server and tab alike; the plan/exec line will spell DDL names as queries do).
 The run: 37854254901 on `tab-seed` (3bdb4314b, on f804dba9a), lanes product, checks, ui and datacube on every
 platform, green on every job; pushed to main as fb3acc2f1, the tested commit rebased over one docs-only commit (the
 E-1 entry), its GATES entry merged after E-1's. Local gate `//gates:local` green (315/315) on f804dba9a.
+
+## 2026-10-08 — DataCube on a Python dataframe, steps 1 and 2: Python's engine answers legend-engine's pure/v1 with legend-lite's own code, and DataCube's client reads upstream's Arrow (the DataCube + Python line)
+
+The line: `docs/IN_FLIGHT.md`, the sixth line, "`datacube.show(df)`"; the design, agreed with the user decision by decision:
+`docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`. DataCube is the UI in its remote-run mode; Python is a small Legend engine
+on the developer's machine. Landed with it: CI's warehouse lane building before it tests.
+
+1. **One copy of the pure/v1 answers** (`70fa5c330`). `PureV1Api` was plan-side code in a server library; it is now its
+   own plan-side library, `//core:pure_v1` (same package and name), so the compiler's boundary answers with the server's
+   code. Its one database call, execute's run, is the caller's (`PureV1Api.Runner`; the server passes
+   `QueryService.executeUpstream`); the path-to-endpoint table moved into it (`route`), so both hosts route alike; new:
+   `arrowPlan` (execute's ARROW_IPC plan half: the SQL and the Arrow schema metadata, for the models a host serves only)
+   and `refused`. A new ArchUnit rule keeps `java.sql` out of it.
+2. **Python's engine** (`543ee70de`, `python/legend_lite/engine.py`): `Engine(frames)`, a stdlib HTTP server in a
+   background thread. Every call but execute goes to `PureV1Api.route` through the native library; execute holds the
+   frames still (Live ones read as they are now), takes the plan half, runs the SQL in duckdb-python and answers as
+   legend-engine does: one zstd frame around an Arrow IPC stream, its schema carrying `legend.builder`,
+   `legend.activities`, `legend.columns`. Connections on threads of their own, the compiler's calls on one fixed pool of
+   four (the native library's rule), HTTP/1.0, a 30 s idle close. Only its own page: 127.0.0.1, a one-time token on
+   every call, a local Host, no cross-origin answer, only the models the frames were written with, only SQL the compiler
+   wrote. It also serves a site (DataCube's built pages) at its origin.
+3. **DataCube's remote client reads upstream's Arrow** (`f49033d8f`): `PureV1Options.serializationFormat` ('ARROW_IPC'),
+   DECLARED per engine, never tried and fallen back from; `authorization`; the answer unwrapped (a JSON body to an Arrow
+   request refused by name), its values decoded exactly as the warehouse's chunks are, typed by `legend.builder`, never by
+   the Arrow type. fzstd 0.1.1 (the user's approval), loaded on the first Arrow answer only.
+
+Measured against legend-engine 4.145.0 (2026-10-08; recorded with their bytes in `core/src/test/resources/upstream-api/`):
+the Arrow answer's layout (`e8-arrow-groupby-sort.json`); and two defects not copied (`docs/SEMANTICS_REGISTER.md` S28) --
+its Arrow columns typed from JDBC metadata and decimals rounded to that scale, so on H2 a fractional sum arrives whole
+(135.2 as 135; `e8-arrow-fractional-sum.json`), and without `--add-opens=java.base/java.nio=ALL-UNNAMED` every Arrow
+answer is a 500. The pinned Chromium 153 refuses `DecompressionStream('zstd')`; fflate reads no zstd.
+
+What judges it: `//datacube:python_engine_test` (in the pinned Chromium: EVERY case of the cube corpus through DataCube's
+remote-run path on Python's engine and again in the tab on the same rows -- the same SQL, columns, types and rows;
+legend-engine's own recorded Arrow answer read by the same reader; the refusals), `//python:engine_test` (22),
+`PureV1ApiTest` (the Arrow plan half against the recorded answer, `route`, `refused`), all in the `warehouse` lane but
+`PureV1ApiTest` (core); Linux and macOS (the compiler's library does not build on Windows yet). Full CI: run 37857474050, green on every lane and platform (an earlier run, 37856353162, found a py_binary missing its platform constraint -- CI's analysis for an unlisted platform -- fixed before landing).
+
+The audits (the auditor agent, twice per step): step 1, no blocker, six should-fix and the nits fixed (the split of
+connection threads from the compiler's pool and an idle timeout, the body read inside the answer, the rounding evidence
+committed, the plan side's `java.sql` rule, the stale-model refusal); step 2, one blocker fixed (fzstd in DataCube's
+startup bundle, over its 352,000-byte budget: now loaded lazily) and four should-fix (a JSON answer to an Arrow request
+tested, a Windows drive refused by the site, the corpus count's floor, the whole `//datacube:tests` run). The Bazel edits
+reviewed and approved by the Bazel program session; the DataCube files agreed with the Studio line.
+
+**The warehouse lane builds before it tests** (`f2bb3bb89`): its two native images, the compiler's then the lane's
+targets, in a step of their own, then the tests -- a test beside an image build had timed out (`tests_native`, run
+37830923226). The builds first sat inside the lane step's script, where shellcheck never finished on Windows
+(`//tools/guards:workflows_test` timed out twice; a two-way bisect, probes 37848557289 and 37848560951, pinned it there);
+as a step-level `if`, Windows checks pass (probe 37854034947).

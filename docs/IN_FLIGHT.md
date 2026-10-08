@@ -529,7 +529,11 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
      `warehouse.ts` (they named the deleted files). Diffs of `boot.ts` and `live-snap.ts` sent to the Studio line (no
      collision); the Bazel edits reviewed by the Bazel program session (accepted; with them `tools/deps/jars_table.bzl`
      drops `datacube` from `duckdb_jdbc_warehouse`'s users, and `docs/GENERATORS.md` loses the two generators).
-- **`datacube.show(df)` (announced 2026-10-08, before the first edit; the design, agreed with the user:
+- **`datacube.show(df)` -- steps 1 and 2 LANDED 2026-10-08 (`f49033d8f`, run 37857474050; GATES entry "DataCube on a
+  Python dataframe, steps 1 and 2"): `//core:pure_v1`, Python's engine, DataCube's client reading upstream's Arrow,
+  `//datacube:python_engine_test` (warehouse lane). Next: step 3, DataCube's page of one cube on an engine
+  (`datacube/demo/engine.html`, `engine.ts`, `make-dist.mjs`'s loop, the `_BUNDLES` entry: agreed with the Studio line;
+  built and audited, its fixes in hand), then `show()` itself.** (Announced 2026-10-08, before the first edit; the design, agreed with the user:
   `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`).** DataCube as the UI in its remote-run mode; Python a small Legend
   engine answering upstream's `pure/v1` slice (parse, print, a query's types, execute with Arrow results) through the
   native library and duckdb-python. Files, in order: `wasm/src/main/java/planner/Wasm.java` (the refusal answer and the
