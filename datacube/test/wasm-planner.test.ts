@@ -44,6 +44,7 @@ function fakeRuntime(
           composeLambdaOrError: () => 'ERR\nfake\nnot in this fake',
           lambdaJsonOrError: () => 'ERR\nfake\nnot in this fake',
           modelJsonOrError: () => 'ERR\nfake\nnot in this fake',
+          testDataSqlOrError: () => 'ERR\nfake\nnot in this fake',
           warmModel: (m: string) => { onWarm?.(m); return 1; },
         },
       };
@@ -288,6 +289,7 @@ describe('WasmPlanner', () => {
                 composeLambdaOrError: () => 'ERR\nfake\nnot in this fake',
                 lambdaJsonOrError: () => 'ERR\nfake\nnot in this fake',
                 modelJsonOrError: () => 'ERR\nfake\nnot in this fake',
+                testDataSqlOrError: () => 'ERR\nfake\nnot in this fake',
                 warmModel: () => 1,
               },
             };

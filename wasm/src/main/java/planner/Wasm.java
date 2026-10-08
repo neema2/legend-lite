@@ -239,6 +239,64 @@ public final class Wasm {
     }
 
     /**
+     * A model's test data as the SQL the server seeds a database with, for the tab's DuckDB
+     * (docs/STUDIO_FULL_PLAN_2026_10_04.md A2, "The tab's tables are the server's"): {@code tablesJson}
+     * is {@code [{schema, table, csv}, ...]}, each a table the Database {@code database} declares (one it
+     * does not is refused, by name) and its CSV, header first. For each, in order: {@code sql}, the
+     * statements {@code CsvSeed.sqls} gives DuckDB -- the schema, the table made with the server's column
+     * types, its rows as one multi-row INSERT (none for a header alone); and the names the tab needs to
+     * reach that table again, as the same dialect spells them, so the tab spells none itself:
+     * {@code table} (no schema for the {@code default} one, as the seed makes it), {@code drop}, and
+     * {@code columns}, each its declared {@code name} (what a file's header says) and its {@code sql}
+     * name. The model is compiled once per call (one Database's tables). {@code "OK\n" + [...]}, or the
+     * folded refusal.
+     */
+    @org.teavm.jso.JSExport
+    public static String testDataSqlOrError(String model, String database, String tablesJson) {
+        try {
+            com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(model);
+            com.legend.sql.dialect.DuckDb duckDb = new com.legend.sql.dialect.DuckDb();
+            if (!(com.legend.json.Json.parse(tablesJson) instanceof com.legend.json.Json.Arr tables)) {
+                throw new IllegalArgumentException("test data: the tables are not a JSON array");
+            }
+            java.util.List<Object> out = new java.util.ArrayList<>();
+            for (com.legend.json.Json.Node node : tables.items()) {
+                if (!(node instanceof com.legend.json.Json.Obj t)
+                        || !(t.getOr("schema", null) instanceof com.legend.json.Json.Str schemaNode)
+                        || !(t.getOr("table", null) instanceof com.legend.json.Json.Str tableNode)
+                        || !(t.getOr("csv", null) instanceof com.legend.json.Json.Str csvNode)) {
+                    throw new IllegalArgumentException("test data: a table is not {schema, table, csv}, each a string");
+                }
+                String schema = schemaNode.value();
+                String table = tableNode.value();
+                boolean defaultSchema = "default".equals(schema);
+                com.legend.model.DatabaseDefinition.TableDefinition def = ctx
+                        .findTableDefinition(database, defaultSchema ? table : schema + "." + table)
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "test data: the Database " + database + " declares no table " + schema + "." + table));
+                java.util.Map<String, Object> seed = new java.util.LinkedHashMap<>();
+                seed.put("sql", new java.util.ArrayList<>(com.legend.setup.CsvSeed.sqls(
+                        schema + "\n" + table + "\n" + csvNode.value(), database, ctx, duckDb)));
+                seed.put("table", defaultSchema ? duckDb.physicalName(table)
+                        : duckDb.physicalName(schema) + "." + duckDb.physicalName(table));
+                seed.put("drop", duckDb.render(com.legend.setup.Ddl.dropTable(defaultSchema ? null : schema, table)));
+                java.util.List<Object> columns = new java.util.ArrayList<>();
+                for (com.legend.model.DatabaseDefinition.ColumnDefinition c : def.columns()) {
+                    java.util.Map<String, Object> column = new java.util.LinkedHashMap<>();
+                    column.put("name", c.name());
+                    column.put("sql", duckDb.physicalName(c.name()));
+                    columns.add(column);
+                }
+                seed.put("columns", columns);
+                out.add(seed);
+            }
+            return "OK\n" + com.legend.json.Json.toCompact(out);
+        } catch (RuntimeException | StackOverflowError e) {
+            return folded(e);
+        }
+    }
+
+    /**
      * C1's twin, for Studio's in-tab compile (docs/STUDIO_DESIGN_2026_10_02.md S4): exactly what the
      * server's {@code compilation/compile} does -- the model's elements ({@code Compiler.compileModel},
      * which refuses on the first element error), then every body in it

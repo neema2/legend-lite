@@ -82,7 +82,7 @@ async function boot(): Promise<void> {
     starting('Listing the projects in Depot');
     const { depot } = await connectModelHome(config.depot);
     byName = {
-      load: (g: string, a: string, v: string) => loadByName(depot, grammar, g, a, v, data !== undefined),
+      load: (g: string, a: string, v: string) => loadByName(depot, grammar, g, a, v, data && planner),
       versions: (g: string, a: string) => versionsOf(depot, g, a),
     };
     depotProjects = (await depot.projects()).map((p) => ({ groupId: p.groupId, artifactId: p.artifactId }));

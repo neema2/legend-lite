@@ -22,7 +22,7 @@ export interface BuilderSession {
   lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string>;
   plane(): Promise<Plane>;
   /** Puts the model's own test data where the engine reads it (the tab's DuckDB); a server needs none. */
-  loadData?(model: PureModelContextData): Promise<void>;
+  loadData?(model: PureModelContextData, text: string): Promise<void>;
 }
 
 export interface QueryBuilder {
@@ -45,7 +45,7 @@ export function queryBuilder(session: BuilderSession): QueryBuilder {
     async open(root, elementText, modelText, host) {
       const start = startOf(await session.modelJson(elementText));
       const json = await session.modelJson(modelText);
-      if (session.loadData) await session.loadData(json);
+      if (session.loadData) await session.loadData(json, modelText);
       const plane = await session.plane();
       // Query's builder and DataCube's grid with it, read when first opened
       const { openBuilder } = await import('../../../query/src/embed.ts');

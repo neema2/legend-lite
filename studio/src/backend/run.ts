@@ -47,7 +47,7 @@ export interface RunSession {
   /** The tab's DuckDB itself, for the SQL playground (upstream's: SQL on a connection); a server's has none here. */
   sqlEngine?(): Promise<QueryEngine>;
   /** Puts the model's own test data where the engine reads it (the tab's DuckDB); a server needs none. */
-  loadData?(model: PureModelContextData): Promise<void>;
+  loadData?(model: PureModelContextData, text: string): Promise<void>;
   /** The tab's tables and where their rows are from (plan A2); a server has its own data. */
   tabTables?(): Promise<TabTables>;
 }
@@ -104,26 +104,26 @@ export function runner(session: RunSession): Runner {
         parameterValues.push({ name: p.name, value: parsed.body[0]! });
       }
       const engine = await session.engine();
-      if (session.loadData) await session.loadData(await session.modelJson(modelText));
+      if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
       return engine.execute({ function: lambda, model: { _type: 'text', code: modelText }, parameterValues });
     },
     async sql(statement, modelText) {
       if (!session.sqlEngine) throw new Error('the SQL playground runs on DuckDB in this tab; this session runs on a server');
       const engine = await session.sqlEngine();
-      if (session.loadData) await session.loadData(await session.modelJson(modelText));
+      if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
       return engine.run(statement, 0);
     },
     async tables(modelText) {
       const { tabs, model } = await tablesOf(modelText);
-      return tabs.tables(model.elements);
+      return tabs.tables({ text: modelText, elements: model.elements });
     },
     async putTable(modelText, schema, table, file) {
       const { tabs, model } = await tablesOf(modelText);
-      await tabs.put(model.elements, schema, table, file);
+      await tabs.put({ text: modelText, elements: model.elements }, schema, table, file);
     },
     async resetTable(modelText, schema, table) {
       const { tabs, model } = await tablesOf(modelText);
-      await tabs.reset(model.elements, schema, table);
+      await tabs.reset({ text: modelText, elements: model.elements }, schema, table);
     },
   };
 
@@ -131,7 +131,7 @@ export function runner(session: RunSession): Runner {
   async function tablesOf(modelText: string): Promise<{ tabs: TabTables; model: PureModelContextData }> {
     if (!session.tabTables || !session.loadData) throw new Error("a table's rows are put in this tab's DuckDB; this session runs on a server, which has its own data");
     const model = await session.modelJson(modelText);
-    await session.loadData(model);
+    await session.loadData(model, modelText);
     return { tabs: await session.tabTables(), model };
   }
 }

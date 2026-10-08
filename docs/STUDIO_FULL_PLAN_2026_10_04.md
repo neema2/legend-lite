@@ -160,18 +160,15 @@ A model's mapping points at a database the browser cannot reach. Rows come, in o
   reset it. The runtime is the model's own with its connection redirected to the in-tab DuckDB (a session override,
   never written into the model).
 - **Done when:** the S18 demo's party mapping, with a `Data` element of parties, answers a query in the tab.
-- **The tab's table types: a copy, for now (2026-10-07, the user; the landing audit's B1).** The tab makes a test-data
-  table with the same column types the server makes it with: `Float` is DOUBLE, `Bit` is BOOLEAN, `SemiStructured` and
-  `Json` are JSON (before, the tab used each type's own name, so a Float column was single precision in the tab and
-  answered differently from the server). The rule is the server's (core: `FromProtocol.dataType`,
-  `StoreCompiler.declaredType`, `DuckDb.ddlType`, `DdlSpelling.h2Type`), copied into `engine-client/src/model-data.ts`
-  `sqlType`, because the WebAssembly planner cannot yet give it: the seed's SQL (`CsvSeed`, `Ddl`, `RowLoad`) lives in
-  core's execution side, which the planner does not carry. **It goes when** the plan/exec split's step 2 (session "Plan
-  Gen / Exec Split", which owns that code) moves the seed's SQL to the plan side: the planner then hands the tab the
-  server's own statements for a model's test data (tables and rows), the tab runs them, and `sqlType` and its copy are
-  deleted. **Anchor:** `//engine-client:model_data_test` ("spells every column type as the server's DuckDB tables do")
-  pins every kind's spelling; a change on the server's side is a change there until the switch. The core ledger
-  (`docs/PARKED_WORK_LEDGER.md`) does not hold this row: its anchors scan core's sources only.
+- **The tab's tables are the server's (2026-10-08; the landing audit's B1, 2026-10-07).** The tab makes and fills a
+  model's test-data tables with the statements the server seeds a database with: legend-lite's `setup.CsvSeed` (on the
+  plan side since 847b41df4), asked of the WebAssembly planner (`planner.Wasm.testDataSqlOrError`; engine-client's
+  `SeedSource`, model-data.ts: `WasmGrammar.testDataSql` for Query and Studio, DataCube's `WasmPlanner.testDataSql`, its
+  `seeds`). So a column has the server's type -- `Float` DOUBLE, `Bit` BOOLEAN, `SemiStructured` JSON -- and the rows
+  are the server's rows; a person's file fills a table the same statements make. Before (2026-10-07 to 2026-10-08) the
+  tab spelled the types with a copy of the server's rule (`sqlType`), because the seed's SQL lived on core's execution
+  side, which the planner does not carry; the plan/exec split moved it and the copy is gone.
+  `//engine-client:model_data_test` runs the planner and checks the columns' types and the values.
 
 ### A3. Running things (upstream census B §6)
 - **Run function** (F5 / button): parameter dialog (types from the signature), result in DataCube's grid

@@ -26,7 +26,6 @@ export async function startDuckDbInTab(vendor: string): Promise<DuckDbInTab> {
   return {
     engine,
     data: {
-      registerFileText: (name, text) => db.registerFileText(name, text),
       registerFileBuffer: (name, bytes) => db.registerFileBuffer(name, bytes),
       run: (sql) => engine.run(sql, 0),
     },
