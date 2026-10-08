@@ -1,0 +1,24 @@
+diff --git a/core/src/main/java/com/legend/StatementExecutor.java b/core/src/main/java/com/legend/StatementExecutor.java
+index 7775d5149..61500907b 100644
+--- a/core/src/main/java/com/legend/StatementExecutor.java
++++ b/core/src/main/java/com/legend/StatementExecutor.java
+@@ -1936,6 +1936,7 @@ final class StatementExecutor {
+         if (env.runtimeFqn() != null) {
+             setups.addAll(com.legend.setup.CsvSeed.declaredSteps(env.runtimeFqn(), env.ctx(), env.dialect()));
+         }
++        System.err.println("[probe-seed] " + (state.dirty && state.done.contains(key) ? "RELOAD_AFTER_WRITE" : state.dirty ? "NEW_KEY_ON_DIRTY" : "FIRST") + " steps=" + setups.size());   // PROBE 2026-10-08, reverted
+         com.legend.exec.SetupRunner.run(setups, env.connection(), env.dialect(), env.options().recorder());
+         state.done.add(key);
+         state.dirty = false;
+diff --git a/core/src/main/java/com/legend/test/ServiceTestRunner.java b/core/src/main/java/com/legend/test/ServiceTestRunner.java
+index 03b2fab68..f45977151 100644
+--- a/core/src/main/java/com/legend/test/ServiceTestRunner.java
++++ b/core/src/main/java/com/legend/test/ServiceTestRunner.java
+@@ -237,6 +237,7 @@ public final class ServiceTestRunner implements AutoCloseable {
+         boolean privateSession = policy == Sessions.FRESH_PER_TEST
+                 || Compiler.hasStatementEffects(resolved, rt.ctx());
+         Connection conn = privateSession ? opener.open() : shared(rt.runtimeFqn());
++        if (privateSession && policy != Sessions.FRESH_PER_TEST) System.err.println("[probe-session] PRIVATE_FOR_WRITE");   // PROBE 2026-10-08, reverted
+         try {
+             ExecutionResult result;
+             try {

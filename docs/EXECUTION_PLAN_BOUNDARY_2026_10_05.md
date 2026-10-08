@@ -227,7 +227,11 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    and returns the slots in order; a list slot in the target's array form (`= ANY(?)`, a list parameter, H2's array);
    the target per `Sql` node from `Compiler.executesOn`; setup statements and the in-memory identity computed at plan
    time.
-   **Step 2's decisions (the user, 2026-10-07; evidence `docs/execution-plan-boundary-2026-10-05/probes/`):**
+   **Step 2's first piece DONE 2026-10-08 (`847b41df4`; `docs/GATES.md`):** a connection's setup — its `CREATE
+   TABLE`s with each column's type, and its rows — moved from `exec` to the plan-side `//core:setup`, so the planner
+   can write it into the plan and the Studio tab can take the server's exact statements; running the steps stays in
+   `exec` (`SetupRunner`). No behaviour change.
+   **Step 2's decisions (the user, 2026-10-07 and 2026-10-08; evidence `docs/execution-plan-boundary-2026-10-05/`):**
    - *One list of a query's parameters.* Today the legacy (legend-engine-shaped) plan builds its own, twice: its text
      form (`StatementExecutor.sequencePlan`) and the form Pure code walks (`planModel`). One planner function reads
      a typed lambda's parameters (name, Pure type, multiplicity, an enum's allowed names) and all three read it — the
@@ -245,11 +249,24 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      to load in bulk (the measured reason: one giant INSERT cost DuckDB most of a 61 s first query, commit
      `2c4c57816`), the others the INSERT statement they run today. Step 1's `Target.setup` becomes a list of steps,
      a statement or rows. Upstream's form (`testDataSetupSqls`, text) is written only by the compatibility mode.
-   - *Which requests share an in-memory database: the plan's own content* (the connection and its setup), as
-     legend-engine keys a local H2 (`LocalH2DataSourceSpecificationKey`: a checksum of the setup statements). The
-     model-derived hash (`ConnectionResolver.storesKey`) and `Target.identity` go. NOT YET CHECKED, and checked before
-     step 2's code: that nothing creates tables outside the setup statements; if something does, this comes back to
-     the user.
+   - *Which runs share an in-memory database: decision A (the user, 2026-10-08; measured,
+     `docs/execution-plan-boundary-2026-10-05/sharing/results.md`).* Three rules. (1) Two runs share a database the
+     runner opens when their connection and setup statements are the same, as legend-engine keys a local H2
+     (`LocalH2DataSourceSpecificationKey`: a checksum of the setup statements); setup runs once, when it opens. The
+     setup statements carry every column's type, so two models declaring a table differently get different
+     databases (the 2026-08-26 leak, D100, stays closed). (2) A database the runner opened for sharing that a run
+     changed is thrown away; the next run opens a fresh one. A database the caller hands the runner (the corpus
+     harness's one per test package) is the caller's, never thrown away. (3) The server tests that create tables
+     with raw SQL (`Seed.sql`: 17 calls in 3 files) move those tables into their models' test data, so every table
+     in a shared database comes from its setup. The model-derived hash (`ConnectionResolver.storesKey`) and
+     `Target.identity` go. Checked first: nothing in the product creates tables outside setup (the raw-SQL route
+     went 2026-09-29; the paths phase 1 changes run one SELECT); only those test files do. Against today: the stress
+     corpus already shares this way (25.5 s; a fresh database per test took 58 min, the same answers); the server
+     loads setup once instead of on every request, and its streaming path no longer depends on an earlier request
+     having built the tables; the in-place reload after a write, which keeps a table the run created, is replaced —
+     it ran no statement in either corpus (124,148 reloads in the relational corpus's DuckDB pass, every one empty).
+     Rejected: a fresh database per run (C: 58 min against 25.5 s), and adding the table declarations to what decides
+     sharing (B: redundant once every table comes from setup, and legend-engine's plans carry no declarations).
    - *`JsonResult` becomes `TextResult`* with a format — CSV, JSON, or one JSON object per row (the runner writes
      the brackets and commas): the database builds the finished text, the runner passes it on. The format is fixed
      when the plan is made (legend-engine chooses it at run time because Java formats its rows; here the database

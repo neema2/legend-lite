@@ -40,3 +40,9 @@ java -cp <driver>                EnumIndex.java <url> <user> <password>
 | F4 the column decoded: `(CASE STATUS WHEN 'A' THEN 'ACTIVE' … END) = ?` | **scan** | **scan** | **scan** (~24 ms vs ~0.4 ms) | right |
 
 F1 is the one form that uses the index on all three and is right for a value stored under two codes.
+
+## `sharing/` — when two runs may share an in-memory database (2026-10-08)
+
+`results.md`: the stress corpus with a shared session per test data against a fresh one per test, and how often a
+run changes a shared database in the stress corpus and the relational corpus, counted by `count-probe.patch`
+(applied, measured, reverted). The basis of decision A in the plan's §9.

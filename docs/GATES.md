@@ -7142,3 +7142,27 @@ stuck count cannot be cleared: only harnesses read it, and it would only slow th
 Two more harness races seen on loaded runs today, each green on three reruns, for the Studio line next: the site
 harness read DataCube's party grid before its second column had rendered (`//site:verify_test`), and Studio's project
 menu did not open on the click after the demo projects were published (`//studio:verify_test`, server level).
+
+## 2026-10-08 — A connection's setup moves to the plan side: `//core:setup` (the execution plan boundary, step 2's first piece)
+
+`847b41df4`. The code that turns a connection's declared test data into setup — the `CREATE TABLE`s with each
+column's type, and the rows — left `exec` for a new plan-side library, `//core:setup` (`com.legend.setup`: `CsvSeed`'s
+text half, `Ddl`, `RowLoad`; deps `//base :compiler :model :sql :sql_dialect`, no `exec`, no `java.sql`). Only running
+the steps on a connection stays in `exec`, as `exec.SetupRunner`. No behaviour change. Why: step 2's planner writes a
+connection's setup into the plan when it makes the plan (`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §9) and cannot
+reach `exec`; and the Studio tab, which could not reach this code, spelled column types itself (`FLOAT`, `BIT`,
+`SEMISTRUCTURED` where the server creates `DOUBLE`, `BOOLEAN`, `JSON`) and so answered Float data differently — through
+`//core:plan_side` it can take the server's exact statements. Nothing in `//wasm:planner` calls `:setup` yet, so TeaVM
+has not compiled it: the Studio line's export is its first compile.
+
+Guards moved by path only, each with a dated note, no count grown: `JavaEvalLedgerTest` (exec's class register two
+smaller), `JdbcSurfaceCensusTest`, `SqlTextRatchetTest`; `DialectBoundaryTest` and `RawSqlLedgerTest` key by file name
+and keep theirs. New lane `core_tests_setup` (`SeedSpellingTest`). Bazel edit reviewed by the build program's session.
+
+The audit (the auditor agent, 2026-10-08): no blockers, nothing that changes behaviour; two wording fixes and three
+notes, all taken. Local gate `//gates:local` green on the tested commit (316/317; `//datacube:live_snap_test`'s
+sign-in hit `ECONNRESET` under load and passed alone — the DataCube line's known intermittent case, theirs to fix).
+CI run 37808358514 green on `da5c8c8c8` (50 jobs; `//site:verify_test`'s known party-grid race failed once and passed
+on the rerun); `847b41df4` is that commit rebased over two `IN_FLIGHT`-only commits. Landing took three CI runs
+(37795237937, 37803524038, 37808358514): each of the first two was green, but code landed on `main` before the push;
+the third landed while the other lines held their code pushes.
