@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { describe, it } from 'node:test';
 
-import { inferModel } from '../src/infer.ts';
-import type { CatalogColumn } from '../src/catalog-model.ts';
+import type { CatalogColumn } from '../src/infer.ts';
 import { formatOf, tableNameOf } from '../src/upload.ts';
 import { agg, col, derive, fn, from, lambda, lit, times, variable } from '../../pure-protocol/src/index.ts';
 import { print } from './lite-compiler.ts';
 import { plannerFor } from './catalog-builder.ts';
+
+// legend-lite's one model writer, in the module the tab loads (infer.ts `TableModels`)
+const writer = plannerFor('', 'local::RT');
 
 describe('tableNameOf', () => {
   it('derives an identifier from a filename', () => {
@@ -38,15 +40,15 @@ describe('formatOf', () => {
 });
 
 // Each column's declared type is legend-lite's reading of DuckDB's catalog (CatalogModelTest, every
-// DuckDB type; catalog-model.test.ts, the TypeScript writer against it; typed-values.ts through the
-// real app); what is pinned here is the model around it.
+// DuckDB type; typed-values.ts through the real app); what is pinned here is the model the module
+// writes around it, as DataCube reads it.
 
 /** A catalog column of a canonical type (its own name the same, unless given). */
 function col_(name: string, logicalType: string, dataType = logicalType): CatalogColumn {
   return { name, dataType, logicalType, precision: null, scale: null, notNull: false };
 }
 
-describe('inferModel', () => {
+describe('the model for a table', () => {
   const described = [
     col_('region', 'VARCHAR'),
     col_('year', 'BIGINT'),
@@ -55,7 +57,7 @@ describe('inferModel', () => {
   ];
 
   it('writes a model the planner can compile', async () => {
-    const m = inferModel(described, { table: 'trades', convertible: true, databaseType: 'DuckDB' });
+    const m = await writer.tableModel(described, { table: 'trades', convertible: true, databaseType: 'DuckDB' });
     assert.match(m.model, /###Relational/);
     assert.match(m.model, /Database local::DB/);
     assert.match(m.model, /Table trades/);
@@ -72,24 +74,24 @@ describe('inferModel', () => {
   });
 
   it('quotes a column name that needs it, and leaves a keyword bare', async () => {
-    const m = inferModel([col_('total pnl', 'DOUBLE'),
+    const m = await writer.tableModel([col_('total pnl', 'DOUBLE'),
       col_('select', 'VARCHAR')], { table: 't', convertible: true, databaseType: 'DuckDB' });
     assert.match(m.model, /"total pnl" DOUBLE/);
     assert.match(m.model, /\bselect VARCHAR/);
   });
 
   it('quotes an awkward table name, and refuses a dotted one (upstream splits the accessor on dots)', async () => {
-    const m = inferModel([col_('a', 'VARCHAR')],
+    const m = await writer.tableModel([col_('a', 'VARCHAR')],
       { table: 'my table', convertible: true, databaseType: 'DuckDB' });
     assert.match(m.model, /Table "my table"/);
     assert.equal(print(lambda([], m.source)), '|#>{local::DB."my table"}#');
-    assert.throws(() => inferModel([col_('a', 'VARCHAR')],
+    await assert.rejects(writer.tableModel([col_('a', 'VARCHAR')],
       { table: 'a.b', convertible: true, databaseType: 'DuckDB' }), /cannot be carried/);
   });
 
   it('refuses an empty schema and duplicate column names', async () => {
-    assert.throws(() => inferModel([], { table: 't', convertible: true, databaseType: 'DuckDB' }), /no columns/);
-    assert.throws(() => inferModel([
+    await assert.rejects(writer.tableModel([], { table: 't', convertible: true, databaseType: 'DuckDB' }), /no columns/);
+    await assert.rejects(writer.tableModel([
       col_('a', 'VARCHAR'),
       col_('A', 'VARCHAR'),
     ], { table: 't', convertible: true, databaseType: 'DuckDB' }), /two columns named/);
@@ -97,12 +99,12 @@ describe('inferModel', () => {
 
   it('names what a copy must convert, and keeps a type Pure cannot name on any source', async () => {
     const cols = [col_('id', 'BIGINT'), col_('at', 'TIMESTAMP WITH TIME ZONE'), col_('ref', 'UUID')];
-    const upload = inferModel(cols, { table: 't', convertible: true, databaseType: 'DuckDB' });
+    const upload = await writer.tableModel(cols, { table: 't', convertible: true, databaseType: 'DuckDB' });
     assert.deepEqual(upload.conversions, [{ column: 'at', sql: `CAST(timezone('UTC', "at") AS TIMESTAMP)` }]);
     assert.match(upload.model, /at TIMESTAMP/);
     // a zoned timestamp is read in place, as its UTC instant under the UTC session; its conversion is
     // still the copy's (a Snap). A UUID is OTHER: read as its text wherever it is used, on every source.
-    const warehouse = inferModel(cols, { table: 't', schema: 's', convertible: false, databaseType: 'DuckDB' });
+    const warehouse = await writer.tableModel(cols, { table: 't', schema: 's', convertible: false, databaseType: 'DuckDB' });
     assert.deepEqual(warehouse.excluded, []);
     assert.match(warehouse.model, / at TIMESTAMP/);
     assert.match(warehouse.model, / ref OTHER/);
@@ -112,7 +114,7 @@ describe('inferModel', () => {
   it('reads a Postgres table by Postgres\'s rules: an array and an inet are text, json a Variant, bytes left out', async () => {
     const pg = (name: string, dataType: string, logicalType: string) =>
       ({ name, dataType, logicalType, precision: null, scale: null, notNull: false });
-    const m = inferModel([pg('id', 'integer', 'int4'), pg('ia', 'integer[]', 'ARRAY'), pg('ip', 'inet', 'inet'),
+    const m = await writer.tableModel([pg('id', 'integer', 'int4'), pg('ia', 'integer[]', 'ARRAY'), pg('ip', 'inet', 'inet'),
       pg('doc', 'jsonb', 'jsonb'), pg('photo', 'bytea', 'bytea')],
     { table: 'kinds', schema: 'probe', convertible: false, databaseType: 'Postgres' });
     assert.match(m.model, /id INTEGER,\n\s*ia OTHER,\n\s*ip OTHER,\n\s*doc SEMISTRUCTURED\n/);
@@ -122,14 +124,14 @@ describe('inferModel', () => {
     assert.match(sql, /CAST\("t0"\."doc" AS JSONB\) AS "doc"/);
   });
 
-  it('declares the database type it is given: a warehouse Postgres catalog plans Postgres SQL', () => {
-    const m = inferModel([col_('id', 'int8', 'bigint')], { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres' });
+  it('declares the database type it is given: a warehouse Postgres catalog plans Postgres SQL', async () => {
+    const m = await writer.tableModel([col_('id', 'int8', 'bigint')], { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres' });
     assert.match(m.model, /type: Postgres;/);
-    assert.match(inferModel([col_('id', 'BIGINT')], { table: 't', convertible: true, databaseType: 'DuckDB' }).model, /type: DuckDB;/);
+    assert.match((await writer.tableModel([col_('id', 'BIGINT')], { table: 't', convertible: true, databaseType: 'DuckDB' })).model, /type: DuckDB;/);
   });
 
-  it('carries a snap runtime over the SAME Database when the copy\'s store is named (leg C)', () => {
-    const m = inferModel([col_('id', 'int8', 'bigint')],
+  it('carries a snap runtime over the SAME Database when the copy\'s store is named (leg C)', async () => {
+    const m = await writer.tableModel([col_('id', 'int8', 'bigint')],
       { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres', snapDatabaseType: 'DuckDB' });
     assert.equal(m.runtime, 'local::RT');
     assert.equal(m.snapRuntime, 'local::SnapRT');
@@ -138,12 +140,12 @@ describe('inferModel', () => {
     assert.match(m.model, /Runtime local::SnapRT[\s\S]*local::DB: \[ c1: local::SnapConn \]/);
     assert.equal((m.model.match(/^Database /gm) ?? []).length, 1, 'one Database, read through either runtime');
     // not asked for, none
-    assert.equal(inferModel([col_('id', 'BIGINT')], { table: 't', convertible: true, databaseType: 'DuckDB' }).snapRuntime, undefined);
+    assert.equal((await writer.tableModel([col_('id', 'BIGINT')], { table: 't', convertible: true, databaseType: 'DuckDB' })).snapRuntime, undefined);
   });
 
   it('plans the SAME query in each runtime\'s SQL: Postgres live, DuckDB on the copy', async () => {
     // a Postgres table, as its own catalog describes it
-    const m = inferModel([col_('region', 'text'), col_('n', 'int8', 'bigint')],
+    const m = await writer.tableModel([col_('region', 'text'), col_('n', 'int8', 'bigint')],
       { table: 'orders', schema: 'sales', convertible: false, databaseType: 'Postgres', snapDatabaseType: 'DuckDB' });
     // the root row's constant group key: Postgres needs it typed, DuckDB takes it bare
     const query = from(m.source).extend([derive('k', lambda(['x'], lit.string('[ROOT]')))])
@@ -158,7 +160,7 @@ describe('inferModel', () => {
 
   it('leaves bytes out by name, on every source, and opens the rest', async () => {
     for (const convertible of [true, false]) {
-      const m = inferModel([col_('id', 'BIGINT'), col_('photo', 'BLOB')], { table: 't', convertible, databaseType: 'DuckDB' });
+      const m = await writer.tableModel([col_('id', 'BIGINT'), col_('photo', 'BLOB')], { table: 't', convertible, databaseType: 'DuckDB' });
       assert.deepEqual([m.excluded, m.conversions], [['photo'], []]);
       assert.doesNotMatch(m.model, /photo/);
     }
@@ -167,7 +169,7 @@ describe('inferModel', () => {
   it('declares a nested column a Variant as stored, on any source (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md)', async () => {
     const cols = [col_('items', 'LIST', 'STRUCT(sku VARCHAR)[]'), col_('attrs', 'MAP', 'MAP(VARCHAR, INTEGER)')];
     for (const convertible of [true, false]) {
-      const m = inferModel(cols, { table: 't', convertible, databaseType: 'DuckDB' });
+      const m = await writer.tableModel(cols, { table: 't', convertible, databaseType: 'DuckDB' });
       assert.deepEqual([m.conversions, m.excluded], [[], []]);
       assert.match(m.model, /items SEMISTRUCTURED,\n\s*attrs SEMISTRUCTURED/);
     }
@@ -178,7 +180,7 @@ describe('a column the catalog says holds no NULL', () => {
   // declared NOT NULL, the compiler types it [1] (as legend-engine does), so arithmetic over it
   // needs no ->toOne(); a nullable column's still does (Typer.collection, as engine and pure)
   it('is declared NOT NULL, and plain arithmetic compiles over it -- not over a nullable one', async () => {
-    const m = inferModel([{ ...col_('n', 'DOUBLE'), notNull: true }, col_('maybe', 'DOUBLE')], { table: 't', convertible: true, databaseType: 'DuckDB' });
+    const m = await writer.tableModel([{ ...col_('n', 'DOUBLE'), notNull: true }, col_('maybe', 'DOUBLE')], { table: 't', convertible: true, databaseType: 'DuckDB' });
     assert.match(m.model, /n DOUBLE NOT NULL,\n\s*maybe DOUBLE\n/);
     const planner = plannerFor(m.model, m.runtime);
     const uplift = (c: string) => from(m.source).extend([derive('u', lambda(['x'], times(col('x', c), lit.float(1.1))))]).lambda();
@@ -196,16 +198,25 @@ describe('the facts that belong to legend-lite', () => {
   });
 });
 
-describe('inferModel with a schema (a warehouse table)', () => {
+describe('the model for a warehouse table, with its schema', () => {
   it('declares the table inside its schema and reads it by the qualified name', async () => {
-    const m = inferModel([col_('id', 'INTEGER'), col_('region', 'VARCHAR')],
+    const m = await writer.tableModel([col_('id', 'INTEGER'), col_('region', 'VARCHAR')],
       { table: 'v_orders', schema: 'sales', convertible: false, databaseType: 'DuckDB' });
     assert.match(m.model, /Schema sales\n {4}\(\n {8}Table v_orders\n {8}\(\n {12}id INTEGER,\n {12}region VARCHAR\(4096\)\n {8}\)\n {4}\)/);
     assert.equal(print(lambda([], m.source)), '|#>{local::DB.sales.v_orders}#');
   });
 
   it('declares no schema when there is none', async () => {
-    const m = inferModel([col_('id', 'INTEGER')], { table: 't', convertible: true, databaseType: 'DuckDB' });
+    const m = await writer.tableModel([col_('id', 'INTEGER')], { table: 't', convertible: true, databaseType: 'DuckDB' });
     assert.doesNotMatch(m.model, /Schema/);
   });
 });
+
+describe('the catalog question', () => {
+  it('names its schema and table as SQL literals, each in its own place', async () => {
+    const sql = await writer.catalogColumnsSql('my s', "o'{table}brien");
+    assert.match(sql, /c\.schema_name = 'my s'/);
+    assert.match(sql, /c\.table_name = 'o''\{table\}brien'/);
+  });
+});
+

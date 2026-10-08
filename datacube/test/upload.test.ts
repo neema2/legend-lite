@@ -14,9 +14,13 @@ import { sampleById, sampleFileName } from '../src/samples.ts';
 import { forgetUpload, ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { plannerFor } from './catalog-builder.ts';
+
 import {
   asc, col as column, derive, fn, from, lambda, lit, to, toMany, type, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+
+// legend-lite's one model writer, in the module the tab loads (infer.ts `TableModels`)
+const writer = plannerFor('', 'local::RT');
 
 let engine: DuckDbEngine;
 let files: DuckDbFiles;
@@ -79,7 +83,7 @@ describe('ingestFile with JSON', () => {
       ORDERS.map((o) => JSON.stringify(o)).join('\n')],
   ] as const) {
     it(`reads ${label}, nested fields as Variant`, async () => {
-      const r = await ingestFile(engine, files, picked(name, text));
+      const r = await ingestFile(engine, files, picked(name, text), writer);
 
       assert.equal(r.rowCount, 2);
       // the model's declarations; the compiler types them (Variant for SEMISTRUCTURED)
@@ -126,7 +130,7 @@ describe('ingestFile with JSON', () => {
          TO 'nested.json' (FORMAT JSON)`, 0);
     const text = String((await engine.run(
       `SELECT content FROM read_text('nested.json')`, 0)).columns[0]!.values[0]);
-    const r = await ingestFile(engine, files, picked('nested.json', text));
+    const r = await ingestFile(engine, files, picked('nested.json', text), writer);
     assert.match(r.model, /id BIGINT/);
     assert.match(r.model, /xs SEMISTRUCTURED/);
     assert.match(r.model, /s SEMISTRUCTURED/);
@@ -146,7 +150,7 @@ describe('ingestFile with JSON', () => {
       name: 'zoned.parquet',
       text: async () => '',
       arrayBuffer: async () => bytes.slice().buffer,
-    });
+    }, writer);
     for (const [column, sql] of [['stamp', 'TIMESTAMP'], ['big', 'DECIMAL\\(20,0\\)'],
       ['id', 'OTHER'], ['tod', 'OTHER']] as const) {
       assert.match(r.model, new RegExp(`${column} ${sql}`), column);
@@ -162,7 +166,7 @@ describe('ingestFile with JSON', () => {
   it('opens the offered orders sample with its nested fields as Variant', async () => {
     const sample = sampleById('orders-json')!;
     const r = await ingestFile(engine, files,
-      picked(sampleFileName(sample), sample.build(200)));
+      picked(sampleFileName(sample), sample.build(200)), writer);
     assert.equal(r.rowCount, 200);
     for (const [column, sql] of [['order_id', 'BIGINT'], ['region', 'VARCHAR'], ['placed_on', 'DATE'],
       ['customer', 'SEMISTRUCTURED'], ['items', 'SEMISTRUCTURED'], ['tags', 'SEMISTRUCTURED'],
@@ -174,7 +178,7 @@ describe('ingestFile with JSON', () => {
   it('reaches through the orders sample\'s nested arrays: in an object, in elements, in elements of elements', async () => {
     const sample = sampleById('orders-json')!;
     const text = sample.build(50);
-    const r = await ingestFile(engine, files, picked(sampleFileName(sample), text));
+    const r = await ingestFile(engine, files, picked(sampleFileName(sample), text), writer);
     const planner = plannerFor(r.model, r.runtime);
     const get = (v: ValueSpecification, key: string | number): ValueSpecification =>
       fn('get', v, typeof key === 'number' ? lit.integer(key) : lit.string(key));

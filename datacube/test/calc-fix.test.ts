@@ -6,12 +6,11 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { emptyOperands, isEmptyOperandRefusal, sayEmpty } from '../src/calc-fix.ts';
-import { inferModel } from '../src/infer.ts';
 import { derive, from } from '../../pure-protocol/src/index.ts';
 import { liteParse, litePrint } from './lite-compiler.ts';
 import { plannerFor } from './catalog-builder.ts';
 
-const m = inferModel([
+const m = await plannerFor('', 'local::RT').tableModel([
   { name: 'notional', dataType: 'DOUBLE', logicalType: 'DOUBLE', precision: 53, scale: 0, notNull: false },
   { name: 'qty', dataType: 'INTEGER', logicalType: 'INTEGER', precision: 32, scale: 0, notNull: false },
   { name: 'px', dataType: 'DECIMAL(9,2)', logicalType: 'DECIMAL', precision: 9, scale: 2, notNull: false },

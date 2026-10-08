@@ -1,15 +1,13 @@
 // Getting a picked file into DuckDB, and out again as a schema.
 //
-// Kept apart from `infer.ts` on purpose: this half touches the
-// duckdb-wasm handle and the browser's File object, the other half is
-// pure text-in text-out and is therefore the half worth unit testing.
+// This half touches the duckdb-wasm handle and the browser's File object; the model is written
+// from the table's catalog by legend-lite's one writer (`TableModels`, infer.ts).
 
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import type { RawTable } from '../../engine-client/src/engine.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
-import { inferModel, type InferredModel } from './infer.ts';
-import { catalogColumnsSql, type CatalogColumn } from './catalog-model.ts';
+import type { CatalogColumn, InferredModel, TableModels } from './infer.ts';
 
 /**
  * The duckdb-wasm surface used here.
@@ -89,6 +87,8 @@ export async function ingestFile(
   db: DuckDbFiles,
   file: { name: string; text(): Promise<string>;
     arrayBuffer(): Promise<ArrayBuffer> },
+  // legend-lite's model writer (infer.ts): it reads the catalog and writes the model
+  models: TableModels,
   options: {
     /**
      * The table to read it into, when not the file's own name: a SECOND source on the page
@@ -144,13 +144,11 @@ export async function ingestFile(
   // nested STRUCT or LIST needs none: it is a Variant as stored
   // (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md). An upload is ours to
   // rewrite, so it is rewritten here.
-  const inferred = inferModel(await catalogColumns(engine, table), { table, convertible: true, databaseType: engine.databaseType });
+  const inferred = await models.tableModel(await catalogColumns(engine, models, table),
+    { table, convertible: true, databaseType: engine.databaseType });
   if (inferred.conversions.length > 0) {
-    const replaced = inferred.conversions
-      .map((c) => `${c.sql} AS ${dq(c.column)}`).join(', ');
-    await engine.run(
-      `CREATE OR REPLACE TABLE ${qt} AS SELECT * REPLACE (${replaced}) `
-        + `FROM ${qt}`, 0);
+    // the writer's own select list: each conversion under its column's name (CatalogModel.copySelectList)
+    await engine.run(`CREATE OR REPLACE TABLE ${qt} AS SELECT ${inferred.copySelectList} FROM ${qt}`, 0);
   }
 
   const counted = await engine.run(
@@ -167,11 +165,11 @@ export async function ingestFile(
 
 /**
  * The table's columns, as DuckDB's catalog reports them, STRUCTURED: each one's canonical
- * type and a DECIMAL's precision and scale as data (catalog-model.ts), no type string parsed.
+ * type and a DECIMAL's precision and scale as data (the catalog question, infer.ts), no type string parsed.
  * A RawTable is COLUMNAR, so the answer is read by picking its columns out and zipping them.
  */
-export async function catalogColumns(engine: QueryEngine, table: string): Promise<CatalogColumn[]> {
-  const answer = await engine.run(catalogColumnsSql('main', table), 0);
+export async function catalogColumns(engine: QueryEngine, models: TableModels, table: string): Promise<CatalogColumn[]> {
+  const answer = await engine.run(await models.catalogColumnsSql('main', table), 0);
   const names = columnOf(answer, 'column_name');
   const types = columnOf(answer, 'data_type');
   const logical = columnOf(answer, 'logical_type');

@@ -7352,3 +7352,41 @@ and its handle refuses; names were matched by exact case where DuckDB ignores it
 be replaced -- it is refused; `from legend_lite import *` imported duckdb through `Frames` -- it is no longer listed;
 the zoned-timestamp test read the machine's zone data -- it reads the pinned tzdata. Not changed, recorded: neither
 writer checks `pkg` or `snapDatabaseType` before writing them into the model (the same as `infer.ts`).
+
+## 2026-10-08 — DataCube writes every table's model with legend-lite's one writer; its TypeScript copy goes (the DataCube + Python line, step 2b)
+
+The line: `docs/IN_FLIGHT.md`, the sixth line, item 2. DataCube opened a file, a remote file or a warehouse table by
+writing its model in TypeScript (`src/catalog-model.ts`, legend-lite's rules generated as data and tested against the
+Java; `src/infer.ts`'s hand-written connection and runtime). It now calls the compiler's boundary
+(`planner.Wasm.tableModelOrError`, `catalogColumnsSqlOrError`), the writer Python's frames use: one writer.
+
+The user's decision (2026-10-08, replacing the TypeScript writer of 2026-10-01): the writer is legend-lite's module
+whichever planner the page chose. `Engine.tables` is the planner itself in the tab; beside a planner on legend-lite's
+server or on legend-engine it is a `WasmPlanner` that loads the module in a worker the first time a model is written.
+So a page planning on a server now needs, to open a table, what the in-tab planner always needed: the module
+(`vendor/classes.wasm`, 1.75 MB gzipped, downloaded once) and a browser with WebAssembly GC; without them the open is
+refused, saying so. Upstream DataCube writes a local file's model in TypeScript too, thinner (a switch over DESCRIBE's
+type names, `LegendDataCubeDataCubeEngine._getColumnType`): legend-engine has no writer to ask, and no server can read
+a database inside the tab.
+
+What moved: `src/infer.ts` is the types and the `TableModels` interface (`inferModel` is gone); `WasmPlanner`
+implements it, and its worker routes the two calls; `src/upload.ts` takes the writer and applies its select list
+(`copySelectList`); `demo/boot.ts`, `planners.ts`, `stress.ts` pass `tables`. Deleted: `src/catalog-model.ts`,
+`src/generated/catalog-facts.ts`, `test/generated/catalog-corpus.ts`, `tools/catalogfacts` (both generators) and their
+BUILD rules, `test/catalog-model.test.ts` (its catalog-question quoting test moved to `infer.test.ts`);
+`docs/GENERATORS.md` loses the two generators; `tools/deps/jars_table.bzl` drops `datacube` from
+`duckdb_jdbc_warehouse`'s users (the generator was its one use). The bundle shrank (340,543 bytes gzipped, measured by
+the audit); its budget is not lowered (`bundle-budget.test.ts`, dated).
+
+What judges it: DataCube's tests on the module itself -- `infer`, `calc-fix`, `upload`, `typed-values` (every
+canonical type of the browser's DuckDB has a decision: the writer is asked for each, and only the compiler's own
+refusal counts as a verdict), `live_snap`, `cube-open` -- and the whole `//gates:datacube` and `//gates:ui` lanes with
+their browser harnesses (141 tests), `//gates:checks` and `//tools/deps:all` (133). The output is the old writer's,
+field by field (the audit compared them; `python/tests`' golden holds the model text).
+
+The review: the Bazel program session accepted the BUILD deletions, asking for the `jars_table.bzl` and
+`GENERATORS.md` edits above. The audit (the auditor agent, 2026-10-08): no blocker, three should-fix and four nits,
+all fixed -- the two edits above had been left out of the commit; the typed-values check swallowed every rejection, so
+a module that failed to load would have passed it (it now fails on anything but the compiler's refusal); the
+WebAssembly GC need on the server planners was unstated. Noted, not changed: `Wasm.databaseFromCatalogOrError` stays
+for Python's `database_from_catalog` (the same `CatalogModel` writer behind both).

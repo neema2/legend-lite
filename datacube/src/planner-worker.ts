@@ -13,8 +13,8 @@
 // for rendering, and the two startups genuinely run at once.
 //
 // This worker deliberately contains no planning logic of its own: it
-// forwards to the module's `planOrError`, `relationTypeOrError`, `databaseFromCatalogOrError`,
-// `modelJsonOrError` and `warmModel` exports and
+// forwards to the module's `planOrError`, `relationTypeOrError`, `tableModelOrError`,
+// `catalogColumnsSqlOrError`, `modelJsonOrError` and `warmModel` exports and
 // returns what they say. A second planner is the one thing this whole
 // design exists to avoid.
 
@@ -22,7 +22,8 @@ interface TeavmModule {
   readonly exports: {
     planOrError(model: string, query: string, runtime: string): string;
     relationTypeOrError(model: string, query: string): string;
-    databaseFromCatalogOrError(catalog: string): string;
+    tableModelOrError(table: string): string;
+    catalogColumnsSqlOrError(schema: string, table: string): string;
     planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
     relationTypeJsonOrError(model: string, lambdaJson: string): string;
     composeLambdaOrError(lambdaJson: string, style: string): string;
@@ -43,7 +44,8 @@ export type Request =
     readonly runtime: string;
   }
   | { readonly id: number; readonly kind: 'relationType'; readonly model: string; readonly query: string }
-  | { readonly id: number; readonly kind: 'databaseFromCatalog'; readonly catalog: string }
+  | { readonly id: number; readonly kind: 'tableModel'; readonly table: string }
+  | { readonly id: number; readonly kind: 'catalogColumnsSql'; readonly schema: string; readonly table: string }
   | {
     readonly id: number;
     readonly kind: 'planJson';
@@ -84,7 +86,8 @@ function answerOf(module: TeavmModule, msg: Request): string {
   switch (msg.kind) {
     case 'warm': module.exports.warmModel(msg.model); return 'OK\n';
     case 'relationType': return module.exports.relationTypeOrError(msg.model, msg.query);
-    case 'databaseFromCatalog': return module.exports.databaseFromCatalogOrError(msg.catalog);
+    case 'tableModel': return module.exports.tableModelOrError(msg.table);
+    case 'catalogColumnsSql': return module.exports.catalogColumnsSqlOrError(msg.schema, msg.table);
     case 'planJson': return module.exports.planJsonOrError(msg.model, msg.lambda, msg.runtime);
     case 'relationTypeJson': return module.exports.relationTypeJsonOrError(msg.model, msg.lambda);
     case 'compose': return module.exports.composeLambdaOrError(msg.lambda, msg.style);

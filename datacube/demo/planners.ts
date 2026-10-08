@@ -7,11 +7,16 @@
 // planner is asked whether it is there first; not there, the page says so and stops
 // (`refusePlanner`): there is no fallback.
 //
-// A FILE OPENED IN THIS TAB: its model (a Pure Database, from DuckDB's own catalog) is written in
-// the tab by legend-lite's writer in TypeScript (src/catalog-model.ts), as upstream DataCube
-// writes a local file's -- no server can read a database inside the browser, and no planner is
-// needed to write one -- and then compiled and typed by the chosen planner, whose answer decides
-// whether the file opens.
+// A TABLE OPENED ON THE PAGE -- a file in this tab, a remote file, a warehouse table: its model (a
+// Pure Database from the table's own catalog, its connection and runtime) is written in the tab by
+// legend-lite's one writer, in its WebAssembly module (src/infer.ts `TableModels`), whichever
+// planner the page chose -- no server can read a database inside the browser, and legend-engine
+// has no writer to ask -- and then compiled and typed by the chosen planner, whose answer decides
+// whether it opens (the user, 2026-10-08: one writer; it replaced a TypeScript copy). In this tab
+// the planner is the writer; beside a planner on a server, the module is loaded in a worker the
+// first time a model is written -- so a page planning on a server now needs, to open a table, what
+// the in-tab planner always needed: the module (vendor/classes.wasm) and a browser with WebAssembly
+// GC. Without them the open is refused, saying so (PlannerUnavailableError).
 
 import { refusePlanner, RUNTIME, SNAP_TARGET, SOURCE, type Engine, type PlaneWord } from './boot.ts';
 import { pageConfig } from './page-config.ts';
@@ -41,6 +46,7 @@ async function inTab(model: string): Promise<Engine> {
     planner,
     source: SOURCE,
     snapTarget: { ...SNAP_TARGET, planner },
+    tables: planner,
     label: 'local',
     models: {
       use: (next, runtime, how) => planner.useModel(next, runtime, how),
@@ -67,6 +73,8 @@ async function onServer(model: string, which: 'remote' | 'engine'): Promise<Engi
     planner,
     source: SOURCE,
     snapTarget: { ...SNAP_TARGET, planner },
+    // legend-lite's writer beside the server's planner: nothing is loaded until a table is opened
+    tables: new WasmPlanner({ model: '', runtime: RUNTIME, workerUrl: WORKER() }),
     label: which,
     models: {
       use: (next, runtime, how) => planner.useModel(next, runtime, how),
