@@ -568,23 +568,46 @@ node_test(
     entry_point = "test/typed-values/typed-values.ts",
 )
 
-# LIVE VERSUS SNAP over a real warehouse (docs/WAREHOUSE_D1_DESIGN_2026_09_26.md):
-# every cube case live on the Bazel-built native warehouse as a reader, then
-# snapped into DuckDB-WASM, the answers compared.
-node_test(
+# LIVE VERSUS SNAP over a real warehouse (docs/WAREHOUSE_D1_DESIGN_2026_09_26.md), IN THE PINNED CHROMIUM: every cube
+# case live on the Bazel-built native warehouse as a reader, then snapped into the tab's DuckDB-WASM, the answers
+# compared -- all of it in the page (test/live-snap/page.ts), as the product runs it: DuckDB and the compiler each in
+# its worker, the browser's fetch. The warehouse serves DataCube's site (:dist) as one origin; Node only drives the
+# browser (test/live-snap/live-snap.mjs). In Node until 2026-10-08: DuckDB's blocking build held Node's thread past the
+# warehouse's idle close of a pooled connection under load, and the next request went out on the dead socket.
+esbuild_bundle(
+    name = "live_snap_page",
+    testonly = True,
+    srcs = [
+        "test/live-snap/page.ts",
+        "test/wasm-differential/cases.ts",
+        ":src",
+    ],
+    outs = ["test/live-snap/live-snap.js"],
+    args = [
+        "test/live-snap/page.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=test/live-snap/live-snap.js",
+    ],
+)
+
+browser_test(
     name = "live_snap_test",
-    wasm = True,
     size = "medium",
     data = [
-        "test/live-snap/live-snap.ts",
-        "test/wasm-differential/cases.ts",
-        "//engine-client:node_modules/@duckdb/duckdb-wasm",
-        ":src",
+        "test/live-snap/live-snap.mjs",
+        ":dist",
+        ":live_snap_page",
+        ":node_modules/playwright",
         "//warehouse:duckdb_library",
         "//warehouse:server_native",
     ],
-    entry_point = "test/live-snap/live-snap.ts",
+    entry_point = "test/live-snap/live-snap.mjs",
     env = {
+        "DATACUBE_SITE": "$(rlocationpath :dist)",
+        "LIVE_SNAP_PAGE": "$(rlocationpath :live_snap_page)",
         "WAREHOUSE_BINARY": "$(rlocationpath //warehouse:server_native)",
         "WAREHOUSE_DUCKDB_LIBRARY": "$(rlocationpath //warehouse:duckdb_library)",
     },
