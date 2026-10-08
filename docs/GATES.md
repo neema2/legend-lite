@@ -7219,3 +7219,15 @@ commit (d1345d07b) stopped on a conflict in this file, and the push that followe
 rebase's state as it was -- main 609fae95e, the two code commits as tested, without this documentation commit, whose
 `[skip ci]` would have kept main's CI from running on it. The code is the tested code; main's own run judges it once
 more. This commit is the documentation, landed after.
+
+## 2026-10-08 — Studio's status bar: its controls made once, a click no longer lost to a redraw
+
+`//studio:verify_test` failed once at its server level in the local gate on `847b41df4` and passed on its rerun: after
+a save, the click on the status bar's problems count did not open the Problems panel. The cause: `studio/src/ui/editor.ts`
+cleared and drew the status bar afresh on every change, and a save redraws it several times in a row (the resync, the
+save, the compile it starts, the compile's end); a click whose press and release straddled a redraw was lost, the
+button pressed gone before it was released. Now the bar's controls are made once and each draw updates their text and
+attributes in place. Tests: `//studio:verify_test` twice, `//studio:tests`; local gate `//gates:local` green (317/317).
+The audit (the auditor agent, 2026-10-08): ready, no should-fix; one nit taken. Also measured today:
+`//studio:demo_test` takes 3.7 s on a quiet desk (three runs); its 58.6 s earlier was the machine at load 50, so its
+size (`small`, 60 s) stays.
