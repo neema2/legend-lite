@@ -161,9 +161,10 @@ test_suite(
         "//python:wheel_test",
         # DataCube against Python's engine, in the pinned Chromium (the compiler's library in its runfiles)
         "//datacube:python_engine_test",
-        # a notebook's cube in a real JupyterLab, legend-lite's wheel and JupyterLab installed as a developer installs
-        # them (Linux and macOS)
+        # a notebook's cube in a real JupyterLab and a real marimo, legend-lite's wheel and the notebook installed as a
+        # developer installs them (Linux and Apple-silicon Macs)
         "//datacube:jupyterlab_test",
+        "//datacube:marimo_test",
         "//warehouse:postgres_live",
         "//warehouse:postgres_live_native",
     ],

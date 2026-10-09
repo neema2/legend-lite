@@ -17,3 +17,5 @@ colorama==0.4.6
 # the notebook cube's real-notebook test only (//datacube:jupyterlab_test): JupyterLab, the notebook most people run, at
 # the version the manual check passed on (docs/datacube-python-show/jupyterlab-check/)
 jupyterlab==4.6.4
+# the notebook cube's real-marimo test only (//datacube:marimo_test): marimo, the reactive notebook
+marimo==0.25.1

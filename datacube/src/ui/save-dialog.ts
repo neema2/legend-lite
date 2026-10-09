@@ -4,6 +4,8 @@
 // something, that said before anything is written. The HOST saves (it owns the store and the
 // file's identity); this window asks and shows. Styled as the source picker (ui/source-picker.ts).
 
+import { focusedElement } from '../focus.ts';
+
 /** What the window says about the cube being saved. */
 export interface SaveDialogOptions {
   /** Save (over the copy this was opened from, when there is one) or Save As (always a new cube). */
@@ -72,7 +74,7 @@ export function saveDialog(doc: Document, o: SaveDialogOptions): Promise<{ reado
     win.setAttribute('role', 'dialog');
     win.setAttribute('aria-modal', 'true');
     win.setAttribute('aria-labelledby', 'dc-save-title');
-    const before = doc.activeElement as HTMLElement | null;
+    const before = focusedElement(doc) as HTMLElement | null;
     let busy = false;
     let done = false;
     const finish = (value: { name: string; asNew: boolean } | undefined): void => {

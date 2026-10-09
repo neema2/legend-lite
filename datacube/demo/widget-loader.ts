@@ -7,7 +7,8 @@
 //     the body as one binary buffer (Arrow stays binary). No HTTP, no port: the notebook's own authenticated channel,
 //     so the cube works wherever the notebook does (this machine, a remote JupyterHub, VS Code, Colab);
 //   - DataCube's module (widget.ts: `widget.js`, and its styles `widget.css`), fetched over that channel ONCE per
-//     notebook page, kept by its hash (the widget's `_module`), and reused by every later cube on the page.
+//     notebook page, kept by its hash (the widget's `_module`), and reused by every later cube on the page; its styles
+//     adopted by the page and by the shadow root a cube is in (marimo's).
 
 /** The part of anywidget's model a cube uses (anywidget's AFM: https://anywidget.dev/en/afm/). */
 export interface WidgetModel {
@@ -106,16 +107,20 @@ export function channel(model: WidgetModel): { readonly fetch: typeof globalThis
 /** Where a page keeps DataCube's module, by its hash: one load per page, whichever of its notebooks asks. */
 const LOADED = Symbol.for('legend-lite.datacube.module');
 
-type Loaded = Map<string, Promise<CubeModule>>;
+/** DataCube's module, and its styles as one sheet a page or a shadow root adopts. */
+export interface Loaded {
+  readonly module: CubeModule;
+  readonly styles: CSSStyleSheet;
+}
 
 /** DataCube's module, fetched over `fetch` the first time this page asks for this hash. A load that fails is forgotten,
  *  so the next cube tries again. */
-export function loaded(hash: string, fetch: typeof globalThis.fetch): Promise<CubeModule> {
-  const store = globalThis as typeof globalThis & { [LOADED]?: Loaded };
+export function loaded(hash: string, fetch: typeof globalThis.fetch): Promise<Loaded> {
+  const store = globalThis as typeof globalThis & { [LOADED]?: Map<string, Promise<Loaded>> };
   const modules = (store[LOADED] ??= new Map());
   let module = modules.get(hash);
   if (module === undefined) {
-    module = load(hash, fetch);
+    module = load(fetch);
     modules.set(hash, module);
     module.catch(() => { if (modules.get(hash) === module) modules.delete(hash); });
   }
@@ -128,8 +133,8 @@ async function file(fetch: typeof globalThis.fetch, name: string): Promise<strin
   return answer.text();
 }
 
-async function load(hash: string, fetch: typeof globalThis.fetch): Promise<CubeModule> {
-  const [script, styles] = await Promise.all([file(fetch, 'widget.js'), file(fetch, 'widget.css')]);
+async function load(fetch: typeof globalThis.fetch): Promise<Loaded> {
+  const [script, css] = await Promise.all([file(fetch, 'widget.js'), file(fetch, 'widget.css')]);
   const url = URL.createObjectURL(new Blob([script], { type: 'text/javascript' }));
   let module: CubeModule;
   try {
@@ -137,15 +142,23 @@ async function load(hash: string, fetch: typeof globalThis.fetch): Promise<CubeM
   } finally {
     URL.revokeObjectURL(url);
   }
-  // DataCube's styles, once for the page and the module, added once it loaded: every selector is scoped to its own
-  // classes, so nothing else on the page changes (the design, "Loading DataCube into the notebook page once")
-  if (document.head.querySelector(`style[data-legend-lite="${hash}"]`) === null) {
-    const style = document.createElement('style');
-    style.dataset['legendLite'] = hash;
-    style.textContent = styles;
-    document.head.append(style);
+  const styles = new CSSStyleSheet();
+  styles.replaceSync(css);
+  return { module, styles };
+}
+
+/**
+ * DataCube's styles where the cube is: the page itself (the menus and dialogs DataCube opens on the page's body) and,
+ * when the cube is inside a shadow root -- marimo puts each widget in one -- that root as well, which a page's styles
+ * never reach. One sheet for the page and the module, adopted once by each root. Every selector is scoped to DataCube's
+ * own classes, so nothing else changes (the design, "Loading DataCube into the notebook page once").
+ */
+function styled(styles: CSSStyleSheet, el: HTMLElement): void {
+  for (const root of new Set([document, el.getRootNode()])) {
+    if ((root instanceof Document || root instanceof ShadowRoot) && !root.adoptedStyleSheets.includes(styles)) {
+      root.adoptedStyleSheets = [...root.adoptedStyleSheets, styles];
+    }
   }
-  return module;
 }
 
 /** anywidget's entry: the cube in `el` once DataCube's module is here; what it returns takes the view down. */
@@ -155,8 +168,10 @@ export default {
     let gone = false;
     let takeDown: (() => void) | undefined;
     const open = (): void => {
-      loaded(String(model.get('_module')), link.fetch).then((module) => {
-        if (!gone) takeDown = module.render(model, el, link.fetch);
+      loaded(String(model.get('_module')), link.fetch).then(({ module, styles }) => {
+        if (gone) return;
+        styled(styles, el);
+        takeDown = module.render(model, el, link.fetch);
       }, (e: unknown) => {
         if (gone) return;
         // the load another view started, cut short when that view was taken down (its cell run again, its output

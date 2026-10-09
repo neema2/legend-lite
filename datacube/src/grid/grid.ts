@@ -47,6 +47,7 @@ import {
 } from '../selection.ts';
 import { toClipboard } from '../export.ts';
 import { onScreen } from './screen-colours.ts';
+import { focusedElement } from '../focus.ts';
 import {
   cellStyle,
   gridVariables,
@@ -1083,10 +1084,11 @@ export class DataGrid {
     if (!target || typeof target.closest !== 'function') return;
     const el = target as unknown as Element;
     if (el.closest('.dc-chevron')) return;
-    const doc = this.#root.ownerDocument;
+    // asked of the grid's own root: inside a shadow root (marimo's), the document answers with the root's host
+    const root = this.#root.getRootNode() as Document | ShadowRoot;
     const cell = (el.isConnected ? el.closest<HTMLElement>('.dc-cell') : null)
-      ?? (typeof doc.elementFromPoint === 'function'
-        ? doc.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('.dc-cell') ?? null
+      ?? (typeof root.elementFromPoint === 'function'
+        ? root.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('.dc-cell') ?? null
         : null);
     if (cell && !this.#body.contains(cell)) return;
     const row = cell?.closest<HTMLElement>('.dc-row');
@@ -1304,8 +1306,8 @@ export class DataGrid {
     // would eject them from the grid, and the next arrow key would go
     // nowhere. Restore focus, but only if it was ours to begin with,
     // so a background refresh never steals it from elsewhere.
-    const hadFocus =
-      doc.activeElement !== null && this.#root.contains(doc.activeElement);
+    const focused = focusedElement(doc);
+    const hadFocus = focused !== null && this.#root.contains(focused);
     this.#body.replaceChildren(frag);
     this.#rendered = wanted;
     if (hadFocus) this.#focusCell();

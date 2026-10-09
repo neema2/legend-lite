@@ -7,6 +7,7 @@
 // It carries `dc-app-floating`, so DataCube's tokens -- and the dark theme's -- apply to it.
 
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
+import { focusedElement } from '../focus.ts';
 
 /** The sections, in the order the window lists them. */
 export type SectionId = 'files' | 'examples' | 'saved' | 'database' | 'remote';
@@ -173,7 +174,7 @@ export function pickSource<T>(doc: Document, options: PickSourceOptions<T>): Pro
     win.setAttribute('role', 'dialog');
     win.setAttribute('aria-modal', 'true');
     win.setAttribute('aria-labelledby', 'dc-picker-title');
-    const before = doc.activeElement as HTMLElement | null;
+    const before = focusedElement(doc) as HTMLElement | null;
 
     let done = false;
     /** What the section on show holds open (a watch on the store): let go when it goes. */
@@ -630,7 +631,8 @@ export function pickSource<T>(doc: Document, options: PickSourceOptions<T>): Pro
     const first = options.start && options.sections[options.start] ? options.start : offered[0]?.id;
     if (first) {
       show(first);
-      if (doc.activeElement === doc.body || !win.contains(doc.activeElement)) tabs.get(first)?.focus();
+      const focused = focusedElement(doc);
+      if (focused === doc.body || !win.contains(focused)) tabs.get(first)?.focus();
     } else {
       empty(panel, 'This page cannot open any source.');
     }

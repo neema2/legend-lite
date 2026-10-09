@@ -82,6 +82,11 @@ reaches Python over the notebook's own widget channel, not HTTP, so it works whe
 kernel's machine (a remote JupyterHub). While a cell runs, the cube waits for it, as any notebook widget does.
 `ll.show(df, inline=False)` opens a tab from a kernel instead (Spyder's console, qtconsole: they show no widgets).
 
+**In a marimo notebook** (`pip install '...whl[notebook,pandas]' marimo`): `ll.show(df)` is the cube for the cell to
+show, marimo's way -- as the cell's last expression (`ll.show(df)`, or `cube = ll.show(df)` then `cube`). When the cell
+that makes `df` runs again, the cube's cell runs again and shows the new frame, the old cube closed with its run; an
+in-place change (`df.loc[...] = ...`) shows at the cube's next query or `cube.refresh()`.
+
 To try it with nothing installed: `bazel run //python:repl` -- the repository's Python and pinned packages, the
 compiler's library and DataCube's site, with `ll`, `pd` and a sample `trades` DataFrame ready.
 
@@ -113,6 +118,8 @@ loads them only when `Frames` or `Engine` is first used.
 
 Tests: `//python:bindings_test` (the compiler, on Python's standard library alone), `//python:frames_test`
 (the frames, against pandas), `//python:engine_test` (the engine over HTTP, and `show()`) and
-`//python:notebook_test` (a notebook's cube: its calls, its version, `show()` in a kernel), on the repository's own
-Python (3.12); `//datacube:python_engine_test`, DataCube itself against the engine in the pinned Chromium, in a tab
-and as notebook cubes.
+`//python:notebook_test` (a notebook's cube: its calls, its version, `show()` in a kernel and in marimo), on the
+repository's own Python (3.12); `//datacube:python_engine_test`, DataCube itself against the engine in the pinned
+Chromium, in a tab and as notebook cubes; and `//datacube:jupyterlab_test` and `//datacube:marimo_test`, the wheel and
+a real JupyterLab or marimo installed into a fresh environment as a developer installs them, a notebook run in the
+pinned Chromium.

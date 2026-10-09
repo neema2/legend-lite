@@ -4,6 +4,9 @@ under the cell, displayed once in the cell show() ran in, shown again when typed
 (inline=False). No kernel runs here: the widget's sends are kept, and a kernel's shell stands in where one is asked
 for."""
 
+import contextlib
+import gc
+import io
 import json
 import os
 import sys
@@ -16,7 +19,7 @@ import IPython
 import pandas as pd
 
 import legend_lite as ll
-from legend_lite import datacube
+from legend_lite import datacube, notebook
 from legend_lite.notebook import DataCube
 
 
@@ -255,3 +258,104 @@ class WithoutTheExtra(unittest.TestCase):
             with self.assertRaises(ModuleNotFoundError) as missing:
                 ll.DataCube  # noqa: B018 -- the lazy import is what is tested
         self.assertIn("pip install 'legend-lite[notebook]'", str(missing.exception))
+
+
+class InMarimo(Widget):
+    """show() in a marimo notebook: marimo stood in for -- running_in_notebook(), its runtime context (one per notebook
+    session), and its cell lifecycle (the hook its own widgets' channels close by) holding what a cell registers until
+    the cell runs again."""
+
+    class Context:
+        """A marimo session's runtime context, as marimo keeps one: the running cell, the cell lifecycle registry."""
+
+        def __init__(self, test):
+            self.cell_id = 'cell-1'
+            self.cell_lifecycle_registry = types.SimpleNamespace(add=lambda item: (item.create(self), test.items.append(item)))
+
+    def setUp(self):
+        super().setUp()
+        self.items = []
+        self.context = self.Context(self)
+        lifecycle = types.ModuleType('marimo._runtime.cell_lifecycle_item')
+        lifecycle.CellLifecycleItem = type('CellLifecycleItem', (), {})
+        context = types.ModuleType('marimo._runtime.context')
+        context.get_context = lambda: self.context
+        marimo = types.ModuleType('marimo')
+        marimo.running_in_notebook = lambda: True
+        self.displayed = []
+        notebook._warned.clear()
+        for patch in (mock.patch.dict(sys.modules, {'marimo': marimo, 'marimo._runtime': types.ModuleType('marimo._runtime'),
+                                                    'marimo._runtime.cell_lifecycle_item': lifecycle,
+                                                    'marimo._runtime.context': context}),
+                      mock.patch('IPython.display.display', lambda *a, **k: self.displayed.append(a))):
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def tearDown(self):
+        for session in list(datacube._marimo_sessions.values()):
+            for cube in list(session.cubes.values()):
+                cube.close()
+        datacube._marimo_sessions.clear()
+        super().tearDown()
+
+    def cell_runs_again(self):
+        """marimo disposes what the cell registered, before it runs the cell again."""
+        items, self.items = self.items, []
+        for item in items:
+            self.assertTrue(item.dispose(None, False))
+
+    def said(self, run):
+        """What ``run`` printed to stderr: legend-lite's warnings."""
+        written = io.StringIO()
+        with contextlib.redirect_stderr(written):
+            result = run()
+        return result, written.getvalue()
+
+    def test_show_is_the_cube_for_the_cell_to_show_nothing_added(self):
+        cube = ll.show(trades())
+        self.assertIsInstance(cube, DataCube)
+        self.assertEqual(self.displayed, [], 'marimo shows the cell\'s last expression: show() adds nothing')
+        self.assertEqual(len(self.items), 1)
+
+    def test_the_cell_run_again_closes_its_cube_and_frees_its_name(self):
+        first = ll.show(trades())
+        self.cell_runs_again()
+        self.assertTrue(first._closed)
+        self.assertNotIn('frame', datacube._current().frames)
+        again = ll.show(trades(2))
+        self.assertEqual(again.name, 'frame', 'a cell run ten times shows frame, not frame_10')
+
+    def test_each_marimo_session_its_own_frames_and_names(self):
+        # marimo run: every viewer's notebook in this one process, a session each
+        first = ll.show(trades(), name='t')
+        self.context = self.Context(self)
+        second = ll.show(trades(2), name='t')
+        self.assertEqual((first.name, second.name), ('t', 't'))
+        self.assertIsNot(datacube._current(), datacube._session)
+        self.assertEqual(len(datacube._marimo_sessions), 2)
+        self.assertEqual(first.version, 0, 'one viewer showing a name never changes another viewer\'s cube')
+
+    def test_a_session_let_go_lets_its_cubes_and_frames_go(self):
+        cube = ll.show(trades())
+        self.context = self.Context(self)
+        self.items.clear()
+        gc.collect()
+        self.assertEqual(len(datacube._marimo_sessions), 0, 'the first session\'s context is gone, and its session')
+        self.assertTrue(cube._closed)
+
+    def test_inline_false_still_opens_a_tab(self):
+        self.assertIsInstance(ll.show(trades(), browser=False, inline=False), datacube.Cube)
+
+    def test_outside_a_cell_the_cube_works_and_says_it_keeps_its_frame(self):
+        self.context.cell_id = None
+        cube, said = self.said(lambda: ll.show(trades()))
+        self.assertIsInstance(cube, DataCube)
+        self.assertEqual(self.items, [])
+        self.assertIn('outside a marimo cell', said)
+
+    def test_without_marimo_s_lifecycle_the_cube_works_and_says_so(self):
+        with mock.patch.dict(sys.modules, {'marimo._runtime.cell_lifecycle_item': None}):
+            cube, said = self.said(lambda: ll.show(trades()))
+        self.assertIsInstance(cube, DataCube)
+        self.assertEqual(self.items, [])
+        self.assertIn('no cell lifecycle', said)

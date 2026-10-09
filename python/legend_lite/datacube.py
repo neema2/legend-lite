@@ -21,6 +21,7 @@ import os
 import sys
 import threading
 import time
+import weakref
 import webbrowser
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -44,6 +45,14 @@ def _stays() -> bool:
         return True
     ipython = sys.modules.get('IPython')
     return ipython is not None and ipython.get_ipython() is not None
+
+
+def _marimo() -> bool:
+    """Whether this code runs in a marimo notebook, whose cells show their last expression. Read from what is already
+    loaded: nothing is imported to ask."""
+    marimo = sys.modules.get('marimo')
+    running = getattr(marimo, 'running_in_notebook', None) if marimo is not None else None
+    return running is not None and running()
 
 
 def _kernel() -> bool:
@@ -229,26 +238,76 @@ class _Session:
 
 _session = _Session()
 
+# marimo's sessions, each its own (_current): marimo's id for one is its runtime context, kept per notebook session (a
+# thread of the server's under `marimo run`)
+_marimo_sessions: dict[int, _Session] = {}
+_marimo_lock = threading.Lock()
+
+
+def _current() -> _Session:
+    """The session show() works in: the process's, or, in a marimo notebook, its marimo session's own. Under `marimo run`
+    every viewer's notebook runs in this one process, a thread each: each gets its own frames, names and engine, so one
+    viewer's cube never shows another's frame, and they are let go with the viewer's session (marimo's runtime context,
+    collected when marimo lets the session go). marimo has no public name for a session: its runtime context is the
+    one its own widgets live by."""
+    if not _marimo():
+        return _session
+    try:
+        from marimo._runtime.context import get_context
+        context = get_context()
+    except Exception:
+        return _session
+    key = id(context)
+    with _marimo_lock:
+        session = _marimo_sessions.get(key)
+        if session is None:
+            session = _marimo_sessions[key] = _Session()
+            weakref.finalize(context, _release, key)
+        return session
+
+
+def _release(key: int) -> None:
+    """A marimo session gone: its cubes closed, its frames out of their database."""
+    with _marimo_lock:
+        session = _marimo_sessions.pop(key, None)
+    if session is None:
+        return
+    for cube in list(session.cubes.values()):
+        try:
+            cube.close()
+        except Exception:
+            # its channel may have gone with the session: the frame is still let go below
+            pass
+    session.frames.close()
+
 
 def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool = True,
          inline: bool | None = None) -> Cube | DataCube:
     """Shows DataCube on ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one) and returns
-    at once: under the cell in a notebook, in a browser tab anywhere else (a plain script that opened one waits at its
-    end until Ctrl-C). ``name`` names its table (``frame``, ``frame_2``, ... unless given; showing a name again
-    replaces its frame and shows its cube again, in a tab or under this cell, as it first showed). ``mode``: Live (the default: each query reads the
-    frame as it is then) or ``'snapped'`` (copied once). ``browser=False`` opens no tab: the link is ``cube.url``.
+    at once: under the cell in a Jupyter notebook; in a marimo notebook, as the cell's output when it is the cell's last
+    expression (marimo's way); in a browser tab anywhere else (a plain script that opened one waits at its end until
+    Ctrl-C). ``name`` names its table (``frame``, ``frame_2``, ... unless given; showing a name again
+    replaces its frame and shows its cube again, in a tab or under this cell, as it first showed -- in marimo, a new
+    cube each call, the latest taking the name's frame). ``mode``: Live (the default: each query reads the frame as it
+    is then) or ``'snapped'`` (copied once). ``browser=False`` opens no tab: the link is ``cube.url``.
     ``inline=False`` opens a tab from a notebook's kernel too (a console that shows no widget: Spyder's, qtconsole);
     under the cell needs the notebook extra (``pip install 'legend-lite[notebook]'``)."""
+    if _marimo() and inline is not False:
+        # a marimo notebook: the cube for the cell to show, as its last expression (marimo's way: nothing is added to
+        # the cell's output, which would show it twice); the cell's next run closes it
+        from .notebook import for_marimo
+        return for_marimo(frame, name, mode)
     if inline is None:
         # a name shown again shows where it showed; a new one under the cell in a notebook's kernel, else in a tab
-        shown_before = _session.cubes.get(name.lower()) if name is not None else None
+        shown_before = _current().cubes.get(name.lower()) if name is not None else None
         inline = not isinstance(shown_before, Cube) if shown_before is not None else _kernel()
     if inline:
         # the notebook extra: without anywidget, the import says how to install it
         from .notebook import shown
         return shown(frame, name, mode)
-    cube = _session.show(frame, name, mode)
+    session = _current()
+    cube = session.show(frame, name, mode)
     print(f'DataCube: {cube.url}', flush=True)
     if browser and webbrowser.open(cube.url):
-        _session.opened = True
+        session.opened = True
     return cube

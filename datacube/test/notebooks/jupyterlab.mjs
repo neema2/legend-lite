@@ -1,7 +1,7 @@
 // A NOTEBOOK'S CUBE IN A REAL JUPYTERLAB, run in the pinned Chromium (//datacube:jupyterlab_test). Node here only
-// drives the browser (Playwright): it starts JupyterLab (jupyterlab_fixture.py, beside it: legend-lite's wheel and
+// drives the browser (Playwright): it starts JupyterLab (notebook_fixture.py, beside it: legend-lite's wheel and
 // JupyterLab pip-installed into a fresh environment, offline, as a developer installs them), opens the notebook
-// (datacube.ipynb), runs its cells one by one, and
+// (jupyterlab.ipynb), runs its cells one by one, and
 // checks what a person would see -- the parts the other tests stand in for: anywidget's own front end loading the cube,
 // ipywidgets' channel to a real kernel, the cell outputs, and JupyterLab's keyboard shortcuts. The manual check it
 // replaces found a real fault (docs/datacube-python-show/jupyterlab-check/).
@@ -19,7 +19,7 @@ import { runfileFromEnv } from '../../../tools/js/runfiles.mts';
 
 // the wheels by their runfiles paths (LEGEND_LITE_WHEEL, LEGEND_LITE_DEPENDENCY_WHEELS), resolved by the fixture: a
 // program a test starts gets the test's environment and runfiles, no BUILD env of its own
-const fixture = spawn(runfileFromEnv('JUPYTERLAB_FIXTURE'), ['--notebook', runfileFromEnv('NOTEBOOK')], {
+const fixture = spawn(runfileFromEnv('NOTEBOOK_FIXTURE'), ['--app', 'jupyterlab', '--notebook', runfileFromEnv('NOTEBOOK')], {
   stdio: ['pipe', 'pipe', 'pipe'],
 });
 // JupyterLab's own account (and its kernel's), in this test's log: a server-side reason is then never invisible
@@ -42,7 +42,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1400, height: 2200 } });
   page.on('pageerror', (e) => { say(false, `no error in the page: ${e.message}`); });
   page.on('console', (m) => { if (m.type() === 'error') console.log(`page console: ${m.text().slice(0, 300)}`); });
-  await page.goto(`${served.url}lab/tree/datacube.ipynb?token=${served.token}`);
+  await page.goto(`${served.url}lab/tree/jupyterlab.ipynb?token=${served.token}`);
   // the notebook's kernel started and done with what it was given
   const idle = () => page.waitForFunction(() => {
     const nb = window.jupyterapp?.shell?.currentWidget;
@@ -71,6 +71,8 @@ try {
     return [1, 2].every((i) => /\b4 rows\b/.test(cells[i].node.innerText));
   });
   say((await cellText(1)).includes('the engine at kernel'), 'the cube says where its rows came from: the kernel');
+  say(await page.locator('.dc-app').first().evaluate((app) => getComputedStyle(app).getPropertyValue('--dc-font').trim() !== ''),
+    'the cube is styled: DataCube\'s styles reach it');
   await run(3);
   await until('an in-place change shows after its cell, by itself', () =>
     window.jupyterapp.shell.currentWidget.content.widgets[1].node.innerText.includes('999.50'));

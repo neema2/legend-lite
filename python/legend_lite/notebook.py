@@ -2,6 +2,7 @@
 channel to this process's engine. The design: docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md, "In a notebook".
 
     cube = ll.show(df)          # in a notebook's kernel: the cube under the cell
+    ll.show(df)                 # in a marimo notebook: the cube, as the cell's last expression
     ll.DataCube(df)             # the cube as a widget object (an ipywidgets layout takes it)
 
 Needs the notebook extra, ``pip install 'legend-lite[notebook]'`` (anywidget). The browser never reaches this process
@@ -18,6 +19,7 @@ not sent with every widget as anywidget would.
 from __future__ import annotations
 
 import hashlib
+import sys
 import threading
 import traceback
 from functools import cache
@@ -70,7 +72,7 @@ class DataCube(anywidget.AnyWidget):
         # closed until it is made: ipywidgets closes a widget when it is collected, one whose making failed too, and
         # that close must find nothing to undo (the audit of step 7, S1: a bad frame printed a second traceback)
         self._closed = True
-        session = datacube._session
+        session = datacube._current()
         engine = session.engine()
         assert engine.site is not None  # the session's engine always has DataCube's site
         loader, module = _loader(engine.site)
@@ -165,10 +167,54 @@ class DataCube(anywidget.AnyWidget):
         return f'<DataCube {self.name!r}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
 
 
+def for_marimo(frame: Any, name: str | None, mode: str) -> DataCube:
+    """``show()`` in a marimo notebook: a new cube over the frame, for the cell to show as its output. marimo carries its
+    calls over its own widget channel; when the cell runs again (or is deleted), marimo closes that channel, and the
+    cube closes with it -- its frame out of the engine, its name free for the cube the new run shows. marimo has no
+    public hook for that: this is its own (``CellLifecycleItem``, by which it closes every widget's channel), held by
+    //datacube:marimo_test at the pinned marimo. Without it -- a marimo that moved it, or a show() run outside a cell (a
+    UI element's callback) -- the cube works and keeps its frame until ``close()``, and says so once."""
+    registry = None
+    try:
+        from marimo._runtime.cell_lifecycle_item import CellLifecycleItem
+        from marimo._runtime.context import get_context
+        context = get_context()
+        if context.cell_id is not None:
+            registry = context.cell_lifecycle_registry
+    except (ImportError, AttributeError):
+        _warn_once('this marimo has no cell lifecycle legend-lite knows: a cube keeps its frame until cube.close()')
+    else:
+        if registry is None:
+            _warn_once('show() ran outside a marimo cell: its cube keeps its frame until cube.close()')
+    cube = DataCube(frame, name, mode=mode)
+    if registry is None:
+        return cube
+
+    class ClosesWithItsCell(CellLifecycleItem):
+        def create(self, context: Any) -> None:
+            pass
+
+        def dispose(self, context: Any, deletion: bool) -> bool:
+            cube.close()
+            return True
+
+    registry.add(ClosesWithItsCell())
+    return cube
+
+
+_warned: set[str] = set()
+
+
+def _warn_once(message: str) -> None:
+    if message not in _warned:
+        _warned.add(message)
+        print(f'legend-lite: {message}', file=sys.stderr, flush=True)
+
+
 def shown(frame: Any, name: str | None, mode: str) -> DataCube:
     """``show()`` in a notebook: the frame registered, its name's cube -- the one it has, else a new one -- shown
     under this cell."""
-    session = datacube._session
+    session = datacube._current()
     cube = session.cubes.get(name.lower()) if name is not None else None
     if isinstance(cube, DataCube) and not cube._closed:
         cube.update(frame, mode)

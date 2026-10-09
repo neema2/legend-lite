@@ -200,9 +200,9 @@ place, an arrow key moving the grid's selection, not the notebook's cell -- in a
 for this test alone; on Windows Jupyter's terminals need pywinpty, which the macOS-resolved lock cannot hold). The
 manual run before it, and the fault it found: `docs/datacube-python-show/jupyterlab-check/`.
 
-## In a marimo notebook (step 9, proposed 2026-10-09)
+## In a marimo notebook (step 9)
 
-The user (2026-10-09): "support marimo first class too". marimo is a reactive Python notebook: a cell re-runs when a
+The user (2026-10-09): "support marimo first class too", and, of the two ways to show the cube, "Marimo way is okay". marimo is a reactive Python notebook: a cell re-runs when a
 variable it reads is assigned again, and a cell's output is its last expression. Read in marimo 0.25.1's own source:
 it shows any anywidget a cell outputs (`marimo/_output/formatters/anywidget_formatters.py`, no `mo.ui.anywidget(...)`
 needed), and it carries an anywidget's messages -- custom ones too, with binary buffers -- over its own channel
@@ -221,16 +221,32 @@ ll.show(df)                 # the cell's output: the cube, under the cell
   copy, and marimo cannot tell the two apart (the Jupyter guard leans on IPython's display hook, which marimo has not).
 - **Following the frame, marimo's way.** A re-run is marimo's update: when the cell that made `df` runs again, the cell
   showing it runs again and shows a cube over the new frame. marimo closes the old cube's channel at the re-run
-  (`CommLifecycleItem`), and the cube's frame goes out of the engine with it, so its name is free again (a cell run ten
-  times shows `frame`, not `frame_10`). An in-place change (`df.loc[0, "qty"] = 5`) is not a marimo assignment, so no
+  (`CommLifecycleItem`), and the cube closes with it, its frame out of the engine and its name free again (a cell run ten
+  times shows `frame`, not `frame_10`). marimo has no public hook for a cell's re-run: the cube registers through the one
+  marimo's own widgets close by (`marimo._runtime.cell_lifecycle_item.CellLifecycleItem`), held by the test at the
+  pinned marimo; a marimo without it gets a working cube that keeps its frame until `cube.close()`, and says so once. An in-place change (`df.loc[0, "qty"] = 5`) is not a marimo assignment, so no
   cell re-runs: the cube shows it at its next query (a click, or `cube.refresh()`), as at a plain `>>>` prompt.
 - **Install.** The same extra: `pip install 'legend-lite[notebook]' marimo`. marimo is the person's, never ours to
   require.
-- **Held by** `//datacube:marimo_test`, as the JupyterLab test is: legend-lite's wheel and marimo pip-installed into a
-  fresh environment offline, a marimo notebook served by `marimo run`, and the pinned Chromium checking the cube under
-  its cell with the frame's rows, a marimo control (a slider filtering the frame) re-running the cell and the cube
-  showing the new frame under the same name, and the cube's keys kept. marimo pinned for that test alone (about 20
-  packages beyond what anywidget brings). Linux and macOS, as the JupyterLab test.
+- **A session per marimo session.** Under `marimo run` every viewer's notebook runs in one Python process, a thread
+  each (marimo's own design). So legend-lite keeps its frames, names and engine per marimo session -- keyed by marimo's
+  runtime context, the one its own widgets live by -- and lets them go when marimo lets that session go: one viewer's
+  `ll.show(df, name="t")` never changes another viewer's cube, and a viewer who leaves leaves nothing behind. Outside
+  marimo it is one session per process, as before. Within one session, `show()` makes a new cube each call: the same
+  name in two cells is one frame, the latest cube's.
+- **A shadow root.** marimo puts each widget in a shadow root (`marimo-anywidget`), which a page's styles never enter
+  and where the document's `activeElement` -- and an event's target, and `elementFromPoint` -- answer with the root's
+  host. Found by the test and its audit, fixed in DataCube for every host:
+  the widget's loader adopts DataCube's styles (one `CSSStyleSheet`) into the page and into the shadow root a cube is
+  in, and DataCube asks where the focus is through the shadow roots that hold it (`datacube/src/focus.ts`: the grid kept
+  dropping the focus on each re-render, so an arrow key went nowhere); a double-click finds its cell by the grid's own
+  root, and a menu tells a press on its trigger by the event's composed path.
+- **Held by** `//datacube:marimo_test`, as the JupyterLab test is (one fixture for both,
+  `datacube/test/notebooks/notebook_fixture.py`): legend-lite's wheel and marimo pip-installed into a fresh environment
+  offline, a marimo notebook served by `marimo run`, and the pinned Chromium checking the cube as the cell's output with
+  the frame's rows and DataCube's styles, a marimo slider re-running the cells and the cube showing the new frame under
+  the same name with one cube left on the page, and an arrow key moving the grid's selection. marimo 0.25.1 pinned for
+  that test alone (14 packages beyond the JupyterLab test's). Linux and Apple-silicon Macs, as the JupyterLab test.
 
 ## Order
 

@@ -11,6 +11,7 @@
 // get back to the grid.
 
 import type { MenuGroup, MenuItem } from './menu.ts';
+import { focusedElement } from '../focus.ts';
 
 export interface MenuViewOptions {
   readonly onSelect: (item: MenuItem) => void;
@@ -59,7 +60,7 @@ export class MenuView {
     if (groups.length === 0) return;
     this.#trigger = trigger ?? null;
 
-    this.#returnFocus = this.#doc.activeElement;
+    this.#returnFocus = focusedElement(this.#doc);
     const menu = this.#doc.createElement('div');
     menu.className = 'dc-menu';
     // Focusable, but not in the tab order: focus is put here
@@ -184,7 +185,9 @@ export class MenuView {
   }
 
   #onOutside = (event: Event): void => {
-    const target = event.target;
+    // the element pressed, inside whatever shadow root holds it (marimo's): at the document the event's target is the
+    // root's host, which would make a press on the menu's own trigger an outside one
+    const target = event.composedPath?.()[0] ?? event.target;
     if (!(target && 'nodeType' in (target as object))) return;
     const node = target as Node;
     if (this.#el?.contains(node)) return;
@@ -246,7 +249,7 @@ export class MenuView {
     const items = this.items;
     if (items.length === 0) return;
     const current = items.indexOf(
-      this.#doc.activeElement as HTMLElement,
+      focusedElement(this.#doc) as HTMLElement,
     );
 
     switch (event.key) {
