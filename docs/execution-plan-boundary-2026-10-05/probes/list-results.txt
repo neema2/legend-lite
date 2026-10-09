@@ -1,0 +1,113 @@
+== DuckDB v1.4.4
+-- ID
+  literal IN: [1, 3]
+  = ANY(?) BIGINT: [1, 3]; empty []
+  = ANY(?) INTEGER: [1, 3]; empty []
+  = ANY(?) int8: [1, 3]; empty []
+-- NAME
+  literal IN: [1, 3]
+  = ANY(?) VARCHAR: [1, 3]; empty []
+  = ANY(?) varchar: [1, 3]; empty []
+  = ANY(?) text: [1, 3]; empty []
+-- PRICE
+  literal IN: [1, 3]
+  = ANY(?) DECIMAL: [1, 3]; empty []
+  = ANY(?) NUMERIC: [1, 3]; empty []
+  = ANY(?) numeric: [1, 3]; empty []
+-- D
+  literal IN: [1, 3]
+  = ANY(?) DATE: [1, 3]; empty []
+  = ANY(?) date: [1, 3]; empty []
+-- TS
+  literal IN: [1, 3]
+  = ANY(?) TIMESTAMP: [1, 3]; empty []
+  = ANY(?) timestamp: [1, 3]; empty []
+-- B
+  literal IN: [1, 3]
+  = ANY(?) BOOLEAN: [1, 3]; empty []
+  = ANY(?) boolean: [1, 3]; empty []
+-- P
+  literal IN: [1, 3]
+  = ANY(?) DECIMAL: [2]; empty []
+  = ANY(?) NUMERIC: [2]; empty []
+== H2 2.1.214 (2022-06-13)
+-- ID
+  literal IN: [1, 3]
+  = ANY(?) BIGINT: [1, 3]; empty []
+  = ANY(CAST(? AS BIGINT ARRAY)) BIGINT: FAIL JdbcSQLSyntaxErrorException: Values of types "INTEGER" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "INTEGER" and "BOOLEAN" are not comparable; SQL statement:
+  = ANY(?) INTEGER: [1, 3]; empty []
+  = ANY(CAST(? AS BIGINT ARRAY)) INTEGER: FAIL JdbcSQLSyntaxErrorException: Values of types "INTEGER" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "INTEGER" and "BOOLEAN" are not comparable; SQL statement:
+  = ANY(?) int8: [1, 3]; empty []
+  = ANY(CAST(? AS BIGINT ARRAY)) int8: FAIL JdbcSQLSyntaxErrorException: Values of types "INTEGER" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "INTEGER" and "BOOLEAN" are not comparable; SQL statement:
+-- NAME
+  literal IN: [1, 3]
+  = ANY(?) VARCHAR: [1, 3]; empty []
+  = ANY(CAST(? AS VARCHAR ARRAY)) VARCHAR: FAIL JdbcSQLSyntaxErrorException: Values of types "CHARACTER VARYING(20)" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "CHARACTER VARYING(20)" and "BOOLEAN" are not comparable; SQL statement:
+  = ANY(?) varchar: [1, 3]; empty []
+  = ANY(CAST(? AS VARCHAR ARRAY)) varchar: FAIL JdbcSQLSyntaxErrorException: Values of types "CHARACTER VARYING(20)" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "CHARACTER VARYING(20)" and "BOOLEAN" are not comparable; SQL statement:
+  = ANY(?) text: [1, 3]; empty []
+  = ANY(CAST(? AS VARCHAR ARRAY)) text: FAIL JdbcSQLSyntaxErrorException: Values of types "CHARACTER VARYING(20)" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "CHARACTER VARYING(20)" and "BOOLEAN" are not comparable; SQL statement:
+-- PRICE
+  literal IN: [1, 3]
+  = ANY(?) DECIMAL: [1, 3]; empty []
+  = ANY(CAST(? AS DECIMAL(38,2) ARRAY)) DECIMAL: FAIL JdbcSQLSyntaxErrorException: Values of types "DECIMAL(10, 2)" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "DECIMAL(10, 2)" and "BOOLEAN" are not comparable; SQL statement:
+  = ANY(?) NUMERIC: [1, 3]; empty []
+  = ANY(CAST(? AS DECIMAL(38,2) ARRAY)) NUMERIC: FAIL JdbcSQLSyntaxErrorException: Values of types "DECIMAL(10, 2)" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "DECIMAL(10, 2)" and "BOOLEAN" are not comparable; SQL statement:
+  = ANY(?) numeric: [1, 3]; empty []
+  = ANY(CAST(? AS DECIMAL(38,2) ARRAY)) numeric: FAIL JdbcSQLSyntaxErrorException: Values of types "DECIMAL(10, 2)" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "DECIMAL(10, 2)" and "BOOLEAN" are not comparable; SQL statement:
+-- D
+  literal IN: [1, 3]
+  = ANY(?) DATE: [1, 3]; empty []
+  = ANY(CAST(? AS DATE ARRAY)) DATE: FAIL JdbcSQLSyntaxErrorException: Values of types "DATE" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "DATE" and "BOOLEAN" are not comparable; SQL statement:
+  = ANY(?) date: [1, 3]; empty []
+  = ANY(CAST(? AS DATE ARRAY)) date: FAIL JdbcSQLSyntaxErrorException: Values of types "DATE" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "DATE" and "BOOLEAN" are not comparable; SQL statement:
+-- TS
+  literal IN: [1, 3]
+  = ANY(?) TIMESTAMP: [1, 3]; empty []
+  = ANY(CAST(? AS TIMESTAMP ARRAY)) TIMESTAMP: FAIL JdbcSQLSyntaxErrorException: Values of types "TIMESTAMP" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "TIMESTAMP" and "BOOLEAN" are not comparable; SQL statement:
+  = ANY(?) timestamp: [1, 3]; empty []
+  = ANY(CAST(? AS TIMESTAMP ARRAY)) timestamp: FAIL JdbcSQLSyntaxErrorException: Values of types "TIMESTAMP" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "TIMESTAMP" and "BOOLEAN" are not comparable; SQL statement:
+-- B
+  literal IN: [1, 3]
+  = ANY(?) BOOLEAN: [1, 3]; empty []
+  = ANY(CAST(? AS BOOLEAN ARRAY)) BOOLEAN: FAIL JdbcSQLSyntaxErrorException: Invalid use of aggregate function "ANY(CAST(?1 AS BOOLEAN ARRAY))"; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Invalid use of aggregate function "ANY(CAST(?1 AS BOOLEAN ARRAY))"; SQL statement:
+  = ANY(?) boolean: [1, 3]; empty []
+  = ANY(CAST(? AS BOOLEAN ARRAY)) boolean: FAIL JdbcSQLSyntaxErrorException: Invalid use of aggregate function "ANY(CAST(?1 AS BOOLEAN ARRAY))"; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Invalid use of aggregate function "ANY(CAST(?1 AS BOOLEAN ARRAY))"; SQL statement:
+-- P
+  literal IN: [1, 3]
+  = ANY(?) DECIMAL: [1, 3]; empty []
+  = ANY(CAST(? AS DECIMAL(38,4) ARRAY)) DECIMAL: FAIL JdbcSQLSyntaxErrorException: Values of types "DECIMAL(10, 4)" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "DECIMAL(10, 4)" and "BOOLEAN" are not comparable; SQL statement:
+  = ANY(?) NUMERIC: [1, 3]; empty []
+  = ANY(CAST(? AS DECIMAL(38,4) ARRAY)) NUMERIC: FAIL JdbcSQLSyntaxErrorException: Values of types "DECIMAL(10, 4)" and "BOOLEAN" are not comparable; SQL statement:; empty FAIL JdbcSQLSyntaxErrorException: Values of types "DECIMAL(10, 4)" and "BOOLEAN" are not comparable; SQL statement:
+== PostgreSQL 16.15
+-- ID
+  literal IN: [1, 3]
+  = ANY(?) BIGINT: [1, 3]; empty []
+  = ANY(?) INTEGER: [1, 3]; empty []
+  = ANY(?) int8: [1, 3]; empty []
+-- NAME
+  literal IN: [1, 3]
+  = ANY(?) VARCHAR: [1, 3]; empty []
+  = ANY(?) varchar: [1, 3]; empty []
+  = ANY(?) text: [1, 3]; empty []
+-- PRICE
+  literal IN: [1, 3]
+  = ANY(?) DECIMAL: [1, 3]; empty []
+  = ANY(?) NUMERIC: [1, 3]; empty []
+  = ANY(?) numeric: [1, 3]; empty []
+-- D
+  literal IN: [1, 3]
+  = ANY(?) DATE: [1, 3]; empty []
+  = ANY(?) date: [1, 3]; empty []
+-- TS
+  literal IN: [1, 3]
+  = ANY(?) TIMESTAMP: [1, 3]; empty []
+  = ANY(?) timestamp: [1, 3]; empty []
+-- B
+  literal IN: [1, 3]
+  = ANY(?) BOOLEAN: [1, 3]; empty []
+  = ANY(?) boolean: [1, 3]; empty []
+-- P
+  literal IN: [1, 3]
+  = ANY(?) DECIMAL: [1, 3]; empty []
+  = ANY(?) NUMERIC: [1, 3]; empty []

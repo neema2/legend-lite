@@ -600,7 +600,8 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.JsonArray j -> jsonArray(writer, j);
             case SqlExpr.JsonArrayAgg j -> jsonArrayAgg(writer, j);
             case SqlExpr.ReduceCollection rc -> reduceCollection(writer, rc);
-            case SqlExpr.Membership m -> membership(writer, m);
+            case SqlExpr.Membership m -> m.collection() instanceof SqlExpr.PlanParam p ? anyOf(writer, m.needle(), p)
+                    : membership(writer, m);
             case SqlAgg.Reducer r -> reducer(writer, r);
         };
     }
@@ -750,10 +751,9 @@ public class AnsiSqlRenderer implements SqlDialect {
             case IS_NULL -> writer.expr(a.get(0), 4).append(" IS NULL");
             case IS_NOT_NULL -> writer.expr(a.get(0), 4).append(" IS NOT NULL");
             case IN -> {
-                // a plan parameter as the WHOLE list is a collection: one array, bound in step 2's landing 2
+                // a plan parameter as the WHOLE list: one array, bound once
                 if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
-                    throw new DialectCapability("plan parameter '" + p.name() + "' is IN's whole list (a collection):"
-                            + " binding it as an array is step 2's landing 2, not yet");
+                    yield anyOf(writer, a.get(0), p);
                 }
                 yield writer.expr(a.get(0), 4).append(" IN (").list(a.subList(1, a.size())).append(")");
             }
@@ -1260,6 +1260,23 @@ public class AnsiSqlRenderer implements SqlDialect {
                     + " function (a value table, a plan template's): never a bound value");
         }
         return new RenderedStatement.Bind(p.name(), null);
+    }
+
+    /**
+     * {@code needle = ANY(?)}: a list parameter bound as ONE array of its element type, written bare on every database —
+     * each answers it as the literal {@code IN (...)} a let writes, the empty list included, and H2 reads a CAST inside
+     * {@code ANY(...)} as its boolean aggregate (docs/execution-plan-boundary-2026-10-05/probes/list-results.txt). A
+     * whole-list parameter with no array of a named element type is a plan template's, never bound.
+     */
+    private SqlWriter anyOf(SqlWriter writer, SqlExpr needle, SqlExpr.PlanParam list) {
+        if (!(list.type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() instanceof com.legend.sql.SqlType.Array array
+                && array.element() instanceof com.legend.sql.SqlType.Scalar element)) {
+            throw new DialectCapability("plan parameter '" + list.name() + "' is a whole list with no array of a named"
+                    + " element type (a plan template's): never a bound value");
+        }
+        return writer.expr(needle, 4).append(" = ANY(").bind(new RenderedStatement.Bind(list.name(), element.name()))
+                .append(")");
     }
 
     /** A writer for this dialect: its {@link SqlWriter#expr} writes a sub-expression in this dialect's spelling. */

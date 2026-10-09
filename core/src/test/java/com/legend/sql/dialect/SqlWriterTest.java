@@ -145,7 +145,7 @@ class SqlWriterTest {
         for (Map.Entry<SqlExpr.Call, String> c : List.of(
                 Map.entry(SqlExpr.Call.of(SqlFn.EQUAL, NAME, raw), "is RAW"),
                 Map.entry(SqlExpr.Call.of(SqlFn.EQUAL, NAME, level), "legacy printer's mapping function"),
-                Map.entry(SqlExpr.Call.of(SqlFn.IN, NAME, P_NAME), "IN's whole list"))) {
+                Map.entry(SqlExpr.Call.of(SqlFn.IN, NAME, P_NAME), "a whole list with no array of a named element type"))) {
             var refused = assertThrows(DialectCapability.class, () -> new DuckDb().renderStatement(where(c.getKey())));
             assertTrue(refused.getMessage().contains(c.getValue()), refused.getMessage());
         }

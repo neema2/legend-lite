@@ -38,7 +38,8 @@ final class PlanMaker {
         List<QueryParameters.Declared> declared = query.parameters();
         List<com.legend.sql.SqlExpr.PlanParam> slots = new ArrayList<>(declared.size());
         for (QueryParameters.Declared p : declared) {
-            slots.add(slot(p));
+            // one value, an optional one's absence, or a list as one array (Declared.slot)
+            slots.add(p.slot());
         }
         Compiler.LoweredQuery l = query.lower(runtime, output == TypedQuery.Output.STREAMED_JSON, slots);
         // the runtime decided: a null one is refused there, by name
@@ -67,20 +68,6 @@ final class PlanMaker {
             };
         };
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(), node);
-    }
-
-    /** A declared parameter as the slot its uses lower to: one value of a primitive type or an enumeration (its
-     *  name), or an optional one's absence ({@code Declared.slot}, which refuses a class: a value is a plain value,
-     *  §9's step 2 decisions); a list is the next slice's, refused by name. */
-    private static com.legend.sql.SqlExpr.PlanParam slot(QueryParameters.Declared p) {
-        String which = "parameter '" + p.name() + "' (" + p.type().typeName() + "["
-                + com.legend.plan.PurePrint.sizeRange(p.multiplicity()) + "])";
-        if (!(p.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
-                && Integer.valueOf(1).equals(b.upper()))) {
-            throw new com.legend.error.NotImplementedException(which + ": a list, bound as one array, is step 2's"
-                    + " landing 2 slice (e), not yet");
-        }
-        return p.slot();
     }
 
     /** The whole result as one text of {@code format}: the lowered query, of {@code root}'s type, wrapped by the wire. */

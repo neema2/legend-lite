@@ -112,7 +112,12 @@ class ParkedWorkLedgerTest {
             // PARK-19 (2026-10-09, step 2's landing 2 slice (b)): H2 types a parameter when it prepares the statement,
             // and a Float's, Decimal's, Date's or Number's literal has no one type a statement names
             Map.entry("PARK-19 on H2, a parameter whose literal has no one type is not bound",
-                    new Anchor("has no one type a statement names", List.of("H2.java")))));
+                    new Anchor("has no one type a statement names", List.of("H2.java"))),
+            // PARK-20 (2026-10-09, step 2's landing 2 slice (e)): DuckDB's driver makes a decimal array of
+            // scale 3, and a Date's or Number's list has no one element type
+            Map.entry("PARK-20 a list of decimals, Dates or Numbers is not bound as a parameter",
+                    new Anchor("a list of decimals, Dates or Numbers has no one element type",
+                            List.of("QueryParameters.java")))));
 
     private record Anchor(String pattern, List<String> files) {
     }
