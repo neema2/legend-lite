@@ -263,6 +263,9 @@ TEST_IMPORTS = {
         "src/ui/window.ts",
         "src/upload.ts",
     ],
+    "bands": [
+        "src/layout/bands.ts",
+    ],
     "board": [
         "src/layout/board.ts",
         "src/layout/tile-layout.ts",

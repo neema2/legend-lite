@@ -1,0 +1,369 @@
+// A PAGE'S LAYOUT, AS BANDS (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md, §3.2): a stack of bands, top to bottom; a band
+// divided into columns, a column divided again (across into stacked parts, or into columns), down to tiles. Every band
+// has a height, as a share of one screenful; a page that fits its window shares the window among its bands instead,
+// and one that does not scrolls when they are taller than it.
+//
+// PURE, as tile-layout.ts is: no DOM, no pixels, no state. Every function takes a layout and returns a new one, so
+// what every gesture does -- a drop on a tile's edge or between bands, a divider moved, a preset, a tile added or
+// removed -- is testable in node, and the pointer layer only turns the pointer into these calls.
+//
+// The rules, enforced by construction and checked by `problems`:
+//   - every tile is in the layout once;
+//   - a split has two parts or more, and their shares are positive and sum to 1 (a split left with one part becomes
+//     that part; a band left with nothing goes);
+//   - a split's parts never split the same way it does (a row in a row is one row): so the tree is the fewest
+//     dividers that draw the page, and a divider means one thing;
+//   - a band's height is positive.
+
+/** A place in a band: a tile, or a split of places side by side (`row`) or one above another (`column`). */
+export type Node = TileNode | SplitNode;
+
+export interface TileNode {
+  readonly tile: string;
+}
+
+export interface SplitNode {
+  readonly split: 'row' | 'column';
+  readonly parts: readonly Part[];
+}
+
+/** A part of a split: its place, and its share of the split's width (a row) or height (a column). */
+export interface Part {
+  readonly node: Node;
+  readonly size: number;
+}
+
+export interface Band {
+  /** Its height, in screenfuls: 0.5 is half the window's height (a page that fits its window shares it instead). */
+  readonly height: number;
+  readonly node: Node;
+}
+
+export interface Bands {
+  /** The page fits its window: its bands share the window's height, and nothing scrolls. */
+  readonly fit: boolean;
+  readonly bands: readonly Band[];
+}
+
+/** Where a dragged tile can land: beside or above or below a tile, in place of it, or as a band of its own. */
+export type Drop =
+  | { readonly onto: string; readonly edge: 'left' | 'right' | 'top' | 'bottom' }
+  | { readonly swap: string }
+  | { readonly band: number };
+
+/** A band's height when nothing says otherwise: half a screen. */
+export const BAND_HEIGHT = 0.5;
+/** A part's least share of its split, and a band's least height: a divider stops there. */
+export const MIN_SHARE = 0.1;
+export const MIN_BAND_HEIGHT = 0.15;
+/** Smart placement's widest band: a new tile beside its neighbour while the band holds fewer than this. */
+export const MAX_COLUMNS = 4;
+
+export const EMPTY: Bands = { fit: false, bands: [] };
+
+const isTile = (node: Node): node is TileNode => 'tile' in node;
+
+/** The tiles, in reading order: band by band, left to right, top to bottom within a band. */
+export function tiles(layout: Bands): string[] {
+  const out: string[] = [];
+  const walk = (node: Node): void => {
+    if (isTile(node)) out.push(node.tile);
+    else for (const part of node.parts) walk(part.node);
+  };
+  for (const band of layout.bands) walk(band.node);
+  return out;
+}
+
+/** What is wrong with a layout (nothing, for every layout these functions return). */
+export function problems(layout: Bands): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  const walk = (node: Node, parent: SplitNode['split'] | null, where: string): void => {
+    if (isTile(node)) {
+      if (seen.has(node.tile)) out.push(`${node.tile} is in the layout twice`);
+      seen.add(node.tile);
+      return;
+    }
+    if (node.parts.length < 2) out.push(`${where}: a split of ${node.parts.length} part`);
+    if (node.split === parent) out.push(`${where}: a ${node.split} inside a ${parent}`);
+    const total = node.parts.reduce((sum, part) => sum + part.size, 0);
+    if (Math.abs(total - 1) > 1e-9) out.push(`${where}: shares summing to ${total}`);
+    node.parts.forEach((part, i) => {
+      if (!(part.size > 0)) out.push(`${where}.${i}: a share of ${part.size}`);
+      walk(part.node, node.split, `${where}.${i}`);
+    });
+  };
+  layout.bands.forEach((band, i) => {
+    if (!(band.height > 0)) out.push(`band ${i}: a height of ${band.height}`);
+    walk(band.node, null, `band ${i}`);
+  });
+  return out;
+}
+
+// -- the tree's own arithmetic --------------------------------------
+
+/** A split of `nodes` in `direction`, its shares `sizes` (equal when not given); one node is itself. */
+function split(direction: SplitNode['split'], nodes: readonly Node[], sizes?: readonly number[]): Node {
+  if (nodes.length === 1) return nodes[0]!;
+  const shares = sizes ?? nodes.map(() => 1 / nodes.length);
+  // a part splitting the same way is folded in: its parts take its share between them
+  const parts: Part[] = [];
+  nodes.forEach((node, i) => {
+    const share = shares[i]!;
+    if (!isTile(node) && node.split === direction) {
+      for (const inner of node.parts) parts.push({ node: inner.node, size: inner.size * share });
+    } else {
+      parts.push({ node, size: share });
+    }
+  });
+  return { split: direction, parts: normalized(parts) };
+}
+
+/** Shares summing to 1. */
+function normalized(parts: readonly Part[]): Part[] {
+  const total = parts.reduce((sum, part) => sum + part.size, 0);
+  return parts.map((part) => ({ node: part.node, size: part.size / total }));
+}
+
+/** `node` without `tile` (null when nothing is left), the hole closed: the neighbours take its share. */
+function without(node: Node, tile: string): Node | null {
+  if (isTile(node)) return node.tile === tile ? null : node;
+  const kept: Part[] = [];
+  for (const part of node.parts) {
+    const rest = without(part.node, tile);
+    if (rest !== null) kept.push({ node: rest, size: part.size });
+  }
+  if (kept.length === 0) return null;
+  if (kept.length === 1) return kept[0]!.node;
+  return split(node.split, kept.map((part) => part.node), normalized(kept).map((part) => part.size));
+}
+
+/** `node` with `tile`'s place replaced by `replacement`. */
+function replaced(node: Node, tile: string, replacement: Node): Node {
+  if (isTile(node)) return node.tile === tile ? replacement : node;
+  return split(node.split, node.parts.map((part) => replaced(part.node, tile, replacement)),
+    node.parts.map((part) => part.size));
+}
+
+function contains(node: Node, tile: string): boolean {
+  return isTile(node) ? node.tile === tile : node.parts.some((part) => contains(part.node, tile));
+}
+
+/** The band holding `tile`, or -1. */
+export function bandOf(layout: Bands, tile: string): number {
+  return layout.bands.findIndex((band) => contains(band.node, tile));
+}
+
+/** The layout without `tile`: its place closed by its neighbours, an emptied band gone. */
+export function remove(layout: Bands, tile: string): Bands {
+  const bands: Band[] = [];
+  for (const band of layout.bands) {
+    const node = without(band.node, tile);
+    if (node !== null) bands.push({ height: band.height, node });
+  }
+  return { fit: layout.fit, bands };
+}
+
+/**
+ * A NEW TILE, placed where it is wanted (smart placement): beside `near` -- the tile it came from -- while `near`'s band
+ * is a row of fewer than MAX_COLUMNS columns, otherwise as a band of its own below `near`'s; with no `near`, a band at
+ * the bottom of the page.
+ */
+export function add(layout: Bands, tile: string, near?: string): Bands {
+  if (tiles(layout).includes(tile)) return layout;
+  const at = near === undefined ? -1 : bandOf(layout, near);
+  if (at < 0) return { fit: layout.fit, bands: [...layout.bands, { height: BAND_HEIGHT, node: { tile } }] };
+  const band = layout.bands[at]!;
+  const columns = isTile(band.node) ? 1 : band.node.split === 'row' ? band.node.parts.length : 1;
+  if (columns < MAX_COLUMNS) {
+    const node = isTile(band.node) || band.node.split !== 'row'
+      ? split('row', [band.node, { tile }])
+      : split('row', [...band.node.parts.map((part) => part.node), { tile }]);
+    return withBand(layout, at, { height: band.height, node });
+  }
+  const bands = [...layout.bands];
+  bands.splice(at + 1, 0, { height: BAND_HEIGHT, node: { tile } });
+  return { fit: layout.fit, bands };
+}
+
+function withBand(layout: Bands, at: number, band: Band): Bands {
+  return { fit: layout.fit, bands: layout.bands.map((b, i) => (i === at ? band : b)) };
+}
+
+/**
+ * A DRAGGED TILE LET GO: onto a tile's edge (that tile divided there, the two sharing its place), onto a tile itself
+ * (the two swapping places), or between bands (a band of its own at that place, `band` counting the bands above it).
+ * A drop onto itself changes nothing.
+ */
+export function drop(layout: Bands, tile: string, where: Drop): Bands {
+  if (!tiles(layout).includes(tile)) return layout;
+  if ('swap' in where) {
+    if (where.swap === tile || !tiles(layout).includes(where.swap)) return layout;
+    const swapped = (node: Node): Node => (isTile(node)
+      ? { tile: node.tile === tile ? where.swap : node.tile === where.swap ? tile : node.tile }
+      : { split: node.split, parts: node.parts.map((part) => ({ node: swapped(part.node), size: part.size })) });
+    return { fit: layout.fit, bands: layout.bands.map((band) => ({ height: band.height, node: swapped(band.node) })) };
+  }
+  if ('band' in where) {
+    // the band counted as the page is without the tile: a band it empties is no longer there
+    const before = layout.bands.slice(0, where.band).filter((band) => !(isTile(band.node) && band.node.tile === tile)).length;
+    const rest = remove(layout, tile);
+    const bands = [...rest.bands];
+    bands.splice(Math.min(before, bands.length), 0, { height: BAND_HEIGHT, node: { tile } });
+    return { fit: layout.fit, bands };
+  }
+  if (where.onto === tile || !tiles(layout).includes(where.onto)) return layout;
+  const rest = remove(layout, tile);
+  const at = bandOf(rest, where.onto);
+  const band = rest.bands[at]!;
+  const target: Node = { tile: where.onto };
+  const moved: Node = { tile };
+  const pair = where.edge === 'left' ? split('row', [moved, target])
+    : where.edge === 'right' ? split('row', [target, moved])
+      : where.edge === 'top' ? split('column', [moved, target])
+        : split('column', [target, moved]);
+  return withBand(rest, at, { height: band.height, node: replaced(band.node, where.onto, pair) });
+}
+
+/**
+ * A DIVIDER MOVED: in the split found by `path` (the band's index, then a part's index at each split down to the
+ * split), the boundary after part `after` by `delta` of the split's size; the two parts it sits between trade share,
+ * neither going below MIN_SHARE (or half of what the two hold, when that is less).
+ */
+export function resize(layout: Bands, path: readonly number[], after: number, delta: number): Bands {
+  const [bandIndex, ...inner] = path;
+  const band = layout.bands[bandIndex ?? -1];
+  if (band === undefined) return layout;
+  const at = (node: Node, rest: readonly number[]): Node => {
+    if (isTile(node)) return node;
+    if (rest.length > 0) {
+      const [i, ...more] = rest;
+      return { split: node.split, parts: node.parts.map((part, j) => (j === i ? { node: at(part.node, more), size: part.size } : part)) };
+    }
+    const left = node.parts[after];
+    const right = node.parts[after + 1];
+    if (!left || !right) return node;
+    const total = left.size + right.size;
+    // each keeps its least share -- or half of what the two have, when that is less (parts deep in a page can be small)
+    const floor = Math.min(MIN_SHARE, total / 2);
+    const size = Math.min(Math.max(left.size + delta, floor), total - floor);
+    return {
+      split: node.split,
+      parts: node.parts.map((part, j) => (j === after ? { node: part.node, size } : j === after + 1 ? { node: part.node, size: total - size } : part)),
+    };
+  };
+  return withBand(layout, bandIndex!, { height: band.height, node: at(band.node, inner) });
+}
+
+/** A BAND'S HEIGHT SET (its bottom edge dragged), in screenfuls, never below MIN_BAND_HEIGHT. */
+export function resizeBand(layout: Bands, band: number, height: number): Bands {
+  const it = layout.bands[band];
+  if (it === undefined) return layout;
+  return withBand(layout, band, { height: Math.max(height, MIN_BAND_HEIGHT), node: it.node });
+}
+
+/** EVEN OUT the split found by `path` (a divider's double click): its parts share alike. */
+export function evenOut(layout: Bands, path: readonly number[]): Bands {
+  const [bandIndex, ...inner] = path;
+  const band = layout.bands[bandIndex ?? -1];
+  if (band === undefined) return layout;
+  const at = (node: Node, rest: readonly number[]): Node => {
+    if (isTile(node)) return node;
+    if (rest.length > 0) {
+      const [i, ...more] = rest;
+      return { split: node.split, parts: node.parts.map((part, j) => (j === i ? { node: at(part.node, more), size: part.size } : part)) };
+    }
+    return { split: node.split, parts: node.parts.map((part) => ({ node: part.node, size: 1 / node.parts.length })) };
+  };
+  return withBand(layout, bandIndex!, { height: band.height, node: at(band.node, inner) });
+}
+
+/** The page fitting its window, or scrolling past it. */
+export function fitted(layout: Bands, fit: boolean): Bands {
+  return { fit, bands: layout.bands };
+}
+
+// -- presets ---------------------------------------------------------
+
+/** The common layouts the picker offers (§3.3). */
+export type Preset = 'side-by-side' | 'stacked' | 'grid-2' | 'grid-3' | 'top-and-row' | 'left-and-column'
+  | 'right-and-column' | 'large-and-two';
+
+/** What the picker calls each. */
+export const PRESETS: readonly { readonly id: Preset; readonly label: string }[] = [
+  { id: 'side-by-side', label: 'Side by side' },
+  { id: 'stacked', label: 'Stacked' },
+  { id: 'grid-2', label: '2 x 2' },
+  { id: 'grid-3', label: '3 x 3' },
+  { id: 'top-and-row', label: 'One on top, the rest below' },
+  { id: 'left-and-column', label: 'One on the left, the rest stacked on the right' },
+  { id: 'right-and-column', label: 'One on the right, the rest stacked on the left' },
+  { id: 'large-and-two', label: 'One large, two beside it' },
+];
+
+const rows = (order: readonly string[], perRow: number): Band[] => {
+  const out: Band[] = [];
+  for (let i = 0; i < order.length; i += perRow) {
+    out.push({ height: BAND_HEIGHT, node: split('row', order.slice(i, i + perRow).map((tile) => ({ tile }))) });
+  }
+  return out;
+};
+
+/**
+ * THE TILES IN `order` ARRANGED AS A PRESET: the first tile takes the preset's first slot, and so on in reading order.
+ * More tiles than slots: the rest go on as the preset goes on (2 x 2 continues in rows of two; one on top and the rest
+ * below puts the rest in rows of MAX_COLUMNS). Fewer: the preset closes up (three tiles in 2 x 2 are a row of two and a
+ * band of one). The page's fit is kept; a preset that is one screen (side by side, one with a column beside it) fills
+ * its band's screen.
+ */
+export function arrange(layout: Bands, preset: Preset, order: readonly string[] = tiles(layout)): Bands {
+  const ids = order.filter((tile, i) => order.indexOf(tile) === i);
+  if (ids.length === 0) return { fit: layout.fit, bands: [] };
+  const leaf = (tile: string): Node => ({ tile });
+  const screen = (node: Node): Band[] => [{ height: 1, node }];
+  let bands: Band[];
+  switch (preset) {
+    case 'side-by-side':
+      bands = screen(split('row', ids.map(leaf)));
+      break;
+    case 'stacked':
+      bands = ids.map((tile) => ({ height: BAND_HEIGHT, node: leaf(tile) }));
+      break;
+    case 'grid-2':
+      bands = rows(ids, 2);
+      break;
+    case 'grid-3':
+      bands = rows(ids, 3).map((band) => ({ height: 1 / 3, node: band.node }));
+      break;
+    case 'top-and-row':
+      bands = [{ height: BAND_HEIGHT, node: leaf(ids[0]!) }, ...rows(ids.slice(1), MAX_COLUMNS)];
+      break;
+    case 'left-and-column':
+    case 'right-and-column': {
+      const [first, ...rest] = ids;
+      const column = rest.length === 0 ? null : split('column', rest.map(leaf));
+      const pair = column === null ? [leaf(first!)] : preset === 'left-and-column' ? [leaf(first!), column] : [column, leaf(first!)];
+      bands = screen(split('row', pair, pair.length === 2 ? (preset === 'left-and-column' ? [0.6, 0.4] : [0.4, 0.6]) : undefined));
+      break;
+    }
+    case 'large-and-two': {
+      const [first, second, third, ...rest] = ids;
+      const beside = [second, third].filter((tile): tile is string => tile !== undefined);
+      const top = beside.length === 0 ? leaf(first!)
+        : split('row', [leaf(first!), split('column', beside.map(leaf))], [2 / 3, 1 / 3]);
+      bands = [{ height: rest.length > 0 ? 0.6 : 1, node: top }, ...rows(rest, MAX_COLUMNS)];
+      break;
+    }
+  }
+  return { fit: layout.fit, bands };
+}
+
+// -- narrow windows ----------------------------------------------------
+
+/**
+ * THE PAGE ON A NARROW WINDOW (§3.2, the user: stacked): every tile one under another, in reading order, each a band of
+ * its own. Derived, never stored: the layout itself is unchanged, and comes back when the window widens.
+ */
+export function stacked(layout: Bands): Bands {
+  return { fit: false, bands: tiles(layout).map((tile) => ({ height: BAND_HEIGHT, node: { tile } })) };
+}
