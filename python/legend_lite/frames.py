@@ -196,15 +196,15 @@ class Frames:
             return table
 
     @contextlib.contextmanager
-    def serving(self) -> Iterator[list[str]]:
+    def serving(self) -> Iterator[dict[str, str]]:
         """The frames held still for one query that another host plans and runs (the engine): the lock taken,
         each Live table read as its frame is now (its model written again if its columns changed), and their
-        models given -- the only models such a query may be over. Run its SQL on ``connection`` inside."""
+        models given by name -- the only models such a query may be over. Run its SQL on ``connection`` inside."""
         with self._lock:
             for table in self._tables.values():
                 if table.mode == LIVE:
                     table._ready()
-            yield [table.model for table in self._tables.values()]
+            yield {table.name: table.model for table in self._tables.values()}
 
     def _exists(self, name: str) -> bool:
         found = self.connection.execute(

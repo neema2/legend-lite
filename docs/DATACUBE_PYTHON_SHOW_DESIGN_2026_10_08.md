@@ -98,9 +98,13 @@ server gains Arrow after the database owner's execution-plan step 4: a new binar
 ## Lifecycle
 
 `show()` does not block: the server runs in a background thread of the developer's process (a thread, not an event
-loop: Jupyter runs its own). In a plain script, if a cube is still open when the script ends, Python waits there and
-says so ("DataCube is still open at ...: press Ctrl-C to finish"). In the REPL (`python -i`), IPython and notebooks the
-process stays alive anyway.
+loop: Jupyter runs its own). In a plain script, if a cube it opened in the browser is still open when the script
+ends, Python waits there and says so ("DataCube is still open at ...: press Ctrl-C to finish"): a person is looking at
+it, from a terminal, an IDE's run window (PyCharm's Stop ends it) or anywhere else. A script that opened no browser --
+a test or a CI job, with `browser=False` or no browser to open -- ends, and says the cube ended with it, so nothing an
+unattended run starts can hang. The engine answers on its own compiler threads, which keep serving through Python's
+exit (not `concurrent.futures`' pool, which Python shuts down before an exit handler runs: found by the audit of
+`show()`). In the REPL (`python -i`), IPython and notebooks the process stays alive anyway.
 
 ## Safety
 
@@ -108,7 +112,8 @@ Loopback only. A one-time token in the link, sent with every request. A page is 
 (DNS rebinding; the warehouse's rule). No cross-origin access. The browser never sends SQL. The token rides in the
 link's fragment, which a browser never sends to a server (nor in a Referer), and it stays in the address bar and the
 browser's history while the page is open, so a reload works -- as the warehouse's launch key does; the engine's
-lifetime is the token's.
+lifetime is the token's. `show()` also prints the link (and a cube's repr is it): in a notebook it is in the cell's
+output, saved with the notebook, a token dead once the kernel ends.
 
 ## What changes outside Python
 
@@ -140,7 +145,20 @@ one cube on an engine (`datacube/demo/engine.html`, agreed with the Studio line:
 as Query's results run, so `boot.ts` is untouched and the page loads neither DuckDB-WASM nor the compiler): the link
 names the frame (`?table=`) and carries the token in its fragment; the page asks the engine `cube.json` (with the
 token) for the frame's model, runtime and source, and opens the cube over `RemoteRun`; held by the same browser test
-(the real page, from the engine's site, shows the frame's rows).
+(the real page, from the engine's site, shows the frame's rows). 5, `show()` (`python/legend_lite/datacube.py`): one
+engine per process, started by the first `show`; a frame Live by default, named `frame`, `frame_2`, ... unless given;
+the browser opened on the cube's link; `cube.update(frame)`, `cube.refresh()`, `cube.close()` (the last one stops the
+engine). The page FOLLOWS its frame: about once a second (while the tab is shown) it asks the engine the frame's
+version (`version.json`), which moves after a notebook cell for Live cubes (IPython's `post_run_cell`), an update, a
+refresh, a Live frame's new columns (noticed at its next query) or a close; then it reads `cube.json` again -- the same
+model re-runs the view as it stands, a new one opens the cube again, a closed frame stops it following. A brief call,
+nothing held open: a held request per tab (a long poll, the first build) would use up the browser's six connections to
+one origin with a few cube tabs (the audit). A plain script that opened a cube in the browser waits at its end until
+Ctrl-C. Held by `//python:engine_test` (show's cases, a real script that opened a browser waiting while the engine
+still answers, and ones that opened none ending at once) and the browser test (an update shows on the open page by
+itself; a new column opens it again). To try
+it: `bazel run //python:repl` (the repository's Python and pinned packages, the library and the site), then
+`cube = ll.show(trades)`. Left for later: the notebook widget, a package to install, Windows.
 
 1. The boundary's builders; the Python server; its Python tests.
 2. Arrow in DataCube's remote client.

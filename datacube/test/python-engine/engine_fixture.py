@@ -1,18 +1,20 @@
-"""Python's engine for a browser test (//datacube:python_engine_test, beside it): the cube corpus's rows as a Live frame, served with
-DataCube's site. It prints one JSON line -- the engine's address and token, the frame's model, runtime and source,
-and the rows (the page loads the same rows into the tab's DuckDB) -- then serves until its standard input closes.
+"""Python's engine for a browser test (//datacube:python_engine_test, beside it): the cube corpus's rows shown as a
+Live frame (show()), with DataCube's site. It prints one JSON line -- the engine's address and token, the cube's link,
+the frame's model, runtime and source, and the rows (the page loads the same rows into the tab's DuckDB) -- then
+takes the test's commands (`update`, `columns`) until its standard input closes.
 
     engine_fixture --site <DataCube's built site>
 """
 
 import argparse
 import json
+import os
 import sys
 
 import pyarrow as pa
 
 import legend_lite as ll
-from legend_lite.engine import Engine
+from legend_lite import datacube
 
 # The corpus's rows (datacube/test/live-snap/page.ts's): unique on (book, year, qtr); NULLs in the measures and in a
 # dimension.
@@ -32,21 +34,33 @@ SCHEMA = pa.schema([
 def main() -> None:
     arguments = argparse.ArgumentParser()
     arguments.add_argument('--site', required=True)
-    site = arguments.parse_args().site
+    os.environ['LEGEND_LITE_SITE'] = arguments.parse_args().site
     frame = pa.Table.from_pylist([dict(zip(SCHEMA.names, row)) for row in ROWS], schema=SCHEMA)
-    frames = ll.Frames()
-    table = frames.register('trades', frame)
-    with Engine(frames, site=site) as engine:
-        print(json.dumps({
-            'url': engine.url,
-            'authorization': engine.authorization,
-            'model': table.model,
-            'runtime': table.runtime,
-            'source': table.source,
-            'columns': SCHEMA.names,
-            'rows': [list(row) for row in ROWS],
-        }), flush=True)
-        sys.stdin.read()
+    # show(), as a person calls it -- but the browser is the test's (it opens the link itself)
+    cube = ll.show(frame, name='trades', browser=False)
+    table = datacube._session.frames['trades']
+    engine = datacube._session.engine()
+    print(json.dumps({
+        'url': engine.url,
+        'authorization': engine.authorization,
+        'link': cube.url,
+        'model': table.model,
+        'runtime': table.runtime,
+        'source': table.source,
+        'columns': SCHEMA.names,
+        'rows': [list(row) for row in ROWS],
+    }), flush=True)
+    # the test's commands, one a line: `update` -- one row more; `columns` -- a column more (a new model). Closed
+    # whatever happens, so the process ends with its input
+    try:
+        for line in sys.stdin:
+            if line.strip() == 'update':
+                cube.update(pa.concat_tables([frame, frame.slice(0, 1)]))
+            elif line.strip() == 'columns':
+                cube.update(frame.append_column('trader', pa.array([f't{i}' for i in range(frame.num_rows)])))
+            print(f'done {line.strip()}', flush=True)
+    finally:
+        cube.close()
 
 
 if __name__ == '__main__':

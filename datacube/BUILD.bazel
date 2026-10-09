@@ -898,6 +898,8 @@ js_run_binary(
     ],
     out_dirs = ["dist"],
     tool = ":make_dist",
+    # //python:repl serves it with Python's engine (show())
+    visibility = ["//python:__pkg__"],
 )
 
 # THE BROWSER HARNESSES, BY HAND: `bazel run //datacube:<name>`, the manual form of the browser_tests below

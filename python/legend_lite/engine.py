@@ -31,7 +31,8 @@ import socket
 import socketserver
 import threading
 import traceback
-from concurrent.futures import ThreadPoolExecutor
+import queue
+from concurrent.futures import Future
 from typing import Any
 from pathlib import Path
 from urllib.parse import SplitResult, parse_qs, unquote, urlsplit
@@ -54,15 +55,43 @@ _IDLE = 30
 # attaches no new threads. A connection is read and written on a thread of its own, which never calls the compiler:
 # an idle connection holds no compiler thread
 _WORKERS = 4
-_pool: ThreadPoolExecutor | None = None
+
+
+class _Pool:
+    """The compiler's threads: daemon threads taking calls from one queue. Not concurrent.futures' pool: Python shuts
+    that down before its atexit handlers run, and a plain script's end waits in one (show(): the cubes stay open until
+    Ctrl-C), so every call the engine made there would be refused (the audit of show(), 2026-10-08)."""
+
+    def __init__(self, size: int) -> None:
+        self._calls: queue.SimpleQueue[tuple[Future[Any], Any, tuple[Any, ...]]] = queue.SimpleQueue()
+        for i in range(size):
+            threading.Thread(target=self._serve, name=f'legend-lite-compiler-{i}', daemon=True).start()
+
+    def submit(self, call: Any, *args: Any) -> Future[Any]:
+        future: Future[Any] = Future()
+        self._calls.put((future, call, args))
+        return future
+
+    def _serve(self) -> None:
+        while True:
+            future, call, args = self._calls.get()
+            if not future.set_running_or_notify_cancel():
+                continue
+            try:
+                future.set_result(call(*args))
+            except BaseException as failure:  # noqa: BLE001 -- handed to the caller, which answers it
+                future.set_exception(failure)
+
+
+_pool: _Pool | None = None
 _pool_lock = threading.Lock()
 
 
-def _workers() -> ThreadPoolExecutor:
+def _workers() -> _Pool:
     global _pool
     with _pool_lock:
         if _pool is None:
-            _pool = ThreadPoolExecutor(max_workers=_WORKERS, thread_name_prefix='legend-lite-engine')
+            _pool = _Pool(_WORKERS)
         return _pool
 
 
@@ -212,7 +241,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         runs); the answer is compressed outside."""
         frames = self.server.engine.frames
         with frames.serving() as models:
-            answer = compiler.execute_plan(body, models)
+            self.server.engine._noted(models)
+            answer = compiler.execute_plan(body, list(models.values()))
             if answer.status != 200:
                 return answer.status, answer.content_type, answer.body.encode('utf-8'), {}
             planned = json.loads(answer.body)
@@ -230,6 +260,11 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             # what a page shows: asked with the token, as every API call is
             if self._admitted():
                 self._send(*_workers().submit(self._cube, url.query).result())
+            return
+        if path == '/version.json':
+            # a page asking whether its frame changed (no compiler call: on this connection's own thread)
+            if self._admitted():
+                self._send(*self._version(url.query))
             return
         if self.headers.get('Host') not in self.server.engine._hosts:
             self._refuse_unread(403, 'this engine answers requests to 127.0.0.1 and localhost only')
@@ -253,17 +288,29 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         name = parse_qs(query).get('table', [''])[0]
         frames = self.server.engine.frames
         try:
-            with frames.serving():
+            with frames.serving() as models:
+                self.server.engine._noted(models)
                 if name not in frames:
                     return 404, 'text/plain; charset=utf-8', f'this engine serves no frame named {name!r}'.encode(), {}
                 table = frames[name]
-                cube = {'title': table.name, 'model': table.model, 'runtime': table.runtime, 'source': table.source}
+                cube = {'title': table.name, 'model': table.model, 'runtime': table.runtime, 'source': table.source,
+                        'version': self.server.engine.version(name)}
             body = json.dumps(cube).encode('utf-8')
         except Exception as failure:
             # a frame that could not be read: said, never a dropped connection
             traceback.print_exc()
             return 500, 'text/plain; charset=utf-8', f'{type(failure).__name__}: {failure}'.encode(), {}
         return 200, 'application/json', body, {}
+
+    def _version(self, query: str) -> tuple[int, str, bytes, dict[str, str]]:
+        """``table``'s version (``Engine.changed``): ``{"version": n}`` at once, or 404 when the engine serves no such
+        frame (it was closed). A page asks about once a second; nothing is held open while it waits, so cubes in many
+        tabs never use up the browser's six connections to one origin."""
+        name = parse_qs(query).get('table', [''])[0]
+        engine = self.server.engine
+        if name not in engine.frames:
+            return 404, 'text/plain; charset=utf-8', f'this engine serves no frame named {name!r}'.encode(), {}
+        return 200, 'application/json', json.dumps({'version': engine.version(name)}).encode('utf-8'), {}
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         # no cross-origin request is answered: only the engine's own page calls it
@@ -314,6 +361,11 @@ class Engine:
             raise ValueError(f'the site {site} is not a directory')
         self.token = secrets.token_urlsafe(32)
         self._authorization = f'Bearer {self.token}'.encode('utf-8')
+        # each frame's version: bumped when it changes (changed), so a page asking sees it and reads it again; and the
+        # model each was last served with, so a Live frame whose columns changed is noticed (_noted)
+        self._versions: dict[str, int] = {}
+        self._models: dict[str, str] = {}
+        self._changes = threading.Lock()
         self._server = _Server(self)
         port = self._server.server_address[1]
         self.url = f'http://127.0.0.1:{port}'
@@ -325,6 +377,37 @@ class Engine:
     def authorization(self) -> str:
         """The header value every request carries: ``Bearer <token>``."""
         return self._authorization.decode('utf-8')
+
+    def changed(self, name: str) -> None:
+        """Says a frame changed -- its rows, its columns (registered again), or that it was closed -- so a page
+        showing it reads it again: one with the same columns re-runs its view, one with new columns opens again over
+        the new model, one whose frame is gone stops following it."""
+        with self._changes:
+            key = name.lower()
+            self._versions[key] = self._versions.get(key, 0) + 1
+
+    def seen(self, name: str) -> bool:
+        """Whether this engine has served a frame of this name (now or before it was closed)."""
+        with self._changes:
+            return name.lower() in self._versions or name.lower() in self._models
+
+    def _noted(self, models: dict[str, str]) -> None:
+        """The frames' models as they are now (each Live one read again): one that differs from what it was last
+        served with -- a Live frame's columns changed -- is a change its page is told of."""
+        moved = []
+        with self._changes:
+            for name, model in models.items():
+                key = name.lower()
+                if key in self._models and self._models[key] != model:
+                    moved.append(name)
+                self._models[key] = model
+        for name in moved:
+            self.changed(name)
+
+    def version(self, name: str) -> int:
+        """A frame's version: how many times it has changed (``changed``)."""
+        with self._changes:
+            return self._versions.get(name.lower(), 0)
 
     def close(self) -> None:
         """Stops serving; requests being answered finish first."""

@@ -26,10 +26,14 @@ const engine = spawn(fixture, ['--site', site], {
 // the engine's own account, in this test's log: a server-side reason is then never invisible
 engine.stderr.on('data', (b) => { for (const line of String(b).split('\n')) if (line) process.stderr.write(`[engine] ${line}\n`); });
 const stopped = new Promise((done) => engine.once('exit', done));
-const served = await new Promise((done, fail) => {
-  createInterface({ input: engine.stdout }).once('line', (line) => done(JSON.parse(line)));
-  engine.once('exit', (code) => fail(new Error(`the engine exited (${code}) before it served`)));
-});
+// the engine's lines: the first says what it serves, each after it answers a command (`done <command>`)
+const lines = createInterface({ input: engine.stdout })[Symbol.asyncIterator]();
+const exited = new Promise((_, fail) => engine.once('exit', (code) => fail(new Error(`the engine exited (${code})`))));
+const nextLine = async () => (await Promise.race([lines.next(), exited])).value;
+// (show() says its link first, "DataCube: <url>", as it does for a person)
+let first = await nextLine();
+while (first !== undefined && !first.startsWith('{')) first = await nextLine();
+const served = JSON.parse(first);
 const origin = served.url;
 
 let failed = false;
@@ -41,7 +45,7 @@ try {
   page.on('console', (m) => { if (m.type() === 'error') console.log(`page console: ${m.text()}`); });
   page.on('requestfailed', (r) => console.log(`request failed: ${r.url()} -- ${r.failure()?.errorText ?? ''}`));
   // what the page is handed: the token, and the frame the engine serves (the address is the page's own origin)
-  const { url: _origin, ...given } = served;
+  const { url: _origin, link: _link, ...given } = served;
   await page.addInitScript((g) => { window.__pythonEngineServed = g; }, given);
   // the test page, its bundle and upstream's recorded answer; everything else (the site, the API) is the engine's
   await page.route(`${origin}/python-engine.html`, (r) => r.fulfill({
@@ -79,8 +83,8 @@ try {
   cube.on('response', (r) => {
     if (r.status() >= 400) { console.log(`FAIL engine page answer ${r.status()}: ${r.url()}`); failed = true; }
   });
-  const token = served.authorization.slice('Bearer '.length);
-  await cube.goto(`${origin}/engine.html?table=trades#token=${encodeURIComponent(token)}`);
+  // the link show() returned (cube.url)
+  await cube.goto(served.link);
   const shown = await cube.waitForFunction(() => /\b10 rows\b/.test(document.body.innerText)
     && document.body.innerText.includes('APAC'), undefined, { timeout: 60_000 }).then(() => true, () => false);
   console.log(`${shown ? 'ok  ' : 'FAIL'} the engine's page opens the frame's cube and shows its rows`);
@@ -88,6 +92,22 @@ try {
     console.log(`  the page showed: ${(await cube.evaluate(() => document.body.innerText)).slice(0, 400)}`);
     failed = true;
   }
+
+  // FOLLOWING THE FRAME (show's cube.update): Python changes it, and the open page shows the change by itself
+  const after = async (command, name, test) => {
+    engine.stdin.write(`${command}\n`);
+    if ((await nextLine()) !== `done ${command}`) throw new Error(`the engine did not do ${command}`);
+    const ok = await cube.waitForFunction(test, undefined, { timeout: 30_000 }).then(() => true, () => false);
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`);
+    if (!ok) {
+      console.log(`  the page showed: ${(await cube.evaluate(() => document.body.innerText)).slice(0, 400)}`);
+      failed = true;
+    }
+  };
+  await after('update', 'a frame updated in Python shows on the open page by itself (the same columns: the view re-run)',
+    () => /\b11 rows\b/.test(document.body.innerText));
+  await after('columns', 'a frame with a new column opens the cube again over its new model',
+    () => document.body.innerText.includes('trader'));
 } finally {
   await browser?.close();
   // stopped and WAITED for: the engine serves until its input closes, and is gone before the test reports
