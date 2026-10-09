@@ -78,6 +78,30 @@ If the diff is empty, the switch is a pure deletion. If names move only where no
 entry says so and the affected goldens are re-blessed once with the policy named. If SQL text moves, the slice stops
 and the policy is decided first (a deterministic name is the better one: the same input gives the same bytes).
 
+## 3b. The shape of the switch, from reading the inliner (2026-10-08, evening)
+
+`UserCallInliner.rewrite(node, env)` walks the typed tree carrying the substitution (`env`: a name to its typed term)
+and reduces as it goes: a `TypedUserCall` is opened (`inlineCall`, the callee's parameters bound to the rewritten
+arguments, its lets reduced forward in `reduceStatements`), a static `match` is dispatched (`dispatchArm`), an `eval` of
+a literal lambda is β-reduced (`reduceEval`), query-level lets substitute into the rest (`inlineBody`). The capture
+machinery exists because substitution and reduction are interleaved: every binder met under a non-empty `env`
+(`lambda`, the lets inside it, the match arms) asks `bind` whether a term substituted beneath it mentions its name and
+renames it `_i<N>` from a counter that first scans the query for user-written `_i` names (`reserveFreshNames`,
+`bumpPast`); the hazard set is the names the arguments MENTION (`namesIn`), pushed and popped around every β site
+(`pushRisk`, `underSubst`, `underNames`, `pushNames`, `popRisk`).
+
+The switch is "substitute, then reduce". At each β site the substitution happens once, up front, through
+`TypedSubst.apply(body, env)` (exact free variables, a binder renamed only on a real hazard, the deterministic
+`b_<k>` names), and the walk continues over the substituted tree with no environment: `rewrite(node)` keeps the
+reductions (open a call, dispatch a match, reduce an eval, the hook, the recursion wall, the unroll budget, the
+`bound` bookkeeping the hook's shadow guard reads) and loses every `env` parameter. Deleted: `captureRisk`,
+`pushRisk`, `pushNames`, `popRisk`, `underSubst`, `underNames`, `bind`, `namesIn`, `fresh`, `reserveFreshNames`,
+`bumpPast`, and the `env` arms of `lambda` and `TypedLet` (about 200 lines). Two consequences to judge, not assume:
+a binder that today is renamed only on the conservative hazard (a name mentioned anywhere in an argument) is renamed
+only on the exact one, so some `_i<N>` names in plan surfaces may become their source names; and the names that do
+change spell `b_<k>` instead of `_i<N>`. The probe over the stress corpus saw no rename at all (§3); the render census
+before and after, with the scope ids checked, is the judge for the corpus lanes.
+
 ## 4. The first push, as a slice
 
 - **Homework** (this note) and the probe's receipt in GATES.
