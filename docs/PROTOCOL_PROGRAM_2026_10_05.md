@@ -134,12 +134,24 @@ not be written back, so it is refused.
    `values` list). A list the JSON leaves out is the empty list wherever the engine's class starts it empty (nearly
    every list of every element), and the older layouts of elements (supertypes, a property's type and a function's
    return type written as names; the model's `domain`, `mappings`, `stores`, ... sections, merged in the engine's
-   order) read as the engine reads them. Each deliberate difference is a `SEMANTICS_REGISTER.md` row.
+   order) read as the engine reads them. Each deliberate difference is a `SEMANTICS_REGISTER.md` row (S29 to S34).
    The engine's printer mis-prints two of these shapes (`olapGroupBy(f)` for an olap rank, which is a different
    function; spacing in `agg('n',m, a)` and `list([a,b])`); lite prints the call the shape means, also a register
    row. The oracle (parser-equivalence): every engine test file holding older JSON, read by the engine and written
    back, against lite's read and emit -- the same JSON for the first kind, the named call for the second, the named
    refusal for the third; counted, matched up-only.
+
+   **Step 2's outcome (2026-10-08).** `OlderJsonParityTest` over legend-engine's own test JSON (275 files, 119
+   models): 772 elements written as the engine writes them, 332 as the documented upgrade of what it writes (the
+   upgrade coded apart from the reader, two of its rules through the engine's own `HelperModelBuilder.getSignature`
+   and `LegacyRuntime.toEngineRuntime`), 0 mismatched, 89 whole models read with their envelope (`serializer`,
+   `origin`, now records); 19 refused by name -- 4 that the engine itself discards (S29), 11 that no record carries
+   (S33), 4 open pending the engine's evidence (S33). `OlderShapesReadTest` (core) pins each expression shape against
+   the text it means. The model context now carries `serializer` and `origin` (a model from an SDLC or Depot), and
+   `AppliedFunction`/`AppliedProperty`, the class and association records, the table pointer and the relational
+   association and embedded mappings carry the written details older JSON has (each excluded from equality where it
+   is a record the compiler reads). Found on the way: the engine's own write-back changes a plain integer enum source
+   value into a string (S32).
 3. **One public face** (invariant 5), and the consumers moved onto it: `PureV1Api`'s grammar routes, `Wasm.java`'s
    `modelJsonOrError` / `lambdaJsonOrError` / `composeLambdaOrError` / `jsonToGrammarModelOrError`, and the apps'
    clients (engine-client's grammar interface) unchanged in shape.

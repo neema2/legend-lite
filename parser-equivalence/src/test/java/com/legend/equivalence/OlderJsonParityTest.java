@@ -46,11 +46,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class OlderJsonParityTest {
 
     /** Elements and lambdas lite writes as the engine does, or as its documented upgrade. Up-only. */
-    private static final int MIN_READ = 0;
+    private static final int MIN_READ = 1104;   // 2026-10-08, leg 2 step 2: 772 as the engine writes, 332 upgraded
     /** Different JSON with no documented upgrade behind it. Down-only. */
-    private static final int MAX_MISMATCHED = 100_000;
-    /** Refusals, by any reason. Down-only. */
-    private static final int MAX_REFUSED = 100_000;
+    private static final int MAX_MISMATCHED = 0;
+    /** Refusals, by any reason (the list: target/older-json-refusals.tsv). Down-only. */
+    private static final int MAX_REFUSED = 19;   // 2026-10-08: 4 the engine discards, 11 no record carries, 4 open
+    /** Whole models read, their envelope and older sections included. Up-only. */
+    private static final int MIN_DOCUMENTS = 89;   // 2026-10-08
 
     private static final Json.Config DEEP = new Json.Config(4096);
 
@@ -118,6 +120,7 @@ class OlderJsonParityTest {
                 + " (target/older-json-mismatches.txt)");
         assertTrue(refused <= MAX_REFUSED, "refused: " + refused + " > " + MAX_REFUSED
                 + " (target/older-json-refusals.tsv)");
+        assertTrue(documents >= MIN_DOCUMENTS, "whole models read: " + documents + " < " + MIN_DOCUMENTS);
     }
 
     private void model(String id, String text, Json.Obj top) {
