@@ -464,16 +464,27 @@ well as STANDARD (exact over the corpus in both), legend-engine's `jsonToGrammar
 upstream showcase projects included, the user 2026-10-09): every model of legend-engine's test collection, lite's 60
 projects and the eight upstream Legend showcase projects survives text to JSON to text to JSON, in both styles, in the
 JVM and in the tab. Found on the way, and fixed in the leg: lite's text-to-JSON without source information kept the
-named spans the engine leaves out (3,241 corpus sources differed); lite's parser read a brace-less zero-parameter
-lambda in a statement as taking the statements after it (the engine prints `let q = |...;` and reads it back); and the
-lite grammar gaps a printed text reaches (a merge mapping's brace-less validation lambda, a service's post-validation
-assertions, a path literal across lines, a function test's `doc`, persistence's `];`). Files: `MODULE.bazel` (the
-showcase pins) and `third_party/legend_showcase.BUILD`; `projects/BUILD.bazel` (one visibility); `parser-equivalence`
-(`RoundTripProofTest`; `CorpusSweepTest`'s claim 1c, span-free JSON equal to the engine's; its BUILD);
-**`core/src/main/java/com/legend/parser/`** (`SpecParser`: the zero-parameter lambda's statement rule, the
-single-parameter one's; `PmcdParser`, `SpecParser`: every span stripped; `MappingProtocolParser`, the service section's
-post-validations, the function test and persistence grammars); `core/src/main/java/com/legend/protocol/ProtocolEmitter.java`
-(the path literal); `wasm/` (the round trip in the tab). Then legs 6 to 8; PARK-17 closes in leg 6. Open, and not yet
+named spans the engine leaves out, except the ones it keeps inside five test-value positions (3,241 corpus sources
+differed); lite's parser read where a brace-less lambda ends by two rules of thumb, where the engine's grammar decides
+it by the statement's position (probed: in a sequence's first statement the lambda takes the `;` and the statements
+after it); the engine's printer drops a lambda's braces there too, so its own print reads back changed -- lite keeps
+those braces (`docs/SEMANTICS_REGISTER.md` S38, the user 2026-10-09); the lite grammar gaps a printed text reaches (a
+merge mapping's brace-less validation lambda, a service's post-validation assertions, a path literal across lines, a
+function test's `doc`, persistence's `];`); and, from the round trip in the tab, two places TeaVM's class library
+answers differently from the JDK (`String.isBlank()` counts only `' '`; a double's text can end a digit off), each now
+written the same way on both and guarded (`ArchitectureTest`). Files: `MODULE.bazel` (the showcase pins) and
+`third_party/legend_showcase.BUILD`; `projects/BUILD.bazel` (one visibility); `tools/jars/defs.bzl` (`file_list`'s
+`exec_paths`); `parser-equivalence` (`RoundTripProofTest`; `CorpusSweepTest`'s claim 1c; `ModelComposerParityTest` and
+`ComposerParityTest` count S38's prints apart; `TabRoundTripRequests`, the tab round trip's JVM half; its BUILD);
+**`core/src/main/java/com/legend/parser/`** (`SpecParser`: the brace-less lambda's end, the path literal's lines;
+`PmcdParser`: span-free JSON; `TokenStreamCursor`; `ElementParser`, `MappingProtocolParser`, the service and persistence
+section grammars); **`core/src/main/java/com/legend/protocol/`** (`SourceInformation`; `PureComposer` and
+`DomainComposer`: S38; `ProtocolEmitter`, `SpecIslandReader`, `spec/PathLiteral`, `spec/ValueSpecification`: the path
+literal across lines; `Protocol`: the function test's `doc`; a double's text in the emitters and composers); nineteen
+`isBlank()` calls across core (`setup/`, `server/`, `testdatagen/`, `compiler/spec/TdsChecker`, `builtin/EngineHandlers`,
+`CsvLoad`); `json/` (`PortableText`); `core/src/test/.../ArchitectureTest.java`, `CodeShapeGuardrailTest.java`;
+`docs/SEMANTICS_REGISTER.md` (S38); `wasm/` (`round_trip_test`, `:tab`'s visibility). Then legs 6 to 8; PARK-17
+closes in leg 6. Open, and not yet
 in the plan's legs: printing lite-only mappings (a class mapping by function, a function association), which needs a
 design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
