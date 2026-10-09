@@ -7635,3 +7635,32 @@ mid-load), `//datacube:bundle_budget_test` (the module at 461,746 bytes gzipped,
 `//tools/guards:compile_only_test` (the library in the native tier on Windows too). Audited twice (the widget; Windows),
 Bazel-reviewed. Local gate `//gates:local` green (323) on the rebased tree; full CI run 37915130012 on
 `ci/datacube-windows-land`, green on every lane and platform (50 jobs); pushed to main as ead4a7857, the tested commit.
+
+## 2026-10-09 — The protocol program's leg 2, step 3: every printer prints the typed records (the Studio / SDLC / Depot line)
+
+The plan: `docs/PROTOCOL_PROGRAM_2026_10_05.md` §4.2, step 3 (its outcome and both audits are written there). Landed
+as one fast-forward, `013737f13..a12a64d24` (22 commits).
+
+1. **The printers read records, not JSON.** Every printer in `core/src/main/java/com/legend/protocol/` (`*Composer`)
+   prints from `Protocol`'s records. The JSON entries that remain read the JSON first and print what was read
+   (`ModelComposer.element(Json.Obj)`, `model(Json.Obj)`; `planner.Wasm`'s model export). `Composing`'s JSON helpers and
+   `FunctionNames` are gone.
+2. **The reader reads what the engine reads.** The step's first audit found about a dozen older or hand-written JSON
+   shapes that legend-engine 4.145.0 reads and lite refused. Each is now read, or refused by name where the engine
+   reads it but cannot compile or print it. `SEMANTICS_REGISTER` S35 (a data space's `featuredDiagrams`, a generation
+   node with no id), S36 (the shapes refused by name), S37 (a persistence test's flag written `null`, written back as
+   `null`). Lite's grammar now keeps an aggregation-aware mapping's `extends`, and passes it to the nested mappings
+   as the engine does (`MappingProtocolParser`). No corpus source has one, so the corpus lanes cannot move.
+
+What judges it: the parity counts held exactly: `ModelComposerParityTest` 14,383 models matched and 0 mismatched;
+`ComposerParityTest` 56,988 matched; `ModelReaderParityTest` 0 mismatched; `OlderJsonParityTest` 772 matched, 332
+brought up, 19 refused by name, 0 mismatched. `OlderModelShapesTest` (core) has one case per shape the audits found
+and checks the JSON written back. `own_corpus.matched` 2,723 -> 2,734: the step's new test models joining the
+own corpus and matching the engine. Audited twice (the auditor agent): every finding fixed (on main, d2eb69630..1adb436b1,
+then 7c832a12c).
+
+The run: 37923006492 on `protocol-leg2` (d8f951d6a, on 1d8f7a464), lanes core, checks, parser_equivalence, product,
+ui, datacube, sdlc and warehouse on every platform. Every job was green except linux / ui, which failed before any test
+ran: Maven Central answered `429 Too Many Requests` for `duckdb_jdbc-1.5.5.1.jar`. That job passed on a rerun. Local
+gate `//gates:local` green (316/316) on the branch's 6d15eaa5b (7c832a12c on main), the same code. Pushed to main as a12a64d24: the tested commits
+rebased onto two docs-only commits that landed in the meantime (1d0fe772a, 013737f13). Its code is the tested code.
