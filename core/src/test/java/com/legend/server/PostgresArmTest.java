@@ -155,6 +155,34 @@ class PostgresArmTest {
                             output + " " + q.withParameters());
                 }
             }
+            // an enumeration parameter, compared through a value table of the column's codes
+            String enums = com.legend.PlanMakerTest.enumModel(String.format(java.util.Locale.ROOT, "type: Postgres;"
+                    + " specification: Static { host: '127.0.0.1'; port: %d; name: 'postgres'; }; auth: Test;",
+                    pg.port()), "PLAN_E");
+            var enumCtx = com.legend.Compiler.compileModel(enums);
+            try (Statement s = c.createStatement()) {
+                for (String sql : com.legend.setup.CsvSeed.sqls(com.legend.PlanMakerTest.enumRows("PLAN_E"), "s::DB",
+                        enumCtx, new com.legend.sql.dialect.Postgres())) {
+                    s.execute(sql);
+                }
+            }
+            for (com.legend.PlanMakerTest.Parameterised q : com.legend.PlanMakerTest.enumerations()) {
+                for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
+                    com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(enumCtx, q.withParameters())
+                            .executionPlan("s::RT", output);
+                    java.io.StringWriter today = new java.io.StringWriter();
+                    switch (output) {
+                        case CSV -> com.legend.Execution.executeWire(enums, q.withLets(), "s::RT", c,
+                                com.legend.lowering.WireRender.Format.CSV, today);
+                        case JSON -> com.legend.Execution.executeWire(enums, q.withLets(), "s::RT", c,
+                                com.legend.lowering.WireRender.Format.JSON, today);
+                        case STREAMED_JSON -> com.legend.Execution.executeStreaming(enums, q.withLets(), "s::RT", c,
+                                today);
+                    }
+                    assertEquals(today.toString(), com.legend.PlanMakerTest.run(plan, c, q.values()),
+                            output + " " + q.withParameters());
+                }
+            }
             // an optional parameter: with its value as the query with a let of it, with none as the query written []
             for (com.legend.PlanMakerTest.OptionalCase q : com.legend.PlanMakerTest.optionals("PLAN_T")) {
                 for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
