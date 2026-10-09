@@ -249,7 +249,7 @@ final class ServiceReader {
                 a.span()));
     }
 
-    private static ValueSpecification legacyParameter(Json.Node node) {
+    static ValueSpecification legacyParameter(Json.Node node) {
         if (node instanceof Json.Obj o && "classInstance".equals(o.getStringOr("_type", null))
                 && "listInstance".equals(o.getStringOr("type", null))) {
             Wire c = Wire.of(node, "list instance");

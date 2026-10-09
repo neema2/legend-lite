@@ -139,7 +139,10 @@ public final class ProtocolReader {
         expectVar(w);
         Json.Node gt = w.opt("genericType");
         if (gt == null) {
-            return w.done(new Variable(w.str("name")));
+            // a class constraint's $this: the engine's grammar writes its multiplicity and no type
+            Json.Node m = w.opt("multiplicity");
+            return w.done(m == null ? new Variable(w.str("name"))
+                    : new Variable(w.str("name"), null, multiplicity(m), null));
         }
         return w.done(new Variable(w.str("name"), genericType(gt), multiplicity(w.take("multiplicity")),
                 w.span()));

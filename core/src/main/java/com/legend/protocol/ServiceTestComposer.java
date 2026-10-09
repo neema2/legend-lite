@@ -211,7 +211,7 @@ final class ServiceTestComposer {
         for (Json.Obj c : containers) {
             List<String> params = new ArrayList<>();
             for (Json.Node p : items(c, "parametersValues")) {
-                params.add(valueSpecification(p));
+                params.add(PureComposer.legacyServiceParameter(p));
             }
             out.add(tab(indent + 1) + "{ [" + String.join(", ", params) + "], " + valueSpecification(c.get("assert")) + " }");
         }
