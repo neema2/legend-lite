@@ -459,11 +459,22 @@ older or hand-written shapes the step's audits found refused (S35 to S37; `own_c
 well as STANDARD (exact over the corpus in both), legend-engine's `jsonToGrammar/model` in `PureV1Api`, the tab on
 `pure/v1`'s grammar, and one boundary for the embedded hosts with thin adapters (`planner.Boundary`, `Folded`,
 `TabExports`; `native/` Python's adapter), leg 3 folded into it (invariant 5 revised with the user; legs 6 to 8 added).
-**Next: leg 5, the round trip proven** (§4, item 5) over the corpus and the showcase projects, in the JVM and in the
-tab, on a new branch from main; then legs 6 to 8. PARK-17 (Python's mixed refusal kind) closes in leg 6. Open, and not yet in the plan's legs: printing lite-only
-mappings (a class mapping by function, a function association), which needs a design first; lite's grammar takes
-no `doc` on a function test, though the engine's does; lite's persistence grammar accepts `];` after `tests`,
-though the engine's does not.
+**Now: leg 5, the round trip proven, on branch `protocol-leg5`** (§4, item 5; its design in the program doc, the
+upstream showcase projects included, the user 2026-10-09): every model of legend-engine's test collection, lite's 60
+projects and the eight upstream Legend showcase projects survives text to JSON to text to JSON, in both styles, in the
+JVM and in the tab. Found on the way, and fixed in the leg: lite's text-to-JSON without source information kept the
+named spans the engine leaves out (3,241 corpus sources differed); lite's parser read a brace-less zero-parameter
+lambda in a statement as taking the statements after it (the engine prints `let q = |...;` and reads it back); and the
+lite grammar gaps a printed text reaches (a merge mapping's brace-less validation lambda, a service's post-validation
+assertions, a path literal across lines, a function test's `doc`, persistence's `];`). Files: `MODULE.bazel` (the
+showcase pins) and `third_party/legend_showcase.BUILD`; `projects/BUILD.bazel` (one visibility); `parser-equivalence`
+(`RoundTripProofTest`; `CorpusSweepTest`'s claim 1c, span-free JSON equal to the engine's; its BUILD);
+**`core/src/main/java/com/legend/parser/`** (`SpecParser`: the zero-parameter lambda's statement rule, the
+single-parameter one's; `PmcdParser`, `SpecParser`: every span stripped; `MappingProtocolParser`, the service section's
+post-validations, the function test and persistence grammars); `core/src/main/java/com/legend/protocol/ProtocolEmitter.java`
+(the path literal); `wasm/` (the round trip in the tab). Then legs 6 to 8; PARK-17 closes in leg 6. Open, and not yet
+in the plan's legs: printing lite-only mappings (a class mapping by function, a function association), which needs a
+design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
 (engine code: `core/.../protocol/`, eleven files of `core/.../parser/`, `native-claims.tsv`; the engine's lanes). For
