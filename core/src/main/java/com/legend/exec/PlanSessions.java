@@ -29,9 +29,21 @@ public final class PlanSessions {
         Sessions.Session open(ExecutionPlan.Target target);
     }
 
-    /** The shared in-memory databases, by their target's content: a database lives as long as the process (dropping
-     *  one would drop its tables), and an edited target is another database. */
+    /** The shared in-memory databases held by their one connection, by their target's content: a database lives as long
+     *  as the process (dropping one would drop its tables), and an edited target is another database. */
     private static final HandleStore<Connection> SHARED = new HandleStore<>();
+
+    /** The shared named in-memory databases the source names (H2), by their target's content: the connection that holds
+     *  each open, and its name, which each run connects to. */
+    private static final HandleStore<Named> NAMED = new HandleStore<>();
+
+    /** A named in-memory database a target's run connects to, held open by {@code keeper}. */
+    private record Named(Connection keeper, String name) {
+    }
+
+    /** Numbers each named database the source opens: a name is never reused, so no run connects to a database another
+     *  attempt left (one whose keeper some other run still holds open). */
+    private static final java.util.concurrent.atomic.AtomicLong ATTEMPTS = new java.util.concurrent.atomic.AtomicLong();
 
     /** The process's sessions, shared by target (decision A). A plan of phase 1 only reads, so a shared database is
      *  never changed by a run (a plan that writes is phase 2's, and throws its database away). */
@@ -49,7 +61,7 @@ public final class PlanSessions {
      *  of {@link #given} it, never closed here. */
     public static Source setUp(Connection connection, ExecutionPlan.Target target) {
         try {
-            setUp(connection, target, false);
+            runSetup(connection, target);
         } catch (SQLException e) {
             throw dataError(e);
         }
@@ -57,28 +69,37 @@ public final class PlanSessions {
     }
 
     private static Sessions.Session openShared(ExecutionPlan.Target target) {
-        Hash key = Hash.ofUtf8(target.toString());
+        // the target's whole content, spelled unambiguously (a text cell holding a comma, a null cell): equal keys,
+        // equal targets
+        Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(target));
         try {
             return switch (target.database()) {
-                case ExecutionPlan.Database.Platform p -> borrowed(SHARED.getOrOpen(key, PlanSessions::dead,
-                        () -> setUp(Sessions.openPrivate(p.type()), target, true)));
+                case ExecutionPlan.Database.Platform p -> borrowed(SHARED.getOrOpenSlowly(key, PlanSessions::dead,
+                        () -> setUpOpened(Sessions.openPrivate(p.type()), target)));
                 case ExecutionPlan.Database.Declared d -> switch (Sessions.openingFor(d.connection())) {
-                    case Sessions.Opening.Held h -> borrowed(SHARED.getOrOpen(key, PlanSessions::dead,
-                            () -> setUp(Sessions.openHeld(h), target, true)));
+                    case Sessions.Opening.Held h -> borrowed(SHARED.getOrOpenSlowly(key, PlanSessions::dead,
+                            () -> setUpOpened(Sessions.openHeld(h), target)));
                     case Sessions.Opening.Named n -> {
-                        // a named in-memory database lives while one connection holds it: the keeper, which ran its
-                        // setup; each run has a connection of its own to it
-                        String name = n.name() != null ? n.name() : "plan_" + key.hex().substring(0, 16);
-                        SHARED.getOrOpen(key, PlanSessions::dead, () -> setUp(Sessions.openNamed(name), target, true));
-                        yield owned(Sessions.openNamed(name));
+                        String usersName = n.name();
+                        if (usersName != null) {
+                            // a database the user named (an EmbeddedH2) is the user's identity, shared by design (the
+                            // server's sessions connect to it too), and outlives its connections: only a LocalH2
+                            // connection declares test data, so a plan sets none up
+                            refuseSetup(target, d, "an in-memory database the user named ('" + usersName + "')");
+                            yield owned(Sessions.openNamed(usersName));
+                        }
+                        // the source names it, afresh at each attempt, and it lives while its keeper is open: one
+                        // whose setup failed is gone with its keeper, and never connected to again
+                        Named named = NAMED.getOrOpenSlowly(key, held -> dead(held.keeper()), () -> {
+                            String name = "plan_" + key.hex().substring(0, 16) + "_" + ATTEMPTS.incrementAndGet();
+                            return new Named(setUpOpened(Sessions.openKept(name), target), name);
+                        });
+                        yield owned(Sessions.openKept(named.name()));
                     }
                     case Sessions.Opening.Url u -> {
-                        // a database reached by a URL is the user's: only a LocalH2 connection declares test data, and
-                        // it is an in-memory database, so a plan never sets one up
-                        if (!target.setup().isEmpty()) {
-                            throw new IllegalStateException("connection '" + d.connection().qualifiedName() + "' is a"
-                                    + " database reached by a URL, and the plan has setup for it: never run on it");
-                        }
+                        // a database reached by a URL is the user's: only an in-memory connection declares test
+                        // data, so a plan sets none up
+                        refuseSetup(target, d, "a database reached by a URL");
                         yield owned(Sessions.open(u));
                     }
                 };
@@ -88,17 +109,41 @@ public final class PlanSessions {
         }
     }
 
-    /** Runs {@code target}'s setup on {@code c}, under the SEED mark: each statement as it is, each rows step through
-     *  the database's bulk loader. A failing setup closes {@code c} when {@code ownsConnection}. */
-    private static Connection setUp(Connection c, ExecutionPlan.Target target, boolean ownsConnection)
-            throws SQLException {
-        // a rows step needs the database's bulk loader: checked before any statement runs
-        if (target.setup().stream().anyMatch(ExecutionPlan.SetupStep.Rows.class::isInstance)
-                && BulkLoads.of(c) == null) {
-            throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's database"
-                    + " has none (" + c.getMetaData().getDatabaseProductName() + ")");
+    /** A database that is the user's, never set up by a plan: a plan with setup for it is refused, never run. */
+    private static void refuseSetup(ExecutionPlan.Target target, ExecutionPlan.Database.Declared d, String what) {
+        if (!target.setup().isEmpty()) {
+            throw new IllegalStateException("connection '" + d.connection().qualifiedName() + "' is " + what
+                    + ", and the plan has setup for it: never run on it");
         }
+    }
+
+    /** {@code c}, which the source opened for {@code target}, set up: a setup that fails closes it, and a close that
+     *  fails rides the setup's own error, suppressed. */
+    private static Connection setUpOpened(Connection c, ExecutionPlan.Target target) throws SQLException {
+        try {
+            return runSetup(c, target);
+        } catch (SQLException | RuntimeException | Error e) {
+            // every failure, rethrown as it is: the connection must not outlive a setup that failed
+            try {
+                c.close();
+            } catch (SQLException closing) {
+                e.addSuppressed(closing);
+            }
+            throw e;
+        }
+    }
+
+    /** Runs {@code target}'s setup on {@code c}, under the SEED mark: each statement as it is, each rows step through
+     *  the database's bulk loader (checked present before any statement runs). */
+    private static Connection runSetup(Connection c, ExecutionPlan.Target target) throws SQLException {
         try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
+            // the loader, found before any statement runs: a plan writes rows for one only where its database has one
+            // (Databases.loadsRowsInBulk), so none is a mismatch, refused untouched
+            BulkLoad bulk = BulkLoads.of(c);
+            if (bulk == null && target.setup().stream().anyMatch(ExecutionPlan.SetupStep.Rows.class::isInstance)) {
+                throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"
+                        + " database has none (" + c.getMetaData().getDatabaseProductName() + ")");
+            }
             for (ExecutionPlan.SetupStep step : target.setup()) {
                 switch (step) {
                     case ExecutionPlan.SetupStep.Statement s -> {
@@ -107,15 +152,11 @@ public final class PlanSessions {
                             st.execute(s.sql());
                         }
                     }
-                    case ExecutionPlan.SetupStep.Rows r -> BulkLoads.load(c, r);
+                    case ExecutionPlan.SetupStep.Rows r -> BulkLoads.load(java.util.Objects.requireNonNull(bulk,
+                            "found above"), c, r);
                 }
             }
             return c;
-        } catch (SQLException e) {
-            if (ownsConnection) {
-                c.close();
-            }
-            throw e;
         }
     }
 
