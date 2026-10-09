@@ -7904,3 +7904,39 @@ move with them (DuckDB 1020 → 1011 with D24's roster test, H2 953 → 946). pa
 **Recorded.** PARK-16 restated to its remaining half (the test-data generator's hand-built SQL, phase 3); PARK-18,
 proposed to the user: the legacy printer cannot yet write a query's explicit `nulls first`/`nulls last`
 (`docs/PARKED_WORK_LEDGER.md`).
+
+## 2026-10-09 — DataCube pages, phase 2: a page of its own, saved with every source (the DataCube + Python line)
+
+The design: `docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` §3.1, §3.5 and §6 (agreed with the user; each decision made while
+building recorded in §6's "as built"). Landed as one fast-forward, `7d6de1737..eb2e38fa8` (six commits):
+
+1. **The page as a thing of its own** (`datacube/src/page/page-app.ts`, new): a bar that is not a tile -- the page's
+   menu (New, Open, Save, Share, Export of the page, Arrange and the layout's undo, Edit Layout, Settings), its name, its
+   fold -- above the board. Every grid a tile holding a compact `CubeApp`, the first removable as the fifth; one grid
+   alone drawn frameless, its header at the right of the bar's strip (`layout/band-board.ts` `setAlone`); the empty page
+   offers a source. A cube alone (the Query app, a notebook) keeps its own title bar and board.
+2. **DataCube's app on it** (`demo/boot.ts`): every grid made by the host's maker -- a copy (Copy of Grid) and a detached
+   chart's own grid by the maker of the grid they copy (`CubePage` `gridLike`, `GridMaker`'s `start`) -- so the page
+   knows every grid it saves; every source written down; opening a source in place is the page emptied, then that grid.
+   The page is saved as one cube per grid, a view per tile and the layout (`page-document.ts` `writePageOf`), and
+   reopened through each cube's own source; a frozen chart whose grid is removed keeps that grid off the board, saved
+   and reopened detached. Each file's handle kept per page and grid; a file's table dropped once no grid reads it;
+   opens latest-wins (P2-330), and Save always names the page on screen. The host's readout in the first grid's status
+   bar, moved when that grid changes; the bar folded while every grid says its title bar is hidden.
+3. **The download budget** for a grid-only page rises from 352,000 to 368,000 bytes (measured 364,791; the page shell
+   now loads at startup), dated in `test/bundle-budget.test.ts`; the layouts are still fetched on first use.
+
+What judges it: `//datacube:page_app_test` (new, 13 cases: the bar, a lone grid, every grid alike, the empty page, saved
+and reopened with one cube per grid, a detached chart's kept grid, Copy of Grid and a detached Update saved, the host's
+readout, the fold), `//datacube:chart_tiles_test`, `//datacube:bundle_budget_test`, and in the pinned Chromium
+`//datacube:verify_cubes_test` (+5: a page of two sources with its first grid removed saved and reopened, two grids
+reopened, Copy of Grid then Save, a removed grid's frozen chart reopened detached; "not marked as changed" after every
+reopen), `//datacube:verify_app_test` (a refused start says why on the empty page), and the harnesses moved onto the page
+(`verify-charts`, `verify-layout`, `verify-features`). Not proven in a browser: a file reopened from its kept handle (the
+headless browser picks no files). Audited twice (first: one blocker -- Copy of Grid and a detached chart's Update made
+grids the page never knew, so it could not be saved -- and ten should-fix; second: three should-fix, among them Save
+naming the page before an overtaken open; all fixed with tests); the one Bazel edit (`page-app`'s `_EXTRA_DATA` row)
+reviewed by the Compiler Rewrite session. Local gate green on the tree (two studio tests timed out under the machine's
+load and passed alone); CI run 37980936512 on `ci/datacube-page-shell`, green on the lanes with a path to
+`//datacube:src` (product, checks, warehouse, datacube, ui) on every platform (21 jobs); pushed to main as eb2e38fa8, the
+tested commit.
