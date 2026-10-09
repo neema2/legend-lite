@@ -1,7 +1,8 @@
 // A page of its own (page/page-app.ts; docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §3.1, §6), with real grids (CubeApps
 // over a fake engine), made the way DataCube's app makes them: the page's bar and menu, a lone grid sharing the bar's
 // strip, every grid equal (the first removable), the empty page, the page saved with one cube per grid and reopened, a
-// detached chart's grid kept off the board and saved, a grid's own changes and Settings reaching the page.
+// detached chart's grid kept off the board and saved, a grid's own changes and Settings reaching the page; every grid
+// made by the host's maker (a copy too), the host's readout in the first grid's status bar, the bar's fold.
 
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
@@ -40,6 +41,7 @@ beforeEach(() => {
   (dom.window.HTMLCanvasElement.prototype as unknown as { getContext: () => unknown }).getContext = () => new Proxy({}, inert);
   engine = new GateEngine();
   changes = 0;
+  made = [];
   unhandled = [];
   process.removeAllListeners('unhandledRejection');
   process.on('unhandledRejection', (e) => unhandled.push(e));
@@ -58,11 +60,21 @@ const file = (name: string): FileSource => ({
   columns: SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type })),
 });
 
-/** A grid over `name`, made as DataCube's app makes one: compact, its source written down, wired to the page. */
-const over = (name: string): GridMaker => (gridHost, spawned) => new CubeApp(gridHost, SNAPSHOT, {
-  engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
-  ...(page ? { windowHost: page.root } : {}), ...spawned,
-});
+/** Each grid the makers made, by its tile's id, and whether it was a copy (made with a start). */
+let made: [string | undefined, boolean][] = [];
+
+/**
+ * A grid over `name`, made as DataCube's app makes one: compact, its source written down, wired to the page -- or, a
+ * copy, starting where its grid is.
+ */
+const over = (name: string): GridMaker => (gridHost, spawned, start) => {
+  made.push([spawned.id, start !== undefined]);
+  return new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
+    engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
+    ...(start ? { configuration: start.configuration } : {}),
+    ...(page ? { windowHost: page.root } : {}), ...spawned,
+  });
+};
 
 function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
   page = new PageApp({
@@ -85,6 +97,15 @@ function pageMenu(): HTMLElement[] {
 }
 const label = (item: HTMLElement): string => item.querySelector(':scope > .dc-menu-label')?.textContent ?? '';
 const entry = (items: HTMLElement[], text: string): HTMLElement | undefined => items.find((i) => label(i) === text);
+/** An entry of a grid's own menu (its tile's, or the bar's while it is alone), by what it says. */
+function gridMenuItem(gridTile: string, text: string): HTMLElement {
+  dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+  const button = (tile(gridTile).querySelector('.dc-tile-menu') ?? bar().querySelector('.dc-page-alone .dc-tile-menu')) as HTMLElement;
+  button.click();
+  const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === text);
+  assert.ok(item, `${gridTile}'s menu has ${text}`);
+  return item;
+}
 /** Insert > Visualization, from a grid's right-click menu. */
 async function chartOf(gridTile: string): Promise<string> {
   const before = new Set(page.views().views.filter((v) => v.kind === 'chart').map((v) => v.id));
@@ -231,6 +252,94 @@ describe('a page of its own', () => {
     await settle();
     assert.equal(kept.length, 1);
     assert.deepEqual(used.sort(), [a, b].sort());
+  });
+
+  it('Copy of Grid is made by the host\'s maker, starting where its grid is; the page saves both', async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    (tile(a).querySelector('.dc-zone-rows .dc-chip[data-column="desk"] .dc-chip-remove') as HTMLElement).click();
+    await settle();
+    gridMenuItem(a, 'Copy of Grid').click();
+    await settle();
+    assert.equal(page.grids.length, 2);
+    const copy = page.grids.find((id) => id !== a)!;
+    assert.deepEqual(made, [[a, false], [copy, true]], 'the copy made by the same maker, from a start');
+    assert.ok(page.grid(copy), 'the page knows the copy');
+    assert.deepEqual(page.grid(copy)!.snapshot.rows, ['region'], 'it starts where its grid is');
+    assert.equal(page.saveRefusal(), undefined);
+    const doc = page.document('Q3');
+    assert.ok(doc, 'the page can be saved');
+    assert.deepEqual(doc.cubes.map((c) => c.id), [a, copy]);
+    assert.deepEqual(doc.views.map((v) => [v.id, v.kind, v.cube]), [[a, 'grid', a], [copy, 'grid', copy]]);
+  });
+
+  it('a detached chart\'s Update keeps a grid of its own, made by the host\'s maker, and the page saves it', async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const chart = await chartOf(b);
+    (tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
+    await settle();
+    tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
+      .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')].find((i) => label(i) === 'Open in grid')!.click();
+    await settle();
+    const update = [...tile(`edit-${chart}`).querySelectorAll<HTMLElement>('.dc-tile-actions > button')]
+      .find((x) => x.textContent?.startsWith('Update'));
+    assert.ok(update, 'the editing grid\'s Update');
+    update.click();
+    await settle();
+    const own = `${chart}-query`;
+    assert.deepEqual(made.at(-1), [own, true], 'made by the maker of the grid it copies');
+    assert.ok(page.grid(own), 'the page knows it');
+    const doc = page.document('Q3');
+    assert.ok(doc, 'the page can be saved');
+    assert.deepEqual(doc.cubes.map((c) => c.id), [a, own], 'the grid it replaced is gone');
+    assert.deepEqual(doc.views.find((v) => v.id === chart)?.cube, own);
+  });
+
+  it('the host\'s readout is in the first grid\'s status bar only, and moves when that grid goes', async () => {
+    const readout = dom.window.document.createElement('span');
+    readout.textContent = 'in this tab';
+    newPage({ hostStatus: (slot) => slot.append(readout) });
+    const a = page.addGrid(over('trades.csv'));
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    assert.ok(tile(a).contains(readout), 'in the first grid\'s bar');
+    assert.equal(tile(b).querySelector('.dc-status-host'), null, 'the second grid has no empty slot for it');
+    tile(a).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    assert.ok(tile(b).contains(readout), 'moved to the grid that is first now');
+    assert.equal(tile(b).querySelectorAll('.dc-status-host').length, 1);
+  });
+
+  it('the bar\'s fold is kept on every grid: the grid left alone says the same, and a fold by a setting takes no focus', async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    (bar().querySelector('.dc-titlebar-fold') as HTMLElement).click();
+    await settle();
+    assert.equal(page.barFolded, true);
+    assert.deepEqual([a, b].map((id) => page.grid(id)!.configuration.showTitleBar), [false, false]);
+    (bar().querySelector('.dc-titlebar-lip') as HTMLElement).click();
+    await settle();
+    assert.deepEqual([a, b].map((id) => page.grid(id)!.configuration.showTitleBar), [true, true]);
+    tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    assert.equal(page.barFolded, false, 'the grid left alone says shown, as the bar was');
+    // the lone grid's own setting folds the bar; focus elsewhere (the host's own control) stays where it was
+    const elsewhere = dom.window.document.createElement('button');
+    dom.window.document.body.append(elsewhere);
+    elsewhere.focus();
+    page.grid(a)!.setChrome({ showTitleBar: false });
+    await settle();
+    assert.equal(page.barFolded, true);
+    assert.equal(dom.window.document.activeElement, elsewhere);
   });
 
   it('its menu: New > Data Source adds a grid through the host\'s picker; the host\'s entries; Page File exports it', async () => {

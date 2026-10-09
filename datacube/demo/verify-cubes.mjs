@@ -473,11 +473,24 @@ try {
 
   // A PAGE OF ITS OWN (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §6): several sources on one page, every grid alike --
   // the first one removable -- and the page saved and reopened as one thing.
-  /** Insert > Visualization, from a cell's right-click menu in the grid `tile`. */
-  const chartOf = async (tile) => {
+  /** Insert > `what` (Visualization, Copy of Grid), from a cell's right-click menu in the grid `tile`. */
+  const insertIn = async (tile, what) => {
     await page.locator(`[data-tile="${tile}"] .dc-row`).nth(1).locator('.dc-cell').nth(1).click({ button: 'right' });
     await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("Visualization"))').first().click();
+    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
+  };
+  const chartOf = (tile) => insertIn(tile, 'Visualization');
+  /** Reload, open the saved page `name`, and wait for its grids `grids` to show rows. */
+  const reopen = async (name, grids) => {
+    await load();
+    await openSaved(name);
+    await waitMessage(/opened/);
+    for (const g of grids) await page.locator(`[data-tile="${g}"] .dc-row`).first().waitFor({ timeout: 60_000 });
+    await page.click('#cubeswin .dc-picker-close').catch(() => {});
+  };
+  /** The page is not marked as changed (its tab's title has no dot). */
+  const unchanged = async () => {
+    if ((await page.title()).startsWith('\u2022')) throw new Error(`marked as changed on opening: ${await page.title()}`);
   };
   /** New ▸ Data Source…, an example at `rows` rows: a grid of its own beside the others. */
   const addSample = async (id, rows) => {
@@ -552,7 +565,49 @@ try {
     const heads = await page.locator('.dc-band-tile .dc-source-tag').allTextContents();
     if (!(heads.some((h) => /trades/.test(h)) && heads.some((h) => /dates/.test(h)))) throw new Error(`headers: ${heads.join(' | ')}`);
     await page.click('#cubeswin .dc-picker-close').catch(() => {});
-    return `${heads.join(' and ')}`;
+    await unchanged();
+    return `${heads.join(' and ')}; not marked as changed`;
+  });
+
+  await check('Copy of Grid, then Save: the copy is saved with the page and reopens over the same source', async () => {
+    await insertIn('grid-1', 'Copy of Grid');
+    await page.locator('[data-tile="grid-3"] .dc-row').first().waitFor({ timeout: 60_000 });
+    await saveAs('With a copy');
+    const doc = await page.evaluate(() => window.__dataPage.document('With a copy'));
+    const ids = doc.cubes.map((c) => `${c.id}: ${c.cube.source.name}`);
+    // the copy beside its grid, over the same source
+    if (ids.length !== 3 || !ids.some((i) => /^grid-3: sample-trades/.test(i))) throw new Error(`saved cubes: ${ids.join(', ')}`);
+    const want = await views();
+    await reopen('With a copy', ['grid-1', 'grid-2', 'grid-3']);
+    const got = await views();
+    if (got !== want) throw new Error(`reopened as ${got}, saved as ${want}`);
+    await unchanged();
+    return `saved ${ids.join(', ')}; reopened the same, not marked as changed`;
+  });
+
+  await check('a frozen chart of a removed grid: its grid saved off the board, and the chart reopens detached', async () => {
+    await chartOf('grid-2');
+    const chart = page.locator('[data-tile^="chart-"]').first();
+    await chart.waitFor({ timeout: 20_000 });
+    const id = await chart.getAttribute('data-tile');
+    await chart.locator('.dc-tile-actions .dc-titlebar-toggle').click();
+    await page.locator('[data-tile="grid-2"] .dc-tile-remove').click();
+    await page.locator('[data-tile="grid-2"]').waitFor({ state: 'detached', timeout: 10_000 });
+    const pill = () => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`).textContent();
+    if ((await pill()) !== 'Detached') throw new Error(`the chart says ${await pill()}`);
+    await saveAs('Kept grid');
+    const doc = await page.evaluate(() => window.__dataPage.document('Kept grid'));
+    if (!doc.cubes.some((c) => c.id === 'grid-2') || doc.views.some((v) => v.id === 'grid-2')) {
+      throw new Error(`saved cubes ${doc.cubes.map((c) => c.id).join(', ')}, views ${doc.views.map((v) => v.id).join(', ')}`);
+    }
+    const want = await views();
+    await reopen('Kept grid', ['grid-1', 'grid-3']);
+    await page.locator(`[data-tile="${id}"]`).waitFor({ timeout: 20_000 });
+    if ((await pill()) !== 'Detached') throw new Error(`reopened, the chart says ${await pill()}`);
+    const got = await views();
+    if (got !== want) throw new Error(`reopened as ${got}, saved as ${want}`);
+    await unchanged();
+    return `${id} detached, its grid saved off the board; reopened the same, not marked as changed`;
   });
 
   await check('no page errors', async () => {

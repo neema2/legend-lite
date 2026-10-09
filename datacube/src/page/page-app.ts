@@ -1,13 +1,15 @@
 // A PAGE OF ITS OWN (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §3.1, §6): DataCube's app, above its grids.
 //
-// The page has a thin bar that is not a tile -- its name, the page's menu, the host's status line -- and below it the
-// board (page/cube-page.ts) of grids and charts. Every grid is a tile holding a compact CubeApp, made the same way
+// The page has a thin bar that is not a tile -- its menu, its name, its fold -- and below it the board (page/cube-page.ts) of grids and charts. Every grid is a tile holding a compact CubeApp, made the same way
 // whether it is the first or the fifth (`addGrid`), so any of them can be removed; with none left the page is empty
 // and shows the host's choices of a source. The page's menu holds the page's things only (New, Open, Save, Share,
 // Arrange, Settings, the host's own entries); each grid's own menu, in its tile's header, holds the grid's.
 //
 // ONE GRID ALONE fills the page with no frame, and its header -- its source, Live/Snapped, its menu -- sits at the
 // right of the bar's strip: one strip, as a grid alone looks today (the user, 2026-10-09). A second tile moves it back.
+//
+// EVERY GRID IS THE HOST'S: made by a maker the host gave (`addGrid`, `restore`) -- a copy of one (Copy of Grid) by the
+// same maker, starting where that grid is now -- so the host knows each grid on the page, and the page knows each one.
 //
 // THE PAGE IS WHAT IS SAVED: one cube document per grid (each over its own source), a view per tile, the layout
 // (`document`); reopening adds each grid again under its saved id, through the host's own way of opening its source
@@ -20,6 +22,7 @@ import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
 import { pageToJson, writePageOf, type PageDocument, type PageViews } from '../page-document.ts';
 import type { CubeDocument } from '../cube-document.ts';
+import type { CubeSnapshot } from '../snapshot.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { SettingValues } from '../settings.ts';
 
@@ -35,10 +38,21 @@ export interface PageGrid extends SpawnedGrid {
   /** Its configuration: a lone grid's report title names the page, and its title bar setting folds the page's bar. */
   readonly configuration: CubeConfiguration;
   setChrome(patch: { readonly showTitleBar?: boolean }): void;
+  /** Its status bar's readout from the host asked for again: the page's first grid changed. */
+  refreshHostStatus(): void;
 }
 
-/** How the host makes a grid on the page, in `host`, wired to the page by `options` (its charts, copies, removal). */
-export type GridMaker = (host: HTMLElement, options: SpawnOptions) => PageGrid;
+/** Where a copy of a grid starts: that grid's query and configuration as they are now. */
+export interface GridStart {
+  readonly snapshot: CubeSnapshot;
+  readonly configuration: CubeConfiguration;
+}
+
+/**
+ * How the host makes a grid on the page, in `host`, wired to the page by `options` (its id, its charts, copies,
+ * removal) -- as the host opened it, or, `start`, a copy starting where another grid of the same source is now.
+ */
+export type GridMaker = (host: HTMLElement, options: SpawnOptions, start?: GridStart) => PageGrid;
 
 export interface PageAppOptions {
   /** Where the page goes: it fills it. */
@@ -60,6 +74,11 @@ export interface PageAppOptions {
   readonly onSettingsChanged?: (values: SettingValues) => void;
   /** Hand a file to the user: Export ▸ Page File. */
   readonly download?: (name: string, mime: string, content: string) => void;
+  /**
+   * The host's readout (where the planner runs, what went wrong), at the right of the page's FIRST grid's status bar
+   * -- it moves when another grid becomes the first -- on each of that bar's renders.
+   */
+  readonly hostStatus?: (slot: HTMLElement) => void;
 }
 
 export class PageApp {
@@ -76,11 +95,16 @@ export class PageApp {
   readonly #boardHost: HTMLElement;
   readonly #empty: HTMLElement;
   readonly #menu: MenuView;
-  /** Every grid on the page, on the board or kept off it for a detached chart, by its id. */
-  readonly #grids = new Map<string, PageGrid>();
+  /**
+   * Every grid made on the page, by its id, with the maker that made it (a copy is made by the same one). Read only
+   * for the ids the board still has (`#live`): one it let go is gone.
+   */
+  readonly #grids = new Map<string, { readonly grid: PageGrid; readonly make: GridMaker }>();
   #page: CubePage;
   #name: string;
   #disposed = false;
+  /** The grid whose status bar holds the host's readout. */
+  #first: PageGrid | undefined;
 
   constructor(options: PageAppOptions) {
     this.#options = options;
@@ -89,7 +113,7 @@ export class PageApp {
     const doc = this.#doc;
     const root = doc.createElement('div');
     root.className = 'dc-page';
-    // the bar: the page's menu, its name, the host's status, and a lone grid's header at the right
+    // the bar: the page's menu, its name, its fold, and a lone grid's header at the right
     const bar = doc.createElement('div');
     bar.className = 'dc-titlebar dc-page-bar';
     this.#burger = doc.createElement('button');
@@ -104,7 +128,7 @@ export class PageApp {
     this.#title = doc.createElement('span');
     this.#title.className = 'dc-titlebar-title';
     this.#title.textContent = this.#name;
-    // the space between the name and the right end (the host's readouts are in its grids' status bars)
+    // the space between the name and the right end (the host's readout is in its first grid's status bar)
     const status = doc.createElement('span');
     status.className = 'dc-page-status';
     this.#status = status;
@@ -120,7 +144,10 @@ export class PageApp {
     this.#fold.title = 'Hide the bar';
     this.#fold.setAttribute('aria-label', 'Hide the bar');
     this.#fold.setAttribute('aria-expanded', 'true');
-    this.#fold.addEventListener('click', () => this.setBarFolded(true));
+    this.#fold.addEventListener('click', () => {
+      this.setBarFolded(true);
+      this.#lip.focus();
+    });
     this.#lip = doc.createElement('button');
     this.#lip.type = 'button';
     this.#lip.className = 'dc-titlebar-lip';
@@ -128,7 +155,10 @@ export class PageApp {
     this.#lip.title = 'Show the bar';
     this.#lip.setAttribute('aria-label', 'Show the bar');
     this.#lip.setAttribute('aria-expanded', 'false');
-    this.#lip.addEventListener('click', () => this.setBarFolded(false));
+    this.#lip.addEventListener('click', () => {
+      this.setBarFolded(false);
+      this.#fold.focus();
+    });
     bar.append(this.#burger, this.#title, status, this.#fold, this.#alone);
     this.#bar = bar;
     this.#boardHost = doc.createElement('div');
@@ -150,7 +180,7 @@ export class PageApp {
   /** The grid alone on the page, if it is: one tile, a grid. */
   #lone(): PageGrid | undefined {
     const ids = this.#page.tileIds;
-    return ids.length === 1 ? this.#grids.get(ids[0]!) : undefined;
+    return ids.length === 1 ? this.grid(ids[0]!) : undefined;
   }
 
   /** A grid's state changed: the bar says a lone grid's report title, and folds as its title bar setting says. */
@@ -170,19 +200,23 @@ export class PageApp {
    * the lip brings it back -- and a lone grid's header keeps only the zones' way back, where it was.
    */
   setBarFolded(folded: boolean): void {
-    // a grid alone: its own title bar setting (saved with it, as a cube alone's always was)
-    const lone = this.#lone();
-    if (lone && lone.configuration.showTitleBar === folded) lone.setChrome({ showTitleBar: !folded });
+    // kept in every grid's title bar setting (saved with it, as a cube alone's always was): whichever grid is left
+    // alone later says the same
+    for (const grid of this.#live()) {
+      if (grid.configuration.showTitleBar === folded) grid.setChrome({ showTitleBar: !folded });
+    }
     this.#foldBar(folded);
   }
 
   #foldBar(folded: boolean): void {
     if (folded === this.#bar.classList.contains('dc-collapsed')) return;
     this.#menu.close();
+    // focus in the bar stays in it (its control is taken off by the fold); elsewhere it is left where it is
+    const focused = this.#bar.contains(this.#doc.activeElement);
     this.#bar.classList.toggle('dc-collapsed', folded);
     if (folded) this.#bar.replaceChildren(this.#lip, this.#alone);
     else this.#bar.replaceChildren(this.#burger, this.#title, this.#status, this.#fold, this.#alone);
-    (folded ? this.#lip : this.#fold).focus();
+    if (focused && !this.#bar.contains(this.#doc.activeElement)) (folded ? this.#lip : this.#fold).focus();
   }
 
   get barFolded(): boolean {
@@ -203,7 +237,7 @@ export class PageApp {
   /** The bar's name: the page's own, else its first grid's report title (what a grid alone was called). */
   #paintTitle(): void {
     const first = this.grids[0];
-    this.#title.textContent = this.#name || (first !== undefined ? this.#grids.get(first)?.configuration.reportTitle ?? '' : '');
+    this.#title.textContent = this.#name || (first !== undefined ? this.grid(first)?.configuration.reportTitle ?? '' : '');
   }
 
   /** The grids on the board, in reading order (not those kept off it for a detached chart). */
@@ -212,9 +246,46 @@ export class PageApp {
     return this.#page.tileIds.filter((id) => on.has(id));
   }
 
+  /** Every grid the page saves a cube for: on the board in reading order, then those kept off it for a detached chart. */
+  get cubes(): readonly string[] {
+    return [...this.grids, ...this.#page.kept.keys()];
+  }
+
   /** A grid on the page, by its id (on the board or kept off it). */
   grid(id: string): PageGrid | undefined {
-    return this.#grids.get(id);
+    return this.#page.grids.has(id) || this.#page.kept.has(id) ? this.#grids.get(id)?.grid : undefined;
+  }
+
+  /** The grids on the page now, on the board or kept off it. */
+  #live(): PageGrid[] {
+    return this.cubes.map((id) => this.grid(id)).filter((g): g is PageGrid => g !== undefined);
+  }
+
+  /** `make`, made to say what it made: every grid on the page is made through here, under its tile's id. */
+  #maker(make: GridMaker, start?: GridStart): (host: HTMLElement, options: SpawnOptions) => PageGrid {
+    return (host, options) => {
+      const id = options.id;
+      const hostStatus = this.#options.hostStatus;
+      const grid = make(host, {
+        ...options,
+        // the host's readout, in this grid's bar while it is the page's first
+        ...(hostStatus && id !== undefined ? { hostStatus: (slot: HTMLElement) => { if (this.grids[0] === id) hostStatus(slot); } } : {}),
+      }, start);
+      if (id !== undefined) this.#grids.set(id, { grid, make });
+      return grid;
+    };
+  }
+
+  /** The host's readout moved to the page's first grid, when that is another grid now. */
+  #rehomeStatus(): void {
+    const first = this.grids[0];
+    const grid = first !== undefined ? this.grid(first) : undefined;
+    if (grid === this.#first) return;
+    const was = this.#first;
+    this.#first = grid;
+    // the one it leaves drops its slot first; the readout's node then moves to the new one's
+    if (was && this.#live().includes(was)) was.refreshHostStatus();
+    grid?.refreshHostStatus();
   }
 
   /** Nothing on the page: no grid, no chart. */
@@ -227,9 +298,7 @@ export class PageApp {
    * a saved page's under its saved `id` and `title`. Returns its id.
    */
   addGrid(make: GridMaker, how: { readonly id?: string; readonly title?: string; readonly near?: string } = {}): string {
-    let made: PageGrid | undefined;
-    const id = this.#page.addGridOver((host, options) => (made = make(host, options)), how);
-    if (made) this.#grids.set(id, made);
+    const id = this.#page.addGridOver(this.#maker(make), how);
     this.#paintEmpty();
     return id;
   }
@@ -269,7 +338,7 @@ export class PageApp {
    * it reads (a kept one for a detached chart), the layout.
    */
   views(): PageViews {
-    return this.#page.views((grid) => (this.#grids.has(grid) ? grid : undefined));
+    return this.#page.views((grid) => (this.grid(grid) ? grid : undefined));
   }
 
   /**
@@ -282,11 +351,11 @@ export class PageApp {
     readonly page?: Readonly<Record<string, unknown>>;
     readonly cubes?: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
   }): PageDocument | undefined {
-    const ids = [...this.grids, ...this.#page.kept.keys()];
+    const ids = this.cubes;
     if (ids.length === 0) return undefined;
     const cubes: { id: string; cube: CubeDocument }[] = [];
     for (const id of ids) {
-      const cube = this.#grids.get(id)?.cubeDocument(name, unknown?.cubes?.get(id));
+      const cube = this.grid(id)?.cubeDocument(name, unknown?.cubes?.get(id));
       if (!cube) return undefined;
       cubes.push({ id, cube });
     }
@@ -295,10 +364,11 @@ export class PageApp {
 
   /** Why the page cannot be saved now, if it cannot: nothing on it, or a grid's own reason, named. */
   saveRefusal(): string | undefined {
-    const ids = [...this.grids, ...this.#page.kept.keys()];
+    const ids = this.cubes;
     if (ids.length === 0) return 'There is nothing on this page to save: add a data source first.';
     for (const id of ids) {
-      const refused = this.#grids.get(id)?.saveRefusal();
+      const grid = this.grid(id);
+      const refused = grid ? grid.saveRefusal() : 'a grid on it does not know its source.';
       if (refused) return ids.length > 1 ? `${this.#page.title(id) ?? id}: ${refused}` : refused;
     }
     return undefined;
@@ -314,9 +384,10 @@ export class PageApp {
     this.#page.dispose();
     this.#grids.clear();
     this.#page = this.#newBoard();
+    // in the layout's reading order; a grid the layout has no place for, last
     const order = tiles(page.layout);
-    const grids = page.views.filter((v) => v.kind === 'grid')
-      .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    const at = (id: string): number => (order.includes(id) ? order.indexOf(id) : order.length);
+    const grids = page.views.filter((v) => v.kind === 'grid').sort((a, b) => at(a.id) - at(b.id));
     const tileOf = new Map<string, string>();
     for (const view of grids) {
       const make = makers.get(view.cube);
@@ -326,9 +397,7 @@ export class PageApp {
     for (const { id } of page.cubes) {
       const make = makers.get(id);
       if (tileOf.has(id) || !make) continue;
-      let made: PageGrid | undefined;
-      this.#page.keepGrid(id, (host, options) => (made = make(host, options)));
-      if (made) this.#grids.set(id, made);
+      this.#page.keepGrid(id, this.#maker(make));
     }
     this.#page.restore(page, (cube) => tileOf.get(cube) ?? (this.#page.kept.has(cube) ? cube : undefined));
     this.#paintEmpty();
@@ -349,27 +418,36 @@ export class PageApp {
     return new CubePage({
       host: this.#boardHost,
       onChange: () => {
+        // a layout change can make another grid the first
+        this.#rehomeStatus();
         this.#onGridChange();
         this.#options.onChange?.();
       },
       onEmpty: () => this.#paintEmpty(),
       onTiles: () => this.#onTiles(),
       onSettingsChanged: (values) => {
-        for (const grid of this.#grids.values()) grid.useSettings(values);
+        for (const grid of this.#live()) grid.useSettings(values);
         this.#options.onSettingsChanged?.(values);
+      },
+      // a copy (Copy of Grid; a detached chart's own grid) is made by the maker of the grid it copies
+      gridLike: (from, snapshot) => {
+        const was = this.#grids.get(from);
+        if (!was || !this.grid(from)) throw new Error(`no grid ${from} on the page to copy`);
+        return this.#maker(was.make, { snapshot, configuration: was.grid.configuration });
       },
     });
   }
 
   /** A tile came or went: grids taken off forgotten, a lone grid shown in the bar, the empty page when it is. */
   #onTiles(): void {
-    const live = new Set([...this.#page.grids.keys(), ...this.#page.kept.keys()]);
+    const live = new Set(this.cubes);
     for (const id of [...this.#grids.keys()]) if (!live.has(id)) this.#grids.delete(id);
     this.#paintEmpty();
     this.#onGridChange();
   }
 
   #paintEmpty(): void {
+    this.#rehomeStatus();
     const empty = this.empty;
     this.#boardHost.hidden = empty;
     this.#empty.hidden = !empty;
@@ -454,7 +532,7 @@ export class PageApp {
       }
       case 'view.settings': {
         const first = this.grids[0];
-        if (first !== undefined) this.#grids.get(first)?.openSettings();
+        if (first !== undefined) this.grid(first)?.openSettings();
         return;
       }
       default:

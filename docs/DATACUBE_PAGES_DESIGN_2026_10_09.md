@@ -200,23 +200,34 @@ with its own title bar and its own board, as now: the page is DataCube's own app
 - **A frozen chart whose grid is removed** keeps reading that grid's query, as today: the removed grid is kept off the
   page (no tile) while a chart still reads it, saved as a cube with no grid view, and reopened the same way. It goes
   once its last chart goes. (Today such a chart runs on the first grid's planner; with no first grid, it keeps its own.)
-- The demo's test handles: `window.__dataCube` stays the grid a test opened (the first); `window.__dataPage` is new,
-  the page (its views, its document, its layout).
+- The demo's test handles: `window.__dataCube` is the page's first grid (read when asked, so it is never a removed
+  one); `window.__dataPage` is new, the page (its views, its document, its layout).
 
 **As built (2026-10-09)**, where the plan above needed a decision:
 
 - **The host's status line and the planner's word stay in the first grid's status bar**, with the planes offered
   there, not in the page's bar: a readout belongs in the status bar (an earlier ruling: the title bar says what is on
-  screen). The page's bar holds its name, its menu and, for a grid alone, that grid's header.
+  screen). The page's bar holds its name, its menu and, for a grid alone, that grid's header. The page decides which
+  grid is first (reading order): when another grid becomes first (the first removed, the page rearranged) the readout
+  moves to it; the other grids have no slot for it.
+- **Every grid is made by the host's maker**, a copy too: Copy of Grid, and the grid a detached chart's Update keeps,
+  are made by the maker of the grid they copy, starting where that grid is now. So the page knows every grid it saves,
+  and the host knows each grid's file (its handle, kept per page and grid when the page is saved or reopened) and the
+  table it was read into -- dropped once no grid on the page reads it.
+- **Opening a saved page is latest-wins**, as opening a source in place is (P2-330): an open overtaken while it waited
+  (a file asked for, a sign-in) lands nothing, and what it read is dropped.
 - **The bar's name** is the page's own once it is saved (or reopened), else its first grid's report title -- what a
   grid alone was called; the Properties' Report Title still names a page of one grid.
 - **The bar folds** to a lip (the earlier ruling: the folds live in one column at the right): its fold just left of a
   lone grid's header, whose last control -- the drag zones' way back -- stays at the far right above the zone bar's own
-  fold. For a grid alone the fold is that grid's "show title bar" setting, saved with it as a cube alone's was.
+  fold. For a grid alone the fold is that grid's "show title bar" setting, saved with it as a cube alone's was; folding
+  or showing the bar by hand writes it on every grid, so the grid left alone later says the same. A tile's header puts
+  the zones' way back last, after the grid's menu, on a cube alone's board too.
 - **A grid's columns panel** starts open for a grid opened alone (in place, or a page of one reopened), folded for one
   added beside others -- as a source added beside others starts at the row limit (the user, 2026-10-01).
 - **Exports**: each grid's own menu exports its rows with the page's charts where the board puts them (an export holds
-  one table); the page's menu has Export > Page File, the page's document. Each grid's menu has Remove from Page (the
+  one table), once there is a chart -- with none, its rows alone, as before; an added grid on a cube alone's board does
+  the same. The page's menu has Export > Page File, the page's document. Each grid's menu has Remove from Page (the
   one way to remove a grid alone, whose tile has no frame).
 - **Settings** saved on one grid are in effect on every grid on the page.
 - **A detached chart's query edited** (Open in grid, Update) gets a kept grid of its own, so two charts detached from

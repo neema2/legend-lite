@@ -83,7 +83,10 @@ export async function readHandle(
   }
 }
 
-/** Kept handles, by saved-cube id, in the cubes' own browser database. */
+/**
+ * Kept handles in the cubes' own browser database: by saved page id and grid (`page#grid`), or -- saved before a page
+ * held several grids -- by the page's id alone.
+ */
 export class FileHandles {
   static readonly STORE = 'handles';
   readonly #db: Promise<IDBDatabase>;
@@ -103,6 +106,12 @@ export class FileHandles {
 
   async remove(cubeId: string): Promise<void> {
     await this.#request('readwrite', (s) => s.delete(cubeId));
+  }
+
+  /** Every handle a saved page kept: its own, and each of its grids' (`page#grid`). */
+  async removePage(pageId: string): Promise<void> {
+    await this.remove(pageId);
+    await this.#request('readwrite', (s) => s.delete(IDBKeyRange.bound(`${pageId}#`, `${pageId}#\uffff`)));
   }
 
   async #request<T>(mode: IDBTransactionMode, go: (s: IDBObjectStore) => IDBRequest): Promise<T> {

@@ -466,6 +466,8 @@ export class CubeApp {
   #checking = 0;
   #endFetch: (() => void) | null = null;
   readonly #progress: HTMLElement;
+  /** The host's readout in the status bar, with its separator, while the host fills it. */
+  #hostSlot: HTMLElement | null = null;
   /** Where the grid was scrolled when the context menu opened. */
   #menuScroll: { top: number; left: number } | null = null;
   /** The controls hidden, the grid alone (`controlsHidden`); view state, never saved. */
@@ -1491,17 +1493,27 @@ export class CubeApp {
    */
   #adoptHostStatus(): void {
     const fill = this.#options.hostStatus;
+    // the slot of the render before, when this is not a whole render (`refreshHostStatus`)
+    this.#hostSlot?.remove();
+    this.#hostSlot = null;
     if (!fill) return;
     const slot = this.#doc.createElement('div');
     slot.className = 'dc-status-host';
+    fill(slot);
+    // a host with nothing to say here (a page's readout is in its first grid's bar only): no slot, no separator
+    if (slot.childNodes.length === 0) return;
     // AT THE FAR RIGHT, among the readouts -- with the figures,
     // because that is what it is: which backend answered.
     const readout = this.#els.stats
       .querySelector<HTMLElement>('.dc-status-readout');
     const host = readout ?? this.#els.stats;
-    if (host.childElementCount > 0) host.append(this.#statusSeparator());
-    host.append(slot);
-    fill(slot);
+    // the separator goes with the slot: one element, taken off as one
+    const held = this.#doc.createElement('div');
+    held.className = 'dc-status-host-held';
+    if (host.childElementCount > 0) held.append(this.#statusSeparator());
+    held.append(slot);
+    host.append(held);
+    this.#hostSlot = held;
     // WHERE THE PLANNER RUNS, changed where it is read (the user, 2026-09-30): the readout
     // opens the host's planes, when it has more than the one it is on.
     if (this.#hostItems('plane').length > 1) {
@@ -1546,12 +1558,20 @@ export class CubeApp {
     );
   }
 
-  /** Fold the zones or the title bar away, or bring them back. */
-  /** Fold the zones or the title bar away, or bring them back: a page's bar, for the grid alone on it, says so here. */
+  /**
+   * The host's readout asked for again, without a render: a page whose first grid changed moves its readout there
+   * (and the grid it left drops its slot).
+   */
+  refreshHostStatus(): void {
+    if (!this.#disposed) this.#adoptHostStatus();
+  }
+
+  /** Fold the zones or the title bar away, or bring them back: a page's bar, folded or shown, says so here. */
   setChrome(patch: { readonly showDragZones?: boolean; readonly showTitleBar?: boolean }): void {
     this.#setChrome(patch);
   }
 
+  /** Fold the zones or the title bar away, or bring them back. */
   #setChrome(patch: {
     readonly showDragZones?: boolean;
     readonly showTitleBar?: boolean;

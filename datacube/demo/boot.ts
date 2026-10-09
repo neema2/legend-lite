@@ -546,8 +546,11 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     readonly planner?: Planner;
     /** What its header says it reads. */
     readonly label?: string;
-    /** The file it reads, and the handle it was picked through: the page keeps them, by the grid's id. */
-    readonly file?: { readonly file: File; readonly handle?: FileHandle };
+    /**
+     * The file it reads, the handle it was picked through, and the table it was read into in this tab: the page keeps
+     * them by the grid's id, and drops the table once no grid on the page reads it.
+     */
+    readonly file?: { readonly file: File; readonly handle?: FileHandle; readonly table: string };
     /** Its columns panel folded at the start: a grid added beside others; open, one opened alone. */
     readonly foldPanel?: boolean;
   };
@@ -563,28 +566,26 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     dims: { name: string; columns: string[] }[],
     place: GridPlace = {},
   ): GridMaker {
-    return (gridHost, spawned) => {
-      const first = page.grids.length === 0;
+    // `start`: a copy of a grid of this source (Copy of Grid), starting where that grid is now
+    return (gridHost, spawned, start) => {
       let printed = 0;
-      const created: CubeApp = new CubeApp(gridHost, snap, {
+      const created: CubeApp = new CubeApp(gridHost, start?.snapshot ?? snap, {
         engine: place.engine ?? engine,
         planner: place.planner ?? planner,
         // Where the rows are (Live on a warehouse, or Snapped in this tab) is the grid's plane
         // button, and who read them the status bar's receipt.
         ...(place.live ? { live: place.live } : {}),
-        configuration: config,
+        configuration: start?.configuration ?? config,
         // Snap only where the place says what to copy: no other source's target stands in for it
         ...(place.snapTarget ? { snapTarget: place.snapTarget } : {}),
         ...(place.cubeSource ? { cubeSource: place.cubeSource } : {}),
-        ...(place.tree ? { tree: place.tree } : {}),
+        // the groups a saved cube had open: its own grid's, not a copy's (a copy starts collapsed, as a new grid)
+        ...(place.tree && !start ? { tree: place.tree } : {}),
         ...(place.heldCopy ? { heldCopy: place.heldCopy } : {}),
         ...(place.label !== undefined ? { sourceLabel: place.label } : {}),
         compact: true,
-        foldPanel: place.foldPanel === true,
-        // THE HOST'S TEXT, IN THE STATUS BAR (planner progress, errors, the planner's word): the page's first grid's,
-        // at the right of its status bar -- a readout belongs there, not in the bar that says what is on screen.
-        // MOVED rather than copied, on each render of the first grid: `status` is the same node the planner writes to.
-        hostStatus: (slot) => { if (page.grids[0] === spawned.id) slot.append(status); },
+        // a copy is a grid added beside others
+        foldPanel: start !== undefined || place.foldPanel === true,
         // WHERE THE PLANNER RUNS, changed where it is read: the status bar's readout offers the planes
         hostMenu: () => planeMenu(),
         onHostMenu: (item) => onHostItem(item),
@@ -643,9 +644,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         ...spawned,
       });
       if (spawned.id !== undefined) madeGrid?.(spawned.id, place);
-      // For the browser harness ONLY: the grid a check opened (the page's first), so it can read
-      // its own configuration and snapshot when what it sees on screen disagrees. Not product code.
-      if (first) (window as unknown as { __dataCube?: CubeApp }).__dataCube = created;
+      // a grid on the page: the start's reason for a blank one is over
+      sayWhyBlank(undefined);
       return created;
     };
   }
@@ -688,17 +688,35 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
   let onCubeView: (() => void) | undefined;
   /** Told when a grid is made on the page, by its tile's id: what the page keeps of it (its file). */
   let madeGrid: ((id: string, place: GridPlace) => void) | undefined;
+  /** Told of every change on the page: the tables no grid reads any more are dropped. */
+  let dropUnread: (() => void) | undefined;
   /** The source picker, once the page can open sources: New ▸ Data Source… adds a grid over one; a blank page opens one. */
   let picker: ((purpose: 'add' | 'open', start?: SectionId) => Promise<GridMaker | undefined>) | undefined;
   /** New ▸ Blank Page: everything goes, for a first data source. */
   let blankPage: ((reason?: string) => void) | undefined;
   /** Why the page's start opened nothing (a link that failed, a key refused): the empty page says it. */
   let startProblem: string | undefined;
-  /** The empty page's line saying why, when the start opened nothing. */
-  let emptyReason: HTMLElement | undefined;
+  /** The empty page's card: hidden until the start has settled -- a page still signing in, or opening a link, is not blank. */
+  let blankCard: HTMLElement | undefined;
+  /** Where the card says why the start opened nothing: after its lead. */
+  let blankLead: HTMLElement | undefined;
+  /** The card's line saying why, while it says it. */
+  let blankWhy: HTMLElement | undefined;
+  /** The empty page's card says why the start opened nothing, or -- undefined -- says nothing of it. */
+  const sayWhyBlank = (reason: string | undefined): void => {
+    blankWhy?.remove();
+    blankWhy = undefined;
+    if (!reason || !blankLead) return;
+    const why = document.createElement('p');
+    why.className = 'dc-blank-reason';
+    why.setAttribute('role', 'alert');
+    why.textContent = reason;
+    blankLead.after(why);
+    blankWhy = why;
+  };
 
   /**
-   * THE PAGE (src/page/page-app.ts): its bar -- the page's menu, its name, this host's status line -- and its grids.
+   * THE PAGE (src/page/page-app.ts): its bar -- the page's menu, its name, its fold -- and its grids.
    * The page's menu carries the host's entries: Save, Open, Share, the generated Pure and SQL, the planner planes.
    */
   const page = new PageApp({
@@ -726,6 +744,10 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       ...planeMenu(),
     ],
     onHostMenu: (item) => onHostItem(item),
+    // THE HOST'S TEXT, IN THE STATUS BAR (planner progress, errors, the planner's word): the page's first grid's, at the
+    // right of its status bar -- a readout belongs there, not in the bar that says what is on screen. MOVED rather than
+    // copied, on each render of that bar: `status` is the same node the planner writes to.
+    hostStatus: (slot) => slot.append(status),
     // THE EMPTY PAGE (New ▸ Blank Page, the last grid removed, a start that opened nothing): what to do first -- a
     // data source (the picker, opening in place) or a saved page
     empty: (slot) => {
@@ -742,12 +764,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       lead.textContent = models
         ? 'Start with a data source: a file from your computer, an example, a table in a warehouse, or a remote Parquet, CSV or Iceberg file.'
         : 'This planner opens only the sample.';
-      const why = doc.createElement('p');
-      why.className = 'dc-blank-reason';
-      why.setAttribute('role', 'alert');
-      why.hidden = true;
-      emptyReason = why;
-      card.append(title, lead, why);
+      blankLead = lead;
+      card.append(title, lead);
       if (models) {
         const actions = doc.createElement('div');
         actions.className = 'dc-blank-actions';
@@ -765,6 +783,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         card.append(actions);
       }
       blank.append(card);
+      blank.hidden = true;
+      blankCard = blank;
       slot.append(blank);
     },
     ...(models ? {
@@ -774,6 +794,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     } : {}),
     onChange: () => {
       harnessSignal.changes += 1;
+      dropUnread?.();
       onCubeView?.();
     },
     onSettingsChanged: (values) => {
@@ -786,8 +807,13 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     },
     download: (name, mime, text) => download(name, mime, text),
   });
-  // For the browser harness ONLY: the page, its views and its layout. Not product code.
+  // For the browser harness ONLY: the page, its views and its layout; and its first grid (a CubeApp), so a check can
+  // read that grid's own configuration and snapshot when what it sees on screen disagrees. Not product code.
   (window as unknown as { __dataPage?: PageApp }).__dataPage = page;
+  Object.defineProperty(window, '__dataCube', {
+    configurable: true,
+    get: () => (page.grids[0] !== undefined ? page.grid(page.grids[0]) : undefined),
+  });
 
   if (start.kind === 'sample') {
     page.addGrid(gridMaker(await sampleSnapshot(), configuration, DEMO_DIMENSIONS,
@@ -916,12 +942,57 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       /** What opening left out of the saved page (a file changed, a source not opened): saving over it loses them. */
       lost?: readonly string[];
     } = {};
-    /** Each grid's file, by the grid's id: the File, the handle it was picked through, its fingerprint, a sample's. */
-    const files = new Map<string, { readonly file: File; readonly handle?: FileHandle; readonly sha256: string; readonly sample: boolean }>();
+    /**
+     * The tables this page's grids read, each its own: none may replace another's. The demo's generated (or mounted)
+     * `trades` is the sample grid's from the start.
+     */
+    const taken = new Set<string>(['trades']);
+    const freshTable = (base: string): string => {
+      const busy = (t: string): boolean => taken.has(t);
+      let name = base;
+      for (let n = 2; busy(name); n += 1) name = `${base}_${n}`;
+      taken.add(name);
+      return name;
+    };
+    /**
+     * Each grid's file, by the grid's id: the File, the handle it was picked through, the table it was read into, its
+     * fingerprint, a sample's. Read only for the grids on the page now (`page.cubes`).
+     */
+    const files = new Map<string, {
+      readonly file: File;
+      readonly handle?: FileHandle;
+      readonly table: string;
+      readonly sha256: string;
+      readonly sample: boolean;
+    }>();
+    /** The files on the page now: one per grid that reads one (copies of a grid read the same). */
+    const filesNow = (): { readonly grid: string; readonly file: File; readonly handle?: FileHandle; readonly table: string; readonly sha256: string; readonly sample: boolean }[] =>
+      page.cubes.flatMap((grid) => {
+        const f = files.get(grid);
+        return f ? [{ grid, ...f }] : [];
+      });
+    /** The tables files were read into for grids, by table: the file's name, to drop it by. */
+    const held = new Map<string, string>();
     madeGrid = (id, place) => {
       const src = place.cubeSource;
       if (place.file && src?._type === 'file') {
         files.set(id, { ...place.file, sha256: src.sha256, sample: src.sample !== undefined });
+        held.set(place.file.table, place.file.file.name);
+      }
+    };
+    /**
+     * A FILE'S TABLE GOES WITH ITS LAST GRID: once no grid on the page (or kept off it for a detached chart) reads it,
+     * it is dropped from the tab's database and its name is free again -- a file opened three times in place holds one
+     * table, not three. Told of every change on the page.
+     */
+    dropUnread = () => {
+      const read = new Set(filesNow().map((f) => f.table));
+      const live = new Set(page.cubes);
+      for (const grid of [...files.keys()]) if (!live.has(grid)) files.delete(grid);
+      for (const [table, fileName] of [...held]) {
+        if (read.has(table)) continue;
+        held.delete(table);
+        void forgetUpload(engine, db, fileName, table).catch(() => {}).finally(() => taken.delete(table));
       }
     };
 
@@ -955,8 +1026,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     // Leaving the page with unsaved changes asks, the browser's way.
     work.add(() => (dirty() ? 'unsaved changes' : undefined));
     work.add(() => {
-      const opened = page.grids.map((id) => files.get(id)).filter((f) => f !== undefined && !f.sample);
-      return opened.length > 0 ? `the file${opened.length === 1 ? '' : 's'} opened in this tab (${opened.map((f) => f!.file.name).join(', ')})` : undefined;
+      const opened = [...new Set(filesNow().filter((f) => !f.sample).map((f) => f.file.name))];
+      return opened.length > 0 ? `the file${opened.length === 1 ? '' : 's'} opened in this tab (${opened.join(', ')})` : undefined;
     });
     window.addEventListener('beforeunload', (event) => {
       if (leaving || work.what() === undefined) return;
@@ -1000,14 +1071,15 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         return {
           label: opened.fileName,
           notes,
-          discard: () => forgetUpload(engine, db, file.name, table).catch(() => {}),
+          // never made into a grid: its table goes, and its name is free again
+          discard: () => forgetUpload(engine, db, file.name, table).catch(() => {}).finally(() => taken.delete(table)),
           make: gridMaker(r.snapshot, r.configuration, [], {
             planner: own,
             cubeSource: source,
             heldCopy: { label: opened.fileName, takenAt: loadedAt, rowCount: opened.rowCount },
             label: opened.fileName,
             ...(r.tree ? { tree: r.tree } : {}),
-            file: { file, ...(how.handle ? { handle: how.handle } : {}) },
+            file: { file, table, ...(how.handle ? { handle: how.handle } : {}) },
             foldPanel: how.capped === true,
           }),
         };
@@ -1031,12 +1103,13 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         return [];
       }
       page.clear();
-      files.clear();
       current = {};
       // the page has no name of its own until saved: its bar says the grid's report title (its source's name)
       page.setTitle('');
       page.addGrid(o.make);
       await page.ready();
+      // overtaken while it landed: the newer open's page is the one to keep a baseline of
+      if (!newest()) return [];
       // The baseline is the page as it LANDED (normalized by its first refresh)
       const landed = savedForm(page.title || 'page');
       current = { ...(landed ? { baseline: landed.definition } : {}), lost: [] };
@@ -1190,14 +1263,23 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     async function openSaved(saved: SavedDocument, id: string | undefined): Promise<void> {
       const doc = saved.kind === 'page' ? saved.page : pageOf(saved.cube);
       if (dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return;
+      // LATEST WINS (P2-330), as an open in place: each source is a wait (a file asked for, a sign-in), and an open
+      // overtaken meanwhile lands nothing -- what it read is dropped
+      const newest = opens.start();
       const makers = new Map<string, GridMaker>();
+      const read: Opened[] = [];
       const notes: string[] = [];
       for (const { id: cubeId, cube } of doc.cubes) {
         const o = await reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), doc.cubes.length > 1);
+        if (!newest()) {
+          for (const r of [...read, ...(o ? [o] : [])]) await r.discard?.();
+          return;
+        }
         if (!o) {
           notes.push(`left out: ${cube.source.name} (not opened)`);
           continue;
         }
+        read.push(o);
         makers.set(cubeId, o.make);
         notes.push(...o.notes);
       }
@@ -1205,10 +1287,13 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         library?.say(`not opened: "${doc.name}" -- none of its sources was opened`, 'warn');
         return;
       }
-      files.clear();
       page.restore(doc, makers);
       page.setTitle(doc.name);
       await page.ready();
+      // overtaken while it landed: the newer open's page is the one to keep
+      if (!newest()) return;
+      // each file the page reads, where it was picked: kept for the next time it is opened
+      if (id !== undefined) await keepHandles(id);
       current = {
         ...(id !== undefined ? { cubeId: id } : {}),
         name: doc.name,
@@ -1229,6 +1314,14 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       if (notes.length === 0) closeCubes?.();
     }
 
+    /**
+     * Each grid's file, where it was picked: kept by the page and the grid (a grid kept off the board for a detached
+     * chart included), so opening the page again reads it from there.
+     */
+    async function keepHandles(pageId: string): Promise<void> {
+      for (const f of filesNow()) if (f.handle) await handles?.put(`${pageId}#${f.grid}`, f.handle);
+    }
+
     /** The grid a saved page's cube is shown in (its grid view's id), or the cube's own id (a detached chart's). */
     const gridOfCube = (doc: PageDocument, cube: string): string =>
       doc.views.find((v) => v.kind === 'grid' && v.cube === cube)?.id ?? cube;
@@ -1243,11 +1336,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       const record = { id, name, content: form.content };
       if (id === current.cubeId) await store.update(id, record);
       else await store.create(record);
-      // each grid's file, where it was picked: kept by the page and the grid
-      for (const grid of page.grids) {
-        const handle = files.get(grid)?.handle;
-        if (handle) await handles?.put(`${id}#${grid}`, handle);
-      }
+      await keepHandles(id);
       current = { ...current, cubeId: id, name, baseline: form.definition, lost: [] };
       page.setTitle(name);
       onCubeView?.();
@@ -1261,8 +1350,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       open: async (id) => openSaved(readSaved((await store.get(id)).content), id),
       openText: async (text) => openSaved(readSaved(text), undefined),
       forget: async (id) => {
-        await handles?.remove(id);
-        for (const grid of page.grids) await handles?.remove(`${id}#${grid}`);
+        // every handle the page kept, whichever page is on screen
+        await handles?.removePage(id);
         if (current.cubeId === id) {
           const { cubeId: _gone, ...rest } = current;
           current = rest;
@@ -1464,18 +1553,6 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       | { readonly kind: 'saved'; readonly query: OpenedQuery };
     /** The picker's warehouse sign-in, kept between openings of the window. */
     let signedIn: { readonly session: WarehouseSession; readonly objects: readonly CatalogObject[] } | undefined;
-    /**
-     * The tables this page's grids read, each its own: none may replace another's. The demo's generated (or mounted)
-     * `trades` is the sample grid's from the start.
-     */
-    const taken = new Set<string>(['trades']);
-    const freshTable = (base: string): string => {
-      const busy = (t: string): boolean => taken.has(t);
-      let name = base;
-      for (let n = 2; busy(name); n += 1) name = `${base}_${n}`;
-      taken.add(name);
-      return name;
-    };
     const sampleFile = (id: string, rows: number): { file: File; sample: { id: string; rows: number } } => {
       const s = sampleById(id);
       if (!s) throw new Error(`no example '${id}'`);
@@ -1882,13 +1959,10 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     blankPage = (reason?: string) => {
       if (dirty() && !window.confirm('The page has unsaved changes. Start a blank page anyway?')) return;
       page.clear();
-      files.clear();
       current = {};
       page.setTitle('');
-      if (emptyReason) {
-        emptyReason.textContent = reason ?? '';
-        emptyReason.hidden = !reason;
-      }
+      sayWhyBlank(reason);
+      if (blankCard) blankCard.hidden = false;
       document.title = 'New page';
       (host.querySelector('.dc-blank-actions .dc-primary') as HTMLElement | null)?.focus();
     };
@@ -1951,13 +2025,15 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         void picker('open', 'database');
       }
     }
-    // A START THAT OPENED NOTHING (a link that failed, a key refused) leaves the blank page and the
-    // reason in the status line: never an empty page without a word
+    // A START THAT OPENED NOTHING (a link that failed, a key refused) leaves the blank page, saying
+    // why: never an empty page without a word
     if (page.empty) blankPage(startProblem);
   } else if (start.kind !== 'sample') {
     status.textContent = 'this planner opens only the sample: the link or key in the address needs the in-tab planner';
     status.classList.add('bad');
   }
+  // the start has settled: from now on an empty page is a blank one
+  if (blankCard) blankCard.hidden = false;
 
   /** The reason a start opened nothing, said where the page says what is wrong. */
   function failedStart(e: unknown): void {

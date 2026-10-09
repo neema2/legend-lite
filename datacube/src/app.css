@@ -641,6 +641,9 @@
 .dc-status-host-pick { cursor: pointer; border-radius: var(--dc-radius-sm); }
 .dc-status-host-pick:hover { background: var(--tw-neutral-200); }
 
+/* The host's own readout and its separator, together: laid out as if not wrapped. */
+.dc-status-host-held { display: contents; }
+
 /* The host's own readout, at the far right of the bar. */
 .dc-status-host {
   display: flex;

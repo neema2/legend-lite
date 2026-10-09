@@ -74,6 +74,8 @@ export interface SpawnOptions {
   readonly exportPage?: () => ExportPage | undefined;
   /** Its Settings saved: the page's to apply to every grid (each reads them, the host keeps them). */
   readonly onSettingsChanged?: (values: SettingValues) => void;
+  /** The host's readout in its status bar (a page of its own: its first grid's only), on each of its renders. */
+  readonly hostStatus?: (slot: HTMLElement) => void;
 }
 
 /** A grid on a page (a CubeApp). */
@@ -113,6 +115,12 @@ export interface CubePageOptions {
   readonly onTiles?: () => void;
   /** A grid's Settings saved: every grid on the page takes them (a page of its own). */
   readonly onSettingsChanged?: (values: SettingValues) => void;
+  /**
+   * How a grid like `from` -- over its source -- is made, starting at `snapshot`: Copy of Grid, and the grid a detached
+   * chart's Update keeps for it. A page of its own makes every grid through its host (page/page-app.ts); without this,
+   * the grid's own `spawn`.
+   */
+  readonly gridLike?: (from: string, snapshot: CubeSnapshot) => (host: HTMLElement, options: SpawnOptions) => SpawnedGrid;
 }
 
 /** A grid on the page: the cube's own, or another one added to it. */
@@ -325,7 +333,12 @@ export class CubePage {
   addGrid(from: string = GRID): string {
     const source = this.#grids.get(from)?.source;
     if (!source) throw new Error(`no grid ${from} on the page to copy`);
-    return this.addGridOver((host, options) => source.spawn(host, source.snapshot, options), { near: from });
+    return this.addGridOver(this.#gridLike(from, source, source.snapshot), { near: from });
+  }
+
+  /** A grid like `from` (over `source`), starting at `snapshot`: made by the page's owner when it makes them. */
+  #gridLike(from: string, source: ChartSource, snapshot: CubeSnapshot): (host: HTMLElement, options: SpawnOptions) => SpawnedGrid {
+    return this.#options.gridLike?.(from, snapshot) ?? ((host, options) => source.spawn(host, snapshot, options));
   }
 
   /**
@@ -376,7 +389,7 @@ export class CubePage {
    */
   keepGrid(id: string, make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid): void {
     if (this.#grids.has(id) || this.#kept.has(id)) throw new Error(`a grid ${id} is already on the page`);
-    const cube = make(this.#doc.createElement('div'), {});
+    const cube = make(this.#doc.createElement('div'), { id });
     this.#kept.set(id, cube);
     this.#opening.set(id, cube.open());
   }
@@ -392,7 +405,8 @@ export class CubePage {
       onNewGrid: () => this.addGrid(id),
       onNewSource: (other) => this.addGridOver(other, { near: id }),
       onRemove: () => this.#removeGrid(id),
-      exportPage: () => (this.charts > 0 || this.#grids.size > 1 ? this.exportPage(id) : undefined),
+      // a page around the grid's table only when there is a chart to put beside it: the other grids are not in it
+      exportPage: () => (this.#charts.size > 0 ? this.exportPage(id) : undefined),
       ...(this.#options.onSettingsChanged ? { onSettingsChanged: this.#options.onSettingsChanged } : {}),
     };
   }
@@ -548,7 +562,8 @@ export class CubePage {
    */
   views(cubeOf: (grid: string) => string | undefined = (grid) => (grid === GRID ? PAGE_CUBE : undefined)): PageViews {
     const views: PageView[] = [];
-    for (const id of this.#grids.keys()) {
+    // the grids in the layout's reading order: the order a reopened page adds them in
+    for (const id of this.tileIds.filter((t) => this.#grids.has(t))) {
       const cube = cubeOf(id);
       if (cube === undefined) continue;
       const title = this.#board.title(id);
@@ -590,6 +605,8 @@ export class CubePage {
     const { kind: _kind, ...bands } = page.layout;
     this.#board.setLayout(bands);
     this.#chartCount = Math.max(this.#chartCount, ...charts.map((c) => Number(/^chart-(\d+)$/.exec(c.id)?.[1] ?? 0)));
+    // a kept grid no restored chart reads (its charts not opened) goes now, not at the next removal
+    this.#releaseKept();
   }
 
   /**
@@ -810,10 +827,11 @@ export class CubePage {
       // -- another chart detached from the same grid keeps the query it had
       if (chart.link.grid === null && chart.link.detached) {
         const own = `${chartId}-query`;
-        this.#kept.get(own)?.dispose();
-        this.#kept.delete(own);
-        const cube = source.spawn(this.#doc.createElement('div'), grid.snapshot);
+        // made before the one it replaces goes (an Update again: it is made like the grid it replaces)
+        const cube = this.#gridLike(chart.link.detached.from, source, grid.snapshot)(this.#doc.createElement('div'), { id: own });
+        const replaced = this.#kept.get(own);
         this.#kept.set(own, cube);
+        replaced?.dispose();
         void cube.open();
         chart.link.detached = { snapshot: grid.snapshot, from: own };
         this.#releaseKept();
