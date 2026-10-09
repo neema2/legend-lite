@@ -59,8 +59,9 @@ describe('the layout picker', () => {
     picker.show(anchor, c);
     assert.ok(page.querySelector('.dc-layout-picker'), 'in the page, not the document\'s body');
     assert.deepEqual(picker.options.map((o) => o.dataset['preset']), layoutsFor(3).filter((l) => l.featured).map((l) => l.id));
+    // three tiles: one below is the grid's shape, and two columns one on the right's -- each shown once
     assert.deepEqual(picker.options.map((o) => o.dataset['preset']),
-      ['side-by-side', 'stacked', 'rows:2-1', 'focus-left', 'focus-right', 'focus-top', 'focus-bottom', 'columns:2-1']);
+      ['side-by-side', 'stacked', 'rows:2-1', 'focus-left', 'focus-right', 'focus-top']);
     assert.equal(option(picker, 'rows:2-1').getAttribute('aria-label'), 'Grid (2, 1)');
     for (const o of picker.options) assert.equal(o.querySelectorAll('.dc-layout-cell').length, 3);
     // one large on the left, the rest beside it: c, the tile it was opened from, is the large one
@@ -69,7 +70,7 @@ describe('the layout picker', () => {
     assert.equal(marked.length, 1);
     assert.equal(marked[0]!.style.left, '0px');
     assert.equal(marked[0]!.style.height, '44px');
-    assert.equal(option(picker, 'focus-left').getAttribute('aria-label'), 'One large on the left, the rest beside it');
+    assert.equal(option(picker, 'focus-left').getAttribute('aria-label'), 'One on the left, the rest beside it');
     assert.deepEqual(told.previews, [], 'opening previews nothing');
   });
 
@@ -85,8 +86,15 @@ describe('the layout picker', () => {
     assert.deepEqual(picker.options.map((o) => o.dataset['preset']), layoutsFor(5).map((l) => l.id), 'every layout for five');
     assert.ok(option(picker, 'rows:3-1-1') && option(picker, 'rows:1-3-1'), 'several on top then one and one; one, several, one');
     assert.deepEqual([...page.querySelectorAll('.dc-layout-more .dc-layout-group')].map((h) => h.textContent), ['Rows', 'Columns']);
+    // open, the picker is wider: six to a row, the keyboard moving by them
+    const el = page.querySelector<HTMLElement>('.dc-layout-picker')!;
+    assert.equal(el.classList.contains('dc-layout-picker-wide'), true);
+    picker.options[0]!.focus();
+    picker.options[0]!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    assert.equal(dom.window.document.activeElement, picker.options[6], 'down by six');
     more.click();
     assert.equal(picker.options.length, standard);
+    assert.equal(el.classList.contains('dc-layout-picker-wide'), false);
   });
 
   it('Custom builds rows by hand: each row\'s count up and down, rows added and taken away, previewed, then applied', () => {
@@ -123,9 +131,9 @@ describe('the layout picker', () => {
     const { choices: c, told } = choices();
     picker.show(anchor, c);
     pointer(option(picker, 'rows:2-1'), 'pointerenter');
-    pointer(option(picker, 'columns:2-1'), 'pointerenter');
+    pointer(option(picker, 'focus-top'), 'pointerenter');
     pointer(page.querySelector('.dc-layout-lists')!, 'pointerleave');
-    assert.deepEqual(told.previews, ['rows:2-1', 'columns:2-1', null]);
+    assert.deepEqual(told.previews, ['rows:2-1', 'focus-top', null]);
   });
 
   it('arranges on a click and closes, with no flash back to the old layout between', () => {
@@ -159,9 +167,10 @@ describe('the layout picker', () => {
     assert.equal(dom.window.document.activeElement, option(picker, 'focus-top'), 'no row below: it stays');
     key('ArrowUp');
     assert.equal(dom.window.document.activeElement, option(picker, 'stacked'));
+    key('Home');
     key('End');
-    assert.equal(dom.window.document.activeElement, option(picker, 'columns:2-1'));
-    assert.deepEqual(told.previews, ['side-by-side', 'stacked', 'focus-top', 'stacked', 'columns:2-1']);
+    assert.equal(dom.window.document.activeElement, option(picker, 'focus-top'));
+    assert.deepEqual(told.previews, ['side-by-side', 'stacked', 'focus-top', 'stacked', 'side-by-side', 'focus-top']);
     // Tab away from the thumbnails: the page as it is
     dom.window.document.querySelector<HTMLInputElement>('.dc-layout-fit input')!.focus();
     assert.equal(told.previews.at(-1), null);

@@ -16,6 +16,8 @@ import {
   add,
   arrange,
   bandOf,
+  shareText,
+  sharesBeside,
   boundary,
   cells,
   draw,
@@ -181,9 +183,10 @@ describe('presets arrange the tiles in reading order', () => {
     ['rows:1-3-1', five, ['a', '[b:33 | c:33 | d:33]', 'e']],
     ['focus-top', ['a', 'b', 'c'], ['a', '[b:50 | c:50]']],
     ['focus-bottom', ['a', 'b', 'c'], ['[b:50 | c:50]', 'a']],
-    ['focus-left', ['a', 'b', 'c'], ['[a:60 | (b:50 / c:50):40]']],
-    ['focus-right', ['a', 'b', 'c'], ['[(b:50 / c:50):40 | a:60]']],
-    ['focus-left', six, ['[a:60 | ([b:50 | c:50]:33 / [d:50 | e:50]:33 / f:33):40]']],
+    // even, as every standard shape is (the user, 2026-10-09): the one is the largest by spanning the page
+    ['focus-left', ['a', 'b', 'c'], ['[a:50 | (b:50 / c:50):50]']],
+    ['focus-right', ['a', 'b', 'c'], ['[(b:50 / c:50):50 | a:50]']],
+    ['focus-left', six, ['[a:50 | ([b:50 | c:50]:33 / [d:50 | e:50]:33 / f:33):50]']],
     // the rest in near-equal rows: 3 and 2, never 4 and a lone 1 (the user, 2026-10-09, checking the standard shapes)
     ['focus-top', six, ['a', '[b:33 | c:33 | d:33]', '[e:50 | f:50]']],
     ['focus-bottom', [...six, 'g', 'h', 'i'], ['[b:25 | c:25 | d:25 | e:25]', '[f:25 | g:25 | h:25 | i:25]', 'a']],
@@ -223,8 +226,9 @@ describe('the layouts offered for a number of tiles (the user, 2026-10-09: sever
   });
   it('four tiles: every way into rows, one large on each side, and columns -- each a different shape', () => {
     const four = layoutsFor(4);
+    // 3 over 1 and 1 over 3 are the even "one below" and "one on top": shown there, once
     assert.deepEqual(four.filter((l) => l.group === 'rows').map((l) => l.id), [
-      'side-by-side', 'stacked', 'rows:2-2', 'rows:3-1', 'rows:1-3', 'rows:2-1-1', 'rows:1-2-1', 'rows:1-1-2',
+      'side-by-side', 'stacked', 'rows:2-2', 'rows:2-1-1', 'rows:1-2-1', 'rows:1-1-2',
     ]);
     assert.deepEqual(four.filter((l) => l.featured).map((l) => l.id),
       ['side-by-side', 'stacked', 'rows:2-2', 'focus-left', 'focus-right', 'focus-top', 'focus-bottom'],
@@ -233,13 +237,15 @@ describe('the layouts offered for a number of tiles (the user, 2026-10-09: sever
     assert.deepEqual(four.filter((l) => l.group === 'columns').map((l) => l.id), ['columns:2-1-1', 'columns:1-1-2'],
       'two columns of two is 2 rows of 2: left out');
     assert.equal(new Set(four.map((l) => shape(l.id, 4))).size, four.length);
-    assert.equal(four.find((l) => l.id === 'rows:3-1')!.label, 'Rows of 3, 1');
+    assert.equal(four.find((l) => l.id === 'rows:2-1-1')!.label, 'Rows of 2, 1, 1');
+    assert.equal(four.find((l) => l.id === 'focus-top')!.label, 'One on top, the rest below');
     assert.equal(four.find((l) => l.id === 'rows:2-2')!.label, 'Grid (2, 2)', 'named as the standard shape it is');
     assert.equal(layoutsFor(6).find((l) => l.id === 'columns:3-3')!.label, 'Two columns');
   });
   it('five tiles: several on top then one and one, and one, several, one', () => {
     const ids = layoutsFor(5).map((l) => l.id);
-    for (const id of ['rows:3-1-1', 'rows:1-3-1', 'rows:1-1-3', 'rows:2-2-1', 'rows:4-1', 'rows:1-4'] as const) assert.ok(ids.includes(id), id);
+    // four over one and one over four: "one below" and "one on top", even
+    for (const id of ['rows:3-1-1', 'rows:1-3-1', 'rows:1-1-3', 'rows:2-2-1', 'focus-top', 'focus-bottom'] as const) assert.ok(ids.includes(id), id);
   });
   it('many tiles: rows of four at most, three rows at most, so the list stays one to read', () => {
     for (let n = 6; n <= 12; n += 1) {
@@ -473,9 +479,9 @@ describe('the page in whole cells (an export)', () => {
   it('shares each split\'s cells whole, by its shares, edges meeting', () => {
     const grid = cells(arrange(EMPTY, 'focus-left', ['a', 'b', 'c']));
     assert.deepEqual(grid, { cols: 24, rows: 24, tiles: [
-      { id: 'a', x: 0, y: 0, w: 14, h: 24 },
-      { id: 'b', x: 14, y: 0, w: 10, h: 12 },
-      { id: 'c', x: 14, y: 12, w: 10, h: 12 },
+      { id: 'a', x: 0, y: 0, w: 12, h: 24 },
+      { id: 'b', x: 12, y: 0, w: 12, h: 12 },
+      { id: 'c', x: 12, y: 12, w: 12, h: 12 },
     ] });
   });
   it('a page that fits its window shares one screenful; one that scrolls keeps its heights', () => {
@@ -546,15 +552,27 @@ describe('a page saved before bands, read as bands', () => {
 describe('a divider snapping', () => {
   const layout = arrange(EMPTY, 'focus-left', ['a', 'b', 'c']);
   it('knows where each divider is: the share of its split before it', () => {
-    assert.equal(boundary(layout, [0], 0), 0.6);
+    assert.equal(boundary(layout, [0], 0), 0.5);
     assert.equal(boundary(layout, [0, 1], 0), 0.5);
     assert.equal(boundary(layout, [0], 1), undefined);
     assert.equal(boundary(layout, [3], 0), undefined);
   });
   it('lands on a quarter, a third or the half within reach, and moves freely elsewhere', () => {
-    assert.ok(Math.abs(0.6 + snapped(layout, [0], 0, 0.06, 0.01) - 2 / 3) < 1e-12, 'onto two thirds');
+    assert.ok(Math.abs(0.5 + snapped(layout, [0], 0, 0.16, 0.01) - 2 / 3) < 1e-12, 'onto two thirds');
     assert.equal(snapped(layout, [0], 0, 0.03, 0.01), 0.03, 'nothing near');
-    assert.ok(Math.abs(0.6 + snapped(layout, [0], 0, -0.095, 0.01) - 0.5) < 1e-12, 'onto the half');
+    assert.ok(Math.abs(0.5 + snapped(layout, [0], 0, -0.17, 0.01) - 1 / 3) < 1e-12, 'onto a third');
     assert.equal(snapped(layout, [2], 0, 0.1, 0.01), 0.1, 'no such divider: as it is');
+  });
+});
+
+describe('sizes as a person reads them (the readout while a divider is dragged)', () => {
+  it('a quarter, a third, the half and their kin by their sign; else a whole percent', () => {
+    assert.deepEqual([1 / 4, 1 / 3, 0.5, 2 / 3, 0.75, 0.62, 0.381].map(shareText), ['\u00bc', '\u2153', '\u00bd', '\u2154', '\u00be', '62%', '38%']);
+  });
+  it('the two parts beside a divider, each its share of the split', () => {
+    const layout = resize(arrange(EMPTY, 'side-by-side', ['a', 'b', 'c']), [0], 0, 0.1);
+    const [left, right] = sharesBeside(layout, [0], 0)!;
+    assert.ok(Math.abs(left - (1 / 3 + 0.1)) < 1e-12 && Math.abs(right - (1 / 3 - 0.1)) < 1e-12);
+    assert.equal(sharesBeside(layout, [0], 2), undefined);
   });
 });

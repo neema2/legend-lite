@@ -303,7 +303,7 @@ export function fitted(layout: Bands, fit: boolean): Bands {
  *   'stacked'          every tile a band of its own
  *   'rows:3-2'         bands of 3 and 2 tiles side by side (in reading order)
  *   'columns:3-2'      one screenful divided into columns of 3 and 2 tiles, one under another
- *   'focus-left'       the first tile large on the left, the rest beside it (also -right, -top, -bottom)
+ *   'focus-left'       the first tile on the left, all the page's height, the rest beside it (also -right, -top, -bottom)
  */
 export type Preset = 'side-by-side' | 'stacked' | 'focus-left' | 'focus-right' | 'focus-top' | 'focus-bottom'
   | `rows:${string}` | `columns:${string}`;
@@ -321,10 +321,10 @@ function labelOf(preset: Preset): string {
   switch (preset) {
     case 'side-by-side': return 'All side by side';
     case 'stacked': return 'All stacked';
-    case 'focus-left': return 'One large on the left, the rest beside it';
-    case 'focus-right': return 'One large on the right, the rest beside it';
-    case 'focus-top': return 'One large on top, the rest below';
-    case 'focus-bottom': return 'One large below, the rest above';
+    case 'focus-left': return 'One on the left, the rest beside it';
+    case 'focus-right': return 'One on the right, the rest beside it';
+    case 'focus-top': return 'One on top, the rest below';
+    case 'focus-bottom': return 'One below, the rest above';
   }
   const [kind, list] = preset.split(':') as [string, string];
   const counts = list.split('-');
@@ -365,8 +365,8 @@ export interface OfferedLayout {
 /**
  * THE LAYOUTS FOR `n` TILES, as the picker offers them (the user, 2026-10-09: "default 8-9 shapes with option to see
  * more and option to do custom"). First the standard shapes, the same nine in the same order for any number of tiles
- * (featured): all side by side, all stacked, a grid as square as it goes, one large tile on each side with the rest
- * beside it, two rows, two columns. Then, behind "More layouts", EVERY way to cut the tiles into rows (several on top
+ * (featured): all side by side, all stacked, a grid as square as it goes, one tile on each side with the rest beside
+ * it, two rows, two columns -- each split evenly (the user, 2026-10-09: sizes are a divider's drag away). Then, behind "More layouts", EVERY way to cut the tiles into rows (several on top
  * then one and one; one, several, one), MAX_COLUMNS to a row, in up to four rows (three for six tiles or more), and
  * columns of near-equal size. A layout that looks the same as one before it -- the same boxes, whichever tile is where
  * -- is left out, so each thumbnail is a different shape.
@@ -453,18 +453,20 @@ export function arrange(layout: Bands, preset: Preset, order: readonly string[] 
   } else if (rest.length === 0) {
     bands = [{ height: 1, node: leaf(first!) }];
   } else if (preset === 'focus-left' || preset === 'focus-right') {
-    // the rest one under another beside it, or -- more than four -- in rows of two
+    // the one, half the page's width and all its height; the rest one under another beside it, or -- more than four
+    // -- in rows of two. Even, as every standard shape is (the user, 2026-10-09): a divider's drag makes it more
     const beside = rest.length <= 4 ? column(rest) : split('column', runs(rest, [2]).map(row));
     bands = [{ height: 1, node: preset === 'focus-left'
-      ? split('row', [leaf(first!), beside], [0.6, 0.4])
-      : split('row', [beside, leaf(first!)], [0.4, 0.6]) }];
+      ? split('row', [leaf(first!), beside])
+      : split('row', [beside, leaf(first!)]) }];
   } else if (preset === 'focus-top' || preset === 'focus-bottom') {
-    // the rest side by side, up to MAX_COLUMNS to a band, the bands near-equal (six tiles: one large, then 3 and 2 --
-    // never a lone tile left over in a band of its own)
+    // the one a band of its own, the rest side by side in bands of up to MAX_COLUMNS, near-equal (six tiles: one, then
+    // 3 and 2 -- never a lone tile left over), every band as tall as the others
     const counts = balanced(rest.length, Math.ceil(rest.length / MAX_COLUMNS), true);
-    const others = runs(rest, counts).map((run) => ({ height: 0.4 / counts.length, node: row(run) }));
-    const big = { height: 0.6, node: leaf(first!) };
-    bands = preset === 'focus-top' ? [big, ...others] : [...others, big];
+    const height = bandHeight(counts.length + 1);
+    const others = runs(rest, counts).map((run) => ({ height, node: row(run) }));
+    const one = { height, node: leaf(first!) };
+    bands = preset === 'focus-top' ? [one, ...others] : [...others, one];
   } else {
     throw new Error(`not a layout: ${String(preset)}`);
   }
@@ -798,16 +800,37 @@ export function fromCells(tiles: readonly Cell[], rows: number): Bands {
 /** Where a divider snaps, as a share of its split: quarters, thirds and the half (§3.3). */
 export const SNAPS: readonly number[] = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
 
+/** The split found by `path` (the band's index, then a part's index at each split down to it), or undefined. */
+function splitAt(layout: Bands, path: readonly number[]): SplitNode | undefined {
+  const [bandIndex, ...inner] = path;
+  let node: Node | undefined = layout.bands[bandIndex ?? -1]?.node;
+  for (const i of inner) node = node === undefined || isTile(node) ? undefined : node.parts[i]?.node;
+  return node === undefined || isTile(node) ? undefined : node;
+}
+
 /**
  * A divider's place in its split (the split found by `path`, the boundary after part `after`): the share of the
  * split before it. Undefined when there is no such divider.
  */
 export function boundary(layout: Bands, path: readonly number[], after: number): number | undefined {
-  const [bandIndex, ...inner] = path;
-  let node: Node | undefined = layout.bands[bandIndex ?? -1]?.node;
-  for (const i of inner) node = node === undefined || isTile(node) ? undefined : node.parts[i]?.node;
-  if (node === undefined || isTile(node) || after + 1 >= node.parts.length) return undefined;
+  const node = splitAt(layout, path);
+  if (node === undefined || after + 1 >= node.parts.length) return undefined;
   return node.parts.slice(0, after + 1).reduce((sum, part) => sum + part.size, 0);
+}
+
+/** The two parts either side of a divider (the boundary after part `after`), each as its share of the split. */
+export function sharesBeside(layout: Bands, path: readonly number[], after: number): [number, number] | undefined {
+  const node = splitAt(layout, path);
+  const left = node?.parts[after];
+  const right = node?.parts[after + 1];
+  return left && right ? [left.size, right.size] : undefined;
+}
+
+/** A share as a person reads it: a quarter, a third, the half (and their kin) by their sign; else a whole percent. */
+export function shareText(share: number): string {
+  const signs: readonly [number, string][] = [[1 / 4, '\u00bc'], [1 / 3, '\u2153'], [1 / 2, '\u00bd'], [2 / 3, '\u2154'], [3 / 4, '\u00be'], [1, '1']];
+  const sign = signs.find(([value]) => Math.abs(share - value) < 0.005);
+  return sign ? sign[1] : `${Math.round(share * 100)}%`;
 }
 
 /**

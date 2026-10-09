@@ -31,7 +31,7 @@ const THUMB_H = 44;
 const THUMB_GAP = 2;
 
 /** The headings the layouts are shown under (bands.ts layoutsFor's groups). */
-const GROUPS: Readonly<Record<LayoutGroup, string>> = { rows: 'Rows', large: 'One large', columns: 'Columns' };
+const GROUPS: Readonly<Record<LayoutGroup, string>> = { rows: 'Rows', large: 'One and the rest', columns: 'Columns' };
 
 export interface LayoutPickerChoices {
   /** The page's tiles in reading order; `first`, the one the picker was opened from (the preset's first slot). */
@@ -57,6 +57,9 @@ export class LayoutPicker {
   #returnFocus: Element | null = null;
   #choices: LayoutPickerChoices | null = null;
   #previewing: Preset | null = null;
+  /** Thumbnails to a row: four, six while More layouts is open (the picker wider, to show more at once). */
+  #perRow = 4;
+  #anchor: HTMLElement | null = null;
 
   constructor(container: HTMLElement) {
     this.#container = container;
@@ -105,7 +108,15 @@ export class LayoutPicker {
     const others = offered.filter((l) => !l.featured);
     const toggles = doc.createElement('div');
     toggles.className = 'dc-layout-toggles';
-    if (others.length > 0) toggles.append(this.#toggle('More layouts', () => this.#more(others, choices), lists));
+    if (others.length > 0) {
+      // open, the picker grows -- six to a row, taller -- so more show at once; never so big it hides the page whose
+      // preview it shows (the user, 2026-10-09: "make it fatter and longer both to fit more options")
+      toggles.append(this.#toggle('More layouts', () => this.#more(others, choices), lists, (open) => {
+        this.#perRow = open ? 6 : 4;
+        el.classList.toggle('dc-layout-picker-wide', open);
+        if (this.#anchor) this.#place(this.#anchor);
+      }));
+    }
     if (count >= 2) toggles.append(this.#toggle('Custom\u2026', () => this.#custom(count, choices), null));
     const fit = doc.createElement('label');
     fit.className = 'dc-layout-fit';
@@ -133,6 +144,8 @@ export class LayoutPicker {
     doc.addEventListener('keydown', this.#onEscape, true);
     this.#container.append(el);
     this.#el = el;
+    this.#anchor = anchor;
+    this.#perRow = 4;
     this.#place(anchor);
     // the picker, not its first thumbnail: focusing that would preview it the moment the picker opens (an arrow key
     // reaches the thumbnails)
@@ -147,6 +160,7 @@ export class LayoutPicker {
     this.#el.remove();
     this.#el = null;
     this.#trigger = null;
+    this.#anchor = null;
     this.#choices = null;
     const back = this.#returnFocus as { focus?: unknown } | null;
     if (back && typeof back.focus === 'function') (back as HTMLElement).focus();
@@ -157,7 +171,7 @@ export class LayoutPicker {
    * A button that opens a part of the picker (More layouts, Custom) and closes it again: the part made when opened,
    * into `into` (the thumbnails' lists), or after the toggles.
    */
-  #toggle(text: string, make: () => HTMLElement, into: HTMLElement | null): HTMLButtonElement {
+  #toggle(text: string, make: () => HTMLElement, into: HTMLElement | null, onToggle?: (open: boolean) => void): HTMLButtonElement {
     const button = this.#doc.createElement('button');
     button.type = 'button';
     button.className = 'dc-layout-toggle';
@@ -175,6 +189,7 @@ export class LayoutPicker {
         else button.parentElement?.after(part);
       }
       button.setAttribute('aria-expanded', String(part !== null));
+      onToggle?.(part !== null);
     });
     return button;
   }
@@ -326,7 +341,8 @@ export class LayoutPicker {
   }
 
   /**
-   * The arrow keys move between the thumbnails as they are drawn -- four to a row, each kind under its heading: Left
+   * The arrow keys move between the thumbnails as they are drawn -- four to a row (six while More layouts is open),
+   * each kind under its heading: Left
    * and Right to the one before and after, Up and Down to the one above and below (into the kind before or after at
    * the same place in its row, or its last) -- and Home and End to the ends.
    */
@@ -338,7 +354,9 @@ export class LayoutPicker {
     if (current < 0 && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) next = 0;
     else if (event.key === 'ArrowLeft') next = Math.max(0, current - 1);
     else if (event.key === 'ArrowRight') next = Math.min(options.length - 1, current + 1);
-    else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') next = vertical(options, current, event.key === 'ArrowDown' ? 1 : -1);
+    else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      next = vertical(options, current, event.key === 'ArrowDown' ? 1 : -1, this.#perRow);
+    }
     else if (event.key === 'Home') next = 0;
     else if (event.key === 'End') next = options.length - 1;
     if (next === undefined) return;
@@ -388,8 +406,8 @@ function thumbnail(doc: Document, layout: Bands, mark: string | undefined): HTML
   return el;
 }
 
-/** The thumbnail above (`by` -1) or below (+1) option `at`, its kind's options four to a row: the same column, or the last. */
-function vertical(options: readonly HTMLElement[], at: number, by: 1 | -1): number {
+/** The thumbnail above (`by` -1) or below (+1) option `at`, its kind's options `perRow` to a row: the same column, or the last. */
+function vertical(options: readonly HTMLElement[], at: number, by: 1 | -1, perRow: number): number {
   const groups: number[][] = [];
   options.forEach((o, i) => {
     const group = o.dataset['group'];
@@ -397,7 +415,7 @@ function vertical(options: readonly HTMLElement[], at: number, by: 1 | -1): numb
     groups[groups.length - 1]!.push(i);
   });
   // the rows as drawn: each kind's options in rows of four
-  const rows = groups.flatMap((g) => Array.from({ length: Math.ceil(g.length / 4) }, (_, r) => g.slice(r * 4, r * 4 + 4)));
+  const rows = groups.flatMap((g) => Array.from({ length: Math.ceil(g.length / perRow) }, (_, r) => g.slice(r * perRow, r * perRow + perRow)));
   const row = rows.findIndex((r) => r.includes(at));
   const target = rows[row + by];
   if (row < 0 || target === undefined) return at;

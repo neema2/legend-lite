@@ -171,6 +171,32 @@ describe('the band board', () => {
     assert.equal(drag(650, false), 645, 'beyond 8px of any: where the pointer is');
   });
 
+  it('shows the two sizes by the pointer while a divider is dragged, and says them when let go', () => {
+    sideBySide(['a', 'b']);
+    const divider = host.querySelector<HTMLElement>('.dc-band-divider-row')!;
+    const readout = host.querySelector<HTMLElement>('.dc-bands-readout')!;
+    assert.equal(readout.hidden, true);
+    pointer(divider, 'pointerdown', 500, 100);
+    pointer(divider, 'pointermove', 660, 100);
+    assert.equal(readout.hidden, false);
+    assert.equal(readout.textContent, '\u2154 \u00b7 \u2153', 'snapped to two thirds');
+    assert.equal(readout.style.left, '674px', 'by the pointer');
+    pointer(divider, 'pointermove', 610, 100);
+    assert.equal(readout.textContent, '61% \u00b7 39%');
+    pointer(divider, 'pointerup', 610, 100);
+    assert.equal(readout.hidden, true);
+    assert.equal(live(), 'Sizes 61% and 39%.');
+  });
+
+  it('shows a band\'s height while its edge is dragged: of the window on a page that scrolls', () => {
+    sideBySide(['a', 'b']);
+    const edge = host.querySelector<HTMLElement>('.dc-band-edge')!;
+    pointer(edge, 'pointerdown', 500, 304);
+    pointer(edge, 'pointermove', 500, 404);
+    assert.equal(host.querySelector<HTMLElement>('.dc-bands-readout')!.textContent, '\u2154 of the window');
+    pointer(edge, 'pointerup', 500, 404);
+  });
+
   it('evens out a split on a divider\'s double click', () => {
     const { board } = sideBySide(['a', 'b']);
     const divider = host.querySelector<HTMLElement>('.dc-band-divider-row')!;
@@ -434,14 +460,14 @@ describe('the band board', () => {
     const before = board.layout;
     board.preview('focus-left', 'c');
     assert.equal(board.layout, before, 'a preview is not the layout');
-    assert.deepEqual(box('c'), { x: 0, y: 0, w: 595, h: 600 });
+    assert.deepEqual(box('c'), { x: 0, y: 0, w: 496, h: 600 });
     assert.equal(host.querySelectorAll('.dc-band-divider').length, 0, 'no handles on a preview');
     board.preview(null);
     assert.deepEqual(box('a'), { x: 0, y: 0, w: 328, h: 300 });
     board.arrange('focus-left');
-    assert.deepEqual(box('a'), { x: 0, y: 0, w: 595, h: 600 });
-    assert.deepEqual(box('b'), { x: 603, y: 0, w: 397, h: 296 });
-    assert.deepEqual(box('c'), { x: 603, y: 304, w: 397, h: 296 });
+    assert.deepEqual(box('a'), { x: 0, y: 0, w: 496, h: 600 });
+    assert.deepEqual(box('b'), { x: 504, y: 0, w: 496, h: 296 });
+    assert.deepEqual(box('c'), { x: 504, y: 304, w: 496, h: 296 });
     assert.equal(changes.length, 1);
     assert.equal(host.querySelectorAll('.dc-band-divider').length, 2, 'one between the halves, one in the column');
     wellFormed(board);

@@ -2628,6 +2628,44 @@
 .dc-band-divider:active::after,
 .dc-band-edge:active::after { opacity: 1; }
 
+/* a grip in the middle of each divider and edge, always there while the page can be arranged (the user, 2026-10-09:
+   "I didn't realize can drag to resize"), stronger when pointed at */
+.dc-band-divider::before,
+.dc-band-edge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: 2px;
+  background: var(--dc-line-strong);
+  opacity: 0.7;
+}
+
+.dc-band-divider-row::before { width: 3px; height: 28px; }
+.dc-band-divider-column::before,
+.dc-band-edge::before { width: 28px; height: 3px; }
+
+.dc-band-divider:hover::before,
+.dc-band-edge:hover::before,
+.dc-band-divider:active::before,
+.dc-band-edge:active::before { background: var(--dc-active, #0284c7); opacity: 1; }
+
+/* the sizes while a divider or an edge is dragged, by the pointer */
+.dc-bands-readout {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  padding: 1px 6px;
+  border-radius: var(--dc-radius-sm);
+  background: var(--tw-black, #000);
+  color: var(--tw-white, #fff);
+  font-size: var(--dc-text-sm-size);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dc-bands-readout[hidden] { display: none; }
+
 /* where a dragged tile would land: the part of a tile it takes, the tile it swaps with, or a line for a new band */
 .dc-bands-zone {
   position: absolute;
@@ -2671,6 +2709,10 @@
 .dc-layout-picker:focus { outline: none; }
 
 .dc-layout-options { display: grid; grid-template-columns: repeat(4, auto); gap: 6px; }
+
+/* More layouts open: wider and taller, to show more at once -- still short of hiding the page it previews */
+.dc-layout-picker-wide .dc-layout-options { grid-template-columns: repeat(6, auto); }
+.dc-layout-picker-wide .dc-layout-lists { max-height: min(70vh, 640px); }
 
 .dc-layout-lists { display: flex; flex-direction: column; gap: var(--dc-pad-2); max-height: min(60vh, 460px); overflow-y: auto; }
 .dc-layout-lists > .dc-layout-options { max-height: none; overflow: visible; }

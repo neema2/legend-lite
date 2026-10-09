@@ -38,6 +38,8 @@ import {
   remove,
   resize,
   resizeBand,
+  shareText,
+  sharesBeside,
   snapped,
   stacked,
   tiles,
@@ -108,6 +110,8 @@ export class BandBoard {
   readonly #doc: Document;
   readonly #canvas: HTMLElement;
   readonly #zone: HTMLElement;
+  /** A divider's or an edge's sizes while it is dragged ("⅔ · ⅓", "62% · 38%"), by the pointer. */
+  readonly #readout: HTMLElement;
   readonly #live: HTMLElement;
   readonly #gap: number;
   readonly #least: number;
@@ -149,11 +153,15 @@ export class BandBoard {
     this.#zone = this.#doc.createElement('div');
     this.#zone.className = 'dc-bands-zone';
     this.#zone.hidden = true;
+    this.#readout = this.#doc.createElement('div');
+    this.#readout.className = 'dc-bands-readout';
+    this.#readout.setAttribute('aria-hidden', 'true');
+    this.#readout.hidden = true;
     this.#live = this.#doc.createElement('div');
     this.#live.className = 'dc-board-live';
     this.#live.setAttribute('aria-live', 'polite');
     this.#live.setAttribute('role', 'status');
-    this.#canvas.append(this.#zone);
+    this.#canvas.append(this.#zone, this.#readout);
     host.append(this.#canvas, this.#live);
     const Observer = this.#doc.defaultView?.ResizeObserver;
     // the board's size, re-drawn at most once a frame
@@ -661,18 +669,40 @@ export class BandBoard {
       const delta = ev.altKey ? moved / length : snapped(base, path, after, moved / length, SNAP_PX / length);
       this.#shown = resize(base, path, after, delta);
     };
+    /** The two parts' sizes, as each is a share of the split: shown by the pointer, said when let go. */
+    const sizes = (): string => {
+      const shares = sharesBeside(this.#shown ?? base, path, after);
+      return shares ? `${shareText(shares[0])} \u00b7 ${shareText(shares[1])}` : '';
+    };
     this.#own(el, e, (ev) => {
       follow(ev);
       this.#paint();
+      this.#showReadout(sizes(), this.#at(ev));
     }, (apply, ev) => {
       if (apply && ev) follow(ev);
+      const said = sizes();
+      this.#hideReadout();
       const next = this.#shown ?? base;
       if (apply && next !== base) {
-        this.#change(next);
+        this.#change(next, `Sizes ${said.replace(' \u00b7 ', ' and ')}.`);
       } else {
         this.#commit(base);
       }
     });
+  }
+
+  /** The readout by the pointer (`at`, in the canvas's pixels), kept inside the board. */
+  #showReadout(text: string, at: { x: number; y: number }): void {
+    if (text === '') return;
+    this.#readout.textContent = text;
+    this.#readout.hidden = false;
+    const { width } = this.#size();
+    this.#readout.style.left = `${Math.max(0, Math.min(at.x + 14, width - 120))}px`;
+    this.#readout.style.top = `${Math.max(0, at.y + 14)}px`;
+  }
+
+  #hideReadout(): void {
+    this.#readout.hidden = true;
   }
 
   /** A band's edge dragged: its height (a page that scrolls) or its share with the band below (one that fits), as a divider is. */
@@ -692,14 +722,25 @@ export class BandBoard {
         ? tradeBands(base, band, (moved / free) * total)
         : resizeBand(base, band, base.bands[band]!.height + moved / Math.max(1, screen));
     };
+    /** The band's height: on a page that fits, its share and the next band's; on one that scrolls, of the window. */
+    const sizes = (): string => {
+      const bands = (this.#shown ?? base).bands;
+      const own = bands[band]?.height ?? 0;
+      if (!fits) return `${shareText(own)} of the window`;
+      const sum = bands.reduce((s, b) => s + b.height, 0);
+      return `${shareText(own / sum)} \u00b7 ${shareText((bands[band + 1]?.height ?? 0) / sum)}`;
+    };
     this.#own(el, e, (ev) => {
       follow(ev);
       this.#paint();
+      this.#showReadout(sizes(), this.#at(ev));
     }, (apply, ev) => {
       if (apply && ev) follow(ev);
+      const said = sizes();
+      this.#hideReadout();
       const next = this.#shown ?? base;
       if (apply && next !== base) {
-        this.#change(next);
+        this.#change(next, `Height ${said.replace(' \u00b7 ', ' and ')}.`);
       } else {
         this.#commit(base);
       }
