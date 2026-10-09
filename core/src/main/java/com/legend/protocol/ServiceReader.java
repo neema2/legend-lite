@@ -114,19 +114,31 @@ final class ServiceReader {
             if ("runtimePointer".equals(type)) {
                 runtime = r.str("runtime");
                 runtimeSpan = r.span();
-            } else if ("engineRuntime".equals(type)) {
-                ConnectionReader.Arrays a = ConnectionReader.arrays(r);
-                embedded = new Protocol.PEmbeddedRuntime(a.mappings(), a.connections(), a.connectionStores(),
-                        r.span());
-            } else if ("legacyRuntime".equals(type) || type == null) {
-                // no _type: the engine's default Runtime subtype is the legacy one (CorePureProtocolExtension)
-                embedded = legacyRuntime(r);
             } else {
-                throw Wire.refuse("no reader rule for an execution runtime _type '" + type + "'");
+                embedded = embeddedRuntime(r, type);
             }
             r.done(r);
         }
         return new Keyed(mapping, mappingSpan, runtime, runtimeSpan, embedded);
+    }
+
+    /** An execution's runtime written in full, as its own JSON object (a printer's JSON entry reads it first). */
+    static Protocol.PEmbeddedRuntime embeddedRuntime(Json.Node node) {
+        Wire r = Wire.of(node, "execution runtime");
+        return r.done(embeddedRuntime(r, r.type()));
+    }
+
+    /** Today's {@code engineRuntime}, or an older {@code legacyRuntime}. */
+    private static Protocol.PEmbeddedRuntime embeddedRuntime(Wire r, @com.legend.base.Nullable String type) {
+        if ("engineRuntime".equals(type)) {
+            ConnectionReader.Arrays a = ConnectionReader.arrays(r);
+            return new Protocol.PEmbeddedRuntime(a.mappings(), a.connections(), a.connectionStores(), r.span());
+        }
+        if ("legacyRuntime".equals(type) || type == null) {
+            // no _type: the engine's default Runtime subtype is the legacy one (CorePureProtocolExtension)
+            return legacyRuntime(r);
+        }
+        throw Wire.refuse("no reader rule for an execution runtime _type '" + type + "'");
     }
 
     /**
