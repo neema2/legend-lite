@@ -61,6 +61,9 @@ class OlderJsonParityTest {
     private int upgraded;
     private int refused;
     private int engineRefused;
+    /** Whole models read, and the reasons a whole model was refused (its envelope or a field of its own). */
+    private int documents;
+    private final Map<String, Integer> documentRefusals = new TreeMap<>();
 
     @Test
     void liteReadsWhatTheEngineReads() throws Exception {
@@ -104,6 +107,9 @@ class OlderJsonParityTest {
                         + " upgraded %d, refused %d, mismatched %d%n", files.size(), models, lambdas, engineRefused,
                 matched, upgraded, refused, mismatches.size());
         refusals.forEach((r, n) -> System.out.println("[older-json] refused " + n + "  " + r));
+        System.out.println("[older-json] whole models read " + documents);
+        documentRefusals.forEach((r, n) -> System.out.println("[older-json] model refused " + n + "  "
+                + (r.length() > 200 ? r.substring(0, 200) : r)));
         assertTrue(matched + upgraded >= MIN_READ, "read as the engine reads: " + (matched + upgraded) + " < " + MIN_READ);
         assertTrue(mismatches.size() <= MAX_MISMATCHED, "mismatched: " + mismatches.size() + " > " + MAX_MISMATCHED
                 + " (target/older-json-mismatches.txt)");
@@ -120,7 +126,25 @@ class OlderJsonParityTest {
             engineRefused++;
             return;
         }
-        List<Json.Node> ours = items(top, "elements");
+        // the model as a whole: its envelope (serializer, origin) and the older sections merged
+        try {
+            Json.Obj whole = (Json.Obj) Json.parse(ProtocolEmitter.emit(ModelReader.read(top)), DEEP);
+            documents++;
+            for (String key : List.of("origin", "serializer")) {
+                Json.Node ours = whole.getOr(key, null);
+                Json.Node theirs = engine.getOr(key, null);
+                if (!java.util.Objects.equals(ours, theirs)) {
+                    mismatches.add(id + "\t$." + key + ": lite " + (ours == null ? "none" : abbreviate(ours))
+                            + " | engine " + (theirs == null ? "none" : abbreviate(theirs)));
+                }
+            }
+        } catch (IllegalArgumentException refusal) {
+            documentRefusals.merge(String.valueOf(refusal.getMessage()), 1, Integer::sum);
+        } catch (RuntimeException crash) {
+            documentRefusals.merge("crashed: " + crash, 1, Integer::sum);
+        }
+        // element by element, in the engine's merged order
+        List<Json.Node> ours = ModelReader.elementNodes(top);
         List<Json.Node> theirs = items(engine, "elements");
         if (ours.size() != theirs.size()) {
             mismatches.add(id + "\telement count " + ours.size() + " vs the engine's " + theirs.size());
@@ -139,7 +163,7 @@ class OlderJsonParityTest {
                 mismatches.add(where + "\tcrashed: " + crash);
                 continue;
             }
-            compare(where, Json.parse(written, DEEP), theirs.get(i));
+            compare(where, Json.parse(written, DEEP), theirs.get(i), element);
         }
     }
 
@@ -161,15 +185,15 @@ class OlderJsonParityTest {
             mismatches.add(id + "\tcrashed: " + crash);
             return;
         }
-        compare(id, Json.parse(written, DEEP), engine);
+        compare(id, Json.parse(written, DEEP), engine, top);
     }
 
-    private void compare(String where, Json.Node ours, Json.Node engine) {
+    private void compare(String where, Json.Node ours, Json.Node engine, Json.Node original) {
         if (ours.equals(engine)) {
             matched++;
             return;
         }
-        Json.Node expected = upgraded(engine);
+        Json.Node expected = new Upgrade(original).apply(engine);
         if (ours.equals(expected)) {
             upgraded++;
             return;
@@ -191,46 +215,261 @@ class OlderJsonParityTest {
 
     /**
      * The engine's J2 with the step's documented upgrades applied, written here apart from the reader so the two
-     * codings of the one table must agree: each {@code classInstance} kind the engine keeps is the call that builds
-     * the same object; a {@code qualifiedProperty} is a {@code property} (its {@code class} kept, as a property's
-     * is); a path's empty name is no name.
+     * codings of the one table must agree (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 2 step 2):
+     *
+     * <ul>
+     *   <li>each {@code classInstance} kind the engine keeps is the call that builds the same object; a
+     *       {@code qualifiedProperty} is a {@code property} (its {@code class} kept, as a property's is); a path's
+     *       empty name is no name;</li>
+     *   <li>an older {@code new} (a class pointer, a lone key expression) is today's {@code ^X(...)};</li>
+     *   <li>a pointer in a one-kind slot (a super type, an enumeration mapping's enumeration, an association mapping's
+     *       association) has the slot's type; a constraint lambda declares its {@code $this};</li>
+     *   <li>an enum value mapping's older source values are typed as the engine's compile types them, by the
+     *       ORIGINAL's {@code sourceType} (which the engine reads and does not write back);</li>
+     *   <li>a relational connection's empty {@code postProcessors} is left out, as the engine's grammar leaves it
+     *       (its reader writes back the empty list it started with).</li>
+     * </ul>
      */
-    static Json.Node upgraded(Json.Node node) {
-        if (node instanceof Json.Arr a) {
-            List<Json.Node> out = new ArrayList<>(a.items().size());
-            for (Json.Node n : a.items()) {
-                out.add(upgraded(n));
+    static final class Upgrade {
+        /** Each enumeration mapping's {@code sourceType} in the original, in order. */
+        private final List<String> sourceTypes = new ArrayList<>();
+        /**
+         * Each enumeration mapping's value mappings' source values AS ORIGINALLY WRITTEN: the engine writes a plain
+         * value back as its string ({@code EnumValueMappingSourceValueSerializer}: an integer 10 comes back "10",
+         * which its compiler would then read as a string), so the typing starts from the original.
+         */
+        private final List<List<List<Json.Node>>> originalValues = new ArrayList<>();
+        private int enumerationMapping;
+
+        Upgrade(Json.Node original) {
+            if (original instanceof Json.Obj o) {
+                for (Json.Node em : items(o, "enumerationMappings")) {
+                    sourceTypes.add(em instanceof Json.Obj e ? e.getStringOr("sourceType", null) : null);
+                    List<List<Json.Node>> values = new ArrayList<>();
+                    if (em instanceof Json.Obj e) {
+                        for (Json.Node evm : items(e, "enumValueMappings")) {
+                            values.add(evm instanceof Json.Obj v ? items(v, "sourceValues") : List.of());
+                        }
+                    }
+                    originalValues.add(values);
+                }
             }
-            return new Json.Arr(out);
         }
-        if (!(node instanceof Json.Obj o)) {
-            return node;
+
+        Json.Node apply(Json.Node node) {
+            if (node instanceof Json.Arr a) {
+                List<Json.Node> out = new ArrayList<>(a.items().size());
+                for (Json.Node n : a.items()) {
+                    out.add(apply(n));
+                }
+                return new Json.Arr(out);
+            }
+            if (!(node instanceof Json.Obj o)) {
+                return node;
+            }
+            LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
+            o.fields().forEach((k, v) -> f.put(k, apply(v)));
+            String type = o.getStringOr("_type", "");
+            switch (type) {
+                case "qualifiedProperty" -> {
+                    f.put("_type", Json.str("property"));
+                    f.put("property", f.remove("qualifiedProperty"));
+                }
+                case "classInstance" -> {
+                    Json.Node call = kindAsCall(o.getStringOr("type", ""), (Json.Obj) f.get("value"),
+                            f.get("sourceInformation"));
+                    if (call != null) {
+                        return call;
+                    }
+                    if ("path".equals(o.getStringOr("type", "")) && f.get("value") instanceof Json.Obj path
+                            && path.fields().get("name") instanceof Json.Str name && name.value().isEmpty()) {
+                        LinkedHashMap<String, Json.Node> p = new LinkedHashMap<>(path.fields());
+                        p.remove("name");
+                        f.put("value", new Json.Obj(p));
+                    }
+                }
+                case "func" -> olderNew(f);
+                case "class" -> {
+                    typed(f, "superTypes", "CLASS");
+                    if (f.get("constraints") instanceof Json.Arr cs) {
+                        List<Json.Node> out = new ArrayList<>();
+                        for (Json.Node c : cs.items()) {
+                            LinkedHashMap<String, Json.Node> cf = new LinkedHashMap<>(((Json.Obj) c).fields());
+                            withThis(cf, "functionDefinition");
+                            withThis(cf, "messageFunction");
+                            out.add(new Json.Obj(cf));
+                        }
+                        f.put("constraints", new Json.Arr(out));
+                    }
+                }
+                case "mapping" -> {
+                    if (f.get("associationMappings") instanceof Json.Arr ams) {
+                        List<Json.Node> out = new ArrayList<>();
+                        for (Json.Node am : ams.items()) {
+                            LinkedHashMap<String, Json.Node> af = new LinkedHashMap<>(((Json.Obj) am).fields());
+                            af.put("association", pointerOf(af.get("association"), "ASSOCIATION"));
+                            out.add(new Json.Obj(af));
+                        }
+                        f.put("associationMappings", new Json.Arr(out));
+                    }
+                    if (f.get("enumerationMappings") instanceof Json.Arr ems) {
+                        List<Json.Node> out = new ArrayList<>();
+                        for (Json.Node em : ems.items()) {
+                            out.add(enumerationMapping((Json.Obj) em));
+                        }
+                        f.put("enumerationMappings", new Json.Arr(out));
+                    }
+                }
+                case "RelationalDatabaseConnection" -> {
+                    if (f.get("postProcessors") instanceof Json.Arr pp && pp.items().isEmpty()) {
+                        f.remove("postProcessors");
+                    }
+                }
+                default -> {
+                }
+            }
+            return new Json.Obj(f);
         }
+
+        private Json.Node enumerationMapping(Json.Obj em) {
+            int at = enumerationMapping++;
+            String sourceType = at < sourceTypes.size() ? sourceTypes.get(at) : null;
+            List<List<Json.Node>> written = at < originalValues.size() ? originalValues.get(at) : List.of();
+            LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>(em.fields());
+            f.put("enumeration", pointerOf(f.get("enumeration"), "ENUMERATION"));
+            List<Json.Node> evms = new ArrayList<>();
+            List<Json.Node> engineEvms = items(em, "enumValueMappings");
+            for (int j = 0; j < engineEvms.size(); j++) {
+                Json.Obj evm = (Json.Obj) engineEvms.get(j);
+                LinkedHashMap<String, Json.Node> vf = new LinkedHashMap<>(evm.fields());
+                List<Json.Node> values = j < written.size() ? written.get(j) : items(evm, "sourceValues");
+                vf.put("sourceValues", new Json.Arr(typedSourceValues(values, sourceType)));
+                evms.add(new Json.Obj(vf));
+            }
+            f.put("enumValueMappings", new Json.Arr(evms));
+            return new Json.Obj(f);
+        }
+    }
+
+    /** {@code HelperMappingBuilder.convertSourceValues}' typing, as JSON. */
+    private static List<Json.Node> typedSourceValues(List<Json.Node> values, String sourceType) {
+        List<Json.Node> out = new ArrayList<>();
+        if (values.stream().allMatch(v -> v instanceof Json.Obj o
+                && o.getStringOr("_type", "").endsWith("SourceValue"))) {
+            return values;
+        }
+        if (values.size() == 1 && values.get(0) instanceof Json.Obj flagged) {
+            flaggedValues(flagged, out);
+            return out;
+        }
+        for (Json.Node v : values) {
+            String kind = sourceType == null ? null : sourceType.toUpperCase(java.util.Locale.ROOT);
+            if (kind == null || kind.equals("STRING")) {
+                out.add(v instanceof Json.Str s ? sourceValue("stringSourceValue", null, s)
+                        : sourceValue("integerSourceValue", null, v));
+            } else if (kind.equals("INTEGER")) {
+                out.add(sourceValue("integerSourceValue", null,
+                        v instanceof Json.Str s ? Json.num(Long.parseLong(s.value())) : v));
+            } else {
+                out.add(sourceValue("enumSourceValue", sourceType, v));
+            }
+        }
+        return out;
+    }
+
+    private static void flaggedValues(Json.Obj o, List<Json.Node> out) {
+        switch (o.getStringOr("_type", "")) {
+            case "string" -> items(o, "values").forEach(v -> out.add(sourceValue("stringSourceValue", null, v)));
+            case "integer" -> items(o, "values").forEach(v -> out.add(sourceValue("integerSourceValue", null, v)));
+            case "enumValue" -> out.add(sourceValue("enumSourceValue", o.getString("fullPath"), o.get("value")));
+            case "collection" -> items(o, "values").forEach(v -> flaggedValues((Json.Obj) v, out));
+            default -> throw new IllegalStateException("protocol 1.5 source value " + o);
+        }
+    }
+
+    private static Json.Obj sourceValue(String type, String enumeration, Json.Node value) {
         LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
-        o.fields().forEach((k, v) -> f.put(k, upgraded(v)));
-        String type = o.getStringOr("_type", "");
-        switch (type) {
-            case "qualifiedProperty" -> {
-                f.put("_type", Json.str("property"));
-                f.put("property", f.remove("qualifiedProperty"));
-            }
-            case "classInstance" -> {
-                Json.Node call = kindAsCall(o.getStringOr("type", ""), (Json.Obj) f.get("value"),
-                        f.get("sourceInformation"));
-                if (call != null) {
-                    return call;
-                }
-                if ("path".equals(o.getStringOr("type", "")) && f.get("value") instanceof Json.Obj path
-                        && path.fields().get("name") instanceof Json.Str name && name.value().isEmpty()) {
-                    LinkedHashMap<String, Json.Node> p = new LinkedHashMap<>(path.fields());
-                    p.remove("name");
-                    f.put("value", new Json.Obj(p));
-                }
-            }
-            default -> {
-            }
+        f.put("_type", Json.str(type));
+        if (enumeration != null) {
+            f.put("enumeration", Json.str(enumeration));
         }
+        f.put("value", value);
         return new Json.Obj(f);
+    }
+
+    /** The items of a pointer list lacking a type get the slot's type. */
+    private static void typed(LinkedHashMap<String, Json.Node> f, String key, String slotType) {
+        if (f.get(key) instanceof Json.Arr a) {
+            List<Json.Node> out = new ArrayList<>();
+            for (Json.Node n : a.items()) {
+                out.add(pointerOf(n, slotType));
+            }
+            f.put(key, new Json.Arr(out));
+        }
+    }
+
+    private static Json.Node pointerOf(Json.Node p, String slotType) {
+        if (!(p instanceof Json.Obj o) || o.has("type")) {
+            return p;
+        }
+        LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>(o.fields());
+        f.put("type", Json.str(slotType));
+        return new Json.Obj(f);
+    }
+
+    /** A constraint lambda with no parameter declares today's {@code $this}. */
+    private static void withThis(LinkedHashMap<String, Json.Node> constraint, String key) {
+        if (constraint.get(key) instanceof Json.Obj l && items(l, "parameters").isEmpty()) {
+            LinkedHashMap<String, Json.Node> lf = new LinkedHashMap<>(l.fields());
+            LinkedHashMap<String, Json.Node> m = new LinkedHashMap<>();
+            m.put("lowerBound", Json.num(1));
+            m.put("upperBound", Json.num(1));
+            LinkedHashMap<String, Json.Node> self = new LinkedHashMap<>();
+            self.put("_type", Json.str("var"));
+            self.put("multiplicity", new Json.Obj(m));
+            self.put("name", Json.str("this"));
+            lf.put("parameters", new Json.Arr(List.of(new Json.Obj(self))));
+            constraint.put(key, new Json.Obj(lf));
+        }
+    }
+
+    /** An older {@code new}: the class pointer becomes {@code Class<X>}, a lone key expression its collection. */
+    private static void olderNew(LinkedHashMap<String, Json.Node> f) {
+        if (!(f.get("function") instanceof Json.Str fn) || !fn.value().equals("new")
+                || !(f.get("parameters") instanceof Json.Arr ps) || ps.items().size() != 3
+                || !(ps.items().get(0) instanceof Json.Obj cls)
+                || !"packageableElementPtr".equals(cls.getStringOr("_type", ""))) {
+            return;
+        }
+        Json.Node keys = ps.items().get(2);
+        if (keys instanceof Json.Obj k && "keyExpression".equals(k.getStringOr("_type", ""))) {
+            LinkedHashMap<String, Json.Node> m = new LinkedHashMap<>();
+            m.put("lowerBound", Json.num(1));
+            m.put("upperBound", Json.num(1));
+            LinkedHashMap<String, Json.Node> c = new LinkedHashMap<>();
+            c.put("_type", Json.str("collection"));
+            c.put("multiplicity", new Json.Obj(m));
+            c.put("values", new Json.Arr(List.of(keys)));
+            keys = new Json.Obj(c);
+        }
+        Json.Obj inner = genericType(cls.getString("fullPath"), List.of());
+        Json.Obj outer = genericType("meta::pure::metamodel::type::Class", List.of(inner));
+        LinkedHashMap<String, Json.Node> gti = new LinkedHashMap<>();
+        gti.put("_type", Json.str("genericTypeInstance"));
+        gti.put("genericType", outer);
+        f.put("parameters", new Json.Arr(List.of(new Json.Obj(gti), ps.items().get(1), keys)));
+    }
+
+    private static Json.Obj genericType(String path, List<Json.Node> args) {
+        LinkedHashMap<String, Json.Node> raw = new LinkedHashMap<>();
+        raw.put("_type", Json.str("packageableType"));
+        raw.put("fullPath", Json.str(path));
+        LinkedHashMap<String, Json.Node> g = new LinkedHashMap<>();
+        g.put("multiplicityArguments", new Json.Arr(List.of()));
+        g.put("rawType", new Json.Obj(raw));
+        g.put("typeArguments", new Json.Arr(args));
+        g.put("typeVariableValues", new Json.Arr(List.of()));
+        return new Json.Obj(g);
     }
 
     private static Json.Node kindAsCall(String kind, Json.Obj v, Json.Node at) {

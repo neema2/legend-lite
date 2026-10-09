@@ -30,10 +30,42 @@ public final class Protocol {
     private Protocol() {
     }
 
-    /** Root: {@code {"_type":"data","elements":[...]}}. Null {@code serializer}/{@code origin} are omitted. */
-    public record PureModelContextData(List<Element> elements) {
+    /**
+     * Root: {@code {"_type":"data","elements":[...]}}, with the {@code origin} and {@code serializer} a model from
+     * an SDLC or Depot carries (null when it has none, and omitted). The parser makes neither.
+     */
+    public record PureModelContextData(List<Element> elements, @com.legend.base.Nullable PSerializer serializer,
+            @com.legend.base.Nullable POrigin origin) {
         public PureModelContextData {
             elements = List.copyOf(elements);
+        }
+
+        /** A model with no origin: what the parser makes. */
+        public PureModelContextData(List<Element> elements) {
+            this(elements, null, null);
+        }
+    }
+
+    /** {@code {"name":..,"version":..}} ({@code Protocol}): the protocol a model was written with. */
+    public record PSerializer(@com.legend.base.Nullable String name, @com.legend.base.Nullable String version) {
+    }
+
+    /** Where a model came from ({@code PureModelContextPointer}): its serializer and its SDLC coordinates. */
+    public record POrigin(@com.legend.base.Nullable PSerializer serializer, PSdlc sdlcInfo) {
+    }
+
+    /**
+     * The SDLC coordinates of a model ({@code SDLC}): {@code kind} is its {@code _type} -- {@code pure} (with an
+     * {@code overrideUrl}), {@code alloy} (a {@code groupId}, an {@code artifactId} and the older {@code project}) or
+     * {@code workspace} (a {@code project} and {@code isGroupWorkspace}); every kind has a base version, a version
+     * ({@code none} when the JSON gives none, as the engine starts it) and the pointers of the elements it names.
+     */
+    public record PSdlc(String kind, @com.legend.base.Nullable String baseVersion, String version,
+            List<PPointer> packageableElementPointers, @com.legend.base.Nullable String overrideUrl,
+            @com.legend.base.Nullable String project, @com.legend.base.Nullable String groupId,
+            @com.legend.base.Nullable String artifactId, boolean isGroupWorkspace) {
+        public PSdlc {
+            packageableElementPointers = List.copyOf(packageableElementPointers);
         }
     }
 

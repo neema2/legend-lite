@@ -37,11 +37,92 @@ public final class ModelReader {
         return read(Json.parse(json, DEEP));
     }
 
-    /** A whole {@code PureModelContextData}. */
+    /**
+     * A whole {@code PureModelContextData}: its elements, and the {@code serializer} and {@code origin} a model from an
+     * SDLC or Depot carries. Older JSON spreads the elements over sections ({@code domain}'s classes, associations,
+     * enums, profiles, functions and measures; then {@code sectionIndices}, {@code stores}, {@code mappings}, ...),
+     * merged after {@code elements} in the engine's order ({@code PureModelContextData.newPureModelContextData}). The
+     * engine drops any other field of the model context; lite refuses it, naming it.
+     */
     public static PureModelContextData read(Json.Node json) {
         Wire w = Wire.of(ProtocolUpgrade.upgrade(json), "PureModelContextData");
         w.constant("_type", "data");
-        return w.done(new PureModelContextData(w.list("elements", ModelReader::element)));
+        Json.Node serializer = w.opt("serializer");
+        Json.Node origin = w.opt("origin");
+        List<Element> elements = new ArrayList<>();
+        for (Json.Node e : elementNodes(w)) {
+            elements.add(element(e));
+        }
+        return w.done(new PureModelContextData(elements, serializer == null ? null : serializer(serializer),
+                origin == null ? null : origin(origin)));
+    }
+
+    /**
+     * The element objects of a {@code PureModelContextData}, as the engine gathers them -- {@code elements}, then the
+     * older sections, in its order -- each still JSON (one read at a time: the parity harness's granularity).
+     */
+    public static List<Json.Node> elementNodes(Json.Node json) {
+        Wire w = Wire.of(ProtocolUpgrade.upgrade(json), "PureModelContextData");
+        return elementNodes(w);
+    }
+
+    /** The engine's order: elements, the domain's six lists, then each section. */
+    private static final List<String> DOMAIN = List.of("classes", "associations", "enums", "profiles", "functions",
+            "measures");
+    private static final List<String> SECTIONS = List.of("sectionIndices", "stores", "mappings", "services",
+            "cacheables", "caches", "pipelines", "flattenSpecifications", "diagrams", "dataStoreSpecifications", "texts",
+            "runtimes", "connections", "fileGenerations", "generationSpecifications", "relationalMapper",
+            "serializableModelSpecifications");
+
+    private static List<Json.Node> elementNodes(Wire w) {
+        List<Json.Node> out = new ArrayList<>(w.arrOrEmpty("elements"));
+        Wire domain = w.optObj("domain");
+        if (domain != null) {
+            for (String list : DOMAIN) {
+                out.addAll(domain.arrOrEmpty(list));
+            }
+            domain.done(domain);
+        }
+        for (String section : SECTIONS) {
+            out.addAll(w.arrOrEmpty(section));
+        }
+        return out;
+    }
+
+    private static Protocol.PSerializer serializer(Json.Node node) {
+        Wire s = Wire.of(node, "serializer");
+        return s.done(new Protocol.PSerializer(s.optStr("name"), s.optStr("version")));
+    }
+
+    /** {@code PureModelContextPointer}: the SDLC coordinates the engine starts as a pure one when left out. */
+    private static Protocol.POrigin origin(Json.Node node) {
+        Wire o = Wire.of(node, "origin");
+        String kind = o.type();
+        if (kind != null && !kind.equals("pointer")) {
+            throw Wire.refuse("an origin of _type '" + kind + "': a model's origin is a pointer");
+        }
+        Json.Node serializer = o.opt("serializer");
+        Json.Node sdlc = o.opt("sdlcInfo");
+        return o.done(new Protocol.POrigin(serializer == null ? null : serializer(serializer),
+                sdlc == null ? new Protocol.PSdlc("pure", null, "none", List.of(), null, null, null, null, false)
+                        : sdlc(sdlc)));
+    }
+
+    private static Protocol.PSdlc sdlc(Json.Node node) {
+        Wire s = Wire.of(node, "sdlcInfo");
+        String kind = s.type();
+        if (kind == null || !"pure".equals(kind) && !"alloy".equals(kind) && !"workspace".equals(kind)) {
+            throw Wire.refuse("no reader rule for sdlcInfo _type '" + kind + "'");
+        }
+        String version = s.optStr("version");
+        Boolean group = "workspace".equals(kind) ? s.optBool("isGroupWorkspace") : null;
+        return s.done(new Protocol.PSdlc(kind, s.optStr("baseVersion"), version == null ? "none" : version,
+                s.listOrEmpty("packageableElementPointers", DomainReader::pointer),
+                "pure".equals(kind) ? s.optStr("overrideUrl") : null,
+                "pure".equals(kind) ? null : s.optStr("project"),
+                "alloy".equals(kind) ? s.optStr("groupId") : null,
+                "alloy".equals(kind) ? s.optStr("artifactId") : null,
+                group != null && group));
     }
 
     /** One element, as text. */
@@ -118,7 +199,7 @@ public final class ModelReader {
             throw Wire.refuse("no reader rule for section _type '" + type + "'");
         }
         List<String> elements = new ArrayList<>();
-        for (Json.Node e : s.arr("elements")) {
+        for (Json.Node e : s.arrOrEmpty("elements")) {   // the engine's Section starts it empty
             elements.add(e instanceof Json.Null ? null : s.asStr(e, "elements[]"));
         }
         List<String> imports = importAware ? s.strings("imports") : List.of();

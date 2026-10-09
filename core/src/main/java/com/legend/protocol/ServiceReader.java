@@ -26,8 +26,11 @@ final class ServiceReader {
     private ServiceReader() {
     }
 
+    /** Older JSON leaves out what the engine's {@code Service} starts with: no annotations, owners or post
+     *  validations, and {@code autoActivateUpdates} true. */
     static Protocol.Element service(Wire w) {
-        boolean auto = w.bool("autoActivateUpdates");
+        Boolean written = w.optBool("autoActivateUpdates");
+        boolean auto = written == null || written;
         String ownershipKind = null;
         String ownershipId = null;
         List<String> users = null;
@@ -45,10 +48,11 @@ final class ServiceReader {
             }
             own.done(own);
         }
-        List<Protocol.PPostValidation> post = w.list("postValidations", ServiceReader::postValidation);
-        return new Protocol.PService(w.str("package"), w.str("name"), w.list("stereotypes", DomainReader::stereotype),
-                w.list("taggedValues", DomainReader::taggedValue), w.optStr("pattern"), w.optStr("title"),
-                w.strings("owners"), ownershipKind, ownershipId, users, w.optStr("mcpServer"),
+        List<Protocol.PPostValidation> post = w.listOrEmpty("postValidations", ServiceReader::postValidation);
+        List<String> owners = w.optStrings("owners");
+        return new Protocol.PService(w.str("package"), w.str("name"), DomainReader.stereotypes(w),
+                DomainReader.taggedValues(w), w.optStr("pattern"), w.optStr("title"),
+                owners == null ? List.of() : owners, ownershipKind, ownershipId, users, w.optStr("mcpServer"),
                 w.optStr("documentation"), auto ? Boolean.TRUE : null, execution(w.take("execution")),
                 legacyTest(w.opt("test")), w.optList("testSuites", ServiceTestReader::testSuite),
                 post.isEmpty() ? null : post, w.span());

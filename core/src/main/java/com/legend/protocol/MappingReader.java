@@ -25,14 +25,21 @@ final class MappingReader {
     private MappingReader() {
     }
 
+    /** A list older JSON leaves out is empty where the engine's {@code Mapping} starts it empty (all but
+     *  {@code classMappings}). */
     static Protocol.Element mapping(Wire w) {
         List<Protocol.PMappingTestSuite> suites = StoreReader.nonEmpty(w, "testSuites", MappingTestReader::suite);
         return new Protocol.PMapping(w.str("package"), w.str("name"),
-                w.list("associationMappings", MappingReader::associationMapping),
+                w.listOrEmpty("associationMappings", MappingReader::associationMapping),
                 w.list("classMappings", ClassMappingReader::classMapping),
-                w.list("enumerationMappings", MappingReader::enumerationMapping),
-                w.list("includedMappings", MappingReader::include), suites,
-                w.list("tests", MappingTestReader::legacyTest), null, w.span());
+                w.listOrEmpty("enumerationMappings", MappingReader::enumerationMapping),
+                w.listOrEmpty("includedMappings", MappingReader::include), suites,
+                w.listOrEmpty("tests", MappingTestReader::legacyTest), null, w.span());
+    }
+
+    /** An association mapping's association: the bare path in older JSON. */
+    private static Protocol.PPointer association(Wire w) {
+        return DomainReader.pointer(w.take("association"), "ASSOCIATION");
     }
 
     // ---------------------------------------------------------------------
@@ -42,17 +49,17 @@ final class MappingReader {
     /** The reader rule for each association-mapping {@code _type}. */
     private static final Map<String, Function<Wire, Protocol.PAssociationMapping>> ASSOCIATIONS = Map.of(
             "functionAssociation", MappingReader::functionAssociation,
-            "relational", w -> new Protocol.PRelAssociationMapping(DomainReader.pointer(w.take("association")),
+            "relational", w -> new Protocol.PRelAssociationMapping(association(w),
                     w.optStr("id"), w.list("propertyMappings", MappingReader::relAssocProperty), w.strings("stores"),
                     w.span()),
             "xStore", w -> {
                 w.emptyArray("stores");
-                return new Protocol.PXStoreAssociationMapping(DomainReader.pointer(w.take("association")),
+                return new Protocol.PXStoreAssociationMapping(association(w),
                         w.optStr("id"), w.list("propertyMappings", MappingReader::xStoreProperty), w.span());
             },
             "modelJoin", w -> {
                 w.emptyArray("stores");
-                return new Protocol.PModelJoinAssociationMapping(DomainReader.pointer(w.take("association")),
+                return new Protocol.PModelJoinAssociationMapping(association(w),
                         w.optStr("id"), ProtocolReader.valueSpec(w.take("joinCondition")), w.span());
             });
 
@@ -75,7 +82,7 @@ final class MappingReader {
         if ((ptr == null) == (lambda == null)) {
             throw Wire.refuse("a function association is EITHER a function or a body lambda");
         }
-        return new Protocol.PFunctionAssociationMapping(DomainReader.pointer(w.take("association")), ptr, lambda,
+        return new Protocol.PFunctionAssociationMapping(association(w), ptr, lambda,
                 w.span());
     }
 
@@ -108,6 +115,12 @@ final class MappingReader {
     // Includes and enumeration mappings
     // ---------------------------------------------------------------------
 
+    /**
+     * An include. Older JSON leaves the {@code _type} out (the engine's {@code MappingInclude} defaults it to a
+     * mapping include) and names the included mapping by package and name ({@code MappingIncludeMapping}'s
+     * deprecated {@code includedMappingPackage}/{@code includedMappingName}, joined by its getter); the engine
+     * discards a {@code createdFromExplicitType}, so it is refused.
+     */
     private static Protocol.PMappingInclude include(Json.Node node) {
         Wire w = Wire.of(node, "mapping include");
         String type = w.type();
@@ -115,30 +128,53 @@ final class MappingReader {
             return w.done(new Protocol.PMappingInclude(null, w.str("includedDataSpace"), null, null, List.of(),
                     w.span()));
         }
-        if (!"mappingIncludeMapping".equals(type)) {
+        if (type != null && !"mappingIncludeMapping".equals(type)) {
             throw Wire.refuse("no reader rule for mapping include _type '" + type + "'");
         }
         String src = w.optStr("sourceDatabasePath");
         String tgt = w.optStr("targetDatabasePath");
         List<Protocol.PStoreSubstitution> subs = src != null && tgt != null
                 ? List.of(new Protocol.PStoreSubstitution(src, tgt)) : List.of();
-        return w.done(new Protocol.PMappingInclude(w.str("includedMapping"), null, src, tgt, subs, w.span()));
+        return w.done(new Protocol.PMappingInclude(includedMapping(w), null, src, tgt, subs, w.span()));
     }
 
+    private static String includedMapping(Wire w) {
+        String path = w.optStr("includedMapping");
+        String pkg = w.optStr("includedMappingPackage");
+        String name = w.optStr("includedMappingName");
+        if (pkg == null && name == null) {
+            return path != null ? path : w.str("includedMapping");
+        }
+        if (path != null || pkg == null || name == null) {
+            throw Wire.refuse("a mapping include with " + (path != null ? "both its path and the older package and"
+                    + " name: the engine reads the path and drops the others" : "half of the older package and name"));
+        }
+        return pkg + "::" + name;
+    }
+
+    /**
+     * An enumeration mapping. Older JSON writes the enumeration as a bare path, and (protocol 1.10) a
+     * {@code sourceType} that says how to read the source values ({@code EnumerationMapping}'s deprecated,
+     * read-only field).
+     */
     private static Protocol.PEnumerationMapping enumerationMapping(Json.Node node) {
         Wire w = Wire.of(node, "enumeration mapping");
-        return w.done(new Protocol.PEnumerationMapping(w.optStr("id"), DomainReader.pointer(w.take("enumeration")),
-                w.list("enumValueMappings", MappingReader::enumValueMapping), w.span()));
+        String id = w.optStr("id");
+        Protocol.PPointer enumeration = DomainReader.pointer(w.take("enumeration"), "ENUMERATION");
+        String sourceType = w.optStr("sourceType");
+        return w.done(new Protocol.PEnumerationMapping(id, enumeration,
+                w.list("enumValueMappings", n -> enumValueMapping(n, sourceType)), w.span()));
     }
 
-    private static Protocol.PEnumValueMapping enumValueMapping(Json.Node node) {
+    private static Protocol.PEnumValueMapping enumValueMapping(Json.Node node,
+            @com.legend.base.Nullable String sourceType) {
         Wire w = Wire.of(node, "enum value mapping");
         return w.done(new Protocol.PEnumValueMapping(w.str("enumValue"),
-                w.list("sourceValues", MappingReader::sourceValue)));
+                EnumSourceValues.read(w.arr("sourceValues"), sourceType)));
     }
 
     /** A source value: a string, an integer (a long, as the parser holds it), or an enum value reference. */
-    private static Protocol.PEnumSourceValue sourceValue(Json.Node node) {
+    static Protocol.PEnumSourceValue sourceValue(Json.Node node) {
         Wire w = Wire.of(node, "enum source value");
         String type = w.type();
         Protocol.PEnumSourceValue out;

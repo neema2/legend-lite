@@ -46,10 +46,11 @@ final class ConnectionReader {
             List<Protocol.PPointer> mappings) {
     }
 
+    /** Each empty when older JSON leaves it out, as the engine's {@code EngineRuntime} starts it. */
     static Arrays arrays(Wire v) {
-        return new Arrays(v.list("connectionStores", ConnectionReader::connectionStores),
-                v.list("connections", ConnectionReader::storeConnections),
-                v.list("mappings", DomainReader::pointer));
+        return new Arrays(v.listOrEmpty("connectionStores", ConnectionReader::connectionStores),
+                v.listOrEmpty("connections", ConnectionReader::storeConnections),
+                v.listOrEmpty("mappings", DomainReader::pointer));
     }
 
     private static Protocol.PConnectionStores connectionStores(Json.Node node) {

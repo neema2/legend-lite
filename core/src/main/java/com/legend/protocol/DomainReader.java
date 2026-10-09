@@ -19,6 +19,13 @@ import java.util.List;
  * for text without the clause: a class's type parameters and type variables (the emitter writes
  * neither), a function's pre-constraints (always written empty), and a realization's function
  * reference (the wire carries only the body: a {@link Realization.Inline}).
+ *
+ * <p>Older JSON reads as the engine reads it (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 2 step 2): a list it
+ * leaves out is empty wherever the engine's class starts it empty ({@code Class}, {@code Association},
+ * {@code Profile}, {@code EnumValue}, and {@code ProcessHelper.processMany} for the function, property and qualified
+ * property readers); a property's type named in {@code type}, and a function's or qualified property's return type
+ * in {@code returnType}, is that type ("backward compatibility" in each engine reader); a super type or a profile
+ * entry written as a bare name is that name.
  */
 final class DomainReader {
 
@@ -26,45 +33,77 @@ final class DomainReader {
     }
 
     static Protocol.Element pclass(Wire w) {
-        List<ConstraintDefinition> constraints = w.list("constraints", DomainReader::constraint);
-        w.emptyArray("originalMilestonedProperties");
+        List<ConstraintDefinition> constraints = w.listOrEmpty("constraints", DomainReader::constraint);
+        w.emptyOrAbsent("originalMilestonedProperties");
         return new Protocol.PClass(w.str("package"), w.str("name"), List.of(), List.of(),
-                w.list("superTypes", DomainReader::superType), w.list("properties", DomainReader::property),
-                w.list("qualifiedProperties", DomainReader::qualifiedProperty), constraints,
-                w.list("stereotypes", DomainReader::stereotype), w.list("taggedValues", DomainReader::taggedValue),
-                false, w.span());
+                w.listOrEmpty("superTypes", DomainReader::superType), w.listOrEmpty("properties", DomainReader::property),
+                w.listOrEmpty("qualifiedProperties", DomainReader::qualifiedProperty), constraints,
+                stereotypes(w), taggedValues(w), false, w.span());
     }
 
     static Protocol.Element association(Wire w) {
-        w.emptyArray("originalMilestonedProperties");
+        w.emptyOrAbsent("originalMilestonedProperties");
         return new Protocol.PAssociation(w.str("package"), w.str("name"),
-                w.list("properties", DomainReader::property),
-                w.list("qualifiedProperties", DomainReader::qualifiedProperty),
-                w.list("stereotypes", DomainReader::stereotype), w.list("taggedValues", DomainReader::taggedValue),
-                w.span());
+                w.listOrEmpty("properties", DomainReader::property),
+                w.listOrEmpty("qualifiedProperties", DomainReader::qualifiedProperty),
+                stereotypes(w), taggedValues(w), w.span());
     }
 
     static Protocol.Element profile(Wire w) {
         return new Protocol.PProfile(w.str("package"), w.str("name"),
-                w.list("stereotypes", DomainReader::profileEntry), w.list("tags", DomainReader::profileEntry),
+                w.listOrEmpty("stereotypes", DomainReader::profileEntry), w.listOrEmpty("tags", DomainReader::profileEntry),
                 w.span());
     }
 
+    /** {@code {"value":..}}, or the older bare name ({@code ProfileStereotype}/{@code ProfileTag}'s string creator). */
     private static Protocol.PProfileEntry profileEntry(Json.Node node) {
+        if (node instanceof Json.Str name) {
+            return new Protocol.PProfileEntry(name.value(), null);
+        }
         Wire e = Wire.of(node, "profile entry");
         return e.done(new Protocol.PProfileEntry(e.str("value"), e.span()));
     }
 
     static Protocol.Element enumeration(Wire w) {
+        // values: the engine's Enumeration starts it null, so it stays required
         return new Protocol.PEnumeration(w.str("package"), w.str("name"), w.list("values", DomainReader::enumValue),
-                w.list("stereotypes", DomainReader::stereotype), w.list("taggedValues", DomainReader::taggedValue),
-                w.span());
+                stereotypes(w), taggedValues(w), w.span());
     }
 
     private static Protocol.PEnumValue enumValue(Json.Node node) {
         Wire v = Wire.of(node, "enum value");
-        return v.done(new Protocol.PEnumValue(v.str("value"), v.list("stereotypes", DomainReader::stereotype),
-                v.list("taggedValues", DomainReader::taggedValue), v.span()));
+        return v.done(new Protocol.PEnumValue(v.str("value"), stereotypes(v), taggedValues(v), v.span()));
+    }
+
+    /** An element's or a member's stereotypes, empty when left out. */
+    static List<PStereotype> stereotypes(Wire w) {
+        return w.listOrEmpty("stereotypes", DomainReader::stereotype);
+    }
+
+    /** An element's or a member's tagged values, empty when left out. */
+    static List<PTaggedValue> taggedValues(Wire w) {
+        return w.listOrEmpty("taggedValues", DomainReader::taggedValue);
+    }
+
+    /**
+     * A type: today's {@code key} (a generic type), or the older name in {@code older} (the engine reads the name
+     * after the generic type, so it wins: both at once is refused), its span in {@code olderSpan} if any.
+     */
+    private static TypeExpression typeOrName(Wire w, String key, String older,
+            @com.legend.base.Nullable String olderSpan) {
+        Json.Node gt = w.opt(key);
+        String name = w.optStr(older);
+        if (name == null) {
+            if (gt == null) {
+                throw Wire.refuse(w.where() + " has no '" + key + "'");
+            }
+            return ProtocolReader.genericType(gt);
+        }
+        if (gt != null) {
+            throw Wire.refuse(w.where() + " has both '" + key + "' and '" + older + "': the engine reads '" + older
+                    + "' and drops the other");
+        }
+        return new TypeExpression.NameRef(name, olderSpan == null ? null : w.span(olderSpan));
     }
 
     /**
@@ -72,17 +111,17 @@ final class DomainReader {
      * the declared name is what remains once the signature's mangling is taken off the end.
      */
     static Protocol.Element function(Wire w) {
-        List<ParameterDefinition> params = w.list("parameters", DomainReader::parameter);
-        TypeExpression returnType = ProtocolReader.genericType(w.take("returnGenericType"));
+        List<ParameterDefinition> params = w.listOrEmpty("parameters", DomainReader::parameter);
+        TypeExpression returnType = typeOrName(w, "returnGenericType", "returnType", null);
         Multiplicity returnMult = ProtocolReader.multiplicity(w.take("returnMultiplicity"));
-        w.emptyArray("preConstraints");
-        w.emptyArray("postConstraints");
+        w.emptyOrAbsent("preConstraints");
+        w.emptyOrAbsent("postConstraints");
         String pkg = w.str("package");
         String wireName = w.str("name");
-        List<ValueSpecification> body = w.list("body", ProtocolReader::valueSpec);
-        List<Protocol.PTestSuite> tests = w.list("tests", FunctionTestReader::testSuite);
-        List<PStereotype> stereotypes = w.list("stereotypes", DomainReader::stereotype);
-        List<PTaggedValue> taggedValues = w.list("taggedValues", DomainReader::taggedValue);
+        List<ValueSpecification> body = w.listOrEmpty("body", ProtocolReader::valueSpec);
+        List<Protocol.PTestSuite> tests = w.listOrEmpty("tests", FunctionTestReader::testSuite);
+        List<PStereotype> stereotypes = stereotypes(w);
+        List<PTaggedValue> taggedValues = taggedValues(w);
         String mangling = new Protocol.PFunction(pkg, "", List.of(), List.of(), params, returnType, returnMult,
                 body, List.of(), tests, stereotypes, taggedValues, null).mangledName();
         if (!wireName.endsWith(mangling) || wireName.length() == mangling.length()) {
@@ -126,28 +165,33 @@ final class DomainReader {
     // Members
     // ---------------------------------------------------------------------
 
-    /** A simple property; the default value's outer span covers the whole expression. */
+    /**
+     * A simple property; the default value's outer span covers the whole expression. Older JSON names the type in
+     * {@code type} with its span in {@code propertyTypeSourceInformation}, and may write the default value as a JSON
+     * {@code null}: none ({@code Property.PropertyDeserializer}).
+     */
     static Protocol.PProperty property(Json.Node node) {
         Wire p = Wire.of(node, "property");
         Protocol.PDefaultValue dv = null;
-        Wire d = p.optObj("defaultValue");
-        if (d != null) {
+        Json.Node dvNode = p.opt("defaultValue");
+        if (dvNode != null && !(dvNode instanceof Json.Null)) {
+            Wire d = Wire.of(dvNode, "property.defaultValue");
             dv = d.done(new Protocol.PDefaultValue(ProtocolReader.valueSpec(d.take("value")), d.span()));
         }
-        return p.done(new Protocol.PProperty(p.str("name"), ProtocolReader.genericType(p.take("genericType")),
-                ProtocolReader.multiplicity(p.take("multiplicity")), p.list("stereotypes", DomainReader::stereotype),
-                p.list("taggedValues", DomainReader::taggedValue), p.span(), dv, p.optStr("aggregation")));
+        return p.done(new Protocol.PProperty(p.str("name"),
+                typeOrName(p, "genericType", "type", "propertyTypeSourceInformation"),
+                ProtocolReader.multiplicity(p.take("multiplicity")), stereotypes(p), taggedValues(p), p.span(), dv,
+                p.optStr("aggregation")));
     }
 
     /** A qualified (derived) property: the body is the bare statement list, the parameters typed vars. */
     static DerivedPropertyDefinition qualifiedProperty(Json.Node node) {
         Wire q = Wire.of(node, "qualified property");
-        return q.done(new DerivedPropertyDefinition(q.str("name"), q.list("parameters", DomainReader::parameter),
-                new Realization.Inline(q.list("body", ProtocolReader::valueSpec)),
-                ProtocolReader.genericType(q.take("returnGenericType")),
+        return q.done(new DerivedPropertyDefinition(q.str("name"), q.listOrEmpty("parameters", DomainReader::parameter),
+                new Realization.Inline(q.listOrEmpty("body", ProtocolReader::valueSpec)),
+                typeOrName(q, "returnGenericType", "returnType", null),
                 ProtocolReader.multiplicity(q.take("returnMultiplicity")),
-                q.list("stereotypes", DomainReader::stereotype), q.list("taggedValues", DomainReader::taggedValue),
-                q.span()));
+                stereotypes(q), taggedValues(q), q.span()));
     }
 
     /** A typed parameter: {@code {"_type":"var","genericType":..,"multiplicity":..,"name":..,"sourceInformation":..}}. */
@@ -182,7 +226,12 @@ final class DomainReader {
         Wire l = Wire.of(node, "constraint lambda");
         l.constant("_type", "lambda");
         List<ValueSpecification> body = l.list("body", ProtocolReader::valueSpec);
-        List<Json.Node> params = l.arr("parameters");
+        List<Json.Node> params = l.arrOrEmpty("parameters");
+        if (params.isEmpty()) {
+            // older JSON declares no $this: the engine binds it from the class either way
+            // (HelperModelBuilder.processConstraints compiles the lambda in the class's context)
+            return l.done(body);
+        }
         if (params.size() != 1) {
             throw Wire.refuse("a constraint lambda with " + params.size() + " parameters");
         }
@@ -197,10 +246,20 @@ final class DomainReader {
         return l.done(body);
     }
 
-    /** {@code {"path":..,"sourceInformation":..,"type":"CLASS"}}: the type arguments are not on the wire. */
+    /**
+     * {@code {"path":..,"sourceInformation":..,"type":"CLASS"}}: the type arguments are not on the wire. Older JSON
+     * writes the bare path ({@code PackageableElementPointer}'s string creator), or the object without its type: the
+     * same super type, written back with its type.
+     */
     private static Protocol.PSuperType superType(Json.Node node) {
+        if (node instanceof Json.Str path) {
+            return new Protocol.PSuperType(new TypeExpression.NameRef(path.value(), null), null);
+        }
         Wire s = Wire.of(node, "super type");
-        s.constant("type", "CLASS");
+        String type = s.optStr("type");
+        if (type != null && !type.equals("CLASS")) {
+            throw Wire.refuse("a super type of type '" + type + "': only a class is one");
+        }
         SourceInfo span = s.span();
         return s.done(new Protocol.PSuperType(new TypeExpression.NameRef(s.str("path"), span), span));
     }
@@ -235,5 +294,22 @@ final class DomainReader {
     static Protocol.PPointer pointer(Json.Node node) {
         Wire p = Wire.of(node, "pointer");
         return p.done(new Protocol.PPointer(p.str("type"), p.str("path"), p.span()));
+    }
+
+    /**
+     * A pointer in a slot that only ever points at one kind of element ({@code slotType}): older JSON writes the
+     * bare path there ({@code PackageableElementPointer}'s string creator), or the object without its type -- the
+     * same pointer, written back with the slot's type.
+     */
+    static Protocol.PPointer pointer(Json.Node node, String slotType) {
+        if (node instanceof Json.Str path) {
+            return new Protocol.PPointer(slotType, path.value(), null);
+        }
+        Wire p = Wire.of(node, "pointer");
+        String type = p.optStr("type");
+        if (type != null && !type.equals(slotType)) {
+            throw Wire.refuse("a pointer of type '" + type + "' where only " + slotType + " is one");
+        }
+        return p.done(new Protocol.PPointer(slotType, p.str("path"), p.span()));
     }
 }

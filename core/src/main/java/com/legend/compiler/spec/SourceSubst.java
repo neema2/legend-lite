@@ -397,8 +397,9 @@ public final class SourceSubst {
                     af.parameters().stream()
                             .map(p -> subst(p, env, renames, call))
                             .toList());
+            // the owner class (older JSON's written detail) rides through; the position does not, as before
             case AppliedProperty ap -> new AppliedProperty(
-                    subst(ap.receiver(), env, renames, call), ap.property());
+                    subst(ap.receiver(), env, renames, call), ap.property(), null, ap.ownerClass());
             case LambdaFunction lf -> {
                 Map<String, ValueSpecification> inner = new LinkedHashMap<>(env);
                 Map<String, String> renamed = new LinkedHashMap<>(renames);

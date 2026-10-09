@@ -26,7 +26,7 @@ final class DataSpaceReader {
         }
         Json.Node support = w.opt("supportInfo");
         return new Protocol.PDataSpace(w.str("package"), w.str("name"),
-                w.list("stereotypes", DomainReader::stereotype), w.list("taggedValues", DomainReader::taggedValue),
+                DomainReader.stereotypes(w), DomainReader.taggedValues(w),
                 w.optList("executionContexts", DataSpaceReader::context), w.optStr("defaultExecutionContext"),
                 w.optStr("title"), w.optStr("description"), w.optList("executables", DataSpaceReader::executable),
                 w.optList("diagrams", DataSpaceReader::diagram), support == null ? null : support(support), om,

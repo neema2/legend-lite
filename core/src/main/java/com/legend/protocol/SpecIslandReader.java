@@ -116,10 +116,16 @@ final class SpecIslandReader {
      * {@code ^X<T|m>(k=v, ...)} on the wire: {@code func new} over [a span-less {@code Class<X>} type
      * instance (X's type and multiplicity arguments ride inside), a span-less empty string, a span-less
      * collection of {@code keyExpression}s]. Read back to the parser's {@code new(X, NewInstance)};
-     * {@code null} when the parameters are not that shape (the call is then read as written).
+     * {@code null} when the parameters are not that shape (the call is then read as written). Older JSON (the
+     * engine's Pure-side serializer) names the class with a pointer, writes the name as a literal of any form, and a
+     * single key expression without its collection: the same {@code ^X(...)}, which the engine compiles alike.
      */
     static @com.legend.base.Nullable ValueSpecification newInstance(List<Json.Node> params,
             @com.legend.base.Nullable SourceInfo pos) {
+        if (params.size() == 3 && params.get(0) instanceof Json.Obj p0
+                && OLDER_CLASS_POINTERS.contains(p0.getStringOr("_type", ""))) {
+            return olderNewInstance(params, pos);
+        }
         if (params.size() != 3 || !(params.get(0) instanceof Json.Obj p0)
                 || !"genericTypeInstance".equals(p0.getStringOr("_type", null))) {
             return null;
@@ -159,6 +165,26 @@ final class SpecIslandReader {
                 new NewInstance(className, typeArgs, mults, keys)), List.of(), pos);
     }
 
+    /** The pointers an older {@code new} names its class with. */
+    private static final java.util.Set<String> OLDER_CLASS_POINTERS = java.util.Set.of("packageableElementPtr", "class");
+
+    private static ValueSpecification olderNewInstance(List<Json.Node> params, @com.legend.base.Nullable SourceInfo pos) {
+        if (!(ProtocolReader.valueSpec(params.get(0)) instanceof PackageableElementPtr cls) || cls.pos() != null
+                || cls.fullPath().indexOf('~') >= 0) {
+            throw Wire.refuse("an older new whose class is not a span-less class pointer");
+        }
+        if (!(ProtocolReader.valueSpec(params.get(1)) instanceof CString name) || !name.value().isEmpty()
+                || name.pos() != null) {
+            throw Wire.refuse("an older new of " + cls.fullPath() + " whose name is not a span-less empty string");
+        }
+        String className = cls.fullPath();
+        List<NewInstance.KeyBinding> keys = params.get(2) instanceof Json.Obj k
+                && "keyExpression".equals(k.getStringOr("_type", null))
+                ? List.of(keyBinding(k)) : keyBindings(params.get(2), "new " + className);
+        return new AppliedFunction(AppliedFunction.NEW, List.of(new PackageableElementPtr(className),
+                new NewInstance(className, List.of(), List.of(), keys)), List.of(), pos);
+    }
+
     /** {@code new}'s span-less name argument: {@code ""} in ###Pure, {@code "dummy"} in model data. */
     static void emptyName(Json.Node node, String expected) {
         Wire s = Wire.of(node, "new's name");
@@ -185,10 +211,16 @@ final class SpecIslandReader {
         Wire k = Wire.of(node, "keyExpression");
         k.constant("_type", "keyExpression");
         k.constant("add", false);
+        // older JSON: a [1] multiplicity the engine ignores, and the key written as a literal of any form
+        Json.Node m = k.opt("multiplicity");
+        if (m != null && !ProtocolReader.multiplicity(m).equals(new Multiplicity.Concrete(1, 1))) {
+            throw Wire.refuse("a keyExpression with multiplicity " + ProtocolReader.multiplicity(m));
+        }
         Json.Node expr = k.opt("expression");
-        Wire key = k.obj("key");
-        key.constant("_type", "string");
-        String name = key.done(key.str("value"));
+        if (!(ProtocolReader.valueSpec(k.take("key")) instanceof CString key) || key.pos() != null || key.multiLine()) {
+            throw Wire.refuse("a keyExpression whose key is not a span-less string");
+        }
+        String name = key.value();
         ValueSpecification value = expr == null ? new PackageableElementPtr("::") : ProtocolReader.valueSpec(expr);
         return k.done(new NewInstance.KeyBinding(name, new KeyExpression(value, false, false)));
     }
@@ -314,9 +346,7 @@ final class SpecIslandReader {
 
     /** No {@code ->subType} below the root: the list empty or left out. */
     private static void noSubTypes(Wire n) {
-        if (!n.arrOrEmpty("subTypeTrees").isEmpty()) {
-            throw Wire.refuse(n.where() + ".subTypeTrees is not empty: no record carries it");
-        }
+        n.emptyOrAbsent("subTypeTrees");
     }
 
     /**

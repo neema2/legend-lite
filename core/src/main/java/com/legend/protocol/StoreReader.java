@@ -76,18 +76,20 @@ final class StoreReader {
         return j.done(new Protocol.PDbJoin(j.str("name"), relOp(j.take("operation")), j.span()));
     }
 
+    /** A list older JSON leaves out is empty where the engine's {@code Schema} and {@code Table} start it empty. */
     private static Protocol.PDbSchema schema(Json.Node node) {
         Wire s = Wire.of(node, "schema");
-        return s.done(new Protocol.PDbSchema(s.str("name"), s.list("tables", StoreReader::table),
-                s.list("views", StoreReader::view), s.list("tabularFunctions", StoreReader::tabularFunction),
+        return s.done(new Protocol.PDbSchema(s.str("name"), s.listOrEmpty("tables", StoreReader::table),
+                s.listOrEmpty("views", StoreReader::view), s.listOrEmpty("tabularFunctions", StoreReader::tabularFunction),
                 nonEmpty(s, "stereotypes", DomainReader::stereotype),
                 nonEmpty(s, "taggedValues", DomainReader::taggedValue), s.span()));
     }
 
     private static Protocol.PDbTable table(Json.Node node) {
         Wire t = Wire.of(node, "table");
-        return t.done(new Protocol.PDbTable(t.str("name"), t.list("columns", StoreReader::column),
-                t.list("milestoning", StoreReader::milestoning), t.strings("primaryKey"),
+        List<String> primaryKey = t.optStrings("primaryKey");
+        return t.done(new Protocol.PDbTable(t.str("name"), t.listOrEmpty("columns", StoreReader::column),
+                t.listOrEmpty("milestoning", StoreReader::milestoning), primaryKey == null ? List.of() : primaryKey,
                 nonEmpty(t, "stereotypes", DomainReader::stereotype),
                 nonEmpty(t, "taggedValues", DomainReader::taggedValue), t.span()));
     }

@@ -334,11 +334,12 @@ public final class ProtocolReader {
      */
     static TypeExpression genericType(Json.Node node) {
         Wire gt = Wire.of(node, "genericType");
-        List<Json.Node> multArgs = gt.arr("multiplicityArguments");
+        // a list older JSON leaves out is empty, as the engine's GenericType starts it
+        List<Json.Node> multArgs = gt.arrOrEmpty("multiplicityArguments");
         Wire raw = gt.obj("rawType");
-        List<Json.Node> typeArgs = gt.arr("typeArguments");
+        List<Json.Node> typeArgs = gt.arrOrEmpty("typeArguments");
         List<ValueSpecification> tvv = new ArrayList<>();
-        for (Json.Node v : gt.arr("typeVariableValues")) {
+        for (Json.Node v : gt.arrOrEmpty("typeVariableValues")) {
             tvv.add(valueSpec(v));
         }
         String rawType = raw.type();

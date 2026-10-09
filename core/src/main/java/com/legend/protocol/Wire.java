@@ -229,10 +229,11 @@ final class Wire {
         return span("sourceInformation");
     }
 
-    /** A span-valued field, or {@code null} when absent. */
+    /** A span-valued field, or {@code null} when absent -- or written as a JSON {@code null}, which the engine reads
+     *  as none (older JSON writes it so). */
     @com.legend.base.Nullable SourceInfo span(String key) {
         Json.Node n = opt(key);
-        return n == null ? null : sourceInfo(n, where + "." + key);
+        return n == null || n instanceof Json.Null ? null : sourceInfo(n, where + "." + key);
     }
 
     /** A field the emitter writes as a constant: taken, and refused when it holds anything else. */
@@ -253,6 +254,14 @@ final class Wire {
     /** An array field the emitter always writes empty. */
     void emptyArray(String key) {
         if (!arr(key).isEmpty()) {
+            throw refuse(where + "." + key + " is not empty: no record carries it");
+        }
+    }
+
+    /** An array field the emitter always writes empty, which older JSON may leave out (where the engine's class
+     *  starts it empty). */
+    void emptyOrAbsent(String key) {
+        if (!arrOrEmpty(key).isEmpty()) {
             throw refuse(where + "." + key + " is not empty: no record carries it");
         }
     }

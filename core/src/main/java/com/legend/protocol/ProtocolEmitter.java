@@ -51,7 +51,69 @@ public final class ProtocolEmitter {
             }
             element(b, els.get(i));
         }
-        return finish(b.append("]}"));
+        b.append(']');
+        if (pmcd.origin() != null) {
+            b.append(",\"origin\":{\"_type\":\"pointer\",\"sdlcInfo\":");
+            sdlc(b, pmcd.origin().sdlcInfo());
+            if (pmcd.origin().serializer() != null) {
+                b.append(",\"serializer\":");
+                serializer(b, pmcd.origin().serializer());
+            }
+            b.append('}');
+        }
+        if (pmcd.serializer() != null) {
+            b.append(",\"serializer\":");
+            serializer(b, pmcd.serializer());
+        }
+        return finish(b.append('}'));
+    }
+
+    /** {@code {"name":..,"version":..}}, a null field left out. */
+    private static void serializer(StringBuilder b, Protocol.PSerializer s) {
+        b.append('{');
+        boolean first = true;
+        if (s.name() != null) {
+            b.append("\"name\":");
+            str(b, s.name());
+            first = false;
+        }
+        if (s.version() != null) {
+            b.append(first ? "" : ",").append("\"version\":");
+            str(b, s.version());
+        }
+        b.append('}');
+    }
+
+    /** An SDLC's fields in the engine's (alphabetical) order, a null one left out. */
+    private static void sdlc(StringBuilder b, Protocol.PSdlc s) {
+        b.append("{\"_type\":");
+        str(b, s.kind());
+        optField(b, "artifactId", s.artifactId());
+        optField(b, "baseVersion", s.baseVersion());
+        optField(b, "groupId", s.groupId());
+        if ("workspace".equals(s.kind())) {
+            b.append(",\"isGroupWorkspace\":").append(s.isGroupWorkspace());
+        }
+        optField(b, "overrideUrl", s.overrideUrl());
+        b.append(",\"packageableElementPointers\":[");
+        for (int i = 0; i < s.packageableElementPointers().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            pointer(b, s.packageableElementPointers().get(i));
+        }
+        b.append(']');
+        optField(b, "project", s.project());
+        b.append(",\"version\":");
+        str(b, s.version());
+        b.append('}');
+    }
+
+    private static void optField(StringBuilder b, String key, @com.legend.base.Nullable String value) {
+        if (value != null) {
+            b.append(",\"").append(key).append("\":");
+            str(b, value);
+        }
     }
 
     /**

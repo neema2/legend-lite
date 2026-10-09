@@ -173,8 +173,9 @@ public sealed interface ValueSpecification permits
             case TdsLiteral tl -> new TdsLiteral(tl.tdsString(),
                     (AppliedFunction) cs.get(0), tl.pos());
             case AppliedFunction af -> af.withParameters(cs);
+            // the owner class (older JSON's written detail) rides through; the position is W1.2's known defect
             case AppliedProperty ap ->
-                    new AppliedProperty(cs.get(0), ap.property());
+                    new AppliedProperty(cs.get(0), ap.property(), null, ap.ownerClass());
             case LambdaFunction lf ->
                     new LambdaFunction(lf.parameters(), cs);
             case NewInstance ni -> {
