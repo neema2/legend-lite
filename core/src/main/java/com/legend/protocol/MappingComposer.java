@@ -112,12 +112,13 @@ final class MappingComposer {
             case Protocol.PClassMappingRel r -> new Head(r.className(), r.id(), r.root(), r.extendsClassMappingId());
             case Protocol.PClassMappingPure p -> new Head(p.className(), p.id(), p.root(), p.extendsClassMappingId());
             case Protocol.PClassMappingOperation o -> new Head(o.className(), o.id(), o.root(), o.extendsClassMappingId());
-            case Protocol.PClassMappingMergeOperation m -> new Head(m.className(), m.id(), m.root(), null);
+            case Protocol.PClassMappingMergeOperation m -> new Head(m.className(), m.id(), m.root(), m.extendsClassMappingId());
             case Protocol.PClassMappingRelation r -> new Head(r.className(), r.id(), r.root(), r.extendsClassMappingId());
-            case Protocol.PClassMappingAggregationAware a -> new Head(a.className(), a.id(), a.root(), null);
+            case Protocol.PClassMappingAggregationAware a ->
+                    new Head(a.className(), a.id(), a.root(), a.extendsClassMappingId());
             case Protocol.PClassMappingFunction f -> new Head(f.className(), f.id(), f.root(), f.extendsClassMappingId());
-            case Protocol.PServiceStoreClassMapping s -> new Head(s.className(), s.id(), s.root(), null);
-            case Protocol.PClassMappingMongoDb m -> new Head(m.className(), m.id(), m.root(), null);
+            case Protocol.PServiceStoreClassMapping s -> new Head(s.className(), s.id(), s.root(), s.extendsClassMappingId());
+            case Protocol.PClassMappingMongoDb m -> new Head(m.className(), m.id(), m.root(), m.extendsClassMappingId());
         };
     }
 

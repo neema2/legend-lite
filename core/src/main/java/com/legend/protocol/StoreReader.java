@@ -112,7 +112,9 @@ final class StoreReader {
         }
         Protocol.PDbType type = t.done(new Protocol.PDbType(kind, t.optLong("size"), t.optLong("precision"),
                 t.optLong("scale")));
-        return c.done(new Protocol.PDbColumn(c.str("name"), c.bool("nullable"), type,
+        // nullable left out is false: the engine's Column holds a primitive boolean
+        Boolean nullable = c.optBool("nullable");
+        return c.done(new Protocol.PDbColumn(c.str("name"), nullable != null && nullable, type,
                 nonEmpty(c, "stereotypes", DomainReader::stereotype),
                 nonEmpty(c, "taggedValues", DomainReader::taggedValue), c.span()));
     }
@@ -225,12 +227,9 @@ final class StoreReader {
             if (n.isInteger()) {
                 return n.longValue();
             }
-            double d = Wire.asDouble(n, "relational literal");
-            String token = n.token();
-            if (token != null && !Double.toString(d).equals(token)) {
-                throw Wire.refuse("a relational literal " + token + " that is not a double's spelling");
-            }
-            return d;
+            // any spelling of the number (1.50, 1e3): the engine reads the Double and writes and prints it back as
+            // Java spells it (1.5, 1000.0), as lite does
+            return Wire.asDouble(n, "relational literal");
         }
         throw Wire.refuse("a relational literal that is neither a string nor a number: " + Wire.abbreviate(v));
     }

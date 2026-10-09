@@ -62,19 +62,25 @@ final class DataQualityReader {
         return p;
     }
 
-    /** A validation-tree node: the root names its class, a property node its property (no parameters). */
+    /**
+     * A validation-tree node: the root names its class, a property node its property, with the alias and arguments
+     * the engine's {@code PropertyGraphFetchTree} carries.
+     */
     private static Protocol.PDqTreeNode tree(Json.Node node, boolean root) {
         Wire n = Wire.of(node, "DataQuality tree");
         n.constant("_type", root ? "dataQualityRootGraphFetchTree" : "dataQualityPropertyGraphFetchTree");
         n.emptyArray("subTypeTrees");
         String className = root ? n.str("class") : null;
         String property = null;
+        String alias = null;
+        List<com.legend.protocol.spec.ValueSpecification> parameters = List.of();
         if (!root) {
-            n.emptyArray("parameters");
+            alias = n.optStr("alias");
+            parameters = n.listOrEmpty("parameters", ProtocolReader::valueSpec);
             property = n.str("property");
         }
         return n.done(new Protocol.PDqTreeNode(className, property, n.strings("constraints"),
-                n.list("subTrees", t -> tree(t, false)), n.optStr("subType"), n.span()));
+                n.list("subTrees", t -> tree(t, false)), n.optStr("subType"), n.span(), alias, parameters));
     }
 
     static Protocol.Element relationValidation(Wire w) {

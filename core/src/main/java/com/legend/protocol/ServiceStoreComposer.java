@@ -135,6 +135,23 @@ final class ServiceStoreComposer {
         return b.append(TAB).append("}").toString();
     }
 
+    /** Each path segment: its property, then its arguments only when it has more than one (upstream's printer). */
+    private static List<String> pathElements(Protocol.@com.legend.base.Nullable PPathOffset offset) {
+        if (offset == null) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (int k = 0; k < offset.propertyPath().size(); k++) {
+            List<com.legend.protocol.spec.ValueSpecification> arguments = offset.parameters().get(k);
+            List<String> printed = new ArrayList<>();
+            for (com.legend.protocol.spec.ValueSpecification a : arguments) {
+                printed.add(Composing.valueSpecification(a));
+            }
+            out.add(offset.propertyPath().get(k) + (printed.size() > 1 ? "(" + String.join(", ", printed) + ")" : ""));
+        }
+        return out;
+    }
+
     private static void serviceMapping(Protocol.PServiceMapping sm, StringBuilder b, int base) {
         Protocol.PServicePtr service = sm.service();
         List<String> segments = new ArrayList<>();
@@ -143,7 +160,7 @@ final class ServiceStoreComposer {
         }
         b.append(tab(base)).append("~service [").append(service.serviceStore()).append("] ")
                 .append(String.join(".", segments)).append("\n");
-        List<String> path = sm.pathOffset() == null ? List.of() : sm.pathOffset().propertyPath();
+        List<String> path = pathElements(sm.pathOffset());
         Protocol.PRequestBuildInfo request = sm.request();
         if (path.isEmpty() && request == null) {
             return;

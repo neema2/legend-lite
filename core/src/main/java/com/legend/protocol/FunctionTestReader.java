@@ -62,16 +62,17 @@ final class FunctionTestReader {
     private static Protocol.PFunctionTest test(Json.Node node) {
         Wire t = Wire.of(node, "function test");
         t.constant("_type", "functionTest");
+        // none is read (the engine prints 'id | f() => ;'); more than one the engine's printer refuses
         List<Json.Node> assertions = t.arr("assertions");
-        if (assertions.size() != 1) {
+        if (assertions.size() > 1) {
             throw Wire.refuse("a function test with " + assertions.size() + " assertions (the grammar has one)");
         }
         List<Protocol.PTestParam> params = t.listOrEmpty("parameters", FunctionTestReader::param);
         if (t.has("parameters") && params.isEmpty()) {
             throw Wire.refuse("a function test with an empty parameters array (the wire omits it)");
         }
-        return t.done(new Protocol.PFunctionTest(t.str("id"), t.span(), params, assertion(assertions.get(0)),
-                t.optStr("doc")));
+        return t.done(new Protocol.PFunctionTest(t.str("id"), t.span(), params,
+                assertions.isEmpty() ? null : assertion(assertions.get(0)), t.optStr("doc")));
     }
 
     private static Protocol.PTestParam param(Json.Node node) {
@@ -152,7 +153,7 @@ final class FunctionTestReader {
 
     private static PTestPayload.CsvTable csvTable(Json.Node node) {
         Wire t = Wire.of(node, "csv table");
-        return t.done(new PTestPayload.CsvTable(t.str("schema"), t.str("table"), t.str("values"), t.span()));
+        return t.done(new PTestPayload.CsvTable(t.str("schema"), t.str("table"), t.optStr("values"), t.span()));
     }
 
     /** The bare columns/paths/rows shape -- every cell a string. */

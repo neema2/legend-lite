@@ -1614,86 +1614,102 @@ final class TailEmitter {
 
     private static void persistenceTest(StringBuilder b,
             Protocol.PPersistenceTest t) {
+        b.append("{\"_type\":\"test\"");
         if (t.graphFetchPath() != null) {
-            b.append("{\"_type\":\"test\",\"graphFetchPath\":");
+            b.append(",\"graphFetchPath\":");
             ProtocolEmitter.pathValue(b,
                     (com.legend.protocol.spec.PathLiteral) t.graphFetchPath());
-            b.append(",\"id\":");
-            ProtocolEmitter.str(b, t.id());
-            b.append(",\"isTestDataFromServiceOutput\":")
-                    .append(t.isTestDataFromServiceOutput())
-                    .append(",\"sourceInformation\":");
-            ProtocolEmitter.srcInfo(b, t.sourceInformation());
-            b.append(",\"testBatches\":[");
-            persistenceTestBatches(b, t);
-            b.append("]}");
-            return;
         }
-        b.append("{\"_type\":\"test\",\"id\":");
+        b.append(",\"id\":");
         ProtocolEmitter.str(b, t.id());
-        b.append(",\"isTestDataFromServiceOutput\":")
-                .append(t.isTestDataFromServiceOutput())
-                .append(",\"sourceInformation\":");
+        if (t.isTestDataFromServiceOutput() != null) {
+            b.append(",\"isTestDataFromServiceOutput\":")
+                    .append(t.isTestDataFromServiceOutput());
+        }
+        b.append(",\"sourceInformation\":");
         ProtocolEmitter.srcInfo(b, t.sourceInformation());
-        b.append(",\"testBatches\":[");
-        persistenceTestBatches(b, t);
-        b.append("]}");
+        List<Protocol.PPersistenceTestBatch> batches = t.testBatches();
+        if (batches != null) {
+            b.append(",\"testBatches\":[");
+            persistenceTestBatches(b, batches);
+            b.append(']');
+        }
+        b.append('}');
     }
 
+    /** Each batch: its assertions, test data and the data's connection only when it has them. */
     private static void persistenceTestBatches(StringBuilder b,
-            Protocol.PPersistenceTest t) {
-        for (int i = 0; i < t.testBatches().size(); i++) {
-            Protocol.PPersistenceTestBatch tb = t.testBatches().get(i);
+            List<Protocol.PPersistenceTestBatch> batches) {
+        for (int i = 0; i < batches.size(); i++) {
+            Protocol.PPersistenceTestBatch tb = batches.get(i);
             if (i > 0) {
                 b.append(',');
             }
-            b.append("{\"assertions\":[");
-            for (int a = 0; a < tb.asserts().size(); a++) {
-                Protocol.PPersistenceAssert as = tb.asserts().get(a);
-                if (a > 0) {
-                    b.append(',');
-                }
-                b.append("{\"_type\":\"")
-                        .append(persistenceType("assertion",
-                                as.assertion().kind(), false))
-                        .append('"');
-                for (Protocol.PPersistenceEntry e
-                        : as.assertion().entries()) {
-                    b.append(",\"").append(e.key()).append("\":");
-                    // exhaustive over the sealed type (deep-audit 1e: the
-                    // old if/else silently emitted a key with NO value —
-                    // invalid JSON — for the other five variants)
-                    switch (e) {
-                        case Protocol.PPersistenceEntry.Node nd ->
-                                persistenceNode(b, "connectionData",
-                                        nd.node(), true);
-                        case Protocol.PPersistenceEntry.Scalar s ->
-                                ProtocolEmitter.str(b, s.value());
-                        default -> throw new UnsupportedOperationException(
-                                "TailEmitter has no wire rule for persistence"
-                                        + " assertion entry '" + e.key() + "' ("
-                                        + e.getClass().getSimpleName()
-                                        + ") — probe, do not guess.");
-                    }
-                }
-                b.append(",\"id\":");
-                ProtocolEmitter.str(b, as.id());
-                b.append(",\"sourceInformation\":");
-                ProtocolEmitter.srcInfo(b, as.sourceInformation());
-                b.append('}');
+            b.append('{');
+            List<Protocol.PPersistenceAssert> asserts = tb.asserts();
+            if (asserts != null) {
+                b.append("\"assertions\":[");
+                persistenceAsserts(b, asserts);
+                b.append("],");
             }
             // batchId AUTO-NUMBERS in source order (probed)
-            b.append("],\"batchId\":").append(i).append(",\"id\":");
+            b.append("\"batchId\":").append(i).append(",\"id\":");
             ProtocolEmitter.str(b, tb.id());
             b.append(",\"sourceInformation\":");
             ProtocolEmitter.srcInfo(b, tb.sourceInformation());
-            b.append(",\"testData\":{\"connection\":{\"data\":");
-            persistenceNode(b, "connectionData", tb.connectionData(), true);
+            if (tb.hasTestData()) {
+                b.append(",\"testData\":{");
+                Protocol.PPersistenceNode connection = tb.connectionData();
+                if (connection != null) {
+                    b.append("\"connection\":{\"data\":");
+                    persistenceNode(b, "connectionData", connection, true);
+                    b.append(",\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b, tb.connectionSpan());
+                    b.append("},");
+                }
+                b.append("\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, tb.dataSpan());
+                b.append('}');
+            }
+            b.append('}');
+        }
+    }
+
+    private static void persistenceAsserts(StringBuilder b,
+            List<Protocol.PPersistenceAssert> asserts) {
+        for (int a = 0; a < asserts.size(); a++) {
+            Protocol.PPersistenceAssert as = asserts.get(a);
+            if (a > 0) {
+                b.append(',');
+            }
+            b.append("{\"_type\":\"")
+                    .append(persistenceType("assertion",
+                            as.assertion().kind(), false))
+                    .append('"');
+            for (Protocol.PPersistenceEntry e
+                    : as.assertion().entries()) {
+                b.append(",\"").append(e.key()).append("\":");
+                // exhaustive over the sealed type (deep-audit 1e: the
+                // old if/else silently emitted a key with NO value —
+                // invalid JSON — for the other five variants)
+                switch (e) {
+                    case Protocol.PPersistenceEntry.Node nd ->
+                            persistenceNode(b, "connectionData",
+                                    nd.node(), true);
+                    case Protocol.PPersistenceEntry.Scalar s ->
+                            ProtocolEmitter.str(b, s.value());
+                    default -> throw new UnsupportedOperationException(
+                            "TailEmitter has no wire rule for persistence"
+                                    + " assertion entry '" + e.key() + "' ("
+                                    + e.getClass().getSimpleName()
+                                    + ") — probe, do not guess.");
+                }
+            }
+            b.append(",\"id\":");
+            ProtocolEmitter.str(b, as.id());
             b.append(",\"sourceInformation\":");
-            ProtocolEmitter.srcInfo(b, tb.connectionSpan());
-            b.append("},\"sourceInformation\":");
-            ProtocolEmitter.srcInfo(b, tb.dataSpan());
-            b.append("}}");
+            ProtocolEmitter.srcInfo(b, as.sourceInformation());
+            b.append('}');
         }
     }
 
@@ -2288,6 +2304,10 @@ final class TailEmitter {
             ProtocolEmitter.str(b,
                     java.util.Objects.requireNonNull(n.className()));
         }
+        if (n.alias() != null) {
+            b.append(",\"alias\":");
+            ProtocolEmitter.str(b, n.alias());
+        }
         b.append(",\"constraints\":[");
         for (int i = 0; i < n.constraints().size(); i++) {
             if (i > 0) {
@@ -2297,7 +2317,14 @@ final class TailEmitter {
         }
         b.append(']');
         if (!root) {
-            b.append(",\"parameters\":[],\"property\":");
+            b.append(",\"parameters\":[");
+            for (int i = 0; i < n.parameters().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                ProtocolEmitter.valueSpec(b, n.parameters().get(i));
+            }
+            b.append("],\"property\":");
             ProtocolEmitter.str(b,
                     java.util.Objects.requireNonNull(n.property()));
         }

@@ -175,7 +175,8 @@ public final class ServiceTestRunner implements AutoCloseable {
         ProvisionKey key() {
             List<CsvTableKey> tables = new java.util.ArrayList<>(data.tables().size());
             for (Protocol.PRelationalCsvTable t : data.tables()) {
-                tables.add(new CsvTableKey(t.schema(), t.table(), t.values()));
+                // every provisioned table has values (addProvision)
+                tables.add(new CsvTableKey(t.schema(), t.table(), java.util.Objects.requireNonNull(t.values())));
             }
             return new ProvisionKey(store, List.copyOf(tables));
         }
@@ -362,6 +363,12 @@ public final class ServiceTestRunner implements AutoCloseable {
                     + value.getClass().getSimpleName().substring(1)
                     + "' is not provisioned by this runner");
         }
+        for (Protocol.PRelationalCsvTable t : csv.tables()) {
+            if (t.values() == null) {
+                // JSON may leave a table's values out; with no header line there are no columns to seed
+                throw new Skip("CSV table " + t.schema() + "." + t.table() + " has no values to seed");
+            }
+        }
         out.add(new Provision(store, csv));
     }
 
@@ -399,7 +406,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                     csv.append("\n-\n");
                 }
                 csv.append(t.schema()).append('\n').append(t.table()).append('\n')
-                        .append(t.values());
+                        .append(java.util.Objects.requireNonNull(t.values()));
             }
         }
         // the '$' sigil: a name no user can write, so the overlay shadows

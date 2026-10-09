@@ -139,8 +139,9 @@ final class ClassMappingReader {
     }
 
     private static Protocol.PClassMapping operation(Wire w) {
+        String extendsId = w.optStr("extendsClassMappingId");
         return new Protocol.PClassMappingOperation(w.str("class"), w.span("classSourceInformation"), w.optStr("id"),
-                null, w.bool("root"), w.optStr("operation"), w.strings("parameters"), w.span());
+                extendsId, w.bool("root"), w.optStr("operation"), w.strings("parameters"), w.span(), extendsId != null);
     }
 
     /** {@code merge_...([p1,p2], {lambda})}: operation MERGE and the typed lambda wrapped in a bare one. */
@@ -148,7 +149,8 @@ final class ClassMappingReader {
         w.constant("operation", "MERGE");
         return new Protocol.PClassMappingMergeOperation(w.str("class"), w.span("classSourceInformation"),
                 w.optStr("id"), w.bool("root"), w.strings("parameters"),
-                bareLambdaOne(w.take("validationFunction"), "merge validation"), w.span());
+                bareLambdaOne(w.take("validationFunction"), "merge validation"), w.span(),
+                w.optStr("extendsClassMappingId"));
     }
 
     private static Protocol.PClassMapping function(Wire w) {
@@ -169,9 +171,10 @@ final class ClassMappingReader {
                 w.optStr("extendsClassMappingId"), w.bool("root"), w.str("kind"), ptr, lambda, w.span());
     }
 
+    /** The main collection may be left out, as the grammar's {@code ~mainCollection} may. */
     private static Protocol.PClassMapping mongo(Wire w) {
-        return new Protocol.PClassMappingMongoDb(w.str("class"), w.optStr("id"), w.bool("root"), w.str("storePath"),
-                w.str("mainCollectionName"), w.optStr("bindingPath"));
+        return new Protocol.PClassMappingMongoDb(w.str("class"), w.optStr("id"), w.bool("root"), w.optStr("storePath"),
+                w.optStr("mainCollectionName"), w.optStr("bindingPath"), w.optStr("extendsClassMappingId"));
     }
 
     // ---------------------------------------------------------------------
@@ -183,7 +186,8 @@ final class ClassMappingReader {
                 PropertyMappingReader::aggregationAware);
         return new Protocol.PClassMappingAggregationAware(w.str("class"), w.str("id"),
                 w.list("aggregateSetImplementations", ClassMappingReader::aggregateSet),
-                nested(w.take("mainSetImplementation")), aggPms, w.bool("root"), w.span());
+                nested(w.take("mainSetImplementation")), aggPms, w.bool("root"), w.span(),
+                w.optStr("extendsClassMappingId"));
     }
 
     private static Protocol.PAggregateSetImplementation aggregateSet(Json.Node node) {

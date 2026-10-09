@@ -25,7 +25,8 @@ final class ServiceStoreMappingReader {
         return new Protocol.PServiceStoreClassMapping(w.str("class"), w.span("classSourceInformation"),
                 w.optStr("id"), w.bool("root"),
                 w.list("localMappingProperties", ServiceStoreMappingReader::localProp),
-                w.list("servicesMapping", ServiceStoreMappingReader::serviceMapping), w.span());
+                w.list("servicesMapping", ServiceStoreMappingReader::serviceMapping), w.span(),
+                w.optStr("extendsClassMappingId"));
     }
 
     private static Protocol.PServiceStoreLocalProp localProp(Json.Node node) {
@@ -41,13 +42,16 @@ final class ServiceStoreMappingReader {
         Protocol.PPathOffset offset = null;
         Wire po = s.optObj("pathOffset");
         if (po != null) {
-            List<String> path = po.list("path", n -> {
+            // each segment: its property, and the arguments the engine's PropertyPathElement carries
+            List<String> path = new ArrayList<>();
+            List<List<ValueSpecification>> arguments = new ArrayList<>();
+            for (Json.Node n : po.arr("path")) {
                 Wire seg = Wire.of(n, "path offset segment");
                 seg.constant("_type", "propertyPath");
-                seg.emptyArray("parameters");
-                return seg.done(seg.str("property"));
-            });
-            offset = po.done(new Protocol.PPathOffset(po.str("startType"), path));
+                arguments.add(seg.listOrEmpty("parameters", ProtocolReader::valueSpec));
+                path.add(seg.done(seg.str("property")));
+            }
+            offset = po.done(new Protocol.PPathOffset(po.str("startType"), path, arguments));
         }
         Json.Node req = s.opt("requestBuildInfo");
         return s.done(new Protocol.PServiceMapping(servicePtr(s.take("service")), offset,
