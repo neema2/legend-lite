@@ -6767,8 +6767,8 @@ fall under the `EXTRA *` reason.
 ## 2026-10-08 — D24 (1): the inliner substitutes through TypedSubst; one substitution engine for the typed tree, the inliner's capture machinery deleted
 
 The compiler plan's D24 cleanup, first slice (the plan's Now line since 2026-10-04; the homework
-`docs/plan-audit-2026-09-26/d24-one-substitution-engine-2026-10-08.md`, §2 item 1, §3, §3b, §4). Landed as [[SHA]]
-(branch `compiler/d24-one-subst`; run [[RUN]] ([[TIMES]]): [[CI_RESULT]]).
+`docs/plan-audit-2026-09-26/d24-one-substitution-engine-2026-10-08.md`, §2 item 1, §3, §3b, §4). Landed as fa4160740
+(branch `compiler/d24-one-subst`; run 37938204427 (13:37 to 14:12 UTC, 35 minutes): green on every job on the first attempt (50 jobs run, the dispatch's summary job skipped as always)).
 
 **What it was.** Two engines substituted over the typed tree. `TypedSubst` (W0.6 push 1) is the capture-avoiding
 substitution: exact free variables, a binder renamed only when a term substituted beneath it has its name free, to a
@@ -6869,7 +6869,7 @@ middle, per the Now line); the engine-style render of `STRING_AGG` over a scalar
 **Checked.** `//core:core_tests_compiler`, `core_tests_lowering`, `core_tests_resolver`, `//core:guardrails`
 (`UserCallInlinerTest`, `InlinerMatchCaptureTest`, `CaptureStressTest`, `FreeVarsTest` among them; three new tests);
 `//spec:corpus_one` on the two corpus tests; two independent audits; the local gate (`//gates:local`) green
-[[LOCAL]]; CI run [[RUN]].
+(315 of 315 tests, 2026-10-08, the desk at load 4.8 when it started); CI run 37938204427.
 
 ## 2026-10-08 — W1.5 (a slice): a table reference's columns in declaration order, never a JVM-salted one; the scope id is stable
 
