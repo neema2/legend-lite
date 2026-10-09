@@ -425,8 +425,11 @@ function sheetRows(cells: readonly PlacedCell[], outline: ReadonlyMap<number, nu
 const mergeXml = (merges: readonly string[]): string => (merges.length > 0
   ? `<mergeCells count="${merges.length}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join('')}</mergeCells>` : '');
 
-/** Board units on the sheet: each board column two cells of 64px, each board row two cells of 20px. */
-const CELLS_PER_COL = 2;
+/**
+ * Board units on the sheet: a page as wide as 24 cells of 64px (a page of 24 columns, one cell each; one of 12, two), and
+ * each board row two cells of 20px. A page wider than 24 columns (a band of many tiles) is one cell a column.
+ */
+const SHEET_COLS = 24;
 const CELLS_PER_ROW = 2;
 const CELL_W = 64;
 const CELL_H = 20;
@@ -453,6 +456,7 @@ function dashboardSheet(page: ExportPage, titleStyle: number, grid: {
   const put = (row: number, col: number, text: string, style = titleStyle): void => {
     cells.push({ row, col, xml: `<c r="${columnLetters(col)}${row + 1}" s="${style}" t="inlineStr"><is><t xml:space="preserve">${esc(text)}</t></is></c>` });
   };
+  const CELLS_PER_COL = Math.max(1, Math.round(SHEET_COLS / page.cols));
   const g = page.tiles.find((t) => t.kind === 'grid');
   // where the table goes, and how far past its tile it reaches
   const gridCol = g ? g.x * CELLS_PER_COL : 0;

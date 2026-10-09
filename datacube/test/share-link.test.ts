@@ -77,7 +77,9 @@ function page(n: number, o: { inList?: number; title?: string } = {}): PageDocum
         y: [{ column: 'pnl', fn: 'sum' }], options: { orientation: 'vertical', stack: 'none', sort: { by: 'y', direction: 'desc' },
           limit: 20, labels: false, legend: 'none' } } },
     ],
-    layout: { kind: 'grid', cols: 12, arranged: true, tiles: [{ id: 'grid', x: 0, y: 0, w: 8, h: 6 }, { id: 'pnl-by-desk', x: 8, y: 0, w: 4, h: 6 }] },
+    layout: { kind: 'bands', fit: false, bands: [{ height: 0.25, node: { split: 'row', parts: [
+      { node: { tile: 'grid' }, size: 2 / 3 }, { node: { tile: 'pnl-by-desk' }, size: 1 / 3 },
+    ] } }] },
   } });
 }
 

@@ -956,7 +956,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         // chrome renders and the grid stays empty.
         await app.open();
         // a saved page: its charts and layout, around the cube just opened
-        if (saved?.page) app.restoreViews(saved.page);
+        if (saved?.page) await app.restoreViews(saved.page);
         // The baseline is the cube as it LANDED (normalized by its first refresh); a cube
         // opened with parts left out is changed from the start.
         const landed = savedForm(current.name ?? 'cube');
@@ -1560,7 +1560,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         ...(saved?.page?.unknown ? { pageUnknown: saved.page.unknown } : {}),
       };
       await app.open();
-      if (saved?.page) app.restoreViews(saved.page);
+      if (saved?.page) await app.restoreViews(saved.page);
       const notes = cube?.notes ?? [];
       const landed = savedForm(current.name ?? 'cube');
       current = { ...current, ...(landed ? { baseline: landed.definition } : {}), lost: notes.filter((n) => n.startsWith('left out')) };

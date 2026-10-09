@@ -51,7 +51,7 @@ import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
 import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { isPivotTotalColumn } from './snapshot.ts';
+import { isPivotTotalColumn, withoutConditions } from './snapshot.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
@@ -73,8 +73,7 @@ import { toPdf, toPlainText } from './export-doc.ts';
 import { exportTable, type ExportPage } from './export-model.ts';
 import { toXlsx, XLSX_MIME } from './export-xlsx.ts';
 import { cubeScopeOf, newCubeScope } from './ui/scope.ts';
-import { BOARD_COLUMNS } from './layout/board.ts';
-import { BOARD_ROWS, CubePage, withoutConditions, type ChartSource, type SpawnedGrid, type SpawnOptions } from './page/cube-page.ts';
+import type { CubePage, ChartSource, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
 import { PAGE_CUBE, pageToJson, writePage, type ChartView, type PageDocument, type PageViews } from './page-document.ts';
 import { FormatterCache, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
@@ -395,6 +394,17 @@ function refusal(out: Outcome): string | null {
   return out.error instanceof Error ? out.error.message : String(out.error);
 }
 
+/**
+ * THE PAGE'S MODULE (page/cube-page.ts: the board, its layouts, the charts' panel), fetched the first time a cube gets
+ * a page -- a chart, a second grid -- and once for every cube in the tab. A grid alone never downloads it (the bundle's
+ * budget, test/bundle-budget.test.ts).
+ */
+let pageModule: Promise<typeof import('./page/cube-page.ts')> | undefined;
+function loadPage(): Promise<typeof import('./page/cube-page.ts')> {
+  pageModule ??= import('./page/cube-page.ts');
+  return pageModule;
+}
+
 export class CubeApp {
   readonly #doc: Document;
   readonly #options: CubeAppOptions;
@@ -404,6 +414,8 @@ export class CubeApp {
   /** The same zones again, as a list in the sidebar. */
   readonly #sideZones: PivotPanel;
   readonly #menu: MenuView;
+  /** The title bar's menu button, while the bar shows: where the page's layouts open from (Arrange...). */
+  #burger: HTMLElement | null = null;
   readonly #formatters = new FormatterCache();
   /**
    * Handed to the grid ONCE and mutated in place.
@@ -2034,7 +2046,7 @@ export class CubeApp {
         this.#confirmExport(() => void this.#email('pdf'));
         return;
       case 'chart.plot':
-        this.openChart();
+        void this.openChart();
         return;
       case 'source.new':
         void this.newSource();
@@ -2042,8 +2054,20 @@ export class CubeApp {
       case 'page.blank':
         this.#options.onBlankPage?.();
         return;
+      case 'page.arrange':
+        this.#page?.page.showLayouts(this.#burger?.isConnected ? this.#burger : this.#els.root);
+        return;
+      case 'page.editLayout':
+        this.#page?.page.setEditing(!this.#page.page.editing);
+        return;
+      case 'page.undoLayout':
+        this.#page?.page.undoLayout();
+        return;
+      case 'page.redoLayout':
+        this.#page?.page.redoLayout();
+        return;
       case 'grid.new':
-        this.newGrid();
+        void this.newGrid();
         return;
       case 'filter.column':
         this.openFilters();
@@ -2409,21 +2433,21 @@ export class CubeApp {
    * A chart of the cube on the board, below the grid (page/cube-page.ts): it follows the grid
    * until frozen; a click on a mark filters the cube to it.
    */
-  openChart(restore?: ChartView): void {
+  async openChart(restore?: ChartView): Promise<void> {
     if (this.#options.onChart && !restore) {
       this.#options.onChart();
       return;
     }
-    this.#ensurePage().openChart(restore);
+    (await this.#ensurePage())?.openChart(restore);
   }
 
   /** Another grid on the page, starting as this one is (page/cube-page.ts `addGrid`). */
-  newGrid(): void {
+  async newGrid(): Promise<void> {
     if (this.#options.onNewGrid) {
       this.#options.onNewGrid();
       return;
     }
-    this.#ensurePage().addGrid();
+    (await this.#ensurePage())?.addGrid();
   }
 
   /**
@@ -2438,7 +2462,7 @@ export class CubeApp {
       this.#options.onNewSource(make);
       return;
     }
-    this.#ensurePage().addGridOver(make);
+    (await this.#ensurePage())?.addGridOver(make);
   }
 
   /** A cube over `source`, made by the page in a tile: a grid like any other on it. */
@@ -2464,11 +2488,22 @@ export class CubeApp {
   }
 
   /**
-   * The board, made on first use: the grid moves into its first tile, charts below it. The last
-   * chart gone, the grid goes back where it was and the board with it.
+   * The board, made on first use: the grid moves into its first tile, charts beside or below it. The last chart gone,
+   * the grid goes back where it was and the board with it. Its module -- the board, the layouts, the charts' panel -- is
+   * fetched then too (`loadPage`): a grid alone never downloads it. Undefined when the cube went meanwhile.
    */
-  #ensurePage(): CubePage {
+  /** The page as it is now (a method, so a read after an await is not taken for the read before it). */
+  #pageNow(): CubePage | undefined {
+    return this.#page?.page;
+  }
+
+  async #ensurePage(): Promise<CubePage | undefined> {
     if (this.#page) return this.#page.page;
+    const { CubePage } = await loadPage();
+    // made meanwhile by another call (read afresh: the await may have let one in), or the cube gone while it came
+    const made = this.#pageNow();
+    if (made) return made;
+    if (this.#disposed) return undefined;
     const root = this.#els.root;
     const host = this.#doc.createElement('div');
     host.className = 'dc-board-host';
@@ -2572,7 +2607,7 @@ export class CubeApp {
     if (!page || page.charts === 0) {
       return {
         views: [{ id: 'grid', kind: 'grid', cube: PAGE_CUBE }],
-        layout: { kind: 'grid', cols: BOARD_COLUMNS, tiles: [{ id: 'grid', x: 0, y: 0, w: BOARD_COLUMNS, h: BOARD_ROWS }], arranged: false },
+        layout: { kind: 'bands', fit: false, bands: [{ height: 1, node: { tile: 'grid' } }] },
       };
     }
     return page.views();
@@ -2592,9 +2627,9 @@ export class CubeApp {
   }
 
   /** Put a saved page's views back around the cube: its charts, their titles, its layout. */
-  restoreViews(page: PageViews): void {
+  async restoreViews(page: PageViews): Promise<void> {
     if (!page.views.some((v) => v.kind === 'chart')) return;
-    this.#ensurePage().restore(page);
+    (await this.#ensurePage())?.restore(page);
   }
 
 
@@ -3566,6 +3601,7 @@ export class CubeApp {
     // level down (the user, 2026-09-30). Page-wide things live here; what belongs to a column or
     // a cell stays in the right-click menu, in its order.
     const burger = doc.createElement('button');
+    this.#burger = burger;
     burger.type = 'button';
     burger.className = 'dc-titlebar-menu';
     burger.setAttribute('aria-label', 'Menu');
@@ -3753,6 +3789,13 @@ export class CubeApp {
         { id: 'grid.new', label: 'Copy of Grid', ...cubeOnly },
         ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'Blank Page', separated: true }] : []),
       ]) },
+      // THE PAGE'S LAYOUT, while there is a page of tiles: its layouts, and locking it so nothing moves by accident
+      ...(this.#page ? [{ label: '', items: [
+        { id: 'page.arrange' as const, label: 'Arrange\u2026' },
+        { id: 'page.undoLayout' as const, label: 'Undo Layout', ...(this.#page.page.canUndoLayout ? {} : { disabled: true }) },
+        { id: 'page.redoLayout' as const, label: 'Redo Layout', ...(this.#page.page.canRedoLayout ? {} : { disabled: true }) },
+        { id: 'page.editLayout' as const, label: 'Edit Layout', checked: this.#page.page.editing },
+      ] }] : []),
       { label: '', items: host('data') },
       { label: '', items: [
         // WHAT UNDO ACTS ON: Ad Hoc's session while it is on, never the hidden cube's history

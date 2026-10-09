@@ -52,11 +52,14 @@ function key(el: HTMLElement, k: string, shiftKey = false): void {
   el.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: k, shiftKey, bubbles: true }));
 }
 
-/** A board with `ids` side by side in one band, the layout's changes counted. */
+/** A board with `ids` side by side in one band half a screen high, the layout's changes counted. */
 function sideBySide(ids: string[], options: BandBoardOptions = {}): { board: BandBoard; changes: Bands[] } {
   const changes: Bands[] = [];
   const board = new BandBoard(host, { ...options, onChange: (layout) => changes.push(layout) });
-  ids.forEach((id, i) => board.add(tile(id), i === 0 ? undefined : ids[i - 1]));
+  for (const id of ids) board.add(tile(id));
+  board.setLayout({ fit: false, bands: [{ height: 0.5, node: ids.length === 1 ? { tile: ids[0]! } : {
+    split: 'row', parts: ids.map((id) => ({ node: { tile: id }, size: 1 / ids.length })),
+  } }] });
   return { board, changes };
 }
 
@@ -79,10 +82,29 @@ describe('the band board', () => {
     wellFormed(board);
   });
 
+  it('puts a new tile beside the one it came from while each would still be readable, else in a band below', () => {
+    const board = new BandBoard(host);
+    board.add(tile('a'));
+    board.add(tile('b'), 'a');
+    assert.deepEqual(box('b'), { x: 504, y: 0, w: 496, h: 300 }, 'beside it: two fit in 1000px');
+    board.add(tile('c'), 'b');
+    assert.deepEqual(box('c'), { x: 0, y: 308, w: 1000, h: 300 }, 'below: three would be under 360px each');
+    host = dom.window.document.createElement('div');
+    sized(1500, 600);
+    const wide = new BandBoard(host);
+    wide.add(tile('d'));
+    wide.add(tile('e'), 'd');
+    wide.add(tile('f'), 'e');
+    wide.add(tile('g'), 'f');
+    wide.add(tile('h'), 'g');
+    assert.equal(wide.layout.bands.length, 2, 'four beside each other at most');
+    assert.deepEqual(tiles({ fit: false, bands: [wide.layout.bands[0]!] }), ['d', 'e', 'f', 'g']);
+  });
+
   it('treats every tile alike: the first one removed, the rest close over its place', () => {
     const removed: string[] = [];
     const { board } = sideBySide(['a', 'b', 'c'], { onRemove: (id) => removed.push(id) });
-    root('a').querySelector<HTMLButtonElement>('.dc-tile-remove:not(.dc-tile-layout):not(.dc-tile-maximise)')!.click();
+    root('a').querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     assert.deepEqual(removed, ['a'], 'the caller is asked; the board does not remove it itself');
     const content = root('a').querySelector('.dc-tile-body')!.firstElementChild!;
     board.remove('a');
@@ -270,6 +292,25 @@ describe('the band board', () => {
     key(root('a').querySelector<HTMLElement>('.dc-tile-body > div')!, 'ArrowLeft');
     assert.deepEqual(tiles(board.layout), ['b', 'a']);
     wellFormed(board);
+  });
+
+  it('tells each change with the layout it came from, and hands Ctrl+Z on a tile\'s frame to the caller', () => {
+    const steps: [Bands, Bands][] = [];
+    const undos: boolean[] = [];
+    const board = new BandBoard(host, { onChange: (layout, before) => steps.push([layout, before]), onUndo: (redo) => undos.push(redo) });
+    board.add(tile('a'));
+    board.add(tile('b'), 'a');
+    const start = board.layout;
+    key(root('a'), 'ArrowRight');
+    assert.equal(steps.length, 1);
+    assert.equal(steps[0]![1], start, 'from the layout before');
+    assert.equal(steps[0]![0], board.layout);
+    root('a').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    root('a').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Z', metaKey: true, shiftKey: true, bubbles: true }));
+    assert.deepEqual(undos, [false, true]);
+    // inside the tile, the content's own
+    root('a').querySelector('.dc-tile-body > div')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    assert.deepEqual(undos, [false, true]);
   });
 
   it('says when a tile cannot grow or shrink that way', () => {

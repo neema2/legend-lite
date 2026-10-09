@@ -3,7 +3,7 @@
 // has a height, as a share of one screenful; a page that fits its window shares the window among its bands instead,
 // and one that does not scrolls when they are taller than it.
 //
-// PURE, as tile-layout.ts is: no DOM, no pixels, no state. Every function takes a layout and returns a new one, so
+// PURE: no DOM, no pixels, no state. Every function takes a layout and returns a new one, so
 // what every gesture does -- a drop on a tile's edge or between bands, a divider moved, a preset, a tile added or
 // removed -- is testable in node, and the pointer layer only turns the pointer into these calls.
 //
@@ -166,16 +166,16 @@ export function remove(layout: Bands, tile: string): Bands {
 
 /**
  * A NEW TILE, placed where it is wanted (smart placement): beside `near` -- the tile it came from -- while `near`'s band
- * is a row of fewer than MAX_COLUMNS columns, otherwise as a band of its own below `near`'s; with no `near`, a band at
- * the bottom of the page.
+ * is a row of fewer than `columns` columns (MAX_COLUMNS, or fewer where the board is too narrow for them to be
+ * readable), otherwise as a band of its own below `near`'s; with no `near`, a band at the bottom of the page.
  */
-export function add(layout: Bands, tile: string, near?: string): Bands {
+export function add(layout: Bands, tile: string, near?: string, columns = MAX_COLUMNS): Bands {
   if (tiles(layout).includes(tile)) return layout;
   const at = near === undefined ? -1 : bandOf(layout, near);
   if (at < 0) return { fit: layout.fit, bands: [...layout.bands, { height: BAND_HEIGHT, node: { tile } }] };
   const band = layout.bands[at]!;
-  const columns = isTile(band.node) ? 1 : band.node.split === 'row' ? band.node.parts.length : 1;
-  if (columns < MAX_COLUMNS) {
+  const has = isTile(band.node) ? 1 : band.node.split === 'row' ? band.node.parts.length : 1;
+  if (has < Math.min(columns, MAX_COLUMNS)) {
     const node = isTile(band.node) || band.node.split !== 'row'
       ? split('row', [band.node, { tile }])
       : split('row', [...band.node.parts.map((part) => part.node), { tile }]);
@@ -557,4 +557,132 @@ export function dividerBeside(drawn: Drawn, tile: string, side: 'left' | 'right'
       && box.y <= of.y && box.y + box.h >= of.y + of.h
     : split === 'column' && (side === 'bottom' ? box.y === of.y + of.h : box.y + box.h === of.y)
       && box.x <= of.x && box.x + box.w >= of.x + of.w));
+}
+
+// -- whole cells: an export, and a page saved before bands ---------------------
+
+/** A box in whole cells, as an export lays a page out and as a page saved before bands placed its tiles. */
+export interface Cell {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** The most tiles side by side anywhere in `node`, and the most one above another: the least cells it needs. */
+const across = (node: Node): number => (isTile(node) ? 1
+  : node.split === 'row' ? node.parts.reduce((sum, part) => sum + across(part.node), 0)
+    : Math.max(...node.parts.map((part) => across(part.node))));
+const down = (node: Node): number => (isTile(node) ? 1
+  : node.split === 'column' ? node.parts.reduce((sum, part) => sum + down(part.node), 0)
+    : Math.max(...node.parts.map((part) => down(part.node))));
+
+/**
+ * `total` whole cells shared out as `shares` share it, each part at least its `least` (the total grown when the leasts
+ * need more): what is left over the leasts goes by the largest remainder, so the parts always sum to the total.
+ */
+function shareOut(total: number, shares: readonly number[], least: readonly number[]): number[] {
+  const floor = least.reduce((sum, n) => sum + n, 0);
+  const room = Math.max(total, floor);
+  const free = room - floor;
+  const wants = shares.map((share, i) => Math.max(0, room * share - least[i]!));
+  const wanted = wants.reduce((sum, n) => sum + n, 0);
+  const quotas = wants.map((n) => (wanted > 0 ? (n / wanted) * free : free / shares.length));
+  const out = quotas.map((q, i) => least[i]! + Math.floor(q));
+  let left = room - out.reduce((sum, n) => sum + n, 0);
+  const order = quotas.map((q, i) => ({ i, rest: q - Math.floor(q) })).sort((a, b) => b.rest - a.rest || a.i - b.i);
+  for (const { i } of order) {
+    if (left <= 0) break;
+    out[i]! += 1;
+    left -= 1;
+  }
+  return out;
+}
+
+/**
+ * THE LAYOUT IN WHOLE CELLS, for an export: `cols` across (more when a band holds more tiles side by side) and `rows`
+ * to a screenful. Every tile at least one cell each way, neighbours meeting exactly, nothing overlapping: each split
+ * shares out its cells whole, each part at least what the tiles inside it need. On a page that fits its window, the
+ * bands share one screenful's rows.
+ */
+export function cells(layout: Bands, cols = 24, rows = 24): { readonly cols: number; readonly rows: number; readonly tiles: readonly Cell[] } {
+  const width = Math.max(cols, ...layout.bands.map((band) => across(band.node)));
+  const out: Cell[] = [];
+  const place = (node: Node, x: number, y: number, w: number, h: number): void => {
+    if (isTile(node)) {
+      out.push({ id: node.tile, x, y, w, h });
+      return;
+    }
+    const row = node.split === 'row';
+    const lengths = shareOut(row ? w : h, node.parts.map((part) => part.size),
+      node.parts.map((part) => (row ? across(part.node) : down(part.node))));
+    let at = row ? x : y;
+    node.parts.forEach((part, i) => {
+      const length = lengths[i]!;
+      if (row) place(part.node, at, y, length, h);
+      else place(part.node, x, at, w, length);
+      at += length;
+    });
+  };
+  const total = layout.bands.reduce((sum, band) => sum + band.height, 0);
+  const heights = layout.fit && total > 0
+    ? shareOut(rows, layout.bands.map((band) => band.height / total), layout.bands.map((band) => down(band.node)))
+    : layout.bands.map((band) => Math.max(down(band.node), Math.round(band.height * rows)));
+  let y = 0;
+  layout.bands.forEach((band, i) => {
+    place(band.node, 0, y, width, heights[i]!);
+    y += heights[i]!;
+  });
+  return { cols: width, rows: y, tiles: out };
+}
+
+/**
+ * A PAGE SAVED BEFORE BANDS (tiles on a grid `cols` wide, `rows` to a screenful), read as bands: cut where no tile
+ * crosses -- across the page into bands, then inside each band down into columns or across into parts, as often as a
+ * straight cut divides what is left -- each part's share its span. Tiles no straight cut divides (four round a middle)
+ * are read side by side, in order across, each its width's share. Every tile is kept; the page scrolls, as it did.
+ */
+export function fromCells(tiles: readonly Cell[], rows: number): Bands {
+  /** `rects` in groups no line across `axis` crosses, in order along it. */
+  const cut = (rects: readonly Cell[], axis: 'x' | 'y'): Cell[][] => {
+    const size = axis === 'x' ? 'w' : 'h';
+    const sorted = [...rects].sort((a, b) => a[axis] - b[axis] || a.id.localeCompare(b.id));
+    const groups: Cell[][] = [];
+    let end = -Infinity;
+    // in order along the axis, the furthest any rect so far reaches: one starting at or past it starts a new group
+    for (const rect of sorted) {
+      if (rect[axis] >= end) groups.push([rect]);
+      else groups[groups.length - 1]!.push(rect);
+      end = Math.max(end, rect[axis] + rect[size]);
+    }
+    return groups;
+  };
+  const span = (rects: readonly Cell[], axis: 'x' | 'y'): number => {
+    const size = axis === 'x' ? 'w' : 'h';
+    return Math.max(...rects.map((r) => r[axis] + r[size])) - Math.min(...rects.map((r) => r[axis]));
+  };
+  const nodeOf = (rects: readonly Cell[]): Node => {
+    if (rects.length === 1) return { tile: rects[0]!.id };
+    for (const [axis, direction] of [['x', 'row'], ['y', 'column']] as const) {
+      const groups = cut(rects, axis);
+      if (groups.length > 1) {
+        const spans = groups.map((g) => span(g, axis));
+        const sum = spans.reduce((a, b) => a + b, 0);
+        return split(direction, groups.map(nodeOf), spans.map((s) => s / sum));
+      }
+    }
+    const across = [...rects].sort((a, b) => a.x - b.x || a.y - b.y || a.id.localeCompare(b.id));
+    const sum = across.reduce((a, r) => a + r.w, 0);
+    return split('row', across.map((r) => ({ tile: r.id })), across.map((r) => r.w / sum));
+  };
+  const unique = tiles.filter((t, i) => tiles.findIndex((u) => u.id === t.id) === i);
+  if (unique.length === 0) return EMPTY;
+  return {
+    fit: false,
+    bands: cut(unique, 'y').map((group) => ({
+      height: Math.max(MIN_BAND_HEIGHT, span(group, 'y') / Math.max(1, rows)),
+      node: nodeOf(group),
+    })),
+  };
 }

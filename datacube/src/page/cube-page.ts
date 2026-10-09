@@ -1,4 +1,7 @@
-// A PAGE OF TILES: a grid and the charts made from it, on one board (plan B1, and B2 next).
+// A PAGE OF TILES: a grid and the charts made from it, on one board (plan B1, and B2 next), laid out as bands
+// (layout/band-board.ts; docs/DATACUBE_PAGES_DESIGN_2026_10_09.md). Every tile is placed, moved and arranged alike: a
+// new chart or grid goes beside the tile it came from while its band has room (smart placement), else below it, and
+// the layout picker arranges the whole page.
 //
 // Moved out of CubeApp so a grid and a chart are the same kind of thing -- a tile on a board --
 // and a page can come to hold several grids (the user, 2026-09-30: "the grid is the source").
@@ -14,22 +17,19 @@
 import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
-import { Board, BOARD_COLUMNS } from '../layout/board.ts';
-import { addToRow, below } from '../layout/tile-layout.ts';
+import { BandBoard } from '../layout/band-board.ts';
+import { type Bands, cells, remove as removeTile, tiles } from '../layout/bands.ts';
+import { LayoutPicker } from '../ui/layout-picker.ts';
 import { followCube, measureName } from '../chart-spec.ts';
 import type { GridShown, MarkKey } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import { PAGE_CUBE, type ChartView, type PageView, type PageViews } from '../page-document.ts';
-import type { CubeSnapshot, FilterNode, Measure } from '../snapshot.ts';
+import { withoutConditions, type CubeSnapshot, type FilterNode, type Measure } from '../snapshot.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 
-/** The board's rows on one screen (each row a share of the height), and its tiles' least height. */
-export const BOARD_ROWS = 24;
-const TILE_MIN_ROWS = 6;
-/** The grid's rows above its charts, of the 24 on one screen; and charts side by side in a row. */
-const GRID_ROWS_ABOVE_CHARTS = 14;
-const CHARTS_PER_ROW = 4;
+/** How many arrangements Undo Layout goes back through. */
+const LAYOUT_STEPS = 50;
 /** The grid's tile, until renamed: the cube's name is already above the board. */
 export const GRID_TILE_TITLE = 'Grid';
 const GRID = 'grid';
@@ -123,13 +123,15 @@ interface ChartTile {
 export class CubePage {
   readonly #doc: Document;
   readonly #options: CubePageOptions;
-  readonly #board: Board;
+  readonly #board: BandBoard;
+  readonly #picker: LayoutPicker;
   readonly #charts = new Map<string, ChartTile>();
   readonly #grids = new Map<string, GridTile>();
   #chartCount = 0;
   #gridCount = 0;
-  /** Until arranged by hand, the page lays itself out. */
-  #auto = true;
+  /** Each arrangement by hand is one step (the design's §3.3): the layouts before the steps done, and after those undone. */
+  #undone: Bands[] = [];
+  #redone: Bands[] = [];
   /** A chart's right-click menu: its Options, Open in grid, Remove. */
   readonly #menu: MenuView;
   #menuFor: ((item: MenuItem) => void) | null = null;
@@ -138,17 +140,17 @@ export class CubePage {
     this.#options = options;
     this.#doc = options.host.ownerDocument;
     this.#menu = new MenuView(this.#doc, { onSelect: (item) => this.#menuFor?.(item) });
-    this.#board = new Board(options.host, {
-      fitRows: BOARD_ROWS,
-      // a short window still fits its screenful; a 6-row tile is then ~110px
-      rowHeight: 12,
+    this.#picker = new LayoutPicker(options.host);
+    this.#board = new BandBoard(options.host, {
       onRemove: (tileId) => this.#removeTile(tileId),
-      // arranged by hand: from now on the layout is the user's
-      onChange: () => {
-        this.#auto = false;
+      onChange: (_layout, before) => {
+        this.#undone = [...this.#undone, before].slice(-LAYOUT_STEPS);
+        this.#redone = [];
         options.onChange();
       },
       onRename: () => options.onChange(),
+      onLayout: (tileId, anchor) => this.showLayouts(anchor, tileId),
+      onUndo: (redo) => (redo ? this.redoLayout() : this.undoLayout()),
     });
     // a chart or another grid is added from the menus (right-click or the hamburger, Insert), not
     // from buttons on the tile (the user, 2026-09-30)
@@ -159,11 +161,64 @@ export class CubePage {
       title: GRID_TILE_TITLE,
       element: options.grid.element,
       actions: options.grid.head ? [options.grid.head] : [],
+      // until the page owns Save (phase 2, the design's §4): the page's document is this grid's cube
       removable: false,
-      anchor: true,
-      minW: 3,
-      minH: TILE_MIN_ROWS,
-    }, { x: 0, y: 0, w: BOARD_COLUMNS, h: BOARD_ROWS });
+    });
+    // a screenful: the grid had the whole page until now
+    this.#board.setLayout({ fit: false, bands: [{ height: 1, node: { tile: GRID } }] });
+  }
+
+  /** The layouts (ui/layout-picker.ts) by `anchor`: the page's, or -- `first` -- a tile's own, that tile first. */
+  showLayouts(anchor: HTMLElement, first?: string): void {
+    const board = this.#board;
+    this.#picker.show(anchor, {
+      tiles: tiles(board.layout),
+      ...(first !== undefined ? { first } : {}),
+      fit: board.layout.fit,
+      onPreview: (preset) => board.preview(preset, first),
+      onPick: (preset) => board.arrange(preset, first),
+      onFit: (fit) => board.setFit(fit),
+      onEvenOut: () => board.evenOut(),
+    });
+  }
+
+  /**
+   * The last arrangement undone (Undo Layout; Ctrl+Z on a tile's frame): the page's tiles placed as they were before
+   * it. A tile added or removed since is not brought back or taken away: only where the tiles are is undone.
+   */
+  undoLayout(): void {
+    const before = this.#undone.at(-1);
+    if (before === undefined) return;
+    this.#undone = this.#undone.slice(0, -1);
+    this.#redone = [...this.#redone, this.#board.layout];
+    this.#board.setLayout(before);
+    this.#options.onChange();
+  }
+
+  redoLayout(): void {
+    const after = this.#redone.at(-1);
+    if (after === undefined) return;
+    this.#redone = this.#redone.slice(0, -1);
+    this.#undone = [...this.#undone, this.#board.layout];
+    this.#board.setLayout(after);
+    this.#options.onChange();
+  }
+
+  get canUndoLayout(): boolean {
+    return this.#undone.length > 0;
+  }
+
+  get canRedoLayout(): boolean {
+    return this.#redone.length > 0;
+  }
+
+  /** Edit mode (tiles move, dividers drag) or view mode (nothing moves by accident). */
+  get editing(): boolean {
+    return this.#board.editing;
+  }
+
+  setEditing(editing: boolean): void {
+    this.#board.setEditing(editing);
   }
 
   /** How many tiles are on the page besides the cube's own grid: charts and added grids. */
@@ -179,15 +234,16 @@ export class CubePage {
    */
   addGrid(from: string = GRID): string {
     const source = this.#grids.get(from)?.source ?? this.#options.grid.source;
-    return this.addGridOver((host, options) => source.spawn(host, source.snapshot, options));
+    return this.addGridOver((host, options) => source.spawn(host, source.snapshot, options), from);
   }
 
   /**
    * A grid over ANOTHER SOURCE (New ▸ Source…): `make` builds it -- its own engine and planner,
    * over its own model -- in the tile's element. Then it is a grid like any other: its own charts,
-   * its own New ▸ Grid (over its source), moved and removed the same way.
+   * its own New ▸ Grid (over its source), moved and removed the same way. It goes beside `near`, the grid it was asked
+   * from, while that band has room.
    */
-  addGridOver(make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid): string {
+  addGridOver(make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid, near: string = GRID): string {
     this.#gridCount += 1;
     let n = this.#gridCount;
     while (this.#grids.has(`grid-${n}`) || this.#board.title(`grid-${n}`) !== undefined) n += 1;
@@ -198,17 +254,14 @@ export class CubePage {
     const cube = make(host, {
       onChart: () => this.openChart(undefined, id),
       onNewGrid: () => this.addGrid(id),
-      onNewSource: (other) => this.addGridOver(other),
+      onNewSource: (other) => this.addGridOver(other, id),
     });
     const stop = cube.on('view', () => {
       this.#refreshGrid(id);
       this.#reconcileGrid(id, cube.snapshot.filter);
     });
     this.#grids.set(id, { source: cube.chartSource(), added: { cube, stop } });
-    const before = this.#board.layout;
-    this.#board.add({ id, title: `Grid ${n + 1}`, element: host, actions: [cube.tileHead()], minW: 3, minH: TILE_MIN_ROWS }, { w: 6, h: 12 });
-    if (this.#auto) this.#arrange();
-    else this.#board.setLayout(addToRow(before, id, BOARD_COLUMNS, BOARD_ROWS - GRID_ROWS_ABOVE_CHARTS, CHARTS_PER_ROW, 3));
+    this.#board.add({ id, title: `Grid ${n + 1}`, element: host, actions: [cube.tileHead()] }, this.#grids.has(near) ? near : GRID);
     this.#board.reveal(id);
     void cube.open();
     this.#options.onChange();
@@ -301,25 +354,11 @@ export class CubePage {
     const actions = [pill, chip];
     if (restore) {
       // placed by the page's layout, once every view is on the board (`restore`)
-      this.#board.add({ id, title: restore.title, element: body, actions, minW: 3, minH: TILE_MIN_ROWS });
+      this.#board.add({ id, title: restore.title, element: body, actions });
       return;
     }
-    const before = this.#board.layout;
-    this.#board.add({
-      id,
-      title: `Chart ${this.#chartCount}`,
-      element: body,
-      actions,
-      minW: 3,
-      minH: TILE_MIN_ROWS,
-    }, { w: 6, h: 10 });
-    if (this.#auto) {
-      this.#arrange();
-    } else {
-      // arranged by hand: at the end of the bottom row of charts, or a row of its own
-      this.#board.setLayout(addToRow(before, id, BOARD_COLUMNS, BOARD_ROWS - GRID_ROWS_ABOVE_CHARTS,
-        CHARTS_PER_ROW, 3));
-    }
+    // beside its grid while that band has room, else in a band below it
+    this.#board.add({ id, title: `Chart ${this.#chartCount}`, element: body, actions }, link.grid ?? GRID);
     this.#board.reveal(id);
     this.#options.onChange();
   }
@@ -377,16 +416,9 @@ export class CubePage {
         ...(chart.conditions.length > 0 ? { selection: chart.conditions } : {}),
       });
     }
-    return {
-      views,
-      layout: {
-        kind: 'grid',
-        cols: BOARD_COLUMNS,
-        tiles: this.#pageTiles().filter((t) => t.id === GRID || this.#charts.get(t.id)?.link.grid === GRID)
-          .map((t) => ({ id: t.id, x: t.x, y: t.y, w: t.w, h: t.h })),
-        arranged: !this.#auto,
-      },
-    };
+    // the layout of what is saved: the other tiles' places closed up, as if they had been removed
+    const saved = new Set(views.map((v) => v.id));
+    return { views, layout: { kind: 'bands', ...without(this.#board.layout, (id) => !saved.has(id)) } };
   }
 
   /** Put a saved page's views back: its charts, their titles, its layout. */
@@ -395,15 +427,16 @@ export class CubePage {
     const grid = page.views.find((v) => v.kind === 'grid');
     if (grid?.title) this.#board.rename(GRID, grid.title);
     for (const chart of charts) this.openChart(chart);
-    this.#board.setLayout(page.layout.tiles);
-    this.#auto = !page.layout.arranged;
+    const { kind: _kind, ...bands } = page.layout;
+    this.#board.setLayout(bands);
     this.#chartCount = Math.max(this.#chartCount, ...charts.map((c) => Number(/^chart-(\d+)$/.exec(c.id)?.[1] ?? 0)));
   }
 
   /** The page's tiles as an export lays them out: where each is, a chart as its picture. */
   exportPage(): ExportPage {
     // an added grid is not in an export yet (plan B2: an export of several grids); every chart is
-    const tiles = this.#pageTiles().filter((t) => !this.#grids.get(t.id)?.added).map((t): ExportTile => {
+    const grid = cells(without(this.#pageLayout(), (id) => this.#grids.get(id)?.added !== undefined));
+    const tiles = grid.tiles.map((t): ExportTile => {
       const chart = this.#charts.get(t.id);
       const picture = chart?.panel.picture() ?? null;
       return {
@@ -414,11 +447,12 @@ export class CubePage {
         ...(picture ? { picture } : {}),
       };
     });
-    return { cols: BOARD_COLUMNS, tiles };
+    return { cols: grid.cols, tiles };
   }
 
   dispose(): void {
     this.#menu.close();
+    this.#picker.close();
     for (const chart of this.#charts.values()) {
       chart.editor?.grid.dispose();
       chart.panel.dispose();
@@ -469,23 +503,10 @@ export class CubePage {
     };
   }
 
-  /** The board's tiles that are the page: the grid and the charts, not an editing grid. */
-  #pageTiles(): Board['layout'] {
+  /** The page's layout without the charts' editing grids (a moment's work, not the page). */
+  #pageLayout(): Bands {
     const editing = new Set([...this.#charts.values()].flatMap((c) => (c.editor ? [c.editor.tile] : [])));
-    return this.#board.layout.filter((t) => !editing.has(t.id));
-  }
-
-  /**
-   * Until the layout is arranged by hand: the grid across the top, the charts in a row below it
-   * sharing the width, each chart's editing grid right after it, all on one screen.
-   */
-  #arrange(): void {
-    if (!this.#auto) return;
-    // each added grid, then each chart with its editing grid right after it
-    const added = [...this.#grids.keys()].filter((id) => id !== GRID);
-    const tiles = [...added, ...[...this.#charts].flatMap(([id, chart]) => (chart.editor ? [id, chart.editor.tile] : [id]))];
-    this.#board.setLayout(below(GRID, tiles, BOARD_COLUMNS, BOARD_ROWS,
-      GRID_ROWS_ABOVE_CHARTS, CHARTS_PER_ROW, TILE_MIN_ROWS));
+    return without(this.#board.layout, (id) => editing.has(id));
   }
 
   /** Take a tile off the board: an editing grid (its chart left as it was), or a chart and its selection. */
@@ -511,13 +532,9 @@ export class CubePage {
     this.#afterRemove();
   }
 
-  /** A tile is gone: the page arranges itself, or -- only the cube's own grid left -- is no more. */
+  /** A tile is gone (its neighbours closed over its place): only the cube's own grid left, the page is no more. */
   #afterRemove(): void {
-    if (this.charts > 0) {
-      this.#arrange();
-      return;
-    }
-    this.#options.onEmpty();
+    if (this.charts === 0) this.#options.onEmpty();
   }
 
   /**
@@ -600,15 +617,8 @@ export class CubePage {
       this.#options.onChange();
     });
     chart.editor = { tile, grid };
-    this.#board.add({
-      id: tile,
-      title: `Editing ${chartTitle}`,
-      element: host,
-      actions: [update],
-      minW: 3,
-      minH: TILE_MIN_ROWS,
-    }, { w: 6, h: 10 });
-    this.#arrange();
+    // beside its chart while that band has room
+    this.#board.add({ id: tile, title: `Editing ${chartTitle}`, element: host, actions: [update] }, chartId);
     this.#board.reveal(tile);
     void grid.open();
   }
@@ -621,7 +631,6 @@ export class CubePage {
     delete chart.editor;
     editor.grid.dispose();
     this.#board.remove(editor.tile);
-    this.#arrange();
   }
 
   // -- selections: click-to-filter ----------------------------------------------
@@ -668,23 +677,7 @@ export class CubePage {
   }
 }
 
-/**
- * `filter` without one occurrence of each of `conditions` (compared as data) among its top-level
- * AND. With `strict`, null when any is not there.
- */
-export function withoutConditions(
-  filter: FilterNode | undefined, conditions: readonly FilterNode[], strict = false,
-): FilterNode | undefined | null {
-  const children = filter === undefined ? [] : filter.kind === 'and' ? [...filter.children] : [filter];
-  for (const c of conditions) {
-    const key = JSON.stringify(c);
-    const at = children.findIndex((n) => JSON.stringify(n) === key);
-    if (at < 0) {
-      if (strict) return null;
-      continue;
-    }
-    children.splice(at, 1);
-  }
-  if (children.length === 0) return undefined;
-  return children.length === 1 ? children[0]! : { kind: 'and', children };
+/** `layout` without the tiles `leave` names: each one's place closed by its neighbours, as a removal closes it. */
+function without(layout: Bands, leave: (id: string) => boolean): Bands {
+  return tiles(layout).filter(leave).reduce((rest, id) => removeTile(rest, id), layout);
 }

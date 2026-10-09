@@ -61,8 +61,10 @@ export interface BandBoardOptions {
   readonly leastBand?: number;
   /** Below this width the page is stacked, one tile under another, and cannot be rearranged. */
   readonly narrowBelow?: number;
-  /** The layout changed by the user's hand (not by the screen's width). */
-  readonly onChange?: (layout: Bands) => void;
+  /** The layout changed by the user's hand (not by the screen's width), from `before`: one step, to undo. */
+  readonly onChange?: (layout: Bands, before: Bands) => void;
+  /** Ctrl+Z (Shift for redo) on a focused tile's frame: the caller undoes the last arrangement. */
+  readonly onUndo?: (redo: boolean) => void;
   /** The user asked to remove a tile. The caller removes it. */
   readonly onRemove?: (id: string) => void;
   /** The user renamed a tile. */
@@ -70,6 +72,9 @@ export interface BandBoardOptions {
   /** A tile's layout button was pressed: the caller shows the layouts (ui/layout-picker.ts) by `anchor`. */
   readonly onLayout?: (id: string, anchor: HTMLElement) => void;
 }
+
+/** A tile's least readable width (a grid's few columns, a chart's axes): smart placement puts no more side by side. */
+const READABLE_WIDTH = 360;
 
 /** A Shift+arrow's step: a twentieth of the split (or of a screen, for a band's height). */
 const KEY_STEP = 0.05;
@@ -166,11 +171,16 @@ export class BandBoard {
     return this.#tiles.get(id)?.name;
   }
 
-  /** Add a tile, placed where it is wanted (bands.ts `add`): beside `near` while its band has room, else below it. */
+  /**
+   * Add a tile, placed where it is wanted (bands.ts `add`): beside `near` while its band has room for one more at a
+   * readable width, else below it; with no `near`, at the bottom.
+   */
   add(tile: BandTile, near?: string): void {
     if (this.#tiles.has(tile.id)) throw new Error(`a tile ${tile.id} is already on the board`);
     this.#tiles.set(tile.id, this.#make(tile));
-    this.#commit(add(this.#layout, tile.id, near));
+    const { width } = this.#size();
+    const columns = width > 0 ? Math.max(1, Math.floor((width + this.#gap) / (READABLE_WIDTH + this.#gap))) : undefined;
+    this.#commit(add(this.#layout, tile.id, near, columns));
   }
 
   /** Take a tile off the board, its neighbours closing over its place. Its element is detached, not destroyed. */
@@ -194,14 +204,12 @@ export class BandBoard {
 
   /** Arrange every tile as a preset, `first` in its first slot; the others in reading order. */
   arrange(preset: Preset, first?: string): void {
-    this.#commit(arrange(this.#layout, preset, this.#order(first)));
-    this.#options.onChange?.(this.#layout);
+    this.#change(arrange(this.#layout, preset, this.#order(first)));
   }
 
   /** Even out the whole page: every split's parts alike, every band as tall as the rest. */
   evenOut(): void {
-    this.#commit(evenAll(this.#layout));
-    this.#options.onChange?.(this.#layout);
+    this.#change(evenAll(this.#layout));
   }
 
   /** Show what a preset would look like (a hovered thumbnail), or the layout again (null). */
@@ -215,8 +223,7 @@ export class BandBoard {
   /** The page fitting its window, or scrolling past it. */
   setFit(fit: boolean): void {
     if (fit === this.#layout.fit) return;
-    this.#commit(fitted(this.#layout, fit));
-    this.#options.onChange?.(this.#layout);
+    this.#change(fitted(this.#layout, fit));
   }
 
   /** One tile filling the board (the rest still there, hidden), or the page again (null), scrolled back where it was. */
@@ -305,7 +312,7 @@ export class BandBoard {
     actions.append(...(spec.actions ?? []));
     const layout = doc.createElement('button');
     layout.type = 'button';
-    layout.className = 'dc-tile-remove dc-tile-layout';
+    layout.className = 'dc-tile-tool dc-tile-layout';
     layout.textContent = '⊞';
     layout.title = 'Layouts';
     layout.setAttribute('aria-label', `Layouts for ${spec.title}`);
@@ -313,7 +320,7 @@ export class BandBoard {
     layout.addEventListener('click', () => this.#options.onLayout?.(spec.id, layout));
     const maximise = doc.createElement('button');
     maximise.type = 'button';
-    maximise.className = 'dc-tile-remove dc-tile-maximise';
+    maximise.className = 'dc-tile-tool dc-tile-maximise';
     maximise.textContent = '⤢';
     maximise.title = 'Fill the page with this tile (and back)';
     maximise.setAttribute('aria-label', `Maximise ${spec.title}`);
@@ -400,8 +407,7 @@ export class BandBoard {
             el.title = 'Drag to resize; double-click to even out';
             el.addEventListener('pointerdown', (e) => this.#startDivider(divider.path, divider.after, divider.split, e));
             el.addEventListener('dblclick', () => {
-              this.#commit(evenOut(this.#layout, divider.path));
-              this.#options.onChange?.(this.#layout);
+              this.#change(evenOut(this.#layout, divider.path));
             });
             return el;
           },
@@ -435,6 +441,13 @@ export class BandBoard {
       });
     }
     wanted.forEach((w, i) => place(this.#handles[i]!.el, w.box));
+  }
+
+  /** A change by the user's hand: committed, and told with the layout it came from. */
+  #change(next: Bands, announce?: string): void {
+    const before = this.#layout;
+    this.#commit(next, announce);
+    this.#options.onChange?.(next, before);
   }
 
   #commit(next: Bands, announce?: string): void {
@@ -566,8 +579,7 @@ export class BandBoard {
       if (!apply || target === undefined) return;
       const next = drop(this.#layout, id, target);
       if (next === this.#layout) return;
-      this.#commit(next, `${tile.name} moved.`);
-      this.#options.onChange?.(next);
+      this.#change(next, `${tile.name} moved.`);
     });
   }
 
@@ -622,8 +634,7 @@ export class BandBoard {
       if (apply && ev) follow(ev);
       const next = this.#shown ?? base;
       if (apply && next !== base) {
-        this.#commit(next);
-        this.#options.onChange?.(next);
+        this.#change(next);
       } else {
         this.#commit(base);
       }
@@ -652,8 +663,7 @@ export class BandBoard {
       if (apply && ev) follow(ev);
       const next = this.#shown ?? base;
       if (apply && next !== base) {
-        this.#commit(next);
-        this.#options.onChange?.(next);
+        this.#change(next);
       } else {
         this.#commit(base);
       }
@@ -670,6 +680,13 @@ export class BandBoard {
       p.root.focus();
       return;
     }
+    // undo and redo of the page's arrangement, from a tile's own frame (inside a tile, its content's)
+    if ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey) && e.target === p?.root && this.#options.onUndo) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.#options.onUndo(e.shiftKey);
+      return;
+    }
     const toward = ARROWS[e.key];
     if (!toward || !p || e.target !== p.root || !this.arrangeable || this.#maximised !== null || this.#gesture) return;
     e.preventDefault();
@@ -681,8 +698,7 @@ export class BandBoard {
         return;
       }
       const next = drop(this.#layout, id, { swap: other });
-      this.#commit(next, `${name} swapped with ${this.#tiles.get(other)?.name ?? other}.`);
-      this.#options.onChange?.(next);
+      this.#change(next, `${name} swapped with ${this.#tiles.get(other)?.name ?? other}.`);
       p.root.focus();
       return;
     }
@@ -693,8 +709,7 @@ export class BandBoard {
       return;
     }
     const said = toward === 'right' ? 'wider' : toward === 'left' ? 'narrower' : toward === 'down' ? 'taller' : 'shorter';
-    this.#commit(next, `${name} ${said}.`);
-    this.#options.onChange?.(next);
+    this.#change(next, `${name} ${said}.`);
     p.root.focus();
   }
 

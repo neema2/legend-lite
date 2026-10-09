@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
+import { tiles } from '../src/layout/bands.ts';
 import type { ChartView } from '../src/page-document.ts';
 import { app, dom, GateEngine, remount, root, settle, setUp, SNAPSHOT, StubPlanner, tearDown } from './cube-fixture.ts';
 
@@ -130,7 +131,7 @@ describe('Open in grid: a grid of its own, beside the chart', () => {
       'a cube of its own');
     assert.deepEqual(app.snapshot.rows, ['region'], 'the cube\'s grid is untouched');
     // not part of the page while open
-    assert.ok(!app.pageViews().layout.tiles.some((t) => t.id === `edit-${a}`));
+    assert.ok(!tiles(app.pageViews().layout).includes(`edit-${a}`));
     // re-group there, and update the chart
     await ungroup(editZone, 'desk');
     const title = app.pageViews().views.find((v) => v.id === a)!.title;
@@ -165,6 +166,67 @@ describe('Open in grid: a grid of its own, beside the chart', () => {
     await settle();
     assert.deepEqual(chips(editZone()), ['region', 'desk'], 'the editing grid undid');
     assert.deepEqual(app.snapshot.rows, ['region', 'desk'], 'the cube did not');
+  });
+});
+
+describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
+  /** The title bar's menu, opened: its entries by what a person reads. */
+  const titleMenu = (): HTMLElement[] => {
+    // a menu left open is shut first: the button toggles it
+    dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    (root.querySelector('.dc-titlebar-menu') as HTMLElement).click();
+    return [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role="menuitem"], .dc-menu [role="menuitemcheckbox"]')];
+  };
+  const pick = (label: string): HTMLElement => {
+    const item = menuEntry(titleMenu(), label);
+    assert.ok(item, `the title bar's menu offers ${label}`);
+    return item;
+  };
+  const bands = (): string[][] => app.pageViews().layout.bands.map((b) => tiles({ fit: false, bands: [b] }));
+
+  it('a new chart goes beside its grid; Arrange lays the page out; Undo Layout and Redo Layout step through it', async () => {
+    const [a, b] = await twoCharts();
+    assert.deepEqual(bands(), [['grid', a, b]], 'beside the grid, in its band');
+    assert.equal(pick('Undo Layout').getAttribute('aria-disabled'), 'true', 'nothing arranged yet');
+    pick('Arrange\u2026').click();
+    await settle();
+    const stacked = root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]');
+    assert.ok(stacked, 'the layouts, by the menu');
+    stacked.click();
+    await settle();
+    assert.deepEqual(bands(), [['grid'], [a], [b]]);
+    pick('Undo Layout').click();
+    await settle();
+    assert.deepEqual(bands(), [['grid', a, b]], 'back as it was');
+    pick('Redo Layout').click();
+    await settle();
+    assert.deepEqual(bands(), [['grid'], [a], [b]]);
+    // and from a tile's own frame: the arrangement, not the cube's last change
+    await ungroup(mainZone(), 'desk');
+    const rows = app.snapshot.rows;
+    assert.deepEqual(rows, ['region'], 'the cube changed after the arrangement');
+    tile(a).dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    await settle();
+    assert.deepEqual(bands(), [['grid', a, b]]);
+    assert.equal(app.snapshot.rows, rows, 'the cube\'s own undo was not taken');
+  });
+
+  it('a tile\'s own layouts put that tile first', async () => {
+    const [a] = await twoCharts();
+    (tile(a).querySelector('.dc-tile-layout') as HTMLElement).click();
+    root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="left-and-column"]')!.click();
+    await settle();
+    assert.equal(tiles(app.pageViews().layout)[0], a);
+  });
+
+  it('Edit Layout unticked locks the page: no handles, nothing moves', async () => {
+    await twoCharts();
+    const board = root.querySelector<HTMLElement>('.dc-bands')!;
+    assert.equal(pick('Edit Layout').getAttribute('aria-checked'), 'true');
+    pick('Edit Layout').click();
+    assert.ok(board.classList.contains('dc-bands-view'));
+    assert.equal(board.querySelectorAll('.dc-band-divider').length, 0);
+    assert.equal(pick('Edit Layout').getAttribute('aria-checked'), 'false');
   });
 });
 

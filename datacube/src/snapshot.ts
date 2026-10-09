@@ -806,3 +806,24 @@ export function renameColumnReferences(
     ...(s.groupDerived ? { groupDerived: s.groupDerived.map((d) => renamedWindow(d, one)) } : {}),
   };
 }
+
+/**
+ * A CHART'S SELECTION TAKEN OFF (page/cube-page.ts): `filter` without one occurrence of each of `conditions` (compared as data) among its top-level
+ * AND. With `strict`, null when any is not there.
+ */
+export function withoutConditions(
+  filter: FilterNode | undefined, conditions: readonly FilterNode[], strict = false,
+): FilterNode | undefined | null {
+  const children = filter === undefined ? [] : filter.kind === 'and' ? [...filter.children] : [filter];
+  for (const c of conditions) {
+    const key = JSON.stringify(c);
+    const at = children.findIndex((n) => JSON.stringify(n) === key);
+    if (at < 0) {
+      if (strict) return null;
+      continue;
+    }
+    children.splice(at, 1);
+  }
+  if (children.length === 0) return undefined;
+  return children.length === 1 ? children[0]! : { kind: 'and', children };
+}

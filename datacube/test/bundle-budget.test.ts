@@ -63,11 +63,24 @@ describe('the page loads ECharts only when a chart draws', () => {
   });
 
   it('ECharts is in a chunk beside the bundle, reached by a dynamic import', () => {
-    const lazy = readdirSync(CHUNKS).map((f) => join(CHUNKS, f))
-      .filter((f) => readFileSync(f, 'utf8').includes('node_modules/echarts/'));
+    const chunks = readdirSync(CHUNKS).map((f) => join(CHUNKS, f));
+    const lazy = chunks.filter((f) => readFileSync(f, 'utf8').includes('node_modules/echarts/'));
     assert.equal(lazy.length, 1, 'one chunk holds the chart renderer');
-    const name = lazy[0]!.slice(CHUNKS.length + 1);
-    assert.match(readFileSync(join(DEMO, 'bundle.js'), 'utf8'), new RegExp(`import\\("\\./chunks-bundle/${name.replace('.', '\\.')}"\\)`));
+    const name = lazy[0]!.slice(CHUNKS.length + 1).replace('.', '\\.');
+    // from the page's own chunk (page/cube-page.ts, itself fetched when a cube first gets a page), or the bundle
+    const importers = [join(DEMO, 'bundle.js'), ...chunks]
+      .filter((f) => new RegExp(`import\\("\\./(?:chunks-bundle/)?${name}"\\)`).test(readFileSync(f, 'utf8')));
+    assert.ok(importers.length > 0, 'something imports the chart renderer, dynamically');
+  });
+
+  it('the page -- its board, its layouts, the charts\' panel -- is fetched when a cube first gets one, not at startup', () => {
+    for (const f of startup()) {
+      const text = readFileSync(f, 'utf8');
+      for (const source of ['src/page/cube-page.ts', 'src/layout/band-board.ts', 'src/ui/layout-picker.ts', 'src/ui/chart-panel.ts']) {
+        assert.ok(!text.includes(source), `${f} carries ${source}`);
+      }
+    }
+    assert.match(readFileSync(join(DEMO, 'bundle.js'), 'utf8'), /import\("\.\/chunks-bundle\/cube-page-[A-Z0-9]+\.js"\)/);
   });
 
   it(`a grid-only page downloads at most ${BUDGET.toLocaleString()} bytes of script, gzipped`, () => {

@@ -74,7 +74,10 @@ function templatePage(): string {
   });
   const views: PageViews = {
     views: [{ id: 'grid', kind: 'grid', cube: 'cube' }, ...CHART_MARKS.map((m) => ({ id: '', kind: 'chart' as const, cube: 'cube', title: '', spec: chart(m.value) }))],
-    layout: { kind: 'grid', cols: 12, arranged: true, tiles: [{ id: 'grid', x: 0, y: 0, w: 8, h: 6 }, { id: '', x: 8, y: 0, w: 4, h: 3 }] },
+    layout: { kind: 'bands', fit: false, bands: [{ height: 1, node: { split: 'row', parts: [
+      { node: { tile: 'grid' }, size: 0.5 },
+      { node: { split: 'column', parts: [{ node: { tile: '' }, size: 0.5 }, { node: { tile: '' }, size: 0.5 }] }, size: 0.5 },
+    ] } }] },
   };
   return pageToJson(writePage({ name: '', cube, views }));
 }

@@ -74,14 +74,12 @@ const VIEWS: PageViews = {
     { id: 'chart-2', kind: 'chart', cube: 'cube', title: 'Chart 2', spec: { ...LIVE, mark: 'line' } },
   ],
   layout: {
-    kind: 'grid',
-    cols: 12,
-    tiles: [
-      { id: 'grid', x: 0, y: 0, w: 8, h: 14 },
-      { id: 'chart-1', x: 8, y: 0, w: 4, h: 14 },
-      { id: 'chart-2', x: 0, y: 14, w: 12, h: 10 },
+    kind: 'bands',
+    fit: false,
+    bands: [
+      { height: 0.6, node: { split: 'row', parts: [{ node: { tile: 'grid' }, size: 0.7 }, { node: { tile: 'chart-1' }, size: 0.3 }] } },
+      { height: 0.4, node: { tile: 'chart-2' } },
     ],
-    arranged: true,
   },
 };
 
@@ -119,7 +117,7 @@ describe('a saved page', () => {
     const back = readPage(JSON.stringify(withMore));
     assert.deepEqual(back.unknown, { variables: [{ name: 'asOf' }] });
     assert.deepEqual(JSON.parse(pageToJson(back)).variables, [{ name: 'asOf' }]);
-    assert.throws(() => readPage(JSON.stringify({ ...raw, version: 2 })), /newer version \(2 > 1\)/);
+    assert.throws(() => readPage(JSON.stringify({ ...raw, version: 3 })), /newer version \(3 > 2\)/);
   });
 
   it('says what is wrong with a page it cannot read', () => {
@@ -131,8 +129,12 @@ describe('a saved page', () => {
     assert.throws(bad({ views: [{ id: 'x', kind: 'grid', cube: 'elsewhere' }] }), /shows no cube of this page/);
     assert.throws(bad({ views: [{ id: 'c', kind: 'chart', cube: 'cube', title: 'c', spec: { version: 1, mark: 'radar', y: [], options: {} } }] }),
       /no chart it can draw/);
-    assert.throws(bad({ layout: { ...raw.layout, tiles: [{ id: 'nowhere', x: 0, y: 0, w: 1, h: 1 }] } }), /shows no view/);
-    assert.throws(bad({ layout: { ...raw.layout, tiles: [{ id: 'grid', x: -1, y: 0, w: 1, h: 1 }] } }), /not an id and a place/);
+    const band = (node: unknown, height = 1) => ({ layout: { kind: 'bands', fit: false, bands: [{ height, node }] } });
+    assert.throws(bad(band({ tile: 'nowhere' })), /shows no view/);
+    assert.throws(bad(band({ split: 'row', parts: [{ node: { tile: 'grid' }, size: 1 }] })), /cannot be laid out: band 0: a split of 1 part/);
+    assert.throws(bad(band({ tile: 'grid' }, -1)), /cannot be laid out: band 0: a height of -1/);
+    assert.throws(bad(band({ split: 'diagonal', parts: [] })), /not a tile or a split of parts/);
+    assert.throws(bad({ layout: { kind: 'grid', cols: 12, tiles: [] } }), /not a layout of bands/);
     assert.throws(() => readPage('{'), /not valid JSON/);
   });
 
@@ -140,7 +142,7 @@ describe('a saved page', () => {
     const base = pageDefinitionText(page());
     const renamed = writePage({ name: 'other', cube: CUBE, views: VIEWS });
     assert.equal(pageDefinitionText(renamed), base);
-    const moved = { ...VIEWS, layout: { ...VIEWS.layout, tiles: VIEWS.layout.tiles.map((t) => (t.id === 'chart-1' ? { ...t, w: 3 } : t)) } };
+    const moved = { ...VIEWS, layout: { ...VIEWS.layout, bands: VIEWS.layout.bands.map((b, i) => (i === 1 ? { ...b, height: 0.5 } : b)) } };
     assert.notEqual(pageDefinitionText(writePage({ name: 'Q3 page', cube: CUBE, views: moved })), base);
     const retitled = { ...VIEWS, views: VIEWS.views.map((v) => (v.id === 'chart-2' ? { ...v, title: 'Lines' } : v)) };
     assert.notEqual(pageDefinitionText(writePage({ name: 'Q3 page', cube: CUBE, views: retitled })), base);
@@ -149,10 +151,29 @@ describe('a saved page', () => {
   it('holds a cube with no charts: its grid alone, the whole board', () => {
     const alone: PageViews = {
       views: [{ id: 'grid', kind: 'grid', cube: 'cube' }],
-      layout: { kind: 'grid', cols: 12, tiles: [{ id: 'grid', x: 0, y: 0, w: 12, h: 24 }], arranged: false },
+      layout: { kind: 'bands', fit: false, bands: [{ height: 1, node: { tile: 'grid' } }] },
     };
     const back = readPage(pageToJson(writePage({ name: 'plain', cube: CUBE, views: alone })));
     assert.deepEqual(back.views, alone.views);
     assert.deepEqual(back.layout, alone.layout);
+  });
+
+  it('opens a page saved as version 1 (tiles on a 12-column grid) as bands, and writes it back as version 2', () => {
+    const raw = JSON.parse(pageToJson(page()));
+    const v1 = { ...raw, version: 1, layout: { kind: 'grid', cols: 12, arranged: true, tiles: [
+      { id: 'grid', x: 0, y: 0, w: 8, h: 14 },
+      { id: 'chart-1', x: 8, y: 0, w: 4, h: 14 },
+      { id: 'chart-2', x: 0, y: 14, w: 12, h: 10 },
+    ] } };
+    const back = readPage(JSON.stringify(v1));
+    assert.equal(back.version, 2);
+    assert.deepEqual(back.layout, { kind: 'bands', fit: false, bands: [
+      { height: 14 / 24, node: { split: 'row', parts: [{ node: { tile: 'grid' }, size: 8 / 12 }, { node: { tile: 'chart-1' }, size: 4 / 12 }] } },
+      { height: 10 / 24, node: { tile: 'chart-2' } },
+    ] });
+    assert.equal(JSON.parse(pageToJson(back)).version, 2);
+    // a version 1 page's grid that is wrong is still refused by name
+    assert.throws(() => readPage(JSON.stringify({ ...v1, layout: { ...v1.layout, tiles: [{ id: 'grid', x: -1, y: 0, w: 1, h: 1 }] } })),
+      /not an id and a place/);
   });
 });

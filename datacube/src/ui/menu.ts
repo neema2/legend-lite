@@ -207,6 +207,11 @@ export type MenuActionId =
   | 'grid.new'
   | 'source.new'
   | 'page.blank'
+  // the page's layouts (ui/layout-picker.ts), and edit or view mode (nothing moves)
+  | 'page.arrange'
+  | 'page.undoLayout'
+  | 'page.redoLayout'
+  | 'page.editLayout'
   | 'view.properties'
   // the cube's controls hidden or shown, the grid alone (setControlsHidden)
   | 'view.controls'

@@ -44,6 +44,25 @@ source, made the same way whether it is the first or the fifth: removable, movab
 the last tile leaves an empty page that offers a source (the start screen's choices). Charts belong to the grid they
 follow, by its tile id, never by "the" grid. The page, not a cube, carries Save, Share, Export and "changed".
 
+**The page bar and each grid's header** (the user, 2026-10-09: "Great I love it"). The page has a thin bar of its own
+-- a shell that is not a tile -- so page actions always have a home, an empty page included:
+
+- **The page bar** carries only the page's things: its name and the page menu (New, Open, Save, Share, Arrange,
+  Export of the page, Settings, locking the layout).
+- **Each grid's tile header** carries only that grid's things: its source, Live or Snapped, and its own menu (Undo,
+  Properties, Ad Hoc, the export of its rows) -- the same for the first grid and the fifth.
+- **One grid alone looks like a maximised tile**: it fills the page with no frame, and its header shares the page bar's
+  strip (the page menu on the left, the grid's source, pill and menu on the right) -- one strip, as a grid alone looks
+  today. When a second tile arrives, the grid's part moves down into its own tile header. Neither menu ever changes
+  what it holds.
+- **An empty page** keeps its bar and shows the choices of a source where the tiles were.
+
+Rejected: a page with no bar of its own (only tiles). Save, Open, Share and New would have no home on an empty page,
+or would be repeated in every tile's menu, leaving it unclear whether a tile's Save saves the page or the grid.
+
+A cube embedded alone (the Query app, a notebook's cube) stays a `CubeApp` with its own title bar, which looks the same
+as one grid on a page.
+
 ### 3.2 Bands: one way of arranging, scrolling or filling the window
 
 A page is a **stack of bands**, top to bottom. A band is divided into **columns**; a column can itself be divided --
@@ -129,9 +148,11 @@ divider is the one exception that follows live, and only its content, at most on
 
 ## 4. Order (the user, 2026-10-09: tabs wanted, "can be phased appropriately")
 
-1. **The layout sprint:** every tile equal; bands with the fit-to-window setting; the picker, drop zones, dividers,
-   maximise; smart placement; edit and view mode; the smooth gesture; stacking when narrow.
-2. **The whole page saved and reopened** (v2), several sources.
+1. **The layout sprint:** bands with the fit-to-window setting; the picker, drop zones, dividers, maximise; smart
+   placement; edit and view mode; the smooth gesture; stacking when narrow; every tile laid out, moved and arranged
+   alike (no grid pinned on top), each grid with its own tile menu.
+2. **The whole page saved and reopened** (several sources), with the page bar (§3.1): the page owns Save, Open, Share
+   and "changed", so the first grid becomes removable here -- the two are one change, since saving is the page's.
 3. **Tabs:** pages as sheets (several pages in one saved document, tabs along the bottom, as Excel's sheets and Power
    BI's pages), and tabs in a pane (several tiles in one place, one shown; the drop zone's centre adds a tab).
 4. **Python:** a page of several frames and their charts from `ll.show(...)`
@@ -146,3 +167,4 @@ saved layouts as one's own templates; cross-filtering between tiles (the 2026-09
    splits alone, or two page modes; with one big tile beside two stacked kept (§3.2).
 2. **Tabs**, phased: after the layout sprint and the whole-page save (§4).
 3. **Narrow windows stack** (§3.2).
+4. **A page bar of its own, each grid its own header; one grid alone shares the page bar's strip** (§3.1).

@@ -9,8 +9,10 @@
 //            spec (plain JSON, ours: chart-spec.ts), frozen or live, and the mark it
 //            is filtering the cube to (the conditions are in the cube's filter; the
 //            view names them, so the chart can take them off again)
-//   layout   where each view sits (tile-layout.ts, full width), and whether it was
-//            arranged by hand or is still arranging itself
+//   layout   where each view sits: the page's bands (layout/bands.ts) -- each band a tree of
+//            rows and columns with shares, down to the views' tiles -- and whether the page
+//            fits its window or scrolls. Version 1 placed tiles on a 12-column grid; a page
+//            of version 1 is read as bands (`fromCells`) and written back as version 2.
 //
 // ONE thing is saved, always the page (user ruling, 2026-09-28): a cube with no charts
 // is a page of its grid alone; a cube saved bare before that still opens, as a page of
@@ -24,10 +26,14 @@
 import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protocol/src/index.ts';
 import { CHART_MARKS, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument } from './cube-document.ts';
+import { type Bands, type Node, fromCells, problems } from './layout/bands.ts';
 import type { FilterNode } from './snapshot.ts';
 
 export const PAGE_KIND = 'datacube.page';
-export const PAGE_VERSION = 1;
+/** 2: the layout as bands (2026-10-09, docs/DATACUBE_PAGES_DESIGN_2026_10_09.md). 1: tiles on a 12-column grid. */
+export const PAGE_VERSION = 2;
+/** A version 1 page's grid: its rows to a screenful (the board it was saved from). */
+const V1_ROWS = 24;
 
 export interface GridView {
   readonly id: string;
@@ -49,20 +55,9 @@ export interface ChartView {
 
 export type PageView = GridView | ChartView;
 
-export interface PageTile {
-  readonly id: string;
-  readonly x: number;
-  readonly y: number;
-  readonly w: number;
-  readonly h: number;
-}
-
-export interface PageLayout {
-  readonly kind: 'grid';
-  readonly cols: number;
-  readonly tiles: readonly PageTile[];
-  /** Arranged by hand: kept as it is. Not: still arranging itself as views come and go. */
-  readonly arranged: boolean;
+/** Where the views sit: the page's bands (layout/bands.ts), each tile a view's id. */
+export interface PageLayout extends Bands {
+  readonly kind: 'bands';
 }
 
 /** What a cube app shows around its cube: its views and their layout. */
@@ -184,7 +179,7 @@ export function readPage(input: string | unknown): PageDocument {
   const viewIds = new Set(views.map((v) => v.id));
   if (viewIds.size !== views.length) throw new PageDocumentError('two views share an id');
 
-  const layout = readLayout(plain(raw['layout']), viewIds);
+  const layout = readLayout(plain(raw['layout']), viewIds, version);
 
   const unknown: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) if (!KNOWN.has(k)) unknown[k] = plain(v);
@@ -235,8 +230,42 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
   };
 }
 
-function readLayout(l: unknown, views: ReadonlySet<string>): PageLayout {
-  if (!isObject(l) || l['kind'] !== 'grid') throw new PageDocumentError("'layout' is not a grid layout");
+function readLayout(l: unknown, views: ReadonlySet<string>, version: number): PageLayout {
+  if (!isObject(l)) throw new PageDocumentError("'layout' is not a layout");
+  if (version === 1) return { kind: 'bands', ...readGridLayout(l, views) };
+  if (l['kind'] !== 'bands') throw new PageDocumentError("'layout' is not a layout of bands");
+  if (typeof l['fit'] !== 'boolean') throw new PageDocumentError("'layout.fit' is not true or false");
+  if (!Array.isArray(l['bands'])) throw new PageDocumentError("'layout.bands' is not a list");
+  const bands = l['bands'].map((b, i) => {
+    if (!isObject(b) || typeof b['height'] !== 'number') throw new PageDocumentError(`band ${i + 1} is not a height and its tiles`);
+    return { height: b['height'], node: readNode(b['node'], views, `band ${i + 1}`) };
+  });
+  const layout: Bands = { fit: l['fit'], bands };
+  const wrong = problems(layout);
+  if (wrong.length > 0) throw new PageDocumentError(`'layout' cannot be laid out: ${wrong.join('; ')}`);
+  return { kind: 'bands', ...layout };
+}
+
+function readNode(n: unknown, views: ReadonlySet<string>, where: string): Node {
+  if (isObject(n) && typeof n['tile'] === 'string') {
+    if (!views.has(n['tile'])) throw new PageDocumentError(`a tile shows no view of this page (${n['tile']})`);
+    return { tile: n['tile'] };
+  }
+  if (!isObject(n) || (n['split'] !== 'row' && n['split'] !== 'column') || !Array.isArray(n['parts'])) {
+    throw new PageDocumentError(`${where} is not a tile or a split of parts`);
+  }
+  return {
+    split: n['split'],
+    parts: n['parts'].map((part, i) => {
+      if (!isObject(part) || typeof part['size'] !== 'number') throw new PageDocumentError(`${where}, part ${i + 1}, has no size`);
+      return { node: readNode(part['node'], views, `${where}, part ${i + 1}`), size: part['size'] };
+    }),
+  };
+}
+
+/** A version 1 page's layout: tiles on a grid, read as bands. */
+function readGridLayout(l: Record<string, unknown>, views: ReadonlySet<string>): Bands {
+  if (l['kind'] !== 'grid') throw new PageDocumentError("'layout' is not a grid layout");
   const cols = l['cols'];
   if (typeof cols !== 'number' || !Number.isInteger(cols) || cols < 1) throw new PageDocumentError("'layout.cols' is not a count");
   if (!Array.isArray(l['tiles'])) throw new PageDocumentError("'layout.tiles' is not a list");
@@ -244,11 +273,11 @@ function readLayout(l: unknown, views: ReadonlySet<string>): PageLayout {
     const ok = isObject(t) && typeof t['id'] === 'string'
       && ['x', 'y', 'w', 'h'].every((k) => Number.isInteger(t[k]) && (t[k] as number) >= (k === 'w' || k === 'h' ? 1 : 0));
     if (!ok) throw new PageDocumentError(`a tile is not an id and a place (x, y, w, h): ${JSON.stringify(t)}`);
-    const tile = t as unknown as PageTile;
+    const tile = t as { id: string; x: number; y: number; w: number; h: number };
     if (!views.has(tile.id)) throw new PageDocumentError(`a tile shows no view of this page (${tile.id})`);
     return { id: tile.id, x: tile.x, y: tile.y, w: tile.w, h: tile.h };
   });
-  return { kind: 'grid', cols, tiles, arranged: l['arranged'] === true };
+  return fromCells(tiles, V1_ROWS);
 }
 
 function parse(text: string): unknown {

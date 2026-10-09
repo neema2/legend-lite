@@ -2453,17 +2453,8 @@
 
 .dc-chartpanel-status.dc-chartpanel-bad { color: var(--tw-red-600, #dc2626); }
 
-/* The board (layout/board.ts): tiles on a 12-column snap grid. */
-.dc-board-host {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  position: relative;
-}
-
-.dc-board-grid { display: grid; position: relative; }
-
+/* A page's tiles (layout/band-board.ts; its own rules below, .dc-bands): what every tile shares. The board's
+   announcements, for a screen reader only. */
 .dc-board-live {
   position: absolute;
   width: 1px;
@@ -2485,7 +2476,7 @@
 
 .dc-tile:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
 
-/* the title bar is the handle, always: no edit mode */
+/* the title bar is the handle, in edit mode (view mode and a narrow page: nothing moves) */
 .dc-tile-head {
   flex: none;
   display: flex;
@@ -2516,6 +2507,7 @@
 
 .dc-tile-button,
 .dc-tile-remove,
+.dc-tile-tool,
 .dc-tile-chip {
   font: inherit;
   font-weight: 400;
@@ -2544,6 +2536,7 @@
 
 .dc-tile-chip[hidden],
 .dc-tile-remove[hidden],
+.dc-tile-tool[hidden],
 .dc-tile-button[hidden],
 .dc-tile-badge[hidden] { display: none; }
 
@@ -2565,30 +2558,14 @@
 }
 
 /* remove and resize are there on every tile, quiet until it is pointed at or focused */
-.dc-tile-remove { border-color: transparent; opacity: 0; }
-.dc-tile:hover .dc-tile-remove,
-.dc-tile:focus-within .dc-tile-remove { opacity: 1; }
-.dc-tile-remove:hover { border-color: var(--dc-line); }
+.dc-tile-remove,
+.dc-tile-tool { border-color: transparent; opacity: 0; }
+.dc-tile:hover :is(.dc-tile-remove, .dc-tile-tool),
+.dc-tile:focus-within :is(.dc-tile-remove, .dc-tile-tool) { opacity: 1; }
+.dc-tile-remove:hover,
+.dc-tile-tool:hover { border-color: var(--dc-line); }
 
-.dc-tile-resize {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 14px;
-  height: 14px;
-  cursor: nwse-resize;
-  touch-action: none;
-  opacity: 0;
-  background: linear-gradient(135deg, transparent 50%, var(--dc-line-strong) 50%);
-}
-
-.dc-tile:hover .dc-tile-resize,
-.dc-tile:focus-within .dc-tile-resize { opacity: 1; }
-
-.dc-board-narrow .dc-tile-head { cursor: default; }
-.dc-board-narrow .dc-tile-resize { display: none; }
-
-/* a drag: the tile follows the pointer, the placeholder shows where it lands */
+/* a drag: the tile follows the pointer, the zone it would land in outlined (.dc-bands-zone) */
 .dc-tile-dragging {
   z-index: 2;
   opacity: 0.9;
@@ -2597,14 +2574,6 @@
 }
 
 .dc-tile-dragging .dc-tile-head { cursor: grabbing; }
-
-.dc-board-placeholder {
-  border: 2px dashed var(--dc-active);
-  border-radius: var(--dc-radius-sm);
-  background: var(--dc-selection-fill);
-}
-
-.dc-board-placeholder[hidden] { display: none; }
 
 .dc-tile-body { flex: 1 1 auto; min-height: 0; display: flex; }
 .dc-tile-body > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
@@ -2673,15 +2642,14 @@
 .dc-bands-zone.dc-bands-zone-line { border: 0; border-radius: 3px; background: var(--dc-active, #0284c7); }
 .dc-bands-zone[hidden] { display: none; }
 
-/* a tile's own layout and maximise buttons, quiet until it is pointed at or focused, as remove is */
-.dc-tile-layout,
-.dc-tile-maximise { font-size: var(--dc-text-base-size); }
+/* a tile's own layout and maximise buttons (.dc-tile-tool), quiet until it is pointed at or focused, as remove is */
+.dc-tile-tool { font-size: var(--dc-text-base-size); }
 
 /* nothing moves in view mode or on a narrow (stacked) page: no handle, no layout or remove button */
 .dc-bands-view .dc-tile-head,
 .dc-bands-narrow .dc-tile-head { cursor: default; }
-.dc-bands-view .dc-tile-remove:not(.dc-tile-maximise),
-.dc-bands-narrow .dc-tile-remove:not(.dc-tile-maximise) { display: none; }
+.dc-bands-view :is(.dc-tile-remove, .dc-tile-layout),
+.dc-bands-narrow :is(.dc-tile-remove, .dc-tile-layout) { display: none; }
 
 /* a maximised tile's own button shows it is on */
 .dc-bands-maximised .dc-tile-maximise { opacity: 1; border-color: var(--dc-active, #0284c7); color: var(--dc-active, #0284c7); }

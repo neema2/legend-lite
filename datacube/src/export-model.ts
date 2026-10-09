@@ -245,13 +245,13 @@ export function cased(text: string, fontCase: FontCase | undefined): string {
 }
 
 /**
- * THE PAGE, when the board holds charts: every tile where the board puts it (in its column and
- * row units), each chart as the picture it shows. An export of a page with charts carries them
- * all, arranged as the board arranges them, and the WHOLE grid -- never the part of it a tile
- * happened to show. Absent when the board is the grid alone.
+ * THE PAGE, when the board holds charts: every tile where the board puts it, in whole cells (bands.ts `cells`: 24
+ * columns, 24 rows to a screenful; every tile a cell at least, none overlapping), each chart as the picture it shows. An
+ * export of a page with charts carries them all, arranged as the board arranges them, and the WHOLE grid -- never the
+ * part of it a tile happened to show. Absent when the board is the grid alone.
  */
 export interface ExportPage {
-  /** The board's columns (12). */
+  /** The page's columns: 24, or more when a band holds more tiles side by side. */
   readonly cols: number;
   readonly tiles: readonly ExportTile[];
 }
