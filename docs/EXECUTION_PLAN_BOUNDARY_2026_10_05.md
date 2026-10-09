@@ -310,7 +310,8 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      parameter when it prepares the statement, by its neighbour — `ID * ?` with 1.5 answers `[2, 6]` where the literal
      answers `[1.5, 4.5]` — and refuses one that stands alone (`Unknown data type`). So H2 writes every placeholder
      typed, `CAST(? AS T)` with T the parameter's type: for Integer, String, Boolean, StrictDate and DateTime the text
-     is the literal's. A Float value is bound as a decimal, never a double, on every database (Rule 1 of the numeric
+     is the literal's (an Integer's value is a `BIGINT` where a small literal is an `INTEGER`, on all three: the same
+     values and text, an overflow at 64 bits as Pure's own `long`, not at 32). A Float value is bound as a decimal, never a double, on every database (Rule 1 of the numeric
      charter: a Float literal is a decimal in the database; bound as a double, `PRICE * ?` answers
      `1.6500000000000001`). A decimal (Float or Decimal) on H2 has no exact type: a literal's type is its own digits'
      (`2.50` is `NUMERIC(3,2)`), and no type a statement can name keeps a value's own scale — `NUMERIC` rounds to none,
@@ -322,7 +323,8 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      optional parameter's equality `is not distinct from` (`EngineStyleH2.optionalParamEquality`, a pattern it
      recognises). The lowering already writes `NULL_SAFE_EQUAL` for two optional columns (`NullSemantics.equalNullArms`);
      it will for an optional parameter too, so every dialect writes it from the tree (`IS NOT DISTINCT FROM ?`, measured
-     on all three), and the legacy printer reads the same node (its text unchanged, judged by the census).
+     on all three), and the legacy printer reads the same node (its text unchanged, judged by the census; its recogniser
+     still serves the plain `=` a verbatim context keeps).
    - *An enum parameter: a value table at each place* (§9, decided 2026-10-08): the comparison the lowering writes over
      the column's decode (`CASE col WHEN 'A' THEN 'ACTIVE' ...`) is rewritten, tree to tree, to
      `col IN (SELECT code FROM (VALUES ...) m(code, name) WHERE name = ?)`, the pairs taken from that decode.
@@ -392,7 +394,8 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    after lowering, beside the legacy plan's own `PlanEnumForm`): `ST IN (SELECT code FROM (VALUES ('A', 'ACTIVE'),
    ('X', 'ACTIVE'), ('C', 'CLOSED')) AS _enum(code, name) WHERE name = ?)`, the pairs from the decode itself
    (`DecodeShapes.codesAndNames`), `!=`'s comparison its `NOT IN` beside the null arms the lowering writes. Decoded or
-   tabled, the rows are the same; tabled, the database keeps the column's index (`probes/enum-index-results.txt`).
+   tabled, the rows are the same for a present value; tabled, `==`, `in` and `contains` read the stored column and
+   keep its index (`probes/enum-index-results.txt`), and `!=` keeps the decode in the null arms beside its `NOT IN`.
    `PlanMakerTest` and `PostgresArmTest`: a name stored under two codes, a missing value and an unknown code, compared
    `==` and `!=` and written as a value of its own, answer as the query with a `let` of the value, on DuckDB, H2 and
    Postgres, every output. Census: no statement of today's paths changes.
@@ -407,6 +410,16 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    decimal array of three places (`0.1234` read as `0.123`, the wrong row). `PlanMakerTest` and `PostgresArmTest`: an
    integer list with `in`, the empty list, `contains`, a string list with a quote, an enumeration list — as the query
    with a `let` of the list, on DuckDB, H2 and Postgres, every output.
+
+   *The audit's fixes (2026-10-09; an independent audit of the whole landing).* An optional enumeration parameter is
+   refused by name: its absence has three candidate answers — legend-engine's plan text (`0 = 1`), Pure's `[] == []`,
+   today's let path's NULL — and the value table answers as the engine's text reads where the decoded form answers as
+   the let path; none is measured against the engine yet. A class instance and a Byte, LatestDate or StrictTime value
+   are refused by name too (all three PARK-21). A list parameter written where one value goes is refused by name
+   (`AnsiSqlRenderer.oneValue`), and `x = ANY(?)` is parenthesized under an operator that binds tighter (`=` does not
+   chain). The shared test cases are their own test library (`:test_cases`: `PlanCases`, `ReservedNames`), so the
+   Postgres target reads them, not all of core's tests. New cases: a DateTime value, `!in` over a list, a scalar's
+   and a collection's text in every output.
 
    Before step 4 (switching callers), two consumers of `PureV1Api.boundParameters` besides `execute` to settle:
    `arrowPlan` (Python's host runs the plan's SQL itself, so it must bind the values: agreed with the DataCube + Python

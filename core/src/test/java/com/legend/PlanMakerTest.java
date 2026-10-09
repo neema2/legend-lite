@@ -7,6 +7,9 @@ import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.lowering.WireRender;
 import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testcases.PlanCases;
+import com.legend.testcases.PlanCases.OptionalCase;
+import com.legend.testcases.PlanCases.Parameterised;
 import org.junit.jupiter.api.Test;
 
 import java.io.StringWriter;
@@ -30,10 +33,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * today's wire and streaming paths answer the same query. Each query runs twice, on two fresh databases: through
  * {@link Execution} (its connection's declared test data established first, as the server establishes it), and through
  * its plan — the target's session statements, its setup steps, its statement — run here as each step describes itself
- * (the runner is step 3). The texts must be equal, byte for byte. Postgres's case is {@code PostgresArmTest}'s (it needs
- * the embedded Postgres).
+ * (the runner is step 3; the cases and the run are {@link PlanCases}'). The texts must be equal, byte for byte.
+ * Postgres's case is {@code PostgresArmTest}'s (it needs the embedded Postgres).
  */
-public class PlanMakerTest {
+class PlanMakerTest {
 
     private static final AtomicInteger H2_NAMES = new AtomicInteger();
 
@@ -128,7 +131,7 @@ public class PlanMakerTest {
              Connection planned = DriverManager.getConnection("jdbc:duckdb:")) {
             StringWriter out = new StringWriter();
             Execution.executeWire(model, query, "m::RT", today, WireRender.Format.JSON, out);
-            assertEquals(out.toString(), run(plan, planned));
+            assertEquals(out.toString(), PlanCases.run(plan, planned));
         }
     }
 
@@ -153,104 +156,12 @@ public class PlanMakerTest {
                 refused.getMessage());
     }
 
-    /** A query with parameters, and the same query with each parameter a {@code let} of its value -- how the server
-     *  binds a request's values today ({@code PureV1Api.boundParameters}) -- with the values as Java values. */
-    public record Parameterised(String parameters, String lets, String body, java.util.Map<String, Object> values) {
-
-        /** The query with its parameters, as a plan is made from it. */
-        public String withParameters() {
-            return "{" + parameters + "|" + body + "}";
-        }
-
-        /** The query with each parameter a {@code let} of its value, as today's paths answer it. */
-        public String withLets() {
-            return "|" + lets + body + ";";
-        }
-
-        /** Whether a parameter's literal has no one type -- a Float's, a Decimal's, a Date's or a Number's: refused on
-         *  H2, which types a parameter when it prepares the statement. */
-        public boolean untypedOnH2() {
-            return java.util.regex.Pattern.compile("\\b(Float|Decimal|Date|Number)\\[").matcher(parameters).find();
-        }
-    }
-
-    private static final List<Parameterised> SCALARS = scalars("T");
-
-    /** The scalar cases over {@code table} (ID, NAME, PRICE; three rows), every value of the parameter's Java type. */
-    public static List<Parameterised> scalars(String table) {
-        return List.of(
-            new Parameterised("n: Integer[1]", "let n = 1;",
-                    "#>{s::DB." + table + "}#->filter(r|$r.ID > $n)->select(~[ID, NAME])->sort(~ID->ascending())",
-                    java.util.Map.of("n", 1L)),
-            new Parameterised("s: String[1]", "let s = 'O\\'Brien';",
-                    "#>{s::DB." + table + "}#->filter(r|$r.NAME == $s)->select(~[ID, NAME])", java.util.Map.of("s", "O'Brien")),
-            new Parameterised("p: Decimal[1]", "let p = 2.00D;",
-                    "#>{s::DB." + table + "}#->filter(r|$r.PRICE < $p)->select(~[ID])->sort(~ID->ascending())",
-                    java.util.Map.of("p", new java.math.BigDecimal("2.00"))),
-            // one parameter written twice: compared, and added to a column
-            new Parameterised("n: Integer[1]", "let n = 2;",
-                    "#>{s::DB." + table + "}#->filter(r|$r.ID != $n)->extend(~plus: r|$r.ID + $n)->select(~[ID, plus])"
-                            + "->sort(~ID->ascending())", java.util.Map.of("n", 2L)),
-            new Parameterised("d: StrictDate[1]", "let d = %2024-01-02;",
-                    "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
-                    java.util.Map.of("d", java.time.LocalDate.of(2024, 1, 2))),
-            new Parameterised("b: Boolean[1]", "let b = true;",
-                    "#>{s::DB." + table + "}#->filter(r|$b)->select(~[ID])->sort(~ID->ascending())", java.util.Map.of("b", true)),
-            // a Float is bound as a decimal (the numeric charter's Rule 1: a Float literal is a decimal in the database)
-            new Parameterised("f: Float[1]", "let f = 1.1;",
-                    "#>{s::DB." + table + "}#->extend(~x: r|$r.ID * $f)->select(~[ID, x])->sort(~ID->ascending())",
-                    java.util.Map.of("f", new java.math.BigDecimal("1.1"))),
-            new Parameterised("f: Float[1]", "let f = 1.1;",
-                    "#>{s::DB." + table + "}#->extend(~f: r|$f)->select(~[ID, f])->sort(~ID->ascending())",
-                    java.util.Map.of("f", new java.math.BigDecimal("1.1"))),
-            new Parameterised("p: Decimal[1]", "let p = 2.50D;",
-                    "#>{s::DB." + table + "}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending())",
-                    java.util.Map.of("p", new java.math.BigDecimal("2.50"))),
-            // a parameter whose value decides its type: bound as its value's kind
-            new Parameterised("d: Date[1]", "let d = %2024-01-02;",
-                    "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
-                    java.util.Map.of("d", java.time.LocalDate.of(2024, 1, 2))),
-            new Parameterised("n: Number[1]", "let n = 1;",
-                    "#>{s::DB." + table + "}#->filter(r|$r.ID > $n)->select(~[ID])->sort(~ID->ascending())",
-                    java.util.Map.of("n", 1L)),
-            // two parameters
-            new Parameterised("lo: Integer[1], hi: Integer[1]", "let lo = 1; let hi = 3;",
-                    "#>{s::DB." + table + "}#->filter(r|($r.ID > $lo) && ($r.ID < $hi))->select(~[ID, NAME])",
-                    java.util.Map.of("lo", 1L, "hi", 3L)));
-    }
-
-    /** A query with an optional parameter {@code x}: run with a value, its plan answers as the query with that value as
-     *  a {@code let}; run with none, as the query with {@code x} written empty ({@code []}), which lite lowers as the
-     *  engine does (an equality with an empty side is a null check: pureToSQLQuery's nullSafeEqualsOperation). */
-    public record OptionalCase(String parameter, String body, String let, Object value) {
-
-        public String withParameter() {
-            return "{" + parameter + "|" + body + "}";
-        }
-
-        public String withValue() {
-            return "|" + let + body + ";";
-        }
-
-        public String withNone() {
-            return "|" + body.replace("$x", "[]");
-        }
-    }
-
-    /** The optional cases over {@code table} (ID, NAME, PRICE; three rows, one NAME absent). */
-    public static List<OptionalCase> optionals(String table) {
-        String t = "#>{s::DB." + table + "}#";
-        return List.of(
-                new OptionalCase("x: String[0..1]", t + "->filter(r|$r.NAME == $x)->select(~[ID, NAME])"
-                        + "->sort(~ID->ascending())", "let x = 'a';", "a"),
-                new OptionalCase("x: Integer[0..1]", t + "->filter(r|$r.ID != $x)->select(~[ID])"
-                        + "->sort(~ID->ascending())", "let x = 1;", 1L));
-    }
+    private static final List<Parameterised> SCALARS = PlanCases.scalars("T");
 
     @Test
     void anOptionalParametersPlanAnswersAsTheQuery_withItsValueAndWithNone() throws Exception {
         for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
-            for (OptionalCase q : optionals("T")) {
+            for (OptionalCase q : PlanCases.optionals("T")) {
                 for (TypedQuery.Output output : TypedQuery.Output.values()) {
                     assertAnswersAsToday(type, q.withParameter(), q.withValue(), java.util.Map.of("x", q.value()),
                             output);
@@ -261,58 +172,16 @@ public class PlanMakerTest {
         }
     }
 
-    /** An account's status stored as a code: ACTIVE as 'A' or 'X' (one name, two codes), CLOSED as 'C'; one account
-     *  has none, one a code the mapping does not know. {@code connection}: the connection's type, specification and
-     *  authentication. */
-    public static String enumModel(String connection, String table) {
-        return """
-                Enum s::Status { ACTIVE, CLOSED }
-                Class s::Acct { id: Integer[1]; status: s::Status[0..1]; }
-                ###Relational
-                Database s::DB ( Table %2$s ( ID INTEGER PRIMARY KEY, ST VARCHAR(1) ) )
-                ###Mapping
-                Mapping s::M
-                (
-                  s::Status: EnumerationMapping St { ACTIVE: ['A', 'X'], CLOSED: 'C' }
-                  *s::Acct: Relational { ~mainTable [s::DB] %2$s
-                    id: [s::DB] %2$s.ID, status: EnumerationMapping St: [s::DB] %2$s.ST }
-                )
-                ###Connection
-                RelationalDatabaseConnection s::Conn { store: s::DB; %1$s }
-                ###Runtime
-                Runtime s::RT { mappings: [s::M]; connections: [ s::DB: [ c1: s::Conn ] ]; }
-                """.formatted(connection, table);
-    }
-
-    /** {@link #enumModel}'s rows, as a seed's CSV blocks. */
-    public static String enumRows(String table) {
-        return "default\n" + table + "\nID,ST\n1,A\n2,X\n3,C\n4,---null---\n5,Z\n";
-    }
-
-    /** {@link #enumModel} with its rows as an in-memory connection's declared test data. */
+    /** {@link PlanCases#enumModel} with its rows as an in-memory connection's declared test data. */
     private static String enumModel(DatabaseType type) {
-        return enumModel("type: " + type.name() + "; specification: LocalH2 { testDataSetupCSV: '"
-                + enumRows("A").replace("\n", "\\n") + "'; }; auth: DefaultH2;", "A");
-    }
-
-    /** The enumeration cases: compared with the mapped property (==, !=), and written as a value of its own. */
-    public static List<Parameterised> enumerations() {
-        return List.of(
-                new Parameterised("st: s::Status[1]", "let st = s::Status.ACTIVE;",
-                        "s::Acct.all()->filter(a|$a.status == $st)->project(~[id: a|$a.id])->sort(~id->ascending())",
-                        java.util.Map.of("st", "ACTIVE")),
-                new Parameterised("st: s::Status[1]", "let st = s::Status.CLOSED;",
-                        "s::Acct.all()->filter(a|$a.status != $st)->project(~[id: a|$a.id])->sort(~id->ascending())",
-                        java.util.Map.of("st", "CLOSED")),
-                new Parameterised("st: s::Status[1]", "let st = s::Status.ACTIVE;",
-                        "s::Acct.all()->filter(a|$a.id < 3)->project(~[id: a|$a.id, s: a|$st])->sort(~id->ascending())",
-                        java.util.Map.of("st", "ACTIVE")));
+        return PlanCases.enumModel("type: " + type.name() + "; specification: LocalH2 { testDataSetupCSV: '"
+                + PlanCases.enumRows("A").replace("\n", "\\n") + "'; }; auth: DefaultH2;", "A");
     }
 
     @Test
     void anEnumerationParametersPlanAnswersAsTheQueryWithItsValue() throws Exception {
         for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
-            for (Parameterised q : enumerations()) {
+            for (Parameterised q : PlanCases.enumerations()) {
                 for (TypedQuery.Output output : TypedQuery.Output.values()) {
                     assertAnswersAsToday(enumModel(type), type, q.withParameters(), q.withLets(),
                             q.values(), output);
@@ -321,28 +190,10 @@ public class PlanMakerTest {
         }
     }
 
-    /** The list cases over {@code table} (ID, NAME, PRICE; three rows): a list parameter bound as one array. */
-    public static List<Parameterised> lists(String table) {
-        String t = "#>{s::DB." + table + "}#";
-        return List.of(
-                new Parameterised("ns: Integer[*]", "let ns = [1, 3];",
-                        t + "->filter(r|$r.ID->in($ns))->select(~[ID, NAME])->sort(~ID->ascending())",
-                        java.util.Map.of("ns", List.of(1L, 3L))),
-                new Parameterised("ns: Integer[*]", "let ns = [];",
-                        t + "->filter(r|$r.ID->in($ns))->select(~[ID])->sort(~ID->ascending())",
-                        java.util.Map.of("ns", List.of())),
-                new Parameterised("ns: Integer[*]", "let ns = [2, 3];",
-                        t + "->filter(r|$ns->contains($r.ID))->select(~[ID])->sort(~ID->ascending())",
-                        java.util.Map.of("ns", List.of(2L, 3L))),
-                new Parameterised("ss: String[*]", "let ss = ['a', 'O\\'Brien'];",
-                        t + "->filter(r|$r.ID->in([1, 2]) && $ss->contains($r.NAME->toOne()))->select(~[ID, NAME])"
-                                + "->sort(~ID->ascending())", java.util.Map.of("ss", List.of("a", "O'Brien"))));
-    }
-
     @Test
     void aListParametersPlanAnswersAsTheQueryWithItsValues_everyOutput() throws Exception {
         for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
-            for (Parameterised q : lists("T")) {
+            for (Parameterised q : PlanCases.lists("T")) {
                 for (TypedQuery.Output output : TypedQuery.Output.values()) {
                     assertAnswersAsToday(type, q.withParameters(), q.withLets(), q.values(), output);
                 }
@@ -358,7 +209,7 @@ public class PlanMakerTest {
 
     @Test
     void aListIsOneArray_andAListOfDecimalsIsRefusedByName() {
-        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(DatabaseType.H2, lists("T").get(0).withParameters(),
+        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(DatabaseType.H2, PlanCases.lists("T").get(0).withParameters(),
                 TypedQuery.Output.JSON).root()).sql();
         assertTrue(sql.statement().contains("= ANY(?)"), sql.statement());
         assertEquals(List.of(new ExecutionPlan.Slot("ns", "BIGINT")), sql.slots());
@@ -372,7 +223,7 @@ public class PlanMakerTest {
     @Test
     void anEnumerationParameterIsComparedThroughAValueTable() {
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(enumModel(DatabaseType.DuckDB)),
-                enumerations().get(0).withParameters()).executionPlan("s::RT", TypedQuery.Output.JSON);
+                PlanCases.enumerations().get(0).withParameters()).executionPlan("s::RT", TypedQuery.Output.JSON);
         String statement = ((ExecutionPlan.TextResult) plan.root()).sql().statement();
         assertTrue(statement.contains("IN (SELECT") && statement.contains("VALUES ('A', 'ACTIVE'), ('X', 'ACTIVE'),"
                 + " ('C', 'CLOSED')"), statement);
@@ -382,7 +233,7 @@ public class PlanMakerTest {
     @Test
     void anOptionalParametersEqualityIsNullSafe() {
         ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(DatabaseType.DuckDB,
-                optionals("T").get(0).withParameter(), TypedQuery.Output.JSON).root()).sql();
+                PlanCases.optionals("T").get(0).withParameter(), TypedQuery.Output.JSON).root()).sql();
         assertTrue(sql.statement().contains("IS NOT DISTINCT FROM ?"), sql.statement());
     }
 
@@ -426,12 +277,42 @@ public class PlanMakerTest {
         assertEquals(2, sql.statement().chars().filter(ch -> ch == '?').count(), sql.statement());
     }
 
+    /** What a plan does not bind yet is refused when the plan is made, by name (PARK-21): a class instance, an
+     *  optional enumeration (its absence's answer unmeasured against legend-engine). */
     @Test
-    void aClassParameterIsRefusedByName() {
-        String model = model("DuckDB");
-        var aClass = assertThrows(IllegalArgumentException.class, () -> Compiler.query(Compiler.compileModel(model),
-                "{i: s::Item[1]|#>{s::DB.T}#->filter(r|$r.ID == $i.id)}").executionPlan("s::RT", TypedQuery.Output.JSON));
-        assertTrue(aClass.getMessage().contains("a parameter's value is a plain value"), aClass.getMessage());
+    void anUnboundParameterKindIsRefusedByName() {
+        var aClass = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(DatabaseType.DuckDB,
+                "{i: s::Item[1]|#>{s::DB.T}#->filter(r|$r.ID == $i.id)}", TypedQuery.Output.JSON));
+        assertTrue(aClass.getMessage().contains("a class instance is not bound") && aClass.getMessage().contains("PARK-21"),
+                aClass.getMessage());
+        var optionalEnum = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(
+                Compiler.compileModel(enumModel(DatabaseType.DuckDB)), "{st: s::Status[0..1]|s::Acct.all()"
+                        + "->filter(a|$a.status == $st)->project(~[id: a|$a.id])}").executionPlan("s::RT", TypedQuery.Output.JSON));
+        assertTrue(optionalEnum.getMessage().contains("an optional enumeration's absence")
+                && optionalEnum.getMessage().contains("PARK-21"), optionalEnum.getMessage());
+    }
+
+    /** A list parameter is bound only as a whole list (in, contains); written where one value goes, it is refused by
+     *  name, never bound as something it is not. */
+    @Test
+    void aListParameterWrittenWhereOneValueGoesIsRefusedByName() {
+        var refused = assertThrows(com.legend.sql.dialect.DialectCapability.class, () -> plan(DatabaseType.DuckDB,
+                "{ns: Integer[*]|#>{s::DB.T}#->extend(~n: r|$ns->size())->select(~[ID, n])}", TypedQuery.Output.JSON));
+        assertTrue(refused.getMessage().contains("is bound only as a whole list"), refused.getMessage());
+    }
+
+    /** A value's text — a scalar's, a collection's — is the one-column relation {@code value}, whole in every output
+     *  (no row to stream), as today's paths write it. */
+    @Test
+    void aValuesPlanAnswersAsTodaysPaths_everyOutput() throws Exception {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+            for (String query : List.of("|#>{s::DB.T}#->select(~[ID])->size()",
+                    "|s::Item.all()->map(i|$i.id)->sort()")) {
+                for (TypedQuery.Output output : TypedQuery.Output.values()) {
+                    assertAnswersAsToday(type, query, output);
+                }
+            }
+        }
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -472,7 +353,7 @@ public class PlanMakerTest {
                 case JSON -> Execution.executeWire(model, query, "s::RT", today, WireRender.Format.JSON, out);
                 case STREAMED_JSON -> Execution.executeStreaming(model, query, "s::RT", today, out);
             }
-            assertEquals(out.toString(), run(plan, planned, values), what);
+            assertEquals(out.toString(), PlanCases.run(plan, planned, values), what);
         }
     }
 
@@ -483,98 +364,5 @@ public class PlanMakerTest {
                     + com.legend.exec.H2Settings.SETTINGS);
             default -> throw new IllegalArgumentException(type.name());
         };
-    }
-
-    /** {@link #run(ExecutionPlan, Connection, java.util.Map)} for a plan of no parameters. */
-    public static String run(ExecutionPlan plan, Connection c) throws SQLException {
-        return run(plan, c, java.util.Map.of());
-    }
-
-    /** {@code plan} run on {@code c} as its steps describe themselves: the session statements, the setup (a rows step:
-     *  its staging table created, the cells inserted as text, copied, dropped), then the statement's text, each slot
-     *  bound to its parameter's value in {@code values} (a Java value of the parameter's type: the runner's
-     *  conversion is step 3's). */
-    public static String run(ExecutionPlan plan, Connection c, java.util.Map<String, Object> values)
-            throws SQLException {
-        ExecutionPlan.TextResult text = (ExecutionPlan.TextResult) plan.root();
-        ExecutionPlan.Target target = text.sql().target();
-        try (Statement st = c.createStatement()) {
-            for (String s : target.session()) {
-                st.execute(s);
-            }
-            for (ExecutionPlan.SetupStep step : target.setup()) {
-                switch (step) {
-                    case ExecutionPlan.SetupStep.Statement s -> st.execute(s.sql());
-                    case ExecutionPlan.SetupStep.Rows r -> {
-                        st.execute(r.createStaging());
-                        String marks = String.join(", ", java.util.Collections.nCopies(r.rows().get(0).size(), "?"));
-                        try (PreparedStatement insert = c.prepareStatement(
-                                "insert into " + r.stagingTable() + " values (" + marks + ")")) {
-                            for (List<String> row : r.rows()) {
-                                for (int i = 0; i < row.size(); i++) {
-                                    insert.setString(i + 1, row.get(i));
-                                }
-                                insert.execute();
-                            }
-                        }
-                        st.execute(r.copy());
-                        st.execute(r.dropStaging());
-                    }
-                }
-            }
-            assertEquals(plan.parameters().stream().map(ExecutionPlan.Parameter::name).sorted().toList(),
-                    values.keySet().stream().sorted().toList(), "a value for every declared parameter");
-            try (PreparedStatement statement = c.prepareStatement(text.sql().statement())) {
-                List<ExecutionPlan.Slot> slots = text.sql().slots();
-                for (int i = 0; i < slots.size(); i++) {
-                    String name = slots.get(i).parameter();
-                    Object value = values.get(name);
-                    if (value == null) {
-                        // an optional value's absence: a null of the parameter's declared type
-                        statement.setNull(i + 1, nullType(plan.parameters().stream()
-                                .filter(p -> p.name().equals(name)).findFirst().orElseThrow().type()));
-                    } else if (value instanceof List<?> list) {
-                        // a list: ONE array of its element type
-                        statement.setArray(i + 1, c.createArrayOf(
-                                java.util.Objects.requireNonNull(slots.get(i).arrayElementSqlType()), list.toArray()));
-                    } else {
-                        statement.setObject(i + 1, value);
-                    }
-                }
-                return answer(text.format(), statement);
-            }
-        }
-    }
-
-    /** The JDBC type of an absent value of a declared Pure type. */
-    private static int nullType(String pureType) {
-        return switch (pureType) {
-            case "Integer" -> java.sql.Types.BIGINT;
-            case "String" -> java.sql.Types.VARCHAR;
-            case "Boolean" -> java.sql.Types.BOOLEAN;
-            case "StrictDate" -> java.sql.Types.DATE;
-            case "DateTime" -> java.sql.Types.TIMESTAMP;
-            case "Float", "Decimal" -> java.sql.Types.DECIMAL;
-            default -> throw new IllegalArgumentException("no absent value of " + pureType + " in these tests");
-        };
-    }
-
-    /** The text the database writes: one row's one cell, or one JSON object per row in the array's punctuation. */
-    private static String answer(ExecutionPlan.Format format, PreparedStatement statement) throws SQLException {
-        try (ResultSet rs = statement.executeQuery()) {
-            return switch (format) {
-                case CSV, JSON -> {
-                    assertTrue(rs.next(), "the database writes the whole text as one row");
-                    yield rs.getString(1);
-                }
-                case JSON_PER_ROW -> {
-                    List<String> rows = new ArrayList<>();
-                    while (rs.next()) {
-                        rows.add(rs.getString(1));
-                    }
-                    yield "[" + String.join(",", rows) + "]";
-                }
-            };
-        }
     }
 }
