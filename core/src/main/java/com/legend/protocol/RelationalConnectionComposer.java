@@ -7,25 +7,20 @@ import com.legend.json.Json;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static com.legend.protocol.Composing.TAB;
 import static com.legend.protocol.Composing.convertString;
-import static com.legend.protocol.Composing.objOr;
-import static com.legend.protocol.Composing.objs;
-import static com.legend.protocol.Composing.str;
 import static com.legend.protocol.Composing.tab;
 
 /**
  * A {@code RelationalDatabaseConnection} as upstream prints it: the relational extension's connection
  * value composer, its datasource specifications and authentication strategies, and every database
  * extension's (Snowflake, BigQuery, Databricks, Spanner, Trino, Redshift, Athena, Aurora, MemSQL,
- * Oracle, DuckDB). Each specification and strategy is a block of {@code key: value;} lines, so each is
- * a row of a table here: its keyword and its fields.
+ * Oracle, DuckDB) -- over the record ({@link Protocol.PRelationalDatabaseConnection}; the protocol program's leg 2,
+ * step 3). Each specification and strategy is a block of {@code key: value;} lines: its keyword and its fields, each
+ * field the grammar's key, the record's value, how it prints and whether it may be absent.
  */
 final class RelationalConnectionComposer {
-
-
 
     /** How a field's value prints. */
     enum Kind {
@@ -41,155 +36,78 @@ final class RelationalConnectionComposer {
         LINE_LIST
     }
 
-    /** One {@code key: value;} line: the grammar's key, the wire field, how it prints, whether it may be absent. */
-    record Field(String key, String json, Kind kind, boolean optional) {
+    /** One {@code key: value;} line: the grammar's key, the record's value, how it prints, whether it may be absent. */
+    private record Field(String key, @com.legend.base.Nullable Object value, Kind kind, boolean optional) {
     }
 
-    /** A block: its keyword and fields. A block with no fields prints its keyword alone. */
-    record Block(String keyword, List<Field> fields) {
+    private static Field req(String key, @com.legend.base.Nullable Object value, Kind kind) {
+        return new Field(key, value, kind, false);
     }
 
-    private static Field req(String key, String json, Kind kind) {
-        return new Field(key, json, kind, false);
+    private static Field opt(String key, @com.legend.base.Nullable Object value, Kind kind) {
+        return new Field(key, value, kind, true);
     }
 
-    private static Field opt(String key, String json, Kind kind) {
-        return new Field(key, json, kind, true);
-    }
-
-    private static final Map<String, Block> SPECIFICATIONS = Map.ofEntries(
-            Map.entry("h2Local", new Block("LocalH2", List.of(
-                    opt("testDataSetupCSV", "testDataSetupCsv", Kind.STRING),
-                    opt("testDataSetupSqls", "testDataSetupSqls", Kind.LINE_LIST)))),
-            Map.entry("h2Embedded", new Block("EmbeddedH2", List.of(
-                    req("name", "databaseName", Kind.STRING), req("directory", "directory", Kind.STRING),
-                    req("autoServerMode", "autoServerMode", Kind.RAW)))),
-            Map.entry("static", new Block("Static", List.of(
-                    req("name", "databaseName", Kind.STRING), req("host", "host", Kind.STRING), req("port", "port", Kind.RAW)))),
-            Map.entry("athena", new Block("Athena", List.of(
-                    req("region", "region", Kind.STRING), opt("database", "database", Kind.STRING),
-                    opt("workGroup", "workGroup", Kind.STRING), opt("outputLocation", "outputLocation", Kind.STRING),
-                    opt("catalog", "catalog", Kind.STRING), opt("athenaEndpoint", "athenaEndpoint", Kind.STRING)))),
-            Map.entry("aurora", new Block("Aurora", List.of(
-                    req("host", "host", Kind.STRING), req("port", "port", Kind.RAW), req("name", "name", Kind.STRING),
-                    opt("clusterInstanceHostPattern", "clusterInstanceHostPattern", Kind.STRING)))),
-            Map.entry("globalAurora", new Block("GlobalAurora", List.of(
-                    req("host", "host", Kind.STRING), req("port", "port", Kind.RAW), req("name", "name", Kind.STRING),
-                    req("region", "region", Kind.STRING),
-                    req("globalClusterInstanceHostPatterns", "globalClusterInstanceHostPatterns", Kind.INLINE_LIST)))),
-            Map.entry("bigQuery", new Block("BigQuery", List.of(
-                    req("projectId", "projectId", Kind.STRING), req("defaultDataset", "defaultDataset", Kind.STRING),
-                    opt("proxyHost", "proxyHost", Kind.STRING), opt("proxyPort", "proxyPort", Kind.STRING)))),
-            Map.entry("databricks", new Block("Databricks", List.of(
-                    req("hostname", "hostname", Kind.STRING), req("port", "port", Kind.STRING),
-                    req("protocol", "protocol", Kind.STRING), req("httpPath", "httpPath", Kind.STRING)))),
-            Map.entry("duckDB", new Block("DuckDB", List.of(req("path", "path", Kind.STRING)))),
-            Map.entry("memSql", new Block("MemSql", List.of(
-                    req("host", "host", Kind.STRING), req("port", "port", Kind.STRING_OF),
-                    req("databaseName", "databaseName", Kind.STRING), req("useSsl", "useSsl", Kind.STRING_OF)))),
-            Map.entry("oracle", new Block("Oracle", List.of(
-                    req("host", "host", Kind.STRING), req("port", "port", Kind.RAW), req("serviceName", "serviceName", Kind.STRING)))),
-            Map.entry("redshift", new Block("Redshift", List.of(
-                    req("host", "host", Kind.STRING), req("port", "port", Kind.RAW), req("name", "databaseName", Kind.STRING),
-                    req("region", "region", Kind.STRING), req("clusterID", "clusterID", Kind.STRING),
-                    req("endpointURL", "endpointURL", Kind.STRING)))),
-            Map.entry("snowflake", new Block("Snowflake", List.of(
-                    req("name", "databaseName", Kind.STRING), req("account", "accountName", Kind.STRING),
-                    req("warehouse", "warehouseName", Kind.STRING), req("region", "region", Kind.STRING),
-                    opt("cloudType", "cloudType", Kind.STRING),
-                    opt("quotedIdentifiersIgnoreCase", "quotedIdentifiersIgnoreCase", Kind.RAW),
-                    opt("enableQueryTags", "enableQueryTags", Kind.RAW), opt("proxyHost", "proxyHost", Kind.STRING),
-                    opt("proxyPort", "proxyPort", Kind.STRING), opt("nonProxyHosts", "nonProxyHosts", Kind.STRING),
-                    opt("tempTableDb", "tempTableDb", Kind.STRING), opt("tempTableSchema", "tempTableSchema", Kind.STRING),
-                    opt("accountType", "accountType", Kind.RAW), opt("organization", "organization", Kind.STRING),
-                    opt("role", "role", Kind.STRING)))),
-            Map.entry("spanner", new Block("Spanner", List.of(
-                    req("projectId", "projectId", Kind.STRING), req("instanceId", "instanceId", Kind.STRING),
-                    req("databaseId", "databaseId", Kind.STRING), opt("proxyHost", "proxyHost", Kind.STRING),
-                    opt("proxyPort", "proxyPort", Kind.RAW)))));
-
-    private static final Map<String, Block> AUTHENTICATIONS = Map.ofEntries(
-            Map.entry("test", new Block("Test", List.of())),
-            Map.entry("h2Default", new Block("DefaultH2", List.of())),
-            Map.entry("gcpApplicationDefaultCredentials", new Block("GCPApplicationDefaultCredentials", List.of())),
-            Map.entry("apiToken", new Block("ApiToken", List.of(req("apiToken", "apiToken", Kind.STRING)))),
-            Map.entry("userNamePassword", new Block("UserNamePassword", List.of(
-                    opt("baseVaultReference", "baseVaultReference", Kind.STRING),
-                    req("userNameVaultReference", "userNameVaultReference", Kind.STRING),
-                    req("passwordVaultReference", "passwordVaultReference", Kind.STRING)))),
-            Map.entry("gcpWorkloadIdentityFederation", new Block("GCPWorkloadIdentityFederation", List.of(
-                    req("serviceAccountEmail", "serviceAccountEmail", Kind.STRING),
-                    opt("additionalGcpScopes", "additionalGcpScopes", Kind.LINE_LIST)))),
-            Map.entry("oauth", new Block("OAuth", List.of(
-                    req("oauthKey", "oauthKey", Kind.STRING), req("scopeName", "scopeName", Kind.STRING)))),
-            Map.entry("snowflakePublic", new Block("SnowflakePublic", List.of(
-                    req("publicUserName", "publicUserName", Kind.STRING),
-                    req("privateKeyVaultReference", "privateKeyVaultReference", Kind.STRING),
-                    req("passPhraseVaultReference", "passPhraseVaultReference", Kind.STRING)))),
-            Map.entry("TrinoDelegatedKerberosAuth", new Block("TrinoDelegatedKerberos", List.of(
-                    opt("serverPrincipal", "serverPrincipal", Kind.RAW),
-                    opt("kerberosUseCanonicalHostname", "kerberosUseCanonicalHostname", Kind.RAW),
-                    req("kerberosRemoteServiceName", "kerberosRemoteServiceName", Kind.STRING)))));
-
-    /** Strategies whose block is printed only when their one optional field is present. */
-    private static final Map<String, Field> OPTIONAL_BLOCKS = Map.of(
-            "delegatedKerberos", opt("serverPrincipal", "serverPrincipal", Kind.STRING),
-            "middleTierUserNamePassword", opt("vaultReference", "vaultReference", Kind.STRING));
-    private static final Map<String, String> OPTIONAL_BLOCK_KEYWORDS = Map.of(
-            "delegatedKerberos", "DelegatedKerberos", "middleTierUserNamePassword", "MiddleTierUserNamePassword");
+    private static final String TRINO = "Trino";
 
     private RelationalConnectionComposer() {
     }
 
     /** The connection's body, at the context's indentation {@code i}. */
-    static String connection(Json.Obj c, String i) {
-        String store = str(c, "element");
-        String timeZone = str(c, "timeZone");
-        Json.Node quote = Composing.value(c, "quoteIdentifiers");
-        boolean local = c.getBoolOr("localMode", false);
-        Json.Node timeout = Composing.value(c, "queryTimeOutInSeconds");
+    static String connection(Protocol.PRelationalDatabaseConnection c, String i) {
         StringBuilder b = new StringBuilder(i).append("{\n");
-        if (store != null) {
-            b.append(i).append(TAB).append("store: ").append(store).append(";\n");
+        if (c.element() != null) {
+            b.append(i).append(TAB).append("store: ").append(c.element()).append(";\n");
         }
-        b.append(i).append(TAB).append("type: ").append(c.getString("type")).append(";\n");
+        b.append(i).append(TAB).append("type: ").append(c.databaseType()).append(";\n");
+        String timeZone = c.timeZone();
         if (timeZone != null) {
             b.append(i).append(TAB).append("timezone: ")
                     .append(utcOffset(timeZone) ? timeZone : convertString(timeZone, true)).append(";\n");
         }
-        if (quote != null) {
-            b.append(i).append(TAB).append("quoteIdentifiers: ").append(raw(quote)).append(";\n");
+        if (c.quoteIdentifiers() != null) {
+            b.append(i).append(TAB).append("quoteIdentifiers: ").append(c.quoteIdentifiers()).append(";\n");
         }
-        String specification = block(SPECIFICATIONS, c.getObj("datasourceSpecification"), i, "datasource specification");
-        String auth = authentication(c.getObj("authenticationStrategy"), i);
-        if (local) {
+        String specification = specification(c.datasourceSpecification(), i);
+        String auth = authentication(c.authenticationStrategy(), i);
+        if (c.localMode() != null && c.localMode()) {
             b.append(i).append(TAB).append("mode: local;\n");
         } else {
             b.append(i).append(TAB).append("specification: ").append(specification).append(";\n");
             b.append(i).append(TAB).append("auth: ").append(auth).append(";\n");
         }
-        if (timeout != null) {
-            b.append(i).append(TAB).append("queryTimeOutInSeconds: ").append(raw(timeout)).append(";\n");
+        if (c.queryTimeOutInSeconds() != null) {
+            b.append(i).append(TAB).append("queryTimeOutInSeconds: ").append(c.queryTimeOutInSeconds()).append(";\n");
         }
-        List<Json.Obj> postProcessors = objs(c, "postProcessors");
-        if (!postProcessors.isEmpty()) {
+        if (!c.postProcessors().isEmpty()) {
             List<String> ps = new ArrayList<>();
-            for (Json.Obj p : postProcessors) {
+            for (Protocol.PPostProcessor p : c.postProcessors()) {
                 ps.add(postProcessor(p, i));
             }
             b.append(i).append(TAB).append("postProcessors:\n").append(TAB).append("[\n").append(String.join(",\n", ps))
                     .append("\n").append(TAB).append("];\n");
         }
-        List<Json.Obj> configs = objs(c, "queryGenerationConfigs");
-        if (!configs.isEmpty()) {
+        List<Protocol.PGenerationFeaturesConfig> configs = c.queryGenerationConfigs();
+        if (configs != null && !configs.isEmpty()) {
             List<String> cs = new ArrayList<>();
-            for (Json.Obj q : configs) {
-                cs.add(queryGenerationConfig(q, i));
+            for (Protocol.PGenerationFeaturesConfig q : configs) {
+                cs.add(i + tab(2) + "GenerationFeaturesConfig\n" + i + tab(2) + "{\n"
+                        + i + tab(3) + "enabled: [" + features(q.enabled()) + "];\n"
+                        + i + tab(3) + "disabled: [" + features(q.disabled()) + "];\n"
+                        + i + tab(2) + "}");
             }
             b.append(i).append(TAB).append("queryGenerationConfigs: [\n").append(String.join(",\n", cs)).append("\n")
                     .append(i).append(TAB).append("];\n");
         }
         return b.append(i).append("}").toString();
+    }
+
+    /** {@link #connection(Protocol.PRelationalDatabaseConnection, String)} of the JSON, read first. */
+    static String connection(Json.Obj c, String i) {
+        if (!(ConnectionReader.connectionValue(c) instanceof Protocol.PRelationalDatabaseConnection r)) {
+            throw Composing.refused("a relational connection that reads as another kind");
+        }
+        return connection(r, i);
     }
 
     /** A bare offset from UTC ({@code [+-]dddd}), which the grammar takes unquoted; any other zone is quoted. */
@@ -205,55 +123,118 @@ final class RelationalConnectionComposer {
         return true;
     }
 
-    private static String authentication(Json.Obj auth, String i) {
-        String type = Composing.type(auth);
-        Field only = OPTIONAL_BLOCKS.get(type);
-        if (only != null) {
-            String keyword = OPTIONAL_BLOCK_KEYWORDS.get(type);
-            return Composing.value(auth, only.json()) != null && keyword != null
-                    ? block(new Block(keyword, List.of(only)), auth, i) : String.valueOf(keyword);
-        }
-        return block(AUTHENTICATIONS, auth, i, "authentication strategy");
+    private static String specification(Protocol.PDatasourceSpec spec, String i) {
+        return switch (spec) {
+            case Protocol.PH2Local s -> block("LocalH2", i,
+                    opt("testDataSetupCSV", s.testDataSetupCsv(), Kind.STRING),
+                    opt("testDataSetupSqls", s.testDataSetupSqls(), Kind.LINE_LIST));
+            case Protocol.PH2EmbeddedSpec s -> block("EmbeddedH2", i, req("name", s.databaseName(), Kind.STRING),
+                    req("directory", s.directory(), Kind.STRING), req("autoServerMode", s.autoServerMode(), Kind.RAW));
+            case Protocol.PStaticSpec s -> block("Static", i, req("name", s.databaseName(), Kind.STRING),
+                    req("host", s.host(), Kind.STRING), req("port", s.port(), Kind.RAW));
+            case Protocol.PAthenaSpec s -> block("Athena", i, req("region", s.region(), Kind.STRING),
+                    opt("database", s.database(), Kind.STRING), opt("workGroup", s.workGroup(), Kind.STRING),
+                    opt("outputLocation", s.outputLocation(), Kind.STRING), opt("catalog", s.catalog(), Kind.STRING),
+                    opt("athenaEndpoint", s.athenaEndpoint(), Kind.STRING));
+            case Protocol.PAuroraSpec s -> block("Aurora", i, req("host", s.host(), Kind.STRING),
+                    req("port", s.port(), Kind.RAW), req("name", s.name(), Kind.STRING),
+                    opt("clusterInstanceHostPattern", s.clusterInstanceHostPattern(), Kind.STRING));
+            case Protocol.PGlobalAuroraSpec s -> block("GlobalAurora", i, req("host", s.host(), Kind.STRING),
+                    req("port", s.port(), Kind.RAW), req("name", s.name(), Kind.STRING),
+                    req("region", s.region(), Kind.STRING),
+                    req("globalClusterInstanceHostPatterns", s.globalClusterInstanceHostPatterns(), Kind.INLINE_LIST));
+            case Protocol.PBigQuerySpec s -> block("BigQuery", i, req("projectId", s.projectId(), Kind.STRING),
+                    req("defaultDataset", s.defaultDataset(), Kind.STRING), opt("proxyHost", s.proxyHost(), Kind.STRING),
+                    opt("proxyPort", s.proxyPort(), Kind.STRING));
+            case Protocol.PDatabricksSpec s -> block("Databricks", i, req("hostname", s.hostname(), Kind.STRING),
+                    req("port", s.port(), Kind.STRING), req("protocol", s.protocol(), Kind.STRING),
+                    req("httpPath", s.httpPath(), Kind.STRING));
+            case Protocol.PDuckDBSpec s -> block("DuckDB", i, req("path", s.path(), Kind.STRING));
+            case Protocol.PMemSqlSpec s -> block("MemSql", i, req("host", s.host(), Kind.STRING),
+                    req("port", s.port(), Kind.STRING_OF), req("databaseName", s.databaseName(), Kind.STRING),
+                    req("useSsl", s.useSsl(), Kind.STRING_OF));
+            case Protocol.POracleSpec s -> block("Oracle", i, req("host", s.host(), Kind.STRING),
+                    req("port", s.port(), Kind.RAW), req("serviceName", s.serviceName(), Kind.STRING));
+            case Protocol.PRedshiftSpec s -> block("Redshift", i, req("host", s.host(), Kind.STRING),
+                    req("port", s.port(), Kind.RAW), req("name", s.databaseName(), Kind.STRING),
+                    req("region", s.region(), Kind.STRING), req("clusterID", s.clusterID(), Kind.STRING),
+                    req("endpointURL", s.endpointURL(), Kind.STRING));
+            case Protocol.PSnowflakeSpec s -> block("Snowflake", i, req("name", s.databaseName(), Kind.STRING),
+                    req("account", s.accountName(), Kind.STRING), req("warehouse", s.warehouseName(), Kind.STRING),
+                    req("region", s.region(), Kind.STRING), opt("cloudType", s.cloudType(), Kind.STRING),
+                    opt("quotedIdentifiersIgnoreCase", s.quotedIdentifiersIgnoreCase(), Kind.RAW),
+                    opt("enableQueryTags", s.enableQueryTags(), Kind.RAW), opt("proxyHost", s.proxyHost(), Kind.STRING),
+                    opt("proxyPort", s.proxyPort(), Kind.STRING), opt("nonProxyHosts", s.nonProxyHosts(), Kind.STRING),
+                    opt("tempTableDb", s.tempTableDb(), Kind.STRING),
+                    opt("tempTableSchema", s.tempTableSchema(), Kind.STRING),
+                    opt("accountType", s.accountType(), Kind.RAW), opt("organization", s.organization(), Kind.STRING),
+                    opt("role", s.role(), Kind.STRING));
+            case Protocol.PSpannerSpec s -> block("Spanner", i, req("projectId", s.projectId(), Kind.STRING),
+                    req("instanceId", s.instanceId(), Kind.STRING), req("databaseId", s.databaseId(), Kind.STRING),
+                    opt("proxyHost", s.proxyHost(), Kind.STRING), opt("proxyPort", s.proxyPort(), Kind.RAW));
+            case Protocol.PTrinoSpec s -> trino(s, i);
+            case Protocol.PSQLiteSpec s -> throw Composing.refused("no composer rule for a datasource specification of"
+                    + " _type 'sqlite'");
+        };
     }
 
-    private static String block(Map<String, Block> table, Json.Obj o, String i, String what) {
-        if (TRINO.equals(Composing.type(o)) && table == SPECIFICATIONS) {
-            return trino(o, i);
-        }
-        Block block = table.get(Composing.type(o));
-        if (block == null) {
-            throw Composing.refused("no composer rule for a " + what + " of _type '" + Composing.type(o) + "'");
-        }
-        return block(block, o, i);
+    private static String authentication(Protocol.PAuthStrategy auth, String i) {
+        return switch (auth) {
+            case Protocol.PTestAuth a -> "Test";
+            case Protocol.PH2Default a -> "DefaultH2";
+            case Protocol.PGCPApplicationDefaultCredentials a -> "GCPApplicationDefaultCredentials";
+            case Protocol.PApiToken a -> block("ApiToken", i, req("apiToken", a.apiToken(), Kind.STRING));
+            case Protocol.PUserNamePassword a -> block("UserNamePassword", i,
+                    opt("baseVaultReference", a.baseVaultReference(), Kind.STRING),
+                    req("userNameVaultReference", a.userNameVaultReference(), Kind.STRING),
+                    req("passwordVaultReference", a.passwordVaultReference(), Kind.STRING));
+            case Protocol.PGcpWifAuth a -> block("GCPWorkloadIdentityFederation", i,
+                    req("serviceAccountEmail", a.serviceAccountEmail(), Kind.STRING),
+                    opt("additionalGcpScopes", a.additionalGcpScopes(), Kind.LINE_LIST));
+            case Protocol.POAuth a -> block("OAuth", i, req("oauthKey", a.oauthKey(), Kind.STRING),
+                    req("scopeName", a.scopeName(), Kind.STRING));
+            case Protocol.PSnowflakePublic a -> block("SnowflakePublic", i,
+                    req("publicUserName", a.publicUserName(), Kind.STRING),
+                    req("privateKeyVaultReference", a.privateKeyVaultReference(), Kind.STRING),
+                    req("passPhraseVaultReference", a.passPhraseVaultReference(), Kind.STRING));
+            case Protocol.PTrinoKerberosAuth a -> block("TrinoDelegatedKerberos", i,
+                    opt("serverPrincipal", a.serverPrincipal(), Kind.RAW),
+                    opt("kerberosUseCanonicalHostname", a.kerberosUseCanonicalHostname(), Kind.RAW),
+                    req("kerberosRemoteServiceName", a.kerberosRemoteServiceName(), Kind.STRING));
+            // a strategy whose block is printed only when its one optional field is present
+            case Protocol.PDelegatedKerberos a -> a.serverPrincipal() == null ? "DelegatedKerberos"
+                    : block("DelegatedKerberos", i, opt("serverPrincipal", a.serverPrincipal(), Kind.STRING));
+            case Protocol.PMiddleTierUserNamePassword a -> a.vaultReference() == null ? "MiddleTierUserNamePassword"
+                    : block("MiddleTierUserNamePassword", i, opt("vaultReference", a.vaultReference(), Kind.STRING));
+        };
     }
 
-    private static final String TRINO = "Trino";
-
-    /** A {@code Keyword} then its {@code { key: value; }} block, at indentation {@code i} plus one tab. */
-    static String block(Block block, Json.Obj o, String i) {
-        if (block.fields().isEmpty()) {
-            return block.keyword();
+    /** A {@code Keyword} then its {@code { key: value; }} block, at indentation {@code i} plus one tab; no fields at all
+     *  is the keyword alone. */
+    private static String block(String keyword, String i, Field... fields) {
+        if (fields.length == 0) {
+            return keyword;
         }
-        StringBuilder b = new StringBuilder(block.keyword()).append("\n").append(i).append(TAB).append("{\n");
-        for (Field f : block.fields()) {
-            b.append(field(f, o, i + tab(2)));
+        StringBuilder b = new StringBuilder(keyword).append("\n").append(i).append(TAB).append("{\n");
+        for (Field f : fields) {
+            b.append(field(f, i + tab(2)));
         }
         return b.append(i).append(TAB).append("}").toString();
     }
 
     /** One field's line (or nothing, when an optional field is absent), at indentation {@code at}. */
-    static String field(Field f, Json.Obj o, String at) {
-        Json.Node v = Composing.value(o, f.json());
+    private static String field(Field f, String at) {
+        Object v = f.value();
         if (v == null) {
             if (f.optional()) {
                 return "";
             }
-            throw Composing.refused("a required field '" + f.json() + "' is absent (upstream cannot print it)");
+            throw Composing.refused("a required field '" + f.key() + "' is absent (upstream cannot print it)");
         }
         return switch (f.kind()) {
-            case STRING -> at + f.key() + ": " + convertString(((Json.Str) v).value(), true) + ";\n";
-            case RAW -> at + f.key() + ": " + raw(v) + ";\n";
-            case STRING_OF -> at + f.key() + ": " + convertString(raw(v), true) + ";\n";
+            case STRING -> at + f.key() + ": " + convertString((String) v, true) + ";\n";
+            case RAW -> at + f.key() + ": " + v + ";\n";
+            case STRING_OF -> at + f.key() + ": " + convertString(String.valueOf(v), true) + ";\n";
             case INLINE_LIST -> at + f.key() + ": [" + String.join(", ", quoted(v)) + "];\n";
             case LINE_LIST -> {
                 List<String> items = quoted(v);
@@ -269,10 +250,10 @@ final class RelationalConnectionComposer {
         };
     }
 
-    private static List<String> quoted(Json.Node v) {
+    private static List<String> quoted(Object v) {
         List<String> out = new ArrayList<>();
-        for (Json.Node n : ((Json.Arr) v).items()) {
-            out.add(convertString(((Json.Str) n).value(), true));
+        for (Object s : (List<?>) v) {
+            out.add(convertString((String) s, true));
         }
         return out;
     }
@@ -291,74 +272,57 @@ final class RelationalConnectionComposer {
         throw Composing.refused("a scalar field whose value is " + v);
     }
 
-    private static String postProcessor(Json.Obj p, String i) {
-        String type = Composing.type(p);
-        if ("mapper".equals(type)) {
-            List<String> mappers = new ArrayList<>();
-            for (Json.Obj m : objs(p, "mappers")) {
-                mappers.add(nameMapper(m));
+    private static String postProcessor(Protocol.PPostProcessor p, String i) {
+        return switch (p) {
+            case Protocol.PMapperPostProcessor m -> {
+                List<String> mappers = new ArrayList<>();
+                for (Protocol.PMapper n : m.mappers()) {
+                    mappers.add(switch (n) {
+                        case Protocol.PTableMapper t -> tab(4) + "table {from: '" + t.from() + "'; to: '" + t.to()
+                                + "'; schemaFrom: '" + t.schemaFrom() + "'; schemaTo: '" + t.schemaTo() + "';}";
+                        case Protocol.PSchemaMapper s -> tab(4) + "schema {from: '" + s.from() + "'; to: '" + s.to() + "';}";
+                    });
+                }
+                yield tab(2) + "mapper\n" + tab(2) + "{\n" + tab(3) + "mappers:\n" + tab(3) + "[\n"
+                        + String.join(",\n" + i, mappers) + "\n" + tab(3) + "];\n" + tab(2) + "}";
             }
-            return tab(2) + "mapper\n" + tab(2) + "{\n" + tab(3) + "mappers:\n" + tab(3) + "[\n"
-                    + String.join(",\n" + i, mappers) + "\n" + tab(3) + "];\n" + tab(2) + "}";
-        }
-        if ("relationalMapper".equals(type)) {
-            List<String> paths = new ArrayList<>();
-            for (Json.Obj m : objs(p, "relationalMappers")) {
-                paths.add(m.getString("path"));
+            case Protocol.PRelationalMapperPostProcessor r -> {
+                List<String> paths = new ArrayList<>();
+                for (Protocol.PPointer m : r.relationalMappers()) {
+                    paths.add(m.path());
+                }
+                yield tab(2) + "relationalMapper\n" + tab(2) + "{\n" + tab(3) + String.join(", " + i, paths) + "\n"
+                        + tab(2) + "}";
             }
-            return tab(2) + "relationalMapper\n" + tab(2) + "{\n" + tab(3) + String.join(", " + i, paths) + "\n" + tab(2) + "}";
-        }
-        if ("ExtractSubQueriesAsCTEsPostProcessor".equals(type)) {
-            return tab(2) + "ExtractSubQueriesAsCTEsPostProcessor\n" + tab(2) + "{\n" + tab(2) + "}";
-        }
-        throw Composing.refused("no composer rule for a post processor of _type '" + type + "'");
+            case Protocol.PExtractSubQueriesAsCtesPostProcessor x ->
+                    tab(2) + "ExtractSubQueriesAsCTEsPostProcessor\n" + tab(2) + "{\n" + tab(2) + "}";
+        };
     }
 
-    private static String nameMapper(Json.Obj m) {
-        String type = Composing.type(m);
-        if ("table".equals(type)) {
-            Json.Obj schema = m.getObj("schema");
-            return tab(4) + "table {from: '" + m.getString("from") + "'; to: '" + m.getString("to") + "'; schemaFrom: '"
-                    + schema.getString("from") + "'; schemaTo: '" + schema.getString("to") + "';}";
-        }
-        if ("schema".equals(type)) {
-            return tab(4) + "schema {from: '" + m.getString("from") + "'; to: '" + m.getString("to") + "';}";
-        }
-        throw Composing.refused("no composer rule for a name mapper of _type '" + type + "'");
-    }
-
-    private static String queryGenerationConfig(Json.Obj q, String i) {
-        if (!"generationFeaturesConfig".equals(Composing.type(q))) {
-            throw Composing.refused("no composer rule for a query generation config of _type '" + Composing.type(q) + "'");
-        }
-        return i + tab(2) + "GenerationFeaturesConfig\n" + i + tab(2) + "{\n"
-                + i + tab(3) + "enabled: [" + features(q, "enabled") + "];\n"
-                + i + tab(3) + "disabled: [" + features(q, "disabled") + "];\n"
-                + i + tab(2) + "}";
-    }
-
-    private static String features(Json.Obj q, String key) {
+    private static String features(List<String> names) {
         List<String> out = new ArrayList<>();
-        for (String s : q.getStringArrayOr(key, List.of())) {
+        for (String s : names) {
             out.add("'" + s + "'");
         }
         return String.join(", ", out);
     }
 
     /** {@code Trino}'s specification: its SSL specification is a nested block. */
-    static String trino(Json.Obj spec, String i) {
+    private static String trino(Protocol.PTrinoSpec spec, String i) {
         StringBuilder b = new StringBuilder(TRINO).append("\n").append(i).append(TAB).append("{\n");
         String at = i + tab(2);
-        b.append(field(req("host", "host", Kind.STRING), spec, at)).append(field(req("port", "port", Kind.RAW), spec, at))
-                .append(field(opt("catalog", "catalog", Kind.STRING), spec, at))
-                .append(field(opt("schema", "schema", Kind.STRING), spec, at))
-                .append(field(opt("clientTags", "clientTags", Kind.STRING), spec, at));
-        Json.Obj ssl = objOr(spec, "sslSpecification");
+        b.append(field(req("host", spec.host(), Kind.STRING), at)).append(field(req("port", spec.port(), Kind.RAW), at))
+                .append(field(opt("catalog", spec.catalog(), Kind.STRING), at))
+                .append(field(opt("schema", spec.schema(), Kind.STRING), at))
+                .append(field(opt("clientTags", spec.clientTags(), Kind.STRING), at));
+        Protocol.PTrinoSsl ssl = spec.sslSpecification();
         if (ssl != null) {
             b.append(at).append("sslSpecification:\n").append(at).append("{\n")
-                    .append(field(req("ssl", "ssl", Kind.RAW), ssl, at + TAB))
-                    .append(field(opt("trustStorePathVaultReference", "trustStorePathVaultReference", Kind.STRING), ssl, at + TAB))
-                    .append(field(opt("trustStorePasswordVaultReference", "trustStorePasswordVaultReference", Kind.STRING), ssl, at + TAB))
+                    .append(field(req("ssl", ssl.ssl(), Kind.RAW), at + TAB))
+                    .append(field(opt("trustStorePathVaultReference", ssl.trustStorePathVaultReference(), Kind.STRING),
+                            at + TAB))
+                    .append(field(opt("trustStorePasswordVaultReference", ssl.trustStorePasswordVaultReference(),
+                            Kind.STRING), at + TAB))
                     .append(at).append("};\n");
         }
         return b.append(i).append(TAB).append("}").toString();
