@@ -211,12 +211,20 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     assert.equal(app.snapshot.rows, rows, 'the cube\'s own undo was not taken');
   });
 
-  it('a tile\'s own layouts put that tile first', async () => {
-    const [a] = await twoCharts();
-    (tile(a).querySelector('.dc-tile-layout') as HTMLElement).click();
-    root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="left-and-column"]')!.click();
+  it('a tile\'s own layouts arrange the band it is in, that tile first, and leave the other bands alone', async () => {
+    const [a, b] = await twoCharts();
+    pick('Arrange\u2026').click();
+    root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="top-and-row"]')!.click();
     await settle();
-    assert.equal(tiles(app.pageViews().layout)[0], a);
+    assert.deepEqual(bands(), [['grid'], [a, b]]);
+    const top = app.pageViews().layout.bands[0];
+    (tile(b).querySelector('.dc-tile-layout') as HTMLElement).click();
+    const options = root.querySelectorAll('.dc-layout-picker .dc-layout-option');
+    assert.equal(options[0]!.querySelectorAll('.dc-layout-cell').length, 2, 'the thumbnails show the band\'s tiles');
+    root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
+    await settle();
+    assert.deepEqual(bands(), [['grid'], [b], [a]], 'its band stacked, the tile first');
+    assert.deepEqual(app.pageViews().layout.bands[0], top, 'the band above untouched');
   });
 
   it('Edit Layout unticked locks the page: no handles, nothing moves', async () => {

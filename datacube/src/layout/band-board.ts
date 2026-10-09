@@ -26,6 +26,7 @@ import {
   type Toward,
   add,
   arrange,
+  arrangeBand,
   bandOf,
   draw,
   drop,
@@ -38,6 +39,7 @@ import {
   remove,
   resize,
   resizeBand,
+  snapped,
   stacked,
   tiles,
   tradeBands,
@@ -72,6 +74,9 @@ export interface BandBoardOptions {
   /** A tile's layout button was pressed: the caller shows the layouts (ui/layout-picker.ts) by `anchor`. */
   readonly onLayout?: (id: string, anchor: HTMLElement) => void;
 }
+
+/** How near a quarter, a third or the half a dragged divider snaps to it, in pixels (Alt held: no snapping). */
+const SNAP_PX = 8;
 
 /** A tile's least readable width (a grid's few columns, a chart's axes): smart placement puts no more side by side. */
 const READABLE_WIDTH = 360;
@@ -204,9 +209,25 @@ export class BandBoard {
     this.#commit(next);
   }
 
-  /** Arrange every tile as a preset, `first` in its first slot; the others in reading order. */
-  arrange(preset: Preset, first?: string): void {
-    this.#change(arrange(this.#layout, preset, this.#order(first)));
+  /**
+   * Arrange as a preset, `first` in its first slot and the others in reading order: every tile on the page, or --
+   * `within`, a tile -- only the band that tile is in (a tile's own layouts), the other bands left as they are.
+   */
+  arrange(preset: Preset, first?: string, within?: string): void {
+    this.#change(this.#arranged(this.#layout, preset, first, within));
+  }
+
+  /** The tiles a preset would arrange: the page's, or those of the band `within` is in. */
+  tilesToArrange(within?: string): string[] {
+    if (within === undefined) return tiles(this.#layout);
+    const band = this.#layout.bands[bandOf(this.#layout, within)];
+    return band ? tiles({ fit: this.#layout.fit, bands: [band] }) : [];
+  }
+
+  #arranged(layout: Bands, preset: Preset, first?: string, within?: string): Bands {
+    if (within === undefined) return arrange(layout, preset, this.#order(first));
+    const band = bandOf(layout, within);
+    return band < 0 ? layout : arrangeBand(layout, band, preset, this.#order(first));
   }
 
   /** Even out the whole page: every split's parts alike, every band as tall as the rest. */
@@ -214,12 +235,12 @@ export class BandBoard {
     this.#change(evenAll(this.#layout));
   }
 
-  /** Show what a preset would look like (a hovered thumbnail), or the layout again (null). */
-  preview(preset: Preset | null, first?: string): void {
+  /** Show what a preset would look like (a hovered thumbnail), or the layout again (null); as `arrange` would do it. */
+  preview(preset: Preset | null, first?: string, within?: string): void {
     if (this.#gesture) return;
     const was = this.#previewing;
     if (preset !== null && !was) this.#previewScroll = this.#host.scrollTop;
-    this.#shown = preset === null ? null : arrange(this.#layout, preset, this.#order(first));
+    this.#shown = preset === null ? null : this.#arranged(this.#layout, preset, first, within);
     this.#previewing = preset !== null;
     this.#paint();
     if (preset === null && was) this.#host.scrollTop = this.#previewScroll;
@@ -409,7 +430,7 @@ export class BandBoard {
           make: () => {
             const el = this.#doc.createElement('div');
             el.className = `dc-band-divider dc-band-divider-${divider.split}`;
-            el.title = 'Drag to resize; double-click to even out';
+            el.title = 'Drag to resize (it snaps at quarters, thirds and the half; hold Alt not to); double-click to even out';
             el.addEventListener('pointerdown', (e) => this.#startDivider(divider.path, divider.after, divider.split, e));
             el.addEventListener('dblclick', () => {
               this.#change(evenOut(this.#layout, divider.path));
@@ -630,7 +651,13 @@ export class BandBoard {
     const follow = (ev: PointerEvent): void => {
       const at = this.#at(ev);
       const moved = split === 'row' ? at.x - start.x : at.y - start.y;
-      this.#shown = moved === 0 || length <= 0 ? null : resize(base, path, after, moved / length);
+      if (moved === 0 || length <= 0) {
+        this.#shown = null;
+        return;
+      }
+      // onto a quarter, a third or the half when it comes near one; Alt held, exactly where the pointer is
+      const delta = ev.altKey ? moved / length : snapped(base, path, after, moved / length, SNAP_PX / length);
+      this.#shown = resize(base, path, after, delta);
     };
     this.#own(el, e, (ev) => {
       follow(ev);

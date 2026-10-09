@@ -16,7 +16,9 @@ import {
   PRESETS,
   add,
   arrange,
+  arrangeBand,
   bandOf,
+  boundary,
   cells,
   draw,
   drop,
@@ -31,6 +33,7 @@ import {
   remove,
   resize,
   resizeBand,
+  snapped,
   stacked,
   tiles,
   tradeBands,
@@ -443,5 +446,45 @@ describe('a page saved before bands, read as bands', () => {
       assert.deepEqual(tiles(back), tiles(layout), id);
       assert.equal(back.bands.length, layout.bands.length, id);
     }
+  });
+});
+
+describe('one band arranged (a tile\'s own layouts)', () => {
+  const layout: Bands = {
+    fit: false,
+    bands: [
+      { height: 0.2, node: { split: 'row', parts: [{ node: { tile: 'k1' }, size: 0.5 }, { node: { tile: 'k2' }, size: 0.5 }] } },
+      { height: 0.8, node: { split: 'row', parts: ['a', 'b', 'c'].map((tile) => ({ node: { tile }, size: 1 / 3 })) } },
+    ],
+  };
+  it('the band\'s tiles laid out as the preset, in its place and height; the other bands as they were', () => {
+    const next = arrangeBand(layout, 1, 'grid-2', ['c']);
+    assert.deepEqual(problems(next), []);
+    assert.equal(next.bands[0], layout.bands[0]);
+    assert.deepEqual(next.bands.slice(1).map((b) => tiles({ fit: false, bands: [b] })), [['c', 'a'], ['b']]);
+    assert.deepEqual(next.bands.slice(1).map((b) => b.height), [0.4, 0.4]);
+  });
+  it('a preset of one screen keeps the band\'s height; a tile of another band named first is not brought in', () => {
+    const next = arrangeBand(layout, 1, 'left-and-column', ['k1', 'b']);
+    assert.equal(next.bands.length, 2);
+    assert.equal(next.bands[1]!.height, 0.8);
+    assert.deepEqual(tiles(next), ['k1', 'k2', 'b', 'a', 'c']);
+    assert.equal(arrangeBand(layout, 5, 'stacked'), layout);
+  });
+});
+
+describe('a divider snapping', () => {
+  const layout = arrange(EMPTY, 'left-and-column', ['a', 'b', 'c']);
+  it('knows where each divider is: the share of its split before it', () => {
+    assert.equal(boundary(layout, [0], 0), 0.6);
+    assert.equal(boundary(layout, [0, 1], 0), 0.5);
+    assert.equal(boundary(layout, [0], 1), undefined);
+    assert.equal(boundary(layout, [3], 0), undefined);
+  });
+  it('lands on a quarter, a third or the half within reach, and moves freely elsewhere', () => {
+    assert.ok(Math.abs(0.6 + snapped(layout, [0], 0, 0.06, 0.01) - 2 / 3) < 1e-12, 'onto two thirds');
+    assert.equal(snapped(layout, [0], 0, 0.03, 0.01), 0.03, 'nothing near');
+    assert.ok(Math.abs(0.6 + snapped(layout, [0], 0, -0.095, 0.01) - 0.5) < 1e-12, 'onto the half');
+    assert.equal(snapped(layout, [2], 0, 0.1, 0.01), 0.1, 'no such divider: as it is');
   });
 });

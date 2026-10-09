@@ -156,6 +156,21 @@ describe('the band board', () => {
     });
   }
 
+  it('snaps a dragged divider onto a third within 8px; with Alt held, it goes where the pointer is', () => {
+    const drag = (x: number, altKey: boolean): number => {
+      host = dom.window.document.createElement('div');
+      sized(1000, 600);
+      sideBySide(['a', 'b']);
+      const el = host.querySelector<HTMLElement>('.dc-band-divider-row')!;
+      el.dispatchEvent(new dom.window.PointerEvent('pointerdown', { pointerId: 1, clientX: 500, clientY: 100, button: 0, bubbles: true }));
+      el.dispatchEvent(new dom.window.PointerEvent('pointerup', { pointerId: 1, clientX: x, clientY: 100, button: 0, altKey, bubbles: true }));
+      return box('a').w;
+    };
+    assert.equal(drag(660, false), 661, 'two thirds of the row exactly');
+    assert.equal(drag(660, true), 655, 'Alt: where the pointer is');
+    assert.equal(drag(650, false), 645, 'beyond 8px of any: where the pointer is');
+  });
+
   it('evens out a split on a divider\'s double click', () => {
     const { board } = sideBySide(['a', 'b']);
     const divider = host.querySelector<HTMLElement>('.dc-band-divider-row')!;

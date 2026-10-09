@@ -686,3 +686,47 @@ export function fromCells(tiles: readonly Cell[], rows: number): Bands {
     })),
   };
 }
+
+/**
+ * ONE BAND ARRANGED AS A PRESET (a tile's own layouts, §3.3): band `band`'s tiles in `order` (its own reading order when
+ * not given) laid out as `preset`, in that band's place -- the preset's bands replacing it -- and every other band left
+ * as it is. A preset of one screen keeps the band's height; one of several bands splits that height among them.
+ */
+export function arrangeBand(layout: Bands, band: number, preset: Preset, order?: readonly string[]): Bands {
+  const it = layout.bands[band];
+  if (it === undefined) return layout;
+  const own = tiles({ fit: layout.fit, bands: [it] });
+  const ids = (order ?? own).filter((id) => own.includes(id));
+  const made = arrange({ fit: layout.fit, bands: [it] }, preset, [...ids, ...own.filter((id) => !ids.includes(id))]).bands;
+  const total = made.reduce((sum, b) => sum + b.height, 0);
+  const placed = made.map((b) => ({ height: total > 0 ? (it.height * b.height) / total : it.height, node: b.node }));
+  return { fit: layout.fit, bands: [...layout.bands.slice(0, band), ...placed, ...layout.bands.slice(band + 1)] };
+}
+
+/** Where a divider snaps, as a share of its split: quarters, thirds and the half (§3.3). */
+export const SNAPS: readonly number[] = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
+
+/**
+ * A divider's place in its split (the split found by `path`, the boundary after part `after`): the share of the
+ * split before it. Undefined when there is no such divider.
+ */
+export function boundary(layout: Bands, path: readonly number[], after: number): number | undefined {
+  const [bandIndex, ...inner] = path;
+  let node: Node | undefined = layout.bands[bandIndex ?? -1]?.node;
+  for (const i of inner) node = node === undefined || isTile(node) ? undefined : node.parts[i]?.node;
+  if (node === undefined || isTile(node) || after + 1 >= node.parts.length) return undefined;
+  return node.parts.slice(0, after + 1).reduce((sum, part) => sum + part.size, 0);
+}
+
+/**
+ * A divider's move, snapped: `delta` (a share of the split) changed so the divider lands on a quarter, a third or the
+ * half of its split when it would come within `reach` of one (also a share: the snapping distance over the split's
+ * length). Otherwise `delta` as it is.
+ */
+export function snapped(layout: Bands, path: readonly number[], after: number, delta: number, reach: number): number {
+  const from = boundary(layout, path, after);
+  if (from === undefined) return delta;
+  const to = from + delta;
+  const near = SNAPS.filter((s) => Math.abs(to - s) <= reach).sort((a, b) => Math.abs(to - a) - Math.abs(to - b))[0];
+  return near === undefined ? delta : near - from;
+}
