@@ -454,12 +454,16 @@ Step 3 landed as a12a64d24 (run 37923006492; GATES 2026-10-09): every printer in
 `core/src/main/java/com/legend/protocol/` prints the records, the parity counts held exactly, and the reader reads the
 older or hand-written shapes the step's audits found refused (S35 to S37; `own_corpus.matched` 2734). **Now: leg 4,
 on branch `protocol-leg4`** (§4, item 4; leg 3 folded into it, invariant 5 revised, the user 2026-10-09): legend-engine's
-`jsonToGrammar/model` on lite's server, the model printer in PRETTY as well as STANDARD, and every host on one function
-per direction. Files: the text-to-JSON entries in `core/src/main/java/com/legend/parser/` (`PmcdParser`, `SpecParser`);
-the JSON-to-text entries and the style in `core/src/main/java/com/legend/protocol/` (`ModelComposer`, `PureComposer`,
-the element printers); `core/src/main/java/com/legend/server/PureV1Api.java`; `wasm/src/main/java/planner/Wasm.java`
-(four grammar exports, names and answers unchanged); `sdlc-server/src/main/java/com/legend/sdlc/CoreGrammar.java`;
-`parser-equivalence`'s `ModelComposerParityTest` (a PRETTY pass). Open, and not yet in the plan's legs: printing lite-only
+the four conversions complete with their options, the model printer in PRETTY as well as STANDARD, legend-engine's
+`jsonToGrammar/model` in `PureV1Api`, and the tab on `pure/v1`'s grammar (invariant 5 revised; legs 6 to 8 added: one
+whole-model compile and the tab's other twins, the SDLC server's rules free of Pure, the server reading models as
+records). Files: `core/src/main/java/com/legend/parser/` (`PmcdParser`, `SpecParser`: text to JSON);
+`core/src/main/java/com/legend/protocol/` (`ModelComposer`, `PureComposer`, `Composing` and the element printers: JSON
+to text, the style); `core/src/main/java/com/legend/server/PureV1Api.java`; `wasm/src/main/java/planner/Wasm.java`
+(`pureV1OrError` exported to the tab; four grammar twins deleted); `engine-client/src/legend/planner-worker.ts` and the
+TS test harnesses in `engine-client/test/`, `studio/test/` and `pure-protocol/test/` (`datacube/test/`'s fakes with the
+DataCube + Python line); `sdlc-server/src/main/java/com/legend/sdlc/CoreGrammar.java`; `parser-equivalence`'s
+`ModelComposerParityTest` (a PRETTY pass). Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first; lite's grammar takes
 no `doc` on a function test, though the engine's does; lite's persistence grammar accepts `];` after `tests`,
 though the engine's does not.

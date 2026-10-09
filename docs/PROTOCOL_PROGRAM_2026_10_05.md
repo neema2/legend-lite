@@ -43,15 +43,22 @@ JSON ──read───▶ records ──compose─▶ text
 4. **Exactness over the whole corpus,** both against the engine (where the engine is the spec) and against ourselves
    (the round trips). An element a leg cannot handle is refused by name; plan S19: Studio then opens it read-only as
    JSON and preserves it byte for byte.
-5. **One function per direction, in the layer that owns its input; the hosts adapt** (revised 2026-10-09, the user;
-   was "one public face", `com.legend.protocol.ProtocolText`, which the layering forbids: `protocol` is the bottom
-   layer and may not call the parser, ArchitectureTest 7b, and the parser may not read JSON, 7c). Text to JSON
-   is the parser's: one call per kind (model, lambda) with source information on or off. JSON to text is
-   protocol's: one call per kind from the JSON's text, reading it at protocol's own depth limit, in either render
-   style. Each host is a thin adapter that calls those and wraps a failure in its own shape: the server's
-   `PureV1Api` (legend-engine's `pure/v1` answers, which the compiler's WebAssembly boundary and Python's engine
-   already answer with), `planner.Wasm`'s exports for the tab (`OK`/`ERR`), and the SDLC server's `CoreGrammar`.
-   No host strings the legs together itself, so the tab and the server cannot drift apart.
+5. **Conversions in their layers, one contract, many transports** (revised 2026-10-09, the user; was "one public
+   face", `com.legend.protocol.ProtocolText`, which the layering forbids: `protocol` may not call the parser,
+   ArchitectureTest 7b, and the parser may not read JSON, 7c). Three kinds of thing, each with one home:
+   - **The four conversions** -- a model's and a lambda's text to JSON, a model's and a lambda's JSON to text -- each
+     one function taking its options, in the layer that owns its input, as legend-engine's parser takes
+     `returnSourceInformation` and its composer the render style. Text to JSON is the parser's (source information
+     on or off); JSON to text is protocol's (from the JSON's text, at protocol's depth limit, STANDARD or PRETTY).
+     A failure is typed where it happens: a parse error with its position, a refusal naming what it refuses.
+   - **legend-engine's `pure/v1` contract** -- its paths, query parameters, statuses, error body and request shapes --
+     implemented once, by `PureV1Api`, over the conversions. Nothing else knows any of it.
+   - **The transports** that reach the contract: lite's HTTP server, Python's engine (`//native:compiler`), and the
+     tab (`planner.Wasm.pureV1OrError`). The apps' in-tab engine sends the same `pure/v1` requests as their remote
+     one, so the tab and a server cannot answer differently, refusals included; the tab keeps no private twin of a
+     `pure/v1` endpoint.
+   In-process Java that is not a client of the contract -- the SDLC server, tools, tests -- calls the conversions
+   directly, behind an interface of its own at its edge (leg 7), as legend-sdlc embeds the engine's grammar.
 6. **Reference checkouts are spec and oracle only** (AGENTS.md): the engine's composer and serializer are compared
    against in `parser-equivalence`, never loaded by core.
 
@@ -215,25 +222,46 @@ not be written back, so it is refused.
    accepts `];` closing a persistence's `tests`, which the engine's does not (a test snippet used it and was
    corrected); and lite's grammar takes no `doc` on a function test, which the engine's does.
 3. **Folded into leg 4** (2026-10-09, the user): no new class (invariant 5 as revised).
-4. **The model route, and every host on one function per direction** (invariant 5):
-   - The two directions completed in their own layers. Text to JSON (the parser): a model's and a lambda's JSON with
-     source information on or off, so no host strips it afterwards. JSON to text (protocol): a model and a lambda
-     from the JSON's text, at one depth limit per kind, in either render style.
-   - **PRETTY for models.** legend-engine's `jsonToGrammar/model` prints in the request's `renderStyle`, PRETTY
-     unless asked; lite's model printer is proven in STANDARD only (`ModelComposerParityTest` runs the engine's
-     printer at its default). The style is passed through to every value the model printer prints, and the parity
-     test gains a PRETTY pass over the same corpus, exact.
-   - `pure/v1/grammar/jsonToGrammar/model` on lite's server (`PureV1Api`, so the WebAssembly boundary answers it
-     too): a `PureModelContextData` in, its text out, `renderStyle` as the engine reads it; a refusal in the engine's
-     error shape. The engine has no batch form of it (checked, 4.145.0).
-   - The hosts moved onto those calls: `PureV1Api`'s grammar routes; `planner.Wasm`'s `modelJsonOrError`,
-     `lambdaJsonOrError`, `composeLambdaOrError` and `jsonToGrammarModelOrError` (their names and `OK`/`ERR`
-     answers unchanged: the apps call them); the SDLC server's `CoreGrammar.modelJson`. The apps' clients unchanged.
-   - Out of this leg, recorded: `PureV1Api.connectionOf` finds a runtime's connection by reading JSON the parser
-     wrote, where invariant 1 says to read the records; and the server's compile, plan and execute routes still
-     take a model as text only (`modelText`: "the PMCD reader is not built", which it now is).
+4. **The four conversions complete, the model route, and the tab on `pure/v1`'s grammar** (invariant 5), in order:
+   1. **The conversions with their options**: text to JSON with source information on or off (no caller strips it
+      afterwards); JSON to text from the JSON's text at one depth limit per kind, in either style.
+   2. **PRETTY for models.** legend-engine's `jsonToGrammar/model` prints in the request's `renderStyle`, PRETTY
+      unless asked; lite's model printer is proven in STANDARD only (`ModelComposerParityTest` runs the engine's
+      printer at its default). The style is passed down through every element printer to every value it prints, as
+      the engine passes its composer context, and the parity test gains a PRETTY pass over the same corpus, exact.
+   3. **`pure/v1/grammar/jsonToGrammar/model`** in `PureV1Api`: a `PureModelContextData` in, its text out,
+      `renderStyle` as the engine reads it, a refusal in the engine's error shape. The engine has no batch form of it
+      (checked, 4.145.0). `PureV1Api`'s grammar routes call the conversions and nothing else.
+   4. **The tab speaks `pure/v1`'s grammar**: `pureV1OrError` exported to the tab; engine-client's in-tab engine
+      (`engine-client/src/legend/planner-worker.ts`) and the test harnesses (Studio's, engine-client's,
+      `pure-protocol`'s, and DataCube's fakes, with the DataCube + Python line, which owns `datacube/`) moved onto it;
+      the four private twins deleted (`modelJsonOrError`, `lambdaJsonOrError`, `composeLambdaOrError`,
+      `jsonToGrammarModelOrError`).
+   5. The SDLC server's `CoreGrammar.modelJson` calls the text-to-JSON conversion (its edge moves in leg 7).
 5. **Round trip proven** over the corpus and the showcase projects (plan S5), in the JVM and in the tab (the
    WebAssembly build of the same code, a differential run as `//wasm:differential_test` does for the planner).
+6. **One whole-model compile, and the tab's other `pure/v1` twins on the route.** "Compile a whole model" (its
+   elements, then every body in it) is strung together three times today: `PureV1Api.compile`, the tab's
+   `compileOrError` and the SDLC server's `CoreGrammar.compile`. It becomes one function on the compiler's front door
+   (`com.legend.Compiler`), and `compilation/compile` calls it. The tab's remaining private twins of `pure/v1`
+   endpoints -- `compileOrError` (C1), `planJsonOrError` (E9), `relationTypeJsonOrError` (E5) -- go, their callers
+   moved onto the route as in leg 4. The tab's own functions that are not `pure/v1` endpoints (planning a query
+   written as text, test data's SQL, a Database from a catalog, ...) stay its own.
+7. **The SDLC server's rules free of Pure.** SDLC's rules (`//sdlc-server:rules`) depend on all of `//core` today,
+   because the class that answers their two Pure questions (`CoreGrammar`) sits in the same library; nothing stops
+   the rules from calling the compiler directly, and the SDLC server carries the whole engine. The rules keep asking
+   through interfaces -- read a file's text into an entity; check a tree before a review lands or a version is cut
+   -- and depend on no Pure code. A separate adapter library answers them: reading through the text-to-JSON
+   conversion, checking through leg 6's compile in-process, or through an engine's `compilation/compile` over HTTP
+   where a deployment wants it (legend-sdlc leaves compiling to the project's build). The server binary wires them,
+   and the build enforces the split: `//sdlc-server:rules` with no `//core` dependency, a Bazel change reviewed by
+   the Bazel program's session.
+8. **The server reads models as records.** `PureV1Api.connectionOf` finds a runtime's connection by reading the JSON
+   the parser wrote, where invariant 1 says to read the records; and the compile, plan and execute routes take a model
+   as text only (`modelText`: "the PMCD reader is not built", which it now is), where legend-engine also takes a
+   `PureModelContextData`, as upstream Studio sends. How the compiler takes a model given as records -- straight into
+   its model (the direction ArchitectureTest 7c sets the parser) or through the text printed from them -- is decided
+   at the leg's start, before code.
 
 Then the Studio plan's B2 to B4 (real legend-sdlc, Depot and engine) build on it: entities JSON read and printed in the
 tab, text parsed and emitted on save.
