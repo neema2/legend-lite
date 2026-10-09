@@ -181,6 +181,26 @@ not be written back, so it is refused.
    `true` (the engine's default, which the reader keeps), and a service whose execution carries an older
    `legacyRuntime` prints it as the runtime the engine makes of it (`LegacyRuntime.toEngineRuntime`) instead of being
    refused.
+
+   **The step's audit (2026-10-09)** found no blocker and no change in what the corpus prints. It found that the
+   JSON printers printed a dozen shapes the reader refused: JSON that the engine writes for none of the corpus, but
+   that it reads, from an older engine or a person. The user chose to fix them on this branch: under decision C the
+   reader reads each, as the engine's code reads it, the writer writes it back, and the printer prints it as the
+   engine's printer does. They are a function test's `doc` and an empty `assertions` list; a data quality tree node's
+   alias and arguments; a data space's `featuredDiagrams` (diagrams titled `''`, S35); `extends` on every kind of
+   class mapping; a MongoDB mapping without `~mainCollection`; a service store path segment's arguments; a generation
+   node without its id (S35) and file-generation settings that are decimals or null (kept as their text, as the
+   engine keeps them); a hosted service's user list, a service test's keys and a column's `nullable` left out;
+   persistence's optional output targets, test batches, test data, connection and assertions, and its
+   `isTestDataFromServiceOutput` (true when left out); a CSV table without values; a relational decimal spelled
+   `1.50` or `1e3`. `OlderModelShapesTest` has one case for each. Refused by name still: what the engine reads but
+   cannot compile or print (S36), and what it refuses itself (an object where a generation element's path belongs; a
+   settings list or map holding anything but strings). One case needed care: an operation mapping's `extends`, which
+   the engine's grammar drops and lite's model keeps, is written back only when it came from JSON. The audit's other
+   findings were fixed as well: a section index naming an older function beside a current one of the same name, the
+   model printer's record entry building its index for a model without one, and the WebAssembly export reading each
+   model twice. Found on the way: lite's persistence grammar accepts `];` closing a persistence's `tests`, which the
+   engine's does not (a test snippet used it and was corrected).
 3. **One public face** (invariant 5), and the consumers moved onto it: `PureV1Api`'s grammar routes, `Wasm.java`'s
    `modelJsonOrError` / `lambdaJsonOrError` / `composeLambdaOrError` / `jsonToGrammarModelOrError`, and the apps'
    clients (engine-client's grammar interface) unchanged in shape.
