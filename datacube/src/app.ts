@@ -74,7 +74,7 @@ import { exportTable, type ExportPage } from './export-model.ts';
 import { toXlsx, XLSX_MIME } from './export-xlsx.ts';
 import { cubeScopeOf, newCubeScope } from './ui/scope.ts';
 import type { CubePage, ChartSource, SpawnedGrid, SpawnOptions } from './page/cube-page.ts';
-import { PAGE_CUBE, pageToJson, writePage, type ChartView, type PageDocument, type PageViews } from './page-document.ts';
+import { PAGE_CUBE, oneSheet, pageToJson, writePage, type ChartView, type PageDocument, type PageViews } from './page-document.ts';
 import { FormatterCache, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
@@ -267,6 +267,10 @@ export interface CubeAppBaseOptions {
   readonly exportPage?: () => ExportPage | undefined;
   /** A grid made on a page whose bar is folded: its title bar setting starts hidden, as the page's other grids say. */
   readonly titleBarHidden?: boolean;
+  /** A grid on a page of several sheets: the other sheets, by what their tabs say, for its menu's Move to Sheet. */
+  readonly sheets?: () => readonly { readonly id: string; readonly label: string }[];
+  /** Its Move to Sheet: onto `sheet`, or -- null -- onto a new one. */
+  readonly onMoveToSheet?: (sheet: string | null) => void;
   readonly writeClipboard?: (text: string) => void | Promise<void>;
   /**
    * Hand a file to the user.
@@ -1955,6 +1959,11 @@ export class CubeApp {
 
   #onMenuAction(item: MenuItem): void {
     if (this.#onHostAction(item)) return;
+    // Move to Sheet: onto a sheet the page has, by its id (a new one is `sheet.to.new`, below)
+    if (item.id?.startsWith('sheet.to.') && item.id !== 'sheet.to.new') {
+      this.#options.onMoveToSheet?.(item.id.slice('sheet.to.'.length));
+      return;
+    }
     // The query actions go through applyMenuAction, which returns the
     // SAME snapshot when nothing changed; the rest are layout,
     // clipboard and export, which never touch the query.
@@ -2097,6 +2106,9 @@ export class CubeApp {
         return;
       case 'grid.remove':
         this.#options.onRemove?.();
+        return;
+      case 'sheet.to.new':
+        this.#options.onMoveToSheet?.(null);
         return;
       case 'page.arrange':
         this.#page?.page.showLayouts(this.#burger?.isConnected ? this.#burger : this.#els.root);
@@ -2657,7 +2669,7 @@ export class CubeApp {
     if (!page || page.charts === 0) {
       return {
         views: [{ id: 'grid', kind: 'grid', cube: PAGE_CUBE }],
-        layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] },
+        sheets: oneSheet({ kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] }),
       };
     }
     return page.views();
@@ -3921,8 +3933,19 @@ export class CubeApp {
       { label: '', items: this.#undoItems() },
       { label: '', items: this.#outputItems() },
       { label: '', items: this.#viewItems() },
-      // on a page of its own: taken off it, as its tile's x does (and as the one way when it is alone in the bar)
+      // on a page of its own: onto another sheet (its charts stay where they are, following it), and taken off it, as
+      // its tile's x does (and as the one way when it is alone in the bar)
+      ...(this.#options.onMoveToSheet ? [{ label: '', items: [{ label: 'Move to Sheet', submenu: this.#sheetItems() }] }] : []),
       ...(this.#options.onRemove ? [{ label: '', items: [{ id: 'grid.remove' as const, label: 'Remove from Page' }] }] : []),
+    ];
+  }
+
+  /** Move to Sheet's entries: each other sheet, then a new one. */
+  #sheetItems(): MenuItem[] {
+    const others = this.#options.sheets?.() ?? [];
+    return [
+      ...others.map((s) => ({ id: `sheet.to.${s.id}` as const, label: s.label })),
+      { id: 'sheet.to.new' as const, label: 'New Sheet', ...(others.length > 0 ? { separated: true } : {}) },
     ];
   }
 

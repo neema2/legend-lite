@@ -44,8 +44,11 @@ function startup(bundle = join(DEMO, 'bundle.js')): string[] {
  *  is a page of its own from the start, its one grid a tile on its board -- the page (page/page-app.ts), the board
  *  (page/cube-page.ts, layout/band-board.ts) and the charts' panel load at startup, where phase 1 fetched them with the
  *  first chart (startup then ~333 KB). Measured 364,791. The layouts are still fetched when first opened, ECharts
- *  when a chart first draws. */
-const BUDGET = 368_000;
+ *  when a chart first draws.
+ *  368,000 -> 378,000 (2026-10-09, DataCube pages phase 3a, sheets, the design's §7): the sheet tabs in the page's bar
+ *  (ui/sheet-tabs.ts), a board per sheet and Move to Sheet (page/cube-page.ts), the name box (page/page-app.ts), all
+ *  on screen from the start. Measured 375,751, main before it 367,729 (+8,022). */
+const BUDGET = 378_000;
 
 /** The engine page's (demo/engine.html: one cube on an engine that runs its queries, Python's) startup download,
  *  gzipped: the grid and the remote client, no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure

@@ -140,7 +140,7 @@ try {
 
   await check('Arrange... previews 2 x 2 while pointed at, the page as it was when the pointer leaves, and applies it on a click', async () => {
     const before = await boxes();
-    const saved = await page.evaluate(() => JSON.stringify(window.__dataPage.views().layout));
+    const saved = await page.evaluate(() => JSON.stringify(window.__dataPage.views().sheets));
     await titleMenu('Arrange…');
     const option = page.locator('.dc-layout-picker [data-preset="rows:2-2"]');
     await option.hover();
@@ -149,7 +149,7 @@ try {
     if (!(previewed[ids.grid].y === previewed[ids.a].y && previewed[ids.b].y > previewed[ids.grid].y && previewed[ids.b].x === previewed[ids.grid].x)) {
       throw new Error(`not previewed as 2 x 2: ${JSON.stringify(previewed)}`);
     }
-    if (await page.evaluate(() => JSON.stringify(window.__dataPage.views().layout)) !== saved) throw new Error('a preview changed the layout');
+    if (await page.evaluate(() => JSON.stringify(window.__dataPage.views().sheets)) !== saved) throw new Error('a preview changed the layout');
     await page.mouse.move(5, 5);
     await frames(page, 2);
     if (!same(await boxes(), before)) throw new Error('the page did not come back when the pointer left');
@@ -314,6 +314,42 @@ try {
     await settle();
     if (!same(await boxes(), before)) throw new Error(`not back: ${JSON.stringify(await boxes())}`);
     return `${Object.keys(narrow).length} tiles stacked at ${b.w}px`;
+  });
+
+  // SHEETS (the design's §7): a tile moved to another sheet by dragging it onto that sheet's tab
+  await check('a tile dragged onto another sheet\'s tab moves there; the tab is marked while it is over it', async () => {
+    await page.locator('.dc-sheet-add').click();
+    await settle();
+    const sheets = await page.evaluate(() => window.__dataPage.sheets);
+    if (sheets.length !== 2) throw new Error(`the + made ${sheets.length} sheets`);
+    if (await page.evaluate(() => window.__dataPage.shownSheet) !== sheets[1]) throw new Error('the new sheet is not shown');
+    await page.locator(`.dc-sheet-tab[data-sheet="${sheets[0]}"]`).click();
+    await settle();
+    const from = await head(ids.a);
+    const tab = await page.locator(`.dc-sheet-tab[data-sheet="${sheets[1]}"]`).boundingBox();
+    const at = { x: tab.x + tab.width / 2, y: tab.y + tab.height / 2 };
+    const start = await now();
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(at.x, at.y, { steps: 12 });
+    await frames(page, 2);
+    const marked = await page.locator(`.dc-sheet-tab[data-sheet="${sheets[1]}"]`).evaluate((t) => t.classList.contains('dc-sheet-tab-target'));
+    const zone = await page.locator('.dc-bands-zone').first().isVisible();
+    await page.mouse.up();
+    await frames(page, 2);
+    dragTasks.push({ what: 'a tile onto a sheet\'s tab', ms: await longest(start, await now()) });
+    await settle();
+    if (!marked) throw new Error('the tab was not marked while the tile was over it');
+    if (zone) throw new Error('the board outlined a zone while the tile was over a tab');
+    const placed = await page.evaluate(() => window.__dataPage.views().sheets.map((s) => JSON.stringify(s.layout)));
+    if (!placed[1].includes(`"${ids.a}"`) || placed[0].includes(`"${ids.a}"`)) throw new Error(`not moved: ${placed.join(' | ')}`);
+    if (await page.evaluate(() => window.__dataPage.shownSheet) !== sheets[0]) throw new Error('the sheet shown changed');
+    if ((await boxes())[ids.a]?.w) throw new Error('the tile is still drawn on the first sheet');
+    await page.locator(`.dc-sheet-tab[data-sheet="${sheets[1]}"]`).click();
+    await settle();
+    const shown = (await boxes())[ids.a];
+    if (!shown?.w) throw new Error('the tile is not drawn on its new sheet');
+    return `${ids.a} onto the second sheet's tab: moved, drawn there (${shown.w}x${shown.h})`;
   });
 
   await check('no task over 50 ms while a tile is dragged (a divider or an edge, which follow live: reported)', async () => {

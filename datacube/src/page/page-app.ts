@@ -1,11 +1,16 @@
 // A PAGE OF ITS OWN (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §3.1, §6): DataCube's app, above its grids.
 //
-// The page has a thin bar that is not a tile -- its menu, its name, its fold -- and below it the board (page/cube-page.ts) of grids and charts. Every grid is a tile holding a compact CubeApp, made the same way
+// The page has a thin bar that is not a tile -- its menu, its name in a box, its sheets' tabs as a browser's (§7.1),
+// its fold -- and below it the board (page/cube-page.ts) of grids and charts. Every grid is a tile holding a compact CubeApp, made the same way
 // whether it is the first or the fifth (`addGrid`), so any of them can be removed; with none left the page is empty
 // and shows the host's choices of a source. The page's menu holds the page's things only (New, Open, Save, Share,
 // Arrange, Settings, the host's own entries); each grid's own menu, in its tile's header, holds the grid's.
 //
-// ONE GRID ALONE fills the page with no frame, and its header -- its source, Live/Snapped, its menu -- sits at the
+// SHEETS (§7.2): the page's tiles on one or more sheets, one shown; the bar's tabs show, add, rename, reorder and delete
+// them, and a tile is moved to another from its menu or by dragging it onto that sheet's tab. A sheet is named after
+// its first grid's report title (its source) until someone names it.
+//
+// ONE GRID ALONE on the sheet shown fills it with no frame, and its header -- its source, Live/Snapped, its menu -- sits at the
 // right of the bar's strip: one strip, as a grid alone looks today (the user, 2026-10-09). A second tile moves it back.
 //
 // EVERY GRID IS THE HOST'S: made by a maker the host gave (`addGrid`, `restore`) -- a copy of one (Copy of Grid) by the
@@ -16,8 +21,9 @@
 // (`restore`). A grid removed while a frozen chart still reads it is kept off the board for that chart, and saved as a
 // cube with no grid view.
 
-import { CubePage, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
+import { CubePage, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
 import { MenuView } from '../ui/menu-view.ts';
+import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
 import { pageToJson, writePageOf, type PageDocument, type PageViews } from '../page-document.ts';
@@ -57,8 +63,15 @@ export type GridMaker = (host: HTMLElement, options: SpawnOptions, start?: GridS
 export interface PageAppOptions {
   /** Where the page goes: it fills it. */
   readonly host: HTMLElement;
-  /** The page's name, in its bar, until `setTitle`. */
+  /** The page's name, in its bar's name box, until `setTitle`. */
   readonly title?: string;
+  /**
+   * The name box renamed (Enter in its field): the host keeps the name -- the page's, saved by Save -- and gives it
+   * back with `setTitle`. Absent, the box only says the name.
+   */
+  readonly onRename?: (name: string) => void;
+  /** A question to answer yes or no (a sheet deleted with its tiles): the browser's `confirm` unless given. */
+  readonly confirm?: (question: string) => boolean;
   /** The host's own menu entries (Save, Open, Share, where the planner runs), by their `section`. */
   readonly hostMenu?: () => readonly MenuItem[];
   readonly onHostMenu?: (item: MenuItem) => void;
@@ -85,7 +98,13 @@ export class PageApp {
   readonly #options: PageAppOptions;
   readonly #doc: Document;
   readonly #root: HTMLElement;
+  /** The name box: the page's name, a dot when it changed since it was saved. */
   readonly #title: HTMLElement;
+  readonly #sheetTabs: SheetTabs;
+  /** What a sheet with nothing on it says, on a page that has tiles elsewhere. */
+  readonly #emptySheet: HTMLElement;
+  /** Changed since it was saved (the host says): the name box's dot. */
+  #changed = false;
   readonly #burger: HTMLButtonElement;
   readonly #bar: HTMLElement;
   readonly #status: HTMLElement;
@@ -113,7 +132,7 @@ export class PageApp {
     const doc = this.#doc;
     const root = doc.createElement('div');
     root.className = 'dc-page';
-    // the bar: the page's menu, its name, its fold, and a lone grid's header at the right
+    // the bar: the page's menu, its name box, its sheets' tabs, its fold, and a lone grid's header at the right
     const bar = doc.createElement('div');
     bar.className = 'dc-titlebar dc-page-bar';
     this.#burger = doc.createElement('button');
@@ -126,9 +145,26 @@ export class PageApp {
     this.#burger.setAttribute('aria-expanded', 'false');
     this.#burger.addEventListener('click', () => this.#toggleMenu());
     this.#title = doc.createElement('span');
-    this.#title.className = 'dc-titlebar-title';
-    this.#title.textContent = this.#name;
-    // the space between the name and the right end (the host's readout is in its first grid's status bar)
+    this.#title.className = 'dc-page-name';
+    if (options.onRename) {
+      this.#title.tabIndex = 0;
+      this.#title.setAttribute('role', 'button');
+      this.#title.title = 'The page\'s name: click to rename it';
+      this.#title.addEventListener('click', () => this.#renamePage());
+      this.#title.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'F2') return;
+        e.preventDefault();
+        this.#renamePage();
+      });
+    }
+    this.#sheetTabs = new SheetTabs(doc, {
+      onShow: (id) => this.#page.showSheet(id),
+      onAdd: () => this.#page.addSheet(),
+      onRename: (id, name) => this.#page.renameSheet(id, name),
+      onMove: (id, to) => this.#page.moveSheet(id, to),
+      onRemove: (id) => this.#removeSheet(id),
+    });
+    // the space between the tabs and the right end (the host's readout is in its first grid's status bar)
     const status = doc.createElement('span');
     status.className = 'dc-page-status';
     this.#status = status;
@@ -159,13 +195,14 @@ export class PageApp {
       this.setBarFolded(false);
       this.#fold.focus();
     });
-    bar.append(this.#burger, this.#title, status, this.#fold, this.#alone);
+    bar.append(this.#burger, this.#title, this.#sheetTabs.element, status, this.#fold, this.#alone);
     this.#bar = bar;
     this.#boardHost = doc.createElement('div');
     this.#boardHost.className = 'dc-board-host';
     this.#empty = doc.createElement('div');
     this.#empty.className = 'dc-page-empty';
-    root.append(bar, this.#boardHost, this.#empty);
+    this.#emptySheet = this.#newEmptySheet();
+    root.append(bar, this.#boardHost, this.#emptySheet, this.#empty);
     options.host.replaceChildren(root);
     this.#root = root;
     this.#menu = new MenuView(doc, {
@@ -174,7 +211,32 @@ export class PageApp {
     });
     options.empty(this.#empty);
     this.#page = this.#newBoard();
+    this.#paintTitle();
+    this.#paintSheets();
     this.#paintEmpty();
+  }
+
+  /** An empty sheet's card: it says so, with a data source to add to it and the way to move a tile here. */
+  #newEmptySheet(): HTMLElement {
+    const doc = this.#doc;
+    const el = doc.createElement('div');
+    el.className = 'dc-sheet-empty';
+    el.hidden = true;
+    const say = doc.createElement('p');
+    say.textContent = 'This sheet is empty. Move a tile here from its menu (Move to Sheet) or by dragging it onto this sheet\'s tab';
+    el.append(say);
+    if (this.#options.openSource) {
+      say.textContent += ', or add a data source.';
+      const add = doc.createElement('button');
+      add.type = 'button';
+      add.className = 'dc-picker-button dc-primary';
+      add.textContent = 'Add a data source';
+      add.addEventListener('click', () => void this.addSource());
+      el.append(add);
+    } else {
+      say.textContent += '.';
+    }
+    return el;
   }
 
   /**
@@ -183,6 +245,8 @@ export class PageApp {
    */
   #onGridChange(): void {
     this.#paintTitle();
+    // a sheet named after its first grid's report title: that title may have changed
+    this.#paintSheets();
     const grids = this.#board();
     if (grids.length > 0) this.#foldBar(grids.every((g) => !g.configuration.showTitleBar));
   }
@@ -217,7 +281,7 @@ export class PageApp {
     const focused = this.#bar.contains(this.#doc.activeElement);
     this.#bar.classList.toggle('dc-collapsed', folded);
     if (folded) this.#bar.replaceChildren(this.#lip, this.#alone);
-    else this.#bar.replaceChildren(this.#burger, this.#title, this.#status, this.#fold, this.#alone);
+    else this.#bar.replaceChildren(this.#burger, this.#title, this.#sheetTabs.element, this.#status, this.#fold, this.#alone);
     if (focused && !this.#bar.contains(this.#doc.activeElement)) (folded ? this.#lip : this.#fold).focus();
   }
 
@@ -225,24 +289,119 @@ export class PageApp {
     return this.#bar.classList.contains('dc-collapsed');
   }
 
-  /** The page's name, in its bar. */
+  /** The page's own name ('' before it has one). */
   get title(): string {
-    return this.#title.textContent ?? '';
+    return this.#name;
   }
 
-  /** The page's own name (a saved page's): '' leaves the bar to say the first grid's report title. */
+  /** What to call the page when it has no name of its own yet (Save's suggestion): its first sheet's name. */
+  get suggestedName(): string {
+    const first = this.#page.sheets[0];
+    return this.#name || (first ? this.#sheetLabel(first) : '');
+  }
+
+  /** The page's own name (a saved page's, or one given in the name box): '' for none yet. */
   setTitle(name: string): void {
     this.#name = name;
     this.#paintTitle();
   }
 
-  /** The bar's name: the page's own, else its first grid's report title (what a grid alone was called). */
-  #paintTitle(): void {
-    const first = this.grids[0];
-    this.#title.textContent = this.#name || (first !== undefined ? this.grid(first)?.configuration.reportTitle ?? '' : '');
+  /** Changed since it was saved, or not (the host knows): the name box says so. */
+  setChanged(changed: boolean): void {
+    if (changed === this.#changed) return;
+    this.#changed = changed;
+    this.#paintTitle();
   }
 
-  /** The grids on the board, in reading order (not those kept off it for a detached chart). */
+  /** The name box: the page's name, "Untitled page" before it has one, a dot when it changed since it was saved. */
+  #paintTitle(): void {
+    if (this.#title.querySelector('input')) return;
+    this.#title.textContent = this.#name || 'Untitled page';
+    this.#title.classList.toggle('dc-page-name-untitled', this.#name === '');
+    this.#title.classList.toggle('dc-page-name-changed', this.#changed);
+    this.#title.setAttribute('aria-label', `Page: ${this.#name || 'untitled'}${this.#changed ? ', changed since saved' : ''}`);
+  }
+
+  /** The name box, renamed in place: Enter keeps the name (the host's to keep), Escape leaves it as it was. */
+  #renamePage(): void {
+    if (this.#title.querySelector('input')) return;
+    const field = this.#doc.createElement('input');
+    field.className = 'dc-page-name-field';
+    field.value = this.#name;
+    field.placeholder = this.suggestedName || 'Untitled page';
+    field.setAttribute('aria-label', 'Page name');
+    let done = false;
+    const finish = (keep: boolean): void => {
+      if (done) return;
+      done = true;
+      const name = field.value.trim();
+      field.remove();
+      this.#paintTitle();
+      this.#title.focus();
+      if (keep && name !== '' && name !== this.#name) this.#options.onRename?.(name);
+    };
+    field.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') finish(true);
+      if (e.key === 'Escape') finish(false);
+    });
+    field.addEventListener('blur', () => finish(true));
+    field.addEventListener('click', (e) => e.stopPropagation());
+    this.#title.replaceChildren(field);
+    field.focus();
+    field.select();
+  }
+
+  // -- sheets ------------------------------------------------------------------------------------------------------
+
+  /**
+   * What a sheet's tab says: its own name, else its first grid's report title (what that grid reads -- so a page of
+   * one sheet looks as it did, its source's name in the one tab), else "Sheet N".
+   */
+  #sheetLabel(sheet: SheetInfo): string {
+    if (sheet.name !== undefined) return sheet.name;
+    const grid = sheet.tiles.find((t) => this.grid(t) !== undefined && this.#page.grids.has(t));
+    const title = grid !== undefined ? this.grid(grid)?.configuration.reportTitle : undefined;
+    return title || `Sheet ${this.#page.sheets.findIndex((s) => s.id === sheet.id) + 1}`;
+  }
+
+  /** The sheets, in order (their ids), and the one shown. */
+  get sheets(): readonly string[] {
+    return this.#page.sheets.map((s) => s.id);
+  }
+
+  get shownSheet(): string {
+    return this.#page.shownSheet;
+  }
+
+  /** What a sheet's tab says. */
+  sheetLabel(id: string): string {
+    const sheet = this.#page.sheets.find((s) => s.id === id);
+    return sheet ? this.#sheetLabel(sheet) : id;
+  }
+
+  #paintSheets(): void {
+    const sheets = this.#page.sheets;
+    this.#sheetTabs.paint(sheets.map((s) => ({ id: s.id, label: this.#sheetLabel(s) })), this.#page.shownSheet, this.#page.editing);
+  }
+
+  /** A sheet's tab's Delete: asked first when it has tiles, which go with it. */
+  #removeSheet(id: string): void {
+    const sheet = this.#page.sheets.find((s) => s.id === id);
+    if (!sheet) return;
+    const ask = this.#options.confirm ?? ((q: string) => this.#doc.defaultView?.confirm(q) ?? false);
+    const n = sheet.tiles.length;
+    if (n > 0 && !ask(`Delete the sheet "${this.#sheetLabel(sheet)}" and the ${n === 1 ? 'tile' : `${n} tiles`} on it?`)) return;
+    this.#page.removeSheet(id);
+  }
+
+  /** The sheets changed, or another is shown: the tabs, the lone grid, the empty sheet, the host's readout. */
+  #onSheets(): void {
+    this.#paintSheets();
+    this.#paintEmpty();
+  }
+
+  /** The grids on the page, sheet by sheet in reading order (not those kept off it for a detached chart). */
   get grids(): readonly string[] {
     const on = new Set(this.#page.grids.keys());
     return this.#page.tileIds.filter((id) => on.has(id));
@@ -270,8 +429,8 @@ export class PageApp {
       const hostStatus = this.#options.hostStatus;
       const grid = make(host, {
         ...options,
-        // the host's readout, in this grid's bar while it is the page's first
-        ...(hostStatus && id !== undefined ? { hostStatus: (slot: HTMLElement) => { if (this.grids[0] === id) hostStatus(slot); } } : {}),
+        // the host's readout, in this grid's bar while it is the first on the sheet shown
+        ...(hostStatus && id !== undefined ? { hostStatus: (slot: HTMLElement) => { if (this.#firstShown() === id) hostStatus(slot); } } : {}),
         // made while the bar is folded: it says so too, or the bar would come back once it is the only grid
         ...(this.barFolded ? { titleBarHidden: true } : {}),
       }, start);
@@ -280,9 +439,15 @@ export class PageApp {
     };
   }
 
-  /** The host's readout moved to the page's first grid, when that is another grid now. */
+  /** The first grid on the sheet shown, by its id: where the host's readout is. */
+  #firstShown(): string | undefined {
+    const shown = this.#page.sheets.find((s) => s.id === this.#page.shownSheet);
+    return shown?.tiles.find((t) => this.#page.grids.has(t));
+  }
+
+  /** The host's readout moved to the first grid on the sheet shown, when that is another grid now. */
   #rehomeStatus(): void {
-    const first = this.grids[0];
+    const first = this.#firstShown();
     const grid = first !== undefined ? this.grid(first) : undefined;
     if (grid === this.#first) return;
     const was = this.#first;
@@ -324,6 +489,7 @@ export class PageApp {
     this.#page.dispose();
     this.#grids.clear();
     this.#page = this.#newBoard();
+    this.#paintSheets();
     this.#paintEmpty();
     this.#options.onChange?.();
   }
@@ -390,8 +556,10 @@ export class PageApp {
     this.#page = this.#newBoard();
     // its grids say how its bar is, as they were saved: not as the page before it had its bar
     this.#foldBar(false);
-    // in the layout's reading order; a grid the layout has no place for, last
-    const order = tiles(page.layout);
+    // its sheets first: each grid then goes on the sheet it was saved on
+    this.#page.setSheets(page.sheets);
+    // in the sheets' reading order; a grid no sheet has a place for, last
+    const order = page.sheets.flatMap((sheet) => tiles(sheet.layout));
     const at = (id: string): number => (order.includes(id) ? order.indexOf(id) : order.length);
     const grids = page.views.filter((v) => v.kind === 'grid').sort((a, b) => at(a.id) - at(b.id));
     const tileOf = new Map<string, string>();
@@ -406,6 +574,7 @@ export class PageApp {
       this.#page.keepGrid(id, this.#maker(make));
     }
     this.#page.restore(page, (cube) => tileOf.get(cube) ?? (this.#page.kept.has(cube) ? cube : undefined));
+    this.#paintSheets();
     this.#paintEmpty();
     this.#onGridChange();
     // a change of the page, as `clear` is: its host re-reads it (a kept grid let go just now, its table with it)
@@ -417,6 +586,7 @@ export class PageApp {
     this.#disposed = true;
     this.#menu.close();
     this.#page.dispose();
+    this.#sheetTabs.dispose();
     this.#grids.clear();
     this.#root.remove();
   }
@@ -444,6 +614,9 @@ export class PageApp {
         if (!was || !this.grid(from)) throw new Error(`no grid ${from} on the page to copy`);
         return this.#maker(was.make, { snapshot, configuration: was.grid.configuration });
       },
+      sheetLabel: (id) => this.sheetLabel(id),
+      onSheets: () => this.#onSheets(),
+      sheetTabs: { at: (x, y) => this.#sheetTabs.at(x, y), hover: (id) => this.#sheetTabs.hover(id) },
     });
   }
 
@@ -453,13 +626,18 @@ export class PageApp {
     for (const id of [...this.#grids.keys()]) if (!live.has(id)) this.#grids.delete(id);
     this.#paintEmpty();
     this.#onGridChange();
+    // a sheet named after its first grid: that grid came or went
+    this.#paintSheets();
   }
 
+  /** The empty page (no tile on any sheet: the host's choices), or an empty sheet's card, or the sheet shown. */
   #paintEmpty(): void {
     this.#rehomeStatus();
     const empty = this.empty;
+    const bare = !empty && (this.#page.sheets.find((s) => s.id === this.#page.shownSheet)?.tiles.length ?? 0) === 0;
     this.#boardHost.hidden = empty;
     this.#empty.hidden = !empty;
+    this.#emptySheet.hidden = !bare;
     this.#root.classList.toggle('dc-page-is-empty', empty);
     this.#page.showAlone(empty ? null : this.#alone);
   }
@@ -492,6 +670,7 @@ export class PageApp {
     const groups: MenuGroup[] = [
       { label: '', items: submenu('New', [
         ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source…' }] : []),
+        { id: 'sheet.new' as const, label: 'Sheet', ...(page.editing ? {} : { disabled: true }) },
         ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'Blank Page', separated: true }] : []),
       ]) },
       { label: '', items: this.#hostItems('data') },
@@ -521,6 +700,9 @@ export class PageApp {
       case 'page.blank':
         this.#options.onBlankPage?.();
         return;
+      case 'sheet.new':
+        this.#page.addSheet();
+        return;
       case 'page.arrange':
         this.#page.showLayouts(this.#burger.isConnected ? this.#burger : this.#root);
         return;
@@ -534,7 +716,7 @@ export class PageApp {
         this.#page.setEditing(!this.#page.editing);
         return;
       case 'page.export': {
-        const name = this.#name || 'page';
+        const name = this.suggestedName || 'page';
         const doc = this.document(name);
         if (doc) this.#options.download?.(`${name}.page.json`, 'application/json', pageToJson(doc));
         return;

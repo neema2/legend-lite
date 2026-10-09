@@ -9,7 +9,7 @@ import { describe, it } from 'node:test';
 import { col, fn, lambda, lit, accessor } from '../../pure-protocol/src/index.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../src/config.ts';
 import { writeCube, type FileSource } from '../src/cube-document.ts';
-import { pageDefinitionText, writePage, type PageDocument } from '../src/page-document.ts';
+import { oneSheet, pageDefinitionText, writePage, type PageDocument } from '../src/page-document.ts';
 import {
   LINK_BUDGET, ShareLinkError, isPageFragment, pageFragment, readPageFragment, shareLink,
 } from '../src/share/link.ts';
@@ -77,9 +77,9 @@ function page(n: number, o: { inList?: number; title?: string } = {}): PageDocum
         y: [{ column: 'pnl', fn: 'sum' }], options: { orientation: 'vertical', stack: 'none', sort: { by: 'y', direction: 'desc' },
           limit: 20, labels: false, legend: 'none' } } },
     ],
-    layout: { kind: 'bands', fit: false, bands: [{ height: 0.25, node: { split: 'row', parts: [
+    sheets: oneSheet({ kind: 'bands', fit: false, bands: [{ height: 0.25, node: { split: 'row', parts: [
       { node: { tile: 'grid' }, size: 2 / 3 }, { node: { tile: 'pnl-by-desk' }, size: 1 / 3 },
-    ] } }] },
+    ] } }] }),
   } });
 }
 
@@ -134,14 +134,14 @@ const V1_LINK = 'p1.1VvJbsIwEP2ViDNQZyUcOeRQCaRCpV4qZNlZeqCliNBWHPrvHTvBSewEskr0
   'WvwXWURMACoV_SqJb6XShdFpcrryQHrVLk4Tb2XClTpRCnUqLCrs6Js-_sH';
 
 describe('a link made before bands still opens', () => {
-  it('as its page, its 12-column layout read as bands, written back as version 2', () => {
+  it('as its page, its 12-column layout read as one sheet of bands, written back as version 3', () => {
     const got = readPageFragment(V1_LINK);
-    assert.equal(got.version, 2);
+    assert.equal(got.version, 3);
     assert.equal(got.name, 'Rates book, Q3 by desk');
     assert.deepEqual(got.views.map((v) => v.id), ['grid', 'pnl-by-desk']);
-    assert.deepEqual(got.layout, { kind: 'bands', fit: false, bands: [{ height: 0.25, node: { split: 'row', parts: [
+    assert.deepEqual(got.sheets, oneSheet({ kind: 'bands', fit: false, bands: [{ height: 0.25, node: { split: 'row', parts: [
       { node: { tile: 'grid' }, size: 8 / 12 }, { node: { tile: 'pnl-by-desk' }, size: 4 / 12 },
-    ] } }] });
+    ] } }] }));
     same(got, readPageFragment(pageFragment(got)));
   });
 });

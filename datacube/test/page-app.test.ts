@@ -2,16 +2,20 @@
 // over a fake engine), made the way DataCube's app makes them: the page's bar and menu, a lone grid sharing the bar's
 // strip, every grid equal (the first removable), the empty page, the page saved with one cube per grid and reopened, a
 // detached chart's grid kept off the board and saved, a grid's own changes and Settings reaching the page; every grid
-// made by the host's maker (a copy too), the host's readout in the first grid's status bar, the bar's fold.
+// made by the host's maker (a copy too), the host's readout in the first grid's status bar, the bar's fold; and sheets
+// (the design's §7): the name box, the tabs, a grid moved to another sheet with its chart following it, saved and
+// reopened, a sheet renamed and deleted.
 
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../src/app.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { configurationOf, type CubeDocument, type FileSource } from '../src/cube-document.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
 import { pageToJson, readPage } from '../src/page-document.ts';
+import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 
 let dom: JSDOM;
@@ -69,7 +73,8 @@ let made: [string | undefined, boolean][] = [];
  */
 const over = (name: string, saved?: CubeDocument): GridMaker => (gridHost, spawned, start) => {
   made.push([spawned.id, start !== undefined]);
-  const configuration = start?.configuration ?? (saved ? configurationOf(saved) : undefined);
+  // named after its source, as DataCube's app names a grid it opens (its report title)
+  const configuration = start?.configuration ?? (saved ? configurationOf(saved) : { ...DEFAULT_CONFIGURATION, reportTitle: name });
   return new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
     engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
     ...(configuration ? { configuration } : {}),
@@ -89,6 +94,15 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
 }
 
 const tile = (id: string): HTMLElement => host.querySelector(`[data-tile="${id}"]`) as HTMLElement;
+/** The sheets' tabs, as they read. */
+const tabs = (): string[] => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].map((t) => t.textContent ?? '');
+const tabOf = (label: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].find((t) => t.textContent === label)!;
+/** A tab clicked, as a pointer does (pressed and let go where it was). */
+function clickTab(label: string): void {
+  const tab = tabOf(label);
+  tab.dispatchEvent(new dom.window.PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 0 }));
+  tab.dispatchEvent(new dom.window.PointerEvent('pointerup', { bubbles: true, button: 0, clientX: 0 }));
+}
 const bar = (): HTMLElement => host.querySelector('.dc-page-bar') as HTMLElement;
 /** The page's menu, opened: its entries at the top level by what a person reads. */
 function pageMenu(): HTMLElement[] {
@@ -126,7 +140,10 @@ async function chartOf(gridTile: string): Promise<string> {
 describe('a page of its own', () => {
   it('starts empty: its bar and menu, and the host\'s choices of a source where the tiles would be', () => {
     newPage();
-    assert.equal(bar().querySelector('.dc-titlebar-title')!.textContent, 'Q3');
+    assert.equal(bar().querySelector('.dc-page-name')!.textContent, 'Q3');
+    // one sheet, its tab, and a + for more
+    assert.deepEqual([...bar().querySelectorAll('.dc-sheet-tab')].map((t) => t.textContent), ['Sheet 1']);
+    assert.ok(bar().querySelector('.dc-sheet-add'));
     assert.equal(host.querySelector<HTMLElement>('.dc-page-empty')!.hidden, false);
     assert.equal(host.querySelector('.dc-page-empty')!.textContent, 'Add a data source');
     assert.equal(host.querySelector<HTMLElement>('.dc-board-host')!.hidden, true);
@@ -191,7 +208,7 @@ describe('a page of its own', () => {
     page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
     await settle();
     assert.deepEqual(page.grids, [a, b]);
-    assert.deepEqual(page.views(), { views: doc.views, layout: doc.layout });
+    assert.deepEqual(page.views(), { views: doc.views, sheets: doc.sheets });
   });
 
   it('a frozen chart whose grid is removed keeps reading that grid, kept off the board; saved, and reopened detached', async () => {
@@ -368,6 +385,129 @@ describe('a page of its own', () => {
     page.restore(back, new Map(back.cubes.map((x) => [x.id, over(x.cube.source.name, x.cube)])));
     await settle();
     assert.equal(page.barFolded, true);
+  });
+
+  it('names its one sheet after its grid\'s source; the name box says the page\'s name, or that it has none yet', async () => {
+    const renamed: string[] = [];
+    newPage({ title: '', onRename: (name) => { renamed.push(name); page.setTitle(name); } });
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    assert.deepEqual(tabs(), ['trades.csv']);
+    const box = bar().querySelector<HTMLElement>('.dc-page-name')!;
+    assert.equal(box.textContent, 'Untitled page');
+    assert.equal(page.suggestedName, 'trades.csv', 'Save suggests the sheet\'s name');
+    // renamed in place: the host keeps it
+    box.click();
+    const field = box.querySelector('input')!;
+    field.value = 'Q3 review';
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+    assert.deepEqual(renamed, ['Q3 review']);
+    assert.equal(box.textContent, 'Q3 review');
+    assert.deepEqual(tabs(), ['trades.csv'], 'the page\'s name is not its sheet\'s');
+    page.setChanged(true);
+    assert.ok(box.classList.contains('dc-page-name-changed'), 'the dot, once changed since saved');
+    assert.ok(page.grid(a));
+  });
+
+  it('a second sheet: +, shown and empty; a grid moved onto it from its menu; its chart, on the first, follows it', async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    const first = page.shownSheet;
+    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    assert.equal(tabs().length, 2);
+    assert.notEqual(page.shownSheet, first, 'the new sheet is shown');
+    assert.equal(host.querySelector<HTMLElement>('.dc-sheet-empty')!.hidden, false, 'an empty sheet says so');
+    // back to the first, and its grid onto the second from the grid's own menu
+    clickTab(tabs()[0]!);
+    await settle();
+    assert.equal(page.shownSheet, first);
+    const second = page.sheets[1]!;
+    gridMenuItem(a, 'Sheet 2').click();
+    await settle();
+    assert.deepEqual(page.sheets.map((id) => page.views().sheets.find((s) => s.id === id)!.layout.bands.length), [1, 1]);
+    assert.equal(tile(a).closest<HTMLElement>('.dc-sheet')!.dataset['sheet'], second, 'the grid is on the second sheet');
+    assert.equal(tile(chart).closest<HTMLElement>('.dc-sheet')!.dataset['sheet'], first, 'its chart stays');
+    assert.deepEqual(tabs(), ['Sheet 1', 'trades.csv'], 'each sheet named after its first grid, else by its place');
+    // the chart still follows the grid it reads, on the other sheet
+    const before = page.views().views.find((v) => v.id === chart);
+    (tile(a).querySelector('.dc-zone-rows .dc-chip[data-column="desk"] .dc-chip-remove') as HTMLElement).click();
+    await settle();
+    const after = page.views().views.find((v) => v.id === chart);
+    assert.ok(before?.kind === 'chart' && after?.kind === 'chart');
+    assert.notDeepEqual(after.spec, before.spec, 'it followed its grid\'s regrouping');
+  });
+
+  it('is saved with its sheets, their order and names; reopens on its first sheet, each tile on its own', async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    await settle();
+    const [s1, s2] = page.sheets;
+    clickTab(tabs()[0]!);
+    await settle();
+    // the chart onto the second sheet, by its own right-click menu
+    (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
+      .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Sheet 2')!.click();
+    await settle();
+    // the second sheet renamed with a double click, then moved first
+    tabOf('Sheet 2').dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+    const field = tabOf('').querySelector('input')!;
+    field.value = 'Charts';
+    field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+    await settle();
+    assert.deepEqual(tabs(), ['trades.csv', 'Charts']);
+    tabOf('Charts').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Move Left')!.click();
+    await settle();
+    assert.deepEqual(tabs(), ['Charts', 'trades.csv']);
+    const doc = page.document('Q3')!;
+    assert.deepEqual(doc.sheets.map((s) => [s.id, s.name]), [[s2, 'Charts'], [s1, undefined]]);
+    assert.deepEqual(doc.sheets.map((s) => tilesOf(s.layout)), [[chart], [a]]);
+    const back = readPage(pageToJson(doc));
+    page.dispose();
+    newPage();
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name, c.cube)])));
+    await settle();
+    assert.deepEqual(tabs(), ['Charts', 'trades.csv']);
+    assert.equal(page.shownSheet, s2, 'it reopens on its first sheet');
+    assert.deepEqual(page.views(), { views: doc.views, sheets: doc.sheets });
+  });
+
+  it('deletes a sheet with its tiles once asked, never its last; the readout follows the sheet shown', async () => {
+    const asked: string[] = [];
+    let answer = false;
+    const readout = dom.window.document.createElement('span');
+    newPage({ confirm: (q) => { asked.push(q); return answer; }, hostStatus: (slot) => slot.append(readout) });
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    const b = page.addGrid(over('orders.csv'));
+    await settle();
+    assert.ok(tile(b).contains(readout), 'in the first grid of the sheet shown');
+    clickTab('trades.csv');
+    await settle();
+    assert.ok(tile(a).contains(readout), 'moved with the sheet shown');
+    const del = (labelText: string): void => {
+      tabOf(labelText).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!.click();
+    };
+    del('orders.csv');
+    assert.equal(asked.length, 1, 'asked, as it has a tile');
+    assert.equal(page.sheets.length, 2, 'and kept on No');
+    answer = true;
+    del('orders.csv');
+    await settle();
+    assert.deepEqual(tabs(), ['trades.csv']);
+    assert.deepEqual(page.grids, [a], 'its grid went with it');
+    tabOf('trades.csv').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    const last = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!;
+    assert.equal(last.getAttribute('aria-disabled'), 'true', 'the last sheet stays');
   });
 
   it('its menu: New > Data Source adds a grid through the host\'s picker; the host\'s entries; Page File exports it', async () => {

@@ -162,6 +162,8 @@ export type MenuActionId =
   | `host.${string}`
   /** A tile's own entries (a chart's right-click menu, page/cube-page.ts). */
   | `tile.${string}`
+  /** A page's sheets (page/page-app.ts, ui/sheet-tabs.ts): a tab's own entries, and a tile's Move to Sheet (`sheet.to.<id>`). */
+  | `sheet.${string}`
   | 'sort.asc'
   | 'sort.desc'
   | 'sort.addAsc'

@@ -332,6 +332,21 @@ the demo's browser harnesses that read the bar's title, and their tests: `test/s
 `test/page-app.test.ts`, `test/page-document.test.ts`, `test/share-link.test.ts`, and browser checks of a page of two
 sheets -- a chart on one following a grid on the other -- saved, shared and reopened, and a tile dragged onto a tab.
 
+**As built (3a, 2026-10-09)**, where the plan above needed a decision:
+
+- **A tile moved to another sheet** (its menu's Move to Sheet -- a grid's own menu, a chart's right-click menu -- or a
+  drag onto the tab) leaves the sheet shown as it is; the tile goes to the bottom of its new sheet, and the move is
+  said. New ▸ Sheet in the page's menu adds a sheet as the + does.
+- **Renaming the page is a change** ("changed since saved"): the page's definition leaves its name out (so a page
+  saved under another name compares equal), so the host compares the name it was saved under as well.
+- **The host's readout** is in the first grid's status bar of the sheet shown, and moves with the sheet shown.
+- **Folding the bar** keeps its rule (folded while every grid on the page says its title bar is hidden), page-wide,
+  across sheets.
+- **The download budget** for a grid-only page rises from 368,000 to 378,000 bytes (measured 375,751; main before it
+  367,729): the tabs, a board per sheet and the name box are on screen from the start.
+- The browser checks that compared a page's `layout` now compare its `sheets` (with `layout` gone they compared
+  nothing to nothing, and passed).
+
 3b: `src/layout/bands.ts` (the stack node), `src/layout/band-board.ts` (the stack's tab header), `src/page/cube-page.ts`,
 `src/page-document.ts`, `src/export-model.ts` (the front tile), `src/app.css`, and `test/bands.test.ts` (the fuzz),
 `test/band-board.test.ts`, and the browser session (`demo/verify-layout.mjs`): a stack made by a drag, a tab dragged

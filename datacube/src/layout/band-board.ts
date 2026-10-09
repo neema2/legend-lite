@@ -74,6 +74,16 @@ export interface BandBoardOptions {
   readonly onRename?: (id: string, title: string) => void;
   /** A tile's layout button was pressed: the caller shows the layouts (ui/layout-picker.ts) by `anchor`. */
   readonly onLayout?: (id: string, anchor: HTMLElement) => void;
+  /**
+   * A place OUTSIDE the board a dragged tile can be let go on (a page's sheet tab, page/cube-page.ts): asked at each
+   * move with the pointer's position in the window -- true, and the board outlines nothing, the caller marks it --
+   * then `drop` when let go there; `leave` when the drag ends anyhow.
+   */
+  readonly outside?: {
+    readonly over: (x: number, y: number) => boolean;
+    readonly drop: (id: string, x: number, y: number) => void;
+    readonly leave: () => void;
+  };
 }
 
 /** A band's least height, on average, on a page that fits its window: past it the page scrolls (bands.ts draw). */
@@ -631,21 +641,32 @@ export class BandBoard {
     if (!tile) return;
     const head = e.currentTarget as HTMLElement;
     const start = this.#at(e);
+    const outside = this.#options.outside;
     let target: Drop | undefined;
+    /** Over the place outside the board (a sheet's tab): the board proposes nothing. */
+    let away = false;
     tile.root.classList.add('dc-tile-dragging');
     this.#own(head, e, (ev) => {
       const at = this.#at(ev);
       tile.root.style.transform = `translate(${at.x - start.x}px, ${at.y - start.y}px)`;
-      target = dropAt(this.#drawn, id, at.x, at.y);
+      away = outside?.over(ev.clientX, ev.clientY) ?? false;
+      target = away ? undefined : dropAt(this.#drawn, id, at.x, at.y);
       this.#outline(target);
     }, (apply, ev) => {
       tile.root.classList.remove('dc-tile-dragging');
       tile.root.style.transform = '';
       this.#outline(undefined);
       if (apply && ev) {
+        away = outside?.over(ev.clientX, ev.clientY) ?? false;
+        if (away) {
+          outside?.leave();
+          outside?.drop(id, ev.clientX, ev.clientY);
+          return;
+        }
         const at = this.#at(ev);
         target = dropAt(this.#drawn, id, at.x, at.y);
       }
+      outside?.leave();
       if (!apply || target === undefined) return;
       const next = drop(this.#layout, id, target);
       if (next === this.#layout) return;

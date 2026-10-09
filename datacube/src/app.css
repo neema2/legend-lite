@@ -47,9 +47,27 @@
   position: relative;
 }
 
-.dc-page > .dc-board-host { flex: 1 1 auto; min-height: 0; }
+/* the board's holder: its sheets (page/cube-page.ts), one shown -- each a board of bands that fills it */
+.dc-board-host { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.dc-board-host > .dc-sheet[hidden] { display: none; }
 .dc-page > .dc-board-host[hidden],
-.dc-page > .dc-page-empty[hidden] { display: none; }
+.dc-page > .dc-page-empty[hidden],
+.dc-page > .dc-sheet-empty[hidden] { display: none; }
+
+/* a sheet with nothing on it, on a page that has tiles elsewhere: it says so, and how to fill it */
+.dc-page > .dc-sheet-empty {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: var(--dc-pad-2);
+  color: var(--dc-muted);
+  text-align: center;
+}
+.dc-sheet-empty > p { margin: 0; max-width: 44ch; }
 .dc-page > .dc-page-empty { flex: 1 1 auto; min-height: 0; display: flex; }
 .dc-page > .dc-page-empty > * { flex: 1 1 auto; }
 
@@ -59,6 +77,85 @@
 .dc-page-alone { flex: none; align-self: stretch; display: flex; align-items: center; }
 .dc-page-alone:empty { display: none; }
 .dc-page-alone > .dc-tile-cube { align-self: stretch; }
+
+/* THE NAME BOX (the design's §7.1): the page's name, after the menu -- "Untitled page" before it has one, a dot once
+   it changed since it was saved; a click renames it in place */
+.dc-page-name {
+  flex: 0 1 auto;
+  min-width: 48px;
+  max-width: 240px;
+  height: 20px;
+  margin: 0 var(--dc-pad-1);
+  padding: 0 var(--dc-pad-2);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-sm);
+  background: var(--tw-white);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dc-page-name[role='button'] { cursor: text; }
+.dc-page-name[role='button']:hover { border-color: var(--dc-line-strong); }
+.dc-page-name.dc-page-name-untitled { color: var(--dc-muted); font-weight: 400; font-style: italic; }
+.dc-page-name.dc-page-name-changed::after { content: '\2022'; margin-left: 6px; color: var(--dc-active); }
+.dc-page-name-field { width: 200px; font: inherit; border: 0; padding: 0; background: transparent; outline: none; }
+
+/* THE SHEET TABS (ui/sheet-tabs.ts), as a browser's: the sheet shown raised into the page below, a + after them, a
+   list of every sheet when they are more than the strip holds */
+.dc-sheet-tabs { flex: 0 1 auto; min-width: 0; align-self: stretch; display: flex; align-items: flex-end; gap: 2px; }
+.dc-sheet-strip { min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.dc-sheet-strip::-webkit-scrollbar { display: none; }
+.dc-sheet-tab {
+  flex: 0 1 160px;
+  min-width: 56px;
+  max-width: 200px;
+  height: 24px;
+  padding: 0 var(--dc-pad-2);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  color: var(--dc-muted);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.dc-sheet-tab:hover { background: var(--tw-neutral-200); }
+.dc-sheet-tab.dc-sheet-tab-shown { background: var(--tw-white); color: var(--tw-black); border-color: var(--dc-line); font-weight: 500; }
+.dc-sheet-tab:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
+.dc-sheet-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dc-sheet-name { width: 100%; min-width: 0; font: inherit; border: 0; padding: 0; background: transparent; outline: none; }
+/* a tile dragged over a tab (dropped there, it moves to that sheet); a tab dragged along the strip, and where it goes */
+.dc-sheet-tab.dc-sheet-tab-target { background: var(--dc-selected-bg); border-color: var(--dc-active); color: var(--tw-black); }
+.dc-sheet-tab.dc-sheet-tab-dragging { opacity: 0.6; }
+.dc-sheet-tab.dc-sheet-tab-before { box-shadow: inset 2px 0 0 var(--dc-active); }
+.dc-sheet-tab.dc-sheet-tab-after { box-shadow: inset -2px 0 0 var(--dc-active); }
+.dc-sheet-add,
+.dc-sheet-list {
+  flex: none;
+  align-self: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: var(--dc-muted);
+  font: inherit;
+  font-size: var(--dc-text-lg-size);
+  line-height: 1;
+  cursor: pointer;
+}
+.dc-sheet-add:hover,
+.dc-sheet-list:hover { background: var(--tw-neutral-200); color: var(--tw-black); }
+.dc-sheet-add[hidden],
+.dc-sheet-list[hidden] { display: none; }
 
 /* the page's bar folded: a lip, a lone grid's header keeping only the zones' way back, in its place */
 .dc-page-bar.dc-collapsed .dc-page-alone { overflow: hidden; }

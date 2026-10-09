@@ -131,7 +131,7 @@ describe('Open in grid: a grid of its own, beside the chart', () => {
       'a cube of its own');
     assert.deepEqual(app.snapshot.rows, ['region'], 'the cube\'s grid is untouched');
     // not part of the page while open
-    assert.ok(!tiles(app.pageViews().layout).includes(`edit-${a}`));
+    assert.ok(!tiles(app.pageViews().sheets[0]!.layout).includes(`edit-${a}`));
     // re-group there, and update the chart
     await ungroup(editZone, 'desk');
     const title = app.pageViews().views.find((v) => v.id === a)!.title;
@@ -182,7 +182,7 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     assert.ok(item, `the title bar's menu offers ${label}`);
     return item;
   };
-  const bands = (): string[][] => app.pageViews().layout.bands.map((b) => tiles({ fit: false, bands: [b] }));
+  const bands = (): string[][] => app.pageViews().sheets[0]!.layout.bands.map((b) => tiles({ fit: false, bands: [b] }));
   /** The bands as the board shows them, every tile in (an added grid too, which the saved page leaves out until v2). */
   const boardBands = (): string[][] => {
     const tops = new Map<string, string[]>();

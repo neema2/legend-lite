@@ -9,10 +9,12 @@
 //            spec (plain JSON, ours: chart-spec.ts), frozen or live, and the mark it
 //            is filtering the cube to (the conditions are in the cube's filter; the
 //            view names them, so the chart can take them off again)
-//   layout   where each view sits: the page's bands (layout/bands.ts) -- each band a tree of
-//            rows and columns with shares, down to the views' tiles -- and whether the page
-//            fits its window or scrolls. Version 1 placed tiles on a 12-column grid; a page
-//            of version 1 is read as bands (`fromCells`) and written back as version 2.
+//   sheets   where each view sits: the page's sheets, in order (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md
+//            §7.3), each a whole screen with its own bands (layout/bands.ts) -- each band a tree
+//            of rows and columns with shares, down to the views' tiles -- and whether it fits
+//            its window or scrolls; every view on one sheet. Version 2 had one layout and
+//            version 1 placed tiles on a 12-column grid: each is read as a page of one sheet
+//            (version 1's grid as bands, `fromCells`) and written back as version 3.
 //
 // ONE thing is saved, always the page (user ruling, 2026-09-28): a cube with no charts
 // is a page of its grid alone; a cube saved bare before that still opens, as a page of
@@ -20,8 +22,8 @@
 // page is refused by name), UNKNOWN FIELDS KEPT (written back verbatim), and a page
 // that cannot be read fails LOUDLY.
 //
-// Step 1 holds one cube. The list of cubes is already a list, and every view names
-// its cube, so pages of several cubes change no field.
+// A page holds a cube per grid (a page of its own) or one (a cube alone's page); every view
+// names its cube.
 
 import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protocol/src/index.ts';
 import { CHART_MARKS, type ChartSpec } from './chart-spec.ts';
@@ -30,8 +32,13 @@ import { type Bands, type Node, fromCells, problems, tiles as tilesOf } from './
 import type { FilterNode } from './snapshot.ts';
 
 export const PAGE_KIND = 'datacube.page';
-/** 2: the layout as bands (2026-10-09, docs/DATACUBE_PAGES_DESIGN_2026_10_09.md). 1: tiles on a 12-column grid. */
-export const PAGE_VERSION = 2;
+/**
+ * 3: sheets, each its own bands (2026-10-09, docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.3). 2: one layout, as bands.
+ * 1: tiles on a 12-column grid.
+ */
+export const PAGE_VERSION = 3;
+/** The sheet a page of one sheet has: a version 1 or 2 page's, and a cube alone's. */
+export const FIRST_SHEET = 'sheet-1';
 /** A version 1 page's grid: its rows to a screenful (the board it was saved from). */
 const V1_ROWS = 24;
 
@@ -60,11 +67,22 @@ export interface PageLayout extends Bands {
   readonly kind: 'bands';
 }
 
-/** What a cube app shows around its cube: its views and their layout. */
-export interface PageViews {
-  readonly views: readonly PageView[];
+/** A sheet: a whole screen of the page's views, laid out as its bands. */
+export interface PageSheet {
+  readonly id: string;
+  /** Its name, when someone gave it one (else it is named after what it shows). */
+  readonly name?: string;
   readonly layout: PageLayout;
 }
+
+/** What a cube app shows around its cube: its views, and the sheets they are laid out on (each view on one). */
+export interface PageViews {
+  readonly views: readonly PageView[];
+  readonly sheets: readonly PageSheet[];
+}
+
+/** A page of one sheet, laid out as `layout`. */
+export const oneSheet = (layout: PageLayout): readonly PageSheet[] => [{ id: FIRST_SHEET, layout }];
 
 export interface PageDocument extends PageViews {
   readonly kind: typeof PAGE_KIND;
@@ -82,7 +100,8 @@ export class PageDocumentError extends Error {
   }
 }
 
-const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'layout']);
+// `layout`: a version 1 or 2 page's, read into its one sheet (and not written back beside the sheets)
+const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'layout']);
 
 /** The one cube of a step-1 page. */
 export const PAGE_CUBE = 'cube';
@@ -102,7 +121,7 @@ export function writePage(o: {
     // the page's name is the cube's too: one name, whichever is opened
     cubes: [{ id: PAGE_CUBE, cube: { ...o.cube, name: o.name } }],
     views: o.views.views,
-    layout: o.views.layout,
+    sheets: o.views.sheets,
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
   };
 }
@@ -124,7 +143,7 @@ export function writePageOf(o: {
     // the page's name is each cube's too: one name, whichever is opened
     cubes: o.cubes.map((c) => ({ id: c.id, cube: { ...c.cube, name: o.name } })),
     views: o.views.views,
-    layout: o.views.layout,
+    sheets: o.views.sheets,
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
   };
 }
@@ -146,14 +165,14 @@ export function pageToJson(page: PageDocument): string {
 
 /**
  * What makes two pages "the same" for "changed since saved": each cube's definition, the
- * views and the layout. Not the name, not the open rows.
+ * views and the sheets (their names, order and layouts). Not the name, not the open rows.
  */
 export function pageDefinitionText(page: PageDocument): string {
   // the protocol's writer puts keys in one order: a page read back compares equal
   return protocolJson({
     cubes: page.cubes.map((c) => definitionText(c.cube)),
     views: page.views,
-    layout: page.layout,
+    sheets: page.sheets,
   });
 }
 
@@ -201,7 +220,16 @@ export function readPage(input: string | unknown): PageDocument {
   const viewIds = new Set(views.map((v) => v.id));
   if (viewIds.size !== views.length) throw new PageDocumentError('two views share an id');
 
-  const layout = readLayout(plain(raw['layout']), viewIds, version);
+  const sheets = version < 3
+    ? oneSheet(readLayout(plain(raw['layout']), viewIds, version, "'layout'"))
+    : readSheets(plain(raw['sheets']), viewIds);
+  // every view has its place, on one sheet: a view the layout leaves out would be put somewhere on opening, and the
+  // page read as changed before anyone touched it
+  const placed = sheets.flatMap((sheet) => tilesOf(sheet.layout));
+  const twice = placed.filter((id, i) => placed.indexOf(id) !== i);
+  if (twice.length > 0) throw new PageDocumentError(`${[...new Set(twice)].join(', ')} on two sheets`);
+  const missing = [...viewIds].filter((id) => !placed.includes(id));
+  if (missing.length > 0) throw new PageDocumentError(`no sheet has a place for ${missing.join(', ')}`);
 
   const unknown: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(raw)) if (!KNOWN.has(k)) unknown[k] = plain(v);
@@ -212,9 +240,29 @@ export function readPage(input: string | unknown): PageDocument {
     name: raw['name'],
     cubes,
     views,
-    layout,
+    sheets,
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
   };
+}
+
+function readSheets(raw: unknown, views: ReadonlySet<string>): readonly PageSheet[] {
+  if (!Array.isArray(raw) || raw.length === 0) throw new PageDocumentError("'sheets' is not a list of sheets");
+  const ids = new Set<string>();
+  return raw.map((sheet, i) => {
+    if (!isObject(sheet) || typeof sheet['id'] !== 'string') throw new PageDocumentError(`sheet ${i + 1} has no id`);
+    const id = sheet['id'];
+    if (ids.has(id)) throw new PageDocumentError(`two sheets are ${id}`);
+    ids.add(id);
+    const name = sheet['name'];
+    if (name !== undefined && (typeof name !== 'string' || name.trim() === '')) {
+      throw new PageDocumentError(`sheet ${id}'s name is not a name`);
+    }
+    return {
+      id,
+      ...(typeof name === 'string' ? { name } : {}),
+      layout: readLayout(sheet['layout'], views, 3, `sheet ${id}'s layout`),
+    };
+  });
 }
 
 function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
@@ -252,24 +300,20 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
   };
 }
 
-function readLayout(l: unknown, views: ReadonlySet<string>, version: number): PageLayout {
-  if (!isObject(l)) throw new PageDocumentError("'layout' is not a layout");
+/** A layout of bands (`what` names it in what is said): its tiles, each a view of this page, the bands' rules kept. */
+function readLayout(l: unknown, views: ReadonlySet<string>, version: number, what: string): PageLayout {
+  if (!isObject(l)) throw new PageDocumentError(`${what} is not a layout`);
   if (version === 1) return { kind: 'bands', ...readGridLayout(l, views) };
-  if (l['kind'] !== 'bands') throw new PageDocumentError("'layout' is not a layout of bands");
-  if (typeof l['fit'] !== 'boolean') throw new PageDocumentError("'layout.fit' is not true or false");
-  if (!Array.isArray(l['bands'])) throw new PageDocumentError("'layout.bands' is not a list");
+  if (l['kind'] !== 'bands') throw new PageDocumentError(`${what} is not a layout of bands`);
+  if (typeof l['fit'] !== 'boolean') throw new PageDocumentError(`${what}'s fit is not true or false`);
+  if (!Array.isArray(l['bands'])) throw new PageDocumentError(`${what}'s bands are not a list`);
   const bands = l['bands'].map((b, i) => {
     if (!isObject(b) || typeof b['height'] !== 'number') throw new PageDocumentError(`band ${i + 1} is not a height and its tiles`);
     return { height: b['height'], node: readNode(b['node'], views, `band ${i + 1}`) };
   });
   const layout: Bands = { fit: l['fit'], bands };
   const wrong = problems(layout);
-  if (wrong.length > 0) throw new PageDocumentError(`'layout' cannot be laid out: ${wrong.join('; ')}`);
-  // every view has its place: a view the layout leaves out would be put somewhere on opening, and the page read as
-  // changed before anyone touched it
-  const placed = new Set(tilesOf(layout));
-  const missing = [...views].filter((id) => !placed.has(id));
-  if (missing.length > 0) throw new PageDocumentError(`'layout' has no place for ${missing.join(', ')}`);
+  if (wrong.length > 0) throw new PageDocumentError(`${what} cannot be laid out: ${wrong.join('; ')}`);
   return { kind: 'bands', ...layout };
 }
 

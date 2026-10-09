@@ -60,6 +60,8 @@ import {
   pageContent,
   pageDefinitionText,
   readSaved,
+  oneSheet,
+  PAGE_VERSION,
   type PageDocument,
   type SavedDocument,
 } from '../src/page-document.ts';
@@ -701,6 +703,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   let copyShareLink: (() => Promise<void>) | undefined;
   /** Told when a view lands: "changed since saved" is re-read then. */
   let onCubeView: (() => void) | undefined;
+  /** The page renamed in its name box: its name from now (once the page can be saved, a change until it is). */
+  let renamePage = (name: string): void => page.setTitle(name);
   /** Told when a grid is made on the page, by its tile's id: what the page keeps of it (its file). */
   let madeGrid: ((id: string, place: GridPlace) => void) | undefined;
   /** Told of every change on the page: the tables no grid reads any more are dropped. */
@@ -763,6 +767,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     // right of its status bar -- a readout belongs there, not in the bar that says what is on screen. MOVED rather than
     // copied, on each render of that bar: `status` is the same node the planner writes to.
     hostStatus: (slot) => slot.append(status),
+    // THE NAME BOX renamed: the page's name from now, saved by Save (a change of the page until then)
+    onRename: (name) => renamePage(name),
     // THE EMPTY PAGE (New ▸ Blank Page, the last grid removed, a start that opened nothing): what to do first -- a
     // data source (the picker, opening in place) or a saved page
     empty: (slot) => {
@@ -955,6 +961,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     let current: {
       cubeId?: string;
       name?: string;
+      /** The name it was saved (or opened) under: a name given in the name box since is a change of the page. */
+      savedName?: string;
       /** Fields of the saved PAGE this reader does not know, and of each of its cubes, written back as they were. */
       pageUnknown?: Readonly<Record<string, unknown>>;
       cubeUnknown?: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
@@ -994,6 +1002,11 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       });
     /** The tables files were read into for grids, by table: the file's name, to drop it by. */
     const held = new Map<string, string>();
+    renamePage = (name) => {
+      current = { ...current, name };
+      page.setTitle(name);
+      onCubeView?.();
+    };
     madeGrid = (id, place) => {
       const src = place.cubeSource;
       if (place.file && src?._type === 'file') {
@@ -1033,15 +1046,17 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     const dirty = (): boolean => {
       if (current.baseline === undefined) return false;
       if ((current.lost?.length ?? 0) > 0) return true;
-      const now = savedForm(current.name ?? (page.title || 'page'));
+      if (current.name !== current.savedName) return true;
+      const now = savedForm(current.name ?? (page.suggestedName || 'page'));
       return now !== undefined && now.definition !== current.baseline;
     };
     const baseTitle = document.title;
     onCubeView = () => {
       const changed = dirty();
+      page.setChanged(changed);
       document.title = page.empty
         ? baseTitle
-        : `${changed ? '\u2022 ' : ''}${current.name ?? (page.title || 'page')} \u2013 ${baseTitle}`;
+        : `${changed ? '\u2022 ' : ''}${current.name ?? (page.suggestedName || 'page')} \u2013 ${baseTitle}`;
       library?.sync();
     };
     // Leaving the page with unsaved changes asks, the browser's way.
@@ -1143,7 +1158,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       // another page put on screen while this one landed: that page is the one to keep a baseline of
       if (!onScreen()) return [];
       // The baseline is the page as it LANDED (normalized by its first refresh)
-      const landed = savedForm(page.title || 'page');
+      const landed = savedForm(page.suggestedName || 'page');
       current = { ...(landed ? { baseline: landed.definition } : {}), lost: [] };
       onCubeView?.();
       library?.sync();
@@ -1259,11 +1274,11 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     /** A cube saved alone, before pages: a page of its one grid, the whole board. */
     const pageOf = (cube: CubeDocument): PageDocument => ({
       kind: 'datacube.page',
-      version: 2,
+      version: PAGE_VERSION,
       name: cube.name,
       cubes: [{ id: 'cube', cube }],
       views: [{ id: 'grid', kind: 'grid', cube: 'cube' }],
-      layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] },
+      sheets: oneSheet({ kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] }),
     });
 
     /**
@@ -1331,6 +1346,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       current = {
         ...(id !== undefined ? { cubeId: id } : {}),
         name: doc.name,
+        savedName: doc.name,
         ...(doc.unknown ? { pageUnknown: doc.unknown } : {}),
         cubeUnknown: new Map(doc.cubes.filter((c) => c.cube.unknown).map((c) => [gridOfCube(doc, c.id), c.cube.unknown!])),
       };
@@ -1377,7 +1393,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       if (id === current.cubeId) await store.update(id, record);
       else await store.create(record);
       await keepHandles(id);
-      current = { ...current, cubeId: id, name, baseline: form.definition, lost: [] };
+      current = { ...current, cubeId: id, name, savedName: name, baseline: form.definition, lost: [] };
       page.setTitle(name);
       onCubeView?.();
       if (!persistent) persistent = await persistStorage();
@@ -1486,7 +1502,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       }
       void (async () => {
         const refused = page.saveRefusal();
-        const offered = current.name ?? (page.title || 'page');
+        const offered = current.name ?? (page.suggestedName || 'page');
         const savedAt = current.cubeId !== undefined ? (await store.get(current.cubeId).catch(() => undefined))?.lastUpdatedAt : undefined;
         const doc = page.document(offered);
         const views = page.views().views;
@@ -1532,7 +1548,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     copyShareLink = async () => {
       // nothing on screen is said the way any unsharable page is: in the window, not as a dead button
       const refused = page.saveRefusal();
-      const name = current.name ?? (page.title || 'page');
+      const name = current.name ?? (page.suggestedName || 'page');
       const shared = refused ? undefined : page.document(name, {
         ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
         ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),

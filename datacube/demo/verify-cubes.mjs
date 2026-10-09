@@ -368,14 +368,14 @@ try {
     await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
     await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("Visualization"))').first().click();
     await page.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
-    const layout = await page.evaluate(() => JSON.stringify(window.__dataPage.views().layout));
+    const layout = await page.evaluate(() => JSON.stringify(window.__dataPage.views().sheets));
     const { url } = await copyLink();
     const tab = await openTab(url);
     try {
       await openedIn(tab);
       await tab.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
       const shared = await tab.evaluate(() => ({
-        layout: JSON.stringify(window.__dataPage.views().layout),
+        layout: JSON.stringify(window.__dataPage.views().sheets),
         locked: document.querySelector('.dc-bands')?.classList.contains('dc-bands-view') ?? false,
         editing: window.__dataPage.layoutEditing,
         handles: document.querySelectorAll('.dc-band-divider, .dc-band-edge').length,
@@ -608,6 +608,70 @@ try {
     if (got !== want) throw new Error(`reopened as ${got}, saved as ${want}`);
     await unchanged();
     return `${id} detached, its grid saved off the board; reopened the same, not marked as changed`;
+  });
+
+  // SHEETS (the design's §7): a grid on one sheet and the chart that follows it on another, saved, shared and reopened
+  await check('a page of two sheets, its chart following a grid on the other sheet: saved, shared and reopened as it was', async () => {
+    await load();
+    const before = await statusNow();
+    page.once('dialog', (d) => { void d.accept(); });
+    await pickSample('trades', 300);
+    await landed(before);
+    await chartOf('grid-1');
+    const chart = page.locator('[data-tile^="chart-"]').first();
+    await chart.waitFor({ timeout: 20_000 });
+    const chartId = await chart.getAttribute('data-tile');
+    // the grid onto a new sheet, from its own menu: its chart stays on the first
+    await page.locator('[data-tile="grid-1"] .dc-tile-menu').click();
+    const moveTo = '.dc-menu-item:has(> .dc-menu-label:text-is("Move to Sheet"))';
+    await page.locator(moveTo).first().hover();
+    await page.locator(`${moveTo} .dc-menu-item:has(> .dc-menu-label:text-is("New Sheet"))`).first().click();
+    await frames(page);
+    const sheets = await page.evaluate(() => window.__dataPage.sheets);
+    if (sheets.length !== 2) throw new Error(`${sheets.length} sheets after Move to Sheet > New Sheet`);
+    // the second sheet named by a double click on its tab
+    const second = page.locator(`.dc-sheet-tab[data-sheet="${sheets[1]}"]`);
+    await second.dblclick();
+    await second.locator('input').fill('Data');
+    await second.locator('input').press('Enter');
+    const tabs = await page.locator('.dc-sheet-tab').allTextContents();
+    if (JSON.stringify(tabs) !== JSON.stringify(['Sheet 1', 'Data'])) throw new Error(`the tabs say ${tabs.join(', ')}`);
+    // the chart follows its grid on the other sheet: the grid regrouped there, the chart regrouped with it
+    const specOf = () => page.evaluate((id) => JSON.stringify(window.__dataPage.views().views.find((v) => v.id === id)?.spec), chartId);
+    const was = await specOf();
+    await second.click();
+    // grouped by region, from a region cell's right-click menu: Pivot > Vertical Pivot on region
+    await page.locator('[data-tile="grid-1"] .dc-cell[data-column="region"]').first().click({ button: 'right' });
+    const pivot = '.dc-menu-item:has(> .dc-menu-label:text-is("Pivot"))';
+    await page.locator(pivot).first().hover();
+    await page.locator(`${pivot} .dc-menu-item:has(> .dc-menu-label:text-is("Vertical Pivot on region"))`).first().click();
+    await page.waitForFunction(([id, w]) => JSON.stringify(window.__dataPage.views().views.find((v) => v.id === id)?.spec) !== w,
+      [chartId, was], { timeout: 30_000 });
+    await saveAs('Two sheets');
+    const want = await views();
+    const { url } = await copyLink();
+    const tab = await openTab(url);
+    try {
+      await openedIn(tab);
+      await tab.locator(`[data-tile="${chartId}"]`).waitFor({ timeout: 30_000 });
+      const shared = await tab.evaluate(() => window.__dataPage.views().sheets.map((s) => s.name ?? s.id).join(', '));
+      const here = await page.evaluate(() => window.__dataPage.views().sheets.map((s) => s.name ?? s.id).join(', '));
+      if (shared !== here) throw new Error(`the shared page's sheets are ${shared}, not ${here}`);
+    } finally {
+      await tab.close();
+    }
+    await load();
+    await openSaved('Two sheets');
+    await waitMessage(/opened/);
+    // it reopens on its first sheet, the chart's; the grid is on the other, running for it
+    await page.locator(`[data-tile="${chartId}"]`).waitFor({ timeout: 60_000 });
+    await page.locator('[data-tile="grid-1"] .dc-row').first().waitFor({ state: 'attached', timeout: 60_000 });
+    await page.click('#cubeswin .dc-picker-close').catch(() => {});
+    if (await page.evaluate(() => window.__dataPage.shownSheet) !== sheets[0]) throw new Error('it did not reopen on its first sheet');
+    const got = await views();
+    if (got !== want) throw new Error(`reopened as ${got}, saved as ${want}`);
+    await unchanged();
+    return `${chartId} on Sheet 1 following grid-1 on Data: saved, shared and reopened the same, not marked as changed`;
   });
 
   await check('no page errors', async () => {
