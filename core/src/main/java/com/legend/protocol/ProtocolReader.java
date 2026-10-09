@@ -53,9 +53,18 @@ public final class ProtocolReader {
     private ProtocolReader() {
     }
 
-    /** A {@code {"_type":"lambda",...}} object, as text. */
+    /**
+     * How deep a lambda's JSON may nest: a query built as protocol JSON nests a few levels per chained function, so the
+     * JSON library's default (64, sized for configuration files) would refuse a long one; 1024 still bounds a hostile one.
+     */
+    private static final Json.Config DEPTH = new Json.Config(1024);
+
+    /** A {@code {"_type":"lambda",...}} object, as text, read at the lambda depth limit. */
     public static LambdaFunction lambda(String json) {
-        return lambda(Json.parseObject(json));
+        if (!(Json.parse(json, DEPTH) instanceof Json.Obj o)) {
+            throw new IllegalArgumentException("protocol JSON: a lambda is not a JSON object");
+        }
+        return lambda(o);
     }
 
     /**
