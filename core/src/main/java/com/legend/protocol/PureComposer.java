@@ -728,6 +728,11 @@ public final class PureComposer {
         return date.indexOf('%') != -1 ? date : "%" + date;
     }
 
+    /** A date literal written outside a value specification (a milestoning infinity date): as {@link CDate} prints. */
+    static String dateLiteral(String written) {
+        return percent(written);
+    }
+
     private static String byteArrayText(String base64) {
         // the wire carries the bytes base64-encoded (Jackson's byte[]); upstream prints them as UTF-8 text
         byte[] bytes = java.util.Base64.getDecoder().decode(base64);

@@ -11,16 +11,13 @@ import java.util.Map;
 
 import static com.legend.protocol.Composing.TAB;
 import static com.legend.protocol.Composing.convertIdentifier;
-import static com.legend.protocol.Composing.elementPath;
-import static com.legend.protocol.Composing.objOr;
-import static com.legend.protocol.Composing.objs;
-import static com.legend.protocol.Composing.str;
 import static com.legend.protocol.Composing.tab;
 
 /**
  * {@code ###Relational}'s database and {@code ###RelationalMapper}'s mapper as upstream prints them
  * ({@code RelationalGrammarComposerExtension.renderDatabase}, {@code renderRelationalMapper} and
- * {@code HelperRelationalGrammarComposer}'s schemas, tables, views, columns and milestoning).
+ * {@code HelperRelationalGrammarComposer}'s schemas, tables, views, columns and milestoning) -- over the records
+ * ({@link Protocol.PDatabase}, {@link Protocol.PRelationalMapper}; the protocol program's leg 2, step 3).
  */
 final class DatabaseComposer {
 
@@ -42,31 +39,32 @@ final class DatabaseComposer {
     private DatabaseComposer() {
     }
 
-    static String database(Json.Obj db) {
-        List<Json.Obj> schemas = objs(db, "schemas");
-        List<Json.Obj> nonDefault = new ArrayList<>();
-        Json.Obj defaultSchema = null;
-        for (Json.Obj s : schemas) {
-            if (DEFAULT_SCHEMA.equals(s.getString("name"))) {
+    static String database(Protocol.PDatabase db) {
+        List<Protocol.PDbSchema> nonDefault = new ArrayList<>();
+        Protocol.PDbSchema defaultSchema = null;
+        for (Protocol.PDbSchema s : db.schemas()) {
+            if (DEFAULT_SCHEMA.equals(s.name())) {
                 defaultSchema = defaultSchema == null ? s : defaultSchema;
             } else {
                 nonDefault.add(s);
             }
         }
-        RelationalOperations ops = new RelationalOperations("", elementPath(db), false);
-        StringBuilder b = new StringBuilder(DomainComposer.declarationPrefix("Database", "", db)).append(elementPath(db)).append("\n(\n");
+        String path = Composing.elementPath(db.pkg(), db.name());
+        RelationalOperations ops = new RelationalOperations("", path, false);
+        StringBuilder b = new StringBuilder(DomainComposer.declarationPrefix("Database", "", db.stereotypes(),
+                db.taggedValues())).append(path).append("\n(\n");
         boolean nonEmpty = false;
         List<String> includes = new ArrayList<>();
-        for (Json.Node n : Composing.items(db, "includedStores")) {
-            includes.add(TAB + "include " + Composing.convertPath(pointerPath(n)));
+        for (Protocol.PPointer p : db.includedStores()) {
+            includes.add(TAB + "include " + Composing.convertPath(p.path()));
         }
         if (!includes.isEmpty()) {
             b.append(String.join("\n", includes)).append("\n");
             nonEmpty = true;
         }
         List<String> specs = new ArrayList<>();
-        for (Json.Obj spec : objs(db, "includedStoreSpecifications")) {
-            specs.add(TAB + "include " + spec.getString("storeType") + " " + spec.getObj("packageableElementPointer").getString("path"));
+        for (Protocol.PIncludedStoreSpec spec : db.includedStoreSpecifications()) {
+            specs.add(TAB + "include " + spec.storeType() + " " + spec.path());
         }
         if (!specs.isEmpty()) {
             b.append(String.join("\n", specs)).append("\n");
@@ -75,29 +73,29 @@ final class DatabaseComposer {
         if (!nonDefault.isEmpty()) {
             b.append(nonEmpty ? "\n" : "");
             List<String> out = new ArrayList<>();
-            for (Json.Obj s : nonDefault) {
+            for (Protocol.PDbSchema s : nonDefault) {
                 out.add(schema(s, ops));
             }
             b.append(String.join("\n", out)).append("\n");
             nonEmpty = true;
         }
         if (defaultSchema != null) {
-            nonEmpty = section(b, nonEmpty, objs(defaultSchema, "tables"), t -> table(t, 1, ops));
-            nonEmpty = section(b, nonEmpty, objs(defaultSchema, "tabularFunctions"), t -> tabularFunction(t, 1));
-            nonEmpty = section(b, nonEmpty, objs(defaultSchema, "views"), v -> view(v, 1, ops));
+            nonEmpty = section(b, nonEmpty, defaultSchema.tables(), t -> table(t, 1, ops));
+            nonEmpty = section(b, nonEmpty, defaultSchema.tabularFunctions(), t -> tabularFunction(t, 1));
+            nonEmpty = section(b, nonEmpty, defaultSchema.views(), v -> view(v, 1, ops));
         }
         List<String> joins = new ArrayList<>();
-        for (Json.Obj j : objs(db, "joins")) {
-            joins.add(TAB + "Join " + convertIdentifier(j.getString("name")) + "(" + ops.render(j.get("operation")) + ")");
+        for (Protocol.PDbJoin j : db.joins()) {
+            joins.add(TAB + "Join " + convertIdentifier(j.name()) + "(" + ops.render(j.operation()) + ")");
         }
         if (!joins.isEmpty()) {
             b.append(nonEmpty ? "\n" : "").append(String.join("\n", joins)).append("\n");
             nonEmpty = true;
         }
         List<String> filters = new ArrayList<>();
-        for (Json.Obj f : objs(db, "filters")) {
-            filters.add(TAB + ("multigrain".equals(Composing.type(f)) ? "MultiGrainFilter " : "Filter ")
-                    + convertIdentifier(f.getString("name")) + "(" + ops.render(f.get("operation")) + ")");
+        for (Protocol.PDbFilter f : db.filters()) {
+            filters.add(TAB + ("multigrain".equals(f.filterType()) ? "MultiGrainFilter " : "Filter ")
+                    + convertIdentifier(f.name()) + "(" + ops.render(f.operation()) + ")");
         }
         if (!filters.isEmpty()) {
             b.append(nonEmpty ? "\n" : "").append(String.join("\n", filters)).append("\n");
@@ -105,30 +103,38 @@ final class DatabaseComposer {
         return b.append(")").toString();
     }
 
+    /** {@link #database(Protocol.PDatabase)} of the JSON, read first. */
+    static String database(Json.Obj db) {
+        return database(Composing.element(db, Protocol.PDatabase.class));
+    }
+
     /** Appends one block of a schema's members, a blank line before it when something precedes it. */
-    private static boolean section(StringBuilder b, boolean nonEmpty, List<Json.Obj> members, java.util.function.Function<Json.Obj, String> print) {
+    private static <T> boolean section(StringBuilder b, boolean nonEmpty, List<T> members,
+            java.util.function.Function<T, String> print) {
         if (members.isEmpty()) {
             return nonEmpty;
         }
         List<String> out = new ArrayList<>();
-        for (Json.Obj m : members) {
+        for (T m : members) {
             out.add(print.apply(m));
         }
         b.append(nonEmpty ? "\n" : "").append(String.join("\n", out)).append("\n");
         return true;
     }
 
-    /** A packageable element pointer's path: {@code {"path":...}}, or a bare string on an older wire. */
+    /** A packageable element pointer's path: {@code {"path":...}}, or a bare string on an older wire. For the
+     *  printers not yet moved onto records. */
     static String pointerPath(Json.Node n) {
         return n instanceof Json.Str s ? s.value() : Composing.obj(n, "pointer").getString("path");
     }
 
-    private static String schema(Json.Obj schema, RelationalOperations ops) {
-        StringBuilder b = new StringBuilder(TAB).append(DomainComposer.declarationPrefix("Schema", TAB, schema))
-                .append(schema.getString("name")).append("\n").append(TAB).append("(\n");
+    private static String schema(Protocol.PDbSchema schema, RelationalOperations ops) {
+        StringBuilder b = new StringBuilder(TAB)
+                .append(DomainComposer.declarationPrefix("Schema", TAB, schema.stereotypes(), schema.taggedValues()))
+                .append(schema.name()).append("\n").append(TAB).append("(\n");
         boolean nonEmpty = false;
         List<String> tables = new ArrayList<>();
-        for (Json.Obj t : objs(schema, "tables")) {
+        for (Protocol.PDbTable t : schema.tables()) {
             tables.add(table(t, 2, ops));
         }
         if (!tables.isEmpty()) {
@@ -136,14 +142,14 @@ final class DatabaseComposer {
             nonEmpty = true;
         }
         List<String> views = new ArrayList<>();
-        for (Json.Obj v : objs(schema, "views")) {
+        for (Protocol.PDbView v : schema.views()) {
             views.add(view(v, 2, ops));
         }
         if (!views.isEmpty()) {
             b.append(nonEmpty ? "\n" : "").append(String.join("\n", views)).append("\n");
         }
         List<String> functions = new ArrayList<>();
-        for (Json.Obj f : objs(schema, "tabularFunctions")) {
+        for (Protocol.PDbTable f : schema.tabularFunctions()) {
             functions.add(tabularFunction(f, 2));
         }
         if (!functions.isEmpty()) {
@@ -152,24 +158,23 @@ final class DatabaseComposer {
         return b.append(TAB).append(")").toString();
     }
 
-    private static String table(Json.Obj table, int indent, RelationalOperations ops) {
-        StringBuilder b = new StringBuilder(tab(indent)).append(DomainComposer.declarationPrefix("Table", tab(indent), table))
-                .append(table.getString("name")).append("\n").append(tab(indent)).append("(\n");
+    private static String table(Protocol.PDbTable table, int indent, RelationalOperations ops) {
+        StringBuilder b = new StringBuilder(tab(indent))
+                .append(DomainComposer.declarationPrefix("Table", tab(indent), table.stereotypes(), table.taggedValues()))
+                .append(table.name()).append("\n").append(tab(indent)).append("(\n");
         boolean nonEmpty = false;
-        List<Json.Obj> milestoning = objs(table, "milestoning");
-        if (!milestoning.isEmpty()) {
+        if (!table.milestoning().isEmpty()) {
             List<String> ms = new ArrayList<>();
-            for (Json.Obj m : milestoning) {
-                ms.add(milestoning(m, indent + 2));
+            for (Protocol.PMilestoning m : table.milestoning()) {
+                ms.add(tab(indent + 2) + milestoning(m));
             }
             b.append(tab(indent + 1)).append("milestoning\n").append(tab(indent + 1)).append("(\n")
                     .append(String.join(",\n", ms)).append("\n").append(tab(indent + 1)).append(")\n");
             nonEmpty = true;
         }
-        List<String> primaryKey = table.getStringArrayOr("primaryKey", List.of());
         List<String> columns = new ArrayList<>();
-        for (Json.Obj c : objs(table, "columns")) {
-            columns.add(column(c, primaryKey, indent + 1));
+        for (Protocol.PDbColumn c : table.columns()) {
+            columns.add(column(c, table.primaryKey(), indent + 1));
         }
         if (!columns.isEmpty()) {
             b.append(nonEmpty ? "\n" : "").append(String.join(",\n", columns)).append("\n");
@@ -177,52 +182,55 @@ final class DatabaseComposer {
         return b.append(tab(indent)).append(")").toString();
     }
 
-    private static String tabularFunction(Json.Obj function, int indent) {
+    private static String tabularFunction(Protocol.PDbTable function, int indent) {
         List<String> columns = new ArrayList<>();
-        for (Json.Obj c : objs(function, "columns")) {
+        for (Protocol.PDbColumn c : function.columns()) {
             columns.add(column(c, List.of(), indent + 1));
         }
-        return tab(indent) + "TabularFunction " + function.getString("name") + "\n" + tab(indent) + "(\n"
+        return tab(indent) + "TabularFunction " + function.name() + "\n" + tab(indent) + "(\n"
                 + (columns.isEmpty() ? "" : String.join(",\n", columns) + "\n") + tab(indent) + ")";
     }
 
     /** {@code renderDatabaseTableColumn}. */
-    private static String column(Json.Obj column, List<String> primaryKey, int indent) {
-        String name = column.getString("name");
-        List<Json.Obj> taggedValues = objs(column, "taggedValues");
+    private static String column(Protocol.PDbColumn column, List<String> primaryKey, int indent) {
+        String name = column.name();
         StringBuilder b = new StringBuilder(tab(indent))
-                .append(DomainComposer.documentationOnly(taggedValues, tab(indent)))
+                .append(DomainComposer.documentationOnly(column.taggedValues(), tab(indent)))
                 .append(name.startsWith("\"") && name.endsWith("\"") ? name : convertIdentifierDoubleQuoted(name))
                 .append(" ")
-                .append(DomainComposer.annotations(objs(column, "stereotypes"), DomainComposer.withoutDocumentation(taggedValues)))
-                .append(columnType(column.getObj("type")));
+                .append(DomainComposer.annotations(column.stereotypes(),
+                        DomainComposer.withoutDocumentation(column.taggedValues())))
+                .append(columnType(column.type()));
         if (primaryKey.contains(name)) {
             b.append(" PRIMARY KEY");
-        } else if (!column.getBoolOr("nullable", true)) {
+        } else if (!column.nullable()) {
             b.append(" NOT NULL");
         }
         return b.toString();
     }
 
-    private static String columnType(Json.Obj type) {
-        String t = Composing.type(type);
+    private static String columnType(Protocol.PDbType type) {
+        String t = type.kind();
         String plain = PLAIN_TYPES.get(t);
         if (plain != null) {
             return plain;
         }
         String sized = SIZED_TYPES.get(t);
         if (sized != null) {
-            return sized + "(" + number(type, "size") + ")";
+            return sized + "(" + number(type.size(), t, "size") + ")";
         }
         String scaled = SCALED_TYPES.get(t);
         if (scaled != null) {
-            return scaled + "(" + number(type, "precision") + ", " + number(type, "scale") + ")";
+            return scaled + "(" + number(type.precision(), t, "precision") + ", " + number(type.scale(), t, "scale") + ")";
         }
         throw Composing.refused("no composer rule for a column type of _type '" + t + "'");
     }
 
-    private static String number(Json.Obj o, String key) {
-        return Long.toString(((Json.Num) o.get(key)).longValue());
+    private static String number(@com.legend.base.Nullable Long n, String type, String what) {
+        if (n == null) {
+            throw Composing.refused("a column type '" + type + "' with no " + what);
+        }
+        return Long.toString(n);
     }
 
     /** {@code convertIdentifier(val, true)}: bare when it is one, else double-quoted. */
@@ -235,53 +243,49 @@ final class DatabaseComposer {
     }
 
     /** {@code visitMilestoning}. */
-    private static String milestoning(Json.Obj m, int indent) {
-        java.util.function.Function<Json.Obj, String> printer = MILESTONING.get(Composing.type(m));
-        if (printer == null) {
-            throw Composing.refused("no composer rule for milestoning of _type '" + Composing.type(m) + "'");
-        }
-        return tab(indent) + printer.apply(m);
+    private static String milestoning(Protocol.PMilestoning m) {
+        return switch (m) {
+            case Protocol.PBusinessMilestoning b -> "business(BUS_FROM = " + b.from() + ", BUS_THRU = " + b.thru()
+                    + (b.thruIsInclusive() ? ", THRU_IS_INCLUSIVE = true" : "") + infinityDate(b.infinityDate()) + ")";
+            case Protocol.PBusinessSnapshotMilestoning b -> "business(BUS_SNAPSHOT_DATE = " + b.snapshotDate() + ")";
+            case Protocol.PProcessingMilestoning p -> "processing(PROCESSING_IN = " + p.in() + ", PROCESSING_OUT = "
+                    + p.out() + (p.outIsInclusive() ? ", OUT_IS_INCLUSIVE = true" : "") + infinityDate(p.infinityDate())
+                    + ")";
+            case Protocol.PProcessingSnapshotMilestoning p ->
+                    "processing(PROCESSING_SNAPSHOT_DATE = " + p.snapshotDate() + ")";
+        };
     }
 
-    /** Each milestoning {@code _type}'s printer. */
-    private static final Map<String, java.util.function.Function<Json.Obj, String>> MILESTONING = Map.of(
-            "businessMilestoning", m -> "business(BUS_FROM = " + m.getString("from") + ", BUS_THRU = " + m.getString("thru")
-                    + (m.getBoolOr("thruIsInclusive", false) ? ", THRU_IS_INCLUSIVE = true" : "") + infinityDate(m) + ")",
-            "businessSnapshotMilestoning", m -> "business(BUS_SNAPSHOT_DATE = " + m.getString("snapshotDate") + ")",
-            "processingMilestoning", m -> "processing(PROCESSING_IN = " + m.getString("in") + ", PROCESSING_OUT = " + m.getString("out")
-                    + (m.getBoolOr("outIsInclusive", false) ? ", OUT_IS_INCLUSIVE = true" : "") + infinityDate(m) + ")",
-            "processingSnapshotMilestoning", m -> "processing(PROCESSING_SNAPSHOT_DATE = " + m.getString("snapshotDate") + ")");
-
-    private static String infinityDate(Json.Obj m) {
-        Json.Obj infinity = objOr(m, "infinityDate");
-        return infinity == null ? "" : ", INFINITY_DATE = " + Composing.valueSpecification(infinity);
+    private static String infinityDate(Protocol.@com.legend.base.Nullable PDateTimeLit infinity) {
+        return infinity == null ? "" : ", INFINITY_DATE = " + PureComposer.dateLiteral(infinity.value());
     }
 
     /** {@code renderDatabaseView}. */
-    private static String view(Json.Obj view, int indent, RelationalOperations ops) {
-        StringBuilder b = new StringBuilder(tab(indent)).append(DomainComposer.declarationPrefix("View", tab(indent), view))
-                .append(view.getString("name")).append("\n").append(tab(indent)).append("(\n");
-        Json.Obj filter = objOr(view, "filter");
+    private static String view(Protocol.PDbView view, int indent, RelationalOperations ops) {
+        StringBuilder b = new StringBuilder(tab(indent))
+                .append(DomainComposer.declarationPrefix("View", tab(indent), view.stereotypes(), view.taggedValues()))
+                .append(view.name()).append("\n").append(tab(indent)).append("(\n");
+        Protocol.PViewFilter filter = view.filter();
         if (filter != null) {
-            b.append(tab(indent + 1)).append(RelationalOperations.filterMapping(filter)).append("\n");
+            b.append(tab(indent + 1)).append(RelationalOperations.filterMapping(filter.db(), filter.name(),
+                    filter.joins())).append("\n");
         }
-        List<Json.Obj> groupBy = objs(view, "groupBy");
-        if (!groupBy.isEmpty()) {
+        List<Protocol.PRelOp> groupBy = view.groupBy();
+        if (groupBy != null && !groupBy.isEmpty()) {
             List<String> gs = new ArrayList<>();
-            for (Json.Obj g : groupBy) {
+            for (Protocol.PRelOp g : groupBy) {
                 gs.add(tab(indent + 2) + ops.render(g));
             }
             b.append(tab(indent + 1)).append("~groupBy\n").append(tab(indent + 1)).append("(\n")
                     .append(String.join(",\n", gs)).append("\n").append(tab(indent + 1)).append(")\n");
         }
-        if (view.getBoolOr("distinct", false)) {
+        if (view.distinct()) {
             b.append(tab(indent + 1)).append("~distinct\n");
         }
-        List<String> primaryKey = view.getStringArrayOr("primaryKey", List.of());
         List<String> columns = new ArrayList<>();
-        for (Json.Obj cm : objs(view, "columnMappings")) {
-            columns.add(tab(indent + 1) + cm.getString("name") + ": " + ops.render(cm.get("operation"))
-                    + (primaryKey.contains(cm.getString("name")) ? " PRIMARY KEY" : ""));
+        for (Protocol.PViewColumnMapping cm : view.columnMappings()) {
+            columns.add(tab(indent + 1) + cm.name() + ": " + ops.render(cm.operation())
+                    + (view.primaryKey().contains(cm.name()) ? " PRIMARY KEY" : ""));
         }
         if (!columns.isEmpty()) {
             b.append(String.join(",\n", columns)).append("\n");
@@ -293,39 +297,40 @@ final class DatabaseComposer {
     // ###RelationalMapper
     // ---------------------------------------------------------------------
 
-    static String relationalMapper(Json.Obj mapper) {
-        StringBuilder b = new StringBuilder("RelationalMapper ").append(elementPath(mapper)).append("\n(\n");
+    static String relationalMapper(Protocol.PRelationalMapper mapper) {
+        StringBuilder b = new StringBuilder("RelationalMapper ").append(Composing.elementPath(mapper.pkg(), mapper.name()))
+                .append("\n(\n");
         List<String> databases = new ArrayList<>();
-        for (Json.Obj d : objs(mapper, "databaseMappers")) {
+        for (Protocol.PDatabaseMapper d : mapper.databaseMappers()) {
             List<String> schemas = new ArrayList<>();
-            for (Json.Obj s : objs(d, "schemas")) {
-                schemas.add(schemaRef(s));
+            for (Protocol.PSchemaPointer s : d.schemas()) {
+                schemas.add(s.database() + "." + s.schema());
             }
-            databases.add(tab(3) + "[" + String.join(", ", schemas) + "] -> '" + d.getString("databaseName") + "'");
+            databases.add(tab(3) + "[" + String.join(", ", schemas) + "] -> '" + d.databaseName() + "'");
         }
         mapperSection(b, "DatabaseMappers", databases);
         List<String> schemas = new ArrayList<>();
-        for (Json.Obj s : objs(mapper, "schemaMappers")) {
-            schemas.add(tab(3) + schemaRef(s.getObj("from")) + " -> '" + s.getString("to") + "'");
+        for (Protocol.PSchemaMapper2 s : mapper.schemaMappers()) {
+            schemas.add(tab(3) + s.from().database() + "." + s.from().schema() + " -> '" + s.to() + "'");
         }
         mapperSection(b, "SchemaMappers", schemas);
         List<String> tables = new ArrayList<>();
-        for (Json.Obj t : objs(mapper, "tableMappers")) {
-            Json.Obj from = t.getObj("from");
-            tables.add(tab(3) + from.getString("database") + "." + from.getString("schema") + "." + from.getString("table")
-                    + " -> '" + t.getString("to") + "'");
+        for (Protocol.PTableMapper2 t : mapper.tableMappers()) {
+            Protocol.PTablePointer2 from = t.from();
+            tables.add(tab(3) + from.database() + "." + from.schema() + "." + from.table() + " -> '" + t.to() + "'");
         }
         mapperSection(b, "TableMappers", tables);
         return b.append(")").toString();
+    }
+
+    /** {@link #relationalMapper(Protocol.PRelationalMapper)} of the JSON, read first. */
+    static String relationalMapper(Json.Obj mapper) {
+        return relationalMapper(Composing.element(mapper, Protocol.PRelationalMapper.class));
     }
 
     private static void mapperSection(StringBuilder b, String name, List<String> lines) {
         if (!lines.isEmpty()) {
             b.append("   ").append(name).append(":\n   [\n").append(String.join(",\n", lines)).append("\n   ];\n");
         }
-    }
-
-    private static String schemaRef(Json.Obj s) {
-        return str(s, "database") + "." + str(s, "schema");
     }
 }

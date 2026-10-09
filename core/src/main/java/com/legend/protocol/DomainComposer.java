@@ -279,24 +279,37 @@ final class DomainComposer {
      * {@code renderDeclarationPrefix}: the documentation block when the element has one to promote,
      * the keyword, then the annotations less the promoted value.
      */
-    static String declarationPrefix(String keyword, String indent, Json.Obj annotated) {
-        List<Json.Obj> taggedValues = objs(annotated, "taggedValues");
+    static String declarationPrefix(String keyword, String indent, List<Protocol.PStereotype> stereotypes,
+            List<Protocol.PTaggedValue> taggedValues) {
         return documentationOnly(taggedValues, indent)
                 + (keyword.isEmpty() ? "" : keyword + " ")
-                + annotations(objs(annotated, "stereotypes"), withoutDocumentation(taggedValues));
+                + annotations(stereotypes, withoutDocumentation(taggedValues));
+    }
+
+    /** {@link #declarationPrefix(String, String, List, List)} of a JSON element's annotations, read first. */
+    static String declarationPrefix(String keyword, String indent, Json.Obj annotated) {
+        List<Protocol.PStereotype> stereotypes = new ArrayList<>();
+        for (Json.Node n : items(annotated, "stereotypes")) {
+            stereotypes.add(DomainReader.stereotype(n));
+        }
+        List<Protocol.PTaggedValue> taggedValues = new ArrayList<>();
+        for (Json.Node n : items(annotated, "taggedValues")) {
+            taggedValues.add(DomainReader.taggedValue(n));
+        }
+        return declarationPrefix(keyword, indent, stereotypes, taggedValues);
     }
 
     /** {@code renderDocumentation}: the block for the one doc tagged value to promote, or {@code ""}. */
-    static String documentationOnly(List<Json.Obj> taggedValues, String indent) {
-        Json.Obj documentation = documentation(taggedValues);
-        return documentation == null ? "" : documentationBlock(taggedValueText(documentation), indent);
+    static String documentationOnly(List<Protocol.PTaggedValue> taggedValues, String indent) {
+        Protocol.PTaggedValue documentation = documentation(taggedValues);
+        return documentation == null ? "" : documentationBlock(documentation.value(), indent);
     }
 
     /** {@code withoutDocumentation}: the tagged values less the one promoted to a block. */
-    static List<Json.Obj> withoutDocumentation(List<Json.Obj> taggedValues) {
-        Json.Obj documentation = documentation(taggedValues);
-        List<Json.Obj> rest = new ArrayList<>();
-        for (Json.Obj tv : taggedValues) {
+    static List<Protocol.PTaggedValue> withoutDocumentation(List<Protocol.PTaggedValue> taggedValues) {
+        Protocol.PTaggedValue documentation = documentation(taggedValues);
+        List<Protocol.PTaggedValue> rest = new ArrayList<>();
+        for (Protocol.PTaggedValue tv : taggedValues) {
             if (tv != documentation) {
                 rest.add(tv);
             }
@@ -305,18 +318,18 @@ final class DomainComposer {
     }
 
     /** {@code renderAnnotations}. */
-    static String annotations(List<Json.Obj> stereotypes, List<Json.Obj> taggedValues) {
+    static String annotations(List<Protocol.PStereotype> stereotypes, List<Protocol.PTaggedValue> taggedValues) {
         StringBuilder b = new StringBuilder();
         if (!stereotypes.isEmpty()) {
             List<String> s = new ArrayList<>();
-            for (Json.Obj st : stereotypes) {
+            for (Protocol.PStereotype st : stereotypes) {
                 s.add(stereotype(st));
             }
             b.append("<<").append(String.join(", ", s)).append(">> ");
         }
         if (!taggedValues.isEmpty()) {
             List<String> t = new ArrayList<>();
-            for (Json.Obj tv : taggedValues) {
+            for (Protocol.PTaggedValue tv : taggedValues) {
                 t.add(taggedValue(tv));
             }
             b.append("{").append(String.join(", ", t)).append("} ");
@@ -325,41 +338,30 @@ final class DomainComposer {
     }
 
     /** {@code renderStereotypePointer}. */
-    static String stereotype(Json.Obj st) {
-        return Composing.convertPath(st.getString("profile")) + "." + convertIdentifier(st.getString("value"));
+    static String stereotype(Protocol.PStereotype st) {
+        return Composing.convertPath(st.profile()) + "." + convertIdentifier(st.value());
     }
 
     /** {@code renderTaggedValue}. */
-    static String taggedValue(Json.Obj tv) {
-        Json.Obj tag = tv.getObj("tag");
-        return Composing.convertPath(tag.getString("profile")) + "." + convertIdentifier(tag.getString("value"))
-                + " = " + convertString(taggedValueText(tv), true);
-    }
-
-    /** A tagged value's text: a bare string, or the multi-line form's {@code value}. */
-    private static String taggedValueText(Json.Obj tv) {
-        Json.Node v = tv.get("value");
-        return v instanceof Json.Str s ? s.value() : Composing.obj(v, "tagged value").getString("value");
-    }
-
-    private static boolean multiLine(Json.Obj tv) {
-        return tv.get("value") instanceof Json.Obj o && o.getBoolOr("multiLine", false);
+    static String taggedValue(Protocol.PTaggedValue tv) {
+        return Composing.convertPath(tv.tag().profile()) + "." + convertIdentifier(tv.tag().value())
+                + " = " + convertString(tv.value(), true);
     }
 
     /** {@code extractDocumentation}: the one doc tagged value authored multi-line, or null. */
-    private static @com.legend.base.Nullable Json.Obj documentation(List<Json.Obj> taggedValues) {
-        Json.Obj found = null;
-        for (Json.Obj tv : taggedValues) {
-            Json.Obj tag = objOr(tv, "tag");
-            if (tag != null && Documentation.TAG.equals(str(tag, "value"))
-                    && (Documentation.TAG.equals(str(tag, "profile")) || Documentation.PROFILE.equals(str(tag, "profile")))) {
+    private static @com.legend.base.Nullable Protocol.PTaggedValue documentation(List<Protocol.PTaggedValue> taggedValues) {
+        Protocol.PTaggedValue found = null;
+        for (Protocol.PTaggedValue tv : taggedValues) {
+            Protocol.PTag tag = tv.tag();
+            if (Documentation.TAG.equals(tag.value())
+                    && (Documentation.TAG.equals(tag.profile()) || Documentation.PROFILE.equals(tag.profile()))) {
                 if (found != null) {
                     return null;
                 }
                 found = tv;
             }
         }
-        return found != null && multiLine(found) && renderableAsDocumentation(taggedValueText(found)) ? found : null;
+        return found != null && found.multiLine() && renderableAsDocumentation(found.value()) ? found : null;
     }
 
     /** {@code isRenderableAsDocumentation}. */
