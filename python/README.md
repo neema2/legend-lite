@@ -66,6 +66,11 @@ again over them. A plain script that opened a cube in the browser waits at its e
 IDE's Stop); one that opened none (`browser=False`, or no browser to open: a test, a CI job) ends, and says so. `show(df, browser=False)` opens nothing: the link is `cube.url`, which
 `show` also prints (it carries the engine's token).
 
+**Install it** (into PyCharm's environment, a virtualenv, anywhere; Python 3.12 and up, macOS 14 and up or Linux):
+`bazel build //python:wheel`, then `pip install bazel-bin/python/legend_lite-0.1.0-*.whl pandas` (pip fetches duckdb
+and pyarrow). The wheel carries the compiler's library and DataCube's page; `//python:wheel_test` installs it into a
+fresh environment, offline, and runs `show()` and a query from it alone.
+
 To try it with nothing installed: `bazel run //python:repl` -- the repository's Python and pinned packages, the
 compiler's library and DataCube's site, with `ll`, `pd` and a sample `trades` DataFrame ready.
 

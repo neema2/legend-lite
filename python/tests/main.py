@@ -10,13 +10,16 @@ from pathlib import Path
 from python.runfiles import runfiles
 
 files = runfiles.Create()
-for name in ('LEGEND_LITE_LIBRARY', 'LEGEND_LITE_CORPUS_MODEL', 'LEGEND_LITE_CORPUS_QUERIES', 'LEGEND_LITE_JVM_ANSWERS'):
+for name in ('LEGEND_LITE_LIBRARY', 'LEGEND_LITE_CORPUS_MODEL', 'LEGEND_LITE_CORPUS_QUERIES', 'LEGEND_LITE_JVM_ANSWERS',
+             'LEGEND_LITE_WHEEL', 'LEGEND_LITE_DEPENDENCY_WHEELS'):
     if name not in os.environ:
         continue
-    path = files.Rlocation(os.environ[name])
-    if not path or not Path(path).is_file():
-        sys.exit(f'{name}: {os.environ[name]} is not in the runfiles')
-    os.environ[name] = path
+    # one path, or several separated by spaces ($(rlocationpaths ...))
+    paths = [files.Rlocation(p) for p in os.environ[name].split()]
+    for given, path in zip(os.environ[name].split(), paths):
+        if not path or not Path(path).is_file():
+            sys.exit(f'{name}: {given} is not in the runfiles')
+    os.environ[name] = ' '.join(paths)
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 suite = unittest.defaultTestLoader.loadTestsFromNames(sys.argv[1:])
