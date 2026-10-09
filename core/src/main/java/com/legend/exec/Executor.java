@@ -57,10 +57,6 @@ public final class Executor {
         }
     }
 
-    /** The engines' own bulk-load APIs, found beside the drivers. */
-    private static final List<BulkLoad> BULK_LOADS = java.util.ServiceLoader.load(BulkLoad.class)
-            .stream().map(java.util.ServiceLoader.Provider::get).toList();
-
     /** The drivers' own cell types, each beside its driver (ServiceLoader): core compiles against none. */
     private static final List<DriverCells> DRIVER_CELLS = java.util.ServiceLoader.load(DriverCells.class)
             .stream().map(java.util.ServiceLoader.Provider::get).toList();
@@ -86,14 +82,9 @@ public final class Executor {
             return;
         }
         try {
-            for (BulkLoad bulk : BULK_LOADS) {
-                if (bulk.accepts(connection)) {
-                    Census.inc(Census.Key.SQL_ROUND_TRIPS);
-                    Census.inc(Census.Key.BULK_LOADS);
-                    StatementOrigin.count();
-                    bulk.load(connection, load, load.staging(dialect));
-                    return;
-                }
+            if (BulkLoads.of(connection) != null) {
+                BulkLoads.load(connection, load.staged(dialect));
+                return;
             }
         } catch (SQLException e) {
             java.sql.SQLException un = RaisedErrors.unwrapped(e);
@@ -313,14 +304,7 @@ public final class Executor {
      * statement this executor sends passes here first — measurement
      * only, printed by the corpus lanes, read by no verdict. */
     private static void dumpSql(String sql) {
-        Census.inc(Census.Key.SQL_ROUND_TRIPS);
-        StatementOrigin.count();
-        Census.add(Census.Key.SQL_CHARS, sql.length());
-        if (com.legend.diagnostics.Diagnostics.dumpSql()) {
-            // the dump names the statement's ORIGIN mark (census: which sends are sides,
-            // probes, seeds …) — the same fact the statement-origin census counts
-            System.err.println("[sql:" + StatementOrigin.current().name().toLowerCase(java.util.Locale.ROOT) + "] " + sql);
-        }
+        StatementOrigin.sent(sql);
     }
 
 

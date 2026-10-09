@@ -21,6 +21,9 @@
 # 2026-10-09: step 2's landing 2 (the planner makes lite plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9):
 # planner reaches `setup` (a target's declared test data written into the plan) and database reaches
 # `execution_plan` (the server versions a database's statements are written for, Databases.servers).
+# 2026-10-09: step 3, the runner (§9): exec reaches `execution_plan` (PlanRunner runs the plan records) and `cache`
+# (PlanSessions shares a target's database in the content-keyed HandleStore, decision A); setup reaches
+# `execution_plan` (a staged row load is the plan's SetupStep.Rows, which the bulk loader takes).
 # 2026-10-08: `pure_v1` (server/PureV1Api: legend-engine's pure/v1 API, the plan side, so the compiler's boundary
 # answers with the server's code; docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md); server_lib reaches it.
 # 2026-10-10 (build rebuild Phase 3b item 1b, GATES "Build rebuild Phase 3b"): `platform` reaches `error` -- PlatformPure.adopt
@@ -47,8 +50,8 @@ validation	base builtin compiler compiler_element_type error model protocol
 lowering	base builtin compiler compiler_element_type error model platform protocol sql values
 plan	base builtin compiler compiler_element_type database error lineage model sql
 resolver	base builtin compiler compiler_element_type error lowering model plan platform sql values
-setup	base compiler model sql sql_dialect
-exec	base compiler compiler_element_type database diagnostics error lowering model plan platform setup sql sql_dialect values
+setup	base compiler execution_plan model sql sql_dialect
+exec	base cache compiler compiler_element_type database diagnostics error execution_plan lowering model plan platform setup sql sql_dialect values
 probe	base builtin lowering model platform
 testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql_dialect values
 execution_plan	base json model sql

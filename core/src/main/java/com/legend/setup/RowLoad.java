@@ -62,23 +62,20 @@ public record RowLoad(@com.legend.base.Nullable String schema, String table, Lis
      *  the one load. */
     public static final String STAGE = "legend_row_load";
 
-    /** The staging table and its three statements, rendered by a dialect: create it (one text column per cell,
-     *  temporary), copy it into the target table (the database casts each cell), drop it. */
-    public record Staging(String table, String create, String copy, String drop) {
-    }
-
-    /** This load's {@link Staging}, every statement rendered by {@code dialect}: what a bulk loader runs around the
-     *  cells it appends (the execution side's loader, and a plan's setup step written for it). */
-    public Staging staging(com.legend.sql.dialect.SqlDialect dialect) {
+    /** This load for a bulk loader, every statement rendered by {@code dialect}: its rows, and the staging table they
+     *  are appended to as text, created (temporary, one text column per cell), copied into the target table (the
+     *  database casts each cell) and dropped — a plan's setup step ({@code ExecutionPlan.SetupStep.Rows}), which the
+     *  execution side's loader runs. Its rows are not empty. */
+    public com.legend.executionplan.ExecutionPlan.SetupStep.Rows staged(com.legend.sql.dialect.SqlDialect dialect) {
         List<com.legend.sql.SqlDdl.Column> text = new ArrayList<>(width);
         for (int c = 0; c < width; c++) {
             text.add(new com.legend.sql.SqlDdl.Column("c" + c, false,
                     new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.VARCHAR),
                     false, false));
         }
-        return new Staging(STAGE,
+        return new com.legend.executionplan.ExecutionPlan.SetupStep.Rows(STAGE,
                 dialect.render(new com.legend.sql.SqlDdl.CreateTable(null, STAGE, text, true)),
                 dialect.render(fromStage(STAGE)),
-                dialect.render(new com.legend.sql.SqlDdl.DropTable(null, STAGE)));
+                dialect.render(new com.legend.sql.SqlDdl.DropTable(null, STAGE)), rows);
     }
 }

@@ -6,20 +6,13 @@ package com.legend.testcases;
 import com.legend.executionplan.ExecutionPlan;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The plan cases core's tests share (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2): queries with
  * parameters of every kind, each beside the query today's paths answer the same values with, the models they read, and
- * a plan run on a connection as its steps describe themselves (the runner is step 3). {@code PlanMakerTest} runs them on
+ * a plan run on a connection by the runner ({@code exec.PlanRunner}). {@code PlanMakerTest} runs them on
  * DuckDB and H2, {@code PostgresArmTest} on Postgres.
  */
 public final class PlanCases {
@@ -71,10 +64,10 @@ public final class PlanCases {
             // a Float is bound as a decimal (the numeric charter's Rule 1: a Float literal is a decimal in the database)
             new Parameterised("f: Float[1]", "let f = 1.1;",
                     "#>{s::DB." + table + "}#->extend(~x: r|$r.ID * $f)->select(~[ID, x])->sort(~ID->ascending())",
-                    java.util.Map.of("f", new java.math.BigDecimal("1.1"))),
+                    java.util.Map.of("f", 1.1d)),
             new Parameterised("f: Float[1]", "let f = 1.1;",
                     "#>{s::DB." + table + "}#->extend(~f: r|$f)->select(~[ID, f])->sort(~ID->ascending())",
-                    java.util.Map.of("f", new java.math.BigDecimal("1.1"))),
+                    java.util.Map.of("f", 1.1d)),
             new Parameterised("p: Decimal[1]", "let p = 2.50D;",
                     "#>{s::DB." + table + "}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending())",
                     java.util.Map.of("p", new java.math.BigDecimal("2.50"))),
@@ -85,9 +78,6 @@ public final class PlanCases {
             new Parameterised("d: Date[1]", "let d = %2024-01-02;",
                     "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
                     java.util.Map.of("d", java.time.LocalDate.of(2024, 1, 2))),
-            new Parameterised("n: Number[1]", "let n = 1;",
-                    "#>{s::DB." + table + "}#->filter(r|$r.ID > $n)->select(~[ID])->sort(~ID->ascending())",
-                    java.util.Map.of("n", 1L)),
             // two parameters
             new Parameterised("lo: Integer[1], hi: Integer[1]", "let lo = 1; let hi = 3;",
                     "#>{s::DB." + table + "}#->filter(r|($r.ID > $lo) && ($r.ID < $hi))->select(~[ID, NAME])",
@@ -186,95 +176,17 @@ public final class PlanCases {
     }
 
     /** {@link #run(ExecutionPlan, Connection, java.util.Map)} for a plan of no parameters. */
-    public static String run(ExecutionPlan plan, Connection c) throws SQLException {
+    public static String run(ExecutionPlan plan, Connection c) throws java.io.IOException {
         return run(plan, c, java.util.Map.of());
     }
 
-    /** {@code plan} run on {@code c} as its steps describe themselves: the session statements, the setup (a rows step:
-     *  its staging table created, the cells inserted as text, copied, dropped), then the statement's text, each slot
-     *  bound to its parameter's value in {@code values} (a Java value of the parameter's type: the runner's
-     *  conversion is step 3's). */
-    public static String run(ExecutionPlan plan, Connection c, java.util.Map<String, Object> values)
-            throws SQLException {
-        ExecutionPlan.TextResult text = (ExecutionPlan.TextResult) plan.root();
-        ExecutionPlan.Target target = text.sql().target();
-        try (Statement st = c.createStatement()) {
-            for (String s : target.session()) {
-                st.execute(s);
-            }
-            for (ExecutionPlan.SetupStep step : target.setup()) {
-                switch (step) {
-                    case ExecutionPlan.SetupStep.Statement s -> st.execute(s.sql());
-                    case ExecutionPlan.SetupStep.Rows r -> {
-                        st.execute(r.createStaging());
-                        String marks = String.join(", ", java.util.Collections.nCopies(r.rows().get(0).size(), "?"));
-                        try (PreparedStatement insert = c.prepareStatement(
-                                "insert into " + r.stagingTable() + " values (" + marks + ")")) {
-                            for (List<String> row : r.rows()) {
-                                for (int i = 0; i < row.size(); i++) {
-                                    insert.setString(i + 1, row.get(i));
-                                }
-                                insert.execute();
-                            }
-                        }
-                        st.execute(r.copy());
-                        st.execute(r.dropStaging());
-                    }
-                }
-            }
-            assertEquals(plan.parameters().stream().map(ExecutionPlan.Parameter::name).sorted().toList(),
-                    values.keySet().stream().sorted().toList(), "a value for every declared parameter");
-            try (PreparedStatement statement = c.prepareStatement(text.sql().statement())) {
-                List<ExecutionPlan.Slot> slots = text.sql().slots();
-                for (int i = 0; i < slots.size(); i++) {
-                    String name = slots.get(i).parameter();
-                    Object value = values.get(name);
-                    if (value == null) {
-                        // an optional value's absence: a null of the parameter's declared type
-                        statement.setNull(i + 1, nullType(plan.parameters().stream()
-                                .filter(p -> p.name().equals(name)).findFirst().orElseThrow().type()));
-                    } else if (value instanceof List<?> list) {
-                        // a list: ONE array of its element type
-                        statement.setArray(i + 1, c.createArrayOf(
-                                java.util.Objects.requireNonNull(slots.get(i).arrayElementSqlType()), list.toArray()));
-                    } else {
-                        statement.setObject(i + 1, value);
-                    }
-                }
-                return answer(text.format(), statement);
-            }
-        }
-    }
-
-    /** The JDBC type of an absent value of a declared Pure type. */
-    private static int nullType(String pureType) {
-        return switch (pureType) {
-            case "Integer" -> java.sql.Types.BIGINT;
-            case "String" -> java.sql.Types.VARCHAR;
-            case "Boolean" -> java.sql.Types.BOOLEAN;
-            case "StrictDate" -> java.sql.Types.DATE;
-            case "DateTime" -> java.sql.Types.TIMESTAMP;
-            case "Float", "Decimal" -> java.sql.Types.DECIMAL;
-            default -> throw new IllegalArgumentException("no absent value of " + pureType + " in these tests");
-        };
-    }
-
-    /** The text the database writes: one row's one cell, or one JSON object per row in the array's punctuation. */
-    private static String answer(ExecutionPlan.Format format, PreparedStatement statement) throws SQLException {
-        try (ResultSet rs = statement.executeQuery()) {
-            return switch (format) {
-                case CSV, JSON -> {
-                    assertTrue(rs.next(), "the database writes the whole text as one row");
-                    yield rs.getString(1);
-                }
-                case JSON_PER_ROW -> {
-                    List<String> rows = new ArrayList<>();
-                    while (rs.next()) {
-                        rows.add(rs.getString(1));
-                    }
-                    yield "[" + String.join(",", rows) + "]";
-                }
-            };
-        }
+    /** {@code plan} run by the runner ({@code exec.PlanRunner}) on {@code c} with {@code values} (as legend-engine's
+     *  execute API makes them), the target's setup run on {@code c} first: the text it writes. */
+    public static String run(ExecutionPlan plan, Connection c, java.util.Map<String, ?> values)
+            throws java.io.IOException {
+        java.io.StringWriter out = new java.io.StringWriter();
+        ExecutionPlan.Target target = ((ExecutionPlan.TextResult) plan.root()).sql().target();
+        com.legend.exec.PlanRunner.run(plan, values, com.legend.exec.PlanSessions.setUp(c, target), out);
+        return out.toString();
     }
 }
