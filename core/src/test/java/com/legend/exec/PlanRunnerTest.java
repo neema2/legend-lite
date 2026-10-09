@@ -275,6 +275,11 @@ class PlanRunnerTest {
                 Map.of(List.of(5, "b", 3), 5, List.of(ZONED_NOW, "b"), "b", List.of(TODAY, ZONED_NOW), TODAY), formats);
     }
 
+    // ---- legend-engine's steps, in its order (measured on its own jars:
+    //      docs/execution-plan-boundary-2026-10-05/probes/engine-validation-results.txt) -----------------------------
+
+    private static final String NOT_BOUND = "Parameter value(s) the plan does not bind: [";
+
     @Test
     void everyFailureIsCollected_andEveryMissingValueNamed() {
         String both = assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(
@@ -282,26 +287,63 @@ class PlanRunnerTest {
                 .getMessage();
         assertEquals("Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: 'x' is not"
                 + " parsable.,Unable to process 'Boolean' parameter, value: 3.]", both);
-        // the runner's own refusals are collected with legend-engine's failures
-        String mixed = assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(
-                List.of(declared("a", "Integer", 1, 1), declared("b", "Boolean", 1, 1)),
-                Map.of("a", List.of(1L, 2L), "b", 3))).getMessage();
-        assertEquals("Invalid provided parameter(s): [parameter 'a' (Integer[1]) takes one value, given 2,Unable to"
-                + " process 'Boolean' parameter, value: 3.]", mixed);
         String missing = assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(
                 List.of(declared("input", "String", 1, 1), declared("n", "Integer", 1, null),
                         declared("o", "String", 0, 1)), Map.of())).getMessage();
         assertEquals("Missing external parameter(s): input:String[1],n:Integer[1..*]", missing);
     }
 
-    /** A required parameter given a null value is missing: a deliberate difference (legend-engine counts it present,
-     *  and its template then writes no statement a database runs; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9). */
+    /** legend-engine's checks come first: a value it fails is refused in its words, whatever the runner would refuse
+     *  in the same values; the runner's own refusals, of values legend-engine passes on, come after, every one
+     *  collected under their own heading. */
     @Test
-    void aNullValueForARequiredParameterIsMissing() {
+    void legendEnginesFailuresComeFirst_thenTheRunnersOwnRefusals() {
+        // a list for an upper bound of 1: legend-engine validates its elements
+        assertEquals("Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: 'x' is not"
+                + " parsable.]", refusal(declared("p", "Integer", 1, 1), List.of(1L, "x")));
+        assertEquals("Invalid provided parameter(s): [Unable to process 'Boolean' parameter, value: 3.]",
+                assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(
+                        List.of(declared("a", "Integer", 1, 1), declared("b", "Boolean", 1, 1)),
+                        Map.of("a", List.of(1L, 2L), "b", 3))).getMessage());
+        // values legend-engine passes on, and the runner refuses
+        assertEquals(NOT_BOUND + "parameter 'a' (Integer[1]) takes one value, given 2; parameter 'f' (Float) is NaN: a"
+                + " value that is not finite has no SQL literal, and is not bound]",
+                assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(
+                        List.of(declared("a", "Integer", 1, 1), declared("f", "Float", 1, 1)),
+                        Map.of("a", List.of(1L, 2L), "f", "NaN"))).getMessage());
+    }
+
+    /** A required parameter given a null value or an empty list is missing: a deliberate difference (legend-engine
+     *  counts either present, and its template then writes no statement a database runs, or an empty collection where
+     *  one value or more is declared; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9). An optional one's empty list is
+     *  its absence. */
+    @Test
+    void aNullValueOrAnEmptyListForARequiredParameterIsMissing() {
         Map<String, Object> values = new HashMap<>();
         values.put("p", null);
         assertEquals("Missing external parameter(s): p:Integer[1]", assertThrows(IllegalArgumentException.class,
                 () -> PlanParameters.check(List.of(declared("p", "Integer", 1, 1)), values)).getMessage());
+        assertEquals("Missing external parameter(s): p:Integer[1]", refusal(declared("p", "Integer", 1, 1), List.of()));
+        assertEquals("Missing external parameter(s): p:Integer[1..*]",
+                refusal(declared("p", "Integer", 1, null), List.of()));
+        assertEquals(new PlanParameters.None(),
+                PlanParameters.check(List.of(declared("o", "Integer", 0, 1)), Map.of("o", List.of())).get("o"));
+    }
+
+    /** A null element: legend-engine's validation passes it, and its normalizer refuses it where it converts the type
+     *  (in its own words, a Float's as a Double); a String's or an enumeration's it passes on, and the runner refuses
+     *  (a Pure collection holds no null). */
+    @Test
+    void aNullElementIsRefused_inLegendEnginesWordsWhereItHasThem() {
+        assertEquals("Invalid Integer value: null", refusal(declared("p", "Integer", 0, null), Arrays.asList(1L, null)));
+        assertEquals("Invalid Double value: null", refusal(declared("p", "Float", 0, null), Arrays.asList(1.5, null)));
+        // validation first: a later element that fails it is named
+        assertEquals("Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: 'x' is not"
+                + " parsable.]", refusal(declared("p", "Integer", 0, null), Arrays.asList(null, "x")));
+        assertEquals(NOT_BOUND + "parameter 'p' (String[*]) is given a null element]",
+                refusal(declared("p", "String", 0, null), Arrays.asList("a", null)));
+        assertEquals(NOT_BOUND + "parameter 'p' (test::E[*]) is given a null element]",
+                refusal(declared("p", "test::E", 0, null, "A"), Arrays.asList("A", null)));
     }
 
     @Test
@@ -316,21 +358,29 @@ class PlanRunnerTest {
 
     @Test
     void whatLegendEngineDoesNotRunIsRefusedByName() {
-        // legend-engine has no validator for a Number: its own message, its types in the order it declares them
+        // legend-engine has no validator for a Number: its own message, its types in the order it prints them
         assertEquals("Invalid provided parameter(s): [Unknown external parameter type: Number, valid external parameter"
-                + " types: [StrictDate, DateTime, Date, Integer, Float, Decimal, Boolean, String, Byte,"
-                + " meta::pure::metamodel::variant::Variant]]", refusal(declared("n", "Number", 1, 1), 1L));
-        // a type legend-engine validates and no plan binds yet
-        assertEquals("Invalid provided parameter(s): [parameter 'b' of type Byte is not bound by a plan (PARK-21)]",
+                + " types: [Float, Byte, meta::pure::metamodel::variant::Variant, DateTime, Date, Decimal, String,"
+                + " Integer, Boolean, StrictDate]]", refusal(declared("n", "Number", 1, 1), 1L));
+        // a Byte and a Variant: checked as legend-engine checks them (a stream; JSON's text), and a value it passes is
+        // not bound by a plan yet
+        assertEquals("Invalid provided parameter(s): [Unable to process 'Byte' parameter, value: 1.]",
                 refusal(declared("b", "Byte", 1, 1), 1L));
+        assertEquals(NOT_BOUND + "parameter 'b' of type Byte is not bound by a plan (PARK-21)]",
+                refusal(declared("b", "Byte", 1, 1), new java.io.ByteArrayInputStream(new byte[] {1})));
+        String variant = "meta::pure::metamodel::variant::Variant";
+        assertEquals("Invalid provided parameter(s): [Unable to process '" + variant + "' parameter, value: 5.]",
+                refusal(declared("v", variant, 1, 1), 5L));
+        assertEquals(NOT_BOUND + "parameter 'v' of type " + variant + " is not bound by a plan (PARK-21)]",
+                refusal(declared("v", variant, 1, 1), "{}"));
         // a list for a parameter of upper bound 1: legend-engine's template writes no SQL a database runs
-        assertEquals("Invalid provided parameter(s): [parameter 'p' (Integer[1]) takes one value, given 2]",
+        assertEquals(NOT_BOUND + "parameter 'p' (Integer[1]) takes one value, given 2]",
                 refusal(declared("p", "Integer", 1, 1), List.of(1L, 2L)));
-        // a Float that is not finite has no SQL literal (legend-engine parses it, and writes NaN into its statement)
+        // a Float that is not finite has no SQL literal (legend-engine passes it, and writes NaN into its statement)
         for (Object v : List.<Object>of("NaN", Double.NaN, Double.POSITIVE_INFINITY, "-Infinity")) {
             String shown = String.valueOf(v instanceof String s ? Double.parseDouble(s) : v);
-            assertEquals("Invalid provided parameter(s): [parameter 'p' (Float) is " + shown + ": a value that is not"
-                    + " finite has no SQL literal, and is not bound]", refusal(declared("p", "Float", 1, 1), v));
+            assertEquals(NOT_BOUND + "parameter 'p' (Float) is " + shown + ": a value that is not finite has no SQL"
+                    + " literal, and is not bound]", refusal(declared("p", "Float", 1, 1), v));
         }
     }
 
@@ -369,19 +419,26 @@ class PlanRunnerTest {
         return new ConnectionDefinition(name, "s::DB", type, spec, new AuthenticationSpec.TestAuth());
     }
 
-    /** Two runs of one target share its database, set up once (its CREATE TABLE would fail a second time); a target
-     *  with other setup is another database (decision A). */
+    /** The setup statements sent so far, in this JVM (the Census's count under the SEED mark). */
+    private static long setupStatements() {
+        return StatementOrigin.snapshot()[StatementOrigin.SEED.ordinal()];
+    }
+
+    /** Two runs of one target share its database, set up once -- its two setup statements sent once; a target with
+     *  other setup is another database, set up in its turn (decision A). */
     @Test
     void runsOfOneTargetShareADatabase_setUpOnce_andAnotherTargetHasItsOwn() throws Exception {
         for (var connection : List.of(inMemory("s::Duck", DatabaseType.DuckDB, new ConnectionSpecification.InMemory()),
                 inMemory("s::H2", DatabaseType.H2, new ConnectionSpecification.LocalH2(null)))) {
-            var servers = connection.databaseType() == DatabaseType.H2
-                    ? new ExecutionPlan.Servers.Versions(List.of("2.1", "2.2")) : new ExecutionPlan.Servers.Every();
+            var servers = connection.databaseType() == DatabaseType.H2 ? H2_SERVERS : new ExecutionPlan.Servers.Every();
             ExecutionPlan plan = counting(connection, "SHARED_T", servers);
+            long before = setupStatements();
             assertEquals("1", run(plan, PlanSessions.shared()), connection.qualifiedName());
-            assertEquals("1", run(plan, PlanSessions.shared()), "set up once: " + connection.qualifiedName());
+            assertEquals("1", run(plan, PlanSessions.shared()), connection.qualifiedName());
+            assertEquals(2, setupStatements() - before, "set up once: " + connection.qualifiedName());
             assertEquals("1", run(counting(connection, "OTHER_T", servers), PlanSessions.shared()),
                     "another target, another database: " + connection.qualifiedName());
+            assertEquals(4, setupStatements() - before, "another target, set up: " + connection.qualifiedName());
         }
     }
 
@@ -445,7 +502,7 @@ class PlanRunnerTest {
     }
 
     /** A setup that fails leaves nothing behind: the next run of the target sets up a new database, and fails the same
-     *  way (a reused half-set-up database would say its table exists). */
+     *  way (a reused half-set-up database -- an H2 one, kept by its name -- would say its table exists). */
     @Test
     void aFailedSetupLeavesNothing_theNextRunSetsUpAfresh() {
         for (var connection : List.of(inMemory("s::Duck", DatabaseType.DuckDB, new ConnectionSpecification.InMemory()),
@@ -459,6 +516,21 @@ class PlanRunnerTest {
                 assertTrue(failed.getMessage().toUpperCase(java.util.Locale.ROOT).contains("NO_SUCH_TABLE"),
                         connection.qualifiedName() + " attempt " + attempt + ": " + failed.getMessage());
             }
+        }
+    }
+
+    /** A setup refused before any statement runs -- rows for a bulk loader, on a database with none -- fails the same
+     *  way again: the refusal, a runtime error, closed what was opened, and nothing was kept. */
+    @Test
+    void aSetupRefusedForWantOfABulkLoaderFailsTheSameWayAgain() {
+        ExecutionPlan p = plan(ExecutionPlan.Format.JSON, "SELECT 'never'",
+                target(new ExecutionPlan.Database.Declared(inMemory("s::H2", DatabaseType.H2,
+                                new ConnectionSpecification.LocalH2(null))), H2_SERVERS,
+                        statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(List.of("a", "b"))));
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            var refused = assertThrows(IllegalStateException.class, () -> run(p, PlanSessions.shared()));
+            assertEquals("the plan's setup has rows for a bulk loader, and the session's database has none (H2)",
+                    refused.getMessage(), "attempt " + attempt);
         }
     }
 
@@ -485,8 +557,9 @@ class PlanRunnerTest {
                 + " setup for it: never run on it", refused.getMessage());
     }
 
-    /** Runs of one target that start together set it up once (its CREATE TABLE would fail a second time), and each
-     *  waits for that setup, run outside the store's lock. */
+    /** Runs of one target that start together set it up once: its two setup statements sent once, every run answered
+     *  from that database (that a run waits for a setup in progress, and that another target's is not held up, is
+     *  HandleStoreTest's, deterministically). */
     @Test
     void runsOfOneTargetThatStartTogetherSetItUpOnce() throws Exception {
         ExecutionPlan p = plan(ExecutionPlan.Format.JSON, "SELECT CAST(COUNT(*) AS VARCHAR) FROM TOGETHER_T",
@@ -497,6 +570,7 @@ class PlanRunnerTest {
         int runs = 8;
         var start = new java.util.concurrent.CountDownLatch(1);
         var pool = java.util.concurrent.Executors.newFixedThreadPool(runs);
+        long before = setupStatements();
         try {
             List<java.util.concurrent.Future<String>> answers = new java.util.ArrayList<>();
             for (int i = 0; i < runs; i++) {
@@ -512,6 +586,7 @@ class PlanRunnerTest {
         } finally {
             pool.shutdownNow();
         }
+        assertEquals(2, setupStatements() - before, "set up once for " + runs + " runs");
     }
 
     /** A target of the platform's own database (no declared connection) is shared and set up once too. */
@@ -520,8 +595,10 @@ class PlanRunnerTest {
         ExecutionPlan p = plan(ExecutionPlan.Format.JSON, "SELECT CAST(COUNT(*) AS VARCHAR) FROM PLATFORM_T",
                 target(new ExecutionPlan.Database.Platform(DatabaseType.DuckDB), new ExecutionPlan.Servers.Every(),
                         statement("CREATE TABLE PLATFORM_T (ID INTEGER)"), statement("INSERT INTO PLATFORM_T VALUES (1)")));
+        long before = setupStatements();
         assertEquals("1", run(p, PlanSessions.shared()));
-        assertEquals("1", run(p, PlanSessions.shared()), "set up once");
+        assertEquals("1", run(p, PlanSessions.shared()));
+        assertEquals(2, setupStatements() - before, "set up once");
     }
 
     /** One JSON object per row, in an array: no row is an empty array. */

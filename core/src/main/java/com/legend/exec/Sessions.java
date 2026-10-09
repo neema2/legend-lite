@@ -235,6 +235,12 @@ public final class Sessions {
         return named(name, "");
     }
 
+    /** Opens another connection to the kept database {@code name} ({@link #openKept}), which must still be open: one
+     *  whose keeper closed is gone, and connecting fails by name rather than making an empty database of that name. */
+    public static Connection joinKept(String name) throws SQLException {
+        return named(name, ";IFEXISTS=TRUE");
+    }
+
     private static Connection named(String name, String closeDelay) throws SQLException {
         return DriverManager.getConnection("jdbc:h2:mem:" + name + closeDelay + H2Settings.SETTINGS);
     }

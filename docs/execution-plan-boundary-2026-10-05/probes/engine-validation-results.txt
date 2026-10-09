@@ -1,0 +1,51 @@
+legend-engine 4.145.0's own parameter validation (EngineValidationProbe.java, run on engine-dist-4.145.0/lib, 2026-10-09):
+each case, then what the engine says or passes on.
+
+== an unknown type: the types the message names, in its order
+Number[1..1] Long 1
+    IllegalArgumentException: Invalid provided parameter(s): [Unknown external parameter type: Number, valid external parameter types: [Float, Byte, meta::pure::metamodel::variant::Variant, DateTime, Date, Decimal, String, Integer, Boolean, StrictDate]]
+== a list for an upper bound of 1, its elements valid and not
+Integer[1..1] List[Long 1, Long 2]
+    passes, as List[Long 1, Long 2]
+Integer[1..1] List[Long 1, String 'x']
+    IllegalArgumentException: Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: 'x' is not parsable.]
+Integer[1..1] List[String 'x', Long 1]
+    IllegalArgumentException: Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: 'x' is not parsable.]
+== an empty list, a null value, an absent one
+Integer[1..1] List[]
+    passes, as List[]
+Integer[1..1] null
+    passes, as null
+Integer[1..1] (absent)
+    IllegalArgumentException: Missing external parameter(s): p:Integer[1]
+Integer[0..1] List[]
+    passes, as List[]
+Integer[1..*] List[]
+    passes, as List[]
+== a null element in a list
+Integer[0..*] List[Long 1, null]
+    IllegalArgumentException: Invalid Integer value: null
+Integer[0..*] List[null, String 'x']
+    IllegalArgumentException: Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: 'x' is not parsable.]
+Float[0..*] List[Double 1.5, null]
+    IllegalArgumentException: Invalid Double value: null
+String[0..*] List[String 'a', null]
+    passes, as List[String 'a', null]
+== a Float that is not finite
+Float[1..1] String 'NaN'
+    passes, as Double NaN
+Float[1..1] Double NaN
+    passes, as Double NaN
+Float[1..1] String 'Infinity'
+    passes, as Double Infinity
+== a Byte and a Variant
+Byte[1..1] Long 1
+    IllegalArgumentException: Invalid provided parameter(s): [Unable to process 'Byte' parameter, value: 1.]
+Byte[1..1] String 'x'
+    IllegalArgumentException: Invalid provided parameter(s): [Unable to process 'Byte' parameter, value: 'x' is not parsable.]
+Byte[1..1] ByteArrayInputStream java.io.ByteArrayInputStream@5a1dddba
+    passes, as ByteArrayInputStream java.io.ByteArrayInputStream@5a1dddba
+meta::pure::metamodel::variant::Variant[1..1] String 'x'
+    passes, as String 'x'
+meta::pure::metamodel::variant::Variant[1..1] Long 5
+    IllegalArgumentException: Invalid provided parameter(s): [Unable to process 'meta::pure::metamodel::variant::Variant' parameter, value: 5.]
