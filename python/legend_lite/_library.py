@@ -19,7 +19,7 @@ import sys
 import threading
 from pathlib import Path
 
-_NAMES = {'darwin': 'libcompiler.dylib', 'linux': 'libcompiler.so'}
+_NAMES = {'darwin': 'libcompiler.dylib', 'linux': 'libcompiler.so', 'win32': 'libcompiler.dll'}
 
 
 def _find() -> Path:

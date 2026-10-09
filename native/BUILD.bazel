@@ -28,12 +28,11 @@ legend_java_library(
     ],
 )
 
-# libcompiler.dylib (macOS) / libcompiler.so (Linux). Everything links when the image is built
-# (--link-at-build-time), as the warehouse's image does: a missing class fails the build, never a call. The C
+# libcompiler.dylib (macOS) / libcompiler.so (Linux) / libcompiler.dll (Windows). Everything links when the image is
+# built (--link-at-build-time), as the warehouse's image does: a missing class fails the build, never a call. The C
 # toolchain is the warehouse image's (//warehouse:server_native): the host's checked first, zlib from source, lld on
-# Linux. The library's own name is set, never the path of the sandbox that built it: libcompiler.so (its soname) on
-# Linux, @rpath/libcompiler.dylib (its install name) on macOS. Not on Windows yet: the bindings load a .dylib or a
-# .so (python/legend_lite/_library.py).
+# Linux, MSVC on Windows. The library's own name is set, never the path of the sandbox that built it: libcompiler.so
+# (its soname) on Linux, @rpath/libcompiler.dylib (its install name) on macOS; a DLL is found by its file name.
 native_image(
     name = "compiler",
     executable_name = "libcompiler",
@@ -52,6 +51,8 @@ native_image(
             "-H:NativeLinkerOption=-Wl,-install_name,@rpath/libcompiler.dylib",
             "-H:NativeLinkerOption=-mmacosx-version-min=14.0",
         ],
+        # as on Linux: the oldest x86-64 CPUs, so a win_amd64 wheel runs on any 64-bit Windows machine
+        "@platforms//os:windows": ["-march=compatibility"],
         "//conditions:default": [],
     }),
     data = ["@host_cc//:present"],

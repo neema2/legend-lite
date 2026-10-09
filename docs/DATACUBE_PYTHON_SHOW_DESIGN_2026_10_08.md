@@ -230,7 +230,15 @@ into a fresh environment offline, `show()` and a query run from it alone. 7, the
 `datacube-widget`; above, "In a notebook"): `Engine` is the answers with no transport and `WebServer` serves it to a
 tab; `legend_lite/notebook.py`'s `DataCube` widget carries the cube's calls over the widget's channel; `show()` puts the
 cube under the cell in a notebook's kernel; the wheel's `notebook` extra (anywidget) and its three files in `_site/`.
-Left for later: publishing to PyPI (the user's decision), Windows, a notebook's dark theme (the cube stays light).
+8, Windows (branch `datacube-windows`): the compiler's library builds there as `libcompiler.dll` (the warehouse
+image's MSVC toolchain, `-march=compatibility` as on Linux), the wheel is `win_amd64`, and the library imports only
+Windows' own DLLs, the Universal C Runtime and the Visual C++ runtime CPython ships (`//python:wheel_test` holds that
+list). Found by the first Windows runs and fixed: closing the tabs' web server waited 30 s for a connection the browser
+left open (a Windows read is cancelled only by closing its system socket); a compiled module in Bazel's per-wheel
+folders passed Windows' DLL path limit (rules_python's venvs, `.bazelrc`); polars refused to import in a test that did
+not name the machine's architecture. One test holds less there: a script's end by Ctrl-C (a test has no console to
+press it in), held on Linux and macOS. Left for later: publishing to PyPI (the user's decision), a notebook's dark
+theme (the cube stays light), Windows on Arm (no GraalVM there).
 
 1. The boundary's builders; the Python server; its Python tests.
 2. Arrow in DataCube's remote client.
@@ -238,5 +246,4 @@ Left for later: publishing to PyPI (the user's decision), Windows, a notebook's 
 4. The browser test.
 5. `show()`: opening the browser, the handle, the wait at a script's end, the notebook refresh.
 
-Windows follows with the package step (the library does not build there yet: the loader knows no `.dll`, and the
-shared library has not been built on Windows).
+Windows came after the notebook cube (step 8, above).

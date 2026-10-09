@@ -67,10 +67,12 @@ again over them. A plain script that opened a cube in the browser waits at its e
 IDE's Stop); one that opened none (`browser=False`, or no browser to open: a test, a CI job) ends, and says so. `show(df, browser=False)` opens nothing: the link is `cube.url`, which
 `show` also prints (it carries the engine's token).
 
-**Install it** (into PyCharm's environment, a virtualenv, anywhere; Python 3.12 and up, macOS 14 and up or Linux):
+**Install it** (into PyCharm's environment, a virtualenv, anywhere; Python 3.12 and up, on macOS 14 and up, Linux, or
+64-bit Windows):
 `bazel build //python:wheel`, then `pip install 'bazel-bin/python/legend_lite-0.1.0-<platform>.whl[pandas]'` (pip
 fetches duckdb and pyarrow; `[polars]` for polars). Or take it from CI without building: each run's
-`legend-lite-wheel-<platform>` download (macOS, Linux, Linux ARM), kept once the warehouse lane that tests it is green. The wheel carries the compiler's library and DataCube's page; `//python:wheel_test` installs it into a
+`legend-lite-wheel-<platform>` download (macOS, Linux, Linux ARM, Windows), kept once the warehouse lane that tests it is
+green. The wheel carries the compiler's library and DataCube's page; `//python:wheel_test` installs it into a
 fresh environment, offline, and runs `show()` and a query from it alone.
 
 **In a notebook** (Jupyter, VS Code, Colab; `pip install '...whl[notebook,pandas]'`, which adds anywidget): the same
