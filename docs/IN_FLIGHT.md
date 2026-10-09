@@ -526,11 +526,13 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
      `warehouse.ts` (they named the deleted files). Diffs of `boot.ts` and `live-snap.ts` sent to the Studio line (no
      collision); the Bazel edits reviewed by the Bazel program session (accepted; with them `tools/deps/jars_table.bzl`
      drops `datacube` from `duckdb_jdbc_warehouse`'s users, and `docs/GENERATORS.md` loses the two generators).
-- **`datacube.show(df)` -- steps 1 and 2 LANDED 2026-10-08 (`f49033d8f`, run 37857474050; GATES entry "DataCube on a
-  Python dataframe, steps 1 and 2"): `//core:pure_v1`, Python's engine, DataCube's client reading upstream's Arrow,
-  `//datacube:python_engine_test` (warehouse lane). Next: step 3, DataCube's page of one cube on an engine
-  (`datacube/demo/engine.html`, `engine.ts`, `make-dist.mjs`'s loop, the `_BUNDLES` entry: agreed with the Studio line;
-  built and audited, its fixes in hand), then `show()` itself.** (Announced 2026-10-08, before the first edit; the design, agreed with the user:
+- **`datacube.show(df)` -- steps 1 and 2 LANDED 2026-10-08 (`f49033d8f`, run 37857474050); steps 3, 5 and 6 LANDED
+  2026-10-09 (`2b32f6d25`, run 37872741038; GATES entry "DataCube on a Python dataframe, steps 3, 5 and 6"): DataCube's
+  page of one cube on an engine, `ll.show(df)`, the wheel per platform, LICENSE and NOTICE, CI's kept wheels. Next, on
+  branch `datacube-windows` (audited, Bazel-reviewed, its full run before landing): step 7, the cube under a notebook's
+  cell (`python/legend_lite/notebook.py`, `datacube/demo/engine-cube.ts`, `widget-loader.ts`, `widget.ts`; `Engine`
+  split from its `WebServer`; the wheel's `notebook` extra); step 8, Windows (`libcompiler.dll`, a `win_amd64` wheel;
+  `.bazelrc` turns on rules_python's venvs for every Python target).** (Announced 2026-10-08, before the first edit; the design, agreed with the user:
   `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`).** DataCube as the UI in its remote-run mode; Python a small Legend
   engine answering upstream's `pure/v1` slice (parse, print, a query's types, execute with Arrow results) through the
   native library and duckdb-python. Files, in order: `wasm/src/main/java/planner/Wasm.java` (the refusal answer and the

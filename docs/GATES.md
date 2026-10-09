@@ -7577,3 +7577,35 @@ unused enum `sourceType` refused; whole-model refusals pinned).
 The run: 37870936729 on `protocol-leg2` (447102e56, on 1818c89f7), lanes core, checks, parser_equivalence, product,
 ui, datacube and sdlc on every platform, green on every job; pushed to main as 447102e56, the tested commit. Local gate
 `//gates:local` green (315/315) on the same tree.
+
+## 2026-10-09 — DataCube on a Python dataframe, steps 3, 5 and 6: `ll.show(df)`, the wheel, and the licence (the DataCube + Python line)
+
+The design: `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md` ("Order", steps 3 to 6). Landed as one fast-forward,
+`37f102623..2b32f6d25`:
+
+1. **DataCube's page of one cube on an engine** (`949c04d79`): `datacube/demo/engine.html` and `engine.ts`, a page of
+   its own in remote-run mode (agreed with the Studio line; `boot.ts` untouched); the engine says what to show
+   (`cube.json`); the page's script held under its own budget (300,000 bytes gzipped). The platforms the compiler's
+   library builds on in one list, `COMPILER_LIBRARY_PLATFORMS` (tools/platforms/defs.bzl).
+2. **One file for a lane's Bazel flags** (`3871f0efe`): `tools/ci/lane-flags.sh`, sourced by every CI step that runs
+   Bazel for a lane, checked by `//tools/guards:ci_scripts_test`.
+3. **`ll.show(df)`** (`7afcd3714`, `python/legend_lite/datacube.py`): DataCube opens in the browser and `show()` returns
+   at once; the page follows the frame (about once a second it asks the engine the frame's version); `cube.update`,
+   `refresh`, `close`; a plain script that opened a cube in a browser waits at its end until Ctrl-C, one that opened
+   none ends; in IPython the cube re-queries after each cell. `bazel run //python:repl` to try it.
+4. **The wheel** (`9e37fdde8`, `//python:wheel`): legend-lite 0.1.0 per platform -- macOS 14 and up (the library's
+   minimum pinned), Linux `manylinux_2_17` (the glibc the library is measured to need), Python 3.12 and up -- carrying
+   the compiler's library and DataCube's engine page only (16.5 MB). `//python:wheel_test` installs it into a fresh
+   environment offline and runs `show()` and a query from it alone, and reads the platform tag against the library's
+   own header.
+5. **The licence** (`76c2fe69a`): `LICENSE` (Apache-2.0) and `NOTICE` -- legend-lite a clean-sheet implementation,
+   crediting legend-pure and legend-engine (the user, 2026-10-08) -- in the repository and in the wheel, with GraalVM's
+   licences beside them.
+6. **Each platform's tested wheel kept as a download** (`2b32f6d25`): the warehouse lane uploads
+   `legend-lite-wheel-<platform>` once green.
+
+What judges it: `//python:engine_test` (the engine and `show()`, a real script waiting and not waiting),
+`//python:wheel_test`, `//datacube:python_engine_test` (the engine's page from the engine's site, an update shown by
+itself, a new column reopening the cube), `//datacube:bundle_budget_test`, `//tools/guards:ci_scripts_test`. Local gate
+`//gates:local` green (322) on the rebased tree; full CI run 37872741038 on `ci/datacube-show-3`, green on every lane and
+platform (50 jobs); pushed to main as 2b32f6d25, the tested commit.
