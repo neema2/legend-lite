@@ -277,7 +277,9 @@ lone grid's header (its source, pill, menu); the fold.**
   the name for its first Save. Renaming is a change of the page, saved by Save. The browser's tab title says the same
   name, as it does now. The old derived name (the first grid's report title, §6) becomes the first sheet's name.
 - **The sheet tabs** are a browser's tabs: the one shown is raised; a click shows another; a double click renames one
-  in place; the + adds a sheet after the last and shows it; a tab's right-click menu has Rename, Move Left, Move Right
+  in place; the + adds a sheet after the last and shows it; a tab's × deletes its sheet, asking first when it has tiles
+  (on the tab shown and the tab under the pointer; none for the last sheet, or on a locked page; the user, 2026-10-09:
+  "X is right"); a tab's right-click menu has Rename, Move Left, Move Right
   and Delete (a sheet with tiles asks first, and its tiles go with it); dragging a tab along the strip reorders. Many
   sheets shrink their tabs, then the strip scrolls, with a list of every sheet at its end. The tabs take the arrow keys
   as a tablist does (no page-wide shortcut: the browser keeps Ctrl+PgUp and Ctrl+PgDn for its own tabs).
@@ -311,12 +313,15 @@ page reopens on its first sheet. A grid's export lays out the charts of its own 
 ### 7.4 Stacked tiles (3b)
 
 - **A stack** is one place in a band holding two tiles or more, one in front; its header is their tabs (each tile's
-  title), with the front tile's own buttons at its right. A click on a tab brings it to the front.
+  title and its × -- the tile off the page, as a tile's own × does; Delete on a focused tab the same), with the front
+  tile's own buttons at its right, its own × left out (each tile's is on its tab). A click on a tab brings it to the
+  front.
 - **Made by a drop on a tile's middle** (the zone that swapped): the dragged tile joins that tile's place, in front. A
   drop on a stack's middle or its tab strip adds to it. Dragging a tab out takes that tile anywhere else; a stack left
   with one tile is a plain tile again. A tab dragged along its strip reorders the stack.
-- Arrange counts a stack as one place, and keeps it; the keyboard moves a stack as one; maximise shows the stack. An
-  export shows each stack's front tile.
+- Arrange counts a stack as one place, and keeps it; the keyboard moves a stack as one; maximise shows the stack (its
+  front removed, the next tab, maximised). An export shows each stack's front tile -- a grid's own export, that grid,
+  brought to the front of its place (its table is what it exports).
 - **Saved** in its sheet's layout as a stack node of its tiles in order (version 3: a version 3 reader of 3a refuses
   it, and none is left by then). The front tile is not saved (§5, 7): a stack reopens on its first tab.
 - `bands.ts` holds the stack as a node of the tree, under the same rules (`problems`: two tiles or more, each tile once,

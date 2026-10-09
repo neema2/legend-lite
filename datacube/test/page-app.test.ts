@@ -13,6 +13,7 @@ import { JSDOM } from 'jsdom';
 import { CubeApp } from '../src/app.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { configurationOf, type CubeDocument, type FileSource } from '../src/cube-document.ts';
+import type { ExportPage } from '../src/export-model.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
 import { pageToJson, readPage } from '../src/page-document.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
@@ -500,6 +501,31 @@ describe('a page of its own', () => {
     await settle();
     assert.equal(page.sheets.length, 2);
     assert.deepEqual(page.views().sheets.map((s) => s.layout.bands.length), [1, 0]);
+  });
+
+  it('a grid behind a chart in a stack still exports its table, beside the charts of its sheet', async () => {
+    // a maker that keeps each grid's export, as its CubeApp would call it
+    const exports = new Map<string, () => ExportPage | undefined>();
+    const keep = (name: string, saved?: CubeDocument): GridMaker => (gridHost, spawned, start) => {
+      if (spawned.id !== undefined && spawned.exportPage) exports.set(spawned.id, spawned.exportPage);
+      return over(name, saved)(gridHost, spawned, start);
+    };
+    newPage();
+    const a = page.addGrid(keep('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    const doc = page.document('Q3')!;
+    // the chart in front of its grid, in one place
+    const stacked = { ...doc, sheets: [{ ...doc.sheets[0]!, layout: { kind: 'bands' as const, fit: true, bands: [{ height: 1, node: { stack: [chart, a] } }] } }] };
+    page.dispose();
+    newPage();
+    exports.clear();
+    const back = readPage(pageToJson(stacked));
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, keep(c.cube.source.name, c.cube)])));
+    await settle();
+    const exported = exports.get(a)?.();
+    assert.ok(exported, 'a page export, with its chart');
+    assert.ok(exported.tiles.some((t) => t.id === a && t.kind === 'grid'), 'its table in it');
   });
 
   it('deletes a sheet with its tiles once asked, never its last; the readout follows the sheet shown', async () => {

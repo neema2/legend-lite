@@ -49,8 +49,11 @@ export class SheetTabs {
   #hovered: string | undefined;
   /** A tab being renamed, while its field is open. */
   #renaming: string | undefined;
-  /** Each sheet's tab, kept from paint to paint: a click that shows a sheet leaves its tab, so a double click renames it. */
-  readonly #els = new Map<string, HTMLElement>();
+  /**
+   * Each sheet's tab and its parts, kept from paint to paint: a click that shows a sheet leaves its tab, so a double
+   * click renames it; and a rename's field, in the parts' place, leaves them to be painted all the same.
+   */
+  readonly #els = new Map<string, { readonly tab: HTMLElement; readonly label: HTMLElement; readonly close: HTMLButtonElement }>();
 
   constructor(doc: Document, options: SheetTabsOptions) {
     this.#doc = doc;
@@ -109,7 +112,7 @@ export class SheetTabs {
     const ids = new Set(tabs.map((t) => t.id));
     for (const [id, el] of [...this.#els]) {
       if (ids.has(id)) continue;
-      el.remove();
+      el.tab.remove();
       this.#els.delete(id);
     }
     for (const t of tabs) {
@@ -122,7 +125,7 @@ export class SheetTabs {
     }
     // in the sheets' order (an element already in place is not moved: its focus and its pointer stay)
     tabs.forEach((t, i) => {
-      const el = this.#els.get(t.id)!;
+      const el = this.#els.get(t.id)!.tab;
       if (this.#strip.children[i] !== el) this.#strip.insertBefore(el, this.#strip.children[i] ?? null);
     });
     const raised = this.#tabAt(shown);
@@ -161,14 +164,13 @@ export class SheetTabs {
     field.value = sheet.label;
     field.setAttribute('aria-label', 'Sheet name');
     // the tab's own label and ×, back in place when the field goes
-    const label = tab.querySelector('.dc-sheet-label')!;
-    const close = tab.querySelector('.dc-sheet-close');
+    const { label, close } = this.#els.get(id)!;
     let done = false;
     const finish = (keep: boolean): void => {
       if (done) return;
       done = true;
       this.#renaming = undefined;
-      tab.replaceChildren(label, ...(close ? [close] : []));
+      tab.replaceChildren(label, close);
       if (keep && field.value.trim() !== sheet.label) this.#options.onRename(id, field.value.trim());
       this.#tabAt(id)?.focus();
     };
@@ -192,7 +194,7 @@ export class SheetTabs {
   // -- a tab ---------------------------------------------------------------------------------------------------
 
   /** A sheet's tab, its handlers reading where it is now (`paint` keeps it while its sheet lasts). */
-  #tab(id: string): HTMLElement {
+  #tab(id: string): { tab: HTMLElement; label: HTMLElement; close: HTMLButtonElement } {
     const doc = this.#doc;
     const tab = doc.createElement('div');
     tab.className = 'dc-sheet-tab';
@@ -220,29 +222,25 @@ export class SheetTabs {
     });
     tab.addEventListener('keydown', (e) => this.#onKey(e, id, tab));
     tab.addEventListener('pointerdown', (e) => this.#press(e, id, tab));
-    return tab;
+    return { tab, label, close };
   }
 
-  #paintTab(tab: HTMLElement, sheet: SheetTab): void {
+  #paintTab({ tab, label, close }: { tab: HTMLElement; label: HTMLElement; close: HTMLButtonElement }, sheet: SheetTab): void {
     const shown = sheet.id === this.#shown;
     tab.setAttribute('aria-selected', String(shown));
     tab.tabIndex = shown ? 0 : -1;
     tab.classList.toggle('dc-sheet-tab-shown', shown);
     tab.classList.toggle('dc-sheet-tab-target', sheet.id === this.#hovered);
     tab.title = sheet.label;
-    const label = tab.querySelector('.dc-sheet-label');
-    if (label) label.textContent = sheet.label;
-    const close = tab.querySelector<HTMLButtonElement>('.dc-sheet-close');
-    if (close) {
-      // the last sheet stays, and a locked page deletes none
-      close.hidden = !this.#editing || this.#tabs.length < 2;
-      close.title = `Delete ${sheet.label}`;
-      close.setAttribute('aria-label', `Delete the sheet ${sheet.label}`);
-    }
+    label.textContent = sheet.label;
+    // the last sheet stays, and a locked page deletes none
+    close.hidden = !this.#editing || this.#tabs.length < 2;
+    close.title = `Delete ${sheet.label}`;
+    close.setAttribute('aria-label', `Delete the sheet ${sheet.label}`);
   }
 
   #tabAt(id: string): HTMLElement | null {
-    return this.#els.get(id) ?? null;
+    return this.#els.get(id)?.tab ?? null;
   }
 
   #onKey(e: KeyboardEvent, id: string, tab: HTMLElement): void {

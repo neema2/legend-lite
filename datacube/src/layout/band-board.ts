@@ -123,6 +123,8 @@ interface Placed {
   readonly tabs: HTMLElement;
   /** What its tabs say now (the stack's tiles, the front, their names), to draw them again only when that changes. */
   tabsKey: string;
+  /** Its rename field is open (in its title's place, the stack's tabs out of the way). */
+  renaming: boolean;
   /** The header's buttons: the tile's own (`spec.actions`), then the board's (layouts, maximise, remove). */
   readonly actions: HTMLElement;
   readonly remove: HTMLButtonElement;
@@ -456,7 +458,7 @@ export class BandBoard {
     body.append(spec.element);
     root.append(head, body);
     this.#canvas.append(root);
-    const placed: Placed = { spec, root, title, tabs, tabsKey: '', actions, remove, name: spec.title };
+    const placed: Placed = { spec, root, title, tabs, tabsKey: '', renaming: false, actions, remove, name: spec.title };
     head.addEventListener('pointerdown', (e) => this.#startMove(spec.id, e));
     root.addEventListener('keydown', (e) => this.#onKey(spec.id, e));
     head.addEventListener('dblclick', (e) => {
@@ -470,7 +472,7 @@ export class BandBoard {
     for (const [id, p] of this.#tiles) {
       const stack = this.#drawn.stacks.get(id);
       p.title.hidden = stack !== undefined;
-      p.tabs.hidden = stack === undefined;
+      p.tabs.hidden = stack === undefined || p.renaming;
       // stacked, each tile's × is on its tab
       p.remove.hidden = p.spec.removable === false || stack !== undefined;
       const key = stack ? `${id}|${stack.map((t) => `${t}:${this.#tiles.get(t)?.name ?? t}`).join('|')}` : '';
@@ -735,6 +737,7 @@ export class BandBoard {
       const next = input.value.trim();
       input.replaceWith(p.title);
       // a stack's tabs back in its header
+      p.renaming = false;
       this.#paintTabs();
       if (keep && next !== '' && next !== p.name) {
         this.rename(p.spec.id, next);
@@ -750,6 +753,7 @@ export class BandBoard {
     input.addEventListener('blur', () => finish(true));
     input.addEventListener('pointerdown', (e) => e.stopPropagation());
     // a stack's front renamed: its field in place of the stack's tabs while it is open
+    p.renaming = true;
     p.tabs.hidden = true;
     p.title.replaceWith(input);
     input.focus();
@@ -878,7 +882,8 @@ export class BandBoard {
       }
       if (!apply || target === undefined) return;
       const next = drop(this.#layout, id, target);
-      if (next === this.#layout) return;
+      // put back where it was (a tab dragged out, let go on its own stack): no step
+      if (next === this.#layout || JSON.stringify(next) === JSON.stringify(this.#layout)) return;
       this.#change(next, `${tile.name} moved.`);
     });
   }

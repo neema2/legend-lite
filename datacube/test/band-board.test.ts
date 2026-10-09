@@ -321,6 +321,8 @@ describe('the band board', () => {
     dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
     assert.deepEqual(board.layout.bands.map((b) => b.node), [{ stack: ['a', 'c'], front: 'a' }, { tile: 'b' }],
       'only brought to the front');
+    assert.equal(root('c').hidden, true, 'drawn as it is again: c behind a');
+    assert.equal(root('a').querySelector<HTMLElement>('.dc-tile-tabs')!.hidden, false, 'its tabs back on a');
     assert.notEqual(board.layout, was);
     wellFormed(board);
   });
@@ -363,7 +365,7 @@ describe('the band board', () => {
     assert.deepEqual([...root('a').querySelectorAll('.dc-tile-tab-label')].map((t) => t.textContent), ['A', 'Revenue']);
   });
 
-  it('a tab dragged along its strip moves among the tabs, as one change; let go where it was, nothing', () => {
+  it('a tab dragged along its strip moves among the tabs, as one change; pressed and let go, no change', () => {
     const { board, changes } = sideBySide(['a', 'b', 'c']);
     board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b', 'c'] } }] });
     // jsdom lays nothing out: the strip and its tabs where a browser would put them, 60px each
@@ -373,12 +375,55 @@ describe('the band board', () => {
     strip.getBoundingClientRect = rect(0, 180);
     const tabs = [...strip.querySelectorAll<HTMLElement>('.dc-tile-tab')];
     tabs.forEach((t, i) => { t.getBoundingClientRect = rect(i * 60, 60); });
+    // pressed and let go: a in front already, nothing moved
+    pointer(tabs[0]!, 'pointerdown', 30, 10);
+    pointer(tabs[0]!, 'pointerup', 30, 10);
+    assert.equal(changes.length, 0);
     pointer(tabs[0]!, 'pointerdown', 30, 10);
     pointer(tabs[0]!, 'pointermove', 170, 12);
     pointer(tabs[0]!, 'pointerup', 170, 12);
     assert.deepEqual(board.layout.bands[0]!.node, { stack: ['b', 'c', 'a'] }, 'a after c');
     assert.equal(changes.length, 1, 'one step');
     wellFormed(board);
+  });
+
+  it('a tab dragged out and let go back on its own stack is no step', () => {
+    const { board, changes } = sideBySide(['a', 'b']);
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b'] } }] });
+    const tabOf = (id: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.dc-tile-tab')]
+      .find((t) => t.dataset['tab'] === id && !(t.closest('.dc-tile-tabs') as HTMLElement).hidden)!;
+    pointer(tabOf('b'), 'pointerdown', 120, 10);
+    pointer(tabOf('b'), 'pointermove', 500, 150);
+    const head = root('b').querySelector<HTMLElement>('.dc-tile-head')!;
+    pointer(head, 'pointerup', 500, 150);
+    assert.equal(changes.length, 0, 'b back on a\'s middle: the stack as it was');
+    assert.deepEqual(board.layout.bands[0]!.node, { stack: ['a', 'b'], front: 'b' });
+  });
+
+  it('a maximised stack whose front is removed stays maximised, on its next tab; one left, on that tile', () => {
+    const { board } = sideBySide(['a', 'b', 'c']);
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b', 'c'] } }] });
+    board.maximise('a');
+    board.remove('a');
+    assert.equal(board.maximised, 'b');
+    assert.ok(host.classList.contains('dc-bands-maximised'));
+    board.remove('b');
+    assert.equal(board.maximised, 'c', 'the stack is one tile now');
+    assert.equal(root('c').hidden, false);
+  });
+
+  it('Delete on a focused stack tab removes its tile; a tile that cannot be removed has no ×', () => {
+    const removed: string[] = [];
+    const board = new BandBoard(host, { onRemove: (id) => removed.push(id) });
+    board.add(tile('a', { removable: false }));
+    board.add(tile('b'));
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b'] } }] });
+    const closeOf = (id: string) => [...root('a').querySelectorAll<HTMLElement>('.dc-tile-tab')]
+      .find((t) => t.dataset['tab'] === id)!.querySelector<HTMLButtonElement>('.dc-tile-tab-close')!;
+    assert.equal(closeOf('a').hidden, true, 'not removable: no ×');
+    assert.equal(closeOf('b').hidden, false);
+    key([...root('a').querySelectorAll<HTMLElement>('.dc-tile-tab')].find((t) => t.dataset['tab'] === 'b')!, 'Delete');
+    assert.deepEqual(removed, ['b']);
   });
 
   it('undoes a tile\'s drag on Escape: back in place, nothing moved', () => {
