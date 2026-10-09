@@ -312,6 +312,8 @@ py_package(
 py_wheel(
     name = "wheel",
     abi = "none",
+    # //datacube:jupyterlab_test installs it into a fresh environment, with JupyterLab
+    visibility = ["//datacube:__pkg__"],
     description_file = "README.md",
     distribution = "legend-lite",
     # the licences, in the wheel's .dist-info: the project's (Apache-2.0) and its NOTICE (legend-pure and legend-engine
