@@ -571,9 +571,10 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `src/page-document.ts`, `src/export-model.ts`, `src/export-xlsx.ts`, `src/snapshot.ts`, `src/ui/menu.ts`, `src/app.css`,
   `demo/boot.ts`, `tools/link-dictionary/make.ts`; `src/layout/board.ts` and `tile-layout.ts` deleted; their tests;
   `demo/verify-layout.mjs` with `datacube/BUILD.bazel` and a comment in `gates/BUILD.bazel` (Bazel-reviewed). **Phase 2
-  next** (announced here with its files before the first edit): the page bar (a shell of its own, each grid its own
-  header, one grid alone sharing the bar's strip: the user, 2026-10-09), the page owning Save, Open, Share and
-  "changed", the first grid removable, and the page's document holding several cubes over their own sources.
+  started 2026-10-09** (the user: "Do it"), branch `datacube-page-shell`; how it is built, and its files, in the
+  design's §6: the page as a shell of its own (`datacube/src/page/page-app.ts`, new; `page/cube-page.ts`, `app.ts`,
+  `page-document.ts`, `layout/band-board.ts`, `app.css`, `demo/boot.ts`, the demo's browser harnesses), the first grid
+  removable, every grid saved and reopened over its own source. All in `datacube/`.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

@@ -173,6 +173,42 @@ divider is the one exception that follows live, and only its content, at most on
 Later, when wanted: a band holding a free grid of small tiles (§3.2); the narrow layout stepping down a column at a time;
 saved layouts as one's own templates; cross-filtering between tiles (the 2026-09-28 design's §5.4).
 
+## 6. Phase 2, how it is built (2026-10-09, before the first edit)
+
+The user's go: "Do it" (2026-10-09). What changes, in plain words, then where.
+
+**The page is a thing of its own.** Today the first grid's app is the whole page: its title bar is the page's bar, its
+menu holds Save and Share, and the board lives inside it. Phase 2 puts a **page** above the grids
+(`datacube/src/page/page-app.ts`, new): the bar (the page's name, the page menu, the host's status), the board, and the
+empty page. Every grid is a tile holding a compact `CubeApp`, made the same way whether it is the first or the fifth,
+so the first one is removable. A cube embedded alone (the Query app, a notebook, the engine page) stays a `CubeApp`
+with its own title bar and its own board, as now: the page is DataCube's own app (`demo/boot.ts`).
+
+- **The bar.** The page menu holds the page's things only: New (a data source), Open, Save, Save As, Share, Export of
+  the page, Arrange, Undo/Redo Layout, Edit Layout, Settings, and the host's own entries (Generated Pure & SQL, where
+  the planner runs). Each grid's own menu (in its tile header) keeps the grid's things, as phase 1 made it.
+- **One grid alone** fills the page with no frame, and its header -- its source, Live/Snapped, its menu -- sits at the
+  right of the bar's strip: one strip, as a grid alone looks today. A second tile moves it back into the tile.
+- **The empty page** (the last tile removed, or New > Blank Page) keeps the bar and shows the choices of a source.
+- **Every grid knows its source.** A grid added over a file, a warehouse table or a remote file now writes its source
+  down as a grid opened "in place" does, so every grid can be saved. Each grid has its own planner over its own model;
+  none uses the page's shared one specially. Opening a source in place is: the page emptied, then that grid added.
+- **Saving the page** writes one cube document per grid (each its own source and view), a grid view for each tile, and
+  each chart naming the grid it follows; the layout as phase 1 writes it. **Reopening** opens each cube through its
+  source -- a file asked for, a saved query rerun, a warehouse signed in to, a remote file's keys asked for -- each with
+  its own planner, then lays them out as saved. "Changed since saved" and Share cover every grid.
+- **A frozen chart whose grid is removed** keeps reading that grid's query, as today: the removed grid is kept off the
+  page (no tile) while a chart still reads it, saved as a cube with no grid view, and reopened the same way. It goes
+  once its last chart goes. (Today such a chart runs on the first grid's planner; with no first grid, it keeps its own.)
+- The demo's test handles: `window.__dataCube` stays the grid a test opened (the first); `window.__dataPage` is new,
+  the page (its views, its document, its layout).
+
+Files: `datacube/src/page/page-app.ts` (new), `page/cube-page.ts`, `app.ts` (a grid's changes reported to its page; the
+page's entries out of a compact grid's menus), `page-document.ts` (several cubes written), `layout/band-board.ts` (the
+lone tile shown frameless), `app.css`, `demo/boot.ts`, `demo/index.html` if its host windows move, the demo's browser
+harnesses that open the title bar's menu (`demo/verify-*.mjs`), and their tests: `test/page-app.test.ts` (new) and a
+browser check of a page of two sources saved and reopened, with its first grid removed.
+
 ## 5. Decisions (the user, 2026-10-09)
 
 1. **Bands** -- one way of arranging that scrolls or fills the window -- rather than a free scrolling grid, a page of
