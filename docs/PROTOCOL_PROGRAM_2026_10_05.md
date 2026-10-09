@@ -260,6 +260,12 @@ not be written back, so it is refused.
       the status) where it was a Java class name: the DataCube + Python line's decision, as `python/` and `native/`
       are theirs (their diffs reviewed by that line). A Bazel change: the boundary's sources and the TeaVM entry
       class (`wasm/BUILD.bazel`), reviewed by the Bazel program's session.
+   - **Refusal texts that changed** (found by the leg's audit; no test or caller read the old ones): a lambda's JSON
+     that is not an object is refused in one text everywhere, `protocol JSON: a lambda is not a JSON object` (it was
+     `the request body is not a JSON object` on `jsonToGrammar/lambda`, `lambda JSON: not a JSON object` in the tab's
+     and Python's planning calls); and the tab's grammar refusals (DataCube's and the apps' print and parse) are a
+     server's -- a parse error 400 `PARSER`, any other refusal 500 with its exception's simple name before its message
+     (`IllegalArgumentException: ...`) -- where they were the folded `ERR` text.
    5. The SDLC server's `CoreGrammar.modelJson` calls the text-to-JSON conversion (its edge moves in leg 7).
 5. **Round trip proven** over the corpus and the showcase projects (plan S5), in the JVM and in the tab (the
    WebAssembly build of the same code, a differential run as `//wasm:differential_test` does for the planner).

@@ -273,5 +273,10 @@ and `python/legend_lite/compiler.py`'s `LegendError` documents one rule for `kin
 **When.** With leg 6 — whose one whole-model compile replaces the copy in `PureV1Api.compile` that the anchor names, so
 the anchor goes red there and the row must be closed or restated.
 
-**Anchor.** `PureV1Api.compile` stringing "compile a whole model" together itself
-(`com.legend.Compiler.compileAllBodies(` then `com.legend.Compiler.compileModel(`), in `PureV1Api.java` alone.
+**Anchors.** Two, because the parked behaviour lives in `python/`, which `ParkedWorkLedgerTest` cannot read (it scans
+`core/src/main/java`): (1) in the ledger test, a PROXY for leg 6's start -- `PureV1Api.compile` stringing "compile a
+whole model" together itself (`com.legend.Compiler.compileAllBodies(` then `com.legend.Compiler.compileModel(`), in
+`PureV1Api.java` alone, which leg 6's one whole-model compile replaces; (2) on the behaviour itself,
+`python/tests/test_compiler.py`'s `test_refusal_kinds_are_mixed_until_leg_6` (`//python:bindings_test`), which pins the
+grammar's refusal kind as the engine's and `relation_type`'s, `plan`'s and `plan_text`'s as a Java class name, so a
+call moving to `pure/v1` without this row being closed or restated turns it red (found by leg 4's audit, 2026-10-09).

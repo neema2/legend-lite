@@ -73,6 +73,20 @@ class Compiling(unittest.TestCase):
             ll.relation_type(MODEL, ll.parse("|#>{trades::DB.TRADES}#->select(~[nope])"))
         self.assertIn('nope', e.exception.message)
 
+    def test_refusal_kinds_are_mixed_until_leg_6(self):
+        """PARK-17 (docs/PARKED_WORK_LEDGER.md): a grammar call's refusal carries the engine's kind, the other calls'
+        still a Java class name, until the protocol program's leg 6. Either set changing turns this red: close or
+        restate the row."""
+        with self.assertRaises(ll.LegendError) as e:
+            ll.print_tree({'_type': 'lambda', 'parameters': [], 'body': [{'_type': 'nope'}]})
+        self.assertNotIn('.', e.exception.kind, 'the grammar: the engine\'s kind, not a Java class')
+        bad = ll.parse("|#>{trades::DB.TRADES}#->filter(x|$x.nope == 1)")
+        for call in (lambda: ll.relation_type(MODEL, bad), lambda: ll.plan(MODEL, bad, 'trades::RT'),
+                     lambda: ll.plan_text(MODEL, "#>{trades::DB.TRADES}#->filter(x|$x.nope == 1)", 'trades::RT')):
+            with self.assertRaises(ll.LegendError) as e:
+                call()
+            self.assertTrue(e.exception.kind.startswith('com.legend.'), e.exception.kind)
+
     def test_writes_a_tables_whole_model_from_its_catalog(self):
         m = ll.table_model({'table': 'orders', 'pkg': 'shop', 'convertible': True, 'databaseType': 'DuckDB',
                             'columns': [{'name': 'id', 'dataType': 'BIGINT', 'logicalType': 'BIGINT', 'notNull': True},

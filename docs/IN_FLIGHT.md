@@ -459,11 +459,16 @@ the four conversions complete with their options, the model printer in PRETTY as
 whole-model compile and the tab's other twins, the SDLC server's rules free of Pure, the server reading models as
 records). Files: `core/src/main/java/com/legend/parser/` (`PmcdParser`, `SpecParser`: text to JSON);
 `core/src/main/java/com/legend/protocol/` (`ModelComposer`, `PureComposer`, `Composing` and the element printers: JSON
-to text, the style); `core/src/main/java/com/legend/server/PureV1Api.java`; `wasm/src/main/java/planner/Wasm.java`
-(`pureV1OrError` exported to the tab; four grammar twins deleted); `engine-client/src/legend/planner-worker.ts` and the
-TS test harnesses in `engine-client/test/`, `studio/test/` and `pure-protocol/test/` (`datacube/test/`'s fakes with the
-DataCube + Python line); `sdlc-server/src/main/java/com/legend/sdlc/CoreGrammar.java`; `parser-equivalence`'s
-`ModelComposerParityTest` (a PRETTY pass). Open, and not yet in the plan's legs: printing lite-only
+to text, the style); `core/src/main/java/com/legend/server/PureV1Api.java`; `wasm/` (`planner.Wasm` split into
+`Boundary`, `Folded` and `TabExports`, step 4b; `wasm/BUILD.bazel`: the `:boundary` and `:tab` libraries, the TeaVM
+entry class); `engine-client/src/legend/` (`wasm-grammar.ts`, `engine.ts`, `planner-answer.ts`, `planner-worker.ts`,
+`browser-engine.ts`; `engine-client/BUILD.bazel`: the worker bundle's sources) and the TS test harnesses in
+`engine-client/test/`, `studio/test/`, `query/test/` and `pure-protocol/test/`; with the DataCube + Python line, which
+reviewed them: `datacube/src/wasm-planner.ts`, `planner-worker.ts`, `datacube/test/wasm-planner.test.ts`,
+`native/src/main/java/com/legend/nativelib/Compiler.java` (Python's adapter; three entry points removed),
+`python/legend_lite/compiler.py`, `_library.py`, `python/tests/test_compiler.py`, `python/README.md`;
+`sdlc-server/src/main/java/com/legend/sdlc/CoreGrammar.java`; `parser-equivalence`'s `ModelComposerParityTest` (a
+PRETTY pass); `docs/PARKED_WORK_LEDGER.md` and `ParkedWorkLedgerTest` (PARK-17). Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first; lite's grammar takes
 no `doc` on a function test, though the engine's does; lite's persistence grammar accepts `];` after `tests`,
 though the engine's does not.
