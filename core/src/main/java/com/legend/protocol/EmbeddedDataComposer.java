@@ -51,7 +51,7 @@ final class EmbeddedDataComposer {
             case Protocol.PModelStoreData m -> block("ModelStore", modelStore(m, inner), i);
             case Protocol.PRelationData r -> block("Relation", relationElements(r.relationElements(), inner), i);
             case Protocol.PRelationalCsvData c -> block("Relational", relationalCsv(c, inner), i);
-            case Protocol.PServiceStoreData s -> block("ServiceStore", serviceStore(s, inner), i);
+            case Protocol.PServiceStoreData s -> block("ServiceStore", ServiceStoreComposer.embeddedData(s, inner), i);
         };
     }
 
@@ -113,13 +113,6 @@ final class EmbeddedDataComposer {
             tables.add(b.append(";").toString());
         }
         return String.join("\n\n", tables);
-    }
-
-    /** The service store's own printer, which still reads the JSON: the record written back for it (until it moves). */
-    private static String serviceStore(Protocol.PServiceStoreData s, String i) {
-        StringBuilder b = new StringBuilder();
-        MappingEmitter.embeddedDataValue(b, s);
-        return ServiceStoreComposer.embeddedData(Json.parseObject(ProtocolEmitter.finish(b)), i);
     }
 
     // ---------------------------------------------------------------------

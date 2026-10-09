@@ -124,7 +124,8 @@ final class RelationalMappingComposer {
         Protocol.PLocalProp local = pm.localMappingProperty();
         String property = convertIdentifier(pm.property());
         String head = local != null
-                ? "+" + property + ": " + local.type() + "[" + Composing.multiplicity(multiplicity(local)) + "]"
+                ? "+" + property + ": " + local.type() + "["
+                        + Composing.multiplicity(local.lowerBound(), local.upperBound()) + "]"
                 : property + target("", pm.target());
         String enumMapping = pm.enumMappingId();
         String binding = pm.bindingTransformer();
@@ -132,14 +133,6 @@ final class RelationalMappingComposer {
                 + (enumMapping != null ? "EnumerationMapping " + convertIdentifier(enumMapping) + ": " : "")
                 + (enumMapping == null && binding != null ? "Binding " + Composing.convertPath(binding) + " : " : "")
                 + ops.render(pm.relationalOperation());
-    }
-
-    /** A local property's bounds as the multiplicity reader takes them: an upper bound of {@code 2147483647} is
-     *  many ({@link ProtocolReader#multiplicity}). */
-    private static Multiplicity multiplicity(Protocol.PLocalProp local) {
-        Long upper = local.upperBound();
-        return Multiplicity.range(Math.toIntExact(local.lowerBound()),
-                upper == null || upper == Integer.MAX_VALUE ? null : Math.toIntExact(upper));
     }
 
     /** {@code renderEmbeddedRelationalPropertyMapping}: the property, then its nested lines in parentheses. */
