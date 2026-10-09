@@ -56,11 +56,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * STAYS 13: the createRowIdentifiers sample loop's own getObject
  * consolidated onto the same captureRows choke point — consolidate,
  * never sprawl.)
+ * (2026-10-09, the execution plan's step 3: 13 -> 14. PlanRunner.text carries the
+ * database's own text -- a wire statement's one cell, or one JSON object per row --
+ * which the runner passes on unread (C1.2's carriage), one choke point for both. It
+ * replaces Executor.wireText's and streamWireRows' two sites, which step 4 deletes
+ * with the paths they serve: 12 then.)
  */
 @Tag("guardrail")
 class TenetRatchetTest {
 
-    private static final int RESULT_SET_ACCESSOR_SITES = 13;
+    private static final int RESULT_SET_ACCESSOR_SITES = 14;
 
     private static final Pattern ACCESSOR = Pattern.compile(
             "\\.get(String|Object|Int|Long|Double|Boolean|BigDecimal"

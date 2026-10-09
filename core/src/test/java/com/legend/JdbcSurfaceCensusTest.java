@@ -108,6 +108,13 @@ class JdbcSurfaceCensusTest {
             // the product/version read a handed session is checked by, and opening a declared
             // connection or a private in-memory database. It opens sessions; it executes nothing
             "core/src/main/java/com/legend/exec/Sessions.java",
+            // 2026-10-09, execution plan step 3 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the runner -- a
+            // plan's own statement, its slots bound, the database's text carried out unread (PlanRunner); the sessions
+            // a plan's target names, its setup run once (PlanSessions); an engine's bulk loader found (BulkLoads).
+            // The database executes; none of them computes a value
+            "core/src/main/java/com/legend/exec/PlanRunner.java",
+            "core/src/main/java/com/legend/exec/PlanSessions.java",
+            "core/src/main/java/com/legend/exec/BulkLoads.java",
             "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
             "core/src/main/java/com/legend/exec/VerdictBatch.java",
             "core/src/main/java/com/legend/StatementExecutor.java",

@@ -664,6 +664,25 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>The runner is model-free (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3).</strong>
+     * What runs is the plan's own statement, reviewed when the plan was made: the runner, its parameter checks, its
+     * sessions and the bulk load read the plan records, a connection's definition and {@code java.sql}, never the
+     * compiler, the resolver, the lowering, the SQL tree or a dialect, the plan side's setup, or the legacy plan. (The
+     * rest of {@code exec} still reaches them; the step-3 guard on its references shrinks them to none.)
+     */
+    @Test
+    void theRunnerIsModelFree() {
+        noClasses()
+            .that().haveNameMatching("com\\.legend\\.exec\\.(PlanRunner|PlanParameters|PlanSessions|BulkLoads?)(\\$.*)?")
+            .should().dependOnClassesThat().resideInAnyPackage("com.legend.compiler..", "com.legend.resolver..",
+                    "com.legend.lowering..", "com.legend.sql..", "com.legend.setup..", "com.legend.plan..",
+                    "com.legend.builtin..", "com.legend.parser..", "com.legend.normalizer..")
+            .as("the plan runner reaches no compiler, lowering, SQL tree, dialect or plan side: it runs the plan's"
+                    + " statement as the plan says")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
      * <strong>The pure/v1 API is plan side (2026-10-08, //core:pure_v1).</strong>
      * {@code PureV1Api} lives in {@code com.legend.server}, which the
      * JDBC funnel above exempts, but it is the plan side's: the compiler's

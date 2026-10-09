@@ -173,12 +173,12 @@ legend_java_library(
 legend_java_library(
     name = "setup",
     srcs = glob(["src/main/java/com/legend/setup/*.java"]),
-    deps = ["//base", ":compiler", ":model", ":sql", ":sql_dialect"],
+    deps = ["//base", ":compiler", ":execution_plan", ":model", ":sql", ":sql_dialect"],
 )
 legend_java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    deps = ["//base", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":lowering", ":model", ":plan", ":platform", ":setup", ":sql", ":sql_dialect", ":values"],
+    deps = ["//base", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":execution_plan", ":lowering", ":model", ":plan", ":platform", ":setup", ":sql", ":sql_dialect", ":values"],
 )
 legend_java_library(
     name = "probe",
