@@ -14,3 +14,6 @@ anywidget==0.11.0
 # IPython's on Windows (its terminal's colours): pinned here, for the lock is resolved on macOS, where IPython does
 # not ask for it
 colorama==0.4.6
+# the notebook cube's real-notebook test only (//datacube:jupyterlab_test): JupyterLab, the notebook most people run, at
+# the version the manual check passed on (docs/datacube-python-show/jupyterlab-check/)
+jupyterlab==4.6.4

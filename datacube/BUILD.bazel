@@ -7,6 +7,7 @@ load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary"
 load("//tools/js:defs.bzl", "node_test")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@pypi//:requirements.bzl", "all_whl_requirements")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//tools/platforms:defs.bzl", "COMPILER_LIBRARY_PLATFORMS", "compatible_with")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
@@ -699,6 +700,61 @@ browser_test(
         "PYTHON_ENGINE_PAGE": "$(rlocationpath :python_engine_page)",
         "UPSTREAM_ARROW_ANSWER": "$(rlocationpath :upstream_arrow_answer)",
     },
+)
+
+# A NOTEBOOK'S CUBE IN A REAL JUPYTERLAB (docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md, "In a notebook"), in the pinned
+# Chromium, installed as a developer installs it: test/jupyterlab/jupyterlab_fixture.py makes a fresh virtual environment
+# of the repository's Python and pip-installs legend-lite's wheel (its notebook and pandas extras) and JupyterLab into
+# it, offline, from Bazel's downloads of the pinned wheels (every one: pip takes what the install needs), then serves
+# that JupyterLab, offline and in folders of its own; the page runs the test's notebook as a person would and checks the
+# cube under the cell, once, following its frame, its keys kept. JupyterLab is pinned for this test alone
+# (//tools/python). On Linux and Apple-silicon Macs (_JUPYTERLAB_PLATFORMS): on Windows Jupyter's terminals need pywinpty,
+# which the lock -- resolved on macOS, where pywinpty has no wheel -- cannot hold. In the warehouse lane beside
+# python_engine_test, where the compiler's library (in the wheel) is built first.
+# every pinned wheel in one folder of this package, pip's index for that install (rules_js takes no source file of
+# another repository as a test's data: the folder is this package's)
+# not Intel Macs: argon2-cffi-bindings (jupyter_server's) has no macOS x86-64 wheel at its pinned version, and the test
+# installs from wheels only
+_JUPYTERLAB_PLATFORMS = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64"])
+
+copy_to_directory(
+    name = "jupyterlab_wheels",
+    testonly = True,
+    srcs = all_whl_requirements,
+    out = "test/jupyterlab/wheels",
+    include_external_repositories = ["*"],
+    # where the test runs: elsewhere it is skipped, never analysed against a platform the pinned wheels have none for
+    target_compatible_with = _JUPYTERLAB_PLATFORMS,
+)
+
+py_binary(
+    name = "jupyterlab_fixture",
+    testonly = True,
+    srcs = ["test/jupyterlab/jupyterlab_fixture.py"],
+    main = "test/jupyterlab/jupyterlab_fixture.py",
+    target_compatible_with = _JUPYTERLAB_PLATFORMS,
+    deps = ["@rules_python//python/runfiles"],
+)
+
+browser_test(
+    name = "jupyterlab_test",
+    size = "medium",
+    data = [
+        "test/jupyterlab/datacube.ipynb",
+        "test/jupyterlab/jupyterlab.mjs",
+        ":jupyterlab_fixture",
+        ":jupyterlab_wheels",
+        ":node_modules/playwright",
+        "//python:wheel",
+    ],
+    entry_point = "test/jupyterlab/jupyterlab.mjs",
+    env = {
+        "JUPYTERLAB_FIXTURE": "$(rlocationpath :jupyterlab_fixture)",
+        "LEGEND_LITE_DEPENDENCY_WHEELS": "$(rlocationpath :jupyterlab_wheels)",
+        "LEGEND_LITE_WHEEL": "$(rlocationpath //python:wheel)",
+        "NOTEBOOK": "$(rlocationpath test/jupyterlab/datacube.ipynb)",
+    },
+    # its platforms are its fixture's (an incompatible dependency skips it), within the pinned Chromium's (browser_test)
 )
 
 # ── THE DEMO SITE ───────────────────────────────────────────────────────────────

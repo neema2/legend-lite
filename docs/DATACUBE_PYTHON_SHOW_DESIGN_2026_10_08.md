@@ -193,9 +193,44 @@ browser test (`//datacube:python_engine_test`) loads the loader and the module i
 for the notebook's widget model whose messages reach the real Python widget: two cubes on one page fetch the module
 once, the frame's rows show, no call goes over HTTP, an update shows by itself, and a key stays with the cube. The
 budget test holds the module as one file with no DuckDB-WASM (461,746 bytes gzipped with its styles at its first
-measure, budget 480,000) and the loader under 10 KB. And a manual check in a real JupyterLab (4.6.4, anywidget 0.11.0), recorded with
-its script and results in `docs/datacube-python-show/jupyterlab-check/`. Whether to run JupyterLab in a test is open
-(the user's call): it brings about 70 packages.
+measure, budget 480,000) and the loader under 10 KB. And a real JupyterLab (4.6.4, anywidget 0.11.0): `//datacube:jupyterlab_test`
+installs legend-lite's wheel and JupyterLab into a fresh environment as a developer does (pip, offline, from the pinned
+wheels) and runs a notebook in the pinned Chromium -- the cube under the cell once, following its frame, updated in
+place, an arrow key moving the grid's selection, not the notebook's cell -- in about 45 seconds, on Linux and Apple-silicon Macs (the user, 2026-10-09: JupyterLab's ~70 packages pinned
+for this test alone; on Windows Jupyter's terminals need pywinpty, which the macOS-resolved lock cannot hold). The
+manual run before it, and the fault it found: `docs/datacube-python-show/jupyterlab-check/`.
+
+## In a marimo notebook (step 9, proposed 2026-10-09)
+
+The user (2026-10-09): "support marimo first class too". marimo is a reactive Python notebook: a cell re-runs when a
+variable it reads is assigned again, and a cell's output is its last expression. Read in marimo 0.25.1's own source:
+it shows any anywidget a cell outputs (`marimo/_output/formatters/anywidget_formatters.py`, no `mo.ui.anywidget(...)`
+needed), and it carries an anywidget's messages -- custom ones too, with binary buffers -- over its own channel
+(`marimo/_plugins/ui/_impl/comm.py`, which replaces `comm.create_comm` for anywidget). So the notebook cube
+(`DataCube`) is the same widget in marimo: the same loader, the same calls, the same engine.
+
+```python
+import marimo as mo, pandas as pd, legend_lite as ll
+df = pd.read_csv("trades.csv")
+ll.show(df)                 # the cell's output: the cube, under the cell
+```
+
+- **Where it shows.** In a marimo notebook (`marimo.running_in_notebook()`), `show()` returns the cube for the cell to
+  output, as every marimo output is: `ll.show(df)` as the cell's last line, or `cube = ll.show(df)` and `cube` last.
+  It does not add itself to the output (`mo.output.append`): the cell's own last expression would then show a second
+  copy, and marimo cannot tell the two apart (the Jupyter guard leans on IPython's display hook, which marimo has not).
+- **Following the frame, marimo's way.** A re-run is marimo's update: when the cell that made `df` runs again, the cell
+  showing it runs again and shows a cube over the new frame. marimo closes the old cube's channel at the re-run
+  (`CommLifecycleItem`), and the cube's frame goes out of the engine with it, so its name is free again (a cell run ten
+  times shows `frame`, not `frame_10`). An in-place change (`df.loc[0, "qty"] = 5`) is not a marimo assignment, so no
+  cell re-runs: the cube shows it at its next query (a click, or `cube.refresh()`), as at a plain `>>>` prompt.
+- **Install.** The same extra: `pip install 'legend-lite[notebook]' marimo`. marimo is the person's, never ours to
+  require.
+- **Held by** `//datacube:marimo_test`, as the JupyterLab test is: legend-lite's wheel and marimo pip-installed into a
+  fresh environment offline, a marimo notebook served by `marimo run`, and the pinned Chromium checking the cube under
+  its cell with the frame's rows, a marimo control (a slider filtering the frame) re-running the cell and the cube
+  showing the new frame under the same name, and the cube's keys kept. marimo pinned for that test alone (about 20
+  packages beyond what anywidget brings). Linux and macOS, as the JupyterLab test.
 
 ## Order
 

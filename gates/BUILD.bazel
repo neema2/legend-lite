@@ -159,8 +159,11 @@ test_suite(
         "//python:tools_build_test",
         # the wheel as a developer installs it: a fresh environment, offline, nothing from the repository
         "//python:wheel_test",
-        # DataCube against Python's engine, in the pinned Chromium (the compiler's library in its runfiles; not Windows)
+        # DataCube against Python's engine, in the pinned Chromium (the compiler's library in its runfiles)
         "//datacube:python_engine_test",
+        # a notebook's cube in a real JupyterLab, legend-lite's wheel and JupyterLab installed as a developer installs
+        # them (Linux and macOS)
+        "//datacube:jupyterlab_test",
         "//warehouse:postgres_live",
         "//warehouse:postgres_live_native",
     ],

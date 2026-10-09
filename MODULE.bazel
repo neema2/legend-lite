@@ -470,6 +470,28 @@ python.toolchain(
 )
 
 pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+
+# macOS wheels built for macOS 14 or older: the oldest macOS the repository builds and tests on (CI's Mac runners) and
+# legend-lite's own wheel says (//python:wheel). Left to rules_python's default (any macOS version), a package's
+# newest-macOS build can be chosen -- debugpy 1.8.22's macosx_15_0 wheel over its pure one -- which pip on a macOS 14
+# machine refuses (//datacube:jupyterlab_test, run 37921704499). A full tag excludes every newer one (rules_python's
+# whl_platform_tags); a wheel for any platform is always a candidate.
+pip.default(
+    platform = "osx_aarch64",
+    whl_platform_tags = [
+        "macosx_14_0_universal2",
+        "macosx_14_0_arm64",
+    ],
+)
+
+pip.default(
+    platform = "osx_x86_64",
+    whl_platform_tags = [
+        "macosx_14_0_universal2",
+        "macosx_14_0_x86_64",
+    ],
+)
+
 pip.parse(
     hub_name = "pypi",
     python_version = "3.12",
