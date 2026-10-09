@@ -28,7 +28,7 @@ then the wrong-rows tool over the stress corpus (W1.10, as rewritten under D23);
 the engine's rows where rows are the question.** Open decisions that block only single fixes: D20, D21. Then the rest
 of **Phase 1** (§4): W1.0b, W3.7, W0.7, and **C1**.
 
-**What this program is, in one paragraph.** legend-lite (`core/`, ~229k lines of product Java) is a clean-room
+**What this program is, in one paragraph.** legend-lite (`core/`, ~229k lines of product Java) is a clean-sheet
 replacement for legend-pure's compiler and legend-engine's query execution: Pure text → parse → resolve names → type →
 inline → resolve classes to tables → SQL → run on DuckDB/H2. It works (corpus rosters, PCT lanes), but its middle is
 tangled: a typer that was 3,500 lines (split to 1,748 by W1.6, still one class doing too much), a 36k-line one-pass store resolver, names compared as strings, semantics carried as flags

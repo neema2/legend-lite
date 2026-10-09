@@ -4,7 +4,7 @@
 
 ### What is Legend Lite?
 
-Legend Lite is a **clean-room reimplementation** of the [FINOS Legend](https://legend.finos.org/) Engine — the open-source data management platform originally created by Goldman Sachs. It reads the same Pure modeling language but compiles every query to a **single SQL statement** executed entirely inside the database.
+Legend Lite is a **clean-sheet implementation** of the [FINOS Legend](https://legend.finos.org/) platform's Pure language and engine — the open-source data management platform originally created by Goldman Sachs — designed and written anew, taking [legend-pure](https://github.com/finos/legend-pure) and [legend-engine](https://github.com/finos/legend-engine) as its specification (see [`NOTICE`](NOTICE)). It reads the same Pure modeling language but compiles every query to a **single SQL statement** executed entirely inside the database.
 
 ### How is Legend Lite different from the original Legend Engine?
 
@@ -20,7 +20,7 @@ Legend Lite is a **clean-room reimplementation** of the [FINOS Legend](https://l
 
 ### Is Legend Lite a fork of Legend Engine?
 
-No. Legend Lite is a **clean-room implementation** — not a single line of code was copied from the Legend Engine. It reads the same Pure syntax but compiles it through a completely different pipeline built from scratch.
+No. Legend Lite is a **clean-sheet implementation**: its code was written anew, not copied from legend-pure or legend-engine. It takes them as its specification — their grammar, typing rules and behaviour — and tests itself against their test suites and recorded answers, which [`NOTICE`](NOTICE) credits; some of those test fixtures are included, under their Apache 2.0 license. It reads the same Pure syntax but compiles it through a completely different pipeline built from scratch.
 
 ### What does "100% SQL push-down" mean?
 

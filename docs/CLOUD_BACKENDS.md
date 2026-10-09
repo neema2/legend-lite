@@ -113,8 +113,8 @@ Two of these deserve to be read carefully rather than skimmed:
 - **"No access to the account console or account-level APIs"** is scoped to the *account* plane.
   It does **not** say workspace-level APIs are unavailable, and the workspace UI/SQL editor is the
   advertised product. Do not over-read it into "no API at all."
-- **"may not be used for commercial purposes."** legend-lite is an open-source clean-room
-  reimplementation with no commercial entity behind it, so this reads as satisfied — but it is a
+- **"may not be used for commercial purposes."** legend-lite is an open-source clean-sheet
+  implementation with no commercial entity behind it, so this reads as satisfied — but it is a
   *licence term*, and if the project's status ever changes, the Free Edition dependency changes with
   it. Write that down now rather than discover it later.
 

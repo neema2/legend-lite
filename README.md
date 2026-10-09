@@ -1,6 +1,6 @@
 # Legend Lite
 
-A **clean-room reimplementation** of the [FINOS Legend](https://legend.finos.org/) Engine in modern Java 21 — ~120K lines of compiler. Legend Lite compiles Pure models and queries to SQL and executes them entirely inside the database — **zero rows are ever fetched into the JVM**.
+A **clean-sheet implementation** of the [FINOS Legend](https://legend.finos.org/) platform's Pure language and engine in modern Java 21 — ~120K lines of compiler, designed and written anew, with [legend-pure](https://github.com/finos/legend-pure) and [legend-engine](https://github.com/finos/legend-engine) as its specification (credited in [`NOTICE`](NOTICE); Apache-2.0, [`LICENSE`](LICENSE)). Legend Lite compiles Pure models and queries to SQL and executes them entirely inside the database — **zero rows are ever fetched into the JVM**.
 
 **Start here:** [`AGENTS.md`](AGENTS.md) for the invariants, [`core/README.md`](core/README.md) for the per-package spec, [`docs/GATES.md`](docs/GATES.md) for what must be green.
 

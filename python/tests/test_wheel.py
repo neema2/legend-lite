@@ -157,11 +157,23 @@ class Label(unittest.TestCase):
         else:
             self.fail(f'no platform this test reads: {tag}')
 
+    def test_the_licences_ship_inside_it(self):
+        with zipfile.ZipFile(WHEEL) as wheel:
+            info = {n.rsplit('/', 1)[1]: n for n in wheel.namelist() if '.dist-info/' in n}
+            notice = wheel.read(info['NOTICE']).decode()
+            licence = wheel.read(info['LICENSE']).decode()
+        self.assertIn('Apache License', licence)
+        for credited in ('clean-sheet implementation', 'legend-pure', 'legend-engine', 'Copyright 2020 Goldman Sachs'):
+            self.assertIn(credited, notice)
+        for graalvm in ('GRAALVM-LICENSE.txt', 'GRAALVM-LICENSE-NATIVEIMAGE.txt', 'GRAALVM-THIRD-PARTY-LICENSE.txt'):
+            self.assertIn(graalvm, info, 'the runtime compiled into the library brings its licences')
+
     def test_the_metadata_says_what_it_needs(self):
         with zipfile.ZipFile(WHEEL) as wheel:
             info = next(n for n in wheel.namelist() if n.endswith('.dist-info/METADATA'))
             metadata = wheel.read(info).decode()
         self.assertIn('Requires-Python: >=3.12', metadata)
+        self.assertIn('License: Apache-2.0', metadata)
         for requirement in ('duckdb>=1.5.5', 'pyarrow>=23.0.1'):
             self.assertIn(f'Requires-Dist: {requirement}', metadata)
 

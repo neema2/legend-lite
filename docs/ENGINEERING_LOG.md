@@ -10,8 +10,8 @@
 
 ## What this project is
 
-legend-lite: a clean-room, backwards-compatible reimplementation of FINOS
-legend-engine — parse → normalize → type-check (G) → resolve (H) → lower (I)
+legend-lite: a clean-sheet, backwards-compatible implementation of FINOS
+legend-engine (legend-pure and legend-engine its specification, credited in NOTICE) — parse → normalize → type-check (G) → resolve (H) → lower (I)
 → render (J) → execute (K) on DuckDB — verified against the REAL engine's
 core_relational corpus (2,798 `<<test.Test>>` functions; 2,575 runnable).
 **Row equality with engine semantics is the contract; golden SQL text is

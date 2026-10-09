@@ -8,6 +8,13 @@ load("//tools/jars:defs.bzl", "java_runtime_jars")
 # and as the home for workspace-wide targets later.
 exports_files(["MODULE.bazel", "release.MODULE.bazel"] + ["%s_install.json" % pool for pool in POOLS])
 
+# the project's licence and notice (Apache-2.0; legend-pure and legend-engine credited), shipped in its packages
+# (//python:wheel)
+exports_files(
+    ["LICENSE", "NOTICE"],
+    visibility = ["//python:__pkg__"],
+)
+
 # the module as Bazel reads it: MODULE.bazel and the segments it include()s (release.MODULE.bazel), for the tests that
 # read the pools' definitions (//tools/deps:pools_list_test checks that every included segment is here)
 filegroup(
