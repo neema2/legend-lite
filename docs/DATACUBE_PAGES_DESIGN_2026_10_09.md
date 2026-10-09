@@ -71,8 +71,9 @@ whose leaves are tiles. Every band has a **height**.
 
 - **Scrolling** (the default for a page of many bands, as Power BI and Grafana pages scroll): the bands keep their
   heights, and when they are taller than the window the page scrolls.
-- **Fit to window** (a page setting): the bands share the window's height, and nothing scrolls -- with one band, the
-  whole page is one divided screen, as a split window is.
+- **Fit to window** (a page setting, **on for a new page**: the user, 2026-10-09): the bands share the window's height,
+  and nothing scrolls -- with one band, the whole page is one divided screen, as a split window is. A page with more
+  bands than the window holds at 160px each scrolls instead, so fitting never squeezes a band too short to read.
 
 What the user asked for, in bands: two side by side is one band of two columns; 2x2, two bands of two; 3x3, three bands
 of three; one on top and N below, a band of one and a band of N; one big tile on the left and two stacked on the right,
@@ -96,16 +97,20 @@ Arranging pauses while stacked. (Stepping down a column at a time, 3x3 to 2 to 1
 
 ### 3.3 Arranging
 
-1. **A layout picker.** A layout button in each tile's title bar (shown on hover) and an **Arrange** button on the page
-   open thumbnails of the common layouts: side by side, stacked, 2x2, 3x3, one on top and N below, one left and N
-   right (and its mirror), one large and two small, and "even out". Each thumbnail is the page's own tiles arranged that
-   way. Hovering a thumbnail previews it on the page; clicking applies it. **Every picker arranges the whole page**: a
-   tile's own puts *that* tile in the first slot (marked in the thumbnails), Arrange keeps the reading order; the
-   others fill the slots in reading order. A layout with more tiles than slots goes on as it goes (2x2 continues in
-   rows of two; one on top and the rest below, in rows of up to four); one with fewer closes up.
-   (As built, 2026-10-09: a tile's picker first arranged only the band the tile was in; the user, trying it with four
-   tiles, found it showed two of them and turned 2x2 into "2, 1, 1" -- so every picker arranges the page. Empty
-   slots offering "add a grid / a chart" are not built.)
+1. **A layout picker.** A layout button in each tile's title bar (shown on hover) and **Arrange** in the page's menu
+   open thumbnails of layouts, each the page's own tiles arranged that way. Hovering a thumbnail previews it on the
+   page; clicking applies it. **Every picker arranges the whole page**: a tile's own puts *that* tile in the first slot
+   (marked in the thumbnails), Arrange keeps the reading order; the others fill the slots in reading order. As built
+   (the user, 2026-10-09, trying it: "default 8-9 shapes with option to see more and option to do custom"):
+   - **the standard shapes first**, the same nine in the same order for any number of tiles: all side by side, all
+     stacked, a grid as square as it goes, one large tile on each side with the rest beside it, two rows, two columns;
+   - **More layouts**: every way to cut the tiles into rows (four to a row; up to four rows, three for six tiles or
+     more -- "several on top, then one and one"; "one, several, one") and columns of near-equal size, under the
+     headings Rows, One large, Columns;
+   - **Custom**: rows built by hand, each row's count a step up or down, previewed as it is built;
+   - "Fit to window" and "Even out" below them. A shape that looks the same as another is shown once.
+   (A tile's picker first arranged only the band the tile was in; with four tiles it showed two of them and turned
+   2x2 into "2, 1, 1", so every picker arranges the page. Empty slots offering "add a grid / a chart" are not built.)
 2. **Drop zones.** Dragging a tile by its title bar over another tile shows that tile's zones -- its left, right, top
    and bottom edges divide it there; its centre swaps the two (and, with tabs, adds it as a tab) -- and between two bands
    a line that makes a new band there; the zone that will take it is highlighted, with an outline of the result. Escape
