@@ -9,3 +9,11 @@ measured by run.sh over the eight lanes (the census's known build failure, //pur
    statement). No entry is gone and no other lane differs: today's paths render exactly what they rendered (the
    staging statements and the wire's `value` relation moved to their one owner, RowLoad.staging and
    WireRender.schema, unchanged).
+
+2. Slice (b), a query's scalar parameters bound where they are written -- against slice (a): 127 of 52,275 entries
+   differ, all in //gates:core and all the new tests' own: 113 new texts (the plans' bound statements, kind
+   `statement`, and the let-path queries they are compared with, kind `query`, on DuckDB, H2 and Postgres) and 14
+   texts rendered more often (each test database's setup: its table's drop, create and insert, run once more per new
+   case; and the wire statements the new cases share with slice (a)'s). No entry is gone and no other lane differs:
+   today's paths, the legacy printer's parameters included (still of unknown type), render exactly what they
+   rendered.

@@ -572,11 +572,11 @@ public sealed interface SqlExpr
         }
     }
 
-    /** An execution-plan TEMPLATE parameter ({@code ${name}} — the
-     * engine's freemarker placeholder for a function parameter or an
-     * Allocation-bound variable). Plan-text vocabulary only: it renders
-     * through the engine-style dialect and is a loud error in any
-     * executable dialect. */
+    /** A query's parameter, where it is used: in a statement that executes, a value the statement binds (a dialect
+     * writes it as a placeholder, typed by {@code type}: what a literal of the parameter's declared type carries,
+     * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2); in the legacy engine-text printer, the
+     * engine's template placeholder ({@code ${name}} — its freemarker placeholder for a function parameter or an
+     * Allocation-bound variable), its {@code type} unknown. */
     record PlanParam(String name, Kind kind, boolean optional,
             @com.legend.base.Nullable String enumMapFn,
             TypeFact type) implements SqlExpr {
@@ -591,7 +591,7 @@ public sealed interface SqlExpr
             OTHER, RAW }
 
         public PlanParam {
-            type = SqlTyping.UNKNOWN;   // plan-text vocabulary — no rule
+            java.util.Objects.requireNonNull(type, "type");
         }
 
         public PlanParam(String name, Kind kind, boolean optional,

@@ -503,7 +503,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                     + " vocabulary only");
             // a plan parameter is BOUND where it is written: a statement (renderStatement) lists it; text
             // (render) refuses it
-            case SqlExpr.PlanParam p -> writer.bind(scalarBind(p));
+            case SqlExpr.PlanParam p -> placeholder(writer, p);
             case SqlExpr.RowOrder r -> writer.append((r.table() == null ? ""
                     : aliasIdent(r.table()) + ".") + rowOrderColumn());
             // the QUALIFIER is structurally always a source ALIAS (the
@@ -1235,12 +1235,21 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
+     * A plan parameter's placeholder: the value bound bare, typed by the database from the bound value (DuckDB and
+     * Postgres do, every type answering as its literal does: docs/execution-plan-boundary-2026-10-05/probes/
+     * literal-results.txt). A dialect whose database types a parameter otherwise writes it typed.
+     */
+    protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
+        return writer.bind(scalarBind(p));
+    }
+
+    /**
      * A plan parameter bound as ONE value. What one value cannot carry yet is refused by name, never bound as
      * something it is not: a RAW splice (plan text), an optional parameter (its absence), an enum parameter (its
      * mapping: a value table) — the last two are step 2's landing 2 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9),
      * as is a collection (IN's whole list, refused at IN).
      */
-    private static RenderedStatement.Bind scalarBind(SqlExpr.PlanParam p) {
+    protected static RenderedStatement.Bind scalarBind(SqlExpr.PlanParam p) {
         if (p.kind() == SqlExpr.PlanParam.Kind.RAW) {
             throw new DialectCapability("plan parameter '" + p.name() + "' is RAW: it splices plan text, never a"
                     + " bound value");
