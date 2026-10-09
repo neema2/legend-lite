@@ -4,22 +4,18 @@
 package com.legend.protocol;
 
 import com.legend.json.Json;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
 import static com.legend.protocol.Composing.TAB;
 import static com.legend.protocol.Composing.convertIdentifier;
 import static com.legend.protocol.Composing.convertString;
-import static com.legend.protocol.Composing.elementPath;
 import static com.legend.protocol.Composing.genericType;
 import static com.legend.protocol.Composing.items;
 import static com.legend.protocol.Composing.multiplicity;
-import static com.legend.protocol.Composing.objOr;
-import static com.legend.protocol.Composing.objs;
-import static com.legend.protocol.Composing.str;
 import static com.legend.protocol.Composing.tab;
 import static com.legend.protocol.Composing.valueSpecification;
 
@@ -27,78 +23,79 @@ import static com.legend.protocol.Composing.valueSpecification;
  * The domain's elements as upstream prints them: {@code DEPRECATED_PureGrammarComposerCore}'s
  * profile, enumeration, measure, class, association and function, with
  * {@code HelperDomainGrammarComposer}'s annotations, documentation blocks, properties, derived
- * properties and constraints.
+ * properties and constraints -- over the records ({@link Protocol.PProfile}, {@link Protocol.PEnumeration},
+ * {@link Protocol.PMeasure}, {@link Protocol.PClass}, {@link Protocol.PAssociation}, {@link Protocol.PFunction}; the
+ * protocol program's leg 2, step 3).
  */
 final class DomainComposer {
 
     private static final String ANY = "meta::pure::metamodel::type::Any";
 
-    private static final Map<String, Function<Json.Obj, String>> PRINTERS = Map.of(
-            "profile", DomainComposer::profile,
-            "Enumeration", DomainComposer::enumeration,
-            "measure", DomainComposer::measure,
-            "class", DomainComposer::klass,
-            "association", DomainComposer::association,
-            "function", DomainComposer::function);
-
     /** The element {@code _type}s this composer prints. */
-    static final List<String> TYPES = List.copyOf(PRINTERS.keySet());
+    static final List<String> TYPES = List.of("profile", "Enumeration", "measure", "class", "association", "function");
 
     private DomainComposer() {
     }
 
+    static String element(Protocol.Element e) {
+        return switch (e) {
+            case Protocol.PProfile p -> profile(p);
+            case Protocol.PEnumeration en -> enumeration(en);
+            case Protocol.PMeasure m -> measure(m);
+            case Protocol.PClass c -> klass(c);
+            case Protocol.PAssociation a -> association(a);
+            case Protocol.PFunction f -> function(f);
+            default -> throw Composing.refused("the domain composer has no rule for a " + e.getClass().getSimpleName());
+        };
+    }
+
+    /** {@link #element(Protocol.Element)} of the JSON, read first. */
     static String element(Json.Obj e) {
-        Function<Json.Obj, String> p = PRINTERS.get(Composing.type(e));
-        if (p == null) {
-            throw Composing.refused("the domain composer has no rule for _type '" + Composing.type(e) + "'");
-        }
-        return p.apply(e);
+        return element(Composing.element(e, Protocol.Element.class));
     }
 
     // ---------------------------------------------------------------------
     // Elements
     // ---------------------------------------------------------------------
 
-    private static String profile(Json.Obj profile) {
-        StringBuilder b = new StringBuilder("Profile ").append(elementPath(profile)).append("\n{\n");
-        List<String> stereotypes = profileValues(profile, "stereotypes");
-        if (!stereotypes.isEmpty()) {
-            b.append(TAB).append("stereotypes: [").append(String.join(", ", stereotypes)).append("];\n");
+    private static String profile(Protocol.PProfile profile) {
+        StringBuilder b = new StringBuilder("Profile ").append(Composing.elementPath(profile.pkg(), profile.name()))
+                .append("\n{\n");
+        if (!profile.stereotypes().isEmpty()) {
+            b.append(TAB).append("stereotypes: [").append(profileValues(profile.stereotypes())).append("];\n");
         }
-        List<String> tags = profileValues(profile, "tags");
-        if (!tags.isEmpty()) {
-            b.append(TAB).append("tags: [").append(String.join(", ", tags)).append("];\n");
+        if (!profile.tags().isEmpty()) {
+            b.append(TAB).append("tags: [").append(profileValues(profile.tags())).append("];\n");
         }
         return b.append("}").toString();
     }
 
-    /** A profile's stereotypes or tags: each {@code {"value":...}} (or a bare string on an older wire). */
-    private static List<String> profileValues(Json.Obj profile, String key) {
+    private static String profileValues(List<Protocol.PProfileEntry> entries) {
         List<String> out = new ArrayList<>();
-        for (Json.Node n : items(profile, key)) {
-            String v = n instanceof Json.Str s ? s.value() : Composing.obj(n, key).getString("value");
-            out.add(convertIdentifier(v));
+        for (Protocol.PProfileEntry e : entries) {
+            out.add(convertIdentifier(e.value()));
         }
-        return out;
+        return String.join(", ", out);
     }
 
-    private static String enumeration(Json.Obj e) {
+    private static String enumeration(Protocol.PEnumeration e) {
         List<String> values = new ArrayList<>();
-        for (Json.Obj v : objs(e, "values")) {
-            values.add(TAB + declarationPrefix("", TAB, v) + convertIdentifier(v.getString("value")));
+        for (Protocol.PEnumValue v : e.values()) {
+            values.add(TAB + declarationPrefix("", TAB, v.stereotypes(), v.taggedValues()) + convertIdentifier(v.value()));
         }
-        return declarationPrefix("Enum", "", e) + elementPath(e) + "\n{\n"
-                + String.join(",\n", values) + (values.isEmpty() ? "" : "\n") + "}";
+        return declarationPrefix("Enum", "", e.stereotypes(), e.taggedValues()) + Composing.elementPath(e.pkg(), e.name())
+                + "\n{\n" + String.join(",\n", values) + (values.isEmpty() ? "" : "\n") + "}";
     }
 
-    private static String measure(Json.Obj measure) {
-        StringBuilder b = new StringBuilder("Measure ").append(elementPath(measure)).append("\n{\n");
-        Json.Obj canonical = objOr(measure, "canonicalUnit");
+    private static String measure(Protocol.PMeasure measure) {
+        StringBuilder b = new StringBuilder("Measure ").append(Composing.elementPath(measure.pkg(), measure.name()))
+                .append("\n{\n");
+        Protocol.PUnit canonical = measure.canonicalUnit();
         if (canonical != null) {
-            b.append(TAB).append(objOr(canonical, "conversionFunction") != null ? "*" : "").append(unit(canonical)).append("\n");
+            b.append(TAB).append(canonical.body() != null ? "*" : "").append(unit(canonical)).append("\n");
         }
         List<String> others = new ArrayList<>();
-        for (Json.Obj u : objs(measure, "nonCanonicalUnits")) {
+        for (Protocol.PUnit u : measure.nonCanonicalUnits()) {
             others.add(TAB + unit(u));
         }
         if (!others.isEmpty()) {
@@ -107,37 +104,32 @@ final class DomainComposer {
         return b.append("}").toString();
     }
 
-    /** {@code renderUnit} and {@code renderUnitLambda}. */
-    private static String unit(Json.Obj unit) {
-        Json.Obj conversion = objOr(unit, "conversionFunction");
-        if (conversion == null) {
-            return convertIdentifier(unit.getString("name")) + ";";
+    /** {@code renderUnit} and {@code renderUnitLambda}: a conversion is one parameter and one statement. */
+    private static String unit(Protocol.PUnit unit) {
+        ValueSpecification body = unit.body();
+        if (body == null) {
+            return convertIdentifier(unit.name()) + ";";
         }
-        List<String> params = new ArrayList<>();
-        for (Json.Obj p : objs(conversion, "parameters")) {
-            params.add(p.getString("name"));
-        }
-        List<String> body = new ArrayList<>();
-        for (Json.Node b : items(conversion, "body")) {
-            body.add(valueSpecification(b));
-        }
-        return convertIdentifier(unit.getString("name")) + ": " + String.join(",", params) + " -> " + String.join(";", body) + ";";
+        return convertIdentifier(unit.name()) + ": " + unit.paramName() + " -> " + valueSpecification(body) + ";";
     }
 
-    private static String klass(Json.Obj c) {
-        StringBuilder b = new StringBuilder(declarationPrefix("Class", "", c)).append(elementPath(c));
+    private static String klass(Protocol.PClass c) {
+        StringBuilder b = new StringBuilder(declarationPrefix("Class", "", c.stereotypes(), c.taggedValues()))
+                .append(Composing.elementPath(c.pkg(), c.name()));
         List<String> superTypes = new ArrayList<>();
-        for (Json.Node st : items(c, "superTypes")) {
-            String path = st instanceof Json.Str s ? s.value() : Composing.obj(st, "super type").getString("path");
-            if (!ANY.equals(path)) {
-                superTypes.add(path);
+        for (Protocol.PSuperType st : c.superTypes()) {
+            if (!(st.type() instanceof TypeExpression.NameRef ref)) {
+                throw Composing.refused("a super type that is not a class name: " + st.type());
+            }
+            if (!ANY.equals(ref.name())) {
+                superTypes.add(ref.name());
             }
         }
         if (!superTypes.isEmpty()) {
             b.append(" extends ").append(String.join(", ", superTypes));
         }
         b.append("\n");
-        List<Json.Obj> constraints = objs(c, "constraints");
+        List<ConstraintDefinition> constraints = c.constraints();
         if (!constraints.isEmpty()) {
             List<String> cs = new ArrayList<>();
             for (int i = 0; i < constraints.size(); i++) {
@@ -146,69 +138,83 @@ final class DomainComposer {
             b.append("[\n").append(String.join(",\n", cs)).append("\n]\n");
         }
         b.append("{\n");
-        List<String> properties = properties(c);
+        List<String> properties = properties(c.properties());
         if (!properties.isEmpty()) {
             b.append(String.join("\n", properties)).append("\n");
         }
-        List<String> derived = derivedProperties(c);
+        List<String> derived = derivedProperties(c.derivedProperties());
         if (!derived.isEmpty()) {
             b.append(String.join("\n", derived)).append("\n");
         }
         return b.append("}").toString();
     }
 
-    private static String association(Json.Obj a) {
-        List<String> properties = properties(a);
-        List<String> derived = derivedProperties(a);
-        return declarationPrefix("Association", "", a) + elementPath(a) + "\n{\n"
+    private static String association(Protocol.PAssociation a) {
+        List<String> properties = properties(a.properties());
+        List<String> derived = derivedProperties(a.derivedProperties());
+        return declarationPrefix("Association", "", a.stereotypes(), a.taggedValues())
+                + Composing.elementPath(a.pkg(), a.name()) + "\n{\n"
                 + String.join("\n", properties) + (properties.isEmpty() ? "" : "\n")
                 + String.join("\n", derived) + (derived.isEmpty() ? "" : "\n")
                 + "}";
     }
 
-    private static String function(Json.Obj f) {
+    /** The function under its declared name: the reader has taken the wire name's signature mangling off. */
+    private static String function(Protocol.PFunction f) {
         List<String> params = new ArrayList<>();
-        for (Json.Node p : items(f, "parameters")) {
-            params.add(PureComposer.signatureParameter(p));
+        for (ParameterDefinition p : f.parameters()) {
+            params.add(parameter(p));
         }
-        List<Json.Node> bodies = items(f, "body");
         List<String> body = new ArrayList<>();
-        for (Json.Node b : bodies) {
+        for (ValueSpecification b : f.body()) {
             body.add("  " + valueSpecification(b));
         }
-        return declarationPrefix("function", "", f) + Composing.convertPath(FunctionNames.functionName(f))
+        return declarationPrefix("function", "", f.stereotypes(), f.taggedValues())
+                + Composing.convertPath(f.qualifiedName())
                 + "(" + String.join(", ", params) + ")"
-                + ": " + genericType(f.getObj("returnGenericType")) + "[" + multiplicity(f.getObj("returnMultiplicity")) + "]\n"
-                + "{\n" + String.join(";\n", body) + (bodies.size() > 1 ? ";" : "") + "\n}"
+                + ": " + genericType(f.returnType()) + "[" + multiplicity(f.returnMultiplicity()) + "]\n"
+                + "{\n" + String.join(";\n", body) + (f.body().size() > 1 ? ";" : "") + "\n}"
                 + FunctionTestComposer.testSuites(f);
+    }
+
+    /** A declared parameter, printed as the typed variable it is on the wire. */
+    private static String parameter(ParameterDefinition p) {
+        return PureComposer.signatureParameter(new Variable(p.name(), p.type(), p.multiplicity()));
     }
 
     // ---------------------------------------------------------------------
     // Members
     // ---------------------------------------------------------------------
 
-    private static List<String> properties(Json.Obj owner) {
+    private static List<String> properties(List<Protocol.PProperty> properties) {
         List<String> out = new ArrayList<>();
-        for (Json.Obj p : objs(owner, "properties")) {
+        for (Protocol.PProperty p : properties) {
             out.add(TAB + property(p) + ";");
         }
         return out;
     }
 
-    private static List<String> derivedProperties(Json.Obj owner) {
+    private static List<String> derivedProperties(List<DerivedPropertyDefinition> properties) {
         List<String> out = new ArrayList<>();
-        for (Json.Obj p : objs(owner, "qualifiedProperties")) {
+        for (DerivedPropertyDefinition p : properties) {
             out.add(TAB + derivedProperty(p) + ";");
         }
         return out;
     }
 
     /** {@code renderProperty}. */
-    private static String property(Json.Obj p) {
-        Json.Obj defaultValue = objOr(p, "defaultValue");
-        return declarationPrefix("", TAB, p) + aggregation(str(p, "aggregation")) + convertIdentifier(p.getString("name"))
-                + ": " + genericType(p.getObj("genericType")) + "[" + multiplicity(p.getObj("multiplicity")) + "]"
-                + (defaultValue != null ? " = " + valueSpecification(defaultValue.get("value")) : "");
+    private static String property(Protocol.PProperty p) {
+        Protocol.PDefaultValue defaultValue = p.defaultValue();
+        String value = "";
+        if (defaultValue != null) {
+            if (defaultValue.value() == null) {
+                throw Composing.refused("property '" + p.name() + "' has a default value with no expression");
+            }
+            value = " = " + valueSpecification(defaultValue.value());
+        }
+        return declarationPrefix("", TAB, p.stereotypes(), p.taggedValues()) + aggregation(p.aggregation())
+                + convertIdentifier(p.name()) + ": " + genericType(p.type()) + "[" + multiplicity(p.multiplicity()) + "]"
+                + value;
     }
 
     private static String aggregation(@com.legend.base.Nullable String kind) {
@@ -223,40 +229,47 @@ final class DomainComposer {
         };
     }
 
-    /** {@code renderDerivedProperty}. */
-    private static String derivedProperty(Json.Obj qp) {
+    /** {@code renderDerivedProperty}: its parameters less any {@code this}. */
+    private static String derivedProperty(DerivedPropertyDefinition qp) {
         List<String> params = new ArrayList<>();
-        for (Json.Obj p : objs(qp, "parameters")) {
-            if (!"this".equals(p.getString("name"))) {
-                params.add(PureComposer.signatureParameter(p));
+        for (ParameterDefinition p : qp.parameters()) {
+            if (!"this".equals(p.name())) {
+                params.add(parameter(p));
             }
         }
         List<String> body = new ArrayList<>();
-        for (Json.Node b : items(qp, "body")) {
+        for (ValueSpecification b : inline(qp.realization(), "derived property '" + qp.name() + "'")) {
             body.add(valueSpecification(b));
         }
         String bodyText = body.size() <= 1
                 ? String.join("\n", body)
                 : "\n" + tab(2) + String.join(";\n" + tab(2), body) + ";\n" + TAB;
-        return declarationPrefix("", TAB, qp) + convertIdentifier(qp.getString("name"))
+        return declarationPrefix("", TAB, qp.stereotypes(), qp.taggedValues()) + convertIdentifier(qp.name())
                 + "(" + String.join(", ", params) + ") {" + bodyText + "}: "
-                + genericType(qp.getObj("returnGenericType")) + "[" + multiplicity(qp.getObj("returnMultiplicity")) + "]";
+                + genericType(qp.type()) + "[" + multiplicity(qp.multiplicity()) + "]";
+    }
+
+    /** An inline body: the wire carries only the body, so a function-ref binding has nothing to print. */
+    private static List<ValueSpecification> inline(Realization r, String what) {
+        if (!(r instanceof Realization.Inline inl)) {
+            throw Composing.refused(what + " bound to a function, not written inline (the wire carries a body only)");
+        }
+        return inl.body();
     }
 
     /** {@code renderConstraint}: {@code index} is the constraint's position among its class's. */
-    private static String constraint(Json.Obj c, int index) {
-        String name = c.getString("name");
-        String function = Composing.lambdaBodyText(c.getObj("functionDefinition"), "");
-        String enforcement = str(c, "enforcementLevel");
-        String externalId = str(c, "externalId");
-        Json.Obj message = objOr(c, "messageFunction");
+    private static String constraint(ConstraintDefinition c, int index) {
+        String name = c.name();
+        String function = Composing.lambdaBodyText(inline(c.realization(), "constraint '" + name + "'"), "");
+        String enforcement = c.enforcementLevel();
+        String externalId = c.externalId();
+        ValueSpecification message = c.message();
         if (enforcement == null && externalId == null && message == null) {
             return (String.valueOf(index).equals(name) ? "" : convertIdentifier(name) + ": ") + function;
         }
         StringBuilder b = new StringBuilder(name).append('\n').append(TAB).append("(").append('\n');
-        String owner = str(c, "owner");
-        if (owner != null) {
-            b.append(tab(2)).append("~owner: ").append(owner).append('\n');
+        if (c.owner() != null) {
+            b.append(tab(2)).append("~owner: ").append(c.owner()).append('\n');
         }
         if (externalId != null) {
             b.append(tab(2)).append("~externalId: ").append(convertString(externalId, true)).append('\n');
@@ -266,7 +279,7 @@ final class DomainComposer {
             b.append(tab(2)).append("~enforcementLevel: ").append(enforcement).append('\n');
         }
         if (message != null) {
-            b.append(tab(2)).append("~message: ").append(Composing.lambdaBodyText(message, "")).append('\n');
+            b.append(tab(2)).append("~message: ").append(Composing.lambdaBodyText(List.of(message), "")).append('\n');
         }
         return b.append(TAB).append(")").toString();
     }
