@@ -228,31 +228,43 @@ final class PersistenceComposer {
         return s.substring(0, end);
     }
 
+    /** {@code renderPersistenceTest}: the batches and the source-output flag only when the test has them. */
     private static String test(Protocol.PPersistenceTest t, int i) {
-        List<String> bs = new ArrayList<>();
-        for (Protocol.PPersistenceTestBatch b : t.testBatches()) {
-            bs.add(testBatch(b, i + 2));
+        String batches = "";
+        if (t.testBatches() != null) {
+            List<String> bs = new ArrayList<>();
+            for (Protocol.PPersistenceTestBatch b : t.testBatches()) {
+                bs.add(testBatch(b, i + 2));
+            }
+            batches = "testBatches:\n" + tab(i + 1) + "[\n" + String.join(",\n", bs) + "\n" + tab(i + 1) + "]\n";
         }
-        String batches = "testBatches:\n" + tab(i + 1) + "[\n" + String.join(",\n", bs) + "\n" + tab(i + 1) + "]\n";
-        String isFromOutput = "isTestDataFromServiceOutput: " + t.isTestDataFromServiceOutput() + ";\n";
+        String isFromOutput = t.isTestDataFromServiceOutput() == null ? ""
+                : "isTestDataFromServiceOutput: " + t.isTestDataFromServiceOutput() + ";\n";
         String path = t.graphFetchPath() == null ? "" : tab(i + 1) + "graphFetchPath: " + path(t.graphFetchPath()) + ";\n";
         return tab(i) + t.id() + ":\n" + tab(i) + "{\n"
                 + tab(i + 1) + batches + tab(i + 1) + isFromOutput + path + tab(i) + "}\n";
     }
 
+    /** {@code renderPersistenceTestBatch}: its data, the data's connection and its asserts only when it has them. */
     private static String testBatch(Protocol.PPersistenceTestBatch b, int i) {
         StringBuilder s = new StringBuilder(tab(i)).append(b.id()).append(":\n").append(tab(i)).append("{\n");
-        s.append(tab(i + 1)).append("data:\n").append(tab(i + 1)).append("{\n")
-                .append(tab(i + 2)).append("connection:\n").append(tab(i + 2)).append("{\n")
-                .append(EmbeddedDataComposer.compose(externalFormat(b.connectionData()), tab(i + 3))).append("\n")
-                .append(tab(i + 2)).append("}\n")
-                .append(tab(i + 1)).append("}\n");
-        List<String> as = new ArrayList<>();
-        for (Protocol.PPersistenceAssert a : b.asserts()) {
-            as.add(TestAssertionComposer.compose(assertion(a), tab(i + 2)));
+        if (b.hasTestData()) {
+            s.append(tab(i + 1)).append("data:\n").append(tab(i + 1)).append("{\n");
+            if (b.connectionData() != null) {
+                s.append(tab(i + 2)).append("connection:\n").append(tab(i + 2)).append("{\n")
+                        .append(EmbeddedDataComposer.compose(externalFormat(b.connectionData()), tab(i + 3))).append("\n")
+                        .append(tab(i + 2)).append("}\n");
+            }
+            s.append(tab(i + 1)).append("}\n");
         }
-        s.append(tab(i + 1)).append("asserts:\n").append(tab(i + 1)).append("[\n").append(String.join(",\n", as)).append("\n")
-                .append(tab(i + 1)).append("]\n");
+        if (b.asserts() != null) {
+            List<String> as = new ArrayList<>();
+            for (Protocol.PPersistenceAssert a : b.asserts()) {
+                as.add(TestAssertionComposer.compose(assertion(a), tab(i + 2)));
+            }
+            s.append(tab(i + 1)).append("asserts:\n").append(tab(i + 1)).append("[\n").append(String.join(",\n", as))
+                    .append("\n").append(tab(i + 1)).append("]\n");
+        }
         return s.append(tab(i)).append("}").toString();
     }
 

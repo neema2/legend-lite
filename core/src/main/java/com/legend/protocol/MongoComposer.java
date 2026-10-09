@@ -167,8 +167,10 @@ final class MongoComposer {
     /** The class mapping's body, from its {@code :} on. */
     static String classMapping(Protocol.PClassMappingMongoDb cm) {
         StringBuilder b = new StringBuilder(": MongoDB\n").append(TAB).append("{\n");
-        b.append(tab(2)).append("~mainCollection [").append(cm.storePath()).append("] ")
-                .append(Composing.convertIdentifier(cm.mainCollectionName())).append("\n");
+        if (cm.mainCollectionName() != null && cm.storePath() != null) {
+            b.append(tab(2)).append("~mainCollection [").append(cm.storePath()).append("] ")
+                    .append(Composing.convertIdentifier(cm.mainCollectionName())).append("\n");
+        }
         if (cm.bindingPath() != null) {
             b.append(tab(2)).append("~binding ").append(cm.bindingPath()).append("\n");
         }

@@ -230,8 +230,17 @@ public final class Protocol {
                                             boolean root,
                                             List<PServiceStoreLocalProp> localProps,
                                             List<PServiceMapping> services,
-                                            @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+                                            @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                                            /** {@code extends [id]}: every class mapping's (the engine's ClassMapping) */
+                                            @com.legend.base.Nullable String extendsClassMappingId)
             implements PClassMapping {
+        /** Extending none: what lite's grammar makes. */
+        public PServiceStoreClassMapping(String className,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo classSpan, @com.legend.base.Nullable String id,
+                boolean root, List<PServiceStoreLocalProp> localProps, List<PServiceMapping> services,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(className, classSpan, id, root, localProps, services, sourceInformation, null);
+        }
     }
 
     /** One {@code +name: Type[mult];} local mapping property; span runs
@@ -253,9 +262,23 @@ public final class Protocol {
     /** {@code ~path $service.response.a.b} — startType is the fixed
      *  {@code $service.response} head, the rest are propertyPath entries;
      *  NO spans on this wire (ZTailProbe "servicestore-mapping-rich2"). */
-    public record PPathOffset(String startType, List<String> propertyPath) {
+    public record PPathOffset(String startType, List<String> propertyPath,
+                              /** each segment's arguments (the engine's PropertyPathElement), which lite's grammar
+                               *  does not write: one list per segment */
+                              List<List<com.legend.protocol.spec.ValueSpecification>> parameters) {
         public PPathOffset {
             propertyPath = List.copyOf(propertyPath);
+            parameters = parameters.stream().map(List::copyOf).toList();
+            if (parameters.size() != propertyPath.size()) {
+                throw new IllegalArgumentException("a path offset with " + propertyPath.size() + " segments and "
+                        + parameters.size() + " argument lists");
+            }
+        }
+
+        /** No arguments: what lite's grammar makes. */
+        public PPathOffset(String startType, List<String> propertyPath) {
+            this(startType, propertyPath, propertyPath.stream()
+                    .map(p -> List.<com.legend.protocol.spec.ValueSpecification>of()).toList());
         }
     }
 
@@ -306,10 +329,20 @@ public final class Protocol {
      *  "mongodb-mapping"). Model transform skips it. */
     public record PClassMappingMongoDb(String className,
                                        @com.legend.base.Nullable String id,
-                                       boolean root, String storePath,
-                                       String mainCollectionName,
-                                       @com.legend.base.Nullable String bindingPath)
+                                       boolean root,
+                                       /** both or neither: the grammar's {@code ~mainCollection} is optional */
+                                       @com.legend.base.Nullable String storePath,
+                                       @com.legend.base.Nullable String mainCollectionName,
+                                       @com.legend.base.Nullable String bindingPath,
+                                       /** {@code extends [id]}: every class mapping's (the engine's ClassMapping) */
+                                       @com.legend.base.Nullable String extendsClassMappingId)
             implements PClassMapping {
+        /** Extending none: what lite's grammar makes. */
+        public PClassMappingMongoDb(String className, @com.legend.base.Nullable String id, boolean root,
+                @com.legend.base.Nullable String storePath, @com.legend.base.Nullable String mainCollectionName,
+                @com.legend.base.Nullable String bindingPath) {
+            this(className, id, root, storePath, mainCollectionName, bindingPath, null);
+        }
     }
 
     /**
@@ -372,8 +405,18 @@ public final class Protocol {
                                                 PClassMapping mainSetImplementation,
                                                 List<PPurePropertyMapping> aggPropertyMappings,
                                                 boolean root,
-                                                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+                                                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                                                /** {@code extends [id]}: every class mapping's (the engine's ClassMapping) */
+                                                @com.legend.base.Nullable String extendsClassMappingId)
             implements PClassMapping {
+        /** Extending none: what lite's grammar makes. */
+        public PClassMappingAggregationAware(String className, String id,
+                List<PAggregateSetImplementation> aggregateSetImplementations, PClassMapping mainSetImplementation,
+                List<PPurePropertyMapping> aggPropertyMappings, boolean root,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(className, id, aggregateSetImplementations, mainSetImplementation, aggPropertyMappings, root,
+                    sourceInformation, null);
+        }
     }
 
     public record PAggregateSetImplementation(boolean canAggregate,
@@ -398,8 +441,18 @@ public final class Protocol {
                                               boolean root,
                                               List<String> parameters,
                                               com.legend.protocol.spec.ValueSpecification validationLambda,
-                                              @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+                                              @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                                              /** {@code extends [id]}: every class mapping's (the engine's ClassMapping) */
+                                              @com.legend.base.Nullable String extendsClassMappingId)
             implements PClassMapping {
+        /** Extending none: what lite's grammar makes. */
+        public PClassMappingMergeOperation(String className,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo classSourceInformation,
+                @com.legend.base.Nullable String id, boolean root, List<String> parameters,
+                com.legend.protocol.spec.ValueSpecification validationLambda,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(className, classSourceInformation, id, root, parameters, validationLambda, sourceInformation, null);
+        }
     }
 
     /** {@code _type:"relation"} class mapping (probe relation-fn):
@@ -563,7 +616,9 @@ public final class Protocol {
     /** One {@code schema.table: 'csv';} row — span runs the schema token
      *  through the terminating {@code ';'} (probe relational-multi). */
     public record PRelationalCsvTable(String schema, String table,
-                                      String values,
+                                      /** none when the JSON leaves them out (the engine prints {@code schema.table:;});
+                                       *  the grammar always writes them */
+                                      @com.legend.base.Nullable String values,
                                       @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -688,8 +743,22 @@ public final class Protocol {
                                          boolean root,
                                          @com.legend.base.Nullable String operation,
                                          List<String> parameters,
-                                         @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+                                         @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                                         /** where the extends id came from: written on the wire (JSON the engine reads
+                                          *  and writes back), or only in the text -- the engine's grammar drops an
+                                          *  operation's {@code extends}, lite's model keeps it, and the wire then
+                                          *  carries none */
+                                         boolean extendsOnWire)
             implements PClassMapping {
+        /** As the grammar makes it: an extends id, if any, from the text alone. */
+        public PClassMappingOperation(String className,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo classSourceInformation,
+                @com.legend.base.Nullable String id, @com.legend.base.Nullable String extendsClassMappingId,
+                boolean root, @com.legend.base.Nullable String operation, List<String> parameters,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(className, classSourceInformation, id, extendsClassMappingId, root, operation, parameters,
+                    sourceInformation, false);
+        }
     }
 
     /** {@code _type:"pureInstance"} class mapping (probe pure-m2m):
@@ -1599,19 +1668,34 @@ public final class Protocol {
     /** One {@code tests:} entry — {@code id: { testBatches; ... }};
      *  graphFetch tests carry a {@code graphFetchPath:} path literal. */
     public record PPersistenceTest(String id,
-                                   List<PPersistenceTestBatch> testBatches,
-                                   boolean isTestDataFromServiceOutput,
+                                   /** none when the JSON leaves them out (the engine's printer then prints no
+                                    *  block); the grammar always writes them */
+                                   @com.legend.base.Nullable List<PPersistenceTestBatch> testBatches,
+                                   /** the engine's {@code Boolean}, true when left out; none (not printed) when the
+                                    *  JSON writes null */
+                                   @com.legend.base.Nullable Boolean isTestDataFromServiceOutput,
                                    @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification graphFetchPath,
                                    @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** One test batch — batchId AUTO-NUMBERS in source order. */
     public record PPersistenceTestBatch(String id,
-                                        PPersistenceNode connectionData,
+                                        /** none when its test data has no connection */
+                                        @com.legend.base.Nullable PPersistenceNode connectionData,
                                         @com.legend.base.Nullable com.legend.protocol.SourceInfo connectionSpan,
                                         @com.legend.base.Nullable com.legend.protocol.SourceInfo dataSpan,
-                                        List<PPersistenceAssert> asserts,
-                                        @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+                                        /** none when the JSON leaves them out */
+                                        @com.legend.base.Nullable List<PPersistenceAssert> asserts,
+                                        @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                                        /** whether the batch has test data at all (the grammar always writes it) */
+                                        boolean hasTestData) {
+        /** With test data and its connection: what lite's grammar makes. */
+        public PPersistenceTestBatch(String id, PPersistenceNode connectionData,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo connectionSpan,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo dataSpan, List<PPersistenceAssert> asserts,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(id, connectionData, connectionSpan, dataSpan, asserts, sourceInformation, true);
+        }
     }
 
     /** One assertion — {@code id: Kind #{ ... }#}. */
@@ -1889,7 +1973,21 @@ public final class Protocol {
                               List<String> constraints,
                               List<PDqTreeNode> subTrees,
                               @com.legend.base.Nullable String subType,
-                              @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+                              @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                              /** a property node's alias and arguments (the engine's PropertyGraphFetchTree), which
+                               *  lite's grammar does not write */
+                              @com.legend.base.Nullable String alias,
+                              List<com.legend.protocol.spec.ValueSpecification> parameters) {
+        public PDqTreeNode {
+            parameters = List.copyOf(parameters);
+        }
+
+        /** No alias and no arguments: what lite's grammar makes. */
+        public PDqTreeNode(@com.legend.base.Nullable String className, @com.legend.base.Nullable String property,
+                List<String> constraints, List<PDqTreeNode> subTrees, @com.legend.base.Nullable String subType,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(className, property, constraints, subTrees, subType, sourceInformation, null, List.of());
+        }
     }
 
     /** {@code DataQualityValidation} (tree kind): context pointer(s) +
@@ -2811,7 +2909,9 @@ public final class Protocol {
 
         /** One CSV table: schema, table, concatenated values; span =
          *  {@code schema.table:}..values end (the ';' excluded). */
-        record CsvTable(String schema, String table, String values,
+        record CsvTable(String schema, String table,
+                        /** as {@link PRelationalCsvTable#values} */
+                        @com.legend.base.Nullable String values,
                         @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
         }
     }
@@ -2821,7 +2921,9 @@ public final class Protocol {
     public record PFunctionTest(String id,
                                 @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
                                 List<PTestParam> parameters,
-                                PAssertion assertion,
+                                /** none when the JSON's assertions are empty (the engine prints {@code => ;}); the
+                                 *  grammar always writes one */
+                                @com.legend.base.Nullable PAssertion assertion,
                                 /** the test's documentation ({@code AtomicTest.doc}), which the engine reads and
                                  *  prints ({@code id 'doc' | ...}); lite's grammar does not take one yet */
                                 @com.legend.base.Nullable String doc) {

@@ -17,7 +17,6 @@ import static com.legend.protocol.Composing.valueSpecification;
  * {@link Protocol.PDataQualityRelationComparison}; the protocol program's leg 2, step 3). The extension writes the
  * element's path as the wire spells it (unquoted) and indents with three spaces per level. A persistence strategy
  * (which upstream's printer has no renderer for) and a tree's sub-type trees have no reader rule: refused when read.
- * A property node's alias and parameters are not read yet either (the step-3 audit's list, PROTOCOL_PROGRAM §4.2).
  */
 final class DataQualityComposer {
 
@@ -94,7 +93,16 @@ final class DataQualityComposer {
             }
             subTreeString = "{\n" + String.join(",\n", out) + "\n" + spaces(2 * tabSize) + "}";
         }
-        return spaces(2 * tabSize) + tree.property() + constraints(tree)
+        String parameters = "";
+        if (!tree.parameters().isEmpty()) {
+            List<String> ps = new ArrayList<>();
+            for (com.legend.protocol.spec.ValueSpecification p : tree.parameters()) {
+                ps.add(PureComposer.valueSpecification(p, PureComposer.Style.PRETTY, ""));
+            }
+            parameters = "(" + String.join(", ", ps) + ")";
+        }
+        return spaces(2 * tabSize) + (tree.alias() != null ? Composing.convertString(tree.alias(), false) + ":" : "")
+                + tree.property() + constraints(tree) + parameters
                 + (tree.subType() != null ? "->subType(@" + tree.subType() + ")" : "") + subTreeString;
     }
 

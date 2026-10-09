@@ -103,7 +103,8 @@ final class EmbeddedDataReader {
 
     private static Protocol.PRelationalCsvTable csvTable(Json.Node node) {
         Wire t = Wire.of(node, "relational CSV table");
-        return t.done(new Protocol.PRelationalCsvTable(t.str("schema"), t.str("table"), t.str("values"), t.span()));
+        // values left out: none (the engine prints the table's line alone)
+        return t.done(new Protocol.PRelationalCsvTable(t.str("schema"), t.str("table"), t.optStr("values"), t.span()));
     }
 
     /** The bare columns/paths/rows shape -- every cell a string. */

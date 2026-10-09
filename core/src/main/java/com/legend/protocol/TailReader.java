@@ -31,7 +31,11 @@ final class TailReader {
         return new Protocol.PGenerationSpecification(w.str("package"), w.str("name"),
                 w.list("generationNodes", n -> {
                     Wire g = Wire.of(n, "generation node");
-                    return g.done(new Protocol.PGenerationNode(g.str("generationElement"), g.str("id"), g.span()));
+                    // an id left out is the element, as the grammar defaults it; the engine's printer prints no id
+                    // for either (GenerationGrammarComposerExtension)
+                    String element = g.str("generationElement");
+                    String id = g.optStr("id");
+                    return g.done(new Protocol.PGenerationNode(element, id == null ? element : id, g.span()));
                 }),
                 w.list("fileGenerations", n -> {
                     Wire p = Wire.of(n, "file generation pointer");
@@ -51,10 +55,21 @@ final class TailReader {
         return p.done(new Protocol.PConfigProperty(p.str("name"), configValue(p.take("value")), p.span()));
     }
 
-    /** A config value: a string, boolean, integer, string list or string map. */
+    /**
+     * A config value as the engine's {@code ConfigurationProperty.ValueDeserializer} reads it: an integer, a
+     * boolean, a list of strings, a map of strings, and anything else as its text -- a string, and also a decimal
+     * (its token as written) or a {@code null} (the text {@code null}). A list or map holding anything but strings the
+     * engine refuses.
+     */
     private static Protocol.PConfigValue configValue(Json.Node v) {
         if (v instanceof Json.Str s) {
             return new Protocol.PConfigValue.PCString(s.value());
+        }
+        if (v instanceof Json.Null) {
+            return new Protocol.PConfigValue.PCString("null");
+        }
+        if (v instanceof Json.Num n && !n.isInteger()) {
+            return new Protocol.PConfigValue.PCString(n.token() != null ? n.token() : Double.toString(n.doubleValue()));
         }
         if (v instanceof Json.Bool b) {
             return new Protocol.PConfigValue.PCBoolean(b.value());

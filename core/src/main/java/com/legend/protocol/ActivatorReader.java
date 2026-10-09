@@ -95,7 +95,9 @@ final class ActivatorReader {
             if ("DeploymentOwner".equals(type)) {
                 ownerId = own.str("id");
             } else if ("userList".equals(type)) {
-                users = own.strings("users");
+                // left out, the engine's UserList starts it empty
+                List<String> written = own.optStrings("users");
+                users = written == null ? List.of() : written;
             } else {
                 throw Wire.refuse("no reader rule for activator ownership _type '" + type + "'");
             }

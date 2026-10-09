@@ -99,11 +99,14 @@ final class EmbeddedDataComposer {
         List<String> tables = new ArrayList<>();
         for (Protocol.PRelationalCsvTable t : d.tables()) {
             StringBuilder b = new StringBuilder(i).append(t.schema()).append(".").append(t.table()).append(":");
-            List<String> lines = new ArrayList<>();
-            for (String l : Composing.splitDroppingTrailingEmpties(t.values(), '\n', (char) 0)) {
-                lines.add(i + TAB + convertString(l + "\n", true));
+            // a table with no values is its line alone (HelperRelationalEmbeddedDataComposer.visitTable)
+            if (t.values() != null) {
+                List<String> lines = new ArrayList<>();
+                for (String l : Composing.splitDroppingTrailingEmpties(t.values(), '\n', (char) 0)) {
+                    lines.add(i + TAB + convertString(l + "\n", true));
+                }
+                b.append("\n").append(String.join("+\n", lines));
             }
-            b.append("\n").append(String.join("+\n", lines));
             tables.add(b.append(";").toString());
         }
         return String.join("\n\n", tables);

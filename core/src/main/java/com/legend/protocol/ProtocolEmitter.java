@@ -1406,7 +1406,9 @@ public final class ProtocolEmitter {
             }
             Protocol.PFunctionTest t = s.tests().get(i);
             b.append("{\"_type\":\"functionTest\",\"assertions\":[");
-            assertion(b, t.assertion());
+            if (t.assertion() != null) {
+                assertion(b, t.assertion());
+            }
             b.append(']');
             if (t.doc() != null) {
                 b.append(",\"doc\":");
@@ -1542,8 +1544,10 @@ public final class ProtocolEmitter {
                     srcInfo(b, t.sourceInformation());
                     b.append(",\"table\":");
                     str(b, t.table());
-                    b.append(",\"values\":");
-                    str(b, t.values());
+                    if (t.values() != null) {
+                        b.append(",\"values\":");
+                        str(b, t.values());
+                    }
                     b.append('}');
                 }
                 b.append("]}");

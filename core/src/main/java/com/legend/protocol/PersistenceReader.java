@@ -45,7 +45,9 @@ final class PersistenceReader {
             service = p.path();
             serviceSpan = p.sourceInformation();
         }
-        List<Protocol.PServiceOutputTarget> targets = w.list("serviceOutputTargets", PersistenceReader::outputTarget);
+        // left out: none, as the engine's printer reads its null
+        List<Protocol.PServiceOutputTarget> targets = w.listOrEmpty("serviceOutputTargets",
+                PersistenceReader::outputTarget);
         Wire trigger = w.obj("trigger");
         String triggerKind = trigger.done(kindOf("trigger", trigger.type(), false, false));
         return new Protocol.PPersistence(w.str("package"), w.str("name"), List.of(), List.of(),
@@ -247,28 +249,55 @@ final class PersistenceReader {
         Wire t = Wire.of(node, "persistence test");
         t.constant("_type", "test");
         Json.Node gfp = t.opt("graphFetchPath");
-        List<Json.Node> batches = t.arr("testBatches");
-        List<Protocol.PPersistenceTestBatch> out = new ArrayList<>();
-        for (int i = 0; i < batches.size(); i++) {
-            out.add(batch(batches.get(i), i));
+        // left out: no batches (the engine's printer prints no block for its null)
+        List<Json.Node> batches = t.optArr("testBatches");
+        List<Protocol.PPersistenceTestBatch> out = null;
+        if (batches != null) {
+            out = new ArrayList<>();
+            for (int i = 0; i < batches.size(); i++) {
+                out.add(batch(batches.get(i), i));
+            }
         }
-        return t.done(new Protocol.PPersistenceTest(t.str("id"), out, t.bool("isTestDataFromServiceOutput"),
+        // left out it is true, the engine's Boolean field's start; written null it is none (not printed)
+        Json.Node fromOutput = t.opt("isTestDataFromServiceOutput");
+        Boolean isFromOutput;
+        if (fromOutput == null) {
+            isFromOutput = Boolean.TRUE;
+        } else if (fromOutput instanceof Json.Null) {
+            isFromOutput = null;
+        } else if (fromOutput instanceof Json.Bool written) {
+            isFromOutput = written.value();
+        } else {
+            throw Wire.refuse("persistence test.isTestDataFromServiceOutput is not a boolean: "
+                    + Wire.abbreviate(fromOutput));
+        }
+        return t.done(new Protocol.PPersistenceTest(t.str("id"), out, isFromOutput,
                 gfp == null ? null : SpecIslandReader.pathValue(gfp), t.span()));
     }
 
-    /** One batch: its {@code batchId} is its index, written by the emitter. */
+    /**
+     * One batch: its {@code batchId} is its index, written by the emitter. Its test data, the data's connection and
+     * its assertions may each be left out, as the engine's printer reads each null.
+     */
     private static Protocol.PPersistenceTestBatch batch(Json.Node node, int index) {
         Wire b = Wire.of(node, "persistence test batch");
         if (b.lng("batchId") != index) {
             throw Wire.refuse("a persistence test batch numbered " + b.lng("batchId") + " at position " + index);
         }
-        Wire data = b.obj("testData");
-        Wire conn = data.obj("connection");
-        PPersistenceNode connectionData = node(conn.take("data"), "connectionData", false, false);
-        SourceInfo connectionSpan = conn.done(conn.span());
-        SourceInfo dataSpan = data.done(data.span());
+        PPersistenceNode connectionData = null;
+        SourceInfo connectionSpan = null;
+        SourceInfo dataSpan = null;
+        Wire data = b.optObj("testData");
+        if (data != null) {
+            Wire conn = data.optObj("connection");
+            if (conn != null) {
+                connectionData = node(conn.take("data"), "connectionData", false, false);
+                connectionSpan = conn.done(conn.span());
+            }
+            dataSpan = data.done(data.span());
+        }
         return b.done(new Protocol.PPersistenceTestBatch(b.str("id"), connectionData, connectionSpan, dataSpan,
-                b.list("assertions", PersistenceReader::assertion), b.span()));
+                b.optList("assertions", PersistenceReader::assertion), b.span(), data != null));
     }
 
     /** {@code id: Kind #{...}#}: the entries ride in record order between {@code _type} and {@code id}. */

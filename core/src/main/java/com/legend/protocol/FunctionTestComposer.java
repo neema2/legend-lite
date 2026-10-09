@@ -76,7 +76,7 @@ final class FunctionTestComposer {
         }
         return tab(level) + test.id() + (test.doc() != null ? " " + convertString(test.doc(), true) : "")
                 + " | " + function.name() + "(" + String.join(",", params) + ") => "
-                + assertion(test.assertion(), level) + ";";
+                + (test.assertion() == null ? "" : assertion(test.assertion(), level)) + ";";
     }
 
     private static String assertion(Protocol.PAssertion a, int level) {

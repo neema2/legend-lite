@@ -65,8 +65,14 @@ final class ServiceTestReader {
         Wire t = Wire.of(node, "service test");
         t.constant("_type", "serviceTest");
         return t.done(new PServiceTestSuite.PSuiteTest(t.str("id"), t.optStr("doc"), t.optStr("serializationFormat"),
-                t.strings("keys"), t.optList("parameters", ServiceTestReader::parameter),
+                keys(t), t.optList("parameters", ServiceTestReader::parameter),
                 t.list("assertions", EmbeddedDataReader::assertion), t.span()));
+    }
+
+    /** A test's keys; left out, the engine's {@code ServiceTest} starts them empty. */
+    private static List<String> keys(Wire t) {
+        List<String> keys = t.optStrings("keys");
+        return keys == null ? List.of() : keys;
     }
 
     private static PServiceTestSuite.PSuiteParam parameter(Json.Node node) {

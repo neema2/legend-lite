@@ -5,6 +5,9 @@ package com.legend.protocol;
 
 import com.legend.json.Json;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Data spaces read back -- the mirror of {@link TailEmitter}'s {@code dataSpace},
  * {@code dataSpaceContext}, {@code dataSpaceExecutable}, {@code dataSpaceLink} and
@@ -29,7 +32,7 @@ final class DataSpaceReader {
                 DomainReader.stereotypes(w), DomainReader.taggedValues(w),
                 w.optList("executionContexts", DataSpaceReader::context), w.optStr("defaultExecutionContext"),
                 w.optStr("title"), w.optStr("description"), w.optList("executables", DataSpaceReader::executable),
-                w.optList("diagrams", DataSpaceReader::diagram), support == null ? null : support(support), om,
+                diagrams(w), support == null ? null : support(support), om,
                 w.optList("elements", DataSpaceReader::elementRef), w.span());
     }
 
@@ -114,6 +117,24 @@ final class DataSpaceReader {
         return e.done(new Protocol.PDataSpaceExecutable(e.optStr("id"), e.str("title"), e.optStr("description"),
                 path, pathSpan, query, e.optStr("executionContextKey"),
                 sample == null ? null : EmbeddedDataReader.relationElement(sample), e.span()));
+    }
+
+    /**
+     * The diagrams, and after them older JSON's {@code featuredDiagrams} (deprecated): each a diagram titled {@code ""},
+     * spanned by its pointer, as the engine's compiler and printer make of it
+     * ({@code DataSpaceCompilerExtension}, {@code DataSpaceGrammarComposerExtension.renderDataSpace}).
+     */
+    private static @com.legend.base.Nullable List<Protocol.PDataSpaceDiagram> diagrams(Wire w) {
+        List<Protocol.PDataSpaceDiagram> diagrams = w.optList("diagrams", DataSpaceReader::diagram);
+        List<Protocol.PPointer> featured = w.optList("featuredDiagrams", DomainReader::pointer);
+        if (featured == null) {
+            return diagrams;
+        }
+        List<Protocol.PDataSpaceDiagram> all = diagrams == null ? new ArrayList<>() : new ArrayList<>(diagrams);
+        for (Protocol.PPointer p : featured) {
+            all.add(new Protocol.PDataSpaceDiagram("", null, p.path(), p.sourceInformation(), p.sourceInformation()));
+        }
+        return all;
     }
 
     private static Protocol.PDataSpaceDiagram diagram(Json.Node node) {

@@ -51,6 +51,7 @@ final class MappingEmitter {
                     str(b, mo.className());
                     b.append(",\"classSourceInformation\":");
                     srcInfo(b, mo.classSourceInformation());
+                    extendsId(b, mo.extendsClassMappingId());
                     if (mo.id() != null) {
                         b.append(",\"id\":");
                         str(b, mo.id());
@@ -167,6 +168,8 @@ final class MappingEmitter {
                     str(b, om.className());
                     b.append(",\"classSourceInformation\":");
                     srcInfo(b, om.classSourceInformation());
+                    // the grammar's extends is the text's alone: the engine's wire carries none
+                    extendsId(b, om.extendsOnWire() ? om.extendsClassMappingId() : null);
                     if (om.id() != null) {
                         b.append(",\"id\":");
                         str(b, om.id());
@@ -407,16 +410,29 @@ final class MappingEmitter {
         }
         b.append(",\"class\":");
         str(b, mg.className());
+        extendsId(b, mg.extendsClassMappingId());
         if (mg.id() != null) {
             b.append(",\"id\":");
             str(b, mg.id());
         }
-        b.append(",\"mainCollectionName\":");
-        str(b, mg.mainCollectionName());
+        if (mg.mainCollectionName() != null) {
+            b.append(",\"mainCollectionName\":");
+            str(b, mg.mainCollectionName());
+        }
         b.append(",\"root\":").append(mg.root());
-        b.append(",\"storePath\":");
-        str(b, mg.storePath());
+        if (mg.storePath() != null) {
+            b.append(",\"storePath\":");
+            str(b, mg.storePath());
+        }
         b.append('}');
+    }
+
+    /** {@code extendsClassMappingId}, when the class mapping extends another. */
+    private static void extendsId(StringBuilder b, @com.legend.base.Nullable String extendsClassMappingId) {
+        if (extendsClassMappingId != null) {
+            b.append(",\"extendsClassMappingId\":");
+            str(b, extendsClassMappingId);
+        }
     }
 
     /** {@code _type:"serviceStore"} class mapping (ZTailProbe
@@ -429,6 +445,7 @@ final class MappingEmitter {
         str(b, ss.className());
         b.append(",\"classSourceInformation\":");
         srcInfo(b, ss.classSpan());
+        extendsId(b, ss.extendsClassMappingId());
         if (ss.id() != null) {
             b.append(",\"id\":");
             str(b, ss.id());
@@ -467,8 +484,15 @@ final class MappingEmitter {
                     if (k > 0) {
                         b.append(',');
                     }
-                    b.append("{\"_type\":\"propertyPath\","
-                            + "\"parameters\":[],\"property\":");
+                    b.append("{\"_type\":\"propertyPath\",\"parameters\":[");
+                    var arguments = sm.pathOffset().parameters().get(k);
+                    for (int a = 0; a < arguments.size(); a++) {
+                        if (a > 0) {
+                            b.append(',');
+                        }
+                        valueSpec(b, arguments.get(a));
+                    }
+                    b.append("],\"property\":");
                     str(b, segs.get(k));
                     b.append('}');
                 }
@@ -885,6 +909,7 @@ final class MappingEmitter {
         }
         b.append("],\"class\":");
         str(b, aa.className());
+        extendsId(b, aa.extendsClassMappingId());
         b.append(",\"id\":");
         str(b, aa.id());
         b.append(",\"mainSetImplementation\":");
@@ -1359,8 +1384,10 @@ final class MappingEmitter {
                     srcInfo(b, t.sourceInformation());
                     b.append(",\"table\":");
                     str(b, t.table());
-                    b.append(",\"values\":");
-                    str(b, t.values());
+                    if (t.values() != null) {
+                        b.append(",\"values\":");
+                        str(b, t.values());
+                    }
                     b.append('}');
                 }
                 b.append("]}");
