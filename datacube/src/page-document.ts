@@ -322,8 +322,16 @@ function readNode(n: unknown, views: ReadonlySet<string>, where: string): Node {
     if (!views.has(n['tile'])) throw new PageDocumentError(`a tile shows no view of this page (${n['tile']})`);
     return { tile: n['tile'] };
   }
+  // a stack of tiles (the design's §7.4): its tiles in their tabs' order; it reopens on its first tab
+  if (isObject(n) && Array.isArray(n['stack'])) {
+    const stack = n['stack'].map((t) => {
+      if (typeof t !== 'string' || !views.has(t)) throw new PageDocumentError(`${where}'s stack holds no view of this page (${JSON.stringify(t)})`);
+      return t;
+    });
+    return { stack };
+  }
   if (!isObject(n) || (n['split'] !== 'row' && n['split'] !== 'column') || !Array.isArray(n['parts'])) {
-    throw new PageDocumentError(`${where} is not a tile or a split of parts`);
+    throw new PageDocumentError(`${where} is not a tile, a stack or a split of parts`);
   }
   return {
     split: n['split'],

@@ -140,7 +140,7 @@ describe('a saved page', () => {
     assert.throws(bad(band({ split: 'row', parts: [{ node: { tile: 'grid' }, size: 1 }] })),
       /sheet sheet-1's layout cannot be laid out: band 0: a split of 1 part/);
     assert.throws(bad(band({ tile: 'grid' }, -1)), /cannot be laid out: band 0: a height of -1/);
-    assert.throws(bad(band({ split: 'diagonal', parts: [] })), /not a tile or a split of parts/);
+    assert.throws(bad(band({ split: 'diagonal', parts: [] })), /not a tile, a stack or a split of parts/);
     assert.throws(bad({ sheets: [{ id: FIRST_SHEET, layout: { kind: 'grid', cols: 12, tiles: [] } }] }), /not a layout of bands/);
     // a view with no place: it would be put somewhere on opening, and the page read as changed at once
     assert.throws(bad(band({ split: 'row', parts: [{ node: { tile: 'grid' }, size: 0.5 }, { node: { tile: 'chart-1' }, size: 0.5 }] })),
@@ -190,6 +190,22 @@ describe('a saved page', () => {
     const back = readPage(pageToJson(writePage({ name: 'Q3 page', cube: CUBE, views: sheets })));
     assert.deepEqual(back.sheets, sheets.sheets);
     assert.equal(back.version, 3);
+  });
+
+  it('holds a stack of tiles in one place: its tiles in their tabs\' order, read back as they were', () => {
+    const stacked: PageViews = {
+      views: VIEWS.views,
+      sheets: oneSheet({ kind: 'bands', fit: false, bands: [{ height: 1, node: { split: 'row', parts: [
+        { node: { tile: 'grid' }, size: 0.5 }, { node: { stack: ['chart-2', 'chart-1'] }, size: 0.5 }] } }] }),
+    };
+    const back = readPage(pageToJson(writePage({ name: 'Q3 page', cube: CUBE, views: stacked })));
+    assert.deepEqual(back.sheets, stacked.sheets);
+    const raw = JSON.parse(pageToJson(page()));
+    const sheetOf = (node: unknown) => ({ sheets: [{ id: FIRST_SHEET, layout: { kind: 'bands', fit: false, bands: [{ height: 1, node }] } }] });
+    assert.throws(() => readPage(JSON.stringify({ ...raw, ...sheetOf({ stack: ['grid', 'nowhere'] }) })), /stack holds no view/);
+    assert.throws(() => readPage(JSON.stringify({ ...raw, ...sheetOf({ split: 'row', parts: [
+      { node: { stack: ['grid'] }, size: 0.5 }, { node: { split: 'column', parts: [{ node: { tile: 'chart-1' }, size: 0.5 }, { node: { tile: 'chart-2' }, size: 0.5 }] }, size: 0.5 }] }) })),
+    /a stack of 1 tile/);
   });
 
   it('opens a page saved as version 2 (one layout) as one sheet, and writes it back as version 3', () => {

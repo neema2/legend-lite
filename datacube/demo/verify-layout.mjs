@@ -316,6 +316,37 @@ try {
     return `${Object.keys(narrow).length} tiles stacked at ${b.w}px`;
   });
 
+  // STACKS (the design's §7.4): a tile dropped on another's middle joins its place, in front, the two as tabs
+  await check('a tile dropped on another\'s middle stacks with it, in front; a tab shows its tile; a tab dragged off takes it out', async () => {
+    const before = await boxes();
+    const from = await head(ids.b);
+    const at = before[ids.a];
+    await drag(from.x, from.y, at.x + at.w / 2, at.y + at.h / 2, { what: 'a tile onto another\'s middle' });
+    await settle();
+    const tabs = await page.locator(`${tile(ids.b)} .dc-tile-tab`).allTextContents();
+    let shown = await boxes();
+    if (tabs.length !== 2) throw new Error(`the stack's tabs: ${JSON.stringify(tabs)}`);
+    if (shown[ids.a] || !shown[ids.b] || shown[ids.b].x !== at.x || shown[ids.b].w !== at.w) {
+      throw new Error(`not stacked in ${ids.a}'s place, ${ids.b} in front: ${JSON.stringify(shown)}`);
+    }
+    // a's tab: a in front, in the same place
+    await page.locator(`${tile(ids.b)} .dc-tile-tab[data-tab="${ids.a}"]`).click();
+    await settle();
+    shown = await boxes();
+    if (!shown[ids.a] || shown[ids.b] || shown[ids.a].x !== at.x) throw new Error(`the tab did not show ${ids.a}: ${JSON.stringify(shown)}`);
+    // b's tab dragged off the strip, onto the grid's right edge: beside it, the stack gone
+    const tab = await page.locator(`${tile(ids.a)} .dc-tile-tab[data-tab="${ids.b}"]`).boundingBox();
+    const grid = shown[ids.grid];
+    await drag(tab.x + tab.width / 2, tab.y + tab.height / 2, grid.x + grid.w * 0.92, grid.y + grid.h / 2, { what: 'a tab off its stack' });
+    await settle();
+    shown = await boxes();
+    if (await page.locator('.dc-band-tile:not([hidden]) .dc-tile-tabs:not([hidden])').count()) throw new Error('a stack is left');
+    if (!shown[ids.a] || !shown[ids.b] || shown[ids.b].y !== shown[ids.grid].y || shown[ids.b].x <= shown[ids.grid].x) {
+      throw new Error(`${ids.b} not beside the grid: ${JSON.stringify(shown)}`);
+    }
+    return `${ids.b} stacked on ${ids.a} (2 tabs), shown by its tab, then taken out beside the grid`;
+  });
+
   // SHEETS (the design's §7): a tile moved to another sheet by dragging it onto that sheet's tab
   await check('a tile dragged onto another sheet\'s tab moves there; the tab is marked while it is over it', async () => {
     await page.locator('.dc-sheet-add').click();

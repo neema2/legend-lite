@@ -15,7 +15,12 @@ import {
   MIN_BAND_HEIGHT,
   add,
   arrange,
+  asSaved,
   bandOf,
+  bringToFront,
+  places,
+  reorderStack,
+  stackOf,
   shareText,
   sharesBeside,
   boundary,
@@ -40,9 +45,13 @@ import {
   tradeBands,
 } from '../src/layout/bands.ts';
 
-/** A layout as a picture: bands on lines, `|` between columns, `/` between stacked parts, shares rounded. */
+/**
+ * A layout as a picture: bands on lines, `|` between columns, `/` between stacked parts, shares rounded; a stack of
+ * tiles `{a,b*}`, its tile in front starred.
+ */
 function picture(layout: Bands): string[] {
   const draw = (node: Node): string => ('tile' in node ? node.tile
+    : 'stack' in node ? `{${node.stack.map((t) => (t === (node.front ?? node.stack[0]) ? `${t}*` : t)).join(',')}}`
     : `${node.split === 'row' ? '[' : '('}${node.parts.map((p) => `${draw(p.node)}:${Math.round(p.size * 100)}`)
       .join(node.split === 'row' ? ' | ' : ' / ')}${node.split === 'row' ? ']' : ')'}`);
   return layout.bands.map((band) => draw(band.node));
@@ -277,7 +286,8 @@ describe('a narrow window stacks the page', () => {
 /** `layout` in whole cells: every tile at least a cell each way, inside the page, and the areas summing to the page's. */
 function exactCover(layout: Bands, where: string): void {
   const grid = cells(layout);
-  assert.deepEqual(grid.tiles.map((t) => t.id).sort(), [...tiles(layout)].sort(), where);
+  // every place once: a stack as its tile in front
+  assert.deepEqual(grid.tiles.map((t) => t.id).sort(), [...places(layout)].sort(), where);
   const taken = new Set<string>();
   for (const t of grid.tiles) {
     assert.ok(t.w >= 1 && t.h >= 1 && t.x >= 0 && t.y >= 0 && t.x + t.w <= grid.cols && t.y + t.h <= grid.rows,
@@ -306,7 +316,7 @@ describe('a fuzz of gestures keeps every rule', () => {
       let made = 0;
       for (let step = 0; step < 3000; step += 1) {
         const ids = tiles(layout);
-        const gesture = ids.length === 0 ? 0 : Math.floor(next() * 14);
+        const gesture = ids.length === 0 ? 0 : Math.floor(next() * 17);
         /** A split somewhere in the page, by its path, and one of its dividers: nested ones too. */
         const somewhere = (): { path: number[]; after: number } | undefined => {
           const band = Math.floor(next() * layout.bands.length);
@@ -342,6 +352,10 @@ describe('a fuzz of gestures keeps every rule', () => {
           case 11: layout = evenAll(layout); break;
           case 12: layout = tradeBands(layout, Math.floor(next() * layout.bands.length), next() - 0.5); break;
           case 13: layout = fitted(layout, next() < 0.5); break;
+          // stacks: a tile dropped on another's middle, a tab brought to the front, a tab moved among its stack's
+          case 14: layout = drop(layout, pick(ids), { stack: pick(ids) }); break;
+          case 15: layout = bringToFront(layout, pick(ids)); break;
+          case 16: layout = reorderStack(layout, pick(ids), Math.floor(next() * 4)); break;
         }
         assert.deepEqual(problems(layout), [], `seed ${seed}, step ${step}, gesture ${gesture}`);
         // a gesture moves tiles, never loses or makes one (but add and remove)
@@ -351,11 +365,69 @@ describe('a fuzz of gestures keeps every rule', () => {
           exactCover(layout, `seed ${seed}, step ${step}`);
           const back = fromCells(cells(layout).tiles, 24);
           assert.deepEqual(problems(back), [], `seed ${seed}, step ${step}: read back`);
-          assert.deepEqual([...tiles(back)].sort(), [...tiles(layout)].sort());
+          assert.deepEqual([...tiles(back)].sort(), [...places(layout)].sort());
+          // as a page saves it: the same tiles, every rule kept, each stack on its first tab
+          const saved = asSaved(layout);
+          assert.deepEqual(problems(saved), []);
+          assert.deepEqual(tiles(saved), tiles(layout));
         }
       }
     });
   }
+});
+
+describe('a stack: tiles in one place, one shown', () => {
+  const three = (): Bands => drop(add(add(EMPTY, 'a'), 'b', 'a'), 'c', { band: 1 });
+  const base = (): Bands => add(three(), 'c', 'b');
+  it('is made by a drop on a tile\'s middle, in that tile\'s place, the dropped tile in front', () => {
+    const layout = sound(drop(add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b'), 'c', { stack: 'a' }));
+    assert.deepEqual(picture(layout), ['[{a,c*}:50 | b:50]']);
+    assert.deepEqual(stackOf(layout, 'a'), ['a', 'c']);
+    assert.deepEqual(places(layout), ['c', 'b'], 'one place, its tile in front naming it');
+    // a third onto it joins it
+    const more = sound(drop(layout, 'b', { stack: 'c' }));
+    assert.deepEqual(picture(more), ['{a,c,b*}']);
+    // onto itself, or onto its own stack's tile in front: nothing changes
+    assert.equal(drop(layout, 'c', { stack: 'c' }), layout);
+  });
+  it('gives up a tile as a removal does: the rest stay stacked, one left is a tile again, a front gone shows the next tab', () => {
+    const stack = drop(drop(base(), 'b', { stack: 'a' }), 'c', { stack: 'a' });
+    assert.deepEqual(picture(stack), ['{a,b,c*}']);
+    assert.deepEqual(picture(sound(remove(stack, 'c'))), ['{a,b*}']);
+    assert.deepEqual(picture(sound(remove(remove(stack, 'c'), 'a'))), ['b']);
+    // dragged out of it to an edge, between bands
+    assert.deepEqual(picture(sound(drop(stack, 'a', { band: 1 }))), ['{b,c*}', 'a']);
+  });
+  it('moves as one place: an edge of a stacked tile divides the stack\'s place, a swap moves the whole stack', () => {
+    const layout = drop(add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b'), 'c', { stack: 'a' });
+    assert.deepEqual(picture(sound(drop(layout, 'b', { onto: 'a', edge: 'bottom' }))), ['({a,c*}:50 / b:50)']);
+    assert.deepEqual(picture(sound(drop(layout, 'b', { swap: 'a' }))), ['[b:50 | {a,c*}:50]']);
+    assert.equal(drop(layout, 'a', { swap: 'c' }), layout, 'two tiles of one stack: one place');
+  });
+  it('brings a tab to the front, and moves a tab among its stack\'s, saved without its front (it reopens on its first tab)', () => {
+    const layout = drop(drop(base(), 'b', { stack: 'a' }), 'c', { stack: 'a' });
+    const front = sound(bringToFront(layout, 'a'));
+    assert.deepEqual(picture(front), ['{a*,b,c}']);
+    assert.equal(bringToFront(front, 'a'), front);
+    assert.deepEqual(picture(sound(reorderStack(front, 'c', 0))), ['{c,a*,b}']);
+    assert.deepEqual(asSaved(front), { fit: front.fit, bands: [{ height: front.bands[0]!.height, node: { stack: ['a', 'b', 'c'] } }] });
+  });
+  it('is one place to Arrange, and stays a stack', () => {
+    const layout = drop(add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b'), 'c', { stack: 'a' });
+    assert.deepEqual(picture(sound(arrange(layout, 'stacked'))), ['{a,c*}', 'b']);
+    assert.deepEqual(picture(sound(arrange(layout, 'side-by-side', ['b', 'a']))), ['[b:50 | {a,c*}:50]']);
+    assert.equal(layoutsFor(places(layout).length).length > 0, true);
+  });
+  it('is drawn as its tile in front, in the place\'s box; exported as that tile; refused when it breaks a rule', () => {
+    const layout = drop(add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b'), 'c', { stack: 'a' });
+    const drawn = draw(layout, 1000, 800, 8);
+    assert.deepEqual([...drawn.tiles.keys()].sort(), ['b', 'c']);
+    assert.deepEqual(drawn.stacks.get('c'), ['a', 'c']);
+    assert.deepEqual(cells(layout).tiles.map((t) => t.id).sort(), ['b', 'c']);
+    assert.deepEqual(problems({ fit: false, bands: [{ height: 1, node: { stack: ['a'] } }] }), ['band 0: a stack of 1 tile']);
+    assert.deepEqual(problems({ fit: false, bands: [{ height: 1, node: { stack: ['a', 'b'], front: 'z' } }] }),
+      ['band 0: a stack whose front, z, is not in it']);
+  });
 });
 
 describe('drawn in pixels', () => {
@@ -405,7 +477,8 @@ describe('where a drop lands', () => {
     const a = drawn.tiles.get('a')!;
     assert.deepEqual(dropAt(drawn, 'c', a.x + 5, a.y + a.h / 2), { onto: 'a', edge: 'left' });
     assert.deepEqual(dropAt(drawn, 'c', a.x + a.w - 5, a.y + a.h / 2), { onto: 'a', edge: 'right' });
-    assert.deepEqual(dropAt(drawn, 'c', a.x + a.w / 2, a.y + a.h / 2), { swap: 'a' });
+    // its middle: stacked with it
+    assert.deepEqual(dropAt(drawn, 'c', a.x + a.w / 2, a.y + a.h / 2), { stack: 'a' });
   });
   it('between bands, above the first and below the last', () => {
     const first = drawn.bands[0]!;

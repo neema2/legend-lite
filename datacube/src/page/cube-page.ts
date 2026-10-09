@@ -26,7 +26,7 @@ import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile } from '../layout/band-board.ts';
-import { type Bands, cells, remove as removeTile, tiles } from '../layout/bands.ts';
+import { type Bands, asSaved, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { followCube, measureName } from '../chart-spec.ts';
 import type { GridShown, MarkKey } from '../chart-option.ts';
@@ -525,7 +525,8 @@ export class CubePage {
     // the sheet shown: its tiles, arranged on it
     const board = this.#shown.board;
     picker.show(anchor, {
-      tiles: tiles(board.layout),
+      // its places: a stack of tiles is one
+      tiles: places(board.layout),
       ...(first !== undefined ? { first } : {}),
       fit: board.layout.fit,
       onPreview: (preset) => board.preview(preset, first),
@@ -878,7 +879,8 @@ export class CubePage {
       sheets: this.#sheets.map((s) => ({
         id: s.id,
         ...(s.name !== undefined ? { name: s.name } : {}),
-        layout: { kind: 'bands' as const, ...without(s.board.layout, (id) => !saved.has(id)) },
+        // a stack as it is saved: it reopens on its first tab (the design's §5, 7)
+        layout: { kind: 'bands' as const, ...asSaved(without(s.board.layout, (id) => !saved.has(id))) },
       })),
     };
   }

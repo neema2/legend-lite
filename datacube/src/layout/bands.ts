@@ -7,20 +7,36 @@
 // what every gesture does -- a drop on a tile's edge or between bands, a divider moved, a preset, a tile added or
 // removed -- is testable in node, and the pointer layer only turns the pointer into these calls.
 //
+// A STACK (the design's §7.4) is one place holding two tiles or more, one in front, the others behind it: a place like a
+// tile -- divided, moved, swapped and arranged as one -- whose tiles show one at a time.
+//
 // The rules, enforced by construction and checked by `problems`:
 //   - every tile is in the layout once;
+//   - a stack holds two tiles or more, and the one in front is one of them;
 //   - a split has two parts or more, and their shares are positive and sum to 1 (a split left with one part becomes
 //     that part; a band left with nothing goes);
 //   - a split's parts never split the same way it does (a row in a row is one row): so the tree is the fewest
 //     dividers that draw the page, and a divider means one thing;
 //   - a band's height is positive.
 
-/** A place in a band: a tile, or a split of places side by side (`row`) or one above another (`column`). */
-export type Node = TileNode | SplitNode;
+/**
+ * A place in a band: a tile, a stack of tiles shown one at a time, or a split of places side by side (`row`) or one
+ * above another (`column`).
+ */
+export type Node = TileNode | StackNode | SplitNode;
 
 export interface TileNode {
   readonly tile: string;
 }
+
+/** Tiles in one place, one shown: their tabs in this order, `front` the one in front (absent: the first). */
+export interface StackNode {
+  readonly stack: readonly string[];
+  readonly front?: string;
+}
+
+/** A place that is not divided: a tile, or a stack (what a split divides, and what moves as one). */
+export type Leaf = TileNode | StackNode;
 
 export interface SplitNode {
   readonly split: 'row' | 'column';
@@ -45,9 +61,13 @@ export interface Bands {
   readonly bands: readonly Band[];
 }
 
-/** Where a dragged tile can land: beside or above or below a tile, in place of it, or as a band of its own. */
+/**
+ * Where a dragged tile can land: beside or above or below a tile (its place), in that tile's place with it (a stack),
+ * in place of it (a swap: the keyboard's), or as a band of its own.
+ */
 export type Drop =
   | { readonly onto: string; readonly edge: 'left' | 'right' | 'top' | 'bottom' }
+  | { readonly stack: string }
   | { readonly swap: string }
   | { readonly band: number };
 
@@ -62,16 +82,51 @@ export const MAX_COLUMNS = 4;
 export const EMPTY: Bands = { fit: false, bands: [] };
 
 const isTile = (node: Node): node is TileNode => 'tile' in node;
+const isStack = (node: Node): node is StackNode => 'stack' in node;
+const isLeaf = (node: Node): node is Leaf => isTile(node) || isStack(node);
 
-/** The tiles, in reading order: band by band, left to right, top to bottom within a band. */
+/** A leaf's tiles: a tile's own, a stack's in their tabs' order. */
+const leafTiles = (leaf: Leaf): readonly string[] => (isTile(leaf) ? [leaf.tile] : leaf.stack);
+
+/** A stack's tile in front. */
+export const frontOf = (stack: StackNode): string => stack.front ?? stack.stack[0]!;
+
+/** The tiles, in reading order: band by band, left to right, top to bottom within a band, a stack's in its tabs' order. */
 export function tiles(layout: Bands): string[] {
   const out: string[] = [];
   const walk = (node: Node): void => {
-    if (isTile(node)) out.push(node.tile);
+    if (isLeaf(node)) out.push(...leafTiles(node));
     else for (const part of node.parts) walk(part.node);
   };
   for (const band of layout.bands) walk(band.node);
   return out;
+}
+
+/** The places, in reading order: each a tile or a stack (whose tiles are one place). */
+export function leaves(layout: Bands): Leaf[] {
+  const out: Leaf[] = [];
+  const walk = (node: Node): void => {
+    if (isLeaf(node)) out.push(node);
+    else for (const part of node.parts) walk(part.node);
+  };
+  for (const band of layout.bands) walk(band.node);
+  return out;
+}
+
+/** The place holding `tile`: the tile, or the stack it is in. */
+export function leafOf(layout: Bands, tile: string): Leaf | undefined {
+  return leaves(layout).find((leaf) => leafTiles(leaf).includes(tile));
+}
+
+/** The places' ids, in reading order, as the layouts picker counts them: a tile's, a stack's tile in front. */
+export function places(layout: Bands): string[] {
+  return leaves(layout).map((leaf) => (isTile(leaf) ? leaf.tile : frontOf(leaf)));
+}
+
+/** The tiles stacked with `tile`, itself included, in their tabs' order (just itself, when it is not in a stack). */
+export function stackOf(layout: Bands, tile: string): readonly string[] {
+  const leaf = leafOf(layout, tile);
+  return leaf ? leafTiles(leaf) : [];
 }
 
 /** What is wrong with a layout (nothing, for every layout these functions return). */
@@ -79,9 +134,15 @@ export function problems(layout: Bands): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
   const walk = (node: Node, parent: SplitNode['split'] | null, where: string): void => {
-    if (isTile(node)) {
-      if (seen.has(node.tile)) out.push(`${node.tile} is in the layout twice`);
-      seen.add(node.tile);
+    if (isLeaf(node)) {
+      for (const tile of leafTiles(node)) {
+        if (seen.has(tile)) out.push(`${tile} is in the layout twice`);
+        seen.add(tile);
+      }
+      if (isStack(node) && node.stack.length < 2) out.push(`${where}: a stack of ${node.stack.length} tile`);
+      if (isStack(node) && node.front !== undefined && !node.stack.includes(node.front)) {
+        out.push(`${where}: a stack whose front, ${node.front}, is not in it`);
+      }
       return;
     }
     if (node.parts.length < 2) out.push(`${where}: a split of ${node.parts.length} part`);
@@ -110,7 +171,7 @@ function split(direction: SplitNode['split'], nodes: readonly Node[], sizes?: re
   const parts: Part[] = [];
   nodes.forEach((node, i) => {
     const share = shares[i]!;
-    if (!isTile(node) && node.split === direction) {
+    if (!isLeaf(node) && node.split === direction) {
       for (const inner of node.parts) parts.push({ node: inner.node, size: inner.size * share });
     } else {
       parts.push({ node, size: share });
@@ -125,9 +186,20 @@ function normalized(parts: readonly Part[]): Part[] {
   return parts.map((part) => ({ node: part.node, size: part.size / total }));
 }
 
-/** `node` without `tile` (null when nothing is left), the hole closed: the neighbours take its share. */
+/**
+ * `node` without `tile` (null when nothing is left), the hole closed: the neighbours take its share. Out of a stack, the
+ * stack keeps its place; one left with one tile is that tile, and one whose front went shows the tab after it.
+ */
 function without(node: Node, tile: string): Node | null {
   if (isTile(node)) return node.tile === tile ? null : node;
+  if (isStack(node)) {
+    const at = node.stack.indexOf(tile);
+    if (at < 0) return node;
+    const rest = node.stack.filter((t) => t !== tile);
+    if (rest.length === 1) return { tile: rest[0]! };
+    const front = frontOf(node) === tile ? rest[Math.min(at, rest.length - 1)]! : node.front;
+    return { stack: rest, ...(front !== undefined ? { front } : {}) };
+  }
   const kept: Part[] = [];
   for (const part of node.parts) {
     const rest = without(part.node, tile);
@@ -138,15 +210,57 @@ function without(node: Node, tile: string): Node | null {
   return split(node.split, kept.map((part) => part.node), normalized(kept).map((part) => part.size));
 }
 
-/** `node` with `tile`'s place replaced by `replacement`. */
+/** `node` with the place holding `tile` (it, or its stack) replaced by `replacement`. */
 function replaced(node: Node, tile: string, replacement: Node): Node {
-  if (isTile(node)) return node.tile === tile ? replacement : node;
+  if (isLeaf(node)) return leafTiles(node).includes(tile) ? replacement : node;
   return split(node.split, node.parts.map((part) => replaced(part.node, tile, replacement)),
     node.parts.map((part) => part.size));
 }
 
 function contains(node: Node, tile: string): boolean {
-  return isTile(node) ? node.tile === tile : node.parts.some((part) => contains(part.node, tile));
+  return isLeaf(node) ? leafTiles(node).includes(tile) : node.parts.some((part) => contains(part.node, tile));
+}
+
+/**
+ * A STACK'S TILE BROUGHT TO THE FRONT (its tab clicked): what it shows, not where anything is -- a page does not save it
+ * (the design's §5, 7). Not in a stack, the layout as it was.
+ */
+export function bringToFront(layout: Bands, tile: string): Bands {
+  const leaf = leafOf(layout, tile);
+  if (!leaf || !isStack(leaf) || frontOf(leaf) === tile) return layout;
+  const map = (node: Node): Node => (isStack(node)
+    ? (node.stack.includes(tile) && frontOf(node) !== tile ? { stack: node.stack, front: tile } : node)
+    : isTile(node) ? node
+      : { split: node.split, parts: node.parts.map((part) => ({ node: map(part.node), size: part.size })) });
+  return mapBands(layout, map);
+}
+
+/** A stack's tile moved to `to` among its tabs (counted with it taken out). */
+export function reorderStack(layout: Bands, tile: string, to: number): Bands {
+  const leaf = leafOf(layout, tile);
+  // not in a stack, or put where it is: the layout as it was
+  if (!leaf || !isStack(leaf) || leaf.stack.indexOf(tile) === Math.max(0, Math.min(leaf.stack.length - 1, to))) return layout;
+  const map = (node: Node): Node => {
+    if (isStack(node)) {
+      if (!node.stack.includes(tile)) return node;
+      const rest = node.stack.filter((t) => t !== tile);
+      rest.splice(Math.max(0, Math.min(rest.length, to)), 0, tile);
+      return { stack: rest, ...(node.front !== undefined ? { front: node.front } : {}) };
+    }
+    return isTile(node) ? node : { split: node.split, parts: node.parts.map((part) => ({ node: map(part.node), size: part.size })) };
+  };
+  return mapBands(layout, map);
+}
+
+/** The layout as a page saves it: every stack without its tile in front (it reopens on its first tab). */
+export function asSaved(layout: Bands): Bands {
+  const map = (node: Node): Node => (isStack(node) ? { stack: node.stack }
+    : isTile(node) ? node : { split: node.split, parts: node.parts.map((part) => ({ node: map(part.node), size: part.size })) });
+  return mapBands(layout, map);
+}
+
+function mapBands(layout: Bands, map: (node: Node) => Node): Bands {
+  return { fit: layout.fit, bands: layout.bands.map((band) => ({ height: band.height, node: map(band.node) })) };
 }
 
 /** The band holding `tile`, or -1. */
@@ -174,9 +288,9 @@ export function add(layout: Bands, tile: string, near?: string, columns = MAX_CO
   const at = near === undefined ? -1 : bandOf(layout, near);
   if (at < 0) return { fit: layout.fit, bands: [...layout.bands, { height: BAND_HEIGHT, node: { tile } }] };
   const band = layout.bands[at]!;
-  const has = isTile(band.node) ? 1 : band.node.split === 'row' ? band.node.parts.length : 1;
+  const has = isLeaf(band.node) ? 1 : band.node.split === 'row' ? band.node.parts.length : 1;
   if (has < Math.min(columns, MAX_COLUMNS)) {
-    const node = isTile(band.node) || band.node.split !== 'row'
+    const node = isLeaf(band.node) || band.node.split !== 'row'
       ? split('row', [band.node, { tile }])
       : split('row', [...band.node.parts.map((part) => part.node), { tile }]);
     return withBand(layout, at, { height: band.height, node });
@@ -191,18 +305,27 @@ function withBand(layout: Bands, at: number, band: Band): Bands {
 }
 
 /**
- * A DRAGGED TILE LET GO: onto a tile's edge (that tile divided there, the two sharing its place), onto a tile itself
- * (the two swapping places), or between bands (a band of its own at that place, `band` counting the bands above it).
- * A drop onto itself changes nothing.
+ * A DRAGGED TILE LET GO: onto a tile's edge (that tile's place -- it, or its stack -- divided there, the two sharing
+ * it), onto a tile's middle (the two stacked in its place, the dragged one in front), between bands (a band of its own
+ * at that place, `band` counting the bands above it), or -- the keyboard -- swapping places with a tile (a stack moving
+ * as one). Out of a stack, it leaves the rest stacked. A drop onto itself changes nothing.
  */
 export function drop(layout: Bands, tile: string, where: Drop): Bands {
   if (!tiles(layout).includes(tile)) return layout;
   if ('swap' in where) {
-    if (where.swap === tile || !tiles(layout).includes(where.swap)) return layout;
-    const swapped = (node: Node): Node => (isTile(node)
-      ? { tile: node.tile === tile ? where.swap : node.tile === where.swap ? tile : node.tile }
+    const a = leafOf(layout, tile);
+    const b = leafOf(layout, where.swap);
+    if (!a || !b || a === b) return layout;
+    const swapped = (node: Node): Node => (isLeaf(node) ? (node === a ? b : node === b ? a : node)
       : { split: node.split, parts: node.parts.map((part) => ({ node: swapped(part.node), size: part.size })) });
-    return { fit: layout.fit, bands: layout.bands.map((band) => ({ height: band.height, node: swapped(band.node) })) };
+    return mapBands(layout, swapped);
+  }
+  if ('stack' in where) {
+    if (where.stack === tile || !tiles(layout).includes(where.stack)) return layout;
+    const rest = remove(layout, tile);
+    const target = leafOf(rest, where.stack)!;
+    const stacked: StackNode = { stack: [...leafTiles(target), tile], front: tile };
+    return mapBands(rest, (node) => replaced(node, where.stack, stacked));
   }
   if ('band' in where) {
     // a tile alone in its band, dropped on the line above or below that band, is where it was
@@ -220,7 +343,8 @@ export function drop(layout: Bands, tile: string, where: Drop): Bands {
   const rest = remove(layout, tile);
   const at = bandOf(rest, where.onto);
   const band = rest.bands[at]!;
-  const target: Node = { tile: where.onto };
+  // the place the edge divides: the tile, or the whole stack it is in
+  const target: Node = leafOf(rest, where.onto)!;
   const moved: Node = { tile };
   const pair = where.edge === 'left' ? split('row', [moved, target])
     : where.edge === 'right' ? split('row', [target, moved])
@@ -239,7 +363,7 @@ export function resize(layout: Bands, path: readonly number[], after: number, de
   const band = layout.bands[bandIndex ?? -1];
   if (band === undefined) return layout;
   const at = (node: Node, rest: readonly number[]): Node => {
-    if (isTile(node)) return node;
+    if (isLeaf(node)) return node;
     if (rest.length > 0) {
       const [i, ...more] = rest;
       return { split: node.split, parts: node.parts.map((part, j) => (j === i ? { node: at(part.node, more), size: part.size } : part)) };
@@ -272,7 +396,7 @@ export function evenOut(layout: Bands, path: readonly number[]): Bands {
   const band = layout.bands[bandIndex ?? -1];
   if (band === undefined) return layout;
   const at = (node: Node, rest: readonly number[]): Node => {
-    if (isTile(node)) return node;
+    if (isLeaf(node)) return node;
     if (rest.length > 0) {
       const [i, ...more] = rest;
       return { split: node.split, parts: node.parts.map((part, j) => (j === i ? { node: at(part.node, more), size: part.size } : part)) };
@@ -284,7 +408,7 @@ export function evenOut(layout: Bands, path: readonly number[]): Bands {
 
 /** EVEN OUT THE WHOLE PAGE (the layout picker's Even out): every split's parts share alike, every band as tall as the rest. */
 export function evenAll(layout: Bands): Bands {
-  const even = (node: Node): Node => (isTile(node) ? node
+  const even = (node: Node): Node => (isLeaf(node) ? node
     : { split: node.split, parts: node.parts.map((part) => ({ node: even(part.node), size: 1 / node.parts.length })) });
   const height = layout.bands.reduce((sum, band) => sum + band.height, 0) / Math.max(1, layout.bands.length);
   return { fit: layout.fit, bands: layout.bands.map((band) => ({ height, node: even(band.node) })) };
@@ -429,14 +553,20 @@ function countsOf(preset: string): number[] {
 }
 
 /**
- * THE TILES IN `order` ARRANGED AS A PRESET: the first tile takes the preset's first slot, and so on in reading order.
- * More tiles than slots: the rest go on as the preset goes on (rows of 2 and 2 continue in rows of 2). Fewer: the preset
- * closes up. The page's fit is kept.
+ * THE PLACES OF THE TILES IN `order` ARRANGED AS A PRESET: the first tile's place takes the preset's first slot, and so
+ * on in reading order -- a stack is one place, and stays one. More places than slots: the rest go on as the preset
+ * goes on (rows of 2 and 2 continue in rows of 2). Fewer: the preset closes up. The page's fit is kept.
  */
 export function arrange(layout: Bands, preset: Preset, order: readonly string[] = tiles(layout)): Bands {
-  const ids = order.filter((tile, i) => order.indexOf(tile) === i);
+  // each tile's place, once: a stack's first tile named brings the stack
+  const units: Leaf[] = [];
+  for (const tile of order) {
+    const unit = leafOf(layout, tile) ?? { tile };
+    if (!units.some((u) => leafTiles(u).includes(tile))) units.push(unit);
+  }
+  const ids = units.map((unit) => leafTiles(unit)[0]!);
   if (ids.length === 0) return { fit: layout.fit, bands: [] };
-  const leaf = (tile: string): Node => ({ tile });
+  const leaf = (tile: string): Node => units[ids.indexOf(tile)]!;
   const row = (run: readonly string[]): Node => split('row', run.map(leaf));
   const column = (run: readonly string[]): Node => split('column', run.map(leaf));
   const [first, ...rest] = ids;
@@ -480,7 +610,8 @@ export function arrange(layout: Bands, preset: Preset, order: readonly string[] 
  * its own. Derived, never stored: the layout itself is unchanged, and comes back when the window widens.
  */
 export function stacked(layout: Bands): Bands {
-  return { fit: false, bands: tiles(layout).map((tile) => ({ height: BAND_HEIGHT, node: { tile } })) };
+  // a place to a band: a stack of tiles stays one
+  return { fit: false, bands: leaves(layout).map((node) => ({ height: BAND_HEIGHT, node })) };
 }
 
 // -- drawing: where everything sits, in pixels --------------------------
@@ -504,9 +635,14 @@ export interface Divider {
   readonly length: number;
 }
 
-/** What the board draws: each tile's box, the dividers, each band's box, and the page's whole height. */
+/**
+ * What the board draws: each tile's box (a stack's tile in front: its place's box; the others behind it, none), the
+ * stacks (by their tile in front, their tiles in their tabs' order), the dividers, each band's box, and the page's whole
+ * height.
+ */
 export interface Drawn {
   readonly tiles: ReadonlyMap<string, Box>;
+  readonly stacks: ReadonlyMap<string, readonly string[]>;
   readonly dividers: readonly Divider[];
   readonly bands: readonly Box[];
   readonly height: number;
@@ -522,6 +658,7 @@ export interface Drawn {
  */
 export function draw(layout: Bands, width: number, screen: number, gap = 8, least = 120, fitLeast = 0): Drawn {
   const tileBoxes = new Map<string, Box>();
+  const stacks = new Map<string, readonly string[]>();
   const dividers: Divider[] = [];
   const bandBoxes: Box[] = [];
   const count = layout.bands.length;
@@ -549,6 +686,11 @@ export function draw(layout: Bands, width: number, screen: number, gap = 8, leas
       tileBoxes.set(node.tile, box);
       return;
     }
+    if (isStack(node)) {
+      tileBoxes.set(frontOf(node), box);
+      stacks.set(frontOf(node), node.stack);
+      return;
+    }
     const across = node.split === 'row';
     const length = across ? box.w : box.h;
     const parts = spans(across ? box.x : box.y, length, node.parts.map((part) => part.size));
@@ -574,7 +716,7 @@ export function draw(layout: Bands, width: number, screen: number, gap = 8, leas
     place(band.node, box, [i]);
     y += heights[i]! + gap;
   });
-  return { tiles: tileBoxes, dividers, bands: bandBoxes, height: count === 0 ? 0 : Math.round(y - gap) };
+  return { tiles: tileBoxes, stacks, dividers, bands: bandBoxes, height: count === 0 ? 0 : Math.round(y - gap) };
 }
 
 /** How far into a band, from its top or bottom edge, a drop makes a new band there (pixels). */
@@ -583,8 +725,8 @@ export const BAND_EDGE = 10;
 /**
  * Where a dragged tile would land with the pointer at (`x`, `y`) on a board drawn as `drawn`: between bands (within
  * BAND_EDGE of a band's top or bottom edge, in the gap between two, above the first or below the last), on a tile's
- * edge (the quarter of it nearest that edge), or on a tile (its middle: a swap). Over the dragged tile itself, or
- * nowhere, undefined.
+ * edge (the quarter of it nearest that edge), or on a tile (its middle: stacked with it). Over the dragged tile itself,
+ * or nowhere, undefined.
  */
 export function dropAt(drawn: Drawn, tile: string, x: number, y: number): Drop | undefined {
   const bands = drawn.bands;
@@ -602,7 +744,7 @@ export function dropAt(drawn: Drawn, tile: string, x: number, y: number): Drop |
     const fx = (x - box.x) / box.w;
     const fy = (y - box.y) / box.h;
     const nearest = Math.min(fx, 1 - fx, fy, 1 - fy);
-    if (nearest > 0.25) return { swap: id };
+    if (nearest > 0.25) return { stack: id };
     if (nearest === fx) return { onto: id, edge: 'left' };
     if (nearest === 1 - fx) return { onto: id, edge: 'right' };
     if (nearest === fy) return { onto: id, edge: 'top' };
@@ -681,10 +823,10 @@ export interface Cell {
 }
 
 /** The most tiles side by side anywhere in `node`, and the most one above another: the least cells it needs. */
-const across = (node: Node): number => (isTile(node) ? 1
+const across = (node: Node): number => (isLeaf(node) ? 1
   : node.split === 'row' ? node.parts.reduce((sum, part) => sum + across(part.node), 0)
     : Math.max(...node.parts.map((part) => across(part.node))));
-const down = (node: Node): number => (isTile(node) ? 1
+const down = (node: Node): number => (isLeaf(node) ? 1
   : node.split === 'column' ? node.parts.reduce((sum, part) => sum + down(part.node), 0)
     : Math.max(...node.parts.map((part) => down(part.node))));
 
@@ -720,8 +862,9 @@ export function cells(layout: Bands, cols = 24, rows = 24): { readonly cols: num
   const width = Math.max(cols, ...layout.bands.map((band) => across(band.node)));
   const out: Cell[] = [];
   const place = (node: Node, x: number, y: number, w: number, h: number): void => {
-    if (isTile(node)) {
-      out.push({ id: node.tile, x, y, w, h });
+    if (isLeaf(node)) {
+      // a stack exports its tile in front, in its place
+      out.push({ id: isTile(node) ? node.tile : frontOf(node), x, y, w, h });
       return;
     }
     const row = node.split === 'row';
@@ -804,8 +947,8 @@ export const SNAPS: readonly number[] = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
 function splitAt(layout: Bands, path: readonly number[]): SplitNode | undefined {
   const [bandIndex, ...inner] = path;
   let node: Node | undefined = layout.bands[bandIndex ?? -1]?.node;
-  for (const i of inner) node = node === undefined || isTile(node) ? undefined : node.parts[i]?.node;
-  return node === undefined || isTile(node) ? undefined : node;
+  for (const i of inner) node = node === undefined || isLeaf(node) ? undefined : node.parts[i]?.node;
+  return node === undefined || isLeaf(node) ? undefined : node;
 }
 
 /**

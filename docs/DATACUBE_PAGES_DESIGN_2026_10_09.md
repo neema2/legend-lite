@@ -347,6 +347,16 @@ sheets -- a chart on one following a grid on the other -- saved, shared and reop
 - The browser checks that compared a page's `layout` now compare its `sheets` (with `layout` gone they compared
   nothing to nothing, and passed).
 
+**As built (3b, 2026-10-09)**, where the plan above needed a decision:
+
+- **A stack is made, and added to, by a drop on a tile's middle.** Its tab strip is its header, whose drop zone is the
+  top edge, as any tile's: a drop there divides the place, so the strip is not a target of its own (the plan above
+  named it as one).
+- **A tab pressed brings its tile to the front at once**, as a browser's tab does -- not a change of the page (§5, 7);
+  a tab moved along its strip is (the order is saved). A tile shown by the page (a chart's editing grid, a new tile)
+  is brought to the front of its stack.
+- **The download budget** rises from 378,000 to 381,000 bytes (measured 378,297; sheets before it 375,928).
+
 3b: `src/layout/bands.ts` (the stack node), `src/layout/band-board.ts` (the stack's tab header), `src/page/cube-page.ts`,
 `src/page-document.ts`, `src/export-model.ts` (the front tile), `src/app.css`, and `test/bands.test.ts` (the fuzz),
 `test/band-board.test.ts`, and the browser session (`demo/verify-layout.mjs`): a stack made by a drag, a tab dragged

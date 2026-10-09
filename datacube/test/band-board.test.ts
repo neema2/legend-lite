@@ -245,12 +245,16 @@ describe('the band board', () => {
     wellFormed(board);
   });
 
-  it('drags a tile onto another\'s middle (a swap) and below the last band (a band of its own)', () => {
+  it('drags a tile onto another\'s middle (stacked with it) and below the last band (a band of its own)', () => {
     const { board } = sideBySide(['a', 'b', 'c']);
     const head = (id: string) => root(id).querySelector<HTMLElement>('.dc-tile-head')!;
     pointer(head('a'), 'pointerdown', 50, 10);
     pointer(head('a'), 'pointerup', 840, 150);
-    assert.deepEqual(tiles(board.layout), ['c', 'b', 'a'], 'a and c traded places');
+    assert.deepEqual(board.layout.bands[0]!.node, { split: 'row', parts: [
+      { node: { tile: 'b' }, size: 0.5 }, { node: { stack: ['c', 'a'], front: 'a' }, size: 0.5 }] }, 'a stacked on c, in front');
+    // a back in a place of its own, beside b (the test below drags b), for what follows
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { split: 'row', parts: [
+      { node: { tile: 'c' }, size: 1 / 3 }, { node: { tile: 'b' }, size: 1 / 3 }, { node: { tile: 'a' }, size: 1 / 3 }] } }] });
     pointer(head('b'), 'pointerdown', 400, 10);
     pointer(head('b'), 'pointermove', 500, 450);
     assert.ok(host.querySelector('.dc-bands-zone')!.classList.contains('dc-bands-zone-line'), 'a line where the band goes');
@@ -268,6 +272,56 @@ describe('the band board', () => {
     assert.equal(board.maximised, null);
     assert.equal(host.classList.contains('dc-bands-maximised'), false);
     assert.equal(root('b').hidden, false);
+  });
+
+  it('draws a stack as its tile in front, the stack\'s tabs in its header; a tab pressed shows its tile, as no change', () => {
+    const { board, changes } = sideBySide(['a', 'b']);
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b'] } }] });
+    assert.equal(root('a').hidden, false);
+    assert.equal(root('b').hidden, true, 'behind it: not drawn');
+    assert.deepEqual(box('a'), { x: 0, y: 0, w: 1000, h: 300 }, 'its place, whole');
+    const strip = root('a').querySelector<HTMLElement>('.dc-tile-tabs')!;
+    assert.equal(strip.hidden, false);
+    assert.equal(root('a').querySelector<HTMLElement>('.dc-tile-title')!.hidden, true, 'the tabs in place of its title');
+    assert.deepEqual([...strip.querySelectorAll('.dc-tile-tab')].map((t) => [t.textContent, t.getAttribute('aria-selected')]),
+      [['A', 'true'], ['B', 'false']]);
+    const before = changes.length;
+    const tabB = [...strip.querySelectorAll<HTMLElement>('.dc-tile-tab')].find((t) => t.textContent === 'B')!;
+    pointer(tabB, 'pointerdown', 60, 10);
+    pointer(root('b').querySelector('.dc-tile-tab')!, 'pointerup', 60, 10);
+    assert.equal(root('a').hidden, true);
+    assert.equal(root('b').hidden, false, 'b in front');
+    assert.equal(changes.length, before, 'what is shown is not a change of the page');
+    // the keyboard: a tab's arrow brings the next in front
+    const tabs = root('b').querySelector<HTMLElement>('.dc-tile-tabs')!;
+    key([...tabs.querySelectorAll<HTMLElement>('.dc-tile-tab')][1]!, 'ArrowLeft');
+    assert.equal(root('a').hidden, false);
+    wellFormed(board);
+  });
+
+  it('a tab dragged off its strip carries its tile out of the stack (the rest stay stacked); Escape leaves it', () => {
+    const { board, changes } = sideBySide(['a', 'b', 'c']);
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b', 'c'] } }] });
+    // a tab as drawn now: pressing one brings its tile in front, whose header then holds the tabs (and the pointer)
+    const tabOf = (id: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.dc-tile-tab')]
+      .find((t) => t.dataset['tab'] === id && !(t.closest('.dc-tile-tabs') as HTMLElement).hidden)!;
+    // off the strip, then onto the line below the band: a band of its own
+    pointer(tabOf('b'), 'pointerdown', 120, 10);
+    const tab = tabOf('b');
+    pointer(tab, 'pointermove', 500, 200);
+    pointer(tab, 'pointermove', 500, 305);
+    pointer(tab, 'pointerup', 500, 305);
+    assert.deepEqual(board.layout.bands.map((b) => b.node), [{ stack: ['a', 'c'], front: 'c' }, { tile: 'b' }]);
+    assert.equal(changes.length, 1, 'one step');
+    // Escape mid-drag: the stack as it was
+    const was = board.layout;
+    pointer(tabOf('a'), 'pointerdown', 60, 10);
+    pointer(tabOf('a'), 'pointermove', 500, 200);
+    dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    assert.deepEqual(board.layout.bands.map((b) => b.node), [{ stack: ['a', 'c'], front: 'a' }, { tile: 'b' }],
+      'only brought to the front');
+    assert.notEqual(board.layout, was);
+    wellFormed(board);
   });
 
   it('undoes a tile\'s drag on Escape: back in place, nothing moved', () => {

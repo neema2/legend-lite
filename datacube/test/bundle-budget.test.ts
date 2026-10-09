@@ -47,8 +47,11 @@ function startup(bundle = join(DEMO, 'bundle.js')): string[] {
  *  when a chart first draws.
  *  368,000 -> 378,000 (2026-10-09, DataCube pages phase 3a, sheets, the design's §7): the sheet tabs in the page's bar
  *  (ui/sheet-tabs.ts), a board per sheet and Move to Sheet (page/cube-page.ts), the name box (page/page-app.ts), all
- *  on screen from the start. Measured 375,751, main before it 367,729 (+8,022). */
-const BUDGET = 378_000;
+ *  on screen from the start. Measured 375,751, main before it 367,729 (+8,022).
+ *  378,000 -> 381,000 (2026-10-09, DataCube pages phase 3b, stacked tiles, the design's §7.4): a stack in the layout
+ *  (layout/bands.ts) and its tabs on the board (layout/band-board.ts), at startup as the board is. Measured 378,297,
+ *  sheets before it 375,928 (+2,369). */
+const BUDGET = 381_000;
 
 /** The engine page's (demo/engine.html: one cube on an engine that runs its queries, Python's) startup download,
  *  gzipped: the grid and the remote client, no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure

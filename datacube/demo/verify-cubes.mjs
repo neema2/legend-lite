@@ -674,6 +674,44 @@ try {
     return `${chartId} on Sheet 1 following grid-1 on Data: saved, shared and reopened the same, not marked as changed`;
   });
 
+  // STACKS (the design's §7.4): two charts in one place, saved and reopened as a stack on its first tab
+  await check('a chart dropped on another\'s middle stacks with it; saved and reopened as a stack, on its first tab', async () => {
+    await load();
+    const before = await statusNow();
+    page.once('dialog', (d) => { void d.accept(); });
+    await pickSample('trades', 200);
+    await landed(before);
+    await chartOf('grid-1');
+    await chartOf('grid-1');
+    await page.locator('[data-tile^="chart-"]').nth(1).waitFor({ timeout: 20_000 });
+    const [one, two] = await page.locator('[data-tile^="chart-"]').evaluateAll((els) => els.map((e) => e.dataset.tile));
+    const title = await page.locator(`[data-tile="${two}"] .dc-tile-title`).boundingBox();
+    const target = await page.locator(`[data-tile="${one}"]`).boundingBox();
+    await page.mouse.move(title.x + 20, title.y + title.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 12 });
+    await frames(page);
+    await page.mouse.up();
+    await frames(page);
+    const stack = () => page.evaluate(() => JSON.stringify(window.__dataPage.views().sheets[0].layout).match(/"stack":\[[^\]]*\]/)?.[0]);
+    const saved = await stack();
+    if (saved !== `"stack":["${one}","${two}"]`) throw new Error(`the page's stack: ${saved}`);
+    await saveAs('A stack');
+    const want = await views();
+    await load();
+    await openSaved('A stack');
+    await waitMessage(/opened/);
+    await page.locator('[data-tile="grid-1"] .dc-row').first().waitFor({ timeout: 60_000 });
+    await page.click('#cubeswin .dc-picker-close').catch(() => {});
+    const got = await views();
+    if (got !== want) throw new Error(`reopened as ${got}, saved as ${want}`);
+    // on its first tab: the chart that was there first, in front
+    const front = await page.locator('.dc-tile-tab.dc-tile-tab-front').first().getAttribute('data-tab');
+    if (front !== one) throw new Error(`it reopened on ${front}, not its first tab ${one}`);
+    await unchanged();
+    return `${two} stacked on ${one}; saved and reopened as the stack, on ${one}`;
+  });
+
   await check('no page errors', async () => {
     if (pageErrors.length) throw new Error(pageErrors.slice(0, 2).join(' | '));
   });

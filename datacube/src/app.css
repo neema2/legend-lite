@@ -2784,6 +2784,37 @@
 .dc-band-edge:active::before { background: var(--dc-active, #0284c7); opacity: 1; }
 
 /* a lone grid (a page of its own with one tile): no frame, no header -- its header's buttons are in the page's bar */
+/* A STACK (layout/band-board.ts; the design's §7.4): its tiles' tabs in its front tile's header, in place of the title;
+   the one in front raised, as the page's sheet tabs are; where a dragged tab would go, marked */
+.dc-tile-tabs { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; align-items: flex-end; gap: 2px; overflow: hidden; }
+.dc-tile-tabs[hidden] { display: none; }
+.dc-tile-tab {
+  flex: 0 1 auto;
+  min-width: 40px;
+  max-width: 180px;
+  height: calc(100% - 4px);
+  padding: 0 var(--dc-pad-2);
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: var(--dc-radius-sm) var(--dc-radius-sm) 0 0;
+  color: var(--dc-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+}
+.dc-tile-tab:hover { background: var(--tw-neutral-200); }
+.dc-tile-tab.dc-tile-tab-front { background: var(--tw-white); color: var(--tw-black); border-color: var(--dc-line); font-weight: 500; }
+.dc-tile-tab:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
+.dc-tile-tab.dc-tile-tab-before { box-shadow: inset 2px 0 0 var(--dc-active); }
+.dc-tile-tab.dc-tile-tab-after { box-shadow: inset -2px 0 0 var(--dc-active); }
+.dc-tile-title[hidden] { display: none; }
+
 .dc-band-tile.dc-band-tile-alone { border: 0; border-radius: 0; }
 .dc-band-tile.dc-band-tile-alone > .dc-tile-head { display: none; }
 
