@@ -75,8 +75,9 @@ export function tableNameOf(fileName: string): string {
  * file's bytes go, so an open abandoned half-way leaves nothing held in the tab. The caller
  * makes sure no cube reads a table of the same name.
  */
-export async function forgetUpload(engine: QueryEngine, db: DuckDbFiles, fileName: string): Promise<void> {
-  const table = tableNameOf(fileName);
+export async function forgetUpload(engine: QueryEngine, db: DuckDbFiles, fileName: string,
+  // the table it was read into, when not the file's own name (`ingestFile`'s `table`)
+  table = tableNameOf(fileName)): Promise<void> {
   await engine.run(`DROP TABLE IF EXISTS ${dq(table)}`, 0);
   await db.dropFile?.(`upload_${table}.${formatOf(fileName)}`);
 }

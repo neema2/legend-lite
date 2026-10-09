@@ -121,34 +121,35 @@ try {
 
   let ids = {};
   await check('a new tile goes beside the tile it came from while each stays readable, else in a band below', async () => {
+    // the page's first grid is grid-1: every grid on a page is numbered alike
     await insert('Visualization', '.dc-app');
-    await insert('Visualization', tile('grid'));
-    await insert('Copy of Grid', tile('grid'));
-    await page.locator('[data-tile^="grid-"] .dc-row').first().waitFor({ timeout: 20_000 });
+    await insert('Visualization', tile('grid-1'));
+    await insert('Copy of Grid', tile('grid-1'));
+    await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 20_000 });
     await settle();
     const all = await page.locator('.dc-band-tile').evaluateAll((els) => els.map((e) => e.dataset.tile));
     const charts = all.filter((id) => id.startsWith('chart-'));
-    ids = { grid: 'grid', a: charts[0], b: charts[1], copy: all.find((id) => id.startsWith('grid-')) };
+    ids = { grid: 'grid-1', a: charts[0], b: charts[1], copy: 'grid-2' };
     const b = await boxes();
-    if (!(b[ids.a].y === b.grid.y && b[ids.b].y === b.grid.y && b[ids.a].x > b.grid.x && b[ids.b].x > b[ids.a].x)) {
+    if (!(b[ids.a].y === b[ids.grid].y && b[ids.b].y === b[ids.grid].y && b[ids.a].x > b[ids.grid].x && b[ids.b].x > b[ids.a].x)) {
       throw new Error(`the charts are not beside the grid: ${JSON.stringify(b)}`);
     }
-    if (!(b[ids.copy].y > b.grid.y + b.grid.h)) throw new Error(`the copy is not below: ${JSON.stringify(b)}`);
+    if (!(b[ids.copy].y > b[ids.grid].y + b[ids.grid].h)) throw new Error(`the copy is not below: ${JSON.stringify(b)}`);
     return `${ids.a} and ${ids.b} beside the grid (three at 1400px), ${ids.copy} below`;
   });
 
   await check('Arrange... previews 2 x 2 while pointed at, the page as it was when the pointer leaves, and applies it on a click', async () => {
     const before = await boxes();
-    const saved = await page.evaluate(() => JSON.stringify(window.__dataCube.pageViews().layout));
+    const saved = await page.evaluate(() => JSON.stringify(window.__dataPage.views().layout));
     await titleMenu('Arrange…');
     const option = page.locator('.dc-layout-picker [data-preset="rows:2-2"]');
     await option.hover();
     await frames(page, 2);
     const previewed = await boxes();
-    if (!(previewed.grid.y === previewed[ids.a].y && previewed[ids.b].y > previewed.grid.y && previewed[ids.b].x === previewed.grid.x)) {
+    if (!(previewed[ids.grid].y === previewed[ids.a].y && previewed[ids.b].y > previewed[ids.grid].y && previewed[ids.b].x === previewed[ids.grid].x)) {
       throw new Error(`not previewed as 2 x 2: ${JSON.stringify(previewed)}`);
     }
-    if (await page.evaluate(() => JSON.stringify(window.__dataCube.pageViews().layout)) !== saved) throw new Error('a preview changed the layout');
+    if (await page.evaluate(() => JSON.stringify(window.__dataPage.views().layout)) !== saved) throw new Error('a preview changed the layout');
     await page.mouse.move(5, 5);
     await frames(page, 2);
     if (!same(await boxes(), before)) throw new Error('the page did not come back when the pointer left');
@@ -164,21 +165,21 @@ try {
   await check('a tile dragged onto another\'s right half takes that half; the zone is outlined while dragging', async () => {
     const b = await boxes();
     const from = await head(ids.b);
-    const tx = b.grid.x + b.grid.w * 0.92;
-    const ty = b.grid.y + b.grid.h / 2;
+    const tx = b[ids.grid].x + b[ids.grid].w * 0.92;
+    const ty = b[ids.grid].y + b[ids.grid].h / 2;
     await page.mouse.move(from.x, from.y);
     await page.mouse.down();
     await page.mouse.move(tx, ty, { steps: 12 });
     await frames(page, 2);
     const zone = await page.locator('.dc-bands-zone').boundingBox();
-    if (!zone || !near(zone.x + zone.width, b.grid.x + b.grid.w) || !near(zone.width, b.grid.w / 2, 4)) {
+    if (!zone || !near(zone.x + zone.width, b[ids.grid].x + b[ids.grid].w) || !near(zone.width, b[ids.grid].w / 2, 4)) {
       throw new Error(`the zone is not the grid's right half: ${JSON.stringify(zone)}`);
     }
     await page.mouse.up();
     await frames(page, 2);
     await settle();
     const after = await boxes();
-    if (!(after[ids.b].y === after.grid.y && after[ids.b].x > after.grid.x && after[ids.b].x < after[ids.a].x)) {
+    if (!(after[ids.b].y === after[ids.grid].y && after[ids.b].x > after[ids.grid].x && after[ids.b].x < after[ids.a].x)) {
       throw new Error(`not beside the grid: ${JSON.stringify(after)}`);
     }
     return `${ids.b} now between the grid and ${ids.a}`;
@@ -187,12 +188,12 @@ try {
   await check('a tile dragged onto the line between two bands is a band of its own there', async () => {
     const b = await boxes();
     const from = await head(ids.a);
-    const top = b.grid.y + b.grid.h;
-    await drag(from.x, from.y, b.grid.x + 200, top + 4, { what: 'a tile between bands' });
+    const top = b[ids.grid].y + b[ids.grid].h;
+    await drag(from.x, from.y, b[ids.grid].x + 200, top + 4, { what: 'a tile between bands' });
     await settle();
     const after = await boxes();
     const full = (await board()).w;
-    if (!(near(after[ids.a].w, full, 2) && after[ids.a].y > after.grid.y && after[ids.a].y < after[ids.copy].y)) {
+    if (!(near(after[ids.a].w, full, 2) && after[ids.a].y > after[ids.grid].y && after[ids.a].y < after[ids.copy].y)) {
       throw new Error(`not a band of its own between: ${JSON.stringify(after)}`);
     }
     return `${ids.a} full width, between the first band and ${ids.copy}`;
@@ -201,7 +202,7 @@ try {
   await check('Escape cancels a drag: nothing moved', async () => {
     const before = await boxes();
     const from = await head(ids.copy);
-    await drag(from.x, from.y, before.grid.x + 40, before.grid.y + 60, { cancel: true, what: 'a cancelled drag' });
+    await drag(from.x, from.y, before[ids.grid].x + 40, before[ids.grid].y + 60, { cancel: true, what: 'a cancelled drag' });
     await settle();
     if (!same(await boxes(), before)) throw new Error('the page changed');
     if (await page.locator('.dc-tile-dragging').count()) throw new Error('a tile is still being dragged');
@@ -222,13 +223,13 @@ try {
     dragTasks.push({ what: 'a divider', ms: await longest(from, await now()), live: true });
     await settle();
     const after = await boxes();
-    if (!near(during.grid.w, before.grid.w + 120, 3)) throw new Error(`not live: ${before.grid.w} -> ${during.grid.w}`);
-    if (!near(after.grid.w, before.grid.w + 120, 3)) throw new Error(`not kept: ${before.grid.w} -> ${after.grid.w}`);
+    if (!near(during[ids.grid].w, before[ids.grid].w + 120, 3)) throw new Error(`not live: ${before[ids.grid].w} -> ${during[ids.grid].w}`);
+    if (!near(after[ids.grid].w, before[ids.grid].w + 120, 3)) throw new Error(`not kept: ${before[ids.grid].w} -> ${after[ids.grid].w}`);
     await page.locator('.dc-band-divider-row').first().dblclick();
     await settle();
     const even = await boxes();
-    if (!near(even.grid.w, even[ids.b].w, 2)) throw new Error(`not even: ${even.grid.w} and ${even[ids.b].w}`);
-    return `the grid ${before.grid.w}px -> ${after.grid.w}px, then even at ${even.grid.w}px`;
+    if (!near(even[ids.grid].w, even[ids.b].w, 2)) throw new Error(`not even: ${even[ids.grid].w} and ${even[ids.b].w}`);
+    return `the grid ${before[ids.grid].w}px -> ${after[ids.grid].w}px, then even at ${even[ids.grid].w}px`;
   });
 
   await check('a band\'s edge dragged changes its height', async () => {
@@ -239,8 +240,8 @@ try {
     dragTasks.at(-1).live = true;
     await settle();
     const after = await boxes();
-    if (!near(after.grid.h, before.grid.h + 60, 3)) throw new Error(`${before.grid.h} -> ${after.grid.h}`);
-    return `${before.grid.h}px -> ${after.grid.h}px`;
+    if (!near(after[ids.grid].h, before[ids.grid].h + 60, 3)) throw new Error(`${before[ids.grid].h} -> ${after[ids.grid].h}`);
+    return `${before[ids.grid].h}px -> ${after[ids.grid].h}px`;
   });
 
   await check('fit to window: the bands share the window and nothing scrolls; unticked, the page scrolls again', async () => {
@@ -281,7 +282,7 @@ try {
     await page.keyboard.press('ArrowLeft');
     await settle();
     const swapped = await boxes();
-    if (!(swapped[ids.b].x < swapped.grid.x)) throw new Error(`not swapped: ${JSON.stringify(swapped)}`);
+    if (!(swapped[ids.b].x < swapped[ids.grid].x)) throw new Error(`not swapped: ${JSON.stringify(swapped)}`);
     await titleMenu('Undo Layout');
     await settle();
     if (!same(await boxes(), before)) throw new Error('Undo Layout did not put it back');
@@ -292,7 +293,7 @@ try {
     const before = await boxes();
     if (await page.locator('.dc-band-divider, .dc-band-edge').count()) throw new Error('handles still shown');
     const from = await head(ids.copy);
-    await drag(from.x, from.y, before.grid.x + 40, before.grid.y + 60, { what: 'a locked page' });
+    await drag(from.x, from.y, before[ids.grid].x + 40, before[ids.grid].y + 60, { what: 'a locked page' });
     if (!same(await boxes(), before)) throw new Error('a tile moved');
     await titleMenu('Edit Layout');
     if (!(await page.locator('.dc-band-divider').count())) throw new Error('no handles once unlocked');

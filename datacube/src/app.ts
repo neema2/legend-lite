@@ -240,8 +240,10 @@ export interface CubeAppBaseOptions {
    * tile (plan F6, blocker #4). It must be positioned (relative or absolute). Default: the cube.
    */
   readonly windowHost?: HTMLElement;
-  /** A small cube in a tile (a chart's editing grid): its columns panel starts folded away. */
+  /** A cube in a tile (a page's grid, a chart's editing grid): no title bar of its own; its columns panel folded. */
   readonly compact?: boolean;
+  /** Its columns panel folded away at the start (default: when compact); open, a grid opened alone on its page. */
+  readonly foldPanel?: boolean;
   /** What the grid reads, in the host's own words (its header says it); else the cube works it out. */
   readonly sourceLabel?: string;
   /**
@@ -568,7 +570,8 @@ export class CubeApp {
       // not inside the document, so it cannot wander off over the
       // host's own page furniture.
       root,
-      toolbar: this.#div(root, 'dc-titlebar'),
+      // a grid in a tile has no title bar at all: its page's bar, and its own tile header, hold what one would
+      toolbar: this.#options.compact === true ? this.#doc.createElement('div') : this.#div(root, 'dc-titlebar'),
       // Replaced immediately below, once the toolbar exists to sit
       // above it. Declared here so the map has one shape.
       zoneBar: this.#doc.createElement('div'),
@@ -600,7 +603,7 @@ export class CubeApp {
     root.append(this.#els.stats);
 
     this.#columnsPanel = new ColumnsToolPanel(side, {
-      ...(this.#options.compact ? { collapsed: true } : {}),
+      ...((this.#options.foldPanel ?? this.#options.compact) ? { collapsed: true } : {}),
       labelFor: (c) => labelFor(this.#config, c),
       onPick: (c) => this.#onZoneChange('rows', [...this.#snapshot.rows, c]),
       onVisibility: (c, visible) => this.#patchColumn(c, { hidden: !visible }),
@@ -1544,6 +1547,11 @@ export class CubeApp {
   }
 
   /** Fold the zones or the title bar away, or bring them back. */
+  /** Fold the zones or the title bar away, or bring them back: a page's bar, for the grid alone on it, says so here. */
+  setChrome(patch: { readonly showDragZones?: boolean; readonly showTitleBar?: boolean }): void {
+    this.#setChrome(patch);
+  }
+
   #setChrome(patch: {
     readonly showDragZones?: boolean;
     readonly showTitleBar?: boolean;
@@ -3573,6 +3581,8 @@ export class CubeApp {
     const bar = this.#els.toolbar;
     const doc = this.#doc;
     bar.replaceChildren();
+    // a grid in a tile: no title bar (its page's bar and its tile header are where its controls are)
+    if (this.#options.compact === true) return;
 
     // FOLDED, THE BAR IS A LIP, not nothing. The hamburger lives
     // here, so a bar that vanished outright would take the menu with
@@ -3792,9 +3802,9 @@ export class CubeApp {
     if (!this.#inTile) return;
     const source = this.#sourceName();
     if (source !== undefined) head.append(this.#sourceTag(source));
-    head.append(this.#snapPill());
+    head.append(this.#snapPill(), this.#gridMenuButton());
+    // the zones' way back LAST: in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
     if (!this.#config.showDragZones) head.append(this.#zonesBack());
-    head.append(this.#gridMenuButton());
   }
 
   /** The grid's own menu button, in its tile's header (`#gridMenu`); a second press shuts the menu, as the bar's does. */

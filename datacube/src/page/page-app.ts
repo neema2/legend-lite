@@ -20,6 +20,7 @@ import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import { tiles } from '../layout/bands.ts';
 import { pageToJson, writePageOf, type PageDocument, type PageViews } from '../page-document.ts';
 import type { CubeDocument } from '../cube-document.ts';
+import type { CubeConfiguration } from '../config.ts';
 import type { SettingValues } from '../settings.ts';
 
 /** What the page needs of a grid on it (a CubeApp in a tile). */
@@ -31,6 +32,9 @@ export interface PageGrid extends SpawnedGrid {
   /** Its Settings window; and settings saved elsewhere, in effect here too. */
   openSettings(): void;
   useSettings(values: SettingValues): void;
+  /** Its configuration: a lone grid's report title names the page, and its title bar setting folds the page's bar. */
+  readonly configuration: CubeConfiguration;
+  setChrome(patch: { readonly showTitleBar?: boolean }): void;
 }
 
 /** How the host makes a grid on the page, in `host`, wired to the page by `options` (its charts, copies, removal). */
@@ -44,8 +48,6 @@ export interface PageAppOptions {
   /** The host's own menu entries (Save, Open, Share, where the planner runs), by their `section`. */
   readonly hostMenu?: () => readonly MenuItem[];
   readonly onHostMenu?: (item: MenuItem) => void;
-  /** The host's status line, in the page's bar (planner progress, an error): `slot` is its place. */
-  readonly hostStatus?: (slot: HTMLElement) => void;
   /** What an empty page shows -- the host's choices of a source -- in `slot`. */
   readonly empty: (slot: HTMLElement) => void;
   /** New ▸ Data Source…: the host's picker, its grid's maker; undefined when nothing was chosen. */
@@ -66,6 +68,10 @@ export class PageApp {
   readonly #root: HTMLElement;
   readonly #title: HTMLElement;
   readonly #burger: HTMLButtonElement;
+  readonly #bar: HTMLElement;
+  readonly #status: HTMLElement;
+  readonly #fold: HTMLButtonElement;
+  readonly #lip: HTMLButtonElement;
   readonly #alone: HTMLElement;
   readonly #boardHost: HTMLElement;
   readonly #empty: HTMLElement;
@@ -98,11 +104,33 @@ export class PageApp {
     this.#title = doc.createElement('span');
     this.#title.className = 'dc-titlebar-title';
     this.#title.textContent = this.#name;
+    // the space between the name and the right end (the host's readouts are in its grids' status bars)
     const status = doc.createElement('span');
     status.className = 'dc-page-status';
+    this.#status = status;
     this.#alone = doc.createElement('span');
     this.#alone.className = 'dc-page-alone dc-tile-cube';
-    bar.append(this.#burger, this.#title, status, this.#alone);
+    // THE BAR FOLDS (the user, 2026-09-25: the folds live in one column at the right): its fold just left of a lone
+    // grid's header, whose last control -- the zones' way back, when they are folded -- stays at the far right, above
+    // the zone bar's own fold; folded, a lip, its chevron where the fold was, the whole strip a button
+    this.#fold = doc.createElement('button');
+    this.#fold.type = 'button';
+    this.#fold.className = 'dc-titlebar-fold';
+    this.#fold.append(chevron(doc, 'up'));
+    this.#fold.title = 'Hide the bar';
+    this.#fold.setAttribute('aria-label', 'Hide the bar');
+    this.#fold.setAttribute('aria-expanded', 'true');
+    this.#fold.addEventListener('click', () => this.setBarFolded(true));
+    this.#lip = doc.createElement('button');
+    this.#lip.type = 'button';
+    this.#lip.className = 'dc-titlebar-lip';
+    this.#lip.append(chevron(doc, 'down'));
+    this.#lip.title = 'Show the bar';
+    this.#lip.setAttribute('aria-label', 'Show the bar');
+    this.#lip.setAttribute('aria-expanded', 'false');
+    this.#lip.addEventListener('click', () => this.setBarFolded(false));
+    bar.append(this.#burger, this.#title, status, this.#fold, this.#alone);
+    this.#bar = bar;
     this.#boardHost = doc.createElement('div');
     this.#boardHost.className = 'dc-board-host';
     this.#empty = doc.createElement('div');
@@ -114,10 +142,22 @@ export class PageApp {
       onSelect: (item) => this.#onMenu(item),
       onClose: () => this.#burger.setAttribute('aria-expanded', 'false'),
     });
-    options.hostStatus?.(status);
     options.empty(this.#empty);
     this.#page = this.#newBoard();
     this.#paintEmpty();
+  }
+
+  /** The grid alone on the page, if it is: one tile, a grid. */
+  #lone(): PageGrid | undefined {
+    const ids = this.#page.tileIds;
+    return ids.length === 1 ? this.#grids.get(ids[0]!) : undefined;
+  }
+
+  /** A grid's state changed: the bar says a lone grid's report title, and folds as its title bar setting says. */
+  #onGridChange(): void {
+    this.#paintTitle();
+    const lone = this.#lone();
+    if (lone) this.#foldBar(!lone.configuration.showTitleBar);
   }
 
   /** The page's own element: where its grids' windows float, above every tile. */
@@ -125,14 +165,45 @@ export class PageApp {
     return this.#root;
   }
 
-  /** The page's name, in its bar. */
-  get title(): string {
-    return this.#name;
+  /**
+   * The bar folded to a lip (more room for the grids) or shown. Folded, the page's menu is not on the page at all --
+   * the lip brings it back -- and a lone grid's header keeps only the zones' way back, where it was.
+   */
+  setBarFolded(folded: boolean): void {
+    // a grid alone: its own title bar setting (saved with it, as a cube alone's always was)
+    const lone = this.#lone();
+    if (lone && lone.configuration.showTitleBar === folded) lone.setChrome({ showTitleBar: !folded });
+    this.#foldBar(folded);
   }
 
+  #foldBar(folded: boolean): void {
+    if (folded === this.#bar.classList.contains('dc-collapsed')) return;
+    this.#menu.close();
+    this.#bar.classList.toggle('dc-collapsed', folded);
+    if (folded) this.#bar.replaceChildren(this.#lip, this.#alone);
+    else this.#bar.replaceChildren(this.#burger, this.#title, this.#status, this.#fold, this.#alone);
+    (folded ? this.#lip : this.#fold).focus();
+  }
+
+  get barFolded(): boolean {
+    return this.#bar.classList.contains('dc-collapsed');
+  }
+
+  /** The page's name, in its bar. */
+  get title(): string {
+    return this.#title.textContent ?? '';
+  }
+
+  /** The page's own name (a saved page's): '' leaves the bar to say the first grid's report title. */
   setTitle(name: string): void {
     this.#name = name;
-    this.#title.textContent = name;
+    this.#paintTitle();
+  }
+
+  /** The bar's name: the page's own, else its first grid's report title (what a grid alone was called). */
+  #paintTitle(): void {
+    const first = this.grids[0];
+    this.#title.textContent = this.#name || (first !== undefined ? this.#grids.get(first)?.configuration.reportTitle ?? '' : '');
   }
 
   /** The grids on the board, in reading order (not those kept off it for a detached chart). */
@@ -161,6 +232,11 @@ export class PageApp {
     if (made) this.#grids.set(id, made);
     this.#paintEmpty();
     return id;
+  }
+
+  /** Once every grid on the page has opened (its first view landed, or its first query refused). */
+  async ready(): Promise<void> {
+    await this.#page.opened();
   }
 
   /** New ▸ Data Source…: the host's picker, and the grid it makes beside the others. */
@@ -272,7 +348,10 @@ export class PageApp {
   #newBoard(): CubePage {
     return new CubePage({
       host: this.#boardHost,
-      onChange: () => this.#options.onChange?.(),
+      onChange: () => {
+        this.#onGridChange();
+        this.#options.onChange?.();
+      },
       onEmpty: () => this.#paintEmpty(),
       onTiles: () => this.#onTiles(),
       onSettingsChanged: (values) => {
@@ -287,6 +366,7 @@ export class PageApp {
     const live = new Set([...this.#page.grids.keys(), ...this.#page.kept.keys()]);
     for (const id of [...this.#grids.keys()]) if (!live.has(id)) this.#grids.delete(id);
     this.#paintEmpty();
+    this.#onGridChange();
   }
 
   #paintEmpty(): void {
@@ -382,3 +462,24 @@ export class PageApp {
     }
   }
 }
+
+/** A fold's chevron, drawn rather than typed, as the cube's own folds draw theirs. */
+function chevron(doc: Document, direction: 'up' | 'down'): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = doc.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'dc-chevron-icon');
+  svg.setAttribute('viewBox', '0 0 12 12');
+  svg.setAttribute('width', '12');
+  svg.setAttribute('height', '12');
+  svg.setAttribute('aria-hidden', 'true');
+  const path = doc.createElementNS(ns, 'path');
+  path.setAttribute('d', direction === 'up' ? 'M2.5 7.5 6 4l3.5 3.5' : 'M2.5 4.5 6 8l3.5-3.5');
+  path.setAttribute('fill', 'none');
+  path.setAttribute('stroke', 'currentColor');
+  path.setAttribute('stroke-width', '1.5');
+  path.setAttribute('stroke-linecap', 'round');
+  path.setAttribute('stroke-linejoin', 'round');
+  svg.append(path);
+  return svg;
+}
+

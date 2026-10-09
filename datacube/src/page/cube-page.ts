@@ -23,7 +23,7 @@ import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard } from '../layout/band-board.ts';
 import { type Bands, cells, remove as removeTile, tiles } from '../layout/bands.ts';
-import { LayoutPicker } from '../ui/layout-picker.ts';
+import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { followCube, measureName } from '../chart-spec.ts';
 import type { GridShown, MarkKey } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
@@ -62,6 +62,8 @@ export interface ChartSource {
 
 /** Where a grid on the page sends its own "+ Chart", "New grid" and the rest: to the page. */
 export interface SpawnOptions {
+  /** Its tile's id on the page (a page of its own: its host keeps what it knows of the grid by it). */
+  readonly id?: string;
   readonly onChart?: () => void;
   readonly onNewGrid?: () => void;
   /** Its New ▸ Source…: a grid over another source, made by `make`, on this page. */
@@ -147,13 +149,17 @@ export class CubePage {
   readonly #doc: Document;
   readonly #options: CubePageOptions;
   readonly #board: BandBoard;
-  readonly #picker: LayoutPicker;
+  /** The layouts, fetched the first time they are opened (a page that is never arranged never downloads them). */
+  #picker: LayoutPicker | undefined;
+  #disposed = false;
   readonly #charts = new Map<string, ChartTile>();
   readonly #grids = new Map<string, GridTile>();
   /** Grids removed from the board while a frozen chart still reads them: kept, off the board, to run its query. */
   readonly #kept = new Map<string, SpawnedGrid>();
   /** Each grid's title as it was made, so a saved page writes only a title someone gave it. */
   readonly #titles = new Map<string, string>();
+  /** Each added grid's first open (its first view), for `opened`. */
+  readonly #opening = new Map<string, Promise<void>>();
   #chartCount = 0;
   #gridCount = 0;
   /** Each arrangement by hand is one step (the design's §3.3): the layouts before the steps done, and after those undone. */
@@ -167,7 +173,6 @@ export class CubePage {
     this.#options = options;
     this.#doc = options.host.ownerDocument;
     this.#menu = new MenuView(this.#doc, { onSelect: (item) => this.#menuFor?.(item) });
-    this.#picker = new LayoutPicker(options.host);
     this.#board = new BandBoard(options.host, {
       onRemove: (tileId) => this.#removeTile(tileId),
       onChange: (_layout, before) => {
@@ -238,10 +243,22 @@ export class CubePage {
    * tile's layouts arranging only its band showed two tiles of four, and 2 x 2 came out 2, 1, 1).
    */
   showLayouts(anchor: HTMLElement, first?: string): void {
-    const board = this.#board;
     // a locked page offers no layouts: nothing moves by accident
-    if (!board.editing) return;
-    this.#picker.show(anchor, {
+    if (!this.#board.editing) return;
+    if (this.#picker) {
+      this.#showPicker(this.#picker, anchor, first);
+      return;
+    }
+    void import('../ui/layout-picker.ts').then(({ LayoutPicker }) => {
+      if (this.#disposed) return;
+      this.#picker ??= new LayoutPicker(this.#options.host);
+      this.#showPicker(this.#picker, anchor, first);
+    });
+  }
+
+  #showPicker(picker: LayoutPicker, anchor: HTMLElement, first?: string): void {
+    const board = this.#board;
+    picker.show(anchor, {
       tiles: tiles(board.layout),
       ...(first !== undefined ? { first } : {}),
       fit: board.layout.fit,
@@ -342,10 +359,15 @@ export class CubePage {
     this.#board.add({ id, title: how.title ?? made, element: host, actions: [cube.tileHead()] },
       near !== undefined && this.#grids.has(near) ? near : undefined);
     this.#board.reveal(id);
-    void cube.open();
+    this.#opening.set(id, cube.open());
     this.#options.onChange();
     this.#options.onTiles?.();
     return id;
+  }
+
+  /** Once every grid added so far has opened (its first view landed, or its first query refused). */
+  async opened(): Promise<void> {
+    await Promise.allSettled([...this.#opening.values()]);
   }
 
   /**
@@ -356,7 +378,7 @@ export class CubePage {
     if (this.#grids.has(id) || this.#kept.has(id)) throw new Error(`a grid ${id} is already on the page`);
     const cube = make(this.#doc.createElement('div'), {});
     this.#kept.set(id, cube);
-    void cube.open();
+    this.#opening.set(id, cube.open());
   }
 
   /**
@@ -365,6 +387,7 @@ export class CubePage {
    */
   #spawnOptions(id: string): SpawnOptions {
     return {
+      id,
       onChart: () => this.openChart(undefined, id),
       onNewGrid: () => this.addGrid(id),
       onNewSource: (other) => this.addGridOver(other, { near: id }),
@@ -590,8 +613,9 @@ export class CubePage {
   }
 
   dispose(): void {
+    this.#disposed = true;
     this.#menu.close();
-    this.#picker.close();
+    this.#picker?.close();
     for (const chart of this.#charts.values()) {
       chart.editor?.grid.dispose();
       chart.panel.dispose();

@@ -50,7 +50,8 @@ async function settle() {
   }, null, { timeout: 30_000 });
 }
 
-const charts = () => page.evaluate(() => window.__dataCube.pageViews().views.filter((v) => v.kind === 'chart')
+// the page's views (a page of its own: window.__dataPage), its first grid the one the checks open (window.__dataCube)
+const charts = () => page.evaluate(() => window.__dataPage.views().views.filter((v) => v.kind === 'chart')
   .map((v) => ({ id: v.id, title: v.title, pinned: v.spec.frozen === true, x: v.spec.x, split: v.spec.split ?? null })));
 const rows = () => page.evaluate(() => [...window.__dataCube.snapshot.rows]);
 const button = (id, text) => page.locator(`[data-tile="${id}"] .dc-tile-actions > button:visible`, { hasText: text }).first();
@@ -67,7 +68,9 @@ try {
   const before = await rows();
 
   /** Right-click > Insert > `what` (Visualization or Copy of Grid), on a cell of the grid in `scope`. */
-  const insert = async (what, scope = '[data-tile="grid"], .dc-app') => {
+  /** The page's first grid: every grid on a page is numbered alike, the first grid-1. */
+  const FIRST = '[data-tile="grid-1"]';
+  const insert = async (what, scope = `${FIRST}, .dc-app`) => {
     await page.locator(scope).first().locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
     await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
     await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("${what}"))`).first().click();
@@ -135,8 +138,9 @@ try {
 
   await check('Insert > Grid adds a grid tile of its own; its Insert > Chart charts it; removing it detaches a frozen chart', async () => {
     const tilesBefore = await page.locator('[data-tile^="chart-"]').count();
-    await insert('Copy of Grid', '[data-tile="grid"]');
-    const grid = page.locator('[data-tile^="grid-"]').first();
+    await insert('Copy of Grid', FIRST);
+    // the copy: a grid beside the first, every grid on the page alike
+    const grid = page.locator('[data-tile^="grid-"]:not([data-tile="grid-1"])').first();
     await grid.locator('.dc-row').first().waitFor({ timeout: 20_000 });
     await settle();
     const gridId = await grid.getAttribute('data-tile');

@@ -56,8 +56,13 @@
 /* the host's status line in the bar, quiet; a lone grid's header at the bar's right end */
 .dc-page-status { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
-.dc-page-alone { flex: none; padding-right: var(--dc-pad-1); }
+.dc-page-alone { flex: none; align-self: stretch; display: flex; align-items: center; }
 .dc-page-alone:empty { display: none; }
+.dc-page-alone > .dc-tile-cube { align-self: stretch; }
+
+/* the page's bar folded: a lip, a lone grid's header keeping only the zones' way back, in its place */
+.dc-page-bar.dc-collapsed .dc-page-alone { overflow: hidden; }
+.dc-page-bar.dc-collapsed .dc-page-alone .dc-tile-cube > :not(.dc-titlebar-zones) { visibility: hidden; }
 
 /* -- the title bar ------------------------------------------------- */
 
@@ -700,8 +705,8 @@
   min-height: 0;
 }
 
-/* a grid in a page's tile (an added grid, a chart's editing grid): the page has the title bar */
-.dc-app.dc-compact > .dc-titlebar { display: none; }
+/* a grid in a page's tile (an added grid, a chart's editing grid) has no title bar of its own (app.ts): the page has
+   the bar, its tile header its source, pill and menu */
 
 /* the controls hidden, the grid alone (setControlsHidden): the right-click menu's last entry
    brings them back. The zone bar's own `hidden` stays the configuration's; this only overrides. */

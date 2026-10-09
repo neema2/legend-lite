@@ -368,16 +368,16 @@ try {
     await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
     await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("Visualization"))').first().click();
     await page.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
-    const layout = await page.evaluate(() => JSON.stringify(window.__dataCube.pageViews().layout));
+    const layout = await page.evaluate(() => JSON.stringify(window.__dataPage.views().layout));
     const { url } = await copyLink();
     const tab = await openTab(url);
     try {
       await openedIn(tab);
       await tab.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
       const shared = await tab.evaluate(() => ({
-        layout: JSON.stringify(window.__dataCube.pageViews().layout),
+        layout: JSON.stringify(window.__dataPage.views().layout),
         locked: document.querySelector('.dc-bands')?.classList.contains('dc-bands-view') ?? false,
-        editing: window.__dataCube.layoutEditing,
+        editing: window.__dataPage.layoutEditing,
         handles: document.querySelectorAll('.dc-band-divider, .dc-band-edge').length,
       }));
       if (shared.layout !== layout) throw new Error(`a different layout: ${shared.layout} vs ${layout}`);

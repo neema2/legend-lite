@@ -39,8 +39,13 @@ function startup(bundle = join(DEMO, 'bundle.js')): string[] {
  *  350,000 -> 352,000 (2026-10-02, store types step 7): Postgres's catalog rules -- DataCube writes a
  *  Postgres table's model by Postgres's own rules (generated/catalog-facts.ts), about 0.5 KB gzipped.
  *  Not lowered with the TypeScript writer's removal (2026-10-08, the model written by legend-lite's
- *  module): a budget is raised on purpose, and measured down when the user asks. */
-const BUDGET = 352_000;
+ *  module): a budget is raised on purpose, and measured down when the user asks.
+ *  352,000 -> 368,000 (2026-10-09, DataCube pages phase 2, docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §6): every page
+ *  is a page of its own from the start, its one grid a tile on its board -- the page (page/page-app.ts), the board
+ *  (page/cube-page.ts, layout/band-board.ts) and the charts' panel load at startup, where phase 1 fetched them with the
+ *  first chart (startup then ~333 KB). Measured 364,791. The layouts are still fetched when first opened, ECharts
+ *  when a chart first draws. */
+const BUDGET = 368_000;
 
 /** The engine page's (demo/engine.html: one cube on an engine that runs its queries, Python's) startup download,
  *  gzipped: the grid and the remote client, no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure
@@ -73,14 +78,12 @@ describe('the page loads ECharts only when a chart draws', () => {
     assert.ok(importers.length > 0, 'something imports the chart renderer, dynamically');
   });
 
-  it('the page -- its board, its layouts, the charts\' panel -- is fetched when a cube first gets one, not at startup', () => {
+  it('the layouts (ui/layout-picker.ts) are fetched the first time they are opened, not at startup', () => {
     for (const f of startup()) {
-      const text = readFileSync(f, 'utf8');
-      for (const source of ['src/page/cube-page.ts', 'src/layout/band-board.ts', 'src/ui/layout-picker.ts', 'src/ui/chart-panel.ts']) {
-        assert.ok(!text.includes(source), `${f} carries ${source}`);
-      }
+      assert.ok(!readFileSync(f, 'utf8').includes('src/ui/layout-picker.ts'), `${f} carries the layout picker`);
     }
-    assert.match(readFileSync(join(DEMO, 'bundle.js'), 'utf8'), /import\("\.\/chunks-bundle\/cube-page-[A-Z0-9]+\.js"\)/);
+    const lazy = readdirSync(CHUNKS).filter((f) => readFileSync(join(CHUNKS, f), 'utf8').includes('src/ui/layout-picker.ts'));
+    assert.equal(lazy.length, 1, 'one chunk holds the layout picker');
   });
 
   it(`a grid-only page downloads at most ${BUDGET.toLocaleString()} bytes of script, gzipped`, () => {

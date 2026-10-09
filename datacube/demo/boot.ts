@@ -8,9 +8,11 @@
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import * as duckdb from '../../engine-client/src/duckdb-wasm.ts';
 
-import { CubeApp, type GridSource, type HeldCopy } from '../src/app.ts';
+import { CubeApp, type HeldCopy } from '../src/app.ts';
+import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import {
   DEFAULT_CONFIGURATION,
+  DEFAULT_MAX_ROWS,
   type CubeConfiguration,
 } from '../src/config.ts';
 import type { Planner } from '../src/cube.ts';
@@ -34,9 +36,6 @@ import {
   type RemoteSource,
   type WarehouseSource,
 } from '../src/cube-document.ts';
-
-/** A saved (or shared) cube being reopened: the document, its id in the store, the page around it. */
-type Saved = { readonly doc: CubeDocument; readonly id?: string; readonly page?: PageDocument };
 
 /** A saved cube over a file: what reopening one needs is that file back. */
 type FileCube = CubeDocument & { readonly source: FileSource };
@@ -529,204 +528,271 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     return { source: { query }, columns, derived: [], rows: [], pivotOn: [], measures: [], sorts: [], epoch: 1 };
   }
 
-  function makeApp(
+  /** A grid's place, as a maker takes it: where its rows are and how it is written down. */
+  type GridPlace = {
+    // A warehouse source: Live runs on it, Snap copies into `engine`, and the
+    // snap lands under the source's own name so one model reads both.
+    readonly live?: WarehouseEngine;
+    readonly snapTarget?: SnapTarget;
+    /** A grid can be saved: its source, by identity (never its data). */
+    readonly cubeSource?: CubeSource;
+    /** The groups a saved cube had open. */
+    readonly tree?: TreeState;
+    /** The rows are a copy in this tab already: an opened file, generated rows. */
+    readonly heldCopy?: HeldCopy;
+    /** Where its queries run when not on the tab's engine as it is: a saved query's version, which brings its own rows. */
+    readonly engine?: QueryEngine;
+    /** Its own planner, over its own model (a page's grids share no model); the page's planner when none. */
+    readonly planner?: Planner;
+    /** What its header says it reads. */
+    readonly label?: string;
+    /** The file it reads, and the handle it was picked through: the page keeps them, by the grid's id. */
+    readonly file?: { readonly file: File; readonly handle?: FileHandle };
+    /** Its columns panel folded at the start: a grid added beside others; open, one opened alone. */
+    readonly foldPanel?: boolean;
+  };
+
+  /**
+   * A GRID ON THE PAGE, as DataCube's app makes one (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §6): a compact cube in a
+   * tile, its windows floating over the whole page, wired to the page by `spawned` (its charts, copies, removal,
+   * export, settings). Every grid is made here, the first as the fifth.
+   */
+  function gridMaker(
     snap: CubeSnapshot,
     config: CubeConfiguration,
     dims: { name: string; columns: string[] }[],
-    // A warehouse source: Live runs on it, Snap copies into `engine`, and the
-    // snap lands under the source's own name so one model reads both.
-    place: {
-      readonly live?: WarehouseEngine;
-      readonly snapTarget?: SnapTarget;
-      /** A file's cube can be saved: the file, by identity (never its data). */
-      readonly cubeSource?: CubeSource;
-      /** The groups a saved cube had open. */
-      readonly tree?: TreeState;
-      /** The rows are a copy in this tab already: an opened file, generated rows. */
-      readonly heldCopy?: HeldCopy;
-      /** Where its queries run when not on the tab's engine as it is: a saved query's version, which brings its own rows. */
-      readonly engine?: QueryEngine;
-    } = {},
-  ): CubeApp {
-    // PARK THE STATUS TEXT FIRST.
-    //
-    // It is MOVED into the cube's status bar, and rebuilding the cube
-    // -- which opening a file does -- clears the host element and
-    // would take it with it. So it goes home before the clear and is
-    // adopted again by `hostStatus`. (The node itself survives either
-    // way, since `status` is a reference rather than a lookup, but a
-    // detached node shows nothing, and boot messages arrive before
-    // the new cube's first render.)
-    must('offstage').append(status);
-    host.replaceChildren();
-    let printed = 0;
-    const created: CubeApp = new CubeApp(host, snap, {
-      engine: place.engine ?? engine,
-      planner,
-      // Where the rows are (Live on a warehouse, or Snapped in this tab) is the title bar's plane
-      // button, and who read them the status bar's receipt: the host's word stays the planner's
-      // (local / remote / engine), one word in a 20px strip.
-      ...(place.live ? { live: place.live } : {}),
-      configuration: config,
-      // Snap only where the place says what to copy: no other source's target stands in for it
-      ...(place.snapTarget ? { snapTarget: place.snapTarget } : {}),
-      ...(place.cubeSource ? { cubeSource: place.cubeSource } : {}),
-      ...(place.tree ? { tree: place.tree } : {}),
-      ...(place.heldCopy ? { heldCopy: place.heldCopy } : {}),
-      // "Changed since saved" is re-read on every change of the cube's state,
-      // a presentation change (a width, a colour) included: it runs no query.
-      onChange: () => {
-        harnessSignal.changes += 1;
-        onCubeView?.();
-      },
-      showColumnZone: true,
-      // New ▸ Source…: a grid over another source, through the picker
-      ...(models ? {
-        openSource: () => picker?.('add') ?? Promise.resolve(undefined),
-        onBlankPage: () => blankPage?.(),
-      } : {}),
-      // THE HOST'S TEXT, IN THE STATUS BAR. Planner progress during
-      // boot and errors afterwards -- the cube states its own row,
-      // column and timing figures there itself now, so this no
-      // longer echoes them. MOVED rather than copied: `status` is
-      // the same node the planner writes to.
-      hostStatus: (slot) => slot.append(status),
-      hostMenu: () => [
-        // ONLY IF THE PAGE CAN OPEN FILES. Without `models` the
-        // bar's controls are inert -- this page's planner compiles a
-        // fixed model -- and an entry that opens a panel of dead
-        // controls is the dead-button fault one layer up.
-        ...(models
-          ? [
-            // saved cubes: in this browser, over the files they were built on
-            { id: 'host.save' as const, label: 'Save', section: 'file' as const },
-            { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const },
-            { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const },
-            // the page's settings in a link: never a row of data (src/share/link.ts)
-            { id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const },
-          ]
-          : []),
-        { id: 'host.query', label: 'Generated Pure & SQL\u2026', section: 'view' as const },
-        // The planes, as entries rather than a control: the bar is
-        // for what you watch, the menu for what you do occasionally.
-        // The one you are ON is disabled rather than hidden, so the
-        // menu still says where the work happens.
-        ...planeMenu(),
-      ],
-      onHostMenu: (item) => {
-        if (item.id === 'host.open') showCubes?.();
-        if (item.id === 'host.save') saveCube?.(false);
-        if (item.id === 'host.saveAs') saveCube?.(true);
-        if (item.id === 'host.share') void copyShareLink?.();
-        if (item.id === 'host.query') toggleHostWindow('querywin');
-        // A NAVIGATION, not a switch: the same page loads again with the chosen ?planner= (a cube
-        // never changes planner while it runs). Asked first when leaving would lose work here.
-        if (PLANES.some((plane) => plane.id === item.id)) {
-          if (!mayLeave(work, (q) => window.confirm(q), 'Choosing another planner reloads the page')) return;
-          leaving = true;
-        }
-        goToPlane(item.id);
-      },
-      dimensions: dims,
-      writeClipboard: (text) => navigator.clipboard?.writeText(text),
-      // Settings kept between visits, as upstream's hosts keep them
-      // (settingsData.values / onSettingsChanged). A browser that will
-      // not store them still runs, on the defaults.
-      ...(storedSettings() ? { settings: storedSettings() as Record<string, unknown> } : {}),
-      onSettingsChanged: (values) => {
-        try {
-          window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(values));
-        } catch {
-          // storage refused (private window, quota): the settings hold
-          // for this visit
-        }
-      },
-      download: (name, mime, text) => {
-        const url = URL.createObjectURL(new Blob([typeof text === 'string' ? text : text.slice()], { type: mime }));
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = name;
-        a.click();
-        URL.revokeObjectURL(url);
-      },
-      onStatus: (text, kind) => {
-        // ERRORS ONLY. The cube's own status bar carries the result
-        // and the timing; a host that echoed the same line beside it
-        // said one fact twice in a 20px strip. What a host is for is
-        // saying what the cube cannot -- a planner that failed.
-        if (kind !== 'error') return;
-        harnessSignal.changes += 1;
-        status.textContent = text;
-        status.classList.add('bad');
-        status.classList.remove('warn-text');
-      },
-      onView: (view) => {
-        // For the browser harness: how many views have landed.
-        const w = window as unknown as { __dataCubeViews?: number };
-        w.__dataCubeViews = (w.__dataCubeViews ?? 0) + 1;
-        harnessSignal.changes += 1;
-        // A VIEW LANDED, SO THE LAST ERROR IS OVER.
-        //
-        // The line showed the last error and nothing ever took it
-        // down, so a cube that had recovered still read as broken --
-        // and it recovers routinely: opening a file swaps the
-        // planner's model while the previous cube still has a query
-        // in flight, that query then fails against the new model
-        // with "unknown table 'TRADES'", and the app it belonged to
-        // is thrown away a moment later. A status line says what is
-        // true NOW.
-        if (status.classList.contains('bad')) {
-          status.classList.remove('bad');
-          status.textContent = label;
-        }
-        // The query this product built, as the compiler prints it, and
-        // the SQL the planner made of it. Both, because they answer
-        // different questions -- and because the SQL panel showed Pure
-        // until the real planner started returning SQL worth reading.
-        // The print is asked for; a later view's print wins.
-        const printing = (printed += 1);
-        harnessSignal.printing += 1;
-        void created.controller.print(view.query, 'STANDARD').then(
-          (text) => { if (printing === printed) must('pure').textContent = text; },
-          (error: unknown) => { if (printing === printed) must('pure').textContent = String(error); },
-        ).finally(() => {
-          harnessSignal.printing -= 1;
+    place: GridPlace = {},
+  ): GridMaker {
+    return (gridHost, spawned) => {
+      const first = page.grids.length === 0;
+      let printed = 0;
+      const created: CubeApp = new CubeApp(gridHost, snap, {
+        engine: place.engine ?? engine,
+        planner: place.planner ?? planner,
+        // Where the rows are (Live on a warehouse, or Snapped in this tab) is the grid's plane
+        // button, and who read them the status bar's receipt.
+        ...(place.live ? { live: place.live } : {}),
+        configuration: config,
+        // Snap only where the place says what to copy: no other source's target stands in for it
+        ...(place.snapTarget ? { snapTarget: place.snapTarget } : {}),
+        ...(place.cubeSource ? { cubeSource: place.cubeSource } : {}),
+        ...(place.tree ? { tree: place.tree } : {}),
+        ...(place.heldCopy ? { heldCopy: place.heldCopy } : {}),
+        ...(place.label !== undefined ? { sourceLabel: place.label } : {}),
+        compact: true,
+        foldPanel: place.foldPanel === true,
+        // THE HOST'S TEXT, IN THE STATUS BAR (planner progress, errors, the planner's word): the page's first grid's,
+        // at the right of its status bar -- a readout belongs there, not in the bar that says what is on screen.
+        // MOVED rather than copied, on each render of the first grid: `status` is the same node the planner writes to.
+        hostStatus: (slot) => { if (page.grids[0] === spawned.id) slot.append(status); },
+        // WHERE THE PLANNER RUNS, changed where it is read: the status bar's readout offers the planes
+        hostMenu: () => planeMenu(),
+        onHostMenu: (item) => onHostItem(item),
+        // its windows float over the page, not squeezed into its tile
+        windowHost: page.root,
+        // "Changed since saved" is re-read on every change of the cube's state,
+        // a presentation change (a width, a colour) included: it runs no query.
+        onChange: () => {
           harnessSignal.changes += 1;
-        });
-        must('sql').textContent =
-          view.sql || '(no SQL for this view)';
-      },
-    });
-    // For the browser harness ONLY: the running cube, so a check can
-    // read the cube's own configuration and snapshot when what it sees
-    // on screen disagrees -- which it could not before, and which left
-    // one defect undiagnosable. Not product code: the demo page.
-    (window as unknown as { __dataCube?: CubeApp }).__dataCube = created;
-    return created;
+          onCubeView?.();
+        },
+        showColumnZone: true,
+        dimensions: dims,
+        writeClipboard: (text) => navigator.clipboard?.writeText(text),
+        // Settings kept between visits, as upstream's hosts keep them
+        // (settingsData.values / onSettingsChanged); the page keeps them for every grid.
+        ...(storedSettings() ? { settings: storedSettings() as Record<string, unknown> } : {}),
+        download,
+        onStatus: (text, kind) => {
+          // ERRORS ONLY. The cube's own status bar carries the result
+          // and the timing; a host that echoed the same line beside it
+          // said one fact twice in a 20px strip. What a host is for is
+          // saying what the cube cannot -- a planner that failed.
+          if (kind !== 'error') return;
+          harnessSignal.changes += 1;
+          status.textContent = text;
+          status.classList.add('bad');
+          status.classList.remove('warn-text');
+        },
+        onView: (view) => {
+          // For the browser harness: how many views have landed.
+          const w = window as unknown as { __dataCubeViews?: number };
+          w.__dataCubeViews = (w.__dataCubeViews ?? 0) + 1;
+          harnessSignal.changes += 1;
+          // A VIEW LANDED, SO THE LAST ERROR IS OVER: a status line says what is true NOW.
+          if (status.classList.contains('bad')) {
+            status.classList.remove('bad');
+            status.textContent = label;
+          }
+          // The query this product built, as the compiler prints it, and
+          // the SQL the planner made of it. Both, because they answer
+          // different questions -- the last view of any grid on the page.
+          // The print is asked for; a later view's print wins.
+          const printing = (printed += 1);
+          harnessSignal.printing += 1;
+          void created.controller.print(view.query, 'STANDARD').then(
+            (text) => { if (printing === printed) must('pure').textContent = text; },
+            (error: unknown) => { if (printing === printed) must('pure').textContent = String(error); },
+          ).finally(() => {
+            harnessSignal.printing -= 1;
+            harnessSignal.changes += 1;
+          });
+          must('sql').textContent =
+            view.sql || '(no SQL for this view)';
+        },
+        ...spawned,
+      });
+      if (spawned.id !== undefined) madeGrid?.(spawned.id, place);
+      // For the browser harness ONLY: the grid a check opened (the page's first), so it can read
+      // its own configuration and snapshot when what it sees on screen disagrees. Not product code.
+      if (first) (window as unknown as { __dataCube?: CubeApp }).__dataCube = created;
+      return created;
+    };
   }
+
+  /** The host's own entries, from the page's menu or a grid's status bar. */
+  function onHostItem(item: MenuItem): void {
+    if (item.id === 'host.open') showCubes?.();
+    if (item.id === 'host.save') saveCube?.(false);
+    if (item.id === 'host.saveAs') saveCube?.(true);
+    if (item.id === 'host.share') void copyShareLink?.();
+    if (item.id === 'host.query') toggleHostWindow('querywin');
+    // A NAVIGATION, not a switch: the same page loads again with the chosen ?planner= (a cube
+    // never changes planner while it runs). Asked first when leaving would lose work here.
+    if (PLANES.some((plane) => plane.id === item.id)) {
+      if (!mayLeave(work, (q) => window.confirm(q), 'Choosing another planner reloads the page')) return;
+      leaving = true;
+      goToPlane(item.id);
+    }
+  }
+
+  /** Hand a file to the user. */
+  const download = (name: string, mime: string, text: string | Uint8Array): void => {
+    const url = URL.createObjectURL(new Blob([typeof text === 'string' ? text : text.slice()], { type: mime }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   /** Opens the saved cubes' window; set once the page can open files. */
   let showCubes: (() => void) | undefined;
   /** Close the Open… window, when it is open. */
   let closeCubes: (() => void) | undefined;
-  /** Save the cube (over the one it was opened from), or Save As a new one. */
+  /** Save the page (over the one it was opened from), or Save As a new one. */
   let saveCube: ((asNew: boolean) => void) | undefined;
   /** Copies the page's share link; set once the page can open files. */
   let copyShareLink: (() => Promise<void>) | undefined;
   /** Told when a view lands: "changed since saved" is re-read then. */
   let onCubeView: (() => void) | undefined;
+  /** Told when a grid is made on the page, by its tile's id: what the page keeps of it (its file). */
+  let madeGrid: ((id: string, place: GridPlace) => void) | undefined;
   /** The source picker, once the page can open sources: New ▸ Data Source… adds a grid over one; a blank page opens one. */
-  let picker: ((purpose: 'add' | 'open', start?: SectionId) => Promise<GridSource | undefined>) | undefined;
+  let picker: ((purpose: 'add' | 'open', start?: SectionId) => Promise<GridMaker | undefined>) | undefined;
   /** New ▸ Blank Page: everything goes, for a first data source. */
   let blankPage: ((reason?: string) => void) | undefined;
-  /** Why the page's start opened nothing (a link that failed, a key refused): the blank page says it. */
+  /** Why the page's start opened nothing (a link that failed, a key refused): the empty page says it. */
   let startProblem: string | undefined;
-  /** The cube on screen; none until the source the page was asked to open is open (a blank page has none). */
-  let app: CubeApp | undefined;
+  /** The empty page's line saying why, when the start opened nothing. */
+  let emptyReason: HTMLElement | undefined;
+
+  /**
+   * THE PAGE (src/page/page-app.ts): its bar -- the page's menu, its name, this host's status line -- and its grids.
+   * The page's menu carries the host's entries: Save, Open, Share, the generated Pure and SQL, the planner planes.
+   */
+  const page = new PageApp({
+    host,
+    hostMenu: () => [
+      // ONLY IF THE PAGE CAN OPEN FILES. Without `models` the
+      // bar's controls are inert -- this page's planner compiles a
+      // fixed model -- and an entry that opens a panel of dead
+      // controls is the dead-button fault one layer up.
+      ...(models
+        ? [
+          // saved pages: in this browser, over the sources they were built on
+          { id: 'host.save' as const, label: 'Save', section: 'file' as const },
+          { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const },
+          { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const },
+          // the page's settings in a link: never a row of data (src/share/link.ts)
+          { id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const },
+        ]
+        : []),
+      { id: 'host.query', label: 'Generated Pure & SQL\u2026', section: 'view' as const },
+      // The planes, as entries rather than a control: the bar is
+      // for what you watch, the menu for what you do occasionally.
+      // The one you are ON is disabled rather than hidden, so the
+      // menu still says where the work happens.
+      ...planeMenu(),
+    ],
+    onHostMenu: (item) => onHostItem(item),
+    // THE EMPTY PAGE (New ▸ Blank Page, the last grid removed, a start that opened nothing): what to do first -- a
+    // data source (the picker, opening in place) or a saved page
+    empty: (slot) => {
+      const doc = document;
+      const blank = doc.createElement('div');
+      blank.className = 'dc-blank';
+      const card = doc.createElement('div');
+      card.className = 'dc-blank-card';
+      const title = doc.createElement('h2');
+      title.className = 'dc-blank-title';
+      title.textContent = 'A blank page';
+      const lead = doc.createElement('p');
+      lead.className = 'dc-blank-lead';
+      lead.textContent = models
+        ? 'Start with a data source: a file from your computer, an example, a table in a warehouse, or a remote Parquet, CSV or Iceberg file.'
+        : 'This planner opens only the sample.';
+      const why = doc.createElement('p');
+      why.className = 'dc-blank-reason';
+      why.setAttribute('role', 'alert');
+      why.hidden = true;
+      emptyReason = why;
+      card.append(title, lead, why);
+      if (models) {
+        const actions = doc.createElement('div');
+        actions.className = 'dc-blank-actions';
+        const add = doc.createElement('button');
+        add.type = 'button';
+        add.className = 'dc-picker-button dc-primary';
+        add.textContent = 'Add a data source';
+        add.addEventListener('click', () => void picker?.('open'));
+        const saved = doc.createElement('button');
+        saved.type = 'button';
+        saved.className = 'dc-picker-button dc-quiet';
+        saved.textContent = 'Open a saved cube';
+        saved.addEventListener('click', () => showCubes?.());
+        actions.append(add, saved);
+        card.append(actions);
+      }
+      blank.append(card);
+      slot.append(blank);
+    },
+    ...(models ? {
+      // New ▸ Data Source…: a grid over another source, through the picker, beside the others
+      openSource: () => picker?.('add') ?? Promise.resolve(undefined),
+      onBlankPage: () => blankPage?.(),
+    } : {}),
+    onChange: () => {
+      harnessSignal.changes += 1;
+      onCubeView?.();
+    },
+    onSettingsChanged: (values) => {
+      try {
+        window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(values));
+      } catch {
+        // storage refused (private window, quota): the settings hold
+        // for this visit
+      }
+    },
+    download: (name, mime, text) => download(name, mime, text),
+  });
+  // For the browser harness ONLY: the page, its views and its layout. Not product code.
+  (window as unknown as { __dataPage?: PageApp }).__dataPage = page;
+
   if (start.kind === 'sample') {
-    app = makeApp(await sampleSnapshot(), configuration, DEMO_DIMENSIONS,
-      { snapTarget, ...(generated ? { heldCopy: generated } : {}) });
-    await app.open();
+    page.addGrid(gridMaker(await sampleSnapshot(), configuration, DEMO_DIMENSIONS,
+      { snapTarget, ...(generated ? { heldCopy: generated } : {}) }));
+    await page.ready();
   }
 
   // OPENING A FILE.
@@ -778,15 +844,44 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       },
     });
 
-    /** A warehouse table IN PLACE of the cube: Live there as the user, Snap into this tab. */
-    async function openTable(signedIn: WarehouseSession, chosen: CatalogObject, saved?: Saved): Promise<{
-      readonly live: WarehouseEngine; readonly excluded: readonly string[]; readonly notes: readonly string[];
-    }> {
+    /**
+     * A SOURCE OPENED FOR A GRID: what makes the grid -- its own planner over its own model, its source written down so
+     * the page can be saved -- and, a saved cube rebuilt over it, what opening it left out.
+     */
+    type Opened = {
+      readonly make: GridMaker;
+      readonly label: string;
+      readonly notes: readonly string[];
+      /** An overtaken open (a newer one went ahead): what it read into this tab, let go. */
+      readonly discard?: () => Promise<void>;
+    };
+
+    /**
+     * A saved cube rebuilt over a source (`relation`, its `columns` as the compiler types them now) -- its view, its
+     * configuration, the groups it had open, what it had that the source no longer has -- or a fresh one: its rows as
+     * they are, grouped by nothing; `capped` (a source added beside others), up to the row limit (the user,
+     * 2026-10-01: "showing the max rows configured (1000 default)").
+     */
+    const rebuilt = (saved: CubeDocument | undefined, relation: ValueSpecification, columns: CubeSnapshot['columns'],
+      label: string, capped: boolean): { snapshot: CubeSnapshot; configuration: CubeConfiguration; tree?: TreeState; notes: readonly string[] } => {
+      if (!saved) {
+        return {
+          snapshot: rawRows(relation, columns),
+          configuration: { ...DEFAULT_CONFIGURATION, reportTitle: label, ...(capped ? { maxRows: DEFAULT_MAX_ROWS } : {}) },
+          notes: [],
+        };
+      }
+      const cube = openCube(saved, { query: relation }, columns);
+      return { snapshot: cube.snapshot, configuration: cube.configuration, ...(cube.tree ? { tree: cube.tree } : {}), notes: cube.notes };
+    };
+
+    /** A warehouse table for a grid: Live there as the user, Snap into this tab; its own planner over its model. */
+    async function openedTable(signedIn: WarehouseSession, chosen: CatalogObject, saved?: CubeDocument, capped = false): Promise<Opened> {
       // A warehouse table is read-only: a column the compiler says must be
       // converted to be declared cannot be, so it is left out, and named.
       const m = await warehouseModel(chosen);
-      local.use(m.model, m.runtime, { bitColumns: m.bitColumns });
-      const columns = await sourceColumns(planner, m.source);
+      const own = local.another(m.model, m.runtime, { bitColumns: m.bitColumns });
+      const columns = await sourceColumns(own, m.source);
       const live = track(new WarehouseEngine(signedIn, chosen.catalog));
       const name = `${chosen.schema}.${chosen.name}`;
       // where it is, never the sign-in: whoever reopens it signs in as themselves
@@ -794,185 +889,160 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         _type: 'warehouseTable', name, warehouse: signedIn.baseUrl, catalog: chosen.catalog, schema: chosen.schema, table: chosen.name,
         columns: columns.map((c) => ({ name: c.name, type: c.type })),
       };
-      const notes = await landCube({
-        relation: m.source, columns, label: name, cubeSource,
-        place: { live, ...snapOf(chosen, m) },
-        ...(saved ? { saved } : {}),
-      });
-      return { live, excluded: m.excluded, notes };
+      const r = rebuilt(saved, m.source, columns, name, capped);
+      return {
+        label: name,
+        notes: r.notes,
+        make: gridMaker(r.snapshot, r.configuration, [], {
+          planner: own, live, ...snapOf(chosen, m), cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
+        }),
+      };
     }
 
-    // THE CUBE ON SCREEN, as a saved cube sees it: the file it reads (by identity, and the
-    // File itself so a cube saved over the same file reopens without asking), the handle the
-    // browser gave for it (to reopen it from where it was picked), and the saved cube it
-    // came from (a Save then saves over it).
+    // THE PAGE ON SCREEN, as a saved page sees it: the saved page it came from (a Save then saves over it), its name,
+    // what a newer writer put in it (written back as it was), the definition it had when saved or first opened
+    // ("changed since saved" compares to it), and what opening left out of it. And each grid's file (by the grid's
+    // id): the File itself, so a page saved over the same file reopens without asking, and the handle the browser gave
+    // for it, to reopen it from where it was picked.
     let library: CubeLibrary | undefined;
     let current: {
-      source?: CubeSource;
-      file?: File;
-      handle?: FileHandle;
       cubeId?: string;
       name?: string;
-      unknown?: Readonly<Record<string, unknown>>;
+      /** Fields of the saved PAGE this reader does not know, and of each of its cubes, written back as they were. */
+      pageUnknown?: Readonly<Record<string, unknown>>;
+      cubeUnknown?: ReadonlyMap<string, Readonly<Record<string, unknown>>>;
       /** The definition as saved, or as first opened: "changed since saved" compares to it. */
       baseline?: string;
-      /** What opening left out of the saved copy (its file changed): saving over it loses them. */
+      /** What opening left out of the saved page (a file changed, a source not opened): saving over it loses them. */
       lost?: readonly string[];
-      /** Fields of the saved PAGE this reader does not know, written back as they were. */
-      pageUnknown?: Readonly<Record<string, unknown>>;
     } = {};
-
-    /**
-     * What saving now would write -- always ONE kind of thing, the page (page-document.ts):
-     * the cube inside it, and its charts and layout, if any -- and its definition, for
-     * "changed since saved".
-     */
-    const savedForm = (name: string): { content: Record<string, unknown>; definition: string } | undefined => {
-      if (!app) return undefined;
-      const page = app.pageDocument(name, {
-        ...(current.unknown ? { cube: current.unknown } : {}),
-        ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
-      });
-      return page && { content: pageContent(page), definition: pageDefinitionText(page) };
+    /** Each grid's file, by the grid's id: the File, the handle it was picked through, its fingerprint, a sample's. */
+    const files = new Map<string, { readonly file: File; readonly handle?: FileHandle; readonly sha256: string; readonly sample: boolean }>();
+    madeGrid = (id, place) => {
+      const src = place.cubeSource;
+      if (place.file && src?._type === 'file') {
+        files.set(id, { ...place.file, sha256: src.sha256, sample: src.sample !== undefined });
+      }
     };
 
-    /** The cube on screen (and its charts) differs from what was saved (or first opened). */
+    /**
+     * What saving now would write -- always ONE kind of thing, the page (page-document.ts): one cube per grid, its
+     * charts and layout -- and its definition, for "changed since saved".
+     */
+    const savedForm = (name: string): { content: Record<string, unknown>; definition: string } | undefined => {
+      const doc = page.document(name, {
+        ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
+        ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
+      });
+      return doc && { content: pageContent(doc), definition: pageDefinitionText(doc) };
+    };
+
+    /** The page on screen differs from what was saved (or first opened). */
     const dirty = (): boolean => {
-      if (!current.source || current.baseline === undefined) return false;
+      if (current.baseline === undefined) return false;
       if ((current.lost?.length ?? 0) > 0) return true;
-      const now = savedForm(current.name ?? 'cube');
+      const now = savedForm(current.name ?? (page.title || 'page'));
       return now !== undefined && now.definition !== current.baseline;
     };
     const baseTitle = document.title;
     onCubeView = () => {
       const changed = dirty();
-      document.title = current.source
-        ? `${changed ? '\u2022 ' : ''}${current.name ?? current.source.name} \u2013 ${baseTitle}`
-        : baseTitle;
+      document.title = page.empty
+        ? baseTitle
+        : `${changed ? '\u2022 ' : ''}${current.name ?? (page.title || 'page')} \u2013 ${baseTitle}`;
       library?.sync();
     };
     // Leaving the page with unsaved changes asks, the browser's way.
     work.add(() => (dirty() ? 'unsaved changes' : undefined));
-    work.add(() => (current.source?._type === 'file' && !current.source.sample
-      ? `the file opened in this tab (${current.source.name})` : undefined));
+    work.add(() => {
+      const opened = page.grids.map((id) => files.get(id)).filter((f) => f !== undefined && !f.sample);
+      return opened.length > 0 ? `the file${opened.length === 1 ? '' : 's'} opened in this tab (${opened.map((f) => f!.file.name).join(', ')})` : undefined;
+    });
     window.addEventListener('beforeunload', (event) => {
       if (leaving || work.what() === undefined) return;
       event.preventDefault();
       event.returnValue = '';
     });
 
-    /**
-     * Read a file into this tab and build a cube over it: a fresh one, or -- `saved` -- a
-     * saved cube reconciled with what the file holds NOW.
-     */
+    /** LATEST WINS: each open in place takes a number, and one overtaken by a newer open lands nothing (P2-330). */
     const opens = new Latest();
-    /** The table the newest open reads: an overtaken open never drops it. */
-    let latestTable = '';
-    async function openFile(
+
+    /**
+     * A FILE FOR A GRID, read into this tab under a table of its own (no grid's table is ever replaced by another's):
+     * a fresh grid, or -- `saved` -- a saved cube reconciled with what the file holds NOW.
+     */
+    async function openedFile(
       file: File,
       how: {
         readonly handle?: FileHandle;
         readonly sample?: { readonly id: string; readonly rows: number };
-        readonly saved?: { readonly doc: CubeDocument; readonly id?: string; readonly page?: PageDocument };
+        readonly saved?: CubeDocument;
+        readonly capped?: boolean;
       } = {},
-    ): Promise<readonly string[]> {
-      // Replacing a cube with unsaved changes asks first (opening a saved one asked already).
-      if (!how.saved && dirty()
-        && !window.confirm(`The cube on screen has unsaved changes. Open ${file.name} anyway?`)) {
-        return [];
-      }
-      // LATEST WINS: each open takes a number (once it is going ahead), and one overtaken by a
-      // newer open stops at its next wait, before it touches the model or the cube (P2-330).
-      const newest = opens.start();
-      latestTable = tableNameOf(file.name);
+    ): Promise<Opened> {
       try {
-        const opened = await ingestFile(engine, db, file, tables);
+        const table = freshTable(tableNameOf(file.name));
+        const opened = await ingestFile(engine, db, file, tables, { table });
         const loadedAt = new Date();
-        if (!newest()) {
-          // overtaken: nothing of this open is kept -- unless a newer open, or the cube on
-          // screen, reads a table of the same name
-          const mine = tableNameOf(file.name);
-          if (mine !== latestTable && (current.source?._type !== 'file' || tableNameOf(current.source.name) !== mine)) {
-            await forgetUpload(engine, db, file.name).catch(() => {});
-          }
-          return [];
-        }
-        local.use(opened.model, opened.runtime, { bitColumns: opened.bitColumns });
-        const columns = await sourceColumns(planner, opened.source);
+        const own = local.another(opened.model, opened.runtime, { bitColumns: opened.bitColumns });
+        const columns = await sourceColumns(own, opened.source);
         const source = await fileSource(file, formatOf(file.name), columns, how.sample);
-        if (!newest()) return [];
         const saved = how.saved;
-        let snap: CubeSnapshot;
-        let config: CubeConfiguration;
-        let notes: readonly string[] = [];
-        let tree: TreeState | undefined;
-        if (saved) {
-          const cube = openCube(saved.doc, { query: opened.source }, columns);
-          snap = cube.snapshot;
-          config = cube.configuration;
-          tree = cube.tree;
-          notes = [
-            ...(saved.doc.source._type !== 'file' || source.sha256 !== saved.doc.source.sha256
+        const r = rebuilt(saved, opened.source, columns, opened.fileName, how.capped === true);
+        const notes = saved
+          ? [
+            ...(saved.source._type !== 'file' || source.sha256 !== saved.source.sha256
               ? [`${file.name} is not the file this cube was saved over (its contents differ)`]
               : []),
-            ...cube.notes,
-          ];
-        } else {
-          // A freshly opened file groups by nothing: show the rows as
-          // they are and let the user build the cube up. Guessing at
-          // dimensions and measures would be wrong more often than
-          // the guess is worth.
-          snap = {
-            source: { query: opened.source },
-            columns,
-            derived: [],
-            rows: [],
-            pivotOn: [],
-            measures: [],
-            sorts: [],
-            epoch: 1,
-          };
-          config = {
-            ...DEFAULT_CONFIGURATION,
-            reportTitle: opened.fileName,
-          };
-        }
-        app?.dispose();
-        app = makeApp(snap, config, [], {
-          cubeSource: source,
-          heldCopy: { label: opened.fileName, takenAt: loadedAt, rowCount: opened.rowCount },
-          ...(tree ? { tree } : {}),
-        });
-        current = {
-          source,
-          file,
-          ...(how.handle ? { handle: how.handle } : {}),
-          ...(saved?.id ? { cubeId: saved.id } : {}),
-          ...(saved ? { name: saved.doc.name } : {}),
-          ...(saved?.doc.unknown ? { unknown: saved.doc.unknown } : {}),
-          ...(saved?.page?.unknown ? { pageUnknown: saved.page.unknown } : {}),
+            ...r.notes,
+          ]
+          : [];
+        return {
+          label: opened.fileName,
+          notes,
+          discard: () => forgetUpload(engine, db, file.name, table).catch(() => {}),
+          make: gridMaker(r.snapshot, r.configuration, [], {
+            planner: own,
+            cubeSource: source,
+            heldCopy: { label: opened.fileName, takenAt: loadedAt, rowCount: opened.rowCount },
+            label: opened.fileName,
+            ...(r.tree ? { tree: r.tree } : {}),
+            file: { file, ...(how.handle ? { handle: how.handle } : {}) },
+            foldPanel: how.capped === true,
+          }),
         };
-        // open() is what runs the first query; without it the
-        // chrome renders and the grid stays empty.
-        await app.open();
-        // a saved page: its charts and layout, around the cube just opened
-        if (saved?.page) await app.restoreViews(saved.page);
-        // The baseline is the cube as it LANDED (normalized by its first refresh); a cube
-        // opened with parts left out is changed from the start.
-        const landed = savedForm(current.name ?? 'cube');
-        current = {
-          ...current,
-          ...(landed ? { baseline: landed.definition } : {}),
-          lost: notes.filter((n) => n.startsWith('left out')),
-        };
-        onCubeView?.();
-        library?.sync();
-        return notes;
       } catch (e) {
         // Say what failed and about which file -- the one input the user can actually fix. Shown
-        // where the open was asked: the source picker's window, or the saved cubes'.
+        // where the open was asked: the source picker's window, or the saved pages'.
         throw new Error(`could not open ${file.name}: ${e instanceof Error ? e.message : String(e)}`, { cause: e });
       }
+    }
+
+    /**
+     * A SOURCE IN PLACE of the page: everything on it goes (asked first when there are unsaved changes), then one grid
+     * over the source -- fresh, the page's name its. An open overtaken by a newer one lands nothing.
+     */
+    async function inPlace(open: () => Promise<Opened>, what: string): Promise<readonly string[]> {
+      if (dirty() && !window.confirm(`The page has unsaved changes. Open ${what} anyway?`)) return [];
+      const newest = opens.start();
+      const o = await open();
+      if (!newest()) {
+        await o.discard?.();
+        return [];
+      }
+      page.clear();
+      files.clear();
+      current = {};
+      // the page has no name of its own until saved: its bar says the grid's report title (its source's name)
+      page.setTitle('');
+      page.addGrid(o.make);
+      await page.ready();
+      // The baseline is the page as it LANDED (normalized by its first refresh)
+      const landed = savedForm(page.title || 'page');
+      current = { ...(landed ? { baseline: landed.definition } : {}), lost: [] };
+      onCubeView?.();
+      library?.sync();
+      return o.notes;
     }
 
     // SAVED CUBES, in this browser: IndexedDB when the browser gives it, else memory (this
@@ -1000,7 +1070,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
      */
     async function fileFor(
       doc: FileCube,
-      id: string | undefined,
+      keys: readonly string[],
     ): Promise<{ file: File; handle?: FileHandle } | undefined> {
       const src = doc.source;
       if (src.sample) {
@@ -1009,10 +1079,10 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
           return { file: new File([s.build(src.sample.rows)], src.name, { type: mimeOf(s) }) };
         }
       }
-      if (current.file && current.source?._type === 'file' && current.source.sha256 === src.sha256) {
-        return { file: current.file, ...(current.handle ? { handle: current.handle } : {}) };
-      }
-      const kept = id !== undefined ? await handles?.get(id) : undefined;
+      const open = [...files.values()].find((f) => f.sha256 === src.sha256);
+      if (open) return { file: open.file, ...(open.handle ? { handle: open.handle } : {}) };
+      let kept: FileHandle | undefined;
+      for (const key of keys) kept ??= await handles?.get(key);
       if (kept) {
         const read = await readHandle(kept, false);
         if (read.state === 'file') return { file: read.file, handle: kept };
@@ -1075,68 +1145,111 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       });
     }
 
-    /** Open a saved cube or page (from the store, or a file someone handed over). */
-    async function openSaved(saved: SavedDocument, id: string | undefined): Promise<void> {
-      if (saved.kind === 'cube') return openDocument(saved.cube, id);
-      const [first, ...more] = saved.page.cubes;
-      if (!first || more.length > 0) {
-        throw new Error(`"${saved.page.name}" holds ${saved.page.cubes.length} cubes; opening a page of several is not built yet`);
-      }
-      return openDocument(first.cube, id, saved.page);
-    }
+    /**
+     * Where a saved page keeps the handle of the file a grid reads: by the page and the grid -- or, saved before a page
+     * held several grids, by the page alone.
+     */
+    const handleKeys = (pageId: string | undefined, grid: string): string[] => (pageId === undefined ? [] : [`${pageId}#${grid}`, pageId]);
 
-    /** Open a saved cube (from the store, or a file someone handed over), with the page around it. */
-    async function openDocument(doc: CubeDocument, id: string | undefined, page?: PageDocument): Promise<void> {
-      const saved: Saved = { doc, ...(id !== undefined ? { id } : {}), ...(page ? { page } : {}) };
-      if (doc.source._type !== 'file') {
-        const src = doc.source;
-        const notes = src._type === 'savedQuery' ? await openQueryCube(await openedRecord(await pageConfig(), src.query), saved)
-          : src._type === 'warehouseTable' ? await reopenTable(src, saved)
-            : await reopenRemote(src, saved);
-        if (notes === undefined) {
-          library?.say(`not opened: "${doc.name}" needs ${src._type === 'warehouseTable' ? 'a sign-in' : 'its keys'}`, 'warn');
-          return;
-        }
-        library?.say(notes.length === 0
-          ? `opened "${doc.name}"`
-          : `opened "${doc.name}", with changes since it was saved:\n${notes.map((n) => `- ${n}`).join('\n')}`,
-        notes.length === 0 ? 'ok' : 'warn');
-        if (notes.length === 0) closeCubes?.();
-        return;
-      }
+    /** A cube saved alone, before pages: a page of its one grid, the whole board. */
+    const pageOf = (cube: CubeDocument): PageDocument => ({
+      kind: 'datacube.page',
+      version: 2,
+      name: cube.name,
+      cubes: [{ id: 'cube', cube }],
+      views: [{ id: 'grid', kind: 'grid', cube: 'cube' }],
+      layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] },
+    });
+
+    /**
+     * A saved cube's source opened again, the least intrusive way that works (a file asked for, a saved query rerun, a
+     * warehouse signed in to, a remote file's keys asked for): its grid's maker, or undefined when the person gave up.
+     */
+    async function reopened(doc: CubeDocument, keys: readonly string[], several: boolean): Promise<Opened | undefined> {
+      const src = doc.source;
+      // `several`: one of a page's grids, its columns panel folded as a grid added beside others is
+      if (src._type === 'savedQuery') return openedSavedQuery(await openedRecord(await pageConfig(), src.query), doc, several);
+      if (src._type === 'warehouseTable') return reopenTable(src, doc, several);
+      if (src._type === 'remoteFile') return reopenRemote(src, doc, several);
       if (!isFileCube(doc)) throw new Error(`"${doc.name}" reads a source this page cannot open`);
-      const got = await fileFor(doc, id);
-      if (!got) {
-        library?.say('not opened: no file chosen', 'warn');
-        return;
-      }
-      const notes = await openFile(got.file, {
+      const got = await fileFor(doc, keys);
+      if (!got) return undefined;
+      return openedFile(got.file, {
         ...(got.handle ? { handle: got.handle } : {}),
         ...(doc.source.sample ? { sample: doc.source.sample } : {}),
-        saved: { doc, ...(id !== undefined ? { id } : {}), ...(page ? { page } : {}) },
+        saved: doc,
+        capped: several,
       });
-      if (id !== undefined && got.handle) await handles?.put(id, got.handle);
+    }
+
+    /**
+     * OPEN A SAVED PAGE (from the store, a file someone handed over, a share link): each of its cubes through its own
+     * source, in turn, then the page laid out as it was saved -- its grids under their saved ids, its charts, its
+     * layout. A cube whose source was not opened is left out, and said; saving over the page would lose it.
+     */
+    async function openSaved(saved: SavedDocument, id: string | undefined): Promise<void> {
+      const doc = saved.kind === 'page' ? saved.page : pageOf(saved.cube);
+      if (dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return;
+      const makers = new Map<string, GridMaker>();
+      const notes: string[] = [];
+      for (const { id: cubeId, cube } of doc.cubes) {
+        const o = await reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), doc.cubes.length > 1);
+        if (!o) {
+          notes.push(`left out: ${cube.source.name} (not opened)`);
+          continue;
+        }
+        makers.set(cubeId, o.make);
+        notes.push(...o.notes);
+      }
+      if (makers.size === 0) {
+        library?.say(`not opened: "${doc.name}" -- none of its sources was opened`, 'warn');
+        return;
+      }
+      files.clear();
+      page.restore(doc, makers);
+      page.setTitle(doc.name);
+      await page.ready();
+      current = {
+        ...(id !== undefined ? { cubeId: id } : {}),
+        name: doc.name,
+        ...(doc.unknown ? { pageUnknown: doc.unknown } : {}),
+        cubeUnknown: new Map(doc.cubes.filter((c) => c.cube.unknown).map((c) => [gridOfCube(doc, c.id), c.cube.unknown!])),
+      };
+      // The baseline is the page as it LANDED (normalized by its first refresh); a page opened with parts left out is
+      // changed from the start.
+      const landed = savedForm(doc.name);
+      current = { ...current, ...(landed ? { baseline: landed.definition } : {}), lost: notes.filter((n) => n.startsWith('left out')) };
+      onCubeView?.();
+      library?.sync();
       library?.say(notes.length === 0
         ? `opened "${doc.name}"`
         : `opened "${doc.name}", with changes since it was saved:\n${notes.map((n) => `- ${n}`).join('\n')}`,
       notes.length === 0 ? 'ok' : 'warn');
-      // opened cleanly: the window goes, the cube is what the person wanted to see
+      // opened cleanly: the window goes, the page is what the person wanted to see
       if (notes.length === 0) closeCubes?.();
     }
 
-    /** Save the cube on screen: over its saved copy, or as a new one (the Save window's act). */
+    /** The grid a saved page's cube is shown in (its grid view's id), or the cube's own id (a detached chart's). */
+    const gridOfCube = (doc: PageDocument, cube: string): string =>
+      doc.views.find((v) => v.kind === 'grid' && v.cube === cube)?.id ?? cube;
+
+    /** Save the page on screen: over its saved copy, or as a new one (the Save window's act). */
     async function saveTo(name: string, asNew: boolean): Promise<void> {
-      if (!app) throw new Error('There is no cube to save: open a data source first.');
-      const refused = app.saveRefusal();
+      const refused = page.saveRefusal();
       if (refused) throw new Error(refused);
       const form = savedForm(name);
-      if (!form) throw new Error('This cube cannot be saved yet: it does not know its source.');
+      if (!form) throw new Error('This page cannot be saved yet: a grid on it does not know its source.');
       const id = !asNew && current.cubeId !== undefined ? current.cubeId : crypto.randomUUID();
       const record = { id, name, content: form.content };
       if (id === current.cubeId) await store.update(id, record);
       else await store.create(record);
-      if (current.handle) await handles?.put(id, current.handle);
+      // each grid's file, where it was picked: kept by the page and the grid
+      for (const grid of page.grids) {
+        const handle = files.get(grid)?.handle;
+        if (handle) await handles?.put(`${id}#${grid}`, handle);
+      }
       current = { ...current, cubeId: id, name, baseline: form.definition, lost: [] };
+      page.setTitle(name);
       onCubeView?.();
       if (!persistent) persistent = await persistStorage();
       library?.sync();
@@ -1149,6 +1262,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       openText: async (text) => openSaved(readSaved(text), undefined),
       forget: async (id) => {
         await handles?.remove(id);
+        for (const grid of page.grids) await handles?.remove(`${id}#${grid}`);
         if (current.cubeId === id) {
           const { cubeId: _gone, ...rest } = current;
           current = rest;
@@ -1214,37 +1328,56 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     };
     // THE MENU'S SAVE AND SAVE AS: a window of their own (src/ui/save-dialog.ts) -- the name, where
     // it is kept, what is saved and what is not (the rows), and what saving over would drop
+    /** What each grid's source needs to be read again, in words, once per kind of source on the page. */
+    const sourcesSaid = (doc: PageDocument | undefined, how: 'save' | 'share'): string => {
+      const said = new Set<string>();
+      for (const { cube } of doc?.cubes ?? []) {
+        const src = cube.source;
+        said.add(how === 'save'
+          ? src._type === 'savedQuery' ? `opening it runs the saved query “${src.name}” again`
+            : src._type === 'warehouseTable' ? `opening it reads ${src.name} on the warehouse again, signed in as whoever opens it`
+              : src._type === 'remoteFile' ? `opening it reads ${src.name} again from its URL`
+                : src.sample ? `the example (${src.sample.rows.toLocaleString(UI_LOCALE)} rows) is generated again when it opens`
+                  : `opening it reads ${src.name} again, from your computer`
+          : src._type === 'savedQuery' ? `it reads the saved query “${src.name}” again, where its project (${src.query.groupId}:${src.query.artifactId}) is known`
+            : src._type === 'warehouseTable' ? `whoever opens it signs in to the warehouse as themselves and needs to be granted ${src.name}; no sign-in is in the link`
+              : src._type === 'remoteFile' ? `it reads ${src.url} again; no keys are in the link, a private bucket asks for them`
+                : src.sample ? 'it rebuilds its sample on its own'
+                  : `whoever opens it needs ${src.name}`);
+      }
+      return [...said].join('; ');
+    };
+
+    // THE MENU'S SAVE AND SAVE AS: a window of their own (src/ui/save-dialog.ts) -- the name, where
+    // it is kept, what is saved and what is not (the rows), and what saving over would drop
     saveCube = (asNew) => {
-      const cube = app;
-      if (!cube) {
-        library?.say('There is no cube to save: open a data source first.', 'warn');
+      if (page.empty) {
+        library?.say('There is nothing on this page to save: add a data source first.', 'warn');
         return;
       }
       void (async () => {
-        const refused = cube.saveRefusal();
-        const offered = current.name ?? cube.configuration.reportTitle ?? current.source?.name ?? 'cube';
+        const refused = page.saveRefusal();
+        const offered = current.name ?? (page.title || 'page');
         const savedAt = current.cubeId !== undefined ? (await store.get(current.cubeId).catch(() => undefined))?.lastUpdatedAt : undefined;
-        const s = cube.snapshot;
-        const charts = cube.pageViews().views.filter((v) => v.kind === 'chart').length;
-        const keeps = [
-          s.rows.length > 0 ? `Grouped by ${s.rows.join(', ')}` : 'Its rows as they are, grouped by nothing',
-          ...(s.pivotOn.length > 0 ? [`Pivoted on ${s.pivotOn.join(', ')}`] : []),
-          ...(s.filter ? ['Its filter'] : []),
+        const doc = page.document(offered);
+        const views = page.views().views;
+        const charts = views.filter((v) => v.kind === 'chart').length;
+        const grids = page.grids.map((id) => ({ title: views.find((v) => v.id === id && v.kind === 'grid')?.title ?? id, grid: page.grid(id)! }));
+        const shape = (s: CubeSnapshot): string => [
+          s.rows.length > 0 ? `grouped by ${s.rows.join(', ')}` : 'its rows as they are, grouped by nothing',
+          ...(s.pivotOn.length > 0 ? [`pivoted on ${s.pivotOn.join(', ')}`] : []),
+          ...(s.filter ? ['its filter'] : []),
           ...(s.derived.length + (s.groupDerived?.length ?? 0) > 0
             ? [`${s.derived.length + (s.groupDerived?.length ?? 0)} calculated column${s.derived.length + (s.groupDerived?.length ?? 0) === 1 ? '' : 's'}`] : []),
+        ].join(', ');
+        const keeps = [
+          ...(grids.length === 1
+            ? [shape(grids[0]!.grid.snapshot).replace(/^./, (c) => c.toUpperCase())]
+            : grids.map(({ title, grid }) => `${title}: ${shape(grid.snapshot)}`)),
           ...(charts > 0 ? [`${charts} visualization${charts === 1 ? '' : 's'}, and the page's layout`] : []),
-          'Its formats, widths, colours and settings',
+          grids.length > 1 ? 'Each grid\'s formats, widths, colours and settings' : 'Its formats, widths, colours and settings',
         ];
-        const src = current.source;
-        const leaves = src?._type === 'savedQuery'
-          ? `Not the rows: opening it runs the saved query “${src.name}” again.`
-          : src?._type === 'warehouseTable'
-            ? `Not the rows, and not your sign-in: opening it reads ${src.name} on the warehouse again, signed in as whoever opens it.`
-            : src?._type === 'remoteFile'
-              ? `Not the rows, and not its keys: opening it reads ${src.name} again from its URL.`
-          : src?.sample
-            ? `Not the rows: the example (${src.sample.rows.toLocaleString(UI_LOCALE)} rows) is generated again when it opens.`
-            : `Not the rows: opening it reads ${src?.name ?? 'its file'} again, from your computer.`;
+        const leaves = `Not the rows: ${sourcesSaid(doc, 'save') || 'opening it reads its sources again'}.`;
         await saveDialog(document, {
           purpose: asNew ? 'saveAs' : 'save',
           name: offered,
@@ -1254,7 +1387,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
           keeps,
           leaves,
           ...(current.lost?.length
-            ? { warning: `The saved “${current.name ?? 'cube'}” has parts this file cannot show: ${current.lost.join('; ')}.` } : {}),
+            ? { warning: `The saved “${current.name ?? 'page'}” has parts this page cannot show: ${current.lost.join('; ')}.` } : {}),
           save: async (name, saveAsNew) => {
             if (refused) throw new Error(refused);
             await saveTo(name, saveAsNew);
@@ -1268,40 +1401,29 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     // SHARE: the link in a window of its own, shown and copied to the clipboard at once, with a
     // way to copy it again -- and what it holds (the page's settings, never its data) said there.
     copyShareLink = async () => {
-      const cube = app;
-      // nothing on screen is said the way any unsharable cube is: in the window, not as a dead button
-      const refused = cube ? cube.saveRefusal() : 'There is no cube to share: open a data source first.';
-      const name = current.name ?? cube?.configuration.reportTitle ?? current.source?.name ?? 'cube';
-      const page = refused || !cube ? undefined : cube.pageDocument(name, {
-        ...(current.unknown ? { cube: current.unknown } : {}),
+      // nothing on screen is said the way any unsharable page is: in the window, not as a dead button
+      const refused = page.saveRefusal();
+      const name = current.name ?? (page.title || 'page');
+      const shared = refused ? undefined : page.document(name, {
         ...(current.pageUnknown ? { page: current.pageUnknown } : {}),
+        ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
       });
       const field = must('sharelink') as HTMLTextAreaElement;
       const note = must('sharenote');
       const copy = must('sharecopy') as HTMLButtonElement;
       showHostWindow('sharewin', { width: 560, height: 200 });
       // nothing to copy: the window says why, without an empty link and a dead button
-      field.hidden = !page;
-      copy.hidden = !page;
-      if (!page) {
+      field.hidden = !shared;
+      copy.hidden = !shared;
+      if (!shared) {
         field.value = '';
-        note.textContent = refused ?? 'This cube cannot be shared yet: only cubes over a file are.';
+        note.textContent = refused ?? 'This page cannot be shared yet: a grid on it does not know its source.';
         note.className = 'sharenote bad';
         return;
       }
-      const link = shareLink(location.href, page);
+      const link = shareLink(location.href, shared);
       field.value = link.url;
-      const src = page.cubes[0]?.cube.source;
-      const needs = src?._type === 'savedQuery'
-        ? `it reads the saved query “${src.name}” again, where its project (${src.query.groupId}:${src.query.artifactId}) is known`
-        : src?._type === 'warehouseTable'
-          ? `whoever opens it signs in to the warehouse as themselves and needs to be granted ${src.name}; no sign-in is in the link`
-          : src?._type === 'remoteFile'
-            ? `it reads ${src.url} again; no keys are in the link, a private bucket asks for them`
-            : src?.sample
-          ? 'it rebuilds its sample on its own'
-          : `whoever opens it needs ${src?.name ?? 'the same file'}`;
-      const about = `It holds the page's settings, filter values included, not its data; ${needs}.`;
+      const about = `It holds the page's settings, filter values included, not its data; ${sourcesSaid(shared, 'share')}.`;
       const put = async (): Promise<void> => {
         field.select();
         try {
@@ -1342,10 +1464,13 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       | { readonly kind: 'saved'; readonly query: OpenedQuery };
     /** The picker's warehouse sign-in, kept between openings of the window. */
     let signedIn: { readonly session: WarehouseSession; readonly objects: readonly CatalogObject[] } | undefined;
-    /** Tables this page's added sources read: none may replace another's, or the cube's. */
-    const taken = new Set<string>();
+    /**
+     * The tables this page's grids read, each its own: none may replace another's. The demo's generated (or mounted)
+     * `trades` is the sample grid's from the start.
+     */
+    const taken = new Set<string>(['trades']);
     const freshTable = (base: string): string => {
-      const busy = (t: string): boolean => taken.has(t) || (current.source?._type === 'file' && tableNameOf(current.source.name) === t);
+      const busy = (t: string): boolean => taken.has(t);
       let name = base;
       for (let n = 2; busy(name); n += 1) name = `${base}_${n}`;
       taken.add(name);
@@ -1485,120 +1610,53 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       return { label: q.name, model, runtime: context.runtime, how, source, columns, planner: own, cubeSource, ...(versioned ? { engine: versioned } : {}) };
     }
 
-    /** A grid over the chosen source, beside the others: its own planner over its own model. */
-    async function gridOver(chosen: Chosen): Promise<GridSource> {
-      if (chosen.kind === 'saved') {
-        const o = chosen.query;
-        return { snapshot: rawRows(o.source, o.columns), place: { engine: o.engine ?? engine, planner: o.planner }, cubeSource: o.cubeSource, label: o.label };
-      }
-      if (chosen.kind === 'file') {
-        const opened = await ingestFile(engine, db, chosen.file, tables, { table: freshTable(tableNameOf(chosen.file.name)) });
-        const own = local.another(opened.model, opened.runtime, { bitColumns: opened.bitColumns });
-        return {
-          snapshot: rawRows(opened.source, await sourceColumns(own, opened.source)),
-          place: { engine, planner: own },
-          heldCopy: { label: opened.fileName, takenAt: new Date(), rowCount: opened.rowCount },
-          label: opened.fileName,
-        };
-      }
-      if (chosen.kind === 'table') {
-        const o = chosen.object;
-        const m = await warehouseModel(o);
-        const own = local.another(m.model, m.runtime, { bitColumns: m.bitColumns });
-        return {
-          snapshot: rawRows(m.source, await sourceColumns(own, m.source)),
-          place: { engine, planner: own, live: track(new WarehouseEngine(chosen.session, o.catalog)) },
-          ...snapOf(o, m),
-          label: `${o.schema}.${o.name}`,
-        };
-      }
-      const m = await mountedRemote(chosen.url, chosen.s3, freshTable('remote'));
-      const own = local.another(m.model, m.runtime, { bitColumns: m.bitColumns });
+    /** A saved query for a grid: its own planner over its project's model, its version's rows; the query written down. */
+    function openedSavedQuery(o: OpenedQuery, saved?: CubeDocument, capped = false): Opened {
+      const r = rebuilt(saved, o.source, o.columns, o.label, capped);
       return {
-        snapshot: rawRows(m.source, await sourceColumns(own, m.source)),
-        place: { engine, planner: own },
-        label: lastSegment(chosen.url),
+        label: o.label,
+        notes: r.notes,
+        make: gridMaker(r.snapshot, r.configuration, [], {
+          planner: o.planner, cubeSource: o.cubeSource, label: o.label, ...(o.engine ? { engine: o.engine } : {}),
+          ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
+        }),
       };
     }
 
-    /**
-     * A saved query's cube IN PLACE of the one on screen: fresh over the query, or -- `saved` -- a
-     * saved (or shared) cube rebuilt over it, its grouping, filters and charts put back. Its
-     * source is the query itself, so Save and Share write it down (cube-document.ts QuerySource).
-     */
-    async function openQueryCube(o: OpenedQuery, saved?: Saved): Promise<readonly string[]> {
-      local.use(o.model, o.runtime, o.how);
-      return landCube({ relation: o.source, columns: o.columns, label: o.label, cubeSource: o.cubeSource, ...(o.engine ? { place: { engine: o.engine } } : {}), ...(saved ? { saved } : {}) });
-    }
-
-    /**
-     * THE CUBE ON SCREEN, REPLACED by one over `relation` (the planner already over its model): a
-     * fresh one, or -- `saved` -- a saved (or shared) cube rebuilt over it, its grouping, filters
-     * and charts put back. Its source is written down (`cubeSource`), so Save and Share work.
-     * What opening left out of the saved cube is returned, to be said.
-     */
-    async function landCube(o: {
-      readonly relation: ValueSpecification;
-      readonly columns: CubeSnapshot['columns'];
-      readonly label: string;
-      readonly cubeSource: CubeSource;
-      readonly place?: { readonly live?: WarehouseEngine; readonly snapTarget?: SnapTarget; readonly engine?: QueryEngine };
-      readonly saved?: Saved;
-    }): Promise<readonly string[]> {
-      const saved = o.saved;
-      const cubeSource = o.cubeSource;
-      const cube = saved ? openCube(saved.doc, { query: o.relation }, o.columns) : undefined;
-      app?.dispose();
-      app = makeApp(cube?.snapshot ?? rawRows(o.relation, o.columns),
-        cube?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: o.label }, [],
-        { cubeSource, ...(o.place ?? {}), ...(cube?.tree ? { tree: cube.tree } : {}) });
-      current = {
-        source: cubeSource,
-        ...(saved?.id ? { cubeId: saved.id } : {}),
-        ...(saved ? { name: saved.doc.name } : {}),
-        ...(saved?.doc.unknown ? { unknown: saved.doc.unknown } : {}),
-        ...(saved?.page?.unknown ? { pageUnknown: saved.page.unknown } : {}),
+    /** A remote file for a grid, mounted as a view of its own; its keys are never written down. */
+    async function openedRemote(url: string, s3: S3Credentials | undefined, saved?: CubeDocument, capped = false): Promise<Opened> {
+      const m = await mountedRemote(url, s3, freshTable('remote'));
+      const own = local.another(m.model, m.runtime, { bitColumns: m.bitColumns });
+      const columns = await sourceColumns(own, m.source);
+      const name = lastSegment(url);
+      const cubeSource: RemoteSource = { _type: 'remoteFile', name, url, columns: columns.map((c) => ({ name: c.name, type: c.type })) };
+      const r = rebuilt(saved, m.source, columns, name, capped);
+      return {
+        label: name,
+        notes: r.notes,
+        make: gridMaker(r.snapshot, r.configuration, [], { planner: own, cubeSource, label: name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped }),
       };
-      await app.open();
-      if (saved?.page) await app.restoreViews(saved.page);
-      const notes = cube?.notes ?? [];
-      const landed = savedForm(current.name ?? 'cube');
-      current = { ...current, ...(landed ? { baseline: landed.definition } : {}), lost: notes.filter((n) => n.startsWith('left out')) };
-      onCubeView?.();
-      library?.sync();
-      return notes;
     }
 
-    /** The chosen source IN PLACE of the cube. */
-    async function openInPlace(chosen: Chosen): Promise<void> {
-      if (chosen.kind === 'saved') {
-        if (dirty() && !window.confirm(`The cube on screen has unsaved changes. Open ${chosen.query.label} anyway?`)) return;
-        await openQueryCube(chosen.query);
-        return;
-      }
+    /** The chosen source, opened for a grid: in place of the page, or -- `capped` -- added beside the others. */
+    function opened(chosen: Chosen, capped: boolean): Promise<Opened> {
+      if (chosen.kind === 'saved') return Promise.resolve(openedSavedQuery(chosen.query, undefined, capped));
       if (chosen.kind === 'file') {
-        await openFile(chosen.file, {
+        return openedFile(chosen.file, {
           ...(chosen.sample ? { sample: chosen.sample } : {}),
           ...(chosen.handle ? { handle: chosen.handle } : {}),
+          capped,
         });
-        return;
       }
-      if (chosen.kind === 'table') {
-        await openTable(chosen.session, chosen.object);
-        return;
-      }
-      await openRemote(chosen.url, chosen.s3);
+      if (chosen.kind === 'table') return openedTable(chosen.session, chosen.object, undefined, capped);
+      return openedRemote(chosen.url, chosen.s3, undefined, capped);
     }
 
-    /** A remote file IN PLACE of the cube -- fresh, or a saved cube rebuilt over it. Its keys are never written down. */
-    async function openRemote(url: string, s3: S3Credentials | undefined, saved?: Saved): Promise<readonly string[]> {
-      const m = await mountedRemote(url, s3, freshTable('remote'));
-      local.use(m.model, m.runtime, { bitColumns: m.bitColumns });
-      const columns = await sourceColumns(planner, m.source);
-      const cubeSource: RemoteSource = {
-        _type: 'remoteFile', name: lastSegment(url), url, columns: columns.map((c) => ({ name: c.name, type: c.type })),
-      };
-      return landCube({ relation: m.source, columns, label: lastSegment(url), cubeSource, ...(saved ? { saved } : {}) });
+    /** The chosen source IN PLACE of the page: it empties, then one grid over the source. */
+    async function openInPlace(chosen: Chosen): Promise<void> {
+      const what = chosen.kind === 'saved' ? chosen.query.label : chosen.kind === 'file' ? chosen.file.name
+        : chosen.kind === 'table' ? `${chosen.object.schema}.${chosen.object.name}` : lastSegment(chosen.url);
+      await inPlace(() => opened(chosen, false), what);
     }
 
     // THE QUERY STORE, through the one client (query-store/README.md): the server config.json names,
@@ -1619,14 +1677,14 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       return stores;
     };
 
-    picker = async (purpose: 'add' | 'open', start?: SectionId): Promise<GridSource | undefined> => {
+    picker = async (purpose: 'add' | 'open', start?: SectionId): Promise<GridMaker | undefined> => {
       const config = await pageConfig();
-      const act = async (chosen: Chosen): Promise<GridSource | null> => {
-        if (purpose === 'add') return gridOver(chosen);
+      const act = async (chosen: Chosen): Promise<GridMaker | null> => {
+        if (purpose === 'add') return (await opened(chosen, true)).make;
         await openInPlace(chosen);
         return null;
       };
-      const sections: PickerSections<GridSource | null> = {
+      const sections: PickerSections<GridMaker | null> = {
         files: {
           accept: '.csv,.parquet,.json,.jsonl,.ndjson,text/csv,application/json',
           formats: ['CSV', 'Parquet', 'JSON', 'JSON Lines'],
@@ -1767,103 +1825,72 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
      * signed in to that warehouse; otherwise the Database section asks for a sign-in there and
      * opens the table once it is listed. No credential was ever written down.
      */
-    async function reopenTable(src: WarehouseSource, saved: Saved): Promise<readonly string[] | undefined> {
+    async function reopenTable(src: WarehouseSource, saved: CubeDocument, several = false): Promise<Opened | undefined> {
       const on = signedIn && sameWarehouse(signedIn.session.baseUrl, src.warehouse) ? signedIn : undefined;
       const found = on?.objects.find((o) => o.catalog === src.catalog && o.schema === src.schema && o.name === src.table);
-      if (on && found) return (await openTable(on.session, found, saved)).notes;
-      let notes: readonly string[] = [];
+      if (on && found) return openedTable(on.session, found, saved, several);
+      let got: Opened | undefined;
       const host = (() => { try { return new URL(src.warehouse).host; } catch { return src.warehouse; } })();
       const done = await pickSource<boolean>(document, {
         purpose: 'open',
         start: 'database',
-        reason: `“${saved.doc.name}” reads ${src.name} on ${host}: sign in there to open it.`,
+        reason: `“${saved.name}” reads ${src.name} on ${host}: sign in there to open it.`,
         sections: {
           database: databaseSection(await pageConfig(), async (session, object) => {
-            notes = (await openTable(session, object, saved)).notes;
+            got = await openedTable(session, object, saved, several);
             return true;
           }, { warehouse: src.warehouse, schema: src.schema, name: src.table }),
         },
       });
-      return done ? notes : undefined;
+      return done ? got : undefined;
     }
 
     /**
      * A saved (or shared) cube over a REMOTE FILE, reopened: read straight away when the file is
      * public; refused (a private bucket), the Remote section asks for its keys, the URL filled in.
      */
-    async function reopenRemote(src: RemoteSource, saved: Saved): Promise<readonly string[] | undefined> {
+    async function reopenRemote(src: RemoteSource, saved: CubeDocument, several = false): Promise<Opened | undefined> {
       let refusal: string;
       try {
-        return await openRemote(src.url, undefined, saved);
+        return await openedRemote(src.url, undefined, saved, several);
       } catch (e) {
         refusal = e instanceof Error ? e.message : String(e);
       }
-      let notes: readonly string[] = [];
+      let got: Opened | undefined;
       const done = await pickSource<boolean>(document, {
         purpose: 'open',
         start: 'remote',
-        reason: `“${saved.doc.name}” reads ${src.name}, which did not open without its keys (${refusal.slice(0, 160)}).`,
+        reason: `“${saved.name}” reads ${src.name}, which did not open without its keys (${refusal.slice(0, 160)}).`,
         sections: {
           remote: {
             detect: detectFormat,
             url: src.url,
             keys: true,
             open: async (url, credentials) => {
-              notes = await openRemote(url, credentials ? s3Of(credentials) : undefined, saved);
+              got = await openedRemote(url, credentials ? s3Of(credentials) : undefined, saved, several);
               return true;
             },
           },
         },
       });
-      return done ? notes : undefined;
+      return done ? got : undefined;
     }
 
     // A BLANK PAGE (New ▸ Blank Page; the user, 2026-10-01): every grid and chart goes, and the page
-    // says what to do first -- a data source (the picker, opening in place) or a saved cube. Asked
-    // first when there are unsaved changes; the old cube stays until the person agrees.
+    // says what to do first -- a data source (the picker, opening in place) or a saved page (PageApp's empty page,
+    // `empty` above). Asked first when there are unsaved changes; the page stays until the person agrees.
     blankPage = (reason?: string) => {
       if (dirty() && !window.confirm('The page has unsaved changes. Start a blank page anyway?')) return;
-      app?.dispose();
-      app = undefined;
-      must('offstage').append(status);
+      page.clear();
+      files.clear();
       current = {};
-      const doc = document;
-      const blank = doc.createElement('div');
-      blank.className = 'dc-blank dc-app-floating';
-      const card = doc.createElement('div');
-      card.className = 'dc-blank-card';
-      const title = doc.createElement('h2');
-      title.className = 'dc-blank-title';
-      title.textContent = 'A blank page';
-      const lead = doc.createElement('p');
-      lead.className = 'dc-blank-lead';
-      lead.textContent = 'Start with a data source: a file from your computer, an example, a table in a warehouse, or a remote Parquet, CSV or Iceberg file.';
-      if (reason) {
-        const why = doc.createElement('p');
-        why.className = 'dc-blank-reason';
-        why.setAttribute('role', 'alert');
-        why.textContent = reason;
-        card.append(why);
+      page.setTitle('');
+      if (emptyReason) {
+        emptyReason.textContent = reason ?? '';
+        emptyReason.hidden = !reason;
       }
-      const actions = doc.createElement('div');
-      actions.className = 'dc-blank-actions';
-      const add = doc.createElement('button');
-      add.type = 'button';
-      add.className = 'dc-picker-button dc-primary';
-      add.textContent = 'Add a data source';
-      add.addEventListener('click', () => void picker?.('open'));
-      const saved = doc.createElement('button');
-      saved.type = 'button';
-      saved.className = 'dc-picker-button dc-quiet';
-      saved.textContent = 'Open a saved cube';
-      saved.addEventListener('click', () => showCubes?.());
-      actions.append(add, saved);
-      card.prepend(title, lead);
-      card.append(actions);
-      blank.append(card);
-      host.replaceChildren(blank);
       document.title = 'New page';
-      add.focus();
+      (host.querySelector('.dc-blank-actions .dc-primary') as HTMLElement | null)?.focus();
     };
 
     // A SHARE LINK in the address opens its page, found the way a saved one is (a sample rebuilt,
@@ -1890,8 +1917,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       try {
         await openSaved({ kind: 'page', page: readPageFragment(fragment) }, undefined);
         // a page someone shared opens locked: nothing moves by accident (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md
-        // §3.3, 5); its title bar's Edit Layout unlocks it
-        app?.setLayoutEditing(false);
+        // §3.3, 5); its menu's Edit Layout unlocks it
+        page.setLayoutEditing(false);
       } catch (e) {
         library?.say(e instanceof Error ? e.message : String(e), 'error');
       }
@@ -1925,8 +1952,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       }
     }
     // A START THAT OPENED NOTHING (a link that failed, a key refused) leaves the blank page and the
-    // reason in the status line: never an empty page
-    if (!app) blankPage(startProblem);
+    // reason in the status line: never an empty page without a word
+    if (page.empty) blankPage(startProblem);
   } else if (start.kind !== 'sample') {
     status.textContent = 'this planner opens only the sample: the link or key in the address needs the in-tab planner';
     status.classList.add('bad');

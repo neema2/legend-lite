@@ -533,8 +533,19 @@ async function pickEntry(label) {
   }
   await item.click();
 }
+/** The PAGE's menu (its bar's hamburger): New, Open, Save, Share, Arrange, Settings (src/page/page-app.ts). */
 async function burger(label) {
   await page.click('.dc-titlebar-menu');
+  await page.waitForSelector('.dc-menu', { timeout: 5000 });
+  await pickEntry(label);
+  await settle();
+}
+/**
+ * The first GRID's own menu: Undo, Redo, Export, Properties, Ad Hoc Analysis -- in the page bar's strip while the grid
+ * is alone on the page, in its tile's header beside other tiles.
+ */
+async function gridMenu(label) {
+  await page.locator('.dc-tile-menu').first().click();
   await page.waitForSelector('.dc-menu', { timeout: 5000 });
   await pickEntry(label);
   await settle();
@@ -588,9 +599,9 @@ const headerNames = () => page.evaluate(() =>
 let pageLoaded = false;
 /** A file opened in place of the cube, as a person does: Data… opens the source picker (src/ui/source-picker.ts). */
 async function openThroughPicker(file) {
-  // a check that hid the title bar took the menu with it: a person turns it back on first
+  // a check that folded the page's bar took its menu with it: a person unfolds it first, by its lip
   if (!(await page.locator('.dc-titlebar-menu').isVisible())) {
-    await page.evaluate(() => window.__dataCube.change((s) => ({ ...s, configuration: { ...s.configuration, showTitleBar: true } })));
+    await page.click('.dc-titlebar-lip');
     await page.locator('.dc-titlebar-menu').waitFor({ timeout: 10_000 });
   }
   // in place of the page: New ▸ Blank Page, then "Add a data source"
@@ -1612,7 +1623,7 @@ try {
 
   await check('undo brings the column back', async () => {
     const before = (await state()).headers.length;
-    await burger('Undo');
+    await gridMenu('Undo');
     const after = (await state()).headers.length;
     if (after <= before) {
       throw new Error(`undo did nothing: ${before} -> ${after} columns`);
@@ -1622,12 +1633,12 @@ try {
 
   await check('redo hides it again', async () => {
     const before = (await state()).headers.length;
-    await burger('Redo');
+    await gridMenu('Redo');
     const after = (await state()).headers.length;
     if (after >= before) {
       throw new Error(`redo did nothing: ${before} -> ${after} columns`);
     }
-    await burger('Undo');
+    await gridMenu('Undo');
     return `${before} -> ${after} columns`;
   });
 
@@ -2000,9 +2011,9 @@ try {
   /** Turn a General Properties checkbox on or off, by its label. */
   const setGeneralCheck = async (label, on) => {
     await reset();
-    await page.click('.dc-titlebar-menu');
+    // the grid's own menu (its Properties), in the page bar's strip while it is alone
+    await page.locator('.dc-tile-menu').first().click();
     await page.waitForSelector('.dc-menu', { timeout: 10_000 });
-    // under View, now
     await pickEntry('Properties...');
     await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
@@ -2025,9 +2036,9 @@ try {
   /** Turn "keep grouped columns in the grid" on or off. */
   const setKeepGrouped = async (on) => {
     await reset();
-    await page.click('.dc-titlebar-menu');
+    // the grid's own menu (its Properties), in the page bar's strip while it is alone
+    await page.locator('.dc-tile-menu').first().click();
     await page.waitForSelector('.dc-menu', { timeout: 10_000 });
-    // under View, now
     await pickEntry('Properties...');
     await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
@@ -2243,7 +2254,7 @@ try {
       if (firstDifference(before, changed) === null) {
         throw new Error(`the operation changed nothing at all (colour ${before.colour.slice(0, 120)})`);
       }
-      await burger('Undo');
+      await gridMenu('Undo');
       const after = await fullState();
       const diff = firstDifference(before, after);
       if (diff) throw new Error(`undo left ${diff}`);
@@ -4957,7 +4968,7 @@ try {
     }).first();
     const enter = async () => {
       await freshCube();
-      await burger('Ad Hoc Analysis');
+      await gridMenu('Ad Hoc Analysis');
       await page.waitForFunction(() => {
         const a = window.__dataCube?.adhoc;
         return a && !a.busy && a.view;
@@ -4983,7 +4994,7 @@ try {
       if (!on) throw new Error(`no low-cardinality dimension in ${dims}`);
       await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol(on) });
       const cubeRows = (await state()).rows.length;
-      await burger('Ad Hoc Analysis');
+      await gridMenu('Ad Hoc Analysis');
       await page.waitForFunction(() => {
         const a = window.__dataCube?.adhoc;
         return a && !a.busy && a.view;
@@ -5099,13 +5110,14 @@ try {
     await page.fill('.dc-picker-rows', '1500');
     await page.click('.dc-picker-choice .dc-primary');
     await page.locator('.dc-picker').waitFor({ state: 'detached', timeout: 60_000 });
-    const tile = page.locator('[data-tile^="grid-"]').first();
+    // the grid added beside the page's first (grid-1): every grid on a page alike
+    const tile = page.locator('[data-tile^="grid-"]:not([data-tile="grid-1"])').first();
     await tile.locator('.dc-row').first().waitFor({ timeout: 60_000 });
     const head = (await tile.locator('.dc-tile-cube').textContent()) ?? '';
     if (!/sample-trades\.csv/.test(head)) throw new Error(`its header says "${head}"`);
     await page.waitForFunction(() => /first 1,000 of 1,500 rows/.test(
-      document.querySelector('[data-tile^="grid-"] .dc-status-warning')?.textContent ?? ''), null, { timeout: 30_000 });
-    const main = await page.locator('[data-tile="grid"] .dc-row').count();
+      document.querySelector('[data-tile^="grid-"]:not([data-tile="grid-1"]) .dc-status-warning')?.textContent ?? ''), null, { timeout: 30_000 });
+    const main = await page.locator('[data-tile="grid-1"] .dc-row').count();
     if (!main) throw new Error('the cube\'s own grid lost its rows');
     return `"${head.trim()}": the first 1,000 of 1,500 rows; the cube's grid still shows ${main} rows`;
   });
