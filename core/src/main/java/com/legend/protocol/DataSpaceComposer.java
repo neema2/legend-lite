@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -65,11 +63,6 @@ final class DataSpaceComposer {
             b.append(TAB).append("operationalMetadata: ").append(operationalMetadata(d.operationalMetadata())).append(";\n");
         }
         return b.append("}").toString();
-    }
-
-    /** {@link #dataSpace(Protocol.PDataSpace)} of the JSON, read first. */
-    static String dataSpace(Json.Obj d) {
-        return dataSpace(Composing.element(d, Protocol.PDataSpace.class));
     }
 
     private static void optionalString(StringBuilder b, String indent, String key, @com.legend.base.Nullable String value) {

@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,15 +26,6 @@ final class FunctionActivatorComposer {
     /** The {@code ###Snowflake} section's two kinds. */
     static String snowflake(Protocol.PFunctionActivator e) {
         return "SnowflakeM2MUdf".equals(e.kind()) ? snowflakeM2MUdf(e) : snowflakeApp(e);
-    }
-
-    static String snowflake(Json.Obj e) {
-        return snowflake(read(e));
-    }
-
-    /** The activator record the JSON reads as. */
-    private static Protocol.PFunctionActivator read(Json.Obj e) {
-        return Composing.element(e, Protocol.PFunctionActivator.class);
     }
 
     private static String head(String keyword, Protocol.PFunctionActivator e) {
@@ -102,14 +91,6 @@ final class FunctionActivatorComposer {
     }
 
     /** {@code ###BigQuery}'s and {@code ###MemSql}'s functions: the same shape under their own keyword. */
-    static String bigQueryFunction(Json.Obj f) {
-        return namedFunction("BigQueryFunction", read(f));
-    }
-
-    static String memSqlFunction(Json.Obj f) {
-        return namedFunction("MemSqlFunction", read(f));
-    }
-
     static String namedFunction(String keyword, Protocol.PFunctionActivator f) {
         return head(keyword, f)
                 + "   functionName : '" + required(f, "functionName") + "';\n"
@@ -130,10 +111,6 @@ final class FunctionActivatorComposer {
                 + "}";
     }
 
-    static String hostedService(Json.Obj s) {
-        return hostedService(read(s));
-    }
-
     private static String owner(Protocol.PFunctionActivator s) {
         List<String> users = s.userListUsers();
         if (users != null) {
@@ -152,9 +129,5 @@ final class FunctionActivatorComposer {
                 + function(j)
                 + quotedLine("documentation", j.scalars().get("documentation"))
                 + "}";
-    }
-
-    static String functionJar(Json.Obj j) {
-        return functionJar(read(j));
     }
 }

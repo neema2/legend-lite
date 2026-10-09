@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -45,11 +43,6 @@ final class GenerationComposer {
             b.append(String.join("\n", properties)).append("\n");
         }
         return b.append("}").toString();
-    }
-
-    /** {@link #fileGeneration(Protocol.PFileGeneration)} of the JSON, read first. */
-    static String fileGeneration(Json.Obj g) {
-        return fileGeneration(Composing.element(g, Protocol.PFileGeneration.class));
     }
 
     /** {@code PureGrammarComposerUtility.renderObject}: a configuration value as Java prints the deserialized object. */
@@ -96,10 +89,5 @@ final class GenerationComposer {
                 + (nodes.isEmpty() ? "" : "  generationNodes: [\n" + String.join(",\n", nodes) + "\n  ];\n")
                 + (files.isEmpty() ? "" : TAB + "fileGenerations: [\n" + String.join(",\n", files) + "\n" + TAB + "];\n")
                 + "}";
-    }
-
-    /** {@link #generationSpecification(Protocol.PGenerationSpecification)} of the JSON, read first. */
-    static String generationSpecification(Json.Obj g) {
-        return generationSpecification(Composing.element(g, Protocol.PGenerationSpecification.class));
     }
 }

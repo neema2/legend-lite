@@ -3,7 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.ValueSpecification;
 
@@ -87,11 +86,6 @@ final class MappingComposer {
                     .append(TAB).append("]\n");
         }
         return b.append(")").toString();
-    }
-
-    /** {@link #mapping(Protocol.PMapping)} of the JSON, read first. */
-    static String mapping(Json.Obj mapping) {
-        return mapping(Composing.element(mapping, Protocol.PMapping.class));
     }
 
     private static String include(Protocol.PMappingInclude include) {

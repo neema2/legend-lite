@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,11 +30,6 @@ final class ExternalFormatComposer {
             case Protocol.PBinding b -> binding(b);
             default -> throw Composing.refused("no ExternalFormat printer for a " + e.getClass().getSimpleName());
         };
-    }
-
-    /** {@link #element(Protocol.Element)} of the JSON, read first. */
-    static String element(Json.Obj e) {
-        return element(Composing.element(e, Protocol.Element.class));
     }
 
     private static String schemaSet(Protocol.PSchemaSet s) {
@@ -91,10 +84,5 @@ final class ExternalFormatComposer {
                 + (t.type() != null ? TAB + "type: " + t.type() + ";\n" : "")
                 + TAB + "content: " + convertString(t.content(), true) + ";\n"
                 + "}";
-    }
-
-    /** {@link #text(Protocol.PText)} of the JSON, read first. */
-    static String text(Json.Obj t) {
-        return text(Composing.element(t, Protocol.PText.class));
     }
 }

@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,11 +36,6 @@ final class DeephavenComposer {
             case Protocol.PFunctionActivator app when APP.equals(app.kind()) -> app(app);
             default -> throw Composing.refused("no Deephaven printer for a " + e.getClass().getSimpleName());
         };
-    }
-
-    /** {@link #element(Protocol.Element)} of the JSON, read first. */
-    static String element(Json.Obj e) {
-        return element(Composing.element(e, Protocol.Element.class));
     }
 
     private static String store(Protocol.PDeephavenDatabase store) {
@@ -98,13 +91,5 @@ final class DeephavenComposer {
                 + i + TAB + "authentication: " + AuthenticationComposer.authentication(new Protocol.PPskAuth(c.psk()), 1, i)
                 + ";\n"
                 + i + "}";
-    }
-
-    /** {@link #connection(Protocol.PDeephavenConnection, String)} of the JSON, read first. */
-    static String connection(Json.Obj c, String i) {
-        if (!(ConnectionReader.connectionValue(c) instanceof Protocol.PDeephavenConnection r)) {
-            throw Composing.refused("a Deephaven connection that reads as another kind");
-        }
-        return connection(r, i);
     }
 }

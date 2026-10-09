@@ -3,7 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
 import com.legend.protocol.Protocol.PPersistenceEntry;
 import com.legend.protocol.Protocol.PPersistenceNode;
 import com.legend.protocol.spec.PathLiteral;
@@ -39,11 +38,6 @@ final class PersistenceComposer {
             case Protocol.PPersistenceContext c -> persistenceContext(c, 1);
             default -> throw Composing.refused("no Persistence printer for a " + e.getClass().getSimpleName());
         };
-    }
-
-    /** {@link #element(Protocol.Element)} of the JSON, read first. */
-    static String element(Json.Obj e) {
-        return element(Composing.element(e, Protocol.Element.class));
     }
 
     // ---------------------------------------------------------------------

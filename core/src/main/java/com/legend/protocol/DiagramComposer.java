@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -52,11 +50,6 @@ final class DiagramComposer {
             edge(b, v.sourceView(), v.targetView(), v.points());
         }
         return b.append("}").toString();
-    }
-
-    /** {@link #diagram(Protocol.PDiagram)} of the JSON, read first. */
-    static String diagram(Json.Obj d) {
-        return diagram(Composing.element(d, Protocol.PDiagram.class));
     }
 
     private static void edge(StringBuilder b, String source, String target, List<Protocol.PDiagramPoint> line) {

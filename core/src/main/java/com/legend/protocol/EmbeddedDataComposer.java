@@ -3,7 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
 import com.legend.protocol.spec.CDate;
@@ -87,11 +86,6 @@ final class EmbeddedDataComposer {
         };
     }
 
-    /** {@link #compose(Protocol.PEmbeddedDataValue, String)} of the JSON, read first. */
-    static String compose(Json.Obj data, String i) {
-        return compose(EmbeddedDataReader.value(data), i);
-    }
-
     private static String block(String keyword, String content, String i) {
         return i + keyword + "\n" + i + "#{\n" + content + "\n" + i + "}#";
     }
@@ -173,11 +167,6 @@ final class EmbeddedDataComposer {
             }
         }
         return b.append(base).append("}#").toString();
-    }
-
-    /** {@link #alignedRelation(Protocol.PRelationElement, String, boolean)} of the JSON, read first. */
-    static String alignedRelation(Json.Obj element, String base, boolean standAlone) {
-        return alignedRelation(EmbeddedDataReader.relationElement(element), base, standAlone);
     }
 
     private static String alignedLine(List<String> cells, int[] widths) {

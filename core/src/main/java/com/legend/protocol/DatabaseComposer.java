@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -103,11 +101,6 @@ final class DatabaseComposer {
         return b.append(")").toString();
     }
 
-    /** {@link #database(Protocol.PDatabase)} of the JSON, read first. */
-    static String database(Json.Obj db) {
-        return database(Composing.element(db, Protocol.PDatabase.class));
-    }
-
     /** Appends one block of a schema's members, a blank line before it when something precedes it. */
     private static <T> boolean section(StringBuilder b, boolean nonEmpty, List<T> members,
             java.util.function.Function<T, String> print) {
@@ -120,12 +113,6 @@ final class DatabaseComposer {
         }
         b.append(nonEmpty ? "\n" : "").append(String.join("\n", out)).append("\n");
         return true;
-    }
-
-    /** A packageable element pointer's path: {@code {"path":...}}, or a bare string on an older wire. For the
-     *  printers not yet moved onto records. */
-    static String pointerPath(Json.Node n) {
-        return n instanceof Json.Str s ? s.value() : Composing.obj(n, "pointer").getString("path");
     }
 
     private static String schema(Protocol.PDbSchema schema, RelationalOperations ops) {
@@ -321,11 +308,6 @@ final class DatabaseComposer {
         }
         mapperSection(b, "TableMappers", tables);
         return b.append(")").toString();
-    }
-
-    /** {@link #relationalMapper(Protocol.PRelationalMapper)} of the JSON, read first. */
-    static String relationalMapper(Json.Obj mapper) {
-        return relationalMapper(Composing.element(mapper, Protocol.PRelationalMapper.class));
     }
 
     private static void mapperSection(StringBuilder b, String name, List<String> lines) {

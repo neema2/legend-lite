@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -65,11 +63,6 @@ final class MongoComposer {
                     .append(TAB).append(")\n");
         }
         return b.append(")").toString();
-    }
-
-    /** {@link #store(Protocol.PMongoDatabase)} of the JSON, read first. */
-    static String store(Json.Obj store) {
-        return store(Composing.element(store, Protocol.PMongoDatabase.class));
     }
 
     /** {@code BaseTypeVisitorImpl}: one schema node at {@code level}. */
@@ -199,13 +192,5 @@ final class MongoComposer {
                 + i + TAB + "serverURLs: [" + String.join(", ", urls) + "];\n"
                 + i + TAB + "authentication: " + AuthenticationComposer.authentication(c.auth(), 1, i) + ";\n"
                 + i + "}";
-    }
-
-    /** {@link #connection(Protocol.PMongoDbConnection, String)} of the JSON, read first. */
-    static String connection(Json.Obj c, String i) {
-        if (!(ConnectionReader.connectionValue(c) instanceof Protocol.PMongoDbConnection r)) {
-            throw Composing.refused("a MongoDB connection that reads as another kind");
-        }
-        return connection(r, i);
     }
 }

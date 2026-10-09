@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -100,14 +98,6 @@ final class RelationalConnectionComposer {
                     .append(i).append(TAB).append("];\n");
         }
         return b.append(i).append("}").toString();
-    }
-
-    /** {@link #connection(Protocol.PRelationalDatabaseConnection, String)} of the JSON, read first. */
-    static String connection(Json.Obj c, String i) {
-        if (!(ConnectionReader.connectionValue(c) instanceof Protocol.PRelationalDatabaseConnection r)) {
-            throw Composing.refused("a relational connection that reads as another kind");
-        }
-        return connection(r, i);
     }
 
     /** A bare offset from UTC ({@code [+-]dddd}), which the grammar takes unquoted; any other zone is quoted. */
@@ -256,20 +246,6 @@ final class RelationalConnectionComposer {
             out.add(convertString((String) s, true));
         }
         return out;
-    }
-
-    /** A scalar as Java's {@code toString} prints the deserialized value. */
-    static String raw(Json.Node v) {
-        if (v instanceof Json.Str s) {
-            return s.value();
-        }
-        if (v instanceof Json.Bool b) {
-            return String.valueOf(b.value());
-        }
-        if (v instanceof Json.Num n) {
-            return n.isInteger() ? Long.toString(n.longValue()) : Double.toString(n.doubleValue());
-        }
-        throw Composing.refused("a scalar field whose value is " + v);
     }
 
     private static String postProcessor(Protocol.PPostProcessor p, String i) {

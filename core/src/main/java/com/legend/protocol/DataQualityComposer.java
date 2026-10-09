@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,11 +34,6 @@ final class DataQualityComposer {
             case Protocol.PDataQualityRelationComparison c -> relationComparison(c);
             default -> throw Composing.refused("the data quality composer has no rule for a " + e.getClass().getSimpleName());
         };
-    }
-
-    /** {@link #element(Protocol.Element)} of the JSON, read first. */
-    static String element(Json.Obj e) {
-        return element(Composing.element(e, Protocol.Element.class));
     }
 
     /** The element's path as the extension writes it: package, {@code ::}, name, no quoting. */
