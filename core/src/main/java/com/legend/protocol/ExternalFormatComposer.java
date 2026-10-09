@@ -12,15 +12,13 @@ import static com.legend.protocol.Composing.TAB;
 import static com.legend.protocol.Composing.convertIdentifier;
 import static com.legend.protocol.Composing.convertPath;
 import static com.legend.protocol.Composing.convertString;
-import static com.legend.protocol.Composing.elementPath;
-import static com.legend.protocol.Composing.items;
-import static com.legend.protocol.Composing.objs;
-import static com.legend.protocol.Composing.str;
 import static com.legend.protocol.Composing.tab;
 
 /**
  * {@code ###ExternalFormat}'s schema set and binding, and {@code ###Text}'s text, as upstream prints them
- * ({@code ExternalFormatGrammarComposerExtension}, {@code TextGrammarComposerExtension}).
+ * ({@code ExternalFormatGrammarComposerExtension}, {@code TextGrammarComposerExtension}) -- over the records
+ * ({@link Protocol.PSchemaSet}, {@link Protocol.PBinding}, {@link Protocol.PText}; the protocol program's leg 2,
+ * step 3).
  */
 final class ExternalFormatComposer {
 
@@ -28,66 +26,75 @@ final class ExternalFormatComposer {
     }
 
     /** The section's two kinds: schema sets and bindings. */
-    static String element(Json.Obj e) {
-        return "binding".equals(Composing.type(e)) ? binding(e) : schemaSet(e);
+    static String element(Protocol.Element e) {
+        return switch (e) {
+            case Protocol.PSchemaSet s -> schemaSet(s);
+            case Protocol.PBinding b -> binding(b);
+            default -> throw Composing.refused("no ExternalFormat printer for a " + e.getClass().getSimpleName());
+        };
     }
 
-    private static String schemaSet(Json.Obj s) {
-        StringBuilder b = new StringBuilder("SchemaSet ").append(elementPath(s)).append("\n{\n")
-                .append(TAB).append("format: ").append(s.getString("format")).append(";\n")
+    /** {@link #element(Protocol.Element)} of the JSON, read first. */
+    static String element(Json.Obj e) {
+        return element(Composing.element(e, Protocol.Element.class));
+    }
+
+    private static String schemaSet(Protocol.PSchemaSet s) {
+        StringBuilder b = new StringBuilder("SchemaSet ").append(Composing.elementPath(s.pkg(), s.name())).append("\n{\n")
+                .append(TAB).append("format: ").append(s.format()).append(";\n")
                 .append(TAB).append("schemas: [\n");
-        List<Json.Obj> schemas = objs(s, "schemas");
+        List<Protocol.PSchema> schemas = s.schemas();
         for (int i = 0; i < schemas.size(); i++) {
-            Json.Obj schema = schemas.get(i);
+            Protocol.PSchema schema = schemas.get(i);
             b.append(tab(2)).append("{\n");
-            String id = str(schema, "id");
-            if (id != null) {
-                b.append(tab(3)).append("id: ").append(convertIdentifier(id)).append(";\n");
+            if (schema.id() != null) {
+                b.append(tab(3)).append("id: ").append(convertIdentifier(schema.id())).append(";\n");
             }
-            String location = str(schema, "location");
-            if (location != null) {
-                b.append(tab(3)).append("location: ").append(convertString(location, true)).append(";\n");
+            if (schema.location() != null) {
+                b.append(tab(3)).append("location: ").append(convertString(schema.location(), true)).append(";\n");
             }
-            b.append(tab(3)).append("content: ").append(convertString(schema.getString("content"), true)).append(";\n")
+            b.append(tab(3)).append("content: ").append(convertString(schema.content(), true)).append(";\n")
                     .append(tab(2)).append("}").append(i < schemas.size() - 1 ? ",\n" : "\n");
         }
         return b.append(TAB).append("];\n}").toString();
     }
 
-    private static String binding(Json.Obj binding) {
-        StringBuilder b = new StringBuilder("Binding ").append(elementPath(binding)).append("\n{\n");
-        String schemaSet = str(binding, "schemaSet");
-        if (schemaSet != null) {
-            b.append(TAB).append("schemaSet: ").append(convertPath(schemaSet)).append(";\n");
-            String schemaId = str(binding, "schemaId");
-            if (schemaId != null) {
-                b.append(TAB).append("schemaId: ").append(convertIdentifier(schemaId)).append(";\n");
+    private static String binding(Protocol.PBinding binding) {
+        StringBuilder b = new StringBuilder("Binding ").append(Composing.elementPath(binding.pkg(), binding.name()))
+                .append("\n{\n");
+        if (binding.schemaSet() != null) {
+            b.append(TAB).append("schemaSet: ").append(convertPath(binding.schemaSet())).append(";\n");
+            if (binding.schemaId() != null) {
+                b.append(TAB).append("schemaId: ").append(convertIdentifier(binding.schemaId())).append(";\n");
             }
         }
-        b.append(TAB).append("contentType: ").append(convertString(binding.getString("contentType"), true)).append(";\n");
-        Json.Obj unit = binding.getObj("modelUnit");
-        b.append(TAB).append("modelIncludes: [\n").append(String.join(",\n", paths(unit, "packageableElementIncludes"))).append("\n")
+        b.append(TAB).append("contentType: ").append(convertString(binding.contentType(), true)).append(";\n");
+        b.append(TAB).append("modelIncludes: [\n").append(String.join(",\n", paths(binding.modelIncludes()))).append("\n")
                 .append(TAB).append("];\n");
-        List<String> excludes = paths(unit, "packageableElementExcludes");
+        List<String> excludes = paths(binding.modelExcludes());
         if (!excludes.isEmpty()) {
             b.append(TAB).append("modelExcludes: [\n").append(String.join(",\n", excludes)).append("\n").append(TAB).append("];\n");
         }
         return b.append("}").toString();
     }
 
-    private static List<String> paths(Json.Obj unit, String key) {
+    private static List<String> paths(List<String> paths) {
         List<String> out = new ArrayList<>();
-        for (Json.Node n : items(unit, key)) {
-            out.add(tab(2) + convertPath(DatabaseComposer.pointerPath(n)));
+        for (String p : paths) {
+            out.add(tab(2) + convertPath(p));
         }
         return out;
     }
 
-    static String text(Json.Obj t) {
-        String type = str(t, "type");
-        return "Text " + elementPath(t) + "\n{\n"
-                + (type != null ? TAB + "type: " + type + ";\n" : "")
-                + TAB + "content: " + convertString(t.getString("content"), true) + ";\n"
+    static String text(Protocol.PText t) {
+        return "Text " + Composing.elementPath(t.pkg(), t.name()) + "\n{\n"
+                + (t.type() != null ? TAB + "type: " + t.type() + ";\n" : "")
+                + TAB + "content: " + convertString(t.content(), true) + ";\n"
                 + "}";
+    }
+
+    /** {@link #text(Protocol.PText)} of the JSON, read first. */
+    static String text(Json.Obj t) {
+        return text(Composing.element(t, Protocol.PText.class));
     }
 }

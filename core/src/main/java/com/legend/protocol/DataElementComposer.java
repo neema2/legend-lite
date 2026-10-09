@@ -10,26 +10,24 @@ import java.util.List;
 
 import static com.legend.protocol.Composing.TAB;
 import static com.legend.protocol.Composing.convertPath;
-import static com.legend.protocol.Composing.elementPath;
-import static com.legend.protocol.Composing.objOr;
-import static com.legend.protocol.Composing.objs;
 
 /**
- * {@code ###Data}'s data element as upstream prints it ({@code CorePureGrammarComposer.renderDataElement}).
+ * {@code ###Data}'s data element as upstream prints it ({@code CorePureGrammarComposer.renderDataElement}) -- over
+ * the record ({@link Protocol.PDataElement}; the protocol program's leg 2, step 3).
  */
 final class DataElementComposer {
 
     private DataElementComposer() {
     }
 
-    static String dataElement(Json.Obj e) {
-        StringBuilder b = new StringBuilder(DomainComposer.declarationPrefix("Data", "", e)).append(elementPath(e)).append("\n{\n");
-        Json.Obj data = objOr(e, "data");
-        if (data != null) {
-            b.append(EmbeddedDataComposer.compose(data, TAB)).append("\n");
+    static String dataElement(Protocol.PDataElement e) {
+        StringBuilder b = new StringBuilder(DomainComposer.declarationPrefix("Data", "", e.stereotypes(), e.taggedValues()))
+                .append(Composing.elementPath(e.pkg(), e.name())).append("\n{\n");
+        if (e.body().value() != null) {
+            b.append(EmbeddedDataComposer.compose(e.body().value(), TAB)).append("\n");
         }
         List<String> resolvers = new ArrayList<>();
-        for (Json.Obj r : objs(e, "dataResolvers")) {
+        for (Protocol.PDataResolver r : e.body().resolvers()) {
             resolvers.add(resolver(r));
         }
         if (!resolvers.isEmpty()) {
@@ -38,15 +36,15 @@ final class DataElementComposer {
         return b.append("}").toString();
     }
 
-    private static String resolver(Json.Obj r) {
-        String path = convertPath(r.getObj("elementPointer").getString("path"));
-        String type = Composing.type(r);
-        if ("referenceDataResolver".equals(type)) {
-            return TAB + path + ";";
-        }
-        if ("baseDataResolver".equals(type)) {
-            return TAB + path + ":\n" + EmbeddedDataComposer.compose(r.getObj("data"), TAB + TAB) + ";";
-        }
-        throw Composing.refused("no composer rule for a data resolver of _type '" + type + "'");
+    /** {@link #dataElement(Protocol.PDataElement)} of the JSON, read first. */
+    static String dataElement(Json.Obj e) {
+        return dataElement(Composing.element(e, Protocol.PDataElement.class));
+    }
+
+    /** A reference resolver ({@code path;}) carries no data; a base resolver its data block. */
+    private static String resolver(Protocol.PDataResolver r) {
+        String path = convertPath(r.elementPointer().path());
+        Protocol.PEmbeddedDataValue data = r.data();
+        return data == null ? TAB + path + ";" : TAB + path + ":\n" + EmbeddedDataComposer.compose(data, TAB + TAB) + ";";
     }
 }
