@@ -3,7 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
 import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
@@ -33,11 +32,6 @@ final class ServiceComposer {
             case Protocol.PExecutionEnvironment ee -> executionEnvironment(ee);
             default -> throw Composing.refused("no Service printer for a " + e.getClass().getSimpleName());
         };
-    }
-
-    /** {@link #element(Protocol.Element)} of the JSON, read first. */
-    static String element(Json.Obj e) {
-        return element(Composing.element(e, Protocol.Element.class));
     }
 
     static String service(Protocol.PService s) {

@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import static com.legend.protocol.Composing.TAB;
 
 /**
@@ -39,10 +37,5 @@ final class TestAssertionComposer {
         }
         return i + Composing.convertIdentifier(assertion.id()) + ":\n"
                 + indented + keyword + "\n" + indented + "#{\n" + content + "\n" + indented + "}#";
-    }
-
-    /** {@link #compose(Protocol.PTestAssertion, String)} of the JSON, read first. */
-    static String compose(Json.Obj assertion, String i) {
-        return compose(EmbeddedDataReader.assertion(assertion), i);
     }
 }

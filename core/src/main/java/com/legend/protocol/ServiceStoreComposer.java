@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -39,11 +37,6 @@ final class ServiceStoreComposer {
         }
         elements(store.elements(), b, 1);
         return b.append(")").toString();
-    }
-
-    /** {@link #serviceStore(Protocol.PServiceStoreDefinition)} of the JSON, read first. */
-    static String serviceStore(Json.Obj store) {
-        return serviceStore(Composing.element(store, Protocol.PServiceStoreDefinition.class));
     }
 
     /** The services first, then the groups, each group's own elements nested one level deeper. */
@@ -194,14 +187,6 @@ final class ServiceStoreComposer {
                 + i + TAB + "store: " + c.element() + ";\n"
                 + i + TAB + "baseUrl: " + convertString(c.baseUrl(), true) + ";\n"
                 + i + "}";
-    }
-
-    /** {@link #connection(Protocol.PServiceStoreConnection, String)} of the JSON, read first. */
-    static String connection(Json.Obj c, String i) {
-        if (!(ConnectionReader.connectionValue(c) instanceof Protocol.PServiceStoreConnection r)) {
-            throw Composing.refused("a service store connection that reads as another kind");
-        }
-        return connection(r, i);
     }
 
     /** {@code visitServiceStoreEmbeddedData}: the stubs, at the content's indentation {@code i}. */

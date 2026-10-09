@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.Locale;
 
 import static com.legend.protocol.Composing.tab;
@@ -44,11 +42,6 @@ final class AuthenticationComposer {
             case Protocol.PGcpWifIslandAuth g -> throw Composing.refused("no composer rule for an authentication"
                     + " specification of _type 'gcpWithAWSIdP'");
         };
-    }
-
-    /** {@link #authentication(Protocol.PAuthSpecValue, int, String)} of the JSON, read first. */
-    static String authentication(Json.Obj spec, int level, String i) {
-        return authentication(ConnectionReader.authSpec(spec), level, i);
     }
 
     /** A credential vault secret: its keyword, then its one field in a block at {@code level}. */

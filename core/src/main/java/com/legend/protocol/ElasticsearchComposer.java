@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -48,11 +46,6 @@ final class ElasticsearchComposer {
         }
         return "Elasticsearch7Cluster " + Composing.elementPath(store.pkg(), store.name()) + "\n{\n" + TAB
                 + "indices: [\n" + joinLines(indices) + TAB + "];\n}\n";
-    }
-
-    /** {@link #store(Protocol.PElasticsearch7Cluster)} of the JSON, read first. */
-    static String store(Json.Obj store) {
-        return store(Composing.element(store, Protocol.PElasticsearch7Cluster.class));
     }
 
     /** Upstream's writer: each item, then {@code ,} between items, and a newline after each. */
@@ -104,13 +97,5 @@ final class ElasticsearchComposer {
                 + i + TAB + "clusterDetails: # URL { " + c.url() + " }#;\n"
                 + i + TAB + "authentication: " + AuthenticationComposer.authentication(c.auth(), 1, i) + ";\n"
                 + i + "}";
-    }
-
-    /** {@link #connection(Protocol.PElasticsearchConnection, String)} of the JSON, read first. */
-    static String connection(Json.Obj c, String i) {
-        if (!(ConnectionReader.connectionValue(c) instanceof Protocol.PElasticsearchConnection r)) {
-            throw Composing.refused("an Elasticsearch connection that reads as another kind");
-        }
-        return connection(r, i);
     }
 }

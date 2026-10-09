@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,11 +24,6 @@ final class ConnectionComposer {
     static String connection(Protocol.PConnection connection) {
         return keyword(connection.value()) + " " + Composing.elementPath(connection.pkg(), connection.name()) + "\n"
                 + body(connection.value(), "");
-    }
-
-    /** {@link #connection(Protocol.PConnection)} of the JSON, read first. */
-    static String connection(Json.Obj connection) {
-        return connection(Composing.element(connection, Protocol.PConnection.class));
     }
 
     /** The keyword a connection value is declared (or embedded) with. */

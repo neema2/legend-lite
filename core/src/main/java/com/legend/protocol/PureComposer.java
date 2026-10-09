@@ -123,11 +123,6 @@ public final class PureComposer {
         return new PureComposer(style, indentation, false).visit(value);
     }
 
-    /** {@link #valueSpecification(ValueSpecification, Style, String)} of the JSON, read first. */
-    static String valueSpecification(Json.Node node, Style style, String indentation) {
-        return valueSpecification(read(node), style, indentation);
-    }
-
     /**
      * A legacy service test's parameter: there {@code list([...])} is the list instance the engine's grammar writes
      * ({@code ServiceParseTreeWalker}) and its printer prints as one -- {@code list([a,b])}, no space after a comma --
@@ -142,29 +137,14 @@ public final class PureComposer {
         return valueSpecification(value, Style.STANDARD, "");
     }
 
-    /** {@link #legacyServiceParameter(ValueSpecification)} of the JSON, read as that position reads it. */
-    static String legacyServiceParameter(Json.Node node) {
-        return legacyServiceParameter(ServiceReader.legacyParameter(ProtocolUpgrade.upgrade(node)));
-    }
-
     /** A function or derived property's parameter, as its signature spells it: no {@code $}. */
     static String signatureParameter(Variable variable) {
         return new PureComposer(Style.STANDARD, "", true).visit(variable);
     }
 
-    /** {@link #signatureParameter(Variable)} of the JSON, read first. */
-    static String signatureParameter(Json.Node variable) {
-        return signatureParameter((Variable) read(variable));
-    }
-
     /** {@code HelperValueSpecificationGrammarComposer.printGenericType}. */
     static String genericType(TypeExpression genericType) {
         return new PureComposer(Style.STANDARD, "", false).printGenericType(genericType);
-    }
-
-    /** {@link #genericType(TypeExpression)} of the JSON, read first. */
-    static String genericType(Json.Obj genericType) {
-        return genericType(ProtocolReader.genericType(ProtocolUpgrade.upgrade(genericType)));
     }
 
     private static ValueSpecification read(Json.Node node) {
@@ -710,11 +690,6 @@ public final class PureComposer {
         }
         return upper != null && lower == upper ? String.valueOf(lower)
                 : lower + ".." + (upper == null ? "*" : String.valueOf(upper));
-    }
-
-    /** {@link #multiplicity(Multiplicity)} of the JSON ({@code {"lowerBound":..,"upperBound":..}}); absent is {@code *}. */
-    static String multiplicity(@com.legend.base.Nullable Json.Obj m) {
-        return multiplicity(m == null ? null : ProtocolReader.multiplicity(m));
     }
 
     // ---------------------------------------------------------------------

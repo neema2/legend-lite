@@ -3,7 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
 
@@ -14,7 +13,6 @@ import static com.legend.protocol.Composing.TAB;
 import static com.legend.protocol.Composing.convertIdentifier;
 import static com.legend.protocol.Composing.convertString;
 import static com.legend.protocol.Composing.genericType;
-import static com.legend.protocol.Composing.items;
 import static com.legend.protocol.Composing.multiplicity;
 import static com.legend.protocol.Composing.tab;
 import static com.legend.protocol.Composing.valueSpecification;
@@ -47,11 +45,6 @@ final class DomainComposer {
             case Protocol.PFunction f -> function(f);
             default -> throw Composing.refused("the domain composer has no rule for a " + e.getClass().getSimpleName());
         };
-    }
-
-    /** {@link #element(Protocol.Element)} of the JSON, read first. */
-    static String element(Json.Obj e) {
-        return element(Composing.element(e, Protocol.Element.class));
     }
 
     // ---------------------------------------------------------------------
@@ -297,19 +290,6 @@ final class DomainComposer {
         return documentationOnly(taggedValues, indent)
                 + (keyword.isEmpty() ? "" : keyword + " ")
                 + annotations(stereotypes, withoutDocumentation(taggedValues));
-    }
-
-    /** {@link #declarationPrefix(String, String, List, List)} of a JSON element's annotations, read first. */
-    static String declarationPrefix(String keyword, String indent, Json.Obj annotated) {
-        List<Protocol.PStereotype> stereotypes = new ArrayList<>();
-        for (Json.Node n : items(annotated, "stereotypes")) {
-            stereotypes.add(DomainReader.stereotype(n));
-        }
-        List<Protocol.PTaggedValue> taggedValues = new ArrayList<>();
-        for (Json.Node n : items(annotated, "taggedValues")) {
-            taggedValues.add(DomainReader.taggedValue(n));
-        }
-        return declarationPrefix(keyword, indent, stereotypes, taggedValues);
     }
 
     /** {@code renderDocumentation}: the block for the one doc tagged value to promote, or {@code ""}. */

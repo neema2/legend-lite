@@ -3,15 +3,12 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
 import static com.legend.protocol.Composing.convertIdentifier;
 import static com.legend.protocol.Composing.convertPath;
-import static com.legend.protocol.Composing.str;
 import static com.legend.protocol.Composing.tab;
 
 /**
@@ -31,11 +28,6 @@ final class RuntimeComposer {
                 + runtimeValue(runtime.mappings(), runtime.connections(), runtime.connectionStores(), runtime.single(),
                         1, false, "")
                 + "\n}";
-    }
-
-    /** {@link #runtime(Protocol.PRuntime)} of the JSON, read first. */
-    static String runtime(Json.Obj runtime) {
-        return runtime(Composing.element(runtime, Protocol.PRuntime.class));
     }
 
     /** A runtime a service embeds, at {@code base}; {@code indentation} is the printing composer's own. */
@@ -122,10 +114,5 @@ final class RuntimeComposer {
     /** {@code renderPackageableElementPointer}: a store's bare, any other kind's prefixed by its kind. */
     static String elementPointer(@com.legend.base.Nullable String type, String path) {
         return (type == null || "STORE".equals(type) ? "" : "(" + type.toLowerCase(Locale.ROOT) + ") ") + convertPath(path);
-    }
-
-    /** {@link #elementPointer(String, String)} of a JSON pointer, for the printers not yet moved onto records. */
-    static String elementPointer(Json.Obj p) {
-        return elementPointer(str(p, "type"), p.getString("path"));
     }
 }

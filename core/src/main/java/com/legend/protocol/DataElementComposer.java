@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,11 +32,6 @@ final class DataElementComposer {
             b.append(String.join("\n", resolvers)).append("\n");
         }
         return b.append("}").toString();
-    }
-
-    /** {@link #dataElement(Protocol.PDataElement)} of the JSON, read first. */
-    static String dataElement(Json.Obj e) {
-        return dataElement(Composing.element(e, Protocol.PDataElement.class));
     }
 
     /** A reference resolver ({@code path;}) carries no data; a base resolver its data block. */
