@@ -11,3 +11,6 @@ polars==2.0.0
 # legend_lite's cube in a notebook (legend_lite/notebook.py; the wheel's `notebook` extra): anywidget, and through it
 # ipywidgets and IPython
 anywidget==0.11.0
+# IPython's on Windows (its terminal's colours): pinned here, for the lock is resolved on macOS, where IPython does
+# not ask for it
+colorama==0.4.6

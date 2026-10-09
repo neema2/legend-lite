@@ -136,9 +136,35 @@ def elf_versions(data: bytes) -> dict[str, list[tuple[int, ...]]]:
     return needed
 
 
-# a library's architecture, against its tag's: Mach-O cputype, ELF e_machine
+def pe_imports(data: bytes) -> tuple[int, int, set[str]]:
+    """A PE32+ library's machine, its characteristics, and the DLLs it imports (its import directory)."""
+    assert data[:2] == b'MZ', 'not a PE file'
+    pe = struct.unpack_from('<I', data, 0x3C)[0]
+    assert data[pe:pe + 4] == b'PE\0\0', 'not a PE file'
+    machine, sections, _, _, _, optional_size, characteristics = struct.unpack_from('<HHIIIHH', data, pe + 4)
+    optional = pe + 24
+    assert struct.unpack_from('<H', data, optional)[0] == 0x20B, 'not PE32+'
+    imports_rva = struct.unpack_from('<I', data, optional + 112 + 8)[0]  # data directory 1: the import table
+    table = [struct.unpack_from('<IIII', data, optional + optional_size + i * 40 + 8) for i in range(sections)]
+
+    def offset(rva: int) -> int:
+        for size, address, raw_size, raw in table:
+            if address <= rva < address + max(size, raw_size):
+                return raw + rva - address
+        raise AssertionError(f'RVA {rva:#x} is in no section')
+    linked = set()
+    at = offset(imports_rva)
+    while (name := struct.unpack_from('<IIIII', data, at)[3]) != 0:
+        start = offset(name)
+        linked.add(data[start:data.index(b'\0', start)].decode())
+        at += 20
+    return machine, characteristics, linked
+
+
+# a library's architecture, against its tag's: Mach-O cputype, ELF e_machine, PE machine
 MACHO_CPU = {'arm64': 0x0100000C, 'x86_64': 0x01000007}
 ELF_MACHINE = {'aarch64': 183, 'x86_64': 62}
+PE_MACHINE = {'amd64': 0x8664}
 
 
 class Label(unittest.TestCase):
@@ -164,6 +190,11 @@ class Label(unittest.TestCase):
             for family, newest in MANYLINUX_VERSIONS.items():
                 self.assertLessEqual(max(versions.get(family, [()])), newest, f'{library}: its {family} versions')
             self.assertEqual(struct.unpack_from('<H', data, 0x12)[0], ELF_MACHINE[m.group(3)], f'{library}: its CPU')
+        elif m := re.search(r'win_(\w+)$', tag):
+            machine, characteristics, linked = pe_imports(data)
+            print(f'the library imports {sorted(linked)}')
+            self.assertEqual(machine, PE_MACHINE[m.group(1)], f'{library}: its CPU')
+            self.assertTrue(characteristics & 0x2000, f'{library} is a DLL')
         else:
             self.fail(f'no platform this test reads: {tag}')
 
@@ -195,9 +226,14 @@ class Installed(unittest.TestCase):
         root = Path(place.name)
         # nothing of the repository's or the machine's: no PYTHONPATH, no LEGEND_LITE_*, no PATH, no pip.conf
         env = {'HOME': str(root), 'TMPDIR': str(root), 'PYTHONDONTWRITEBYTECODE': '1', 'PIP_CONFIG_FILE': os.devnull}
+        if sys.platform == 'win32':
+            # what a Windows process cannot start without (its system folder: sockets, randomness), and its own
+            # profile and temporary folders in place of the machine's
+            env |= {'SYSTEMROOT': os.environ['SYSTEMROOT'], 'TEMP': str(root), 'TMP': str(root),
+                    'USERPROFILE': str(root), 'APPDATA': str(root), 'LOCALAPPDATA': str(root)}
         venv = root / 'venv'
         subprocess.run([sys.executable, '-m', 'venv', str(venv)], check=True, env=env, timeout=120)
-        python = str(venv / 'bin' / 'python')
+        python = str(venv / 'Scripts' / 'python.exe') if sys.platform == 'win32' else str(venv / 'bin' / 'python')
         subprocess.run([python, '-m', 'pip', 'install', '--no-index', '--no-deps', '--disable-pip-version-check', '-q',
                         str(WHEEL), *map(str, DEPENDENCIES)], check=True, env=env, timeout=240)
         # what each wheel says it needs (legend-lite's Requires-Dist, pandas' own) is what is installed

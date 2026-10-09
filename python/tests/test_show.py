@@ -189,6 +189,13 @@ class PlainScript(unittest.TestCase):
                                          headers={'Authorization': served['authorization']})
         with urllib.request.urlopen(request, timeout=30) as r:
             self.assertEqual((r.status, sorted(json.loads(r.read()))), (200, ['model', 'runtime', 'source', 'title', 'version']))
+        if sys.platform == 'win32':
+            # Ctrl-C reaches a Windows process from its own console only: a test has none to press it in, and
+            # CTRL_C_EVENT cannot be sent to another process group. The wait is the same code there; its end by
+            # Ctrl-C is held on Linux and macOS
+            process.kill()
+            process.wait(timeout=30)
+            return
         process.send_signal(signal.SIGINT)
         self.assertEqual(process.wait(timeout=30), 0)
 
