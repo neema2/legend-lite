@@ -46,37 +46,35 @@ final class PlanMaker {
         SqlDialect dialect = Databases.dialect(decided.type());
         ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l, dialect);
         ExprType root = l.root().info();
+        // an enumeration parameter compared with a mapped column: through that place's value table
+        SqlQuery lowered = com.legend.sql.EnumValueTables.apply(l.plan());
         ExecutionPlan.Node node = switch (com.legend.plan.ResultShape.of(l.root())) {
             case GRAPH -> switch (output) {
                 case CSV -> throw new com.legend.error.NotImplementedException("graph results have no CSV wire");
-                case JSON -> text(ExecutionPlan.Format.JSON, objects(root), l.plan(), dialect, target);
-                case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, objects(root), l.plan(), dialect, target);
+                case JSON -> text(ExecutionPlan.Format.JSON, objects(root), lowered, dialect, target);
+                case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, objects(root), lowered, dialect, target);
             };
             case TABULAR -> switch (output) {
-                case CSV -> wire(WireRender.Format.CSV, l, dialect, target);
-                case JSON -> wire(WireRender.Format.JSON, l, dialect, target);
+                case CSV -> wire(WireRender.Format.CSV, lowered, root, dialect, target);
+                case JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
                 case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, relation(WireRender.schema(root)),
-                        WireRender.rows(l.plan()), dialect, target);
+                        WireRender.rows(lowered), dialect, target);
             };
             // a value's text is the one-column relation `value`, whole: no row to stream
             case SCALAR, COLLECTION -> switch (output) {
-                case CSV -> wire(WireRender.Format.CSV, l, dialect, target);
-                case JSON, STREAMED_JSON -> wire(WireRender.Format.JSON, l, dialect, target);
+                case CSV -> wire(WireRender.Format.CSV, lowered, root, dialect, target);
+                case JSON, STREAMED_JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
             };
         };
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(), node);
     }
 
-    /** A declared parameter as the slot its uses lower to: one value of a primitive type, or an optional one's
-     *  absence ({@code Declared.slot}, which refuses a class: a value is a plain value, §9's step 2 decisions); an
-     *  enumeration's and a list are the next slices', refused by name. */
+    /** A declared parameter as the slot its uses lower to: one value of a primitive type or an enumeration (its
+     *  name), or an optional one's absence ({@code Declared.slot}, which refuses a class: a value is a plain value,
+     *  §9's step 2 decisions); a list is the next slice's, refused by name. */
     private static com.legend.sql.SqlExpr.PlanParam slot(QueryParameters.Declared p) {
         String which = "parameter '" + p.name() + "' (" + p.type().typeName() + "["
                 + com.legend.plan.PurePrint.sizeRange(p.multiplicity()) + "])";
-        if (p.type() instanceof Type.EnumType) {
-            throw new com.legend.error.NotImplementedException(which + ": an enumeration's value, compared through a"
-                    + " value table where it is used, is step 2's landing 2 slice (d), not yet");
-        }
         if (!(p.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
                 && Integer.valueOf(1).equals(b.upper()))) {
             throw new com.legend.error.NotImplementedException(which + ": a list, bound as one array, is step 2's"
@@ -85,15 +83,15 @@ final class PlanMaker {
         return p.slot();
     }
 
-    /** The whole result as one text of {@code format}: the lowered query wrapped by the wire. */
-    private static ExecutionPlan.TextResult wire(WireRender.Format format, Compiler.LoweredQuery l, SqlDialect dialect,
-            ExecutionPlan.Target target) {
-        Type.RelationType schema = WireRender.schema(l.root().info());
+    /** The whole result as one text of {@code format}: the lowered query, of {@code root}'s type, wrapped by the wire. */
+    private static ExecutionPlan.TextResult wire(WireRender.Format format, SqlQuery lowered, ExprType root,
+            SqlDialect dialect, ExecutionPlan.Target target) {
+        Type.RelationType schema = WireRender.schema(root);
         ExecutionPlan.Format text = switch (format) {
             case CSV -> ExecutionPlan.Format.CSV;
             case JSON -> ExecutionPlan.Format.JSON;
         };
-        return text(text, relation(schema), WireRender.wrap(l.plan(), schema, format), dialect, target);
+        return text(text, relation(schema), WireRender.wrap(lowered, schema, format), dialect, target);
     }
 
     private static ExecutionPlan.TextResult text(ExecutionPlan.Format format, ExecutionPlan.ResultType type,

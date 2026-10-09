@@ -27,3 +27,9 @@ measured by run.sh over the eight lanes (the census's known build failure, //pur
    equality, which the engine routes through its enum machinery and never makes null-safe; the legacy text of
    `testOptionalEnumParameterEqualsClassProp` changed and the corpus failed it. The rule now excludes an enumeration's
    comparison (`NullSemantics.enumInvolved`), and the second measurement is the one above.
+
+4. Slice (d), an enumeration parameter compared through a value table -- against slice (c): 53 of 52,356 entries
+   differ, all in //gates:core and all the new tests' own (45 new texts: the plans' statements with their value tables
+   and the let-path queries they are compared with, on DuckDB, H2 and Postgres; 8 rendered more often). No entry is
+   gone and no other lane differs: the pass is the lite plan's alone, after lowering, and the legacy plan's enumeration
+   form (PlanEnumForm) is untouched.
