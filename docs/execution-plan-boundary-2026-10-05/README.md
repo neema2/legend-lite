@@ -20,6 +20,7 @@ java -cp duckdb_jdbc-1.4.4.0.jar BindProbe.java jdbc:duckdb:
 java -cp h2-2.1.214.jar          BindProbe.java jdbc:h2:mem:p
 java -cp postgresql-42.7.13.jar  BindProbe.java jdbc:postgresql://localhost:55432/postgres postgres ""
 java -cp <driver>                EnumIndex.java <url> <user> <password>
+java -cp <driver>                TypingProbe.java <url> <user> <password>
 ```
 
 - `BindProbe.java` → `bind-results.txt`: a value passed to the database as a value, not pasted into the SQL — a
@@ -40,6 +41,13 @@ java -cp <driver>                EnumIndex.java <url> <user> <password>
 | F4 the column decoded: `(CASE STATUS WHEN 'A' THEN 'ACTIVE' … END) = ?` | **scan** | **scan** | **scan** (~24 ms vs ~0.4 ms) | right |
 
 F1 is the one form that uses the index on all three and is right for a value stored under two codes.
+
+- `TypingProbe.java` → `typing-results.txt` (2026-10-09, step 2's landing 2): where a bare `?` is typed by the
+  database — 26 positions: compared with a column, in arithmetic and functions over a column, alone in a projection,
+  in arithmetic and functions alone, under `IS NULL` and `IS NOT DISTINCT FROM` (a value and a null), and the same
+  positions with the placeholder cast. Every one answers on all three databases when the JDBC call carries the value's
+  type (`setLong`, `setString`, `setBigDecimal`, `setObject(LocalDate)`, `setNull(i, Types.VARCHAR)`), so a plan's
+  statement writes `?` without a cast and the runner binds each value by its declared type.
 
 ## `sharing/` — when two runs may share an in-memory database (2026-10-08)
 
