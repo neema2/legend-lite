@@ -350,7 +350,7 @@ parameters.
   through the bridge (`inline`, and `writer.append(expr(...))`), where a parameter is refused as before. AGENTS.md
   invariant 3 restated. Census: 0 of 52,085 entries differ (`render-census/e1-result.txt`). The census probe became
   `probe.py` (by signature; E-1 reshaped `render`, so the E-0 patch no longer applied), and records `renderStatement`.
-- **E-2, expressions — on branch 2026-10-08.** `expr`, `call` (with Postgres's `postgresCall`) and `membership` write
+- **E-2, expressions — LANDED 2026-10-09 with E-3 and E-4 (`46fc131b8`, run 37965399077; `docs/GATES.md`, "E").** `expr`, `call` (with Postgres's `postgresCall`) and `membership` write
   into the writer in every dialect — `AnsiSqlRenderer`, `DuckDb`, `H2`, `H2Modern`, `Postgres`, `EngineStyleH2`,
   `EngineStyleDB2`, `EngineStyleComposite`; the clause layer writes its expressions there too (`WHERE`, `GROUP BY`,
   `HAVING`, `JOIN ... ON`, `QUALIFY`, `VALUES` rows; the legacy printer, which binds nothing, still spells its own
@@ -371,7 +371,7 @@ parameters.
   would have written nothing, and two methods grew past the 250-line guard (`call` 219 → 370 lines, `postgresCall` 229 →
   435). Returning the writer restored both (`call` 229, `postgresCall` 242). Checked by the compiler and the census:
   every statement rendered before renders identically (`render-census/e2-result.txt`).
-- **E-3, the composing helpers — on branch 2026-10-08, stacked on E-2.** Every dialect that executes (`AnsiSqlRenderer`,
+- **E-3, the composing helpers — LANDED 2026-10-09 with E-2 and E-4 (`46fc131b8`).** Every dialect that executes (`AnsiSqlRenderer`,
   `DuckDb`, `H2`, `H2Modern`, `Postgres`) writes all of a query into the writer: CASE, casts, windows, aggregates, the
   list, JSON, variant and struct functions, projections, sort keys, and the arms E-2 left pasting text (acos's domain
   guard; Postgres's regexp, date and JSON arms). Three writer forms do it without text: `function(name, args)` writes
@@ -385,7 +385,7 @@ parameters.
   stage. `SqlWriterTest`: a parameter under acos is bound at both places it is written and runs on DuckDB; a parameter
   in a DML row (still text) is refused. Census: every statement E-2 renders, E-3 renders identically
   (`render-census/e3-result.txt`).
-- **E-4, the rest — on branch 2026-10-09, stacked on E-3; E is complete with it.** Four commits, each judged by the
+- **E-4, the rest — LANDED 2026-10-09 with E-2 and E-3 (`46fc131b8`); E is complete with it.** Four commits, each judged by the
   census (`render-census/e4-result.txt`):
   - *The legacy engine-text printer's helpers write* (`EngineStyleH2`, `EngineStyleDB2`): its pattern recognisers
     (enum selectors, optional-parameter equality, the date-diff folds, the decode chains) return a `Piece` or nothing,

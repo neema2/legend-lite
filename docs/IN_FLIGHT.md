@@ -104,16 +104,18 @@ with the compiler's plan/execution split**, in this order:
    W6.1 and W6.2). Session "Plan Gen / Exec Split" (was `neema-20`), worktree `legend-lite-pgspike`. C3a–C3c, C1, C2a and C2b
    landed; the plan's step 1 (the plan records, `//core:execution_plan`) landed 2026-10-05; step 2's first piece,
    a connection's setup moved to the plan side (`//core:setup`), landed 2026-10-08 (`847b41df4`), and its landing 1 (the
-   records, one parameter list) the same day (`f05fe7ada`). **Announced 2026-10-08: E, the dialects write through one
-   writer** (`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §10): `core/src/main/java/com/legend/sql/dialect/` — every
-   renderer (`AnsiSqlRenderer`, `DuckDb`, `H2`, `H2Modern`, `Postgres`, `EngineStyleH2`, `EngineStyleDB2`,
-   `EngineStyleComposite`, `DdlSpelling`) — a new `SqlWriter`, and AGENTS.md invariant 3; in stages, each
-   byte-identical on the render census (its tool in `docs/execution-plan-boundary-2026-10-05/render-census/`). First a
-   known fix, parked by the user to keep this line on plans and recorded as **PARK-16** (DDL and DML spell a table name
-   raw where queries quote it — a reserved-word table in the default schema, found by the Studio line): the row and its
-   anchor land with E-1, and E's DDL stage closes it. **Then** step 2's landing 2 and steps 3–4 — the planner makes an
-   execution plan, a runner in `exec` runs it, the server's execute paths switch to it (files in the fourth line's
-   2026-10-07 note; step 2's decisions, the user's, 2026-10-07/08, in the plan's §9).
+   records, one parameter list) the same day (`f05fe7ada`). **E, the dialects write through one writer, landed
+   2026-10-09** (`46fc131b8`; GATES "E"; run 37965399077; `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §10): every dialect writes all of its SQL into one `SqlWriter`, the
+   legacy engine-text printer writes legend-engine's exact text, and PARK-16's product half (DDL and DML spell names as
+   queries do). **Now: step 2's landing 2, the planner makes lite plans** (§9; branch `dbowner/plan-landing2`, not yet
+   pushed): `TypedQuery.executionPlan` and `PlanMaker` (planner), the plan records (`core/src/main/java/com/legend/
+   executionplan/`, lite format version 3), `QueryParameters`, `lowering/NullSemantics.java` (an optional parameter's
+   equality null-safe), `lowering/WireRender.java`, `setup/RowLoad.java`, `exec/Executor.java` and `exec/BulkLoad.java`
+   (the staging statements' one owner), `database/Databases.java`, `sql/SqlExpr.java` (`PlanParam` keeps its type),
+   `sql/dialect/AnsiSqlRenderer.java` and `H2.java` (a typed placeholder on H2), `core/BUILD.bazel` (planner reaches
+   setup, database reaches execution_plan; for the Bazel line's review before it lands), `tools/deps/core-layers.txt`.
+   Slices (a) no parameters, (b) scalars, (c) optionals done on the branch; next (d) enumerations, (e) lists, then
+   step 3 (the runner) and step 4 (the callers switch).
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
    `datacube-pages`. `native/`, `python/` and, since 2026-10-09, all of `datacube/`. Landed: the compiler as a native
    library (`bc8107c4e`), `ll.show(df)` and the notebook cube on every platform, a real JupyterLab test and marimo

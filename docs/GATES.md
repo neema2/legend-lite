@@ -7871,3 +7871,36 @@ machine's load and passed alone); CI run 37952097518 on `ci/datacube-pages-land`
 `//datacube:src` (product, checks, warehouse, datacube, ui) on every platform (20 jobs); pushed to main as e397f107a, the
 tested commit.
 
+
+## 2026-10-09 — E: every dialect writes its SQL through one writer, and the legacy printer writes legend-engine's exact text (the Plan Gen / Exec Split line)
+
+The execution plan boundary's E (`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §10), stages E-2 to E-4b, landed as
+46fc131b8 (branch `dbowner/render-writer-e4`, six commits on 6b870d221; run 37965399077: green on every job on the first
+attempt, 51 jobs). E-1, the writer and its bridge, landed 2026-10-08 (f804dba9a).
+
+**What it was.** A dialect built SQL as strings and pasted pieces together, so a piece written twice carried its
+parameter once, and the legacy engine-text printer reached legend-engine's spelling by editing its own text
+(lowercasing `OVER` by find-and-replace, which also changed string literals). Now every dialect writes all of its SQL
+into one `SqlWriter`, text in order and each bound parameter at the place its `?` is written: expressions (E-2), the
+composing helpers (E-3), the legacy printer's helpers and DML's rows (E-4a); DDL spells only names, types and keywords.
+A render method returns the writer, so its dispatching switch stays an expression javac checks (AGENTS.md invariant 3).
+The legacy printer writes legend-engine 4.145.0's spelling directly, measured against its `generatePlan`
+(`docs/execution-plan-boundary-2026-10-05/legacy-text/`): lowercase keywords and function names through two hooks
+(`keyword`, `aggregateName`), `listagg ... within group (order by ...)` (after the `over (...)` in a window, as the engine
+writes it), an aggregate's own `order by ... asc`, `count(distinct ...)`, `rank()`, a window frame (E-4b, the user: "fully
+exact, implemented cleanly"). And PARK-16's product half: DDL and DML spell a table or schema name through
+`physicalName`, as queries do, so a table named `order` or a schema named `select` seeds and answers on DuckDB, H2 and
+Postgres (`ReservedNamesSeedTest`, `PostgresArmTest`).
+
+**Checked.** The render census at every stage, every statement the JVM suites render compared byte for byte
+(`render-census/e2-result.txt`, `e3-result.txt`, `e4-result.txt`): E-2, E-3, E-4a and DML render exactly what their
+parents rendered; PARK-16 adds only its tests' statements; E-4b changes only the legacy printer's spellings and the
+corpus judge's statements that carry them, every one accounted for. On main after D24 (1) and protocol leg 4: 53
+entries differ, D24's own, entry for entry. The corpus: nine SQL-text asserts per lane are now byte-equal to the
+engine's golden, so the text decides them (the 2026-09-21 rule), every verdict unchanged — the differential floors
+move with them (DuckDB 1020 → 1011 with D24's roster test, H2 953 → 946). parser-equivalence's own-corpus ratchet
+2736 → 2738 (the two new test models). Local gate green (318 tests).
+
+**Recorded.** PARK-16 restated to its remaining half (the test-data generator's hand-built SQL, phase 3); PARK-18,
+proposed to the user: the legacy printer cannot yet write a query's explicit `nulls first`/`nulls last`
+(`docs/PARKED_WORK_LEDGER.md`).
