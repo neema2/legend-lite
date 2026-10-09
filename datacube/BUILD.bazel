@@ -756,6 +756,9 @@ esbuild_bundle(
         "--bundle",
         "--format=esm",
         "--target=es2022",
+        # no build path in it (esbuild's per-module comment): anywidget sends it with every widget, and a notebook saved
+        # with its widgets keeps it, so it is the same file whichever machine built it
+        "--minify-whitespace",
         "--log-level=warning",
         "--outfile=demo/widget-loader.js",
     ],

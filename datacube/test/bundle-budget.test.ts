@@ -92,12 +92,12 @@ describe('a notebook\'s cube is one module, fetched once, and its loader small',
 
   it('the module imports nothing beside itself: a module imported from a blob URL can load no chunk', () => {
     const text = readFileSync(module, 'utf8');
-    assert.deepEqual([...text.matchAll(/\bimport\s*\(\s*["'`]\.|\bfrom\s*["']\./g)].map((m) => m[0]), []);
+    assert.deepEqual([...text.matchAll(/\bimport\s*\(\s*["'`]\.|\bfrom\s*["']\.|\bimport\s*["']\./g)].map((m) => m[0]), []);
   });
 
   it(`the module and its styles are at most ${WIDGET_BUDGET.toLocaleString()} bytes gzipped, with no DuckDB-WASM`, () => {
     const text = readFileSync(module, 'utf8');
-    assert.ok(!text.includes('duckdb-browser'), 'the notebook cube runs nothing in the page: no DuckDB-WASM');
+    assert.ok(!/duckdb/i.test(text), 'the notebook cube runs nothing in the page: no DuckDB-WASM');
     const size = gzipSync(readFileSync(module)).length + gzipSync(readFileSync(styles)).length;
     assert.ok(size <= WIDGET_BUDGET,
       `a notebook cube's module is ${size.toLocaleString()} bytes gzipped, over its budget of ${WIDGET_BUDGET.toLocaleString()}`);

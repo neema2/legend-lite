@@ -131,6 +131,34 @@ class Follows(Widget):
         second.refresh()
         self.assertEqual((first.version, second.version), (0, 1))
 
+    def test_a_version_told_late_never_moves_it_back(self):
+        cube = self.cube()
+        cube.refresh()
+        cube.refresh()
+        cube._moved('frame', 1)
+        self.assertEqual(cube.version, 2)
+
+    def test_a_cube_made_again_under_its_name_leaves_the_frame_to_the_new_one_when_the_old_closes(self):
+        old, new = self.cube(name='t'), self.cube(name='t')
+        old.close()
+        self.assertIn('t', datacube._session.frames)
+        self.assertIs(datacube._session.cubes['t'], new)
+        new.refresh()
+        self.assertEqual(new.version, 2)
+
+    def test_a_frame_a_cube_cannot_be_made_over_fails_once_and_cleanly(self):
+        unraised = []
+        was = sys.unraisablehook
+        sys.unraisablehook = unraised.append
+        try:
+            with self.assertRaises(TypeError):
+                DataCube(42)
+            import gc
+            gc.collect()
+        finally:
+            sys.unraisablehook = was
+        self.assertEqual([u.exc_value for u in unraised], [], 'a failed cube closes with nothing to undo')
+
     def test_close_takes_the_frame_out_and_the_widget_down(self):
         cube = self.cube()
         cube.close()
@@ -198,6 +226,15 @@ class InAKernel(Widget):
         live, snapped = ll.show(trades()), ll.show(trades(), mode='snapped')
         self.cell_ends()
         self.assertEqual((live.version, snapped.version), (1, 0))
+
+    def test_a_name_moved_to_a_tab_keeps_its_frame_when_its_notebook_cube_closes(self):
+        notebook = ll.show(trades(), name='t')
+        tab = ll.show(trades(), name='t', browser=False, inline=False)
+        self.assertIsInstance(tab, datacube.Cube)
+        notebook.close()
+        self.assertIn('t', datacube._session.frames)
+        self.assertIs(datacube._session.cubes['t'], tab)
+        self.assertIsNotNone(datacube._session._web, "the tab's web server stays")
 
     def test_inline_false_opens_a_tab_from_a_kernel(self):
         cube = ll.show(trades(), browser=False, inline=False)
