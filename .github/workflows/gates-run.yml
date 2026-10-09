@@ -287,6 +287,16 @@ jobs:
             bazel-bin/spec/judge_database_*/verdict.txt
             bazel-bin/spec/judge_*/*-*.txt
           if-no-files-found: ignore
+      # the wheel this platform built (//python:wheel: the warehouse lane builds it for //python:wheel_test), kept for
+      # anyone to install without building it -- only once the lane is green, so a kept wheel is a tested one. None on
+      # Windows yet (the compiler's library does not build there)
+      - name: the legend-lite wheel
+        if: matrix.lane.key == 'warehouse' && success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: legend-lite-wheel-${{ inputs.platform }}
+          path: bazel-bin/python/legend_lite-*.whl
+          if-no-files-found: ignore
       # linux-arm has no product job: its one lane (warehouse) saves the downloads at its end, even after a red test
       # (the downloads are the pins', not the tests')
       - name: Bazel downloads, saved by the linux-arm lane
