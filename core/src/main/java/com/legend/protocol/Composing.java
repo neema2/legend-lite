@@ -61,8 +61,33 @@ final class Composing {
         return PureComposer.multiplicity(m);
     }
 
+    static String multiplicity(Multiplicity m) {
+        return PureComposer.multiplicity(m);
+    }
+
     static String genericType(Json.Obj gt) {
         return PureComposer.genericType(gt);
+    }
+
+    static String genericType(TypeExpression type) {
+        return PureComposer.genericType(type);
+    }
+
+    /** A value specification record at the top level of an element: standard style, no indentation. */
+    static String valueSpecification(com.legend.protocol.spec.ValueSpecification vs) {
+        return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD, "");
+    }
+
+    /** A value specification record printed by a composer whose context carries {@code indentation}. */
+    static String valueSpecification(com.legend.protocol.spec.ValueSpecification vs, String indentation) {
+        return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD, indentation);
+    }
+
+    /** {@link #lambdaBodyText(Json.Obj, String)} of a lambda's body: printed without parameters, its first bar gone. */
+    static String lambdaBodyText(List<com.legend.protocol.spec.ValueSpecification> body, String indentation) {
+        String text = valueSpecification(new com.legend.protocol.spec.LambdaFunction(List.of(), body), indentation);
+        int bar = text.indexOf('|');
+        return bar < 0 ? text : text.substring(0, bar) + text.substring(bar + 1);
     }
 
     /** A value specification at the top level of an element: standard style, no indentation. */
