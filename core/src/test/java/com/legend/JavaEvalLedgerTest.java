@@ -1008,6 +1008,14 @@ class JavaEvalLedgerTest {
                     // egress: they write text and rows); SetupRunner.java is CsvSeed.run, the half
                     // that runs them on a connection
                     "Column.java", "SetupRunner.java",
+                    // execution plan step 3 (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
+                    // §9): THE RUNNER -- a plan's own statement run as the plan says, model-free
+                    // (ArchitectureTest.theRunnerIsModelFree): PlanRunner binds the plan's slots and
+                    // carries the database's text out; PlanParameters checks and converts a caller's
+                    // values as legend-engine does (types parsed, none computed); PlanSessions gives out
+                    // sessions by the plan's target and runs its setup once; BulkLoads finds an
+                    // engine's loader. No value is computed or compared: the database executes
+                    "PlanRunner.java", "PlanParameters.java", "PlanSessions.java", "BulkLoads.java",
                     "DynamicPivot.java",
                     "ExecutionResult.java", "Executor.java",
                     // leg 3.4 (2026-09-20): the body's DEFERRED verdict

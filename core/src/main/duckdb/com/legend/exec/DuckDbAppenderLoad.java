@@ -1,6 +1,6 @@
 package com.legend.exec;
 
-import com.legend.setup.RowLoad;
+import com.legend.executionplan.ExecutionPlan;
 import org.duckdb.DuckDBAppender;
 import org.duckdb.DuckDBConnection;
 
@@ -36,9 +36,9 @@ public final class DuckDbAppenderLoad implements BulkLoad {
     }
 
     @Override
-    public void load(Connection connection, RowLoad load, RowLoad.Staging staging) throws SQLException {
+    public void load(Connection connection, ExecutionPlan.SetupStep.Rows rows) throws SQLException {
         try (Statement st = connection.createStatement()) {
-            st.execute(staging.create());
+            st.execute(rows.createStaging());
         }
         // the staging drop runs as the try's resource, on its OWN statement: DuckDB closes a statement that raised,
         // and a drop through it threw "Statement was closed" in place of the real error, leaving the staging table
@@ -46,12 +46,12 @@ public final class DuckDbAppenderLoad implements BulkLoad {
         // the load's own error as suppressed, whatever that error is, and is thrown only when the load succeeded.
         try (StagingDrop ignored = () -> {
             try (Statement drop = connection.createStatement()) {
-                drop.execute(staging.drop());
+                drop.execute(rows.dropStaging());
             }
         }) {
             try (DuckDBAppender appender = connection.unwrap(DuckDBConnection.class)
-                    .createAppender(TEMP_CATALOG, TEMP_SCHEMA, staging.table())) {
-                for (List<String> row : load.rows()) {
+                    .createAppender(TEMP_CATALOG, TEMP_SCHEMA, rows.stagingTable())) {
+                for (List<String> row : rows.rows()) {
                     appender.beginRow();
                     for (String cell : row) {
                         if (cell == null) {
@@ -64,7 +64,7 @@ public final class DuckDbAppenderLoad implements BulkLoad {
                 }
             }
             try (Statement st = connection.createStatement()) {
-                st.execute(staging.copy());
+                st.execute(rows.copy());
             }
         }
     }

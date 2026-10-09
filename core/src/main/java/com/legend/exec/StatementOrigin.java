@@ -88,6 +88,17 @@ public enum StatementOrigin {
         }
     }
 
+    /** {@code sql} sent to a database under the mark in force: one round trip, its characters and its origin counted
+     *  (the Census), and with -Dlegend.diagnostics's SQL dump, printed with the origin it was sent under. */
+    public static void sent(String sql) {
+        Census.inc(Census.Key.SQL_ROUND_TRIPS);
+        count();
+        Census.add(Census.Key.SQL_CHARS, sql.length());
+        if (com.legend.diagnostics.Diagnostics.dumpSql()) {
+            System.err.println("[sql:" + current().name().toLowerCase(java.util.Locale.ROOT) + "] " + sql);
+        }
+    }
+
     /** One statement sent under the mark in force — counted in the Census's
      * {@code statements} family by origin name. */
     public static void count() {

@@ -147,18 +147,12 @@ final class PlanMaker {
                 case CsvSeed.Step.Rows rows -> {
                     RowLoad load = rows.load();
                     if (!load.rows().isEmpty()) {
-                        out.add(bulk ? bulkRows(load, dialect)
+                        out.add(bulk ? load.staged(dialect)
                                 : new ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
                     }
                 }
             }
         }
         return out;
-    }
-
-    private static ExecutionPlan.SetupStep bulkRows(RowLoad load, SqlDialect dialect) {
-        RowLoad.Staging staging = load.staging(dialect);
-        return new ExecutionPlan.SetupStep.Rows(staging.table(), staging.create(), staging.copy(), staging.drop(),
-                load.rows());
     }
 }

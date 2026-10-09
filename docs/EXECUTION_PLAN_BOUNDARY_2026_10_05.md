@@ -430,6 +430,53 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    the target's own content, decision A — `Sessions.Source` no longer takes the model), binds, executes, streams the
    database's text.
    The shrink-only guard on `exec`'s planning-library references starts here.
+   **Step 3's design (2026-10-09; homework: legend-engine's own validation, read from its source,
+   `FunctionParametersParametersValidation`, `FunctionParameterTypeValidator`, `FunctionParametersNormalizer`,
+   `PrimitiveValueSpecificationToObjectVisitor`, and its tests `TestParametersValidation`, `TestEngineDate`,
+   `TestQueryExecutionWithParameters`).**
+   - *The runner's input is legend-engine's.* A caller hands the runner each value as legend-engine's execute API turns
+     a request's protocol value into a Java value: a string, a `Long`, a `Double`, a `BigDecimal`, a `Boolean`, a date
+     as its text (no `%`), an enumeration value as its name, a list for a collection. The server's `execute` makes them
+     from `parameterValues` in step 4; the runner knows no protocol.
+   - *Checked as legend-engine checks, with its messages.* A declared parameter with a lower bound above 0 and no value
+     (or a null one) is `Missing external parameter(s): name:Type[m]` (several joined by `,`); a value for no declared
+     parameter is ignored; a one-element list for a parameter of upper bound 1 is its element. Each value is checked by
+     its declared type — the right Java type, or a string that parses (Integer: `Long`, `Integer`; Float: `Double`,
+     `Float`, `Integer`, `Long`; Decimal: `BigDecimal` only; Boolean; String; StrictDate `yyyy-MM-dd`; DateTime its six
+     formats, an offset converted to UTC; Date either) — and an enumeration's name against the plan's names; every
+     failure collected into `Invalid provided parameter(s): [...]`, each in the engine's words (`Unable to process
+     'Integer' parameter, value: true.`, `Invalid enum value X for path, valid enum values: [A, B]`). A Number
+     parameter has no validator in legend-engine, which refuses it (`Unknown external parameter type`); so does the
+     runner. A list for a parameter of upper bound 1 (other than one element) is refused by name: legend-engine passes
+     it to its template, which writes no SQL the database can run.
+   - *Bound as the plan's slots say.* Each slot binds its parameter's checked value, converted for the driver: an
+     Integer a `long`, a Float and a Decimal a `BigDecimal` (a Float's decimal text: the numeric charter's Rule 1), a
+     StrictDate a `LocalDate`, a DateTime a `LocalDateTime` in UTC, an enumeration its name, an absent optional value a
+     null of its type, a list one array of its element type (`createArrayOf`). Nothing edits the statement.
+   - *Sessions by the target (decision A).* `exec.PlanSessions` gives out a session for a plan's target: an in-memory
+     database (the platform's engine, an in-memory or `LocalH2` connection) is shared by every run whose target is equal
+     — the connection, its server versions, its session statements and its setup — and its setup runs once, when it is
+     opened (the content-keyed `HandleStore`, keyed by the target); a database reached by URL is opened for the run and
+     closed after it, its setup run each time; a caller's own connection is only checked. Every session is checked
+     against the target before anything runs: the database it is (`Sessions.check`) and, where the statements are
+     written for some server versions (H2), its version (`Servers.Versions`), refused by name otherwise. Each
+     connection runs the target's session statements when it is first used.
+   - *The text the database writes, passed on.* A CSV or JSON result: the one row's one cell; one JSON object per row:
+     each row's cell, the array's brackets and commas written by the runner, flushed per row.
+   - *Model-free by construction.* `PlanRunner` and `PlanSessions` read the plan records, `java.sql` and the session
+     opener only; an architecture rule pins that they reach no compiler, lowering, dialect, setup or plan-text class.
+   - *Slices:* (a) the runner and its sessions for plans without parameters — `PlanCases`' hand-written run replaced by
+     `PlanRunner`, every landing-2 case then the runner's test on DuckDB, H2 and Postgres; (b) parameters checked,
+     converted and bound, legend-engine's validation cases ported; (c) the guard.
+   **Step 3, on branch 2026-10-09** (`dbowner/plan-runner`): `exec.PlanRunner`, `PlanParameters`, `PlanSessions`. Every
+   landing-2 case now runs through the runner (`PlanCases.run`) and answers byte for byte as today's path on DuckDB, H2
+   and Postgres; `PlanRunnerTest` ports legend-engine's validation cases, message for message, and holds the sessions'
+   rules (a target's database shared and set up once, another target's its own, a session of another database or H2
+   version refused). One shape for a bulk load: a plan's `SetupStep.Rows`, which `RowLoad.staged` writes and the
+   loader takes (`BulkLoad`, `BulkLoads`; `RowLoad.Staging` gone). `ArchitectureTest.theRunnerIsModelFree` pins the
+   runner's classes off the compiler, the resolver, the lowering, the SQL tree and dialects, the setup and the legacy
+   plan (it fails on a planted reference). A database reached by a URL is never set up by a plan (only an in-memory
+   connection declares test data): a plan with setup for one is refused by name.
 4. **Switch the callers, delete what they replace** — `pure/v1/execution/execute`: plan once, run with
    `parameterValues`; `Execution.executeWire` / `executeStreaming` and `QueryService`'s wire and streaming paths: plan +
    run. DELETED (rule 15): `PureV1Api.boundParameters`, `Execution`'s `wireOn` / `streamOn`, and `ConnectionResolver`'s
