@@ -120,6 +120,13 @@ build --experimental_disk_cache_gc_max_age=60d
 # .exe launcher, which starts the hermetic interpreter directly.
 common --@rules_python//python/config_settings:bootstrap_impl=script
 
+# Each Python binary and test sees its packages through a venv of its own (<name>.venv/.../site-packages), not one
+# directory per wheel named after the wheel (rules_python++pip+pypi_312_<package>_<tags>_<hash>/site-packages): the
+# layout Python itself expects, and paths short enough for Windows, whose DLL loader refuses a compiled module past
+# about 250 characters -- the first Windows run of the DataCube browser test's Python engine (2026-10-09) failed so on
+# psygnal's (anywidget's) module. rules_python 2.3's venvs, on every platform alike.
+common --@rules_python//python/config_settings:venvs_site_packages=yes
+
 # rules_js depends on aspect_tools_telemetry, which reports ruleset usage from
 # every build unless told not to. This repository's builds send nothing.
 common --repo_env=ASPECT_TOOLS_TELEMETRY=-all

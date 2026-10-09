@@ -243,8 +243,9 @@ class Installed(unittest.TestCase):
         ran = subprocess.run([python, '-I', '-c', SCRIPT], cwd=root, env=env, capture_output=True, text=True, timeout=120)
         self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
         out = json.loads(ran.stdout.strip().splitlines()[-1])
-        self.assertTrue(out['module'].startswith(str(venv)), out['module'])
-        self.assertTrue(out['library'].startswith(str(venv)), out['library'])
+        # as paths, not text: Windows writes its separators both ways
+        self.assertTrue(Path(out['module']).is_relative_to(venv), out['module'])
+        self.assertTrue(Path(out['library']).is_relative_to(venv), out['library'])
         self.assertEqual((out['page'], out['cube']), (200, ['model', 'runtime', 'source', 'title', 'version']))
         self.assertEqual(out['rows'], [{'desk': 'EQ', 'q': 2.5}, {'desk': 'FX', 'q': 5.5}])
         # the notebook extra installed: the cube's loader, and DataCube's module (about 1.3 MB) and styles, from the wheel

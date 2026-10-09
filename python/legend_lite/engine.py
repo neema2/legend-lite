@@ -33,6 +33,7 @@ import json
 import secrets
 import socket
 import socketserver
+import sys
 import threading
 import traceback
 import queue
@@ -327,8 +328,15 @@ class _Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
     def __init__(self, web: WebServer) -> None:
         self.web = web
         self._open: set[socket.socket] = set()
+        # the connections whose request was read whole and is being answered: a close lets them finish
+        self._answering: set[socket.socket] = set()
+        self._closing = False
         self._settled = threading.Condition()
         super().__init__(('127.0.0.1', 0), _Handler)
+
+    def answering(self, connection: socket.socket) -> None:
+        with self._settled:
+            self._answering.add(connection)
 
     def process_request(self, request: Any, client_address: Any) -> None:
         with self._settled:
@@ -341,15 +349,28 @@ class _Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
         finally:
             with self._settled:
                 self._open.discard(request)
+                self._answering.discard(request)
                 self._settled.notify_all()
+
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        # a connection cut by the close (below) fails its read: that is the close, not a fault
+        if not self._closing:
+            super().handle_error(request, client_address)
 
     def server_close(self) -> None:
         super().server_close()
         with self._settled:
+            self._closing = True
             for connection in self._open:
-                # a request still being read ends now; one being answered finishes its answer first
+                # a request still being read ends now; one being answered finishes its answer first. A read blocked
+                # in another thread ends, on Linux and macOS, when its socket is shut for reading; on Windows a
+                # shutdown leaves it blocked (until the idle timeout: 30 s, found by the first Windows run) and only
+                # closing the socket cancels it, so there the connections still being read are closed
                 with contextlib.suppress(OSError):
-                    connection.shutdown(socket.SHUT_RD)
+                    if sys.platform != 'win32':
+                        connection.shutdown(socket.SHUT_RD)
+                    elif connection not in self._answering:
+                        connection.close()
             self._settled.wait_for(lambda: not self._open)
 
 
@@ -429,6 +450,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         if len(raw) < length:
             # the connection ended before its body did (the client went, or the server is closing)
             return
+        self.server.answering(self.connection)
         try:
             body = raw.decode('utf-8')
         except UnicodeDecodeError:
@@ -441,6 +463,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         Host naming this machine."""
         url = urlsplit(self.path)
         if self._admitted(url.path):
+            self.server.answering(self.connection)
             self._send(self.server.web.engine.answer('GET', url.path, url.query, None))
 
     def do_OPTIONS(self) -> None:  # noqa: N802

@@ -98,6 +98,8 @@ _NOTEBOOK_PACKAGES_WINDOWS = ["colorama"]
 _ENV = {
     "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
     "PYTHONDONTWRITEBYTECODE": "1",
+    # a crash in the native library prints the Python stack it happened under
+    "PYTHONFAULTHANDLER": "1",
     "PYTHONUTF8": "1",
 }
 
@@ -149,8 +151,16 @@ py_test(
     ],
     args = ["test_frames"],
     data = ["//native:compiler"],
-    # zone names (a zoned timestamp's) from the pinned tzdata, never the machine's (as scripts/corpus's gates)
-    env = _ENV | {"PYTHONTZPATH": ""},
+    # zone names (a zoned timestamp's) from the pinned tzdata, never the machine's (as scripts/corpus's gates). On
+    # Windows, the platform's architecture as Windows names it: Python reads it from PROCESSOR_ARCHITECTURE, which a
+    # test does not inherit, and polars refuses to import without it (its CPU check, found by the first Windows run)
+    env = select({
+        "//tools/platforms:windows_x86_64": _ENV | {
+            "PROCESSOR_ARCHITECTURE": "AMD64",
+            "PYTHONTZPATH": "",
+        },
+        "//conditions:default": _ENV | {"PYTHONTZPATH": ""},
+    }),
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,
     deps = [
