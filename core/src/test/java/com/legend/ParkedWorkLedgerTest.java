@@ -90,17 +90,12 @@ class ParkedWorkLedgerTest {
                     new Anchor("candidates\\.isEmpty\\(\\) \\? null\\s*\\n\\s*: candidates\\.get\\(0\\)\\.mappingId\\(\\)",
                             List.of("PlanText.java"))),
             // PARK-16 (2026-10-08, the user: "record the ddl fix so that we actually
-            // do it"): DDL and DML spell a table or schema name RAW where queries
-            // spell it through physicalName; only Postgres overrides. The raw
-            // spelling, the test-data generator's hand-built SQL (the same raw
-            // rule, outside the dialects) and the override are the anchors.
-            Map.entry("PARK-16 DDL and DML spell names raw (the base)",
-                    new Anchor("\\n\\s+\\? table : schema \\+ \"\\.\" \\+ table;", List.of("AnsiSqlRenderer.java"))),
+            // do it"; restated 2026-10-09 when DDL and DML were fixed, "product now,
+            // generator later"): the test-data generator's hand-built SQL spells a
+            // table or schema name RAW, outside the dialects.
             Map.entry("PARK-16 the test-data generator's hand-built SQL spells names raw",
                     new Anchor("\\|\\| \"default\"\\.equals\\(schema\\) \\? table : schema \\+ \"\\.\" \\+ table;",
                             List.of("TestDataGenerator.java"))),
-            Map.entry("PARK-16 DDL and DML spell names raw (Postgres's override)",
-                    new Anchor("protected String ddlQualified\\(", List.of("AnsiSqlRenderer.java", "Postgres.java"))),
             // PARK-17 (2026-10-09, the DataCube + Python line, on the protocol
             // program's leg 4): Python's refusal kind is the engine's for its
             // grammar and a Java class name for the rest, until leg 6. Leg 6's

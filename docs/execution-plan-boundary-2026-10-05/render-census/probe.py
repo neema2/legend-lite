@@ -20,7 +20,6 @@ ENTRIES = [
     ("AnsiSqlRenderer.java", "    public String render(com.legend.sql.SqlDml dml) {", "dml", "censusDml0", "dml"),
     ("AnsiSqlRenderer.java", "    public RenderedStatement renderStatement(SqlQuery query) {", "statement",
      "censusStatement0", "query"),
-    ("Postgres.java", "    public String render(com.legend.sql.SqlDdl ddl) {", "ddl", "censusPgDdl0", "ddl"),
     ("EngineStyleH2.java", "    public String render(SqlQuery query) {", "query", "censusEngineQuery0", "query"),
 ]
 MARK = "    // census probe: wrapped\n"

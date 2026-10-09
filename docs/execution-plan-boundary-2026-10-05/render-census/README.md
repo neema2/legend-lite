@@ -7,7 +7,7 @@ be compared byte for byte. It is the judge for E, the dialects' move to one writ
 - `probe.py apply|remove` — the probe, never committed to the product, applied by matching method SIGNATURES so it fits
   every stage of E: it adds `RenderCensus` (`RenderCensus.java.txt`) and wraps each outermost render entry
   (`AnsiSqlRenderer.render` for queries, DDL and DML and `renderStatement` for statements with bound parameters, kind
-  `statement`; `Postgres.render` for DDL; `EngineStyleH2.render` for queries; a dialect's call up to its super is counted
+  `statement`; `EngineStyleH2.render` for queries (Postgres's own DDL `render` went with PARK-16: it renders through the base); a dialect's call up to its super is counted
   once). `apply` checks every signature before it writes and refuses a tree it has already applied to, and removes it exactly. Each render writes one line — dialect, kind,
   the text's SHA-256 — and each distinct text once, under the test's undeclared-outputs folder, `LEGEND_RENDER_CENSUS`,
   or (a corpus judge action) beside the pass's ledger. (E-0 shipped it as a patch; E-1 reshaped `render`, so the patch's

@@ -1497,23 +1497,4 @@ public final class Postgres extends AnsiSqlRenderer {
         }
         return super.ddlType(t);
     }
-
-    /** Table names quote like the query's table references. */
-    @Override
-    protected String ddlQualified(@com.legend.base.Nullable String schema, String table) {
-        return schema == null || schema.isEmpty() || "default".equals(schema)
-                ? ident(table) : ident(schema) + "." + ident(table);
-    }
-
-    /** Schema names quote like the query's schema-qualified references. */
-    @Override
-    public String render(com.legend.sql.SqlDdl ddl) {
-        if (ddl instanceof com.legend.sql.SqlDdl.CreateSchema cs) {
-            return "Create Schema if not exists " + ident(cs.schema()) + ";";
-        }
-        if (ddl instanceof com.legend.sql.SqlDdl.DropSchema ds) {
-            return "Drop schema if exists " + ident(ds.schema()) + " cascade;";
-        }
-        return super.render(ddl);
-    }
 }

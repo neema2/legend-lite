@@ -117,7 +117,7 @@ public final class CsvSeed {
             out.add(new Step.Sql(dialect.render(Ddl.createTable(def.get(), defaultSchema ? null : schema))));
         } else {
             out.add(new Step.Sql(dialect.render(new com.legend.sql.SqlDml.DeleteAll(
-                    defaultSchema ? null : dialect.physicalName(schema), dialect.physicalName(table)))));
+                    defaultSchema ? null : schema, table))));
         }
         // F7.5: ONE multi-row INSERT per block — the statement count is
         // the seed cost (task #14: per-statement parse+plan+JNI), and

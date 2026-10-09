@@ -67,4 +67,58 @@ class PostgresArmTest {
             assertEquals(42, r.getInt(1));
         }
     }
+
+    /** A default-schema table {@code order} and a table in a schema {@code select} (PARK-16; the same tables as
+     *  {@code com.legend.setup.ReservedNamesSeedTest}, which holds the DuckDB and H2 cases this target cannot load). */
+    private static final String RESERVED_NAMES = """
+            ###Relational
+            Database s::DB
+            (
+              Table order ( ID INTEGER PRIMARY KEY, NAME VARCHAR(10) )
+              Schema select ( Table T ( ID INTEGER PRIMARY KEY ) )
+            )
+            ###Connection
+            RelationalDatabaseConnection s::Conn {
+                store: s::DB; type: Postgres;
+                specification: Static { host: '127.0.0.1'; port: %d; name: 'postgres'; }; auth: Test; }
+            ###Runtime
+            Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
+            """;
+
+    private static final String RESERVED_NAMES_ROWS = """
+            default
+            order
+            ID,NAME
+            1,a
+            2,b
+            -----
+            select
+            T
+            ID
+            7
+            """;
+
+    @Test
+    @DisplayName("a table and a schema named by reserved words seed and answer a query on Postgres (PARK-16)")
+    void reservedNamesSeedAndAnswer() throws Exception {
+        EmbeddedPostgres pg = EmbeddedPostgres.shared();
+        String model = String.format(java.util.Locale.ROOT, RESERVED_NAMES, pg.port());
+        com.legend.sql.dialect.SqlDialect dialect = new com.legend.sql.dialect.Postgres();
+        try (Connection c = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : com.legend.setup.CsvSeed.sqls(RESERVED_NAMES_ROWS, "s::DB",
+                        com.legend.Compiler.compileModel(model), dialect)) {
+                    s.execute(sql);
+                }
+            }
+            com.legend.exec.ExecutionResult order = com.legend.Execution.execute(model,
+                    "#>{s::DB.order}#->select(~[ID, NAME])->sort(~ID->ascending())", "s::RT", c);
+            assertEquals(2, java.util.Objects.requireNonNull(order).rows().size());
+            assertEquals("a", order.rows().get(0).get(1));
+            assertEquals("b", order.rows().get(1).get(1));
+            com.legend.exec.ExecutionResult t = com.legend.Execution.execute(model, "#>{s::DB.select.T}#->select(~[ID])",
+                    "s::RT", c);
+            assertEquals(7, ((Number) java.util.Objects.requireNonNull(t).rows().get(0).get(0)).intValue());
+        }
+    }
 }

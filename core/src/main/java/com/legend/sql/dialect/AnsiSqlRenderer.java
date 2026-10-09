@@ -1367,9 +1367,9 @@ public class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDdl.DropTable dt ->
                     "Drop table if exists " + ddlQualified(dt.schema(), dt.table()) + ";";
             case com.legend.sql.SqlDdl.CreateSchema cs ->
-                    "Create Schema if not exists " + cs.schema() + ";";
+                    "Create Schema if not exists " + physicalName(cs.schema()) + ";";
             case com.legend.sql.SqlDdl.DropSchema ds ->
-                    "Drop schema if exists " + ds.schema() + " cascade;";
+                    "Drop schema if exists " + physicalName(ds.schema()) + " cascade;";
         };
     }
 
@@ -1403,10 +1403,12 @@ public class AnsiSqlRenderer implements SqlDialect {
                 columns.stream().map(this::ident).toList()) + ")";
     }
 
-    /** {@code schema.table}; the default schema spells bare. */
-    protected String ddlQualified(@com.legend.base.Nullable String schema, String table) {
+    /** {@code schema.table}, each name spelled as a query references it ({@link #physicalName}: a reserved or
+     *  unusual name quoted), so the statement that creates or fills a table and the query that reads it name one
+     *  table; the default schema spells bare. */
+    private String ddlQualified(@com.legend.base.Nullable String schema, String table) {
         return schema == null || schema.isEmpty() || "default".equals(schema)
-                ? table : schema + "." + table;
+                ? physicalName(table) : physicalName(schema) + "." + physicalName(table);
     }
 
     /** A store column's declared type, spelled for this target (the H2

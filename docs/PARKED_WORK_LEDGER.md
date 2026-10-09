@@ -214,40 +214,44 @@ changes all three.
 
 ---
 
-## PARK-16 — DDL and DML spell a table or schema name raw; queries quote it when they must
+## PARK-16 — the test-data generator's hand-built SQL spells a table or schema name raw
 
 **Parked** 2026-10-08 by the user, to keep the execution plan line on its path ("make plans the only way to run"), with
 the instruction to "record the ddl fix so that we actually do it (either now or later)". Found by the Studio line's
-landing audit; confirmed in the code the same day.
+landing audit; confirmed in the code the same day. **Restated** 2026-10-09: the product half is FIXED (below); the user
+chose "product now, generator later" for the rest.
 
-**What happens today.** The statements that create, drop, fill and empty a table (`AnsiSqlRenderer.render(SqlDdl)` and
-`render(SqlDml)`) spell its schema and name RAW through `ddlQualified`, and `CREATE`/`DROP SCHEMA` spell the schema raw.
-Queries spell the same names through `physicalName`, which quotes a reserved word or a name that is not plain. The
-test-data generator's hand-built SQL (`TestDataGenerator.qualify`, `select ... from <schema.table>`) spells them raw the
-same way, outside the dialects. So a
-table `order` in the default schema gets `Drop table if exists order;`, refused by DuckDB and H2 — on the server and in
-the Studio tab, which runs these same statements (`CsvSeed.sqls`). Only Postgres spells them like its queries, by
-overriding both (`ddlQualified` and `render(SqlDdl)`, through its `ident`, which is its `physicalName`).
+**Fixed 2026-10-09 (with E, `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §10).** The statements that create, drop, fill
+and empty a table (`AnsiSqlRenderer.render(SqlDdl)` and `render(SqlDml)`), and `CREATE`/`DROP SCHEMA`, spelled schema
+and table names RAW, where queries spell them through `physicalName` (a reserved word or a name that is not plain is
+quoted): a default-schema table `order` got `Drop table if exists order;`, refused by DuckDB and H2, on the server and in
+the Studio tab (`CsvSeed.sqls`). Now one rule: DDL and DML spell each name through `physicalName`, as queries do, and as
+legend-engine's own H2 DDL does (`translateCreateTableStatementForH2` spells the table through `tableToString`, its query
+spelling); Postgres's two overrides are gone. `ReservedNamesSeedTest` seeds a default-schema table `order` and a table in
+a schema `select` and answers a query over each on DuckDB and H2, `PostgresArmTest` on Postgres; the render census shows
+nothing else changing.
 
-**The fix (agreed).** One rule: DDL and DML spell schema and table names through `physicalName`, as queries do, and
-Postgres's two overrides go; the test-data generator's names spell through the dialect's `physicalName` too. Measured with the render census (`docs/execution-plan-boundary-2026-10-05/render-census/`)
-before it lands: every statement whose text changes is listed, and only quoted reserved or non-plain names may change.
+**What remains.** The test-data generator's hand-built SQL (`TestDataGenerator.qualify`, `select ... from
+<schema.table>`) spells the names raw, outside the dialects: it runs on whatever test database it is handed, with no
+dialect, so a reserved table name breaks a test-data generation over it.
+
+**The fix (agreed).** The generator's names spell through the session's dialect's `physicalName`: the dialect is threaded
+from the test-body executor (`StatementExecutor`, `BodyCompiler`, `SqlTextVerdicts`) through
+`TestDataGenerationNatives` to the generator.
 
 **Not in scope (reviewed 2026-10-08, the audit of E-1).** `StatementExecutor.ddlStatementString` also writes a schema
 name raw (`Drop schema if exists <s> cascade;`, `Create Schema if not exists <s>;`): that is the Pure natives
 `dropSchemaStatement`/`createSchemaStatement` returning legend-engine's own text as a value (`toDDL.pure`), parity by
 design, not a statement lite spells for a database.
 
-**Acceptance (what closes this row).** A model with a default-schema table named `order`, and a table in a schema
-named `select`, seeds and answers a query on DuckDB, H2 and Postgres; the census shows nothing else changing.
+**Acceptance (what closes this row).** A test-data generation over a default-schema table named `order`, and over a
+table in a schema named `select`, runs on DuckDB and H2.
 
-**When.** With E's stage that moves the DDL and DML renderers onto the writer
-(`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §10) — that stage rewrites `ddlQualified`, so the anchor below goes red
-there and the row must be closed or restated — or sooner if a user meets it.
+**When.** In phase 3 of the execution plan program (the runner for Pure test bodies), when that executor code moves out
+of `exec`; sooner if a user meets it. Cost of leaving it parked: test-data generation over a reserved or unusual table
+name fails loudly (a SQL syntax error); no product path is affected.
 
-**Anchor.** The raw spelling `? table : schema + "." + table;` in `AnsiSqlRenderer.java` and, as
-`|| "default".equals(schema) ? table : ...`, in `TestDataGenerator.java`; and `ddlQualified` declared in
-`AnsiSqlRenderer.java` and `Postgres.java` (Postgres's override is the one place that already spells like queries).
+**Anchor.** The raw spelling `|| "default".equals(schema) ? table : schema + "." + table;` in `TestDataGenerator.java`.
 
 ## PARK-17 — Python's refusal kind is mixed until the protocol program's leg 6
 
