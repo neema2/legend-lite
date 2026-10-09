@@ -149,7 +149,7 @@ class IdentityGuardrailTest {
             Map.entry("MINT_BY_NAME", 142),   // 143 -> 142 (2026-09-27: the #>{}# island's record is built by ONE factory, AppliedFunction.tableReference, for the parser and the protocol reader; the parser's two mints went into it)
             Map.entry("FORM_DISPATCH_BY_NAME", 1),   // 21 -> 1 (2026-10-06, build rebuild Phase 3: ResolvedNames.form)
             Map.entry("LOCAL_NAME_COMPARE", 85),   // 87 -> 85 (2026-10-06, build rebuild Phase 3: measured); 90 -> 87 (2026-09-26, step 2: three local-name compares in the rule tables left with the bare names)
-            Map.entry("CASE_NAME_LABEL", 4),
+            Map.entry("CASE_NAME_LABEL", 5),   // 4 -> 5 (2026-10-09, execution plan step 3's audit: exec/PlanParameters checks a Variant parameter's value as legend-engine does, by the plan's declared type NAME -- the runner is model-free, so the name is the only identity it has, and legend-engine keys its validators by the same names)
             Map.entry("PARSE_NAME_LOOKUP", 3));
 
     @Test

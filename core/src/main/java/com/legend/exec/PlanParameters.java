@@ -48,14 +48,16 @@ public final class PlanParameters {
     private static final List<DateTimeFormatter> DATE_TIME_PARSERS = DATE_TIME_FORMATS.stream()
             .map(PlanParameters::parser).toList();
 
-    /** The Pure types legend-engine validates a parameter value of, in the order it declares them (it prints them in its
-     *  map's hash order, which no test of its asserts): an unknown type's message names them. */
-    private static final List<String> ENGINE_TYPES = List.of("StrictDate", "DateTime", "Date", "Integer", "Float",
-            "Decimal", "Boolean", "String", "Byte", "meta::pure::metamodel::variant::Variant");
+    /** The Pure types legend-engine validates a parameter value of, in the order its message prints them: its validators'
+     *  map's iteration order, the same on every run (measured on 4.145.0's own jars,
+     *  docs/execution-plan-boundary-2026-10-05/probes/engine-validation-results.txt). */
+    private static final List<String> ENGINE_TYPES = List.of("Float", "Byte", "meta::pure::metamodel::variant::Variant",
+            "DateTime", "Date", "Decimal", "String", "Integer", "Boolean", "StrictDate");
 
-    /** The types the runner binds: legend-engine's, less a Byte and a Variant, which no plan binds yet (PARK-21). */
-    private static final List<String> BOUND_TYPES = List.of("StrictDate", "DateTime", "Date", "Integer", "Float",
-            "Decimal", "Boolean", "String");
+    /** The types legend-engine's normalizer converts, each with the name its message for a null element gives
+     *  ({@code Invalid Double value: null} for a Float); it passes every other type's value on as it is. */
+    private static final Map<String, String> NORMALIZED = Map.of("StrictDate", "StrictDate", "DateTime", "DateTime",
+            "Date", "Date", "Integer", "Integer", "Float", "Double", "Decimal", "Decimal", "Boolean", "Boolean");
 
     /** One value's conversion: the value its slot binds, not a value of the type (legend-engine's failure), or refused
      *  by the runner for a reason of its own. */
@@ -92,76 +94,127 @@ public final class PlanParameters {
 
     /**
      * {@code values} checked against {@code declared} and converted, by name: every declared parameter, its checked
-     * value. A value for no declared parameter is ignored, as legend-engine ignores it.
+     * value. legend-engine's steps, in its order and with its messages (its validation, then its normalizer); then the
+     * runner's own refusals, of values legend-engine would pass on to its template. A value for no declared parameter is
+     * ignored, as legend-engine ignores it.
      *
-     * @throws IllegalArgumentException with legend-engine's message: {@code Missing external parameter(s): ...} for a
-     *                                  required parameter with no value, {@code Invalid provided parameter(s): [...]}
-     *                                  for values that fail their checks, every failure collected
+     * @throws IllegalArgumentException {@code Missing external parameter(s): ...} for a required parameter with no
+     *                                  value; {@code Invalid provided parameter(s): [...]} for values that fail
+     *                                  legend-engine's checks, every failure collected; {@code Invalid T value: null}
+     *                                  for a null element legend-engine's normalizer converts; {@code Parameter
+     *                                  value(s) the plan does not bind: [...]} for the runner's own refusals, every one
+     *                                  collected
      */
     public static Map<String, Checked> check(List<ExecutionPlan.Parameter> declared, Map<String, ?> values) {
-        // a required parameter given no value, or a null one, is missing: legend-engine lets a null one through to its
-        // template, which then fails to write the statement (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3)
+        // legend-engine's missing check; and, a deliberate difference, a required parameter given a null value or an
+        // empty list is missing too -- no value, as Pure's [] is none (legend-engine passes either on to its template,
+        // which writes no statement a database runs, or an empty collection where one value or more is declared)
         List<String> missing = new ArrayList<>();
         for (ExecutionPlan.Parameter p : declared) {
-            if (p.multiplicity().lower() > 0 && values.get(p.name()) == null) {
+            if (p.multiplicity().lower() > 0 && none(values.get(p.name()))) {
                 missing.add(p.name() + ":" + p.type() + "[" + multiplicity(p.multiplicity()) + "]");
             }
         }
         if (!missing.isEmpty()) {
             throw new IllegalArgumentException("Missing external parameter(s): " + String.join(",", missing));
         }
-        Map<String, Checked> out = new LinkedHashMap<>();
+        // legend-engine's validation: every failure collected
         List<String> invalid = new ArrayList<>();
         for (ExecutionPlan.Parameter p : declared) {
             Object value = values.get(p.name());
-            if (value == null) {
-                out.put(p.name(), new None());
-                continue;
-            }
-            String failure = checkOne(p, value, out);
-            if (failure != null) {
-                invalid.add(failure);
+            if (value != null) {
+                String failure = validated(p, value);
+                if (failure != null) {
+                    invalid.add(failure);
+                }
             }
         }
         if (!invalid.isEmpty()) {
             throw new IllegalArgumentException("Invalid provided parameter(s): [" + String.join(",", invalid) + "]");
         }
+        // legend-engine's normalizer: a null element it would convert fails, the first in declaration order
+        for (ExecutionPlan.Parameter p : declared) {
+            String normalized = NORMALIZED.get(p.type());
+            if (p.enumValues().isEmpty() && normalized != null
+                    && elements(values.get(p.name())).stream().anyMatch(java.util.Objects::isNull)) {
+                throw new IllegalArgumentException("Invalid " + normalized + " value: null");
+            }
+        }
+        // the runner's own refusals, of values legend-engine passes on: every one collected
+        Map<String, Checked> out = new LinkedHashMap<>();
+        List<String> refused = new ArrayList<>();
+        for (ExecutionPlan.Parameter p : declared) {
+            Object value = values.get(p.name());
+            if (none(value)) {
+                out.put(p.name(), new None());
+                continue;
+            }
+            String refusal = bound(p, elements(value), out);
+            if (refusal != null) {
+                refused.add(refusal);
+            }
+        }
+        if (!refused.isEmpty()) {
+            throw new IllegalArgumentException("Parameter value(s) the plan does not bind: [" + String.join("; ", refused)
+                    + "]");
+        }
         return out;
     }
 
-    /** {@code value} of {@code p} checked: its checked form put in {@code out}, or its failure's message. */
-    private static @com.legend.base.Nullable String checkOne(ExecutionPlan.Parameter p, Object value,
-            Map<String, Checked> out) {
-        if (p.enumValues().isEmpty() && !BOUND_TYPES.contains(p.type())) {
-            return ENGINE_TYPES.contains(p.type())
-                    ? "parameter '" + p.name() + "' of type " + p.type() + " is not bound by a plan (PARK-21)"
-                    // legend-engine has no validator for it (a Number among them): one more failure
-                    : "Unknown external parameter type: " + p.type() + ", valid external parameter types: ["
-                            + String.join(", ", ENGINE_TYPES) + "]";
+    /** No value: none given, or an empty list. */
+    private static boolean none(@com.legend.base.Nullable Object value) {
+        return value == null || value instanceof List<?> list && list.isEmpty();
+    }
+
+    /** A value's elements: a list's, or the one value. */
+    private static List<?> elements(@com.legend.base.Nullable Object value) {
+        return value instanceof List<?> list ? list : value == null ? List.of() : List.of(value);
+    }
+
+    /** {@code value} of {@code p} validated as legend-engine validates it: its failure's message, or null. legend-engine
+     *  validates a list element by element and names the first that fails (a null element passes); an enumeration's
+     *  failure names the whole value. */
+    private static @com.legend.base.Nullable String validated(ExecutionPlan.Parameter p, Object value) {
+        if (p.enumValues().isEmpty() && !ENGINE_TYPES.contains(p.type())) {
+            // legend-engine has no validator for it (a Number among them)
+            return "Unknown external parameter type: " + p.type() + ", valid external parameter types: ["
+                    + String.join(", ", ENGINE_TYPES) + "]";
         }
+        for (Object v : elements(value)) {
+            if (v != null && convert(p, v) instanceof NotOfType) {
+                return p.enumValues().isEmpty() ? message(p.type(), v)
+                        : "Invalid enum value " + value + " for " + p.type() + ", valid enum values: " + p.enumValues();
+            }
+        }
+        return null;
+    }
+
+    /** {@code given}, the elements of a value of {@code p} legend-engine passes, converted and put in {@code out}; or
+     *  the runner's refusal. */
+    private static @com.legend.base.Nullable String bound(ExecutionPlan.Parameter p, List<?> given,
+            Map<String, Checked> out) {
+        String signature = "parameter '" + p.name() + "' (" + p.type() + "[" + multiplicity(p.multiplicity()) + "])";
         boolean one = Integer.valueOf(1).equals(p.multiplicity().upper());
-        List<?> given = value instanceof List<?> list ? list : List.of(value);
         if (one && given.size() > 1) {
             // legend-engine passes it on to its template, which writes no SQL a database runs
-            return "parameter '" + p.name() + "' (" + p.type() + "[" + multiplicity(p.multiplicity())
-                    + "]) takes one value, given " + given.size();
+            return signature + " takes one value, given " + given.size();
         }
         List<Object> converted = new ArrayList<>(given.size());
         for (Object v : given) {
+            if (v == null) {
+                // legend-engine passes a String's or an enumeration's null element on; a Pure collection has none
+                return signature + " is given a null element";
+            }
             switch (convert(p, v)) {
                 case Converted c -> converted.add(c.value());
-                // legend-engine names the failing VALUE, a list's failing element; an enumeration's, the whole value
-                case NotOfType n -> {
-                    return p.enumValues().isEmpty() ? message(p.type(), v)
-                            : "Invalid enum value " + value + " for " + p.type() + ", valid enum values: "
-                                    + p.enumValues();
-                }
                 case Refused r -> {
                     return r.why();
                 }
+                case NotOfType n -> throw new IllegalStateException(signature + ": " + v + " passed validation and"
+                        + " converts to no value");
             }
         }
-        out.put(p.name(), converted.isEmpty() ? new None() : one ? new One(converted.get(0)) : new Many(converted));
+        out.put(p.name(), one ? new One(converted.get(0)) : new Many(converted));
         return null;
     }
 
@@ -185,13 +238,25 @@ public final class PlanParameters {
             case "StrictDate" -> v instanceof LocalDate d ? d : v instanceof String s ? strictDate(s) : null;
             case "DateTime" -> dateTime(v);
             case "Date" -> v instanceof LocalDate d ? d : date(v);
+            // legend-engine takes a Byte as a stream and a Variant as JSON or its text (or a Jackson JsonNode, which
+            // no caller of lite has); no plan binds either yet
+            case "Byte" -> v instanceof java.io.InputStream ? notBound(p) : null;
+            case "meta::pure::metamodel::variant::Variant" -> v instanceof String ? notBound(p) : null;
             default -> throw new IllegalStateException("parameter '" + p.name() + "' of type " + p.type()
-                    + " reached conversion: its type is not one the runner binds");
+                    + " reached conversion: legend-engine validates no such type");
         };
         if (c == null) {
             return new NotOfType();
         }
+        if (c instanceof Conversion refused) {
+            return refused;
+        }
         return c instanceof Double d ? floatValue(p, d) : new Converted(c);
+    }
+
+    /** A value of a type legend-engine validates and no plan binds yet (PARK-21). */
+    private static Refused notBound(ExecutionPlan.Parameter p) {
+        return new Refused("parameter '" + p.name() + "' of type " + p.type() + " is not bound by a plan (PARK-21)");
     }
 
     /** A Float as its literal is typed (the numeric charter's Rule 1, {@code SqlTyping.floatDecimal}): its plain digits
