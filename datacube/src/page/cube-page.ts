@@ -26,7 +26,7 @@ import { ChartPanel } from '../ui/chart-panel.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { BandBoard, type BandTile } from '../layout/band-board.ts';
-import { type Bands, asSaved, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
+import { type Bands, asSaved, bringToFront, cells, places, remove as removeTile, tiles } from '../layout/bands.ts';
 import type { LayoutPicker } from '../ui/layout-picker.ts';
 import { followCube, measureName } from '../chart-spec.ts';
 import type { GridShown, MarkKey } from '../chart-option.ts';
@@ -785,10 +785,11 @@ export class CubePage {
           { id: 'tile.edit', label: 'Open in grid', ...(editable ? {} : { disabled: true }) },
         ] },
         // a page of sheets: this chart onto another, or a new one (its grid stays where it is, and it follows it)
-        ...(this.#options.sheetLabel ? [{ label: '', items: [{ label: 'Move to Sheet', ...(this.#editing ? {} : { disabled: true }), submenu: [
+        // locked: offered disabled, with nothing under it
+        ...(this.#options.sheetLabel ? [{ label: '', items: [{ label: 'Move to Sheet', ...(this.#editing ? { submenu: [
           ...sheets.map((s) => ({ id: `sheet.to.${s.id}` as const, label: s.label })),
           { id: 'sheet.toNew' as const, label: 'New Sheet', ...(sheets.length > 0 ? { separated: true } : {}) },
-        ] }] }] : []),
+        ] } : { disabled: true }) }] }] : []),
         { label: '', items: [{ id: 'tile.remove', label: 'Remove' }] },
       ], event.clientX, event.clientY);
     });
@@ -918,7 +919,9 @@ export class CubePage {
    * grid as its table. The other grids are not in it (an export holds one table); every chart on that sheet is.
    */
   exportPage(table: string = GRID): ExportPage {
-    const grid = cells(without(this.#pageLayout(this.#sheetOf(table) ?? this.#shown), (id) => this.#grids.has(id) && id !== table));
+    // a stack exports its tile in front: the grid exported is in front of its own
+    const grid = cells(bringToFront(without(this.#pageLayout(this.#sheetOf(table) ?? this.#shown),
+      (id) => this.#grids.has(id) && id !== table), table));
     const tiles = grid.tiles.map((t): ExportTile => {
       const chart = this.#charts.get(t.id);
       const picture = chart?.panel.picture() ?? null;

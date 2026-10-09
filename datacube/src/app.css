@@ -129,7 +129,30 @@
 .dc-sheet-tab:hover { background: var(--tw-neutral-200); }
 .dc-sheet-tab.dc-sheet-tab-shown { background: var(--tw-white); color: var(--tw-black); border-color: var(--dc-line); font-weight: 500; }
 .dc-sheet-tab:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
-.dc-sheet-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dc-sheet-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* a tab's ×: on the tab shown, and on the tab under the pointer */
+.dc-sheet-close,
+.dc-tile-tab-close {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-left: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: var(--dc-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+  visibility: hidden;
+}
+.dc-sheet-tab:is(.dc-sheet-tab-shown, :hover) .dc-sheet-close,
+.dc-tile-tab:is(.dc-tile-tab-front, :hover) .dc-tile-tab-close { visibility: visible; }
+.dc-sheet-close:hover,
+.dc-tile-tab-close:hover { background: var(--tw-neutral-300); color: var(--tw-black); }
+.dc-sheet-close[hidden],
+.dc-tile-tab-close[hidden] { display: none; }
 .dc-sheet-name { width: 100%; min-width: 0; font: inherit; border: 0; padding: 0; background: transparent; outline: none; }
 /* a tile dragged over a tab (dropped there, it moves to that sheet); a tab dragged along the strip, and where it goes */
 .dc-sheet-tab.dc-sheet-tab-target { background: var(--dc-selected-bg); border-color: var(--dc-active); color: var(--tw-black); }
@@ -2783,7 +2806,6 @@
 .dc-band-divider:active::before,
 .dc-band-edge:active::before { background: var(--dc-active, #0284c7); opacity: 1; }
 
-/* a lone grid (a page of its own with one tile): no frame, no header -- its header's buttons are in the page's bar */
 /* A STACK (layout/band-board.ts; the design's §7.4): its tiles' tabs in its front tile's header, in place of the title;
    the one in front raised, as the page's sheet tabs are; where a dragged tab would go, marked */
 .dc-tile-tabs { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; align-items: flex-end; gap: 2px; overflow: hidden; }
@@ -2811,10 +2833,12 @@
 .dc-tile-tab:hover { background: var(--tw-neutral-200); }
 .dc-tile-tab.dc-tile-tab-front { background: var(--tw-white); color: var(--tw-black); border-color: var(--dc-line); font-weight: 500; }
 .dc-tile-tab:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
+.dc-tile-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .dc-tile-tab.dc-tile-tab-before { box-shadow: inset 2px 0 0 var(--dc-active); }
 .dc-tile-tab.dc-tile-tab-after { box-shadow: inset -2px 0 0 var(--dc-active); }
 .dc-tile-title[hidden] { display: none; }
 
+/* a lone grid (a page of its own with one tile): no frame, no header -- its header's buttons are in the page's bar */
 .dc-band-tile.dc-band-tile-alone { border: 0; border-radius: 0; }
 .dc-band-tile.dc-band-tile-alone > .dc-tile-head { display: none; }
 
@@ -2854,8 +2878,8 @@
 /* nothing moves in view mode or on a narrow (stacked) page: no handle, no layout or remove button */
 .dc-bands-view .dc-tile-head,
 .dc-bands-narrow .dc-tile-head { cursor: default; }
-.dc-bands-view :is(.dc-tile-remove, .dc-tile-layout),
-.dc-bands-narrow :is(.dc-tile-remove, .dc-tile-layout) { display: none; }
+.dc-bands-view :is(.dc-tile-remove, .dc-tile-layout, .dc-tile-tab-close),
+.dc-bands-narrow :is(.dc-tile-remove, .dc-tile-layout, .dc-tile-tab-close) { display: none; }
 
 /* a maximised tile's own button shows it is on */
 .dc-bands-maximised .dc-tile-maximise { opacity: 1; border-color: var(--dc-active, #0284c7); color: var(--dc-active, #0284c7); }

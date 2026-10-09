@@ -283,10 +283,10 @@ describe('the band board', () => {
     const strip = root('a').querySelector<HTMLElement>('.dc-tile-tabs')!;
     assert.equal(strip.hidden, false);
     assert.equal(root('a').querySelector<HTMLElement>('.dc-tile-title')!.hidden, true, 'the tabs in place of its title');
-    assert.deepEqual([...strip.querySelectorAll('.dc-tile-tab')].map((t) => [t.textContent, t.getAttribute('aria-selected')]),
+    assert.deepEqual([...strip.querySelectorAll('.dc-tile-tab')].map((t) => [t.querySelector('.dc-tile-tab-label')?.textContent, t.getAttribute('aria-selected')]),
       [['A', 'true'], ['B', 'false']]);
     const before = changes.length;
-    const tabB = [...strip.querySelectorAll<HTMLElement>('.dc-tile-tab')].find((t) => t.textContent === 'B')!;
+    const tabB = [...strip.querySelectorAll<HTMLElement>('.dc-tile-tab')].find((t) => t.dataset['tab'] === 'b')!;
     pointer(tabB, 'pointerdown', 60, 10);
     pointer(root('b').querySelector('.dc-tile-tab')!, 'pointerup', 60, 10);
     assert.equal(root('a').hidden, true);
@@ -307,10 +307,11 @@ describe('the band board', () => {
       .find((t) => t.dataset['tab'] === id && !(t.closest('.dc-tile-tabs') as HTMLElement).hidden)!;
     // off the strip, then onto the line below the band: a band of its own
     pointer(tabOf('b'), 'pointerdown', 120, 10);
-    const tab = tabOf('b');
-    pointer(tab, 'pointermove', 500, 200);
-    pointer(tab, 'pointermove', 500, 305);
-    pointer(tab, 'pointerup', 500, 305);
+    pointer(tabOf('b'), 'pointermove', 500, 200);
+    // off the strip, the tile's own header holds the pointer (a browser sends it there, captured)
+    const head = root('b').querySelector<HTMLElement>('.dc-tile-head')!;
+    pointer(head, 'pointermove', 500, 305);
+    pointer(head, 'pointerup', 500, 305);
     assert.deepEqual(board.layout.bands.map((b) => b.node), [{ stack: ['a', 'c'], front: 'c' }, { tile: 'b' }]);
     assert.equal(changes.length, 1, 'one step');
     // Escape mid-drag: the stack as it was
@@ -321,6 +322,62 @@ describe('the band board', () => {
     assert.deepEqual(board.layout.bands.map((b) => b.node), [{ stack: ['a', 'c'], front: 'a' }, { tile: 'b' }],
       'only brought to the front');
     assert.notEqual(board.layout, was);
+    wellFormed(board);
+  });
+
+  it('a stack\'s tabs each carry the tile\'s ×, which removes it; the stacked tile\'s header has none of its own', () => {
+    const removed: string[] = [];
+    const { board } = sideBySide(['a', 'b'], { onRemove: (id) => removed.push(id) });
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b'] } }] });
+    assert.equal(root('a').querySelector<HTMLElement>('.dc-tile-remove')!.hidden, true, 'no header × on a stack');
+    const closes = [...root('a').querySelectorAll<HTMLButtonElement>('.dc-tile-tab-close')];
+    assert.equal(closes.length, 2);
+    closes[1]!.click();
+    assert.deepEqual(removed, ['b'], 'the × of b\'s tab, b');
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { split: 'row', parts: [
+      { node: { tile: 'a' }, size: 0.5 }, { node: { tile: 'b' }, size: 0.5 }] } }] });
+    assert.equal(root('a').querySelector<HTMLElement>('.dc-tile-remove')!.hidden, false, 'out of the stack, its own × again');
+  });
+
+  it('a tab dragged out lands anywhere, beside its own stack too, the rest drawn in place meanwhile', () => {
+    const { board } = sideBySide(['a', 'b']);
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b'] } }] });
+    const tabOf = (id: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.dc-tile-tab')]
+      .find((t) => t.dataset['tab'] === id && !(t.closest('.dc-tile-tabs') as HTMLElement).hidden)!;
+    pointer(tabOf('b'), 'pointerdown', 120, 10);
+    pointer(tabOf('b'), 'pointermove', 500, 150);
+    assert.equal(root('a').hidden, false, 'the rest of the stack, in its place');
+    assert.equal(root('b').hidden, false, 'the tile taken out, following the pointer');
+    const handle = root('b').querySelector<HTMLElement>('.dc-tile-head')!;
+    pointer(handle, 'pointermove', 960, 150);
+    pointer(handle, 'pointerup', 960, 150);
+    assert.deepEqual(board.layout.bands[0]!.node, { split: 'row', parts: [
+      { node: { tile: 'a' }, size: 0.5 }, { node: { tile: 'b' }, size: 0.5 }] }, 'beside what was its stack');
+    wellFormed(board);
+  });
+
+  it('a stacked tile renamed says its new name on its tab at once', () => {
+    const { board } = sideBySide(['a', 'b']);
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b'] } }] });
+    board.rename('b', 'Revenue');
+    assert.deepEqual([...root('a').querySelectorAll('.dc-tile-tab-label')].map((t) => t.textContent), ['A', 'Revenue']);
+  });
+
+  it('a tab dragged along its strip moves among the tabs, as one change; let go where it was, nothing', () => {
+    const { board, changes } = sideBySide(['a', 'b', 'c']);
+    board.setLayout({ fit: false, bands: [{ height: 0.5, node: { stack: ['a', 'b', 'c'] } }] });
+    // jsdom lays nothing out: the strip and its tabs where a browser would put them, 60px each
+    const rect = (left: number, width: number, height = 24) => () => ({ left, right: left + width, top: 0, bottom: height,
+      width, height, x: left, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const strip = root('a').querySelector<HTMLElement>('.dc-tile-tabs')!;
+    strip.getBoundingClientRect = rect(0, 180);
+    const tabs = [...strip.querySelectorAll<HTMLElement>('.dc-tile-tab')];
+    tabs.forEach((t, i) => { t.getBoundingClientRect = rect(i * 60, 60); });
+    pointer(tabs[0]!, 'pointerdown', 30, 10);
+    pointer(tabs[0]!, 'pointermove', 170, 12);
+    pointer(tabs[0]!, 'pointerup', 170, 12);
+    assert.deepEqual(board.layout.bands[0]!.node, { stack: ['b', 'c', 'a'] }, 'a after c');
+    assert.equal(changes.length, 1, 'one step');
     wellFormed(board);
   });
 

@@ -95,8 +95,9 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
 
 const tile = (id: string): HTMLElement => host.querySelector(`[data-tile="${id}"]`) as HTMLElement;
 /** The sheets' tabs, as they read. */
-const tabs = (): string[] => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].map((t) => t.textContent ?? '');
-const tabOf = (label: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].find((t) => t.textContent === label)!;
+const tabs = (): string[] => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].map((t) => t.querySelector('.dc-sheet-label')?.textContent ?? '');
+const tabOf = (label: string): HTMLElement => [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')]
+  .find((t) => (t.querySelector('.dc-sheet-label')?.textContent ?? '') === label)!;
 /** A tab clicked, as a pointer does (pressed and let go where it was). */
 function clickTab(label: string): void {
   const tab = tabOf(label);
@@ -142,7 +143,7 @@ describe('a page of its own', () => {
     newPage();
     assert.equal(bar().querySelector('.dc-page-name')!.textContent, 'Q3');
     // one sheet, its tab, and a + for more
-    assert.deepEqual([...bar().querySelectorAll('.dc-sheet-tab')].map((t) => t.textContent), ['Sheet 1']);
+    assert.deepEqual([...bar().querySelectorAll('.dc-sheet-tab .dc-sheet-label')].map((t) => t.textContent), ['Sheet 1']);
     assert.ok(bar().querySelector('.dc-sheet-add'));
     assert.equal(host.querySelector<HTMLElement>('.dc-page-empty')!.hidden, false);
     assert.equal(host.querySelector('.dc-page-empty')!.textContent, 'Add a data source');

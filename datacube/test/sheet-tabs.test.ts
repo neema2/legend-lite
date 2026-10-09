@@ -48,7 +48,7 @@ const disabled = (el: HTMLElement | undefined): boolean => el?.getAttribute('ari
 describe('a page\'s sheet tabs', () => {
   it('say the sheets, the shown one raised and alone in the Tab order, in a tablist', () => {
     assert.equal(tabs.element.querySelector('[role="tablist"]')?.getAttribute('aria-label'), 'Sheets');
-    assert.deepEqual([...tabs.element.querySelectorAll('.dc-sheet-tab')].map((t) => t.textContent), ['trades.csv', 'Charts', 'Sheet 3']);
+    assert.deepEqual([...tabs.element.querySelectorAll('.dc-sheet-tab .dc-sheet-label')].map((t) => t.textContent), ['trades.csv', 'Charts', 'Sheet 3']);
     assert.equal(tab('sheet-2').getAttribute('aria-selected'), 'true');
     assert.deepEqual(SHEETS.map((s) => tab(s.id).tabIndex), [-1, 0, -1]);
     assert.ok(tab('sheet-2').classList.contains('dc-sheet-tab-shown'));
@@ -71,12 +71,23 @@ describe('a page\'s sheet tabs', () => {
     field = tab('sheet-3').querySelector('input')!;
     field.value = 'Nope';
     key(field, 'Escape');
-    assert.equal(tab('sheet-3').textContent, 'Sheet 3', 'its label back as it was');
+    assert.equal(tab('sheet-3').querySelector('.dc-sheet-label')?.textContent, 'Sheet 3', 'its label back as it was');
     tabs.rename('sheet-1');
     field = tab('sheet-1').querySelector('input')!;
     field.value = '  ';
     key(field, 'Enter');
     assert.deepEqual(asked, ['rename sheet-2 Summary', 'rename sheet-1 ']);
+  });
+
+  it('carry a × that deletes the sheet, none for the last sheet or on a locked page', () => {
+    const close = (id: string): HTMLButtonElement => tab(id).querySelector<HTMLButtonElement>('.dc-sheet-close')!;
+    assert.equal(close('sheet-2').hidden, false);
+    close('sheet-3').click();
+    assert.deepEqual(asked, ['remove sheet-3']);
+    tabs.paint([SHEETS[0]!], 'sheet-1', true);
+    assert.equal(close('sheet-1').hidden, true, 'the last sheet stays');
+    tabs.paint(SHEETS, 'sheet-1', false);
+    assert.equal(close('sheet-2').hidden, true, 'a locked page deletes none');
   });
 
   it('keep a rename\'s field, and its focus, through a repaint (a grid\'s view landing paints the tabs again)', () => {
@@ -117,7 +128,7 @@ describe('a page\'s sheet tabs', () => {
     const before = tab('sheet-1');
     tabs.paint([...SHEETS].reverse(), 'sheet-1', true);
     assert.equal(tab('sheet-1'), before);
-    assert.deepEqual([...tabs.element.querySelectorAll('.dc-sheet-tab')].map((t) => t.textContent), ['Sheet 3', 'Charts', 'trades.csv']);
+    assert.deepEqual([...tabs.element.querySelectorAll('.dc-sheet-tab .dc-sheet-label')].map((t) => t.textContent), ['Sheet 3', 'Charts', 'trades.csv']);
     tabs.paint(SHEETS.slice(0, 2), 'sheet-1', true);
     assert.equal(tab('sheet-3'), null, 'a sheet gone takes its tab');
     tabs.element.querySelector<HTMLElement>('.dc-sheet-add')!.click();

@@ -14,7 +14,8 @@
 // (Right wider, Left narrower, Down taller, Up shorter), each step announced.
 //
 // STACKS (the design's §7.4): a stack's tiles share one place, one in front; that tile's frame carries the stack's
-// tabs in its header (each tile's title) in place of its own title. A tab pressed brings its tile to the front; dragged
+// tabs in its header (each tile's title, and its × -- the tile off the page, as a tile's own × does; the user,
+// 2026-10-09) in place of its own title and ×. A tab pressed brings its tile to the front; dragged
 // along the strip it moves among the tabs; dragged off the strip it carries its tile out, as a header drags a tile. A
 // tile dropped on another's middle joins its place, in front.
 //
@@ -33,6 +34,8 @@ import {
   arrange,
   bandOf,
   bringToFront,
+  frontOf,
+  leafOf,
   draw,
   drop,
   dividerBeside,
@@ -160,6 +163,8 @@ export class BandBoard {
   /** Where the page was scrolled when a tile was maximised: back there after. */
   #scrolled = 0;
   #gesture: Gesture | null = null;
+  /** A tile taken out of its stack while it is dragged: drawn at the place it had, over the rest drawn without it. */
+  #floating: { readonly id: string; readonly box: Box } | null = null;
   /** A preset previewed (a hovered thumbnail): drawn, but not arranged by hand, so no handles. */
   #previewing = false;
   /** Where the page was scrolled when a preview began: a shorter preview must not leave it scrolled elsewhere. */
@@ -268,14 +273,19 @@ export class BandBoard {
     this.#gesture?.end(false);
     placed.root.remove();
     this.#tiles.delete(id);
-    // the board no longer maximised: as `maximise(null)` leaves it, scrolled back where it was
+    const next = remove(this.#layout, id);
+    // a maximised stack stays maximised, on the tile now in its front; a maximised tile gone leaves the board as
+    // `maximise(null)` does, scrolled back where it was
+    const stayed = this.#drawn.stacks.get(id)?.find((t) => t !== id);
+    const left = stayed !== undefined ? leafOf(next, stayed) : undefined;
     const maximised = this.#maximised === id;
-    if (maximised) {
+    if (maximised && left) this.#maximised = 'stack' in left ? frontOf(left) : left.tile;
+    else if (maximised) {
       this.#maximised = null;
       this.#host.classList.remove('dc-bands-maximised');
     }
-    this.#commit(remove(this.#layout, id));
-    if (maximised) this.#host.scrollTop = this.#scrolled;
+    this.#commit(next);
+    if (maximised && !left) this.#host.scrollTop = this.#scrolled;
   }
 
   /** Put a whole layout (a saved page): tiles not on the board are left out, tiles not in it go below. */
@@ -372,6 +382,8 @@ export class BandBoard {
     p.root.setAttribute('aria-label', title);
     p.remove.title = `Remove ${title}`;
     p.remove.setAttribute('aria-label', `Remove ${title}`);
+    // a stacked tile's name is on its tab
+    this.#paintTabs();
   }
 
   dispose(): void {
@@ -459,10 +471,11 @@ export class BandBoard {
       const stack = this.#drawn.stacks.get(id);
       p.title.hidden = stack !== undefined;
       p.tabs.hidden = stack === undefined;
+      // stacked, each tile's × is on its tab
+      p.remove.hidden = p.spec.removable === false || stack !== undefined;
       const key = stack ? `${id}|${stack.map((t) => `${t}:${this.#tiles.get(t)?.name ?? t}`).join('|')}` : '';
       if (key === p.tabsKey) continue;
       p.tabsKey = key;
-      p.root.classList.toggle('dc-band-tile-stacked', stack !== undefined);
       p.tabs.replaceChildren(...(stack ?? []).map((tile) => this.#tab(tile, id, p.tabs)));
     }
   }
@@ -478,13 +491,37 @@ export class BandBoard {
     tab.tabIndex = shown ? 0 : -1;
     tab.classList.toggle('dc-tile-tab-front', shown);
     const name = this.#tiles.get(tile)?.name ?? tile;
-    tab.textContent = name;
-    tab.title = shown ? `${name}: drag along the tabs to move it among them, off them to take it out` : `Show ${name}`;
+    const label = this.#doc.createElement('span');
+    label.className = 'dc-tile-tab-label';
+    label.textContent = name;
+    tab.append(label);
+    tab.title = shown ? name : `Show ${name}`;
+    // its × (as the tile's own): off the page
+    const close = this.#doc.createElement('button');
+    close.type = 'button';
+    close.className = 'dc-tile-tab-close';
+    close.textContent = '\u00d7';
+    close.title = `Remove ${name}`;
+    close.setAttribute('aria-label', `Remove ${name}`);
+    close.tabIndex = -1;
+    close.hidden = this.#tiles.get(tile)?.spec.removable === false;
+    close.addEventListener('pointerdown', (e) => e.stopPropagation());
+    close.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.#options.onRemove?.(tile);
+    });
+    tab.append(close);
     tab.addEventListener('pointerdown', (e) => this.#pressTab(tile, tab, strip, e));
     tab.addEventListener('keydown', (e) => {
       const tabs = [...strip.querySelectorAll<HTMLElement>('.dc-tile-tab')];
       const at = tabs.indexOf(tab);
       const to = e.key === 'ArrowLeft' ? at - 1 : e.key === 'ArrowRight' ? at + 1 : e.key === 'Enter' || e.key === ' ' ? at : undefined;
+      if (e.key === 'Delete' && !close.hidden && this.arrangeable) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.#options.onRemove?.(tile);
+        return;
+      }
       if (to === undefined) return;
       e.preventDefault();
       e.stopPropagation();
@@ -538,9 +575,9 @@ export class BandBoard {
     this.#own(handle, e, (ev) => {
       const r = live().getBoundingClientRect();
       if (ev.clientY < r.top - DETACH_PX || ev.clientY > r.bottom + DETACH_PX) {
-        // off the strip: the tile itself, from here
+        // off the strip: the tile itself, from here, out of its stack
         this.#gesture?.end(false);
-        this.#moveTile(tile, ev, handle);
+        this.#moveTile(tile, ev, handle, true);
         return;
       }
       if (!reordering && Math.abs(ev.clientX - startX) < 4) return;
@@ -600,6 +637,12 @@ export class BandBoard {
         : id === maximised ? { x: 0, y: 0, w: width, h: screen } : undefined;
       p.root.hidden = box === undefined;
       if (box) place(p.root, box);
+    }
+    // a tile taken out of its stack, as it is dragged: where it was, following the pointer from there
+    const floating = this.#floating !== null ? this.#tiles.get(this.#floating.id) : undefined;
+    if (floating && this.#floating) {
+      floating.root.hidden = false;
+      place(floating.root, this.#floating.box);
     }
     this.#paintTabs();
     this.#canvas.style.height = `${maximised === null ? this.#drawn.height : screen}px`;
@@ -691,6 +734,8 @@ export class BandBoard {
       done = true;
       const next = input.value.trim();
       input.replaceWith(p.title);
+      // a stack's tabs back in its header
+      this.#paintTabs();
       if (keep && next !== '' && next !== p.name) {
         this.rename(p.spec.id, next);
         this.#options.onRename?.(p.spec.id, next);
@@ -704,6 +749,8 @@ export class BandBoard {
     });
     input.addEventListener('blur', () => finish(true));
     input.addEventListener('pointerdown', (e) => e.stopPropagation());
+    // a stack's front renamed: its field in place of the stack's tabs while it is open
+    p.tabs.hidden = true;
     p.title.replaceWith(input);
     input.focus();
     input.select();
@@ -781,12 +828,22 @@ export class BandBoard {
 
   /**
    * A TILE MOVED, from `e` (its header pressed, or a stack's tab dragged off its strip) with `head` holding the
-   * pointer: it follows the pointer, the zone it would land in outlined, and is put there on release.
+   * pointer: it follows the pointer, the zone it would land in outlined, and is put there on release. `leaving` its
+   * stack (a tab dragged off), the rest of the stack is drawn in its place without it -- so it can land anywhere,
+   * beside its stack or on it too -- and the tile follows the pointer from the place it had.
    */
-  #moveTile(id: string, e: PointerEvent, head: HTMLElement): void {
+  #moveTile(id: string, e: PointerEvent, head: HTMLElement, leaving = false): void {
     const tile = this.#tiles.get(id);
     if (!tile) return;
     const start = this.#at(e);
+    if (leaving) {
+      const box = this.#drawn.tiles.get(id);
+      this.#floating = box ? { id, box } : null;
+      this.#shown = remove(this.#layout, id);
+      this.#paint();
+      // its tab is gone with the stack drawn without it: its own header, drawn again, holds the pointer from here
+      head = tile.root.querySelector<HTMLElement>('.dc-tile-head') ?? head;
+    }
     const outside = this.#options.outside;
     let target: Drop | undefined;
     /** Over the place outside the board (a sheet's tab): the board proposes nothing. */
@@ -802,17 +859,23 @@ export class BandBoard {
       tile.root.classList.remove('dc-tile-dragging');
       tile.root.style.transform = '';
       this.#outline(undefined);
+      // let go: over the place outside the board, or where it lands on the board as it was drawn while it moved
       if (apply && ev) {
         away = outside?.over(ev.clientX, ev.clientY) ?? false;
-        if (away) {
-          outside?.leave();
-          outside?.drop(id, ev.clientX, ev.clientY);
-          return;
-        }
         const at = this.#at(ev);
-        target = dropAt(this.#drawn, id, at.x, at.y);
+        target = away ? undefined : dropAt(this.#drawn, id, at.x, at.y);
+      }
+      if (leaving) {
+        // the page as it is again, until the drop (if any) changes it
+        this.#floating = null;
+        this.#shown = null;
+        this.#paint();
       }
       outside?.leave();
+      if (apply && ev && away) {
+        outside?.drop(id, ev.clientX, ev.clientY);
+        return;
+      }
       if (!apply || target === undefined) return;
       const next = drop(this.#layout, id, target);
       if (next === this.#layout) return;

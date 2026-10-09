@@ -1,6 +1,7 @@
 // A PAGE'S SHEET TABS, in its bar, as a browser's tabs (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.1; the user,
 // 2026-10-09): the sheet shown raised, a click shows another, a double click renames one in place, the + adds one, a
-// tab's right-click menu has Rename, Move Left, Move Right and Delete, and a tab dragged along the strip reorders.
+// tab's × deletes it (on the tab shown and the tab under the pointer; none for the last sheet, or on a locked page), its
+// right-click menu has Rename, Move Left, Move Right and Delete, and a tab dragged along the strip reorders.
 // Many sheets shrink their tabs, then the strip scrolls, with a list of every sheet at its end.
 //
 // THE KEYBOARD (the APG tabs pattern): one tab in the Tab order, the shown one; Left and Right (Home, End) move to
@@ -159,14 +160,15 @@ export class SheetTabs {
     field.className = 'dc-sheet-name';
     field.value = sheet.label;
     field.setAttribute('aria-label', 'Sheet name');
-    // the tab's own label, back in place when the field goes
+    // the tab's own label and ×, back in place when the field goes
     const label = tab.querySelector('.dc-sheet-label')!;
+    const close = tab.querySelector('.dc-sheet-close');
     let done = false;
     const finish = (keep: boolean): void => {
       if (done) return;
       done = true;
       this.#renaming = undefined;
-      tab.replaceChildren(label);
+      tab.replaceChildren(label, ...(close ? [close] : []));
       if (keep && field.value.trim() !== sheet.label) this.#options.onRename(id, field.value.trim());
       this.#tabAt(id)?.focus();
     };
@@ -198,7 +200,19 @@ export class SheetTabs {
     tab.setAttribute('role', 'tab');
     const label = doc.createElement('span');
     label.className = 'dc-sheet-label';
-    tab.append(label);
+    // its ×: deleted as its menu's Delete does (the page asks first when it has tiles)
+    const close = doc.createElement('button');
+    close.type = 'button';
+    close.className = 'dc-sheet-close';
+    close.textContent = '\u00d7';
+    close.tabIndex = -1;
+    close.addEventListener('pointerdown', (e) => e.stopPropagation());
+    close.addEventListener('dblclick', (e) => e.stopPropagation());
+    close.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.#options.onRemove(id);
+    });
+    tab.append(label, close);
     tab.addEventListener('dblclick', () => this.rename(id));
     tab.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -218,6 +232,13 @@ export class SheetTabs {
     tab.title = sheet.label;
     const label = tab.querySelector('.dc-sheet-label');
     if (label) label.textContent = sheet.label;
+    const close = tab.querySelector<HTMLButtonElement>('.dc-sheet-close');
+    if (close) {
+      // the last sheet stays, and a locked page deletes none
+      close.hidden = !this.#editing || this.#tabs.length < 2;
+      close.title = `Delete ${sheet.label}`;
+      close.setAttribute('aria-label', `Delete the sheet ${sheet.label}`);
+    }
   }
 
   #tabAt(id: string): HTMLElement | null {

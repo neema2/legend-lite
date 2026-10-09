@@ -3938,8 +3938,9 @@ export class CubeApp {
       { label: '', items: this.#viewItems() },
       // on a page of its own: onto another sheet (its charts stay where they are, following it), and taken off it, as
       // its tile's x does (and as the one way when it is alone in the bar)
+      // locked: offered disabled, with nothing under it
       ...(this.#options.onMoveToSheet ? [{ label: '', items: [{ label: 'Move to Sheet',
-        ...(this.#options.sheets?.().locked ? { disabled: true } : {}), submenu: this.#sheetItems() }] }] : []),
+        ...(this.#options.sheets?.().locked ? { disabled: true } : { submenu: this.#sheetItems() }) }] }] : []),
       ...(this.#options.onRemove ? [{ label: '', items: [{ id: 'grid.remove' as const, label: 'Remove from Page' }] }] : []),
     ];
   }

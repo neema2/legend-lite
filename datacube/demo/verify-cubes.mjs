@@ -634,7 +634,7 @@ try {
     await second.dblclick();
     await second.locator('input').fill('Data');
     await second.locator('input').press('Enter');
-    const tabs = await page.locator('.dc-sheet-tab').allTextContents();
+    const tabs = await page.locator('.dc-sheet-tab .dc-sheet-label').allTextContents();
     if (JSON.stringify(tabs) !== JSON.stringify(['Sheet 1', 'Data'])) throw new Error(`the tabs say ${tabs.join(', ')}`);
     // the chart follows its grid on the other sheet: the grid regrouped there, the chart regrouped with it
     const specOf = () => page.evaluate((id) => JSON.stringify(window.__dataPage.views().views.find((v) => v.id === id)?.spec), chartId);

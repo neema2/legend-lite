@@ -358,6 +358,6 @@ sheets -- a chart on one following a grid on the other -- saved, shared and reop
 - **The download budget** rises from 378,000 to 381,000 bytes (measured 378,297; sheets before it 375,928).
 
 3b: `src/layout/bands.ts` (the stack node), `src/layout/band-board.ts` (the stack's tab header), `src/page/cube-page.ts`,
-`src/page-document.ts`, `src/export-model.ts` (the front tile), `src/app.css`, and `test/bands.test.ts` (the fuzz),
+`src/page-document.ts`, `src/app.css`, and `test/bands.test.ts` (the fuzz),
 `test/band-board.test.ts`, and the browser session (`demo/verify-layout.mjs`): a stack made by a drag, a tab dragged
 out, saved and reopened.
