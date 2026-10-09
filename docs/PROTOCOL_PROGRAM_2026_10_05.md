@@ -154,6 +154,33 @@ not be written back, so it is refused.
    association and embedded mappings carry the written details older JSON has (each excluded from equality where it
    is a record the compiler reads). Found on the way: the engine's own write-back changes a plain integer enum source
    value into a string (S32).
+
+   **Step 3's outcome (2026-10-09).** Every printer in `core/src/main/java/com/legend/protocol/` prints the records:
+   all 30 `*Composer.java` files (the plan said 31; one fewer exists), with `RelationalOperations`,
+   `ElementFamilies` and `Composing`, moved in 16 commits a family at a time, leaves first, each
+   step run against the parity tests. Every step held the counts exactly: `ModelComposerParityTest` 31,452 elements
+   and 14,383 models matched, 0 mismatched; `ComposerParityTest` 56,988 lambdas; the reader oracles unchanged. JSON
+   now reaches a printer only through four entries, each reading first: `ModelComposer.model` and `element` (the
+   tests, and the routes of leg 3) and `PureComposer.lambda` and `valueSpecification` (the server's grammar route and
+   the tests). One temporary bridge was used on the way (the test-data printer writing a service store's data back to
+   JSON for the service store printer, not yet moved) and removed when that printer moved. Each family's JSON entry
+   was removed once nothing called it, with `Composing`'s JSON helpers and `FunctionNames` (the printer's own second
+   computation of a function's mangled name: a function prints under the declared name the reader keeps). The
+   persistence sub-DSL record is a generic tree (a grammar kind and keyed entries); its printers look entries up by
+   the grammar's keys and choose a printer by the grammar's kind. What a printer refused by name because the engine's
+   printer cannot print it (Elasticsearch `ignore_above` and the like, MongoDB numeric bounds, a data quality
+   persistence strategy, post-deployment actions) has no reader rule, so the reader refuses the same elements.
+
+   One count moved, and why: a list value in a relational operation, such as `in(firmTable.ID, [2,3,4])`. The engine
+   writes a list's items without a `_type`; the old JSON printer looked for one and refused the list. The reader
+   already reads those items, and the record printer prints `[2, 3, 4]`, as the engine prints the same list straight
+   from its grammar. The engine cannot print it from its own JSON (the items read back as maps), so in the parity
+   table it is "upstream cannot, lite prints": 3 to 4 elements and 6 to 8 models (`testInClauseForJoinsAndFilters.pure`'s
+   database, with and without its section index). `ModelComposerRoundTripTest` pins the list form. On older JSON,
+   two prints now follow the engine where the JSON printer did not: a service without `autoActivateUpdates` prints
+   `true` (the engine's default, which the reader keeps), and a service whose execution carries an older
+   `legacyRuntime` prints it as the runtime the engine makes of it (`LegacyRuntime.toEngineRuntime`) instead of being
+   refused.
 3. **One public face** (invariant 5), and the consumers moved onto it: `PureV1Api`'s grammar routes, `Wasm.java`'s
    `modelJsonOrError` / `lambdaJsonOrError` / `composeLambdaOrError` / `jsonToGrammarModelOrError`, and the apps'
    clients (engine-client's grammar interface) unchanged in shape.
