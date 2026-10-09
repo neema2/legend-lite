@@ -668,6 +668,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * plan surface (`A is not distinct from B`, dialect-spelled via
      * {@link #nullSafeEq}; upstream #5028 split the doctrine: in-flow
      * execute keeps legacy plain-equals, PLAN surfaces are null-safe).
+     * Since 2026-10-09 the lowering writes such an equality as
+     * NULL_SAFE_EQUAL (NullSemantics.equalNullArms), spelled the same by
+     * {@link #nullSafeSpelling}; this recogniser still serves the plain
+     * EQUAL a verbatim context keeps (the LEGACY_SQL_NULL_UNSAFE_EQUALS
+     * feature, a correlation or mapping-definition filter).
      * Every kind: the freemarker SELECTOR spellings of the DATE / DATETIME
      * goldens are the LEGACY (H2 1.4.200) halves of the
      * assertEqualsH2Compatible pairs. Null = not this shape. */

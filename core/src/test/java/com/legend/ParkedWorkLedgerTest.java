@@ -117,7 +117,14 @@ class ParkedWorkLedgerTest {
             // scale 3, and a Date's or Number's list has no one element type
             Map.entry("PARK-20 a list of decimals, Dates or Numbers is not bound as a parameter",
                     new Anchor("a list of decimals, Dates or Numbers has no one element type",
-                            List.of("QueryParameters.java")))));
+                            List.of("QueryParameters.java"))),
+            // PARK-21 (2026-10-09, step 2's landing 2 audit): what a plan does not bind yet, each refused by name
+            Map.entry("PARK-21 an optional enumeration's absence is not bound",
+                    new Anchor("an optional enumeration's absence is not bound", List.of("QueryParameters.java"))),
+            Map.entry("PARK-21 a class instance is not bound as a plan's parameter",
+                    new Anchor("a class instance is not bound as a plan's parameter", List.of("QueryParameters.java"))),
+            Map.entry("PARK-21 a Byte, LatestDate or StrictTime value is not bound",
+                    new Anchor("a Byte, LatestDate or StrictTime value is not bound", List.of("QueryParameters.java")))));
 
     private record Anchor(String pattern, List<String> files) {
     }

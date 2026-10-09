@@ -503,7 +503,7 @@ public class AnsiSqlRenderer implements SqlDialect {
                     + " vocabulary only");
             // a plan parameter is BOUND where it is written: a statement (renderStatement) lists it; text
             // (render) refuses it
-            case SqlExpr.PlanParam p -> placeholder(writer, p);
+            case SqlExpr.PlanParam p -> placeholder(writer, oneValue(p));
             case SqlExpr.RowOrder r -> writer.append((r.table() == null ? ""
                     : aliasIdent(r.table()) + ".") + rowOrderColumn());
             // the QUALIFIER is structurally always a source ALIAS (the
@@ -600,8 +600,8 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.JsonArray j -> jsonArray(writer, j);
             case SqlExpr.JsonArrayAgg j -> jsonArrayAgg(writer, j);
             case SqlExpr.ReduceCollection rc -> reduceCollection(writer, rc);
-            case SqlExpr.Membership m -> m.collection() instanceof SqlExpr.PlanParam p ? anyOf(writer, m.needle(), p)
-                    : membership(writer, m);
+            case SqlExpr.Membership m -> m.collection() instanceof SqlExpr.PlanParam p
+                    ? anyOf(writer, m.needle(), p, parentPrec) : membership(writer, m);
             case SqlAgg.Reducer r -> reducer(writer, r);
         };
     }
@@ -753,7 +753,7 @@ public class AnsiSqlRenderer implements SqlDialect {
             case IN -> {
                 // a plan parameter as the WHOLE list: one array, bound once
                 if (a.size() == 2 && a.get(1) instanceof SqlExpr.PlanParam p) {
-                    yield anyOf(writer, a.get(0), p);
+                    yield anyOf(writer, a.get(0), p, parentPrec);
                 }
                 yield writer.expr(a.get(0), 4).append(" IN (").list(a.subList(1, a.size())).append(")");
             }
@@ -1247,8 +1247,8 @@ public class AnsiSqlRenderer implements SqlDialect {
      * A plan parameter bound as ONE value — an optional one's absence a null, an enumeration's its name (compared with a
      * mapped column through a value table, {@code EnumValueTables}). What one value cannot carry is refused by name,
      * never bound as something it is not: a RAW splice and a parameter carrying the legacy printer's enumeration-mapping
-     * function (both plan-template vocabulary), and a collection (IN's whole list, refused at IN: step 2's landing 2,
-     * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9).
+     * function (both plan-template vocabulary). A list is bound whole, as one array, by {@link #anyOf}
+     * (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2).
      */
     protected static RenderedStatement.Bind scalarBind(SqlExpr.PlanParam p) {
         if (p.kind() == SqlExpr.PlanParam.Kind.RAW) {
@@ -1265,18 +1265,34 @@ public class AnsiSqlRenderer implements SqlDialect {
     /**
      * {@code needle = ANY(?)}: a list parameter bound as ONE array of its element type, written bare on every database —
      * each answers it as the literal {@code IN (...)} a let writes, the empty list included, and H2 reads a CAST inside
-     * {@code ANY(...)} as its boolean aggregate (docs/execution-plan-boundary-2026-10-05/probes/list-results.txt). A
-     * whole-list parameter with no array of a named element type is a plan template's, never bound.
+     * {@code ANY(...)} as its boolean aggregate (docs/execution-plan-boundary-2026-10-05/probes/list-results.txt) — and
+     * parenthesized under an operator that binds tighter ({@code =} does not chain). A parameter that is not a list of
+     * a named element type (a scalar's, a plan template's) is refused by name.
      */
-    private SqlWriter anyOf(SqlWriter writer, SqlExpr needle, SqlExpr.PlanParam list) {
+    private SqlWriter anyOf(SqlWriter writer, SqlExpr needle, SqlExpr.PlanParam list, int parentPrec) {
         if (!(list.type() instanceof com.legend.sql.TypeFact.Typed t
                 && t.type() instanceof com.legend.sql.SqlType.Array array
                 && array.element() instanceof com.legend.sql.SqlType.Scalar element)) {
-            throw new DialectCapability("plan parameter '" + list.name() + "' is a whole list with no array of a named"
-                    + " element type (a plan template's): never a bound value");
+            throw new DialectCapability("plan parameter '" + list.name() + "' is not a list parameter (an array of a"
+                    + " named element type): it is not bound as a whole list");
         }
-        return writer.expr(needle, 4).append(" = ANY(").bind(new RenderedStatement.Bind(list.name(), element.name()))
+        boolean wrap = 4 < parentPrec;
+        if (wrap) {
+            writer.append("(");
+        }
+        writer.expr(needle, 5).append(" = ANY(").bind(new RenderedStatement.Bind(list.name(), element.name()))
                 .append(")");
+        return wrap ? writer.append(")") : writer;
+    }
+
+    /** A parameter written where ONE value goes: a list parameter is bound only as a whole list ({@code in},
+     *  {@code contains}: {@link #anyOf}); any other use of it is refused by name, never bound as something it is not. */
+    private static SqlExpr.PlanParam oneValue(SqlExpr.PlanParam p) {
+        if (p.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof com.legend.sql.SqlType.Array) {
+            throw new DialectCapability("list parameter '" + p.name() + "' is bound only as a whole list (in,"
+                    + " contains); written where one value goes, it is not bound");
+        }
+        return p;
     }
 
     /** A writer for this dialect: its {@link SqlWriter#expr} writes a sub-expression in this dialect's spelling. */

@@ -54,6 +54,13 @@ public final class QueryParameters {
          *  declared type is ({@link #valueType}), which a dialect that types a placeholder writes; for a list, one
          *  array of such values (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2). */
         public com.legend.sql.SqlExpr.PlanParam slot() {
+            if (type instanceof Type.EnumType && optional()) {
+                // its ABSENCE has three candidate answers: legend-engine's plan writes `0 = 1` (no row for ==, every
+                // row for !=), Pure's equality holds for [] == [], and today's let path compares a NULL; unmeasured
+                throw new com.legend.error.NotImplementedException("parameter '" + name + "' (" + type.typeName()
+                        + "[0..1]): an optional enumeration's absence is not bound until its answer is measured against"
+                        + " legend-engine (PARK-21)");
+            }
             com.legend.sql.TypeFact value = valueType();
             if (multiplicity instanceof Multiplicity.Bounded b && Integer.valueOf(1).equals(b.upper())) {
                 return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type),
@@ -78,8 +85,11 @@ public final class QueryParameters {
                 return com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR);
             }
             if (!(type instanceof Type.Primitive primitive)) {
-                throw new IllegalArgumentException("parameter '" + name + "' (" + type.typeName() + "): a parameter's"
-                        + " value is a plain value -- a primitive, an enumeration's value, or a list of them");
+                // Pure takes a class instance as a parameter (the legacy printer writes its properties, ${p.name});
+                // a lite plan binds plain values only (§9, step 2's decisions)
+                throw new com.legend.error.NotImplementedException("parameter '" + name + "' (" + type.typeName()
+                        + "): a class instance is not bound as a plan's parameter, only plain values -- a primitive, an"
+                        + " enumeration's value, a list of them (PARK-21)");
             }
             return switch (primitive) {
                 case INTEGER -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.BIGINT);
@@ -89,7 +99,8 @@ public final class QueryParameters {
                 case DATE_TIME -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.TIMESTAMP);
                 case FLOAT, DECIMAL, DATE, NUMBER -> com.legend.sql.SqlTyping.UNKNOWN;
                 case BYTE, LATEST_DATE, STRICT_TIME -> throw new com.legend.error.NotImplementedException("parameter '"
-                        + name + "' (" + type.typeName() + "): a value of this type is not bound yet");
+                        + name + "' (" + type.typeName() + "): a Byte, LatestDate or StrictTime value is not bound as a"
+                        + " plan's parameter (PARK-21)");
             };
         }
 

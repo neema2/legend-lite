@@ -33,3 +33,12 @@ measured by run.sh over the eight lanes (the census's known build failure, //pur
    and the let-path queries they are compared with, on DuckDB, H2 and Postgres; 8 rendered more often). No entry is
    gone and no other lane differs: the pass is the lite plan's alone, after lowering, and the legacy plan's enumeration
    form (PlanEnumForm) is untouched.
+
+5. Slice (e), a list parameter bound as one array -- against slice (d): 75 of 52,410 entries differ, all in //gates:core
+   and all the new tests' own (54 new texts: the plans' `= ANY(?)` statements, the enumeration list's value table, and
+   the let-path queries they are compared with, on DuckDB, H2 and Postgres; 21 rendered more often). No entry is gone and
+   no other lane differs: the legacy printer writes its own collection template, untouched.
+
+6. The audit's fixes -- against slice (e): 46 entries differ, all in //gates:core and all the new tests' own (32 new
+   texts: a DateTime value, !in over a list, a scalar's and a collection's text, on DuckDB, H2 and Postgres; 14 rendered
+   more often). No entry is gone and no other lane differs: today's paths render exactly what they rendered.
