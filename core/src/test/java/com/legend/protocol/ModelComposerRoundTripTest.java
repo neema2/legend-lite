@@ -192,6 +192,7 @@ class ModelComposerRoundTripTest {
 
                   Join Firm_Person(hr.FIRM.ID = hr.PERSON.FIRM_ID)
                   Filter Adults(hr.PERSON.AGE >= 18)
+                  Filter Listed(in(hr.PERSON.AGE, [18, 21]) and in(hr.PERSON.NAME, ['A', 'B']))
                 )
 
                 ###Mapping
