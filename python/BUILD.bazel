@@ -2,6 +2,8 @@
 # bindings are plain Python on its standard library alone; the frames (legend_lite/frames.py: dataframes as Legend
 # tables) and the engine over them (legend_lite/engine.py: legend-engine's pure/v1 API, for DataCube) add duckdb and
 # pyarrow, pinned in //tools/python.
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -13,6 +15,7 @@ py_library(
     srcs = glob(
         ["legend_lite/**/*.py"],
         exclude = [
+            "legend_lite/datacube.py",
             "legend_lite/engine.py",
             "legend_lite/frames.py",
         ],
@@ -20,12 +23,13 @@ py_library(
     imports = ["."],
 )
 
-# the whole package: the bindings, the frames and the engine
+# the whole package: the bindings, the frames, the engine and show()
 py_library(
     name = "legend_lite",
     # //datacube:engine_fixture serves a frame to DataCube's browser test
     visibility = ["//datacube:__pkg__"],
     srcs = [
+        "legend_lite/datacube.py",
         "legend_lite/engine.py",
         "legend_lite/frames.py",
     ],
@@ -115,8 +119,12 @@ py_test(
     srcs = [
         "tests/main.py",
         "tests/test_engine.py",
+        "tests/test_show.py",
     ],
-    args = ["test_engine"],
+    args = [
+        "test_engine",
+        "test_show",
+    ],
     data = ["//native:compiler"],
     env = _ENV,
     main = "tests/main.py",
@@ -126,6 +134,40 @@ py_test(
         "@pypi//pandas",
         "@rules_python//python/runfiles",
     ],
+)
+
+# TRY IT: an interactive Python with legend_lite ready (repl.py): the repository's Python and pinned packages, the
+# compiler's native library and DataCube's built site, by their runfiles paths -- `bazel run //python:repl`, then
+# `cube = ll.show(trades)`. Where the library builds.
+py_binary(
+    name = "repl",
+    srcs = ["repl.py"],
+    data = [
+        "//datacube:dist",
+        "//native:compiler",
+    ],
+    env = {
+        "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+        "LEGEND_LITE_SITE": "$(rlocationpath //datacube:dist)",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUTF8": "1",
+    },
+    main = "repl.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":legend_lite",
+        "@pypi//pandas",
+        "@pypi//polars",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+# the REPL built in a lane, so it does not rot unseen (as //tools/metrics:tools_build_test keeps its tool): everything
+# it builds is built for engine_test and python_engine_test anyway, bar its own wrapper
+build_test(
+    name = "tools_build_test",
+    targets = [":repl"],
+    target_compatible_with = _PLATFORMS,
 )
 
 guards_package()

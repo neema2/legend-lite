@@ -9,7 +9,8 @@
 //   - the engine's token: the link's fragment (`#token=...`), which a browser never sends to a server, as the
 //     warehouse's launch key is given; every call carries it;
 //   - the cube: `cube.json?table=<name>` (asked with the token): the table's model, runtime and source, written by
-//     legend-lite's one writer in Python (Frames), and its title.
+//     legend-lite's one writer in Python (Frames), its title and its version;
+//   - that the frame changed: `version.json?table=<name>`, asked about once a second (follow, below).
 // The engine answers execute in upstream's Arrow format, declared here (`serializationFormat`), never tried and fallen
 // back from.
 
@@ -17,12 +18,13 @@ import { CubeApp, RemoteRun, sourceColumns, type CubeSnapshot } from '../src/emb
 import { LegendEngineExecutor } from '../../engine-client/src/engine-remote.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 
-/** What the engine says the cube is (Python's `Engine`, `/cube.json`). */
+/** What the engine says the cube is (Python's `Engine`, `/cube.json`), and its version: how often its frame changed. */
 interface CubeConfig {
   readonly title: string;
   readonly model: string;
   readonly runtime: string;
   readonly source: ValueSpecification;
+  readonly version: number;
 }
 
 function refuse(message: string): never {
@@ -38,10 +40,19 @@ function linked(): { readonly authorization: string; readonly table: string } {
   return { authorization: `Bearer ${token}`, table: new URLSearchParams(location.search).get('table') ?? '' };
 }
 
-async function open({ authorization, table }: ReturnType<typeof linked>): Promise<CubeApp> {
-  const asked = await fetch(`cube.json?table=${encodeURIComponent(table)}`, { headers: { Authorization: authorization } });
-  if (!asked.ok) refuse(`the engine did not say what to show: ${asked.status} ${await asked.text()}`);
-  const config = (await asked.json()) as CubeConfig;
+type Link = ReturnType<typeof linked>;
+
+/** The cube as the engine says it is now, or why it does not say (the frame closed, the engine gone). */
+async function asked({ authorization, table }: Link): Promise<CubeConfig | string> {
+  const answer = await fetch(`cube.json?table=${encodeURIComponent(table)}`, { headers: { Authorization: authorization } })
+    .catch((e: unknown) => String(e));
+  if (typeof answer === 'string') return `the engine did not answer: ${answer}`;
+  if (!answer.ok) return `the engine did not say what to show: ${answer.status} ${await answer.text()}`;
+  return (await answer.json()) as CubeConfig;
+}
+
+/** One cube over the engine's frame, its first query run. */
+async function build(config: CubeConfig, authorization: string): Promise<CubeApp> {
   document.title = config.title;
   const runner = new RemoteRun(new LegendEngineExecutor({
     baseUrl: location.origin,
@@ -70,6 +81,58 @@ async function open({ authorization, table }: ReturnType<typeof linked>): Promis
   // the first query: the cube runs (and re-runs) the rest itself
   await cube.open();
   return cube;
+}
+
+/** How often the page asks whether its frame changed: a brief call on this machine, nothing held open (ms). */
+const ASK_EVERY = 1000;
+
+const pause = (ms: number): Promise<void> => new Promise((done) => { setTimeout(done, ms); });
+
+/** Once the tab is shown: a hidden page has no grid to keep current, and asks again when it is looked at. */
+const shown = (): Promise<void> => (document.hidden
+  ? new Promise((done) => { document.addEventListener('visibilitychange', () => done(), { once: true }); })
+  : Promise.resolve());
+
+/**
+ * FOLLOWING THE FRAME: about once a second the page asks the engine its frame's version (`version.json`), which
+ * Python moves after a notebook cell, a `cube.update`, a `cube.refresh`, a Live frame's new columns, or a close. A
+ * brief call, nothing held open: cubes in many tabs never use up the browser's six connections to one origin (the
+ * audit of show(), 2026-10-08). A new version re-reads the cube: the same model re-runs the view as it stands (its
+ * groups, filters and pivots kept); a new one (the frame's columns changed) opens the cube again over it. A frame
+ * closed in Python, or an engine that stopped, leaves the page showing what it showed, saying it no longer follows.
+ */
+async function follow(link: Link, first: CubeConfig, firstCube: CubeApp): Promise<void> {
+  let config = first;
+  let cube = firstCube;
+  const stopped = (why: string): void => { document.title = `${config.title} (not followed: ${why})`; };
+  for (;;) {
+    await pause(ASK_EVERY);
+    await shown();
+    const answer = await fetch(`version.json?table=${encodeURIComponent(link.table)}`,
+      { headers: { Authorization: link.authorization } }).catch(() => undefined);
+    if (answer === undefined) return stopped('the engine stopped');
+    if (answer.status === 404) return stopped('the frame was closed');
+    if (!answer.ok) return stopped(`the engine answered ${answer.status}`);
+    const { version } = (await answer.json()) as { version: number };
+    if (version === config.version) continue;
+    const next = await asked(link);
+    if (typeof next === 'string') return stopped(next);
+    if (next.model === config.model && JSON.stringify(next.source) === JSON.stringify(config.source)) {
+      config = next;
+      await cube.state.refresh();
+    } else {
+      cube.dispose();
+      document.getElementById('cube')!.replaceChildren();
+      config = next;
+      cube = await build(next, link.authorization);
+    }
+  }
+}
+
+async function open(link: Link): Promise<void> {
+  const config = await asked(link);
+  if (typeof config === 'string') refuse(config);
+  await follow(link, config, await build(config, link.authorization));
 }
 
 // a page that cannot open says why, on the page (the cube's own failures it shows in its status bar)

@@ -338,7 +338,7 @@ class Cube(Served):
         status, content_type, body = self.get('/cube.json?table=trades', {'Authorization': self.engine.authorization})
         self.assertEqual((status, content_type), (200, 'application/json'))
         self.assertEqual(json.loads(body), {'title': 'trades', 'model': self.table.model, 'runtime': self.table.runtime,
-                                            'source': self.table.source})
+                                            'source': self.table.source, 'version': 0})
         # a Live frame read again: a new column, a new model
         self.df['extra'] = 1
         _, _, body = self.get('/cube.json?table=TRADES', {'Authorization': self.engine.authorization})

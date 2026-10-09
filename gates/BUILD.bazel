@@ -154,6 +154,7 @@ test_suite(
         "//python:bindings_test",
         "//python:engine_test",
         "//python:frames_test",
+        "//python:tools_build_test",
         # DataCube against Python's engine, in the pinned Chromium (the compiler's library in its runfiles; not Windows)
         "//datacube:python_engine_test",
         "//warehouse:postgres_live",

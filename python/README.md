@@ -49,6 +49,26 @@ out. Frames never replaces a table it did not make, and it sets the connection's
 planner's SQL expects (UTC), on a connection it opens or one it is given. A pandas frame's index is
 not a column (`reset_index()` keeps it as one).
 
+## DataCube on a dataframe
+
+```python
+import legend_lite as ll
+cube = ll.show(df)          # DataCube opens in the browser; show() returns at once
+df.loc[0, 'qty'] = 5         # Live: the cube's next query sees it (in a notebook, it re-queries after the cell)
+cube.update(new_df)          # a new frame: the open page shows it by itself
+cube.close()
+```
+
+One engine per process, started by the first `show` and stopped when the last cube closes. In IPython and notebooks
+each Live cube is told to query again after every cell; at a plain `>>>` prompt the next click shows a change in the
+rows (or `cube.refresh()`), and a frame given new columns is noticed at its next query and the page opens the cube
+again over them. A plain script that opened a cube in the browser waits at its end, saying so, until Ctrl-C (or an
+IDE's Stop); one that opened none (`browser=False`, or no browser to open: a test, a CI job) ends, and says so. `show(df, browser=False)` opens nothing: the link is `cube.url`, which
+`show` also prints (it carries the engine's token).
+
+To try it with nothing installed: `bazel run //python:repl` -- the repository's Python and pinned packages, the
+compiler's library and DataCube's site, with `ll`, `pd` and a sample `trades` DataFrame ready.
+
 ## An engine for DataCube
 
 ```python
@@ -73,5 +93,5 @@ Frames and the engine need duckdb and pyarrow; the compiler itself needs neither
 loads them only when `Frames` or `Engine` is first used.
 
 Tests: `//python:bindings_test` (the compiler, on Python's standard library alone), `//python:frames_test`
-(the frames, against pandas) and `//python:engine_test` (the engine, over HTTP), on the repository's own Python
-(3.12).
+(the frames, against pandas) and `//python:engine_test` (the engine over HTTP, and `show()`), on the repository's own
+Python (3.12); `//datacube:python_engine_test`, DataCube itself against the engine in the pinned Chromium.
