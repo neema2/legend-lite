@@ -378,3 +378,35 @@ Number list, answering as their literal lists on DuckDB, H2 and Postgres.
 it past step 4: a query with such a list parameter is refused.
 
 **Anchor.** The refusal in `QueryParameters.java`: "a list of decimals, Dates or Numbers has no one element type".
+
+---
+
+## PARK-21 — a plan does not bind an optional enumeration, a class instance, or a Byte, LatestDate or StrictTime value
+
+**Parked** 2026-10-09 by the Plan Gen / Exec Split session with step 2's landing 2, after its audit (blocker B1 and
+finding S6).
+
+**What happens today.** `QueryParameters.Declared.slot` refuses, by name, when the plan is made:
+- **an optional enumeration parameter** (`st: E[0..1]`). Its ABSENCE has three candidate answers and none is measured:
+  legend-engine's plan writes `${optionalVarPlaceHolderOperationSelector(st![], ..., '0 = 1')}` (the legacy golden of
+  `testOptionalEnumParameterEqualsClassProp`: no row for `==`, every row for `!=`); Pure's own equality holds for
+  `[] == []` (the rows whose status is empty); and today's let path compares a NULL (no row for `==`, the non-empty
+  rows for `!=`). The value table answers as the engine's text reads for both, the decoded comparison as the let path,
+  so neither is bound until the engine's answer is measured. A present value would be exact; the plan cannot know.
+- **a class instance** (`i: C[1]`): Pure takes one, and the legacy printer writes its properties (`${i.name}`); a lite
+  plan binds plain values only (§9, step 2's decisions), so its properties are not slots yet.
+- **a Byte, LatestDate or StrictTime value**: no measured binding.
+
+**The fix.** For the optional enumeration: run the three shapes (`==`, `!=`, absent and present) through legend-engine
+4.145.0's `execute` and bind what it answers — the value table's `NOT IN` beside the null arms already gives the
+engine's text's answer if that is the engine's; else a null arm. For a class instance: each property read a slot of its
+own, named `i.name` as the legacy printer names it. For the other types: measured bindings.
+
+**Acceptance.** `PlanMakerTest` binds each: an optional enumeration absent and present, `==` and `!=`, answering as
+legend-engine does; a class parameter's properties; the three types — on DuckDB, H2 and Postgres.
+
+**When.** Before step 4 switches the server's `execute` to plans: until then today's path serves them. Cost of leaving
+it past step 4: such a query is refused.
+
+**Anchors.** The three refusals in `QueryParameters.java`: "an optional enumeration's absence is not bound", "a class
+instance is not bound as a plan's parameter", "a Byte, LatestDate or StrictTime value is not bound".

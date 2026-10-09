@@ -348,6 +348,8 @@ legend_java_library(
         ["src/test/java/**/*.java"],
         exclude = [
             "src/test/java/com/legend/server/PostgresArmTest.java",
+            # the shared test cases are :test_cases's
+            "src/test/java/com/legend/testcases/*.java",
             # the toy section grammar and its test are :toy_grammar's and :section_grammar_registry_test's (P3-04)
             "src/test/java/com/legend/parser/SectionGrammarRegistryTest.java",
             "src/test/java/com/legend/parser/ToySectionGrammar.java",
@@ -372,6 +374,7 @@ legend_java_library(
     ],
     deps = [
         ":core",
+        ":test_cases",
         "//testing",
         "@maven_test//:com_tngtech_archunit_archunit",
         # H2VersionPinTest reads org.h2.engine.Constants.VERSION
@@ -547,8 +550,8 @@ junit_test(
 
 # THE SERVER'S POSTGRES ARM (Bazel workplan P0-08): a type: Postgres connection resolves through
 # ConnectionResolver and the product's own driver set (:drivers), against the Postgres 16 that
-# gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class. Its Postgres cases of core
-# tests use those tests' helpers (ReservedNamesSeedTest's seed, PlanMakerTest's plan run), so it reads :core_tests_lib.
+# gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class, and the cases it shares with
+# core's tests (:test_cases).
 junit_test(
     name = "postgres_arm_test",
     memory_mb = 768,
@@ -564,11 +567,25 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
-        ":core_tests_lib",
+        ":test_cases",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# the test cases core's tests and :postgres_arm_test share: the execution plan's cases and its run on a connection
+# (PlanCases), the reserved-name tables and their seed (ReservedNames; PARK-16)
+legend_java_library(
+    name = "test_cases",
+    # not yet written to the null discipline (Bazel workplan P1-20), as core_tests_lib
+    nullaway = False,
+    testonly = True,
+    srcs = glob(["src/test/java/com/legend/testcases/*.java"]),
+    deps = [
+        ":core",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )
 
 # THE SOURCE CHECKS: tests whose subject is the code, not what it does — the
@@ -954,6 +971,7 @@ core_layer_queries(not_layers = {
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
     "scale_lib": "the scale benchmark's launcher (//core:scale), not product code",
     "shadow_binding": "a test-lane ServiceLoader resource",
+    "test_cases": "the test cases core's tests and postgres_arm_test share, not product code",
     "toy_grammar": "a toy section grammar for the registry's own test (section_grammar_registry_test)",
 })
 
