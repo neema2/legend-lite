@@ -459,8 +459,10 @@ export function arrange(layout: Bands, preset: Preset, order: readonly string[] 
       ? split('row', [leaf(first!), beside], [0.6, 0.4])
       : split('row', [beside, leaf(first!)], [0.4, 0.6]) }];
   } else if (preset === 'focus-top' || preset === 'focus-bottom') {
-    // the rest side by side, up to MAX_COLUMNS to a band
-    const others = runs(rest, [MAX_COLUMNS]).map((run) => ({ height: 0.4 / Math.ceil(rest.length / MAX_COLUMNS), node: row(run) }));
+    // the rest side by side, up to MAX_COLUMNS to a band, the bands near-equal (six tiles: one large, then 3 and 2 --
+    // never a lone tile left over in a band of its own)
+    const counts = balanced(rest.length, Math.ceil(rest.length / MAX_COLUMNS), true);
+    const others = runs(rest, counts).map((run) => ({ height: 0.4 / counts.length, node: row(run) }));
     const big = { height: 0.6, node: leaf(first!) };
     bands = preset === 'focus-top' ? [big, ...others] : [...others, big];
   } else {

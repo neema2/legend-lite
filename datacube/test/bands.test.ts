@@ -184,6 +184,9 @@ describe('presets arrange the tiles in reading order', () => {
     ['focus-left', ['a', 'b', 'c'], ['[a:60 | (b:50 / c:50):40]']],
     ['focus-right', ['a', 'b', 'c'], ['[(b:50 / c:50):40 | a:60]']],
     ['focus-left', six, ['[a:60 | ([b:50 | c:50]:33 / [d:50 | e:50]:33 / f:33):40]']],
+    // the rest in near-equal rows: 3 and 2, never 4 and a lone 1 (the user, 2026-10-09, checking the standard shapes)
+    ['focus-top', six, ['a', '[b:33 | c:33 | d:33]', '[e:50 | f:50]']],
+    ['focus-bottom', [...six, 'g', 'h', 'i'], ['[b:25 | c:25 | d:25 | e:25]', '[f:25 | g:25 | h:25 | i:25]', 'a']],
     ['columns:2-1', ['a', 'b', 'c'], ['[(a:50 / b:50):50 | c:50]']],
   ];
   for (const [preset, order, want] of cases) {
