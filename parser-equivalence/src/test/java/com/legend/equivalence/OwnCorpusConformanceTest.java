@@ -235,7 +235,12 @@ class OwnCorpusConformanceTest {
                 // the two verbatim-signature NEGATIVES (router execute,
                 // concatenateTemporalTdsQueries) spell Function<{...}>
                 // parameters to witness the nominal gate's reject direction
-                Map.entry("PURE-DIALECT-function-types", 18),
+                // 18 -> 19 (2026-10-09, REVIEWED): the build rebuild's Phase 3
+                // audit fix B1 (CompileFunctionTest.fromOverAFunctionTypedParameter
+                // RunsTheFunction): a FunctionDefinition<{->Integer[*]}> parameter
+                // is the only way to write "a function value meets from(...)",
+                // the overload rank the fix corrects
+                Map.entry("PURE-DIALECT-function-types", 19),
                 // 7 -> 6 (batch 115, 2026-09-06): one generics row rode a
                 // test file deleted with the old corpus harness
                 Map.entry("PURE-DIALECT-generics", 6),

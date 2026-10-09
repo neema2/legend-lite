@@ -115,7 +115,9 @@ class OwnDialectCensusTest {
                     // NEGATIVES (Function-carrier rejected by verbatim
                     // FunctionDefinition/LambdaFunction formals) each need
                     // a Function<{...}>-typed parameter spelling
-                    java.util.Map.entry("CompileFunctionTest.java", 5),
+                    // 5 -> 6 (2026-10-09, REVIEWED): the build rebuild's Phase 3 audit fix B1, a
+                    // FunctionDefinition<{->Integer[*]}> parameter (OwnCorpusConformanceTest's 18 -> 19)
+                    java.util.Map.entry("CompileFunctionTest.java", 6),
                     java.util.Map.entry("ElementParserTest.java", 17),
                     java.util.Map.entry(
                             "LegacyCleanSheetConvergenceTest.java", 4),
