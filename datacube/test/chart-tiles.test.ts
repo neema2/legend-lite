@@ -231,7 +231,7 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     await settle();
     // the user, 2026-10-09: from a tile of four, the layouts showed two tiles, and 2 x 2 came out 2, 1, 1
     (tile(b).querySelector('.dc-tile-layout') as HTMLElement).click();
-    const option = root.querySelector<HTMLElement>('.dc-layout-picker [data-preset="grid-2"]')!;
+    const option = root.querySelector<HTMLElement>('.dc-layout-picker [data-preset="rows:2-2"]')!;
     assert.equal(option.querySelectorAll('.dc-layout-cell').length, 4, 'the thumbnails show every tile on the page');
     assert.equal(option.querySelectorAll('.dc-layout-cell-mark').length, 1, 'the tile it was opened from marked');
     option.click();
@@ -239,14 +239,38 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     assert.deepEqual(boardBands(), [[b, 'grid'], [a, copy]]);
   });
 
-  it('Edit Layout unticked locks the page: no handles, nothing moves', async () => {
+  it('Edit Layout unticked locks the page: no handles, no layouts, no layout undo -- nothing moves', async () => {
     await twoCharts();
+    pick('Arrange\u2026').click();
+    root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
+    await settle();
+    const arranged = bands();
     const board = root.querySelector<HTMLElement>('.dc-bands')!;
     assert.equal(pick('Edit Layout').getAttribute('aria-checked'), 'true');
     pick('Edit Layout').click();
     assert.ok(board.classList.contains('dc-bands-view'));
     assert.equal(board.querySelectorAll('.dc-band-divider').length, 0);
     assert.equal(pick('Edit Layout').getAttribute('aria-checked'), 'false');
+    assert.equal(pick('Arrange\u2026').getAttribute('aria-disabled'), 'true');
+    assert.equal(pick('Undo Layout').getAttribute('aria-disabled'), 'true');
+    // nor from a tile's frame
+    tile('grid').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    await settle();
+    assert.deepEqual(bands(), arranged);
+  });
+
+  it('a grid\'s menu button opens its menu even while the title bar\'s is open, and says when it is open', async () => {
+    await twoCharts();
+    titleMenu();
+    const button = [...tile('grid').querySelectorAll<HTMLElement>('.dc-tile-menu')][0]!;
+    button.click();
+    const labels = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu > [role^="menuitem"]')]
+      .map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent);
+    assert.deepEqual(labels, ['New', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis'], 'the grid\'s, not shut');
+    assert.equal(button.getAttribute('aria-expanded'), 'true');
+    button.click();
+    assert.equal(dom.window.document.querySelector('.dc-menu'), null, 'its own button again shuts it');
+    assert.equal(button.getAttribute('aria-expanded'), 'false');
   });
 });
 

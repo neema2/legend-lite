@@ -7,7 +7,7 @@ import { beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { LayoutPicker, type LayoutPickerChoices } from '../src/ui/layout-picker.ts';
-import { PRESETS, type Preset } from '../src/layout/bands.ts';
+import { layoutsFor, type Preset } from '../src/layout/bands.ts';
 
 let dom: JSDOM;
 let page: HTMLElement;
@@ -52,33 +52,80 @@ function pointer(el: Element, type: string): void {
 }
 
 describe('the layout picker', () => {
-  it('shows every layout as the page\'s own tiles, the one it was opened from marked, in the page', () => {
+  it('shows the standard shapes first, as the page\'s own tiles, the one it was opened from marked, in the page', () => {
     const picker = new LayoutPicker(page);
     const { choices: c, told } = choices();
     anchor.focus();
     picker.show(anchor, c);
     assert.ok(page.querySelector('.dc-layout-picker'), 'in the page, not the document\'s body');
-    assert.deepEqual(picker.options.map((o) => o.dataset['preset']), PRESETS.map((p) => p.id));
+    assert.deepEqual(picker.options.map((o) => o.dataset['preset']), layoutsFor(3).filter((l) => l.featured).map((l) => l.id));
+    assert.deepEqual(picker.options.map((o) => o.dataset['preset']),
+      ['side-by-side', 'stacked', 'rows:2-1', 'focus-left', 'focus-right', 'focus-top', 'focus-bottom', 'columns:2-1']);
+    assert.equal(option(picker, 'rows:2-1').getAttribute('aria-label'), 'Grid (2, 1)');
     for (const o of picker.options) assert.equal(o.querySelectorAll('.dc-layout-cell').length, 3);
-    // one on the left, the rest stacked on the right: c, the tile it was opened from, is the big one on the left
-    const cells = [...option(picker, 'left-and-column').querySelectorAll<HTMLElement>('.dc-layout-cell')];
+    // one large on the left, the rest beside it: c, the tile it was opened from, is the large one
+    const cells = [...option(picker, 'focus-left').querySelectorAll<HTMLElement>('.dc-layout-cell')];
     const marked = cells.filter((cell) => cell.classList.contains('dc-layout-cell-mark'));
     assert.equal(marked.length, 1);
     assert.equal(marked[0]!.style.left, '0px');
     assert.equal(marked[0]!.style.height, '44px');
-    assert.equal(option(picker, 'left-and-column').getAttribute('aria-label'),
-      'One on the left, the rest stacked on the right');
+    assert.equal(option(picker, 'focus-left').getAttribute('aria-label'), 'One large on the left, the rest beside it');
     assert.deepEqual(told.previews, [], 'opening previews nothing');
+  });
+
+  it('More layouts opens every other shape under its kind\'s heading, and closes it again', () => {
+    const picker = new LayoutPicker(page);
+    const { choices: c } = choices({ tiles: ['a', 'b', 'c', 'd', 'e'], first: 'a' });
+    picker.show(anchor, c);
+    const more = [...page.querySelectorAll<HTMLButtonElement>('.dc-layout-toggle')].find((b) => b.textContent === 'More layouts')!;
+    assert.equal(more.getAttribute('aria-expanded'), 'false');
+    const standard = picker.options.length;
+    more.click();
+    assert.equal(more.getAttribute('aria-expanded'), 'true');
+    assert.deepEqual(picker.options.map((o) => o.dataset['preset']), layoutsFor(5).map((l) => l.id), 'every layout for five');
+    assert.ok(option(picker, 'rows:3-1-1') && option(picker, 'rows:1-3-1'), 'several on top then one and one; one, several, one');
+    assert.deepEqual([...page.querySelectorAll('.dc-layout-more .dc-layout-group')].map((h) => h.textContent), ['Rows', 'Columns']);
+    more.click();
+    assert.equal(picker.options.length, standard);
+  });
+
+  it('Custom builds rows by hand: each row\'s count up and down, rows added and taken away, previewed, then applied', () => {
+    const picker = new LayoutPicker(page);
+    const { choices: c, told } = choices();
+    picker.show(anchor, c);
+    [...page.querySelectorAll<HTMLButtonElement>('.dc-layout-toggle')].find((b) => b.textContent === 'Custom\u2026')!.click();
+    const counts = (): string[] => [...page.querySelectorAll('.dc-layout-custom-count')].map((e) => e.textContent ?? '');
+    const status = (): string => page.querySelector('.dc-layout-custom-status')!.textContent ?? '';
+    const step = (label: string): HTMLButtonElement => page.querySelector<HTMLButtonElement>(`.dc-layout-custom [aria-label="${label}"]`)!;
+    const apply = page.querySelector<HTMLButtonElement>('.dc-layout-apply')!;
+    assert.deepEqual(counts(), ['2', '1'], 'it starts as the grid');
+    assert.equal(status(), '3 tiles in 2 rows');
+    assert.deepEqual(told.previews, ['rows:2-1'], 'shown on the page');
+    assert.equal(step('One more tile in row 2').disabled, true, 'every tile placed: no more');
+    step('One fewer tile in row 1').click();
+    assert.deepEqual(counts(), ['1', '1']);
+    assert.equal(status(), '2 of 3 tiles placed: 1 more to place');
+    assert.equal(apply.disabled, true);
+    step('Add a row of one tile').click();
+    assert.deepEqual(counts(), ['1', '1', '1']);
+    assert.equal(told.previews.at(-1), 'rows:1-1-1');
+    step('Take row 3 away').click();
+    step('One more tile in row 2').click();
+    assert.deepEqual(counts(), ['1', '2']);
+    assert.equal(apply.disabled, false);
+    apply.click();
+    assert.deepEqual(told.picks, ['rows:1-2']);
+    assert.equal(picker.open, false);
   });
 
   it('previews a layout while it is pointed at, and the page as it is when the pointer leaves', () => {
     const picker = new LayoutPicker(page);
     const { choices: c, told } = choices();
     picker.show(anchor, c);
-    pointer(option(picker, 'grid-2'), 'pointerenter');
-    pointer(option(picker, 'grid-3'), 'pointerenter');
-    pointer(page.querySelector('.dc-layout-options')!, 'pointerleave');
-    assert.deepEqual(told.previews, ['grid-2', 'grid-3', null]);
+    pointer(option(picker, 'rows:2-1'), 'pointerenter');
+    pointer(option(picker, 'columns:2-1'), 'pointerenter');
+    pointer(page.querySelector('.dc-layout-lists')!, 'pointerleave');
+    assert.deepEqual(told.previews, ['rows:2-1', 'columns:2-1', null]);
   });
 
   it('arranges on a click and closes, with no flash back to the old layout between', () => {
@@ -107,10 +154,14 @@ describe('the layout picker', () => {
     assert.equal(dom.window.document.activeElement, option(picker, 'side-by-side'));
     key('ArrowRight');
     key('ArrowDown');
-    assert.equal(dom.window.document.activeElement, option(picker, 'left-and-column'), 'down a row of four');
+    assert.equal(dom.window.document.activeElement, option(picker, 'focus-top'), 'down: the next row as drawn, the same place in it');
+    key('ArrowDown');
+    assert.equal(dom.window.document.activeElement, option(picker, 'focus-top'), 'no row below: it stays');
+    key('ArrowUp');
+    assert.equal(dom.window.document.activeElement, option(picker, 'stacked'));
     key('End');
-    assert.equal(dom.window.document.activeElement, option(picker, 'large-and-two'));
-    assert.deepEqual(told.previews, ['side-by-side', 'stacked', 'left-and-column', 'large-and-two']);
+    assert.equal(dom.window.document.activeElement, option(picker, 'columns:2-1'));
+    assert.deepEqual(told.previews, ['side-by-side', 'stacked', 'focus-top', 'stacked', 'columns:2-1']);
     // Tab away from the thumbnails: the page as it is
     dom.window.document.querySelector<HTMLInputElement>('.dc-layout-fit input')!.focus();
     assert.equal(told.previews.at(-1), null);
@@ -134,10 +185,10 @@ describe('the layout picker', () => {
     const picker = new LayoutPicker(page);
     const { choices: c, told } = choices();
     picker.show(anchor, c);
-    pointer(option(picker, 'grid-2'), 'pointerenter');
+    pointer(option(picker, 'rows:2-1'), 'pointerenter');
     dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
     assert.equal(picker.open, false);
-    assert.deepEqual(told.previews, ['grid-2', null]);
+    assert.deepEqual(told.previews, ['rows:2-1', null]);
     picker.show(anchor, c);
     pointer(anchor, 'pointerdown');
     assert.equal(picker.open, true, 'a press on its own button is that button\'s click, which toggles it');
@@ -153,6 +204,7 @@ describe('the layout picker', () => {
     const { first: _first, ...c } = choices({ tiles: ['a', 'b'] }).choices;
     picker.show(anchor, c);
     assert.equal(page.querySelectorAll('.dc-layout-cell-mark').length, 0);
-    assert.equal(option(picker, 'grid-3').querySelectorAll('.dc-layout-cell').length, 2);
+    assert.equal(option(picker, 'stacked').querySelectorAll('.dc-layout-cell').length, 2);
+    assert.deepEqual(picker.options.map((o) => o.dataset['preset']), layoutsFor(2).map((p) => p.id), 'the layouts for two tiles');
   });
 });

@@ -26,7 +26,7 @@
 import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protocol/src/index.ts';
 import { CHART_MARKS, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument } from './cube-document.ts';
-import { type Bands, type Node, fromCells, problems } from './layout/bands.ts';
+import { type Bands, type Node, fromCells, problems, tiles as tilesOf } from './layout/bands.ts';
 import type { FilterNode } from './snapshot.ts';
 
 export const PAGE_KIND = 'datacube.page';
@@ -243,6 +243,11 @@ function readLayout(l: unknown, views: ReadonlySet<string>, version: number): Pa
   const layout: Bands = { fit: l['fit'], bands };
   const wrong = problems(layout);
   if (wrong.length > 0) throw new PageDocumentError(`'layout' cannot be laid out: ${wrong.join('; ')}`);
+  // every view has its place: a view the layout leaves out would be put somewhere on opening, and the page read as
+  // changed before anyone touched it
+  const placed = new Set(tilesOf(layout));
+  const missing = [...views].filter((id) => !placed.has(id));
+  if (missing.length > 0) throw new PageDocumentError(`'layout' has no place for ${missing.join(', ')}`);
   return { kind: 'bands', ...layout };
 }
 

@@ -328,6 +328,56 @@ describe('the band board', () => {
     assert.deepEqual(undos, [false, true]);
   });
 
+  it('a row turned column at the same place gets a divider of its own, which drags up and down', () => {
+    const { board } = sideBySide(['a', 'b']);
+    assert.ok(host.querySelector('.dc-band-divider-row'));
+    // a dropped on b's top edge: the two stacked, the divider between them now across
+    const head = root('a').querySelector<HTMLElement>('.dc-tile-head')!;
+    pointer(head, 'pointerdown', 50, 10);
+    pointer(head, 'pointerup', 750, 20);
+    assert.equal(host.querySelector('.dc-band-divider-row'), null);
+    const divider = host.querySelector<HTMLElement>('.dc-band-divider-column')!;
+    assert.ok(divider, 'a divider across');
+    const before = box('a').h;
+    pointer(divider, 'pointerdown', 500, 150);
+    pointer(divider, 'pointerup', 500, 190);
+    assert.ok(box('a').h > before, `taller: ${before} -> ${box('a').h}`);
+    wellFormed(board);
+  });
+
+  it('a tile added, or a layout put, while a divider is dragged ends the drag first: nothing is lost when it ends', () => {
+    const { board } = sideBySide(['a', 'b']);
+    const divider = host.querySelector<HTMLElement>('.dc-band-divider-row')!;
+    pointer(divider, 'pointerdown', 500, 100);
+    pointer(divider, 'pointermove', 600, 100);
+    board.add(tile('c'), 'b');
+    pointer(divider, 'pointerup', 650, 100);
+    assert.deepEqual(tiles(board.layout), ['a', 'b', 'c'], 'c kept: the drag ended, its let-go does nothing');
+    assert.equal(root('c').hidden, false);
+    wellFormed(board);
+  });
+
+  it('on a locked page Ctrl+Z on a tile\'s frame does nothing; Ctrl+Y redoes, as Windows spells it', () => {
+    const undos: boolean[] = [];
+    const board = new BandBoard(host, { onUndo: (redo) => undos.push(redo) });
+    board.add(tile('a'));
+    root('a').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'y', ctrlKey: true, bubbles: true }));
+    assert.deepEqual(undos, [true]);
+    board.setEditing(false);
+    root('a').dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    assert.deepEqual(undos, [true], 'locked: not undone');
+  });
+
+  it('says what Arrange, Even out and Fit to window did', () => {
+    const { board } = sideBySide(['a', 'b']);
+    board.arrange('stacked');
+    assert.equal(live(), 'Arranged.');
+    board.evenOut();
+    assert.equal(live(), 'Evened out.');
+    board.setFit(true);
+    assert.equal(live(), 'The page fits the window.');
+  });
+
   it('says when a tile cannot grow or shrink that way', () => {
     const board = new BandBoard(host);
     board.add(tile('a'));
@@ -382,13 +432,13 @@ describe('the band board', () => {
   it('previews a preset without changing the layout, then arranges it: one big on the left, two stacked on the right', () => {
     const { board, changes } = sideBySide(['a', 'b', 'c']);
     const before = board.layout;
-    board.preview('left-and-column', 'c');
+    board.preview('focus-left', 'c');
     assert.equal(board.layout, before, 'a preview is not the layout');
     assert.deepEqual(box('c'), { x: 0, y: 0, w: 595, h: 600 });
     assert.equal(host.querySelectorAll('.dc-band-divider').length, 0, 'no handles on a preview');
     board.preview(null);
     assert.deepEqual(box('a'), { x: 0, y: 0, w: 328, h: 300 });
-    board.arrange('left-and-column');
+    board.arrange('focus-left');
     assert.deepEqual(box('a'), { x: 0, y: 0, w: 595, h: 600 });
     assert.deepEqual(box('b'), { x: 603, y: 0, w: 397, h: 296 });
     assert.deepEqual(box('c'), { x: 603, y: 304, w: 397, h: 296 });

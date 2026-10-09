@@ -13,7 +13,6 @@ import {
   MAX_COLUMNS,
   MIN_SHARE,
   MIN_BAND_HEIGHT,
-  PRESETS,
   add,
   arrange,
   bandOf,
@@ -27,6 +26,7 @@ import {
   evenOut,
   fitted,
   fromCells,
+  layoutsFor,
   neighbour,
   problems,
   remove,
@@ -168,39 +168,96 @@ describe('dividers and band heights', () => {
 
 describe('presets arrange the tiles in reading order', () => {
   const five = ['a', 'b', 'c', 'd', 'e'];
-  const cases: [string, string[], string[]][] = [
+  const six = [...five, 'f'];
+  const cases: [Parameters<typeof arrange>[1], string[], string[]][] = [
     ['side-by-side', ['a', 'b'], ['[a:50 | b:50]']],
     ['stacked', ['a', 'b'], ['a', 'b']],
-    ['grid-2', ['a', 'b', 'c', 'd'], ['[a:50 | b:50]', '[c:50 | d:50]']],
-    ['grid-2', ['a', 'b', 'c'], ['[a:50 | b:50]', 'c']],
-    ['grid-3', ['a', 'b', 'c', 'd'], ['[a:33 | b:33 | c:33]', 'd']],
-    ['top-and-row', ['a', 'b', 'c'], ['a', '[b:50 | c:50]']],
-    ['left-and-column', ['a', 'b', 'c'], ['[a:60 | (b:50 / c:50):40]']],
-    ['right-and-column', ['a', 'b', 'c'], ['[(b:50 / c:50):40 | a:60]']],
-    ['large-and-two', five, ['[a:67 | (b:50 / c:50):33]', '[d:50 | e:50]']],
+    ['rows:2-2', ['a', 'b', 'c', 'd'], ['[a:50 | b:50]', '[c:50 | d:50]']],
+    ['rows:2-2', ['a', 'b', 'c'], ['[a:50 | b:50]', 'c']],
+    ['rows:2-2', five, ['[a:50 | b:50]', '[c:50 | d:50]', 'e']],
+    ['rows:3-1', ['a', 'b', 'c', 'd'], ['[a:33 | b:33 | c:33]', 'd']],
+    ['rows:1-3', ['a', 'b', 'c', 'd'], ['a', '[b:33 | c:33 | d:33]']],
+    ['rows:3-1-1', five, ['[a:33 | b:33 | c:33]', 'd', 'e']],
+    ['rows:1-3-1', five, ['a', '[b:33 | c:33 | d:33]', 'e']],
+    ['focus-top', ['a', 'b', 'c'], ['a', '[b:50 | c:50]']],
+    ['focus-bottom', ['a', 'b', 'c'], ['[b:50 | c:50]', 'a']],
+    ['focus-left', ['a', 'b', 'c'], ['[a:60 | (b:50 / c:50):40]']],
+    ['focus-right', ['a', 'b', 'c'], ['[(b:50 / c:50):40 | a:60]']],
+    ['focus-left', six, ['[a:60 | ([b:50 | c:50]:33 / [d:50 | e:50]:33 / f:33):40]']],
+    ['columns:2-1', ['a', 'b', 'c'], ['[(a:50 / b:50):50 | c:50]']],
   ];
   for (const [preset, order, want] of cases) {
     it(`${preset} of ${order.length}`, () => {
-      assert.deepEqual(picture(sound(arrange(EMPTY, preset as never, order))), want);
+      assert.deepEqual(picture(sound(arrange(EMPTY, preset, order))), want);
     });
   }
 
-  it('every preset, every count from 1 to 10, keeps every rule and every tile, the first in its first slot', () => {
-    for (const { id } of PRESETS) {
-      for (let n = 1; n <= 10; n += 1) {
-        const order = Array.from({ length: n }, (_, i) => `t${i}`);
+  it('every layout offered, for every count from 1 to 10, keeps every rule and every tile, the first in its first slot', () => {
+    for (let n = 1; n <= 10; n += 1) {
+      const order = Array.from({ length: n }, (_, i) => `t${i}`);
+      for (const { id } of layoutsFor(n)) {
         const layout = sound(arrange(EMPTY, id, order));
-        // in reading order -- but for one on the right, whose main tile reads after the column beside it
-        if (id === 'right-and-column') assert.deepEqual([...tiles(layout)].sort(), [...order].sort(), `${id} of ${n}`);
+        // in reading order -- but for one large on the right or below, whose main tile reads after the rest
+        if (id === 'focus-right' || id === 'focus-bottom') assert.deepEqual([...tiles(layout)].sort(), [...order].sort(), `${id} of ${n}`);
         else assert.deepEqual(tiles(layout), order, `${id} of ${n}`);
       }
+    }
+  });
+
+  it('a layout it does not know is refused by name', () => {
+    assert.throws(() => arrange(EMPTY, 'rows:2-x' as never, ['a']), /not a layout: rows:2-x/);
+    assert.throws(() => arrange(EMPTY, 'diagonal' as never, ['a', 'b']), /not a layout: diagonal/);
+  });
+});
+
+describe('the layouts offered for a number of tiles (the user, 2026-10-09: several on top then one and one, too)', () => {
+  /** A layout's shape: its boxes, whichever tile is where. */
+  const shape = (id: Parameters<typeof arrange>[1], n: number): string =>
+    [...draw(fitted(arrange(EMPTY, id, Array.from({ length: n }, (_, i) => `t${i}`)), true), 120, 80, 0, 0).tiles.values()]
+      .map((b) => `${b.x},${b.y},${b.w},${b.h}`).sort().join(' ');
+  it('one tile: one layout', () => {
+    assert.deepEqual(layoutsFor(1).map((l) => l.id), ['side-by-side']);
+  });
+  it('four tiles: every way into rows, one large on each side, and columns -- each a different shape', () => {
+    const four = layoutsFor(4);
+    assert.deepEqual(four.filter((l) => l.group === 'rows').map((l) => l.id), [
+      'side-by-side', 'stacked', 'rows:2-2', 'rows:3-1', 'rows:1-3', 'rows:2-1-1', 'rows:1-2-1', 'rows:1-1-2',
+    ]);
+    assert.deepEqual(four.filter((l) => l.featured).map((l) => l.id),
+      ['side-by-side', 'stacked', 'rows:2-2', 'focus-left', 'focus-right', 'focus-top', 'focus-bottom'],
+      'the standard shapes, first: the grid is two rows of two, and two columns of two the same shape');
+    assert.deepEqual(four.filter((l) => l.group === 'large').map((l) => l.id), ['focus-left', 'focus-right', 'focus-top', 'focus-bottom']);
+    assert.deepEqual(four.filter((l) => l.group === 'columns').map((l) => l.id), ['columns:2-1-1', 'columns:1-1-2'],
+      'two columns of two is 2 rows of 2: left out');
+    assert.equal(new Set(four.map((l) => shape(l.id, 4))).size, four.length);
+    assert.equal(four.find((l) => l.id === 'rows:3-1')!.label, 'Rows of 3, 1');
+    assert.equal(four.find((l) => l.id === 'rows:2-2')!.label, 'Grid (2, 2)', 'named as the standard shape it is');
+    assert.equal(layoutsFor(6).find((l) => l.id === 'columns:3-3')!.label, 'Two columns');
+  });
+  it('five tiles: several on top then one and one, and one, several, one', () => {
+    const ids = layoutsFor(5).map((l) => l.id);
+    for (const id of ['rows:3-1-1', 'rows:1-3-1', 'rows:1-1-3', 'rows:2-2-1', 'rows:4-1', 'rows:1-4'] as const) assert.ok(ids.includes(id), id);
+  });
+  it('many tiles: rows of four at most, three rows at most, so the list stays one to read', () => {
+    for (let n = 6; n <= 12; n += 1) {
+      const all = layoutsFor(n);
+      // at most 26 (seven tiles); the picker scrolls past a screen of them
+      assert.ok(all.length <= 30, `${n} tiles: ${all.length} layouts`);
+      // the standard shapes first, nine at most and in the same order; the rest, rows of four at most
+      const featured = all.filter((l) => l.featured);
+      assert.ok(featured.length <= 9 && all.slice(0, featured.length).every((l) => l.featured), `${n} tiles: the standard shapes first`);
+      for (const { id } of all.filter((l) => !l.featured && l.id.startsWith('rows:'))) {
+        const counts = id.slice(5).split('-').map(Number);
+        assert.ok(counts.length <= 3 && counts.every((c) => c <= 4), `${n} tiles: ${id}`);
+      }
+      assert.equal(new Set(all.map((l) => shape(l.id, n))).size, all.length, `${n} tiles: a shape twice`);
     }
   });
 });
 
 describe('a narrow window stacks the page', () => {
   it('every tile a band of its own, in reading order; the layout itself unchanged', () => {
-    const layout = arrange(EMPTY, 'large-and-two', ['a', 'b', 'c', 'd']);
+    const layout = add(arrange(EMPTY, 'focus-left', ['a', 'b', 'c']), 'd');
     const narrow = sound(stacked(layout));
     assert.deepEqual(picture(narrow), ['a', 'b', 'c', 'd']);
     assert.equal(narrow.fit, false);
@@ -240,7 +297,20 @@ describe('a fuzz of gestures keeps every rule', () => {
       let made = 0;
       for (let step = 0; step < 3000; step += 1) {
         const ids = tiles(layout);
-        const gesture = ids.length === 0 ? 0 : Math.floor(next() * 9);
+        const gesture = ids.length === 0 ? 0 : Math.floor(next() * 14);
+        /** A split somewhere in the page, by its path, and one of its dividers: nested ones too. */
+        const somewhere = (): { path: number[]; after: number } | undefined => {
+          const band = Math.floor(next() * layout.bands.length);
+          let node = layout.bands[band]!.node;
+          const path = [band];
+          while ('parts' in node && next() < 0.5) {
+            const i = Math.floor(next() * node.parts.length);
+            if ('tile' in node.parts[i]!.node) break;
+            path.push(i);
+            node = node.parts[i]!.node;
+          }
+          return 'parts' in node ? { path, after: Math.floor(next() * (node.parts.length - 1)) } : undefined;
+        };
         switch (gesture) {
           case 0: case 1: layout = add(layout, `t${made++}`, ids.length > 0 && next() < 0.7 ? pick(ids) : undefined); break;
           case 2: layout = remove(layout, pick(ids)); break;
@@ -249,7 +319,20 @@ describe('a fuzz of gestures keeps every rule', () => {
           case 5: layout = drop(layout, pick(ids), { band: Math.floor(next() * (layout.bands.length + 1)) }); break;
           case 6: layout = resize(layout, [Math.floor(next() * layout.bands.length)], 0, next() - 0.5); break;
           case 7: layout = resizeBand(layout, Math.floor(next() * layout.bands.length), next() * 1.5); break;
-          case 8: layout = arrange(layout, pick(PRESETS).id); break;
+          case 8: layout = arrange(layout, pick(layoutsFor(ids.length)).id); break;
+          case 9: {
+            const at = somewhere();
+            if (at) layout = resize(layout, at.path, at.after, snapped(layout, at.path, at.after, next() - 0.5, next() * 0.05));
+            break;
+          }
+          case 10: {
+            const at = somewhere();
+            if (at) layout = evenOut(layout, at.path);
+            break;
+          }
+          case 11: layout = evenAll(layout); break;
+          case 12: layout = tradeBands(layout, Math.floor(next() * layout.bands.length), next() - 0.5); break;
+          case 13: layout = fitted(layout, next() < 0.5); break;
         }
         assert.deepEqual(problems(layout), [], `seed ${seed}, step ${step}, gesture ${gesture}`);
         // a gesture moves tiles, never loses or makes one (but add and remove)
@@ -296,6 +379,15 @@ describe('drawn in pixels', () => {
   });
 });
 
+describe('a tile alone in its band, dropped beside its own band', () => {
+  it('stays as it was: the same layout, so no step to undo', () => {
+    const layout = resizeBand(page('a', 'b'), 0, 0.8);
+    assert.equal(drop(layout, 'a', { band: 0 }), layout);
+    assert.equal(drop(layout, 'a', { band: 1 }), layout);
+    assert.notEqual(drop(layout, 'a', { band: 2 }), layout, 'below the next band: it moves');
+  });
+});
+
 describe('where a drop lands', () => {
   const layout = drop(page('a', 'b'), 'b', { onto: 'a', edge: 'right' });
   const two = add(layout, 'c');
@@ -320,7 +412,7 @@ describe('where a drop lands', () => {
 
 describe('the keyboard\'s neighbours and sides', () => {
   // a large on the left; b over c on the right; d a band below
-  const layout = add(arrange(EMPTY, 'large-and-two', ['a', 'b', 'c']), 'd');
+  const layout = add(arrange(EMPTY, 'focus-left', ['a', 'b', 'c']), 'd');
   const drawn = draw(layout, 900, 600, 8);
   it('the tile next to another, each way, across bands too', () => {
     assert.equal(neighbour(drawn, 'a', 'right'), 'b', 'b and c both beside it: b overlaps it as much, and comes first');
@@ -359,7 +451,7 @@ describe('two bands trading height (a page that fits its window)', () => {
 
 describe('evening out the whole page', () => {
   it('every split\'s parts alike, at every depth; every band as tall, the page as tall as it was', () => {
-    let layout = arrange(EMPTY, 'large-and-two', ['a', 'b', 'c', 'd']);
+    let layout = add(arrange(EMPTY, 'focus-left', ['a', 'b', 'c']), 'd');
     layout = resize(resize(layout, [0], 0, 0.1), [0, 1], 0, 0.2);
     layout = resizeBand(layout, 1, 0.9);
     const even = evenAll(layout);
@@ -369,14 +461,14 @@ describe('evening out the whole page', () => {
     const column = top.parts[1]!.node as Extract<Node, { split: unknown }>;
     assert.deepEqual(column.parts.map((p) => p.size), [0.5, 0.5]);
     assert.equal(even.bands[0]!.height, even.bands[1]!.height);
-    assert.ok(Math.abs(even.bands[0]!.height + even.bands[1]!.height - (0.6 + 0.9)) < 1e-9);
+    assert.ok(Math.abs(even.bands[0]!.height + even.bands[1]!.height - (1 + 0.9)) < 1e-9);
     assert.deepEqual(tiles(even), tiles(layout));
   });
 });
 
 describe('the page in whole cells (an export)', () => {
   it('shares each split\'s cells whole, by its shares, edges meeting', () => {
-    const grid = cells(arrange(EMPTY, 'left-and-column', ['a', 'b', 'c']));
+    const grid = cells(arrange(EMPTY, 'focus-left', ['a', 'b', 'c']));
     assert.deepEqual(grid, { cols: 24, rows: 24, tiles: [
       { id: 'a', x: 0, y: 0, w: 14, h: 24 },
       { id: 'b', x: 14, y: 0, w: 10, h: 12 },
@@ -439,7 +531,7 @@ describe('a page saved before bands, read as bands', () => {
     assert.deepEqual(tiles(layout), ['n', 'w', 'm', 's', 'e']);
   });
   it('every preset read back from its own cells keeps its shape', () => {
-    for (const { id } of PRESETS) {
+    for (const { id } of layoutsFor(5)) {
       const layout = arrange(EMPTY, id, ['a', 'b', 'c', 'd', 'e']);
       const back = fromCells(cells(layout).tiles, 24);
       assert.deepEqual(tiles(back), tiles(layout), id);
@@ -449,7 +541,7 @@ describe('a page saved before bands, read as bands', () => {
 });
 
 describe('a divider snapping', () => {
-  const layout = arrange(EMPTY, 'left-and-column', ['a', 'b', 'c']);
+  const layout = arrange(EMPTY, 'focus-left', ['a', 'b', 'c']);
   it('knows where each divider is: the share of its split before it', () => {
     assert.equal(boundary(layout, [0], 0), 0.6);
     assert.equal(boundary(layout, [0, 1], 0), 0.5);

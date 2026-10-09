@@ -416,6 +416,8 @@ export class CubeApp {
   readonly #menu: MenuView;
   /** The title bar's menu button, while the bar shows: where the page's layouts open from (Arrange...). */
   #burger: HTMLElement | null = null;
+  /** The button the open menu was opened from (the bar's, a grid's own): a press on it again shuts it, another opens. */
+  #menuButton: HTMLElement | null = null;
   readonly #formatters = new FormatterCache();
   /**
    * Handed to the grid ONCE and mutated in place.
@@ -641,6 +643,10 @@ export class CubeApp {
     });
 
     this.#menu = new MenuView(this.#doc, {
+      onClose: () => {
+        if (this.#menuButton?.hasAttribute('aria-expanded')) this.#menuButton.setAttribute('aria-expanded', 'false');
+        this.#menuButton = null;
+      },
       onSelect: (item) => this.#onMenuAction(item),
     });
     // Upstream's menu goes when the grid scrolls: it names the cell
@@ -2487,16 +2493,16 @@ export class CubeApp {
     });
   }
 
-  /**
-   * The board, made on first use: the grid moves into its first tile, charts beside or below it. The last chart gone,
-   * the grid goes back where it was and the board with it. Its module -- the board, the layouts, the charts' panel -- is
-   * fetched then too (`loadPage`): a grid alone never downloads it. Undefined when the cube went meanwhile.
-   */
   /** The page as it is now (a method, so a read after an await is not taken for the read before it). */
   #pageNow(): CubePage | undefined {
     return this.#page?.page;
   }
 
+  /**
+   * The board, made on first use: the grid moves into its first tile, charts beside or below it. The last chart gone,
+   * the grid goes back where it was and the board with it. Its module -- the board, the layouts, the charts' panel -- is
+   * fetched then too (`loadPage`): a grid alone never downloads it. Undefined when the cube went meanwhile.
+   */
   async #ensurePage(): Promise<CubePage | undefined> {
     if (this.#page) return this.#page.page;
     const { CubePage } = await loadPage();
@@ -2607,7 +2613,7 @@ export class CubeApp {
     if (!page || page.charts === 0) {
       return {
         views: [{ id: 'grid', kind: 'grid', cube: PAGE_CUBE }],
-        layout: { kind: 'bands', fit: false, bands: [{ height: 1, node: { tile: 'grid' } }] },
+        layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid' } }] },
       };
     }
     return page.views();
@@ -3623,14 +3629,9 @@ export class CubeApp {
     burger.addEventListener('click', () => {
       // A second press on the hamburger SHUTS it: the outside-press dismissal would close the
       // menu and the click that follows reopen it, so the button would appear to do nothing.
-      if (this.#menu.open) {
-        this.#menu.close();
-        return;
-      }
       // BELOW THE BUTTON, not at the pointer: at the pointer the menu covered the button it came
       // from, so a second press picked the first entry instead of shutting the menu.
-      const at = burger.getBoundingClientRect();
-      this.#menu.show(this.#mainMenu(), at.left, at.bottom, burger);
+      this.#toggleMenu(burger, () => this.#mainMenu());
     });
     // THE MENU ON THE LEFT, the folds alone on the right (user, 2026-09-25)
     bar.prepend(burger);
@@ -3781,15 +3782,27 @@ export class CubeApp {
     button.title = 'This grid\'s menu';
     button.setAttribute('aria-label', 'Grid menu');
     button.setAttribute('aria-haspopup', 'menu');
-    button.addEventListener('click', () => {
-      if (this.#menu.open) {
-        this.#menu.close();
-        return;
-      }
-      const at = button.getBoundingClientRect();
-      this.#menu.show(this.#gridMenu(), at.left, at.bottom, button);
-    });
+    button.setAttribute('aria-expanded', 'false');
+    button.addEventListener('click', () => this.#toggleMenu(button, () => this.#gridMenu()));
     return button;
+  }
+
+  /**
+   * A menu under `button`: shut, when it is open from that button; else (closed, or open from another) opened there.
+   * The button says whether its menu is open (aria-expanded).
+   */
+  #toggleMenu(button: HTMLElement, groups: () => MenuGroup[]): void {
+    if (this.#menu.open && this.#menuButton === button) {
+      this.#menu.close();
+      return;
+    }
+    this.#menu.close();
+    const at = button.getBoundingClientRect();
+    this.#menu.show(groups(), at.left, at.bottom, button);
+    if (this.#menu.open) {
+      this.#menuButton = button;
+      button.setAttribute('aria-expanded', 'true');
+    }
   }
 
   /**
@@ -3822,7 +3835,7 @@ export class CubeApp {
       ]) },
       // THE PAGE'S LAYOUT, while there is a page of tiles: its layouts, and locking it so nothing moves by accident
       ...(this.#page ? [{ label: '', items: [
-        { id: 'page.arrange' as const, label: 'Arrange\u2026' },
+        { id: 'page.arrange' as const, label: 'Arrange\u2026', ...(this.#page.page.editing ? {} : { disabled: true }) },
         { id: 'page.undoLayout' as const, label: 'Undo Layout', ...(this.#page.page.canUndoLayout ? {} : { disabled: true }) },
         { id: 'page.redoLayout' as const, label: 'Redo Layout', ...(this.#page.page.canRedoLayout ? {} : { disabled: true }) },
         { id: 'page.editLayout' as const, label: 'Edit Layout', checked: this.#page.page.editing },

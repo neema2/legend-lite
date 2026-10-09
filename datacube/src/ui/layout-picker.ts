@@ -1,20 +1,27 @@
-// THE LAYOUT PICKER (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §3.3, 1): the common layouts as thumbnails, opened from a
-// tile's layout button or the page's Arrange. Each thumbnail is the page's own tiles arranged that way (bands.ts
-// `arrange`, drawn small), the tile it was opened from marked, so what it shows is what a click gives. Pointing at a
-// thumbnail, or reaching it with the keyboard, previews it on the page; leaving puts the page back; a click arranges
-// it. Below them: the page fitting its window or scrolling, and Even out.
+// THE LAYOUT PICKER (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §3.3, 1): layouts as thumbnails, opened from a tile's
+// layout button or the page's Arrange. Each thumbnail is the page's own tiles arranged that way (bands.ts `arrange`,
+// drawn small), the tile it was opened from marked, so what it shows is what a click gives. Pointing at a thumbnail,
+// or reaching it with the keyboard, previews it on the page; leaving puts the page back; a click arranges it.
+//
+// The user, 2026-10-09: "default 8-9 shapes with option to see more and option to do custom". First the standard
+// shapes, the same nine in the same order for any number of tiles; "More layouts" opens every other shape, under its
+// kind's heading; "Custom" builds rows by hand (how many tiles in each), previewed on the page as it is built. Below
+// them: the page fitting its window or scrolling, and Even out.
 //
 // The picker goes in the container it is given (the page), not the document's body, so the page's styles reach it
 // inside a shadow root (marimo's) as they reach the page.
 
 import {
   type Bands,
+  type LayoutGroup,
+  type OfferedLayout,
   type Preset,
   EMPTY,
-  PRESETS,
   arrange,
   draw,
   fitted,
+  gridRows,
+  layoutsFor,
 } from '../layout/bands.ts';
 import { focusedElement } from '../focus.ts';
 
@@ -22,6 +29,9 @@ import { focusedElement } from '../focus.ts';
 const THUMB_W = 64;
 const THUMB_H = 44;
 const THUMB_GAP = 2;
+
+/** The headings the layouts are shown under (bands.ts layoutsFor's groups). */
+const GROUPS: Readonly<Record<LayoutGroup, string>> = { rows: 'Rows', large: 'One large', columns: 'Columns' };
 
 export interface LayoutPickerChoices {
   /** The page's tiles in reading order; `first`, the one the picker was opened from (the preset's first slot). */
@@ -78,14 +88,25 @@ export class LayoutPicker {
     el.setAttribute('role', 'dialog');
     el.setAttribute('aria-label', 'Layouts');
     el.tabIndex = -1;
-    const grid = doc.createElement('div');
-    grid.className = 'dc-layout-options';
-    for (const { id, label } of PRESETS) grid.append(this.#option(id, label, choices));
-    grid.addEventListener('pointerleave', () => this.#preview(null));
-    // the keyboard leaving the thumbnails (Tab to Fit to window): the page as it is again
-    grid.addEventListener('focusout', (e) => {
-      if (!grid.contains(e.relatedTarget as Node | null)) this.#preview(null);
+    const count = order(choices).length;
+    const offered = layoutsFor(count);
+    // the thumbnails: the standard shapes, and -- More layouts -- the others; the page as it is again when the pointer
+    // or the keyboard leaves them
+    const lists = doc.createElement('div');
+    lists.className = 'dc-layout-lists';
+    const featured = doc.createElement('div');
+    featured.className = 'dc-layout-options';
+    for (const layout of offered.filter((l) => l.featured)) featured.append(this.#option(layout, 'featured', choices));
+    lists.append(featured);
+    lists.addEventListener('pointerleave', () => this.#preview(null));
+    lists.addEventListener('focusout', (e) => {
+      if (!lists.contains(e.relatedTarget as Node | null)) this.#preview(null);
     });
+    const others = offered.filter((l) => !l.featured);
+    const toggles = doc.createElement('div');
+    toggles.className = 'dc-layout-toggles';
+    if (others.length > 0) toggles.append(this.#toggle('More layouts', () => this.#more(others, choices), lists));
+    if (count >= 2) toggles.append(this.#toggle('Custom\u2026', () => this.#custom(count, choices), null));
     const fit = doc.createElement('label');
     fit.className = 'dc-layout-fit';
     const box = doc.createElement('input');
@@ -106,7 +127,7 @@ export class LayoutPicker {
     const foot = doc.createElement('div');
     foot.className = 'dc-layout-foot';
     foot.append(fit, even);
-    el.append(grid, foot);
+    el.append(lists, toggles, foot);
     el.addEventListener('keydown', this.#onKey);
     doc.addEventListener('pointerdown', this.#onOutside, true);
     doc.addEventListener('keydown', this.#onEscape, true);
@@ -132,13 +153,142 @@ export class LayoutPicker {
     this.#returnFocus = null;
   }
 
+  /**
+   * A button that opens a part of the picker (More layouts, Custom) and closes it again: the part made when opened,
+   * into `into` (the thumbnails' lists), or after the toggles.
+   */
+  #toggle(text: string, make: () => HTMLElement, into: HTMLElement | null): HTMLButtonElement {
+    const button = this.#doc.createElement('button');
+    button.type = 'button';
+    button.className = 'dc-layout-toggle';
+    button.textContent = text;
+    button.setAttribute('aria-expanded', 'false');
+    let part: HTMLElement | null = null;
+    button.addEventListener('click', () => {
+      if (part) {
+        part.remove();
+        part = null;
+        this.#preview(null);
+      } else {
+        part = make();
+        if (into) into.append(part);
+        else button.parentElement?.after(part);
+      }
+      button.setAttribute('aria-expanded', String(part !== null));
+    });
+    return button;
+  }
+
+  /** Every other layout, under its kind's heading. */
+  #more(layouts: readonly OfferedLayout[], choices: LayoutPickerChoices): HTMLElement {
+    const doc = this.#doc;
+    const grid = doc.createElement('div');
+    grid.className = 'dc-layout-options dc-layout-more';
+    let group: LayoutGroup | undefined;
+    for (const layout of layouts) {
+      if (layout.group !== group) {
+        group = layout.group;
+        const heading = doc.createElement('div');
+        heading.className = 'dc-layout-group';
+        heading.textContent = GROUPS[group];
+        grid.append(heading);
+      }
+      grid.append(this.#option(layout, layout.group, choices));
+    }
+    return grid;
+  }
+
+  /**
+   * CUSTOM ROWS: how many tiles in each row, row by row, each count a step up or down, rows added and taken away;
+   * previewed on the page whenever every tile has its place, and applied by Apply. It starts as the grid (bands.ts
+   * gridRows).
+   */
+  #custom(count: number, choices: LayoutPickerChoices): HTMLElement {
+    const doc = this.#doc;
+    let counts = gridRows(count);
+    const panel = doc.createElement('div');
+    panel.className = 'dc-layout-custom';
+    panel.setAttribute('role', 'group');
+    panel.setAttribute('aria-label', 'Custom rows');
+    const rows = doc.createElement('div');
+    rows.className = 'dc-layout-custom-rows';
+    const status = doc.createElement('span');
+    status.className = 'dc-layout-custom-status';
+    status.setAttribute('aria-live', 'polite');
+    const button = (text: string, label: string, onClick: () => void, disabled = false): HTMLButtonElement => {
+      const b = doc.createElement('button');
+      b.type = 'button';
+      b.className = 'dc-layout-step';
+      b.textContent = text;
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.disabled = disabled;
+      b.addEventListener('click', onClick);
+      return b;
+    };
+    const id = (): Preset => (counts.length === 1 ? 'side-by-side' : `rows:${counts.join('-')}`);
+    const apply = doc.createElement('button');
+    apply.type = 'button';
+    apply.className = 'dc-layout-even dc-layout-apply';
+    apply.textContent = 'Apply';
+    apply.addEventListener('click', () => {
+      this.#previewing = null;
+      choices.onPick(id());
+      this.close();
+    });
+    const paint = (): void => {
+      const placed = counts.reduce((sum, c) => sum + c, 0);
+      rows.replaceChildren(...counts.map((c, i) => {
+        const row = doc.createElement('div');
+        row.className = 'dc-layout-custom-row';
+        const name = doc.createElement('span');
+        name.className = 'dc-layout-custom-name';
+        name.textContent = `Row ${i + 1}`;
+        const value = doc.createElement('span');
+        value.className = 'dc-layout-custom-count';
+        value.textContent = String(c);
+        const set = (next: number[]): void => {
+          counts = next;
+          paint();
+        };
+        row.append(
+          name,
+          button('\u2212', `One fewer tile in row ${i + 1}`, () => set(counts.map((x, j) => (j === i ? x - 1 : x))), c <= 1),
+          value,
+          button('+', `One more tile in row ${i + 1}`, () => set(counts.map((x, j) => (j === i ? x + 1 : x))), placed >= count),
+          button('\u00d7', `Take row ${i + 1} away`, () => set(counts.filter((_, j) => j !== i)), counts.length <= 1),
+        );
+        return row;
+      }));
+      const add = button('+ Row', 'Add a row of one tile', () => {
+        counts = [...counts, 1];
+        paint();
+      }, placed >= count);
+      add.classList.add('dc-layout-add-row');
+      rows.append(add);
+      status.textContent = placed === count ? `${count} tiles in ${counts.length} ${counts.length === 1 ? 'row' : 'rows'}`
+        : placed < count ? `${placed} of ${count} tiles placed: ${count - placed} more to place` : `${placed} of ${count}`;
+      apply.disabled = placed !== count;
+      // the page as it would be, while every tile has its place
+      if (placed === count) this.#preview(id());
+    };
+    const foot = doc.createElement('div');
+    foot.className = 'dc-layout-custom-foot';
+    foot.append(status, apply);
+    panel.append(rows, foot);
+    paint();
+    return panel;
+  }
+
   /** One layout: its thumbnail and its name, previewed while pointed at or focused, arranged on a click. */
-  #option(preset: Preset, label: string, choices: LayoutPickerChoices): HTMLButtonElement {
+  #option(layout: OfferedLayout, group: LayoutGroup | 'featured', choices: LayoutPickerChoices): HTMLButtonElement {
+    const { id: preset, label } = layout;
     const doc = this.#doc;
     const button = doc.createElement('button');
     button.type = 'button';
     button.className = 'dc-layout-option';
     button.dataset['preset'] = preset;
+    button.dataset['group'] = group;
     button.title = label;
     button.setAttribute('aria-label', label);
     button.append(thumbnail(doc, arrange(EMPTY, preset, order(choices)), choices.first));
@@ -175,15 +325,20 @@ export class LayoutPicker {
     el.style.top = `${top}px`;
   }
 
-  /** The arrow keys move between the thumbnails (a row of four), Home and End to the ends. */
+  /**
+   * The arrow keys move between the thumbnails as they are drawn -- four to a row, each kind under its heading: Left
+   * and Right to the one before and after, Up and Down to the one above and below (into the kind before or after at
+   * the same place in its row, or its last) -- and Home and End to the ends.
+   */
   #onKey = (event: KeyboardEvent): void => {
     const options = this.options;
     const current = options.indexOf(focusedElement(this.#doc) as HTMLButtonElement);
     if (current < 0 && focusedElement(this.#doc) !== this.#el) return;
-    const step: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -4, ArrowDown: 4 };
     let next: number | undefined;
-    // from the picker itself, any arrow reaches the first thumbnail
-    if (event.key in step) next = current < 0 ? 0 : Math.min(options.length - 1, Math.max(0, current + step[event.key]!));
+    if (current < 0 && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) next = 0;
+    else if (event.key === 'ArrowLeft') next = Math.max(0, current - 1);
+    else if (event.key === 'ArrowRight') next = Math.min(options.length - 1, current + 1);
+    else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') next = vertical(options, current, event.key === 'ArrowDown' ? 1 : -1);
     else if (event.key === 'Home') next = 0;
     else if (event.key === 'End') next = options.length - 1;
     if (next === undefined) return;
@@ -232,3 +387,21 @@ function thumbnail(doc: Document, layout: Bands, mark: string | undefined): HTML
   }
   return el;
 }
+
+/** The thumbnail above (`by` -1) or below (+1) option `at`, its kind's options four to a row: the same column, or the last. */
+function vertical(options: readonly HTMLElement[], at: number, by: 1 | -1): number {
+  const groups: number[][] = [];
+  options.forEach((o, i) => {
+    const group = o.dataset['group'];
+    if (i === 0 || options[i - 1]!.dataset['group'] !== group) groups.push([]);
+    groups[groups.length - 1]!.push(i);
+  });
+  // the rows as drawn: each kind's options in rows of four
+  const rows = groups.flatMap((g) => Array.from({ length: Math.ceil(g.length / 4) }, (_, r) => g.slice(r * 4, r * 4 + 4)));
+  const row = rows.findIndex((r) => r.includes(at));
+  const target = rows[row + by];
+  if (row < 0 || target === undefined) return at;
+  const column = rows[row]!.indexOf(at);
+  return target[Math.min(column, target.length - 1)]!;
+}
+

@@ -74,6 +74,9 @@ export interface BandBoardOptions {
   readonly onLayout?: (id: string, anchor: HTMLElement) => void;
 }
 
+/** A band's least height, on average, on a page that fits its window: past it the page scrolls (bands.ts draw). */
+const FIT_LEAST = 160;
+
 /** How near a quarter, a third or the half a dragged divider snaps to it, in pixels (Alt held: no snapping). */
 const SNAP_PX = 8;
 
@@ -118,6 +121,8 @@ export class BandBoard {
   #shown: Bands | null = null;
   #drawn: Drawn = draw(EMPTY, 0, 0);
   #narrow = false;
+  /** The page as drawn fits its window: it is set to, and its bands were few enough to (bands.ts draw's floor). */
+  #fits = false;
   #editing = true;
   #maximised: string | null = null;
   /** Where the page was scrolled when a tile was maximised: back there after. */
@@ -183,6 +188,8 @@ export class BandBoard {
    */
   add(tile: BandTile, near?: string): void {
     if (this.#tiles.has(tile.id)) throw new Error(`a tile ${tile.id} is already on the board`);
+    // a divider's or an edge's drag ends first (undone): it would end on a layout from before this tile
+    this.#gesture?.end(false);
     this.#tiles.set(tile.id, this.#make(tile));
     const { width } = this.#size();
     const columns = width > 0 ? Math.max(1, Math.floor((width + this.#gap) / (READABLE_WIDTH + this.#gap))) : undefined;
@@ -202,6 +209,7 @@ export class BandBoard {
 
   /** Put a whole layout (a saved page): tiles not on the board are left out, tiles not in it go below. */
   setLayout(layout: Bands): void {
+    this.#gesture?.end(false);
     let next: Bands = layout;
     for (const id of tiles(layout)) if (!this.#tiles.has(id)) next = remove(next, id);
     for (const id of this.#tiles.keys()) if (!tiles(next).includes(id)) next = add(next, id);
@@ -210,12 +218,14 @@ export class BandBoard {
 
   /** Arrange every tile on the page as a preset, `first` in its first slot; the others in reading order. */
   arrange(preset: Preset, first?: string): void {
-    this.#change(arrange(this.#layout, preset, this.#order(first)));
+    this.#gesture?.end(false);
+    this.#change(arrange(this.#layout, preset, this.#order(first)), 'Arranged.');
   }
 
   /** Even out the whole page: every split's parts alike, every band as tall as the rest. */
   evenOut(): void {
-    this.#change(evenAll(this.#layout));
+    this.#gesture?.end(false);
+    this.#change(evenAll(this.#layout), 'Evened out.');
   }
 
   /** Show what a preset would look like (a hovered thumbnail), or the layout again (null); as `arrange` would do it. */
@@ -232,7 +242,8 @@ export class BandBoard {
   /** The page fitting its window, or scrolling past it. */
   setFit(fit: boolean): void {
     if (fit === this.#layout.fit) return;
-    this.#change(fitted(this.#layout, fit));
+    this.#gesture?.end(false);
+    this.#change(fitted(this.#layout, fit), fit ? 'The page fits the window.' : 'The page scrolls.');
   }
 
   /** One tile filling the board (the rest still there, hidden), or the page again (null), scrolled back where it was. */
@@ -262,6 +273,11 @@ export class BandBoard {
 
   get editing(): boolean {
     return this.#editing;
+  }
+
+  /** Say something to a screen reader, as the board's own steps do (an undo, by its caller). */
+  say(text: string): void {
+    this.#live.textContent = text;
   }
 
   /** Scroll a tile into view (a new one below the screen's fold). */
@@ -385,8 +401,10 @@ export class BandBoard {
       if (narrow) this.#gesture?.end(false);
     }
     const view = this.#narrow ? stacked(this.#layout) : this.#shown ?? this.#layout;
-    this.#host.classList.toggle('dc-bands-fit', view.fit && this.#maximised === null);
-    this.#drawn = draw(view, width, screen, this.#gap, this.#least);
+    this.#drawn = draw(view, width, screen, this.#gap, this.#least, FIT_LEAST);
+    // nothing scrolls on a page that fits -- unless its bands were too many to fit, and it scrolls after all
+    this.#fits = view.fit && this.#drawn.height <= screen;
+    this.#host.classList.toggle('dc-bands-fit', this.#fits && this.#maximised === null);
     const maximised = this.#maximised;
     for (const [id, p] of this.#tiles) {
       const box = maximised === null ? this.#drawn.tiles.get(id)
@@ -408,7 +426,8 @@ export class BandBoard {
     if (shown) {
       for (const divider of this.#drawn.dividers) {
         wanted.push({
-          key: `divider ${divider.path.join('.')} ${divider.after}`,
+          // its direction too: a row turned column at the same place is a different divider (its cursor, its drag)
+          key: `divider ${divider.path.join('.')} ${divider.after} ${divider.split}`,
           box: divider.box,
           make: () => {
             const el = this.#doc.createElement('div');
@@ -423,7 +442,7 @@ export class BandBoard {
         });
       }
       const bands = this.#drawn.bands;
-      const fit = (this.#shown ?? this.#layout).fit;
+      const fit = this.#fits;
       bands.forEach((band, i) => {
         // a page that fits its window has edges between its bands only; one that scrolls, under each
         if (fit && i === bands.length - 1) return;
@@ -662,12 +681,14 @@ export class BandBoard {
     const el = e.currentTarget as HTMLElement;
     const start = this.#at(e);
     const base = this.#layout;
+    // as the page is drawn: its bands sharing the window, or keeping their heights (too many to fit, it scrolls)
+    const fits = this.#fits;
     const { screen } = this.#size();
     const total = base.bands.reduce((sum, b) => sum + b.height, 0);
     const free = Math.max(1, screen - this.#gap * (base.bands.length - 1));
     const follow = (ev: PointerEvent): void => {
       const moved = this.#at(ev).y - start.y;
-      this.#shown = moved === 0 ? null : base.fit
+      this.#shown = moved === 0 ? null : fits
         ? tradeBands(base, band, (moved / free) * total)
         : resizeBand(base, band, base.bands[band]!.height + moved / Math.max(1, screen));
     };
@@ -695,11 +716,14 @@ export class BandBoard {
       p.root.focus();
       return;
     }
-    // undo and redo of the page's arrangement, from a tile's own frame (inside a tile, its content's)
-    if ((e.key === 'z' || e.key === 'Z') && (e.ctrlKey || e.metaKey) && e.target === p?.root && this.#options.onUndo) {
+    // undo and redo of the page's arrangement, from a tile's own frame (inside a tile, its content's): Ctrl+Z, and
+    // Ctrl+Shift+Z or -- Windows' spelling -- Ctrl+Y to redo; never on a locked or stacked page, where nothing moves
+    const undoKey = e.key === 'z' || e.key === 'Z';
+    const redoKey = e.key === 'y' || e.key === 'Y';
+    if ((undoKey || redoKey) && (e.ctrlKey || e.metaKey) && e.target === p?.root && this.#options.onUndo) {
       e.preventDefault();
       e.stopPropagation();
-      this.#options.onUndo(e.shiftKey);
+      if (this.arrangeable && this.#gesture === null) this.#options.onUndo(redoKey || e.shiftKey);
       return;
     }
     const toward = ARROWS[e.key];

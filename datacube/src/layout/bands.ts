@@ -205,6 +205,10 @@ export function drop(layout: Bands, tile: string, where: Drop): Bands {
     return { fit: layout.fit, bands: layout.bands.map((band) => ({ height: band.height, node: swapped(band.node) })) };
   }
   if ('band' in where) {
+    // a tile alone in its band, dropped on the line above or below that band, is where it was
+    const own = bandOf(layout, tile);
+    const alone = isTile(layout.bands[own]!.node);
+    if (alone && (where.band === own || where.band === own + 1)) return layout;
     // the band counted as the page is without the tile: a band it empties is no longer there
     const before = layout.bands.slice(0, where.band).filter((band) => !(isTile(band.node) && band.node.tile === tile)).length;
     const rest = remove(layout, tile);
@@ -293,75 +297,174 @@ export function fitted(layout: Bands, fit: boolean): Bands {
 
 // -- presets ---------------------------------------------------------
 
-/** The common layouts the picker offers (§3.3). */
-export type Preset = 'side-by-side' | 'stacked' | 'grid-2' | 'grid-3' | 'top-and-row' | 'left-and-column'
-  | 'right-and-column' | 'large-and-two';
+/**
+ * A LAYOUT THE PICKER OFFERS (§3.3), by what it is, for any number of tiles:
+ *   'side-by-side'     every tile in one row, a screenful high
+ *   'stacked'          every tile a band of its own
+ *   'rows:3-2'         bands of 3 and 2 tiles side by side (in reading order)
+ *   'columns:3-2'      one screenful divided into columns of 3 and 2 tiles, one under another
+ *   'focus-left'       the first tile large on the left, the rest beside it (also -right, -top, -bottom)
+ */
+export type Preset = 'side-by-side' | 'stacked' | 'focus-left' | 'focus-right' | 'focus-top' | 'focus-bottom'
+  | `rows:${string}` | `columns:${string}`;
 
-/** What the picker calls each. */
-export const PRESETS: readonly { readonly id: Preset; readonly label: string }[] = [
-  { id: 'side-by-side', label: 'Side by side' },
-  { id: 'stacked', label: 'Stacked' },
-  { id: 'grid-2', label: '2 x 2' },
-  { id: 'grid-3', label: '3 x 3' },
-  { id: 'top-and-row', label: 'One on top, the rest below' },
-  { id: 'left-and-column', label: 'One on the left, the rest stacked on the right' },
-  { id: 'right-and-column', label: 'One on the right, the rest stacked on the left' },
-  { id: 'large-and-two', label: 'One large, two beside it' },
-];
+/** `n` shared out into `parts` near-equal counts, the larger ones first (or last). */
+function balanced(n: number, parts: number, largerFirst: boolean): number[] {
+  const base = Math.floor(n / parts);
+  const extra = n % parts;
+  const counts = Array.from({ length: parts }, (_, i) => base + (i < extra ? 1 : 0));
+  return largerFirst ? counts : counts.reverse();
+}
 
-const rows = (order: readonly string[], perRow: number): Band[] => {
-  const out: Band[] = [];
-  for (let i = 0; i < order.length; i += perRow) {
-    out.push({ height: BAND_HEIGHT, node: split('row', order.slice(i, i + perRow).map((tile) => ({ tile }))) });
+/** A person's name for a preset, for the picker's labels. */
+function labelOf(preset: Preset): string {
+  switch (preset) {
+    case 'side-by-side': return 'All side by side';
+    case 'stacked': return 'All stacked';
+    case 'focus-left': return 'One large on the left, the rest beside it';
+    case 'focus-right': return 'One large on the right, the rest beside it';
+    case 'focus-top': return 'One large on top, the rest below';
+    case 'focus-bottom': return 'One large below, the rest above';
+  }
+  const [kind, list] = preset.split(':') as [string, string];
+  const counts = list.split('-');
+  const even = counts.every((c) => c === counts[0]);
+  if (kind === 'rows') return even ? `${counts.length} rows of ${counts[0]}` : `Rows of ${counts.join(', ')}`;
+  return even ? `${counts.length} columns of ${counts[0]}` : `Columns of ${counts.join(', ')}`;
+}
+
+/** Every way to cut `n` into `parts` counts in order, each 1 to `most`, the larger first counts first. */
+function compositions(n: number, parts: number, most: number): number[][] {
+  if (parts === 1) return n >= 1 && n <= most ? [[n]] : [];
+  const out: number[][] = [];
+  for (let first = Math.min(most, n - (parts - 1)); first >= 1; first -= 1) {
+    for (const rest of compositions(n - first, parts - 1, most)) out.push([first, ...rest]);
   }
   return out;
-};
+}
+
+/** The three kinds of layout the picker shows under their own headings. */
+export type LayoutGroup = 'rows' | 'large' | 'columns';
+
+/** The rows of a grid of `n` tiles as square as it goes: ceil(sqrt(n)) to a row, the rows near-equal, larger first. */
+export function gridRows(n: number): number[] {
+  const count = Math.max(1, n);
+  const across = Math.ceil(Math.sqrt(count));
+  return balanced(count, Math.ceil(count / across), true);
+}
+
+/** A layout as the picker offers it: what it is, its name, its kind, and whether it is one of the few shown first. */
+export interface OfferedLayout {
+  readonly id: Preset;
+  readonly label: string;
+  readonly group: LayoutGroup;
+  /** One of the standard shapes, shown first and always in the same order; the rest wait behind "More layouts". */
+  readonly featured: boolean;
+}
+
+/**
+ * THE LAYOUTS FOR `n` TILES, as the picker offers them (the user, 2026-10-09: "default 8-9 shapes with option to see
+ * more and option to do custom"). First the standard shapes, the same nine in the same order for any number of tiles
+ * (featured): all side by side, all stacked, a grid as square as it goes, one large tile on each side with the rest
+ * beside it, two rows, two columns. Then, behind "More layouts", EVERY way to cut the tiles into rows (several on top
+ * then one and one; one, several, one), MAX_COLUMNS to a row, in up to four rows (three for six tiles or more), and
+ * columns of near-equal size. A layout that looks the same as one before it -- the same boxes, whichever tile is where
+ * -- is left out, so each thumbnail is a different shape.
+ */
+export function layoutsFor(n: number): readonly OfferedLayout[] {
+  const count = Math.max(1, n);
+  const two = count >= 2;
+  const candidates: { id: Preset; group: LayoutGroup; featured: boolean; label?: string }[] = [
+    { id: 'side-by-side', group: 'rows', featured: true },
+    { id: 'stacked', group: 'rows', featured: true },
+    { id: `rows:${gridRows(count).join('-')}`, group: 'rows', featured: true, label: `Grid (${gridRows(count).join(', ')})` },
+    ...(two ? (['focus-left', 'focus-right', 'focus-top', 'focus-bottom'] as const)
+      .map((id) => ({ id, group: 'large' as const, featured: true })) : []),
+    ...(two ? [
+      { id: `rows:${balanced(count, 2, true).join('-')}` as Preset, group: 'rows' as const, featured: true, label: 'Two rows' },
+      { id: `columns:${balanced(count, 2, true).join('-')}` as Preset, group: 'columns' as const, featured: true, label: 'Two columns' },
+    ] : []),
+  ];
+  for (let r = 2; r <= Math.min(count <= 5 ? 4 : 3, count); r += 1) {
+    for (const counts of compositions(count, r, MAX_COLUMNS)) candidates.push({ id: `rows:${counts.join('-')}`, group: 'rows', featured: false });
+  }
+  for (let c = 2; c <= Math.min(4, count - 1); c += 1) {
+    for (const first of [true, false]) {
+      candidates.push({ id: `columns:${balanced(count, c, first).join('-')}`, group: 'columns', featured: false });
+    }
+  }
+  const order = Array.from({ length: count }, (_, i) => `t${i}`);
+  const seen = new Set<string>();
+  const out: OfferedLayout[] = [];
+  for (const { id, group, featured, label } of candidates) {
+    const boxes = [...draw(fitted(arrange(EMPTY, id, order), true), 120, 80, 0, 0).tiles.values()]
+      .map((b) => `${b.x},${b.y},${b.w},${b.h}`).sort().join(' ');
+    if (seen.has(boxes)) continue;
+    seen.add(boxes);
+    out.push({ id, label: label ?? labelOf(id), group, featured });
+  }
+  return out;
+}
+
+/** A band's height in a preset of `count` bands: they share one screenful, three to a screen at most. */
+const bandHeight = (count: number): number => 1 / Math.min(Math.max(count, 1), 3);
+
+/** `ids` cut into runs of `counts` (the last count again for tiles past them; fewer tiles, fewer runs). */
+function runs(ids: readonly string[], counts: readonly number[]): string[][] {
+  const out: string[][] = [];
+  let at = 0;
+  for (let i = 0; at < ids.length; i += 1) {
+    const size = Math.max(1, counts[Math.min(i, counts.length - 1)] ?? 1);
+    out.push(ids.slice(at, at + size));
+    at += size;
+  }
+  return out;
+}
+
+/** The counts a 'rows:' or 'columns:' preset names, refused by name when it names none. */
+function countsOf(preset: string): number[] {
+  const list = preset.slice(preset.indexOf(':') + 1).split('-').map(Number);
+  if (list.length === 0 || list.some((n) => !Number.isInteger(n) || n < 1)) throw new Error(`not a layout: ${preset}`);
+  return list;
+}
 
 /**
  * THE TILES IN `order` ARRANGED AS A PRESET: the first tile takes the preset's first slot, and so on in reading order.
- * More tiles than slots: the rest go on as the preset goes on (2 x 2 continues in rows of two; one on top and the rest
- * below puts the rest in rows of MAX_COLUMNS). Fewer: the preset closes up (three tiles in 2 x 2 are a row of two and a
- * band of one). The page's fit is kept; a preset that is one screen (side by side, one with a column beside it) fills
- * its band's screen.
+ * More tiles than slots: the rest go on as the preset goes on (rows of 2 and 2 continue in rows of 2). Fewer: the preset
+ * closes up. The page's fit is kept.
  */
 export function arrange(layout: Bands, preset: Preset, order: readonly string[] = tiles(layout)): Bands {
   const ids = order.filter((tile, i) => order.indexOf(tile) === i);
   if (ids.length === 0) return { fit: layout.fit, bands: [] };
   const leaf = (tile: string): Node => ({ tile });
-  const screen = (node: Node): Band[] => [{ height: 1, node }];
+  const row = (run: readonly string[]): Node => split('row', run.map(leaf));
+  const column = (run: readonly string[]): Node => split('column', run.map(leaf));
+  const [first, ...rest] = ids;
   let bands: Band[];
-  switch (preset) {
-    case 'side-by-side':
-      bands = screen(split('row', ids.map(leaf)));
-      break;
-    case 'stacked':
-      bands = ids.map((tile) => ({ height: BAND_HEIGHT, node: leaf(tile) }));
-      break;
-    case 'grid-2':
-      bands = rows(ids, 2);
-      break;
-    case 'grid-3':
-      bands = rows(ids, 3).map((band) => ({ height: 1 / 3, node: band.node }));
-      break;
-    case 'top-and-row':
-      bands = [{ height: BAND_HEIGHT, node: leaf(ids[0]!) }, ...rows(ids.slice(1), MAX_COLUMNS)];
-      break;
-    case 'left-and-column':
-    case 'right-and-column': {
-      const [first, ...rest] = ids;
-      const column = rest.length === 0 ? null : split('column', rest.map(leaf));
-      const pair = column === null ? [leaf(first!)] : preset === 'left-and-column' ? [leaf(first!), column] : [column, leaf(first!)];
-      bands = screen(split('row', pair, pair.length === 2 ? (preset === 'left-and-column' ? [0.6, 0.4] : [0.4, 0.6]) : undefined));
-      break;
-    }
-    case 'large-and-two': {
-      const [first, second, third, ...rest] = ids;
-      const beside = [second, third].filter((tile): tile is string => tile !== undefined);
-      const top = beside.length === 0 ? leaf(first!)
-        : split('row', [leaf(first!), split('column', beside.map(leaf))], [2 / 3, 1 / 3]);
-      bands = [{ height: rest.length > 0 ? 0.6 : 1, node: top }, ...rows(rest, MAX_COLUMNS)];
-      break;
-    }
+  if (preset === 'side-by-side') {
+    bands = [{ height: 1, node: row(ids) }];
+  } else if (preset === 'stacked') {
+    bands = ids.map((tile) => ({ height: bandHeight(ids.length), node: leaf(tile) }));
+  } else if (preset.startsWith('rows:')) {
+    const made = runs(ids, countsOf(preset));
+    bands = made.map((run) => ({ height: bandHeight(made.length), node: row(run) }));
+  } else if (preset.startsWith('columns:')) {
+    bands = [{ height: 1, node: split('row', runs(ids, countsOf(preset)).map(column)) }];
+  } else if (rest.length === 0) {
+    bands = [{ height: 1, node: leaf(first!) }];
+  } else if (preset === 'focus-left' || preset === 'focus-right') {
+    // the rest one under another beside it, or -- more than four -- in rows of two
+    const beside = rest.length <= 4 ? column(rest) : split('column', runs(rest, [2]).map(row));
+    bands = [{ height: 1, node: preset === 'focus-left'
+      ? split('row', [leaf(first!), beside], [0.6, 0.4])
+      : split('row', [beside, leaf(first!)], [0.4, 0.6]) }];
+  } else if (preset === 'focus-top' || preset === 'focus-bottom') {
+    // the rest side by side, up to MAX_COLUMNS to a band
+    const others = runs(rest, [MAX_COLUMNS]).map((run) => ({ height: 0.4 / Math.ceil(rest.length / MAX_COLUMNS), node: row(run) }));
+    const big = { height: 0.6, node: leaf(first!) };
+    bands = preset === 'focus-top' ? [big, ...others] : [...others, big];
+  } else {
+    throw new Error(`not a layout: ${String(preset)}`);
   }
   return { fit: layout.fit, bands };
 }
@@ -408,17 +511,20 @@ export interface Drawn {
 /**
  * THE LAYOUT IN PIXELS on a board `width` wide, a screenful `screen` high: bands one under another, `gap` apart, each
  * its height in screenfuls (never less than `least` pixels) -- or, when the page fits its window, sharing the screen as
- * their heights share their sum. Inside a band, parts share their split's length as their shares do, `gap` between
- * them. Edges are rounded, not lengths, so neighbours always meet and nothing drifts a pixel.
+ * their heights share their sum. A page that fits its window but has more bands than the screen holds at `fitLeast`
+ * pixels each, on average, is drawn as one that scrolls instead: fitting would squeeze each band too short to read
+ * (the user, 2026-10-09: fit by default, with that floor). Inside a band, parts share their split's length as their
+ * shares do, `gap` between them. Edges are rounded, not lengths, so neighbours always meet and nothing drifts a pixel.
  */
-export function draw(layout: Bands, width: number, screen: number, gap = 8, least = 120): Drawn {
+export function draw(layout: Bands, width: number, screen: number, gap = 8, least = 120, fitLeast = 0): Drawn {
   const tileBoxes = new Map<string, Box>();
   const dividers: Divider[] = [];
   const bandBoxes: Box[] = [];
   const count = layout.bands.length;
   const total = layout.bands.reduce((sum, band) => sum + band.height, 0);
   const free = Math.max(0, screen - gap * (count - 1));
-  const heights = layout.bands.map((band) => (layout.fit && total > 0
+  const fits = layout.fit && total > 0 && free >= fitLeast * count;
+  const heights = layout.bands.map((band) => (fits
     ? (free * band.height) / total
     : Math.max(least, band.height * screen)));
   /** Lengths `share`d out of `length` (gaps between): each part's start and end, rounded at its edges. */

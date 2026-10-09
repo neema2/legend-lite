@@ -135,6 +135,9 @@ describe('a saved page', () => {
     assert.throws(bad(band({ tile: 'grid' }, -1)), /cannot be laid out: band 0: a height of -1/);
     assert.throws(bad(band({ split: 'diagonal', parts: [] })), /not a tile or a split of parts/);
     assert.throws(bad({ layout: { kind: 'grid', cols: 12, tiles: [] } }), /not a layout of bands/);
+    // a view with no place: it would be put somewhere on opening, and the page read as changed at once
+    assert.throws(bad(band({ split: 'row', parts: [{ node: { tile: 'grid' }, size: 0.5 }, { node: { tile: 'chart-1' }, size: 0.5 }] })),
+      /'layout' has no place for chart-2/);
     assert.throws(() => readPage('{'), /not valid JSON/);
   });
 

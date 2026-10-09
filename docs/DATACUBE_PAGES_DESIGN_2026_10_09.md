@@ -136,7 +136,10 @@ divider is the one exception that follows live, and only its content, at most on
 - **`views`**: a grid view per cube; a chart view names the cube it follows (a detached chart keeps its own query).
 - **`layout`**: the bands, each its tree of rows and columns over the views' tile ids, with the page's fit setting.
 - **Reopening** opens every cube through its source, each with its own planner and model (as New > Source does now),
-  then lays them out. A v1 page reads as before (its one cube and charts, laid out as one column).
+  then lays them out. A v1 page reads as before: its one cube and charts, its 12-column grid read as bands (cut where no tile crosses:
+  across into bands, then into columns and stacked parts; tiles no straight cut divides, side by side) -- as built,
+  2026-10-09, where this said "laid out as one column": its arrangement is kept rather than lost. The page's layout is
+  written as version 2 from then on.
 - Save, Share (the same compressed JSON in the link), Export > Specification and "changed since saved" cover every
   tile.
 

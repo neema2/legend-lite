@@ -164,8 +164,9 @@ export class CubePage {
       // until the page owns Save (phase 2, the design's §4): the page's document is this grid's cube
       removable: false,
     });
-    // a screenful: the grid had the whole page until now
-    this.#board.setLayout({ fit: false, bands: [{ height: 1, node: { tile: GRID } }] });
+    // a screenful: the grid had the whole page until now; a new page fits its window (the user, 2026-10-09: fit by
+    // default) -- and scrolls once its bands are too many to fit (bands.ts draw's floor)
+    this.#board.setLayout({ fit: true, bands: [{ height: 1, node: { tile: GRID } }] });
   }
 
   /**
@@ -175,6 +176,8 @@ export class CubePage {
    */
   showLayouts(anchor: HTMLElement, first?: string): void {
     const board = this.#board;
+    // a locked page offers no layouts: nothing moves by accident
+    if (!board.editing) return;
     this.#picker.show(anchor, {
       tiles: tiles(board.layout),
       ...(first !== undefined ? { first } : {}),
@@ -192,28 +195,31 @@ export class CubePage {
    */
   undoLayout(): void {
     const before = this.#undone.at(-1);
-    if (before === undefined) return;
+    if (before === undefined || !this.#board.editing) return;
     this.#undone = this.#undone.slice(0, -1);
     this.#redone = [...this.#redone, this.#board.layout];
     this.#board.setLayout(before);
+    this.#board.say('Layout change undone.');
     this.#options.onChange();
   }
 
   redoLayout(): void {
     const after = this.#redone.at(-1);
-    if (after === undefined) return;
+    if (after === undefined || !this.#board.editing) return;
     this.#redone = this.#redone.slice(0, -1);
     this.#undone = [...this.#undone, this.#board.layout];
     this.#board.setLayout(after);
+    this.#board.say('Layout change redone.');
     this.#options.onChange();
   }
 
+  /** Whether Undo Layout would do something: a step to undo, on a page that is not locked. */
   get canUndoLayout(): boolean {
-    return this.#undone.length > 0;
+    return this.#undone.length > 0 && this.#board.editing;
   }
 
   get canRedoLayout(): boolean {
-    return this.#redone.length > 0;
+    return this.#redone.length > 0 && this.#board.editing;
   }
 
   /** Edit mode (tiles move, dividers drag) or view mode (nothing moves by accident). */

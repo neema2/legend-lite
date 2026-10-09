@@ -119,6 +119,33 @@ describe('the p1 dictionary is FROZEN', () => {
   });
 });
 
+/**
+ * A LINK SHARED BEFORE BANDS, frozen (2026-10-09): a version 1 page -- its layout tiles on a 12-column grid, the grid
+ * 8 wide beside a chart 4 wide, 6 rows of 24 -- deflated against p1, as links were made until then. It must open
+ * forever: as the page it was, its arrangement read as bands.
+ */
+const V1_LINK = 'p1.1VvJbsIwEP2ViDNQZyUcOeRQCaRCpV4qZNlZeqCliNBWHPrvHTvBSewEskr0FqJxPPZ4mXnv0ZRZ9IEvgoGwxzyNwq60T2YOY' +
+  '2IUjGCgMs4JJqHIIzEG47BvYC9zLOwFpCbc57IvwLUr96iQJhtIe2INVIC7sbY2NXrWYM53uXqlgi-paFfBoqSNTkcShDjJKSqTt' +
+  'sQIulV0ynKKBhRPktNXJmK83AF3FJNhkfxbcoquUD5bNdc1pEN7IBb7dclzQiaXyklrMQ8wUAxd4g_YueVkTbdA3aGKvNHM8mS6z' +
+  'tAVEfY7OUI10FaHrXwuhhMHXO6qGRa_WBmE6Ze_Ay3IIJG_M0l9epQVw6nMsvag3dj3A7uZ3A2to8qa48tQs6j2RqD2LXvrOl1RC' +
+  'P7kA9bf4VBYKMq_DPjxMLX5ydsmUOA4pgfwvQbxC7nZie-lZpDo8vHFK4JThYu_DYNqIMOZoNkE6bURVjGhZUgrsJrZUSyasMu3z' +
+  'Pppv5QMeW5Whc8uvt-0xEKC-YRmKQf3iUyHb8By7I_13we8d1dJWjlmBssgjDH3IcYs6mtzmhgIKG0euU6AXN11LX8WOPacGFFIC' +
+  'PJtmwRIt4lJIyvSqUERdQ3DD3Q7cHzdpihCiCBXQHGWa5iW7cxURO515K28BUQjfRiPnn8IbBr2YrHyNqPt_8LsLlawwCf0PEnz-' +
+  'WvwXWURMACoV_SqJb6XShdFpcrryQHrVLk4Tb2XClTpRCnUqLCrs6Js-_sH';
+
+describe('a link made before bands still opens', () => {
+  it('as its page, its 12-column layout read as bands, written back as version 2', () => {
+    const got = readPageFragment(V1_LINK);
+    assert.equal(got.version, 2);
+    assert.equal(got.name, 'Rates book, Q3 by desk');
+    assert.deepEqual(got.views.map((v) => v.id), ['grid', 'pnl-by-desk']);
+    assert.deepEqual(got.layout, { kind: 'bands', fit: false, bands: [{ height: 0.25, node: { split: 'row', parts: [
+      { node: { tile: 'grid' }, size: 8 / 12 }, { node: { tile: 'pnl-by-desk' }, size: 4 / 12 },
+    ] } }] });
+    same(got, readPageFragment(pageFragment(got)));
+  });
+});
+
 describe('a link gives back EXACTLY the page', () => {
   it('a realistic page: query, calculated columns, filter, formats, open rows, a chart, the layout', () => {
     const p = page(12);

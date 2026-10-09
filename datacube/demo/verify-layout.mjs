@@ -141,7 +141,7 @@ try {
     const before = await boxes();
     const saved = await page.evaluate(() => JSON.stringify(window.__dataCube.pageViews().layout));
     await titleMenu('Arrange…');
-    const option = page.locator('.dc-layout-picker [data-preset="grid-2"]');
+    const option = page.locator('.dc-layout-picker [data-preset="rows:2-2"]');
     await option.hover();
     await frames(page, 2);
     const previewed = await boxes();
