@@ -155,6 +155,28 @@ class PostgresArmTest {
                             output + " " + q.withParameters());
                 }
             }
+            // an optional parameter: with its value as the query with a let of it, with none as the query written []
+            for (com.legend.PlanMakerTest.OptionalCase q : com.legend.PlanMakerTest.optionals("PLAN_T")) {
+                for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
+                    com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, q.withParameter())
+                            .executionPlan("s::RT", output);
+                    for (boolean present : new boolean[]{true, false}) {
+                        String query = present ? q.withValue() : q.withNone();
+                        java.io.StringWriter today = new java.io.StringWriter();
+                        switch (output) {
+                            case CSV -> com.legend.Execution.executeWire(model, query, "s::RT", c,
+                                    com.legend.lowering.WireRender.Format.CSV, today);
+                            case JSON -> com.legend.Execution.executeWire(model, query, "s::RT", c,
+                                    com.legend.lowering.WireRender.Format.JSON, today);
+                            case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, query, "s::RT", c,
+                                    today);
+                        }
+                        assertEquals(today.toString(), com.legend.PlanMakerTest.run(plan, c,
+                                java.util.Collections.singletonMap("x", present ? q.value() : null)),
+                                output + " " + query);
+                    }
+                }
+            }
         }
     }
 }

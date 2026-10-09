@@ -17,3 +17,13 @@ measured by run.sh over the eight lanes (the census's known build failure, //pur
    case; and the wire statements the new cases share with slice (a)'s). No entry is gone and no other lane differs:
    today's paths, the legacy printer's parameters included (still of unknown type), render exactly what they
    rendered.
+
+3. Slice (c), an optional parameter bound, its equality null-safe in the lowering -- against slice (b): 50 of 52,311
+   entries differ, all in //gates:core and all the new tests' own (36 new texts, 14 rendered more often). The legacy
+   printer's 31 distinct optional-parameter equalities in the corpus (`... is not distinct from
+   ${varPlaceHolderToString(optional...)}`: a parameter against a column, a column against a parameter, two parameters)
+   are byte for byte as before: the lowering's `NULL_SAFE_EQUAL` is spelled by the printer as its recogniser spelled the
+   `EQUAL` it replaced. The first measurement caught a slip: the rule also took an optional ENUMERATION parameter's
+   equality, which the engine routes through its enum machinery and never makes null-safe; the legacy text of
+   `testOptionalEnumParameterEqualsClassProp` changed and the corpus failed it. The rule now excludes an enumeration's
+   comparison (`NullSemantics.enumInvolved`), and the second measurement is the one above.

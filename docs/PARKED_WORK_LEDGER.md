@@ -320,7 +320,7 @@ needs it. Cost of leaving it parked: a legacy text over an explicit `emptyFirst(
 ## PARK-19 — on H2, a parameter whose literal has no one type is not bound
 
 **Parked** 2026-10-09 by the Plan Gen / Exec Split session with step 2's landing 2 slice (b), PROPOSED to the user for a
-decision: the way out trades exactness against capability on H2. Found by measuring the pinned drivers
+decision between the two exact ways out. Found by measuring the pinned drivers
 (`docs/execution-plan-boundary-2026-10-05/probes/LiteralProbe.java` → `literal-results.txt`).
 
 **What happens today.** A plan binds each parameter as a value where it is written; the database must give the
@@ -332,13 +332,19 @@ exact for Integer, String, Boolean, StrictDate and DateTime. A Float's or a Deci
 `NUMERIC(38,2)` pads (`1.10`), `DECFLOAT` keeps the value but drops trailing zeros (`3.75` where the literal answers
 `3.7500`). A Date's or a Number's value decides its kind. So `H2.placeholder` refuses such a parameter by name.
 
-**The choice.** (A) H2 writes a decimal parameter `CAST(? AS DECFLOAT)`: every value exact, comparisons and filters
-exact, but a decimal result that carries the parameter prints without trailing zeros (`3.75`, not `3.7500`): a recorded
-difference (`docs/SEMANTICS_REGISTER.md`). A Date or Number parameter stays refused on H2. (B) Keep refusing on H2 until
-the H2 the product pins can type a parameter exactly.
+**Not a version's.** The H2 the PCT lane pins, 2.4.240 (2025-09-22), answers the same in every case (`literal-results.txt`,
+its last section): H2 types a parameter when it prepares the statement, before it has a value, in 2.1 and 2.4 alike. And
+the product's H2 is 2.1.214 because it is legend-engine 4.145.0's (the engine-parity target), not by default.
 
-**Acceptance.** (A): `PlanMakerTest`'s Float and Decimal cases run on H2, every answer's value the literal's, the
-difference in scale registered; (B): the row stays, its anchor holding.
+**The choice.** Not `DECFLOAT`: it keeps every value but not its spelling, and a value returned must be exactly what
+Pure's Java returns (the user, 2026-10-09: "we need to return from the data exactly what pure returns from it's java";
+Pure's `BigDecimal` keeps the scale, 1.50 × 2.50 = 3.7500). The exact ways: (B) keep refusing on H2 (the recommendation,
+until an H2 user needs it), or (C) on H2 alone, write a decimal value into its statement as its literal — legend-engine's
+own way (FreeMarker), exact by construction, but against "nothing edits SQL text at run time" (§9), so it needs a clean
+form of its own, not a splice.
+
+**Acceptance.** (B): the row stays, its anchor holding; (C): `PlanMakerTest`'s Float, Decimal, Date and Number cases run
+on H2, every answer the literal's, text for text.
 
 **When.** Before step 4 switches the server's `execute` to plans: until then today's path serves H2 decimal parameters.
 Cost of leaving it parked past step 4: a query with a Float, Decimal, Date or Number parameter is refused on H2.

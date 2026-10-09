@@ -1244,19 +1244,15 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
-     * A plan parameter bound as ONE value. What one value cannot carry yet is refused by name, never bound as
-     * something it is not: a RAW splice (plan text), an optional parameter (its absence), an enum parameter (its
-     * mapping: a value table) — the last two are step 2's landing 2 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9),
-     * as is a collection (IN's whole list, refused at IN).
+     * A plan parameter bound as ONE value — an optional one's absence a null. What one value cannot carry yet is refused
+     * by name, never bound as something it is not: a RAW splice (plan text), an enum parameter (its mapping: a value
+     * table), step 2's landing 2 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9), as is a collection (IN's whole list,
+     * refused at IN).
      */
     protected static RenderedStatement.Bind scalarBind(SqlExpr.PlanParam p) {
         if (p.kind() == SqlExpr.PlanParam.Kind.RAW) {
             throw new DialectCapability("plan parameter '" + p.name() + "' is RAW: it splices plan text, never a"
                     + " bound value");
-        }
-        if (p.optional()) {
-            throw new DialectCapability("optional plan parameter '" + p.name() + "': binding its absence is step 2's"
-                    + " landing 2, not yet");
         }
         if (p.enumMapFn() != null) {
             throw new DialectCapability("enum plan parameter '" + p.name() + "': its mapping (a value table) is"

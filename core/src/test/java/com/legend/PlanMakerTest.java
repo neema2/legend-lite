@@ -219,6 +219,55 @@ public class PlanMakerTest {
                     java.util.Map.of("lo", 1L, "hi", 3L)));
     }
 
+    /** A query with an optional parameter {@code x}: run with a value, its plan answers as the query with that value as
+     *  a {@code let}; run with none, as the query with {@code x} written empty ({@code []}), which lite lowers as the
+     *  engine does (an equality with an empty side is a null check: pureToSQLQuery's nullSafeEqualsOperation). */
+    public record OptionalCase(String parameter, String body, String let, Object value) {
+
+        public String withParameter() {
+            return "{" + parameter + "|" + body + "}";
+        }
+
+        public String withValue() {
+            return "|" + let + body + ";";
+        }
+
+        public String withNone() {
+            return "|" + body.replace("$x", "[]");
+        }
+    }
+
+    /** The optional cases over {@code table} (ID, NAME, PRICE; three rows, one NAME absent). */
+    public static List<OptionalCase> optionals(String table) {
+        String t = "#>{s::DB." + table + "}#";
+        return List.of(
+                new OptionalCase("x: String[0..1]", t + "->filter(r|$r.NAME == $x)->select(~[ID, NAME])"
+                        + "->sort(~ID->ascending())", "let x = 'a';", "a"),
+                new OptionalCase("x: Integer[0..1]", t + "->filter(r|$r.ID != $x)->select(~[ID])"
+                        + "->sort(~ID->ascending())", "let x = 1;", 1L));
+    }
+
+    @Test
+    void anOptionalParametersPlanAnswersAsTheQuery_withItsValueAndWithNone() throws Exception {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+            for (OptionalCase q : optionals("T")) {
+                for (TypedQuery.Output output : TypedQuery.Output.values()) {
+                    assertAnswersAsToday(type, q.withParameter(), q.withValue(), java.util.Map.of("x", q.value()),
+                            output);
+                    assertAnswersAsToday(type, q.withParameter(), q.withNone(),
+                            java.util.Collections.singletonMap("x", null), output);
+                }
+            }
+        }
+    }
+
+    @Test
+    void anOptionalParametersEqualityIsNullSafe() {
+        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(DatabaseType.DuckDB,
+                optionals("T").get(0).withParameter(), TypedQuery.Output.JSON).root()).sql();
+        assertTrue(sql.statement().contains("IS NOT DISTINCT FROM ?"), sql.statement());
+    }
+
     @Test
     void aScalarParametersPlanAnswersAsTheQueryWithItsValue_everyOutput() throws Exception {
         for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
@@ -265,7 +314,6 @@ public class PlanMakerTest {
                 Enum s::Status { ACTIVE, CLOSED }
                 """ + model("DuckDB");
         for (var refusal : java.util.Map.of(
-                "{n: Integer[0..1]|#>{s::DB.T}#->filter(r|$r.ID == $n)}", "slice (c)",
                 "{st: s::Status[1]|#>{s::DB.T}#->filter(r|$st == s::Status.ACTIVE)}", "slice (d)",
                 "{ns: Integer[*]|#>{s::DB.T}#->filter(r|$r.ID->in($ns))}", "slice (e)").entrySet()) {
             var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(
@@ -364,11 +412,32 @@ public class PlanMakerTest {
             try (PreparedStatement statement = c.prepareStatement(text.sql().statement())) {
                 List<ExecutionPlan.Slot> slots = text.sql().slots();
                 for (int i = 0; i < slots.size(); i++) {
-                    statement.setObject(i + 1, java.util.Objects.requireNonNull(values.get(slots.get(i).parameter())));
+                    String name = slots.get(i).parameter();
+                    Object value = values.get(name);
+                    if (value == null) {
+                        // an optional value's absence: a null of the parameter's declared type
+                        statement.setNull(i + 1, nullType(plan.parameters().stream()
+                                .filter(p -> p.name().equals(name)).findFirst().orElseThrow().type()));
+                    } else {
+                        statement.setObject(i + 1, value);
+                    }
                 }
                 return answer(text.format(), statement);
             }
         }
+    }
+
+    /** The JDBC type of an absent value of a declared Pure type. */
+    private static int nullType(String pureType) {
+        return switch (pureType) {
+            case "Integer" -> java.sql.Types.BIGINT;
+            case "String" -> java.sql.Types.VARCHAR;
+            case "Boolean" -> java.sql.Types.BOOLEAN;
+            case "StrictDate" -> java.sql.Types.DATE;
+            case "DateTime" -> java.sql.Types.TIMESTAMP;
+            case "Float", "Decimal" -> java.sql.Types.DECIMAL;
+            default -> throw new IllegalArgumentException("no absent value of " + pureType + " in these tests");
+        };
     }
 
     /** The text the database writes: one row's one cell, or one JSON object per row in the array's punctuation. */

@@ -120,6 +120,16 @@ final class NullSemantics {
                 && isOptional(n.args().get(1).info().multiplicity())) {
             return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
         }
+        // an OPTIONAL parameter's equality is null-safe: its absence equals
+        // an empty side (the engine's optionalVarPlaceHolderOperationSelector,
+        // `col is null` when the value is absent, `col = value` when present;
+        // the legacy printer writes the same `is not distinct from`) -- unless an
+        // enumeration is compared: that routes the engine's enum machinery and
+        // never becomes nullSafeEqual (enumInvolved below)
+        if (ops.size() == 2 && !enumInvolved(n)
+                && ops.stream().anyMatch(o -> o instanceof SqlExpr.PlanParam p && p.optional())) {
+            return new SqlExpr.Call(SqlFn.NULL_SAFE_EQUAL, ops);
+        }
         return new SqlExpr.Call(SqlFn.EQUAL, ops);
     }
 

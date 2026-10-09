@@ -57,7 +57,8 @@ F1 is the one form that uses the index on all three and is right for a value sto
   `1.6500000000000001`). H2 types a parameter when it prepares the statement — by its neighbour (`ID * ?` with 1.5
   answers `[2, 6]`) or not at all when it stands alone (the eight `FAIL` lines, `Unknown data type`) — so it takes a
   typed placeholder, exact for every type but a decimal, whose literal is typed by its own digits: no cast keeps a
-  value's own scale (`NUMERIC` rounds, `NUMERIC(38,2)` pads, `DECFLOAT` drops trailing zeros). PARK-19.
+  value's own scale (`NUMERIC` rounds, `NUMERIC(38,2)` pads, `DECFLOAT` drops trailing zeros). The last section is
+  H2 2.4.240 (the PCT lane's pin, `-cp h2-2.4.240.jar`): the same answers in every case. PARK-19.
 
 ## `sharing/` — when two runs may share an in-memory database (2026-10-08)
 
