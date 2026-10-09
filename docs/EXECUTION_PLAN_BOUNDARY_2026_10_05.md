@@ -438,23 +438,27 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      a request's protocol value into a Java value: a string, a `Long`, a `Double`, a `BigDecimal`, a `Boolean`, a date
      as its text (no `%`), an enumeration value as its name, a list for a collection. The server's `execute` makes them
      from `parameterValues` in step 4; the runner knows no protocol.
-   - *Checked as legend-engine checks, with its messages.* A declared parameter with a lower bound above 0 and no value
-     is `Missing external parameter(s): name:Type[m]` (several joined by `,`); so is one given a null value, a
-     deliberate difference (legend-engine counts it present, and its template then writes no statement a database
-     runs). A value for no declared parameter is ignored; a one-element list for a parameter of upper bound 1 is its
-     element. Each value is checked by its declared type — the right Java type, or a string that parses (Integer:
-     `Long`, `Integer`; Float: `Double`, `Float`, `Integer`, `Long`; Decimal: `BigDecimal` only; Boolean; String;
-     StrictDate `yyyy-MM-dd`; DateTime its six formats, an `Instant` or a `ZonedDateTime`, an offset converted to UTC;
-     Date either) — and an enumeration's name against the plan's names. Every failure is collected into `Invalid
-     provided parameter(s): [...]`, each in the engine's words (`Unable to process 'Integer' parameter, value: true.`,
-     `Invalid enum value X for path, valid enum values: [A, B]`): a list's failure names its failing element, as
-     legend-engine validates element by element; an enumeration's names the whole value. A type legend-engine has no
-     validator for (a Number) is its `Unknown external parameter type: T, valid external parameter types: [...]`, the
-     ten types it validates in the order it declares them (it prints its map's hash order, which none of its tests
-     asserts). The runner's own refusals are collected with them, by name: a list for a parameter of upper bound 1
-     (legend-engine passes it to its template, which writes no SQL a database runs), a Float that is not finite (NaN,
-     Infinity: no SQL literal; legend-engine writes `NaN` into its statement), and a Byte or a Variant, which no plan
-     binds yet (PARK-21).
+   - *Checked as legend-engine checks, in its order and with its messages* (each case measured on its own 4.145.0 jars:
+     `probes/EngineValidationProbe.java`, `probes/engine-validation-results.txt`). First its missing check: a declared
+     parameter with a lower bound above 0 and no value is `Missing external parameter(s): name:Type[m]` (several joined
+     by `,`); so is one given a null value or an empty list, a deliberate difference (legend-engine counts either
+     present, and its template then writes no statement a database runs, or an empty collection where one value or more
+     is declared). A value for no declared parameter is ignored; a one-element list for a parameter of upper bound 1 is
+     its element. Then its validation: each value checked by its declared type — the right Java type, or a string that
+     parses (Integer: `Long`, `Integer`; Float: `Double`, `Float`, `Integer`, `Long`; Decimal: `BigDecimal` only;
+     Boolean; String; StrictDate `yyyy-MM-dd`; DateTime its six formats, an `Instant` or a `ZonedDateTime`, an offset
+     converted to UTC; Date either; a Byte a stream; a Variant JSON's text) — and an enumeration's name against the
+     plan's names; every failure collected into `Invalid provided parameter(s): [...]`, each in the engine's words
+     (`Unable to process 'Integer' parameter, value: true.`, `Invalid enum value X for path, valid enum values: [A,
+     B]`). A list's failure names its first failing element, as legend-engine validates element by element (a null
+     element passes); an enumeration's names the whole value. A type legend-engine has no validator for (a Number) is
+     its `Unknown external parameter type: T, valid external parameter types: [...]`, the ten types in the order it
+     prints them (its validators' map's iteration order, the same on every run). Then its normalizer: a null element of
+     a type it converts is `Invalid T value: null` (a Float's `Double`). Only then the runner's own refusals, of values
+     legend-engine passes on, every one collected under `Parameter value(s) the plan does not bind: [...]`: a list for a
+     parameter of upper bound 1 (legend-engine's template writes no SQL a database runs), a null element of a String or
+     an enumeration (a Pure collection holds none), a Float that is not finite (NaN, Infinity: no SQL literal;
+     legend-engine writes `NaN` into its statement), and a Byte or a Variant, which no plan binds yet (PARK-21).
    - *Bound as the plan's slots say.* Each slot binds its parameter's checked value, converted for the driver: an
      Integer a `long`; a Float as its literal is typed (the numeric charter's Rule 1: its plain digits a `BigDecimal`,
      at an extreme magnitude — at least 1e15, or below 1e-6 — a `double`; one owner, `SqlTyping.floatDecimal`, which
@@ -470,7 +474,7 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      target wait for it, and no other target's are held up). A setup that fails closes what it opened and is
      forgotten: the next run sets up afresh (an H2 database the runner names is new at each attempt and lives only
      while its keeper connection is open). A database that is the user's is never set up by a plan, which is refused
-     by name if it has setup (only an in-memory `LocalH2` connection declares test data): one reached by URL, opened
+     by name if it has setup (only an in-memory connection declares test data): one reached by URL, opened
      for the run and closed after it, and an in-memory one the user named (an `EmbeddedH2`), shared by design. A caller's own
      connection is the caller's (`PlanSessions.given`; `PlanSessions.setUp` runs a target's setup on a test's fresh
      one). Every session is checked against the target before the run's statements: the database it is
@@ -490,22 +494,31 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    landing-2 case runs through the runner (`PlanCases.run`) and answers byte for byte as today's path on DuckDB, H2 and
    Postgres, its values as legend-engine's execute API makes them (dates as text, an offset DateTime, a DateTime list
    bound as timestamps, Floats at both extreme magnitudes); landing 2's `Number` case left `PlanCases` with the runner,
-   which refuses it before opening any session (`PlanRunnerTest`). `PlanRunnerTest` ports legend-engine's
-   `TestParametersValidation` case for case — each type's valid values, with what the runner binds, and each invalid
-   value with its exact message (to-many too, where legend-engine's test asserts only the prefix) — and holds the
-   sessions' rules: a target's database shared and set up once, by eight runs started together too; another target's its
-   own, look-alike cells included; a failed setup leaving nothing, on DuckDB and H2; a URL or a user-named database with
-   setup refused, the URL never opened; a platform target; a session of another database or H2 version refused. One
-   shape for a bulk load: a plan's `SetupStep.Rows`, which `RowLoad.staged` writes and the loader takes (`BulkLoad`,
-   `BulkLoads`; `RowLoad.Staging` gone). `ArchitectureTest.theRunnerIsModelFree` pins the runner's classes as above (it
-   fails on a planted reference). The guard (slice c): `ArchitectureTest.execsReachIntoPlanningOnlyShrinks` names the 16
-   `exec` classes that still reach a planning library — the compiler, the resolver, the lowering, the dialect, the plan
-   side's setup and plan packages, and the builtin, parser, normalizer, platform and database packages; the SQL tree is
-   not counted, being the plan records' own vocabulary — and fails when one joins, or when one that stopped stays
-   listed. Audited before landing (one blocker, eight should-fix, four nits; all fixed): the list message, the type
-   list, the null difference named, Floats bound as their literal is typed and NaN refused, the target key, failed
-   setups, setup outside the lock, this paragraph's claims, and the guard. The render census
-   (`render-census/step3-result.txt`): no statement of today's paths changes, every Float literal included.
+   which refuses it before opening any session. `PlanRunnerTest` ports legend-engine's `TestParametersValidation` case
+   for case — each type's valid values, with what the runner binds, and each invalid value with its exact message
+   (to-many too, where legend-engine's test asserts only the prefix) — and pins legend-engine's order as measured on its
+   jars (missing, validation, normalizer, then the runner's own refusals). It holds the sessions' rules: a target's
+   database shared and set up once, its setup statements counted, for two runs in turn and for eight started together
+   (that a run waits for a setup in progress, and another target's is not held up meanwhile, is `HandleStoreTest`'s,
+   deterministically, with a failed open forgotten and a waiter opening in its turn); another target's its own,
+   look-alike cells included; a failed setup leaving nothing, a statement's failure on DuckDB and H2 and a refusal
+   before any statement; a URL or a user-named database with setup refused, the URL never opened; a platform target; a
+   session of another database or H2 version refused. One shape for a bulk load: a plan's `SetupStep.Rows`, which
+   `RowLoad.staged` writes and the loader takes (`BulkLoad`, `BulkLoads`; `RowLoad.Staging` gone).
+   `ArchitectureTest.theRunnerIsModelFree` pins the runner's classes as above (it fails on a planted reference). The
+   guard (slice c): `ArchitectureTest.execsReachIntoPlanningOnlyShrinks` pins each of the 16 `exec` classes that still
+   reach a planning library with the number of planning classes it reaches (36 in all) — the compiler, the resolver, the
+   lowering, the dialect, the plan side's setup and plan packages, and the builtin, parser, normalizer, platform and
+   database packages — and fails when a class joins or a count grows; one that shrinks is re-pinned lower. §8's measure
+   of 2026-10-05 (20 files) counted source files by what they import, the SQL tree among it; this counts compiled
+   classes by what they depend on, and the SQL tree is not counted, being the plan records' own vocabulary (a plan's
+   `Sql` carries it). Audited twice before landing, every finding fixed: the first audit (one blocker, eight should-fix,
+   four nits: the list message, the type list, the null difference named, Floats bound as their literal is typed and NaN
+   refused, the target key, failed setups, setup outside the lock, this paragraph's claims, the guard); the second
+   (seven should-fix, four nits: legend-engine's order of checks and of its type list, measured; an empty list for a
+   required parameter; setups counted; the runner rule's exception dated; the guard's counts; PARK-21's Variant; a null
+   element; a run joining only a database that exists). The render census (`render-census/step3-result.txt`): no
+   statement of today's paths changes, every Float literal included.
 4. **Switch the callers, delete what they replace** — `pure/v1/execution/execute`: plan once, run with
    `parameterValues`; `Execution.executeWire` / `executeStreaming` and `QueryService`'s wire and streaming paths: plan +
    run. DELETED (rule 15): `PureV1Api.boundParameters`, `Execution`'s `wireOn` / `streamOn`, and `ConnectionResolver`'s

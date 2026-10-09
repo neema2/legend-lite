@@ -562,7 +562,7 @@ it past step 4: a query with such a list parameter is refused.
 
 ---
 
-## PARK-21 — a plan does not bind an optional enumeration, a class instance, or a Byte, LatestDate or StrictTime value
+## PARK-21 — a plan does not bind an optional enumeration, a class instance, or a Byte, LatestDate, StrictTime or Variant value
 
 **Parked** 2026-10-09 by the Plan Gen / Exec Split session with step 2's landing 2, after its audit (blocker B1 and
 finding S6).
@@ -576,7 +576,13 @@ finding S6).
   so neither is bound until the engine's answer is measured. A present value would be exact; the plan cannot know.
 - **a class instance** (`i: C[1]`): Pure takes one, and the legacy printer writes its properties (`${i.name}`); a lite
   plan binds plain values only (§9, step 2's decisions), so its properties are not slots yet.
-- **a Byte, LatestDate or StrictTime value**: no measured binding.
+- **a Byte, LatestDate or StrictTime value**: no measured binding. A Variant, being a class to the planner, is refused
+  as a class instance.
+
+The runner (step 3, `PlanParameters`), should a plan carry one, checks a Byte's and a Variant's value as legend-engine
+does (a Byte a stream, a Variant JSON's text: measured, `probes/engine-validation-results.txt`) and refuses a value that
+passes by name (a LatestDate or a StrictTime has no validator in legend-engine, which refuses it as an unknown type, and
+so does the runner, in its words).
 
 **The fix.** For the optional enumeration: run the three shapes (`==`, `!=`, absent and present) through legend-engine
 4.145.0's `execute` and bind what it answers — the value table's `NOT IN` beside the null arms already gives the
@@ -590,7 +596,8 @@ legend-engine does; a class parameter's properties; the three types — on DuckD
 it past step 4: such a query is refused.
 
 **Anchors.** The three refusals in `QueryParameters.java`: "an optional enumeration's absence is not bound", "a class
-instance is not bound as a plan's parameter", "a Byte, LatestDate or StrictTime value is not bound".
+instance is not bound as a plan's parameter", "a Byte, LatestDate or StrictTime value is not bound"; and the runner's,
+"is not bound by a plan (PARK-21)" in `PlanParameters.java`.
 
 ---
 

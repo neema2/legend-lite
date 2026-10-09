@@ -166,6 +166,9 @@ class ParkedWorkLedgerTest {
                     new Anchor("a class instance is not bound as a plan's parameter", List.of("QueryParameters.java"))),
             Map.entry("PARK-21 a Byte, LatestDate or StrictTime value is not bound",
                     new Anchor("a Byte, LatestDate or StrictTime value is not bound", List.of("QueryParameters.java"))),
+            // (2026-10-09, step 3's audit): the runner refuses the same, should a plan carry a Byte or a Variant
+            Map.entry("PARK-21 the runner binds no Byte or Variant value",
+                    new Anchor("is not bound by a plan \\(PARK-21\\)", List.of("PlanParameters.java"))),
             // PARK-22 (2026-10-09, the protocol program's leg 5): engine JSON with spans for a path literal across
             // lines is refused, the spans not saying where its lines break; designed with leg 8
             Map.entry("PARK-22 engine JSON with spans for a path literal across lines is refused",

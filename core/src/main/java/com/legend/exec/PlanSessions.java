@@ -94,7 +94,7 @@ public final class PlanSessions {
                             String name = "plan_" + key.hex().substring(0, 16) + "_" + ATTEMPTS.incrementAndGet();
                             return new Named(setUpOpened(Sessions.openKept(name), target), name);
                         });
-                        yield owned(Sessions.openKept(named.name()));
+                        yield owned(Sessions.joinKept(named.name()));
                     }
                     case Sessions.Opening.Url u -> {
                         // a database reached by a URL is the user's: only an in-memory connection declares test
