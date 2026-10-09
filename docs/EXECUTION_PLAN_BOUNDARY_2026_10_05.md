@@ -293,6 +293,55 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      (`PlanText.enumMapFnOf` → `enumMappingOf`, and `PlanAllocations.planTemplateFunctions`), and a result column's
      the first declared when its mapping names none (`PlanText.enumMappingIdFor`) — wrong rows when an enum is
      mapped twice; parked as PARK-15 with step 2's landing 1.
+   **Step 2, landing 2: the planner makes lite plans (design, 2026-10-09; homework below, evidence `probes/`).**
+   `TypedQuery.executionPlan(runtime, output)` returns an `ExecutionPlan` whose one `TextResult` node holds the statement
+   the database answers with finished text (`lowering.WireRender`: CSV, JSON, one JSON object per row; a graph fetch's
+   JSON array), every parameter written as a `?` with its slot, and the target it runs on. Nothing runs it yet (step 3).
+
+   What the homework found and decided:
+   - *Parameters reach the lowering as slots.* `TypedQuery.lower` binds no parameter today (`$x` of a declared parameter
+     is an "unresolvable variable"); `executionPlan` binds each declared parameter as a `PlanParam` (the one parameter
+     list, `TypedQuery.parameters()`), so `$x` lowers to it wherever it is used. A parameter whose type is a class is
+     refused by name: parameter values are plain values (§9, step 2's decisions).
+   - *No casts: the runner hands the driver typed values.* Measured on the pinned drivers
+     (`probes/TypingProbe.java` → `typing-results.txt`, 26 positions × DuckDB 1.4.4, H2 2.1.214, Postgres 16): a bare
+     `?` is typed by the database in every position — compared with a column, in arithmetic, alone in a projection, in a
+     function, under `IS NULL`, `IS NOT DISTINCT FROM` — when the JDBC call carries the value's type (`setLong`,
+     `setString`, `setObject(LocalDate)`, `setNull(i, VARCHAR)`). So the statement writes `?` and the runner converts each
+     value by its declared Pure type (§8: Integer → long, Float → double, Decimal → BigDecimal, StrictDate → LocalDate,
+     ...); an absent optional value is a typed null.
+   - *An optional parameter is compared null-safely.* Pure's `==` holds for two empties; the legacy printer writes an
+     optional parameter's equality `is not distinct from` (`EngineStyleH2.optionalParamEquality`, a pattern it
+     recognises). The lowering already writes `NULL_SAFE_EQUAL` for two optional columns (`NullSemantics.equalNullArms`);
+     it will for an optional parameter too, so every dialect writes it from the tree (`IS NOT DISTINCT FROM ?`, measured
+     on all three), and the legacy printer reads the same node (its text unchanged, judged by the census).
+   - *An enum parameter: a value table at each place* (§9, decided 2026-10-08): the comparison the lowering writes over
+     the column's decode (`CASE col WHEN 'A' THEN 'ACTIVE' ...`) is rewritten, tree to tree, to
+     `col IN (SELECT code FROM (VALUES ...) m(code, name) WHERE name = ?)`, the pairs taken from that decode.
+   - *A list parameter: one array.* `->in($xs)` and `$xs->contains(...)` write `= ANY(?)` and bind the list as one array
+     of the element's SQL type (measured, `bind-results.txt`: all three, the empty list included); other uses of a list
+     parameter are refused by name until measured.
+   - *The statement's spelling is fixed in the plan, and checked.* Today the dialect is chosen after the session is open,
+     from the server's version (`H2.forServer`: 2.1/2.2 the engine-parity spelling, later versions `H2Modern`). A plan is
+     written before a session exists, so its target records the server versions its text is written for, and the runner
+     refuses a session outside them by name, as `Sessions.check` refuses another database. The product's H2 is 2.1.214
+     (`tools/deps/jars_table.bzl`; 2.4.240 is test-only, one PCT lane on the snapshot path, phase 3).
+   - *The target is a declared connection or the platform's own engine.* `Compiler.executesOn` decides a declared
+     database (one or more connection names) or the platform's in-process DuckDB for a runtime binding only model data
+     (S27); the plan's target holds one or the other, and a runtime whose connections are different definitions is refused
+     when the plan is made (today the server refuses it when it opens the session, `ConnectionResolver.open`).
+   - *Per-connection statements ride in the target.* DuckDB and Postgres set `TimeZone='UTC'` on every connection
+     (`SqlDialect.sessionSetup`); the target carries them apart from its setup (once per database).
+
+   Slices, each judged by the census (no statement of today's paths changes) and a differential test (the same query's
+   answer through the plan's statement, bound by the test, and through today's path, on DuckDB, H2 and Postgres):
+   (a) the plan for queries without parameters, every output, its target whole (a declared connection or the platform's
+   engine, the server versions, the per-connection statements); (b) scalar parameters; (c) optional; (d) enum value
+   tables; (e) lists.
+
+   Before step 4 (switching callers), two consumers of `PureV1Api.boundParameters` besides `execute` to settle:
+   `arrowPlan` (Python's host runs the plan's SQL itself, so it must bind the values: agreed with the DataCube + Python
+   line first), and the `execute` answer's activity, which reports the statement that ran (with its `?`s).
 3. **The runner, in `exec`** — `exec.PlanRunner.run(plan, parameterValues, Sessions.Source, out)`: validates and
    converts parameters (§8), opens or checks each node's session through `Sessions` (running its setup once; shared by
    the target's own content, decision A — `Sessions.Source` no longer takes the model), binds, executes, streams the
