@@ -1,11 +1,12 @@
-// Grammar and typing answered in the tab by legend-lite's planner (WebAssembly, in a worker):
-// each call is the in-tab twin of a pure/v1 endpoint, the same core call behind it, so its
-// answer is the server's (docs/QUERY_APP_DESIGN_2026_09_30.md D3).
+// Grammar and typing answered in the tab by legend-lite's planner (WebAssembly, in a worker). The grammar is
+// legend-engine's pure/v1 asked of the planner (plannerFetch): the same client as a server's (HttpEngine), the same
+// code answering it (PureV1Api), so the tab and a server cannot answer differently (docs/PROTOCOL_PROGRAM_2026_10_05.md,
+// invariant 5). The rest are the planner's own calls (docs/QUERY_APP_DESIGN_2026_09_30.md D3).
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
-import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
+import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
-import { EngineError, type Grammar } from './engine.ts';
+import { EngineError, HttpEngine, type Grammar } from './engine.ts';
 import type { PlannerRequest, PlannerResponse } from './planner-worker.ts';
 import type { PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { SeedTable, TableSeed } from '../model-data.ts';
@@ -66,28 +67,58 @@ export function unfold(answer: string): string {
   throw new EngineError(`${kind}: ${message}`, 500);
 }
 
+/**
+ * A `fetch` that answers legend-engine's pure/v1 requests in the tab: each is routed by the planner's `pureV1OrError`,
+ * the code legend-lite's server answers them with, its status, media type and body made a Response. An HttpEngine
+ * over it asks and is answered exactly as over the network. The planner itself failing rejects, as a network does.
+ */
+export function plannerFetch(port: PlannerPort): typeof fetch {
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const url = new URL(href, 'http://planner.invalid');
+    const body = init?.body;
+    if (body !== undefined && body !== null && typeof body !== 'string') {
+      throw new TypeError('the planner answers a pure/v1 request with a text body only');
+    }
+    const answer = unfold(await port.ask({ kind: 'pureV1', path: url.pathname, query: url.search.slice(1), body: body ?? '' }));
+    const first = answer.indexOf('\n');
+    const second = answer.indexOf('\n', first + 1);
+    return new Response(answer.slice(second + 1), {
+      status: Number(answer.slice(0, first)),
+      headers: { 'Content-Type': answer.slice(first + 1, second) },
+    });
+  };
+}
+
 export class WasmGrammar implements Grammar {
   readonly #port: PlannerPort;
+  /** pure/v1 in the tab: the server's client over the planner. */
+  readonly #pureV1: HttpEngine;
 
   constructor(port: PlannerPort) {
     this.#port = port;
+    this.#pureV1 = new HttpEngine('/api', plannerFetch(port));
   }
 
-  async modelJson(text: string): Promise<PureModelContextData> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'modelJson', text }))) as PureModelContextData;
+  modelJson(text: string): Promise<PureModelContextData> {
+    return this.#pureV1.modelJson(text);
   }
 
-  async lambdaJson(text: string): Promise<Lambda> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'lambdaJson', text }))) as Lambda;
+  lambdaJson(text: string): Promise<Lambda> {
+    return this.#pureV1.lambdaJson(text);
   }
 
   /** As `lambdaJson`, read by the protocol library: numbers exact (DataCube's `Planner.parse`). */
-  async lambda(text: string): Promise<Lambda> {
-    return readLambda(unfold(await this.#port.ask({ kind: 'lambdaJson', text })));
+  lambda(text: string): Promise<Lambda> {
+    return this.#pureV1.lambda(text);
   }
 
-  async lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> {
-    return unfold(await this.#port.ask({ kind: 'compose', lambda: toJson(lambda), style }));
+  lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> {
+    return this.#pureV1.lambdaText(lambda, style);
+  }
+
+  modelText(model: PureModelContextData, style: 'PRETTY' | 'STANDARD'): Promise<string> {
+    return this.#pureV1.modelText(model, style);
   }
 
   async relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {

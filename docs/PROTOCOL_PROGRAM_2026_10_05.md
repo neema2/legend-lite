@@ -54,9 +54,20 @@ JSON ──read───▶ records ──compose─▶ text
    - **legend-engine's `pure/v1` contract** -- its paths, query parameters, statuses, error body and request shapes --
      implemented once, by `PureV1Api`, over the conversions. Nothing else knows any of it.
    - **The transports** that reach the contract: lite's HTTP server, Python's engine (`//native:compiler`), and the
-     tab (`planner.Wasm.pureV1OrError`). The apps' in-tab engine sends the same `pure/v1` requests as their remote
-     one, so the tab and a server cannot answer differently, refusals included; the tab keeps no private twin of a
-     `pure/v1` endpoint.
+     tab. The apps' in-tab engine sends the same `pure/v1` requests as their remote one, so the tab and a server
+     cannot answer differently, refusals included.
+   - **One boundary for the embedded hosts, thin adapters** (the user, 2026-10-09). The tab and Python reach lite
+     through one class, `planner.Boundary` (`//wasm:boundary`): plain Java, no host's annotations and no text
+     encoding -- strings in, a string or an answer out, or an exception -- each operation once. legend-engine's
+     operations it offers only as `pureV1(path, query, body)`; lite's own (planning a query written as text, test
+     data's SQL, a Database from a catalog, a session's setup, warming a model, ...) by name. Each host has one
+     adapter that is nothing but one-line delegations, and its list is that host's API: the tab's
+     (`planner.TabExports`, TeaVM's entry class, each function `@JSExport`) and Python's (`native/`'s
+     `nativelib.Compiler`, each `@CEntryPoint`). Both cross a strings-only line, so both use one text encoding,
+     `planner.Folded` (`OK\n<answer>`, `ERR\n<class>\n<message>`, a `pure/v1` answer as `OK\n<status>\n<type>\n<body>`).
+     The JVM differential compares the tab adapter's answers across the two builds. No adapter offers its own
+     version of a `pure/v1` endpoint: Python's own grammar calls (`parse`, `print_tree`, `model_elements`) ask
+     `pure/v1` too.
    In-process Java that is not a client of the contract -- the SDLC server, tools, tests -- calls the conversions
    directly, behind an interface of its own at its edge (leg 7), as legend-sdlc embeds the engine's grammar.
 6. **Reference checkouts are spec and oracle only** (AGENTS.md): the engine's composer and serializer are compared
@@ -232,21 +243,35 @@ not be written back, so it is refused.
    3. **`pure/v1/grammar/jsonToGrammar/model`** in `PureV1Api`: a `PureModelContextData` in, its text out,
       `renderStyle` as the engine reads it, a refusal in the engine's error shape. The engine has no batch form of it
       (checked, 4.145.0). `PureV1Api`'s grammar routes call the conversions and nothing else.
-   4. **The tab speaks `pure/v1`'s grammar**: `pureV1OrError` exported to the tab; engine-client's in-tab engine
-      (`engine-client/src/legend/planner-worker.ts`) and the test harnesses (Studio's, engine-client's,
-      `pure-protocol`'s, and DataCube's fakes, with the DataCube + Python line, which owns `datacube/`) moved onto it;
-      the four private twins deleted (`modelJsonOrError`, `lambdaJsonOrError`, `composeLambdaOrError`,
-      `jsonToGrammarModelOrError`).
+   4. **The tab speaks `pure/v1`'s grammar**: `pureV1OrError` exported to the tab (+13 KB, +8 KB gzipped).
+      engine-client's in-tab grammar is the server's own client over the planner: `HttpEngine` over `plannerFetch`, a
+      `fetch` the planner answers, so the requests, answers and refusals are a server's (a parse error is 400
+      `PARSER`, as over the network). The worker and every test's in-process port answer through one function
+      (`planner-answer.ts`), not each its own switch. DataCube's planner (`datacube/`, the DataCube + Python line's, its
+      diffs reviewed by that line) asks the same route. The `Grammar` interface gains `modelText` (the new route),
+      answered by a server and by the tab alike.
+   4b. **The one boundary** (invariant 5): `planner.Wasm` split into `planner.Boundary` (the operations),
+      `planner.Folded` (the encoding) and `planner.TabExports` (the tab's adapter, TeaVM's entry class: the export
+      names the apps call are unchanged); `native/`'s entry points delegate to the boundary through the same encoding
+      (their own copy of it goes). The four grammar twins go from every adapter: `jsonToGrammarModelOrError`,
+      `modelJsonOrError`, `lambdaJsonOrError`, `composeLambdaOrError` from the tab's, and `lite_lambda_json`,
+      `lite_compose`, `lite_model_json` from Python's, whose `parse`, `print_tree` and `model_elements` ask
+      `lite_pure_v1`. Python's `LegendError.kind` for those three becomes the engine's refusal kind (`PARSER`, or
+      the status) where it was a Java class name: the DataCube + Python line's decision, as `python/` and `native/`
+      are theirs (their diffs reviewed by that line). A Bazel change: the boundary's sources and the TeaVM entry
+      class (`wasm/BUILD.bazel`), reviewed by the Bazel program's session.
    5. The SDLC server's `CoreGrammar.modelJson` calls the text-to-JSON conversion (its edge moves in leg 7).
 5. **Round trip proven** over the corpus and the showcase projects (plan S5), in the JVM and in the tab (the
    WebAssembly build of the same code, a differential run as `//wasm:differential_test` does for the planner).
 6. **One whole-model compile, and the tab's other `pure/v1` twins on the route.** "Compile a whole model" (its
    elements, then every body in it) is strung together three times today: `PureV1Api.compile`, the tab's
    `compileOrError` and the SDLC server's `CoreGrammar.compile`. It becomes one function on the compiler's front door
-   (`com.legend.Compiler`), and `compilation/compile` calls it. The tab's remaining private twins of `pure/v1`
-   endpoints -- `compileOrError` (C1), `planJsonOrError` (E9), `relationTypeJsonOrError` (E5) -- go, their callers
-   moved onto the route as in leg 4. The tab's own functions that are not `pure/v1` endpoints (planning a query
-   written as text, test data's SQL, a Database from a catalog, ...) stay its own.
+   (`com.legend.Compiler`), and `compilation/compile` calls it. The boundary's remaining operations that duplicate a
+   `pure/v1` endpoint -- `compile` (C1), and whichever of `planJson` and `relationTypeJson` are true twins of E9 and
+   E5 (checked first: `planJson` answers `{sql, type}`, not the engine's plan) -- go from both adapters (the tab's
+   `compileOrError`, `planJsonOrError`, `relationTypeJsonOrError`; Python's `lite_plan_json`,
+   `lite_relation_type_json`), their callers moved onto the route as in leg 4. The boundary's own operations that
+   are not `pure/v1` endpoints stay.
 7. **The SDLC server's rules free of Pure.** SDLC's rules (`//sdlc-server:rules`) depend on all of `//core` today,
    because the class that answers their two Pure questions (`CoreGrammar`) sits in the same library; nothing stops
    the rules from calling the compiler directly, and the SDLC server carries the whole engine. The rules keep asking

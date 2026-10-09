@@ -46,7 +46,10 @@ js_library(
 # tab: Query and Studio serve it as their ./planner-worker.js, next to //wasm:planner in ./vendor/planner/.
 esbuild_bundle(
     name = "planner_worker",
-    srcs = ["src/legend/planner-worker.ts"],
+    srcs = [
+        "src/legend/planner-answer.ts",
+        "src/legend/planner-worker.ts",
+    ],
     outs = ["planner-worker.js"],
     args = [
         "src/legend/planner-worker.ts",

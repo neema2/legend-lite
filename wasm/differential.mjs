@@ -1,8 +1,8 @@
 /**
  * Differential test: the SAME planner source, compiled two ways.
  *
- * TeaVM compiles `planner.Wasm` to WebAssembly (//wasm:planner); `planner.JvmMain`
- * calls the very same class on the JVM (//wasm:jvm_answers, a build action). So
+ * TeaVM compiles `planner.TabExports` (the tab's adapter over `planner.Boundary`) to WebAssembly
+ * (//wasm:planner); `planner.JvmMain` calls the very same class on the JVM (//wasm:jvm_answers, a build action). So
  * this compares two BUILDS OF ONE SOURCE rather than two hand-kept copies that
  * could drift apart silently. Every answer is compared — refusals included,
  * because a refusal is an answer the planner is expected to give.

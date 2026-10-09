@@ -13,7 +13,10 @@ ll.print_tree(tree)                          # back to Pure text
 
 It works on **protocol trees** (upstream's V1 lambda JSON as Python dicts), the way DataCube builds
 its queries; Pure text is one way to make one. Numbers stay exact: decimals as `Decimal`, integers
-as `int`. A refusal is a `LegendError` (`.kind`, `.message`).
+as `int`. A refusal is a `LegendError` (`.kind`, `.message`): where the call asks legend-engine's `pure/v1`
+(`parse`, `print_tree`, `model_elements`), `.kind` is the engine's `errorType` (`PARSER`), else the answer's status;
+for the other calls it is still the compiler's Java exception class, until the protocol program's leg 6
+(`docs/PARKED_WORK_LEDGER.md`, PARK-17).
 
 The installed package carries the library in `legend_lite/_native/`, where the bindings look; `LEGEND_LITE_LIBRARY`
 points them elsewhere (a build of this repository: `bazel build //native:compiler` makes

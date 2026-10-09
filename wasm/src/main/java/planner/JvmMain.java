@@ -8,7 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * The JVM half of a differential: runs {@link Wasm#planOrError} over a query
+ * The JVM half of a differential: runs the tab's own export, {@link TabExports#planOrError}, over a query
  * list and writes the answers for the WASM half to compare against. Same source,
  * same inputs — only the backend differs. A BUILD ACTION (wasm/BUILD.bazel,
  * jvm_answers): the answers are a function of the planner's source and the
@@ -16,7 +16,7 @@ import java.util.Map;
  *
  * <p>Usage: {@code JvmMain <model-file> <queries-tsv> <runtime> <out-file> [json]}. Each
  * TSV line is {@code name<TAB>query}: Pure text, or with {@code json} the lambda's
- * protocol JSON ({@link Wasm#planJsonOrError}); the output is one block per query,
+ * protocol JSON ({@link TabExports#planJsonOrError}); the output is one block per query,
  * {@code <<<name>>>\n<answer>\n<<<END>>>\n}, in the TSV's order.
  *
  * <p>It does not time anything. A build action shares its machine with every
@@ -47,8 +47,8 @@ public final class JvmMain {
         StringBuilder out = new StringBuilder();
         for (Map.Entry<String, String> e : queries.entrySet()) {
             out.append("<<<").append(e.getKey()).append(">>>\n")
-                    .append(json ? Wasm.planJsonOrError(model, e.getValue(), runtime)
-                            : Wasm.planOrError(model, e.getValue(), runtime)).append('\n')
+                    .append(json ? TabExports.planJsonOrError(model, e.getValue(), runtime)
+                            : TabExports.planOrError(model, e.getValue(), runtime)).append('\n')
                     .append("<<<END>>>\n");
         }
         Files.writeString(Path.of(args[3]), out.toString(), StandardCharsets.UTF_8);

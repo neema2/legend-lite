@@ -3,7 +3,7 @@
 // here is legend-lite's own; pointing the app at legend-engine is a base URL.
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
-import { toJson } from '../../../pure-protocol/src/index.ts';
+import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import type {
   CompileResult, ExecuteInput, ExecutionResult, PureModelContext, RelationTypeAnswer,
@@ -30,6 +30,8 @@ export interface Grammar {
   lambdaJson(text: string): Promise<Lambda>;
   /** `grammar/jsonToGrammar/lambda`. */
   lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string>;
+  /** `grammar/jsonToGrammar/model`: a model's protocol JSON as Pure text. */
+  modelText(model: PureModelContextData, style: 'PRETTY' | 'STANDARD'): Promise<string>;
   /** `compilation/lambdaRelationType`. */
   relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer>;
 }
@@ -95,12 +97,26 @@ export class HttpEngine implements Engine {
   }
 
   async lambdaJson(text: string): Promise<Lambda> {
+    return JSON.parse(await this.#lambdaJsonText(text)) as Lambda;
+  }
+
+  /** As `lambdaJson`, read by the protocol library: numbers exact (a query a person typed keeps its digits). */
+  async lambda(text: string): Promise<Lambda> {
+    return readLambda(await this.#lambdaJsonText(text));
+  }
+
+  async #lambdaJsonText(text: string): Promise<string> {
     const res = await this.#call('POST', '/pure/v1/grammar/grammarToJson/lambda?returnSourceInformation=false', text, 'text/plain');
-    return res.json() as Promise<Lambda>;
+    return res.text();
   }
 
   async lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> {
     const res = await this.#call('POST', `/pure/v1/grammar/jsonToGrammar/lambda?renderStyle=${style}`, toJson(lambda));
+    return res.text();
+  }
+
+  async modelText(model: PureModelContextData, style: 'PRETTY' | 'STANDARD'): Promise<string> {
+    const res = await this.#call('POST', `/pure/v1/grammar/jsonToGrammar/model?renderStyle=${style}`, toJson(model));
     return res.text();
   }
 
@@ -156,6 +172,7 @@ export class RoutedEngine implements Engine {
   modelJson(text: string): Promise<PureModelContextData> { return this.#grammar.modelJson(text); }
   lambdaJson(text: string): Promise<Lambda> { return this.#grammar.lambdaJson(text); }
   lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> { return this.#grammar.lambdaText(lambda, style); }
+  modelText(model: PureModelContextData, style: 'PRETTY' | 'STANDARD'): Promise<string> { return this.#grammar.modelText(model, style); }
   relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> { return this.#grammar.relationType(model, lambda); }
   compile(model: PureModelContext): Promise<CompileResult> { return this.#server.compile(model); }
   returnType(model: PureModelContext, lambda: Lambda): Promise<string> { return this.#server.returnType(model, lambda); }

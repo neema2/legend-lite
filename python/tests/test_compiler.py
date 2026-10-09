@@ -42,7 +42,7 @@ class Trees(unittest.TestCase):
     def test_a_refusal_says_what_and_where(self):
         with self.assertRaises(ll.LegendError) as e:
             ll.parse('|1 +')
-        self.assertIn('ParseException', e.exception.kind)
+        self.assertEqual('PARSER', e.exception.kind)
         self.assertIn('[1:5]', e.exception.message)
 
 
@@ -157,7 +157,7 @@ class Hosting(unittest.TestCase):
             ll.parse('|$x.')
         self.assertEqual(lib.unfreed(), before, 'an answer was not freed')
         # the count is live: an answer taken and not yet freed shows in it
-        p = lib._lib.lite_lambda_json(lib._thread(), b'|1')
+        p = lib._lib.lite_session_setup(lib._thread(), b'DuckDB')
         self.assertEqual(lib.unfreed(), before + 1)
         lib._lib.lite_free(lib._thread(), p)
         self.assertEqual(lib.unfreed(), before)

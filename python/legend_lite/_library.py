@@ -51,7 +51,6 @@ class Library:
         lib.lite_unfreed.argtypes = [ctypes.c_void_p]
         lib.lite_unfreed.restype = ctypes.c_int64
         for name, arity in (('lite_plan_json', 3), ('lite_plan_text', 3), ('lite_relation_type_json', 2),
-                            ('lite_lambda_json', 1), ('lite_compose', 2), ('lite_model_json', 1),
                             ('lite_database_from_catalog', 1), ('lite_table_model', 1),
                             ('lite_catalog_columns_sql', 2), ('lite_session_setup', 1), ('lite_pure_v1', 3),
                             ('lite_execute_plan', 2), ('lite_pure_v1_refusal', 1)):

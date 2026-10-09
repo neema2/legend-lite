@@ -1,7 +1,7 @@
 # legend-lite's planner, compiled to WebAssembly
 
-`planner.Wasm` — and everything it reaches in `//core` — compiled ahead of
-time by TeaVM to a WebAssembly-GC module, and held to the JVM by
+`planner.TabExports` — the tab's adapter over the boundary, `planner.Boundary`, and everything it reaches in
+`//core` — compiled ahead of time by TeaVM to a WebAssembly-GC module, and held to the JVM by
 differentials that run on every push. DataCube's `src/wasm-planner.ts`
 plans in the browser on this module, with no server.
 
@@ -27,7 +27,7 @@ TeaVM and the class library it compiles against come from `@maven_teavm`
 
 ## Why it is shaped this way
 
-**One source, two backends.** `planner.Wasm` is the entry point for both —
+**One source, two backends.** `planner.TabExports` is the entry point for both —
 TeaVM compiles it, and `planner.JvmMain` calls the very same class on the
 JVM. The differential compares two builds of one source. Two hand-kept
 copies would drift apart silently, and a differential that drifts proves

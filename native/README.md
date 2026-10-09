@@ -2,14 +2,15 @@
 
 legend-lite's compiler as a **native shared library**, for hosts that load native code (first
 Python: `python/legend_lite`). It is the browser's compiler: the same boundary (`//wasm:boundary`,
-`planner.Wasm` over `//core`) that `//wasm:planner` compiles to WebAssembly, compiled here by
-GraalVM's native-image (`//native:compiler` → `libcompiler.dylib` on macOS, `libcompiler.so` on
+`planner.Boundary` over `//core`) that `//wasm:planner` compiles to WebAssembly through the tab's adapter, compiled
+here by GraalVM's native-image (`//native:compiler` → `libcompiler.dylib` on macOS, `libcompiler.so` on
 Linux; no JVM).
 
-- `src/main/java/com/legend/nativelib/Compiler.java`: the C entry points, one per `planner.Wasm`
-  function -- `lite_plan_json`, `lite_plan_text`, `lite_relation_type_json`, `lite_lambda_json`,
-  `lite_compose`, `lite_model_json`, `lite_database_from_catalog` -- each returning the planner's
-  own answer (`OK\n<result>`, JSON or, for `lite_compose`, Pure text; or `ERR\n<class>\n<message>`)
+- `src/main/java/com/legend/nativelib/Compiler.java`: Python's adapter, the C entry points, each a delegation to one
+  `planner.Boundary` operation -- `lite_plan_json`, `lite_plan_text`, `lite_relation_type_json`,
+  `lite_database_from_catalog`, ..., and legend-engine's `pure/v1` through `lite_pure_v1` (Python's grammar asks it
+  there: docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5) -- each returning the boundary's answer in the encoding the
+  tab's adapter answers in (`planner.Folded`: `OK\n<result>`, or `ERR\n<class>\n<message>`)
   as a UTF-8 C string freed with `lite_free`. A Java error the planner does not answer itself (its
   heap exhausted, say) comes back as an `ERR` answer too, never an abort of the host process.
   `lite_unfreed` counts the answers not yet freed, so a host can check that it frees every one.

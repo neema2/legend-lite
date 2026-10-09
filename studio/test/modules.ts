@@ -10,7 +10,7 @@ import { SdlcClient } from '../../sdlc-client/src/client.ts';
 import { WASM_API, WASM_DEPOT_API, wasmSdlcServer, type SdlcModule } from '../../sdlc-client/src/wasm-server.ts';
 import { WasmGrammar } from '../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler, type PlannerPort } from '../src/backend/planner.ts';
-import type { PlannerRequest } from '../../engine-client/src/legend/planner-worker.ts';
+import { answer, type PlannerModule, type PlannerRequest } from '../../engine-client/src/legend/planner-answer.ts';
 import { runfileDirUrl } from '../../tools/js/runfiles.mts';
 
 async function load<T>(dir: URL): Promise<T> {
@@ -25,26 +25,13 @@ async function load<T>(dir: URL): Promise<T> {
   });
 }
 
-interface PlannerModule {
-  readonly exports: Record<string, (...args: string[]) => string | number>;
-}
-
 let planner: Promise<PlannerModule> | undefined;
 
+/** The planner in this process, answering as the tab's worker answers (planner-answer.ts). */
 class DirectPort implements PlannerPort {
   async ask(r: PlannerRequest): Promise<string> {
     planner ??= load<PlannerModule>(new URL(runfileDirUrl('WASM_PLANNER')));
-    const e = (await planner).exports;
-    switch (r.kind) {
-      case 'modelJson': return e.modelJsonOrError!(r.text) as string;
-      case 'compile': return e.compileOrError!(r.model) as string;
-      case 'lambdaJson': return e.lambdaJsonOrError!(r.text) as string;
-      case 'compose': return e.composeLambdaOrError!(r.lambda, r.style) as string;
-      case 'relationType': return e.relationTypeJsonOrError!(r.model, r.lambda) as string;
-      case 'plan': return e.planJsonOrError!(r.model, r.lambda, r.runtime) as string;
-      case 'warm': e.warmModel!(r.model); return 'OK\n';
-      case 'testData': return e.testDataSqlOrError!(r.model, r.database, r.tables) as string;
-    }
+    return answer(await planner, r);
   }
 }
 

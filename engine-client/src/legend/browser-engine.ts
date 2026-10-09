@@ -62,6 +62,7 @@ export class BrowserEngine implements Engine {
   modelJson(text: string): Promise<PureModelContextData> { return this.#planner.modelJson(text); }
   lambdaJson(text: string): Promise<Lambda> { return this.#planner.lambdaJson(text); }
   lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> { return this.#planner.lambdaText(lambda, style); }
+  modelText(model: PureModelContextData, style: 'PRETTY' | 'STANDARD'): Promise<string> { return this.#planner.modelText(model, style); }
   relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> { return this.#planner.relationType(model, lambda); }
 
   async execute(input: ExecuteInput, signal?: AbortSignal): Promise<ExecutionResult> {

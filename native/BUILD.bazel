@@ -1,5 +1,5 @@
 # LEGEND-LITE'S COMPILER AS A NATIVE LIBRARY: the very boundary the browser runs as WebAssembly (//wasm:boundary,
-# planner.Wasm over //core), built by GraalVM's native-image as a SHARED LIBRARY, for hosts that load native code --
+# planner.Boundary over //core), built by GraalVM's native-image as a SHARED LIBRARY, for hosts that load native code --
 # first Python (//python, legend_lite). One compiler source, two builds, one differential corpus.
 load("@rules_graalvm//graalvm:defs.bzl", "native_image")
 load("//tools/guards:defs.bzl", "guards_package")
@@ -16,7 +16,7 @@ legend_java_library(
     ],
 )
 
-# The C entry points, over planner.Wasm, and the resources the image must carry (META-INF/native-image)
+# Python's adapter: the C entry points, over planner.Boundary, and the resources the image must carry (META-INF/native-image)
 legend_java_library(
     name = "entry",
     srcs = glob(["src/main/java/**/*.java"]),
