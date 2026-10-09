@@ -121,6 +121,8 @@ export class BandBoard {
   #gesture: Gesture | null = null;
   /** A preset previewed (a hovered thumbnail): drawn, but not arranged by hand, so no handles. */
   #previewing = false;
+  /** Where the page was scrolled when a preview began: a shorter preview must not leave it scrolled elsewhere. */
+  #previewScroll = 0;
   #frame = 0;
   /** The dividers and band edges drawn, by what each is: kept, and only moved, while the page's shape is the same. */
   #handles: { readonly key: string; readonly el: HTMLElement }[] = [];
@@ -215,9 +217,12 @@ export class BandBoard {
   /** Show what a preset would look like (a hovered thumbnail), or the layout again (null). */
   preview(preset: Preset | null, first?: string): void {
     if (this.#gesture) return;
+    const was = this.#previewing;
+    if (preset !== null && !was) this.#previewScroll = this.#host.scrollTop;
     this.#shown = preset === null ? null : arrange(this.#layout, preset, this.#order(first));
     this.#previewing = preset !== null;
     this.#paint();
+    if (preset === null && was) this.#host.scrollTop = this.#previewScroll;
   }
 
   /** The page fitting its window, or scrolling past it. */

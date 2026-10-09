@@ -382,6 +382,16 @@ describe('the band board', () => {
     wellFormed(board);
   });
 
+  it('a preview leaves the page scrolled where it was', () => {
+    const board = new BandBoard(host);
+    for (const id of ['a', 'b', 'c', 'd']) board.add(tile(id));
+    host.scrollTop = 500;
+    board.preview('side-by-side');
+    host.scrollTop = 0;
+    board.preview(null);
+    assert.equal(host.scrollTop, 500);
+  });
+
   it('puts a saved layout: tiles not on the board left out, tiles on the board but not in it below', () => {
     const board = new BandBoard(host);
     board.add(tile('a'));

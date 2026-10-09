@@ -171,8 +171,8 @@ test_suite(
 )
 
 # DataCube: its unit tests (the live-vs-snap test against the native warehouse among them), the app in Chromium, every
-# browser harness as a test (//datacube:browser: the smoke harness on every platform; features, page, charts, cubes,
-# real data, remote, upload, wasm-browser and stress on Linux only in CI, by their `ci-linux-only` tag, which
+# browser harness as a test (//datacube:browser: the smoke harness on every platform; features, page, layout, charts,
+# cubes, real data, remote, upload, wasm-browser and stress on Linux only in CI, by their `ci-linux-only` tag, which
 # gates-run.yml filters on macOS and Windows), and the planner compiled to WebAssembly, which the tab runs (its TeaVM
 # build keeps it out of `core`)
 test_suite(
