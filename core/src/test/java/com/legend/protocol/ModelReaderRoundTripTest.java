@@ -116,10 +116,21 @@ class ModelReaderRoundTripTest {
         IllegalArgumentException unknown = assertThrows(IllegalArgumentException.class,
                 () -> ModelReader.read("{\"_type\":\"data\",\"elements\":[{\"_type\":\"aNewElement\"}]}"));
         assertTrue(unknown.getMessage().contains("aNewElement"), unknown.getMessage());
+        // a list the emitter writes empty and no record carries: refused, naming it
+        String fn = "{\"_type\":\"function\",\"body\":[],\"name\":\"f__String_1_\",\"package\":\"p\",\"parameters\":[],"
+                + "\"postConstraints\":[],\"preConstraints\":[{}],\"returnGenericType\":{\"multiplicityArguments\":[],"
+                + "\"rawType\":{\"_type\":\"packageableType\",\"fullPath\":\"String\"},\"typeArguments\":[],"
+                + "\"typeVariableValues\":[]},\"returnMultiplicity\":{\"lowerBound\":1,\"upperBound\":1},"
+                + "\"stereotypes\":[],\"taggedValues\":[],\"tests\":[]}";
         IllegalArgumentException constant = assertThrows(IllegalArgumentException.class,
-                () -> ModelReader.readElement(cls.replace("\"originalMilestonedProperties\":[]",
-                        "\"originalMilestonedProperties\":[{}]") + "}"));
-        assertTrue(constant.getMessage().contains("originalMilestonedProperties"), constant.getMessage());
+                () -> ModelReader.readElement(fn));
+        assertTrue(constant.getMessage().contains("preConstraints"), constant.getMessage());
+        // older JSON's milestoned properties written out: kept, and written back (leg 2 step 2)
+        String milestoned = cls.replace("\"originalMilestonedProperties\":[]", "\"originalMilestonedProperties\":[{"
+                + "\"genericType\":{\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\","
+                + "\"fullPath\":\"String\"},\"typeArguments\":[],\"typeVariableValues\":[]},\"multiplicity\":{"
+                + "\"lowerBound\":1,\"upperBound\":1},\"name\":\"n\",\"stereotypes\":[],\"taggedValues\":[]}]") + "}";
+        assertEquals(milestoned, ProtocolEmitter.emitElement(ModelReader.readElement(milestoned)));
     }
 
     /**

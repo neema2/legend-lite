@@ -67,9 +67,9 @@ final class SpecIslandReader {
 
     private static Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> withOlderKinds(
             Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> islands) {
-        Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> all = new java.util.HashMap<>(islands);
+        Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> all = new java.util.LinkedHashMap<>(islands);
         all.putAll(OlderSpecReader.KINDS);
-        return Map.copyOf(all);
+        return java.util.Collections.unmodifiableMap(all);
     }
 
     static ValueSpecification classInstance(Wire w) {

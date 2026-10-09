@@ -12,7 +12,6 @@ import com.legend.protocol.spec.PureCollection;
 import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +68,7 @@ final class OlderSpecReader {
     /** Today's rules and the older {@code _type}s' together, one table. */
     static Map<String, Function<Wire, ValueSpecification>> withOlder(
             Map<String, Function<Wire, ValueSpecification>> current) {
-        Map<String, Function<Wire, ValueSpecification>> all = new HashMap<>(current);
+        Map<String, Function<Wire, ValueSpecification>> all = new LinkedHashMap<>(current);
         all.put("class", w -> ProtocolReader.pointer(w, false));
         all.put("enum", w -> ProtocolReader.pointer(w, false));
         all.put("mappingInstance", w -> ProtocolReader.pointer(w, false));
@@ -88,7 +87,7 @@ final class OlderSpecReader {
         for (String kind : WRAPPED) {
             all.put(kind, OlderSpecReader::wrapped);
         }
-        return Map.copyOf(all);
+        return java.util.Collections.unmodifiableMap(all);
     }
 
     // ---------------------------------------------------------------------

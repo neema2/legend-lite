@@ -2686,26 +2686,22 @@ public final class ProtocolEmitter {
         String spelled = ni.className();
         // older JSON's fControl on a new: the special classes never arrive with one (the reader's
         // ProtocolUpgrade turns their new into the call first, as the engine's converter does)
-        boolean special = "Pair".equals(spelled) || "meta::pure::functions::collection::Pair".equals(spelled)
-                || "BasicColumnSpecification".equals(spelled) || "meta::pure::tds::BasicColumnSpecification".equals(spelled)
-                || "TdsOlapRank".equals(spelled) || "meta::pure::tds::TdsOlapRank".equals(spelled);
-        require(fControl == null || !special, "a special class's new with an fControl", spelled);
         if ("Pair".equals(spelled)
                 || "meta::pure::functions::collection::Pair".equals(spelled)) {
             caretSpecial(b, ni, "meta::pure::functions::collection::pair",
-                    new String[]{"first", "second"}, false, span);
+                    new String[]{"first", "second"}, false, span, fControl);
             return;
         }
         if ("BasicColumnSpecification".equals(spelled)
                 || "meta::pure::tds::BasicColumnSpecification".equals(spelled)) {
             caretSpecial(b, ni, "meta::pure::tds::col",
-                    new String[]{"func", "name", "documentation"}, true, span);
+                    new String[]{"func", "name", "documentation"}, true, span, fControl);
             return;
         }
         if ("TdsOlapRank".equals(spelled)
                 || "meta::pure::tds::TdsOlapRank".equals(spelled)) {
             caretSpecial(b, ni, "meta::pure::tds::func",
-                    new String[]{"func"}, false, span);
+                    new String[]{"func"}, false, span, fControl);
             return;
         }
         b.append("{\"_type\":\"func\"");
@@ -3098,7 +3094,9 @@ public final class ProtocolEmitter {
     /** The engine's hardcoded caret-to-function desugars — see {@code newInstance}. */
     private static void caretSpecial(StringBuilder b, com.legend.protocol.spec.NewInstance ni,
                                      String function, String[] keys, boolean dropMissing,
-                                     @com.legend.base.Nullable SourceInfo span) {
+                                     @com.legend.base.Nullable SourceInfo span,
+                                     @com.legend.base.Nullable String fControl) {
+        require(fControl == null, "a special class's new with an fControl", ni.className());
         b.append("{\"_type\":\"func\",\"function\":");
         str(b, function);
         b.append(",\"parameters\":[");
