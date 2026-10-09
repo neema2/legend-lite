@@ -10,7 +10,7 @@ import java.util.Map;
  * How a database's dialect reads ITS OWN catalog into what a Pure Database declares
  * ({@link SqlDialect#catalogType}), as DATA: one algorithm over per-database decisions. The one writer
  * that reads them is {@link CatalogModel}, which DataCube and Python call through the compiler's
- * boundary (planner.Wasm.tableModelOrError).
+ * boundary (planner.Boundary.tableModel).
  *
  * <p>The algorithm, in order: a column's own type name that is an ALIAS ({@code aliases}, upper-cased:
  * DuckDB's JSON, an alias of VARCHAR); its canonical type when that is the database's exact decimal

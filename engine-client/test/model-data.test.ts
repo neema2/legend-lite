@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { WasmGrammar } from '../src/legend/wasm-grammar.ts';
-import type { PlannerRequest } from '../src/legend/planner-worker.ts';
+import { answer, type PlannerModule, type PlannerRequest } from '../src/legend/planner-answer.ts';
 import { dataTables, loadDataTables, seeded, TestData, type FileSink } from '../src/model-data.ts';
 import { TabTables, withTestData, type Model } from '../src/tab-data.ts';
 import { engineClientRequire } from '../src/node-require.ts';
@@ -81,7 +81,7 @@ const DESK = 'ID,NAME,COUNTRY\n5,Rates Desk,US\n';
 async function loadPlanner(): Promise<WasmGrammar> {
   const dir = new URL(runfileDirUrl('WASM_PLANNER'));
   const runtime = await import(new URL('wasm-gc-module-runtime.js', dir).href) as {
-    load(src: string, options: unknown): Promise<{ readonly exports: Record<string, (...args: string[]) => string> }>;
+    load(src: string, options: unknown): Promise<PlannerModule>;
   };
   const m = await runtime.load(fileURLToPath(new URL('classes.wasm', dir)), {
     stackDeobfuscator: { enabled: false },
@@ -91,11 +91,7 @@ async function loadPlanner(): Promise<WasmGrammar> {
   });
   return new WasmGrammar({
     async ask(r: PlannerRequest): Promise<string> {
-      switch (r.kind) {
-        case 'modelJson': return m.exports.modelJsonOrError!(r.text);
-        case 'testData': return m.exports.testDataSqlOrError!(r.model, r.database, r.tables);
-        default: throw new Error(`this test's planner answers modelJson and testData, not ${r.kind}`);
-      }
+      return answer(m, r);
     },
   });
 }

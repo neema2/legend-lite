@@ -248,3 +248,30 @@ there and the row must be closed or restated — or sooner if a user meets it.
 **Anchor.** The raw spelling `? table : schema + "." + table;` in `AnsiSqlRenderer.java` and, as
 `|| "default".equals(schema) ? table : ...`, in `TestDataGenerator.java`; and `ddlQualified` declared in
 `AnsiSqlRenderer.java` and `Postgres.java` (Postgres's override is the one place that already spells like queries).
+
+## PARK-17 — Python's refusal kind is mixed until the protocol program's leg 6
+
+**Parked** 2026-10-09 by the DataCube + Python line, on the protocol program's leg 4
+(`docs/PROTOCOL_PROGRAM_2026_10_05.md` §4, step 4b), which moved Python's grammar (`parse`, `print_tree`,
+`model_elements`) onto legend-engine's `pure/v1` through `lite_pure_v1`.
+
+**What happens today.** A Python `LegendError`'s `kind` is the engine's refusal kind (`errorType`, `PARSER`, else the
+answer's status) for those three, as `pure/v1` answers it, and still the compiler's Java exception class for the rest
+of Python's compiler calls (`relation_type`, `plan`, `plan_text`, `database_from_catalog`, `table_model`, ...): two
+vocabularies for one field.
+
+**The fix (agreed).** Leg 6: the boundary's operations that duplicate a `pure/v1` endpoint go from both adapters,
+Python's included (`lite_plan_json`, `lite_relation_type_json`, where they are true twins of E9 and E5), and Python asks
+`pure/v1` for them as the tab does; for each call that remains lite's own, the kind it reports is decided with the
+DataCube + Python line, so that no Python user sees a Java class name where `pure/v1` would give an `errorType`.
+
+**Acceptance (what closes this row).** Every Python compiler call that is a `pure/v1` endpoint asks `lite_pure_v1`,
+and `python/legend_lite/compiler.py`'s `LegendError` documents one rule for `kind`.
+
+**Cost of leaving it.** A Python caller that branches on `kind` must know which call it made.
+
+**When.** With leg 6 — whose one whole-model compile replaces the copy in `PureV1Api.compile` that the anchor names, so
+the anchor goes red there and the row must be closed or restated.
+
+**Anchor.** `PureV1Api.compile` stringing "compile a whole model" together itself
+(`com.legend.Compiler.compileAllBodies(` then `com.legend.Compiler.compileModel(`), in `PureV1Api.java` alone.

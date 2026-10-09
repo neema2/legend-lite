@@ -8,8 +8,8 @@ package planner;
  * code — so whether it survives the WASM build is a question no amount
  * of reading the source can answer. {@code zoneprobe.mjs} asks the
  * built module the same eight questions this asks the JVM. It asks
- * {@code LiteralSpelling} directly, with the module's export's own
- * try/catch ({@code Wasm.zoneProbe}), so it builds on //core:lowering
+ * {@code LiteralSpelling} directly, with the boundary's own
+ * try/catch ({@code Boundary.zoneProbe}), so it builds on //core:lowering
  * alone; the test compares the two, so the copies cannot drift unseen.
  */
 public final class ZoneMain {
@@ -39,7 +39,7 @@ public final class ZoneMain {
                 java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    /** What the module's export answers (Wasm.zoneProbe: the same call, the same refusal text). */
+    /** What the module's export answers (Boundary.zoneProbe: the same call, the same refusal text). */
     static String answer(String utcIso, String zone) {
         try {
             return com.legend.lowering.LiteralSpelling.inZone(utcIso, zone);

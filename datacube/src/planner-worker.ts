@@ -14,7 +14,7 @@
 //
 // This worker deliberately contains no planning logic of its own: it
 // forwards to the module's `planOrError`, `relationTypeOrError`, `tableModelOrError`,
-// `catalogColumnsSqlOrError`, `modelJsonOrError`, `testDataSqlOrError` and `warmModel` exports and
+// `catalogColumnsSqlOrError`, `pureV1OrError`, `testDataSqlOrError` and `warmModel` exports and
 // returns what they say. A second planner is the one thing this whole
 // design exists to avoid.
 
@@ -26,9 +26,8 @@ interface TeavmModule {
     catalogColumnsSqlOrError(schema: string, table: string): string;
     planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
     relationTypeJsonOrError(model: string, lambdaJson: string): string;
-    composeLambdaOrError(lambdaJson: string, style: string): string;
-    lambdaJsonOrError(text: string): string;
-    modelJsonOrError(text: string): string;
+    // legend-engine's pure/v1, routed as legend-lite's server routes it: `OK\n<status>\n<type>\n<body>`
+    pureV1OrError(path: string, rawQuery: string, body: string): string;
     testDataSqlOrError(model: string, database: string, tablesJson: string): string;
     warmModel(model: string): number;
   };
@@ -55,9 +54,8 @@ export type Request =
     readonly runtime: string;
   }
   | { readonly id: number; readonly kind: 'relationTypeJson'; readonly model: string; readonly lambda: string }
-  | { readonly id: number; readonly kind: 'compose'; readonly lambda: string; readonly style: string }
-  | { readonly id: number; readonly kind: 'lambdaJson'; readonly text: string }
-  | { readonly id: number; readonly kind: 'modelJson'; readonly text: string }
+  // one pure/v1 call: its path (`/api/pure/v1/...`), its raw query string ('' for none) and its body
+  | { readonly id: number; readonly kind: 'pureV1'; readonly path: string; readonly query: string; readonly body: string }
   | { readonly id: number; readonly kind: 'testData'; readonly model: string; readonly database: string; readonly tables: string };
 
 /** What it gets back. `answer` is the export's raw tagged string. */
@@ -92,9 +90,7 @@ function answerOf(module: TeavmModule, msg: Request): string {
     case 'catalogColumnsSql': return module.exports.catalogColumnsSqlOrError(msg.schema, msg.table);
     case 'planJson': return module.exports.planJsonOrError(msg.model, msg.lambda, msg.runtime);
     case 'relationTypeJson': return module.exports.relationTypeJsonOrError(msg.model, msg.lambda);
-    case 'compose': return module.exports.composeLambdaOrError(msg.lambda, msg.style);
-    case 'lambdaJson': return module.exports.lambdaJsonOrError(msg.text);
-    case 'modelJson': return module.exports.modelJsonOrError(msg.text);
+    case 'pureV1': return module.exports.pureV1OrError(msg.path, msg.query, msg.body);
     case 'testData': return module.exports.testDataSqlOrError(msg.model, msg.database, msg.tables);
     case 'plan': return module.exports.planOrError(msg.model, msg.query, msg.runtime);
   }

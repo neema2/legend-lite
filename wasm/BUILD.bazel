@@ -17,7 +17,7 @@ js_library(
     visibility = ["//datacube:__pkg__"],
 )
 
-# The TeaVM surface the boundary class names at COMPILE time only: @JSExport
+# The TeaVM surface the tab's adapter names at COMPILE time only: @JSExport
 # (jso) and the ResourceSupplier SPI (core, the compiler's). neverlink — on a JVM the
 # annotation is inert and nothing loads the SPI, so no JVM classpath carries them.
 legend_java_library(
@@ -29,36 +29,53 @@ legend_java_library(
     ],
 )
 
-# THE BOUNDARY: one class both targets run — TeaVM compiles it, JvmMain calls it —
-# so the differential compares two builds of one source.
+# THE BOUNDARY (planner.Boundary, docs/PROTOCOL_PROGRAM_2026_10_05.md invariant 5): the operations every embedded
+# host runs -- the tab and Python -- plain Java, no host's annotations, each once; and the one text encoding both
+# strings-only hosts answer with (planner.Folded). Built to WebAssembly through the tab's adapter, and native
+# through Python's (//native:compiler).
 legend_java_library(
     name = "boundary",
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = [
-        "src/main/java/planner/PreludeResources.java",
-        "src/main/java/planner/Wasm.java",
+        "src/main/java/planner/Boundary.java",
+        "src/main/java/planner/Folded.java",
     ],
-    resources = ["src/main/resources/META-INF/services/org.teavm.classlib.ResourceSupplier"],
-    resource_strip_prefix = "wasm/src/main/resources",
-    # the same boundary, built native too (//native:compiler)
     visibility = ["//native:__pkg__"],
     deps = [
-        ":teavm_api",
-        # the plan side only (C2a): the WebAssembly planner carries no execution library, no database, no driver
+        # the plan side only (C2a): the embedded planner carries no execution library, no database, no driver
         "//core:plan_side",
         "//json",
     ],
 )
 
-# The module: planner.Wasm and all it reaches, with the class library TeaVM
+# THE TAB'S ADAPTER: TeaVM's entry class (planner.TabExports, its @JSExport functions the module's exports, each a
+# delegation to the boundary) and the resources TeaVM's class library embeds (PreludeResources).
+legend_java_library(
+    name = "tab",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
+    srcs = [
+        "src/main/java/planner/PreludeResources.java",
+        "src/main/java/planner/TabExports.java",
+    ],
+    resources = ["src/main/resources/META-INF/services/org.teavm.classlib.ResourceSupplier"],
+    resource_strip_prefix = "wasm/src/main/resources",
+    deps = [
+        ":boundary",
+        ":teavm_api",
+        "//core:plan_side",
+    ],
+)
+
+# The module: the tab's adapter and all it reaches, with the class library TeaVM
 # substitutes for the JDK's.
 teavm_wasm(
     name = "planner",
-    main_class = "planner.Wasm",
+    main_class = "planner.TabExports",
     visibility = ["//visibility:public"],
     deps = [
-        ":boundary",
+        ":tab",
         "@maven_teavm//:org_teavm_teavm_classlib",
         "@maven_teavm//:org_teavm_teavm_jso",
     ],
@@ -82,7 +99,8 @@ legend_java_library(
     nullaway = False,
     srcs = ["src/main/java/planner/JvmMain.java"],
     visibility = ["//visibility:public"],
-    deps = [":boundary"],
+    # the tab's own exports, so the differential compares the tab's answers across the two builds
+    deps = [":tab"],
 )
 
 legend_java_library(

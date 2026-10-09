@@ -18,7 +18,11 @@ Tree = dict[str, Any]
 
 
 class LegendError(Exception):
-    """The compiler refused: what it said, and the kind of refusal (its Java exception class)."""
+    """The compiler refused: what it said, and the kind of refusal. For the calls that ask legend-engine's ``pure/v1``
+    (``parse``, ``print_tree``, ``model_elements``) the kind is the engine's ``errorType`` (``PARSER``), else the
+    answer's status; for the rest (``relation_type``, ``plan``, ``plan_text``, ``database_from_catalog``,
+    ``table_model``, ``catalog_columns_sql``, ``session_setup``) it is still the compiler's Java exception class, until
+    the protocol program's leg 6 (docs/PARKED_WORK_LEDGER.md, PARK-17)."""
 
     def __init__(self, message: str, kind: str) -> None:
         super().__init__(message)
@@ -73,16 +77,31 @@ def _columns(relation_type: dict[str, Any]) -> tuple[Column, ...]:
     return tuple(Column(c['name'], c['genericType']['rawType']['fullPath'], c) for c in relation_type['columns'])
 
 
+def _grammar(path: str, query: str, body: str) -> str:
+    """One ``pure/v1`` grammar call's body, as legend-lite's server answers it; a refusal raised, its kind the
+    engine's (``PARSER``), else the answer's status."""
+    answer = pure_v1(path, query, body)
+    if answer.status == 200:
+        return answer.body
+    try:
+        refusal = _json.loads(answer.body)
+    except ValueError:
+        raise LegendError(answer.body or 'the compiler refused it', str(answer.status)) from None
+    message = refusal.get('message') if isinstance(refusal, dict) else None
+    kind = refusal.get('errorType') if isinstance(refusal, dict) else None
+    raise LegendError(message or 'the compiler refused it', kind or str(answer.status))
+
+
 def parse(text: str) -> Tree:
-    """Pure text as its lambda's protocol tree, e.g. ``parse("|1 + 1")``."""
-    return _json.loads(_answer(library().call('lite_lambda_json', text)))
+    """Pure text as its lambda's protocol tree, e.g. ``parse("|1 + 1")`` (``grammar/grammarToJson/lambda``)."""
+    return _json.loads(_grammar('/api/pure/v1/grammar/grammarToJson/lambda', 'returnSourceInformation=false', text))
 
 
 def print_tree(tree: Tree, style: str = 'PRETTY') -> str:
-    """A lambda's tree as Pure text: ``PRETTY`` across lines, or ``STANDARD`` on one."""
+    """A lambda's tree as Pure text: ``PRETTY`` across lines, or ``STANDARD`` on one (``grammar/jsonToGrammar/lambda``)."""
     if style not in ('PRETTY', 'STANDARD'):
         raise ValueError(f"style must be 'PRETTY' or 'STANDARD', not {style!r}")
-    return _answer(library().call('lite_compose', _json.dumps(tree), style))
+    return _grammar('/api/pure/v1/grammar/jsonToGrammar/lambda', f'renderStyle={style}', _json.dumps(tree))
 
 
 def relation_type(model: str, tree: Tree) -> tuple[Column, ...]:
@@ -103,8 +122,8 @@ def plan_text(model: str, text: str, runtime: str) -> Plan:
 
 
 def model_elements(text: str) -> list[dict[str, Any]]:
-    """A model's text as its elements (PureModelContextData), as the compiler reads them."""
-    return _json.loads(_answer(library().call('lite_model_json', text)))['elements']
+    """A model's text as its elements (PureModelContextData), as the compiler reads them (``grammar/grammarToJson/model``)."""
+    return _json.loads(_grammar('/api/pure/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', text))['elements']
 
 
 def database_from_catalog(catalog: dict[str, Any]) -> dict[str, Any]:

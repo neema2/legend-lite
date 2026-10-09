@@ -66,6 +66,19 @@ describe("Studio's compiler over the session's engine", () => {
       (e: unknown) => e instanceof EngineError && e.status === 400 && e.errorType === 'COMPILATION' && /Strin/.test(e.message));
   });
 
+  it('in the tab, the grammar is pure/v1 answered by the planner: a model read and printed back, in either style', async () => {
+    const model = await grammar.modelJson(GOOD);
+    for (const style of ['STANDARD', 'PRETTY'] as const) {
+      const text = await grammar.modelText(model, style);
+      assert.deepEqual(await grammar.modelJson(text), model, style);
+    }
+  });
+
+  it("in the tab, a parse error is the server's refusal: 400 PARSER, its message", async () => {
+    await assert.rejects(grammar.modelJson('Class demo::Desk\n{\n  name String[1];\n}\n'),
+      (e: unknown) => e instanceof EngineError && e.status === 400 && e.errorType === 'PARSER' && e.message.length > 0);
+  });
+
   it("in the tab, a compile refusal is a problem listed; the planner failing is thrown, as a server's 500 is", async () => {
     const answering = (answer: string) => new WasmGrammar({ ask: async () => answer });
     assert.deepEqual(await answering('ERR\ncom.legend.error.LegendCompileException\nno such type').compileErrors('x'), ['no such type']);

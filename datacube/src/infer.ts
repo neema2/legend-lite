@@ -6,7 +6,7 @@
 // (the catalog question, `TableModels.catalogColumnsSql`, or a warehouse's listing); legend-lite's
 // compiler writes the whole model from those rows -- the `###Relational Database`, and the
 // `###Connection` + `###Runtime` the planner needs -- in its WebAssembly module
-// (`planner.Wasm.tableModelOrError`), the ONE writer, which Python's frames use too. The cube's
+// (`planner.Boundary.tableModel`, the module's `tableModelOrError`), the ONE writer, which Python's frames use too. The cube's
 // COLUMNS are not decided here: the compiler types the source once the model is in
 // (`sourceColumns`, docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md).
 //

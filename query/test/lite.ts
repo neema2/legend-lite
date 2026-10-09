@@ -1,27 +1,23 @@
 // legend-lite's planner (the //wasm:planner module) loaded in node: the same exports the page's
-// worker calls, answered directly -- so tests exercise WasmGrammar exactly as the page does.
+// worker calls, answered as it answers them (planner-answer.ts) -- so tests exercise WasmGrammar exactly as the page does.
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { PlannerPort } from '../../engine-client/src/legend/wasm-grammar.ts';
 import { WasmGrammar } from '../../engine-client/src/legend/wasm-grammar.ts';
-import type { PlannerRequest } from '../../engine-client/src/legend/planner-worker.ts';
+import { answer, type PlannerModule, type PlannerRequest } from '../../engine-client/src/legend/planner-answer.ts';
 import { ModelGraph } from '../src/model/graph.ts';
 import type { PureModelContextText } from '../src/backend/wire.ts';
 import { runfileDirUrl, runfileNamed } from '../../tools/js/runfiles.mts';
 
-interface Module {
-  readonly exports: Record<string, (...args: string[]) => string | number>;
-}
-
 const DIR = new URL(runfileDirUrl('WASM_PLANNER'));
 
-let loaded: Promise<Module> | undefined;
+let loaded: Promise<PlannerModule> | undefined;
 
-function load(): Promise<Module> {
+function load(): Promise<PlannerModule> {
   loaded ??= (async () => {
     const runtime = await import(new URL('wasm-gc-module-runtime.js', DIR).href) as {
-      load(src: string, options: unknown): Promise<Module>;
+      load(src: string, options: unknown): Promise<PlannerModule>;
     };
     return runtime.load(fileURLToPath(new URL('classes.wasm', DIR)), {
       stackDeobfuscator: { enabled: false },
@@ -35,17 +31,7 @@ function load(): Promise<Module> {
 
 class DirectPort implements PlannerPort {
   async ask(r: PlannerRequest): Promise<string> {
-    const e = (await load()).exports;
-    switch (r.kind) {
-      case 'modelJson': return e.modelJsonOrError!(r.text) as string;
-      case 'lambdaJson': return e.lambdaJsonOrError!(r.text) as string;
-      case 'compose': return e.composeLambdaOrError!(r.lambda, r.style) as string;
-      case 'relationType': return e.relationTypeJsonOrError!(r.model, r.lambda) as string;
-      case 'plan': return e.planJsonOrError!(r.model, r.lambda, r.runtime) as string;
-      case 'warm': e.warmModel!(r.model); return 'OK\n';
-      case 'testData': return e.testDataSqlOrError!(r.model, r.database, r.tables) as string;
-      case 'compile': return e.compileOrError!(r.model) as string;
-    }
+    return answer(await load(), r);
   }
 }
 

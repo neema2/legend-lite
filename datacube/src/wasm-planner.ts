@@ -41,9 +41,8 @@ interface TeavmModule {
     catalogColumnsSqlOrError(schema: string, table: string): string;
     planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
     relationTypeJsonOrError(model: string, lambdaJson: string): string;
-    composeLambdaOrError(lambdaJson: string, style: string): string;
-    lambdaJsonOrError(text: string): string;
-    modelJsonOrError(text: string): string;
+    // legend-engine's pure/v1, routed as legend-lite's server routes it: `OK\n<status>\n<type>\n<body>`
+    pureV1OrError(path: string, rawQuery: string, body: string): string;
     testDataSqlOrError(model: string, database: string, tablesJson: string): string;
     warmModel(model: string): number;
   };
@@ -420,13 +419,21 @@ export class WasmPlanner implements Planner, TableModels {
     return columns;
   }
 
-  /** E4's twin: a query as Pure text, as upstream prints it. */
-  async compose(query: Lambda, style: PrintStyle = 'PRETTY'): Promise<string> {
-    const json = toJson(query);
+  /**
+   * One legend-engine pure/v1 call, answered by the planner as legend-lite's server answers it (its pure/v1 route):
+   * the body of a 200, or the refusal's message as a PlanError. The grammar is asked so, not through private twins of
+   * its endpoints (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5).
+   */
+  async #pureV1(path: string, query: string, body: string, subject: Lambda | string): Promise<string> {
     const answer = this.#useWorker()
-      ? await this.#ask({ kind: 'compose', lambda: json, style })
-      : (await this.#load()).exports.composeLambdaOrError(json, style);
-    return decode(answer, query);
+      ? await this.#ask({ kind: 'pureV1', path, query, body })
+      : (await this.#load()).exports.pureV1OrError(path, query, body);
+    return pureV1Body(decode(answer, subject), subject);
+  }
+
+  /** E4 (`grammar/jsonToGrammar/lambda`): a query as Pure text, as upstream prints it. */
+  async compose(query: Lambda, style: PrintStyle = 'PRETTY'): Promise<string> {
+    return this.#pureV1('/api/pure/v1/grammar/jsonToGrammar/lambda', `renderStyle=${style}`, toJson(query), query);
   }
 
   /** A query printed for a person to read (the Planner's `print`): PRETTY unless asked. */
@@ -445,22 +452,17 @@ export class WasmPlanner implements Planner, TableModels {
     return lambda(query.parameters, fn('from', body, element(mapping), element(this.#options.runtime)));
   }
 
-  /** A model's elements, as the compiler reads its text (a project's data spaces, enumerations). */
+  /** A model's elements, as the compiler reads its text (E2, `grammar/grammarToJson/model`): data spaces, enumerations. */
   async modelElements(text: string): Promise<unknown[]> {
-    const answer = this.#useWorker()
-      ? await this.#ask({ kind: 'modelJson', text })
-      : (await this.#load()).exports.modelJsonOrError(text);
-    const elements = (JSON.parse(decode(answer, text)) as { elements?: unknown }).elements;
+    const json = await this.#pureV1('/api/pure/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', text, text);
+    const elements = (JSON.parse(json) as { elements?: unknown }).elements;
     if (!Array.isArray(elements)) throw new PlanError('the model came back without elements', text);
     return elements;
   }
 
-  /** E1's twin: what a person typed, as its lambda, numbers exact. */
+  /** E1 (`grammar/grammarToJson/lambda`): what a person typed, as its lambda, numbers exact. */
   async parse(text: string): Promise<Lambda> {
-    const answer = this.#useWorker()
-      ? await this.#ask({ kind: 'lambdaJson', text })
-      : (await this.#load()).exports.lambdaJsonOrError(text);
-    return readLambda(decode(answer, text));
+    return readLambda(await this.#pureV1('/api/pure/v1/grammar/grammarToJson/lambda', 'returnSourceInformation=false', text, text));
   }
 
   /**
@@ -478,7 +480,7 @@ export class WasmPlanner implements Planner, TableModels {
 
   /**
    * THE MODEL FOR A TABLE, from the rows its CATALOG reports (structured: `catalogColumnsSql`):
-   * legend-lite's one writer (planner.Wasm.tableModelOrError) -- the Database, read by the table's
+   * legend-lite's one writer (planner.Boundary.tableModel, the module's tableModelOrError) -- the Database, read by the table's
    * own dialect, its connection and runtime, and the snap runtime when asked; the conversions a copy
    * applies, and the columns left out. The compiler decides every column; nothing here does. The
    * same function answers Python's frames.
@@ -616,6 +618,23 @@ function readsHow(how: ModelOptions): Partial<WasmPlannerOptions> {
     ...(how.mapping === undefined ? {} : { mapping: how.mapping }),
     ...(how.enumerations === undefined ? {} : { enumerations: how.enumerations }),
   };
+}
+
+/**
+ * A pure/v1 answer (`<status>\n<media type>\n<body>`, as the planner's route folds it): the body of a 200; any other
+ * status is the engine's refusal, `{message, ...}`, thrown as the planner refusing.
+ */
+function pureV1Body(answer: string, subject: Lambda | string): string {
+  const first = answer.indexOf('\n');
+  const second = answer.indexOf('\n', first + 1);
+  const body = answer.slice(second + 1);
+  if (answer.slice(0, first) === '200') return body;
+  let message = body;
+  try {
+    const refusal = JSON.parse(body) as { message?: unknown };
+    if (typeof refusal.message === 'string') message = refusal.message;
+  } catch { /* not JSON: the body is the message */ }
+  throw new PlanError(message || 'the planner refused the request', subject);
 }
 
 function decode(answer: string, subject: Lambda | string): string {
