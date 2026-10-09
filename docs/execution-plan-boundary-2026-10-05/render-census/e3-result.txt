@@ -1,0 +1,43 @@
+E-3's census (2026-10-08), measured on E-3's code at 4630b9598 (this file is the commit's only later change). Before:
+E-2 (its run on main 1818c89f7, e2-result.txt). After: E-3 on E-2, rebased onto main 37f102623 (the protocol line's
+landing in between renders nothing differently: no other entry moved). Same machine, same lanes, run.sh then
+compare.py. In both runs //pure-protocol:twins_test fails to build under the probe, by design (README); every other
+test passes.
+
+The 1 entry that differs is SqlWriterTest's new statement, a parameter under DuckDB's acos bound at both places it is
+written: every statement E-2 renders, E-3 renders identically.
+
+$ compare.py before after
+52095 (lane, dialect, kind, text) entries; 1 differ
+__gates_core DuckDb statement before=0 after=1
+    SELECT *\nFROM T_PERSON AS t0\nWHERE (CASE WHEN (?) BETWEEN -1 AND 1 THEN acos(?) ELSE 'NaN'::DOUBLE END) <= t0.AGE
+
+$ compare.py after   (the after run's totals)
+lane                                  renders   distinct
+__gates_core                            14308       3036
+__gates_stress                        5581730      10713
+__pct_pct_channel_b                      4932       3118
+__pct_pct_duckdb                         2599       1906
+__pct_pct_h2                              489        311
+__pct_pct_postgres                       2309       1720
+__spec_corpus_duckdb                    50761      15780
+__spec_corpus_h2                        49218      14784
+ALL                                   5706346      47911
+
+H2                     ddl       3741165
+H2                     dml       1837923
+DuckDb                 query       36214
+DuckDb                 ddl         33138
+H2                     query       24393
+EngineStyleH2          ddl         17512
+EngineStyleH2          query        7843
+DuckDb                 dml          5073
+Postgres               query        2334
+H2Modern               query         489
+EngineStyleDB2         query         172
+AnsiSqlRenderer        query          49
+EngineStyleComposite   query          32
+DuckDb                 statement          5
+H2Modern               dml             2
+H2                     statement          1
+Postgres               statement          1

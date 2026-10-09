@@ -272,17 +272,17 @@ public class EngineStyleDB2 extends EngineStyleH2 {
     }
 
     @Override
-    protected String variantAwareCast(SqlExpr.Cast c) {
+    protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         // T4 leg 1: synth-conformance casts are engine-TEXT-elided
         // (the wire-coercion precedent — the engine's SQL never
         // spells its decode-side coercion)
         if (c.conform()) {
-            return expr(c.value(), 0);
+            return writer.expr(c.value(), 0);
         }
         // DB2 string casts carry the engine's explicit width
         if (c.target() instanceof SqlType.Scalar s
                 && s == SqlType.Scalar.VARCHAR) {
-            return "cast(" + expr(c.value(), 0) + " as varchar(16000))";
+            return writer.append("cast(").expr(c.value(), 0).append(" as varchar(16000))");
         }
         // to_date/timestamp_format and infix interval arithmetic are
         // already date-typed — the IR's normalizing casts render bare
@@ -292,9 +292,9 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                 && c.value() instanceof SqlExpr.Call pc
                 && (pc.fn() == com.legend.sql.SqlFn.STRPTIME
                         || pc.fn() == com.legend.sql.SqlFn.ADD_INTERVAL)) {
-            return expr(pc, 0);
+            return writer.expr(pc, 0);
         }
-        return super.variantAwareCast(c);
+        return super.variantAwareCast(writer, c);
     }
 
 }

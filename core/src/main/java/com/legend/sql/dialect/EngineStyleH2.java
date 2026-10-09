@@ -28,14 +28,14 @@ import java.util.stream.Collectors;
 public class EngineStyleH2 extends AnsiSqlRenderer {
 
     @Override
-    protected String listCall(com.legend.sql.SqlFn fn,
+    protected SqlWriter listCall(SqlWriter writer, com.legend.sql.SqlFn fn,
             java.util.List<SqlExpr> args) {
         // greatest/least over a LITERAL collection: the engine's H2
         // emission is VARIADIC greatest(a, b, c); EMPTY = greatest(null)
         if ((fn == com.legend.sql.SqlFn.LIST_MAX
                 || fn == com.legend.sql.SqlFn.LIST_MIN)
                 && args.get(0) instanceof SqlExpr.ArrayLit al) {
-            return variadicExtreme(fn == com.legend.sql.SqlFn.LIST_MAX,
+            return variadicExtreme(writer, fn == com.legend.sql.SqlFn.LIST_MAX,
                     al.elements());
         }
         if ((fn == com.legend.sql.SqlFn.LIST_MAX
@@ -43,7 +43,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 && args.get(0) instanceof SqlExpr.NullLit) {
             // the EMPTY collection ([]->cast(@String)) — engine emits
             // greatest(null)
-            return variadicExtreme(fn == com.legend.sql.SqlFn.LIST_MAX,
+            return variadicExtreme(writer, fn == com.legend.sql.SqlFn.LIST_MAX,
                     java.util.List.of());
         }
         // the mixed-identity carrier's selection recipe
@@ -61,7 +61,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         || win.fn() == com.legend.sql.SqlFn.LIST_MIN)) {
             // render over the RAW comparables (vals), not the identity
             // encodings (ids) — engine: greatest("root".quantity, 1, 3)
-            return variadicExtreme(
+            return variadicExtreme(writer,
                     win.fn() == com.legend.sql.SqlFn.LIST_MAX,
                     vals.elements());
         }
@@ -86,14 +86,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                                 ? c.value() : e)
                         .toList();
                 if (elems.size() == 1) {
-                    return expr(elems.get(0), 0);
+                    return writer.expr(elems.get(0), 0);
                 }
                 SqlExpr chain = new SqlExpr.Call(op, elems);
                 // boolean chains are the engine's FLAT text (the AND/OR
                 // arms in expr); arithmetic chains parenthesize
-                return op == com.legend.sql.SqlFn.AND
-                        || op == com.legend.sql.SqlFn.OR
-                        ? expr(chain, 0) : expr(chain, Integer.MAX_VALUE);
+                return writer.expr(chain, op == com.legend.sql.SqlFn.AND
+                        || op == com.legend.sql.SqlFn.OR ? 0 : Integer.MAX_VALUE);
             }
         }
         // firstNotNull over a literal collection ($set->filter(v | $v !=
@@ -110,10 +109,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 && flt.args().get(1) instanceof SqlExpr.Lambda pred
                 && pred.params().size() == 1
                 && isNotNullOf(pred.body(), pred.params().get(0))) {
-            return expr(new SqlExpr.Call(com.legend.sql.SqlFn.COALESCE,
+            return writer.expr(new SqlExpr.Call(com.legend.sql.SqlFn.COALESCE,
                     src.elements()), 0);
         }
-        return super.listCall(fn, args);
+        return super.listCall(writer, fn, args);
     }
 
     /** {@code x is not null} in any of its lowered spellings over the
@@ -146,9 +145,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** Pure round is half-even; the engine's H2 text is the bare
      * {@code round(x[, n])} (the rows verdict judges the value). */
     @Override
-    protected String roundHalfEven(java.util.List<SqlExpr> a) {
-        return "round(" + expr(a.get(0), 0)
-                + (a.size() > 1 ? ", " + expr(a.get(1), 0) : "") + ")";
+    protected SqlWriter roundHalfEven(SqlWriter writer, java.util.List<SqlExpr> a) {
+        writer.append("round(").expr(a.get(0), 0);
+        if (a.size() > 1) {
+            writer.append(", ").expr(a.get(1), 0);
+        }
+        return writer.append(")");
     }
 
     /** joinStrings over a LITERAL element list: the engine's H2 emission
@@ -161,16 +163,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * — the engine translates toOne to processNoOp in SQL (D1; the
      * NULLS-suppression precedent for engine-verbatim views). */
     @Override
-    protected String checkedOne(SqlExpr.CheckedOne co, int parentPrec) {
-        return expr(co.list(), parentPrec);
+    protected SqlWriter checkedOne(SqlWriter writer, SqlExpr.CheckedOne co, int parentPrec) {
+        return writer.expr(co.list(), parentPrec);
     }
 
     /** Engine-TEXT view of carrier compaction: the VERBATIM inner value
      * — the engine's textual SQL has no compaction (its null-drop is
      * host-side); same rule as {@link #checkedOne}. */
     @Override
-    protected String compactList(SqlExpr.CompactList cl, int parentPrec) {
-        return expr(cl.list(), parentPrec);
+    protected SqlWriter compactList(SqlWriter writer, SqlExpr.CompactList cl, int parentPrec) {
+        return writer.expr(cl.list(), parentPrec);
     }
 
     private @com.legend.base.Nullable String joinStringsFlat(SqlExpr.Call c) {
@@ -265,21 +267,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return inner instanceof SqlExpr.Cast cast ? cast.value() : inner;
     }
 
-    private String variadicExtreme(boolean max,
+    private SqlWriter variadicExtreme(SqlWriter writer, boolean max,
             java.util.List<SqlExpr> elems) {
         String name = max ? "greatest" : "least";
-        return elems.isEmpty() ? name + "(null)"
-                : name + "(" + elems.stream()
+        return elems.isEmpty() ? writer.append(name + "(null)")
+                : writer.append(name + "(").join(elems, ", ", (w, e) -> w.expr(
                         // LUB-coercion casts around LITERALS are noise in
                         // the engine text (greatest coerces anyway)
-                        .map(e -> e instanceof SqlExpr.Cast c
+                        e instanceof SqlExpr.Cast c
                                 && (c.value() instanceof SqlExpr.IntLit
                                         || c.value() instanceof
                                                 SqlExpr.FloatLit)
-                                ? c.value() : e)
-                        .map(e -> expr(e, 0))
-                        .collect(java.util.stream.Collectors
-                                .joining(", ")) + ")";
+                                ? c.value() : e, 0)).append(")");
     }
 
     /** The engine connection's {@code quoteIdentifiers} flag: every
@@ -897,16 +896,15 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // spells exact self-aliased columns BARE (golden: select distinct
         // "persontable_2".FIRMID); top-level/named frames keep their as
         boolean bareKeys = s.distinct() && anonDistinctDepth > 0;
-        writer.append(s.projections().isEmpty() ? "*"
-                : s.projections().stream()
-                        .map(p -> bareKeys
-                                && p.expr() instanceof SqlExpr.Column pc
-                                && pc.name().equals(p.alias())
-                                ? new SqlSelect.Projection(p.expr(), null,
-                                        p.out())
-                                : p)
-                        .map(this::projection)
-                        .collect(Collectors.joining(", ")));
+        if (s.projections().isEmpty()) {
+            writer.append("*");
+        } else {
+            writer.join(s.projections(), ", ", (w, p) -> projection(w, bareKeys
+                    && p.expr() instanceof SqlExpr.Column pc
+                    && pc.name().equals(p.alias())
+                    ? new SqlSelect.Projection(p.expr(), null, p.out())
+                    : p));
+        }
         if (!(s.from() instanceof SqlSource.Dual)) {
             writer.append(" from ");
             source(writer, s.from(), depth);
@@ -923,8 +921,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             writer.append(" having ").expr(s.having(), 0);
         }
         if (!s.orderBy().isEmpty()) {
-            writer.append(" order by ").append(s.orderBy().stream()
-                    .map(this::sortKey).collect(Collectors.joining(", ")));
+            writer.append(" order by ").join(s.orderBy(), ", ", this::sortKey);
         }
         if (s.offset() != null) {
             writer.append(" offset ").append(s.offset()).append(" rows");
@@ -1088,14 +1085,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String projection(SqlSelect.Projection p) {
+    protected SqlWriter projection(SqlWriter writer, SqlSelect.Projection p) {
         // engine text spells a PROJECTED date constant as a PLAIN string
         // ('2015-10-16' as "k_processingDate" —
         // testProcessingTemporalPropertyQuery golden); COMPARISON
         // positions keep the typed DATE'...' literal
-        String e = p.expr() instanceof SqlExpr.DateLit dl
-                ? "'" + dl.iso() + "'"
-                : expr(p.expr(), 0);
+        if (p.expr() instanceof SqlExpr.DateLit dl) {
+            writer.append("'" + dl.iso() + "'");
+        } else {
+            writer.expr(p.expr(), 0);
+        }
         // synthetic scalar-map column: the engine spells a bare map
         // scalar select UNALIASED — this renderer IS the engine-TEXT
         // channel (execution renders through H2/H2Modern, which keep
@@ -1103,23 +1102,23 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // TextGoldens thread flag that used to say so
         if (p.alias() != null
                 && p.alias().startsWith(com.legend.sql.SqlSelect.SYNTH_MAP_COL)) {
-            return e;
+            return writer;
         }
         if (frameDepth > 0 && p.outputName() != null) {
             // engine view SQL: '"root".ORDER_ID as ORDER_ID' — always
             // aliased, unquoted
-            return e + " as " + p.outputName().replace("\"", "");
+            return writer.append(" as ").append(p.outputName().replace("\"", ""));
         }
         if (p.alias() == null) {
-            return e;
+            return writer;
         }
         // a PRE-QUOTED alias (the corpus's '"firstName"' spellings)
         // must not double-wrap — the engine prints one quote level
         String a = p.alias();
         if (a.length() > 1 && a.startsWith("\"") && a.endsWith("\"")) {
-            return e + " as " + a;
+            return writer.append(" as ").append(a);
         }
-        return e + " as \"" + a + '"';
+        return writer.append(" as \"").append(a).append("\"");
     }
 
     /** The row-order pseudo-column rides the SAME alias plan as
@@ -1404,12 +1403,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** Engine aggregate names are lowercase ({@code sum(}, {@code count(}
      * — every aggregation golden's spelling). */
     @Override
-    protected String reducer(com.legend.sql.SqlAgg.Reducer r) {
+    protected SqlWriter reducer(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
         // the H2-LENIENT per-group witness spells the BARE expression
         // (view ~groupBy per-row columns — H2 1.x goldens never wrap;
         // our DB-side form is ANY_VALUE, an engine-text-only unwrap)
         if (r.fn() == com.legend.sql.SqlAgg.Fn.ANY_VALUE && r.args().size() == 1) {
-            return expr(r.args().get(0), 0);
+            return writer.expr(r.args().get(0), 0);
         }
         // percentile: the engine's inverse-distribution form with the
         // direction spelled explicitly (extensionDefaults.pure:790) —
@@ -1420,29 +1419,32 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 && r.orderBy().size() <= 1) {
             boolean desc = !r.orderBy().isEmpty()
                     && !r.orderBy().get(0).ascending();
-            return (r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
-                    ? "percentile_cont(" : "percentile_disc(")
-                    + expr(r.args().get(1), 0)
-                    + ") within group (order by " + expr(r.args().get(0), 0)
-                    + (desc ? " desc" : " asc") + ")";
+            return writer.append(r.fn() == com.legend.sql.SqlAgg.Fn.QUANTILE_CONT
+                            ? "percentile_cont(" : "percentile_disc(")
+                    .expr(r.args().get(1), 0).append(") within group (order by ").expr(r.args().get(0), 0)
+                    .append(desc ? " desc" : " asc").append(")");
         }
-        String s = super.reducer(r);
+        // one of the legacy printer's text edits (the name lowercased after it is written; E-4 writes it
+        // directly): this printer binds nothing, so the bridge never refuses here
+        String s = super.reducer(newWriter(), r).bridged();
         int p = s.indexOf('(');
-        return s.substring(0, p).toLowerCase(Locale.ROOT) + s.substring(p);
+        return writer.append(s.substring(0, p).toLowerCase(Locale.ROOT)).append(s.substring(p));
     }
 
     /** Engine sort keys spell the direction EXPLICITLY and lowercase
      * ({@code asc}/{@code desc} — every ordered golden's spelling). */
     @Override
-    protected String sortKey(com.legend.sql.SqlSelect.SortKey k) {
+    protected SqlWriter sortKey(SqlWriter writer, com.legend.sql.SqlSelect.SortKey k) {
         // a COLUMN-NAME-keyed sort (or a table-less column key) is an
         // OUTPUT-column reference (TDS ->sort): the engine spells it
         // quoted — `order by "name" asc`
-        String e = k.outputName() != null
-                ? '"' + k.outputName().replace("\"", "") + '"'
-                : k.expr() instanceof SqlExpr.Column c && c.table() == null
-                        ? '"' + c.name() + '"'
-                        : expr(k.expr(), 0);
+        if (k.outputName() != null) {
+            writer.append('"' + k.outputName().replace("\"", "") + '"');
+        } else if (k.expr() instanceof SqlExpr.Column c && c.table() == null) {
+            writer.append('"' + c.name() + '"');
+        } else {
+            writer.expr(k.expr(), 0);
+        }
         // ENGINE-VERBATIM: the engine never spells a NULLS clause in
         // ORDER BY (every studied golden) — this TEXT channel suppresses
         // the IR's semantic null-order stamp ENTIRELY. Slice 10 made
@@ -1454,7 +1456,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // placement instead — the same per-backend upstream divergence
         // class as the index-base fork; drop-in text wins on this
         // surface.
-        return e + (k.ascending() ? " asc" : " desc");
+        return writer.append(k.ascending() ? " asc" : " desc");
     }
 
     /** ENGINE-VERBATIM, the sortKey suppression's aggregate-internal
@@ -1470,11 +1472,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** Engine window text is lowercase: {@code sum(...) over (partition
      * by ... order by ...)} (the window-col goldens' spelling). */
     @Override
-    protected String windowCall(SqlExpr.WindowCall w) {
-        String s = super.windowCall(w);
-        return s.replace(" OVER (", " over (")
+    protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
+        // one of the legacy printer's text edits (lowercased after it is written; E-4 writes it directly):
+        // this printer binds nothing, so the bridge never refuses here
+        String s = super.windowCall(newWriter(), w).bridged();
+        return writer.append(s.replace(" OVER (", " over (")
                 .replace("PARTITION BY ", "partition by ")
-                .replace("ORDER BY ", "order by ");
+                .replace("ORDER BY ", "order by "));
     }
 
     /**
@@ -1829,13 +1833,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
 
     @Override
-    protected String variantAwareCast(SqlExpr.Cast c) {
+    protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         // T4 leg 1: a SYNTH-CONFORMANCE cast is the engine's
         // decode-side coercion made explicit for EXECUTION — the
         // engine's own SQL never spells it, so engine TEXT elides it
         // (the wire-coercion suppression precedent).
         if (c.conform()) {
-            return expr(c.value(), 0);
+            return writer.expr(c.value(), 0);
         }
         // The F10 LITERAL marker cast is a LABEL device (the
         // construction-site carrier declaration scalarRoot reads) —
@@ -1846,7 +1850,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 || (c.target() instanceof com.legend.sql.SqlType.Array la
                         && la.element()
                                 == com.legend.sql.SqlType.Scalar.LITERAL)) {
-            return expr(c.value(), 0);
+            return writer.expr(c.value(), 0);
         }
         String t = castTypeName(c.target()).toLowerCase(Locale.ROOT);
         // The engine spells casts PER DYNAFUNCTION (audit 19 F3), so only
@@ -1864,7 +1868,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         } else if (t.equals("double precision") || t.equals("double")) {
             t = "float";
         }
-        return "cast(" + expr(c.value(), 0) + " as " + t + ")";
+        return writer.append("cast(").expr(c.value(), 0).append(" as " + t + ")");
     }
 
 
@@ -1882,11 +1886,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         }
         java.util.List<SqlExpr> elements = literalElements(coll);
         if (elements != null) {
-            StringBuilder sb = new StringBuilder(expr(m.needle(), 4)).append(" in (");
-            for (int i = 0; i < elements.size(); i++) {
-                sb.append(i > 0 ? ", " : "").append(expr(elements.get(i), 0));
-            }
-            return writer.append(sb.append(')').toString());
+            return writer.expr(m.needle(), 4).append(" in (").list(elements).append(")");
         }
         return writer.expr(m.needle(), 4).append(" in (").expr(coll, 0).append(")");
     }
@@ -1894,8 +1894,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** splitPart = the engine's own H2 extension function (commons split:
      *  adjacent separators collapse, past the end -> NULL) — the golden's spelling. */
     @Override
-    protected String splitPartCall(java.util.List<SqlExpr> a) {
-        return "legend_h2_extension_split_part(" + expr(a.get(0), 0) + ", "
-                + expr(a.get(1), 0) + ", " + expr(a.get(2), 0) + ")";
+    protected SqlWriter splitPartCall(SqlWriter writer, java.util.List<SqlExpr> a) {
+        return writer.append("legend_h2_extension_split_part(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
+                .append(", ").expr(a.get(2), 0).append(")");
     }
 }

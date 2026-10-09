@@ -1,14 +1,11 @@
 package com.legend.sql.dialect;
 
-import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * The DuckDB dialect: {@link AnsiSqlRenderer} plus DuckDB's genuine
@@ -214,11 +211,10 @@ public final class DuckDb extends AnsiSqlRenderer {
         // the engine's answer — not propagating DuckDB's exception.
         if (c.fn() == com.legend.sql.SqlFn.ACOS
                 || c.fn() == com.legend.sql.SqlFn.ASIN) {
-            String arg = expr(c.args().get(0), 0);
             String fn = c.fn() == com.legend.sql.SqlFn.ACOS
                     ? "acos" : "asin";
-            return writer.append("(CASE WHEN (").append(arg).append(") BETWEEN -1 AND 1 THEN ").append(fn).append("(")
-                    .append(arg).append(") ELSE 'NaN'::DOUBLE END)");
+            return writer.append("(CASE WHEN (").expr(c.args().get(0), 0).append(") BETWEEN -1 AND 1 THEN ").append(fn)
+                    .append("(").expr(c.args().get(0), 0).append(") ELSE 'NaN'::DOUBLE END)");
         }
         // now(): DuckDB returns TIMESTAMPTZ; the engine's H2 returns a
         // plain (session-local naive) TIMESTAMP, and DuckDB 1.5 refuses
@@ -290,12 +286,13 @@ public final class DuckDb extends AnsiSqlRenderer {
     /** DuckDB's native list carrier: {@code list_aggregate(list,
      * 'name', extras...)} — byte-identical to the pre-R1 emission. */
     @Override
-    protected String reduceCollection(SqlExpr.ReduceCollection rc) {
-        return "list_aggregate(" + expr(rc.collection(), 0) + ", '"
-                + rc.reducer().name().toLowerCase(java.util.Locale.ROOT) + "'"
-                + rc.extras().stream().map(x -> ", " + expr(x, 0))
-                        .collect(java.util.stream.Collectors.joining())
-                + ")";
+    protected SqlWriter reduceCollection(SqlWriter writer, SqlExpr.ReduceCollection rc) {
+        writer.append("list_aggregate(").expr(rc.collection(), 0).append(", '")
+                .append(rc.reducer().name().toLowerCase(java.util.Locale.ROOT)).append("'");
+        for (SqlExpr x : rc.extras()) {
+            writer.append(", ").expr(x, 0);
+        }
+        return writer.append(")");
     }
 
     /** DuckDB native membership (byte-identical to the pre-R2 call). */
@@ -330,33 +327,29 @@ public final class DuckDb extends AnsiSqlRenderer {
         // ON columns quote UNCONDITIONALLY (the corpus pins "year" — the
         // usual pivot keys are date-part words DuckDB half-reserves).
         // args arrive pre-unqualified (the UnqualifyPivotArgs pass)
-        writer.append(" ON ").append(p.on().stream()
-                .map(e -> e instanceof SqlExpr.Column c
-                        ? delimited(c.name())
-                        : expr(e, 0))
-                .collect(Collectors.joining(", ")));
+        writer.append(" ON ").join(p.on(), ", ", (w, e) -> {
+            if (e instanceof SqlExpr.Column c) {
+                w.append(delimited(c.name()));
+            } else {
+                w.expr(e, 0);
+            }
+        });
         if (!p.in().isEmpty()) {
-            writer.append(" IN (").append(p.in().stream()
-                    .map(e -> expr(e, 0))
-                    .collect(Collectors.joining(", "))).append(")");
+            writer.append(" IN (").list(p.in()).append(")");
         }
-        writer.append(" USING ").append(p.usings().stream()
-                .map(u -> reducer(u.agg())
-                        // real pure names pivot columns value__|__agg; DuckDB
-                        // joins value + '_' + alias, so the alias carries the
-                        // '_|__agg' tail.
-                        + " AS " + ident("_|__" + u.alias()))
-                .collect(Collectors.joining(", ")));
+        // real pure names pivot columns value__|__agg; DuckDB joins value + '_' + alias, so the alias carries the
+        // '_|__agg' tail.
+        writer.append(" USING ").join(p.usings(), ", ", (w, u) -> reducer(w, u.agg()).append(" AS ")
+                .append(ident("_|__" + u.alias())));
         return writer.append(") AS ").append(ident(p.alias()));
     }
 
     // ---- list idioms: DuckDB is the lambda backend ----
 
     @Override
-    protected String lambda(SqlExpr.Lambda l) {
-        return (l.params().size() == 1
-                ? l.params().get(0)
-                : "(" + String.join(", ", l.params()) + ")") + " -> " + expr(l.body(), 0);
+    protected SqlWriter lambda(SqlWriter writer, SqlExpr.Lambda l) {
+        return writer.append(l.params().size() == 1 ? l.params().get(0) : "(" + String.join(", ", l.params()) + ")")
+                .append(" -> ").expr(l.body(), 0);
     }
 
 
@@ -394,124 +387,122 @@ public final class DuckDb extends AnsiSqlRenderer {
 
     /** Pure semantics ride the expansion: exists([])=false, forAll([])=true. */
     @Override
-    protected String listExists(List<SqlExpr> args) {
-        return listPredicate(args, "list_bool_or", false);
+    protected SqlWriter listExists(SqlWriter writer, List<SqlExpr> args) {
+        return listPredicate(writer, args, "list_bool_or", false);
     }
 
     @Override
-    protected String listForAll(List<SqlExpr> args) {
-        return listPredicate(args, "list_bool_and", true);
+    protected SqlWriter listForAll(SqlWriter writer, List<SqlExpr> args) {
+        return listPredicate(writer, args, "list_bool_and", true);
     }
 
     /** len(list_distinct(x)) = len(x) — no duplicates iff dedup is a
      * no-op; NULL (empty) coalesces to true. */
     @Override
-    protected String allDistinct(List<SqlExpr> args) {
-        String x = expr(args.get(0), 0);
-        return "coalesce(len(list_distinct(" + x + ")) = len(" + x
-                + "), TRUE)";
+    protected SqlWriter allDistinct(SqlWriter writer, List<SqlExpr> args) {
+        return writer.append("coalesce(len(list_distinct(").expr(args.get(0), 0).append(")) = len(")
+                .expr(args.get(0), 0).append("), TRUE)");
     }
 
-    private String listPredicate(List<SqlExpr> args, String agg, boolean emptyDefault) {
-        return "coalesce(" + agg + "(" + fn("list_transform", args) + "), "
-                + boolLit(emptyDefault) + ")";
+    private SqlWriter listPredicate(SqlWriter writer, List<SqlExpr> args, String agg, boolean emptyDefault) {
+        return writer.append("coalesce(").append(agg).append("(").function("list_transform", args).append("), ")
+                .append(boolLit(emptyDefault)).append(")");
     }
 
     @Override
-    protected String listCall(SqlFn fnName, List<SqlExpr> args) {
+    protected SqlWriter listCall(SqlWriter writer, SqlFn fnName, List<SqlExpr> args) {
         return switch (fnName) {
-            case LIST_FILTER -> fn("list_filter", args);
-            case LIST_TRANSFORM -> fn("list_transform", args);
-            case LIST_FLATTEN -> fn("flatten", args);
-            case LIST_CONCAT -> fn("list_concat", args);
-            case JSON_MERGE_PATCH -> fn("json_merge_patch", args);
-            case LIST_GET -> fn("list_extract", args);
-            case LIST_POSITION -> fn("list_position", args);
-            case LIST_ZIP -> fn("list_zip", args);
-            case LIST_DISTINCT -> fn("list_distinct", args);
-            case LIST_APPEND -> fn("list_append", args);
-            case LIST_SUM -> fn("list_sum", args);
-            case LIST_MIN -> fn("list_min", args);
-            case LIST_MAX -> fn("list_max", args);
-            case LIST_AVG -> fn("list_avg", args);
-            case LIST_MEDIAN -> fn("list_median", args);
-            case LIST_MODE -> "list_aggregate(" + expr(args.get(0), 0) + ", 'mode')";
-            case LIST_PRODUCT -> "list_aggregate(" + expr(args.get(0), 0) + ", 'product')";
-            case LIST_REDUCE -> fn("list_reduce", args);
-            case LIST_SLICE -> fn("array_slice", args);
-            case LIST_BOOL_AND -> "list_aggregate(" + expr(args.get(0), 0) + ", 'bool_and')";
-            case LIST_BOOL_OR -> "list_aggregate(" + expr(args.get(0), 0) + ", 'bool_or')";
-            case LIST_REVERSE -> fn("list_reverse", args);
-            case TYPEOF -> fn("typeof", args);
-            case LIST_SORT -> fn("list_sort", args);
-            case LIST_SORT_DESC -> fn("list_reverse_sort", args);
-            case LIST_TAIL -> expr(args.get(0), 8) + "[2:]";
-            case LIST_INIT -> expr(args.get(0), 8) + "[:-2]";
-            case RANGE_FN -> fn("range", args);
-            case REPEAT_VALUE -> "list_transform(range(" + expr(args.get(1), 0) + "), _i -> "
-                    + expr(args.get(0), 0) + ")";
+            case LIST_FILTER -> writer.function("list_filter", args);
+            case LIST_TRANSFORM -> writer.function("list_transform", args);
+            case LIST_FLATTEN -> writer.function("flatten", args);
+            case LIST_CONCAT -> writer.function("list_concat", args);
+            case JSON_MERGE_PATCH -> writer.function("json_merge_patch", args);
+            case LIST_GET -> writer.function("list_extract", args);
+            case LIST_POSITION -> writer.function("list_position", args);
+            case LIST_ZIP -> writer.function("list_zip", args);
+            case LIST_DISTINCT -> writer.function("list_distinct", args);
+            case LIST_APPEND -> writer.function("list_append", args);
+            case LIST_SUM -> writer.function("list_sum", args);
+            case LIST_MIN -> writer.function("list_min", args);
+            case LIST_MAX -> writer.function("list_max", args);
+            case LIST_AVG -> writer.function("list_avg", args);
+            case LIST_MEDIAN -> writer.function("list_median", args);
+            case LIST_MODE -> writer.append("list_aggregate(").expr(args.get(0), 0).append(", 'mode')");
+            case LIST_PRODUCT -> writer.append("list_aggregate(").expr(args.get(0), 0).append(", 'product')");
+            case LIST_REDUCE -> writer.function("list_reduce", args);
+            case LIST_SLICE -> writer.function("array_slice", args);
+            case LIST_BOOL_AND -> writer.append("list_aggregate(").expr(args.get(0), 0).append(", 'bool_and')");
+            case LIST_BOOL_OR -> writer.append("list_aggregate(").expr(args.get(0), 0).append(", 'bool_or')");
+            case LIST_REVERSE -> writer.function("list_reverse", args);
+            case TYPEOF -> writer.function("typeof", args);
+            case LIST_SORT -> writer.function("list_sort", args);
+            case LIST_SORT_DESC -> writer.function("list_reverse_sort", args);
+            case LIST_TAIL -> writer.expr(args.get(0), 8).append("[2:]");
+            case LIST_INIT -> writer.expr(args.get(0), 8).append("[:-2]");
+            case RANGE_FN -> writer.function("range", args);
+            case REPEAT_VALUE -> writer.append("list_transform(range(").expr(args.get(1), 0).append("), _i -> ")
+                    .expr(args.get(0), 0).append(")");
             default -> throw new IllegalStateException("not a list call: " + fnName);
         };
     }
 
     @Override
-    protected String hashSigned(List<SqlExpr> a) {
+    protected SqlWriter hashSigned(SqlWriter writer, List<SqlExpr> a) {
         // hash() is UBIGINT and CAST is range-checked, not
         // bit-reinterpreting: flip the sign bit in unsigned space, then
         // shift down by 2^63 in HUGEINT space — exact two's-complement
         // reinterpretation, bijective, hash evaluated once
-        return "CAST(CAST(xor(" + fn("hash", a)
-                + ", CAST(9223372036854775808 AS UBIGINT)) AS HUGEINT)"
-                + " - 9223372036854775808 AS BIGINT)";
+        return writer.append("CAST(CAST(xor(").function("hash", a)
+                .append(", CAST(9223372036854775808 AS UBIGINT)) AS HUGEINT) - 9223372036854775808 AS BIGINT)");
     }
 
     @Override
-    protected String roundHalfEven(List<SqlExpr> a) {
+    protected SqlWriter roundHalfEven(SqlWriter writer, List<SqlExpr> a) {
         // round_even is a 2-arg macro — bare round(x) means precision 0.
         return a.size() == 1
-                ? "ROUND_EVEN(" + expr(a.get(0), 0) + ", 0)"
-                : fn("ROUND_EVEN", a);
+                ? writer.append("ROUND_EVEN(").expr(a.get(0), 0).append(", 0)")
+                : writer.function("ROUND_EVEN", a);
     }
 
     @Override
-    protected String bitOp(SqlFn fnName, List<SqlExpr> a) {
-        String x = expr(a.get(0), 6);
-        String y = expr(a.get(1), 6);
+    protected SqlWriter bitOp(SqlWriter writer, SqlFn fnName, List<SqlExpr> a) {
         return switch (fnName) {
-            case BIT_AND -> "(" + x + " & " + y + ")";
-            case BIT_OR -> "(" + x + " | " + y + ")";
-            case BIT_XOR -> fn("xor", a);
-            case BIT_SHIFT_LEFT -> "(" + x + " << " + y + ")";
-            case BIT_SHIFT_RIGHT -> "(" + x + " >> " + y + ")";
+            case BIT_AND -> writer.append("(").expr(a.get(0), 6).append(" & ").expr(a.get(1), 6).append(")");
+            case BIT_OR -> writer.append("(").expr(a.get(0), 6).append(" | ").expr(a.get(1), 6).append(")");
+            case BIT_XOR -> writer.function("xor", a);
+            case BIT_SHIFT_LEFT -> writer.append("(").expr(a.get(0), 6).append(" << ").expr(a.get(1), 6).append(")");
+            case BIT_SHIFT_RIGHT -> writer.append("(").expr(a.get(0), 6).append(" >> ").expr(a.get(1), 6).append(")");
             default -> throw new IllegalStateException("not a bit op: " + fnName);
         };
     }
 
     @Override
-    protected String variantConstruct(List<SqlExpr> a) {
+    protected SqlWriter variantConstruct(SqlWriter writer, List<SqlExpr> a) {
         // a stored Variant column is read as it is: to_json converts either storage once
-        return a.size() == 1 && storedVariant(a.get(0))
-                ? "to_json(" + navigated(a.get(0)) + ")" : fn("to_json", a);
+        if (a.size() == 1 && storedVariant(a.get(0))) {
+            writer.append("to_json(");
+            return navigated(writer, a.get(0)).append(")");
+        }
+        return writer.function("to_json", a);
     }
 
     /** DuckDB explodes select-list unnest into rows — placement idiom. */
     @Override
-    protected String unnestProjection(List<SqlExpr> args) {
-        return fn("UNNEST", args);
+    protected SqlWriter unnestProjection(SqlWriter writer, List<SqlExpr> args) {
+        return writer.function("UNNEST", args);
     }
 
     @Override
-    protected String arrayLit(List<SqlExpr> elements) {
-        return "[" + list(elements) + "]";
+    protected SqlWriter arrayLit(SqlWriter writer, List<SqlExpr> elements) {
+        return writer.append("[").list(elements).append("]");
     }
 
     @Override
-    protected String structLit(SqlExpr.StructLit s) {
+    protected SqlWriter structLit(SqlWriter writer, SqlExpr.StructLit s) {
         // stringLit, not raw interpolation: a Pure property name may carry
         // quotes ('quoted name' declarations) — C2.1 injection surface
-        return "{" + s.fields().stream()
-                .map(f -> stringLit(f.name()) + ": " + structFieldValue(f))
-                .collect(java.util.stream.Collectors.joining(", ")) + "}";
+        return writer.append("{").join(s.fields(), ", ", (w, f) -> structFieldValue(w.append(stringLit(f.name()))
+                .append(": "), f)).append("}");
     }
 
     /** A NULL-valued field spells its builder-DECLARED slot type (the
@@ -520,36 +511,34 @@ public final class DuckDb extends AnsiSqlRenderer {
      * "NULL" type for the slot and two instances of ONE class stop
      * unifying (list_reduce accumulator vs reducer struct — the fold
      * family's {@code VARCHAR[] -> "NULL"} cast wall). */
-    private String structFieldValue(SqlExpr.StructLit.Field f) {
+    private SqlWriter structFieldValue(SqlWriter writer, SqlExpr.StructLit.Field f) {
         return f.declared() != null
                 && f.value().type() instanceof com.legend.sql.TypeFact.Bottom
-                ? "CAST(" + expr(f.value(), 0) + " AS "
-                        + castTypeName(f.declared()) + ")"
-                : expr(f.value(), 0);
+                ? writer.append("CAST(").expr(f.value(), 0).append(" AS ").append(castTypeName(f.declared()))
+                        .append(")")
+                : writer.expr(f.value(), 0);
     }
 
     @Override
-    protected String structGet(SqlExpr.StructGet g) {
+    protected SqlWriter structGet(SqlWriter writer, SqlExpr.StructGet g) {
         // a POSITIONAL field (list_zip yields unnamed structs): the
         // 1-based index, never a quoted name
-        if (g.field().chars().allMatch(Character::isDigit)) {
-            return "struct_extract(" + expr(g.source(), 0) + ", " + g.field() + ")";
-        }
-        return "struct_extract(" + expr(g.source(), 0) + ", "
-                + stringLit(g.field()) + ")";
+        return writer.append("struct_extract(").expr(g.source(), 0).append(", ")
+                .append(g.field().chars().allMatch(Character::isDigit) ? g.field() : stringLit(g.field())).append(")");
     }
 
     // ---- variant (JSON) idioms ----
 
     @Override
-    protected String variantGet(List<SqlExpr> args) {
+    protected SqlWriter variantGet(SqlWriter writer, List<SqlExpr> args) {
         // Parenthesized ALWAYS: DuckDB's lambda arrow and the JSON arrow
         // collide inside list lambdas (i -> i -> 'k' fails to parse). An
         // INTEGER key takes the arrow too, never a subscript: on JSON the two
         // agree (0-based, -1 the last, past the end NULL), but a native LIST's
         // subscript is 1-based -- (xs)[1] is the FIRST element there, the
         // second in JSON (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md, D1).
-        return "(" + navigated(args.get(0)) + " -> " + expr(args.get(1), 8) + ")";
+        writer.append("(");
+        return navigated(writer, args.get(0)).append(" -> ").expr(args.get(1), 8).append(")");
     }
 
     /**
@@ -567,8 +556,8 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     /** The operand of a navigation: a stored Variant column as it is. */
-    private String navigated(SqlExpr e) {
-        return storedVariant(e) ? super.columnRef((SqlExpr.Column) e) : expr(e, 7);
+    private SqlWriter navigated(SqlWriter writer, SqlExpr e) {
+        return storedVariant(e) ? writer.append(super.columnRef((SqlExpr.Column) e)) : writer.expr(e, 7);
     }
 
     @Override
@@ -586,15 +575,21 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     @Override
-    protected String variantElements(List<SqlExpr> args) {
-        return "CAST(" + (storedVariant(args.get(0)) ? navigated(args.get(0)) : expr(args.get(0), 0)) + " AS JSON[])";
+    protected SqlWriter variantElements(SqlWriter writer, List<SqlExpr> args) {
+        writer.append("CAST(");
+        if (storedVariant(args.get(0))) {
+            navigated(writer, args.get(0));
+        } else {
+            writer.expr(args.get(0), 0);
+        }
+        return writer.append(" AS JSON[])");
     }
 
     @Override
-    protected String structInsert(List<SqlExpr> args) {
+    protected SqlWriter structInsert(SqlWriter writer, List<SqlExpr> args) {
         String name = ((SqlExpr.StringLit) args.get(1)).value();
-        return "struct_insert(" + expr(args.get(0), 0) + ", \""
-                + name.replace("\"", "\"\"") + "\" := " + expr(args.get(2), 0) + ")";
+        return writer.append("struct_insert(").expr(args.get(0), 0).append(", \"").append(name.replace("\"", "\"\""))
+                .append("\" := ").expr(args.get(2), 0).append(")");
     }
 
     /**
@@ -603,12 +598,12 @@ public final class DuckDb extends AnsiSqlRenderer {
      * not in the IR.
      */
     @Override
-    protected String variantAwareCast(SqlExpr.Cast c) {
+    protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
         if (!(c.target() instanceof com.legend.sql.SqlType.Array)
                 && c.value() instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET) {
-            String text = "(" + navigated(call.args().get(0)) + " ->> "
-                    + expr(call.args().get(1), 8) + ")";
-            return "CAST(" + text + " AS " + castTypeName(c.target()) + ")";
+            writer.append("CAST((");
+            return navigated(writer, call.args().get(0)).append(" ->> ").expr(call.args().get(1), 8).append(") AS ")
+                    .append(castTypeName(c.target())).append(")");
         }
         // to/toMany of a whole stored Variant: a cast reads either storage as it is (a native
         // LIST casts to BIGINT[] directly) -- except to TEXT, where a native value would print in
@@ -616,21 +611,22 @@ public final class DuckDb extends AnsiSqlRenderer {
         if (storedVariant(c.value()) && c.target() != com.legend.sql.SqlType.Scalar.VARCHAR
                 && c.target() != com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT
                 && c.target() != com.legend.sql.SqlType.Scalar.DECIMAL_TEXT) {
-            return "CAST(" + navigated(c.value()) + " AS " + castTypeName(c.target()) + ")";
+            writer.append("CAST(");
+            return navigated(writer, c.value()).append(" AS ").append(castTypeName(c.target())).append(")");
         }
-        return super.variantAwareCast(c);
+        return super.variantAwareCast(writer, c);
     }
 
     /** splitPart over the list encoding: list_extract(list_filter(string_split(s, t),
      *  x -> x <> ''), p) — a list index past the end is NULL. */
     @Override
-    protected String splitPartCall(List<SqlExpr> a) {
+    protected SqlWriter splitPartCall(SqlWriter writer, List<SqlExpr> a) {
         SqlExpr parts = SqlExpr.Call.of(SqlFn.SPLIT, a.get(0), a.get(1));
         SqlExpr nonEmpty = SqlExpr.Call.of(SqlFn.LIST_FILTER, parts,
                 new SqlExpr.Lambda(List.of("x"),
                         SqlExpr.Call.of(SqlFn.NOT_EQUAL,
                                 SqlExpr.Column.param("x", parts),
                                 new SqlExpr.StringLit(""))));
-        return expr(SqlExpr.Call.of(SqlFn.LIST_GET, nonEmpty, a.get(2)), 0);
+        return writer.expr(SqlExpr.Call.of(SqlFn.LIST_GET, nonEmpty, a.get(2)), 0);
     }
 }

@@ -223,11 +223,10 @@ docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10, "E"): text in order, and each b
 written, so a statement's parameters are in placeholder order by construction. A render method writes and returns the
 writer (so its dispatching switch stays an expression javac checks, below) — never a rendered string that a caller
 pastes (a piece pasted twice would carry its parameter once); a method that only spells a name, a literal or a type
-returns its text. E is landing in stages: the clause layer (queries, selects, sources, their WHERE/HAVING/ON/QUALIFY)
-and expressions (`expr`, `call`, `membership`, subqueries) write into the writer; the other composing helpers (CASE,
-casts, windows, aggregates, list and JSON functions, projections, sort keys), an arm that pastes a sub-expression it
-built as text, and the DDL and DML entries still build strings, reached through a bridge where a bound parameter is
-refused, until their stage moves them. Never edit rendered SQL after it is written —
+returns its text; a helper that wraps SQL it does not build takes or returns a `SqlWriter.Piece`, never that SQL's
+text. E is landing in stages: every dialect that executes writes all of a query into the writer (E-2, E-3); the legacy
+engine-text printer's own helpers and the DDL and DML entries still build strings, reached through a bridge where a
+bound parameter is refused, until their stage moves them. Never edit rendered SQL after it is written —
 the legacy engine-text printer's four edits (lowercasing `OVER`, `PARTITION BY` and a function name; escaping a rendered
 expression into a FreeMarker argument) are the known exceptions, until E's stage for that printer writes them directly.
 

@@ -371,10 +371,22 @@ parameters.
   would have written nothing, and two methods grew past the 250-line guard (`call` 219 → 370 lines, `postgresCall` 229 →
   435). Returning the writer restored both (`call` 229, `postgresCall` 242). Checked by the compiler and the census:
   every statement rendered before renders identically (`render-census/e2-result.txt`).
-- **E-3 onwards, by method family** (a base method with every dialect's override of it): the remaining composing
-  helpers, and the arms that paste a sub-expression built as text. The stage that moves the DDL and DML renderers closes
-  **PARK-16** (DDL and DML spell a table or schema name raw where queries quote it; `docs/PARKED_WORK_LEDGER.md`): its
-  own landing right after that stage, measured on the census — the stage rewrites `ddlQualified`, so the row's anchor
-  goes red there.
-- **The bridge removed;** the legacy printer's 4 text edits become direct writes.
+- **E-3, the composing helpers — on branch 2026-10-08, stacked on E-2.** Every dialect that executes (`AnsiSqlRenderer`,
+  `DuckDb`, `H2`, `H2Modern`, `Postgres`) writes all of a query into the writer: CASE, casts, windows, aggregates, the
+  list, JSON, variant and struct functions, projections, sort keys, and the arms E-2 left pasting text (acos's domain
+  guard; Postgres's regexp, date and JSON arms). Three writer forms do it without text: `function(name, args)` writes
+  `name(a, b)`; `join(items, separator, each)` writes each item by a function (`CAST(x AS INTEGER)` per argument); and a
+  `Piece`, a piece of SQL that writes itself, is what a helper takes or returns where it used to take or return text it
+  did not build (Postgres's `listOf(xs)`, `decode(json, …)`, `naive(ts)`) — written where the helper writes it, as often
+  as it does, its parameters with it (jOOQ's QueryPart). The base's text helpers `fn` and `list` are gone, and so are
+  the string forms of `call` and `membership`, without callers once every override writes (`expr`'s and `inline`'s
+  remain the bridge). A base method changed, so did every override, the legacy engine-text printer's included; that
+  printer's own helpers and its text edits (which now edit a piece it wrote itself: it binds nothing) are the next
+  stage. `SqlWriterTest`: a parameter under acos is bound at both places it is written and runs on DuckDB; a parameter
+  in a DML row (still text) is refused. Census: every statement E-2 renders, E-3 renders identically
+  (`render-census/e3-result.txt`).
+- **The DDL and DML stage** closes **PARK-16** (DDL and DML spell a table or schema name raw where queries quote it;
+  `docs/PARKED_WORK_LEDGER.md`): its own landing right after that stage, measured on the census — the stage rewrites
+  `ddlQualified`, so the row's anchor goes red there.
+- **The legacy printer, and the bridge removed:** its own helpers write, its 4 text edits become direct writes.
 - **Then step 2's landing 2**: a parameter is `bind(...)`.

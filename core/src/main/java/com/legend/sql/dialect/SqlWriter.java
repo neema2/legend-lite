@@ -14,9 +14,9 @@ import java.util.List;
  * ({@code return switch (c.fn()) { case SQRT -> writer.append("sqrt(").expr(a, 0).append(")"); ... }}); a piece written
  * twice is written twice, its parameter with it.
  *
- * <p>E-2: the clause layer and expressions write here; the other composing helpers (CASE, casts, windows, aggregates,
- * list and JSON functions, projections, sort keys), and an arm that pastes a sub-expression it built as text, still
- * build strings through a bridge ({@link #bridged}), where a bound parameter is refused, until their stage moves them.
+ * <p>E-3: every dialect that executes writes all of a query here; the legacy engine-text printer's own helpers and the
+ * DDL and DML entries still build strings through a bridge ({@link #bridged}), where a bound parameter is refused,
+ * until their stage moves them.
  */
 final class SqlWriter {
 
@@ -25,6 +25,14 @@ final class SqlWriter {
     @FunctionalInterface
     interface Expressions {
         void write(SqlWriter writer, com.legend.sql.SqlExpr e, int parentPrec);
+    }
+
+    /** A piece of SQL that writes itself — what a helper wraps when it does not build it itself (a value read out of
+     *  jsonb, a list whose elements it ranges over): written where the helper writes it, as often as it does, its
+     *  parameters with it (jOOQ's QueryPart). */
+    @FunctionalInterface
+    interface Piece {
+        void writeTo(SqlWriter writer);
     }
 
     private final StringBuilder sql = new StringBuilder();
@@ -72,6 +80,28 @@ final class SqlWriter {
         return join(es, ", ", 0);
     }
 
+    /** Writes {@code name(args...)}, the arguments comma-separated. */
+    SqlWriter function(String name, List<com.legend.sql.SqlExpr> args) {
+        return append(name).append("(").list(args).append(")");
+    }
+
+    /** Writes each item as {@code each} writes it, joined by {@code separator}. */
+    <T> SqlWriter join(List<T> items, String separator, java.util.function.BiConsumer<SqlWriter, T> each) {
+        for (int i = 0; i < items.size(); i++) {
+            if (i > 0) {
+                sql.append(separator);
+            }
+            each.accept(this, items.get(i));
+        }
+        return this;
+    }
+
+    /** Writes {@code piece} here. */
+    SqlWriter piece(Piece piece) {
+        piece.writeTo(this);
+        return this;
+    }
+
     /** Writes a placeholder and records the parameter it binds, at this place in the statement. */
     SqlWriter bind(RenderedStatement.Bind bind) {
         sql.append('?');
@@ -94,11 +124,11 @@ final class SqlWriter {
         return sql.toString();
     }
 
-    /** The text written by a piece of SQL still built as a string (E's bridge, until its stage moves the piece into the
-     *  writer): refused when a parameter was bound, which the string cannot carry to its statement. */
+    /** The text written by a part of the SQL still built as a string (E's bridge, until its stage moves that part into
+     *  the writer): refused when a parameter was bound, which the string cannot carry to its statement. */
     String bridged() {
         if (!binds.isEmpty()) {
-            throw new DialectCapability("bound parameters " + binds + " reached a piece of SQL still built as text"
+            throw new DialectCapability("bound parameters " + binds + " reached a part of the SQL still built as text"
                     + " (E's bridge, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10): it cannot carry them yet");
         }
         return sql.toString();

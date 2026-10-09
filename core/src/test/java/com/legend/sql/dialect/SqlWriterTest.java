@@ -154,10 +154,22 @@ class SqlWriterTest {
     }
 
     @Test
-    void aParameterUnderAPieceStillBuiltAsTextIsRefused() {
-        // DuckDB's acos pastes its argument, built as text, twice (E's bridge until its stage moves it)
+    void aParameterUnderAHelperIsBoundEveryPlaceItIsWritten() throws SQLException {
+        // DuckDB's acos writes its argument twice: the domain guard, then the call (E-3)
         SqlSelect q = where(SqlExpr.Call.of(SqlFn.LESS_EQUAL, SqlExpr.Call.of(SqlFn.ACOS, P_AGE), AGE));
-        var refused = assertThrows(DialectCapability.class, () -> new DuckDb().renderStatement(q));
+        RenderedStatement s = new DuckDb().renderStatement(q);
+        assertEquals(List.of("maxAge", "maxAge"), s.binds().stream().map(RenderedStatement.Bind::parameter).toList(),
+                s.sql());
+        // acos(1) is 0, at most every age; acos(2) is out of the domain: NaN, at most none
+        assertEquals(List.of("a", "b", "c"), run(s, Map.of("maxAge", 1)), s.sql());
+        assertEquals(List.of(), run(s, Map.of("maxAge", 2)), s.sql());
+    }
+
+    @Test
+    void aParameterUnderAPartStillBuiltAsTextIsRefused() {
+        // a DML statement's rows are still built as text (E's bridge, until its stage moves them)
+        var rows = new com.legend.sql.SqlDml.InsertValues(null, "T_PERSON", List.of("NAME"), List.of(List.of(P_NAME)));
+        var refused = assertThrows(DialectCapability.class, () -> new DuckDb().render(rows));
         assertTrue(refused.getMessage().contains("still built as text"), refused.getMessage());
     }
 

@@ -33,3 +33,4 @@ since). With those normalised, two full runs agree on all 52,085 entries.
 
 **Stage results.** `e1-result.txt` — E-1: 0 of 52,085 entries differ. `e2-result.txt` — E-2, against main: of 52,094
 entries, the 3 that differ are E-2's new test statements; every statement main renders, E-2 renders identically.
+`e3-result.txt` — E-3, against E-2: of 52,095 entries, the 1 that differs is E-3's new test statement.

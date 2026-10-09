@@ -29,37 +29,30 @@ public class H2Modern extends H2 {
     /** {@code (x)."key"} / {@code (x)[i+1]} — dynamic keys have no
      * spelling (field access is an identifier) and fall to the wall. */
     @Override
-    protected String variantGet(List<SqlExpr> args) {
+    protected SqlWriter variantGet(SqlWriter writer, List<SqlExpr> args) {
         if (args.get(1) instanceof SqlExpr.StringLit key) {
-            return "(" + expr(args.get(0), 7) + ").\""
-                    + key.value().replace("\"", "\"\"") + "\"";
+            return writer.append("(").expr(args.get(0), 7).append(").\"")
+                    .append(key.value().replace("\"", "\"\"")).append("\"");
         }
         if (args.get(1) instanceof SqlExpr.IntLit ix) {
-            return "(" + expr(args.get(0), 7) + ")[" + (ix.value() + 1) + "]";
+            return writer.append("(").expr(args.get(0), 7).append(")[").append(ix.value() + 1).append("]");
         }
-        return super.variantGet(args);
+        return super.variantGet(writer, args);
     }
 
     /** Struct values ride the JSON-object carrier here: literal ->
      * JSON_OBJECT (canonical field order), field read -> navigation. */
     @Override
-    protected String structLit(SqlExpr.StructLit s) {
-        StringBuilder sb = new StringBuilder("JSON_OBJECT(");
-        for (int i = 0; i < s.fields().size(); i++) {
-            SqlExpr.StructLit.Field f = s.fields().get(i);
-            if (i > 0) {
-                sb.append(", ");
-            }
-            sb.append(stringLit(f.name())).append(": ")
-                    .append(expr(f.value(), 0));
-        }
-        return sb.append(")").toString();
+    protected SqlWriter structLit(SqlWriter writer, SqlExpr.StructLit s) {
+        return writer.append("JSON_OBJECT(")
+                .join(s.fields(), ", ", (w, f) -> w.append(stringLit(f.name())).append(": ").expr(f.value(), 0))
+                .append(")");
     }
 
     @Override
-    protected String structGet(SqlExpr.StructGet g) {
-        return "(" + expr(g.source(), 7) + ").\""
-                + g.field().replace("\"", "\"\"") + "\"";
+    protected SqlWriter structGet(SqlWriter writer, SqlExpr.StructGet g) {
+        return writer.append("(").expr(g.source(), 7).append(").\"").append(g.field().replace("\"", "\"\""))
+                .append("\"");
     }
 
     /** {@code CARDINALITY} counts JSON-array elements on 2.3+ (probed:
@@ -87,14 +80,11 @@ public class H2Modern extends H2 {
      * spellings: {@code JSON '...'} for literals, {@code (x FORMAT
      * JSON)} for dynamic text (both probed to navigate). TO_VARIANT
      * keeps the quoting CAST — that IS toVariant's string semantics. */
-    private @com.legend.base.Nullable String jsonParseCast(SqlExpr.Cast c) {
-        if (c.target() != com.legend.sql.SqlType.Scalar.JSON) {
-            return null;
-        }
+    private SqlWriter jsonParseCast(SqlWriter writer, SqlExpr.Cast c) {
         if (c.value() instanceof SqlExpr.StringLit sl) {
-            return "JSON " + stringLit(sl.value());
+            return writer.append("JSON ").append(stringLit(sl.value()));
         }
-        return "(" + expr(c.value(), 0) + " FORMAT JSON)";
+        return writer.append("(").expr(c.value(), 0).append(" FORMAT JSON)");
     }
 
     /** Scalar casts over a navigation extract TEXT first: H2 rejects
@@ -102,10 +92,9 @@ public class H2Modern extends H2 {
      * the JSON quoting (probed) — TRIM strips it; numbers and booleans
      * carry no quotes and convert cleanly. */
     @Override
-    protected String variantAwareCast(SqlExpr.Cast c) {
-        String parse = jsonParseCast(c);
-        if (parse != null) {
-            return parse;
+    protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (c.target() == com.legend.sql.SqlType.Scalar.JSON) {
+            return jsonParseCast(writer, c);
         }
         boolean navigation = c.value() instanceof SqlExpr.Call call
                 && (call.fn() == com.legend.sql.SqlFn.VARIANT_GET
@@ -114,9 +103,9 @@ public class H2Modern extends H2 {
         if (navigation
                 && c.target() instanceof com.legend.sql.SqlType.Scalar sc
                 && sc != com.legend.sql.SqlType.Scalar.JSON) {
-            return "CAST(TRIM(BOTH '\"' FROM CAST(" + expr(c.value(), 0)
-                    + " AS VARCHAR)) AS " + castTypeName(c.target()) + ")";
+            return writer.append("CAST(TRIM(BOTH '\"' FROM CAST(").expr(c.value(), 0).append(" AS VARCHAR)) AS ")
+                    .append(castTypeName(c.target())).append(")");
         }
-        return super.variantAwareCast(c);
+        return super.variantAwareCast(writer, c);
     }
 }
