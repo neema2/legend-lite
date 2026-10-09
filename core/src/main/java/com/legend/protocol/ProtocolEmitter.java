@@ -2353,9 +2353,13 @@ public final class ProtocolEmitter {
             }
             com.legend.protocol.spec.Variable p = lam.parameters().get(i);
             if (p.type() == null) {
-                require(p.multiplicity() == null, "untyped lambda parameter with multiplicity",
-                        p.name());
-                b.append("{\"_type\":\"var\",\"name\":");
+                b.append("{\"_type\":\"var\"");
+                if (p.multiplicity() != null) {
+                    // a class constraint's $this: its multiplicity and no type (DomainParseTreeWalker)
+                    b.append(",\"multiplicity\":");
+                    multiplicity(b, p.multiplicity());
+                }
+                b.append(",\"name\":");
                 str(b, p.name());
                 b.append('}');
             } else {
@@ -2682,26 +2686,15 @@ public final class ProtocolEmitter {
         // "caret specials"): ^Pair -> pair(), ^BasicColumnSpecification -> col() (with
         // documentation as an optional third key, engine's select-nonNull), and
         // ^TdsOlapRank -> meta::pure::tds::func() — canonical key order, no envelope
-        // span, values keeping their own spans.
+        // span, values keeping their own spans: CaretSpecials, the one rule the printer shares.
         String spelled = ni.className();
         // older JSON's fControl on a new: the special classes never arrive with one (the reader's
         // ProtocolUpgrade turns their new into the call first, as the engine's converter does)
-        if ("Pair".equals(spelled)
-                || "meta::pure::functions::collection::Pair".equals(spelled)) {
-            caretSpecial(b, ni, "meta::pure::functions::collection::pair",
-                    new String[]{"first", "second"}, false, span, fControl);
-            return;
-        }
-        if ("BasicColumnSpecification".equals(spelled)
-                || "meta::pure::tds::BasicColumnSpecification".equals(spelled)) {
-            caretSpecial(b, ni, "meta::pure::tds::col",
-                    new String[]{"func", "name", "documentation"}, true, span, fControl);
-            return;
-        }
-        if ("TdsOlapRank".equals(spelled)
-                || "meta::pure::tds::TdsOlapRank".equals(spelled)) {
-            caretSpecial(b, ni, "meta::pure::tds::func",
-                    new String[]{"func"}, false, span, fControl);
+        com.legend.protocol.spec.AppliedFunction special = CaretSpecials.call(ni);
+        if (special != null) {
+            require(fControl == null, "a special class's new with an fControl", spelled);
+            // the call, no envelope span, values keeping their own spans (a let's span on top)
+            appliedFunction(b, special, span);
             return;
         }
         b.append("{\"_type\":\"func\"");
@@ -3091,39 +3084,6 @@ public final class ProtocolEmitter {
         return q.toString();
     }
 
-    /** The engine's hardcoded caret-to-function desugars — see {@code newInstance}. */
-    private static void caretSpecial(StringBuilder b, com.legend.protocol.spec.NewInstance ni,
-                                     String function, String[] keys, boolean dropMissing,
-                                     @com.legend.base.Nullable SourceInfo span,
-                                     @com.legend.base.Nullable String fControl) {
-        require(fControl == null, "a special class's new with an fControl", ni.className());
-        b.append("{\"_type\":\"func\",\"function\":");
-        str(b, function);
-        b.append(",\"parameters\":[");
-        int emitted = 0;
-        for (int i = 0; i < keys.length; i++) {
-            com.legend.protocol.spec.KeyExpression ke = ni.first(keys[i]);
-            if (ke == null && dropMissing) {
-                continue;              // engine's select(nonNull) — col's documentation
-            }
-            if (ke == null) {
-                throw new UnsupportedOperationException(
-                        "ProtocolEmitter has no rule for a caret special missing key '"
-                                + keys[i] + "' (at " + ni.className() + ").");
-            }
-            if (emitted++ > 0) {
-                b.append(',');
-            }
-            valueSpec(b, ke.value());
-        }
-        b.append(']');
-        if (span != null) {
-            b.append(",\"sourceInformation\":");
-            srcInfo(b, span);
-        }
-        b.append('}');
-    }
-
     /** {@code ~name} on the wire: a {@code classInstance} of type {@code colSpec}. Bare
      *  specs span the NAME token (tilde excluded); function-bearing ones span tilde..end;
      *  outer and value spans are identical (ProbeWireShapes "path and cols" + "colspec
@@ -3197,7 +3157,9 @@ public final class ProtocolEmitter {
         b.append("]}}");
     }
 
-    private static com.legend.protocol.Multiplicity parseMultArg(String text, String where) {
+    /** A multiplicity argument as the grammar spells it ({@code *}, {@code 1}, {@code 0..1}, {@code 1..*}); the
+     *  printer reads it so too ({@link PureComposer}). */
+    static com.legend.protocol.Multiplicity parseMultArg(String text, String where) {
         if (text.equals("*")) {
             return new com.legend.protocol.Multiplicity.Concrete(0, null);
         }
