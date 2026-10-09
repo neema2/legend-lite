@@ -452,8 +452,14 @@ landed as 447102e56 (run 37870936729): a table reference keeps how it was writte
 reader reads the older JSON legend-engine 4.145.0 reads (`SEMANTICS_REGISTER` S29 to S34; S34 is the compiler line's).
 Step 3 landed as a12a64d24 (run 37923006492; GATES 2026-10-09): every printer in
 `core/src/main/java/com/legend/protocol/` prints the records, the parity counts held exactly, and the reader reads the
-older or hand-written shapes the step's audits found refused (S35 to S37; `own_corpus.matched` 2734). **Next: leg 3,
-one public face** (§4, item 3), on a new branch from main. Open, and not yet in the plan's legs: printing lite-only
+older or hand-written shapes the step's audits found refused (S35 to S37; `own_corpus.matched` 2734). **Now: leg 4,
+on branch `protocol-leg4`** (§4, item 4; leg 3 folded into it, invariant 5 revised, the user 2026-10-09): legend-engine's
+`jsonToGrammar/model` on lite's server, the model printer in PRETTY as well as STANDARD, and every host on one function
+per direction. Files: the text-to-JSON entries in `core/src/main/java/com/legend/parser/` (`PmcdParser`, `SpecParser`);
+the JSON-to-text entries and the style in `core/src/main/java/com/legend/protocol/` (`ModelComposer`, `PureComposer`,
+the element printers); `core/src/main/java/com/legend/server/PureV1Api.java`; `wasm/src/main/java/planner/Wasm.java`
+(four grammar exports, names and answers unchanged); `sdlc-server/src/main/java/com/legend/sdlc/CoreGrammar.java`;
+`parser-equivalence`'s `ModelComposerParityTest` (a PRETTY pass). Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first; lite's grammar takes
 no `doc` on a function test, though the engine's does; lite's persistence grammar accepts `];` after `tests`,
 though the engine's does not.
