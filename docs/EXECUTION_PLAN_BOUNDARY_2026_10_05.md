@@ -397,6 +397,17 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    `==` and `!=` and written as a value of its own, answer as the query with a `let` of the value, on DuckDB, H2 and
    Postgres, every output. Census: no statement of today's paths changes.
 
+   *Slice (e), on branch 2026-10-09.* A list parameter is a slot holding ONE array of its element type
+   (`QueryParameters.Declared.slot`: `BIGINT`, `VARCHAR`, `BOOLEAN`, `DATE`, `TIMESTAMP`, an enumeration's names), and
+   `->in($list)` and `$list->contains(x)` write `x = ANY(?)`, bare on every database (`AnsiSqlRenderer.anyOf`; measured,
+   `probes/ListProbe.java` → `list-results.txt`: each answers as the literal `IN (...)`, the empty list included, and H2
+   reads a cast inside `ANY(...)` as its boolean aggregate); the slot names its element type for the driver's array. An
+   enumeration list compared with a mapped column reads the stored column through the value table, its names filtered
+   by `name = ANY(?)`. A list of decimals, Dates or Numbers is refused by name (PARK-20): DuckDB's driver makes a
+   decimal array of three places (`0.1234` read as `0.123`, the wrong row). `PlanMakerTest` and `PostgresArmTest`: an
+   integer list with `in`, the empty list, `contains`, a string list with a quote, an enumeration list — as the query
+   with a `let` of the list, on DuckDB, H2 and Postgres, every output.
+
    Before step 4 (switching callers), two consumers of `PureV1Api.boundParameters` besides `execute` to settle:
    `arrowPlan` (Python's host runs the plan's SQL itself, so it must bind the values: agreed with the DataCube + Python
    line first), and the `execute` answer's activity, which reports the statement that ran (with its `?`s).

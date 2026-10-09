@@ -139,21 +139,7 @@ class PostgresArmTest {
             // a query's scalar parameters: bound where they are written, answering as the query with their values does
             // (Postgres types a bare placeholder by the bound value: no cast, every type)
             for (com.legend.PlanMakerTest.Parameterised q : com.legend.PlanMakerTest.scalars("PLAN_T")) {
-                for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
-                    com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, q.withParameters())
-                            .executionPlan("s::RT", output);
-                    java.io.StringWriter today = new java.io.StringWriter();
-                    switch (output) {
-                        case CSV -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
-                                com.legend.lowering.WireRender.Format.CSV, today);
-                        case JSON -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
-                                com.legend.lowering.WireRender.Format.JSON, today);
-                        case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, q.withLets(), "s::RT", c,
-                                today);
-                    }
-                    assertEquals(today.toString(), com.legend.PlanMakerTest.run(plan, c, q.values()),
-                            output + " " + q.withParameters());
-                }
+                assertPlanAnswersAsToday(model, ctx, q, c);
             }
             // an enumeration parameter, compared through a value table of the column's codes
             String enums = com.legend.PlanMakerTest.enumModel(String.format(java.util.Locale.ROOT, "type: Postgres;"
@@ -167,22 +153,15 @@ class PostgresArmTest {
                 }
             }
             for (com.legend.PlanMakerTest.Parameterised q : com.legend.PlanMakerTest.enumerations()) {
-                for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
-                    com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(enumCtx, q.withParameters())
-                            .executionPlan("s::RT", output);
-                    java.io.StringWriter today = new java.io.StringWriter();
-                    switch (output) {
-                        case CSV -> com.legend.Execution.executeWire(enums, q.withLets(), "s::RT", c,
-                                com.legend.lowering.WireRender.Format.CSV, today);
-                        case JSON -> com.legend.Execution.executeWire(enums, q.withLets(), "s::RT", c,
-                                com.legend.lowering.WireRender.Format.JSON, today);
-                        case STREAMED_JSON -> com.legend.Execution.executeStreaming(enums, q.withLets(), "s::RT", c,
-                                today);
-                    }
-                    assertEquals(today.toString(), com.legend.PlanMakerTest.run(plan, c, q.values()),
-                            output + " " + q.withParameters());
-                }
+                assertPlanAnswersAsToday(enums, enumCtx, q, c);
             }
+            // a list parameter, bound as one array: over the table, and an enumeration list through the value table
+            for (com.legend.PlanMakerTest.Parameterised q : com.legend.PlanMakerTest.lists("PLAN_T")) {
+                assertPlanAnswersAsToday(model, ctx, q, c);
+            }
+            assertPlanAnswersAsToday(enums, enumCtx, new com.legend.PlanMakerTest.Parameterised("sts: s::Status[*]",
+                    "let sts = [s::Status.ACTIVE];", "s::Acct.all()->filter(a|$a.status->in($sts))->project(~[id: a|$a.id])"
+                            + "->sort(~id->ascending())", java.util.Map.of("sts", java.util.List.of("ACTIVE"))), c);
             // an optional parameter: with its value as the query with a let of it, with none as the query written []
             for (com.legend.PlanMakerTest.OptionalCase q : com.legend.PlanMakerTest.optionals("PLAN_T")) {
                 for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
@@ -205,6 +184,26 @@ class PostgresArmTest {
                     }
                 }
             }
+        }
+    }
+
+    /** {@code q}'s plan, run with its values, answers on {@code c} as today's path answers the query with a let of each,
+     *  every output. */
+    private static void assertPlanAnswersAsToday(String model, com.legend.compiler.element.ModelContext ctx,
+            com.legend.PlanMakerTest.Parameterised q, Connection c) throws Exception {
+        for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
+            com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, q.withParameters())
+                    .executionPlan("s::RT", output);
+            java.io.StringWriter today = new java.io.StringWriter();
+            switch (output) {
+                case CSV -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
+                        com.legend.lowering.WireRender.Format.CSV, today);
+                case JSON -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
+                        com.legend.lowering.WireRender.Format.JSON, today);
+                case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, q.withLets(), "s::RT", c, today);
+            }
+            assertEquals(today.toString(), com.legend.PlanMakerTest.run(plan, c, q.values()),
+                    output + " " + q.withParameters());
         }
     }
 }

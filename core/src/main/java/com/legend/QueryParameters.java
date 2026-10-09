@@ -50,36 +50,47 @@ public final class QueryParameters {
                     enumMapFn);
         }
 
-        /** The lite plan's slot for one value of a primitive type: the value the statement binds where the parameter
-         *  is used, typed as a literal of its declared type is (Integer {@code BIGINT}, String {@code VARCHAR}, ...),
-         *  which a dialect that types a placeholder writes. A Float's, a Decimal's, a Date's and a Number's is unknown:
-         *  a literal decimal's type is its own digits', a Date's or a Number's value decides its kind
-         *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2). */
+        /** The lite plan's slot: the value the statement binds where the parameter is used, typed as a literal of its
+         *  declared type is ({@link #valueType}), which a dialect that types a placeholder writes; for a list, one
+         *  array of such values (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2). */
         public com.legend.sql.SqlExpr.PlanParam slot() {
-            if (type instanceof Type.EnumType) {
-                // an enumeration's value travels as its NAME; a comparison with a mapped column translates it
-                // through that place's value table (EnumValueTables)
+            com.legend.sql.TypeFact value = valueType();
+            if (multiplicity instanceof Multiplicity.Bounded b && Integer.valueOf(1).equals(b.upper())) {
                 return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type),
-                        optional(), null, com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR));
+                        optional(), null, value);
+            }
+            // a list: ONE array of its values, its element type named for the driver
+            if (!(value instanceof com.legend.sql.TypeFact.Typed element)) {
+                throw new com.legend.error.NotImplementedException("parameter '" + name + "' (" + type.typeName()
+                        + "[*]): a list of decimals, Dates or Numbers has no one element type a driver's array keeps"
+                        + " exactly (DuckDB's rounds a decimal to 3 places): not bound (PARK-20)");
+            }
+            return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type), false, null,
+                    com.legend.sql.SqlTyping.typed(new com.legend.sql.SqlType.Array(element.type())));
+        }
+
+        /** One value's type, as a literal of the declared type carries it: an enumeration's is its NAME's
+         *  ({@code VARCHAR}; a comparison with a mapped column translates it through that place's value table,
+         *  {@code EnumValueTables}); a decimal literal's type is its own digits', a Date's or a Number's value decides
+         *  its kind, so theirs is unknown. */
+        private com.legend.sql.TypeFact valueType() {
+            if (type instanceof Type.EnumType) {
+                return com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR);
             }
             if (!(type instanceof Type.Primitive primitive)) {
                 throw new IllegalArgumentException("parameter '" + name + "' (" + type.typeName() + "): a parameter's"
                         + " value is a plain value -- a primitive, an enumeration's value, or a list of them");
             }
-            com.legend.sql.TypeFact literal = switch (primitive) {
+            return switch (primitive) {
                 case INTEGER -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.BIGINT);
                 case STRING -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR);
                 case BOOLEAN -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.BOOLEAN);
                 case STRICT_DATE -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.DATE);
                 case DATE_TIME -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.TIMESTAMP);
-                // a decimal literal's type is its own digits'; a Date's value is a StrictDate or a DateTime, a Number's
-                // an Integer, a Float or a Decimal: no one type is the literal's
                 case FLOAT, DECIMAL, DATE, NUMBER -> com.legend.sql.SqlTyping.UNKNOWN;
                 case BYTE, LATEST_DATE, STRICT_TIME -> throw new com.legend.error.NotImplementedException("parameter '"
                         + name + "' (" + type.typeName() + "): a value of this type is not bound yet");
             };
-            return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type), optional(),
-                    null, literal);
         }
 
         /** The lite plan's declaration: the type's Pure name, the multiplicity's bounds and, for an enumeration, the

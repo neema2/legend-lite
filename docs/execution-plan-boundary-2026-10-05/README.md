@@ -22,6 +22,7 @@ java -cp postgresql-42.7.13.jar  BindProbe.java jdbc:postgresql://localhost:5543
 java -cp <driver>                EnumIndex.java <url> <user> <password>
 java -cp <driver>                TypingProbe.java <url> <user> <password>
 java -cp <driver>                LiteralProbe.java <url> <user> <password>
+java -cp <driver>                ListProbe.java <url> <user> <password>
 ```
 
 - `BindProbe.java` → `bind-results.txt`: a value passed to the database as a value, not pasted into the SQL — a
@@ -59,6 +60,12 @@ F1 is the one form that uses the index on all three and is right for a value sto
   typed placeholder, exact for every type but a decimal, whose literal is typed by its own digits: no cast keeps a
   value's own scale (`NUMERIC` rounds, `NUMERIC(38,2)` pads, `DECFLOAT` drops trailing zeros). The last section is
   H2 2.4.240 (the PCT lane's pin, `-cp h2-2.4.240.jar`): the same answers in every case. PARK-19.
+- `ListProbe.java` → `list-results.txt` (2026-10-09, slice (e)): a list parameter bound as one array (`col = ANY(?)`,
+  the array from `createArrayOf` under each element type name a plan could carry) against the literal list a `let`
+  writes (`col IN (...)`), for integers, strings, decimals, dates, timestamps and booleans, and the empty list. Every
+  database answers as the literal under every name tried — but for decimals on DuckDB, whose driver makes a `DECIMAL`
+  array of three places (`0.1234` read as `0.123`: the wrong row; PARK-20). On H2 the array must stay bare: a cast
+  inside `ANY(...)` is read as H2's boolean `ANY` aggregate (the 15 `FAIL` lines).
 
 ## `sharing/` — when two runs may share an in-memory database (2026-10-08)
 
