@@ -7940,3 +7940,42 @@ reviewed by the Compiler Rewrite session. Local gate green on the tree (two stud
 load and passed alone); CI run 37980936512 on `ci/datacube-page-shell`, green on the lanes with a path to
 `//datacube:src` (product, checks, warehouse, datacube, ui) on every platform (21 jobs); pushed to main as eb2e38fa8, the
 tested commit.
+
+## 2026-10-09 — Execution plan step 2, landing 2: the planner makes lite plans, a query's parameters bound as values (the Plan Gen / Exec Split line)
+
+Step 2's landing 2 (`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §9) landed as 682c6fedf (seven commits on 465c43386; run
+37988343620 on `dbowner/plan-landing2-r2`: green on every job, 51, the Windows checks job rerun once on the same
+commit after Maven Central refused a download (no code ran); the diagnostics workflow 37991347724 green, as the
+parser-equivalence change asks. The first run, 37983850020, failed the parser lane on one test model missing its
+`###Connection` header, fixed in the audit's commit). Main moved by documents only after the run; rebased, as the rule
+says.
+
+**What it is.** `TypedQuery.executionPlan(runtime, Output)` makes the plan a model-free runner will execute (step 3):
+one text the database writes (CSV, JSON, one JSON object per row; a graph fetch's JSON), its statement final for its
+target, and the target whole — a declared connection or the platform's own engine, the server versions its spelling is
+written for, the statements each connection runs first, and the setup that establishes it, written at plan time (DuckDB's
+rows staged for its bulk loader, one INSERT elsewhere). A query's declared parameters are bound as values where they are
+written, never pasted into the text: a scalar as `?`, typed on H2 (`CAST(? AS T)`: H2 types a parameter when it prepares
+the statement, by its neighbour — `ID * ?` with 1.5 answered `[2, 6]`), bare elsewhere; an optional one's absence a
+null, its equality null-safe as legend-engine's plans write it; an enumeration's NAME, compared with a mapped column
+through that place's value table (`col IN (SELECT code FROM (VALUES ...) WHERE name = ?)`, keeping the column's index);
+a list as ONE array (`x = ANY(?)`). The plan records are the lite format's version 3.
+
+**Checked.** Measured first, on the pinned drivers (`docs/execution-plan-boundary-2026-10-05/probes/`: TypingProbe,
+LiteralProbe, ListProbe): where a bare `?` is typed, how a bound value answers against the literal of today's `let` path
+per type and position, a Float bound as a decimal (Rule 1 of the numeric charter; as a double, `PRICE * ?` answered
+`1.6500000000000001`), H2 2.1.214 and 2.4.240 alike. `PlanMakerTest` and `PostgresArmTest`: every case's plan, run on a
+fresh database as its steps describe themselves, answers byte for byte as today's path answers the same query (with each
+parameter a `let` of its value) on DuckDB, H2 and Postgres, in every output. The render census at every slice
+(`render-census/landing2-result.txt`): no statement of today's paths changes, the legacy printer's included (its 31
+optional-parameter equalities byte for byte; the first measurement of slice (c) caught an optional ENUMERATION
+parameter's legacy text changing, and the rule excludes it). An independent audit of the whole landing; its blocker and
+six findings fixed. Local gate green (319 tests).
+
+**Recorded.** What is not bound yet is refused by name, each a ledger row (`docs/PARKED_WORK_LEDGER.md`): PARK-19, a
+Float, Decimal, Date or Number parameter on H2 (no type a statement names keeps a decimal value's own scale; proposed to
+the user: keep refusing, or write the value as its literal on H2); PARK-20, a list of decimals, Dates or Numbers
+(DuckDB's driver makes a decimal array of three places); PARK-21, an optional enumeration (its absence's answer
+unmeasured against the engine), a class instance, a Byte, LatestDate or StrictTime value. Found on the way: today's
+server path answers no rows for an optional parameter sent empty, where the engine answers the rows whose value is empty;
+plans answer as the engine does, and step 4 retires that path.

@@ -293,7 +293,8 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      (`PlanText.enumMapFnOf` → `enumMappingOf`, and `PlanAllocations.planTemplateFunctions`), and a result column's
      the first declared when its mapping names none (`PlanText.enumMappingIdFor`) — wrong rows when an enum is
      mapped twice; parked as PARK-15 with step 2's landing 1.
-   **Step 2, landing 2: the planner makes lite plans (design, 2026-10-09; homework below, evidence `probes/`).**
+   **Step 2, landing 2: the planner makes lite plans — LANDED 2026-10-09 (`682c6fedf`, run 37988343620; `docs/GATES.md`)
+   (design, 2026-10-09; homework below, evidence `probes/`).**
    `TypedQuery.executionPlan(runtime, output)` returns an `ExecutionPlan` whose one `TextResult` node holds the statement
    the database answers with finished text (`lowering.WireRender`: CSV, JSON, one JSON object per row; a graph fetch's
    JSON array), every parameter written as a `?` with its slot, and the target it runs on. Nothing runs it yet (step 3).
@@ -349,7 +350,7 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    engine, the server versions, the per-connection statements); (b) scalar parameters; (c) optional; (d) enum value
    tables; (e) lists.
 
-   *Slice (a), on branch 2026-10-09.* `TypedQuery.executionPlan(runtime, Output)` (`CSV`, `JSON`, `STREAMED_JSON`)
+   *Slice (a), landed 2026-10-09.* `TypedQuery.executionPlan(runtime, Output)` (`CSV`, `JSON`, `STREAMED_JSON`)
    through `PlanMaker`: a relation's, a value's and a graph fetch's text in each form today's paths write
    (`Execution.executeWire`/`executeStreaming`), a graph's CSV refused by name, a query with parameters refused until
    (b). The records (lite format version 3): a target is a `Database` (`Declared` connection, or the `Platform`'s
@@ -364,7 +365,7 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    a model-data runtime on the platform's engine; every output). Census: no statement of today's paths changes, only
    the new tests' own are added (`render-census/landing2-result.txt`).
 
-   *Slice (b), on branch 2026-10-09.* A query's declared parameters lower to slots (`TypedQuery.lower` with
+   *Slice (b), landed 2026-10-09.* A query's declared parameters lower to slots (`TypedQuery.lower` with
    `QueryParameters.Declared.slot()`), each typed as a literal of its declared type is (Integer `BIGINT`, String
    `VARCHAR`, Boolean, StrictDate `DATE`, DateTime `TIMESTAMP`; a Float's, a Decimal's, a Date's and a Number's unknown:
    its value decides), and the plan declares them. A dialect writes the placeholder (`AnsiSqlRenderer.placeholder`):
@@ -376,7 +377,7 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    and projected, a date, a boolean, a Date and a Number (DuckDB, Postgres), one parameter written twice, two
    parameters. Census: no statement of today's paths changes (`render-census/landing2-result.txt`).
 
-   *Slice (c), on branch 2026-10-09.* An optional parameter (`x: T[0..1]`) is a slot like any other, its absence bound
+   *Slice (c), landed 2026-10-09.* An optional parameter (`x: T[0..1]`) is a slot like any other, its absence bound
    as a null of its declared type. Its equality is null-safe (`NullSemantics.equalNullArms`: an optional parameter's
    `==` is `NULL_SAFE_EQUAL`, so `!=` is `NULL_SAFE_NOT_EQUAL`), as legend-engine's plans write it
    (`optionalVarPlaceHolderOperationSelector`: `col is null` when the value is absent) and as the legacy printer already
@@ -388,7 +389,7 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    comparison keeps its enum routing (never null-safe, as the engine's); census: the legacy printer's 31 optional-
    parameter equalities unchanged, no statement of today's paths changes (`render-census/landing2-result.txt`).
 
-   *Slice (d), on branch 2026-10-09.* An enumeration parameter is a slot holding its value's NAME (`VARCHAR`). Compared
+   *Slice (d), landed 2026-10-09.* An enumeration parameter is a slot holding its value's NAME (`VARCHAR`). Compared
    with a mapped column — the lowering's decode, `CASE WHEN ST = 'A' OR ST = 'X' THEN 'ACTIVE' ... END = ?` — the
    lite plan reads the stored column through that place's value table (`sql/EnumValueTables`, applied by `PlanMaker`
    after lowering, beside the legacy plan's own `PlanEnumForm`): `ST IN (SELECT code FROM (VALUES ('A', 'ACTIVE'),
@@ -400,7 +401,7 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    `==` and `!=` and written as a value of its own, answer as the query with a `let` of the value, on DuckDB, H2 and
    Postgres, every output. Census: no statement of today's paths changes.
 
-   *Slice (e), on branch 2026-10-09.* A list parameter is a slot holding ONE array of its element type
+   *Slice (e), landed 2026-10-09.* A list parameter is a slot holding ONE array of its element type
    (`QueryParameters.Declared.slot`: `BIGINT`, `VARCHAR`, `BOOLEAN`, `DATE`, `TIMESTAMP`, an enumeration's names), and
    `->in($list)` and `$list->contains(x)` write `x = ANY(?)`, bare on every database (`AnsiSqlRenderer.anyOf`; measured,
    `probes/ListProbe.java` → `list-results.txt`: each answers as the literal `IN (...)`, the empty list included, and H2

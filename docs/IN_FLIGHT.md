@@ -107,15 +107,14 @@ with the compiler's plan/execution split**, in this order:
    records, one parameter list) the same day (`f05fe7ada`). **E, the dialects write through one writer, landed
    2026-10-09** (`46fc131b8`; GATES "E"; run 37965399077; `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §10): every dialect writes all of its SQL into one `SqlWriter`, the
    legacy engine-text printer writes legend-engine's exact text, and PARK-16's product half (DDL and DML spell names as
-   queries do). **Now: step 2's landing 2, the planner makes lite plans** (§9; branch `dbowner/plan-landing2`, not yet
-   pushed): `TypedQuery.executionPlan` and `PlanMaker` (planner), the plan records (`core/src/main/java/com/legend/
-   executionplan/`, lite format version 3), `QueryParameters`, `lowering/NullSemantics.java` (an optional parameter's
-   equality null-safe), `lowering/WireRender.java`, `setup/RowLoad.java`, `exec/Executor.java` and `exec/BulkLoad.java`
-   (the staging statements' one owner), `database/Databases.java`, `sql/SqlExpr.java` (`PlanParam` keeps its type),
-   `sql/dialect/AnsiSqlRenderer.java` and `H2.java` (a typed placeholder on H2), `core/BUILD.bazel` (planner reaches
-   setup, database reaches execution_plan; for the Bazel line's review before it lands), `tools/deps/core-layers.txt`.
-   Slices (a) no parameters, (b) scalars, (c) optionals done on the branch; next (d) enumerations, (e) lists, then
-   step 3 (the runner) and step 4 (the callers switch).
+   queries do). **Step 2's landing 2, the planner makes lite plans, landed 2026-10-09** (`682c6fedf`; GATES "Execution plan step 2,
+   landing 2"; run 37988343620): `TypedQuery.executionPlan`, every parameter kind bound as a value where it is written
+   (scalars, optionals, enumerations through value tables, lists as one array); what is not bound yet is refused by name
+   (PARK-19, PARK-20, PARK-21). **Next: step 3, the runner** (`exec.PlanRunner`, §9: validates and converts the
+   parameter values, opens or shares the session by the target's content, runs the setup once, binds, streams the
+   database's text): files `core/src/main/java/com/legend/exec/` (new `PlanRunner`, `Sessions`), the server's connection
+   resolver for sharing (decision A), tests beside it; announced here before the first edit. Then step 4 (the callers
+   switch, the old paths deleted).
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
    `datacube-pages`. `native/`, `python/` and, since 2026-10-09, all of `datacube/`. Landed: the compiler as a native
    library (`bc8107c4e`), `ll.show(df)` and the notebook cube on every platform, a real JupyterLab test and marimo
