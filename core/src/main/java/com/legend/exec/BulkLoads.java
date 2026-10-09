@@ -28,14 +28,8 @@ final class BulkLoads {
         return null;
     }
 
-    /** Loads a plan's rows step on {@code connection}, through its engine's loader: a plan writes rows for one only
-     *  where its database has one ({@code Databases.loadsRowsInBulk}), so none is a mismatch, refused by name. */
-    static void load(Connection connection, ExecutionPlan.SetupStep.Rows rows) throws SQLException {
-        BulkLoad bulk = of(connection);
-        if (bulk == null) {
-            throw new IllegalStateException("rows for " + rows.stagingTable() + " are for a bulk loader, and the session's"
-                    + " database has none (" + connection.getMetaData().getDatabaseProductName() + ")");
-        }
+    /** Loads a plan's rows step on {@code connection} through {@code bulk}, its engine's loader ({@link #of}). */
+    static void load(BulkLoad bulk, Connection connection, ExecutionPlan.SetupStep.Rows rows) throws SQLException {
         Census.inc(Census.Key.SQL_ROUND_TRIPS);
         Census.inc(Census.Key.BULK_LOADS);
         StatementOrigin.count();

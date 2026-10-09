@@ -1,0 +1,18 @@
+The render census of step 3, the runner (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9), measured by run.sh over the
+eight lanes (the census's known build failure, //pure-protocol:twins_test, apart: README).
+
+1. The runner, its sessions and its parameter checks -- against landing 2 on main (682c6fedf): 20 of 52,442
+   (lane, dialect, kind, text) entries differ, all in //gates:core and all rendered less often: landing 2's
+   `n: Number[1]` case left PlanCases with the runner, which refuses it (legend-engine has no validator for a Number),
+   so its plan statement and its let-path query are gone on DuckDB and Postgres, in both wire forms (8 texts; H2 never
+   ran it, PARK-19), and each test database's setup and the wire statements it shared run once fewer (12). No entry is
+   new and no other lane differs: the runner renders nothing (it runs the plan's statement), and today's paths render
+   exactly what they rendered.
+
+2. The audit's fixes -- against item 1: 56 of 52,448 entries differ, all in //gates:core, all rendered more often, and
+   all the new cases' own: 14 new texts (a Float at each extreme magnitude, 1.5e15 and 2.5e-7, as a let and as a plan
+   on DuckDB and Postgres -- H2 binds no Float parameter, PARK-19 -- and a DateTime list's `= ANY(?)` plan on DuckDB, H2
+   and Postgres) and 42 texts rendered more often (each test database's setup, and the statements the new cases share
+   with existing ones: an offset DateTime and a string-valued Integer answer through the same plans). No entry is gone
+   and no other lane differs: the numeric charter's Rule 1 moved to its one owner (SqlTyping.floatDecimal) with every
+   Float literal spelled byte for byte as before.

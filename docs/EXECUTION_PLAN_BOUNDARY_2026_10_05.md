@@ -429,7 +429,7 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    converts parameters (§8), opens or checks each node's session through `Sessions` (running its setup once; shared by
    the target's own content, decision A — `Sessions.Source` no longer takes the model), binds, executes, streams the
    database's text.
-   The shrink-only guard on `exec`'s planning-library references starts here.
+   The shrink-only guard on `exec`'s planning-library references starts here (slice c, below).
    **Step 3's design (2026-10-09; homework: legend-engine's own validation, read from its source,
    `FunctionParametersParametersValidation`, `FunctionParameterTypeValidator`, `FunctionParametersNormalizer`,
    `PrimitiveValueSpecificationToObjectVisitor`, and its tests `TestParametersValidation`, `TestEngineDate`,
@@ -439,44 +439,73 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      as its text (no `%`), an enumeration value as its name, a list for a collection. The server's `execute` makes them
      from `parameterValues` in step 4; the runner knows no protocol.
    - *Checked as legend-engine checks, with its messages.* A declared parameter with a lower bound above 0 and no value
-     (or a null one) is `Missing external parameter(s): name:Type[m]` (several joined by `,`); a value for no declared
-     parameter is ignored; a one-element list for a parameter of upper bound 1 is its element. Each value is checked by
-     its declared type — the right Java type, or a string that parses (Integer: `Long`, `Integer`; Float: `Double`,
-     `Float`, `Integer`, `Long`; Decimal: `BigDecimal` only; Boolean; String; StrictDate `yyyy-MM-dd`; DateTime its six
-     formats, an offset converted to UTC; Date either) — and an enumeration's name against the plan's names; every
-     failure collected into `Invalid provided parameter(s): [...]`, each in the engine's words (`Unable to process
-     'Integer' parameter, value: true.`, `Invalid enum value X for path, valid enum values: [A, B]`). A Number
-     parameter has no validator in legend-engine, which refuses it (`Unknown external parameter type`); so does the
-     runner. A list for a parameter of upper bound 1 (other than one element) is refused by name: legend-engine passes
-     it to its template, which writes no SQL the database can run.
+     is `Missing external parameter(s): name:Type[m]` (several joined by `,`); so is one given a null value, a
+     deliberate difference (legend-engine counts it present, and its template then writes no statement a database
+     runs). A value for no declared parameter is ignored; a one-element list for a parameter of upper bound 1 is its
+     element. Each value is checked by its declared type — the right Java type, or a string that parses (Integer:
+     `Long`, `Integer`; Float: `Double`, `Float`, `Integer`, `Long`; Decimal: `BigDecimal` only; Boolean; String;
+     StrictDate `yyyy-MM-dd`; DateTime its six formats, an `Instant` or a `ZonedDateTime`, an offset converted to UTC;
+     Date either) — and an enumeration's name against the plan's names. Every failure is collected into `Invalid
+     provided parameter(s): [...]`, each in the engine's words (`Unable to process 'Integer' parameter, value: true.`,
+     `Invalid enum value X for path, valid enum values: [A, B]`): a list's failure names its failing element, as
+     legend-engine validates element by element; an enumeration's names the whole value. A type legend-engine has no
+     validator for (a Number) is its `Unknown external parameter type: T, valid external parameter types: [...]`, the
+     ten types it validates in the order it declares them (it prints its map's hash order, which none of its tests
+     asserts). The runner's own refusals are collected with them, by name: a list for a parameter of upper bound 1
+     (legend-engine passes it to its template, which writes no SQL a database runs), a Float that is not finite (NaN,
+     Infinity: no SQL literal; legend-engine writes `NaN` into its statement), and a Byte or a Variant, which no plan
+     binds yet (PARK-21).
    - *Bound as the plan's slots say.* Each slot binds its parameter's checked value, converted for the driver: an
-     Integer a `long`, a Float and a Decimal a `BigDecimal` (a Float's decimal text: the numeric charter's Rule 1), a
-     StrictDate a `LocalDate`, a DateTime a `LocalDateTime` in UTC, an enumeration its name, an absent optional value a
-     null of its type, a list one array of its element type (`createArrayOf`). Nothing edits the statement.
-   - *Sessions by the target (decision A).* `exec.PlanSessions` gives out a session for a plan's target: an in-memory
+     Integer a `long`; a Float as its literal is typed (the numeric charter's Rule 1: its plain digits a `BigDecimal`,
+     at an extreme magnitude — at least 1e15, or below 1e-6 — a `double`; one owner, `SqlTyping.floatDecimal`, which
+     the dialects spell a Float literal by); a Decimal a `BigDecimal`; a StrictDate a `LocalDate`; a DateTime a
+     `LocalDateTime` in UTC; an enumeration its name; an absent optional value a null of its type; a list one array of
+     its element type (`createArrayOf`; a timestamp element as `java.sql.Timestamp`). Nothing edits the statement.
+   - *Sessions by the target (decision A).* `exec.PlanSessions` gives out a session for a plan's target. An in-memory
      database (the platform's engine, an in-memory or `LocalH2` connection) is shared by every run whose target is equal
-     — the connection, its server versions, its session statements and its setup — and its setup runs once, when it is
-     opened (the content-keyed `HandleStore`, keyed by the target); a database reached by URL is opened for the run and
-     closed after it, its setup run each time; a caller's own connection is only checked. Every session is checked
-     against the target before anything runs: the database it is (`Sessions.check`) and, where the statements are
-     written for some server versions (H2), its version (`Servers.Versions`), refused by name otherwise. Each
-     connection runs the target's session statements when it is first used.
+     — the connection, its server versions, its session statements and its setup, keyed by the target's whole content
+     as its plan JSON spells it (`PlanJson.writeTarget`: a cell holding a comma and a null cell are spelled apart from
+     their look-alikes), hashed on each run in time proportional to the setup's rows, as making the plan is. Its setup
+     runs once, when it is opened, outside the store's lock (`HandleStore.getOrOpenSlowly`: other runs of the same
+     target wait for it, and no other target's are held up). A setup that fails closes what it opened and is
+     forgotten: the next run sets up afresh (an H2 database the runner names is new at each attempt and lives only
+     while its keeper connection is open). A database that is the user's is never set up by a plan, which is refused
+     by name if it has setup (only an in-memory `LocalH2` connection declares test data): one reached by URL, opened
+     for the run and closed after it, and an in-memory one the user named (an `EmbeddedH2`), shared by design. A caller's own
+     connection is the caller's (`PlanSessions.given`; `PlanSessions.setUp` runs a target's setup on a test's fresh
+     one). Every session is checked against the target before the run's statements: the database it is
+     (`Sessions.check`) and, where the statements are written for some server versions (H2), its version
+     (`Servers.Versions`), refused by name otherwise. Each run then runs the target's session statements on its session,
+     then the statement.
    - *The text the database writes, passed on.* A CSV or JSON result: the one row's one cell; one JSON object per row:
-     each row's cell, the array's brackets and commas written by the runner, flushed per row.
-   - *Model-free by construction.* `PlanRunner` and `PlanSessions` read the plan records, `java.sql` and the session
-     opener only; an architecture rule pins that they reach no compiler, lowering, dialect, setup or plan-text class.
+     each row's cell, the array's brackets and commas written by the runner, flushed per row (no row: `[]`).
+   - *Model-free by construction.* `PlanRunner`, `PlanParameters`, `PlanSessions` and the bulk load read the plan
+     records, `java.sql` and the session opener only; an architecture rule pins that they reach no compiler, lowering,
+     SQL tree, dialect, setup or plan-text class, with one call excepted and pinned: `SqlTyping.floatDecimal`, a Float's
+     binding, which only its value decides, at run time.
    - *Slices:* (a) the runner and its sessions for plans without parameters — `PlanCases`' hand-written run replaced by
      `PlanRunner`, every landing-2 case then the runner's test on DuckDB, H2 and Postgres; (b) parameters checked,
      converted and bound, legend-engine's validation cases ported; (c) the guard.
    **Step 3, on branch 2026-10-09** (`dbowner/plan-runner`): `exec.PlanRunner`, `PlanParameters`, `PlanSessions`. Every
-   landing-2 case now runs through the runner (`PlanCases.run`) and answers byte for byte as today's path on DuckDB, H2
-   and Postgres; `PlanRunnerTest` ports legend-engine's validation cases, message for message, and holds the sessions'
-   rules (a target's database shared and set up once, another target's its own, a session of another database or H2
-   version refused). One shape for a bulk load: a plan's `SetupStep.Rows`, which `RowLoad.staged` writes and the
-   loader takes (`BulkLoad`, `BulkLoads`; `RowLoad.Staging` gone). `ArchitectureTest.theRunnerIsModelFree` pins the
-   runner's classes off the compiler, the resolver, the lowering, the SQL tree and dialects, the setup and the legacy
-   plan (it fails on a planted reference). A database reached by a URL is never set up by a plan (only an in-memory
-   connection declares test data): a plan with setup for one is refused by name.
+   landing-2 case runs through the runner (`PlanCases.run`) and answers byte for byte as today's path on DuckDB, H2 and
+   Postgres, its values as legend-engine's execute API makes them (dates as text, an offset DateTime, a DateTime list
+   bound as timestamps, Floats at both extreme magnitudes); landing 2's `Number` case left `PlanCases` with the runner,
+   which refuses it before opening any session (`PlanRunnerTest`). `PlanRunnerTest` ports legend-engine's
+   `TestParametersValidation` case for case — each type's valid values, with what the runner binds, and each invalid
+   value with its exact message (to-many too, where legend-engine's test asserts only the prefix) — and holds the
+   sessions' rules: a target's database shared and set up once, by eight runs started together too; another target's its
+   own, look-alike cells included; a failed setup leaving nothing, on DuckDB and H2; a URL or a user-named database with
+   setup refused, the URL never opened; a platform target; a session of another database or H2 version refused. One
+   shape for a bulk load: a plan's `SetupStep.Rows`, which `RowLoad.staged` writes and the loader takes (`BulkLoad`,
+   `BulkLoads`; `RowLoad.Staging` gone). `ArchitectureTest.theRunnerIsModelFree` pins the runner's classes as above (it
+   fails on a planted reference). The guard (slice c): `ArchitectureTest.execsReachIntoPlanningOnlyShrinks` names the 16
+   `exec` classes that still reach a planning library — the compiler, the resolver, the lowering, the dialect, the plan
+   side's setup and plan packages, and the builtin, parser, normalizer, platform and database packages; the SQL tree is
+   not counted, being the plan records' own vocabulary — and fails when one joins, or when one that stopped stays
+   listed. Audited before landing (one blocker, eight should-fix, four nits; all fixed): the list message, the type
+   list, the null difference named, Floats bound as their literal is typed and NaN refused, the target key, failed
+   setups, setup outside the lock, this paragraph's claims, and the guard. The render census
+   (`render-census/step3-result.txt`): no statement of today's paths changes, every Float literal included.
 4. **Switch the callers, delete what they replace** — `pure/v1/execution/execute`: plan once, run with
    `parameterValues`; `Execution.executeWire` / `executeStreaming` and `QueryService`'s wire and streaming paths: plan +
    run. DELETED (rule 15): `PureV1Api.boundParameters`, `Execution`'s `wireOn` / `streamOn`, and `ConnectionResolver`'s

@@ -226,7 +226,17 @@ public final class Sessions {
 
     /** Opens a connection to the named H2 in-memory database {@code name}, which outlives it. */
     public static Connection openNamed(String name) throws SQLException {
-        return DriverManager.getConnection("jdbc:h2:mem:" + name + ";DB_CLOSE_DELAY=-1" + H2Settings.SETTINGS);
+        return named(name, ";DB_CLOSE_DELAY=-1");
+    }
+
+    /** Opens a connection to the named H2 in-memory database {@code name}, which lives only while a connection to it
+     *  is open: its opener keeps one, and when that one closes with no other open, the database is gone. */
+    public static Connection openKept(String name) throws SQLException {
+        return named(name, "");
+    }
+
+    private static Connection named(String name, String closeDelay) throws SQLException {
+        return DriverManager.getConnection("jdbc:h2:mem:" + name + closeDelay + H2Settings.SETTINGS);
     }
 
     /** Opens the in-memory database a {@link Opening.Held} opening names: it lives as long as this connection. */
