@@ -471,6 +471,90 @@ try {
     return `asked: "${asked.slice(0, 60)}…", stayed`;
   });
 
+  // A PAGE OF ITS OWN (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §6): several sources on one page, every grid alike --
+  // the first one removable -- and the page saved and reopened as one thing.
+  /** Insert > Visualization, from a cell's right-click menu in the grid `tile`. */
+  const chartOf = async (tile) => {
+    await page.locator(`[data-tile="${tile}"] .dc-row`).nth(1).locator('.dc-cell').nth(1).click({ button: 'right' });
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("Visualization"))').first().click();
+  };
+  /** New ▸ Data Source…, an example at `rows` rows: a grid of its own beside the others. */
+  const addSample = async (id, rows) => {
+    await burger('Data Source\u2026');
+    await page.locator('.dc-picker-tab[data-section="examples"]').click();
+    await page.locator(`.dc-picker-card[data-example="${id}"]`).click();
+    await page.fill('.dc-picker-rows', String(rows));
+    await page.click('.dc-picker-choice .dc-primary');
+    await page.locator('.dc-picker').waitFor({ state: 'detached', timeout: 60_000 });
+  };
+  /** The page's views and layout, as JSON with every object's keys in order (a saved page's are written sorted). */
+  const views = () => page.evaluate(() => {
+    const sorted = (v) => (Array.isArray(v) ? v.map(sorted)
+      : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sorted(v[k])])) : v);
+    return JSON.stringify(sorted(window.__dataPage.views()));
+  });
+  let saved = '';
+
+  await check('a page of two sources, a chart of the second, its FIRST grid removed: saved as one page', async () => {
+    await load();
+    const before = await statusNow();
+    page.once('dialog', (d) => { void d.accept(); });
+    await pickSample('trades', 300);
+    await landed(before);
+    // alone on the page: its header in the page bar's strip
+    if (!(await page.locator('.dc-page-alone .dc-source-tag').count())) throw new Error('the lone grid\'s source is not in the bar');
+    await addSample('dates', 120);
+    await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 60_000 });
+    if (await page.locator('.dc-page-alone .dc-source-tag').count()) throw new Error('two grids, and a header still in the bar');
+    await chartOf('grid-2');
+    await page.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
+    // the first grid, removed as any other: its tile's x
+    await page.locator('[data-tile="grid-1"] .dc-tile-remove').click();
+    await page.locator('[data-tile="grid-1"]').waitFor({ state: 'detached', timeout: 10_000 });
+    await saveAs('Two sources');
+    saved = await views();
+    const doc = await page.evaluate(() => window.__dataPage.document('Two sources'));
+    const sources = doc.cubes.map((c) => c.cube.source.name);
+    if (sources.length !== 1 || !/dates/.test(sources[0])) throw new Error(`saved cubes: ${sources.join(', ')}`);
+    return `saved: ${doc.views.map((v) => `${v.id} (${v.kind})`).join(', ')}`;
+  });
+
+  await check('after a reload it reopens as it was saved: its grid over its own source, the chart, the layout', async () => {
+    await load();
+    await openSaved('Two sources');
+    await waitMessage(/opened/);
+    await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 60_000 });
+    await page.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
+    const now = await views();
+    if (now !== saved) throw new Error(`reopened as ${now}, saved as ${saved}`);
+    await page.click('#cubeswin .dc-picker-close').catch(() => {});
+    if ((await page.title()).startsWith('\u2022')) throw new Error(`marked as changed on opening: ${await page.title()}`);
+    return 'the same views and layout; not marked as changed';
+  });
+
+  await check('a page of two grids reopens both, each over its own source', async () => {
+    const before = await statusNow();
+    page.once('dialog', (d) => { void d.accept(); });
+    await pickSample('trades', 200);
+    await landed(before);
+    await addSample('dates', 80);
+    await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 60_000 });
+    await saveAs('Both sources');
+    const want = await views();
+    await load();
+    await openSaved('Both sources');
+    await waitMessage(/opened/);
+    await page.locator('[data-tile="grid-1"] .dc-row').first().waitFor({ timeout: 60_000 });
+    await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 60_000 });
+    const got = await views();
+    if (got !== want) throw new Error(`reopened as ${got}, saved as ${want}`);
+    const heads = await page.locator('.dc-band-tile .dc-source-tag').allTextContents();
+    if (!(heads.some((h) => /trades/.test(h)) && heads.some((h) => /dates/.test(h)))) throw new Error(`headers: ${heads.join(' | ')}`);
+    await page.click('#cubeswin .dc-picker-close').catch(() => {});
+    return `${heads.join(' and ')}`;
+  });
+
   await check('no page errors', async () => {
     if (pageErrors.length) throw new Error(pageErrors.slice(0, 2).join(' | '));
   });
