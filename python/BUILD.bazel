@@ -3,6 +3,9 @@
 # tables) and the engine over them (legend_lite/engine.py: legend-engine's pure/v1 API, for DataCube) add duckdb and
 # pyarrow, pinned in //tools/python.
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@rules_python//python:packaging.bzl", "py_package", "py_wheel")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("@rules_python//python:py_library.bzl", "py_library")
 load("@rules_python//python:py_test.bzl", "py_test")
@@ -20,6 +23,8 @@ py_library(
             "legend_lite/frames.py",
         ],
     ),
+    # the package is typed (PEP 561): an editor or a type checker reads its annotations
+    data = ["legend_lite/py.typed"],
     imports = ["."],
 )
 
@@ -160,6 +165,113 @@ py_binary(
         "@pypi//polars",
         "@rules_python//python/runfiles",
     ],
+)
+
+# THE PACKAGE: `pip install legend-lite` (a wheel per platform, the library being native). legend_lite with what it
+# finds beside itself when nothing points elsewhere (_library.py, datacube.py): the compiler's library in _native/ and
+# DataCube's built site in _site/. Settled with the user (2026-10-08): macOS 14 and up (the library's minimum is pinned,
+# //native:compiler), Python 3.12 and up (the version it is tested on), Linux by the glibc the library is measured to
+# need (wheel_test reads it from the library itself). duckdb 1.5 and pyarrow as built against; pandas and polars are the
+# person's own (extras).
+copy_file(
+    name = "wheel_library_macos",
+    src = "//native:compiler",
+    out = "legend_lite/_native/libcompiler.dylib",
+    target_compatible_with = ["@platforms//os:macos"],
+)
+
+copy_file(
+    name = "wheel_library_linux",
+    src = "//native:compiler",
+    out = "legend_lite/_native/libcompiler.so",
+    target_compatible_with = ["@platforms//os:linux"],
+)
+
+# the engine page alone (DataCube's demo/engine.html, its bundle, its lazy chunks, its type), not the site's in-tab app:
+# no DuckDB-WASM and no compiler module, which the page never loads (about 90 MB)
+copy_to_directory(
+    name = "wheel_site",
+    srcs = ["//datacube:dist"],
+    out = "legend_lite/_site",
+    include_srcs_patterns = [
+        "bundle-engine.js",
+        "chunks-bundle-engine/**",
+        "engine.html",
+        "fonts.css",
+        "vendor/fonts/**",
+    ],
+    root_paths = ["datacube/dist"],
+)
+
+# every module of legend_lite, across its libraries (py_wheel takes a target's own files only)
+py_package(
+    name = "wheel_package",
+    packages = ["python.legend_lite"],
+    deps = [":legend_lite"],
+)
+
+py_wheel(
+    name = "wheel",
+    abi = "none",
+    description_file = "README.md",
+    distribution = "legend-lite",
+    extra_requires = {
+        "pandas": ["pandas>=3.0.6"],
+        "polars": ["polars>=2.0.0"],
+    },
+    license = "Apache-2.0",
+    platform = select({
+        # glibc 2.17: the newest the library names, measured on CI's Linux runners (throwaway run 37867411489, both
+        # architectures); //python:wheel_test holds the tag to what the library needs
+        "//tools/platforms:linux_aarch64": "manylinux_2_17_aarch64",
+        "//tools/platforms:linux_x86_64": "manylinux_2_17_x86_64",
+        "//tools/platforms:macos_arm64": "macosx_14_0_arm64",
+        "//tools/platforms:macos_x86_64": "macosx_14_0_x86_64",
+    }, no_match_error = "the wheel is built where the compiler's library is (COMPILER_LIBRARY_PLATFORMS)"),
+    python_requires = ">=3.12",
+    python_tag = "py3",
+    requires = [
+        "duckdb>=1.5.5",
+        "pyarrow>=23.0.1",
+    ],
+    strip_path_prefixes = ["python"],
+    summary = "Legend's compiler in Python, and DataCube on a dataframe (show(df))",
+    target_compatible_with = _PLATFORMS,
+    version = "0.1.0",
+    deps = [
+        ":wheel_package",
+        ":wheel_site",
+    ] + select({
+        "@platforms//os:linux": [":wheel_library_linux"],
+        "@platforms//os:macos": [":wheel_library_macos"],
+    }),
+)
+
+# the packages the wheel needs, and pandas with its own, as the test installs them (the pinned wheels, offline)
+_WHEEL_TEST_PACKAGES = ["duckdb", "numpy", "pandas", "pyarrow", "python_dateutil", "six", "tzdata"]
+
+# THE WHEEL, AS A DEVELOPER INSTALLS IT: a fresh virtual environment of the repository's Python, the wheel and its
+# packages installed offline from Bazel's own downloads, then show() and a query run with nothing pointing back into
+# the repository -- the wheel stands alone. And its label told true: the library's minimum macOS, or the newest glibc it
+# needs, read from the library itself, against the wheel's platform tag.
+py_test(
+    name = "wheel_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_wheel.py",
+    ],
+    args = ["test_wheel"],
+    data = [":wheel"] + ["@pypi//%s:whl" % p for p in _WHEEL_TEST_PACKAGES],
+    env = {
+        "LEGEND_LITE_WHEEL": "$(rlocationpath :wheel)",
+        "LEGEND_LITE_DEPENDENCY_WHEELS": " ".join(["$(rlocationpaths @pypi//%s:whl)" % p for p in _WHEEL_TEST_PACKAGES]),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUTF8": "1",
+    },
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = ["@rules_python//python/runfiles"],
 )
 
 # the REPL built in a lane, so it does not rot unseen (as //tools/metrics:tools_build_test keeps its tool): everything

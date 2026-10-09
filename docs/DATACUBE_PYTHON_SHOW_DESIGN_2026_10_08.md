@@ -158,7 +158,13 @@ Ctrl-C. Held by `//python:engine_test` (show's cases, a real script that opened 
 still answers, and ones that opened none ending at once) and the browser test (an update shows on the open page by
 itself; a new column opens it again). To try
 it: `bazel run //python:repl` (the repository's Python and pinned packages, the library and the site), then
-`cube = ll.show(trades)`. Left for later: the notebook widget, a package to install, Windows.
+`cube = ll.show(trades)`. 6, the package (`//python:wheel`, `legend-lite` 0.1.0, one wheel per platform): the modules,
+the compiler's library (`_native/`) and DataCube's engine page alone (`_site/`: no DuckDB-WASM, no compiler module),
+16.5 MB; settled with the user (2026-10-08): macOS 14 and up (the library's minimum pinned in its build, where it had
+followed the build machine's SDK), Python 3.12 and up (what it is tested on), Linux labelled by the glibc the library is
+measured to need. Held by `//python:wheel_test`: the tag against the library's own header, and the wheel installed
+into a fresh environment offline, `show()` and a query run from it alone. Left for later: the notebook widget,
+publishing to PyPI (the user's decision), Windows.
 
 1. The boundary's builders; the Python server; its Python tests.
 2. Arrow in DataCube's remote client.
