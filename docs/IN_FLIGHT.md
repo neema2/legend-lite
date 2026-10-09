@@ -29,7 +29,8 @@ with the compiler's plan/execution split**, in this order:
    actionlint over the workflows); `MODULE.bazel` and `third_party/` (actionlint's archives); `docs/GATES.md`. L1b:
    `tools/browser/defs.bzl` (a Linux-only option), `datacube/BUILD.bazel`, `query/BUILD.bazel`, `site/BUILD.bazel`,
    `studio/BUILD.bazel` and `datacube/demo/*.mjs` (the harnesses as tests: `bazel/exec`'s P4-02, P4-03, P4-04 and
-   P4-08 rebased) — Studio's line owns `datacube/`, `query/`, `site/` (below): noted here once, proceeding.
+   P4-08 rebased) — Studio's line owns `query/`, `site/` (below; `datacube/` is the sixth line's since 2026-10-09): noted
+   here once, proceeding.
    **L1a landed 2026-10-07 (`fd1b0ba77`); L1b landed 2026-10-07 (`d126b47e1`).** Its cache fix follows on
    `build/ci-cache` (`gates-run.yml` only).
    **Landed 2026-10-07 — L1c, the warehouse knows nothing about Bazel** (commit "Build rebuild L1c: the warehouse knows nothing about Bazel"; GATES entry "Build rebuild L1c"). The DataCube line's edits to `warehouse/` rebase onto it: `ServerRunfiles.java` is gone, `WarehouseServer.commandLine` resolves no path, `//warehouse:serve` and `//datacube:app` are `warehouse_folder` targets, `duckdb_extensions` is `postgres_extension`.
@@ -95,7 +96,7 @@ with the compiler's plan/execution split**, in this order:
    `ids`/`catalog` items now belong to this program (Phase 3), so nobody redoes them there; W1.1b stays with that plan
    (this program's Phase 3b was re-scoped on 2026-10-07 to the files Phases 4 and 6 load and what users meet).
 2. **Studio** (`docs/STUDIO_FULL_PLAN_2026_10_04.md`; `studio-m1` landed as PR #24 on 2026-10-05): `studio/`,
-   `legend-art/`, `query/`, `datacube/` (imports and labels; the Snap move, A6), `site/`, `engine-client/`,
+   `legend-art/`, `query/`, `site/`, `engine-client/` (`datacube/` moved to the sixth line on 2026-10-09: the user),
    `sdlc-*`/`depot-*`; and the **protocol program** in core (`docs/PROTOCOL_PROGRAM_2026_10_05.md`: files in the fifth
    line's notes). **Resumed 2026-10-07 by session `neema-8f`**: see the fifth line's 2026-10-07 note.
 3. **The database owner** (the fourth line below; `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md`; since
@@ -477,7 +478,9 @@ whichever lands second merges, and the two should agree before either starts on 
 Worktree `legend-lite-dcsnap`, branch `datacube-chart-spec`, rebased on `main` (`fd3d007e4`) on 2026-10-07. The goal:
 DataCube on a Python dataframe, from a script and in a notebook, with Python running the SAME compiler the browser runs
 as WebAssembly (one compiler source, so Python and DataCube share models and answers). **Owns** two new packages:
-`native/` and `python/`.
+`native/` and `python/`, and, **since 2026-10-09, all of `datacube/`** (the user: "This session should own all the
+datacube stuff"): the DataCube app, its page layout and page save, its notebook cube. Another line editing `datacube/`
+asks this line first, as it asked the Studio line before.
 
 **Landed 2026-10-07 (`bc8107c4e`; GATES entry "The compiler as a native library"): the compiler as a native library, with
 Python bindings (L1).**
