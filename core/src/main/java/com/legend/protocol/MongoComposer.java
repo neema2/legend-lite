@@ -182,14 +182,6 @@ final class MongoComposer {
         return b.append(TAB).append("}").toString();
     }
 
-    /** {@link #classMapping(Protocol.PClassMappingMongoDb)} of the JSON, read first. */
-    static String classMapping(Json.Obj cm) {
-        if (!(ClassMappingReader.classMapping(cm) instanceof Protocol.PClassMappingMongoDb r)) {
-            throw Composing.refused("a MongoDB class mapping that reads as another kind");
-        }
-        return classMapping(r);
-    }
-
     /** The connection's body at the context's indentation {@code i}. */
     static String connection(Protocol.PMongoDbConnection c, String i) {
         String store = c.element();

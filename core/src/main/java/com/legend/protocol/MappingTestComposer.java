@@ -3,20 +3,17 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import static com.legend.protocol.Composing.convertString;
-import static com.legend.protocol.Composing.objs;
-import static com.legend.protocol.Composing.str;
 import static com.legend.protocol.Composing.tab;
 
 /**
  * A mapping's tests as upstream prints them: the legacy {@code MappingTests} and the {@code testSuites}
  * ({@code HelperMappingGrammarComposer.renderMappingTest}, {@code renderMappingTestSuite} and the relational
- * extension's test input data).
+ * extension's test input data) -- over the records ({@link Protocol.PLegacyMappingTest},
+ * {@link Protocol.PMappingTestSuite}; the protocol program's leg 2, step 3).
  */
 final class MappingTestComposer {
 
@@ -24,41 +21,29 @@ final class MappingTestComposer {
     }
 
     /** {@code renderMappingTest}. */
-    static String legacyTest(Json.Obj test) {
+    static String legacyTest(Protocol.PLegacyMappingTest test) {
         List<String> data = new ArrayList<>();
-        for (Json.Obj d : objs(test, "inputData")) {
+        for (Protocol.PLegacyInputData d : test.inputData()) {
             data.add(tab(4) + inputData(d));
         }
-        Json.Obj assertion = test.getObj("assert");
-        if (!"expectedOutputMappingTestAssert".equals(Composing.type(assertion))) {
-            throw Composing.refused("no composer rule for a mapping test assert of _type '" + Composing.type(assertion) + "'");
-        }
-        return "  " + test.getString("name") + "\n"
+        return "  " + test.name() + "\n"
                 + tab(2) + "(\n"
-                + tab(3) + "query: " + Composing.valueSpecification(test.get("query")) + ";\n"
+                + tab(3) + "query: " + Composing.valueSpecification(test.query()) + ";\n"
                 + tab(3) + "data:\n"
                 + tab(3) + "[\n"
                 + String.join(",\n", data) + (data.isEmpty() ? "" : "\n")
                 + tab(3) + "];\n"
-                + tab(3) + "assert: " + convertString(assertion.getString("expectedOutput"), false) + ";\n"
+                + tab(3) + "assert: " + convertString(test.expectedOutput(), false) + ";\n"
                 + tab(2) + ")";
     }
 
-    private static String inputData(Json.Obj d) {
-        String type = Composing.type(d);
-        if ("object".equals(type)) {
-            return "<Object, " + d.getString("inputType") + ", " + Composing.convertPath(d.getString("sourceClass")) + ", "
-                    + convertString(d.getString("data"), false) + ">";
+    private static String inputData(Protocol.PLegacyInputData d) {
+        if (!d.relational()) {
+            return "<Object, " + d.inputType() + ", " + Composing.convertPath(d.targetPath()) + ", "
+                    + convertString(d.data(), false) + ">";
         }
-        if ("relational".equals(type)) {
-            return relationalInputData(d);
-        }
-        throw Composing.refused("no composer rule for mapping test input data of _type '" + type + "'");
-    }
-
-    private static String relationalInputData(Json.Obj d) {
-        String inputType = d.getString("inputType");
-        String raw = d.getString("data");
+        String inputType = d.inputType();
+        String raw = d.data();
         String data;
         if ("SQL".equals(inputType)) {
             List<String> lines = new ArrayList<>();
@@ -77,21 +62,19 @@ final class MappingTestComposer {
         } else {
             data = raw;
         }
-        return "<Relational, " + inputType + ", " + d.getString("database") + ", " + data + "\n" + tab(4) + ">";
+        return "<Relational, " + inputType + ", " + d.targetPath() + ", " + data + "\n" + tab(4) + ">";
     }
 
     /** {@code renderMappingTestSuite}. */
-    static String testSuite(Json.Obj suite) {
-        StringBuilder b = new StringBuilder(tab(1)).append(suite.getString("id")).append(":\n").append(tab(2)).append("{\n");
-        String doc = str(suite, "doc");
-        if (doc != null) {
-            b.append(tab(3)).append("doc: ").append(convertString(doc, true)).append(";\n");
+    static String testSuite(Protocol.PMappingTestSuite suite) {
+        StringBuilder b = new StringBuilder(tab(1)).append(suite.id()).append(":\n").append(tab(2)).append("{\n");
+        if (suite.doc() != null) {
+            b.append(tab(3)).append("doc: ").append(convertString(suite.doc(), true)).append(";\n");
         }
-        b.append(tab(3)).append("function: ").append(Composing.valueSpecification(suite.get("func"))).append(";\n");
-        List<Json.Obj> tests = objs(suite, "tests");
-        if (!tests.isEmpty()) {
+        b.append(tab(3)).append("function: ").append(Composing.valueSpecification(suite.func())).append(";\n");
+        if (!suite.tests().isEmpty()) {
             List<String> ts = new ArrayList<>();
-            for (Json.Obj t : tests) {
+            for (Protocol.PMappingTest t : suite.tests()) {
                 ts.add(test(t));
             }
             b.append(tab(3)).append("tests:\n").append(tab(3)).append("[\n").append(String.join(",\n", ts)).append("\n")
@@ -101,15 +84,14 @@ final class MappingTestComposer {
     }
 
     /** {@code renderMappingTests}. */
-    private static String test(Json.Obj test) {
-        StringBuilder b = new StringBuilder(tab(4)).append(test.getString("id")).append(":\n").append(tab(4)).append("{\n");
-        String doc = str(test, "doc");
-        if (doc != null) {
-            b.append(tab(5)).append("doc: ").append(convertString(doc, true)).append(";\n");
+    private static String test(Protocol.PMappingTest test) {
+        StringBuilder b = new StringBuilder(tab(4)).append(test.id()).append(":\n").append(tab(4)).append("{\n");
+        if (test.doc() != null) {
+            b.append(tab(5)).append("doc: ").append(convertString(test.doc(), true)).append(";\n");
         }
-        b.append(storeTestData(objs(test, "storeTestData"), 4));
+        b.append(storeTestData(test.storeTestData(), 4));
         List<String> asserts = new ArrayList<>();
-        for (Json.Obj a : objs(test, "assertions")) {
+        for (Protocol.PTestAssertion a : test.assertions()) {
             asserts.add(TestAssertionComposer.compose(a, tab(6)));
         }
         return b.append(tab(5)).append("asserts:\n").append(tab(5)).append("[\n").append(String.join(",\n", asserts)).append("\n")
@@ -117,14 +99,30 @@ final class MappingTestComposer {
     }
 
     /** {@code renderStoreTestData}. */
-    static String storeTestData(List<Json.Obj> data, int base) {
+    private static String storeTestData(List<Protocol.PStoreTestData> data, int base) {
         List<String> out = new ArrayList<>();
-        for (Json.Obj d : data) {
-            out.add(tab(base + 2) + DatabaseComposer.pointerPath(d.get("store")) + ":\n"
-                    + EmbeddedDataComposer.compose(d.getObj("data"), tab(base + 3)));
+        for (Protocol.PStoreTestData d : data) {
+            out.add(tab(base + 2) + d.store().path() + ":\n" + EmbeddedDataComposer.compose(data(d), tab(base + 3)));
         }
         return tab(base + 1) + "data:\n" + tab(base + 1) + "[\n"
                 + (out.isEmpty() ? "" : String.join(",\n", out) + "\n")
                 + tab(base + 1) + "];\n";
+    }
+
+    /** The data value a store's test data holds, which the record keeps in one of its forms. */
+    private static Protocol.PEmbeddedDataValue data(Protocol.PStoreTestData d) {
+        if (d.relationElements() != null) {
+            return new Protocol.PRelationData(d.relationElements(), d.relationAccessorSourceInformation());
+        }
+        if (d.modelData() != null) {
+            return new Protocol.PModelStoreData(d.modelData(), d.modelStoreSourceInformation());
+        }
+        if (d.dataElement() != null) {
+            return new Protocol.PDataReference(d.dataElement(), d.dataElement().sourceInformation());
+        }
+        if (d.embedded() == null) {
+            throw Composing.refused("store test data for " + d.store().path() + " that holds no data");
+        }
+        return d.embedded();
     }
 }

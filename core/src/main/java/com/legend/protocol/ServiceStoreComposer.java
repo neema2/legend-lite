@@ -142,14 +142,6 @@ final class ServiceStoreComposer {
         return b.append(TAB).append("}").toString();
     }
 
-    /** {@link #classMapping(Protocol.PServiceStoreClassMapping)} of the JSON, read first. */
-    static String classMapping(Json.Obj cm) {
-        if (!(ClassMappingReader.classMapping(cm) instanceof Protocol.PServiceStoreClassMapping r)) {
-            throw Composing.refused("a service store class mapping that reads as another kind");
-        }
-        return classMapping(r);
-    }
-
     private static void serviceMapping(Protocol.PServiceMapping sm, StringBuilder b, int base) {
         Protocol.PServicePtr service = sm.service();
         List<String> segments = new ArrayList<>();
