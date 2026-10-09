@@ -292,4 +292,22 @@ build_test(
     target_compatible_with = _PLATFORMS,
 )
 
+# THROWAWAY (probe/march, never main)
+py_test(
+    name = "march_benchmark",
+    size = "large",
+    srcs = ["tests/bench_march.py", "tests/main.py"],
+    args = ["bench_march"],
+    data = ["//native:compiler", "//native:compiler_default_cpu", "//wasm:corpus/model.pure", "//wasm:corpus/queries.tsv"],
+    env = {
+        "LIB_COMPATIBLE": "$(rlocationpath //native:compiler)",
+        "LIB_DEFAULT": "$(rlocationpath //native:compiler_default_cpu)",
+        "CORPUS_MODEL": "$(rlocationpath //wasm:corpus/model.pure)",
+        "CORPUS_QUERIES": "$(rlocationpath //wasm:corpus/queries.tsv)",
+    },
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [":compiler", "@rules_python//python/runfiles"],
+)
+
 guards_package()
