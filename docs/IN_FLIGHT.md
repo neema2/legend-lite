@@ -446,17 +446,14 @@ navigation, as 609fae95e; Studio's status bar, as 8ab4a5bdc; the tab's test data
 fb3acc2f1 (`sqlType`'s copy gone; `planner.Wasm.testDataSqlOrError`, `wasm/` one export).** Parked on the Studio
 line (the user, 2026-10-08: the round trip first): its harnesses' sites off Node's file server; `verify_remote_test`'s
 fetch of DuckDB-WASM's httpfs extension from the network, to be vendored as a pinned file.
-**Now (2026-10-08): the protocol program's leg 2, on branch `protocol-leg2`** (`docs/PROTOCOL_PROGRAM_2026_10_05.md`
-§4.2, its two decisions recorded there). Core files it touches: `core/src/main/java/com/legend/protocol/` -- the 31
-`*Composer.java` printers moved from JSON onto the records, family by family; the readers (`ModelReader`,
-`ProtocolReader`, `SpecIslandReader`, the family readers) learning the older shapes legend-engine 4.145.0 reads and
-refusing, by name, a field it would silently drop; `spec/AppliedFunction.java`, a written-form flag `island` beside
-`propertyCall`, `grouped` and `infix` (agreed with the compiler line, 2026-10-08: set only by the `tableReference`
-factory, read by the emitter and the printer, never by `compiler/`, `resolver/` or `lowering/`); and
-`core/src/test/java/com/legend/protocol/`. Outside core: `parser-equivalence`'s parity tests and `PeRatchets` (the
-verdict kinds printed beside `own_corpus.matched`), `docs/SEMANTICS_REGISTER.md` (one row: refuse where the engine
-drops). Not touched: `parser/` (the factory is already shared), `compiler/`, `server/` (legs 3 and 4 add the routes,
-after `PureV1Api` moves into `//core:pure_v1`).
+**Now (2026-10-09): the protocol program's leg 2, step 3, on branch `protocol-leg2`** (`docs/PROTOCOL_PROGRAM_2026_10_05.md`
+§4.2). Steps 1 and 2 landed as 447102e56 (run 37870936729; GATES 2026-10-09): the table reference's written form
+(`AppliedFunction.island`) and the reader learning the older JSON legend-engine 4.145.0 reads (records gained written
+details: `AppliedFunction.fControl`/`ownerClass`, `AppliedProperty.ownerClass`, the model's `serializer`/`origin`, ...;
+`SEMANTICS_REGISTER` S29 to S34; S34 is the compiler line's). Step 3, next: the 31 `*Composer.java` printers in
+`core/src/main/java/com/legend/protocol/` moved from JSON onto the records, family by family, the parity counts held
+exactly; and `core/src/test/java/com/legend/protocol/`. Not touched: `parser/`, `compiler/`, `server/` (legs 3 and 4
+add the routes in `//core:pure_v1`).
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
 (engine code: `core/.../protocol/`, eleven files of `core/.../parser/`, `native-claims.tsv`; the engine's lanes). For

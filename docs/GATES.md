@@ -7550,3 +7550,30 @@ targets, in a step of their own, then the tests -- a test beside an image build 
 37830923226). The builds first sat inside the lane step's script, where shellcheck never finished on Windows
 (`//tools/guards:workflows_test` timed out twice; a two-way bisect, probes 37848557289 and 37848560951, pinned it there);
 as a step-level `if`, Windows checks pass (probe 37854034947).
+
+## 2026-10-09 — The protocol program's leg 2, steps 1 and 2: a table reference keeps how it was written, and the model reader reads the older JSON legend-engine reads (the Studio / SDLC / Depot line)
+
+**Step 1** (the user, 2026-10-08): `#>{db.schema.table}#` and `tableReference(db, 'schema.table')` are one record told
+apart by a written-form flag, `AppliedFunction.island` (agreed with the compiler line), not by whether a span is there
+-- JSON without positions brought the call back as an island. **Step 2** (the user, 2026-10-08, decision C and its two
+refinements): the reader reads every field and older shape legend-engine 4.145.0 reads, each per the engine's own code
+(`docs/PROTOCOL_PROGRAM_2026_10_05.md` §4.2, the table of rules): older expression shapes (pointers, type annotations,
+literals as `values` lists, the `classInstance` kinds under their own `_type`, `qualifiedProperty`, the TDS wrappers as
+the calls that build them), older element layouts (lists left out, names written bare, the oldest model's sections,
+`legacyRuntime`, three older enum source-value formats, unmangled function names, ...), and the model's `serializer` and
+`origin` (Depot's and SDLC's models carry them). `fControl` and a property's `class` are kept and written back.
+Where the engine silently drops, lite refuses by name. `SEMANTICS_REGISTER` S29 to S34.
+
+The oracles: `OlderJsonParityTest` (parser-equivalence) over legend-engine's own test JSON -- 772 elements written as
+the engine writes them, 332 as the documented upgrade (coded apart from the reader; two rules through the engine's own
+`HelperModelBuilder.getSignature` and `LegacyRuntime.toEngineRuntime`), 0 mismatched, 19 refused by name, 89 whole
+models read, 28 refused (17 for the `version` the engine discards); pinned. `OlderShapesReadTest` (core) pins each
+expression shape against the text it means; `ModelReaderRoundTripTest` the island. The leg-1 oracles unchanged
+(`ModelReaderParityTest`, the composer parities); `own_corpus.matched` 2,721 -> 2,723 (the step-1 test's two models).
+The audit (the auditor agent, 2026-10-09): no blockers; six should-fix and six nits, all answered (an older `new` with a
+`class` pointer converted as the engine converts it; the parameters the engine binds itself parsed and checked; an
+unused enum `sourceType` refused; whole-model refusals pinned).
+
+The run: 37870936729 on `protocol-leg2` (447102e56, on 1818c89f7), lanes core, checks, parser_equivalence, product,
+ui, datacube and sdlc on every platform, green on every job; pushed to main as 447102e56, the tested commit. Local gate
+`//gates:local` green (315/315) on the same tree.
