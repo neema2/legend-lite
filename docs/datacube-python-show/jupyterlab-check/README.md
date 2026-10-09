@@ -1,17 +1,21 @@
-# A notebook's cube in a real JupyterLab: the manual check (2026-10-08)
+# A notebook's cube in a real JupyterLab: the manual check (2026-10-08), now a test
+
+**Since 2026-10-09 this check is a test: `//datacube:jupyterlab_test`** (the warehouse lane, Linux and Apple-silicon Macs). It
+installs legend-lite's wheel and JupyterLab into a fresh environment as a developer does (pip, offline, from the
+pinned wheels), opens the notebook (`datacube/test/jupyterlab/datacube.ipynb`, the notebook below) in the pinned
+Chromium, runs its cells and checks what this page records, in about 45 seconds. The script and notebook this page
+first cited moved there. What follows is the manual run that came first, and the fault it found.
 
 The Bazel tests hold the notebook cube's parts: the Python widget's calls and version (`//python:notebook_test`), and
 its loader and module in the pinned Chromium with a stand-in for anywidget's model (`//datacube:python_engine_test`).
 This check ran the whole thing once in a real JupyterLab, to see what those stand-ins cannot show: anywidget's own
-front end loading the loader, ipywidgets' channel, the cell outputs, and JupyterLab's keyboard shortcuts. It is not a
-test. Running JupyterLab in a test would bring about 70 packages; whether to do that is open (the design,
-`docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`, "In a notebook").
+front end loading the loader, ipywidgets' channel, the cell outputs, and JupyterLab's keyboard shortcuts.
 
 **What ran.** The wheel from `bazel build //python:wheel` (legend-lite 0.1.0, macOS arm64), installed with its
 `notebook` and `pandas` extras and JupyterLab into a fresh virtual environment: JupyterLab 4.6.4, anywidget 0.11.0,
 ipywidgets 8.1.9, Python 3.12. The server ran on 127.0.0.1 with a token and `--LabApp.expose_app_in_browser=True`; the
-browser was the repository's pinned Chromium (chromium-headless-shell 1243), driven by `check.mjs` with Playwright. The
-notebook is `check.ipynb`: a DataFrame; `cube = ll.show(df)`; `ll.show(df, name='again')` as a cell's last line; an
+browser was the repository's pinned Chromium (chromium-headless-shell 1243), driven with Playwright. The
+notebook (now `datacube/test/jupyterlab/datacube.ipynb`): a DataFrame; `cube = ll.show(df)`; `ll.show(df, name='again')` as a cell's last line; an
 in-place change (`df.loc[0, 'qty'] = 999.5`); and `cube.update(df.head(2))`.
 
 **What showed (on a fresh kernel).**
@@ -30,6 +34,5 @@ displayed a second copy. `update` now returns nothing, in a tab too (`//python:n
 errors the run printed ("Canceled future for create_subshell_request") are JupyterLab's own, from restarting the
 kernel the check starts with.
 
-**To run it again.** Install the wheel as above, start `jupyter lab` with the flags above and this folder's notebook in
-its root, then `PLAYWRIGHT=<the repository's bazel-bin/datacube/node_modules/playwright/index.mjs> node check.mjs <a
-Chromium executable>` (the port and token are the script's: 8899, `checktoken`).
+**To run it again:** `bazel test //datacube:jupyterlab_test`; its screenshot is the test's output, kept whether it
+passes or fails: `bazel-testlogs/datacube/jupyterlab_test/test.outputs/jupyterlab.png`.
