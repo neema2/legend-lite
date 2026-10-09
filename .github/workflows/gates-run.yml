@@ -194,8 +194,9 @@ jobs:
           . tools/ci/lane-flags.sh
           # the app package too (L1c, 2026-10-07): packaging, so the product job's (the datacube lane builds it again, as
           # package_test's data). The compiler as a native library (//native:compiler) is named on its own, never in
-          # //:native: it does not build on Windows yet, and an incompatible member would make //:native, and so the
-          # warehouse's image, skipped there; --skip_incompatible_explicit_targets skips the library alone
+          # //:native: it builds where COMPILER_LIBRARY_PLATFORMS says (not Windows on Arm), and an incompatible member
+          # would make //:native, and so the warehouse's image, skipped there; --skip_incompatible_explicit_targets
+          # skips the library alone
           bazel build "${flags[@]}" --skip_incompatible_explicit_targets //:java //:web //:wasm //:native //:sites \
             //datacube:app //datacube:app_package //native:compiler
           # the folder, what is saved (content_addressable/, the downloads: 3.1 GB on Linux, about 1 GB on macOS and Windows in
@@ -213,8 +214,8 @@ jobs:
         # TWO NATIVE IMAGES in this lane, the warehouse's and the compiler's (//native:compiler, for //python's tests):
         # each is a whole-machine build, so they are built first, one after the other, and the tests run after. A test
         # beside an image build timed out (//warehouse:tests_native, run 37830923226, 2026-10-08), and two images at
-        # once on a 7 GB runner risk its memory. The compiler's image is skipped where it does not build (Windows, for
-        # now). A step of its own: inside the lane step's script, shellcheck never finished on Windows
+        # once on a 7 GB runner risk its memory. The compiler's image is skipped where it does not build
+        # (COMPILER_LIBRARY_PLATFORMS: not Windows on Arm). A step of its own: inside the lane step's script, shellcheck never finished on Windows
         # (//tools/guards:workflows_test timed out, probe run 37848560951). Its flags are the lane's, one file for both
         # steps (tools/ci/lane-flags.sh), so the tests reuse what is built here.
         if: matrix.lane.key == 'warehouse'
@@ -288,8 +289,8 @@ jobs:
             bazel-bin/spec/judge_*/*-*.txt
           if-no-files-found: ignore
       # the wheel this platform built (//python:wheel: the warehouse lane builds it for //python:wheel_test), kept for
-      # anyone to install without building it -- only once the lane is green, so a kept wheel is a tested one. None on
-      # Windows yet (the compiler's library does not build there)
+      # anyone to install without building it -- only once the lane is green, so a kept wheel is a tested one: macOS,
+      # Linux, Linux ARM and Windows (x86-64)
       - name: the legend-lite wheel
         if: matrix.lane.key == 'warehouse' && success()
         uses: actions/upload-artifact@v4

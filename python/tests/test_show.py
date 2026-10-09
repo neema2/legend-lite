@@ -149,6 +149,11 @@ class Notebook(Shown):
 # webbrowser.open made to answer as a browser would, opened or not -- no browser is started
 SCRIPT = r'''
 import json, sys, webbrowser
+if sys.platform == "win32":
+    # a person's console delivers Ctrl-C; a test's process ignores it (Bazel starts a test in a process group of its
+    # own) and a child inherits that, so the script takes it back, as a script a person started has it
+    import ctypes
+    ctypes.windll.kernel32.SetConsoleCtrlHandler(None, False)
 import pandas as pd
 import legend_lite as ll
 from legend_lite import datacube
@@ -159,13 +164,29 @@ print(json.dumps({"url": web.url, "authorization": web.authorization}), flush=Tr
 '''
 
 
+# Ctrl-C pressed in a Windows console, as a person presses it: this helper attaches to the script's console, ignores
+# the Ctrl-C itself, and sends it to every process there -- the script. Windows has no Ctrl-C to send one process (a
+# process group's CTRL_C_EVENT is ignored by the group), and a test has no console of its own to press it in
+CTRL_C = r'''
+import ctypes, sys
+kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+kernel32.FreeConsole()
+for call, args in ((kernel32.AttachConsole, (int(sys.argv[1]),)), (kernel32.SetConsoleCtrlHandler, (None, True)),
+                   (kernel32.GenerateConsoleCtrlEvent, (0, 0))):
+    if not call(*args):
+        raise SystemExit(f"{call.__name__}: Windows error {ctypes.get_last_error()}")
+'''
+
+
 class PlainScript(unittest.TestCase):
     def script(self, opens, browser):
-        """The script running (``python -c``: a plain script, no terminal), and its output's lines as they come."""
+        """The script running (``python -c``: a plain script, no terminal; on Windows in a console of its own, so Ctrl-C
+        can be pressed there), and its output's lines as they come."""
         env = dict(os.environ, PYTHONPATH=os.pathsep.join(sys.path))
         env['LEGEND_LITE_SITE'] = tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))
+        console = {'creationflags': subprocess.CREATE_NEW_CONSOLE} if sys.platform == 'win32' else {}
         process = subprocess.Popen([sys.executable, '-c', SCRIPT, opens, browser], stdin=subprocess.DEVNULL,
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, text=True)
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, text=True, **console)
         lines = queue.Queue()
         threading.Thread(target=lambda: [lines.put(line) for line in process.stdout], daemon=True).start()
         self.addCleanup(lambda: process.poll() is None and process.kill())
@@ -189,7 +210,10 @@ class PlainScript(unittest.TestCase):
                                          headers={'Authorization': served['authorization']})
         with urllib.request.urlopen(request, timeout=30) as r:
             self.assertEqual((r.status, sorted(json.loads(r.read()))), (200, ['model', 'runtime', 'source', 'title', 'version']))
-        process.send_signal(signal.SIGINT)
+        if sys.platform == 'win32':
+            subprocess.run([sys.executable, '-c', CTRL_C, str(process.pid)], check=True, timeout=30)
+        else:
+            process.send_signal(signal.SIGINT)
         self.assertEqual(process.wait(timeout=30), 0)
 
     def test_with_no_browser_opened_the_end_does_not_wait(self):

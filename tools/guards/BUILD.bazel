@@ -9,7 +9,7 @@ load("//tools/deps:pools.bzl", "POOLS")
 load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
-load("//tools/platforms:defs.bzl", "platform_select")
+load("//tools/platforms:defs.bzl", "COMPILER_LIBRARY_PLATFORMS", "platform_select")
 
 # Every package's files (guards_package), from the inventory's package list: a package without guards_package()
 # fails analysis here (G0, Bazel workplan P6-00).
@@ -119,12 +119,12 @@ action_kinds_report(
     name = "build_action_kinds",
     testonly = True,
     # the compiler as a native library (//native:compiler) shares the native tier: the same native-image compile and
-    # zlib. Not where it does not build (Windows, for now): an incompatible tier would make this report, and so the
-    # guard, incompatible there too
+    # zlib. Wherever it builds (COMPILER_LIBRARY_PLATFORMS: Windows on x86-64 too, since 2026-10-09), and not elsewhere:
+    # an incompatible tier would make this report, and so the guard, incompatible there too
     tiers = select({
-        "@platforms//os:windows": _TIERS,
-        "//conditions:default": _TIERS | {"//native:compiler": "native"},
-    }),
+        "//tools/platforms:" + platform: _TIERS | {"//native:compiler": "native"}
+        for platform in COMPILER_LIBRARY_PLATFORMS
+    } | {"//conditions:default": _TIERS}),
 )
 
 junit_test(
