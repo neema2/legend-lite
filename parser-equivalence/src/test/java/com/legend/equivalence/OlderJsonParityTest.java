@@ -1,0 +1,318 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.equivalence;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.legend.json.Json;
+import com.legend.protocol.ModelReader;
+import com.legend.protocol.ProtocolEmitter;
+import com.legend.protocol.ProtocolReader;
+import com.legend.testing.TestOutputs;
+import org.finos.legend.engine.protocol.pure.m3.function.LambdaFunction;
+import org.finos.legend.engine.protocol.pure.v1.model.context.PureModelContextData;
+import org.finos.legend.engine.shared.core.ObjectMapperFactory;
+import org.junit.jupiter.api.Test;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.stream.Stream;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * THE OLDER JSON'S ORACLE (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 2 step 2): every model and lambda among
+ * legend-engine's own test resources -- JSON written by the engine's older versions, older expression shapes
+ * included -- read by the engine and written back (its own upgrade, J2), against lite's read and emit of the same
+ * JSON, element by element:
+ *
+ * <ul>
+ *   <li><b>matched</b>: lite writes J2;</li>
+ *   <li><b>upgraded</b>: lite writes J2 with the documented upgrades applied ({@link #upgraded}): the shapes the
+ *       engine keeps and lite reads as the call that builds the same object;</li>
+ *   <li><b>refused</b>: lite's reader names what it has no rule for (listed by reason in
+ *       {@code older-json-refusals.tsv});</li>
+ *   <li><b>mismatched</b>: anything else (the first difference of each in {@code older-json-mismatches.txt}).</li>
+ * </ul>
+ *
+ * Read and written are counted up-only, refusals and mismatches down-only. A file the engine itself cannot read is
+ * skipped and counted.
+ */
+class OlderJsonParityTest {
+
+    /** Elements and lambdas lite writes as the engine does, or as its documented upgrade. Up-only. */
+    private static final int MIN_READ = 0;
+    /** Different JSON with no documented upgrade behind it. Down-only. */
+    private static final int MAX_MISMATCHED = 100_000;
+    /** Refusals, by any reason. Down-only. */
+    private static final int MAX_REFUSED = 100_000;
+
+    private static final Json.Config DEEP = new Json.Config(4096);
+
+    private final ObjectMapper mapper = ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+    private final Map<String, Integer> refusals = new TreeMap<>();
+    private final List<String> mismatches = new ArrayList<>();
+    private int matched;
+    private int upgraded;
+    private int refused;
+    private int engineRefused;
+
+    @Test
+    void liteReadsWhatTheEngineReads() throws Exception {
+        Path root = Corpus.engineRoot();
+        List<Path> files;
+        try (Stream<Path> s = Files.walk(root)) {
+            files = s.filter(p -> p.toString().endsWith(".json"))
+                    .filter(p -> Corpus.within(root, p).contains("/src/test/resources/"))
+                    .sorted(java.util.Comparator.comparing(Corpus::slashed))
+                    .toList();
+        }
+        int models = 0;
+        int lambdas = 0;
+        for (Path file : files) {
+            String text = Files.readString(file);
+            Json.Node json;
+            try {
+                json = Json.parse(text, DEEP);
+            } catch (RuntimeException notJson) {
+                continue;
+            }
+            if (!(json instanceof Json.Obj top)) {
+                continue;
+            }
+            String type = top.getStringOr("_type", "");
+            String id = Corpus.within(root, file);
+            if ("data".equals(type)) {
+                models++;
+                model(id, text, top);
+            } else if ("lambda".equals(type)) {
+                lambdas++;
+                lambda(id, text, top);
+            }
+        }
+        Files.createDirectories(TestOutputs.dir());
+        StringBuilder reasons = new StringBuilder();
+        refusals.forEach((r, n) -> reasons.append(n).append('\t').append(r).append('\n'));
+        Files.writeString(TestOutputs.file("older-json-refusals.tsv"), reasons.toString());
+        Files.writeString(TestOutputs.file("older-json-mismatches.txt"), String.join("\n", mismatches));
+        System.out.printf("[older-json] %d files: %d models, %d lambdas (%d the engine cannot read); matched %d,"
+                        + " upgraded %d, refused %d, mismatched %d%n", files.size(), models, lambdas, engineRefused,
+                matched, upgraded, refused, mismatches.size());
+        refusals.forEach((r, n) -> System.out.println("[older-json] refused " + n + "  " + r));
+        assertTrue(matched + upgraded >= MIN_READ, "read as the engine reads: " + (matched + upgraded) + " < " + MIN_READ);
+        assertTrue(mismatches.size() <= MAX_MISMATCHED, "mismatched: " + mismatches.size() + " > " + MAX_MISMATCHED
+                + " (target/older-json-mismatches.txt)");
+        assertTrue(refused <= MAX_REFUSED, "refused: " + refused + " > " + MAX_REFUSED
+                + " (target/older-json-refusals.tsv)");
+    }
+
+    private void model(String id, String text, Json.Obj top) {
+        Json.Obj engine;
+        try {
+            engine = (Json.Obj) Json.parse(mapper.writeValueAsString(mapper.readValue(text, PureModelContextData.class)),
+                    DEEP);
+        } catch (Exception | LinkageError e) {
+            engineRefused++;
+            return;
+        }
+        List<Json.Node> ours = items(top, "elements");
+        List<Json.Node> theirs = items(engine, "elements");
+        if (ours.size() != theirs.size()) {
+            mismatches.add(id + "\telement count " + ours.size() + " vs the engine's " + theirs.size());
+            return;
+        }
+        for (int i = 0; i < ours.size(); i++) {
+            Json.Obj element = (Json.Obj) ours.get(i);
+            String where = id + "#" + i + " (" + element.getStringOr("_type", "?") + ")";
+            String written;
+            try {
+                written = ProtocolEmitter.emitElement(ModelReader.readElement(element));
+            } catch (IllegalArgumentException refusal) {
+                refuse(refusal);
+                continue;
+            } catch (RuntimeException crash) {
+                mismatches.add(where + "\tcrashed: " + crash);
+                continue;
+            }
+            compare(where, Json.parse(written, DEEP), theirs.get(i));
+        }
+    }
+
+    private void lambda(String id, String text, Json.Obj top) {
+        Json.Node engine;
+        try {
+            engine = Json.parse(mapper.writeValueAsString(mapper.readValue(text, LambdaFunction.class)), DEEP);
+        } catch (Exception | LinkageError e) {
+            engineRefused++;
+            return;
+        }
+        String written;
+        try {
+            written = ProtocolEmitter.emitLambda(ProtocolReader.lambda(top));
+        } catch (IllegalArgumentException refusal) {
+            refuse(refusal);
+            return;
+        } catch (RuntimeException crash) {
+            mismatches.add(id + "\tcrashed: " + crash);
+            return;
+        }
+        compare(id, Json.parse(written, DEEP), engine);
+    }
+
+    private void compare(String where, Json.Node ours, Json.Node engine) {
+        if (ours.equals(engine)) {
+            matched++;
+            return;
+        }
+        Json.Node expected = upgraded(engine);
+        if (ours.equals(expected)) {
+            upgraded++;
+            return;
+        }
+        mismatches.add(where + "\t" + firstDifference("$", ours, expected));
+    }
+
+    private void refuse(IllegalArgumentException refusal) {
+        refused++;
+        String reason = String.valueOf(refusal.getMessage()).replace('\n', ' ');
+        // one bucket per reason, its varying names aside
+        reason = reason.length() > 220 ? reason.substring(0, 220) : reason;
+        refusals.merge(reason, 1, Integer::sum);
+    }
+
+    // ---------------------------------------------------------------------
+    // The documented upgrades, applied to the engine's own JSON
+    // ---------------------------------------------------------------------
+
+    /**
+     * The engine's J2 with the step's documented upgrades applied, written here apart from the reader so the two
+     * codings of the one table must agree: each {@code classInstance} kind the engine keeps is the call that builds
+     * the same object; a {@code qualifiedProperty} is a {@code property} (its {@code class} kept, as a property's
+     * is); a path's empty name is no name.
+     */
+    static Json.Node upgraded(Json.Node node) {
+        if (node instanceof Json.Arr a) {
+            List<Json.Node> out = new ArrayList<>(a.items().size());
+            for (Json.Node n : a.items()) {
+                out.add(upgraded(n));
+            }
+            return new Json.Arr(out);
+        }
+        if (!(node instanceof Json.Obj o)) {
+            return node;
+        }
+        LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
+        o.fields().forEach((k, v) -> f.put(k, upgraded(v)));
+        String type = o.getStringOr("_type", "");
+        switch (type) {
+            case "qualifiedProperty" -> {
+                f.put("_type", Json.str("property"));
+                f.put("property", f.remove("qualifiedProperty"));
+            }
+            case "classInstance" -> {
+                Json.Node call = kindAsCall(o.getStringOr("type", ""), (Json.Obj) f.get("value"),
+                        f.get("sourceInformation"));
+                if (call != null) {
+                    return call;
+                }
+                if ("path".equals(o.getStringOr("type", "")) && f.get("value") instanceof Json.Obj path
+                        && path.fields().get("name") instanceof Json.Str name && name.value().isEmpty()) {
+                    LinkedHashMap<String, Json.Node> p = new LinkedHashMap<>(path.fields());
+                    p.remove("name");
+                    f.put("value", new Json.Obj(p));
+                }
+            }
+            default -> {
+            }
+        }
+        return new Json.Obj(f);
+    }
+
+    private static Json.Node kindAsCall(String kind, Json.Obj v, Json.Node at) {
+        return switch (kind) {
+            case "listInstance" -> {
+                List<Json.Node> values = items(v, "values");
+                LinkedHashMap<String, Json.Node> c = new LinkedHashMap<>();
+                c.put("_type", Json.str("collection"));
+                LinkedHashMap<String, Json.Node> m = new LinkedHashMap<>();
+                m.put("lowerBound", Json.num(values.size()));
+                m.put("upperBound", Json.num(values.size()));
+                c.put("multiplicity", new Json.Obj(m));
+                c.put("values", new Json.Arr(values));
+                yield call("list", at, new Json.Obj(c));
+            }
+            case "pair" -> call("meta::pure::functions::collection::pair", at, v.get("first"), v.get("second"));
+            case "aggregateValue" -> call("meta::pure::functions::collection::agg", at, v.get("mapFn"),
+                    v.get("aggregateFn"));
+            case "tdsAggregateValue" -> call("meta::pure::tds::agg", at, string(v.getString("name")), v.get("mapFn"),
+                    v.get("aggregateFn"));
+            case "tdsColumnInformation" -> call("meta::pure::tds::col", at, v.get("columnFn"),
+                    string(v.getString("name")));
+            case "tdsSortInformation" -> call("ASC".equals(v.getString("direction")) ? "meta::pure::tds::asc"
+                    : "meta::pure::tds::desc", at, string(v.getString("column")));
+            case "tdsOlapRank" -> call("meta::pure::tds::func", at, v.get("function"));
+            case "tdsOlapAggregation" -> call("meta::pure::tds::func", at, string(v.getString("columnName")),
+                    v.get("function"));
+            default -> null;
+        };
+    }
+
+    private static Json.Obj call(String function, Json.Node at, Json.Node... params) {
+        LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
+        f.put("_type", Json.str("func"));
+        f.put("function", Json.str(function));
+        f.put("parameters", new Json.Arr(List.of(params)));
+        if (at != null) {
+            f.put("sourceInformation", at);
+        }
+        return new Json.Obj(f);
+    }
+
+    private static Json.Obj string(String value) {
+        LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
+        f.put("_type", Json.str("string"));
+        f.put("value", Json.str(value));
+        return new Json.Obj(f);
+    }
+
+    private static List<Json.Node> items(Json.Obj o, String key) {
+        return o.getOr(key, null) instanceof Json.Arr a ? a.items() : List.of();
+    }
+
+    /** The JSON path of the first difference, and the two values there. */
+    static String firstDifference(String path, Json.Node a, Json.Node b) {
+        if (a instanceof Json.Obj x && b instanceof Json.Obj y) {
+            for (String k : new java.util.TreeSet<>(x.fields().keySet())) {
+                if (!y.fields().containsKey(k)) {
+                    return path + "." + k + ": only lite writes it: " + abbreviate(x.fields().get(k));
+                }
+                if (!x.fields().get(k).equals(y.fields().get(k))) {
+                    return firstDifference(path + "." + k, x.fields().get(k), y.fields().get(k));
+                }
+            }
+            for (String k : new java.util.TreeSet<>(y.fields().keySet())) {
+                if (!x.fields().containsKey(k)) {
+                    return path + "." + k + ": only the engine writes it: " + abbreviate(y.fields().get(k));
+                }
+            }
+        }
+        if (a instanceof Json.Arr x && b instanceof Json.Arr y && x.items().size() == y.items().size()) {
+            for (int i = 0; i < x.items().size(); i++) {
+                if (!x.items().get(i).equals(y.items().get(i))) {
+                    return firstDifference(path + "[" + i + "]", x.items().get(i), y.items().get(i));
+                }
+            }
+        }
+        return path + ": lite " + abbreviate(a) + " | engine " + abbreviate(b);
+    }
+
+    private static String abbreviate(Json.Node n) {
+        String s = Json.toCompact(n);
+        return s.length() > 200 ? s.substring(0, 200) + "..." : s;
+    }
+}

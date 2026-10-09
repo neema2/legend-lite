@@ -76,7 +76,11 @@ public final class ProtocolReader {
         return readLambda(w);
     }
 
-    /** One value specification node (already upgraded). */
+    /**
+     * One value specification node (already upgraded). An older shape legend-engine still reads is brought to
+     * today's record first ({@link OlderSpecReader}): a literal written as a {@code values} list, a single value's
+     * {@code multiplicity}, and the older {@code _type}s.
+     */
     public static ValueSpecification valueSpec(Json.Node node) {
         if (node instanceof Json.Null) {
             // the ROOT PACKAGE spelled '::' is a literal null on the wire
@@ -84,11 +88,15 @@ public final class ProtocolReader {
         }
         Wire w = Wire.of(node, "value specification");
         String type = w.type();
+        if (type != null && OlderSpecReader.isValuesList(w, type)) {
+            return w.done(OlderSpecReader.valuesList(w, type));
+        }
+        OlderSpecReader.singleValue(w, type);
         return w.done(Wire.rule(SPECS, type, "value specification").apply(w));
     }
 
-    /** The reader rule for each value-specification {@code _type} on the wire. */
-    private static final Map<String, Function<Wire, ValueSpecification>> SPECS = Map.ofEntries(
+    /** The reader rule for each value-specification {@code _type} on the wire: today's, then the older ones. */
+    private static final Map<String, Function<Wire, ValueSpecification>> SPECS = OlderSpecReader.withOlder(Map.ofEntries(
             Map.entry("lambda", ProtocolReader::readLambda),
             Map.entry("var", ProtocolReader::variableRef),
             Map.entry("func", ProtocolReader::func),
@@ -109,7 +117,7 @@ public final class ProtocolReader {
             Map.entry("enumValue", w -> new EnumValue(w.str("fullPath"), w.str("value"), null, w.span(), true)),
             Map.entry("byteArray", w -> new CByteArray(w.str("value"), w.span())),
             Map.entry("classInstance", SpecIslandReader::classInstance),
-            Map.entry("genericTypeInstance", SpecIslandReader::typeInstance));
+            Map.entry("genericTypeInstance", SpecIslandReader::typeInstance)));
 
     // ---------------------------------------------------------------------
     // Lambdas and variables
@@ -143,9 +151,22 @@ public final class ProtocolReader {
         }
     }
 
-    /** A variable REFERENCE ({@code $x}): name and span, never a type. */
+    /**
+     * A variable REFERENCE ({@code $x}): name and span. Older JSON (the engine's Pure-side serializer) also writes
+     * the variable's type and multiplicity on a reference; the engine then declares the variable with that type
+     * ({@code ValueSpecificationBuilder.visit(Variable)}), so the record keeps both. One without the other the
+     * engine reads and ignores: refused.
+     */
     private static ValueSpecification variableRef(Wire w) {
-        return new Variable(w.str("name"), null, null, w.span());
+        String name = w.str("name");
+        Json.Node gt = w.opt("genericType");
+        Json.Node m = w.opt("multiplicity");
+        if ((gt == null) != (m == null)) {
+            throw Wire.refuse("variable reference $" + name + " has a " + (gt == null ? "multiplicity" : "type")
+                    + " and no " + (gt == null ? "type" : "multiplicity") + ": the engine ignores it alone");
+        }
+        return gt == null ? new Variable(name, null, null, w.span())
+                : new Variable(name, genericType(gt), multiplicity(m), w.span());
     }
 
     // ---------------------------------------------------------------------
@@ -156,44 +177,57 @@ public final class ProtocolReader {
      * A {@code func}. Two spellings come back to the record the grammar builds: {@code ^X(...)} (a
      * {@code new} over a {@code Class<X>} type instance, {@link SpecIslandReader#newInstance}), and every
      * other call, kept as written ({@code let}'s name string, the caret specials {@code pair}/{@code col}
-     * the engine desugars to, a table reference spelled as a call).
+     * the engine desugars to, a table reference spelled as a call). An {@code fControl} (the overload's id,
+     * written by the engine's Pure-side serializer and its {@code new} converter, which the engine only checks to
+     * log a warning: {@code CompileContext.testFunction}) is kept on the record as a written detail and written back.
      */
     private static ValueSpecification func(Wire w) {
+        String fControl = w.optStr("fControl");
         String function = w.str("function");
         List<Json.Node> raw = w.arr("parameters");
         SourceInfo pos = w.span();
         if (AppliedFunction.NEW.equals(function)) {
             ValueSpecification ni = SpecIslandReader.newInstance(raw, pos);
-            if (ni != null) {
-                return ni;
+            if (ni instanceof AppliedFunction af) {
+                return af.withWrittenDetails(fControl, null);
             }
         }
         List<ValueSpecification> params = new ArrayList<>(raw.size());
         for (Json.Node p : raw) {
             params.add(valueSpec(p));
         }
-        return new AppliedFunction(function, params, List.of(), pos);
+        return new AppliedFunction(function, params, List.of(), pos, false, false, false, false, fControl, null);
     }
 
     /**
      * A {@code property} node is one of three things on the wire (the emitter's rules): an ENUM value
      * (one parameter, a {@code packageableElementPtr}), a {@code receiver.name(args)} call (arguments
-     * after the receiver), or a plain property access.
+     * after the receiver), or a plain property access. A {@code class} (the receiver's class, written by older
+     * serializers, which no compile step of the engine's reads) is kept on the record as a written detail.
      */
     private static ValueSpecification property(Wire w) {
         List<ValueSpecification> params = w.list("parameters", ProtocolReader::valueSpec);
-        String name = w.str("property");
-        SourceInfo pos = w.span();
+        String ownerClass = w.optStr("class");
+        return propertyAccess(w.str("property"), params, w.span(), ownerClass);
+    }
+
+    /** A property access {@code receiver.name} or {@code receiver.name(args)}, or an enum value, as the parser builds it. */
+    static ValueSpecification propertyAccess(String name, List<ValueSpecification> params,
+            @com.legend.base.Nullable SourceInfo pos, @com.legend.base.Nullable String ownerClass) {
         if (params.isEmpty()) {
             throw Wire.refuse("a property node has no receiver: " + name);
         }
         if (params.size() == 1 && params.get(0) instanceof PackageableElementPtr ptr) {
+            if (ownerClass != null) {
+                throw Wire.refuse("an enum value " + ptr.fullPath() + "." + name + " written with a class ('"
+                        + ownerClass + "'): no record carries it");
+            }
             return new EnumValue(ptr.fullPath(), name, ptr.pos(), pos, false);
         }
         if (params.size() > 1) {
-            return new AppliedFunction(name, params, List.of(), pos, true, false);
+            return new AppliedFunction(name, params, List.of(), pos, true, false, false, false, null, ownerClass);
         }
-        return new AppliedProperty(params.get(0), name, pos);
+        return new AppliedProperty(params.get(0), name, pos, ownerClass);
     }
 
     /** A collection's multiplicity is its size, written twice; anything else has no record. */
@@ -276,9 +310,12 @@ public final class ProtocolReader {
         }
     }
 
-    /** A {@code packageableElementPtr}, or a {@code unitType} -- the same pointer, a {@code ~} in its path. */
-    private static ValueSpecification pointer(Wire w, boolean unit) {
-        String path = w.str("fullPath");
+    /**
+     * A {@code packageableElementPtr}, or a {@code unitType} -- the same pointer, a {@code ~} in its path. An older
+     * {@code unitType} names its unit in a field of that name ({@code UnitType.UnitTypeDeserializer}).
+     */
+    static ValueSpecification pointer(Wire w, boolean unit) {
+        String path = unit ? OlderSpecReader.oneOf(w, "unitType", "fullPath") : w.str("fullPath");
         if ((path.indexOf('~') >= 0) != unit) {
             throw Wire.refuse("pointer '" + path + "' on the wrong tag (a unit path has '~' and only a unit has)");
         }
@@ -355,10 +392,16 @@ public final class ProtocolReader {
                 multiplicity(c.take("multiplicity")), true, c.span()));
     }
 
-    /** {@code {"lowerBound":n,"upperBound":m}}; an absent upper bound is {@code *}. */
+    /**
+     * {@code {"lowerBound":n,"upperBound":m}}; an absent upper bound is {@code *}, and so are the older spellings
+     * of it, {@code null} and {@code 2147483647} ({@code Multiplicity.setUpperBound}).
+     */
     static Multiplicity multiplicity(Json.Node node) {
         Wire m = Wire.of(node, "multiplicity");
-        return m.done(new Multiplicity.Concrete(m.integer("lowerBound"), m.optInt("upperBound")));
+        Json.Node upper = m.opt("upperBound");
+        Integer bound = upper == null || upper instanceof Json.Null ? null : m.optInt("upperBound");
+        return m.done(new Multiplicity.Concrete(m.integer("lowerBound"),
+                bound == null || bound == Integer.MAX_VALUE ? null : bound));
     }
 
     /** A multiplicity argument as the grammar spells it ({@code *}, {@code 1}, {@code 0..1}, {@code 1..*}). */

@@ -60,6 +60,21 @@ final class Wire {
         return obj.fields().containsKey(key);
     }
 
+    /**
+     * The fields not yet taken, as an object, every one of them taken now: for a rule that reads the rest of
+     * this object as another shape (an older spelling read through today's rule, which then refuses what it
+     * does not take).
+     */
+    Json.Obj rest() {
+        java.util.LinkedHashMap<String, Json.Node> out = new java.util.LinkedHashMap<>();
+        obj.fields().forEach((k, v) -> {
+            if (taken.add(k)) {
+                out.put(k, v);
+            }
+        });
+        return new Json.Obj(out);
+    }
+
     /** The object's {@code _type}, taken; {@code null} when it has none. */
     @com.legend.base.Nullable String type() {
         return optStr("_type");

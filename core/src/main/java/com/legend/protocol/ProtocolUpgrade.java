@@ -16,6 +16,8 @@ import java.util.Map;
  * Applied bottom-up, as Jackson applies a converter to each object after its children:
  *
  * <ul>
+ *   <li>a variable whose type is named in {@code class} (the older protocol, read by upstream's variable reader
+ *       itself, before any converter) has that type;</li>
  *   <li>a variable of type {@code Result} with no type argument is {@code Result<Any|1..*>};</li>
  *   <li>{@code ^BasicColumnSpecification(...)} is {@code col(...)}, {@code ^TdsOlapRank(...)} is
  *       {@code func(...)}, {@code ^AggregateValue(...)} is {@code agg(...)} and {@code ^Pair(...)}
@@ -49,7 +51,7 @@ public final class ProtocolUpgrade {
         Json.Obj up = new Json.Obj(fields);
         String type = up.getStringOr("_type", "");
         if ("var".equals(type)) {
-            return resultVariable(up);
+            return resultVariable(classType(up));
         }
         if ("func".equals(type) && "new".equals(up.getStringOr("function", ""))) {
             return newToFunction(up);
@@ -63,6 +65,35 @@ public final class ProtocolUpgrade {
     }
 
     // ---------------------------------------------------------------------
+
+    /**
+     * An older variable names its type in {@code class} ({@code Variable.VariableDeserializer}, "backward
+     * compatibility - old protocol"): the generic type of that name, as the engine reads it, and before the
+     * {@code Result} converter, as the engine's reader runs before its converters. A {@code class} beside a
+     * {@code genericType}, or one that is not a name, is left as written, for the reader to refuse.
+     */
+    private static Json.Obj classType(Json.Obj v) {
+        if (!(v.fields().get("class") instanceof Json.Str name) || v.has("genericType")) {
+            return v;
+        }
+        LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>(v.fields());
+        f.remove("class");
+        f.put("genericType", namedType(name.value()));
+        return new Json.Obj(f);
+    }
+
+    /** The generic type of a name, with no arguments. */
+    private static Json.Obj namedType(String path) {
+        LinkedHashMap<String, Json.Node> raw = new LinkedHashMap<>();
+        raw.put("_type", Json.str("packageableType"));
+        raw.put("fullPath", Json.str(path));
+        LinkedHashMap<String, Json.Node> g = new LinkedHashMap<>();
+        g.put("rawType", new Json.Obj(raw));
+        g.put("typeArguments", new Json.Arr(List.of()));
+        g.put("multiplicityArguments", new Json.Arr(List.of()));
+        g.put("typeVariableValues", new Json.Arr(List.of()));
+        return new Json.Obj(g);
+    }
 
     private static Json.Obj resultVariable(Json.Obj v) {
         Json.Obj gt = v.getObjOr("genericType", null);
@@ -79,18 +110,10 @@ public final class ProtocolUpgrade {
                 || (args != null && !args.items().isEmpty())) {
             return v;
         }
-        LinkedHashMap<String, Json.Node> anyRaw = new LinkedHashMap<>();
-        anyRaw.put("_type", Json.str("packageableType"));
-        anyRaw.put("fullPath", Json.str("meta::pure::metamodel::type::Any"));
-        LinkedHashMap<String, Json.Node> any = new LinkedHashMap<>();
-        any.put("rawType", new Json.Obj(anyRaw));
-        any.put("typeArguments", new Json.Arr(List.of()));
-        any.put("multiplicityArguments", new Json.Arr(List.of()));
-        any.put("typeVariableValues", new Json.Arr(List.of()));
         LinkedHashMap<String, Json.Node> pureMany = new LinkedHashMap<>();
         pureMany.put("lowerBound", Json.num(1));
         LinkedHashMap<String, Json.Node> g = new LinkedHashMap<>(gt.fields());
-        g.put("typeArguments", new Json.Arr(List.of(new Json.Obj(any))));
+        g.put("typeArguments", new Json.Arr(List.of(namedType("meta::pure::metamodel::type::Any"))));
         g.put("multiplicityArguments", new Json.Arr(List.of(new Json.Obj(pureMany))));
         LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>(v.fields());
         f.put("genericType", new Json.Obj(g));

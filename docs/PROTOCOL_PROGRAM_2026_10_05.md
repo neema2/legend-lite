@@ -100,6 +100,46 @@ not be written back, so it is refused.
      the compiler ignores it. The field is agreed with the compiler line first (the record is its W2.3a's). (The other
      choices were: a separate record for the island, as path literals have; and inferring from positions, wrong
      without them.)
+
+   **Step 2, the older expression shapes, rule by rule (2026-10-08).** Each older shape is brought to the record that
+   means what legend-engine 4.145.0 makes of it, and the evidence is the engine's own code (paths under
+   `legend-engine-core-language-pure/`, `pp` = `legend-engine-protocol-pure/src/main/java/.../protocol/pure/`). Three
+   kinds:
+
+   | Older JSON | What the engine does with it | Lite reads it as |
+   |---|---|---|
+   | `class`, `enum`, `mappingInstance` `{fullPath}` | its reader turns it into an element pointer (`pp/v1/.../deprecated/Class.java`, `PackageableElementPtr.convert`) | the element pointer |
+   | `primitiveType` `{name` or `fullPath}` | the same, `name` first (`PrimitiveType.java`) | the element pointer; both fields at once is refused |
+   | `unitType` `{unitType` or `fullPath}` | keeps a unit pointer, `unitType` first (`raw/UnitType.java`) | the unit pointer |
+   | `hackedClass` `{fullPath}`, `hackedUnit` `{unitType` or `fullPath}`, `genericTypeInstance` `{fullPath}` | its reader turns each into a type annotation (`HackedClass.java`, `HackedUnit.java`, `GenericTypeInstance.java`) | the `@Type` record |
+   | `var` `{class}` (the type as a name) | read as the variable's type (`Variable.java`, "backward compatibility") | the typed variable; `class` with a type beside it is refused |
+   | a multiplicity upper bound of `2147483647` | "many" (`Multiplicity.java`) | "many" |
+   | a literal with `values: [...]` | none is an empty collection, one is the literal, more a collection (`PrimitiveValueSpecification.customParsePrimitive`) | the same; on `strictTime` and `byteArray`, where the engine drops the list, it is refused |
+   | `path`, `rootGraphFetchTree`, `listInstance` written as their own `_type` | read as the `classInstance` of that kind, chosen by which fields are present, in the engine's order (`ClassInstanceWrapper.java`) | the same order, then the `classInstance` rule |
+   | `qualifiedProperty` | kept, and compiled exactly as a property access with arguments (`ValueSpecificationBuilder` `processProperty`) | the property access |
+   | `aggregateValue`, `tdsAggregateValue`, `tdsColumnInformation`, `tdsSortInformation`, `tdsOlapRank`, `tdsOlapAggregation`, `pair`, `listInstance`, `unitInstance` (as `classInstance` or their own `_type`) | kept, and compiled to the object that a library function builds: `agg`, `tds::agg`, `tds::col`, `tds::asc`/`desc`, `tds::func` (both), `pair`, `list`, `newUnit` (each function's body in `core/pure/tds/tds.pure`, `corefunctions/collectionExtension.pure`) | that function's call |
+   | `runtimeInstance`, `executionContextInstance`, `alloySerializationConfig`, `whatever`, `unknownFunc` | kept; the engine's printers cannot write them as Pure (`DEPRECATED_PureGrammarComposerCore`, the Pure `toPure`), and the last two are marked "should not be coming to the system"; no test of the engine's carries one | refused by name: no text means them |
+
+   **Decided 2026-10-08 (the user), refining the decision above:** the second kind is brought up to the call that
+   builds the same object even though the engine keeps it as written (one record per meaning; text round trip holds;
+   the engine reads and compiles the call the same) -- and so is a path literal's empty name, which the engine keeps
+   and its library reads as no name (`tds.pure` `buildColumnNameOutOfPath`). A field the engine keeps and never acts
+   on -- `fControl` on a call (it only logs a warning when the call resolves elsewhere: `CompileContext.testFunction`)
+   and `class` on a property access (no compile step reads it) -- is kept on the record as a written form, ignored by
+   the compiler, and written back. (The other choices were: keep each older shape as its own record, printed as the
+   engine prints it; and read those two fields without keeping them.)
+
+   A `multiplicity` on a single value, which the engine discards, is accepted when it says what the value already is
+   and refused otherwise. Source positions follow the engine where it drops them (the legacy empty string, an empty
+   `values` list). A list the JSON leaves out is the empty list wherever the engine's class starts it empty (nearly
+   every list of every element), and the older layouts of elements (supertypes, a property's type and a function's
+   return type written as names; the model's `domain`, `mappings`, `stores`, ... sections, merged in the engine's
+   order) read as the engine reads them. Each deliberate difference is a `SEMANTICS_REGISTER.md` row.
+   The engine's printer mis-prints two of these shapes (`olapGroupBy(f)` for an olap rank, which is a different
+   function; spacing in `agg('n',m, a)` and `list([a,b])`); lite prints the call the shape means, also a register
+   row. The oracle (parser-equivalence): every engine test file holding older JSON, read by the engine and written
+   back, against lite's read and emit -- the same JSON for the first kind, the named call for the second, the named
+   refusal for the third; counted, matched up-only.
 3. **One public face** (invariant 5), and the consumers moved onto it: `PureV1Api`'s grammar routes, `Wasm.java`'s
    `modelJsonOrError` / `lambdaJsonOrError` / `composeLambdaOrError` / `jsonToGrammarModelOrError`, and the apps'
    clients (engine-client's grammar interface) unchanged in shape.

@@ -68,6 +68,13 @@ import java.util.Objects;
  *                    and the printed text tell them apart, so a model read without source positions keeps
  *                    it. Set only by {@link #tableReference}; never read by the compiler
  *                    (docs/PROTOCOL_PROGRAM_2026_10_05.md leg 2, agreed with the compiler line 2026-10-08).
+ * @param fControl    a written detail of older JSON: the overload id ({@code col_Function_1__String_1__...}) the
+ *                    engine's Pure-side serializer and its {@code new} converter write on a call, which the engine
+ *                    only checks to log a warning. Kept so it is written back; never read by the compiler; null
+ *                    for every call the grammar parses (leg 2 step 2, the user 2026-10-08).
+ * @param ownerClass  a written detail of older JSON on a {@link #propertyCall} form: the receiver's class, a
+ *                    property node's {@code class}, which no compile step of the engine's reads. Kept and written
+ *                    back like {@code fControl}; null otherwise.
  */
 public record AppliedFunction(
         String function,
@@ -77,7 +84,9 @@ public record AppliedFunction(
         boolean propertyCall,
         boolean grouped,
         boolean infix,
-        boolean island) implements ValueSpecification {
+        boolean island,
+        @com.legend.base.Nullable String fControl,
+        @com.legend.base.Nullable String ownerClass) implements ValueSpecification {
 
     /** An OPERATOR RUN — {@code a + b (+ …)} as the parser spells it: the
      *  engine's n-ary carrier (one collection parameter holding the whole
@@ -108,12 +117,27 @@ public record AppliedFunction(
                 : List.copyOf(candidateFqns);
     }
 
+    /** Eight-component compatibility constructor: no written detail of older JSON (only the protocol reader sets
+     *  one). */
+    public AppliedFunction(String function, List<ValueSpecification> parameters,
+            List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+            boolean propertyCall, boolean grouped, boolean infix, boolean island) {
+        this(function, parameters, candidateFqns, pos, propertyCall, grouped, infix, island, null, null);
+    }
+
     /** Seven-component compatibility constructor: every form but the island (only {@link #tableReference} makes
      *  one). */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
             List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
             boolean propertyCall, boolean grouped, boolean infix) {
         this(function, parameters, candidateFqns, pos, propertyCall, grouped, infix, false);
+    }
+
+    /** A copy carrying older JSON's written details ({@link #fControl}, {@link #ownerClass}). */
+    public AppliedFunction withWrittenDetails(@com.legend.base.Nullable String newFControl,
+            @com.legend.base.Nullable String newOwnerClass) {
+        return new AppliedFunction(function, parameters, candidateFqns, pos, propertyCall, grouped, infix, island,
+                newFControl, newOwnerClass);
     }
 
     /** Six-component compatibility constructor (non-infix). */
@@ -131,7 +155,7 @@ public record AppliedFunction(
      *  (sum(VARCHAR) regression during the 2026-08-12 burn-down). */
     public AppliedFunction withParameters(List<ValueSpecification> newParameters) {
         return new AppliedFunction(function, newParameters, candidateFqns, pos,
-                propertyCall, grouped, infix, island);
+                propertyCall, grouped, infix, island, fControl, ownerClass);
     }
 
     /** Position-free form (resolver rewrites, synthesis, tests). The parser's span
@@ -162,10 +186,11 @@ public record AppliedFunction(
      *  (harness DIFF on mostRecentDayOfWeek). Excluded from equality like pos. */
     public AppliedFunction asGrouped() {
         return new AppliedFunction(function, parameters, candidateFqns, pos, propertyCall,
-                true, infix, island);
+                true, infix, island, fControl, ownerClass);
     }
 
-    /** Position and the written-form markers (propertyCall, grouped, infix, island) are excluded from equality — see
+    /** Position, the written-form markers (propertyCall, grouped, infix, island) and older JSON's written details
+     *  (fControl, ownerClass) are excluded from equality — see
      *  {@code ValueSpecEqualityTest}. {@code propertyCall} records that the source spelled
      *  this application as {@code receiver.name(args)}: the WIRE emits that form as a
      *  property node, not a func (harness DIFF on AccountWithConstraints), while the

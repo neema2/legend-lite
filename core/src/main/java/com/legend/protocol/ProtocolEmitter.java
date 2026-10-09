@@ -2044,16 +2044,27 @@ public final class ProtocolEmitter {
                 }
             }
             case com.legend.protocol.spec.Variable var -> {
-                require(var.type() == null && var.multiplicity() == null,
-                        "typed variable reference", var.name());
-                b.append("{\"_type\":\"var\",\"name\":");
+                require((var.type() == null) == (var.multiplicity() == null),
+                        "variable reference with a type or a multiplicity alone", var.name());
+                b.append("{\"_type\":\"var\"");
+                if (var.type() != null) {
+                    // a TYPED reference, which only older JSON writes (the engine declares the variable with
+                    // that type there): written as the engine writes it, a typed parameter's fields in order
+                    b.append(",\"genericType\":");
+                    genericType(b, var.type());
+                    b.append(",\"multiplicity\":");
+                    multiplicity(b, java.util.Objects.requireNonNull(var.multiplicity()));
+                }
+                b.append(",\"name\":");
                 str(b, var.name());
                 b.append(",\"sourceInformation\":");
                 srcInfo(b, var.pos());
                 b.append('}');
             }
             case com.legend.protocol.spec.AppliedProperty p -> {
-                b.append("{\"_type\":\"property\",\"parameters\":[");
+                b.append("{\"_type\":\"property\"");
+                writtenDetail(b, "class", p.ownerClass());
+                b.append(",\"parameters\":[");
                 valueSpec(b, p.receiver());
                 b.append("],\"property\":");
                 str(b, p.property());
@@ -2199,7 +2210,7 @@ public final class ProtocolEmitter {
                 srcInfo(b, rs.pos());
                 b.append('}');
             }
-            case com.legend.protocol.spec.NewInstance ni -> newInstance(b, ni, null);
+            case com.legend.protocol.spec.NewInstance ni -> newInstance(b, ni, null, null);
             case com.legend.protocol.spec.ColSpec cs -> colSpec(b, cs);
             case com.legend.protocol.spec.ColSpecArray ca -> colSpecArray(b, ca);
             case com.legend.protocol.spec.PathLiteral pl -> pathLiteral(b, pl);
@@ -2447,7 +2458,10 @@ public final class ProtocolEmitter {
                     milestoned = true;
                 }
             }
-            b.append("{\"_type\":\"property\",\"parameters\":[");
+            require(f.fControl() == null, "a property call with an fControl", f.function());
+            b.append("{\"_type\":\"property\"");
+            writtenDetail(b, "class", f.ownerClass());
+            b.append(",\"parameters\":[");
             for (int i = 0; i < f.parameters().size(); i++) {
                 if (i > 0) {
                     b.append(',');
@@ -2475,7 +2489,9 @@ public final class ProtocolEmitter {
                             && f.parameters().get(0) instanceof com.legend.protocol.spec.CString,
                     "malformed letFunction", String.valueOf(f.parameters().size()));
             SourceInfo letSpan = f.pos();
-            b.append("{\"_type\":\"func\",\"function\":\"letFunction\",\"parameters\":["
+            b.append("{\"_type\":\"func\"");
+            writtenDetail(b, "fControl", f.fControl());
+            b.append(",\"function\":\"letFunction\",\"parameters\":["
                     + "{\"_type\":\"string\",\"value\":");
             str(b, ((com.legend.protocol.spec.CString) f.parameters().get(0)).value());
             b.append("},");
@@ -2500,7 +2516,7 @@ public final class ProtocolEmitter {
             // the wire's whole envelope comes from the NewInstance node alone and carries
             // no spans anywhere STANDALONE — but the let rule still applies: a let-valued
             // new takes the letFunction's span (harness DIFF on testFromJson2).
-            newInstance(b, ni, topSpanOverride);
+            newInstance(b, ni, topSpanOverride, f.fControl());
             return;
         }
         if (f.island()
@@ -2553,7 +2569,10 @@ public final class ProtocolEmitter {
             b.append("}}");
             return;
         }
-        b.append("{\"_type\":\"func\",\"function\":");
+        require(f.ownerClass() == null, "a call with a class", f.function());
+        b.append("{\"_type\":\"func\"");
+        writtenDetail(b, "fControl", f.fControl());
+        b.append(",\"function\":");
         str(b, f.function());
         b.append(",\"parameters\":[");
         for (int i = 0; i < f.parameters().size(); i++) {
@@ -2568,6 +2587,15 @@ public final class ProtocolEmitter {
         b.append('}');
     }
 
+    /** A written detail of older JSON the record keeps ({@code fControl} on a call, {@code class} on a property),
+     *  written back where it came from; absent for everything the grammar parses. */
+    private static void writtenDetail(StringBuilder b, String key, @com.legend.base.Nullable String value) {
+        if (value != null) {
+            b.append(",\"").append(key).append("\":");
+            str(b, value);
+        }
+    }
+
     /**
      * {@code ^X(k=v,…)} on the wire: {@code func "new"} with NO span, parameters
      * [span-less {@code genericTypeInstance} of {@code Class<X>}, span-less empty string,
@@ -2575,7 +2603,8 @@ public final class ProtocolEmitter {
      * whose values keep their own spans] (ProbeWireShapes "burn zoo" newInst).
      */
     private static void newInstance(StringBuilder b, com.legend.protocol.spec.NewInstance ni,
-                                     @com.legend.base.Nullable SourceInfo span) {
+                                     @com.legend.base.Nullable SourceInfo span,
+                                     @com.legend.base.Nullable String fControl) {
         require(!ni.className().isEmpty(), "new-instance on a variable receiver", "^$x(...)");
         // ENGINE SPECIAL-CASES three classes, matching the spelled name EXACTLY against
         // the simple or canonical-FQN spelling (DomainParseTreeWalker; ProbeWireShapes
@@ -2584,6 +2613,12 @@ public final class ProtocolEmitter {
         // ^TdsOlapRank -> meta::pure::tds::func() — canonical key order, no envelope
         // span, values keeping their own spans.
         String spelled = ni.className();
+        // older JSON's fControl on a new: the special classes never arrive with one (the reader's
+        // ProtocolUpgrade turns their new into the call first, as the engine's converter does)
+        boolean special = "Pair".equals(spelled) || "meta::pure::functions::collection::Pair".equals(spelled)
+                || "BasicColumnSpecification".equals(spelled) || "meta::pure::tds::BasicColumnSpecification".equals(spelled)
+                || "TdsOlapRank".equals(spelled) || "meta::pure::tds::TdsOlapRank".equals(spelled);
+        require(fControl == null || !special, "a special class's new with an fControl", spelled);
         if ("Pair".equals(spelled)
                 || "meta::pure::functions::collection::Pair".equals(spelled)) {
             caretSpecial(b, ni, "meta::pure::functions::collection::pair",
@@ -2602,7 +2637,9 @@ public final class ProtocolEmitter {
                     new String[]{"func"}, false, span);
             return;
         }
-        b.append("{\"_type\":\"func\",\"function\":\"new\",\"parameters\":["
+        b.append("{\"_type\":\"func\"");
+        writtenDetail(b, "fControl", fControl);
+        b.append(",\"function\":\"new\",\"parameters\":["
                 + "{\"_type\":\"genericTypeInstance\",\"genericType\":{"
                 + "\"multiplicityArguments\":[],\"rawType\":{\"_type\":\"packageableType\","
                 + "\"fullPath\":\"meta::pure::metamodel::type::Class\"},\"typeArguments\":["

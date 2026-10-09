@@ -45,29 +45,44 @@ final class SpecIslandReader {
     /** The {@code Class} type every {@code ^X(...)} instantiates on the wire. */
     private static final String CLASS = "meta::pure::metamodel::type::Class";
 
-    /** The reader rule for each {@code classInstance} {@code type} on the wire. */
-    private static final Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> CLASS_INSTANCES = Map.of(
-            ">", SpecIslandReader::tableReference,
-            "rootGraphFetchTree", SpecIslandReader::graphFetchTree,
-            "colSpec", SpecIslandReader::colSpec,
-            "colSpecArray", SpecIslandReader::colSpecArray,
-            "path", (value, pos) -> pathLiteral(Wire.of(value, "path")),
-            "SQL", (value, pos) -> {
-                Wire w = Wire.of(value, "SQL island");
-                return w.done(new SqlIsland(w.str("sql"), pos));
-            },
-            "GQL", (value, pos) -> new GqlIsland(GqlReader.document(value), pos),
-            "TDS", (value, pos) -> {
-                Wire w = Wire.of(value, "TDS island");
-                String tds = w.str("tdsString");
-                return w.done(TdsLiteral.of(tds, "#TDS{" + tds + "}#", pos));
-            });
+    /** The reader rule for each {@code classInstance} {@code type} on the wire: today's islands, then the older kinds
+     *  ({@link OlderSpecReader#KINDS}). */
+    private static final Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> CLASS_INSTANCES =
+            withOlderKinds(Map.of(
+                    ">", SpecIslandReader::tableReference,
+                    "rootGraphFetchTree", SpecIslandReader::graphFetchTree,
+                    "colSpec", SpecIslandReader::colSpec,
+                    "colSpecArray", SpecIslandReader::colSpecArray,
+                    "path", (value, pos) -> pathLiteral(Wire.of(value, "path")),
+                    "SQL", (value, pos) -> {
+                        Wire w = Wire.of(value, "SQL island");
+                        return w.done(new SqlIsland(w.str("sql"), pos));
+                    },
+                    "GQL", (value, pos) -> new GqlIsland(GqlReader.document(value), pos),
+                    "TDS", (value, pos) -> {
+                        Wire w = Wire.of(value, "TDS island");
+                        String tds = w.str("tdsString");
+                        return w.done(TdsLiteral.of(tds, "#TDS{" + tds + "}#", pos));
+                    }));
+
+    private static Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> withOlderKinds(
+            Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> islands) {
+        Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> all = new java.util.HashMap<>(islands);
+        all.putAll(OlderSpecReader.KINDS);
+        return Map.copyOf(all);
+    }
 
     static ValueSpecification classInstance(Wire w) {
         String type = w.str("type");
         SourceInfo pos = w.span();
         Json.Node value = w.take("value");
-        return Wire.rule(CLASS_INSTANCES, type, "classInstance type").apply(value, pos);
+        return classInstanceValue(type, value, pos);
+    }
+
+    /** A {@code classInstance}'s value of the given kind, the instance's span {@code pos}. */
+    static ValueSpecification classInstanceValue(@com.legend.base.Nullable String kind, Json.Node value,
+            @com.legend.base.Nullable SourceInfo pos) {
+        return Wire.rule(CLASS_INSTANCES, kind, "classInstance type").apply(value, pos);
     }
 
     /**
@@ -187,6 +202,14 @@ final class SpecIslandReader {
      * name) loses its rawType span on the wire and the annotation's span is the name's.
      */
     static ValueSpecification typeInstance(Wire w) {
+        if (w.has("fullPath")) {
+            // the older form, the type by name: the engine reads it first and drops a genericType beside it
+            if (w.has("genericType")) {
+                throw Wire.refuse("a genericTypeInstance with both 'fullPath' and 'genericType': the engine reads"
+                        + " 'fullPath' and drops the other");
+            }
+            return annotation(w.str("fullPath"), w.span());
+        }
         com.legend.protocol.TypeExpression type = ProtocolReader.genericType(w.take("genericType"));
         SourceInfo pos = w.span();
         if (type instanceof com.legend.protocol.TypeExpression.NameRef n && n.name().indexOf('~') >= 0) {
@@ -196,6 +219,17 @@ final class SpecIslandReader {
             return ProtocolReader.named(new com.legend.protocol.TypeExpression.NameRef(n.name(), pos), pos);
         }
         return ProtocolReader.named(type, pos);
+    }
+
+    /**
+     * {@code @Type} named by its path alone, as the engine's older shapes give it ({@code hackedClass},
+     * {@code hackedUnit}, a {@code genericTypeInstance} with a {@code fullPath}): the engine builds the annotation
+     * with a span-less raw type, which is how a unit's always reads ({@link #typeInstance}).
+     */
+    static ValueSpecification annotation(String path, @com.legend.base.Nullable SourceInfo pos) {
+        com.legend.protocol.TypeExpression.NameRef name = new com.legend.protocol.TypeExpression.NameRef(path,
+                path.indexOf('~') >= 0 ? pos : null);
+        return ProtocolReader.named(name, pos);
     }
 
     // ---------------------------------------------------------------------
@@ -240,13 +274,15 @@ final class SpecIslandReader {
     /**
      * {@code #{Root {a, k {b}}}#}: the value's span is the class-name token (the outer one may be a
      * let's); each property node spans its name token. The wire cannot tell {@code prop()} from
-     * {@code prop} (both carry no parameters), so a node is parenthesized exactly when it has arguments.
+     * {@code prop} (both carry no parameters), so a node is parenthesized exactly when it has arguments. A list
+     * the JSON leaves out is empty, as the engine's classes default it ({@code GraphFetchTree},
+     * {@code PropertyGraphFetchTree}): older JSON writes only what is there.
      */
     private static ValueSpecification graphFetchTree(Json.Node value, @com.legend.base.Nullable SourceInfo pos) {
         Wire root = Wire.of(value, "graph fetch tree");
         root.constant("_type", "rootGraphFetchTree");
-        return root.done(new GraphFetchLiteral(root.str("class"), graphNodes(root.arr("subTrees")),
-                graphSubTypes(root.arr("subTypeTrees")), root.span()));
+        return root.done(new GraphFetchLiteral(root.str("class"), graphNodes(root.arrOrEmpty("subTrees")),
+                graphSubTypes(root.arrOrEmpty("subTypeTrees")), root.span()));
     }
 
     private static List<GraphFetchLiteral.Node> graphNodes(List<Json.Node> trees) {
@@ -255,10 +291,10 @@ final class SpecIslandReader {
             Wire n = Wire.of(t, "graph fetch subtree");
             n.constant("_type", "propertyGraphFetchTree");
             // the engine's grammar refuses ->subType below the root; so does lite's
-            n.emptyArray("subTypeTrees");
-            List<ValueSpecification> args = n.list("parameters", SpecIslandReader::graphArg);
+            noSubTypes(n);
+            List<ValueSpecification> args = n.listOrEmpty("parameters", SpecIslandReader::graphArg);
             out.add(n.done(new GraphFetchLiteral.Node(n.str("property"), n.span(), args, !args.isEmpty(),
-                    n.optStr("alias"), n.optStr("subType"), graphNodes(n.arr("subTrees")))));
+                    n.optStr("alias"), n.optStr("subType"), graphNodes(n.arrOrEmpty("subTrees")))));
         }
         return out;
     }
@@ -269,11 +305,18 @@ final class SpecIslandReader {
         for (Json.Node t : trees) {
             Wire n = Wire.of(t, "graph fetch subtype tree");
             n.constant("_type", "subTypeGraphFetchTree");
-            n.emptyArray("subTypeTrees");
+            noSubTypes(n);
             out.add(n.done(new GraphFetchLiteral.SubTypeNode(n.str("subTypeClass"), n.span(),
-                    graphNodes(n.arr("subTrees")))));
+                    graphNodes(n.arrOrEmpty("subTrees")))));
         }
         return out;
+    }
+
+    /** No {@code ->subType} below the root: the list empty or left out. */
+    private static void noSubTypes(Wire n) {
+        if (!n.arrOrEmpty("subTypeTrees").isEmpty()) {
+            throw Wire.refuse(n.where() + ".subTypeTrees is not empty: no record carries it");
+        }
     }
 
     /**
@@ -342,7 +385,10 @@ final class SpecIslandReader {
      * spans the literal has no position (and every offset is 0).
      */
     private static ValueSpecification pathLiteral(Wire v) {
-        String alias = v.optStr("name");
+        // an EMPTY name is no alias: older JSON writes it so, and the engine's library reads it so (tds.pure,
+        // buildColumnNameOutOfPath: '' names the column by the last property); today's grammar leaves it out
+        String written = v.optStr("name");
+        String alias = written == null || written.isEmpty() ? null : written;
         SourceInfo outer = v.span();
         String startType = v.str("startType");
         int len = 0;
@@ -358,7 +404,8 @@ final class SpecIslandReader {
             pos = new SourceInfo(outer.sourceId(), outer.startLine(), s, outer.startLine(), s + len - 1);
         }
         int at = base;
-        List<PathLiteral.Segment> segments = v.list("path", n -> segment(n, at, outer != null));
+        // a list the JSON leaves out is empty, as the engine's Path and PropertyPathElement default it
+        List<PathLiteral.Segment> segments = v.listOrEmpty("path", n -> segment(n, at, outer != null));
         ValueSpecification body = new Variable("_path");
         boolean dated = false;
         for (PathLiteral.Segment seg : segments) {
@@ -382,7 +429,7 @@ final class SpecIslandReader {
     private static PathLiteral.Segment segment(Json.Node node, int base, boolean spanned) {
         Wire p = Wire.of(node, "path segment");
         p.constant("_type", "propertyPath");
-        List<PathLiteral.PathArg> args = p.list("parameters", a -> pathArg(a, base, spanned));
+        List<PathLiteral.PathArg> args = p.listOrEmpty("parameters", a -> pathArg(a, base, spanned));
         SourceInfo s = spanAsLiteral(p, spanned, "path segment");
         int innerStart = s == null ? 0 : s.startColumn() - base + 2;
         int innerEnd = s == null ? 0 : s.endColumn() - base + 1;
