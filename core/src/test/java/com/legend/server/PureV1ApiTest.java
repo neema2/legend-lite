@@ -540,6 +540,48 @@ class PureV1ApiTest {
         assertTrue(pretty.json().contains("\n"), pretty.json());
     }
 
+    // ---- jsonToGrammar/model (byte parity with upstream's printer, both styles: ModelComposerParityTest) ----
+
+    private static final Json.Config DEEP = new Json.Config(4096);
+
+    /** A model whose function body prints differently in the two styles. */
+    private static final String STYLED_MODEL = """
+            Class demo::Person
+            {
+              name: String[1];
+            }
+
+            function demo::adults(people: demo::Person[*]): String[*]
+            {
+              $people->filter(p|$p.name->startsWith('A'))->map(p|$p.name)
+            }
+            """;
+
+    @Test
+    void jsonToGrammarModel_printsWhatE2Parsed_inEitherStyle_plainText_prettyByDefault() {
+        String json = PureV1Api.grammarToJsonModel(STYLED_MODEL, false).json();
+        PureV1Api.Answer standard = PureV1Api.jsonToGrammarModel(json, "STANDARD");
+        PureV1Api.Answer pretty = PureV1Api.jsonToGrammarModel(json, null);
+        assertEquals(200, standard.status(), standard.json());
+        assertEquals(200, pretty.status(), pretty.json());
+        assertEquals("text/plain", standard.contentType());
+        assertEquals(PureV1Api.jsonToGrammarModel(json, "PRETTY").json(), pretty.json(), "PRETTY is the default");
+        assertFalse(standard.json().equals(pretty.json()), "the function body prints across lines in PRETTY");
+        // each print parses back to the same model
+        for (PureV1Api.Answer printed : List.of(standard, pretty)) {
+            assertEquals(Json.toCompact(Json.parse(json, DEEP)),
+                    Json.toCompact(Json.parse(PureV1Api.grammarToJsonModel(printed.json(), false).json(), DEEP)));
+        }
+        assertEquals(pretty, PureV1Api.route("/api/pure/v1/grammar/jsonToGrammar/model", null, json, NO_RUN));
+    }
+
+    @Test
+    void jsonToGrammarModel_refusesAModelContextItDoesNotRead_byName() {
+        PureV1Api.Answer text = PureV1Api.jsonToGrammarModel("{\"_type\":\"text\",\"code\":\"Class a::B{}\"}", "PRETTY");
+        assertEquals(500, text.status(), text.json());
+        assertTrue(Json.parseObject(text.json()).getString("message").contains("text"), text.json());
+    }
+
     @Test
     void e4_batch_answersEachKey_andAnUnservedStyleIsRefused() {
         String a = PureV1Api.grammarToJsonLambda("|1 + 2", false).json();

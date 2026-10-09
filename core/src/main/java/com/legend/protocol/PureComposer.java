@@ -104,6 +104,14 @@ public final class PureComposer {
         return lambda(ProtocolReader.lambda(lambda), style);
     }
 
+    /**
+     * JSON to text for a lambda (the conversion legend-engine's {@code jsonToGrammar/lambda} makes): its JSON read
+     * ({@link ProtocolReader#lambda(String)}, at the lambda depth limit) and printed in {@code style}.
+     */
+    public static String lambda(String json, Style style) {
+        return lambda(ProtocolReader.lambda(json), style);
+    }
+
     /** Any value specification as Pure text. */
     public static String valueSpecification(ValueSpecification value, Style style) {
         return new PureComposer(style, "", false).visit(value);

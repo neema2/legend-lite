@@ -118,6 +118,16 @@ public final class PmcdParser {
     }
 
     /**
+     * Text to JSON for a model (the conversion legend-engine's {@code grammarToJson/model} makes, its
+     * {@code returnSourceInformation} the second argument): {@link #parseDocument}, without any source
+     * information when it is off, as the engine's parser then records none.
+     */
+    public static String parseDocument(String source, boolean sourceInformation) {
+        String json = parseDocument(source);
+        return sourceInformation ? json : com.legend.protocol.SourceInformation.strip(json);
+    }
+
+    /**
      * Parse {@code source} into the typed protocol records (text to records, the protocol program's parse
      * leg): every element in section order, then the section index the engine appends.
      */

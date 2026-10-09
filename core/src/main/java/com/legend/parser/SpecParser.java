@@ -313,6 +313,16 @@ public final class SpecParser implements TokenStreamCursor {
                 : new LambdaFunction(List.of(), List.of(v), parser.spanOf(0, parser.pos - 1));
     }
 
+    /**
+     * Text to JSON for a lambda (the conversion legend-engine's {@code grammarToJson/lambda} makes, its
+     * {@code returnSourceInformation} the second argument): {@link #parseLambda}, emitted, without any source
+     * information when it is off, as the engine's parser then records none.
+     */
+    public static String lambdaJson(String source, boolean sourceInformation) {
+        String json = com.legend.protocol.ProtocolEmitter.emitLambda(parseLambda(source));
+        return sourceInformation ? json : com.legend.protocol.SourceInformation.strip(json);
+    }
+
     private ValueSpecification wholeLine() {
         ValueSpecification result = parseProgramLine();
         if (!atEnd()) {

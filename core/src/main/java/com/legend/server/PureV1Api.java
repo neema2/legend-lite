@@ -9,7 +9,7 @@ import com.legend.parser.SpecParser;
 import com.legend.plan.PlanSupportFunctions;
 import com.legend.plan.QueryPlan;
 import com.legend.plan.UpstreamRelationType;
-import com.legend.protocol.ProtocolEmitter;
+import com.legend.protocol.ModelComposer;
 import com.legend.protocol.ProtocolReader;
 import com.legend.protocol.PureComposer;
 import com.legend.protocol.spec.LambdaFunction;
@@ -34,12 +34,14 @@ import java.util.function.Supplier;
  * {@link #arrowPlan}'s SQL and metadata.
  *
  * <ul>
- *   <li>E1 {@code grammar/grammarToJson/lambda}: Pure text to lambda JSON (the parser's
- *       records through {@link ProtocolEmitter}, byte-exact).</li>
+ *   <li>E1 {@code grammar/grammarToJson/lambda}: Pure text to lambda JSON ({@link SpecParser#lambdaJson},
+ *       byte-exact).</li>
  *   <li>E2 {@code grammar/grammarToJson/model}: model text to PMCD JSON
- *       ({@link PmcdParser}, byte-exact).</li>
+ *       ({@link PmcdParser#parseDocument(String, boolean)}, byte-exact).</li>
  *   <li>E4 {@code grammar/jsonToGrammar/lambda} (and {@code /batch}): lambda JSON to Pure
  *       text ({@link PureComposer}, byte parity with upstream's printer).</li>
+ *   <li>{@code grammar/jsonToGrammar/model}: model JSON to Pure text ({@link ModelComposer}, byte parity with
+ *       upstream's printer in both styles).</li>
  *   <li>E5 {@code compilation/lambdaRelationType}: a query's result columns as the
  *       compiler types them ({@link UpstreamRelationType}).</li>
  *   <li>E8 {@code execution/execute}: the query run on its runtime's connection, answered in
@@ -95,6 +97,7 @@ public final class PureV1Api {
                     jsonToGrammarLambda(body, queryParam(rawQuery, "renderStyle"));
             case "/api/pure/v1/grammar/jsonToGrammar/lambda/batch" ->
                     jsonToGrammarLambdaBatch(body, queryParam(rawQuery, "renderStyle"));
+            case "/api/pure/v1/grammar/jsonToGrammar/model" -> jsonToGrammarModel(body, queryParam(rawQuery, "renderStyle"));
             case "/api/pure/v1/compilation/lambdaRelationType" -> lambdaRelationType(body);
             case "/api/pure/v1/compilation/compile" -> compile(body);
             case "/api/pure/v1/compilation/lambdaReturnType" -> lambdaReturnType(body);
@@ -134,18 +137,12 @@ public final class PureV1Api {
     /** E1: a lambda's text to its protocol JSON. Text without a leading {@code |} is
      *  wrapped in a parameterless lambda spanning the whole text, as the engine does. */
     public static Answer grammarToJsonLambda(String text, boolean returnSourceInformation) {
-        return answer(400, "PARSER", () -> {
-            String json = ProtocolEmitter.emitLambda(SpecParser.parseLambda(text));
-            return returnSourceInformation ? json : withoutSourceInformation(json);
-        });
+        return answer(400, "PARSER", () -> SpecParser.lambdaJson(text, returnSourceInformation));
     }
 
     /** E2: a model's text to its PMCD JSON. */
     public static Answer grammarToJsonModel(String text, boolean returnSourceInformation) {
-        return answer(400, "PARSER", () -> {
-            String json = PmcdParser.parseDocument(text);
-            return returnSourceInformation ? json : withoutSourceInformation(json);
-        });
+        return answer(400, "PARSER", () -> PmcdParser.parseDocument(text, returnSourceInformation));
     }
 
     // ---------------------------------------------------------------------
@@ -159,7 +156,21 @@ public final class PureV1Api {
      * {@code STANDARD}.
      */
     public static Answer jsonToGrammarLambda(String body, @com.legend.base.Nullable String renderStyle) {
-        Answer a = answer(500, null, () -> PureComposer.lambda(request(body), style(renderStyle)));
+        Answer a = answer(500, null, () -> PureComposer.lambda(body, style(renderStyle)));
+        return a.status() == 200 ? new Answer(200, a.json(), "text/plain") : a;
+    }
+
+    /**
+     * {@code grammar/jsonToGrammar/model}: a model's protocol JSON ({@code PureModelContextData},
+     * {@code {"_type":"data","elements":[...]}}, with or without its section index) as Pure text, as legend-engine
+     * prints it ({@link ModelComposer}; byte parity in both styles pinned by ModelComposerParityTest).
+     * {@code text/plain}; {@code renderStyle} as for a lambda. Recorded difference: the engine also takes a model
+     * context of another kind (a pointer it loads from an SDLC, a text it parses); lite reads
+     * {@code PureModelContextData} only and refuses another {@code _type} by name. An element kind lite cannot print
+     * is refused by name, never printed approximately.
+     */
+    public static Answer jsonToGrammarModel(String body, @com.legend.base.Nullable String renderStyle) {
+        Answer a = answer(500, null, () -> ModelComposer.model(body, style(renderStyle)));
         return a.status() == 200 ? new Answer(200, a.json(), "text/plain") : a;
     }
 
@@ -624,10 +635,6 @@ public final class PureV1Api {
                     + "PureModelContextText ({\"_type\":\"text\",\"code\":...}); the PMCD reader is not built");
         }
         return model.getString("code");
-    }
-
-    private static String withoutSourceInformation(String json) {
-        return com.legend.protocol.SourceInformation.strip(json);
     }
 
     private static Object withoutSourceInformation(Json.Node n) {
