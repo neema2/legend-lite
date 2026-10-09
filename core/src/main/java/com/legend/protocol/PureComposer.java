@@ -560,6 +560,11 @@ public final class PureComposer {
                 + (name == null || name.isEmpty() ? "" : "!" + name) + "#";
     }
 
+    /** A path argument as the literal the wire writes for it, for a path printed outside a value specification. */
+    static String pathArgument(PathLiteral.PathArg a) {
+        return new PureComposer(Style.STANDARD, "", false).pathArg(a);
+    }
+
     /** A path argument as the literal the wire writes for it. */
     private String pathArg(PathLiteral.PathArg a) {
         return switch (a) {
