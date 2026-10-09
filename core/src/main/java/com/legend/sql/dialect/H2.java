@@ -180,6 +180,23 @@ public class H2 extends AnsiSqlRenderer {
      *  refuses a session of another version (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2). */
     public static final java.util.List<String> SERVERS = java.util.List.of("2.1", "2.2");
 
+    /** H2 types a parameter when it prepares the statement — by its neighbour (a decimal beside an integer column is
+     *  read as an integer: {@code ID * ?} with 1.5 answers {@code [2, 6]}), or not at all when it stands alone
+     *  ({@code Unknown data type}) — so every placeholder is written typed, as a literal of the parameter's type is,
+     *  which answers as the literal does (docs/execution-plan-boundary-2026-10-05/probes/literal-results.txt). A
+     *  parameter whose literal has no one type is refused by name: a decimal's (a Float's, a Decimal's) is its own
+     *  digits', and no type a statement names keeps a value's own scale ({@code NUMERIC} rounds, {@code DECFLOAT}
+     *  drops trailing zeros); a Date's or a Number's value decides its kind. */
+    @Override
+    protected SqlWriter placeholder(SqlWriter writer, com.legend.sql.SqlExpr.PlanParam p) {
+        if (!(p.type() instanceof com.legend.sql.TypeFact.Typed t)) {
+            throw new DialectCapability("plan parameter '" + p.name() + "' has no one type a statement names (a"
+                    + " decimal's is its value's own digits, a Date's or a Number's value decides its kind), and H2"
+                    + " types a parameter when it prepares the statement: not bound on H2");
+        }
+        return writer.append("CAST(").bind(scalarBind(p)).append(" AS ").append(castTypeName(t.type())).append(")");
+    }
+
     /** CAPABILITY BY CONNECTED VERSION: H2 2.3+ has typed-JSON navigation ({@code (j)."f"},
      *  1-based {@code [i]}), which {@link H2Modern} spells natively; 2.1 and 2.2 -- the engine-parity
      *  target, {@link #SERVERS} -- keep this dialect's walls. */

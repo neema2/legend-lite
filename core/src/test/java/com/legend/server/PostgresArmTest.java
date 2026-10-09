@@ -136,6 +136,25 @@ class PostgresArmTest {
                     assertEquals(today.toString(), com.legend.PlanMakerTest.run(plan, c), output + " " + query);
                 }
             }
+            // a query's scalar parameters: bound where they are written, answering as the query with their values does
+            // (Postgres types a bare placeholder by the bound value: no cast, every type)
+            for (com.legend.PlanMakerTest.Parameterised q : com.legend.PlanMakerTest.scalars("PLAN_T")) {
+                for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
+                    com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, q.withParameters())
+                            .executionPlan("s::RT", output);
+                    java.io.StringWriter today = new java.io.StringWriter();
+                    switch (output) {
+                        case CSV -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
+                                com.legend.lowering.WireRender.Format.CSV, today);
+                        case JSON -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
+                                com.legend.lowering.WireRender.Format.JSON, today);
+                        case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, q.withLets(), "s::RT", c,
+                                today);
+                    }
+                    assertEquals(today.toString(), com.legend.PlanMakerTest.run(plan, c, q.values()),
+                            output + " " + q.withParameters());
+                }
+            }
         }
     }
 }

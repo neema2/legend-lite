@@ -303,13 +303,21 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      is an "unresolvable variable"); `executionPlan` binds each declared parameter as a `PlanParam` (the one parameter
      list, `TypedQuery.parameters()`), so `$x` lowers to it wherever it is used. A parameter whose type is a class is
      refused by name: parameter values are plain values (§9, step 2's decisions).
-   - *No casts: the runner hands the driver typed values.* Measured on the pinned drivers
-     (`probes/TypingProbe.java` → `typing-results.txt`, 26 positions × DuckDB 1.4.4, H2 2.1.214, Postgres 16): a bare
-     `?` is typed by the database in every position — compared with a column, in arithmetic, alone in a projection, in a
-     function, under `IS NULL`, `IS NOT DISTINCT FROM` — when the JDBC call carries the value's type (`setLong`,
-     `setString`, `setObject(LocalDate)`, `setNull(i, VARCHAR)`). So the statement writes `?` and the runner converts each
-     value by its declared Pure type (§8: Integer → long, Float → double, Decimal → BigDecimal, StrictDate → LocalDate,
-     ...); an absent optional value is a typed null.
+   - *A placeholder answers as the literal it replaces* — today a request's values become `let`s and the database types
+     each literal; a bound value must answer the same. Measured on the pinned drivers (`probes/TypingProbe.java` →
+     `typing-results.txt`; `probes/LiteralProbe.java` → `literal-results.txt`, slice (b)): DuckDB and Postgres type a
+     bare `?` by the bound value, and every type answers as its literal does in every position. H2 does not: it types a
+     parameter when it prepares the statement, by its neighbour — `ID * ?` with 1.5 answers `[2, 6]` where the literal
+     answers `[1.5, 4.5]` — and refuses one that stands alone (`Unknown data type`). So H2 writes every placeholder
+     typed, `CAST(? AS T)` with T the parameter's type: for Integer, String, Boolean, StrictDate and DateTime the text
+     is the literal's. A Float value is bound as a decimal, never a double, on every database (Rule 1 of the numeric
+     charter: a Float literal is a decimal in the database; bound as a double, `PRICE * ?` answers
+     `1.6500000000000001`). A decimal (Float or Decimal) on H2 has no exact type: a literal's type is its own digits'
+     (`2.50` is `NUMERIC(3,2)`), and no type a statement can name keeps a value's own scale — `NUMERIC` rounds to none,
+     `NUMERIC(38,2)` pads, `DECFLOAT` keeps the value but drops trailing zeros (`3.75` where the literal answers
+     `3.7500`). A parameter whose value decides its type (`Date`, `Number`) has no one placeholder type either. The
+     runner converts each value by its declared type (§8: Integer → long, Float and Decimal → BigDecimal, StrictDate →
+     LocalDate, DateTime → LocalDateTime in UTC); an absent optional value is a typed null.
    - *An optional parameter is compared null-safely.* Pure's `==` holds for two empties; the legacy printer writes an
      optional parameter's equality `is not distinct from` (`EngineStyleH2.optionalParamEquality`, a pattern it
      recognises). The lowering already writes `NULL_SAFE_EQUAL` for two optional columns (`NullSemantics.equalNullArms`);
@@ -353,6 +361,18 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    fresh database answers byte for byte as today's path does (a relation, an empty one, a projection, a graph fetch,
    a model-data runtime on the platform's engine; every output). Census: no statement of today's paths changes, only
    the new tests' own are added (`render-census/landing2-result.txt`).
+
+   *Slice (b), on branch 2026-10-09.* A query's declared parameters lower to slots (`TypedQuery.lower` with
+   `QueryParameters.Declared.slot()`), each typed as a literal of its declared type is (Integer `BIGINT`, String
+   `VARCHAR`, Boolean, StrictDate `DATE`, DateTime `TIMESTAMP`; a Float's, a Decimal's, a Date's and a Number's unknown:
+   its value decides), and the plan declares them. A dialect writes the placeholder (`AnsiSqlRenderer.placeholder`):
+   bare on DuckDB and Postgres, typed on H2 (`CAST(? AS T)`), which refuses a slot of no one type by name (PARK-19,
+   proposed: `docs/PARKED_WORK_LEDGER.md`). Optional, enumeration and list parameters stay refused by name until
+   (c)-(e). `PlanMakerTest` and `PostgresArmTest`: a query's plan, run with its values (a Float's and a Decimal's as
+   decimals), answers byte for byte as the same query with each parameter a `let` of its value, on DuckDB, H2 and
+   Postgres and in every output — an integer, a string with a quote, a decimal and a float in a filter, in arithmetic
+   and projected, a date, a boolean, a Date and a Number (DuckDB, Postgres), one parameter written twice, two
+   parameters. Census: no statement of today's paths changes (`render-census/landing2-result.txt`).
 
    Before step 4 (switching callers), two consumers of `PureV1Api.boundParameters` besides `execute` to settle:
    `arrowPlan` (Python's host runs the plan's SQL itself, so it must bind the values: agreed with the DataCube + Python

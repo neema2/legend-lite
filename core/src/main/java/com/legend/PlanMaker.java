@@ -32,13 +32,15 @@ final class PlanMaker {
     private PlanMaker() {
     }
 
-    /** {@code query}'s plan on {@code runtime}, its text in the form {@code output} asks for. */
+    /** {@code query}'s plan on {@code runtime}, its text in the form {@code output} asks for; each declared parameter
+     *  a value the statement binds where it is used. */
     static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime, TypedQuery.Output output) {
-        if (!query.parameters().isEmpty()) {
-            throw new com.legend.error.NotImplementedException("the plan of a query with parameters: binding them is"
-                    + " step 2's landing 2, not yet (" + query.parameters().size() + " declared)");
+        List<QueryParameters.Declared> declared = query.parameters();
+        List<com.legend.sql.SqlExpr.PlanParam> slots = new ArrayList<>(declared.size());
+        for (QueryParameters.Declared p : declared) {
+            slots.add(slot(p));
         }
-        Compiler.LoweredQuery l = query.lower(runtime, output == TypedQuery.Output.STREAMED_JSON);
+        Compiler.LoweredQuery l = query.lower(runtime, output == TypedQuery.Output.STREAMED_JSON, slots);
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
@@ -62,7 +64,29 @@ final class PlanMaker {
                 case JSON, STREAMED_JSON -> wire(WireRender.Format.JSON, l, dialect, target);
             };
         };
-        return new ExecutionPlan(List.of(), node);
+        return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(), node);
+    }
+
+    /** A declared parameter as the slot its uses lower to: one value of a primitive type ({@code Declared.slot}, which
+     *  refuses a class: a value is a plain value, §9's step 2 decisions); an optional one, an enumeration's and a list
+     *  are the next slices', refused by name. */
+    private static com.legend.sql.SqlExpr.PlanParam slot(QueryParameters.Declared p) {
+        String which = "parameter '" + p.name() + "' (" + p.type().typeName() + "["
+                + com.legend.plan.PurePrint.sizeRange(p.multiplicity()) + "])";
+        if (p.type() instanceof Type.EnumType) {
+            throw new com.legend.error.NotImplementedException(which + ": an enumeration's value, compared through a"
+                    + " value table where it is used, is step 2's landing 2 slice (d), not yet");
+        }
+        if (p.optional()) {
+            throw new com.legend.error.NotImplementedException(which + ": an optional value, compared null-safely, is"
+                    + " step 2's landing 2 slice (c), not yet");
+        }
+        if (!(p.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.lower() == 1 && Integer.valueOf(1).equals(b.upper()))) {
+            throw new com.legend.error.NotImplementedException(which + ": a list, bound as one array, is step 2's"
+                    + " landing 2 slice (e), not yet");
+        }
+        return p.slot();
     }
 
     /** The whole result as one text of {@code format}: the lowered query wrapped by the wire. */

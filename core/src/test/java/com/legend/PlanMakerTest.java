@@ -153,12 +153,128 @@ public class PlanMakerTest {
                 refused.getMessage());
     }
 
+    /** A query with parameters, and the same query with each parameter a {@code let} of its value -- how the server
+     *  binds a request's values today ({@code PureV1Api.boundParameters}) -- with the values as Java values. */
+    public record Parameterised(String parameters, String lets, String body, java.util.Map<String, Object> values) {
+
+        /** The query with its parameters, as a plan is made from it. */
+        public String withParameters() {
+            return "{" + parameters + "|" + body + "}";
+        }
+
+        /** The query with each parameter a {@code let} of its value, as today's paths answer it. */
+        public String withLets() {
+            return "|" + lets + body + ";";
+        }
+
+        /** Whether a parameter's literal has no one type -- a Float's, a Decimal's, a Date's or a Number's: refused on
+         *  H2, which types a parameter when it prepares the statement. */
+        public boolean untypedOnH2() {
+            return java.util.regex.Pattern.compile("\\b(Float|Decimal|Date|Number)\\[").matcher(parameters).find();
+        }
+    }
+
+    private static final List<Parameterised> SCALARS = scalars("T");
+
+    /** The scalar cases over {@code table} (ID, NAME, PRICE; three rows), every value of the parameter's Java type. */
+    public static List<Parameterised> scalars(String table) {
+        return List.of(
+            new Parameterised("n: Integer[1]", "let n = 1;",
+                    "#>{s::DB." + table + "}#->filter(r|$r.ID > $n)->select(~[ID, NAME])->sort(~ID->ascending())",
+                    java.util.Map.of("n", 1L)),
+            new Parameterised("s: String[1]", "let s = 'O\\'Brien';",
+                    "#>{s::DB." + table + "}#->filter(r|$r.NAME == $s)->select(~[ID, NAME])", java.util.Map.of("s", "O'Brien")),
+            new Parameterised("p: Decimal[1]", "let p = 2.00D;",
+                    "#>{s::DB." + table + "}#->filter(r|$r.PRICE < $p)->select(~[ID])->sort(~ID->ascending())",
+                    java.util.Map.of("p", new java.math.BigDecimal("2.00"))),
+            // one parameter written twice: compared, and added to a column
+            new Parameterised("n: Integer[1]", "let n = 2;",
+                    "#>{s::DB." + table + "}#->filter(r|$r.ID != $n)->extend(~plus: r|$r.ID + $n)->select(~[ID, plus])"
+                            + "->sort(~ID->ascending())", java.util.Map.of("n", 2L)),
+            new Parameterised("d: StrictDate[1]", "let d = %2024-01-02;",
+                    "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
+                    java.util.Map.of("d", java.time.LocalDate.of(2024, 1, 2))),
+            new Parameterised("b: Boolean[1]", "let b = true;",
+                    "#>{s::DB." + table + "}#->filter(r|$b)->select(~[ID])->sort(~ID->ascending())", java.util.Map.of("b", true)),
+            // a Float is bound as a decimal (the numeric charter's Rule 1: a Float literal is a decimal in the database)
+            new Parameterised("f: Float[1]", "let f = 1.1;",
+                    "#>{s::DB." + table + "}#->extend(~x: r|$r.ID * $f)->select(~[ID, x])->sort(~ID->ascending())",
+                    java.util.Map.of("f", new java.math.BigDecimal("1.1"))),
+            new Parameterised("f: Float[1]", "let f = 1.1;",
+                    "#>{s::DB." + table + "}#->extend(~f: r|$f)->select(~[ID, f])->sort(~ID->ascending())",
+                    java.util.Map.of("f", new java.math.BigDecimal("1.1"))),
+            new Parameterised("p: Decimal[1]", "let p = 2.50D;",
+                    "#>{s::DB." + table + "}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending())",
+                    java.util.Map.of("p", new java.math.BigDecimal("2.50"))),
+            // a parameter whose value decides its type: bound as its value's kind
+            new Parameterised("d: Date[1]", "let d = %2024-01-02;",
+                    "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
+                    java.util.Map.of("d", java.time.LocalDate.of(2024, 1, 2))),
+            new Parameterised("n: Number[1]", "let n = 1;",
+                    "#>{s::DB." + table + "}#->filter(r|$r.ID > $n)->select(~[ID])->sort(~ID->ascending())",
+                    java.util.Map.of("n", 1L)),
+            // two parameters
+            new Parameterised("lo: Integer[1], hi: Integer[1]", "let lo = 1; let hi = 3;",
+                    "#>{s::DB." + table + "}#->filter(r|($r.ID > $lo) && ($r.ID < $hi))->select(~[ID, NAME])",
+                    java.util.Map.of("lo", 1L, "hi", 3L)));
+    }
+
     @Test
-    void aQueryWithParametersIsRefusedByName_untilItsSlotsAreBound() {
-        var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(
-                Compiler.compileModel(model("DuckDB")), "{n: Integer[1]|#>{s::DB.T}#->filter(r|$r.ID > $n)}")
-                .executionPlan("s::RT", TypedQuery.Output.JSON));
-        assertTrue(refused.getMessage().contains("the plan of a query with parameters"), refused.getMessage());
+    void aScalarParametersPlanAnswersAsTheQueryWithItsValue_everyOutput() throws Exception {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+            for (Parameterised q : SCALARS) {
+                if (type == DatabaseType.H2 && q.untypedOnH2()) {
+                    continue;   // aParameterWithNoOneTypeIsRefusedOnH2ByName
+                }
+                for (TypedQuery.Output output : TypedQuery.Output.values()) {
+                    assertAnswersAsToday(type, q.withParameters(), q.withLets(), q.values(), output);
+                }
+            }
+        }
+    }
+
+    /** H2 types a parameter when it prepares the statement, and no type keeps a decimal value's own scale
+     *  (probes/literal-results.txt), nor names a Date's or a Number's: refused on H2, by name. */
+    @Test
+    void aParameterWithNoOneTypeIsRefusedOnH2ByName() {
+        for (Parameterised q : SCALARS) {
+            if (q.untypedOnH2()) {
+                var refused = assertThrows(com.legend.sql.dialect.DialectCapability.class,
+                        () -> plan(DatabaseType.H2, q.withParameters(), TypedQuery.Output.JSON));
+                assertTrue(refused.getMessage().contains("has no one type a statement names"),
+                        refused.getMessage());
+            }
+        }
+    }
+
+
+    @Test
+    void aScalarParameterIsDeclared_andBoundWhereItIsWritten() {
+        ExecutionPlan plan = plan(DatabaseType.H2, "{n: Integer[1]|#>{s::DB.T}#->filter(r|$r.ID != $n)"
+                + "->extend(~plus: r|$r.ID + $n)->select(~[ID, plus])}", TypedQuery.Output.JSON);
+        assertEquals(List.of(new ExecutionPlan.Parameter("n", "Integer", new ExecutionPlan.Multiplicity(1, 1),
+                List.of())), plan.parameters());
+        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan.root()).sql();
+        assertEquals(List.of(new ExecutionPlan.Slot("n", null), new ExecutionPlan.Slot("n", null)), sql.slots());
+        assertEquals(2, sql.statement().chars().filter(ch -> ch == '?').count(), sql.statement());
+    }
+
+    @Test
+    void whatTheNextSlicesBindIsRefusedByName() {
+        String model = """
+                Enum s::Status { ACTIVE, CLOSED }
+                """ + model("DuckDB");
+        for (var refusal : java.util.Map.of(
+                "{n: Integer[0..1]|#>{s::DB.T}#->filter(r|$r.ID == $n)}", "slice (c)",
+                "{st: s::Status[1]|#>{s::DB.T}#->filter(r|$st == s::Status.ACTIVE)}", "slice (d)",
+                "{ns: Integer[*]|#>{s::DB.T}#->filter(r|$r.ID->in($ns))}", "slice (e)").entrySet()) {
+            var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(
+                    Compiler.compileModel(model), refusal.getKey()).executionPlan("s::RT", TypedQuery.Output.JSON));
+            assertTrue(refused.getMessage().contains(refusal.getValue()), refused.getMessage());
+        }
+        var aClass = assertThrows(IllegalArgumentException.class, () -> Compiler.query(Compiler.compileModel(model),
+                "{i: s::Item[1]|#>{s::DB.T}#->filter(r|$r.ID == $i.id)}").executionPlan("s::RT", TypedQuery.Output.JSON));
+        assertTrue(aClass.getMessage().contains("a parameter's value is a plain value"), aClass.getMessage());
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -173,9 +289,15 @@ public class PlanMakerTest {
 
     private static void assertAnswersAsToday(DatabaseType type, String query, TypedQuery.Output output)
             throws Exception {
+        assertAnswersAsToday(type, query, query, java.util.Map.of(), output);
+    }
+
+    /** {@code withParameters}'s plan, run with {@code values}, answers as today's path answers {@code query}. */
+    private static void assertAnswersAsToday(DatabaseType type, String withParameters, String query,
+            java.util.Map<String, Object> values, TypedQuery.Output output) throws Exception {
         String model = model(type.name());
-        String what = type + " " + output + " " + query;
-        ExecutionPlan plan = plan(type, query, output);
+        String what = type + " " + output + " " + withParameters;
+        ExecutionPlan plan = plan(type, withParameters, output);
         try (Connection today = fresh(type); Connection planned = fresh(type)) {
             var ctx = Compiler.compileModel(model);
             var dialect = Databases.dialect(type);
@@ -187,7 +309,7 @@ public class PlanMakerTest {
                 case JSON -> Execution.executeWire(model, query, "s::RT", today, WireRender.Format.JSON, out);
                 case STREAMED_JSON -> Execution.executeStreaming(model, query, "s::RT", today, out);
             }
-            assertEquals(out.toString(), run(plan, planned), what);
+            assertEquals(out.toString(), run(plan, planned, values), what);
         }
     }
 
@@ -200,9 +322,17 @@ public class PlanMakerTest {
         };
     }
 
-    /** {@code plan} run on {@code c} as its steps describe themselves: the session statements, the setup (a rows step:
-     *  its staging table created, the cells inserted as text, copied, dropped), then the statement's text. */
+    /** {@link #run(ExecutionPlan, Connection, java.util.Map)} for a plan of no parameters. */
     public static String run(ExecutionPlan plan, Connection c) throws SQLException {
+        return run(plan, c, java.util.Map.of());
+    }
+
+    /** {@code plan} run on {@code c} as its steps describe themselves: the session statements, the setup (a rows step:
+     *  its staging table created, the cells inserted as text, copied, dropped), then the statement's text, each slot
+     *  bound to its parameter's value in {@code values} (a Java value of the parameter's type: the runner's
+     *  conversion is step 3's). */
+    public static String run(ExecutionPlan plan, Connection c, java.util.Map<String, Object> values)
+            throws SQLException {
         ExecutionPlan.TextResult text = (ExecutionPlan.TextResult) plan.root();
         ExecutionPlan.Target target = text.sql().target();
         try (Statement st = c.createStatement()) {
@@ -229,22 +359,34 @@ public class PlanMakerTest {
                     }
                 }
             }
-            assertEquals(List.of(), text.sql().slots());
-            try (ResultSet rs = st.executeQuery(text.sql().statement())) {
-                return switch (text.format()) {
-                    case CSV, JSON -> {
-                        assertTrue(rs.next(), "the database writes the whole text as one row");
-                        yield rs.getString(1);
-                    }
-                    case JSON_PER_ROW -> {
-                        List<String> rows = new ArrayList<>();
-                        while (rs.next()) {
-                            rows.add(rs.getString(1));
-                        }
-                        yield "[" + String.join(",", rows) + "]";
-                    }
-                };
+            assertEquals(plan.parameters().stream().map(ExecutionPlan.Parameter::name).sorted().toList(),
+                    values.keySet().stream().sorted().toList(), "a value for every declared parameter");
+            try (PreparedStatement statement = c.prepareStatement(text.sql().statement())) {
+                List<ExecutionPlan.Slot> slots = text.sql().slots();
+                for (int i = 0; i < slots.size(); i++) {
+                    statement.setObject(i + 1, java.util.Objects.requireNonNull(values.get(slots.get(i).parameter())));
+                }
+                return answer(text.format(), statement);
             }
+        }
+    }
+
+    /** The text the database writes: one row's one cell, or one JSON object per row in the array's punctuation. */
+    private static String answer(ExecutionPlan.Format format, PreparedStatement statement) throws SQLException {
+        try (ResultSet rs = statement.executeQuery()) {
+            return switch (format) {
+                case CSV, JSON -> {
+                    assertTrue(rs.next(), "the database writes the whole text as one row");
+                    yield rs.getString(1);
+                }
+                case JSON_PER_ROW -> {
+                    List<String> rows = new ArrayList<>();
+                    while (rs.next()) {
+                        rows.add(rs.getString(1));
+                    }
+                    yield "[" + String.join(",", rows) + "]";
+                }
+            };
         }
     }
 }

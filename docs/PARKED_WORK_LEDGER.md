@@ -314,3 +314,33 @@ shows no other legacy statement changing.
 needs it. Cost of leaving it parked: a legacy text over an explicit `emptyFirst()`/`emptyLast()` omits the clause.
 
 **Anchor.** `aggOrderNullPlacement` in `EngineStyleH2.java` returns `""`.
+
+---
+
+## PARK-19 — on H2, a parameter whose literal has no one type is not bound
+
+**Parked** 2026-10-09 by the Plan Gen / Exec Split session with step 2's landing 2 slice (b), PROPOSED to the user for a
+decision: the way out trades exactness against capability on H2. Found by measuring the pinned drivers
+(`docs/execution-plan-boundary-2026-10-05/probes/LiteralProbe.java` → `literal-results.txt`).
+
+**What happens today.** A plan binds each parameter as a value where it is written; the database must give the
+placeholder the type the literal of today's `let` path has. DuckDB and Postgres type a bare `?` by the bound value, and
+every type answers as its literal. H2 types a parameter when it prepares the statement, by its neighbour (`ID * ?` with
+1.5 answers `[2, 6]`, the literal `[1.5, 4.5]`) or not at all, so H2 writes each placeholder typed (`CAST(? AS T)`):
+exact for Integer, String, Boolean, StrictDate and DateTime. A Float's or a Decimal's literal is typed by its own digits
+(`2.50` is `NUMERIC(3,2)`), and no type a statement names keeps a value's own scale on H2: `NUMERIC` rounds to none,
+`NUMERIC(38,2)` pads (`1.10`), `DECFLOAT` keeps the value but drops trailing zeros (`3.75` where the literal answers
+`3.7500`). A Date's or a Number's value decides its kind. So `H2.placeholder` refuses such a parameter by name.
+
+**The choice.** (A) H2 writes a decimal parameter `CAST(? AS DECFLOAT)`: every value exact, comparisons and filters
+exact, but a decimal result that carries the parameter prints without trailing zeros (`3.75`, not `3.7500`): a recorded
+difference (`docs/SEMANTICS_REGISTER.md`). A Date or Number parameter stays refused on H2. (B) Keep refusing on H2 until
+the H2 the product pins can type a parameter exactly.
+
+**Acceptance.** (A): `PlanMakerTest`'s Float and Decimal cases run on H2, every answer's value the literal's, the
+difference in scale registered; (B): the row stays, its anchor holding.
+
+**When.** Before step 4 switches the server's `execute` to plans: until then today's path serves H2 decimal parameters.
+Cost of leaving it parked past step 4: a query with a Float, Decimal, Date or Number parameter is refused on H2.
+
+**Anchor.** `H2.placeholder`'s refusal, "has no one type a statement names", in `H2.java`.
