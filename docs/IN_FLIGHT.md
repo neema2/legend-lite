@@ -74,7 +74,7 @@ with the compiler's plan/execution split**, in this order:
    `EngineHandlersGenerator`, `DynaFnRegistryTest`, `SpecRatchets` and `ratchets.tsv` (the undeclared engine ids,
    shrink-only). `.github/workflows/gate.yml` runs nightly on main. `DynaFn`'s API is unchanged, so its users are
    not edited beyond that one comment.
-   **Phase 3 (announced 2026-10-06): one table decides, by function id**, branch `build/phase3`. core:
+   **Phase 3 landed 2026-10-09 (1e4a2bd40; run 38000346579; GATES "Build rebuild Phase 3"): rebased over 231 commits and re-judged on that main.** **Next, Phase 3b** (`PHASES_3B_6.md`; the homework measured in `PHASE_3B_HOMEWORK_2026_10_09.md`): its plan is agreed with the user before any core edit, and the edit is announced here first; expected files: `compiler/ModelBuilder.java`, `compiler/NameResolver.java`, `builtin/SystemMetamodel.java`, `Compiler.java`, `platform/ImplementationTable.java`, `platform/Implementation.java`, `compiler/spec/Typer.java`, `compiler/spec/InferenceKernel.java`, `compiler/element/ModelContext.java`, `compiler/element/PureModelContext.java`, `parser/ElementParser.java`, `model/ParsedModel.java`, `spec/.../ManifestWorldCensusTest.java` (its ceilings re-pinned), the reference-lane golden and `reasons.tsv`, `projects/BUILD.bazel`, the ledger. **Phase 3 (announced 2026-10-06): one table decides, by function id**, branch `build/phase3`. core:
    `compiler/spec/FunctionMatch.java` (new: legend-pure's overload ranking), `InferenceKernel.java`, `Overloads.java`;
    `compiler/element/FunctionCompiler.java` (candidates merged by function id; the PCT rule and the platform-owned list
    gone), `compiler/element/type/PlatformTypes.java` (the owned and assert-family lists gone), `Compiler.java`

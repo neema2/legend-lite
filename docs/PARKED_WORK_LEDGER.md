@@ -199,7 +199,8 @@ later check that asks what a bare call can be works it out again from the spelli
 calls the typer and the mapping normalizer build after the resolver are bare too.
 
 **Why parked.** The correct fix changes the resolver and about 200 places that build calls; the user put it on this
-list on 2026-10-07. Whether Phase 3 lands before it is fixed is the user's open decision.
+list on 2026-10-07. Ruled: Phase 3 landed with it recorded (2026-10-09, 1e4a2bd40); the fix is landing L7, right after
+Phase 3b and before Phases 6, 4 and 5 (the user, 2026-10-09, on `COLD_READ_2026_10_09.md` F1).
 
 **Cost while parked.** Measured on the eager corpus compile (same machine, runs alternated): this one lookup is 19% of
 typing time on main and 29% after Phase 3, whose forms are read by the names a call resolves to (21 checks): typing

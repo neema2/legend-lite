@@ -7981,6 +7981,22 @@ server path answers no rows for an optional parameter sent empty, where the engi
 plans answer as the engine does, and step 4 retires that path.
 ## 2026-10-06 — Build rebuild Phase 3: one table decides, by function id; overloads ranked as legend-pure ranks them
 
+**Landed 2026-10-09 as 1e4a2bd40** (branch `build/phase3`, the five commits of 2026-10-06/07 rebased onto main at 1c05e2946 plus
+two rebase fix-ups; run 38000346579, full gate.yml on all platforms: green on every job on the first attempt of the re-pinned tip (50 jobs run, the dispatch's summary job skipped as always)). The rebase (231 commits behind main
+when it started, over the erased TDS row, W1.5, W0.8, D24, the protocol program's legs 2 and 3, the dialect writer and the
+execution plan's landings) conflicted only in the generated claims, the parser ratchet, the ledger and its anchor test,
+GATES and the compiler plan; the code auto-merged. Fix-ups: the claims re-made by `//core:update_generated`;
+parser-equivalence's `own_corpus.matched` re-measured 2,746 -> 2,751 (the branch's tests carry Pure text that joined the
+own corpus); the anchor test merged by hand (PARK-5 to PARK-14 beside main's PARK-15 to PARK-18, 21 rows, 21 anchors);
+the identity guard's NAME_CUTTING pin follows the count, 105 -> 106 (the protocol program's `PersistenceReader.kindOf`
+splits a wire-type key at ':', not a function name). Judged again on that main: core's 24 test targets, the guardrails,
+the census and spec's tests 28 of 28; the DuckDB and H2 corpus lanes with every roster and register equal to main's
+committed ones, the reference lane's committed golden equal to the measured report, the four PCT lanes, 30 of 30; the
+local gate 317 of 319 with the two misses the known load timeouts (`saved_queries_test`, `studio:demo_test`), both green
+alone; the first full run (37998534859) was green on 48 jobs and red on the two parser-equivalence jobs, the own-corpus parity's exact pins moved by the audit fix B1's test (a `FunctionDefinition<{->Integer[*]}>` parameter: `PURE-DIALECT-function-types` 18 -> 19, `CompileFunctionTest` 5 -> 6), re-pinned with review in 1e4a2bd40. No render census: Phase 3 changes which declaration a call binds to, which the rosters, the reference lane and
+PCT would show before any SQL text could move. PARK-5 lands recorded (the user's option (a), 2026-10-07); its fix is L7,
+ruled 2026-10-09 to run right after Phase 3b (`COLD_READ_2026_10_09.md` F1).
+
 The plan: `docs/REBUILD_PROGRAM_2026_10_06.md` (plan branch), Phase 3; the pre-experiment:
 `docs/build-inventory/manifest-world/experiments/phase3-ranking/README.md`.
 

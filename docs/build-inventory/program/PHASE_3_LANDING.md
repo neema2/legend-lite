@@ -1,5 +1,7 @@
 # Phase 3: what is left before it lands (2026-10-07)
 
+**Landed 2026-10-09 as 1e4a2bd40 (run 38000346579); GATES "Build rebuild Phase 3" has the landing paragraph and the re-judgement on that main. This file is history.**
+
 Phase 3 ("one table decides, by exact function id"; the plan's Phase 3) is built on branch `build/phase3` (worktree
 `runs/build-rebuild`) and audited. This file is the complete list of what is left, so a session can land it without
 the conversation that produced it.

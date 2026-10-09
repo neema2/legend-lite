@@ -43,7 +43,7 @@ generated file, never a signature we typed ourselves.
 |---|---|---|
 | The plan, the designs, the research, these briefs, the evidence | `main`: `docs/REBUILD_PROGRAM_2026_10_06.md`, `docs/BUILD_REBUILD_DESIGN_2026_10_05.md`, `docs/GENERATORS.md`, `docs/UPSTREAM_ONLY_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md`, `docs/build-inventory/` (inventories, dossiers, experiments, censuses), `docs/build-inventory/program/` (this folder; its `evidence/` holds the audits, scripts and recorded results) | yes, since 2026-10-07: merged from the plan branch `docs/bazel-first-class-plan` (pushed, kept as history). Edit them on main or a branch from it, not in `runs/bazel-plan` |
 | The code | `main`. Phases 0, 1 and 2 are on it (PR #25, PR #26, `ff70aef01`). | yes |
-| Phase 3 | branch `build/phase3` (worktree `runs/build-rebuild`): main plus the five Phase 3 commits; state in §3 | yes (pushed 2026-10-07; not landed) |
+| Phase 3 | `main` since 2026-10-09 (1e4a2bd40, run 38000346579; GATES "Build rebuild Phase 3") | yes |
 | The program's debts | `docs/PARKED_WORK_LEDGER.md` rows PARK-5 to PARK-14 (on `build/phase3`; they land with Phase 3), anchored by `core/src/test/java/com/legend/ParkedWorkLedgerTest.java` | with Phase 3 |
 | Who works on what | `docs/IN_FLIGHT.md` on `main` (the program's entry lists every core file each phase touches) | yes |
 | Gate results and what moved, per change | `docs/GATES.md` (one entry per landing) | with each landing |
@@ -53,7 +53,18 @@ generated file, never a signature we typed ourselves.
 
 ## 3. State, and the next action
 
-**State on 2026-10-07, after the planning session** (the one place this is kept; other documents point here):
+**State on 2026-10-09** (the one place this is kept; other documents point here):
+- **L2, Phase 3, landed** (1e4a2bd40; run 38000346579; GATES "Build rebuild Phase 3"): rebased over 231 commits, re-judged
+  on that main (every lane identical), two rebase fix-ups, no new audit (the fix-ups are mechanical and listed in GATES).
+- **The order after L2, as ruled 2026-10-09 on the cold read** (`COLD_READ_2026_10_09.md`; the plan's §4): L3 Phase 3b,
+  then **L7 "resolve once" (PARK-5's full fix) moved up before L4 (Phase 6)**, then L4, L5 (Phase 4), L6 (Phase 5), L8
+  (the bump), L9 (the typing order), Phase 8. The cold read's other two rulings are pending the user: F2 (the default
+  world as a parser-triggered record with a diff test, the seal recording the module choice and the generator's inputs)
+  and F3 (Phase 4 follows every body).
+- **Next: L3, Phase 3b** (`PHASES_3B_6.md`): plan agreed with the user before code; its homework H1 to H7 first; the
+  open decisions 3b-O1 (recommended (b)), 3b-O2 (recommended (a)), 3b-O3.
+
+**State on 2026-10-07, after the planning session** (kept for the record):
 - **The order is agreed and recorded in the plan's §4**: thirteen landings, L1 the CI landing first, L2 Phase 3, then
   3b, 6, 4, 5, PARK-5's fix, 7 (the bump is done there), then the typer's order and Phase 8. The lane set is
   `PHASE_8.md` §8; the measurements behind it are `evidence/phase8/CI_LANES_2026_10_07.md`.

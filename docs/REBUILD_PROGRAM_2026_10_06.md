@@ -340,7 +340,7 @@ on a branch, one CI run, then pushed to main.
   drops by name (this phase's suppression removal brings them back), 79 are class-hierarchy choices (legend-pure
   measures hierarchy distance), 49 are numbers and optional values, likely argument typing.
 
-- **Status (2026-10-07): built and audited on `build/phase3`, not landed** (the commits and their state:
+- **Landed 2026-10-09 as 1e4a2bd40 (run 38000346579; GATES "Build rebuild Phase 3": the rebase, the fix-ups, the re-judgement).** Status as of 2026-10-07, for the record: built and audited on `build/phase3` (the commits and their state:
   `docs/build-inventory/program/START_HERE.md` §3; GATES entry "Build rebuild Phase 3"; what is left: `docs/build-inventory/program/PHASE_3_LANDING.md`).
   Reference lane: AGREE 73,103 -> 74,586, OVERLOAD 745 -> 58, DRIFT 32 -> 0, PROPERTY_AS_CALL 39 -> 1, bodies we fail
   to type 1,508 -> 1,469 (51 newly typed, 12 newly failing). The six corpus passes: four tests the step-2 change broke
