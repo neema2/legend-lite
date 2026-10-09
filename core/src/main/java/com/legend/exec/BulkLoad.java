@@ -13,20 +13,14 @@ import java.sql.SQLException;
  *
  * <p>The contract: the rows land exactly as the text path would land them
  * &mdash; each cell cast by the DATABASE from its text to the column's type.
- * The loader appends every cell, as text, into the {@link Staging} table and
- * runs the statements it is handed; it spells no SQL and types no value.
+ * The loader appends every cell, as text, into the {@link RowLoad.Staging} table
+ * and runs the statements it is handed; it spells no SQL and types no value.
  */
 public interface BulkLoad {
-
-    /** The staging table and its three statements, rendered by the session's
-     *  dialect: create it (one text column per cell, temporary), copy it into
-     *  the target (the database casts), drop it. */
-    record Staging(String table, String create, String copy, String drop) {
-    }
 
     /** Whether this loader speaks {@code connection}'s engine. */
     boolean accepts(Connection connection) throws SQLException;
 
     /** Loads {@code load} (not empty) through {@code staging}. */
-    void load(Connection connection, RowLoad load, Staging staging) throws SQLException;
+    void load(Connection connection, RowLoad load, RowLoad.Staging staging) throws SQLException;
 }

@@ -134,6 +134,17 @@ public final class TypedQuery {
         return plan(runtime, true);
     }
 
+    /** The text a caller asks a plan for: CSV, JSON, or JSON whose rows stream as the database answers them (a
+     *  relation's rows, a graph fetch's objects; a value's text is whole). */
+    public enum Output { CSV, JSON, STREAMED_JSON }
+
+    /** The query's execution plan for {@code runtime} (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the text the
+     *  database writes in the form {@code output} asks for, final for its target, run by a model-free runner. */
+    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
+            Output output) {
+        return PlanMaker.plan(this, runtime, output);
+    }
+
     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {
         Compiler.LoweredQuery l = lower(runtime, streaming);
         String sql = Compiler.dialectOf(ctx, runtime).render(l.plan());

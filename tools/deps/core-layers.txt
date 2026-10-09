@@ -18,6 +18,9 @@
 # 2026-10-08: `setup` (a connection's setup as text and rows, moved out of exec: execution plan boundary step 2's
 # opening piece, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9); exec, testdatagen and driver reach it.
 # 2026-10-08: planner reaches `execution_plan` (QueryParameters, the one parameter list: step 2).
+# 2026-10-09: step 2's landing 2 (the planner makes lite plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9):
+# planner reaches `setup` (a target's declared test data written into the plan) and database reaches
+# `execution_plan` (the server versions a database's statements are written for, Databases.servers).
 # 2026-10-08: `pure_v1` (server/PureV1Api: legend-engine's pure/v1 API, the plan side, so the compiler's boundary
 # answers with the server's code; docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md); server_lib reaches it.
 spi	
@@ -34,7 +37,7 @@ builtin	base error model parser protocol
 platform	base builtin model
 compiler_element_type	base builtin model platform protocol sql
 sql_dialect	base sql
-database	base error model sql_dialect
+database	base error execution_plan model sql_dialect
 compiler	base builtin compiler_element_type error model platform protocol sql values
 normalizer	base builtin compiler compiler_element_type error model platform protocol
 lineage	base builtin compiler compiler_element_type error model platform protocol sql
@@ -47,7 +50,7 @@ exec	base compiler compiler_element_type database diagnostics error lowering mod
 probe	base builtin lowering model platform
 testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql_dialect values
 execution_plan	base json model sql
-planner	base builtin cache compiler compiler_element_type database error execution_plan lineage lowering model normalizer parser plan platform protocol resolver sql sql_dialect validation values
+planner	base builtin cache compiler compiler_element_type database error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 pure_v1	base compiler_element_type error json parser plan planner protocol sql_dialect
 driver	base builtin cache compiler compiler_element_type database diagnostics error exec lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values
 ide	base lexer model parser

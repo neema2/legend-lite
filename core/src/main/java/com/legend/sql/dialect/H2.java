@@ -175,12 +175,17 @@ public class H2 extends AnsiSqlRenderer {
         return true;
     }
 
+    /** The server versions this dialect writes for, as prefixes of the version a session reports: 2.1 and 2.2, the
+     *  engine-parity target (the product's H2 is 2.1.214). A plan written in this dialect records them, and its runner
+     *  refuses a session of another version (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2). */
+    public static final java.util.List<String> SERVERS = java.util.List.of("2.1", "2.2");
+
     /** CAPABILITY BY CONNECTED VERSION: H2 2.3+ has typed-JSON navigation ({@code (j)."f"},
      *  1-based {@code [i]}), which {@link H2Modern} spells natively; 2.1 and 2.2 -- the engine-parity
-     *  target -- keep this dialect's walls. */
+     *  target, {@link #SERVERS} -- keep this dialect's walls. */
     @Override
     public SqlDialect forServer(String version) {
-        return version.startsWith("2.1") || version.startsWith("2.2") ? this : new H2Modern();
+        return SERVERS.stream().anyMatch(version::startsWith) ? this : new H2Modern();
     }
 
     /** Native QUALIFY (probed capability note above) — the clause

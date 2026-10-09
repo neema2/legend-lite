@@ -3,11 +3,14 @@
 
 package com.legend.executionplan;
 
+import com.legend.executionplan.ExecutionPlan.Column;
+import com.legend.executionplan.ExecutionPlan.Database;
 import com.legend.executionplan.ExecutionPlan.Format;
 import com.legend.executionplan.ExecutionPlan.Multiplicity;
 import com.legend.executionplan.ExecutionPlan.Parameter;
 import com.legend.executionplan.ExecutionPlan.Relation;
 import com.legend.executionplan.ExecutionPlan.Sequence;
+import com.legend.executionplan.ExecutionPlan.Servers;
 import com.legend.executionplan.ExecutionPlan.SetupStep;
 import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
@@ -56,7 +59,8 @@ class PlanJsonTest {
             new AuthenticationSpec.GcpWorkloadIdentityFederation("sa@x", List.of("scope")));
 
     private static Target target(ConnectionSpecification spec, AuthenticationSpec auth) {
-        return new Target(new ConnectionDefinition("store::Conn", "store::DB", DatabaseType.H2, spec, auth),
+        return new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB", DatabaseType.H2,
+                spec, auth)), new Servers.Versions(List.of("2.1", "2.2")), List.of(),
                 List.of(new SetupStep.Statement("create table T(ID INT)")));
     }
 
@@ -73,7 +77,7 @@ class PlanJsonTest {
                                         List.of(new Slot("name", null), new Slot("ids", "INTEGER")), t, null)),
                         new TextResult(Format.JSON, new Value("model::Person", new Multiplicity(0, null)),
                                 new Sql("select json_group_array(...) from T", List.of(), t, null)),
-                        new TextResult(Format.CSV, new Relation(List.of(new TdsColumn("name", "String", "VARCHAR(100)"))),
+                        new TextResult(Format.CSV, new Relation(List.of(new Column("name", "String"))),
                                 new Sql("select ... from T", List.of(), t, null)),
                         new TextResult(Format.JSON_PER_ROW, new Relation(List.of()),
                                 new Sql("select ... from T", List.of(), t, null)))));
@@ -82,8 +86,9 @@ class PlanJsonTest {
 
     @Test
     void bothSetupStepKindsReadBack_aNullCellStaysNull() {
-        Target t = new Target(new ConnectionDefinition("store::Conn", "store::DB", DatabaseType.DuckDB,
-                new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth()),
+        Target t = new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB",
+                DatabaseType.DuckDB, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())),
+                new Servers.Every(), List.of("SET TimeZone='UTC'"),
                 List.of(new SetupStep.Statement("create table T(ID INTEGER, NAME VARCHAR)"),
                         new SetupStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
                                 "insert into T(ID, NAME) select c0, c1 from legend_row_load", "drop table legend_row_load",
@@ -93,6 +98,21 @@ class PlanJsonTest {
         assertEquals(plan, back);
         SetupStep.Rows rows = (SetupStep.Rows) ((TdsResult) back.root()).sql().target().setup().get(1);
         assertEquals(null, rows.rows().get(1).get(1));
+    }
+
+    @Test
+    void thePlatformsEngineReadsBack_withNoSetup() {
+        Target t = new Target(new Database.Platform(DatabaseType.DuckDB), new Servers.Every(),
+                List.of("SET TimeZone='UTC'"), List.of());
+        ExecutionPlan plan = new ExecutionPlan(List.of(), new TextResult(Format.JSON,
+                new Relation(List.of(new Column("value", "Integer"))), new Sql("select 1", List.of(), t, null)));
+        assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
+    }
+
+    @Test
+    void aStatementWrittenForSomeServerVersionsNamesOne() {
+        var refused = assertThrows(IllegalArgumentException.class, () -> new Servers.Versions(List.of()));
+        assertTrue(refused.getMessage().contains("names at least one"), refused.getMessage());
     }
 
     @Test
@@ -118,14 +138,14 @@ class PlanJsonTest {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(List.of(),
                 new Sql("select 1", List.of(), t, null))));
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":2,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":3,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v2 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v3 plan"), refused.getMessage());
     }
 
     @Test
@@ -138,10 +158,14 @@ class PlanJsonTest {
     }
 
     @Test
-    void theFirstVersionIsRefused() {
-        var refused = assertThrows(IllegalArgumentException.class,
-                () -> PlanJson.read("{\"format\":\"legend-lite-plan\",\"version\":1,\"parameters\":[],\"root\":{}}"));
-        assertTrue(refused.getMessage().contains("(format legend-lite-plan, version 1)"), refused.getMessage());
+    void anEarlierVersionIsRefused() {
+        for (int version = 1; version <= 2; version++) {
+            int v = version;
+            var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(
+                    "{\"format\":\"legend-lite-plan\",\"version\":" + v + ",\"parameters\":[],\"root\":{}}"));
+            assertTrue(refused.getMessage().contains("(format legend-lite-plan, version " + v + ")"),
+                    refused.getMessage());
+        }
     }
 
     @Test

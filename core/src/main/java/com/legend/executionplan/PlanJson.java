@@ -37,8 +37,10 @@ public final class PlanJson {
 
     /** The format's name and version, the first two fields of every plan. */
     public static final String FORMAT = "legend-lite-plan";
-    /** 2 since 2026-10-08: step 2's records (enum values by name, {@code textResult}, setup steps, no identity). */
-    public static final int VERSION = 2;
+    /** 2 since 2026-10-08: step 2's records (enum values by name, {@code textResult}, setup steps, no identity); 3 since
+     *  2026-10-09: the planner's plans (step 2's landing 2) — a target's database (declared or the platform's), its
+     *  server versions and session statements, and a text result's columns without a SQL type. */
+    public static final int VERSION = 3;
 
     private PlanJson() {
     }
@@ -50,6 +52,10 @@ public final class PlanJson {
     enum ResultTypeTag { relation, value }
 
     enum SetupTag { statement, rows }
+
+    enum DatabaseTag { declared, platform }
+
+    enum ServersTag { every, versions }
 
     enum SpecificationTag { InMemory, LocalFile, LocalH2, EmbeddedH2, StaticDatasource, Snowflake, Spanner, Databricks,
         BigQuery }
@@ -139,7 +145,14 @@ public final class PlanJson {
         switch (type) {
             case Relation r -> {
                 o.put("_type", ResultTypeTag.relation.name());
-                o.put("columns", columns(r.columns()));
+                List<Object> cols = new ArrayList<>();
+                for (ExecutionPlan.Column c : r.columns()) {
+                    Map<String, Object> co = new LinkedHashMap<>();
+                    co.put("name", c.name());
+                    co.put("type", c.type());
+                    cols.add(co);
+                }
+                o.put("columns", cols);
             }
             case Value v -> {
                 o.put("_type", ResultTypeTag.value.name());
@@ -165,9 +178,38 @@ public final class PlanJson {
         o.put("slots", slots);
         Target t = s.target();
         Map<String, Object> to = new LinkedHashMap<>();
-        to.put("connection", connection(t.connection()));
+        to.put("database", database(t.database()));
+        to.put("servers", servers(t.servers()));
+        to.put("session", t.session());
         to.put("setup", t.setup().stream().map(PlanJson::setupStep).toList());
         o.put("target", to);
+        return o;
+    }
+
+    private static Map<String, Object> database(ExecutionPlan.Database database) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        switch (database) {
+            case ExecutionPlan.Database.Declared d -> {
+                o.put("_type", DatabaseTag.declared.name());
+                o.put("connection", connection(d.connection()));
+            }
+            case ExecutionPlan.Database.Platform p -> {
+                o.put("_type", DatabaseTag.platform.name());
+                o.put("databaseType", p.type().name());
+            }
+        }
+        return o;
+    }
+
+    private static Map<String, Object> servers(ExecutionPlan.Servers servers) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        switch (servers) {
+            case ExecutionPlan.Servers.Every e -> o.put("_type", ServersTag.every.name());
+            case ExecutionPlan.Servers.Versions v -> {
+                o.put("_type", ServersTag.versions.name());
+                o.put("prefixes", v.prefixes());
+            }
+        }
         return o;
     }
 
@@ -367,6 +409,15 @@ public final class PlanJson {
         };
     }
 
+    private static List<ExecutionPlan.Column> readRelationColumns(Json.Arr columns) {
+        List<ExecutionPlan.Column> cols = new ArrayList<>();
+        for (Json.Node n : columns.items()) {
+            Json.Obj c = (Json.Obj) n;
+            cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type")));
+        }
+        return cols;
+    }
+
     private static List<TdsColumn> readColumns(Json.Arr columns) {
         List<TdsColumn> cols = new ArrayList<>();
         for (Json.Node n : columns.items()) {
@@ -378,7 +429,7 @@ public final class PlanJson {
 
     private static ResultType readResultType(Json.Obj o) {
         return switch (tag(ResultTypeTag.class, o, "result type")) {
-            case relation -> new Relation(readColumns(o.getArr("columns")));
+            case relation -> new Relation(readRelationColumns(o.getArr("columns")));
             case value -> new Value(o.getString("type"), readMultiplicity(o.getObj("multiplicity")));
         };
     }
@@ -394,7 +445,23 @@ public final class PlanJson {
         for (Json.Node n : t.getArr("setup").items()) {
             setup.add(readSetupStep((Json.Obj) n));
         }
-        return new Sql(o.getString("statement"), slots, new Target(readConnection(t.getObj("connection")), setup), null);
+        return new Sql(o.getString("statement"), slots, new Target(readDatabase(t.getObj("database")),
+                readServers(t.getObj("servers")), t.getStringArray("session"), setup), null);
+    }
+
+    private static ExecutionPlan.Database readDatabase(Json.Obj o) {
+        return switch (tag(DatabaseTag.class, o, "database")) {
+            case declared -> new ExecutionPlan.Database.Declared(readConnection(o.getObj("connection")));
+            case platform -> new ExecutionPlan.Database.Platform(
+                    named(ConnectionDefinition.DatabaseType.class, o.getString("databaseType"), "database type"));
+        };
+    }
+
+    private static ExecutionPlan.Servers readServers(Json.Obj o) {
+        return switch (tag(ServersTag.class, o, "servers")) {
+            case every -> new ExecutionPlan.Servers.Every();
+            case versions -> new ExecutionPlan.Servers.Versions(o.getStringArray("prefixes"));
+        };
     }
 
     private static SetupStep readSetupStep(Json.Obj o) {
