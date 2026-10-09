@@ -3756,6 +3756,27 @@ export class CubeApp {
     if (source !== undefined) head.append(this.#sourceTag(source));
     head.append(this.#snapPill());
     if (!this.#config.showDragZones) head.append(this.#zonesBack());
+    head.append(this.#gridMenuButton());
+  }
+
+  /** The grid's own menu button, in its tile's header (`#gridMenu`); a second press shuts the menu, as the bar's does. */
+  #gridMenuButton(): HTMLElement {
+    const button = this.#doc.createElement('button');
+    button.type = 'button';
+    button.className = 'dc-tile-button dc-tile-menu';
+    button.textContent = '\u2261';
+    button.title = 'This grid\'s menu';
+    button.setAttribute('aria-label', 'Grid menu');
+    button.setAttribute('aria-haspopup', 'menu');
+    button.addEventListener('click', () => {
+      if (this.#menu.open) {
+        this.#menu.close();
+        return;
+      }
+      const at = button.getBoundingClientRect();
+      this.#menu.show(this.#gridMenu(), at.left, at.bottom, button);
+    });
+    return button;
   }
 
   /**
@@ -3774,9 +3795,6 @@ export class CubeApp {
     // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
     // and nothing visible (P2-289).
     const cubeOnly = this.#adhoc ? { disabled: true } : {};
-    const canEmail = this.#options.email !== undefined || this.#options.download !== undefined;
-    const dimensions = availableDimensions(this.#snapshot, this.#dimensions())
-      .map((d): MenuItem => ({ id: 'view.dimension', label: d.name, column: d.name, ...cubeOnly }));
     const submenu = (label: string, items: MenuItem[]): MenuItem[] =>
       (items.length > 0 ? [{ label, submenu: items }] : []);
     const groups: MenuGroup[] = [
@@ -3797,33 +3815,67 @@ export class CubeApp {
         { id: 'page.editLayout' as const, label: 'Edit Layout', checked: this.#page.page.editing },
       ] }] : []),
       { label: '', items: host('data') },
-      { label: '', items: [
-        // WHAT UNDO ACTS ON: Ad Hoc's session while it is on, never the hidden cube's history
-        // (P2-284). Disabled rather than hidden when there is nothing to go back to: a shortcut
-        // that silently does nothing cannot be told from one that is broken.
-        { id: 'view.undo', label: 'Undo',
-          ...((this.#adhoc ? this.#adhoc.session.canUndo : this.#owner.canUndo) ? {} : { disabled: true }) },
-        { id: 'view.redo', label: 'Redo',
-          ...((this.#adhoc ? this.#adhoc.session.canRedo : this.#owner.canRedo) ? {} : { disabled: true }) },
-      ] },
-      { label: '', items: [
-        ...host('file'),
-        { label: 'Export', submenu: exportItems(this.#options.cubeSource !== undefined) },
-        { label: 'Email', submenu: emailItems(canEmail) },
-      ] },
-      { label: '', items: [
-        ...submenu('View', [
-          { id: 'view.properties', label: 'Properties...', ...cubeOnly },
-          // the other way to work the cube: checked while it is on; choosing it again leaves
-          { id: 'view.adhoc', label: 'Ad Hoc Analysis', ...(this.#adhoc ? { checked: true } : {}) },
-          ...submenu('Dimensions', dimensions),
-          ...host('view'),
-        ]),
-
-      ] },
+      { label: '', items: this.#undoItems() },
+      { label: '', items: [...host('file'), ...this.#outputItems()] },
+      { label: '', items: [...submenu('View', [...this.#viewItems(), ...host('view')])] },
       { label: '', items: [{ id: 'view.settings', label: 'Settings...' }] },
     ];
     return groups.filter((g) => g.items.length > 0);
+  }
+
+  /**
+   * A GRID'S OWN MENU, under the menu button in its tile's header on a page (the design's §3.1: each grid's header
+   * carries only that grid's things, the same for the first grid and the fifth): a chart or a copy of it, its Undo,
+   * its Export and Email, its Properties, Ad Hoc and Dimensions.
+   */
+  #gridMenu(): MenuGroup[] {
+    const cubeOnly = this.#adhoc ? { disabled: true } : {};
+    return [
+      { label: '', items: [{ label: 'New', submenu: [
+        { id: 'chart.plot', label: 'Visualization', ...cubeOnly },
+        { id: 'grid.new', label: 'Copy of Grid', ...cubeOnly },
+      ] }] },
+      { label: '', items: this.#undoItems() },
+      { label: '', items: this.#outputItems() },
+      { label: '', items: this.#viewItems() },
+    ];
+  }
+
+  /** Undo and Redo, of what this grid shows. */
+  #undoItems(): MenuItem[] {
+    return [
+      // WHAT UNDO ACTS ON: Ad Hoc's session while it is on, never the hidden cube's history
+      // (P2-284). Disabled rather than hidden when there is nothing to go back to: a shortcut
+      // that silently does nothing cannot be told from one that is broken.
+      { id: 'view.undo', label: 'Undo',
+        ...((this.#adhoc ? this.#adhoc.session.canUndo : this.#owner.canUndo) ? {} : { disabled: true }) },
+      { id: 'view.redo', label: 'Redo',
+        ...((this.#adhoc ? this.#adhoc.session.canRedo : this.#owner.canRedo) ? {} : { disabled: true }) },
+    ];
+  }
+
+  /** Export and Email, as the right-click menu has them. */
+  #outputItems(): MenuItem[] {
+    const canEmail = this.#options.email !== undefined || this.#options.download !== undefined;
+    return [
+      { label: 'Export', submenu: exportItems(this.#options.cubeSource !== undefined) },
+      { label: 'Email', submenu: emailItems(canEmail) },
+    ];
+  }
+
+  /** Properties, Ad Hoc Analysis, and the named hierarchies (Dimensions) when there are any. */
+  #viewItems(): MenuItem[] {
+    // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
+    // and nothing visible (P2-289).
+    const cubeOnly = this.#adhoc ? { disabled: true } : {};
+    const dimensions = availableDimensions(this.#snapshot, this.#dimensions())
+      .map((d): MenuItem => ({ id: 'view.dimension', label: d.name, column: d.name, ...cubeOnly }));
+    return [
+      { id: 'view.properties', label: 'Properties...', ...cubeOnly },
+      // the other way to work the cube: checked while it is on; choosing it again leaves
+      { id: 'view.adhoc', label: 'Ad Hoc Analysis', ...(this.#adhoc ? { checked: true } : {}) },
+      ...(dimensions.length > 0 ? [{ label: 'Dimensions', submenu: dimensions }] : []),
+    ];
   }
 
   /**

@@ -248,6 +248,31 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
   });
 
+  it('every grid has its own menu in its tile\'s header, the same for the cube\'s grid and an added one', async () => {
+    app.newGrid();
+    await settle();
+    const id = added()[0]!.dataset['tile']!;
+    /** A grid's own menu, opened from its tile: its entries at the top level, by what a person reads. */
+    const gridMenu = (tileId: string): HTMLElement[] => {
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      const buttons = [...tile(tileId).querySelectorAll<HTMLElement>('.dc-tile-menu')]
+        .filter((b) => b.closest('[data-tile]') === tile(tileId));
+      assert.equal(buttons.length, 1, `${tileId} has one menu button of its own`);
+      buttons[0]!.click();
+      return [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu > [role^="menuitem"]')];
+    };
+    const labels = (items: HTMLElement[]): string[] => items.map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
+    const theirs = labels(gridMenu(id));
+    assert.deepEqual(theirs, ['New', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis']);
+    assert.deepEqual(labels(gridMenu('grid')), theirs, 'the cube\'s own grid has the same menu');
+    // its Undo is its own: the added grid's change undone, the cube's grid untouched
+    await ungroup(zoneOf(id), 'desk');
+    menuEntry(gridMenu(id), 'Undo')!.click();
+    await settle();
+    assert.deepEqual(chips(zoneOf(id)), ['region', 'desk']);
+    assert.deepEqual(app.snapshot.rows, ['region', 'desk']);
+  });
+
   it('a chart of an added grid follows that grid, not the cube\'s', async () => {
     app.openChart();
     app.newGrid();
