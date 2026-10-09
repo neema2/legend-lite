@@ -120,8 +120,8 @@ with the compiler's plan/execution split**, in this order:
    `datacube-pages`. `native/`, `python/` and, since 2026-10-09, all of `datacube/`. Landed: the compiler as a native
    library (`bc8107c4e`), `ll.show(df)` and the notebook cube on every platform, a real JupyterLab test and marimo
    (`169e0f062`), DataCube pages phase 1, the layout (`e397f107a`), and phase 2, a page of its own saved with every
-   source (`eb2e38fa8`). Next: pages phase 3, tabs (`docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` §4), then phase 4,
-   Python pages.
+   source (`eb2e38fa8`). Now: pages phase 3, tabs -- 3a sheets, then 3b stacked tiles, branch `datacube-sheets`
+   (`docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` §7); then phase 4, Python pages.
 
 **Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
 B2/B3 and the W6.2 runner wait for it); the server
@@ -601,7 +601,12 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `src/layout/band-board.ts`, `src/file-handles.ts`, `src/upload.ts`, `src/ui/menu.ts`, `src/app.css`, `src/theme.css`,
   `demo/boot.ts`, `demo/verify-{charts,cubes,features,layout}.mjs`, `test/page-app.test.ts` (new),
   `test/bundle-budget.test.ts`, `test/chart-tiles.test.ts`, `test_imports.bzl`, and one `_EXTRA_DATA` row in
-  `datacube/BUILD.bazel` (Bazel-reviewed). Phase 3 (tabs) is not started; it will be announced here first.
+  `datacube/BUILD.bazel` (Bazel-reviewed). **Phase 3 started 2026-10-09** (the user: "Do it"), branch `datacube-sheets`; how it is built, and its files, in the
+  design's §7: 3a, sheets -- the page's bar as a browser's tabs, the page's name in a box after the menu, a page saved as
+  version 3 with its sheets (`src/page/page-app.ts`, `src/page/cube-page.ts`, `src/layout/band-board.ts`,
+  `src/ui/sheet-tabs.ts` new, `src/page-document.ts`, `src/app.ts`, `src/ui/menu.ts`, `src/app.css`, `demo/boot.ts`, the
+  demo's harnesses, their tests); then 3b, stacked tiles (`src/layout/bands.ts`, `band-board.ts`, `cube-page.ts`,
+  `page-document.ts`, `export-model.ts`, their tests, `demo/verify-layout.mjs`). All in `datacube/`.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

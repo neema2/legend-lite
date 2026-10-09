@@ -165,13 +165,16 @@ divider is the one exception that follows live, and only its content, at most on
    alike (no grid pinned on top), each grid with its own tile menu.
 2. **The whole page saved and reopened** (several sources), with the page bar (§3.1): the page owns Save, Open, Share
    and "changed", so the first grid becomes removable here -- the two are one change, since saving is the page's.
-3. **Tabs:** pages as sheets (several pages in one saved document, tabs along the bottom, as Excel's sheets and Power
-   BI's pages), and tabs in a pane (several tiles in one place, one shown; the drop zone's centre adds a tab).
+3. **Tabs:** pages as sheets (several pages in one saved document, as Excel's sheets and Power BI's pages), and tabs in
+   a pane (several tiles in one place, one shown; the drop zone's centre adds a tab). As decided (§5, 5-7; §7): the
+   sheet tabs in the page's bar, as a browser's tabs, the page's name in a box before them; stacked tiles made by a
+   drop on a tile's middle. Sheets land first (3a), stacked tiles second (3b).
 4. **Python:** a page of several frames and their charts from `ll.show(...)`
    (`docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`), on the same document.
 
 Later, when wanted: a band holding a free grid of small tiles (§3.2); the narrow layout stepping down a column at a time;
-saved layouts as one's own templates; cross-filtering between tiles (the 2026-09-28 design's §5.4).
+saved layouts as one's own templates; cross-filtering between tiles (the 2026-09-28 design's §5.4); the sheets shown
+in turn on a timer, for a screen on a wall (as Grafana's playlists and Power BI's TV mode).
 
 ## 6. Phase 2, how it is built (2026-10-09, before the first edit)
 
@@ -250,3 +253,86 @@ browser check of a page of two sources saved and reopened, with its first grid r
 2. **Tabs**, phased: after the layout sprint and the whole-page save (§4).
 3. **Narrow windows stack** (§3.2).
 4. **A page bar of its own, each grid its own header; one grid alone shares the page bar's strip** (§3.1).
+5. **Sheet tabs in the page's bar, as a browser's tabs** (the user, 2026-10-09: "Maybe now there is no 'page title'
+   it's just the first tab name as a tab, then a + for more like web browser?"), always shown, one tab and a + for a
+   new page; **the page's name in a box right after the menu** ("Or after the menu hamburger then start still with
+   single tab and + for more?"; "Do it"), not at the far right, where a lone grid's own header is.
+6. **Stacked tiles, made by a drop on a tile's middle** ("If people like stacked tiles and not too much work let's go
+   for it and when you drag you get a tab stack"): the middle no longer swaps; swapping stays on the arrow keys and in
+   Arrange.
+7. **What is looked at is not saved; what is on the page is** (this design's, §7): a page reopens on its first sheet,
+   a stack on its first tab -- so switching a sheet or a tab never marks the page changed.
+
+## 7. Phase 3, how it is built (2026-10-09, before the first edit)
+
+The user's go: "Do it" (2026-10-09), on §5's 5 to 7. What changes, in plain words, then where.
+
+### 7.1 The bar (3a)
+
+The page's bar reads, left to right: **the menu; the page's name, in a box; the sheet tabs and a +; the free space; a
+lone grid's header (its source, pill, menu); the fold.**
+
+- **The name box** says the page's name (as saved), "Untitled page" before it has one, and a dot when the page has
+  changed since it was saved. A click renames it in place (Enter keeps, Escape leaves it); a page not yet saved takes
+  the name for its first Save. Renaming is a change of the page, saved by Save. The browser's tab title says the same
+  name, as it does now. The old derived name (the first grid's report title, §6) becomes the first sheet's name.
+- **The sheet tabs** are a browser's tabs: the one shown is raised; a click shows another; a double click renames one
+  in place; the + adds a sheet after the last and shows it; a tab's right-click menu has Rename, Move Left, Move Right
+  and Delete (a sheet with tiles asks first, and its tiles go with it); dragging a tab along the strip reorders. Many
+  sheets shrink their tabs, then the strip scrolls, with a list of every sheet at its end. The tabs take the arrow keys
+  as a tablist does (no page-wide shortcut: the browser keeps Ctrl+PgUp and Ctrl+PgDn for its own tabs).
+- **Folded**, the bar is its lip as now: the tabs go with it (folding is for room; unfold to change sheet).
+
+### 7.2 Sheets (3a)
+
+- A page is **one or more sheets**, each a whole screen of tiles with its own bands, its own Arrange, fit and layout
+  undo. A sheet's name is its own once given by hand; until then it is named after its first grid's report title (its
+  source), else "Sheet N" -- so a page of one sheet looks as a page does today, its source's name in the one tab.
+- **Every tile is on one sheet.** A new grid or chart goes on the sheet shown (a chart made from a grid, beside that
+  grid, as now). A tile moves to another sheet from its menu (Move to Sheet: each other sheet, or a new one), or by
+  dragging it by its header onto a sheet's tab.
+- **A chart follows its grid on any sheet**: a sheet of charts over grids that live on another sheet. A grid on a sheet
+  not shown keeps running -- its charts stay live -- and is drawn when its sheet is shown.
+- **The empty page** (no tile on any sheet) shows the host's choices of a source, as now. **An empty sheet** of a page
+  that has tiles says so, with a way to add a data source to it.
+- **One grid alone on the sheet shown** shares the bar's strip, as a lone grid does now. The host's readout is in the
+  first grid's status bar of the sheet shown (a sheet with no grid has none).
+- A **cube alone** (the Query app, a notebook) has one sheet and no tabs: its board is as now.
+- Locked (view mode), the sheets still switch; nothing moves.
+
+### 7.3 The page saved, version 3 (3a)
+
+`datacube.page` version 3 replaces `layout` by **`sheets`**: each `{ id, name?, layout }`, in order, `name` only when
+given by hand, `layout` the bands as version 2 writes them. `cubes` and `views` are as in version 2; every view's tile
+is in exactly one sheet's layout. Versions 1 and 2 read as one sheet. The share link carries the same JSON (its
+compression dictionary, `p1`, is frozen; new words cost only a few bytes). Which sheet is shown is not saved (§5, 7): a
+page reopens on its first sheet. A grid's export lays out the charts of its own sheet.
+
+### 7.4 Stacked tiles (3b)
+
+- **A stack** is one place in a band holding two tiles or more, one in front; its header is their tabs (each tile's
+  title), with the front tile's own buttons at its right. A click on a tab brings it to the front.
+- **Made by a drop on a tile's middle** (the zone that swapped): the dragged tile joins that tile's place, in front. A
+  drop on a stack's middle or its tab strip adds to it. Dragging a tab out takes that tile anywhere else; a stack left
+  with one tile is a plain tile again. A tab dragged along its strip reorders the stack.
+- Arrange counts a stack as one place, and keeps it; the keyboard moves a stack as one; maximise shows the stack. An
+  export shows each stack's front tile.
+- **Saved** in its sheet's layout as a stack node of its tiles in order (version 3: a version 3 reader of 3a refuses
+  it, and none is left by then). The front tile is not saved (§5, 7): a stack reopens on its first tab.
+- `bands.ts` holds the stack as a node of the tree, under the same rules (`problems`: two tiles or more, each tile once,
+  the front one of them), with the fuzz extended to stacks.
+
+### 7.5 Where
+
+3a: `datacube/src/page/page-app.ts` (the bar: name box, sheet tabs; an empty sheet), `src/page/cube-page.ts` (sheets: a
+board per sheet, tiles by sheet, Move to Sheet, a drag onto a tab), `src/layout/band-board.ts` (a drag that ends outside
+the board, on a tab), `src/ui/sheet-tabs.ts` (new: the strip), `src/page-document.ts` (version 3), `src/app.ts` (a
+grid's Move to Sheet entry), `src/ui/menu.ts`, `src/app.css`, `demo/boot.ts` (the name box's rename, the changed dot),
+the demo's browser harnesses that read the bar's title, and their tests: `test/sheet-tabs.test.ts` (new),
+`test/page-app.test.ts`, `test/page-document.test.ts`, `test/share-link.test.ts`, and browser checks of a page of two
+sheets -- a chart on one following a grid on the other -- saved, shared and reopened, and a tile dragged onto a tab.
+
+3b: `src/layout/bands.ts` (the stack node), `src/layout/band-board.ts` (the stack's tab header), `src/page/cube-page.ts`,
+`src/page-document.ts`, `src/export-model.ts` (the front tile), `src/app.css`, and `test/bands.test.ts` (the fuzz),
+`test/band-board.test.ts`, and the browser session (`demo/verify-layout.mjs`): a stack made by a drag, a tab dragged
+out, saved and reopened.
