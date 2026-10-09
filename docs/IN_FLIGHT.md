@@ -452,23 +452,12 @@ landed as 447102e56 (run 37870936729): a table reference keeps how it was writte
 reader reads the older JSON legend-engine 4.145.0 reads (`SEMANTICS_REGISTER` S29 to S34; S34 is the compiler line's).
 Step 3 landed as a12a64d24 (run 37923006492; GATES 2026-10-09): every printer in
 `core/src/main/java/com/legend/protocol/` prints the records, the parity counts held exactly, and the reader reads the
-older or hand-written shapes the step's audits found refused (S35 to S37; `own_corpus.matched` 2734). **Now: leg 4,
-on branch `protocol-leg4`** (§4, item 4; leg 3 folded into it, invariant 5 revised, the user 2026-10-09): legend-engine's
-the four conversions complete with their options, the model printer in PRETTY as well as STANDARD, legend-engine's
-`jsonToGrammar/model` in `PureV1Api`, and the tab on `pure/v1`'s grammar (invariant 5 revised; legs 6 to 8 added: one
-whole-model compile and the tab's other twins, the SDLC server's rules free of Pure, the server reading models as
-records). Files: `core/src/main/java/com/legend/parser/` (`PmcdParser`, `SpecParser`: text to JSON);
-`core/src/main/java/com/legend/protocol/` (`ModelComposer`, `PureComposer`, `Composing` and the element printers: JSON
-to text, the style); `core/src/main/java/com/legend/server/PureV1Api.java`; `wasm/` (`planner.Wasm` split into
-`Boundary`, `Folded` and `TabExports`, step 4b; `wasm/BUILD.bazel`: the `:boundary` and `:tab` libraries, the TeaVM
-entry class); `engine-client/src/legend/` (`wasm-grammar.ts`, `engine.ts`, `planner-answer.ts`, `planner-worker.ts`,
-`browser-engine.ts`; `engine-client/BUILD.bazel`: the worker bundle's sources) and the TS test harnesses in
-`engine-client/test/`, `studio/test/`, `query/test/` and `pure-protocol/test/`; with the DataCube + Python line, which
-reviewed them: `datacube/src/wasm-planner.ts`, `planner-worker.ts`, `datacube/test/wasm-planner.test.ts`,
-`native/src/main/java/com/legend/nativelib/Compiler.java` (Python's adapter; three entry points removed),
-`python/legend_lite/compiler.py`, `_library.py`, `python/tests/test_compiler.py`, `python/README.md`;
-`sdlc-server/src/main/java/com/legend/sdlc/CoreGrammar.java`; `parser-equivalence`'s `ModelComposerParityTest` (a
-PRETTY pass); `docs/PARKED_WORK_LEDGER.md` and `ParkedWorkLedgerTest` (PARK-17). Open, and not yet in the plan's legs: printing lite-only
+older or hand-written shapes the step's audits found refused (S35 to S37; `own_corpus.matched` 2734). **Leg 4 landed (2026-10-09)** as a0fdf4e6f (run 37947981268; GATES 2026-10-09): the model printer in PRETTY as
+well as STANDARD (exact over the corpus in both), legend-engine's `jsonToGrammar/model` in `PureV1Api`, the tab on
+`pure/v1`'s grammar, and one boundary for the embedded hosts with thin adapters (`planner.Boundary`, `Folded`,
+`TabExports`; `native/` Python's adapter), leg 3 folded into it (invariant 5 revised with the user; legs 6 to 8 added).
+**Next: leg 5, the round trip proven** (§4, item 5) over the corpus and the showcase projects, in the JVM and in the
+tab, on a new branch from main; then legs 6 to 8. PARK-17 (Python's mixed refusal kind) closes in leg 6. Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first; lite's grammar takes
 no `doc` on a function test, though the engine's does; lite's persistence grammar accepts `];` after `tests`,
 though the engine's does not.

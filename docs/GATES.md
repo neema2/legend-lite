@@ -7795,3 +7795,43 @@ ui, datacube, sdlc and warehouse on every platform. Every job was green except l
 ran: Maven Central answered `429 Too Many Requests` for `duckdb_jdbc-1.5.5.1.jar`. That job passed on a rerun. Local
 gate `//gates:local` green (316/316) on the branch's 6d15eaa5b (7c832a12c on main), the same code. Pushed to main as a12a64d24: the tested commits
 rebased onto two docs-only commits that landed in the meantime (1d0fe772a, 013737f13). Its code is the tested code.
+
+## 2026-10-09 — The protocol program's leg 4: the model route, PRETTY models, and one boundary with thin adapters (the Studio / SDLC / Depot line)
+
+The plan: `docs/PROTOCOL_PROGRAM_2026_10_05.md` §2 invariant 5 (revised with the user: conversions in their layers, one
+`pure/v1` contract, one boundary for the embedded hosts with thin adapters) and §4 item 4 (leg 3 folded into it; legs 6
+to 8 added). Landed as one fast-forward, `a926526b6..a0fdf4e6f`:
+
+1. **PRETTY models** (`4de40136e`): the render style passed from `ModelComposer` down through every element printer to
+   every value, each site's context taken from the engine's source (a function body, a service's and a data space's
+   query indented as the engine's `withIndentation` indents them; the data quality tree one space deeper in PRETTY; a
+   store's `and`/`or` chains across lines; a mapping's relational context and a service store mapping STANDARD in every
+   style, as the engine's are).
+2. **The conversions complete; the model route** (`58d3d735d`): text to JSON in the parser with source information on
+   or off, JSON to text in protocol in either style, each at its reader's depth; `PureV1Api` calls them, and serves
+   legend-engine's `grammar/jsonToGrammar/model` (PRETTY unless asked, `text/plain`, a refusal 500, another kind of
+   model context refused by name).
+3. **The tab speaks `pure/v1`; one boundary** (`33939457e`): the tab's grammar is the server's client (`HttpEngine`)
+   over `plannerFetch`, a `fetch` the planner answers, so its requests, answers and refusals are a server's;
+   `planner.Wasm` split into `planner.Boundary` (the operations, plain Java, each once, legend-engine's only as
+   `pureV1`), `planner.Folded` (the one `OK`/`ERR` encoding) and `planner.TabExports` (the tab's adapter, TeaVM's entry
+   class); `native/`'s entry points are Python's adapter over the same boundary; the grammar's private twins gone from
+   both adapters (four tab exports, three C entry points), Python's `parse`, `print_tree` and `model_elements` asking
+   `lite_pure_v1`, their `LegendError.kind` the engine's `errorType` (PARK-17 records the mix until leg 6). DataCube's
+   planner asks the same route. The tab's module: +12,467 bytes (+6,312 gzipped).
+4. **The audit's findings** (`73c8b808f`) and the measured ratchet (`90dbc8af0`, `own_corpus.matched` 2,734 -> 2,736:
+   the leg's new `PureV1ApiTest` text; with main's version of that file the count is 2,734).
+
+What judges it: `ModelComposerParityTest` compares every model and element in both styles in one pass -- 31,452
+elements and 14,383 models matched, 0 mismatched, in STANDARD and in PRETTY (both pinned); `PureV1ApiTest` (the model
+route in both styles, the default, a refusal); Studio's `engine_test` (a model read and printed back in the tab, a parse
+error 400 `PARSER` in the tab); `//python:bindings_test` (`test_refusal_kinds_are_mixed_until_leg_6`, PARK-17's
+second anchor); the wasm differential over the tab's own exports. Audited (the auditor agent, also the Bazel review of
+the `wasm/` and `engine-client/` BUILD changes: the Bazel program's session is not running): no blockers; two
+should-fix and four nits, answered. The DataCube + Python line reviewed and approved `datacube/`, `native/` and
+`python/`.
+
+The run: 37947981268 on `protocol-leg4-land` (a0fdf4e6f, on a926526b6), lanes product, core, checks,
+parser_equivalence, ui, datacube, sdlc and warehouse on every platform, green on all 29 jobs; pushed to main as
+a0fdf4e6f, the tested commit, ahead of the execution plan line's E (the user, with that line's agreement). Local gate
+`//gates:local` green (316/316) on the same tree.
