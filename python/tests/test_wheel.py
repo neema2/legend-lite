@@ -136,9 +136,51 @@ def elf_versions(data: bytes) -> dict[str, list[tuple[int, ...]]]:
     return needed
 
 
-# a library's architecture, against its tag's: Mach-O cputype, ELF e_machine
+def pe_imports(data: bytes) -> tuple[int, int, set[str]]:
+    """A PE32+ library's machine, its characteristics, and the DLLs it imports: its import directory's and its
+    delay-load directory's."""
+    assert data[:2] == b'MZ', 'not a PE file'
+    pe = struct.unpack_from('<I', data, 0x3C)[0]
+    assert data[pe:pe + 4] == b'PE\0\0', 'not a PE file'
+    machine, sections, _, _, _, optional_size, characteristics = struct.unpack_from('<HHIIIHH', data, pe + 4)
+    optional = pe + 24
+    assert struct.unpack_from('<H', data, optional)[0] == 0x20B, 'not PE32+'
+    # the data directories: 1, the import table (20-byte descriptors, the name at +12); 13, the delay-load table
+    # (32-byte descriptors, the name at +4)
+    imports_rva = struct.unpack_from('<I', data, optional + 112 + 1 * 8)[0]
+    delayed_rva = struct.unpack_from('<I', data, optional + 112 + 13 * 8)[0]
+    table = [struct.unpack_from('<IIII', data, optional + optional_size + i * 40 + 8) for i in range(sections)]
+
+    def offset(rva: int) -> int:
+        for size, address, raw_size, raw in table:
+            if address <= rva < address + max(size, raw_size):
+                return raw + rva - address
+        raise AssertionError(f'RVA {rva:#x} is in no section')
+    linked = set()
+    for rva, size, name_at in ((imports_rva, 20, 12), (delayed_rva, 32, 4)):
+        if rva == 0:  # no such table
+            continue
+        at = offset(rva)
+        while (name := struct.unpack_from('<I', data, at + name_at)[0]) != 0:
+            start = offset(name)
+            linked.add(data[start:data.index(b'\0', start)].decode())
+            at += size
+    return machine, characteristics, linked
+
+
+# what a win_amd64 library may import (measured: the first Windows run, 2026-10-09): Windows' own libraries, the
+# Universal C Runtime's API sets (part of Windows since 10), and the Visual C++ runtime CPython itself ships beside
+# python.exe -- never a DLL a machine may lack. Names compared as Windows compares them, without case
+WINDOWS_LIBRARIES = {name.lower() for name in (
+    'ADVAPI32.dll', 'CRYPT32.dll', 'IPHLPAPI.DLL', 'KERNEL32.dll', 'MSWSOCK.dll', 'ncrypt.dll', 'USERENV.dll',
+    'VERSION.dll', 'WS2_32.dll', 'VCRUNTIME140.dll', 'VCRUNTIME140_1.dll',
+)}
+WINDOWS_API_SETS = 'api-ms-win-crt-'
+
+# a library's architecture, against its tag's: Mach-O cputype, ELF e_machine, PE machine
 MACHO_CPU = {'arm64': 0x0100000C, 'x86_64': 0x01000007}
 ELF_MACHINE = {'aarch64': 183, 'x86_64': 62}
+PE_MACHINE = {'amd64': 0x8664}
 
 
 class Label(unittest.TestCase):
@@ -164,6 +206,14 @@ class Label(unittest.TestCase):
             for family, newest in MANYLINUX_VERSIONS.items():
                 self.assertLessEqual(max(versions.get(family, [()])), newest, f'{library}: its {family} versions')
             self.assertEqual(struct.unpack_from('<H', data, 0x12)[0], ELF_MACHINE[m.group(3)], f'{library}: its CPU')
+        elif m := re.search(r'win_(\w+)$', tag):
+            machine, characteristics, linked = pe_imports(data)
+            print(f'the library imports {sorted(linked)}')
+            self.assertEqual(machine, PE_MACHINE[m.group(1)], f'{library}: its CPU')
+            self.assertTrue(characteristics & 0x2000, f'{library} is a DLL')
+            foreign = sorted(n for n in linked if n.lower() not in WINDOWS_LIBRARIES
+                             and not n.lower().startswith(WINDOWS_API_SETS))
+            self.assertEqual(foreign, [], f'{library} imports what a Windows machine may lack')
         else:
             self.fail(f'no platform this test reads: {tag}')
 
@@ -195,9 +245,14 @@ class Installed(unittest.TestCase):
         root = Path(place.name)
         # nothing of the repository's or the machine's: no PYTHONPATH, no LEGEND_LITE_*, no PATH, no pip.conf
         env = {'HOME': str(root), 'TMPDIR': str(root), 'PYTHONDONTWRITEBYTECODE': '1', 'PIP_CONFIG_FILE': os.devnull}
+        if sys.platform == 'win32':
+            # what a Windows process cannot start without (its system folder: sockets, randomness), and its own
+            # profile and temporary folders in place of the machine's
+            env |= {'SYSTEMROOT': os.environ['SYSTEMROOT'], 'TEMP': str(root), 'TMP': str(root),
+                    'USERPROFILE': str(root), 'APPDATA': str(root), 'LOCALAPPDATA': str(root)}
         venv = root / 'venv'
         subprocess.run([sys.executable, '-m', 'venv', str(venv)], check=True, env=env, timeout=120)
-        python = str(venv / 'bin' / 'python')
+        python = str(venv / 'Scripts' / 'python.exe') if sys.platform == 'win32' else str(venv / 'bin' / 'python')
         subprocess.run([python, '-m', 'pip', 'install', '--no-index', '--no-deps', '--disable-pip-version-check', '-q',
                         str(WHEEL), *map(str, DEPENDENCIES)], check=True, env=env, timeout=240)
         # what each wheel says it needs (legend-lite's Requires-Dist, pandas' own) is what is installed
@@ -207,8 +262,9 @@ class Installed(unittest.TestCase):
         ran = subprocess.run([python, '-I', '-c', SCRIPT], cwd=root, env=env, capture_output=True, text=True, timeout=120)
         self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
         out = json.loads(ran.stdout.strip().splitlines()[-1])
-        self.assertTrue(out['module'].startswith(str(venv)), out['module'])
-        self.assertTrue(out['library'].startswith(str(venv)), out['library'])
+        # as paths, not text: Windows writes its separators both ways
+        self.assertTrue(Path(out['module']).is_relative_to(venv), out['module'])
+        self.assertTrue(Path(out['library']).is_relative_to(venv), out['library'])
         self.assertEqual((out['page'], out['cube']), (200, ['model', 'runtime', 'source', 'title', 'version']))
         self.assertEqual(out['rows'], [{'desk': 'EQ', 'q': 2.5}, {'desk': 'FX', 'q': 5.5}])
         # the notebook extra installed: the cube's loader, and DataCube's module (about 1.3 MB) and styles, from the wheel

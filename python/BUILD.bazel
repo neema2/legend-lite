@@ -51,7 +51,7 @@ _PLATFORMS = compatible_with(COMPILER_LIBRARY_PLATFORMS)
 
 # the cube under a notebook's cell (legend_lite/notebook.py: the wheel's `notebook` extra), over anywidget. Where the
 # compiler's library builds, as everything that uses it: elsewhere it is skipped, never analysed against IPython's
-# wheels there (on Windows IPython needs colorama, which the lock, resolved on macOS, does not hold)
+# wheels there
 py_library(
     name = "notebook",
     srcs = ["legend_lite/notebook.py"],
@@ -65,8 +65,8 @@ py_library(
     ],
 )
 
-# the notebook extra (anywidget) and what it brings, as pinned in //tools/python: on Linux and macOS (pexpect and
-# ptyprocess are IPython's there only)
+# the notebook extra (anywidget) and what it brings, as pinned in //tools/python: IPython's terminal packages differ by
+# system (pexpect and ptyprocess on Linux and macOS, colorama on Windows)
 _NOTEBOOK_PACKAGES = [
     "anywidget",
     "asttokens",
@@ -79,11 +79,9 @@ _NOTEBOOK_PACKAGES = [
     "jupyterlab_widgets",
     "matplotlib_inline",
     "parso",
-    "pexpect",
     "prompt_toolkit",
     "psutil",
     "psygnal",
-    "ptyprocess",
     "pure_eval",
     "pygments",
     "stack_data",
@@ -93,9 +91,15 @@ _NOTEBOOK_PACKAGES = [
     "widgetsnbextension",
 ]
 
+_NOTEBOOK_PACKAGES_POSIX = ["pexpect", "ptyprocess"]
+
+_NOTEBOOK_PACKAGES_WINDOWS = ["colorama"]
+
 _ENV = {
     "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
     "PYTHONDONTWRITEBYTECODE": "1",
+    # a crash in the native library prints the Python stack it happened under
+    "PYTHONFAULTHANDLER": "1",
     "PYTHONUTF8": "1",
 }
 
@@ -147,8 +151,17 @@ py_test(
     ],
     args = ["test_frames"],
     data = ["//native:compiler"],
-    # zone names (a zoned timestamp's) from the pinned tzdata, never the machine's (as scripts/corpus's gates)
-    env = _ENV | {"PYTHONTZPATH": ""},
+    # zone names (a zoned timestamp's) from the pinned tzdata, never the machine's (as scripts/corpus's gates). On
+    # Windows, the platform's architecture as Windows names it: where Python cannot ask WMI it reads it from
+    # PROCESSOR_ARCHITECTURE, which a test does not inherit, and polars refuses to import without it (its CPU check, found
+    # by the first Windows run)
+    env = select({
+        "//tools/platforms:windows_x86_64": _ENV | {
+            "PROCESSOR_ARCHITECTURE": "AMD64",
+            "PYTHONTZPATH": "",
+        },
+        "//conditions:default": _ENV | {"PYTHONTZPATH": ""},
+    }),
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,
     deps = [
@@ -258,6 +271,13 @@ copy_file(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
+copy_file(
+    name = "wheel_library_windows",
+    src = "//native:compiler",
+    out = "legend_lite/_native/libcompiler.dll",
+    target_compatible_with = ["@platforms//os:windows"],
+)
+
 # the engine page alone (DataCube's demo/engine.html, its bundle, its lazy chunks, its type) and a notebook's cube (the
 # widget's loader, DataCube's module and its styles), not the site's in-tab app: no DuckDB-WASM and no compiler module,
 # which neither loads (about 90 MB)
@@ -318,6 +338,7 @@ py_wheel(
         "//tools/platforms:linux_x86_64": "manylinux_2_17_x86_64",
         "//tools/platforms:macos_arm64": "macosx_14_0_arm64",
         "//tools/platforms:macos_x86_64": "macosx_14_0_x86_64",
+        "//tools/platforms:windows_x86_64": "win_amd64",
     }, no_match_error = "the wheel is built where the compiler's library is (COMPILER_LIBRARY_PLATFORMS)"),
     python_requires = ">=3.12",
     python_tag = "py3",
@@ -335,12 +356,24 @@ py_wheel(
     ] + select({
         "@platforms//os:linux": [":wheel_library_linux"],
         "@platforms//os:macos": [":wheel_library_macos"],
+        "@platforms//os:windows": [":wheel_library_windows"],
     }),
 )
 
 # the packages the wheel needs, pandas with its own, and the notebook extra's (anywidget, ipywidgets, IPython), as the
 # test installs them (the pinned wheels, offline)
 _WHEEL_TEST_PACKAGES = ["duckdb", "numpy", "pandas", "pyarrow", "python_dateutil", "six", "tzdata"] + _NOTEBOOK_PACKAGES
+
+# per system: the packages, and the test's settings naming their wheels
+_WHEEL_TEST_PACKAGES_POSIX = _WHEEL_TEST_PACKAGES + _NOTEBOOK_PACKAGES_POSIX
+
+_WHEEL_TEST_PACKAGES_WINDOWS = _WHEEL_TEST_PACKAGES + _NOTEBOOK_PACKAGES_WINDOWS
+
+_WHEEL_TEST_ENV = {
+    "LEGEND_LITE_WHEEL": "$(rlocationpath :wheel)",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "PYTHONUTF8": "1",
+}
 
 # THE WHEEL, AS A DEVELOPER INSTALLS IT: a fresh virtual environment of the repository's Python, the wheel and its
 # packages installed offline from Bazel's own downloads, then show() and a query run with nothing pointing back into
@@ -354,13 +387,18 @@ py_test(
         "tests/test_wheel.py",
     ],
     args = ["test_wheel"],
-    data = [":wheel"] + ["@pypi//%s:whl" % p for p in _WHEEL_TEST_PACKAGES],
-    env = {
-        "LEGEND_LITE_WHEEL": "$(rlocationpath :wheel)",
-        "LEGEND_LITE_DEPENDENCY_WHEELS": " ".join(["$(rlocationpaths @pypi//%s:whl)" % p for p in _WHEEL_TEST_PACKAGES]),
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "PYTHONUTF8": "1",
-    },
+    data = [":wheel"] + select({
+        "@platforms//os:windows": ["@pypi//%s:whl" % p for p in _WHEEL_TEST_PACKAGES_WINDOWS],
+        "//conditions:default": ["@pypi//%s:whl" % p for p in _WHEEL_TEST_PACKAGES_POSIX],
+    }),
+    env = select({
+        "@platforms//os:windows": _WHEEL_TEST_ENV | {
+            "LEGEND_LITE_DEPENDENCY_WHEELS": " ".join(["$(rlocationpaths @pypi//%s:whl)" % p for p in _WHEEL_TEST_PACKAGES_WINDOWS]),
+        },
+        "//conditions:default": _WHEEL_TEST_ENV | {
+            "LEGEND_LITE_DEPENDENCY_WHEELS": " ".join(["$(rlocationpaths @pypi//%s:whl)" % p for p in _WHEEL_TEST_PACKAGES_POSIX]),
+        },
+    }),
     main = "tests/main.py",
     target_compatible_with = _PLATFORMS,
     deps = ["@rules_python//python/runfiles"],
