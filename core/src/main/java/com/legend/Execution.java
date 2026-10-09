@@ -58,7 +58,7 @@ public final class Execution {
             case SCALAR, COLLECTION -> {
                 out.write(com.legend.exec.Executor.wireText(
                         dialect.render(com.legend.lowering.WireRender.wrap(
-                                l.plan(), wireSchema(l.root().info()),
+                                l.plan(), com.legend.lowering.WireRender.schema(l.root().info()),
                                 com.legend.lowering.WireRender.Format.JSON)),
                         connection));
                 out.flush();
@@ -114,7 +114,7 @@ public final class Execution {
             return java.util.List.of();
         }
         com.legend.compiler.element.type.Type.RelationType schema =
-                wireSchema(l.root().info());
+                com.legend.lowering.WireRender.schema(l.root().info());
         out.write(com.legend.exec.Executor.wireText(
                 dialect.render(com.legend.lowering.WireRender.wrap(
                         l.plan(), schema, format)), connection));
@@ -169,24 +169,9 @@ public final class Execution {
         com.legend.exec.SetupRunner.run(com.legend.setup.CsvSeed.declaredSteps(runtimeFqn, l.ctx(), dialect),
                 connection, dialect, null);
         out.write(com.legend.exec.Executor.wireText(dialect.render(com.legend.lowering.WireRender.wrap(
-                l.plan(), wireSchema(l.root().info()), com.legend.lowering.WireRender.Format.JSON)),
-                connection));
+                l.plan(), com.legend.lowering.WireRender.schema(l.root().info()),
+                com.legend.lowering.WireRender.Format.JSON)), connection));
         return new com.legend.plan.QueryPlan(dialect.render(l.plan()), l.root().info(), shape);
-    }
-
-    /** The wire's typed relation: a tabular root's own schema; a scalar/
-     *  collection root is the one-column {@code value} relation (the
-     *  scalarRoot contract). */
-    private static com.legend.compiler.element.type.Type.RelationType
-            wireSchema(com.legend.compiler.element.type.ExprType info) {
-        com.legend.compiler.element.type.Type.RelationType rt =
-                com.legend.compiler.element.type.Type.schemaView(info.type());
-        return rt != null ? rt
-                : new com.legend.compiler.element.type.Type.RelationType(
-                        java.util.List.of(
-                                new com.legend.compiler.element.type.Type.Column(
-                                        "value", info.type(),
-                                        info.multiplicity())));
     }
 
     /**

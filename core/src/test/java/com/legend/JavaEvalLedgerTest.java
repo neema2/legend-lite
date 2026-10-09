@@ -1214,6 +1214,12 @@ class JavaEvalLedgerTest {
                     // signatures. Reads the typed tree and the model's enum names;
                     // evaluates nothing
                     "QueryParameters.java",
+                    // execution plan boundary step 2, landing 2 (2026-10-09): a typed query
+                    // planned as a lite execution plan — the wire statement rendered for the
+                    // target's dialect, the target's connection, server versions, session
+                    // statements and setup written at plan time. Planning only: it renders
+                    // and records, no value is evaluated and no database is touched
+                    "PlanMaker.java",
                     "ConnectionLets.java",
                     // audit §4y (2026-09-20): pure's equality KIND CLASSES
                     // over stamps as a CLOSED type (the stringly "numeric" /

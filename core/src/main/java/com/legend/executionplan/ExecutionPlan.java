@@ -103,14 +103,24 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     public sealed interface ResultType permits Relation, Value {
     }
 
-    /** A relation, its columns in order. */
-    public record Relation(List<TdsColumn> columns) implements ResultType {
+    /** A relation, its columns in order (a scalar's or a collection's text is the one-column relation {@code value}). */
+    public record Relation(List<Column> columns) implements ResultType {
         public Relation {
             columns = List.copyOf(columns);
         }
     }
 
-    /** A value: a class's instances, a graph, a scalar or a collection, of {@code type} at {@code multiplicity}. */
+    /** A column of a relation the database writes as text: its name and its Pure type as the typer names it (a
+     *  primitive's name, {@code Decimal(10,2)}, an enumeration's path) — the database answers with the text, so no
+     *  column has a SQL type of its own. */
+    public record Column(String name, String type) {
+        public Column {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(type, "type");
+        }
+    }
+
+    /** Values of a class — its instances, a graph fetch's objects — of {@code type} at {@code multiplicity}. */
     public record Value(String type, Multiplicity multiplicity) implements ResultType {
         public Value {
             Objects.requireNonNull(type, "type");
@@ -139,14 +149,64 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /**
-     * Where a statement runs: the connection, and the steps that ESTABLISH it once, when its database is opened, before
-     * anything else (a connection's declared test data, written at plan time for the target's database). Two runs share
+     * Where a statement runs: the database; the server versions its statements are written for (a session reporting
+     * another is refused, never run); the statements every connection to it runs first ({@code session}: its settings,
+     * such as the time zone); and the steps that ESTABLISH it once, when its database is opened, before anything else
+     * ({@code setup}: a connection's declared test data, written at plan time for the target's database). Two runs share
      * an in-memory database when their targets are equal (decision A, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9).
      */
-    public record Target(ConnectionDefinition connection, List<SetupStep> setup) {
+    public record Target(Database database, Servers servers, List<String> session, List<SetupStep> setup) {
         public Target {
-            Objects.requireNonNull(connection, "connection");
+            Objects.requireNonNull(database, "database");
+            Objects.requireNonNull(servers, "servers");
+            session = List.copyOf(session);
             setup = List.copyOf(setup);
+        }
+    }
+
+    /** The database a target runs on: one a connection declares, or the platform's own engine. */
+    public sealed interface Database permits Database.Declared, Database.Platform {
+
+        /** The database's type: what its session must be. */
+        ConnectionDefinition.DatabaseType type();
+
+        /** The database a connection declares: its session is opened by this definition (or a caller's is checked
+         *  against its type). */
+        record Declared(ConnectionDefinition connection) implements Database {
+            public Declared {
+                Objects.requireNonNull(connection, "connection");
+            }
+
+            @Override
+            public ConnectionDefinition.DatabaseType type() {
+                return connection.databaseType();
+            }
+        }
+
+        /** The platform's own in-process engine, for a runtime that binds no database, only model data
+         *  (docs/SEMANTICS_REGISTER.md S27). */
+        record Platform(ConnectionDefinition.DatabaseType type) implements Database {
+            public Platform {
+                Objects.requireNonNull(type, "type");
+            }
+        }
+    }
+
+    /** The server versions a target's statements are written for, as a session reports its version. */
+    public sealed interface Servers permits Servers.Every, Servers.Versions {
+
+        /** Every version: the statements' spelling does not depend on the server's version. */
+        record Every() implements Servers {
+        }
+
+        /** The versions that begin with one of {@code prefixes} (H2's engine-parity spelling: {@code 2.1}, {@code 2.2}). */
+        record Versions(List<String> prefixes) implements Servers {
+            public Versions {
+                prefixes = List.copyOf(prefixes);
+                if (prefixes.isEmpty()) {
+                    throw new IllegalArgumentException("a statement written for some server versions names at least one");
+                }
+            }
         }
     }
 

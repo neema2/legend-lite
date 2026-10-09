@@ -28,6 +28,15 @@ public final class WireRender {
     private WireRender() {
     }
 
+    /** The wire's typed relation: a tabular root's own schema; a scalar or
+     * collection root is the one-column {@code value} relation (the
+     * scalarRoot contract). */
+    public static Type.RelationType schema(com.legend.compiler.element.type.ExprType info) {
+        Type.RelationType rt = Type.schemaView(info.type());
+        return rt != null ? rt
+                : new Type.RelationType(List.of(new Type.Column("value", info.type(), info.multiplicity())));
+    }
+
     /** The whole result as ONE text value ("wire" column): RFC 4180 CSV
      * or the {@code [row,…]} JSON array. {@code schema} is the root's
      * typed relation — CSV cells dispatch on the PURE column kind

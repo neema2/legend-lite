@@ -123,7 +123,7 @@ legend_java_library(
     name = "database",
     srcs = glob(["src/main/java/com/legend/database/*.java"]),
     visibility = ["//datacube:__pkg__"],
-    deps = ["//base", ":error", ":model", ":sql_dialect"],
+    deps = ["//base", ":error", ":execution_plan", ":model", ":sql_dialect"],
 )
 
 # the compiler quartet: resolver-of-names, element compiler, typer, typed tree
@@ -195,6 +195,7 @@ legend_java_library(
 _PLANNER_SRCS = [
     "src/main/java/com/legend/Compiler.java",
     "src/main/java/com/legend/CrossStoreGuard.java",
+    "src/main/java/com/legend/PlanMaker.java",
     "src/main/java/com/legend/ProgramFacts.java",
     "src/main/java/com/legend/QueryParameters.java",
     "src/main/java/com/legend/TypedQuery.java",
@@ -207,7 +208,7 @@ legend_java_library(
     deps = [
         "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error",
         ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
-        ":protocol", ":resolver", ":sql", ":sql_dialect", ":validation", ":values",
+        ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":validation", ":values",
     ],
 )
 
@@ -546,7 +547,8 @@ junit_test(
 
 # THE SERVER'S POSTGRES ARM (Bazel workplan P0-08): a type: Postgres connection resolves through
 # ConnectionResolver and the product's own driver set (:drivers), against the Postgres 16 that
-# gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class, one query.
+# gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class. Its Postgres cases of core
+# tests use those tests' helpers (ReservedNamesSeedTest's seed, PlanMakerTest's plan run), so it reads :core_tests_lib.
 junit_test(
     name = "postgres_arm_test",
     memory_mb = 768,
@@ -562,6 +564,7 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        ":core_tests_lib",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
