@@ -7835,3 +7835,39 @@ The run: 37947981268 on `protocol-leg4-land` (a0fdf4e6f, on a926526b6), lanes pr
 parser_equivalence, ui, datacube, sdlc and warehouse on every platform, green on all 29 jobs; pushed to main as
 a0fdf4e6f, the tested commit, ahead of the execution plan line's E (the user, with that line's agreement). Local gate
 `//gates:local` green (316/316) on the same tree.
+
+## 2026-10-09 — DataCube pages, phase 1: a page's tiles as bands, arranged by hand (the DataCube + Python line)
+
+The design: `docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` (agreed with the user; §3.2-3.4 and §5, each change the user asked
+for while trying the branch recorded "as built"). Landed as one fast-forward, `703ef011d..e397f107a` (13 steps):
+
+1. **Bands** (`datacube/src/layout/bands.ts`, pure): a page is a stack of bands, each a tree of rows and columns with
+   shares down to its tiles, scrolling or fitting the window (on for a new page; a page with more bands than the window
+   holds at 160px each scrolls). Smart placement (beside the tile it came from while each stays 360px wide, four at
+   most), drops on an edge, a middle (a swap) or between bands, dividers that snap at quarters, thirds and the half.
+2. **The board** (`layout/band-board.ts`): every tile drawn by position and never moved in the DOM; nothing inside a tile
+   re-lays out while a tile is dragged; every gesture owns its pointer to the end (let go, Escape, a lost capture);
+   grips on every divider and edge, the sizes shown by the pointer while dragging ("⅔ · ⅓"); maximise; the keyboard
+   (arrows swap, Shift+arrows size); a narrow window stacks; view mode locks it.
+3. **The layout picker** (`ui/layout-picker.ts`): the page's own tiles as thumbnails, previewed on hover -- nine standard
+   shapes, split evenly, the same for any number of tiles; More layouts (every way into rows, columns), a wider picker;
+   Custom rows built by hand. Arrange..., Undo Layout / Redo Layout and Edit Layout in the page's menu; a tile's layout
+   button puts that tile first.
+4. **The page on bands** (`page/cube-page.ts`, `app.ts`): no tile pinned on top, every grid with its own menu in its
+   tile header, the page's module (board, picker, charts' panel) fetched on first use -- a grid alone downloads ~333 KB
+   of script at startup, from ~354 KB. The old 12-column board (`layout/board.ts`, `tile-layout.ts`) is deleted.
+5. **The page's document, version 2** (`page-document.ts`): its layout the bands, checked when read; a version 1 page,
+   and a version 1 share link (frozen in its test), opens as bands. Exports place the page in whole cells
+   (`bands.ts cells`). A page opened from a share link opens locked.
+
+What judges it: `//datacube:bands_test` (every gesture and preset, a fuzz of 15,000 gestures keeping every rule and an
+exact cover in cells), `//datacube:band_board_test`, `//datacube:layout_picker_test`, `//datacube:chart_tiles_test`,
+`//datacube:page_document_test`, `//datacube:share_link_test`, `//datacube:bundle_budget_test` (the page's module not
+at startup), and `//datacube:verify_layout_test` (new: a session arranged by hand in the pinned Chromium, no long task
+over 50 ms while a tile is dragged). Audited (one blocker -- a divider kept its element when its split turned from a row
+to a column -- and five should-fix, all fixed with tests); the Bazel edit (verify-layout's browser_test) reviewed by the
+Bazel program session. Local gate green on the rebased tree (four studio/engine-client tests timed out under the
+machine's load and passed alone); CI run 37952097518 on `ci/datacube-pages-land`, green on the lanes with a path to
+`//datacube:src` (product, checks, warehouse, datacube, ui) on every platform (20 jobs); pushed to main as e397f107a, the
+tested commit.
+

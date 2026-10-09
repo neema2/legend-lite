@@ -117,7 +117,8 @@ with the compiler's plan/execution split**, in this order:
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
    `datacube-pages`. `native/`, `python/` and, since 2026-10-09, all of `datacube/`. Landed: the compiler as a native
    library (`bc8107c4e`), `ll.show(df)` and the notebook cube on every platform, a real JupyterLab test and marimo
-   (`169e0f062`). Now: DataCube pages, phase 1, the layout sprint (`docs/DATACUBE_PAGES_DESIGN_2026_10_09.md`).
+   (`169e0f062`), DataCube pages phase 1, the layout (`e397f107a`). Next: pages phase 2, the page bar and the whole page
+   saved with several sources (`docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` §3.1, §3.5, §4).
 
 **Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
 B2/B3 and the W6.2 runner wait for it); the server
@@ -564,11 +565,15 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
 - **DataCube pages (announced 2026-10-09, before the first edit; the design, agreed with the user:
   `docs/DATACUBE_PAGES_DESIGN_2026_10_09.md`).** Every tile equal, the page owning the board; a page as bands (scrolling
   or fitting the window), the layout picker, drop zones, dividers, maximise, smart placement, edit and view, a narrow
-  page stacked; then (phase 2) the whole page saved with several sources, (3) tabs, (4) Python pages. On branch
-  `datacube-pages`. Phase 1's files, all in `datacube/`: `src/layout/bands.ts`, `src/layout/band-board.ts`,
-  `src/ui/layout-picker.ts` (new), `src/page/cube-page.ts`, `src/app.ts`, `src/page-document.ts`, `src/export-model.ts`,
-  `src/app.css`, `demo/boot.ts`, their tests, and a browser test of a session (`datacube/BUILD.bazel`,
-  `gates/BUILD.bazel`: its lane; the Bazel edits to the Bazel program session first).
+  page stacked; then (phase 2) the whole page saved with several sources, (3) tabs, (4) Python pages. **Phase 1 LANDED
+  2026-10-09 (`e397f107a`, run 37952097518; GATES entry "DataCube pages, phase 1").** Its files, all in `datacube/`:
+  `src/layout/bands.ts`, `band-board.ts`, `src/ui/layout-picker.ts` (new); `src/page/cube-page.ts`, `src/app.ts`,
+  `src/page-document.ts`, `src/export-model.ts`, `src/export-xlsx.ts`, `src/snapshot.ts`, `src/ui/menu.ts`, `src/app.css`,
+  `demo/boot.ts`, `tools/link-dictionary/make.ts`; `src/layout/board.ts` and `tile-layout.ts` deleted; their tests;
+  `demo/verify-layout.mjs` with `datacube/BUILD.bazel` and a comment in `gates/BUILD.bazel` (Bazel-reviewed). **Phase 2
+  next** (announced here with its files before the first edit): the page bar (a shell of its own, each grid its own
+  header, one grid alone sharing the bar's strip: the user, 2026-10-09), the page owning Save, Open, Share and
+  "changed", the first grid removable, and the page's document holding several cubes over their own sources.
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
