@@ -668,18 +668,81 @@ final class ArchitectureTest {
      * What runs is the plan's own statement, reviewed when the plan was made: the runner, its parameter checks, its
      * sessions and the bulk load read the plan records, a connection's definition and {@code java.sql}, never the
      * compiler, the resolver, the lowering, the SQL tree or a dialect, the plan side's setup, or the legacy plan. (The
-     * rest of {@code exec} still reaches them; the step-3 guard on its references shrinks them to none.)
+     * rest of {@code exec} still reaches them; the step-3 guard on its references shrinks them to none.) One call is
+     * the SQL typing owner's, and only one: a Float value is bound as its literal is typed (the numeric charter's Rule
+     * 1, {@code SqlTyping.floatDecimal}), which only its value decides, at run time.
      */
     @Test
     void theRunnerIsModelFree() {
+        String runner = "com\\.legend\\.exec\\.(PlanRunner|PlanParameters|PlanSessions|BulkLoads?)(\\$.*)?";
         noClasses()
-            .that().haveNameMatching("com\\.legend\\.exec\\.(PlanRunner|PlanParameters|PlanSessions|BulkLoads?)(\\$.*)?")
-            .should().dependOnClassesThat().resideInAnyPackage("com.legend.compiler..", "com.legend.resolver..",
-                    "com.legend.lowering..", "com.legend.sql..", "com.legend.setup..", "com.legend.plan..",
-                    "com.legend.builtin..", "com.legend.parser..", "com.legend.normalizer..")
+            .that().haveNameMatching(runner)
+            .should().dependOnClassesThat(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage(
+                    "com.legend.compiler..", "com.legend.resolver..", "com.legend.lowering..", "com.legend.sql..",
+                    "com.legend.setup..", "com.legend.plan..", "com.legend.builtin..", "com.legend.parser..",
+                    "com.legend.normalizer..")
+                    .and(com.tngtech.archunit.base.DescribedPredicate.not(com.tngtech.archunit.core.domain.JavaClass
+                            .Predicates.equivalentTo(com.legend.sql.SqlTyping.class))))
             .as("the plan runner reaches no compiler, lowering, SQL tree, dialect or plan side: it runs the plan's"
                     + " statement as the plan says")
             .check(CORE_PROD_CLASSES);
+        noClasses()
+            .that().haveNameMatching(runner)
+            .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                    com.tngtech.archunit.core.domain.AccessTarget.Predicates.declaredIn(com.legend.sql.SqlTyping.class))
+                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                            com.tngtech.archunit.base.DescribedPredicate.not(
+                                    com.tngtech.archunit.core.domain.properties.HasName.Predicates.name("floatDecimal")))))
+            .orShould().accessFieldWhere(com.tngtech.archunit.core.domain.JavaFieldAccess.Predicates.target(
+                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
+                            com.tngtech.archunit.core.domain.JavaClass.Predicates.equivalentTo(
+                                    com.legend.sql.SqlTyping.class))))
+            .as("the plan runner's one use of the SQL typing owner is a Float's binding (Rule 1, floatDecimal)")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /** The planning libraries {@code exec} is to stop reaching (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8: the
+     *  compiler, lowering, dialect and plan libraries; at none, exec depends only on //base, //json, the plan records
+     *  and java.sql). The SQL tree ({@code com.legend.sql}) is not among them: it is the plan records' own vocabulary
+     *  (a plan's {@code Sql} carries it), and the one owner of SQL typing the runner binds by. */
+    private static final java.util.List<String> PLANNING_PACKAGES = java.util.List.of("com.legend.compiler",
+            "com.legend.resolver", "com.legend.lowering", "com.legend.sql.dialect", "com.legend.setup",
+            "com.legend.plan", "com.legend.builtin", "com.legend.parser", "com.legend.normalizer",
+            "com.legend.platform", "com.legend.database");
+
+    /** The exec classes that still reach a planning library, measured 2026-10-09 (step 3): each leaves this list when
+     *  it stops, and none joins it. */
+    private static final java.util.Set<String> EXEC_REACHING_PLANNING = java.util.Set.of("CanonRider", "Census",
+            "Column", "DynamicPivot", "Equality", "ExecutionResult", "Executor", "GridProbe", "PctProbe", "PureAsserts",
+            "Sessions", "SetupRunner", "SqlReplayOracle", "SystemDatabase", "VerdictBatch", "WireTypes");
+
+    /**
+     * <strong>exec's reach into planning only shrinks (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, §9
+     * step 3).</strong> {@code exec} still holds planning work (decoding with compiler types, the judges, rendering for
+     * a session); each class that reaches a planning library is named here, and the list only shrinks — a new class
+     * reaching one fails, and a listed class that no longer reaches one must leave the list. At none, it becomes a build
+     * rule.
+     */
+    @Test
+    void execsReachIntoPlanningOnlyShrinks() {
+        java.util.Set<String> actual = new java.util.TreeSet<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
+            if (!c.getPackageName().equals("com.legend.exec")) {
+                continue;
+            }
+            boolean reaches = c.getDirectDependenciesFromSelf().stream().anyMatch(d -> {
+                String pkg = d.getTargetClass().getPackageName();
+                return PLANNING_PACKAGES.stream().anyMatch(p -> pkg.equals(p) || pkg.startsWith(p + "."));
+            });
+            if (reaches) {
+                String name = c.getName().substring("com.legend.exec.".length());
+                int nested = name.indexOf('$');
+                actual.add(nested < 0 ? name : name.substring(0, nested));
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(new java.util.TreeSet<>(EXEC_REACHING_PLANNING), actual,
+                "exec's reach into planning changed: a class that newly reaches a planning library is planning work"
+                        + " in exec -- move it to the plan side; one that stopped leaves EXEC_REACHING_PLANNING");
     }
 
     /**

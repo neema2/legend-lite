@@ -84,6 +84,10 @@ class ErrorShapeGuardrailTest {
             // and rethrown as E at the method boundary. Both catches
             // ARE the tunnel, not swallows.
             Map.entry("HandleStore.java", 2),
+            // step 3 (reviewed 2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9; the audit's S5): the runner's
+            // shared sessions close a connection whose setup failed, whatever the failure, and rethrow it as it is, a
+            // failed close suppressed on it -- a narrowed list would leak the connection on the next kind
+            Map.entry("PlanSessions.java", 1),
             // 4 = the derived/implicit-child PROBE-AND-FALLBACK set
             // (reviewed): navHeadRelation's assoc probe, hopJoin's
             // assoc-vs-slot probe, inlineDerivedCalls' compilable-callee

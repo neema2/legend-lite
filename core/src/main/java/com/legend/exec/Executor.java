@@ -82,8 +82,9 @@ public final class Executor {
             return;
         }
         try {
-            if (BulkLoads.of(connection) != null) {
-                BulkLoads.load(connection, load.staged(dialect));
+            BulkLoad bulk = BulkLoads.of(connection);
+            if (bulk != null) {
+                BulkLoads.load(bulk, connection, load.staged(dialect));
                 return;
             }
         } catch (SQLException e) {
@@ -192,7 +193,7 @@ public final class Executor {
         boolean variantRoot = rootType.type()
                 instanceof com.legend.compiler.element.type.Type.ClassType vct
                 && PlatformTypes.isVariant(vct);
-        dumpSql(sql);
+        StatementOrigin.sent(sql);
         // prepareStatement, not createStatement: DuckDB JDBC 1.5 masks a
         // direct Statement's real error behind 'Attempting to execute an
         // unsuccessful or closed pending query result' (audit: 74 corpus
@@ -216,7 +217,7 @@ public final class Executor {
      * column) — pure byte transport, the database composed the text.
      */
     public static String wireText(String sql, Connection connection) {
-        dumpSql(sql);
+        StatementOrigin.sent(sql);
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
             if (!rs.next()) {
@@ -241,7 +242,7 @@ public final class Executor {
      */
     public static void streamWireRows(String sql, Connection connection,
             java.io.Writer out) throws java.io.IOException {
-        dumpSql(sql);
+        StatementOrigin.sent(sql);
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
             out.write('[');
@@ -271,7 +272,7 @@ public final class Executor {
     public static void streamGraph(String sql, Connection connection,
             com.legend.sql.dialect.SqlDialect dialect, java.io.Writer out)
             throws java.io.IOException {
-        dumpSql(sql);
+        StatementOrigin.sent(sql);
         try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
              ResultSet rs = st.executeQuery()) {
             out.write('[');
@@ -297,14 +298,6 @@ public final class Executor {
             java.sql.SQLException un = RaisedErrors.unwrapped(e);
             throw new DataError(String.valueOf(un.getMessage()), un);
         }
-    }
-
-    /** Opt-in diagnostic: every executed statement to stderr. Also the
-     * ROUND-TRIP count (leg 3.0, DATABASE_MODE_HOMEWORK §4a): every
-     * statement this executor sends passes here first — measurement
-     * only, printed by the corpus lanes, read by no verdict. */
-    private static void dumpSql(String sql) {
-        StatementOrigin.sent(sql);
     }
 
 

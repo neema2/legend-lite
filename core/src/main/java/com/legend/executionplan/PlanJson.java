@@ -176,14 +176,23 @@ public final class PlanJson {
             slots.add(so);
         }
         o.put("slots", slots);
-        Target t = s.target();
+        o.put("target", target(s.target()));
+        return o;
+    }
+
+    /** {@code target} in the lite format, alone: an unambiguous spelling of its whole content (a runner keys a shared
+     *  database by it, decision A). */
+    public static String writeTarget(Target target) {
+        return Json.toCompact(target(target));
+    }
+
+    private static Map<String, Object> target(Target t) {
         Map<String, Object> to = new LinkedHashMap<>();
         to.put("database", database(t.database()));
         to.put("servers", servers(t.servers()));
         to.put("session", t.session());
         to.put("setup", t.setup().stream().map(PlanJson::setupStep).toList());
-        o.put("target", to);
-        return o;
+        return to;
     }
 
     private static Map<String, Object> database(ExecutionPlan.Database database) {

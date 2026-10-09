@@ -36,6 +36,21 @@ public final class SqlTyping {
         return new TypeFact.Typed(t);
     }
 
+    /** NUMERIC CHARTER Rule 1: the decimal a finite Float value {@code v} is written as -- its plain digits, a point
+     *  always present ({@code 1.5}, {@code 100000000000000.0}, {@code 0.0000010}) -- so the database types it a DECIMAL
+     *  of those digits; or null at an extreme magnitude (at least 1e15, or below 1e-6 and not zero), which is written
+     *  in exponent form and typed DOUBLE ({@code Double.MAX_VALUE} spelled plain is 309 digits: the 2-ULP leniency's
+     *  finite check). The dialects spell a Float literal by it, and the runner binds a Float parameter by it, so a
+     *  parameter is typed as the literal it stands for. */
+    public static java.math.@com.legend.base.Nullable BigDecimal floatDecimal(double v) {
+        double a = Math.abs(v);
+        if (a >= 1e15 || (a > 0 && a < 1e-6)) {
+            return null;
+        }
+        String s = java.math.BigDecimal.valueOf(v).toPlainString();
+        return new java.math.BigDecimal(s.contains(".") ? s : s + ".0");
+    }
+
     /** The may-be-null variant of a fact (§E3 M-N1): marks a Typed
      * fact nullable, preserving its type and tolerance. Bottom (IS the
      * NULL value), Raises (never yields) and Unknown (no claim) pass

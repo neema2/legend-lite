@@ -70,6 +70,48 @@ public final class HandleStore<T> {
         }
     }
 
+    /** The slow opens, by key: the open each later caller for the key waits for. */
+    private final ConcurrentHashMap<String, java.util.concurrent.CompletableFuture<T>> slow = new ConcurrentHashMap<>();
+
+    /**
+     * The live handle for {@code key}, its open run OUTSIDE the map's lock — for an open that takes time (a database
+     * loaded with its data): the first caller for a key opens it; a later caller for the same key waits for that open;
+     * a caller for another key is never held up. A failed open is forgotten, so the next caller opens again; a dead
+     * handle is replaced.
+     */
+    public <E extends Exception> T getOrOpenSlowly(Hash key, Predicate<T> dead, Open<T, E> open) throws E {
+        while (true) {
+            java.util.concurrent.CompletableFuture<T> mine = new java.util.concurrent.CompletableFuture<>();
+            java.util.concurrent.CompletableFuture<T> existing = slow.putIfAbsent(key.hex(), mine);
+            if (existing == null) {
+                boolean opened = false;
+                try {
+                    T handle = open.open();
+                    mine.complete(handle);
+                    opened = true;
+                    return handle;
+                } finally {
+                    if (!opened) {
+                        // forgotten, and its waiters released to open in their turn; the failure is this caller's
+                        slow.remove(key.hex(), mine);
+                        mine.cancel(false);
+                    }
+                }
+            }
+            T handle;
+            try {
+                handle = existing.join();
+            } catch (java.util.concurrent.CancellationException e) {
+                // the open this caller waited for failed (and was forgotten): this caller opens in its turn
+                continue;
+            }
+            if (!dead.test(handle)) {
+                return handle;
+            }
+            slow.remove(key.hex(), existing);
+        }
+    }
+
     /** Carries the caller's checked exception across compute's
      * unchecked boundary; never escapes {@link #getOrOpen}. */
     private static final class CheckedCarrier extends RuntimeException {
