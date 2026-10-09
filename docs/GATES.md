@@ -6764,6 +6764,47 @@ properties and `getDynaFunctionTypeInferenceMap` now type), `reference typed, we
 73103, `OVERLOAD` 769 → 745 (the six `[1..*]` classes gone); two new `EXTRA` classes (`math::min` 6, `math::max` 1)
 fall under the `EXTRA *` reason.
 
+## 2026-10-08 — W1.5 (a slice): a table reference's columns in declaration order, never a JVM-salted one; the scope id is stable
+
+The compiler plan's W1.5 ("determinism, dumps", a Phase 2 item, one slice of it taken ahead because the cleanup's gate is
+byte-identical SQL and the render census is its judge). Found by the database-owner line's render census (two runs on
+unchanged code: the resolver's lambda scope ids `fn:<hex>:<length>` differed in about 330 statements of each relational
+corpus lane) and handed over on 2026-10-08. Landed as 608b5d221 (branch `compiler/w1.5-order`; run 37860984737 (23:43 to 00:12 UTC, 29 minutes, the tip 608b5d221 rebased over the dialect-writer, Studio and DataCube landings): green on every job on the first attempt).
+
+**The cause**, found by diffing one corpus lambda's printed text across two JVMs under the DuckDB database judge: the
+unstable span is `TypedTableReference`'s `storedTypes` (and `quotedColumns`), collected by `TableReferenceChecker` with
+`Collectors.toUnmodifiableMap/Set` and held through `Map.copyOf`/`Set.copyOf`. Java's immutable collections iterate in
+an order salted per JVM; the record's `toString` prints that order; `FunctionBodyRows.scopeId` hashes the text (and
+`PlanRows.scopeId`'s fallback likewise). No identity hash anywhere: the salt. A first cut that only wrapped the record's
+copies froze the salted order instead of removing it; the audit caught it with a four-JVM check, and the fix moved to the
+producer.
+
+**What changed.** The producer collects the columns in declaration order (`LinkedHashMap`/`LinkedHashSet`; a duplicate
+column name still throws); the typed node keeps that order through order-preserving unmodifiable copies; and every
+`Map.copyOf`/`Set.copyOf`/`toUnmodifiableMap`/`toUnmodifiableSet` in `core/src/main` (87 sites in 50 files) is replaced
+the same way, because a model or protocol record's print can reach parity and ids too (below) and a lookup table loses
+nothing by keeping insertion order. `NoSaltedIterationOrderTest` (`//core:guardrails`) keeps the four calls out of the
+whole product tree; `TableReferenceOrderTest` pins the DDL order on an eight-column table. The census's `compare.py` and
+README stop masking `fn:<hex>:`, so the census checks the ids from now on.
+
+**The parity ratchet moves by one, for a plain reason.** parser-equivalence's `own_corpus.matched` goes 2,720 to 2,721:
+the own corpus harvests the Pure text blocks of test sources, and `TableReferenceOrderTest`'s eight-column model joined
+it and matches the oracle (the only verdict that differs between main's dump and this tree's; every other one of the
+2,924 is identical across eight JVM runs). Written with this reason, as the ratchet's rule says. A wrong reading on the
+way, corrected here for the record: for an hour this line took the 2,720/2,721 difference for a load-sensitive verdict,
+having read a diff's direction backwards. Every generated source is regenerated from its generator (`DynaFnGenerator`
+emits the ordered copy), never edited.
+
+**Measured.** Two render-census runs on the branch with the scope ids unmasked agree on all 52,085 (lane, dialect, kind, text) entries (0 differ); main's census against the branch's with the ids masked, main's own compare.py, agrees on all 52,085 too (0 differ: no SQL text moved). Both taken on the branch before its rebase onto the dialect-writer (E-1) and DataCube landings, whose own censuses judge them; the CI run on the rebased tip is the lanes' proof.
+
+**Not in this slice** (W1.5's first item): `NavReducer`'s `"_e" + System.identityHashCode(...)` temporaries, whose names
+do not reach the census's SQL; the rest of W1.5 (dumps) stays in Phase 2. The rule's next step, noted by the audit: `Map.of`/`Set.of` literals of several entries (83 in `core/src/main`) are
+salted too, and a hash map keyed by an identity-hashed object would be as well; they are lookup tables today, and the
+guardrail leaves them for a later slice of W1.5.
+
+**Checked.** `//core:guardrails`, `core_tests_compiler`, `core_tests_sql`, `core_tests_lowering`, `core_tests_resolver`;
+the local gate; run 37860984737 (23:43 to 00:12 UTC, 29 minutes, the tip 608b5d221 rebased over the dialect-writer, Studio and DataCube landings): green on every job on the first attempt.
+
 ## 2026-10-08 — W0.8: an island's content is lexed in place, sharing the document's line index; no padded copy
 
 The compiler plan's W0.8 (`docs/EXECUTION_PLAN_2026_09_26.md` §5, added by D25 from the design's A1). Landed as d069cc5c9
