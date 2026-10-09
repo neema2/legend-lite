@@ -38,8 +38,20 @@ native_image(
     name = "compiler",
     executable_name = "libcompiler",
     extra_args = ["--link-at-build-time"] + select({
-        "@platforms//os:linux": ["-H:NativeLinkerOption=-Wl,-soname,libcompiler.so"],
-        "@platforms//os:macos": ["-H:NativeLinkerOption=-Wl,-install_name,@rpath/libcompiler.dylib"],
+        "@platforms//os:linux": [
+            "-H:NativeLinkerOption=-Wl,-soname,libcompiler.so",
+            # the oldest CPUs of the architecture, not GraalVM's default (x86-64-v3, AVX2; armv8.1-a): a manylinux wheel
+            # (//python:wheel) runs on any Linux machine of its architecture (the audit of the wheel, 2026-10-08).
+            # macOS keeps the default: every Mac that runs macOS 14 has it
+            "-march=compatibility",
+        ],
+        # the oldest macOS the library runs on, PINNED (2026-10-08, the user: macOS 14, what CI's Mac runners are):
+        # left to the build machine's SDK, a newer machine would make a library a 14 cannot load, inside a wheel that
+        # says 14 (//python:wheel, held by //python:wheel_test)
+        "@platforms//os:macos": [
+            "-H:NativeLinkerOption=-Wl,-install_name,@rpath/libcompiler.dylib",
+            "-H:NativeLinkerOption=-mmacosx-version-min=14.0",
+        ],
         "//conditions:default": [],
     }),
     data = ["@host_cc//:present"],
@@ -47,6 +59,7 @@ native_image(
     static_zlib = "@zlib",
     c_compiler_option = select({
         "@platforms//os:linux": ["-fuse-ld=lld"],
+        "@platforms//os:macos": ["-mmacosx-version-min=14.0"],
         "//conditions:default": [],
     }),
     target_compatible_with = compatible_with(COMPILER_LIBRARY_PLATFORMS),

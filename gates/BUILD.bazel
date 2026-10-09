@@ -155,6 +155,8 @@ test_suite(
         "//python:engine_test",
         "//python:frames_test",
         "//python:tools_build_test",
+        # the wheel as a developer installs it: a fresh environment, offline, nothing from the repository
+        "//python:wheel_test",
         # DataCube against Python's engine, in the pinned Chromium (the compiler's library in its runfiles; not Windows)
         "//datacube:python_engine_test",
         "//warehouse:postgres_live",
