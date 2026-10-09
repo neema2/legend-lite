@@ -79,6 +79,13 @@ final class Composing {
         return PureComposer.multiplicity(m);
     }
 
+    /** A mapping-local property's multiplicity from its bounds, as the multiplicity reader takes them: an upper
+     *  bound of {@code 2147483647} is many ({@link ProtocolReader#multiplicity}). */
+    static String multiplicity(long lower, @com.legend.base.Nullable Long upper) {
+        return multiplicity(Multiplicity.range(Math.toIntExact(lower),
+                upper == null || upper == Integer.MAX_VALUE ? null : Math.toIntExact(upper)));
+    }
+
     static String genericType(Json.Obj gt) {
         return PureComposer.genericType(gt);
     }
