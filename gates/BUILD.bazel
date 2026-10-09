@@ -154,6 +154,8 @@ test_suite(
         "//python:bindings_test",
         "//python:engine_test",
         "//python:frames_test",
+        # a notebook's cube: the widget's calls and version, show() in a kernel (legend_lite/notebook.py)
+        "//python:notebook_test",
         "//python:tools_build_test",
         # the wheel as a developer installs it: a fresh environment, offline, nothing from the repository
         "//python:wheel_test",
