@@ -522,6 +522,11 @@ stays a guard that must not get worse, not a target. Small: days (the Phase 3b b
 
 ## 4. Order and what can move (agreed with the user 2026-10-07; the live state is START_HERE §3)
 
+**Ruled 2026-10-09 (the user, on the cold read `docs/build-inventory/program/COLD_READ_2026_10_09.md` F1): L7, "resolve
+once" (PARK-5's full fix), moves up to right after L3 (Phase 3b) and before L4 (Phase 6).** The final shape of a call
+is that it carries its resolved declaration id; once it does, Phases 4 and 5 change only how the declaration table is
+filled, and no call site. The L7 row below keeps its content; its place is after L3, and L4, L5 and L6 need it.
+
 The remaining work is a numbered list of **landings** (one branch, one audit, one full CI run, one push to main).
 **The CI landing comes first** and **the bump is done at L8**: the user, 2026-10-07, "we do all the L2 stuff first
 right now, make our build super amazingly awesome, and then we go back to all the code including phase three and the
@@ -544,7 +549,7 @@ GitHub's five-at-a-time macOS queue; every later landing pays that instead of an
 | **L4** | **Phase 6** | the corpus on its manifest, as the 6 brief describes; 6-H3 decides whether PARK-11's rows must come here instead of Phase 4 | L3; homework 6-H1 to H9 (experiment 8 rerun at the real heap) |
 | **L5** | **Phase 4** | the default world from upstream, the result views off startup through L4's loader, the legacy TDS rows by id (PARK-11), the 109 unrowed versions each rowed or refused, the rule texts, the boot profiled, 4b decided on numbers | L3, L4; U4-1 (the real world measured: run right after L2, it needs no 3b or 6 code) and U4-2 to U4-9 |
 | **L6** | **Phase 5** | Pure.java as rows by id; the catalog, the membership list, the claims, `core_next`, `gen_claims`, `gen_natives`, `native_declarations` retired | L5 |
-| **L7** | **PARK-5's full fix** (moved into the program) | the resolver records every platform call's names once; calls built after it are built resolved; `BareNames.catalog` goes; typing on the eager probe at or below main's | L6: Phases 4 and 5 touch the same ~200 call sites and change where declarations come from; the fix is done once, on the final shape |
+| **L7** | **PARK-5's full fix** (moved into the program) | the resolver records every platform call's names once; calls built after it are built resolved; `BareNames.catalog` goes; typing on the eager probe at or below main's | L3 (ruled 2026-10-09: before L4, L5 and L6, which then change only how the declaration table is filled; the earlier reason, "done once on the final shape", had the shape backwards: the final shape is the call carrying its id) |
 | **L8** | **Phase 7: the bump** | `//:update_upstream`, the seal and its test, the measurements' writers out of `//:update_generated` (D7-4: here, not Phase 8), `Bump.java`, one real bump to the release after 4.145.0 | L6 (L7 helps). **The bump is done here.** |
 | **L9** | **The typer's order** (PARK-6, 7, 8, 9, 10 as one design) | arguments typed once, the function chosen on typed arguments, legend-pure's acceptance test, the tie-breaks checked against legend-pure | L8; earlier only if U4-1 shows wrong picks in the real world |
 | **L10** | **Phase 8, the build part** (several landings) | D8, D9 (OD-1: runfiles trees stay on Windows), D10/D5, the Node-independent parts of `bazel/exec` (OD-3 (b) for the rest), the small items, the remote cache if the numbers say so | L1 |
