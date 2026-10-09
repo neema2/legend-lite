@@ -339,6 +339,21 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    engine, the server versions, the per-connection statements); (b) scalar parameters; (c) optional; (d) enum value
    tables; (e) lists.
 
+   *Slice (a), on branch 2026-10-09.* `TypedQuery.executionPlan(runtime, Output)` (`CSV`, `JSON`, `STREAMED_JSON`)
+   through `PlanMaker`: a relation's, a value's and a graph fetch's text in each form today's paths write
+   (`Execution.executeWire`/`executeStreaming`), a graph's CSV refused by name, a query with parameters refused until
+   (b). The records (lite format version 3): a target is a `Database` (`Declared` connection, or the `Platform`'s
+   engine), its `Servers` (`Every`, or `Versions` — H2's `2.1`, `2.2`, named once, `H2.SERVERS`, which `forServer`
+   reads too; `Databases.servers`), its `session` statements and its setup; a text result's relation columns are a
+   name and a Pure type, no SQL type. The setup is final at plan time: a connection's SQL split and adapted to the
+   database, each table's rows for DuckDB's bulk loader with their staging statements (`RowLoad.staging`, the one
+   owner, which `Executor.load` now reads too) or one INSERT elsewhere (`Databases.loadsRowsInBulk`). A runtime
+   binding different connection definitions is refused when the plan is made. `PlanMakerTest` and
+   `PostgresArmTest.aPlanAnswersAsTodaysPaths`: on DuckDB, H2 and Postgres, every query's plan run step by step on a
+   fresh database answers byte for byte as today's path does (a relation, an empty one, a projection, a graph fetch,
+   a model-data runtime on the platform's engine; every output). Census: no statement of today's paths changes, only
+   the new tests' own are added (`render-census/landing2-result.txt`).
+
    Before step 4 (switching callers), two consumers of `PureV1Api.boundParameters` besides `execute` to settle:
    `arrowPlan` (Python's host runs the plan's SQL itself, so it must bind the values: agreed with the DataCube + Python
    line first), and the `execute` answer's activity, which reports the statement that ran (with its `?`s).

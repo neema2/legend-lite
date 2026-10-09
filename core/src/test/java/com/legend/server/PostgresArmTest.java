@@ -68,57 +68,74 @@ class PostgresArmTest {
         }
     }
 
-    /** A default-schema table {@code order} and a table in a schema {@code select} (PARK-16; the same tables as
-     *  {@code com.legend.setup.ReservedNamesSeedTest}, which holds the DuckDB and H2 cases this target cannot load). */
-    private static final String RESERVED_NAMES = """
+    @Test
+    @DisplayName("a table and a schema named by reserved words seed and answer a query on Postgres (PARK-16)")
+    void reservedNamesSeedAndAnswer() throws Exception {
+        EmbeddedPostgres pg = EmbeddedPostgres.shared();
+        try (Connection c = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
+            com.legend.setup.ReservedNamesSeedTest.seedsAndAnswers(com.legend.setup.ReservedNamesSeedTest.model(
+                    String.format(java.util.Locale.ROOT, "type: Postgres; specification: Static { host: '127.0.0.1';"
+                            + " port: %d; name: 'postgres'; }; auth: Test;", pg.port())),
+                    new com.legend.sql.dialect.Postgres(), c);
+        }
+    }
+
+    /** A table of three rows on Postgres (com.legend.PlanMakerTest's, which holds the DuckDB and H2 cases). A Postgres
+     *  connection declares no test data, so the test seeds the table and the plan's setup is empty. */
+    private static final String PLANNED = """
+            Class s::Item { id: Integer[1]; name: String[0..1]; price: Decimal[0..1]; }
             ###Relational
-            Database s::DB
-            (
-              Table order ( ID INTEGER PRIMARY KEY, NAME VARCHAR(10) )
-              Schema select ( Table T ( ID INTEGER PRIMARY KEY ) )
-            )
+            Database s::DB ( Table PLAN_T ( ID INTEGER PRIMARY KEY, NAME VARCHAR(20), PRICE DECIMAL(10,2) ) )
+            ###Mapping
+            Mapping s::M ( *s::Item: Relational { ~mainTable [s::DB] PLAN_T
+                id: [s::DB] PLAN_T.ID, name: [s::DB] PLAN_T.NAME, price: [s::DB] PLAN_T.PRICE } )
             ###Connection
             RelationalDatabaseConnection s::Conn {
                 store: s::DB; type: Postgres;
                 specification: Static { host: '127.0.0.1'; port: %d; name: 'postgres'; }; auth: Test; }
             ###Runtime
-            Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
-            """;
-
-    private static final String RESERVED_NAMES_ROWS = """
-            default
-            order
-            ID,NAME
-            1,a
-            2,b
-            -----
-            select
-            T
-            ID
-            7
+            Runtime s::RT { mappings: [s::M]; connections: [ s::DB: [ c1: s::Conn ] ]; }
             """;
 
     @Test
-    @DisplayName("a table and a schema named by reserved words seed and answer a query on Postgres (PARK-16)")
-    void reservedNamesSeedAndAnswer() throws Exception {
+    @DisplayName("a query's plan answers on Postgres exactly as today's wire and streaming paths do")
+    void aPlanAnswersAsTodaysPaths() throws Exception {
         EmbeddedPostgres pg = EmbeddedPostgres.shared();
-        String model = String.format(java.util.Locale.ROOT, RESERVED_NAMES, pg.port());
-        com.legend.sql.dialect.SqlDialect dialect = new com.legend.sql.dialect.Postgres();
+        String model = String.format(java.util.Locale.ROOT, PLANNED, pg.port());
+        var ctx = com.legend.Compiler.compileModel(model);
         try (Connection c = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
             try (Statement s = c.createStatement()) {
-                for (String sql : com.legend.setup.CsvSeed.sqls(RESERVED_NAMES_ROWS, "s::DB",
-                        com.legend.Compiler.compileModel(model), dialect)) {
+                for (String sql : com.legend.setup.CsvSeed.sqls("default\nPLAN_T\nID,NAME,PRICE\n1,a,1.50\n"
+                        + "2,O'Brien,---null---\n3,---null---,3.25\n", "s::DB", ctx,
+                        new com.legend.sql.dialect.Postgres())) {
                     s.execute(sql);
                 }
             }
-            com.legend.exec.ExecutionResult order = com.legend.Execution.execute(model,
-                    "#>{s::DB.order}#->select(~[ID, NAME])->sort(~ID->ascending())", "s::RT", c);
-            assertEquals(2, java.util.Objects.requireNonNull(order).rows().size());
-            assertEquals("a", order.rows().get(0).get(1));
-            assertEquals("b", order.rows().get(1).get(1));
-            com.legend.exec.ExecutionResult t = com.legend.Execution.execute(model,
-                    "#>{s::DB.select.T}#->select(~[ID])", "s::RT", c);
-            assertEquals(7, ((Number) java.util.Objects.requireNonNull(t).rows().get(0).get(0)).intValue());
+            for (String query : java.util.List.of("|#>{s::DB.PLAN_T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())",
+                    "|s::Item.all()->project(~[name: i|$i.name, price: i|$i.price])->sort(~name->ascending())",
+                    "|s::Item.all()->graphFetch(#{s::Item{id, name, price}}#)->serialize(#{s::Item{id, name, price}}#)")) {
+                for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
+                    boolean graph = query.contains("graphFetch");
+                    if (graph && output == com.legend.TypedQuery.Output.CSV) {
+                        continue;
+                    }
+                    com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, query)
+                            .executionPlan("s::RT", output);
+                    var target = ((com.legend.executionplan.ExecutionPlan.TextResult) plan.root()).sql().target();
+                    assertEquals(new com.legend.executionplan.ExecutionPlan.Servers.Every(), target.servers());
+                    assertEquals(java.util.List.of("SET TimeZone='UTC'"), target.session());
+                    assertEquals(java.util.List.of(), target.setup());
+                    java.io.StringWriter today = new java.io.StringWriter();
+                    switch (output) {
+                        case CSV -> com.legend.Execution.executeWire(model, query, "s::RT", c,
+                                com.legend.lowering.WireRender.Format.CSV, today);
+                        case JSON -> com.legend.Execution.executeWire(model, query, "s::RT", c,
+                                com.legend.lowering.WireRender.Format.JSON, today);
+                        case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, query, "s::RT", c, today);
+                    }
+                    assertEquals(today.toString(), com.legend.PlanMakerTest.run(plan, c), output + " " + query);
+                }
+            }
         }
     }
 }

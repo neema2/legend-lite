@@ -56,6 +56,34 @@ public final class Databases {
         };
     }
 
+    /** The server versions a statement planned for {@code type} is written for ({@link #dialect}'s spelling): H2's
+     *  depends on the server's version ({@code H2.forServer}), so a plan names the versions its text is for and its
+     *  runner refuses another; the other databases' spelling depends on none. */
+    public static com.legend.executionplan.ExecutionPlan.Servers servers(DatabaseType type) {
+        return switch (type) {
+            case H2 -> new com.legend.executionplan.ExecutionPlan.Servers.Versions(com.legend.sql.dialect.H2.SERVERS);
+            case DuckDB, Postgres, SQLite -> new com.legend.executionplan.ExecutionPlan.Servers.Every();
+            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
+                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora ->
+                    throw new com.legend.error.NotImplementedException(
+                            "SQL dialect for database type '" + type + "' is not implemented yet");
+        };
+    }
+
+    /** Whether a target on {@code type} loads its declared rows through the database's own bulk loader (a plan's
+     *  {@code SetupStep.Rows}) rather than one INSERT: DuckDB, where one giant INSERT cost most of a 61 s first query
+     *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, "setup at plan time, one form per database"). */
+    public static boolean loadsRowsInBulk(DatabaseType type) {
+        return switch (type) {
+            case DuckDB -> true;
+            case H2, Postgres, SQLite -> false;
+            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
+                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora ->
+                    throw new com.legend.error.NotImplementedException(
+                            "loading rows into database type '" + type + "' is not implemented yet");
+        };
+    }
+
     /** legend-engine's IN-list-to-temp-table facts for {@code type}: the temp table's name prefix and the list size past
      *  which the engine uses one (null: never, for this database). */
     public record InListTempTables(String tablePrefix, @com.legend.base.Nullable Integer threshold) {

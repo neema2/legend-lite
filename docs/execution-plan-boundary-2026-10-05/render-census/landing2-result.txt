@@ -1,0 +1,11 @@
+The render census of step 2's landing 2 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9), each slice against its parent,
+measured by run.sh over the eight lanes (the census's known build failure, //pure-protocol:twins_test, apart: README).
+
+1. Slice (a), the planner makes lite plans for queries without parameters -- against E on main (703ef011d): 63 of
+   52,162 (lane, dialect, kind, text) entries differ, all in //gates:core and all the new tests' own statements
+   (PlanMakerTest on DuckDB and H2, PostgresArmTest.aPlanAnswersAsTodaysPaths on Postgres): 59 new texts (the plans'
+   wire statements, each run once by today's path and once by its plan, and their setup), and 4 texts rendered more
+   often (DuckDB's staging table created and dropped for each plan's bulk rows, the test table's drop, one CSV wire
+   statement). No entry is gone and no other lane differs: today's paths render exactly what they rendered (the
+   staging statements and the wire's `value` relation moved to their one owner, RowLoad.staging and
+   WireRender.schema, unchanged).
