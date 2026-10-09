@@ -1,6 +1,6 @@
 # DataCube pages: every tile equal, easy layouts, the whole page saved (design, 2026-10-09)
 
-**Status: proposed, for the user's decision** (§5). `datacube/` is the DataCube + Python line's since 2026-10-09
+**Status: agreed with the user, 2026-10-09** (§5 records the decisions). `datacube/` is the DataCube + Python line's since 2026-10-09
 (`docs/IN_FLIGHT.md`). Builds on `docs/DATACUBE_DASHBOARDS_DESIGN_2026_09_28.md` (§4 layout, §5 the page model) and
 `docs/BI_AND_ETL_PLAN_2026_09_29.md` §B2 (pages); it does not replace their page model, it brings forward the part of it
 they left for later.
@@ -44,31 +44,56 @@ source, made the same way whether it is the first or the fifth: removable, movab
 the last tile leaves an empty page that offers a source (the start screen's choices). Charts belong to the grid they
 follow, by its tile id, never by "the" grid. The page, not a cube, carries Save, Share, Export and "changed".
 
-### 3.2 A layout of splits, filling the page
+### 3.2 Bands: one way of arranging, scrolling or filling the window
 
-The page's layout is the tree the 2026-09-28 design already put in the page document (§5.2, "the JSON has the tree"),
-with the node it left for later now first: **`split`** -- a row or a column of children with proportions -- over
-**`tile`** leaves (and **`tabs`** next, §5). The page fills the window; tiles fill their panes.
+A page is a **stack of bands**, top to bottom. A band is divided into **columns**; a column can itself be divided --
+across into stacked parts, or again into columns -- so a band is a small tree of rows and columns with proportions,
+whose leaves are tiles. Every band has a **height**.
 
-Why splits, against that design's ruling for a scrolling grid (§4.1): what the user asks for -- two side by side, 2x2,
-3x3, one on top and N below -- are splits; a split has nothing to collide, compact or cascade, so a drag or a resize
-moves one divider and cannot spread across the page; and it saves as a small tree. The ruling's objection, that splits
-do not reflow on a narrow screen, is answered by deriving (never storing) a single stacked column below a width, as the
-grid's `fitToColumns` does today. The free grid (`tile-layout.ts`) stays a node type a scrolling dashboard of many small
-tiles can use later; a page is a split tree until then.
+- **Scrolling** (the default for a page of many bands, as Power BI and Grafana pages scroll): the bands keep their
+  heights, and when they are taller than the window the page scrolls.
+- **Fit to window** (a page setting): the bands share the window's height, and nothing scrolls -- with one band, the
+  whole page is one divided screen, as a split window is.
 
-### 3.3 Arranging, three ways
+What the user asked for, in bands: two side by side is one band of two columns; 2x2, two bands of two; 3x3, three bands
+of three; one on top and N below, a band of one and a band of N; one big tile on the left and two stacked on the right,
+one band of two columns whose right column is divided across (the user, 2026-10-09: "as long as can still do two columns
+one big on left and two split on right"). A row of small KPI boxes is a band of many columns above the bands of grids
+and charts.
 
-1. **A layout picker.** A small layout button in each tile's title bar (shown on hover) and an **Arrange** button on the
-   page open thumbnails of the common layouts: side by side, stacked, 2x2, 3x3, one on top and N below, one left and N
-   right, one large and two small, and "even out". Hovering a thumbnail previews it on the page; clicking a slot puts
-   *this* tile there and the others fill the remaining slots in reading order (a layout with fewer slots than tiles
-   stacks the rest in its last slot's column; one with more leaves empty slots offering "add a grid / a chart").
-2. **Drop zones.** Dragging a tile by its title bar over another tile shows that tile's five zones -- its left, right,
-   top and bottom halves split it there; its centre swaps the two -- with the zone that will take it highlighted and
-   an outline of the result. Escape cancels; letting go outside any tile cancels.
-3. **Dividers.** Between panes, a divider drags to resize (snapping at thirds, halves and quarters); a double click
-   evens out its row or column. A tile's title bar can maximise it (and restore).
+Why bands, against the 2026-09-28 design's ruling for a free 12-column grid (§4.1), and against two separate page modes
+(a scrolling grid OR a divided screen, the user's question): bands give top-level scrolling and a divided screen with
+**one** way of arranging -- one engine, one way to drag, one set of presets, one saved form -- where two modes would be
+two engines and a lossy conversion between them. A band has nothing to collide, compact or cascade: a drag drops into an
+edge and a divider moves one boundary, so no tile is ever shoved and no drag spreads across the page. What bands give
+up is free placement (a small box anywhere, others flowing round it) and a tile spanning two bands (divide a column
+inside one band instead). The free grid (`tile-layout.ts`) can return later as what one band holds -- a band whose
+contents are a wall of small tiles on squares -- if a page of many small tiles needs it; the saved tree has room for it
+(the 2026-09-28 design's `grid` node).
+
+**Narrow windows** (the user, 2026-10-09: stacked): below a width the page shows every tile one under another, full
+width, in reading order, and scrolls; the arrangement itself is unchanged, and comes back when the window widens.
+Arranging pauses while stacked. (Stepping down a column at a time, 3x3 to 2 to 1, can come later.)
+
+### 3.3 Arranging
+
+1. **A layout picker.** A layout button in each tile's title bar (shown on hover) and an **Arrange** button on the page
+   open thumbnails of the common layouts: side by side, stacked, 2x2, 3x3, one on top and N below, one left and N
+   right (and its mirror), one large and two small, and "even out". Hovering a thumbnail previews it on the page;
+   clicking a slot puts *this* tile there and the others fill the remaining slots in reading order (a layout with
+   fewer slots than tiles stacks the rest in its last slot's column; one with more leaves empty slots offering "add a
+   grid / a chart"). The picker arranges the band the tile is in; "Arrange page" arranges every tile.
+2. **Drop zones.** Dragging a tile by its title bar over another tile shows that tile's zones -- its left, right, top
+   and bottom edges divide it there; its centre swaps the two (and, with tabs, adds it as a tab) -- and between two bands
+   a line that makes a new band there; the zone that will take it is highlighted, with an outline of the result. Escape
+   cancels; letting go outside any zone cancels.
+3. **Dividers.** Between columns and parts, a divider drags to resize (snapping at thirds, halves and quarters); a
+   double click evens out its row. A band's bottom edge drags its height. A tile's title bar can maximise it (and
+   restore).
+4. **Smart placement.** A new grid or chart goes beside the tile it came from when its band has room for one more column
+   at a readable width, otherwise into a new band below it -- so a page rarely needs arranging by hand.
+5. **Edit and view.** In view mode the handles, zones and "add" buttons are gone, so nothing moves by accident; edit
+   mode shows them. A page opened from a share link opens in view mode.
 
 Every arrangement is one undoable step.
 
@@ -86,7 +111,7 @@ divider is the one exception that follows live, and only its content, at most on
   the query, the configuration, the open groups). A grid opened from a file, a table or a remote source gets its saved
   identity as a saved query's does today.
 - **`views`**: a grid view per cube; a chart view names the cube it follows (a detached chart keeps its own query).
-- **`layout`**: the split tree over the views' tile ids.
+- **`layout`**: the bands, each its tree of rows and columns over the views' tile ids, with the page's fit setting.
 - **Reopening** opens every cube through its source, each with its own planner and model (as New > Source does now),
   then lays them out. A v1 page reads as before (its one cube and charts, laid out as one column).
 - Save, Share (the same compressed JSON in the link), Export > Specification and "changed since saved" cover every
@@ -94,24 +119,30 @@ divider is the one exception that follows live, and only its content, at most on
 
 ### 3.6 Held by
 
-- The tree's operations as pure functions (split, swap, remove, resize, presets, the narrow derivation), with a fuzz
-  test as the grid model has.
+- The bands' operations as pure functions (divide, swap, move between bands, remove, resize, presets, smart
+  placement, the narrow stacking), with a fuzz test as the grid model has.
 - **A browser test of a person's session**, in the pinned Chromium: open three grids from two sources, apply 2x2, drag
-  a tile onto another's right half, resize a divider, maximise and restore, remove the first grid, save, reopen -- the
-  same tiles, sources, views and layout; and no long task over 50 ms during any drag (the browser's long-task timing).
+  a tile onto another's right half and one onto the line below a band, resize a divider and a band, switch fit to
+  window and back, maximise and restore, remove the first grid, narrow the window and widen it, save, reopen -- the same
+  tiles, sources, views and layout; and no long task over 50 ms during any drag (the browser's long-task timing).
 - DataCube's existing page and chart tests, moved off "the" grid.
 
-## 4. Order
+## 4. Order (the user, 2026-10-09: tabs wanted, "can be phased appropriately")
 
-1. Every tile equal, the split tree, the picker, drop zones, dividers, the smooth gesture (the layout sprint).
-2. The whole page saved and reopened (v2), several sources.
-3. Python: a page of several frames and their charts from `ll.show(...)`
+1. **The layout sprint:** every tile equal; bands with the fit-to-window setting; the picker, drop zones, dividers,
+   maximise; smart placement; edit and view mode; the smooth gesture; stacking when narrow.
+2. **The whole page saved and reopened** (v2), several sources.
+3. **Tabs:** pages as sheets (several pages in one saved document, tabs along the bottom, as Excel's sheets and Power
+   BI's pages), and tabs in a pane (several tiles in one place, one shown; the drop zone's centre adds a tab).
+4. **Python:** a page of several frames and their charts from `ll.show(...)`
    (`docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`), on the same document.
 
-## 5. Decisions for the user
+Later, when wanted: a band holding a free grid of small tiles (§3.2); the narrow layout stepping down a column at a time;
+saved layouts as one's own templates; cross-filtering between tiles (the 2026-09-28 design's §5.4).
 
-1. **Splits for pages (recommended), or keep the scrolling 12-column grid and add presets to it.** Splits make the
-   asked-for layouts natural and dragging unable to cascade; the grid keeps free placement of many small tiles
-   (dashboards of KPIs), which a split tree does less well.
-2. **Tabs** (several tiles in one pane, one shown): with the first sprint, or after it.
-3. **Narrow windows**: show the page as one stacked column below a width (recommended), or keep the layout and scroll.
+## 5. Decisions (the user, 2026-10-09)
+
+1. **Bands** -- one way of arranging that scrolls or fills the window -- rather than a free scrolling grid, a page of
+   splits alone, or two page modes; with one big tile beside two stacked kept (§3.2).
+2. **Tabs**, phased: after the layout sprint and the whole-page save (§4).
+3. **Narrow windows stack** (§3.2).

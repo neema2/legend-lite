@@ -7636,6 +7636,30 @@ mid-load), `//datacube:bundle_budget_test` (the module at 461,746 bytes gzipped,
 Bazel-reviewed. Local gate `//gates:local` green (323) on the rebased tree; full CI run 37915130012 on
 `ci/datacube-windows-land`, green on every lane and platform (50 jobs); pushed to main as ead4a7857, the tested commit.
 
+## 2026-10-09 — DataCube on a Python dataframe: the cube in a real JupyterLab, and in marimo (the DataCube + Python line)
+
+The design: `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md` ("In a notebook", "In a marimo notebook"). Landed as one
+fast-forward, `53c591cdf..169e0f062`:
+
+1. **A real JupyterLab** (`fbf20e480`, `//datacube:jupyterlab_test`): legend-lite's wheel and JupyterLab 4.6.4
+   pip-installed into a fresh environment, offline, from the locked wheels, as a developer installs them; JupyterLab
+   started on its own, the notebook run in the pinned Chromium (Playwright drives it), and the cube checked as a person
+   sees it: two cubes under their cells with the frame's rows, styled, an in-place change and `cube.update()` shown in
+   the same cube, one output per cube, an arrow key moving the grid's selection. macOS wheels are capped at macOS 14 tags
+   (`MODULE.bazel` `pip.default`), so CI's macOS 14 runners install what a desk does.
+2. **marimo first class** (`169e0f062`, `//datacube:marimo_test`): `ll.show(df)` as a cell's last expression is the
+   cell's output; a cell's re-run closes its old cube (its frame and name with it); each marimo session has its own
+   legend-lite session, freed when the session goes. DataCube inside a shadow root (marimo puts widgets in one): its
+   styles adopted into the root, focus followed through it (`datacube/src/focus.ts`), menus dismissed by what was
+   really pressed. marimo 0.25.1 pinned.
+
+What judges it: the two tests (each in the warehouse lane, Linux and macOS), `//python:notebook_test` (marimo's
+session isolation and release), `//datacube:tests`. marimo audited (its findings fixed); the Bazel edits (the MODULE tags, the tests' rules)
+reviewed by the Bazel program session. Local gate (`//gates:local` with the DataCube and Python suites and both
+notebook tests) green, 325 tests, on the rebased tree; full CI run 37926766513 on
+`ci/datacube-notebooks-land`, green on every lane and platform (50 jobs); pushed to main as 169e0f062, the tested
+commit.
+
 ## 2026-10-09 — The protocol program's leg 2, step 3: every printer prints the typed records (the Studio / SDLC / Depot line)
 
 The plan: `docs/PROTOCOL_PROGRAM_2026_10_05.md` §4.2, step 3 (its outcome and both audits are written there). Landed

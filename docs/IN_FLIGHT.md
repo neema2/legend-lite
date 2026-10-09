@@ -115,9 +115,9 @@ with the compiler's plan/execution split**, in this order:
    execution plan, a runner in `exec` runs it, the server's execute paths switch to it (files in the fourth line's
    2026-10-07 note; step 2's decisions, the user's, 2026-10-07/08, in the plan's §9).
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
-   `datacube-chart-spec`. `native/` and `python/` (new). **L1 landed 2026-10-07 (`bc8107c4e`)**: the compiler as a
-   native library with Python bindings. Next: DataCube on Python dataframes. Nothing in `core/` (its typing fix went to
-   the compiler line; one additive `CatalogModel` method, below).
+   `datacube-pages`. `native/`, `python/` and, since 2026-10-09, all of `datacube/`. Landed: the compiler as a native
+   library (`bc8107c4e`), `ll.show(df)` and the notebook cube on every platform, a real JupyterLab test and marimo
+   (`169e0f062`). Now: DataCube pages, phase 1, the layout sprint (`docs/DATACUBE_PAGES_DESIGN_2026_10_09.md`).
 
 **Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
 B2/B3 and the W6.2 runner wait for it); the server
@@ -535,8 +535,8 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   2026-10-09 (`2b32f6d25`, run 37872741038; GATES entry "DataCube on a Python dataframe, steps 3, 5 and 6"): DataCube's
   page of one cube on an engine, `ll.show(df)`, the wheel per platform, LICENSE and NOTICE, CI's kept wheels. Steps 7
   and 8 LANDED 2026-10-09 (`ead4a7857`, run 37915130012; GATES entry "steps 7 and 8"): the cube under a notebook's cell
-  and Windows. Next (the user, 2026-10-09): a real JupyterLab test (Playwright, the warehouse lane), then marimo first
-  class (`ll.show(df)` inline in a marimo notebook, its own real test).** (Announced 2026-10-08, before the first edit; the design, agreed with the user:
+  and Windows. The real JupyterLab test and marimo first class LANDED 2026-10-09 (`169e0f062`, run 37926766513; GATES
+  entry "a real JupyterLab, and marimo").** (Announced 2026-10-08, before the first edit; the design, agreed with the user:
   `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`).** DataCube as the UI in its remote-run mode; Python a small Legend
   engine answering upstream's `pure/v1` slice (parse, print, a query's types, execute with Arrow results) through the
   native library and duckdb-python. Files, in order: `wasm/src/main/java/planner/Wasm.java` (the refusal answer and the
@@ -557,6 +557,14 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `ConnectionLeaseTest`). **Overlaps:** the protocol program's `grammar/*` routes and the execution-plan line's step 4
   (`execute`) are in the same file, in other methods: whoever lands second merges, and step 4's "plan once, then run"
   fits the runner. The Bazel edits go to the Bazel program session before landing.
+- **DataCube pages (announced 2026-10-09, before the first edit; the design, agreed with the user:
+  `docs/DATACUBE_PAGES_DESIGN_2026_10_09.md`).** Every tile equal, the page owning the board; a page as bands (scrolling
+  or fitting the window), the layout picker, drop zones, dividers, maximise, smart placement, edit and view, a narrow
+  page stacked; then (phase 2) the whole page saved with several sources, (3) tabs, (4) Python pages. On branch
+  `datacube-pages`. Phase 1's files, all in `datacube/`: `src/layout/bands.ts`, `src/layout/band-board.ts`,
+  `src/ui/layout-picker.ts` (new), `src/page/cube-page.ts`, `src/app.ts`, `src/page-document.ts`, `src/export-model.ts`,
+  `src/app.css`, `demo/boot.ts`, their tests, and a browser test of a session (`datacube/BUILD.bazel`,
+  `gates/BUILD.bazel`: its lane; the Bazel edits to the Bazel program session first).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 
