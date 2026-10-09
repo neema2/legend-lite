@@ -215,6 +215,16 @@ py_wheel(
     abi = "none",
     description_file = "README.md",
     distribution = "legend-lite",
+    # the licences, in the wheel's .dist-info: the project's (Apache-2.0) and its NOTICE (legend-pure and legend-engine
+    # credited, their fixtures' notice), and GraalVM Community Edition's, whose runtime is compiled into the library
+    # (GPLv2 with the Classpath Exception, and its third parties')
+    extra_distinfo_files = {
+        "//:LICENSE": "LICENSE",
+        "//:NOTICE": "NOTICE",
+        "@graalvm//:LICENSE.txt": "GRAALVM-LICENSE.txt",
+        "@graalvm//:LICENSE_NATIVEIMAGE.txt": "GRAALVM-LICENSE-NATIVEIMAGE.txt",
+        "@graalvm//:THIRD_PARTY_LICENSE.txt": "GRAALVM-THIRD-PARTY-LICENSE.txt",
+    },
     extra_requires = {
         "pandas": ["pandas>=3.0.6"],
         "polars": ["polars>=2.0.0"],

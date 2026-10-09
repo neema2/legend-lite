@@ -101,7 +101,7 @@ class DanglingStateGuardTest {
         }
         // 6 -> 5 (2026-09-22): the nlq module was DELETED (owner decision; its
         // natural-language layer calls an external LLM and had no place in the
-        // clean-room compiler), taking its main and test roots. The five left:
+        // clean-sheet compiler), taking its main and test roots. The five left:
         // core main + test, and the test trees of spec, pct and
         // parser-equivalence, none of which has a src/main/java.
         assertTrue(ROOTS.size() >= 5, "module roots collapsed: " + ROOTS);

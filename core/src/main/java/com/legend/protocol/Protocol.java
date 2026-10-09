@@ -7,7 +7,7 @@ import java.util.List;
  *
  * <p>These records mirror the shape legend-engine serialises as
  * {@code PureModelContextData}, so {@link ProtocolEmitter} can reproduce its JSON
- * byte-for-byte. They are a <strong>clean-room reimplementation</strong>: legend-lite takes no
+ * byte-for-byte. They are a <strong>clean-sheet implementation</strong>: legend-lite takes no
  * dependency on {@code legend-engine-protocol-pure}, and nothing here imports
  * {@code org.finos.legend.engine}.
  *

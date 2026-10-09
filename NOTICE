@@ -1,0 +1,16 @@
+legend-lite
+Copyright 2026 Legend Contributors
+
+legend-lite is a clean-sheet implementation of the FINOS Legend platform's Pure language, its compiler and its
+query engine: designed and written anew, not derived from upstream's code. It takes FINOS Legend's legend-pure
+(https://github.com/finos/legend-pure) and legend-engine (https://github.com/finos/legend-engine) as its
+specification -- their grammar, typing rules, semantics and observable behaviour -- and tests itself against their
+published test suites and against answers recorded from them. Its debt to both is the whole of what it implements.
+
+This product includes test fixtures taken from legend-pure and legend-engine, licensed under the Apache License,
+Version 2.0, which carry this notice:
+
+    Legend - FINOS
+    Copyright 2020 Goldman Sachs - info@gs.com
+
+    This product includes software developed at the Fintech Open Source Foundation (https://www.finos.org/).

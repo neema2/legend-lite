@@ -6,7 +6,7 @@
 // the measureless group. One case each, sent to a running upstream
 // engine, and the answer recorded per case.
 //
-// This is the compatibility claim the whole clean-room rewrite rests
+// This is the compatibility claim the whole clean-sheet rewrite rests
 // on: that the Pure we emit is Pure that upstream accepts. It was an
 // assumption until this file existed.
 //
