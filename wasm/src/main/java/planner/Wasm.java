@@ -204,10 +204,9 @@ public final class Wasm {
     /**
      * {@code jsonToGrammar/model}'s twin (docs/STUDIO_FULL_PLAN_2026_10_04.md, B1): a model's protocol JSON
      * ({@code {"_type":"data","elements":[...]}}, with or without its section index) as Pure text, byte for
-     * byte as legend-engine prints it, or the refusal naming the element kind lite cannot print yet. The JSON is
-     * read first by the model reader, which refuses a field it cannot carry or one of the wrong kind, by name: the
-     * composer prints from the JSON and would pass over either (the protocol program's leg 2 composes from the
-     * records instead).
+     * byte as legend-engine prints it, or the refusal naming the element kind lite cannot print yet. The model reader
+     * reads the JSON, refusing by name a field it cannot carry or one of the wrong kind, and the composer prints the
+     * records it makes (the protocol program's leg 2).
      */
     @org.teavm.jso.JSExport
     public static String jsonToGrammarModelOrError(String modelJson) {
@@ -216,8 +215,7 @@ public final class Wasm {
             if (!(n instanceof com.legend.json.Json.Obj o)) {
                 throw new IllegalArgumentException("model JSON: not a JSON object");
             }
-            com.legend.protocol.ModelReader.read(o);
-            return "OK\n" + com.legend.protocol.ModelComposer.model(o);
+            return "OK\n" + com.legend.protocol.ModelComposer.model(com.legend.protocol.ModelReader.read(o));
         } catch (RuntimeException | StackOverflowError e) {
             return folded(e);
         }

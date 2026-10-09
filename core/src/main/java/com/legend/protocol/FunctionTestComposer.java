@@ -74,7 +74,8 @@ final class FunctionTestComposer {
         for (Protocol.PTestParam p : test.parameters()) {
             params.add(Composing.valueSpecification(p.value()));
         }
-        return tab(level) + test.id() + " | " + function.name() + "(" + String.join(",", params) + ") => "
+        return tab(level) + test.id() + (test.doc() != null ? " " + convertString(test.doc(), true) : "")
+                + " | " + function.name() + "(" + String.join(",", params) + ") => "
                 + assertion(test.assertion(), level) + ";";
     }
 

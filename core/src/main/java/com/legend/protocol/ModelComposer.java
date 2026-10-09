@@ -58,12 +58,16 @@ public final class ModelComposer {
         Set<Protocol.Element> toCompose = Collections.newSetFromMap(new IdentityHashMap<>());
         toCompose.addAll(elements);
         List<String> composed = new ArrayList<>();
-        Index index = new Index(elements);
+        List<Protocol.PSection> sections = new ArrayList<>();
         for (Protocol.Element e : elements) {
             if (e instanceof Protocol.PSectionIndex si) {
-                for (Protocol.PSection s : si.sections()) {
-                    composed.add(section(s, index, toCompose, composed.isEmpty()));
-                }
+                sections.addAll(si.sections());
+            }
+        }
+        if (!sections.isEmpty()) {
+            Index index = new Index(elements, sections);
+            for (Protocol.PSection s : sections) {
+                composed.add(section(s, index, toCompose, composed.isEmpty()));
             }
         }
         for (ElementFamilies.Family free : ElementFamilies.EXTENSIONS) {
@@ -109,21 +113,39 @@ public final class ModelComposer {
 
     /**
      * The elements by the path a section index names them by: the path written on the wire, the first element
-     * of a path winning. A function's is its signature-mangled name; older JSON wrote a function's name without the
-     * mangling, and its section names it so, which the declared name matches.
+     * of a path winning. A function's is its signature-mangled name. Older JSON wrote a function's name without the
+     * mangling, and its section names it so, which the declared name matches: a function is found by its declared
+     * name only when no section names it by its mangled one (in a model mixing the two, a current function is never
+     * taken for an older one of the same name).
      */
     private static final class Index {
         private final Map<String, Protocol.Element> byPath = new LinkedHashMap<>();
         private final Map<String, Protocol.Element> functionsByDeclaredPath = new LinkedHashMap<>();
 
-        Index(List<Protocol.Element> elements) {
+        Index(List<Protocol.Element> elements, List<Protocol.PSection> sections) {
+            Set<String> named = new java.util.HashSet<>();
+            for (Protocol.PSection s : sections) {
+                named.addAll(s.elements());
+            }
             for (Protocol.Element e : elements) {
                 if (e instanceof Protocol.PFunction f) {
-                    byPath.putIfAbsent(path(f.pkg(), f.mangledName()), e);
-                    functionsByDeclaredPath.putIfAbsent(f.qualifiedName(), e);
+                    String wirePath = path(f.pkg(), mangledName(f));
+                    byPath.putIfAbsent(wirePath, e);
+                    if (!named.contains(wirePath)) {
+                        functionsByDeclaredPath.putIfAbsent(f.qualifiedName(), e);
+                    }
                 } else if (!(e instanceof Protocol.PSectionIndex)) {
                     byPath.putIfAbsent(path(e), e);
                 }
+            }
+        }
+
+        /** The name the wire gives the function; a signature with no mangling rule cannot be named there. */
+        private static String mangledName(Protocol.PFunction f) {
+            try {
+                return f.mangledName();
+            } catch (UnsupportedOperationException e) {
+                throw Composing.refused("function " + f.qualifiedName() + " in a section: " + e.getMessage());
             }
         }
 
@@ -143,7 +165,7 @@ public final class ModelComposer {
             case Protocol.PClass x -> x.qualifiedName();
             case Protocol.PAssociation x -> x.qualifiedName();
             case Protocol.PEnumeration x -> x.qualifiedName();
-            case Protocol.PFunction x -> path(x.pkg(), x.mangledName());
+            case Protocol.PFunction x -> path(x.pkg(), Index.mangledName(x));
             case Protocol.PProfile x -> x.qualifiedName();
             case Protocol.PSectionIndex x -> path(x.pkg(), x.name());
             case Protocol.PMeasure x -> x.qualifiedName();

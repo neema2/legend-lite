@@ -133,15 +133,6 @@ final class ElementFamilies {
         BY_TYPE = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
     }
 
-    /** The activators' wire {@code _type}s, by the grammar keyword their record keeps. */
-    private static final Map<String, String> ACTIVATOR_TYPES;
-
-    static {
-        Map<String, String> m = new LinkedHashMap<>();
-        ActivatorReader.KINDS.forEach((wireType, kind) -> m.put(kind, wireType));
-        ACTIVATOR_TYPES = java.util.Collections.unmodifiableMap(m);
-    }
-
     private ElementFamilies() {
     }
 
@@ -173,13 +164,17 @@ final class ElementFamilies {
             case Protocol.PDataSpace d -> "dataSpace";
             case Protocol.PPersistence p -> "persistence";
             case Protocol.PPersistenceContext c -> "persistenceContext";
-            case Protocol.PFunctionActivator a -> {
-                String type = ACTIVATOR_TYPES.get(a.kind());
-                if (type == null) {
-                    throw Composing.refused("a function activator of kind '" + a.kind() + "'");
-                }
-                yield type;
-            }
+            // the activator's grammar keyword back to its wire _type: ActivatorReader.KINDS read in reverse
+            case Protocol.PFunctionActivator a -> switch (a.kind()) {
+                case "SnowflakeApp" -> "snowflakeApp";
+                case "SnowflakeM2MUdf" -> "snowflakeM2MUdf";
+                case "MemSqlFunction" -> "memSqlFunction";
+                case "BigQueryFunction" -> "bigQueryFunction";
+                case "HostedService" -> "hostedService";
+                case "FunctionJar" -> "functionJar";
+                case "DeephavenApp" -> "DeephavenApp";
+                default -> throw Composing.refused("a function activator of kind '" + a.kind() + "'");
+            };
             case Protocol.PDiagram d -> "diagram";
             case Protocol.PText t -> "text";
             case Protocol.PGenerationSpecification g -> "generationSpecification";

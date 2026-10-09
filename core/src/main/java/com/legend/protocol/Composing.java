@@ -49,8 +49,15 @@ final class Composing {
     /** A mapping-local property's multiplicity from its bounds, as the multiplicity reader takes them: an upper
      *  bound of {@code 2147483647} is many ({@link ProtocolReader#multiplicity}). */
     static String multiplicity(long lower, @com.legend.base.Nullable Long upper) {
-        return multiplicity(Multiplicity.range(Math.toIntExact(lower),
-                upper == null || upper == Integer.MAX_VALUE ? null : Math.toIntExact(upper)));
+        return multiplicity(Multiplicity.range(bound(lower), upper == null || upper == Integer.MAX_VALUE ? null : bound(upper)));
+    }
+
+    /** A multiplicity bound, which the protocol holds as an {@code int}. */
+    private static int bound(long b) {
+        if (b < 0 || b > Integer.MAX_VALUE) {
+            throw refused("a multiplicity bound " + b + " outside an int's range");
+        }
+        return (int) b;
     }
 
     static String genericType(TypeExpression type) {
@@ -108,8 +115,9 @@ final class Composing {
         return out;
     }
 
+    /** A model the printer cannot print, named; the reader's refusals say {@code protocol JSON:} instead. */
     static IllegalArgumentException refused(String why) {
-        return new IllegalArgumentException("model JSON: " + why);
+        return new IllegalArgumentException("model printer: " + why);
     }
 
     static String join(List<String> parts, String sep) {
