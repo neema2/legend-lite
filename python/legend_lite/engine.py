@@ -365,12 +365,14 @@ class _Server(socketserver.ThreadingMixIn, socketserver.TCPServer):
                 # a request still being read ends now; one being answered finishes its answer first. A read blocked
                 # in another thread ends, on Linux and macOS, when its socket is shut for reading; on Windows a
                 # shutdown leaves it blocked (until the idle timeout: 30 s, found by the first Windows run) and only
-                # closing the socket cancels it, so there the connections still being read are closed
+                # closing the system socket cancels it. connection.close() would not: it waits for the request's
+                # reader (its makefile) to let go, and that reader is the blocked thread -- so the system socket is
+                # closed itself (detach, then socket.close of what it held)
                 with contextlib.suppress(OSError):
                     if sys.platform != 'win32':
                         connection.shutdown(socket.SHUT_RD)
                     elif connection not in self._answering:
-                        connection.close()
+                        socket.close(connection.detach())
             self._settled.wait_for(lambda: not self._open)
 
 
