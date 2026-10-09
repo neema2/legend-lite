@@ -47,11 +47,16 @@ py_library(
     ],
 )
 
-# the cube under a notebook's cell (legend_lite/notebook.py: the wheel's `notebook` extra), over anywidget
+_PLATFORMS = compatible_with(COMPILER_LIBRARY_PLATFORMS)
+
+# the cube under a notebook's cell (legend_lite/notebook.py: the wheel's `notebook` extra), over anywidget. Where the
+# compiler's library builds, as everything that uses it: elsewhere it is skipped, never analysed against IPython's
+# wheels there (on Windows IPython needs colorama, which the lock, resolved on macOS, does not hold)
 py_library(
     name = "notebook",
     srcs = ["legend_lite/notebook.py"],
     imports = ["."],
+    target_compatible_with = _PLATFORMS,
     # //datacube:engine_fixture shows two notebook cubes to DataCube's browser test
     visibility = ["//datacube:__pkg__"],
     deps = [
@@ -59,8 +64,6 @@ py_library(
         "@pypi//anywidget",
     ],
 )
-
-_PLATFORMS = compatible_with(COMPILER_LIBRARY_PLATFORMS)
 
 # the notebook extra (anywidget) and what it brings, as pinned in //tools/python: on Linux and macOS (pexpect and
 # ptyprocess are IPython's there only)
