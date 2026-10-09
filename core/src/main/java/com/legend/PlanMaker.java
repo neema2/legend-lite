@@ -67,9 +67,9 @@ final class PlanMaker {
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(), node);
     }
 
-    /** A declared parameter as the slot its uses lower to: one value of a primitive type ({@code Declared.slot}, which
-     *  refuses a class: a value is a plain value, §9's step 2 decisions); an optional one, an enumeration's and a list
-     *  are the next slices', refused by name. */
+    /** A declared parameter as the slot its uses lower to: one value of a primitive type, or an optional one's
+     *  absence ({@code Declared.slot}, which refuses a class: a value is a plain value, §9's step 2 decisions); an
+     *  enumeration's and a list are the next slices', refused by name. */
     private static com.legend.sql.SqlExpr.PlanParam slot(QueryParameters.Declared p) {
         String which = "parameter '" + p.name() + "' (" + p.type().typeName() + "["
                 + com.legend.plan.PurePrint.sizeRange(p.multiplicity()) + "])";
@@ -77,12 +77,8 @@ final class PlanMaker {
             throw new com.legend.error.NotImplementedException(which + ": an enumeration's value, compared through a"
                     + " value table where it is used, is step 2's landing 2 slice (d), not yet");
         }
-        if (p.optional()) {
-            throw new com.legend.error.NotImplementedException(which + ": an optional value, compared null-safely, is"
-                    + " step 2's landing 2 slice (c), not yet");
-        }
         if (!(p.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
-                && b.lower() == 1 && Integer.valueOf(1).equals(b.upper()))) {
+                && Integer.valueOf(1).equals(b.upper()))) {
             throw new com.legend.error.NotImplementedException(which + ": a list, bound as one array, is step 2's"
                     + " landing 2 slice (e), not yet");
         }

@@ -374,6 +374,18 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    and projected, a date, a boolean, a Date and a Number (DuckDB, Postgres), one parameter written twice, two
    parameters. Census: no statement of today's paths changes (`render-census/landing2-result.txt`).
 
+   *Slice (c), on branch 2026-10-09.* An optional parameter (`x: T[0..1]`) is a slot like any other, its absence bound
+   as a null of its declared type. Its equality is null-safe (`NullSemantics.equalNullArms`: an optional parameter's
+   `==` is `NULL_SAFE_EQUAL`, so `!=` is `NULL_SAFE_NOT_EQUAL`), as legend-engine's plans write it
+   (`optionalVarPlaceHolderOperationSelector`: `col is null` when the value is absent) and as the legacy printer already
+   spelled it by recognising the shape (`is not distinct from`). `PlanMakerTest` and `PostgresArmTest`: with its value,
+   the plan answers as the query with a `let` of it; with none, as the query written `[]` (`$r.NAME == []`, lowered to
+   the engine's null check) — on DuckDB, H2 and Postgres, every output. Found on the way: today's server path, which
+   turns a request's empty value into `let x = [];`, writes `NAME = NULL` and answers no rows where the engine answers
+   the rows whose `NAME` is empty; the plan answers as the engine does, and step 4 retires that path. An enumeration's
+   comparison keeps its enum routing (never null-safe, as the engine's); census: the legacy printer's 31 optional-
+   parameter equalities unchanged, no statement of today's paths changes (`render-census/landing2-result.txt`).
+
    Before step 4 (switching callers), two consumers of `PureV1Api.boundParameters` besides `execute` to settle:
    `arrowPlan` (Python's host runs the plan's SQL itself, so it must bind the values: agreed with the DataCube + Python
    line first), and the `execute` answer's activity, which reports the statement that ran (with its `?`s).
