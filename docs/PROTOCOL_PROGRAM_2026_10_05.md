@@ -189,18 +189,25 @@ not be written back, so it is refused.
    engine's printer does. They are a function test's `doc` and an empty `assertions` list; a data quality tree node's
    alias and arguments; a data space's `featuredDiagrams` (diagrams titled `''`, S35); `extends` on every kind of
    class mapping; a MongoDB mapping without `~mainCollection`; a service store path segment's arguments; a generation
-   node without its id (S35) and file-generation settings that are decimals or null (kept as their text, as the
-   engine keeps them); a hosted service's user list, a service test's keys and a column's `nullable` left out;
-   persistence's optional output targets, test batches, test data, connection and assertions, and its
-   `isTestDataFromServiceOutput` (true when left out); a CSV table without values; a relational decimal spelled
-   `1.50` or `1e3`. `OlderModelShapesTest` has one case for each. Refused by name still: what the engine reads but
+   node without its id (S35); file-generation settings that are decimals (kept as their text, as the engine keeps
+   them) or `null` (Java null in the engine, which Jackson never hands its value deserializer: printed bare,
+   `name: null;`, and written back as `null`); a hosted service's user list, a service test's keys and a column's
+   `nullable` left out (or, for `nullable`, written null: false, the engine's primitive); persistence's optional
+   output targets, test batches, test data, connection and assertions, and its `isTestDataFromServiceOutput` (true
+   when left out; written `null`, not printed and written back as `null`, S37); a CSV table without values; a
+   relational decimal spelled `1.50` or `1e3`. `OlderModelShapesTest` has one case for each, checking the JSON
+   written back exactly for each shape lite keeps, and in today's form for each it brings up. Refused by name still: what the engine reads but
    cannot compile or print (S36), and what it refuses itself (an object where a generation element's path belongs; a
    settings list or map holding anything but strings). One case needed care: an operation mapping's `extends`, which
    the engine's grammar drops and lite's model keeps, is written back only when it came from JSON. The audit's other
    findings were fixed as well: a section index naming an older function beside a current one of the same name, the
    model printer's record entry building its index for a model without one, and the WebAssembly export reading each
-   model twice. Found on the way: lite's persistence grammar accepts `];` closing a persistence's `tests`, which the
-   engine's does not (a test snippet used it and was corrected).
+   model twice. A second audit, of those fixes, found the `null` setting read as the text `'null'` (corrected, as
+   above, after running the engine's own Jackson on it) and that lite's grammar dropped an aggregation-aware mapping's
+   `extends`, which the engine keeps and also gives its nested set implementations (it parses them against the outer
+   mapping's header): `MappingProtocolParser` now passes it to both. Found on the way: lite's persistence grammar
+   accepts `];` closing a persistence's `tests`, which the engine's does not (a test snippet used it and was
+   corrected); and lite's grammar takes no `doc` on a function test, which the engine's does.
 3. **One public face** (invariant 5), and the consumers moved onto it: `PureV1Api`'s grammar routes, `Wasm.java`'s
    `modelJsonOrError` / `lambdaJsonOrError` / `composeLambdaOrError` / `jsonToGrammarModelOrError`, and the apps'
    clients (engine-client's grammar interface) unchanged in shape.

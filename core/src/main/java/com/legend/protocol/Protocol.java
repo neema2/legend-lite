@@ -330,7 +330,9 @@ public final class Protocol {
     public record PClassMappingMongoDb(String className,
                                        @com.legend.base.Nullable String id,
                                        boolean root,
-                                       /** both or neither: the grammar's {@code ~mainCollection} is optional */
+                                       /** the grammar writes both or neither ({@code ~mainCollection} is optional);
+                                        *  JSON may hold either alone, and the printer then prints neither, as the
+                                        *  engine's does */
                                        @com.legend.base.Nullable String storePath,
                                        @com.legend.base.Nullable String mainCollectionName,
                                        @com.legend.base.Nullable String bindingPath,
@@ -1671,8 +1673,8 @@ public final class Protocol {
                                    /** none when the JSON leaves them out (the engine's printer then prints no
                                     *  block); the grammar always writes them */
                                    @com.legend.base.Nullable List<PPersistenceTestBatch> testBatches,
-                                   /** the engine's {@code Boolean}, true when left out; none (not printed) when the
-                                    *  JSON writes null */
+                                   /** the engine's {@code Boolean}, true when left out; none (not printed, and
+                                    *  written back as null) when the JSON writes null (SEMANTICS_REGISTER S37) */
                                    @com.legend.base.Nullable Boolean isTestDataFromServiceOutput,
                                    @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification graphFetchPath,
                                    @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
@@ -1868,6 +1870,10 @@ public final class Protocol {
         /** {@code {k1: 'v1'; k2: 'v2';}} — insertion-ordered. */
         record PCMap(java.util.LinkedHashMap<String, String> entries)
                 implements PConfigValue { }
+        /** A JSON {@code null}, which the engine keeps as Java null (Jackson never calls the value deserializer for it)
+         *  and prints bare: {@code key: null;} ({@code PureGrammarComposerUtility.renderObject}). The grammar writes
+         *  none. */
+        record PCNull() implements PConfigValue { }
     }
 
     /** One config property — name keeps its QUOTES when quoted; span covers

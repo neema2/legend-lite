@@ -132,6 +132,8 @@ public final class ModelComposer {
                     String wirePath = path(f.pkg(), mangledName(f));
                     byPath.putIfAbsent(wirePath, e);
                     if (!named.contains(wirePath)) {
+                        // first wins: an older function can still lose its declared name to a current one of the
+                        // same name that no section names (a model mixing both and indexing only one)
                         functionsByDeclaredPath.putIfAbsent(f.qualifiedName(), e);
                     }
                 } else if (!(e instanceof Protocol.PSectionIndex)) {

@@ -14,18 +14,32 @@ import java.util.function.UnaryOperator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Model JSON that lite's grammar does not write but legend-engine 4.145.0 reads -- older layouts, and fields a person
  * or an older engine leaves out -- read as the engine reads it and printed as its printer prints it (the protocol
- * program's leg 2: the reader reads every field the engine reads; found by step 3's audit, PROTOCOL_PROGRAM §4.2). Each
- * case starts from a text lite parses, edits its JSON into the shape, and checks the printed text; and that the model,
- * written back, reads and prints the same.
+ * program's leg 2: the reader reads every field the engine reads; found by step 3's audits, PROTOCOL_PROGRAM §4.2).
+ * Each case starts from a text lite parses and edits its JSON into the shape. A shape lite keeps is written back as
+ * read ({@link #exact}); a shape brought up to today's form (SEMANTICS_REGISTER S30, S35) is written in that form
+ * ({@link #broughtUp}); either way the printed text is what the engine prints, and what is written back prints the
+ * same.
  */
 class OlderModelShapesTest {
 
     private static final Json.Config DEEP = new Json.Config(4096);
+
+    private static final String MAPPING_WITH_AN_OPERATION = """
+            ###Mapping
+            Mapping my::M
+            (
+              *my::A[a]: Operation
+              {
+                meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(b,c)
+              }
+            )
+            """;
 
     @Test
     void aDataQualityTreeNodesAliasAndArguments() {
@@ -43,8 +57,7 @@ class OlderModelShapesTest {
                 """), o -> "dataQualityPropertyGraphFetchTree".equals(type(o))
                 ? with(with(o, "alias", Json.str("n")), "parameters", new Json.Arr(List.of(integer(1))))
                 : o);
-        String printed = printedAndStable(model);
-        assertTrue(printed.contains("'n':name(1)"), printed);
+        assertTrue(exact(model).contains("'n':name(1)"));
     }
 
     @Test
@@ -66,36 +79,100 @@ class OlderModelShapesTest {
                 """), o -> "dataSpace".equals(type(o))
                 ? with(o, "featuredDiagrams", (Json.Node) Json.parse("[{\"path\":\"my::D\",\"type\":\"DIAGRAM\"}]", DEEP))
                 : o);
-        String printed = printedAndStable(model);
-        assertTrue(printed.contains("title: '';\n      diagram: my::D;"), printed);
+        String written = broughtUp(model);
+        assertTrue(written.contains("\"diagrams\":[{"), written);
+        assertFalse(written.contains("featuredDiagrams"), written);
+        assertTrue(ModelComposer.model(model).contains("title: '';\n      diagram: my::D;"));
     }
 
     @Test
-    void everyClassMappingKindExtendsAndAMongoMappingMayNameNoCollection() {
-        Json.Obj model = edit(parse("""
+    void anOperationsExtendsAndAMongoMappingWithNoCollection() {
+        Json.Obj model = edit(parse(MAPPING_WITH_AN_OPERATION), o -> {
+            if ("operation".equals(type(o))) {
+                return with(o, "extendsClassMappingId", Json.str("base"));
+            }
+            if ("mapping".equals(type(o))) {
+                List<Json.Node> cms = new ArrayList<>(o.getArr("classMappings").items());
+                cms.add(Json.parse("{\"_type\":\"MongoDB\",\"class\":\"my::B\",\"extendsClassMappingId\":\"base\","
+                        + "\"root\":false}", DEEP));
+                return with(o, "classMappings", new Json.Arr(cms));
+            }
+            return o;
+        });
+        String printed = exact(model);
+        assertTrue(printed.contains("*my::A[a] extends [base]: Operation"), printed);
+        assertTrue(printed.contains("my::B extends [base]: MongoDB\n  {\n  }"), printed);
+    }
+
+    /** The engine's grammar drops an operation's extends (lite's model keeps it): the wire carries none. */
+    @Test
+    void anOperationsExtendsFromTheTextIsNotOnTheWire() {
+        Json.Obj model = parse(MAPPING_WITH_AN_OPERATION.replace("*my::A[a]:", "*my::A[a] extends [base]:"));
+        assertFalse(Json.toCompact(model).contains("extendsClassMappingId"), Json.toCompact(model));
+    }
+
+    /** The engine's grammar keeps an aggregation-aware mapping's extends, and so does lite's now. */
+    @Test
+    void anAggregationAwareMappingsExtendsFromTheText() {
+        Json.Obj model = parse("""
                 ###Mapping
                 Mapping my::M
                 (
-                  *my::A[a]: Operation
-                  {
-                    meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(b,c)
-                  }
+                   *my::Trade[t] extends [base]: AggregationAware
+                   {
+                      Views:
+                      [
+                         (
+                            ~modelOperation:
+                            {
+                               ~canAggregate false,
+                               ~groupByFunctions
+                               (
+                                  $this.bookId
+                               ),
+                               ~aggregateValues
+                               (
+                                  ( ~mapFn: $this.notional, ~aggregateFn: $mapped->sum() )
+                               )
+                            },
+                            ~aggregateMapping: Relational
+                            {
+                               ~mainTable [my::Db] TRADE_BY_BOOK
+                               bookId: [my::Db] TRADE_BY_BOOK.BOOK_ID
+                            }
+                         )
+                      ],
+                      ~mainMapping: Relational
+                      {
+                         ~mainTable [my::Db] TRADE
+                         bookId: [my::Db] TRADE.BOOK_ID
+                      }
+                   }
                 )
-                """), o -> {
-                    if ("operation".equals(type(o))) {
-                        return with(o, "extendsClassMappingId", Json.str("base"));
-                    }
-                    if ("mapping".equals(type(o))) {
-                        List<Json.Node> cms = new ArrayList<>(o.getArr("classMappings").items());
-                        cms.add(Json.parse("{\"_type\":\"MongoDB\",\"class\":\"my::B\",\"extendsClassMappingId\":\"base\","
-                                + "\"root\":false}", DEEP));
-                        return with(o, "classMappings", new Json.Arr(cms));
-                    }
-                    return o;
-                });
+                """);
+        assertTrue(Json.toCompact(model).contains("\"extendsClassMappingId\":\"base\""), Json.toCompact(model));
+        assertTrue(exact(model).contains("*my::Trade[t] extends [base]: AggregationAware"));
+    }
+
+    @Test
+    void aMergeAndAServiceStoreMappingsExtends() {
+        Json.Obj model = edit(parse(SERVICE_STORE_MAPPING), o -> {
+            if ("serviceStore".equals(type(o)) && o.has("servicesMapping")) {
+                return with(o, "extendsClassMappingId", Json.str("base"));
+            }
+            if ("mapping".equals(type(o))) {
+                List<Json.Node> cms = new ArrayList<>(o.getArr("classMappings").items());
+                cms.add(Json.parse("{\"_type\":\"mergeOperation\",\"class\":\"my::C\",\"extendsClassMappingId\":\"base\","
+                        + "\"id\":\"c\",\"operation\":\"MERGE\",\"parameters\":[\"a\",\"b\"],\"root\":false,"
+                        + "\"validationFunction\":{\"_type\":\"lambda\",\"body\":[{\"_type\":\"boolean\",\"value\":true}],"
+                        + "\"parameters\":[]}}", DEEP));
+                return with(o, "classMappings", new Json.Arr(cms));
+            }
+            return o;
+        });
         String printed = printedAndStable(model);
-        assertTrue(printed.contains("*my::A[a] extends [base]: Operation"), printed);
-        assertTrue(printed.contains("my::B extends [base]: MongoDB\n  {\n  }"), printed);
+        assertTrue(printed.contains("*my::P extends [base]: ServiceStore"), printed);
+        assertTrue(printed.contains("my::C[c] extends [base]: Operation"), printed);
     }
 
     @Test
@@ -126,9 +203,15 @@ class OlderModelShapesTest {
                     }
                     return o;
                 });
-        String printed = printedAndStable(model);
+        // the id comes back as the element (the grammar's default), the decimal as the engine keeps it: its text
+        String written = broughtUp(model);
+        assertTrue(written.contains("\"generationElement\":\"my::FG\",\"id\":\"my::FG\""), written);
+        assertTrue(written.contains("\"value\":\"1.50\""), written);
+        assertTrue(written.contains("\"value\":null"), written);
+        String printed = ModelComposer.model(model);
         assertTrue(printed.contains("ratio: '1.50';"), printed);
-        assertTrue(printed.contains("none: 'null';"), printed);
+        // the engine keeps a null setting as Java null and prints it bare
+        assertTrue(printed.contains("none: null;"), printed);
         assertFalse(printed.contains("id:"), printed);
     }
 
@@ -174,12 +257,53 @@ class OlderModelShapesTest {
                   ]
                 }
                 """), o -> "serviceTest".equals(type(o)) ? without(o, "keys") : o);
-        assertFalse(Json.toCompact(model).contains("\"keys\""));
-        printedAndStable(model);
+        assertTrue(broughtUp(model).contains("\"keys\":[]"));
     }
 
     @Test
-    void aCsvTableWithoutValuesAColumnWithoutNullableAndADecimalSpelledLonger() {
+    void aCsvTableWithoutValues() {
+        Json.Obj model = edit(parse("""
+                ###Data
+                Data my::D
+                {
+                  Relational
+                  #{
+                    default.T:
+                      'id,name\\n'+
+                      '1,a\\n';
+                  }#
+                }
+                """), o -> o.getStringOr("table", null) != null ? without(o, "values") : o);
+        assertTrue(exact(model).contains("default.T:;"));
+    }
+
+    @Test
+    void aFunctionTestsCsvTableWithoutValues() {
+        Json.Obj model = edit(parse("""
+                ###Pure
+                function my::f(): Integer[1]
+                {
+                  1
+                }
+                {
+                  mySuite
+                  (
+                    my::DB:
+                      Relational
+                      #{
+                        default.T:
+                          'id\\n'+
+                          '1\\n';
+                      }#;
+                    t1 | f() => 1;
+                  )
+                }
+                """), o -> o.getStringOr("table", null) != null ? without(o, "values") : o);
+        assertTrue(exact(model).contains("default.T:;"));
+    }
+
+    @Test
+    void aColumnWithoutNullableAndADecimalSpelledLonger() {
         Json.Obj model = edit(parse("""
                 ###Relational
                 Database my::DB
@@ -191,112 +315,100 @@ class OlderModelShapesTest {
                   )
                   Filter F(T.id > 1.5)
                 )
-
-                ###Data
-                Data my::D
-                {
-                  Relational
-                  #{
-                    default.T:
-                      'id,name\\n'+
-                      '1,a\\n';
-                  }#
-                }
-                """), o -> {
-                    if (o.getStringOr("values", null) != null && o.getStringOr("table", null) != null) {
-                        return without(o, "values");
-                    }
-                    if ("name".equals(o.getStringOr("name", null)) && o.has("nullable")) {
-                        return without(o, "nullable");
-                    }
-                    return o;
-                });
+                """), o -> "name".equals(o.getStringOr("name", null)) && o.has("nullable") ? without(o, "nullable") : o);
         Json.Obj longer = (Json.Obj) Json.parse(Json.toCompact(model).replace("\"value\":1.5", "\"value\":1.50"), DEEP);
         assertTrue(Json.toCompact(longer).contains("1.50"));
-        String printed = printedAndStable(longer);
-        assertTrue(printed.contains("default.T:;"), printed);
+        // nullable left out is the engine's false; the decimal is its Double, written as Java spells it
+        String written = broughtUp(longer);
+        assertTrue(written.contains("\"nullable\":false"), written);
+        assertTrue(written.contains("\"value\":1.5}"), written);
+        String printed = ModelComposer.model(longer);
         assertTrue(printed.contains("name VARCHAR(20) NOT NULL"), printed);
         assertTrue(printed.contains("Filter F(T.id > 1.5)"), printed);
     }
 
-    @Test
-    void aPersistenceTestsOptionalParts() {
-        Json.Obj model = edit(parse("""
-                ###Persistence
-                Persistence my::P
+    private static final String PERSISTENCE = """
+            ###Persistence
+            Persistence my::P
+            {
+              doc: 'a persistence';
+              trigger: Manual;
+              service: my::S;
+              serviceOutputTargets:
+              [
+                TDS
                 {
-                  doc: 'a persistence';
-                  trigger: Manual;
-                  service: my::S;
-                  serviceOutputTargets:
+                  keys:
                   [
-                    TDS
+                    foo
+                  ]
+                  datasetType: Delta
+                  {
+                    actionIndicator: None;
+                  }
+                  deduplication: None;
+                }
+                ->
+                {
+                }
+              ];
+              tests:
+              [
+                test1:
+                {
+                  testBatches:
+                  [
+                    testBatch1:
                     {
-                      keys:
-                      [
-                        foo
-                      ]
-                      datasetType: Delta
+                      data:
                       {
-                        actionIndicator: None;
-                      }
-                      deduplication: None;
-                    }
-                    ->
-                    {
-                    }
-                  ];
-                  tests:
-                  [
-                    test1:
-                    {
-                      testBatches:
-                      [
-                        testBatch1:
+                        connection:
                         {
-                          data:
-                          {
-                            connection:
-                            {
+                          ExternalFormat
+                          #{
+                            contentType: 'application/x.flatdata';
+                            data: 'A\\n1';
+                          }#
+                        }
+                      }
+                      asserts:
+                      [
+                        assert1:
+                          EqualToJson
+                          #{
+                            expected:
                               ExternalFormat
                               #{
-                                contentType: 'application/x.flatdata';
-                                data: 'A\\n1';
-                              }#
-                            }
-                          }
-                          asserts:
-                          [
-                            assert1:
-                              EqualToJson
-                              #{
-                                expected:
-                                  ExternalFormat
-                                  #{
-                                    contentType: 'application/json';
-                                    data: '{}';
-                                  }#;
-                              }#
-                          ]
-                        }
+                                contentType: 'application/json';
+                                data: '{}';
+                              }#;
+                          }#
                       ]
-                      isTestDataFromServiceOutput: false;
                     }
                   ]
+                  isTestDataFromServiceOutput: false;
                 }
-                """), o -> {
-                    if (o.has("batchId")) {
-                        return without(without(o, "testData"), "assertions");
-                    }
-                    if ("test".equals(type(o))) {
-                        return without(o, "isTestDataFromServiceOutput");
-                    }
-                    return o;
-                });
-        String printed = printedAndStable(model);
-        assertTrue(printed.contains("testBatch1:\n        {\n        }"), printed);
-        // left out, the engine's Boolean is true
-        assertTrue(printed.contains("isTestDataFromServiceOutput: true;"), printed);
+              ]
+            }
+            """;
+
+    @Test
+    void aPersistenceTestBatchWithoutDataOrAssertions() {
+        Json.Obj model = edit(parse(PERSISTENCE),
+                o -> o.has("batchId") ? without(without(o, "testData"), "assertions") : o);
+        assertTrue(exact(model).contains("testBatch1:\n        {\n        }"));
+    }
+
+    /** Left out, the engine's Boolean is true; written null, it is none (not printed), and written back as null. */
+    @Test
+    void aPersistenceTestsIsTestDataFromServiceOutputLeftOutOrNull() {
+        Json.Obj leftOut = edit(parse(PERSISTENCE),
+                o -> "test".equals(type(o)) ? without(o, "isTestDataFromServiceOutput") : o);
+        assertTrue(broughtUp(leftOut).contains("\"isTestDataFromServiceOutput\":true"));
+        assertTrue(ModelComposer.model(leftOut).contains("isTestDataFromServiceOutput: true;"));
+        Json.Obj written = edit(parse(PERSISTENCE),
+                o -> "test".equals(type(o)) ? with(o, "isTestDataFromServiceOutput", Json.parse("null", DEEP)) : o);
+        assertFalse(exact(written).contains("isTestDataFromServiceOutput"));
     }
 
     @Test
@@ -311,8 +423,7 @@ class OlderModelShapesTest {
                   t1 | f(1) => 2;
                 }
                 """), o -> "functionTest".equals(type(o)) ? with(o, "assertions", new Json.Arr(List.of())) : o);
-        String printed = printedAndStable(model);
-        assertTrue(printed.contains("t1 | f(1) => ;"), printed);
+        assertTrue(exact(model).contains("t1 | f(1) => ;"));
     }
 
     @Test
@@ -328,44 +439,69 @@ class OlderModelShapesTest {
                    autoActivateUpdates: true;
                 }
                 """), o -> "userList".equals(type(o)) ? without(o, "users") : o);
-        String printed = printedAndStable(model);
-        assertTrue(printed.contains("ownership : UserList { users: [\n\n    ] };"), printed);
+        assertTrue(broughtUp(model).contains("\"users\":[]"));
+        assertTrue(ModelComposer.model(model).contains("ownership : UserList { users: [\n\n    ] };"));
     }
+
+    private static final String SERVICE_STORE_MAPPING = """
+            ###ServiceStore
+            ServiceStore my::SS
+            (
+              Service S
+              (
+                path : '/s';
+                method : GET;
+                security : [];
+                response : [my::P <- my::B];
+              )
+            )
+
+            ###Mapping
+            Mapping my::SM
+            (
+              *my::P: ServiceStore
+              {
+                ~service [my::SS] S
+                (
+                  ~path $service.response.items
+                )
+              }
+            )
+            """;
 
     @Test
     void aServiceStorePathSegmentsArguments() {
-        Json.Obj model = edit(parse("""
-                ###ServiceStore
-                ServiceStore my::SS
-                (
-                  Service S
-                  (
-                    path : '/s';
-                    method : GET;
-                    security : [];
-                    response : [my::P <- my::B];
-                  )
-                )
-
-                ###Mapping
-                Mapping my::SM
-                (
-                  *my::P: ServiceStore
-                  {
-                    ~service [my::SS] S
-                    (
-                      ~path $service.response.items
-                    )
-                  }
-                )
-                """), o -> "propertyPath".equals(type(o))
+        Json.Obj model = edit(parse(SERVICE_STORE_MAPPING), o -> "propertyPath".equals(type(o))
                 ? with(o, "parameters", new Json.Arr(List.of(integer(1), integer(2))))
                 : o);
-        String printed = printedAndStable(model);
-        assertTrue(printed.contains("~path $service.response.items(1, 2)"), printed);
+        assertTrue(exact(model).contains("~path $service.response.items(1, 2)"));
     }
 
     // ---------------------------------------------------------------------
+
+    /** A shape lite keeps: written back exactly as read, and printed (returned) stably. */
+    private static String exact(Json.Obj model) {
+        String json = Json.toCompact(model);
+        assertEquals(json, writtenBack(json), "emit(read(J)) is J");
+        return printedAndStable(model);
+    }
+
+    /** A shape brought up to today's form: written back differently (returned), printed the same both ways. */
+    private static String broughtUp(Json.Obj model) {
+        String json = Json.toCompact(model);
+        String written = writtenBack(json);
+        assertNotEquals(json, written, "brought up, the JSON written back is today's form");
+        printedAndStable(model);
+        return written;
+    }
+
+    /**
+     * The model read and written back, in the form these cases build their JSON in: the wire repeats some
+     * {@code _type} keys (as the engine's does), which a parsed object keeps once, so both sides are compared parsed.
+     */
+    private static String writtenBack(String json) {
+        return Json.toCompact(Json.parse(ProtocolEmitter.emit(ModelReader.read(json)), DEEP));
+    }
 
     /** The model printed; and written back by lite, it reads and prints the same. */
     private static String printedAndStable(Json.Obj model) {

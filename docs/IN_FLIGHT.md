@@ -455,10 +455,11 @@ and its audit's in the program doc §4.2, register rows S35 and S36): the printe
 `core/src/main/java/com/legend/protocol/` print the records, the parity counts held exactly, and the reader reads the
 dozen older or hand-written shapes the audit found refused. Beyond `protocol/` it touches
 `core/src/main/java/com/legend/test/ServiceTestRunner.java` (a CSV table without values refused by name),
-`wasm/src/main/java/planner/Wasm.java` (the model export reads once), two test files in
-`core/src/test/java/com/legend/protocol/` and `parser-equivalence`'s `ratchets.tsv` (`own_corpus.matched` 2733). Next:
-the local gate, one CI run, then landing (asking first). Not touched: `parser/`, `compiler/`, `server/` (legs 3 and 4
-add the routes in `//core:pure_v1`).
+`wasm/src/main/java/planner/Wasm.java` (the model export reads once),
+`core/src/main/java/com/legend/parser/MappingProtocolParser.java` (an aggregation-aware mapping's `extends`, kept as
+the engine keeps it), two test files in `core/src/test/java/com/legend/protocol/` and `parser-equivalence`'s
+`ratchets.tsv` (`own_corpus.matched` 2734). Next: the local gate, one CI run, then landing (asking first). Not
+touched: `compiler/`, `server/` (legs 3 and 4 add the routes in `//core:pure_v1`).
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
 (engine code: `core/.../protocol/`, eleven files of `core/.../parser/`, `native-claims.tsv`; the engine's lanes). For

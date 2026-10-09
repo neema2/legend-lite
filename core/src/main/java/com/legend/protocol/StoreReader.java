@@ -112,9 +112,13 @@ final class StoreReader {
         }
         Protocol.PDbType type = t.done(new Protocol.PDbType(kind, t.optLong("size"), t.optLong("precision"),
                 t.optLong("scale")));
-        // nullable left out is false: the engine's Column holds a primitive boolean
-        Boolean nullable = c.optBool("nullable");
-        return c.done(new Protocol.PDbColumn(c.str("name"), nullable != null && nullable, type,
+        // nullable left out, or written null, is false: the engine's Column holds a primitive boolean
+        Json.Node written = c.opt("nullable");
+        if (written != null && !(written instanceof Json.Null) && !(written instanceof Json.Bool)) {
+            throw Wire.refuse("column.nullable is not a boolean: " + Wire.abbreviate(written));
+        }
+        boolean nullable = written instanceof Json.Bool b && b.value();
+        return c.done(new Protocol.PDbColumn(c.str("name"), nullable, type,
                 nonEmpty(c, "stereotypes", DomainReader::stereotype),
                 nonEmpty(c, "taggedValues", DomainReader::taggedValue), c.span()));
     }
