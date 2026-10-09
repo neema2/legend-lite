@@ -3,7 +3,8 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
+import com.legend.protocol.Protocol.PServiceTestSuite;
+import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,16 +12,13 @@ import java.util.List;
 import static com.legend.protocol.Composing.TAB;
 import static com.legend.protocol.Composing.convertIdentifier;
 import static com.legend.protocol.Composing.convertString;
-import static com.legend.protocol.Composing.items;
-import static com.legend.protocol.Composing.objOr;
-import static com.legend.protocol.Composing.objs;
-import static com.legend.protocol.Composing.str;
 import static com.legend.protocol.Composing.tab;
 import static com.legend.protocol.Composing.valueSpecification;
 
 /**
  * A service's tests as upstream prints them ({@code HelperServiceGrammarComposer}): its test suites, in
- * the block form or the flat form, and the legacy {@code test:}.
+ * the block form or the flat form, and the legacy {@code test:} -- over the records ({@link PServiceTestSuite},
+ * {@link Protocol.PLegacyServiceTest}; the protocol program's leg 2, step 3).
  */
 final class ServiceTestComposer {
 
@@ -28,50 +26,48 @@ final class ServiceTestComposer {
     }
 
     /** {@code renderServiceTestSuite}: the flat form when the suite carries service test data. */
-    static String testSuite(Json.Obj suite) {
-        Json.Obj testData = objOr(suite, "testData");
-        if (testData != null && !objs(testData, "serviceTestData").isEmpty()) {
-            return flatSuite(suite, testData);
+    static String testSuite(PServiceTestSuite suite) {
+        PServiceTestSuite.PSuiteData testData = suite.testData();
+        List<PServiceTestSuite.PResolverData> resolvers = testData == null ? null : testData.serviceTestData();
+        if (resolvers != null && !resolvers.isEmpty()) {
+            return flatSuite(suite, resolvers);
         }
         return blockSuite(suite, testData);
     }
 
-    private static String blockSuite(Json.Obj suite, @com.legend.base.Nullable Json.Obj testData) {
-        StringBuilder b = new StringBuilder(tab(2)).append(convertIdentifier(suite.getString("id"))).append(":\n").append(tab(2)).append("{\n");
+    private static String blockSuite(PServiceTestSuite suite, PServiceTestSuite.@com.legend.base.Nullable PSuiteData testData) {
+        StringBuilder b = new StringBuilder(tab(2)).append(convertIdentifier(suite.id())).append(":\n").append(tab(2)).append("{\n");
         if (testData != null) {
             b.append(tab(3)).append("data:\n").append(tab(3)).append("[\n");
-            List<Json.Obj> connections = objs(testData, "connectionsTestData");
+            List<PServiceTestSuite.PSuiteConnData> connections = testData.connectionsTestData();
             if (!connections.isEmpty()) {
                 List<String> cs = new ArrayList<>();
-                for (Json.Obj c : connections) {
-                    cs.add(tab(5) + c.getString("id") + ":\n" + EmbeddedDataComposer.compose(c.getObj("data"), tab(6)));
+                for (PServiceTestSuite.PSuiteConnData c : connections) {
+                    cs.add(tab(5) + c.id() + ":\n" + EmbeddedDataComposer.compose(c.data(), tab(6)));
                 }
                 b.append(tab(4)).append("connections:\n").append(tab(4)).append("[\n").append(String.join(",\n", cs)).append("\n")
                         .append(tab(4)).append("]\n");
             }
             b.append(tab(3)).append("]\n");
         }
-        if (Composing.value(suite, "tests") != null) {
-            List<String> ts = new ArrayList<>();
-            for (Json.Obj t : objs(suite, "tests")) {
-                ts.add(blockTest(t, 4));
-            }
-            b.append(tab(3)).append("tests:\n").append(tab(3)).append("[\n").append(String.join(",\n", ts)).append("\n").append(tab(3)).append("]\n");
+        List<String> ts = new ArrayList<>();
+        for (PServiceTestSuite.PSuiteTest t : suite.tests()) {
+            ts.add(blockTest(t, 4));
         }
+        b.append(tab(3)).append("tests:\n").append(tab(3)).append("[\n").append(String.join(",\n", ts)).append("\n").append(tab(3)).append("]\n");
         return b.append(tab(2)).append("}").toString();
     }
 
-    private static String blockTest(Json.Obj test, int base) {
-        StringBuilder b = new StringBuilder(tab(base)).append(convertIdentifier(test.getString("id"))).append(":\n").append(tab(base)).append("{\n");
-        String format = str(test, "serializationFormat");
-        if (format != null) {
-            b.append(tab(base + 1)).append("serializationFormat: ").append(format).append(";\n");
+    private static String blockTest(PServiceTestSuite.PSuiteTest test, int base) {
+        StringBuilder b = new StringBuilder(tab(base)).append(convertIdentifier(test.id())).append(":\n").append(tab(base)).append("{\n");
+        if (test.serializationFormat() != null) {
+            b.append(tab(base + 1)).append("serializationFormat: ").append(test.serializationFormat()).append(";\n");
         }
-        List<Json.Obj> params = objs(test, "parameters");
+        List<PServiceTestSuite.PSuiteParam> params = test.parameters() == null ? List.of() : test.parameters();
         if (!params.isEmpty()) {
             List<String> ps = new ArrayList<>();
-            for (Json.Obj p : params) {
-                ps.add(tab(base + 2) + p.getString("name") + " = " + valueSpecification(p.get("value")));
+            for (PServiceTestSuite.PSuiteParam p : params) {
+                ps.add(tab(base + 2) + p.name() + " = " + valueSpecification(p.value()));
             }
             b.append(tab(base + 1)).append("parameters:\n").append(tab(base + 1)).append("[\n").append(String.join(",\n", ps)).append("\n")
                     .append(tab(base + 1)).append("]\n");
@@ -81,61 +77,52 @@ final class ServiceTestComposer {
             b.append(tab(base + 1)).append("keys:\n").append(tab(base + 1)).append("[\n").append(tab(base + 2)).append(String.join(",\n", keys))
                     .append("\n").append(tab(base + 1)).append("];\n");
         }
-        if (Composing.value(test, "assertions") != null) {
-            List<String> as = new ArrayList<>();
-            for (Json.Obj a : objs(test, "assertions")) {
-                as.add(TestAssertionComposer.compose(a, tab(base + 2)));
-            }
-            b.append(tab(base + 1)).append("asserts:\n").append(tab(base + 1)).append("[\n").append(String.join(",\n", as)).append("\n")
-                    .append(tab(base + 1)).append("]\n");
+        List<String> as = new ArrayList<>();
+        for (Protocol.PTestAssertion a : test.assertions()) {
+            as.add(TestAssertionComposer.compose(a, tab(base + 2)));
         }
+        b.append(tab(base + 1)).append("asserts:\n").append(tab(base + 1)).append("[\n").append(String.join(",\n", as)).append("\n")
+                .append(tab(base + 1)).append("]\n");
         return b.append(tab(base)).append("}").toString();
     }
 
-    private static List<String> keys(Json.Obj test) {
+    private static List<String> keys(PServiceTestSuite.PSuiteTest test) {
         List<String> out = new ArrayList<>();
-        for (String k : test.getStringArrayOr("keys", List.of())) {
+        for (String k : test.keys()) {
             out.add(convertString(k, true));
         }
         return out;
     }
 
-    private static String flatSuite(Json.Obj suite, Json.Obj testData) {
-        String doc = str(suite, "doc");
-        StringBuilder b = new StringBuilder(tab(2)).append(convertIdentifier(suite.getString("id")))
-                .append(doc != null ? " " + convertString(doc, true) : "").append("\n").append(tab(2)).append("(\n");
-        for (Json.Obj r : objs(testData, "serviceTestData")) {
+    private static String flatSuite(PServiceTestSuite suite, List<PServiceTestSuite.PResolverData> resolvers) {
+        StringBuilder b = new StringBuilder(tab(2)).append(convertIdentifier(suite.id()))
+                .append(suite.doc() != null ? " " + convertString(suite.doc(), true) : "").append("\n").append(tab(2)).append("(\n");
+        for (PServiceTestSuite.PResolverData r : resolvers) {
             b.append(resolver(r, 3)).append("\n");
         }
-        for (Json.Obj t : objs(suite, "tests")) {
+        for (PServiceTestSuite.PSuiteTest t : suite.tests()) {
             b.append(atomicTest(t, 3)).append("\n");
         }
         return b.append(tab(2)).append(")").toString();
     }
 
-    private static String resolver(Json.Obj r, int base) {
-        String path = r.getObj("elementPointer").getString("path");
-        String type = Composing.type(r);
-        if ("referenceDataResolver".equals(type)) {
-            return tab(base) + path + ";";
-        }
-        if ("baseDataResolver".equals(type)) {
-            return tab(base) + path + ":\n" + EmbeddedDataComposer.compose(r.getObj("data"), tab(base + 1)) + ";";
-        }
-        throw Composing.refused("no composer rule for a data resolver of _type '" + type + "'");
+    /** A reference resolver ({@code path;}) carries no data; a base resolver its data block. */
+    private static String resolver(PServiceTestSuite.PResolverData r, int base) {
+        Protocol.PEmbeddedDataValue data = r.data();
+        return data == null ? tab(base) + r.elementPath() + ";"
+                : tab(base) + r.elementPath() + ":\n" + EmbeddedDataComposer.compose(data, tab(base + 1)) + ";";
     }
 
-    private static String atomicTest(Json.Obj test, int base) {
-        StringBuilder b = new StringBuilder(tab(base)).append(convertIdentifier(test.getString("id")));
-        String doc = str(test, "doc");
-        if (doc != null) {
-            b.append(" ").append(convertString(doc, true));
+    private static String atomicTest(PServiceTestSuite.PSuiteTest test, int base) {
+        StringBuilder b = new StringBuilder(tab(base)).append(convertIdentifier(test.id()));
+        if (test.doc() != null) {
+            b.append(" ").append(convertString(test.doc(), true));
         }
-        List<Json.Obj> params = objs(test, "parameters");
+        List<PServiceTestSuite.PSuiteParam> params = test.parameters() == null ? List.of() : test.parameters();
         if (!params.isEmpty()) {
             List<String> ps = new ArrayList<>();
-            for (Json.Obj p : params) {
-                ps.add(p.getString("name") + " = " + valueSpecification(p.get("value")));
+            for (PServiceTestSuite.PSuiteParam p : params) {
+                ps.add(p.name() + " = " + valueSpecification(p.value()));
             }
             b.append(" (").append(String.join(", ", ps)).append(")");
         }
@@ -143,23 +130,19 @@ final class ServiceTestComposer {
         if (!keys.isEmpty()) {
             b.append(" [").append(String.join(", ", keys)).append("]");
         }
-        String format = str(test, "serializationFormat");
-        if (format != null) {
-            b.append(" : ").append(format);
+        if (test.serializationFormat() != null) {
+            b.append(" : ").append(test.serializationFormat());
         }
         b.append(" =>\n");
-        List<Json.Obj> assertions = objs(test, "assertions");
-        if (assertions.size() != 1) {
-            throw Composing.refused("a flat service test with " + assertions.size() + " assertions (upstream cannot print it)");
+        if (test.assertions().size() != 1) {
+            throw Composing.refused("a flat service test with " + test.assertions().size() + " assertions (upstream cannot print it)");
         }
-        Json.Obj a = assertions.get(0);
-        String type = Composing.type(a);
-        if ("equalToRelation".equals(type)) {
-            b.append(tab(base + 1)).append("Relation\n").append(EmbeddedDataComposer.alignedRelation(a.getObj("expected"), tab(base + 1), true));
-        } else if ("equalToJson".equals(type)) {
-            b.append(EmbeddedDataComposer.compose(a.getObj("expected"), tab(base + 1)));
-        } else {
-            throw Composing.refused("a flat service test asserting by _type '" + type + "' (upstream cannot print it)");
+        switch (test.assertions().get(0).expected()) {
+            case Protocol.PRelationElement r ->
+                    b.append(tab(base + 1)).append("Relation\n").append(EmbeddedDataComposer.alignedRelation(r, tab(base + 1), true));
+            case Protocol.PExternalFormatData e -> b.append(EmbeddedDataComposer.compose(e, tab(base + 1)));
+            case Protocol.PEqualToValue v ->
+                    throw Composing.refused("a flat service test asserting by _type 'equalTo' (upstream cannot print it)");
         }
         return b.append(";").toString();
     }
@@ -169,51 +152,46 @@ final class ServiceTestComposer {
     // ---------------------------------------------------------------------
 
     /** {@code isServiceTestEmpty}. */
-    static boolean legacyTestEmpty(Json.Obj test) {
-        String type = Composing.type(test);
-        if ("singleExecutionTest".equals(type)) {
-            return items(test, "asserts").isEmpty();
+    static boolean legacyTestEmpty(Protocol.PLegacyServiceTest test) {
+        if ("Single".equals(test.kind())) {
+            return test.asserts().isEmpty();
         }
-        if ("multiExecutionTest".equals(type)) {
-            for (Json.Obj t : objs(test, "tests")) {
-                if (!items(t, "asserts").isEmpty()) {
-                    return false;
-                }
+        for (Protocol.PLegacyServiceTest.PKeyedLegacyTest t : test.keyedTests()) {
+            if (!t.asserts().isEmpty()) {
+                return false;
             }
-            return true;
         }
-        return false;
+        return true;
     }
 
-    static String legacyTest(Json.Obj test) {
-        String type = Composing.type(test);
-        if ("singleExecutionTest".equals(type)) {
+    static String legacyTest(Protocol.PLegacyServiceTest test) {
+        if ("Single".equals(test.kind())) {
+            if (test.data() == null) {
+                throw Composing.refused("a legacy single-execution service test without its data");
+            }
             return "Single\n" + TAB + "{\n"
-                    + tab(2) + "data: " + convertString(test.getString("data"), true) + ";\n"
-                    + tab(2) + "asserts:\n" + testContainers(objs(test, "asserts"), 2) + "\n"
+                    + tab(2) + "data: " + convertString(test.data(), true) + ";\n"
+                    + tab(2) + "asserts:\n" + testContainers(test.asserts(), 2) + "\n"
                     + TAB + "}\n";
         }
-        if ("multiExecutionTest".equals(type)) {
-            List<String> tests = new ArrayList<>();
-            for (Json.Obj t : objs(test, "tests")) {
-                tests.add(tab(2) + "tests[" + convertString(t.getString("key"), true) + "]:\n" + tab(2) + "{\n"
-                        + tab(3) + "data: " + convertString(t.getString("data"), true) + ";\n"
-                        + tab(3) + "asserts:\n" + testContainers(objs(t, "asserts"), 3)
-                        + "\n" + tab(2) + "}");
-            }
-            return "Multi\n" + TAB + "{\n" + String.join("\n", tests) + "\n" + TAB + "}\n";
+        List<String> tests = new ArrayList<>();
+        for (Protocol.PLegacyServiceTest.PKeyedLegacyTest t : test.keyedTests()) {
+            tests.add(tab(2) + "tests[" + convertString(t.key(), true) + "]:\n" + tab(2) + "{\n"
+                    + tab(3) + "data: " + convertString(t.data(), true) + ";\n"
+                    + tab(3) + "asserts:\n" + testContainers(t.asserts(), 3)
+                    + "\n" + tab(2) + "}");
         }
-        throw Composing.refused("no composer rule for a legacy service test of _type '" + type + "'");
+        return "Multi\n" + TAB + "{\n" + String.join("\n", tests) + "\n" + TAB + "}\n";
     }
 
-    private static String testContainers(List<Json.Obj> containers, int indent) {
+    private static String testContainers(List<Protocol.PLegacyServiceTest.PLegacyAssert> containers, int indent) {
         List<String> out = new ArrayList<>();
-        for (Json.Obj c : containers) {
+        for (Protocol.PLegacyServiceTest.PLegacyAssert c : containers) {
             List<String> params = new ArrayList<>();
-            for (Json.Node p : items(c, "parametersValues")) {
+            for (ValueSpecification p : c.parametersValues()) {
                 params.add(PureComposer.legacyServiceParameter(p));
             }
-            out.add(tab(indent + 1) + "{ [" + String.join(", ", params) + "], " + valueSpecification(c.get("assert")) + " }");
+            out.add(tab(indent + 1) + "{ [" + String.join(", ", params) + "], " + valueSpecification(c.assertion()) + " }");
         }
         return tab(indent) + "[\n" + String.join(",\n", out) + (out.isEmpty() ? "" : "\n") + tab(indent) + "];";
     }
