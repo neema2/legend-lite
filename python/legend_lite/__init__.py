@@ -7,7 +7,8 @@
 DataCube on a dataframe -- ``show(df)``, in ``legend_lite.datacube`` -- the dataframes as Legend tables under it
 (``Frames``, in ``legend_lite.frames``) and the engine that serves them to DataCube (``Engine``, in
 ``legend_lite.engine``) need duckdb and pyarrow; the compiler alone needs only Python's standard
-library, so each loads them when first used.
+library, so each loads them when first used. In a notebook, the cube under the cell (``DataCube``, in
+``legend_lite.notebook``) also needs anywidget: ``pip install 'legend-lite[notebook]'``.
 """
 
 from .compiler import (
@@ -26,7 +27,7 @@ from .compiler import (
     table_model,
 )
 
-# Frames, Engine and show are not listed: `from legend_lite import *` would import duckdb through them
+# Frames, Engine, show and DataCube are not listed: `from legend_lite import *` would import duckdb through them
 __all__ = [
     'Column', 'LegendError', 'Plan', 'catalog_columns_sql', 'database_from_catalog', 'model_elements', 'parse',
     'plan', 'plan_text', 'print_tree', 'relation_type', 'session_setup', 'table_model',
@@ -34,7 +35,8 @@ __all__ = [
 
 
 def __getattr__(name: str):
-    # Frames and Engine need duckdb and pyarrow; the compiler does not, so they load only when asked for
+    # Frames, Engine and show need duckdb and pyarrow, DataCube anywidget too; the compiler needs none, so each loads
+    # only when asked for
     if name == 'Frames':
         from .frames import Frames
         return Frames
@@ -44,4 +46,7 @@ def __getattr__(name: str):
     if name == 'show':
         from .datacube import show
         return show
+    if name == 'DataCube':
+        from .notebook import DataCube
+        return DataCube
     raise AttributeError(f"module 'legend_lite' has no attribute {name!r}")

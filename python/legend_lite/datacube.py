@@ -1,4 +1,5 @@
-"""DataCube on a dataframe: ``show(df)`` opens it in the browser and returns at once.
+"""DataCube on a dataframe: ``show(df)`` shows it -- under the cell in a notebook, in a browser tab anywhere else --
+and returns at once.
 
     import legend_lite as ll
     cube = ll.show(df)          # DataCube on df, Live: each query reads df as it is then
@@ -6,8 +7,9 @@
     cube.update(new_df)          # a NEW frame (rebinding `df` does not reach the cube)
 
 The design: docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md. DataCube runs in the browser as the UI only; this process
-is its Legend engine (``Engine``, one per process, started by the first ``show``), and every query runs here. In
-IPython and notebooks the cube is told to query again after each cell, so a change shows by itself; at a plain
+is its Legend engine (``Engine``, one per process), and every query runs here. A tab reaches it over HTTP
+(``WebServer``, started by the first tab); a notebook's cube over its widget's own channel (``legend_lite.notebook``).
+In IPython and notebooks the cube is told to query again after each cell, so a change shows by itself; at a plain
 ``>>>`` prompt, the next click in the cube shows it. A plain script that opened a cube in the browser and ends while
 it is open waits there, saying so, until Ctrl-C (or an IDE's Stop).
 """
@@ -21,10 +23,13 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .engine import Engine
+from .engine import Engine, WebServer
 from .frames import LIVE, Frames
+
+if TYPE_CHECKING:
+    from .notebook import DataCube
 
 
 def _site() -> Path:
@@ -41,11 +46,18 @@ def _stays() -> bool:
     return ipython is not None and ipython.get_ipython() is not None
 
 
-
+def _kernel() -> bool:
+    """Whether this process is a notebook's kernel (Jupyter, VS Code, Colab: IPython's kernel), whose front end shows a
+    widget under the cell. Read from what is already loaded: nothing is imported to ask."""
+    zmqshell = sys.modules.get('ipykernel.zmqshell')
+    ipython = sys.modules.get('IPython')
+    if zmqshell is None or ipython is None:
+        return False
+    return isinstance(ipython.get_ipython(), zmqshell.ZMQInteractiveShell)
 
 
 class Cube:
-    """A frame shown in DataCube: its link, and what changes it."""
+    """A frame shown in DataCube in a browser tab: its link, and what changes it."""
 
     def __init__(self, session: _Session, name: str) -> None:
         self._session = session
@@ -56,15 +68,14 @@ class Cube:
     def url(self) -> str:
         """The cube's link: the page, the frame, and the engine's token (in the fragment, never sent to a server)."""
         self._open()
-        engine = self._session.engine()
-        return f'{engine.url}/engine.html?table={self.name}#token={engine.token}'
+        web = self._session.web()
+        return f'{web.url}/engine.html?table={self.name}#token={web.token}'
 
-    def update(self, frame: Any, mode: str | None = None) -> Cube:
+    def update(self, frame: Any, mode: str | None = None) -> None:
         """Shows another frame in this cube (Live or Snapped as before, unless ``mode`` says): the page opens it, over
-        its new columns if they changed."""
+        its new columns if they changed. It returns nothing, as a notebook's cube's does."""
         self._open()
-        self._session.show(frame, self.name, self._session.frames[self.name].mode if mode is None else mode)
-        return self
+        self._session.register(frame, self.name, self._session.frames[self.name].mode if mode is None else mode)
 
     def refresh(self) -> None:
         """Tells the page to query again: a change the next click would show, shown now."""
@@ -72,10 +83,14 @@ class Cube:
         self._session.engine().changed(self.name)
 
     def close(self) -> None:
-        """Takes the frame out of the engine; the page keeps what it shows. The last cube closed stops the engine."""
+        """Takes the frame out of the engine; the page keeps what it shows. The last tab's cube closed stops the web
+        server."""
         if not self._closed:
             self._closed = True
             self._session.close(self.name)
+
+    def _after_cell(self) -> None:
+        pass
 
     def _open(self) -> None:
         if self._closed:
@@ -86,12 +101,14 @@ class Cube:
 
 
 class _Session:
-    """The process's one engine, the frames it serves, and the cubes over them."""
+    """The process's one engine, the frames it serves, the cubes over them (one a name: a tab's or a notebook's), and the
+    web server the tabs reach it through."""
 
     def __init__(self) -> None:
         self.frames = Frames()
-        self.cubes: dict[str, Cube] = {}
+        self.cubes: dict[str, Cube | DataCube] = {}
         self._engine: Engine | None = None
+        self._web: WebServer | None = None
         self._lock = threading.RLock()
         self._hooked = False
         # a cube was opened in a browser: a person is looking, so a plain script's end keeps the engine for them
@@ -103,7 +120,15 @@ class _Session:
                 self._engine = Engine(self.frames, site=_site())
             return self._engine
 
-    def show(self, frame: Any, name: str | None, mode: str) -> Cube:
+    def web(self) -> WebServer:
+        """The engine over HTTP, for the tabs: started by the first."""
+        with self._lock:
+            if self._web is None:
+                self._web = WebServer(self.engine())
+            return self._web
+
+    def register(self, frame: Any, name: str | None, mode: str) -> str:
+        """The frame registered under ``name`` (the next free one unless given), and a page showing that name told."""
         with self._lock:
             if name is None:
                 name = self._next_name()
@@ -113,37 +138,49 @@ class _Session:
             if shown or engine.seen(name):
                 # shown again under its name (or again after it was closed): a page showing it reads it again
                 engine.changed(name)
+            return name
+
+    def show(self, frame: Any, name: str | None, mode: str) -> Cube:
+        """The frame registered, and its name's cube in a tab: the one it has, else a new one."""
+        with self._lock:
+            name = self.register(frame, name, mode)
             cube = self.cubes.get(name.lower())
-            if cube is None:
-                cube = self.cubes[name.lower()] = Cube(self, name)
-                self._hook()
+            if not isinstance(cube, Cube):
+                cube = self.adopt(Cube(self, name))
+            return cube
+
+    def adopt(self, cube: Any) -> Any:
+        """``cube`` is its name's cube from now on."""
+        with self._lock:
+            self.cubes[cube.name.lower()] = cube
+            self._hook()
             return cube
 
     def _next_name(self) -> str:
         n = 1
-        while (name := 'frame' if n == 1 else f'frame_{n}').lower() in self.cubes:
+        while (name := 'frame' if n == 1 else f'frame_{n}').lower() in self.cubes or name in self.frames:
             n += 1
         return name
 
     def after_cell(self, *_: Any) -> None:
         """A notebook cell (or an IPython command) has run: each Live cube queries again, so a change shows."""
         with self._lock:
-            if self._engine is None:
-                return
-            for name in list(self.cubes):
-                if self.frames[name].mode == LIVE:
-                    self._engine.changed(name)
+            for key, cube in list(self.cubes.items()):
+                cube._after_cell()
+                if self._engine is not None and key in self.frames and self.frames[key].mode == LIVE:
+                    self._engine.changed(cube.name)
 
     def close(self, name: str) -> None:
         with self._lock:
             self.cubes.pop(name.lower(), None)
-            self.frames.unregister(name)
-            if self._engine is not None:
-                # its page asks, finds the frame gone, and stops following it
-                self._engine.changed(name)
-            if not self.cubes and self._engine is not None:
-                self._engine.close()
-                self._engine = None
+            if name in self.frames:
+                self.frames.unregister(name)
+                if self._engine is not None:
+                    # its page asks (or is told), finds the frame gone, and stops following it
+                    self._engine.changed(name)
+            if self._web is not None and not any(isinstance(c, Cube) for c in self.cubes.values()):
+                self._web.close()
+                self._web = None
 
     def _hook(self) -> None:
         """Once: the notebook's after-cell nudge, where there is IPython; the wait at a plain script's end."""
@@ -166,7 +203,7 @@ class _Session:
         """A plain script ending with a cube open in a browser waits, saying so, until Ctrl-C (an IDE's Stop): the
         cube is this process's."""
         with self._lock:
-            open_cubes = list(self.cubes.values())
+            open_cubes = [c for c in self.cubes.values() if isinstance(c, Cube)]
         if not open_cubes or _stays():
             return
         if not self.waits():
@@ -184,11 +221,23 @@ class _Session:
 _session = _Session()
 
 
-def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool = True) -> Cube:
-    """Opens DataCube on ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one) in the
-    browser, and returns at once (a plain script that opened one waits at its end until Ctrl-C). ``name`` names its table (``frame``, ``frame_2``, ... unless given; showing a name
-    again replaces its frame). ``mode``: Live (the default: each query reads the frame as it is then) or
-    ``'snapped'`` (copied once). ``browser=False`` opens nothing: the link is ``cube.url``."""
+def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool = True,
+         inline: bool | None = None) -> Cube | DataCube:
+    """Shows DataCube on ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one) and returns
+    at once: under the cell in a notebook, in a browser tab anywhere else (a plain script that opened one waits at its
+    end until Ctrl-C). ``name`` names its table (``frame``, ``frame_2``, ... unless given; showing a name again
+    replaces its frame, and shows its cube where it first showed). ``mode``: Live (the default: each query reads the
+    frame as it is then) or ``'snapped'`` (copied once). ``browser=False`` opens no tab: the link is ``cube.url``.
+    ``inline=False`` opens a tab from a notebook's kernel too (a console that shows no widget: Spyder's, qtconsole);
+    under the cell needs the notebook extra (``pip install 'legend-lite[notebook]'``)."""
+    if inline is None:
+        # a name shown again shows where it showed; a new one under the cell in a notebook's kernel, else in a tab
+        shown_before = _session.cubes.get(name.lower()) if name is not None else None
+        inline = not isinstance(shown_before, Cube) if shown_before is not None else _kernel()
+    if inline:
+        # the notebook extra: without anywidget, the import says how to install it
+        from .notebook import shown
+        return shown(frame, name, mode)
     cube = _session.show(frame, name, mode)
     print(f'DataCube: {cube.url}', flush=True)
     if browser and webbrowser.open(cube.url):

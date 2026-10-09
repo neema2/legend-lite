@@ -20,7 +20,7 @@ import pyarrow as pa
 import pyarrow.ipc
 
 import legend_lite as ll
-from legend_lite.engine import Engine
+from legend_lite.engine import Engine, WebServer
 
 GROUP = "->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
 
@@ -40,15 +40,15 @@ class Served(unittest.TestCase):
         self.df = trades()
         self.frames = ll.Frames()
         self.table = self.frames.register('trades', self.df)
-        self.engine = Engine(self.frames)
+        self.server = WebServer(Engine(self.frames))
 
     def tearDown(self):
-        self.engine.close()
+        self.server.close()
 
     def post(self, path, body, content_type='application/json', headers=None):
         """The engine's answer to a POST: status, headers, body bytes."""
-        sent = {'Content-Type': content_type, 'Authorization': self.engine.authorization} | (headers or {})
-        request = urllib.request.Request(self.engine.url + path, body.encode('utf-8'), sent, method='POST')
+        sent = {'Content-Type': content_type, 'Authorization': self.server.authorization} | (headers or {})
+        request = urllib.request.Request(self.server.url + path, body.encode('utf-8'), sent, method='POST')
         try:
             with urllib.request.urlopen(request, timeout=30) as r:
                 return r.status, r.headers, r.read()
@@ -183,7 +183,7 @@ class Refusals(Served):
 
 class OnlyItsOwnPage(Served):
     def raw(self, method, path, headers, body=b''):
-        port = int(self.engine.url.rsplit(':', 1)[1])
+        port = int(self.server.url.rsplit(':', 1)[1])
         connection = http.client.HTTPConnection('127.0.0.1', port, timeout=30)
         try:
             connection.putrequest(method, path, skip_host=True, skip_accept_encoding=True)
@@ -196,23 +196,23 @@ class OnlyItsOwnPage(Served):
             connection.close()
 
     def host(self):
-        return self.engine.url.removeprefix('http://')
+        return self.server.url.removeprefix('http://')
 
     def test_a_request_without_the_token_is_refused(self):
         tree = json.dumps(ll.parse('|1'))
-        for given in ({}, {'Authorization': 'Bearer nope'}, {'Authorization': self.engine.token}):
+        for given in ({}, {'Authorization': 'Bearer nope'}, {'Authorization': self.server.token}):
             status, _, _ = self.raw('POST', '/api/pure/v1/grammar/jsonToGrammar/lambda',
                                     {'Host': self.host(), 'Content-Length': str(len(tree))} | given, tree.encode())
             self.assertEqual(status, 401, given)
 
     def test_a_host_that_is_not_this_machine_is_refused(self):
-        port = self.engine.url.rsplit(':', 1)[1]
+        port = self.server.url.rsplit(':', 1)[1]
         for host in ('evil.example:' + port, '127.0.0.1:1', 'localhost'):
             status, _, _ = self.raw('POST', '/api/pure/v1/grammar/jsonToGrammar/lambda',
-                                    {'Host': host, 'Authorization': self.engine.authorization, 'Content-Length': '2'}, b'{}')
+                                    {'Host': host, 'Authorization': self.server.authorization, 'Content-Length': '2'}, b'{}')
             self.assertEqual(status, 403, host)
         status, _, _ = self.raw('POST', '/api/pure/v1/grammar/grammarToJson/lambda?returnSourceInformation=false',
-                                {'Host': 'localhost:' + port, 'Authorization': self.engine.authorization,
+                                {'Host': 'localhost:' + port, 'Authorization': self.server.authorization,
                                  'Content-Length': '2'}, b'|1')
         self.assertEqual(status, 200)
 
@@ -224,14 +224,14 @@ class OnlyItsOwnPage(Served):
 
     def test_a_body_past_the_limit_is_refused_unread(self):
         status, _, _ = self.raw('POST', '/api/pure/v1/grammar/grammarToJson/lambda',
-                                {'Host': self.host(), 'Authorization': self.engine.authorization,
+                                {'Host': self.host(), 'Authorization': self.server.authorization,
                                  'Content-Length': str(64 * 1024 * 1024)})
         self.assertEqual(status, 413)
 
     def test_a_length_that_is_not_ascii_digits_or_a_body_not_utf8_is_answered(self):
         for length, body, status in (('²', b'', 411), ('2', b'\xff\xfe', 400)):
             got, _, _ = self.raw('POST', '/api/pure/v1/grammar/grammarToJson/lambda',
-                                 {'Host': self.host(), 'Authorization': self.engine.authorization,
+                                 {'Host': self.host(), 'Authorization': self.server.authorization,
                                   'Content-Length': length}, body)
             self.assertEqual(got, status, length)
 
@@ -243,9 +243,9 @@ class OnlyItsOwnPage(Served):
         self.assertIn(b"the engine's token", answer)
 
     def test_closed_it_answers_nothing(self):
-        url = self.engine.url
-        self.engine.close()
-        self.engine = Engine(self.frames)  # tearDown closes this one
+        url = self.server.url
+        self.server.close()
+        self.server = WebServer(Engine(self.frames))  # tearDown closes this one
         request = urllib.request.Request(url + '/api/pure/v1/nope', b'{}', {'Authorization': 'Bearer x'})
         with self.assertRaises(urllib.error.URLError) as refused:
             urllib.request.urlopen(request, timeout=5)
@@ -253,22 +253,22 @@ class OnlyItsOwnPage(Served):
         self.assertIsInstance(refused.exception.reason, ConnectionRefusedError)
 
     def test_a_connection_that_sends_nothing_neither_blocks_others_nor_close(self):
-        port = int(self.engine.url.rsplit(':', 1)[1])
+        port = int(self.server.url.rsplit(':', 1)[1])
         idle = [socket.create_connection(('127.0.0.1', port)) for _ in range(6)]
         try:
             # more idle connections than the compiler's pool has threads: a request is still answered
             tree = json.dumps(ll.parse('|1'))
             status, _, _ = self.raw('POST', '/api/pure/v1/grammar/jsonToGrammar/lambda',
-                                    {'Host': self.host(), 'Authorization': self.engine.authorization,
+                                    {'Host': self.host(), 'Authorization': self.server.authorization,
                                      'Content-Length': str(len(tree))}, tree.encode())
             self.assertEqual(status, 200)
             started = time.monotonic()
-            self.engine.close()
+            self.server.close()
             self.assertLess(time.monotonic() - started, 5)
         finally:
             for connection in idle:
                 connection.close()
-            self.engine = Engine(self.frames)  # tearDown closes this one
+            self.server = WebServer(Engine(self.frames))  # tearDown closes this one
 
 
 class Site(unittest.TestCase):
@@ -281,13 +281,13 @@ class Site(unittest.TestCase):
         (self.root / 'vendor' / 'planner.wasm').write_bytes(b'\0asm')
         (self.root.parent / 'outside.txt').write_text('not the site')
         self.frames = ll.Frames()
-        self.engine = Engine(self.frames, site=self.root)
+        self.server = WebServer(Engine(self.frames, site=self.root))
 
     def tearDown(self):
-        self.engine.close()
+        self.server.close()
 
     def get(self, path, host=None):
-        port = int(self.engine.url.rsplit(':', 1)[1])
+        port = int(self.server.url.rsplit(':', 1)[1])
         connection = http.client.HTTPConnection('127.0.0.1', port, timeout=30)
         try:
             connection.putrequest('GET', path, skip_host=True)
@@ -308,11 +308,11 @@ class Site(unittest.TestCase):
             self.assertEqual(self.get(path)[0], 404, path)
 
     def test_to_a_local_host_only(self):
-        port = self.engine.url.rsplit(':', 1)[1]
+        port = self.server.url.rsplit(':', 1)[1]
         self.assertEqual(self.get('/', host=f'evil.example:{port}')[0], 403)
 
     def test_an_engine_without_a_site_serves_no_file(self):
-        bare = Engine(self.frames)
+        bare = WebServer(Engine(self.frames))
         try:
             port = int(bare.url.rsplit(':', 1)[1])
             connection = http.client.HTTPConnection('127.0.0.1', port, timeout=30)
@@ -327,7 +327,7 @@ class Cube(Served):
     """cube.json: what DataCube's engine page shows -- a frame's model, runtime and source, asked with the token."""
 
     def get(self, path, headers=None):
-        request = urllib.request.Request(self.engine.url + path, headers=headers or {})
+        request = urllib.request.Request(self.server.url + path, headers=headers or {})
         try:
             with urllib.request.urlopen(request, timeout=30) as r:
                 return r.status, r.headers['Content-Type'], r.read()
@@ -335,15 +335,15 @@ class Cube(Served):
             return e.code, e.headers['Content-Type'], e.read()
 
     def test_a_frame_s_cube_as_it_is_now(self):
-        status, content_type, body = self.get('/cube.json?table=trades', {'Authorization': self.engine.authorization})
+        status, content_type, body = self.get('/cube.json?table=trades', {'Authorization': self.server.authorization})
         self.assertEqual((status, content_type), (200, 'application/json'))
         self.assertEqual(json.loads(body), {'title': 'trades', 'model': self.table.model, 'runtime': self.table.runtime,
                                             'source': self.table.source, 'version': 0})
         # a Live frame read again: a new column, a new model
         self.df['extra'] = 1
-        _, _, body = self.get('/cube.json?table=TRADES', {'Authorization': self.engine.authorization})
+        _, _, body = self.get('/cube.json?table=TRADES', {'Authorization': self.server.authorization})
         self.assertIn('extra', json.loads(body)['model'])
 
     def test_asked_with_the_token_only_and_for_a_frame_it_serves(self):
         self.assertEqual(self.get('/cube.json?table=trades')[0], 401)
-        self.assertEqual(self.get('/cube.json?table=nope', {'Authorization': self.engine.authorization})[0], 404)
+        self.assertEqual(self.get('/cube.json?table=nope', {'Authorization': self.server.authorization})[0], 404)

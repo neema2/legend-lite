@@ -56,6 +56,12 @@ for (const [page, bundle] of [['index.html', 'bundle'], ['engine.html', 'bundle-
   await writeFile(join(DIST, page), html);
 }
 
+// A NOTEBOOK'S CUBE (legend_lite.notebook.DataCube): anywidget's script (the loader) and DataCube's module it fetches
+// once per notebook page, its styles beside it -- three files, which Python's engine answers over the widget's channel
+for (const f of ['widget-loader.js', 'widget.js', 'widget.css']) {
+  await cp(join(ROOT, 'demo', f), join(DIST, f));
+}
+
 const { size } = await import('node:fs').then((fs) =>
   fs.promises.stat(join(DIST, 'vendor', 'classes.wasm')));
 console.log(`dist/ is ready — a static site, no backend.`);

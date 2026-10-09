@@ -1,7 +1,8 @@
 """The wheel (//python:wheel) as a developer installs it: a fresh virtual environment of the repository's Python, the
-wheel and its packages installed offline (Bazel's own downloads, the pinned versions), then show() and a query run in
-isolated mode, from outside the repository, with no setting pointing back into it -- so the wheel stands alone: its
-modules, the compiler's library and DataCube's page all come from inside it. And its label told true: the platform tag
+wheel and its packages installed offline (Bazel's own downloads, the pinned versions, the notebook extra's with them),
+then show(), a query and a notebook's cube run in isolated mode, from outside the repository, with no setting pointing
+back into it -- so the wheel stands alone: its modules, the compiler's library, DataCube's page and its notebook module
+all come from inside it. And its label told true: the platform tag
 the wheel declares against what its library needs, read from the library itself (its minimum macOS, or the newest
 glibc it names)."""
 
@@ -28,21 +29,30 @@ import pyarrow as pa, pyarrow.ipc
 import legend_lite as ll
 from legend_lite import datacube
 cube = ll.show(pd.DataFrame({"desk": ["FX", "EQ", "FX"], "qty": [1.5, 2.5, 4.0]}), name="trades", browser=False)
-engine = datacube._session.engine()
+web = datacube._session.web()
 table = datacube._session.frames["trades"]
-headers = {"Authorization": engine.authorization}
-page = urllib.request.urlopen(urllib.request.Request(engine.url + "/engine.html"), timeout=30).status
-cube_json = json.loads(urllib.request.urlopen(urllib.request.Request(engine.url + "/cube.json?table=trades", headers=headers), timeout=30).read())
+headers = {"Authorization": web.authorization}
+page = urllib.request.urlopen(urllib.request.Request(web.url + "/engine.html"), timeout=30).status
+cube_json = json.loads(urllib.request.urlopen(urllib.request.Request(web.url + "/cube.json?table=trades", headers=headers), timeout=30).read())
 tree = ll.parse("|" + table.accessor + "->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())->from(" + table.runtime + ")")
 body = json.dumps({"clientVersion": "vX_X_X", "function": tree, "model": {"_type": "text", "code": table.model},
                    "context": {"_type": "BaseExecutionContext"}}).encode()
-answer = urllib.request.urlopen(urllib.request.Request(engine.url + "/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC",
+answer = urllib.request.urlopen(urllib.request.Request(web.url + "/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC",
                                 body, dict(headers, **{"Content-Type": "application/json"})), timeout=30).read()
 with pa.input_stream(pa.py_buffer(answer), compression="zstd") as stream:
     rows = pyarrow.ipc.open_stream(stream).read_all().to_pylist()
 cube.close()
+# the notebook extra: a notebook's cube (no kernel here), its script the loader, and DataCube's module answered over
+# its channel as its page asks for it
+widget = ll.DataCube(pd.DataFrame({"desk": ["FX"], "qty": [1.0]}), name="nb")
+sent = []
+widget.send = lambda content, buffers=None: sent.append((content, buffers))
+for name in ("widget.js", "widget.css"):
+    widget._answer({"kind": "call", "id": name, "method": "GET", "path": "/" + name, "query": "", "body": None})
+notebook = {"loader": " as default" in widget._esm, "answers": [(c["status"], len(b[0])) for c, b in sent]}
+widget.close()
 print(json.dumps({"module": ll.__file__, "library": __import__("legend_lite._library", fromlist=["x"]).library().path.as_posix(),
-                  "page": page, "cube": sorted(cube_json), "rows": rows}))
+                  "page": page, "cube": sorted(cube_json), "rows": rows, "notebook": notebook}))
 '''
 
 
@@ -174,7 +184,7 @@ class Label(unittest.TestCase):
             metadata = wheel.read(info).decode()
         self.assertIn('Requires-Python: >=3.12', metadata)
         self.assertIn('License: Apache-2.0', metadata)
-        for requirement in ('duckdb>=1.5.5', 'pyarrow>=23.0.1'):
+        for requirement in ('duckdb>=1.5.5', 'pyarrow>=23.0.1', "anywidget>=0.11.0; extra == 'notebook'"):
             self.assertIn(f'Requires-Dist: {requirement}', metadata)
 
 
@@ -201,3 +211,7 @@ class Installed(unittest.TestCase):
         self.assertTrue(out['library'].startswith(str(venv)), out['library'])
         self.assertEqual((out['page'], out['cube']), (200, ['model', 'runtime', 'source', 'title', 'version']))
         self.assertEqual(out['rows'], [{'desk': 'EQ', 'q': 2.5}, {'desk': 'FX', 'q': 5.5}])
+        # the notebook extra installed: the cube's loader, and DataCube's module (about 1.3 MB) and styles, from the wheel
+        self.assertTrue(out['notebook']['loader'], out['notebook'])
+        self.assertEqual([status for status, _ in out['notebook']['answers']], [200, 200], out['notebook'])
+        self.assertGreater(out['notebook']['answers'][0][1], 500_000, out['notebook'])

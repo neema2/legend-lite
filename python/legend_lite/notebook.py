@@ -1,0 +1,170 @@
+"""DataCube in a notebook: the cube under the cell, a widget (``DataCube``), its calls carried over the widget's own
+channel to this process's engine. The design: docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md, "In a notebook".
+
+    cube = ll.show(df)          # in a notebook's kernel: the cube under the cell
+    ll.DataCube(df)             # the cube as a widget object (an ipywidgets layout takes it)
+
+Needs the notebook extra, ``pip install 'legend-lite[notebook]'`` (anywidget). The browser never reaches this process
+over HTTP: each call the cube makes travels as a message, ``{kind: 'call', id, method, path, query, body}``, answered by
+``Engine.answer`` as ``{kind: 'answer', id, status, type, headers}`` with the body as one binary buffer. So the cube
+works wherever the notebook does -- this machine, a remote JupyterHub, VS Code, Colab. The frame's version is the
+widget's ``version``, which Python sets when the frame changes; the cube reads it again when it moves.
+
+The widget's script is a small loader (DataCube's ``widget-loader.js``): DataCube's module (``widget.js`` and its styles,
+``widget.css``, about 1.3 MB) is fetched over the same channel once per notebook page, keyed by its hash (``_module``),
+not sent with every widget as anywidget would.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import threading
+import traceback
+from functools import cache
+from pathlib import Path
+from typing import Any
+
+try:
+    import anywidget
+    import traitlets
+except ModuleNotFoundError as missing:
+    raise ModuleNotFoundError(
+        "DataCube in a notebook needs anywidget: pip install 'legend-lite[notebook]' "
+        '(or ll.show(df, inline=False) for a browser tab)', name=missing.name) from missing
+
+from . import datacube
+from .engine import Answer
+from .frames import LIVE
+
+# DataCube's files for a notebook, in its built site (datacube/BUILD.bazel)
+_LOADER = 'widget-loader.js'
+_MODULE = ('widget.js', 'widget.css')
+
+
+@cache
+def _loader(site: Path) -> tuple[str, str]:
+    """The widget's script (the loader) and the hash its page keeps DataCube's module by."""
+    missing = [name for name in (_LOADER, *_MODULE) if not (site / name).is_file()]
+    if missing:
+        raise FileNotFoundError(f"DataCube's notebook files {missing} are not in its site {site}")
+    digest = hashlib.sha256()
+    for name in _MODULE:
+        digest.update((site / name).read_bytes())
+    return (site / _LOADER).read_text('utf-8'), digest.hexdigest()
+
+
+class DataCube(anywidget.AnyWidget):
+    """DataCube on a frame, under a notebook's cell: what ``ll.show(df)`` shows in a notebook, and a widget object an
+    ipywidgets layout takes. ``name``, ``mode``: as ``show``'s. ``height``: the cube's, in pixels (``cube.height = 700``
+    resizes it). Its handle is a tab's: ``update``, ``refresh``, ``close`` (which takes it out of the output)."""
+
+    # anywidget's script, set per widget from DataCube's site (a trait of the class, so anywidget adds none)
+    _esm = traitlets.Unicode().tag(sync=True)
+    # the hash of DataCube's module: the page fetches it once (widget-loader.js) and keeps it by this
+    _module = traitlets.Unicode().tag(sync=True)
+    table = traitlets.Unicode().tag(sync=True)
+    version = traitlets.Int(0).tag(sync=True)
+    height = traitlets.Int(480).tag(sync=True)
+
+    def __init__(self, frame: Any, name: str | None = None, *, mode: str = LIVE, height: int = 480) -> None:
+        session = datacube._session
+        engine = session.engine()
+        assert engine.site is not None  # the session's engine always has DataCube's site
+        loader, module = _loader(engine.site)
+        name = session.register(frame, name, mode)
+        self._session = session
+        self._closed = False
+        # show() displayed it in this cell: the cell's own result (the handle show() returned) shows no second copy
+        self._shown_here = False
+        super().__init__(_esm=loader, _module=module, table=name, version=engine.version(name), height=height)
+        self.on_msg(self._received)
+        self._unwatch = engine.watch(self._moved)
+        session.adopt(self)
+
+    @property
+    def name(self) -> str:
+        return self.table
+
+    def update(self, frame: Any, mode: str | None = None) -> None:
+        """Shows another frame in this cube (Live or Snapped as before, unless ``mode`` says): the cube opens it, over
+        its new columns if they changed. It returns nothing: a cell ending in ``cube.update(df)`` changes the cube in
+        place and shows no second copy."""
+        self._open()
+        self._session.register(frame, self.name, self._session.frames[self.name].mode if mode is None else mode)
+
+    def refresh(self) -> None:
+        """Tells the cube to query again: a change the next click would show, shown now."""
+        self._open()
+        self._session.engine().changed(self.name)
+
+    def close(self) -> None:
+        """Takes the frame out of the engine and the cube out of the output."""
+        if not self._closed:
+            self._closed = True
+            self._unwatch()
+            self._session.close(self.name)
+        super().close()
+
+    def _open(self) -> None:
+        if self._closed:
+            raise ValueError(f'the cube {self.name!r} was closed: show the frame again')
+
+    def _after_cell(self) -> None:
+        self._shown_here = False
+
+    def _moved(self, name: str, version: int) -> None:
+        """The engine says a frame changed (from the thread that changed it): this cube's moves its version, which its
+        page follows."""
+        if name.lower() == self.table.lower() and not self._closed:
+            self.version = version
+
+    def _received(self, _widget: Any, content: Any, _buffers: Any) -> None:
+        """A message from the cube's page: a call, answered on a thread of its own, so the kernel never waits on it."""
+        if isinstance(content, dict) and content.get('kind') == 'call':
+            threading.Thread(target=self._answer, args=(content,), name='legend-lite-call', daemon=True).start()
+
+    def _answer(self, call: dict[str, Any]) -> None:
+        try:
+            method, path, query, body = call['method'], call['path'], call.get('query', ''), call.get('body')
+            if not (isinstance(method, str) and isinstance(path, str) and path.startswith('/')
+                    and isinstance(query, str) and (body is None or isinstance(body, str))):
+                answer = Answer(400, 'text/plain; charset=utf-8', b'a call is {method, path, query, body} as text')
+            else:
+                answer = self._session.engine().answer(method, path, query, body)
+        except Exception as failure:
+            # still an answer: a page waiting on a call never waits forever
+            traceback.print_exc()
+            answer = Answer(500, 'text/plain; charset=utf-8', f'{type(failure).__name__}: {failure}'.encode())
+        if not self._closed:
+            self.send({'kind': 'answer', 'id': call.get('id'), 'status': answer.status, 'type': answer.content_type,
+                       'headers': dict(answer.headers)}, [answer.body])
+
+    def _ipython_display_(self, **_: Any) -> None:
+        """Displayed as any widget is, but once in the cell ``show()`` displayed it in: there, the cell's own result
+        (``ll.show(df)`` as its last line) adds no second copy. Typed in a later cell, it shows again."""
+        if self._shown_here:
+            self._shown_here = False
+            return
+        from IPython.display import display
+        data, metadata = self._repr_mimebundle_()
+        display(data, metadata=metadata, raw=True)
+
+    def __repr__(self) -> str:
+        return f'<DataCube {self.name!r}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
+
+
+def shown(frame: Any, name: str | None, mode: str) -> DataCube:
+    """``show()`` in a notebook: the frame registered, its name's cube -- the one it has, else a new one -- shown
+    under this cell."""
+    session = datacube._session
+    cube = session.cubes.get(name.lower()) if name is not None else None
+    if isinstance(cube, DataCube) and not cube._closed:
+        cube.update(frame, mode)
+    else:
+        cube = DataCube(frame, name, mode=mode)
+    from IPython.display import display
+    # shown here, even when it was in this cell already (show() of its name again)
+    cube._shown_here = False
+    display(cube)
+    cube._shown_here = True
+    return cube

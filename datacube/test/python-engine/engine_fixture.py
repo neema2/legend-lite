@@ -1,20 +1,43 @@
 """Python's engine for a browser test (//datacube:python_engine_test, beside it): the cube corpus's rows shown as a
-Live frame (show()), with DataCube's site. It prints one JSON line -- the engine's address and token, the cube's link,
-the frame's model, runtime and source, and the rows (the page loads the same rows into the tab's DuckDB) -- then
-takes the test's commands (`update`, `columns`) until its standard input closes.
+Live frame (show()), with DataCube's site, and two notebook cubes over it (DataCube widgets: the rows, and three of
+them). It prints one JSON line -- the engine's address and token, the cube's link, the frame's model, runtime and
+source, the rows (the page loads the same rows into the tab's DuckDB), and each widget's script and state -- then takes
+the test's commands until its standard input closes: `update`, `columns`, `widget-update` (each answered `done
+<command>`), and `widget <name> <message>`, a message from a widget's page, as a notebook's channel brings it. What a
+widget sends its page is printed as it goes: `sent <json>` (its buffers in base64) and `trait <json>` (a property set).
 
     engine_fixture --site <DataCube's built site>
 """
 
 import argparse
+import base64
 import json
 import os
 import sys
+import threading
 
 import pyarrow as pa
 
 import legend_lite as ll
 from legend_lite import datacube
+from legend_lite.notebook import DataCube
+
+_said = threading.Lock()
+
+
+def say(line: str) -> None:
+    """One line of output, whole: widgets answer on threads of their own."""
+    with _said:
+        sys.stdout.write(line + '\n')
+        sys.stdout.flush()
+
+
+def channel(cube: DataCube) -> None:
+    """The widget's channel, as the test carries it: what it sends its page, printed."""
+    cube.send = lambda content, buffers=None: say('sent ' + json.dumps({
+        'widget': cube.name, 'content': content, 'buffers': [base64.b64encode(bytes(b)).decode() for b in buffers or []]}))
+    cube.observe(lambda change: say('trait ' + json.dumps({'widget': cube.name, 'name': change['name'],
+                                                           'value': change['new']})), names=['version'])
 
 # The corpus's rows (datacube/test/live-snap/page.ts's): unique on (book, year, qtr); NULLs in the measures and in a
 # dimension.
@@ -39,27 +62,43 @@ def main() -> None:
     # show(), as a person calls it -- but the browser is the test's (it opens the link itself)
     cube = ll.show(frame, name='trades', browser=False)
     table = datacube._session.frames['trades']
-    engine = datacube._session.engine()
-    print(json.dumps({
-        'url': engine.url,
-        'authorization': engine.authorization,
+    web = datacube._session.web()
+    # two notebook cubes, as ll.DataCube(df) makes them: the page shows both and fetches DataCube's module once
+    widgets = {'nb': DataCube(frame, name='nb'), 'nb2': DataCube(frame.slice(0, 3), name='nb2')}
+    for widget in widgets.values():
+        channel(widget)
+    say(json.dumps({
+        'url': web.url,
+        'authorization': web.authorization,
         'link': cube.url,
         'model': table.model,
         'runtime': table.runtime,
         'source': table.source,
         'columns': SCHEMA.names,
         'rows': [list(row) for row in ROWS],
-    }), flush=True)
-    # the test's commands, one a line: `update` -- one row more; `columns` -- a column more (a new model). Closed
-    # whatever happens, so the process ends with its input
+        'widgets': {name: {'esm': w._esm, 'state': {'_module': w._module, 'table': w.table, 'version': w.version,
+                                                    'height': w.height}} for name, w in widgets.items()},
+    }))
+    # the test's commands, one a line: `update` -- one row more; `columns` -- a column more (a new model);
+    # `widget-update` -- the first widget's frame a row more; `widget <name> <message>` -- a widget page's message.
+    # Closed whatever happens, so the process ends with its input
     try:
         for line in sys.stdin:
-            if line.strip() == 'update':
+            command = line.strip()
+            if command.startswith('widget '):
+                _, name, message = command.split(' ', 2)
+                widgets[name]._received(widgets[name], json.loads(message), [])
+                continue
+            if command == 'update':
                 cube.update(pa.concat_tables([frame, frame.slice(0, 1)]))
-            elif line.strip() == 'columns':
+            elif command == 'columns':
                 cube.update(frame.append_column('trader', pa.array([f't{i}' for i in range(frame.num_rows)])))
-            print(f'done {line.strip()}', flush=True)
+            elif command == 'widget-update':
+                widgets['nb'].update(pa.concat_tables([frame, frame.slice(0, 1)]))
+            say(f'done {command}')
     finally:
+        for widget in widgets.values():
+            widget.close()
         cube.close()
 
 

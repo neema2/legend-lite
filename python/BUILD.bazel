@@ -21,6 +21,7 @@ py_library(
             "legend_lite/datacube.py",
             "legend_lite/engine.py",
             "legend_lite/frames.py",
+            "legend_lite/notebook.py",
         ],
     ),
     # the package is typed (PEP 561): an editor or a type checker reads its annotations
@@ -46,7 +47,48 @@ py_library(
     ],
 )
 
+# the cube under a notebook's cell (legend_lite/notebook.py: the wheel's `notebook` extra), over anywidget
+py_library(
+    name = "notebook",
+    srcs = ["legend_lite/notebook.py"],
+    imports = ["."],
+    # //datacube:engine_fixture shows two notebook cubes to DataCube's browser test
+    visibility = ["//datacube:__pkg__"],
+    deps = [
+        ":legend_lite",
+        "@pypi//anywidget",
+    ],
+)
+
 _PLATFORMS = compatible_with(COMPILER_LIBRARY_PLATFORMS)
+
+# the notebook extra (anywidget) and what it brings, as pinned in //tools/python: on Linux and macOS (pexpect and
+# ptyprocess are IPython's there only)
+_NOTEBOOK_PACKAGES = [
+    "anywidget",
+    "asttokens",
+    "comm",
+    "executing",
+    "ipython",
+    "ipython_pygments_lexers",
+    "ipywidgets",
+    "jedi",
+    "jupyterlab_widgets",
+    "matplotlib_inline",
+    "parso",
+    "pexpect",
+    "prompt_toolkit",
+    "psutil",
+    "psygnal",
+    "ptyprocess",
+    "pure_eval",
+    "pygments",
+    "stack_data",
+    "traitlets",
+    "typing_extensions",
+    "wcwidth",
+    "widgetsnbextension",
+]
 
 _ENV = {
     "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
@@ -141,6 +183,32 @@ py_test(
     ],
 )
 
+# A notebook's cube (legend_lite/notebook.py): the widget's calls over its channel answered by the engine, its version
+# following the frame, close; show() in a notebook's kernel (stood in for: no kernel runs) -- the cube under the cell,
+# once -- or in a tab when asked; and the import without anywidget saying how to install it. Over the site as the
+# wheel ships it (:wheel_site: the engine page and the notebook's files).
+py_test(
+    name = "notebook_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_notebook.py",
+    ],
+    args = ["test_notebook"],
+    data = [
+        ":wheel_site",
+        "//native:compiler",
+    ],
+    env = _ENV | {"LEGEND_LITE_SITE": "$(rlocationpath :wheel_site)"},
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":notebook",
+        "@pypi//pandas",
+        "@rules_python//python/runfiles",
+    ],
+)
+
 # TRY IT: an interactive Python with legend_lite ready (repl.py): the repository's Python and pinned packages, the
 # compiler's native library and DataCube's built site, by their runfiles paths -- `bazel run //python:repl`, then
 # `cube = ll.show(trades)`. Where the library builds.
@@ -187,8 +255,9 @@ copy_file(
     target_compatible_with = ["@platforms//os:linux"],
 )
 
-# the engine page alone (DataCube's demo/engine.html, its bundle, its lazy chunks, its type), not the site's in-tab app:
-# no DuckDB-WASM and no compiler module, which the page never loads (about 90 MB)
+# the engine page alone (DataCube's demo/engine.html, its bundle, its lazy chunks, its type) and a notebook's cube (the
+# widget's loader, DataCube's module and its styles), not the site's in-tab app: no DuckDB-WASM and no compiler module,
+# which neither loads (about 90 MB)
 copy_to_directory(
     name = "wheel_site",
     srcs = ["//datacube:dist"],
@@ -199,6 +268,10 @@ copy_to_directory(
         "engine.html",
         "fonts.css",
         "vendor/fonts/**",
+        # a notebook's cube (legend_lite/notebook.py): anywidget's script, and DataCube's module it fetches
+        "widget-loader.js",
+        "widget.css",
+        "widget.js",
     ],
     root_paths = ["datacube/dist"],
 )
@@ -207,7 +280,10 @@ copy_to_directory(
 py_package(
     name = "wheel_package",
     packages = ["python.legend_lite"],
-    deps = [":legend_lite"],
+    deps = [
+        ":legend_lite",
+        ":notebook",
+    ],
 )
 
 py_wheel(
@@ -226,6 +302,8 @@ py_wheel(
         "@graalvm//:THIRD_PARTY_LICENSE.txt": "GRAALVM-THIRD-PARTY-LICENSE.txt",
     },
     extra_requires = {
+        # the cube under a notebook's cell (legend_lite/notebook.py)
+        "notebook": ["anywidget>=0.11.0"],
         "pandas": ["pandas>=3.0.6"],
         "polars": ["polars>=2.0.0"],
     },
@@ -257,8 +335,9 @@ py_wheel(
     }),
 )
 
-# the packages the wheel needs, and pandas with its own, as the test installs them (the pinned wheels, offline)
-_WHEEL_TEST_PACKAGES = ["duckdb", "numpy", "pandas", "pyarrow", "python_dateutil", "six", "tzdata"]
+# the packages the wheel needs, pandas with its own, and the notebook extra's (anywidget, ipywidgets, IPython), as the
+# test installs them (the pinned wheels, offline)
+_WHEEL_TEST_PACKAGES = ["duckdb", "numpy", "pandas", "pyarrow", "python_dateutil", "six", "tzdata"] + _NOTEBOOK_PACKAGES
 
 # THE WHEEL, AS A DEVELOPER INSTALLS IT: a fresh virtual environment of the repository's Python, the wheel and its
 # packages installed offline from Bazel's own downloads, then show() and a query run with nothing pointing back into

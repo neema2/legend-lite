@@ -1,0 +1,9 @@
+/* A NOTEBOOK'S CUBE, ITS STYLES (widget.ts): DataCube's own, which esbuild bundles into widget.css beside widget.js (a
+   second entry point of the same bundle) and the widget's loader adds to the notebook's page once. Every selector is
+   scoped to DataCube's classes, so nothing else on the page changes. No font comes with them: the cube is in the
+   notebook's own type (DataCube's rules name Roboto first and the system's sans-serif after it), as a notebook's
+   widgets are -- a notebook page has no site to fetch a font from, and inlining Roboto would put file copies into the
+   shipped build (//tools/guards:compile_only_test). */
+@import '../src/theme.css';
+@import '../src/grid/grid.css';
+@import '../src/app.css';

@@ -53,13 +53,14 @@ not a column (`reset_index()` keeps it as one).
 
 ```python
 import legend_lite as ll
-cube = ll.show(df)          # DataCube opens in the browser; show() returns at once
+cube = ll.show(df)          # DataCube in a browser tab (under the cell in a notebook); show() returns at once
 df.loc[0, 'qty'] = 5         # Live: the cube's next query sees it (in a notebook, it re-queries after the cell)
-cube.update(new_df)          # a new frame: the open page shows it by itself
+cube.update(new_df)          # a new frame: the open cube shows it by itself
 cube.close()
 ```
 
-One engine per process, started by the first `show` and stopped when the last cube closes. In IPython and notebooks
+One engine per process. A tab reaches it over HTTP, through a web server started by the first tab and stopped when
+the last tab's cube closes. In IPython and notebooks
 each Live cube is told to query again after every cell; at a plain `>>>` prompt the next click shows a change in the
 rows (or `cube.refresh()`), and a frame given new columns is noticed at its next query and the page opens the cube
 again over them. A plain script that opened a cube in the browser waits at its end, saying so, until Ctrl-C (or an
@@ -72,32 +73,44 @@ fetches duckdb and pyarrow; `[polars]` for polars). Or take it from CI without b
 `legend-lite-wheel-<platform>` download (macOS, Linux, Linux ARM), kept once the warehouse lane that tests it is green. The wheel carries the compiler's library and DataCube's page; `//python:wheel_test` installs it into a
 fresh environment, offline, and runs `show()` and a query from it alone.
 
+**In a notebook** (Jupyter, VS Code, Colab; `pip install '...whl[notebook,pandas]'`, which adds anywidget): the same
+`ll.show(df)` puts the cube under the cell, once, and returns its handle; `ll.DataCube(df)` is that cube as a widget
+object, for an ipywidgets layout; `cube.height = 700` resizes it; `cube.close()` takes it out of the output. The cube
+reaches Python over the notebook's own widget channel, not HTTP, so it works where the browser cannot reach the
+kernel's machine (a remote JupyterHub). While a cell runs, the cube waits for it, as any notebook widget does.
+`ll.show(df, inline=False)` opens a tab from a kernel instead (Spyder's console, qtconsole: they show no widgets).
+
 To try it with nothing installed: `bazel run //python:repl` -- the repository's Python and pinned packages, the
 compiler's library and DataCube's site, with `ll`, `pd` and a sample `trades` DataFrame ready.
 
 ## An engine for DataCube
 
 ```python
-engine = ll.Engine(frames)     # legend-engine's pure/v1 API at engine.url, from a background thread
-engine.authorization           # "Bearer <token>": every request carries it
-engine.close()
+from legend_lite.engine import Engine, WebServer
+engine = Engine(frames)        # legend-engine's pure/v1 API over the frames: engine.answer(method, path, query, body)
+server = WebServer(engine)     # over HTTP at server.url, from a background thread
+server.authorization           # "Bearer <token>": every call for the engine's data carries it
+server.close()
 ```
 
-The engine answers the calls DataCube's remote client makes, as legend-engine answers them: parse, print and a
+The engine has no transport: a tab reaches it over HTTP (`WebServer`), a notebook's cube over its widget's channel
+(`legend_lite.notebook`); both send it the same calls. It answers the calls DataCube's remote client makes, as legend-engine answers them: parse, print and a
 query's types by legend-lite's own server code (`PureV1Api`, through the native library), and execute in
 upstream's Arrow format (`?serializationFormat=ARROW_IPC`: one zstd frame around an Arrow IPC stream, its schema
 carrying the builder, the SQL that ran and the columns) with the rows DuckDB computes over the frames, Live ones
 read as they are then. Only queries over the models the frames' tables were written with are run, and only SQL
-the compiler wrote. It listens on 127.0.0.1 alone and answers only requests that carry its token and name this
-machine as their Host; it sends no cross-origin header. Design: `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`.
+the compiler wrote. The web server listens on 127.0.0.1 alone and answers only requests that carry its token and name
+this machine as their Host; it sends no cross-origin header. Design: `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md`.
 
-`Engine(frames, site=...)` also serves a site's files (DataCube's built pages, `//datacube:dist`) at its origin, and
-`cube.json?table=<name>` (with the token): a frame's model, runtime and source as they are now, which DataCube's
-`engine.html` opens a cube over (`<url>/engine.html?table=<name>#token=<token>`).
+`Engine(frames, site=...)` also answers a site's files (DataCube's built pages, `//datacube:dist`), and
+`cube.json?table=<name>` (over HTTP, with the token): a frame's model, runtime and source as they are now, which
+DataCube's `engine.html` opens a cube over (`<url>/engine.html?table=<name>#token=<token>`).
 
 Frames and the engine need duckdb and pyarrow; the compiler itself needs neither, and `import legend_lite`
 loads them only when `Frames` or `Engine` is first used.
 
 Tests: `//python:bindings_test` (the compiler, on Python's standard library alone), `//python:frames_test`
-(the frames, against pandas) and `//python:engine_test` (the engine over HTTP, and `show()`), on the repository's own
-Python (3.12); `//datacube:python_engine_test`, DataCube itself against the engine in the pinned Chromium.
+(the frames, against pandas), `//python:engine_test` (the engine over HTTP, and `show()`) and
+`//python:notebook_test` (a notebook's cube: its calls, its version, `show()` in a kernel), on the repository's own
+Python (3.12); `//datacube:python_engine_test`, DataCube itself against the engine in the pinned Chromium, in a tab
+and as notebook cubes.

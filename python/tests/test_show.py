@@ -43,10 +43,10 @@ class Shown(unittest.TestCase):
         else:
             os.environ['LEGEND_LITE_SITE'] = self._site
 
-    def ask(self, path, engine=None):
+    def ask(self, path, web=None):
         """The engine's answer to a GET with its token: status and JSON (or text)."""
-        engine = engine or datacube._session.engine()
-        request = urllib.request.Request(engine.url + path, headers={'Authorization': engine.authorization})
+        web = web or datacube._session.web()
+        request = urllib.request.Request(web.url + path, headers={'Authorization': web.authorization})
         try:
             with urllib.request.urlopen(request, timeout=30) as r:
                 return r.status, json.loads(r.read())
@@ -62,7 +62,7 @@ class Show(Shown):
         cube = ll.show(trades(), browser=False)
         url = urlsplit(cube.url)
         self.assertEqual((url.path, parse_qs(url.query)), ('/engine.html', {'table': ['frame']}))
-        self.assertEqual(url.fragment, 'token=' + datacube._session.engine().token)
+        self.assertEqual(url.fragment, 'token=' + datacube._session.web().token)
         status, served = self.ask('/cube.json?table=frame')
         self.assertEqual((status, served['version']), (200, 0))
         self.assertIn('#>{frame::DB.frame}#', ll.print_tree({'_type': 'lambda', 'parameters': [], 'body': [served['source']]}))
@@ -109,9 +109,9 @@ class Show(Shown):
         self.assertEqual(self.version('frame_2'), (200, {'version': 2}))
         kept.refresh()
 
-    def test_a_closed_cube_refuses_and_the_last_close_stops_the_engine(self):
+    def test_a_closed_cube_refuses_and_the_last_close_stops_the_web_server(self):
         cube = ll.show(trades(), browser=False)
-        url = datacube._session.engine().url
+        url = datacube._session.web().url
         cube.close()
         self.assertNotIn('frame', datacube._session.frames)
         with self.assertRaises(urllib.error.URLError):
@@ -119,7 +119,7 @@ class Show(Shown):
         for use in (lambda: cube.refresh(), lambda: cube.update(trades()), lambda: cube.url):
             with self.assertRaises(ValueError):
                 use()
-        self.assertIsNone(datacube._session._engine, 'a closed cube started no engine')
+        self.assertIsNone(datacube._session._web, 'a closed cube started no web server')
 
 
 class Notebook(Shown):
@@ -154,8 +154,8 @@ import legend_lite as ll
 from legend_lite import datacube
 webbrowser.open = lambda url: sys.argv[1] == "opens"
 cube = ll.show(pd.DataFrame({"desk": ["FX", "EQ"], "qty": [1.5, 2.5]}), browser=sys.argv[2] == "browser")
-engine = datacube._session.engine()
-print(json.dumps({"url": engine.url, "authorization": engine.authorization}), flush=True)
+web = datacube._session.web()
+print(json.dumps({"url": web.url, "authorization": web.authorization}), flush=True)
 '''
 
 

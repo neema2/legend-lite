@@ -8,3 +8,6 @@ duckdb==1.5.5
 # the frames' tests only: the two dataframe libraries a frame comes from
 pandas==3.0.6
 polars==2.0.0
+# legend_lite's cube in a notebook (legend_lite/notebook.py; the wheel's `notebook` extra): anywidget, and through it
+# ipywidgets and IPython
+anywidget==0.11.0
