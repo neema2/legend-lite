@@ -386,6 +386,17 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    comparison keeps its enum routing (never null-safe, as the engine's); census: the legacy printer's 31 optional-
    parameter equalities unchanged, no statement of today's paths changes (`render-census/landing2-result.txt`).
 
+   *Slice (d), on branch 2026-10-09.* An enumeration parameter is a slot holding its value's NAME (`VARCHAR`). Compared
+   with a mapped column — the lowering's decode, `CASE WHEN ST = 'A' OR ST = 'X' THEN 'ACTIVE' ... END = ?` — the
+   lite plan reads the stored column through that place's value table (`sql/EnumValueTables`, applied by `PlanMaker`
+   after lowering, beside the legacy plan's own `PlanEnumForm`): `ST IN (SELECT code FROM (VALUES ('A', 'ACTIVE'),
+   ('X', 'ACTIVE'), ('C', 'CLOSED')) AS _enum(code, name) WHERE name = ?)`, the pairs from the decode itself
+   (`DecodeShapes.codesAndNames`), `!=`'s comparison its `NOT IN` beside the null arms the lowering writes. Decoded or
+   tabled, the rows are the same; tabled, the database keeps the column's index (`probes/enum-index-results.txt`).
+   `PlanMakerTest` and `PostgresArmTest`: a name stored under two codes, a missing value and an unknown code, compared
+   `==` and `!=` and written as a value of its own, answer as the query with a `let` of the value, on DuckDB, H2 and
+   Postgres, every output. Census: no statement of today's paths changes.
+
    Before step 4 (switching callers), two consumers of `PureV1Api.boundParameters` besides `execute` to settle:
    `arrowPlan` (Python's host runs the plan's SQL itself, so it must bind the values: agreed with the DataCube + Python
    line first), and the `execute` answer's activity, which reports the statement that ran (with its `?`s).

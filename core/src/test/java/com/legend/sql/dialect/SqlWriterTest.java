@@ -144,7 +144,7 @@ class SqlWriterTest {
         SqlExpr.PlanParam level = new SqlExpr.PlanParam("level", SqlExpr.PlanParam.Kind.ENUM, false, "test::Level");
         for (Map.Entry<SqlExpr.Call, String> c : List.of(
                 Map.entry(SqlExpr.Call.of(SqlFn.EQUAL, NAME, raw), "is RAW"),
-                Map.entry(SqlExpr.Call.of(SqlFn.EQUAL, NAME, level), "a value table"),
+                Map.entry(SqlExpr.Call.of(SqlFn.EQUAL, NAME, level), "legacy printer's mapping function"),
                 Map.entry(SqlExpr.Call.of(SqlFn.IN, NAME, P_NAME), "IN's whole list"))) {
             var refused = assertThrows(DialectCapability.class, () -> new DuckDb().renderStatement(where(c.getKey())));
             assertTrue(refused.getMessage().contains(c.getValue()), refused.getMessage());

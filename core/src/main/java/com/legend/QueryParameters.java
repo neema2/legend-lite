@@ -56,6 +56,12 @@ public final class QueryParameters {
          *  a literal decimal's type is its own digits', a Date's or a Number's value decides its kind
          *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2). */
         public com.legend.sql.SqlExpr.PlanParam slot() {
+            if (type instanceof Type.EnumType) {
+                // an enumeration's value travels as its NAME; a comparison with a mapped column translates it
+                // through that place's value table (EnumValueTables)
+                return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type),
+                        optional(), null, com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR));
+            }
             if (!(type instanceof Type.Primitive primitive)) {
                 throw new IllegalArgumentException("parameter '" + name + "' (" + type.typeName() + "): a parameter's"
                         + " value is a plain value -- a primitive, an enumeration's value, or a list of them");

@@ -87,6 +87,49 @@ public final class DecodeShapes {
         return null;
     }
 
+    /** The (code, name) pairs a literal-decode chain maps — one per source value, in branch order (a name stored
+     * under several codes, an OR of equalities, gives one pair per code); empty when {@code e} is not a decode over one
+     * source whose every code is a literal. */
+    public static Optional<List<List<SqlExpr>>> codesAndNames(SqlExpr e) {
+        Optional<List<SqlExpr.Case.When>> flat = flattenDecode(e);
+        if (flat.isEmpty() || sourceExpr(e).isEmpty()) {
+            return Optional.empty();
+        }
+        List<List<SqlExpr>> pairs = new ArrayList<>();
+        for (var w : flat.get()) {
+            List<SqlExpr> codes = new ArrayList<>();
+            if (!codes(w.condition(), codes)) {
+                return Optional.empty();
+            }
+            for (SqlExpr code : codes) {
+                pairs.add(List.of(code, w.then()));
+            }
+        }
+        return Optional.of(pairs);
+    }
+
+    /** The literal codes a branch condition compares its source with ({@code src = 'A'}, or an OR of such); false when
+     *  a code is not a literal. */
+    private static boolean codes(SqlExpr cond, List<SqlExpr> out) {
+        if (cond instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL && c.args().size() == 2) {
+            SqlExpr code = c.args().get(1);
+            if (!(code instanceof SqlExpr.StringLit || code instanceof SqlExpr.IntLit)) {
+                return false;
+            }
+            out.add(code);
+            return true;
+        }
+        if (cond instanceof SqlExpr.Call o && o.fn() == SqlFn.OR) {
+            for (SqlExpr arm : o.args()) {
+                if (!codes(arm, out)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
     /** {@link #sourceExpr} narrowed to a raw store COLUMN. */
     public static Optional<SqlExpr.Column> sourceColumn(SqlExpr e) {
         return sourceExpr(e)

@@ -261,6 +261,78 @@ public class PlanMakerTest {
         }
     }
 
+    /** An account's status stored as a code: ACTIVE as 'A' or 'X' (one name, two codes), CLOSED as 'C'; one account
+     *  has none, one a code the mapping does not know. {@code connection}: the connection's type, specification and
+     *  authentication. */
+    public static String enumModel(String connection, String table) {
+        return """
+                Enum s::Status { ACTIVE, CLOSED }
+                Class s::Acct { id: Integer[1]; status: s::Status[0..1]; }
+                ###Relational
+                Database s::DB ( Table %2$s ( ID INTEGER PRIMARY KEY, ST VARCHAR(1) ) )
+                ###Mapping
+                Mapping s::M
+                (
+                  s::Status: EnumerationMapping St { ACTIVE: ['A', 'X'], CLOSED: 'C' }
+                  *s::Acct: Relational { ~mainTable [s::DB] %2$s
+                    id: [s::DB] %2$s.ID, status: EnumerationMapping St: [s::DB] %2$s.ST }
+                )
+                ###Connection
+                RelationalDatabaseConnection s::Conn { store: s::DB; %1$s }
+                ###Runtime
+                Runtime s::RT { mappings: [s::M]; connections: [ s::DB: [ c1: s::Conn ] ]; }
+                """.formatted(connection, table);
+    }
+
+    /** {@link #enumModel}'s rows, as a seed's CSV blocks. */
+    public static String enumRows(String table) {
+        return "default\n" + table + "\nID,ST\n1,A\n2,X\n3,C\n4,---null---\n5,Z\n";
+    }
+
+    /** {@link #enumModel} with its rows as an in-memory connection's declared test data. */
+    private static String enumModel(DatabaseType type) {
+        return enumModel("type: " + type.name() + "; specification: LocalH2 { testDataSetupCSV: '"
+                + enumRows("A").replace("\n", "\\n") + "'; }; auth: DefaultH2;", "A");
+    }
+
+    /** The enumeration cases: compared with the mapped property (==, !=), and written as a value of its own. */
+    public static List<Parameterised> enumerations() {
+        return List.of(
+                new Parameterised("st: s::Status[1]", "let st = s::Status.ACTIVE;",
+                        "s::Acct.all()->filter(a|$a.status == $st)->project(~[id: a|$a.id])->sort(~id->ascending())",
+                        java.util.Map.of("st", "ACTIVE")),
+                new Parameterised("st: s::Status[1]", "let st = s::Status.CLOSED;",
+                        "s::Acct.all()->filter(a|$a.status != $st)->project(~[id: a|$a.id])->sort(~id->ascending())",
+                        java.util.Map.of("st", "CLOSED")),
+                new Parameterised("st: s::Status[1]", "let st = s::Status.ACTIVE;",
+                        "s::Acct.all()->filter(a|$a.id < 3)->project(~[id: a|$a.id, s: a|$st])->sort(~id->ascending())",
+                        java.util.Map.of("st", "ACTIVE")));
+    }
+
+    @Test
+    void anEnumerationParametersPlanAnswersAsTheQueryWithItsValue() throws Exception {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+            for (Parameterised q : enumerations()) {
+                for (TypedQuery.Output output : TypedQuery.Output.values()) {
+                    assertAnswersAsToday(enumModel(type), type, q.withParameters(), q.withLets(),
+                            q.values(), output);
+                }
+            }
+        }
+    }
+
+    /** Compared with a mapped column, an enumeration's name is translated by a value table at that place, so the
+     *  comparison reads the stored column and keeps its index (§9, measured: probes/enum-index-results.txt). */
+    @Test
+    void anEnumerationParameterIsComparedThroughAValueTable() {
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(enumModel(DatabaseType.DuckDB)),
+                enumerations().get(0).withParameters()).executionPlan("s::RT", TypedQuery.Output.JSON);
+        String statement = ((ExecutionPlan.TextResult) plan.root()).sql().statement();
+        assertTrue(statement.contains("IN (SELECT") && statement.contains("VALUES ('A', 'ACTIVE'), ('X', 'ACTIVE'),"
+                + " ('C', 'CLOSED')"), statement);
+        assertTrue(!statement.contains("THEN 'ACTIVE'"), "the column is read stored, never decoded: " + statement);
+    }
+
     @Test
     void anOptionalParametersEqualityIsNullSafe() {
         ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(DatabaseType.DuckDB,
@@ -314,7 +386,6 @@ public class PlanMakerTest {
                 Enum s::Status { ACTIVE, CLOSED }
                 """ + model("DuckDB");
         for (var refusal : java.util.Map.of(
-                "{st: s::Status[1]|#>{s::DB.T}#->filter(r|$st == s::Status.ACTIVE)}", "slice (d)",
                 "{ns: Integer[*]|#>{s::DB.T}#->filter(r|$r.ID->in($ns))}", "slice (e)").entrySet()) {
             var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(
                     Compiler.compileModel(model), refusal.getKey()).executionPlan("s::RT", TypedQuery.Output.JSON));
@@ -343,9 +414,15 @@ public class PlanMakerTest {
     /** {@code withParameters}'s plan, run with {@code values}, answers as today's path answers {@code query}. */
     private static void assertAnswersAsToday(DatabaseType type, String withParameters, String query,
             java.util.Map<String, Object> values, TypedQuery.Output output) throws Exception {
-        String model = model(type.name());
+        assertAnswersAsToday(model(type.name()), type, withParameters, query, values, output);
+    }
+
+    /** {@link #assertAnswersAsToday(DatabaseType, String, String, java.util.Map, TypedQuery.Output)} over
+     *  {@code model}, whose runtime is {@code s::RT}. */
+    private static void assertAnswersAsToday(String model, DatabaseType type, String withParameters, String query,
+            java.util.Map<String, Object> values, TypedQuery.Output output) throws Exception {
         String what = type + " " + output + " " + withParameters;
-        ExecutionPlan plan = plan(type, withParameters, output);
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), withParameters).executionPlan("s::RT", output);
         try (Connection today = fresh(type); Connection planned = fresh(type)) {
             var ctx = Compiler.compileModel(model);
             var dialect = Databases.dialect(type);

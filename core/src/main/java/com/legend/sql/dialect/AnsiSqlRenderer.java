@@ -1244,10 +1244,11 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
-     * A plan parameter bound as ONE value — an optional one's absence a null. What one value cannot carry yet is refused
-     * by name, never bound as something it is not: a RAW splice (plan text), an enum parameter (its mapping: a value
-     * table), step 2's landing 2 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9), as is a collection (IN's whole list,
-     * refused at IN).
+     * A plan parameter bound as ONE value — an optional one's absence a null, an enumeration's its name (compared with a
+     * mapped column through a value table, {@code EnumValueTables}). What one value cannot carry is refused by name,
+     * never bound as something it is not: a RAW splice and a parameter carrying the legacy printer's enumeration-mapping
+     * function (both plan-template vocabulary), and a collection (IN's whole list, refused at IN: step 2's landing 2,
+     * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9).
      */
     protected static RenderedStatement.Bind scalarBind(SqlExpr.PlanParam p) {
         if (p.kind() == SqlExpr.PlanParam.Kind.RAW) {
@@ -1255,8 +1256,8 @@ public class AnsiSqlRenderer implements SqlDialect {
                     + " bound value");
         }
         if (p.enumMapFn() != null) {
-            throw new DialectCapability("enum plan parameter '" + p.name() + "': its mapping (a value table) is"
-                    + " step 2's landing 2, not yet");
+            throw new DialectCapability("enum plan parameter '" + p.name() + "' carries the legacy printer's mapping"
+                    + " function (a value table, a plan template's): never a bound value");
         }
         return new RenderedStatement.Bind(p.name(), null);
     }
