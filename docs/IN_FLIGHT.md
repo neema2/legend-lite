@@ -451,11 +451,15 @@ fetch of DuckDB-WASM's httpfs extension from the network, to be vendored as a pi
 §4.2). Steps 1 and 2 landed as 447102e56 (run 37870936729; GATES 2026-10-09): the table reference's written form
 (`AppliedFunction.island`) and the reader learning the older JSON legend-engine 4.145.0 reads (records gained written
 details: `AppliedFunction.fControl`/`ownerClass`, `AppliedProperty.ownerClass`, the model's `serializer`/`origin`, ...;
-`SEMANTICS_REGISTER` S29 to S34; S34 is the compiler line's). Step 3 is done on the branch (2026-10-09, 16 commits;
-its outcome in the program doc §4.2): the printers in `core/src/main/java/com/legend/protocol/` print the records, the
-parity counts held exactly, and `core/src/test/java/com/legend/protocol/ModelComposerRoundTripTest.java` gained one
-case. Next: its audit, the local gate, one CI run, then landing (asking first). Not touched: `parser/`, `compiler/`,
-`server/` (legs 3 and 4 add the routes in `//core:pure_v1`).
+`SEMANTICS_REGISTER` S29 to S34; S34 is the compiler line's). Step 3 is done on the branch (2026-10-09; its outcome
+and its audit's in the program doc §4.2, register rows S35 and S36): the printers in
+`core/src/main/java/com/legend/protocol/` print the records, the parity counts held exactly, and the reader reads the
+dozen older or hand-written shapes the audit found refused. Beyond `protocol/` it touches
+`core/src/main/java/com/legend/test/ServiceTestRunner.java` (a CSV table without values refused by name),
+`wasm/src/main/java/planner/Wasm.java` (the model export reads once), two test files in
+`core/src/test/java/com/legend/protocol/` and `parser-equivalence`'s `ratchets.tsv` (`own_corpus.matched` 2733). Next:
+the local gate, one CI run, then landing (asking first). Not touched: `parser/`, `compiler/`, `server/` (legs 3 and 4
+add the routes in `//core:pure_v1`).
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
 (engine code: `core/.../protocol/`, eleven files of `core/.../parser/`, `native-claims.tsv`; the engine's lanes). For
