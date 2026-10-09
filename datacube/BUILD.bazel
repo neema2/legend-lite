@@ -166,8 +166,8 @@ _EXTRA_DATA = {
         ":demo/bundle-engine.js",
         ":demo/bundle.js",
         ":demo/widget-loader.js",
+        ":demo/widget.css",
         ":demo/widget.js",
-        ":widget",
     ],
     # the saved queries Query writes, and the project they compile against
     "saved-queries": ["//fixtures/saved-queries:records", ":projects"],
@@ -775,7 +775,9 @@ esbuild_bundle(
         "demo/widget.js",
     ],
     args = [
-        # two entry points, both named widget: the module (widget.js) and its styles (widget.css)
+        # two entry points, both named widget: the module (widget.js) and its styles (widget.css). The styles are their
+        # own entry ON PURPOSE: widget.ts imports no CSS, for esbuild would write a JS entry's imported CSS to a sibling
+        # widget.css, the same path as this entry's ("two output files share the same path")
         "widget=demo/widget.ts",
         "widget=demo/widget-styles.css",
         "--bundle",
