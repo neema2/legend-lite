@@ -7,48 +7,45 @@ import com.legend.json.Json;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
 
 import static com.legend.protocol.Composing.convertIdentifier;
-import static com.legend.protocol.Composing.convertString;
-import static com.legend.protocol.Composing.items;
-import static com.legend.protocol.Composing.objOr;
-import static com.legend.protocol.Composing.objs;
-import static com.legend.protocol.Composing.str;
 import static com.legend.protocol.Composing.valueSpecification;
 
 /**
  * {@code ###DataQualityValidation}'s elements as upstream prints them ({@code DataQualityGrammarComposerExtension}):
  * the data quality validation (its constraint tree printed in the extension's own pretty layout), the relation
- * validation and the relation comparison, with their test suites. The extension writes the element's path as
- * the wire spells it (unquoted) and indents with three spaces per level.
+ * validation and the relation comparison, with their test suites -- over the records
+ * ({@link Protocol.PDataQualityValidation}, {@link Protocol.PDataQualityRelationValidation},
+ * {@link Protocol.PDataQualityRelationComparison}; the protocol program's leg 2, step 3). The extension writes the
+ * element's path as the wire spells it (unquoted) and indents with three spaces per level. What its printer has no
+ * renderer for (a persistence strategy, a tree's sub-type trees or parameters) has no reader rule: refused when read.
  */
 final class DataQualityComposer {
 
     /** The extension's graph fetch tree layout: the root at three tabs, two spaces each. */
     private static final int INITIAL_TAB_SIZE = 3;
 
-    private static final Map<String, Function<Json.Obj, String>> PRINTERS = Map.of(
-            "dataQualityValidation", DataQualityComposer::dataQuality,
-            "dataqualityRelationValidation", DataQualityComposer::relationValidation,
-            "dataQualityRelationComparison", DataQualityComposer::relationComparison);
-
     private DataQualityComposer() {
     }
 
     /** The section's kinds: data quality validations, relation validations and relation comparisons. */
+    static String element(Protocol.Element e) {
+        return switch (e) {
+            case Protocol.PDataQualityValidation dq -> dataQuality(dq);
+            case Protocol.PDataQualityRelationValidation v -> relationValidation(v);
+            case Protocol.PDataQualityRelationComparison c -> relationComparison(c);
+            default -> throw Composing.refused("the data quality composer has no rule for a " + e.getClass().getSimpleName());
+        };
+    }
+
+    /** {@link #element(Protocol.Element)} of the JSON, read first. */
     static String element(Json.Obj e) {
-        Function<Json.Obj, String> printer = PRINTERS.get(Composing.type(e));
-        if (printer == null) {
-            throw Composing.refused("the data quality composer has no rule for _type '" + Composing.type(e) + "'");
-        }
-        return printer.apply(e);
+        return element(Composing.element(e, Protocol.Element.class));
     }
 
     /** The element's path as the extension writes it: package, {@code ::}, name, no quoting. */
-    private static String rawPath(Json.Obj e) {
-        return Composing.path(e);
+    private static String rawPath(String pkg, String name) {
+        return pkg.isEmpty() ? name : pkg + "::" + name;
     }
 
     private static String indent(int level) {
@@ -59,25 +56,22 @@ final class DataQualityComposer {
     // DataQualityValidation
     // ---------------------------------------------------------------------
 
-    private static String dataQuality(Json.Obj dq) {
-        Json.Obj filter = objOr(dq, "filter");
-        return DomainComposer.declarationPrefix("DataQualityValidation", "", dq) + rawPath(dq) + "\n"
+    private static String dataQuality(Protocol.PDataQualityValidation dq) {
+        return DomainComposer.declarationPrefix("DataQualityValidation", "", dq.stereotypes(), dq.taggedValues())
+                + rawPath(dq.pkg(), dq.name()) + "\n"
                 + "{\n"
-                + "   context: " + context(dq.getObj("context")) + ";\n"
-                + "   validationTree: " + rootTree(dq.getObj("dataQualityRootGraphFetchTree")) + ";\n"
-                + (filter == null ? "" : "   filter: " + valueSpecification(filter) + ";\n")
+                + "   context: " + context(dq) + ";\n"
+                + "   validationTree: " + rootTree(dq.validationTree()) + ";\n"
+                + (dq.filter() == null ? "" : "   filter: " + valueSpecification(dq.filter()) + ";\n")
                 + "}";
     }
 
-    private static String context(Json.Obj c) {
-        String type = Composing.type(c);
-        if ("mappingAndRuntimeDataQualityExecutionContext".equals(type)) {
-            return "fromMappingAndRuntime(" + c.getObj("mapping").getString("path") + ", " + c.getObj("runtime").getString("path") + ")";
+    /** {@code fromMappingAndRuntime(mapping, runtime)} or {@code fromDataSpace(dataSpace, 'context')}. */
+    private static String context(Protocol.PDataQualityValidation dq) {
+        if ("fromDataSpace".equals(dq.contextKind())) {
+            return "fromDataSpace(" + dq.contextPath() + ", '" + dq.contextSecond() + "')";
         }
-        if ("dataSpaceDataQualityExecutionContext".equals(type)) {
-            return "fromDataSpace(" + c.getObj("dataSpace").getString("path") + ", '" + c.getString("context") + "')";
-        }
-        throw Composing.refused("no composer rule for a data quality execution context of _type '" + type + "'");
+        return "fromMappingAndRuntime(" + dq.contextPath() + ", " + dq.contextSecond() + ")";
     }
 
     /** Pretty indentation: {@code n} spaces (the extension's transformer has no base indentation). */
@@ -85,56 +79,37 @@ final class DataQualityComposer {
         return " ".repeat(n);
     }
 
-    private static String rootTree(Json.Obj root) {
-        if (!items(root, "subTypeTrees").isEmpty()) {
-            throw Composing.refused("a dataQualityRootGraphFetchTree with sub-type trees (no composer rule yet)");
-        }
+    private static String rootTree(Protocol.PDqTreeNode root) {
         List<String> subTrees = new ArrayList<>();
-        for (Json.Obj t : objs(root, "subTrees")) {
+        for (Protocol.PDqTreeNode t : root.subTrees()) {
             subTrees.add(propertyTree(t, INITIAL_TAB_SIZE + 1));
         }
         String at = spaces(2 * INITIAL_TAB_SIZE);
-        return "$[\n" + at + root.getString("class") + constraints(root) + "{\n"
+        return "$[\n" + at + root.className() + constraints(root) + "{\n"
                 + String.join(",\n", subTrees) + "\n"
                 + at + "}\n"
                 + spaces(2 * (INITIAL_TAB_SIZE - 1)) + "]$";
     }
 
-    private static String propertyTree(Json.Obj tree, int tabSize) {
-        if (!"dataQualityPropertyGraphFetchTree".equals(Composing.type(tree))) {
-            throw Composing.refused("no composer rule for a data quality tree node of _type '" + Composing.type(tree) + "'");
-        }
-        String alias = str(tree, "alias");
+    private static String propertyTree(Protocol.PDqTreeNode tree, int tabSize) {
         String subTreeString = "";
-        List<Json.Obj> subTrees = objs(tree, "subTrees");
-        if (!subTrees.isEmpty()) {
+        if (!tree.subTrees().isEmpty()) {
             List<String> out = new ArrayList<>();
-            for (Json.Obj t : subTrees) {
+            for (Protocol.PDqTreeNode t : tree.subTrees()) {
                 out.add(propertyTree(t, tabSize + 1));
             }
             subTreeString = "{\n" + String.join(",\n", out) + "\n" + spaces(2 * tabSize) + "}";
         }
-        List<Json.Node> params = items(tree, "parameters");
-        String parameters = "";
-        if (!params.isEmpty()) {
-            List<String> ps = new ArrayList<>();
-            for (Json.Node p : params) {
-                ps.add(PureComposer.valueSpecification(p, PureComposer.Style.PRETTY, ""));
-            }
-            parameters = "(" + String.join(", ", ps) + ")";
-        }
-        String subType = str(tree, "subType");
-        return spaces(2 * tabSize) + (alias != null ? convertString(alias, false) + ":" : "") + tree.getString("property")
-                + constraints(tree) + parameters + (subType != null ? "->subType(@" + subType + ")" : "") + subTreeString;
+        return spaces(2 * tabSize) + tree.property() + constraints(tree)
+                + (tree.subType() != null ? "->subType(@" + tree.subType() + ")" : "") + subTreeString;
     }
 
-    private static String constraints(Json.Obj tree) {
-        List<String> constraints = tree.getStringArrayOr("constraints", List.of());
-        if (constraints.isEmpty()) {
+    private static String constraints(Protocol.PDqTreeNode tree) {
+        if (tree.constraints().isEmpty()) {
             return "";
         }
         List<String> out = new ArrayList<>();
-        for (String c : constraints) {
+        for (String c : tree.constraints()) {
             out.add(convertIdentifier(c));
         }
         return "<" + String.join(", ", out) + ">";
@@ -144,78 +119,56 @@ final class DataQualityComposer {
     // DataQualityRelationValidation
     // ---------------------------------------------------------------------
 
-    private static String relationValidation(Json.Obj v) {
+    private static String relationValidation(Protocol.PDataQualityRelationValidation v) {
         List<String> validations = new ArrayList<>();
-        for (Json.Obj val : objs(v, "validations")) {
+        for (Protocol.PDqRelationCheck val : v.validations()) {
             validations.add(validation(val));
         }
-        return DomainComposer.declarationPrefix("DataQualityRelationValidation", "", v) + rawPath(v) + "\n"
+        return DomainComposer.declarationPrefix("DataQualityRelationValidation", "", v.stereotypes(), v.taggedValues())
+                + rawPath(v.pkg(), v.name()) + "\n"
                 + "{\n"
-                + "   query: " + valueSpecification(v.get("query")) + ";\n"
+                + "   query: " + valueSpecification(v.query()) + ";\n"
                 + "   validations: [\n" + String.join(",\n", validations) + "\n   ];\n"
-                + persistenceStrategy(v)
-                + testSuites(v)
+                + testSuites(v.testSuites())
                 + "}";
     }
 
-    private static String validation(Json.Obj val) {
-        String description = str(val, "description");
-        Json.Obj assertion = objOr(val, "assertion");
-        String type = str(val, "type");
+    private static String validation(Protocol.PDqRelationCheck val) {
         return "   {\n"
-                + "     name: '" + val.getString("name") + "';\n"
-                + (description == null ? "" : "     description: '" + description + "';\n")
-                + (assertion == null ? "" : "     assertion: " + valueSpecification(assertion) + ";\n")
-                + (type == null ? "" : "     type: " + type + ";\n")
+                + "     name: '" + val.name() + "';\n"
+                + (val.description() == null ? "" : "     description: '" + val.description() + "';\n")
+                + "     assertion: " + valueSpecification(val.assertion()) + ";\n"
+                + (val.type() == null ? "" : "     type: " + val.type() + ";\n")
                 + "    }";
-    }
-
-    /** Upstream registers no persistence strategy renderer: a strategy makes it throw. */
-    private static String persistenceStrategy(Json.Obj e) {
-        if (Composing.value(e, "persistenceStrategy") != null) {
-            throw Composing.refused("a data quality persistence strategy on _type '" + Composing.type(e)
-                    + "' (upstream has no renderer for any)");
-        }
-        return "";
     }
 
     // ---------------------------------------------------------------------
     // DataQualityRelationComparison
     // ---------------------------------------------------------------------
 
-    private static String relationComparison(Json.Obj c) {
-        List<String> keys = c.getStringArrayOr("keys", List.of());
-        List<String> columns = c.getStringArrayOr("columnsToCompare", List.of());
-        Json.Node expectedMatch = Composing.value(c, "expectedMatch");
-        return "DataQualityRelationComparison " + rawPath(c) + "\n"
+    private static String relationComparison(Protocol.PDataQualityRelationComparison c) {
+        return "DataQualityRelationComparison " + rawPath(c.pkg(), c.name()) + "\n"
                 + "{\n"
-                + "   source: " + valueSpecification(c.get("source")) + ";\n"
-                + "   target: " + valueSpecification(c.get("target")) + ";\n"
-                + (keys.isEmpty() ? "" : "   keys: [" + String.join(", ", keys) + "];\n")
-                + (columns.isEmpty() ? "" : "   columnsToCompare: [" + String.join(", ", columns) + "];\n")
-                + "   strategy: " + strategy(c.getObj("strategy")) + ";\n"
-                + (expectedMatch == null ? "" : "   expectedMatch: " + RelationalConnectionComposer.raw(expectedMatch) + ";\n")
-                + persistenceStrategy(c)
-                + testSuites(c)
+                + "   source: " + valueSpecification(c.source()) + ";\n"
+                + "   target: " + valueSpecification(c.target()) + ";\n"
+                + (c.keys().isEmpty() ? "" : "   keys: [" + String.join(", ", c.keys()) + "];\n")
+                + (c.columnsToCompare().isEmpty() ? "" : "   columnsToCompare: [" + String.join(", ", c.columnsToCompare()) + "];\n")
+                + "   strategy: " + strategy(c.strategy()) + ";\n"
+                + (c.expectedMatch() == null ? "" : "   expectedMatch: " + c.expectedMatch() + ";\n")
+                + testSuites(c.testSuites())
                 + "}";
     }
 
-    private static String strategy(Json.Obj s) {
-        if (!"md5Hash".equals(Composing.type(s))) {
-            throw Composing.refused("no composer rule for a recon strategy of _type '" + Composing.type(s) + "' (upstream throws)");
-        }
+    private static String strategy(Protocol.PReconStrategy s) {
         List<String> fields = new ArrayList<>();
-        String source = str(s, "sourceHashColumn");
-        if (source != null) {
-            fields.add("     sourceHashColumn: " + source + ";");
+        if (s.sourceHashColumn() != null) {
+            fields.add("     sourceHashColumn: " + s.sourceHashColumn() + ";");
         }
-        String target = str(s, "targetHashColumn");
-        if (target != null) {
-            fields.add("     targetHashColumn: " + target + ";");
+        if (s.targetHashColumn() != null) {
+            fields.add("     targetHashColumn: " + s.targetHashColumn() + ";");
         }
-        Json.Node aggregated = Composing.value(s, "aggregatedHash");
-        if (aggregated != null) {
-            fields.add("     aggregatedHash: " + RelationalConnectionComposer.raw(aggregated) + ";");
+        if (s.aggregatedHash() != null) {
+            fields.add("     aggregatedHash: " + s.aggregatedHash() + ";");
         }
         return fields.isEmpty() ? "MD5Hash" : "MD5Hash\n   {\n" + String.join("\n", fields) + "\n   }";
     }
@@ -224,33 +177,31 @@ final class DataQualityComposer {
     // Test suites
     // ---------------------------------------------------------------------
 
-    private static String testSuites(Json.Obj e) {
-        List<Json.Obj> suites = objs(e, "testSuites");
-        if (suites.isEmpty()) {
+    private static String testSuites(@com.legend.base.Nullable List<Protocol.PDqTestSuite> suites) {
+        if (suites == null || suites.isEmpty()) {
             return "";
         }
         List<String> out = new ArrayList<>();
-        for (Json.Obj s : suites) {
-            Json.Obj testData = objOr(s, "testData");
-            out.add(testSuite(s.getString("id"), testData == null ? List.of() : objs(testData, "testData"), objs(s, "tests"), 2));
+        for (Protocol.PDqTestSuite s : suites) {
+            out.add(testSuite(s, 2));
         }
         return indent(1) + "testSuites:\n" + indent(1) + "[\n" + String.join(",\n", out) + "\n" + indent(1) + "]\n";
     }
 
-    private static String testSuite(String id, List<Json.Obj> testData, List<Json.Obj> tests, int base) {
-        StringBuilder b = new StringBuilder(indent(base)).append(convertIdentifier(id)).append(":\n").append(indent(base)).append("{\n");
+    private static String testSuite(Protocol.PDqTestSuite suite, int base) {
+        StringBuilder b = new StringBuilder(indent(base)).append(convertIdentifier(suite.id())).append(":\n").append(indent(base)).append("{\n");
+        List<Protocol.PDqStoreData> testData = suite.testData() == null ? List.of() : suite.testData().testData();
         if (!testData.isEmpty()) {
             List<String> data = new ArrayList<>();
-            for (Json.Obj td : testData) {
-                data.add(indent(base + 2) + td.getObj("packageableElementPointer").getString("path") + ":\n"
-                        + EmbeddedDataComposer.compose(td.getObj("data"), indent(base + 3)));
+            for (Protocol.PDqStoreData td : testData) {
+                data.add(indent(base + 2) + td.store() + ":\n" + EmbeddedDataComposer.compose(td.data(), indent(base + 3)));
             }
             b.append(indent(base + 1)).append("data:\n").append(indent(base + 1)).append("[\n").append(String.join(",\n", data))
                     .append("\n").append(indent(base + 1)).append("]\n");
         }
-        if (!tests.isEmpty()) {
+        if (!suite.tests().isEmpty()) {
             List<String> ts = new ArrayList<>();
-            for (Json.Obj t : tests) {
+            for (Protocol.PDqTest t : suite.tests()) {
                 ts.add(test(t, base + 2));
             }
             b.append(indent(base + 1)).append("tests:\n").append(indent(base + 1)).append("[\n").append(String.join(",\n", ts))
@@ -259,12 +210,11 @@ final class DataQualityComposer {
         return b.append(indent(base)).append("}").toString();
     }
 
-    private static String test(Json.Obj t, int base) {
-        StringBuilder b = new StringBuilder(indent(base)).append(convertIdentifier(t.getString("id"))).append(":\n").append(indent(base)).append("{\n");
-        List<Json.Obj> assertions = objs(t, "assertions");
-        if (!assertions.isEmpty()) {
+    private static String test(Protocol.PDqTest t, int base) {
+        StringBuilder b = new StringBuilder(indent(base)).append(convertIdentifier(t.id())).append(":\n").append(indent(base)).append("{\n");
+        if (!t.assertions().isEmpty()) {
             List<String> as = new ArrayList<>();
-            for (Json.Obj a : assertions) {
+            for (Protocol.PTestAssertion a : t.assertions()) {
                 as.add(TestAssertionComposer.compose(a, indent(base + 2)));
             }
             b.append(indent(base + 1)).append("asserts:\n").append(indent(base + 1)).append("[\n").append(String.join(",\n", as))
