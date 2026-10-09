@@ -27,11 +27,13 @@ final class DataQualityComposer {
     }
 
     /** The section's kinds: data quality validations, relation validations and relation comparisons. */
-    static String element(Protocol.Element e) {
+    // The validation tree prints PRETTY whatever the model's style (upstream's transformer for it is built with
+    // RenderStyle.PRETTY); the filter, the query, the assertions, the source and the target follow the model's.
+    static String element(Protocol.Element e, PureComposer.Style style) {
         return switch (e) {
-            case Protocol.PDataQualityValidation dq -> dataQuality(dq);
-            case Protocol.PDataQualityRelationValidation v -> relationValidation(v);
-            case Protocol.PDataQualityRelationComparison c -> relationComparison(c);
+            case Protocol.PDataQualityValidation dq -> dataQuality(dq, style);
+            case Protocol.PDataQualityRelationValidation v -> relationValidation(v, style);
+            case Protocol.PDataQualityRelationComparison c -> relationComparison(c, style);
             default -> throw Composing.refused("the data quality composer has no rule for a " + e.getClass().getSimpleName());
         };
     }
@@ -49,13 +51,15 @@ final class DataQualityComposer {
     // DataQualityValidation
     // ---------------------------------------------------------------------
 
-    private static String dataQuality(Protocol.PDataQualityValidation dq) {
+    private static String dataQuality(Protocol.PDataQualityValidation dq, PureComposer.Style style) {
         return DomainComposer.declarationPrefix("DataQualityValidation", "", dq.stereotypes(), dq.taggedValues())
                 + rawPath(dq.pkg(), dq.name()) + "\n"
                 + "{\n"
                 + "   context: " + context(dq) + ";\n"
-                + "   validationTree: " + rootTree(dq.validationTree()) + ";\n"
-                + (dq.filter() == null ? "" : "   filter: " + valueSpecification(dq.filter()) + ";\n")
+                // upstream's tree transformer: withIndentation(1) on the model's context, then PRETTY -- so one space
+                // in a PRETTY model, none in a STANDARD one
+                + "   validationTree: " + rootTree(dq.validationTree(), Composing.indented("", 1, style)) + ";\n"
+                + (dq.filter() == null ? "" : "   filter: " + valueSpecification(dq.filter(), style) + ";\n")
                 + "}";
     }
 
@@ -67,41 +71,41 @@ final class DataQualityComposer {
         return "fromMappingAndRuntime(" + dq.contextPath() + ", " + dq.contextSecond() + ")";
     }
 
-    /** Pretty indentation: {@code n} spaces (the extension's transformer has no base indentation). */
-    private static String spaces(int n) {
-        return " ".repeat(n);
+    /** {@code computeIndentationString(transformer, n)}: the tree transformer's own indentation and {@code n} spaces. */
+    private static String spaces(String base, int n) {
+        return base + " ".repeat(n);
     }
 
-    private static String rootTree(Protocol.PDqTreeNode root) {
+    private static String rootTree(Protocol.PDqTreeNode root, String base) {
         List<String> subTrees = new ArrayList<>();
         for (Protocol.PDqTreeNode t : root.subTrees()) {
-            subTrees.add(propertyTree(t, INITIAL_TAB_SIZE + 1));
+            subTrees.add(propertyTree(t, INITIAL_TAB_SIZE + 1, base));
         }
-        String at = spaces(2 * INITIAL_TAB_SIZE);
+        String at = spaces(base, 2 * INITIAL_TAB_SIZE);
         return "$[\n" + at + root.className() + constraints(root) + "{\n"
                 + String.join(",\n", subTrees) + "\n"
                 + at + "}\n"
-                + spaces(2 * (INITIAL_TAB_SIZE - 1)) + "]$";
+                + spaces(base, 2 * (INITIAL_TAB_SIZE - 1)) + "]$";
     }
 
-    private static String propertyTree(Protocol.PDqTreeNode tree, int tabSize) {
+    private static String propertyTree(Protocol.PDqTreeNode tree, int tabSize, String base) {
         String subTreeString = "";
         if (!tree.subTrees().isEmpty()) {
             List<String> out = new ArrayList<>();
             for (Protocol.PDqTreeNode t : tree.subTrees()) {
-                out.add(propertyTree(t, tabSize + 1));
+                out.add(propertyTree(t, tabSize + 1, base));
             }
-            subTreeString = "{\n" + String.join(",\n", out) + "\n" + spaces(2 * tabSize) + "}";
+            subTreeString = "{\n" + String.join(",\n", out) + "\n" + spaces(base, 2 * tabSize) + "}";
         }
         String parameters = "";
         if (!tree.parameters().isEmpty()) {
             List<String> ps = new ArrayList<>();
             for (com.legend.protocol.spec.ValueSpecification p : tree.parameters()) {
-                ps.add(PureComposer.valueSpecification(p, PureComposer.Style.PRETTY, ""));
+                ps.add(PureComposer.valueSpecification(p, PureComposer.Style.PRETTY, base));
             }
             parameters = "(" + String.join(", ", ps) + ")";
         }
-        return spaces(2 * tabSize) + (tree.alias() != null ? Composing.convertString(tree.alias(), false) + ":" : "")
+        return spaces(base, 2 * tabSize) + (tree.alias() != null ? Composing.convertString(tree.alias(), false) + ":" : "")
                 + tree.property() + constraints(tree) + parameters
                 + (tree.subType() != null ? "->subType(@" + tree.subType() + ")" : "") + subTreeString;
     }
@@ -121,25 +125,25 @@ final class DataQualityComposer {
     // DataQualityRelationValidation
     // ---------------------------------------------------------------------
 
-    private static String relationValidation(Protocol.PDataQualityRelationValidation v) {
+    private static String relationValidation(Protocol.PDataQualityRelationValidation v, PureComposer.Style style) {
         List<String> validations = new ArrayList<>();
         for (Protocol.PDqRelationCheck val : v.validations()) {
-            validations.add(validation(val));
+            validations.add(validation(val, style));
         }
         return DomainComposer.declarationPrefix("DataQualityRelationValidation", "", v.stereotypes(), v.taggedValues())
                 + rawPath(v.pkg(), v.name()) + "\n"
                 + "{\n"
-                + "   query: " + valueSpecification(v.query()) + ";\n"
+                + "   query: " + valueSpecification(v.query(), style) + ";\n"
                 + "   validations: [\n" + String.join(",\n", validations) + "\n   ];\n"
-                + testSuites(v.testSuites())
+                + testSuites(v.testSuites(), style)
                 + "}";
     }
 
-    private static String validation(Protocol.PDqRelationCheck val) {
+    private static String validation(Protocol.PDqRelationCheck val, PureComposer.Style style) {
         return "   {\n"
                 + "     name: '" + val.name() + "';\n"
                 + (val.description() == null ? "" : "     description: '" + val.description() + "';\n")
-                + "     assertion: " + valueSpecification(val.assertion()) + ";\n"
+                + "     assertion: " + valueSpecification(val.assertion(), style) + ";\n"
                 + (val.type() == null ? "" : "     type: " + val.type() + ";\n")
                 + "    }";
     }
@@ -148,16 +152,16 @@ final class DataQualityComposer {
     // DataQualityRelationComparison
     // ---------------------------------------------------------------------
 
-    private static String relationComparison(Protocol.PDataQualityRelationComparison c) {
+    private static String relationComparison(Protocol.PDataQualityRelationComparison c, PureComposer.Style style) {
         return "DataQualityRelationComparison " + rawPath(c.pkg(), c.name()) + "\n"
                 + "{\n"
-                + "   source: " + valueSpecification(c.source()) + ";\n"
-                + "   target: " + valueSpecification(c.target()) + ";\n"
+                + "   source: " + valueSpecification(c.source(), style) + ";\n"
+                + "   target: " + valueSpecification(c.target(), style) + ";\n"
                 + (c.keys().isEmpty() ? "" : "   keys: [" + String.join(", ", c.keys()) + "];\n")
                 + (c.columnsToCompare().isEmpty() ? "" : "   columnsToCompare: [" + String.join(", ", c.columnsToCompare()) + "];\n")
                 + "   strategy: " + strategy(c.strategy()) + ";\n"
                 + (c.expectedMatch() == null ? "" : "   expectedMatch: " + c.expectedMatch() + ";\n")
-                + testSuites(c.testSuites())
+                + testSuites(c.testSuites(), style)
                 + "}";
     }
 
@@ -179,18 +183,18 @@ final class DataQualityComposer {
     // Test suites
     // ---------------------------------------------------------------------
 
-    private static String testSuites(@com.legend.base.Nullable List<Protocol.PDqTestSuite> suites) {
+    private static String testSuites(@com.legend.base.Nullable List<Protocol.PDqTestSuite> suites, PureComposer.Style style) {
         if (suites == null || suites.isEmpty()) {
             return "";
         }
         List<String> out = new ArrayList<>();
         for (Protocol.PDqTestSuite s : suites) {
-            out.add(testSuite(s, 2));
+            out.add(testSuite(s, 2, style));
         }
         return indent(1) + "testSuites:\n" + indent(1) + "[\n" + String.join(",\n", out) + "\n" + indent(1) + "]\n";
     }
 
-    private static String testSuite(Protocol.PDqTestSuite suite, int base) {
+    private static String testSuite(Protocol.PDqTestSuite suite, int base, PureComposer.Style style) {
         StringBuilder b = new StringBuilder(indent(base)).append(convertIdentifier(suite.id())).append(":\n").append(indent(base)).append("{\n");
         List<Protocol.PDqStoreData> testData = suite.testData() == null ? List.of() : suite.testData().testData();
         if (!testData.isEmpty()) {
@@ -204,7 +208,7 @@ final class DataQualityComposer {
         if (!suite.tests().isEmpty()) {
             List<String> ts = new ArrayList<>();
             for (Protocol.PDqTest t : suite.tests()) {
-                ts.add(test(t, base + 2));
+                ts.add(test(t, base + 2, style));
             }
             b.append(indent(base + 1)).append("tests:\n").append(indent(base + 1)).append("[\n").append(String.join(",\n", ts))
                     .append("\n").append(indent(base + 1)).append("]\n");
@@ -212,12 +216,12 @@ final class DataQualityComposer {
         return b.append(indent(base)).append("}").toString();
     }
 
-    private static String test(Protocol.PDqTest t, int base) {
+    private static String test(Protocol.PDqTest t, int base, PureComposer.Style style) {
         StringBuilder b = new StringBuilder(indent(base)).append(convertIdentifier(t.id())).append(":\n").append(indent(base)).append("{\n");
         if (!t.assertions().isEmpty()) {
             List<String> as = new ArrayList<>();
             for (Protocol.PTestAssertion a : t.assertions()) {
-                as.add(TestAssertionComposer.compose(a, indent(base + 2)));
+                as.add(TestAssertionComposer.compose(a, indent(base + 2), style));
             }
             b.append(indent(base + 1)).append("asserts:\n").append(indent(base + 1)).append("[\n").append(String.join(",\n", as))
                     .append("\n").append(indent(base + 1)).append("]\n");

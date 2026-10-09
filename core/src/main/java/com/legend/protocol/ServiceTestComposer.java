@@ -26,16 +26,17 @@ final class ServiceTestComposer {
     }
 
     /** {@code renderServiceTestSuite}: the flat form when the suite carries service test data. */
-    static String testSuite(PServiceTestSuite suite) {
+    static String testSuite(PServiceTestSuite suite, PureComposer.Style style) {
         PServiceTestSuite.PSuiteData testData = suite.testData();
         List<PServiceTestSuite.PResolverData> resolvers = testData == null ? null : testData.serviceTestData();
         if (resolvers != null && !resolvers.isEmpty()) {
-            return flatSuite(suite, resolvers);
+            return flatSuite(suite, resolvers, style);
         }
-        return blockSuite(suite, testData);
+        return blockSuite(suite, testData, style);
     }
 
-    private static String blockSuite(PServiceTestSuite suite, PServiceTestSuite.@com.legend.base.Nullable PSuiteData testData) {
+    private static String blockSuite(PServiceTestSuite suite, PServiceTestSuite.@com.legend.base.Nullable PSuiteData testData,
+            PureComposer.Style style) {
         StringBuilder b = new StringBuilder(tab(2)).append(convertIdentifier(suite.id())).append(":\n").append(tab(2)).append("{\n");
         if (testData != null) {
             b.append(tab(3)).append("data:\n").append(tab(3)).append("[\n");
@@ -52,13 +53,13 @@ final class ServiceTestComposer {
         }
         List<String> ts = new ArrayList<>();
         for (PServiceTestSuite.PSuiteTest t : suite.tests()) {
-            ts.add(blockTest(t, 4));
+            ts.add(blockTest(t, 4, style));
         }
         b.append(tab(3)).append("tests:\n").append(tab(3)).append("[\n").append(String.join(",\n", ts)).append("\n").append(tab(3)).append("]\n");
         return b.append(tab(2)).append("}").toString();
     }
 
-    private static String blockTest(PServiceTestSuite.PSuiteTest test, int base) {
+    private static String blockTest(PServiceTestSuite.PSuiteTest test, int base, PureComposer.Style style) {
         StringBuilder b = new StringBuilder(tab(base)).append(convertIdentifier(test.id())).append(":\n").append(tab(base)).append("{\n");
         if (test.serializationFormat() != null) {
             b.append(tab(base + 1)).append("serializationFormat: ").append(test.serializationFormat()).append(";\n");
@@ -67,7 +68,7 @@ final class ServiceTestComposer {
         if (!params.isEmpty()) {
             List<String> ps = new ArrayList<>();
             for (PServiceTestSuite.PSuiteParam p : params) {
-                ps.add(tab(base + 2) + p.name() + " = " + valueSpecification(p.value()));
+                ps.add(tab(base + 2) + p.name() + " = " + valueSpecification(p.value(), style));
             }
             b.append(tab(base + 1)).append("parameters:\n").append(tab(base + 1)).append("[\n").append(String.join(",\n", ps)).append("\n")
                     .append(tab(base + 1)).append("]\n");
@@ -79,7 +80,7 @@ final class ServiceTestComposer {
         }
         List<String> as = new ArrayList<>();
         for (Protocol.PTestAssertion a : test.assertions()) {
-            as.add(TestAssertionComposer.compose(a, tab(base + 2)));
+            as.add(TestAssertionComposer.compose(a, tab(base + 2), style));
         }
         b.append(tab(base + 1)).append("asserts:\n").append(tab(base + 1)).append("[\n").append(String.join(",\n", as)).append("\n")
                 .append(tab(base + 1)).append("]\n");
@@ -94,14 +95,15 @@ final class ServiceTestComposer {
         return out;
     }
 
-    private static String flatSuite(PServiceTestSuite suite, List<PServiceTestSuite.PResolverData> resolvers) {
+    private static String flatSuite(PServiceTestSuite suite, List<PServiceTestSuite.PResolverData> resolvers,
+            PureComposer.Style style) {
         StringBuilder b = new StringBuilder(tab(2)).append(convertIdentifier(suite.id()))
                 .append(suite.doc() != null ? " " + convertString(suite.doc(), true) : "").append("\n").append(tab(2)).append("(\n");
         for (PServiceTestSuite.PResolverData r : resolvers) {
             b.append(resolver(r, 3)).append("\n");
         }
         for (PServiceTestSuite.PSuiteTest t : suite.tests()) {
-            b.append(atomicTest(t, 3)).append("\n");
+            b.append(atomicTest(t, 3, style)).append("\n");
         }
         return b.append(tab(2)).append(")").toString();
     }
@@ -113,7 +115,7 @@ final class ServiceTestComposer {
                 : tab(base) + r.elementPath() + ":\n" + EmbeddedDataComposer.compose(data, tab(base + 1)) + ";";
     }
 
-    private static String atomicTest(PServiceTestSuite.PSuiteTest test, int base) {
+    private static String atomicTest(PServiceTestSuite.PSuiteTest test, int base, PureComposer.Style style) {
         StringBuilder b = new StringBuilder(tab(base)).append(convertIdentifier(test.id()));
         if (test.doc() != null) {
             b.append(" ").append(convertString(test.doc(), true));
@@ -122,7 +124,7 @@ final class ServiceTestComposer {
         if (!params.isEmpty()) {
             List<String> ps = new ArrayList<>();
             for (PServiceTestSuite.PSuiteParam p : params) {
-                ps.add(p.name() + " = " + valueSpecification(p.value()));
+                ps.add(p.name() + " = " + valueSpecification(p.value(), style));
             }
             b.append(" (").append(String.join(", ", ps)).append(")");
         }
@@ -164,34 +166,35 @@ final class ServiceTestComposer {
         return true;
     }
 
-    static String legacyTest(Protocol.PLegacyServiceTest test) {
+    static String legacyTest(Protocol.PLegacyServiceTest test, PureComposer.Style style) {
         if ("Single".equals(test.kind())) {
             if (test.data() == null) {
                 throw Composing.refused("a legacy single-execution service test without its data");
             }
             return "Single\n" + TAB + "{\n"
                     + tab(2) + "data: " + convertString(test.data(), true) + ";\n"
-                    + tab(2) + "asserts:\n" + testContainers(test.asserts(), 2) + "\n"
+                    + tab(2) + "asserts:\n" + testContainers(test.asserts(), 2, style) + "\n"
                     + TAB + "}\n";
         }
         List<String> tests = new ArrayList<>();
         for (Protocol.PLegacyServiceTest.PKeyedLegacyTest t : test.keyedTests()) {
             tests.add(tab(2) + "tests[" + convertString(t.key(), true) + "]:\n" + tab(2) + "{\n"
                     + tab(3) + "data: " + convertString(t.data(), true) + ";\n"
-                    + tab(3) + "asserts:\n" + testContainers(t.asserts(), 3)
+                    + tab(3) + "asserts:\n" + testContainers(t.asserts(), 3, style)
                     + "\n" + tab(2) + "}");
         }
         return "Multi\n" + TAB + "{\n" + String.join("\n", tests) + "\n" + TAB + "}\n";
     }
 
-    private static String testContainers(List<Protocol.PLegacyServiceTest.PLegacyAssert> containers, int indent) {
+    private static String testContainers(List<Protocol.PLegacyServiceTest.PLegacyAssert> containers, int indent,
+            PureComposer.Style style) {
         List<String> out = new ArrayList<>();
         for (Protocol.PLegacyServiceTest.PLegacyAssert c : containers) {
             List<String> params = new ArrayList<>();
             for (ValueSpecification p : c.parametersValues()) {
-                params.add(PureComposer.legacyServiceParameter(p));
+                params.add(PureComposer.legacyServiceParameter(p, style));
             }
-            out.add(tab(indent + 1) + "{ [" + String.join(", ", params) + "], " + valueSpecification(c.assertion()) + " }");
+            out.add(tab(indent + 1) + "{ [" + String.join(", ", params) + "], " + valueSpecification(c.assertion(), style) + " }");
         }
         return tab(indent) + "[\n" + String.join(",\n", out) + (out.isEmpty() ? "" : "\n") + tab(indent) + "];";
     }

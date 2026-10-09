@@ -21,14 +21,14 @@ final class MappingTestComposer {
     }
 
     /** {@code renderMappingTest}. */
-    static String legacyTest(Protocol.PLegacyMappingTest test) {
+    static String legacyTest(Protocol.PLegacyMappingTest test, PureComposer.Style style) {
         List<String> data = new ArrayList<>();
         for (Protocol.PLegacyInputData d : test.inputData()) {
             data.add(tab(4) + inputData(d));
         }
         return "  " + test.name() + "\n"
                 + tab(2) + "(\n"
-                + tab(3) + "query: " + Composing.valueSpecification(test.query()) + ";\n"
+                + tab(3) + "query: " + Composing.valueSpecification(test.query(), style) + ";\n"
                 + tab(3) + "data:\n"
                 + tab(3) + "[\n"
                 + String.join(",\n", data) + (data.isEmpty() ? "" : "\n")
@@ -66,16 +66,16 @@ final class MappingTestComposer {
     }
 
     /** {@code renderMappingTestSuite}. */
-    static String testSuite(Protocol.PMappingTestSuite suite) {
+    static String testSuite(Protocol.PMappingTestSuite suite, PureComposer.Style style) {
         StringBuilder b = new StringBuilder(tab(1)).append(suite.id()).append(":\n").append(tab(2)).append("{\n");
         if (suite.doc() != null) {
             b.append(tab(3)).append("doc: ").append(convertString(suite.doc(), true)).append(";\n");
         }
-        b.append(tab(3)).append("function: ").append(Composing.valueSpecification(suite.func())).append(";\n");
+        b.append(tab(3)).append("function: ").append(Composing.valueSpecification(suite.func(), style)).append(";\n");
         if (!suite.tests().isEmpty()) {
             List<String> ts = new ArrayList<>();
             for (Protocol.PMappingTest t : suite.tests()) {
-                ts.add(test(t));
+                ts.add(test(t, style));
             }
             b.append(tab(3)).append("tests:\n").append(tab(3)).append("[\n").append(String.join(",\n", ts)).append("\n")
                     .append(tab(3)).append("];\n");
@@ -84,7 +84,7 @@ final class MappingTestComposer {
     }
 
     /** {@code renderMappingTests}. */
-    private static String test(Protocol.PMappingTest test) {
+    private static String test(Protocol.PMappingTest test, PureComposer.Style style) {
         StringBuilder b = new StringBuilder(tab(4)).append(test.id()).append(":\n").append(tab(4)).append("{\n");
         if (test.doc() != null) {
             b.append(tab(5)).append("doc: ").append(convertString(test.doc(), true)).append(";\n");
@@ -92,7 +92,7 @@ final class MappingTestComposer {
         b.append(storeTestData(test.storeTestData(), 4));
         List<String> asserts = new ArrayList<>();
         for (Protocol.PTestAssertion a : test.assertions()) {
-            asserts.add(TestAssertionComposer.compose(a, tab(6)));
+            asserts.add(TestAssertionComposer.compose(a, tab(6), style));
         }
         return b.append(tab(5)).append("asserts:\n").append(tab(5)).append("[\n").append(String.join(",\n", asserts)).append("\n")
                 .append(tab(5)).append("];\n").append(tab(4)).append("}").toString();

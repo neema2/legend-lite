@@ -20,7 +20,7 @@ final class DataSpaceComposer {
     private DataSpaceComposer() {
     }
 
-    static String dataSpace(Protocol.PDataSpace d) {
+    static String dataSpace(Protocol.PDataSpace d, PureComposer.Style style) {
         StringBuilder b = new StringBuilder(DomainComposer.declarationPrefix("DataSpace", "", d.stereotypes(), d.taggedValues()))
                 .append(Composing.elementPath(d.pkg(), d.name())).append("\n{\n");
         List<Protocol.PDataSpaceContext> contexts = d.executionContexts() == null ? List.of() : d.executionContexts();
@@ -52,7 +52,7 @@ final class DataSpaceComposer {
         if (d.executables() != null) {
             List<String> xs = new ArrayList<>();
             for (Protocol.PDataSpaceExecutable x : d.executables()) {
-                xs.add(executable(x));
+                xs.add(executable(x, style));
             }
             list(b, "executables", xs);
         }
@@ -112,7 +112,7 @@ final class DataSpaceComposer {
     }
 
     /** An element executable carries its pointer; a template its query (and always prints its id). */
-    private static String executable(Protocol.PDataSpaceExecutable x) {
+    private static String executable(Protocol.PDataSpaceExecutable x, PureComposer.Style style) {
         StringBuilder b = new StringBuilder(tab(2)).append("{\n");
         if (x.query() == null) {
             if (x.id() != null) {
@@ -125,7 +125,9 @@ final class DataSpaceComposer {
             b.append(tab(3)).append("id: ").append(x.id()).append(";\n");
             b.append(tab(3)).append("title: ").append(convertString(x.title(), true)).append(";\n");
             optionalString(b, tab(3), "description", x.description());
-            b.append(tab(3)).append("query: ").append(Composing.valueSpecification(x.query())).append(";\n");
+            // upstream: withIndentation(getTabSize(3))
+            b.append(tab(3)).append("query: ")
+                    .append(Composing.valueSpecification(x.query(), style, Composing.indented("", 6, style))).append(";\n");
         }
         optionalString(b, tab(3), "executionContextKey", x.executionContextKey());
         if (x.sampleValues() != null) {

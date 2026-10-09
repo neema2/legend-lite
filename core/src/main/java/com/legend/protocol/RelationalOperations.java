@@ -12,14 +12,16 @@ import static com.legend.protocol.Composing.convertIdentifier;
 
 /**
  * A relational operation element ({@code ###Relational} expressions: columns, joins, dyna functions,
- * literals) as upstream prints it ({@code HelperRelationalGrammarComposer.renderRelationalOperationElement}),
- * standard style -- over the record ({@link Protocol.PRelOp}; the protocol program's leg 2, step 3).
+ * literals) as upstream prints it ({@code HelperRelationalGrammarComposer.renderRelationalOperationElement})
+ * -- over the record ({@link Protocol.PRelOp}; the protocol program's leg 2, step 3).
  *
  * @param indentation  the composer context's indentation
  * @param currentDatabase the database being printed: a column of it drops its {@code [db]} pointer
  * @param dynaFunctionNames a mapping prints dyna functions by name; a store prints its operators
+ * @param style the model's render style: in PRETTY a store's {@code and} and {@code or} chains break across lines
  */
-record RelationalOperations(String indentation, @com.legend.base.Nullable String currentDatabase, boolean dynaFunctionNames) {
+record RelationalOperations(String indentation, @com.legend.base.Nullable String currentDatabase, boolean dynaFunctionNames,
+        PureComposer.Style style) {
 
     private static final String SELF_JOIN_TABLE = "{target}";
 
@@ -33,27 +35,32 @@ record RelationalOperations(String indentation, @com.legend.base.Nullable String
     private static final String GROUP = "group";
 
     /** A mapping's context: no current database, dyna functions by name. */
-    static RelationalOperations mapping(String indentation) {
-        return new RelationalOperations(indentation, null, true);
+    static RelationalOperations mapping(String indentation, PureComposer.Style style) {
+        return new RelationalOperations(indentation, null, true, style);
     }
 
     RelationalOperations indented(int count) {
-        return new RelationalOperations(indentation + " ".repeat(count), currentDatabase, dynaFunctionNames);
+        return new RelationalOperations(indentation + " ".repeat(count), currentDatabase, dynaFunctionNames, style);
     }
 
     String render(Protocol.PRelOp op) {
+        return render(op, false, 0);
+    }
+
+    /** {@code renderRelationalOperationElement(op, context, nested, numTabs)}: inside a group, how deep. */
+    private String render(Protocol.PRelOp op, boolean nested, int numTabs) {
         return switch (op) {
-            case Protocol.PDynaFunc f -> dynaFunc(f);
+            case Protocol.PDynaFunc f -> dynaFunc(f, nested, numTabs);
             case Protocol.PColumnRef c -> column(c);
             case Protocol.PElemtWithJoins e -> elementWithJoins(e);
             case Protocol.PRelLiteralList l -> "[" + joinRendered(l.values(), ", ") + "]";
             case Protocol.PRelLiteral l -> literal(l);
-            case Protocol.PRelLambda l -> lambda(l);
+            case Protocol.PRelLambda l -> lambda(l, nested, numTabs);
             case Protocol.PLambdaParam p -> "$" + p.name();
         };
     }
 
-    private String dynaFunc(Protocol.PDynaFunc f) {
+    private String dynaFunc(Protocol.PDynaFunc f, boolean nested, int numTabs) {
         String name = f.funcName();
         List<Protocol.PRelOp> params = f.parameters();
         if (dynaFunctionNames && !GROUP.equals(name)) {
@@ -61,10 +68,13 @@ record RelationalOperations(String indentation, @com.legend.base.Nullable String
         }
         if (GROUP.equals(name)) {
             requireParameters(name, params, 1);
-            return "(" + render(params.get(0)) + ")";
+            return "(" + render(params.get(0), true, numTabs + 1) + ")";
         }
         if (BOOLEAN.contains(name)) {
-            return joinRendered(params, " " + convertIdentifier(name) + " ");
+            // PRETTY: each operand on its own line, the operator leading it, one tab deeper inside each group
+            return joinRendered(params, style == PureComposer.Style.PRETTY
+                    ? "\n  " + Composing.tab(nested ? 1 + numTabs : 1) + convertIdentifier(name) + " "
+                    : " " + convertIdentifier(name) + " ");
         }
         String postfix = POSTFIX.get(name);
         if (postfix != null) {
@@ -147,9 +157,9 @@ record RelationalOperations(String indentation, @com.legend.base.Nullable String
     }
 
     /** A relational lambda: one parameter bare, more in parentheses. */
-    private String lambda(Protocol.PRelLambda l) {
+    private String lambda(Protocol.PRelLambda l, boolean nested, int numTabs) {
         List<String> names = l.parameterNames();
-        String body = render(l.body());
+        String body = render(l.body(), nested, numTabs);
         return names.size() == 1 ? names.get(0) + " | " + body : "(" + String.join(", ", names) + " | " + body + ")";
     }
 

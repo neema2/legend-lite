@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
  * The element kinds {@link ModelComposer} prints, by family: the section each prints in and its printer.
@@ -21,11 +21,15 @@ import java.util.function.Function;
  */
 final class ElementFamilies {
 
-    /** A family: its section's parser name, whether core prints it, its printer, its element {@code _type}s. */
-    record Family(String parser, boolean core, Function<Protocol.Element, String> print, List<String> types,
-            boolean byKind) {
+    /**
+     * A family: its section's parser name, whether core prints it, its printer (an element in a render style), its
+     * element {@code _type}s.
+     */
+    record Family(String parser, boolean core, BiFunction<Protocol.Element, PureComposer.Style, String> print,
+            List<String> types, boolean byKind) {
 
-        Family(String parser, boolean core, Function<Protocol.Element, String> print, List<String> types) {
+        Family(String parser, boolean core, BiFunction<Protocol.Element, PureComposer.Style, String> print,
+                List<String> types) {
             this(parser, core, print, types, false);
         }
 
@@ -62,55 +66,65 @@ final class ElementFamilies {
         return kind.cast(e);
     }
 
+    // A family whose elements hold no value specification prints the same in every style: its printer ignores it
+    // (the PRETTY pass of ModelComposerParityTest holds every kind to that).
+
     /** Core's kinds, in the order their sections print. */
     static final List<Family> CORE = List.of(
             new Family("Pure", true, DomainComposer::element, DomainComposer.TYPES),
-            new Family("Mapping", true, e -> MappingComposer.mapping(as(e, Protocol.PMapping.class)), List.of("mapping")),
-            new Family("Connection", true, e -> ConnectionComposer.connection(as(e, Protocol.PConnection.class)),
+            new Family("Mapping", true, (e, s) -> MappingComposer.mapping(as(e, Protocol.PMapping.class), s), List.of("mapping")),
+            new Family("Connection", true, (e, s) -> ConnectionComposer.connection(as(e, Protocol.PConnection.class)),
                     List.of("connection")),
-            new Family("Runtime", true, e -> RuntimeComposer.runtime(as(e, Protocol.PRuntime.class)), List.of("runtime")));
+            new Family("Runtime", true, (e, s) -> RuntimeComposer.runtime(as(e, Protocol.PRuntime.class)), List.of("runtime")));
 
     /** The extensions' kinds, in the reference engine's extension order. */
     static final List<Family> EXTENSIONS = List.of(
-            new Family("Data", false, e -> DataElementComposer.dataElement(as(e, Protocol.PDataElement.class)),
+            new Family("Data", false, (e, s) -> DataElementComposer.dataElement(as(e, Protocol.PDataElement.class)),
                     List.of("dataElement")),
-            new Family("ExternalFormat", false, ExternalFormatComposer::element, List.of("externalFormatSchemaSet", "binding")),
-            new Family("FileGeneration", false, e -> GenerationComposer.fileGeneration(as(e, Protocol.PFileGeneration.class)),
-                    List.of("fileGeneration")),
+            new Family("ExternalFormat", false, (e, s) -> ExternalFormatComposer.element(e),
+                    List.of("externalFormatSchemaSet", "binding")),
+            new Family("FileGeneration", false,
+                    (e, s) -> GenerationComposer.fileGeneration(as(e, Protocol.PFileGeneration.class)), List.of("fileGeneration")),
             new Family("GenerationSpecification", false,
-                    e -> GenerationComposer.generationSpecification(as(e, Protocol.PGenerationSpecification.class)),
+                    (e, s) -> GenerationComposer.generationSpecification(as(e, Protocol.PGenerationSpecification.class)),
                     List.of("generationSpecification")),
             new Family("Service", false, ServiceComposer::element, List.of("service", "executionEnvironmentInstance")),
             new Family("BigQuery", false,
-                    e -> FunctionActivatorComposer.namedFunction("BigQueryFunction", as(e, Protocol.PFunctionActivator.class)),
+                    (e, s) -> FunctionActivatorComposer.namedFunction("BigQueryFunction", as(e, Protocol.PFunctionActivator.class)),
                     List.of("bigQueryFunction")),
-            new Family("DataSpace", false, e -> DataSpaceComposer.dataSpace(as(e, Protocol.PDataSpace.class)),
+            new Family("DataSpace", false, (e, s) -> DataSpaceComposer.dataSpace(as(e, Protocol.PDataSpace.class), s),
                     List.of("dataSpace")),
             new Family("DataQualityValidation", false, DataQualityComposer::element,
                     List.of("dataQualityValidation", "dataqualityRelationValidation", "dataQualityRelationComparison")),
-            new Family("Relational", false, e -> DatabaseComposer.database(as(e, Protocol.PDatabase.class)),
+            new Family("Relational", false, (e, s) -> DatabaseComposer.database(as(e, Protocol.PDatabase.class), s),
                     List.of("relational")),
             new Family("QueryPostProcessor", false,
-                    e -> DatabaseComposer.relationalMapper(as(e, Protocol.PRelationalMapper.class)), List.of("relationalMapper")),
-            new Family("Deephaven", false, DeephavenComposer::element, List.of("deephavenStore", "DeephavenApp")),
-            new Family("Diagram", false, e -> DiagramComposer.diagram(as(e, Protocol.PDiagram.class)), List.of("diagram")),
-            new Family("Elasticsearch", false, e -> ElasticsearchComposer.store(as(e, Protocol.PElasticsearch7Cluster.class)),
+                    (e, s) -> DatabaseComposer.relationalMapper(as(e, Protocol.PRelationalMapper.class)),
+                    List.of("relationalMapper")),
+            new Family("Deephaven", false, (e, s) -> DeephavenComposer.element(e), List.of("deephavenStore", "DeephavenApp")),
+            new Family("Diagram", false, (e, s) -> DiagramComposer.diagram(as(e, Protocol.PDiagram.class)), List.of("diagram")),
+            new Family("Elasticsearch", false,
+                    (e, s) -> ElasticsearchComposer.store(as(e, Protocol.PElasticsearch7Cluster.class)),
                     List.of("elasticsearch7Store")),
             new Family("FunctionJar", false,
-                    e -> FunctionActivatorComposer.functionJar(as(e, Protocol.PFunctionActivator.class)), List.of("functionJar")),
+                    (e, s) -> FunctionActivatorComposer.functionJar(as(e, Protocol.PFunctionActivator.class)),
+                    List.of("functionJar")),
             new Family("HostedService", false,
-                    e -> FunctionActivatorComposer.hostedService(as(e, Protocol.PFunctionActivator.class)),
+                    (e, s) -> FunctionActivatorComposer.hostedService(as(e, Protocol.PFunctionActivator.class)),
                     List.of("hostedService")),
             new Family("MemSql", false,
-                    e -> FunctionActivatorComposer.namedFunction("MemSqlFunction", as(e, Protocol.PFunctionActivator.class)),
+                    (e, s) -> FunctionActivatorComposer.namedFunction("MemSqlFunction", as(e, Protocol.PFunctionActivator.class)),
                     List.of("memSqlFunction")),
-            new Family("MongoDB", false, e -> MongoComposer.store(as(e, Protocol.PMongoDatabase.class)), List.of("MongoDatabase")),
+            new Family("MongoDB", false, (e, s) -> MongoComposer.store(as(e, Protocol.PMongoDatabase.class)),
+                    List.of("MongoDatabase")),
             new Family("Persistence", false, PersistenceComposer::element, List.of("persistenceContext", "persistence"), true),
             new Family("ServiceStore", false,
-                    e -> ServiceStoreComposer.serviceStore(as(e, Protocol.PServiceStoreDefinition.class)), List.of("serviceStore")),
-            new Family("Snowflake", false, e -> FunctionActivatorComposer.snowflake(as(e, Protocol.PFunctionActivator.class)),
+                    (e, s) -> ServiceStoreComposer.serviceStore(as(e, Protocol.PServiceStoreDefinition.class)),
+                    List.of("serviceStore")),
+            new Family("Snowflake", false,
+                    (e, s) -> FunctionActivatorComposer.snowflake(as(e, Protocol.PFunctionActivator.class)),
                     List.of("snowflakeApp", "snowflakeM2MUdf")),
-            new Family("Text", false, e -> ExternalFormatComposer.text(as(e, Protocol.PText.class)), List.of("text")));
+            new Family("Text", false, (e, s) -> ExternalFormatComposer.text(as(e, Protocol.PText.class)), List.of("text")));
 
     /**
      * The kinds an extension prints in its own section but leaves out of its free section: with no section

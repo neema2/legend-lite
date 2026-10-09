@@ -37,7 +37,7 @@ final class DatabaseComposer {
     private DatabaseComposer() {
     }
 
-    static String database(Protocol.PDatabase db) {
+    static String database(Protocol.PDatabase db, PureComposer.Style style) {
         List<Protocol.PDbSchema> nonDefault = new ArrayList<>();
         Protocol.PDbSchema defaultSchema = null;
         for (Protocol.PDbSchema s : db.schemas()) {
@@ -48,7 +48,7 @@ final class DatabaseComposer {
             }
         }
         String path = Composing.elementPath(db.pkg(), db.name());
-        RelationalOperations ops = new RelationalOperations("", path, false);
+        RelationalOperations ops = new RelationalOperations("", path, false, style);
         StringBuilder b = new StringBuilder(DomainComposer.declarationPrefix("Database", "", db.stereotypes(),
                 db.taggedValues())).append(path).append("\n(\n");
         boolean nonEmpty = false;

@@ -28,7 +28,7 @@ final class MappingComposer {
     private MappingComposer() {
     }
 
-    static String mapping(Protocol.PMapping mapping) {
+    static String mapping(Protocol.PMapping mapping, PureComposer.Style style) {
         StringBuilder b = new StringBuilder("Mapping ").append(Composing.elementPath(mapping.pkg(), mapping.name()))
                 .append("\n(\n");
         boolean empty = true;
@@ -42,7 +42,7 @@ final class MappingComposer {
         }
         List<String> classMappings = new ArrayList<>();
         for (Protocol.PClassMapping cm : mapping.classMappings()) {
-            classMappings.add(TAB + classMapping(cm));
+            classMappings.add(TAB + classMapping(cm, style));
         }
         if (!classMappings.isEmpty()) {
             b.append(empty ? "" : "\n");
@@ -51,7 +51,7 @@ final class MappingComposer {
         }
         List<String> associations = new ArrayList<>();
         for (Protocol.PAssociationMapping am : mapping.associationMappings()) {
-            associations.add(TAB + associationMapping(am));
+            associations.add(TAB + associationMapping(am, style));
         }
         if (!associations.isEmpty()) {
             b.append(empty ? "" : "\n");
@@ -71,7 +71,7 @@ final class MappingComposer {
             b.append(empty ? "" : "\n");
             List<String> ts = new ArrayList<>();
             for (Protocol.PLegacyMappingTest t : mapping.tests()) {
-                ts.add(TAB + MappingTestComposer.legacyTest(t));
+                ts.add(TAB + MappingTestComposer.legacyTest(t, style));
             }
             b.append(TAB).append("MappingTests\n").append(TAB).append("[\n").append(String.join(",\n", ts)).append("\n")
                     .append(TAB).append("]\n");
@@ -80,7 +80,7 @@ final class MappingComposer {
             b.append(empty ? "" : "\n");
             List<String> ss = new ArrayList<>();
             for (Protocol.PMappingTestSuite s : mapping.testSuites()) {
-                ss.add(TAB + MappingTestComposer.testSuite(s));
+                ss.add(TAB + MappingTestComposer.testSuite(s, style));
             }
             b.append(TAB).append("testSuites:\n").append(TAB).append("[\n").append(String.join(",\n", ss)).append("\n")
                     .append(TAB).append("]\n");
@@ -122,21 +122,21 @@ final class MappingComposer {
         };
     }
 
-    private static String classMapping(Protocol.PClassMapping cm) {
+    private static String classMapping(Protocol.PClassMapping cm, PureComposer.Style style) {
         Head h = head(cm);
         return (h.root() ? "*" : "") + h.className() + mappingId(h.id())
-                + (h.extendsId() != null ? " extends " + mappingId(h.extendsId()) : "") + classMappingBody(cm, 1);
+                + (h.extendsId() != null ? " extends " + mappingId(h.extendsId()) : "") + classMappingBody(cm, 1, style);
     }
 
     /** A class mapping's body, from its {@code :} on. */
-    static String classMappingBody(Protocol.PClassMapping cm, int level) {
+    private static String classMappingBody(Protocol.PClassMapping cm, int level, PureComposer.Style style) {
         return switch (cm) {
-            case Protocol.PClassMappingPure p -> pureInstance(p, level);
-            case Protocol.PClassMappingOperation o -> operation(o.operation(), o.parameters(), null);
-            case Protocol.PClassMappingMergeOperation m -> operation("MERGE", m.parameters(), m.validationLambda());
-            case Protocol.PClassMappingAggregationAware a -> aggregationAware(a);
-            case Protocol.PClassMappingRelation r -> relationFunction(r, level);
-            case Protocol.PClassMappingRel r -> RelationalMappingComposer.classMapping(r);
+            case Protocol.PClassMappingPure p -> pureInstance(p, level, style);
+            case Protocol.PClassMappingOperation o -> operation(o.operation(), o.parameters(), null, style);
+            case Protocol.PClassMappingMergeOperation m -> operation("MERGE", m.parameters(), m.validationLambda(), style);
+            case Protocol.PClassMappingAggregationAware a -> aggregationAware(a, style);
+            case Protocol.PClassMappingRelation r -> relationFunction(r, level, style);
+            case Protocol.PClassMappingRel r -> RelationalMappingComposer.classMapping(r, style);
             case Protocol.PServiceStoreClassMapping s -> ServiceStoreComposer.classMapping(s);
             case Protocol.PClassMappingMongoDb m -> MongoComposer.classMapping(m);
             case Protocol.PClassMappingFunction f ->
@@ -144,11 +144,12 @@ final class MappingComposer {
         };
     }
 
-    private static String pureInstance(Protocol.PClassMappingPure cm, int level) {
-        String pureFilter = cm.filter() == null ? "" : tab(2) + "~filter " + Composing.lambdaBodyText(cm.filter(), "") + "\n";
+    private static String pureInstance(Protocol.PClassMappingPure cm, int level, PureComposer.Style style) {
+        String pureFilter = cm.filter() == null ? ""
+                : tab(2) + "~filter " + Composing.lambdaBodyText(cm.filter(), style, "") + "\n";
         List<String> pms = new ArrayList<>();
         for (Protocol.PPurePropertyMapping pm : cm.propertyMappings()) {
-            pms.add(tab(level + 1) + purePropertyMapping(pm));
+            pms.add(tab(level + 1) + purePropertyMapping(pm, style));
         }
         return ": Pure\n" + tab(level) + "{\n"
                 + (cm.srcClass() == null ? "" : tab(level + 1) + "~src " + cm.srcClass() + "\n") + pureFilter
@@ -163,35 +164,35 @@ final class MappingComposer {
                         + Composing.multiplicity(local.lowerBound(), local.upperBound()) + "]";
     }
 
-    private static String purePropertyMapping(Protocol.PPurePropertyMapping pm) {
+    private static String purePropertyMapping(Protocol.PPurePropertyMapping pm, PureComposer.Style style) {
         String target = pm.target();
         String enumMapping = pm.enumMappingId();
         return localMappingProperty(pm.property(), pm.localMappingProperty())
                 + (pm.explodeProperty() ? "*" : "")
                 + (target == null || target.isEmpty() ? "" : "[" + convertIdentifier(target) + "]")
                 + (enumMapping == null ? "" : ": EnumerationMapping " + enumMapping)
-                + ": " + Composing.lambdaBodyText(pm.transform(), "");
+                + ": " + Composing.lambdaBodyText(pm.transform(), style, "");
     }
 
     /** An operation, or a merge with its validation lambda: the router function called with the set ids. */
     private static String operation(@com.legend.base.Nullable String op, List<String> parameters,
-            @com.legend.base.Nullable ValueSpecification validation) {
+            @com.legend.base.Nullable ValueSpecification validation, PureComposer.Style style) {
         if (op == null) {
             throw Composing.refused("an operation class mapping with no operation (upstream cannot name its function)");
         }
         String function = MappingOperation.valueOf(op).function;
         String params = String.join(",", parameters);
         String call = validation != null
-                ? function + "([" + params + "]," + Composing.valueSpecification(validation) + ")"
+                ? function + "([" + params + "]," + Composing.valueSpecification(validation, style) + ")"
                 : function + "(" + params + ")";
         return ": Operation\n" + TAB + "{\n" + tab(2) + call + "\n" + TAB + "}";
     }
 
-    private static String aggregationAware(Protocol.PClassMappingAggregationAware cm) {
-        String mainMapping = "~mainMapping" + classMappingBody(cm.mainSetImplementation(), 2);
+    private static String aggregationAware(Protocol.PClassMappingAggregationAware cm, PureComposer.Style style) {
+        String mainMapping = "~mainMapping" + classMappingBody(cm.mainSetImplementation(), 2, style);
         List<String> views = new ArrayList<>();
         for (Protocol.PAggregateSetImplementation agg : cm.aggregateSetImplementations()) {
-            views.add(tab(3) + aggregateSetImplementation(agg));
+            views.add(tab(3) + aggregateSetImplementation(agg, style));
         }
         return ": AggregationAware \n" + TAB + "{\n"
                 + tab(2) + "Views: [\n" + String.join(",\n", views) + tab(2) + "],\n"
@@ -199,16 +200,16 @@ final class MappingComposer {
     }
 
     /** {@code renderAggregateSetImplementationContainer}. */
-    private static String aggregateSetImplementation(Protocol.PAggregateSetImplementation agg) {
-        String aggregateMapping = "~aggregateMapping" + classMappingBody(agg.setImplementation(), 4);
+    private static String aggregateSetImplementation(Protocol.PAggregateSetImplementation agg, PureComposer.Style style) {
+        String aggregateMapping = "~aggregateMapping" + classMappingBody(agg.setImplementation(), 4, style);
         List<String> groupBy = new ArrayList<>();
         for (ValueSpecification g : agg.groupByFunctions()) {
-            groupBy.add(tab(6) + Composing.valueSpecification(g));
+            groupBy.add(tab(6) + Composing.valueSpecification(g, style));
         }
         List<String> values = new ArrayList<>();
         for (Protocol.PAggregateValue v : agg.aggregateValues()) {
-            values.add(tab(6) + "( ~mapFn:" + Composing.valueSpecification(v.mapFn()) + " , ~aggregateFn: "
-                    + Composing.valueSpecification(v.aggregateFn()) + " )");
+            values.add(tab(6) + "( ~mapFn:" + Composing.valueSpecification(v.mapFn(), style) + " , ~aggregateFn: "
+                    + Composing.valueSpecification(v.aggregateFn(), style) + " )");
         }
         return "(\n"
                 + tab(4) + "~modelOperation: {\n"
@@ -219,7 +220,7 @@ final class MappingComposer {
                 + tab(4) + aggregateMapping + "\n" + tab(3) + ")\n";
     }
 
-    private static String relationFunction(Protocol.PClassMappingRelation cm, int level) {
+    private static String relationFunction(Protocol.PClassMappingRelation cm, int level, PureComposer.Style style) {
         String pk = "";
         if (!cm.primaryKey().isEmpty()) {
             List<String> ks = new ArrayList<>();
@@ -230,27 +231,27 @@ final class MappingComposer {
         }
         Protocol.PRelationSrcLambda source = cm.sourceLambda();
         String sourceLine = cm.relationFunction() != null ? tab(level + 1) + "~func " + cm.relationFunction() + "\n"
-                : source != null ? tab(level + 1) + "~src " + sourceExpression(source) + "\n" : "";
+                : source != null ? tab(level + 1) + "~src " + sourceExpression(source, style) + "\n" : "";
         List<String> pms = new ArrayList<>();
         for (Protocol.PRelationFnPropertyMapping pm : cm.propertyMappings()) {
-            pms.add(tab(level + 1) + relationPropertyMapping(pm, level));
+            pms.add(tab(level + 1) + relationPropertyMapping(pm, level, style));
         }
         return ": Relation\n" + tab(level) + "{\n" + sourceLine + pk
                 + String.join(",\n", pms) + (pms.isEmpty() ? "" : "\n") + tab(level) + "}";
     }
 
     /** {@code ~src}'s one expression: the bare {@code fn()} the reader keeps by name, or any other expression. */
-    private static String sourceExpression(Protocol.PRelationSrcLambda source) {
+    private static String sourceExpression(Protocol.PRelationSrcLambda source, PureComposer.Style style) {
         ValueSpecification expr = source.function() != null ? new AppliedFunction(source.function(), List.of())
                 : source.expr();
         if (expr == null) {
             throw Composing.refused("a relation ~src with neither a function nor an expression");
         }
-        return Composing.valueSpecification(expr);
+        return Composing.valueSpecification(expr, style);
     }
 
     /** A column binding, a nested embedded block, or an inline-embedded set. */
-    private static String relationPropertyMapping(Protocol.PRelationFnPropertyMapping pm, int level) {
+    private static String relationPropertyMapping(Protocol.PRelationFnPropertyMapping pm, int level, PureComposer.Style style) {
         if (pm.inlineSetId() != null) {
             return pm.property() + " () Inline [" + pm.inlineSetId() + "]";
         }
@@ -258,14 +259,14 @@ final class MappingComposer {
         if (nested != null) {
             List<String> pms = new ArrayList<>();
             for (Protocol.PRelationFnPropertyMapping n : nested) {
-                pms.add(tab(level + 2) + relationPropertyMapping(n, level));
+                pms.add(tab(level + 2) + relationPropertyMapping(n, level, style));
             }
             return pm.property() + "\n" + tab(level + 1) + "(\n" + String.join(",\n", pms) + (pms.isEmpty() ? "" : "\n")
                     + tab(level + 1) + ")";
         }
         String rhs;
         if (pm.expr() != null) {
-            rhs = Composing.valueSpecification(pm.expr());
+            rhs = Composing.valueSpecification(pm.expr(), style);
         } else if (pm.column() != null) {
             rhs = convertIdentifier(pm.column());
         } else {
@@ -281,7 +282,7 @@ final class MappingComposer {
     // Association and enumeration mappings
     // ---------------------------------------------------------------------
 
-    private static String associationMapping(Protocol.PAssociationMapping am) {
+    private static String associationMapping(Protocol.PAssociationMapping am, PureComposer.Style style) {
         return switch (am) {
             case Protocol.PXStoreAssociationMapping x -> {
                 List<String> pms = new ArrayList<>();
@@ -293,14 +294,15 @@ final class MappingComposer {
                     pms.add(tab(2) + convertIdentifier(pm.property())
                             + (source == null || source.isEmpty() ? "" : "[" + convertIdentifier(source) + ", "
                                     + convertIdentifier(pm.target()) + "]")
-                            + ": " + Composing.valueSpecification(pm.crossExpression().get(0)));
+                            + ": " + Composing.valueSpecification(pm.crossExpression().get(0), style));
                 }
                 yield x.association().path() + mappingId(x.id()) + ": XStore\n" + TAB + "{\n"
                         + String.join(",\n", pms) + (pms.isEmpty() ? "" : "\n") + TAB + "}";
             }
             case Protocol.PModelJoinAssociationMapping m -> m.association().path() + mappingId(m.id()) + ": ModelJoin\n"
-                    + TAB + "{\n" + tab(2) + Composing.valueSpecification(m.joinCondition()) + "\n" + TAB + "}";
-            case Protocol.PRelAssociationMapping r -> RelationalMappingComposer.associationMapping(r, r.association().path());
+                    + TAB + "{\n" + tab(2) + Composing.valueSpecification(m.joinCondition(), style) + "\n" + TAB + "}";
+            case Protocol.PRelAssociationMapping r ->
+                    RelationalMappingComposer.associationMapping(r, r.association().path(), style);
             case Protocol.PFunctionAssociationMapping f ->
                     throw Composing.refused("no composer rule for an association mapping of _type 'functionAssociation'");
         };

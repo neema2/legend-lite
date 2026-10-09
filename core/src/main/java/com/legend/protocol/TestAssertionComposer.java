@@ -16,7 +16,7 @@ final class TestAssertionComposer {
     }
 
     /** {@code composeTestAssertion} at the context's indentation {@code i}. */
-    static String compose(Protocol.PTestAssertion assertion, String i) {
+    static String compose(Protocol.PTestAssertion assertion, String i, PureComposer.Style style) {
         String indented = i + TAB;
         String inner = indented + TAB;
         String keyword;
@@ -24,7 +24,7 @@ final class TestAssertionComposer {
         switch (assertion.expected()) {
             case Protocol.PEqualToValue v -> {
                 keyword = "EqualTo";
-                content = inner + "expected:\n" + inner + TAB + Composing.valueSpecification(v.value(), inner + TAB) + ";";
+                content = inner + "expected:\n" + inner + TAB + Composing.valueSpecification(v.value(), style, inner + TAB) + ";";
             }
             case Protocol.PExternalFormatData e -> {
                 keyword = "EqualToJson";

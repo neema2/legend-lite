@@ -36,9 +36,14 @@ public final class ModelComposer {
     private ModelComposer() {
     }
 
-    /** One element as Pure text, as its section prints it. */
+    /** One element as Pure text, as its section prints it, in the engine composer's own default style (STANDARD). */
     public static String element(Protocol.Element element) {
-        return family(element).print().apply(element);
+        return element(element, PureComposer.Style.STANDARD);
+    }
+
+    /** One element as Pure text, as its section prints it, in {@code style}. */
+    public static String element(Protocol.Element element, PureComposer.Style style) {
+        return family(element).print().apply(element, style);
     }
 
     /** {@link #element(Protocol.Element)} of the JSON, read first. */
@@ -51,8 +56,21 @@ public final class ModelComposer {
         return model(ModelReader.read(pmcd));
     }
 
-    /** A whole model as Pure text. */
+    /**
+     * JSON to text for a model (the conversion legend-engine's {@code jsonToGrammar/model} makes): the model's JSON
+     * read ({@link ModelReader#read(String)}, at its depth limit) and printed in {@code style}.
+     */
+    public static String model(String json, PureComposer.Style style) {
+        return model(ModelReader.read(json), style);
+    }
+
+    /** A whole model as Pure text, in the engine composer's own default style (STANDARD). */
     public static String model(Protocol.PureModelContextData pmcd) {
+        return model(pmcd, PureComposer.Style.STANDARD);
+    }
+
+    /** A whole model as Pure text, in {@code style}. */
+    public static String model(Protocol.PureModelContextData pmcd, PureComposer.Style style) {
         List<Protocol.Element> elements = pmcd.elements();
         // identity, not equality: two equal elements are two elements to print
         Set<Protocol.Element> toCompose = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -67,7 +85,7 @@ public final class ModelComposer {
         if (!sections.isEmpty()) {
             Index index = new Index(elements, sections);
             for (Protocol.PSection s : sections) {
-                composed.add(section(s, index, toCompose, composed.isEmpty()));
+                composed.add(section(s, index, toCompose, composed.isEmpty(), style));
             }
         }
         for (ElementFamilies.Family free : ElementFamilies.EXTENSIONS) {
@@ -79,7 +97,7 @@ public final class ModelComposer {
                 }
             }
             if (!mine.isEmpty()) {
-                composed.add("###" + free.parser() + "\n" + joinPrinted(free.freeSectionOrder(mine)) + "\n");
+                composed.add("###" + free.parser() + "\n" + joinPrinted(free.freeSectionOrder(mine), style) + "\n");
                 mine.forEach(toCompose::remove);
             }
         }
@@ -93,7 +111,7 @@ public final class ModelComposer {
             if (!mine.isEmpty()) {
                 mine.forEach(toCompose::remove);
                 String header = !composed.isEmpty() || !DEFAULT_SECTION.equals(core.parser()) ? "###" + core.parser() + "\n" : "";
-                composed.add(header + joinPrinted(mine) + "\n");
+                composed.add(header + joinPrinted(mine, style) + "\n");
             }
         }
         for (Protocol.Element e : toCompose) {
@@ -200,7 +218,8 @@ public final class ModelComposer {
     }
 
     /** {@code PureGrammarComposer.renderSectionIndex}, one section. */
-    private static String section(Protocol.PSection section, Index index, Set<Protocol.Element> toCompose, boolean first) {
+    private static String section(Protocol.PSection section, Index index, Set<Protocol.Element> toCompose, boolean first,
+            PureComposer.Style style) {
         String parser = section.parserName();
         StringBuilder b = new StringBuilder(!first || !DEFAULT_SECTION.equals(parser) ? "###" + parser + "\n" : "");
         List<String> imports = section.importAware() ? new ArrayList<>(new LinkedHashSet<>(section.imports())) : List.of();
@@ -227,15 +246,15 @@ public final class ModelComposer {
                             + " section (upstream prints its can't-transform comment)");
                 }
             }
-            b.append(joinPrinted(mine)).append("\n");
+            b.append(joinPrinted(mine, style)).append("\n");
         }
         return b.toString();
     }
 
-    private static String joinPrinted(List<Protocol.Element> elements) {
+    private static String joinPrinted(List<Protocol.Element> elements, PureComposer.Style style) {
         List<String> out = new ArrayList<>();
         for (Protocol.Element e : elements) {
-            out.add(element(e));
+            out.add(element(e, style));
         }
         return String.join("\n\n", out);
     }
