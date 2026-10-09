@@ -2626,6 +2626,19 @@ export class CubeApp {
     return writePage({ name, cube, views: this.pageViews(), ...(unknown?.page ? { unknown: unknown.page } : {}) });
   }
 
+  /**
+   * The page's layout editable (tiles move, dividers drag) or locked (view mode: nothing moves by accident) -- a page
+   * opened from a share link opens locked. A cube with no page of tiles has nothing to lock.
+   */
+  setLayoutEditing(editing: boolean): void {
+    this.#page?.page.setEditing(editing);
+  }
+
+  /** Whether the page's layout can be arranged now (true for a cube with no page of tiles: nothing is locked). */
+  get layoutEditing(): boolean {
+    return this.#page?.page.editing ?? true;
+  }
+
   /** Put a saved page's views back around the cube: its charts, their titles, its layout. */
   async restoreViews(page: PageViews): Promise<void> {
     if (!page.views.some((v) => v.kind === 'chart')) return;

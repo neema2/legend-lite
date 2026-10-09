@@ -357,6 +357,37 @@ try {
     }
   });
 
+  await check('a page with a chart, shared, opens in a fresh tab with its chart where it was, and locked', async () => {
+    await load();
+    const before = await statusNow();
+    page.once('dialog', (d) => { void d.accept(); });
+    await pickSample('trades', 500);
+    await landed(before);
+    // Insert > Visualization, from a cell's right-click menu: the page gets a board, the chart beside the grid
+    await page.locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert"))').first().hover();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Insert")) .dc-menu-item:has(> .dc-menu-label:text-is("Visualization"))').first().click();
+    await page.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
+    const layout = await page.evaluate(() => JSON.stringify(window.__dataCube.pageViews().layout));
+    const { url } = await copyLink();
+    const tab = await openTab(url);
+    try {
+      await openedIn(tab);
+      await tab.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
+      const shared = await tab.evaluate(() => ({
+        layout: JSON.stringify(window.__dataCube.pageViews().layout),
+        locked: document.querySelector('.dc-bands')?.classList.contains('dc-bands-view') ?? false,
+        editing: window.__dataCube.layoutEditing,
+        handles: document.querySelectorAll('.dc-band-divider, .dc-band-edge').length,
+      }));
+      if (shared.layout !== layout) throw new Error(`a different layout: ${shared.layout} vs ${layout}`);
+      if (!shared.locked || shared.editing || shared.handles > 0) throw new Error(`not locked: ${JSON.stringify(shared)}`);
+      return 'the same bands; locked, no handles';
+    } finally {
+      await tab.close();
+    }
+  });
+
   await check('a FILE page\'s link asks the opener for the file, then shows the same values', async () => {
     await load();
     const before = await statusNow();

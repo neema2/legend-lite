@@ -1889,6 +1889,9 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       showCubes();
       try {
         await openSaved({ kind: 'page', page: readPageFragment(fragment) }, undefined);
+        // a page someone shared opens locked: nothing moves by accident (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md
+        // §3.3, 5); its title bar's Edit Layout unlocks it
+        app?.setLayoutEditing(false);
       } catch (e) {
         library?.say(e instanceof Error ? e.message : String(e), 'error');
       }
