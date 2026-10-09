@@ -1,0 +1,1 @@
+|#>{test::DB.T}#->extend(over(~grp, ~id->ascending(), rows(meta::pure::functions::relation::unbounded(), 0)), ~s:{p,w,r|$r.id}:y|$y->plus())->from(test::RT)

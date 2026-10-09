@@ -14,14 +14,14 @@ import java.util.List;
  * ({@code return switch (c.fn()) { case SQRT -> writer.append("sqrt(").expr(a, 0).append(")"); ... }}); a piece written
  * twice is written twice, its parameter with it.
  *
- * <p>E-3: every dialect that executes writes all of a query here; the legacy engine-text printer's own helpers and the
- * DDL and DML entries still build strings through a bridge ({@link #bridged}), where a bound parameter is refused,
- * until their stage moves them.
+ * <p>Every dialect writes all of its SQL here (E, complete 2026-10-09): every query, its expressions and composing
+ * helpers, the legacy engine-text printer's text, and DML's rows. DDL spells only names, types and keywords, so it is
+ * text, as any spelling is.
  */
 final class SqlWriter {
 
-    /** How the writer's dialect writes an expression into a writer ({@code AnsiSqlRenderer.expr}): the writer is made by
-     *  its dialect, so {@link #expr} writes a sub-expression in that dialect's spelling, in place. */
+    /** How the writer's dialect writes an expression into a writer ({@code AnsiSqlRenderer.expr}): the writer is made
+     *  by its dialect, so {@link #expr} writes a sub-expression in that dialect's spelling, in place. */
     @FunctionalInterface
     interface Expressions {
         void write(SqlWriter writer, com.legend.sql.SqlExpr e, int parentPrec);
@@ -120,16 +120,6 @@ final class SqlWriter {
         if (!binds.isEmpty()) {
             throw new IllegalStateException("a statement with bound parameters " + binds
                     + " was asked for as text: render it as a statement");
-        }
-        return sql.toString();
-    }
-
-    /** The text written by a part of the SQL still built as a string (E's bridge, until its stage moves that part into
-     *  the writer): refused when a parameter was bound, which the string cannot carry to its statement. */
-    String bridged() {
-        if (!binds.isEmpty()) {
-            throw new DialectCapability("bound parameters " + binds + " reached a part of the SQL still built as text"
-                    + " (E's bridge, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10): it cannot carry them yet");
         }
         return sql.toString();
     }

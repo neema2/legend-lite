@@ -1,0 +1,1 @@
+|#>{test::DB.T}#->extend(over(~grp), ~s:{p,w,r|$p->reduce(x|$x.id, y|$y->sum(), ~id->descending())})->from(test::RT)

@@ -1,0 +1,1 @@
+|#>{test::DB.T}#->groupBy(~grp, ~[s:x|$x.id:y|$y->sum(), c:x|$x.id:y|$y->count(), a:x|$x.id:y|$y->average(), mx:x|$x.id:y|$y->max()])->from(test::RT)

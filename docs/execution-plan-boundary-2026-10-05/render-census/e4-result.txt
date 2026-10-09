@@ -1,0 +1,32 @@
+E-4's census (2026-10-09), four commits stacked on E-3, each run against the one before it. Same machine, same lanes,
+run.sh then compare.py (a fresh folder per run: run.sh now refuses a used one, after a second run into one folder
+added its records to the first's). In every run //pure-protocol:twins_test fails to build under the probe, by design
+(README); every other test passes.
+
+1. E-4a, the legacy engine-text printer's helpers write -- against E-3: 0 of 52,095 entries differ.
+2. DML's rows write; the text bridge goes -- against E-4a: 0 of 52,095 entries differ.
+3. PARK-16, the product half -- 27 of 52,122 entries differ, every one a new statement of the new tests
+   (ReservedNamesSeedTest, PostgresArmTest): `Create Table "order"(...)`, `Drop table if exists "select".T;`,
+   `INSERT INTO "order" (ID, NAME) VALUES ...` on DuckDB, H2 and Postgres. No existing statement changed.
+4. E-4b, the legacy printer exact -- 454 of 52,336 entries differ, all accounted for:
+   - the legacy printer's statements (EngineStyleH2, EngineStyleDB2; 37 and 38 per corpus lane, 1 DB2 each): put
+     through E-4b's respelling (string_agg -> listagg, an aggregate's ORDER BY ... ASC -> within group (order by ...
+     asc), DISTINCT -> distinct, RANK -> rank), every one before equals its after; and LegacyTextTest's 6 new ones;
+   - the corpus judge's own statements (DuckDb, H2), which carry our text as a literal: every pair differs only by
+     that same respelling (118 string_agg -> listagg, 62 DISTINCT -> distinct, 38 ORDER BY -> within group (order by,
+     38 ASC -> asc, 3 RANK -> rank);
+   - 16 judge statements gone and 8 rendered once less: the referee appeals of the eight joinStrings tests per lane,
+     which no longer happen -- their SQL-text asserts are now byte-equal to the engine's golden, so the text decides
+     them (the 2026-09-21 rule). Every assert's verdict is identical before and after on both lanes
+     (the judges' per-assert files compared: 0 lines differ); LITERAL +9 and DIFFERENTIAL+literal -9 per lane.
+   No existing entry of the other lanes (core, stress, the four PCT lanes) differs: the execution dialects render
+   exactly as before (core's only differences are LegacyTextTest's 6 new statements).
+
+On main after D24 (1) (E rebased onto a926526b6, 2026-10-09; again onto 703ef011d, after protocol leg 4, with the same
+53, entry for entry): against the E-4b measurement above (E on its own base), 53 of 52,132 entries differ -- D24's 53,
+lane for lane and text for text (docs/build-inventory/program/evidence/compiler/D24_CENSUS_2026_10_08.txt: 21 core,
+12 pct_channel_b, 18 DuckDB corpus, 2 H2 corpus), one of them in E's spelling: the legacy printer's statement of D24's
+roster test (testSubAggregationMultiLevelJoinString, which D24 stops before reaching it) is gone as `listagg(...)
+within group (order by ... asc)` where D24's list has it as `string_agg(... ORDER BY ... ASC)`. Every lane's result as
+on E's own base, the DuckDB corpus floor apart: that roster test's later asserts are no longer judged, so DuckDB
+counts one differential fewer (1011; MinimalCorpusTest).

@@ -224,11 +224,11 @@ written, so a statement's parameters are in placeholder order by construction. A
 writer (so its dispatching switch stays an expression javac checks, below) — never a rendered string that a caller
 pastes (a piece pasted twice would carry its parameter once); a method that only spells a name, a literal or a type
 returns its text; a helper that wraps SQL it does not build takes or returns a `SqlWriter.Piece`, never that SQL's
-text. E is landing in stages: every dialect that executes writes all of a query into the writer (E-2, E-3); the legacy
-engine-text printer's own helpers and the DDL and DML entries still build strings, reached through a bridge where a
-bound parameter is refused, until their stage moves them. Never edit rendered SQL after it is written —
-the legacy engine-text printer's four edits (lowercasing `OVER`, `PARTITION BY` and a function name; escaping a rendered
-expression into a FreeMarker argument) are the known exceptions, until E's stage for that printer writes them directly.
+text. E is complete (2026-10-09): every dialect writes all of a query, and DML's rows, into the writer; DDL spells only
+names, types and keywords, so it is text. Never edit rendered SQL after it is written. The legacy engine-text printer
+(`EngineStyleH2`, the backwards-compatibility mode) writes legend-engine's own spellings directly — lowercase keywords and
+function names through the `keyword` and `aggregateName` hooks, `listagg ... within group` — and its one text step is
+legend-engine's own: a rendered column quoted into a FreeMarker template argument (each `'` as `\'`).
 
 > **If you have read otherwise:** `SQLDialect`, `SqlAggregate`, `SqlRelation`
 > and legend-engine's three-render-method contract on that `SQLDialect` are **engine-only**. They do not exist

@@ -103,7 +103,12 @@ class ParkedWorkLedgerTest {
             // together: that copy is the anchor.
             Map.entry("PARK-17 Python's refusal kind is mixed until leg 6",
                     new Anchor("com\\.legend\\.Compiler\\.compileAllBodies\\(\\s*\\n\\s*com\\.legend\\.Compiler\\.compileModel\\(",
-                            List.of("PureV1Api.java")))));
+                            List.of("PureV1Api.java"))),
+            // PARK-18 (2026-10-09, E-4b): the legacy printer writes no null placement, the
+            // IR not telling a query's explicit emptyFirst()/emptyLast() from pure's own null order
+            Map.entry("PARK-18 the legacy printer cannot write an explicit null placement",
+                    new Anchor("protected String aggOrderNullPlacement\\(com\\.legend\\.sql\\.SqlSelect"
+                            + "\\.SortKey k\\) \\{\\s*return \"\";", List.of("EngineStyleH2.java")))));
 
     private record Anchor(String pattern, List<String> files) {
     }

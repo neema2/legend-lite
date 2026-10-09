@@ -1,0 +1,1 @@
+|#>{test::DB.T}#->groupBy(~grp, ~names : x|$x.name : y|$y->joinStrings(','))->from(test::RT)

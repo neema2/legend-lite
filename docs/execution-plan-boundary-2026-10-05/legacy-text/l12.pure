@@ -1,0 +1,1 @@
+|#>{test::DB.T}#->groupBy(~grp, ~names : g | $g->joinStrings(~name, ',', ~id->ascending()))->filter(r|$r.names->isNotEmpty())->from(test::RT)

@@ -1,0 +1,1 @@
+|#>{test::DB.T}#->extend(over(~grp), ~names:{p,w,r|$p->joinStrings(~name, ',', ~id->ascending())})->from(test::RT)

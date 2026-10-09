@@ -1,0 +1,1 @@
+|#>{test::DB.T}#->groupBy(~grp, ~s : g | $g->reduce(x|$x.id, y|$y->sum(), ~id->descending()))->from(test::RT)

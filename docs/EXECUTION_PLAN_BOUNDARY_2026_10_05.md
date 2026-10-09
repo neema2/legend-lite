@@ -385,8 +385,35 @@ parameters.
   stage. `SqlWriterTest`: a parameter under acos is bound at both places it is written and runs on DuckDB; a parameter
   in a DML row (still text) is refused. Census: every statement E-2 renders, E-3 renders identically
   (`render-census/e3-result.txt`).
-- **The DDL and DML stage** closes **PARK-16** (DDL and DML spell a table or schema name raw where queries quote it;
-  `docs/PARKED_WORK_LEDGER.md`): its own landing right after that stage, measured on the census — the stage rewrites
-  `ddlQualified`, so the row's anchor goes red there.
-- **The legacy printer, and the bridge removed:** its own helpers write, its 4 text edits become direct writes.
+- **E-4, the rest — on branch 2026-10-09, stacked on E-3; E is complete with it.** Four commits, each judged by the
+  census (`render-census/e4-result.txt`):
+  - *The legacy engine-text printer's helpers write* (`EngineStyleH2`, `EngineStyleDB2`): its pattern recognisers
+    (enum selectors, optional-parameter equality, the date-diff folds, the decode chains) return a `Piece` or nothing,
+    its WHERE and GROUP BY write. Census: 0 of 52,095 entries differ.
+  - *DML's rows write; the bridge goes.* `render(SqlDml)`'s rows were the last text path; a parameter in a row (a row
+    holds values) is refused by name. The `expr` text form, with no caller left, is deleted (`inline`'s went with
+    E-4a). DDL spells
+    only names, types and keywords: text, as any spelling. Census: 0 differ.
+  - *PARK-16, the product half.* DDL and DML spell a table or schema name through `physicalName`, as queries do (and
+    as legend-engine's own H2 DDL does, through `tableToString`); Postgres's two overrides go. A default-schema table
+    `order` and a table in a schema `select` seed and answer a query on DuckDB, H2 and Postgres (`ReservedNamesSeedTest`,
+    `PostgresArmTest`; both failed before: `Drop table if exists order;` is refused). The census: the 27 entries that
+    differ are those tests' new statements; no existing statement changed. The test-data generator's hand-built SQL
+    stays parked (PARK-16, restated: the user, "product now, generator later").
+- *The legacy printer exact (E-4b; the user: "for backwards compatibility/legacy mode we need to be fully exact,
+    implemented cleanly ... a single exact backwards compatibility mode").* Measured against legend-engine 4.145.0
+    itself (`legacy-text/`: 14 shapes through its `generatePlan`, and its source): the printer's two text edits
+    (lowercasing a window's keywords by find-and-replace, which also changed string literals; lowercasing an aggregate's
+    name) become direct writes through two spelling hooks, `keyword` and `aggregateName`, the engine's own design (its
+    SQL dialect translation's `keyword()`). And where the printer was not exact it now is: an aggregate's own `order by
+    ... asc`, `count(distinct ...)`, `rank()`, a window frame, and the string aggregate `listagg`, ordered `listagg(x,
+    sep) within group (order by k)` — over a window with the `within group` after the `over (...)`, as the engine writes
+    it. The enum selector's quoting (each `'` as `\'`) was already the engine's. `LegacyTextTest` holds the spellings to
+    the engine's text. `EngineStyleDB2` and `EngineStyleComposite` inherit these spellings; the one DB2 statement the
+    suites render moved to `count(distinct ...)`, as the engine's DB2 golden spells it (`testIsDistinctSQLGeneration`,
+    testToSQLString.pure:724); DB2's window and string-aggregate text is unmeasured and follows H2 until it is. Recorded
+    where they are owned: an explicit `nulls first`/`nulls last` (PARK-18: the IR cannot yet tell a query's own
+    placement from pure's); `reduce` and a `joinStrings` over a window's partition (lowering gaps, not spellings); and a
+    relation-API query's statement structure (the engine's dialect translation aliases `t_0` and lists every column,
+    lite's printer follows the TDS goldens' `root`): the compatibility mode's, §8 phase 4.
 - **Then step 2's landing 2**: a parameter is `bind(...)`.

@@ -1,0 +1,37 @@
+###Relational
+Database test::DB
+(
+  Table T (id INTEGER PRIMARY KEY, grp INTEGER, name VARCHAR(200), flag VARCHAR(10))
+)
+
+###Mapping
+Mapping test::M
+(
+)
+
+###Runtime
+Runtime test::RT
+{
+  mappings:
+  [
+    test::M
+  ];
+  connections:
+  [
+    test::DB:
+    [
+      c1:
+      #{
+        RelationalDatabaseConnection
+        {
+          store: test::DB;
+          type: H2;
+          specification: LocalH2
+          {
+          };
+          auth: DefaultH2;
+        }
+      }#
+    ]
+  ];
+}

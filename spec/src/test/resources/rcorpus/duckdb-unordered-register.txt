@@ -113,7 +113,6 @@ unordered-chain meta::relational::tests::groupBy::testGroupByWithUnion
 unordered-chain meta::relational::tests::groupBy::testJoinStringsTwiceWithAssociation
 unordered-chain meta::relational::tests::groupBy::testObjectLevelGroupByWTDSLevelGroupByWTDSExtend
 unordered-chain meta::relational::tests::groupBy::testReprocessGroupByAlias
-unordered-chain meta::relational::tests::groupBy::testSimpleJoinStrings
 unordered-chain meta::relational::tests::groupBy::testUniqueValueOnly1
 unordered-chain meta::relational::tests::groupBy::testUniqueValueOnly2
 unordered-chain meta::relational::tests::groupBy::testUniqueValueOnly3
@@ -492,7 +491,6 @@ unordered-chain meta::relational::tests::milestoning::businessdate::testMileston
 unordered-chain meta::relational::tests::milestoning::businessdate::testMilestoningFilterPropagationThroughNestedFilter
 unordered-chain meta::relational::tests::milestoning::businessdate::testMilestoningFilterPropagationWithNowInFilter
 unordered-chain meta::relational::tests::milestoning::businessdate::testMilestoningQueryWithAggProjectWithMilestoneFilter
-unordered-chain meta::relational::tests::milestoning::businessdate::testMilestoningQueryWithGroupByFilterWithMilestoning
 unordered-chain meta::relational::tests::milestoning::businessdate::testMilestoningQueryWithMilestoneFilterANdDifferentDatesOnTypeAndProperty
 unordered-chain meta::relational::tests::milestoning::businessdate::testMilestoningQueryWithMilestoneFilterOnAssociationProperty
 unordered-chain meta::relational::tests::milestoning::businessdate::testMilestoningQueryWithSimpleProjectWithMilestoneFilter
@@ -849,8 +847,6 @@ unordered-chain meta::relational::tests::tds::groupBy::groupByAfterASortOnColumn
 unordered-chain meta::relational::tests::tds::groupBy::groupByAfterASortOnColumnNotInGroupBy
 unordered-chain meta::relational::tests::tds::groupBy::groupByAfterConcatenate
 unordered-chain meta::relational::tests::tds::groupBy::simpleFilterWithGroupByWithDistinct
-unordered-chain meta::relational::tests::tds::groupBy::simpleGroupByWithAssociationWithJoinStrings
-unordered-chain meta::relational::tests::tds::groupBy::simpleGroupByWithJoinStrings
 unordered-chain meta::relational::tests::tds::groupBy::testTDSGroupByEmptyColsNonTerminalOperation
 unordered-chain meta::relational::tests::tds::groupBy::testTableToTDSWithQuotedColumns
 unordered-chain meta::relational::tests::tds::tabletds::testSimpleConcatenate
@@ -874,13 +870,9 @@ unordered-chain meta::relational::tests::tds::tdsExtend::testDateLiteral
 unordered-chain meta::relational::tests::tds::tdsExtend::testExtendsWithInClause
 unordered-chain meta::relational::tests::tds::tdsExtend::testIfWithEmptyExtension
 unordered-chain meta::relational::tests::tds::tdsExtend::testNoopFunctions
-unordered-chain meta::relational::tests::tds::tdsFilter::testFilterFollowedByGroupByWithFilterOnRootClass
 unordered-chain meta::relational::tests::tds::tdsFilter::testFilterMultipleExpressions1
 unordered-chain meta::relational::tests::tds::tdsFilter::testFilterMultipleExpressions2
-unordered-chain meta::relational::tests::tds::tdsFilter::testFilterOnAssociatedClassAggValueAfterGroupBy
 unordered-chain meta::relational::tests::tds::tdsFilter::testFilterOnDynaFunctionColumn
-unordered-chain meta::relational::tests::tds::tdsFilter::testFilterOnRootClassAggValueAfterGroupBy
-unordered-chain meta::relational::tests::tds::tdsFilter::testFilterOnRootClassAggValueAfterGroupByWithHavingMultipleFilters
 unordered-chain meta::relational::tests::tds::tdsFilter::testFilterUsingFunction
 unordered-chain meta::relational::tests::tds::tdsFilter::testInOnColumnInSubselect
 unordered-chain meta::relational::tests::tds::tdsJoin::testJoinByColAfterQueryWithConcatenate

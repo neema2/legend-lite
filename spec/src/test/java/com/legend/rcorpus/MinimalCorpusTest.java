@@ -612,7 +612,15 @@ public class MinimalCorpusTest {
     // the executeLegendQuery result string, boolean verdicts by the engine test's own shape;
     // their content is the engine's activities SQL (byte-exact) and the engine's result JSON
     // (the serializer's own bytes), which the census cannot see behind a bare assert.
-    private static final int[] DUCKDB_STRENGTH = {1020, 22, 27};
+    // DuckDB differential 1020 -> 1011 (2026-10-09, E-4b: the legacy engine-text printer writes legend-engine's exact
+    // spellings, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §10): nine SQL-text asserts are now byte-equal to the
+    // engine's golden (listagg, lowercase keywords), so the text decides them and the referee is not appealed to --
+    // the 2026-09-21 rule (see H2_STRENGTH). Measured before/after on E-4b's own base: every assert's verdict
+    // identical, LITERAL 1402 -> 1411, DIFFERENTIAL+literal 851 -> 842; the eight joinStrings tests among them leave the
+    // unordered register (their rows are no longer compared by the referee at all). On main after D24 (1), whose roster
+    // test testSubAggregationMultiLevelJoinString no longer reaches its later asserts, one differential fewer: LITERAL
+    // 1411, DIFFERENTIAL+literal 841, DIFFERENTIAL-only 170.
+    private static final int[] DUCKDB_STRENGTH = {1011, 22, 27};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -640,7 +648,9 @@ public class MinimalCorpusTest {
     // longer needed for a held text. The DuckDB floor moves the same way.
     // H2 cardinality 26 -> 27 (2026-09-22, views stage 4): the same pass on H2 — the envelope
     // is plain string building, no JSON function; see DUCKDB_STRENGTH's note.
-    private static final int[] H2_STRENGTH = {953, 22, 27};
+    // H2 differential 953 -> 946 (2026-10-09, E-4b): the same nine texts as DUCKDB_STRENGTH's note, now byte-equal to
+    // the golden; every verdict identical, LITERAL 1219 -> 1228, DIFFERENTIAL+literal 786 -> 777.
+    private static final int[] H2_STRENGTH = {946, 22, 27};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per

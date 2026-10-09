@@ -12,6 +12,11 @@ set -u
 OUT=$1
 HERE=${0:a:h}
 P=core/src/main/java/com/legend/sql/dialect/RenderCensus.java
+# a fresh folder: records are appended per test, so a second run into the same folder would add to the first
+if [ -e "$OUT" ] && [ -n "$(ls -A "$OUT")" ]; then
+  echo "run.sh: $OUT is not empty -- give each run its own folder"
+  exit 2
+fi
 mkdir -p "$OUT"
 python3 -I "$HERE/probe.py" apply || { echo "the probe does not apply to this tree"; exit 2; }
 trap 'python3 -I "$HERE/probe.py" remove' EXIT

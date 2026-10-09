@@ -1018,44 +1018,63 @@ public class AnsiSqlRenderer implements SqlDialect {
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
         switch (w.fn()) {
             case SqlAgg.Reducer r -> reducer(writer, r);
-            case SqlAgg.RankingFn r -> writer.append(r.fn().toString()).append("(").list(r.args()).append(")");
-            case SqlAgg.ValueFn v -> writer.append(v.fn().toString()).append("(").list(v.args()).append(")");
+            case SqlAgg.RankingFn r -> writer.append(aggregateName(r.fn())).append("(").list(r.args()).append(")");
+            case SqlAgg.ValueFn v -> writer.append(aggregateName(v.fn())).append("(").list(v.args()).append(")");
         }
-        writer.append(" OVER (");
+        return over(writer, w);
+    }
+
+    /** A window's {@code OVER (...)}: its partition, order and frame. */
+    protected final SqlWriter over(SqlWriter writer, SqlExpr.WindowCall w) {
+        writer.append(" ").append(keyword("OVER")).append(" (");
         if (!w.partitionBy().isEmpty()) {
-            writer.append("PARTITION BY ").list(w.partitionBy());
+            writer.append(keyword("PARTITION BY")).append(" ").list(w.partitionBy());
         }
         if (!w.orderBy().isEmpty()) {
             if (!w.partitionBy().isEmpty()) {
                 writer.append(" ");
             }
-            writer.append("ORDER BY ").join(w.orderBy(), ", ", this::sortKey);
+            writer.append(keyword("ORDER BY")).append(" ").join(w.orderBy(), ", ", this::sortKey);
         }
         if (w.frame() != null) {
-            writer.append(" ").append(w.frame().kind().toString()).append(" BETWEEN ").append(bound(w.frame().from()))
-                    .append(" AND ").append(bound(w.frame().to()));
+            writer.append(" ").append(keyword(w.frame().kind().toString())).append(" ").append(keyword("BETWEEN"))
+                    .append(" ").append(bound(w.frame().from())).append(" ").append(keyword("AND")).append(" ")
+                    .append(bound(w.frame().to()));
         }
         return writer.append(")");
     }
 
+    /** A keyword of the window and aggregate syntax ({@code OVER}, {@code ORDER BY}, {@code DISTINCT} ...) as this
+     *  dialect writes it: as written here. The legacy engine-text printer writes legend-engine's lowercase (its
+     *  SQL dialect translation's {@code keyword()}, upper-case keywords off). */
+    protected String keyword(String keyword) {
+        return keyword;
+    }
+
+    /** An aggregate, ranking or value function's name as this dialect writes it: its {@link SqlAgg.Fn} name here.
+     *  The legacy engine-text printer writes legend-engine's H2 names. */
+    protected String aggregateName(SqlAgg.Fn fn) {
+        return fn.toString();
+    }
+
     protected String bound(SqlExpr.WindowCall.Frame.Bound b) {
         return switch (b) {
-            case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> "UNBOUNDED PRECEDING";
-            case SqlExpr.WindowCall.Frame.Bound.Preceding p -> p.n() + " PRECEDING";
-            case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> "CURRENT ROW";
-            case SqlExpr.WindowCall.Frame.Bound.Following f -> f.n() + " FOLLOWING";
-            case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> "UNBOUNDED FOLLOWING";
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> keyword("UNBOUNDED PRECEDING");
+            case SqlExpr.WindowCall.Frame.Bound.Preceding p -> p.n() + " " + keyword("PRECEDING");
+            case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> keyword("CURRENT ROW");
+            case SqlExpr.WindowCall.Frame.Bound.Following f -> f.n() + " " + keyword("FOLLOWING");
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> keyword("UNBOUNDED FOLLOWING");
             // DuckDB interval spelling; DurationUnit names (DAYS, MONTHS...)
             // are valid interval units as-is.
             case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p ->
-                    "INTERVAL " + p.n() + " " + p.unit() + " PRECEDING";
+                    keyword("INTERVAL") + " " + p.n() + " " + p.unit() + " " + keyword("PRECEDING");
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
-                    "INTERVAL " + f.n() + " " + f.unit() + " FOLLOWING";
+                    keyword("INTERVAL") + " " + f.n() + " " + f.unit() + " " + keyword("FOLLOWING");
         };
     }
 
     protected SqlWriter reducer(SqlWriter writer, SqlAgg.Reducer r) {
-        writer.append(r.fn().toString()).append("(").append(r.distinct() ? "DISTINCT " : "");
+        writer.append(aggregateName(r.fn())).append("(").append(r.distinct() ? keyword("DISTINCT") + " " : "");
         if (r.args().isEmpty()) {
             writer.append("*");
         } else {
@@ -1064,19 +1083,26 @@ public class AnsiSqlRenderer implements SqlDialect {
         // ORDER-SENSITIVE aggregation (SQL standard <sort specification
         // list> inside the aggregate: string_agg(x, sep ORDER BY k))
         if (!r.orderBy().isEmpty()) {
-            writer.append(" ORDER BY ").join(r.orderBy(), ", ", (w, k) -> w.expr(k.expr(), 0)
-                    .append(k.ascending() ? " ASC" : " DESC").append(aggOrderNullPlacement(k)));
+            writer.append(" ").append(keyword("ORDER BY")).append(" ")
+                    .join(r.orderBy(), ", ", this::aggregateOrderKey);
         }
         return writer.append(")");
+    }
+
+    /** A key of an aggregate's own ordering: the expression, its direction, its declared null placement. */
+    protected final SqlWriter aggregateOrderKey(SqlWriter writer, SqlSelect.SortKey k) {
+        return writer.expr(k.expr(), 0).append(" ").append(keyword(k.ascending() ? "ASC" : "DESC"))
+                .append(aggOrderNullPlacement(k));
     }
 
     /** A key with DECLARED null placement keeps it inside the aggregate
      * (pure null-largest sorts hoisted into toString — witness PCT
      * testRange_..._WithOrderByDESC: DESC NULLS FIRST died here and
      * nulls sank to the backend default); legacy keys carry none. The
-     * ENGINE-TEXT channel overrides to suppress — the engine never
-     * spells a NULLS clause (the sortKey suppression's
-     * aggregate-internal twin). */
+     * ENGINE-TEXT channel overrides to suppress: the engine spells a NULLS
+     * clause only for a query's explicit emptyFirst()/emptyLast(), which
+     * the IR cannot yet tell from pure's own null order (PARK-18; the
+     * sortKey suppression's aggregate-internal twin). */
     protected String aggOrderNullPlacement(SqlSelect.SortKey k) {
         return k.nullOrder() == null ? ""
                 : k.nullOrder() == SqlSelect.SortKey.NullOrder.NULLS_FIRST

@@ -225,9 +225,10 @@ chose "product now, generator later" for the rest.
 and empty a table (`AnsiSqlRenderer.render(SqlDdl)` and `render(SqlDml)`), and `CREATE`/`DROP SCHEMA`, spelled schema
 and table names RAW, where queries spell them through `physicalName` (a reserved word or a name that is not plain is
 quoted): a default-schema table `order` got `Drop table if exists order;`, refused by DuckDB and H2, on the server and in
-the Studio tab (`CsvSeed.sqls`). Now one rule: DDL and DML spell each name through `physicalName`, as queries do, and as
-legend-engine's own H2 DDL does (`translateCreateTableStatementForH2` spells the table through `tableToString`, its query
-spelling); Postgres's two overrides are gone. `ReservedNamesSeedTest` seeds a default-schema table `order` and a table in
+the Studio tab (`CsvSeed.sqls`). Now one rule for the dialects that execute: DDL and DML spell each name through
+`physicalName`, as queries do, and as legend-engine's own H2 DDL does (`translateCreateTableStatementForH2` spells the
+table through `tableToString`, its query spelling); Postgres's two overrides are gone. (The legacy engine-text printer's
+lexicon has no reserved words, so its setup text spells such a name bare, as before.) `ReservedNamesSeedTest` seeds a default-schema table `order` and a table in
 a schema `select` and answers a query over each on DuckDB and H2, `PostgresArmTest` on Postgres; the render census shows
 nothing else changing.
 
@@ -284,3 +285,32 @@ whole model" together itself (`com.legend.Compiler.compileAllBodies(` then `com.
 `python/tests/test_compiler.py`'s `test_refusal_kinds_are_mixed_until_leg_6` (`//python:bindings_test`), which pins the
 grammar's refusal kind as the engine's and `relation_type`'s, `plan`'s and `plan_text`'s as a Java class name, so a
 call moving to `pure/v1` without this row being closed or restated turns it red (found by leg 4's audit, 2026-10-09).
+
+---
+
+## PARK-18 — the legacy printer cannot write a query's explicit null placement
+
+**Parked** 2026-10-09 by the Plan Gen / Exec Split session with E-4b, PROPOSED to the user for confirmation (the
+user's rule is "for backwards compatibility/legacy mode we need to be fully exact"; this is the one measured spelling E-4b
+could not reach in the printer alone, because the IR does not carry it). Found by measuring legend-engine 4.145.0
+(`docs/execution-plan-boundary-2026-10-05/legacy-text/`).
+
+**What the engine does.** It writes `nulls first`/`nulls last` in a window's order and in an ordered aggregate exactly
+where the query says `emptyFirst()`/`emptyLast()` (`engine-l2.sql`, `engine-l4.sql`, `engine-l8.sql`,
+`engine-l13.sql`), and nothing for Pure's own null-is-largest order.
+
+**What lite does today.** The lowering stamps every sort key with a null order (`Sorts.nullsOf`, `Fold.sortNulls`,
+`Lowerer.lowerOver`): the query's explicit one when it has one, Pure's null-is-largest otherwise. The execution dialects
+need that stamp; the legacy printer cannot tell the two apart in `SqlSelect.SortKey`, so it writes none
+(`EngineStyleH2.sortKey`, `aggOrderNullPlacement`) — right for every golden, wrong for an explicit placement.
+
+**The fix.** `SqlSelect.SortKey` carries whether its placement is the query's own (`TypedSortKey.nullOrder() != null`
+at the three lowering sites); the legacy printer writes `nulls first`/`nulls last` for exactly those keys.
+
+**Acceptance.** `LegacyTextTest` gains the l2 and l4 shapes, the engine's `nulls first`/`nulls last` text; the census
+shows no other legacy statement changing.
+
+**When.** With the compatibility mode (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, phase 4), or sooner if a golden
+needs it. Cost of leaving it parked: a legacy text over an explicit `emptyFirst()`/`emptyLast()` omits the clause.
+
+**Anchor.** `aggOrderNullPlacement` in `EngineStyleH2.java` returns `""`.

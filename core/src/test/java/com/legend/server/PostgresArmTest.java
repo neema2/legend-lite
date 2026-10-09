@@ -116,8 +116,8 @@ class PostgresArmTest {
             assertEquals(2, java.util.Objects.requireNonNull(order).rows().size());
             assertEquals("a", order.rows().get(0).get(1));
             assertEquals("b", order.rows().get(1).get(1));
-            com.legend.exec.ExecutionResult t = com.legend.Execution.execute(model, "#>{s::DB.select.T}#->select(~[ID])",
-                    "s::RT", c);
+            com.legend.exec.ExecutionResult t = com.legend.Execution.execute(model,
+                    "#>{s::DB.select.T}#->select(~[ID])", "s::RT", c);
             assertEquals(7, ((Number) java.util.Objects.requireNonNull(t).rows().get(0).get(0)).intValue());
         }
     }

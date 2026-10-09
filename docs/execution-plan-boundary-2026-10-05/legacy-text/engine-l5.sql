@@ -1,0 +1,1 @@
+select "t_0".id as "id", "t_0".grp as "grp", "t_0".name as "name", "t_0".flag as "flag", listagg("t_0".name, ',') over (partition by "t_0".grp order by "t_0".id asc) as "names" from T as "t_0"

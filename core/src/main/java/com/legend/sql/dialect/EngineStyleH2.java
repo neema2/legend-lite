@@ -13,7 +13,6 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * The ENGINE's own H2 SQL text &mdash; for byte-exact {@code toSQLString}
@@ -621,11 +620,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // (toSourceValues; the engine never compares decoded names)
         SqlExpr colExpr = decodeSourceColumn(other);
         // the rendered column sits inside the template's single-quoted
-        // args — escape like the selector arm at holder-equality does
-        // (C2.1: a quote-bearing spelling must not walk out of the arg);
-        // one of the legacy printer's text edits (it binds nothing, so the
-        // bridge never refuses here)
-        String col = newWriter().expr(colExpr != null ? colExpr : other, 4).bridged()
+        // args — quoted into them as legend-engine quotes it (the rendered
+        // node, each ' as \', sqlDialectExtensionDefaults.pure:377) (C2.1: a
+        // quote-bearing spelling must not walk out of the arg); this printer
+        // binds nothing, so its text never refuses
+        String col = newWriter().expr(colExpr != null ? colExpr : other, 4).text()
                 .replace("'", "\\'");
         String pn = p.name() + (p.optional() ? "![]" : "");
         String fn = p.enumMapFn() + "(" + pn + ")";
@@ -1426,11 +1425,38 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                     .expr(r.args().get(1), 0).append(") within group (order by ").expr(r.args().get(0), 0)
                     .append(desc ? " desc" : " asc").append(")");
         }
-        // one of the legacy printer's text edits (the name lowercased after it is written; E-4 writes it
-        // directly): this printer binds nothing, so the bridge never refuses here
-        String s = super.reducer(newWriter(), r).bridged();
-        int p = s.indexOf('(');
-        return writer.append(s.substring(0, p).toLowerCase(Locale.ROOT)).append(s.substring(p));
+        // an ordered string aggregate: legend-engine's H2 listagg takes its ordering WITHIN GROUP (its
+        // withinGroupFunctionProcessor, sqlDialect.pure:200-214; 4.145.0 measured, render-census/legacy-text)
+        if (r.fn() == com.legend.sql.SqlAgg.Fn.STRING_AGG && !r.orderBy().isEmpty()) {
+            return withinGroup(listagg(writer, r), r);
+        }
+        return super.reducer(writer, r);
+    }
+
+    /** {@code listagg([distinct] x, separator)}: legend-engine's H2 string aggregate. */
+    private SqlWriter listagg(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
+        return writer.append(aggregateName(r.fn())).append("(").append(r.distinct() ? keyword("DISTINCT") + " " : "")
+                .list(r.args()).append(")");
+    }
+
+    /** {@code within group (order by ...)}: an ordered string aggregate's ordering. */
+    private SqlWriter withinGroup(SqlWriter writer, com.legend.sql.SqlAgg.Reducer r) {
+        return writer.append(" within group (").append(keyword("ORDER BY")).append(" ")
+                .join(r.orderBy(), ", ", this::aggregateOrderKey).append(")");
+    }
+
+    /** legend-engine's H2 keywords are lowercase (its SQL dialect translation writes them as spelled, upper-case
+     *  keywords off: sqlDialectTranslation.pure:38-48, utils.pure:46-49). */
+    @Override
+    protected String keyword(String keyword) {
+        return keyword.toLowerCase(Locale.ROOT);
+    }
+
+    /** legend-engine's H2 function names: lowercase, and the string aggregate is {@code listagg}
+     *  (h2SqlDialect.pure). */
+    @Override
+    protected String aggregateName(com.legend.sql.SqlAgg.Fn fn) {
+        return fn == com.legend.sql.SqlAgg.Fn.STRING_AGG ? "listagg" : fn.toString().toLowerCase(Locale.ROOT);
     }
 
     /** Engine sort keys spell the direction EXPLICITLY and lowercase
@@ -1447,9 +1473,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         } else {
             writer.expr(k.expr(), 0);
         }
-        // ENGINE-VERBATIM: the engine never spells a NULLS clause in
-        // ORDER BY (every studied golden) — this TEXT channel suppresses
-        // the IR's semantic null-order stamp ENTIRELY. Slice 10 made
+        // ENGINE-VERBATIM: the engine spells a NULLS clause only where the
+        // query says emptyFirst()/emptyLast() (4.145.0, measured:
+        // docs/execution-plan-boundary-2026-10-05/legacy-text/), never for
+        // pure's own null-is-largest; the IR's null order cannot tell the
+        // two apart yet (PARK-18), so this TEXT channel suppresses it. Slice 10 made
         // Fold stamp pure's null-is-largest (DESC → NULLS_FIRST), which
         // the old restates-the-default filter printed here, dropping 5
         // corpus rows out of text-matched (h2-exec floor 296 → 291;
@@ -1462,10 +1490,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     /** ENGINE-VERBATIM, the sortKey suppression's aggregate-internal
-     * twin: the engine never spells a NULLS clause inside an ordered
-     * aggregate either — the TEXT channel suppresses the IR's semantic
-     * null-order stamp (execution renderers keep it; witness the
-     * relation wall burn's rescued golden, 2026-08-23). */
+     * twin: the engine spells a NULLS clause inside an ordered aggregate
+     * only where the query says emptyFirst()/emptyLast() (4.145.0,
+     * measured); the IR cannot tell that from pure's own null order yet
+     * (PARK-18), so the TEXT channel suppresses it (execution renderers
+     * keep it; witness the relation wall burn's rescued golden,
+     * 2026-08-23). */
     @Override
     protected String aggOrderNullPlacement(com.legend.sql.SqlSelect.SortKey k) {
         return "";
@@ -1475,12 +1505,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * by ... order by ...)} (the window-col goldens' spelling). */
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
-        // one of the legacy printer's text edits (lowercased after it is written; E-4 writes it directly):
-        // this printer binds nothing, so the bridge never refuses here
-        String s = super.windowCall(newWriter(), w).bridged();
-        return writer.append(s.replace(" OVER (", " over (")
-                .replace("PARTITION BY ", "partition by ")
-                .replace("ORDER BY ", "order by "));
+        // an ordered string aggregate over a window: legend-engine writes its WITHIN GROUP after the window
+        // (withinGroupFunctionProcessor appends it after the OVER clause; 4.145.0 measured)
+        if (w.fn() instanceof com.legend.sql.SqlAgg.Reducer r && r.fn() == com.legend.sql.SqlAgg.Fn.STRING_AGG
+                && !r.orderBy().isEmpty()) {
+            return withinGroup(over(listagg(writer, r), w), r);
+        }
+        return super.windowCall(writer, w);
     }
 
     /**

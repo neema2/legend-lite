@@ -1,0 +1,1 @@
+|#>{test::DB.T}#->groupBy(~grp, ~names : g | $g->joinStrings(~name, ',', [~id->descending()->emptyFirst(), ~grp->ascending()->emptyLast()]))->from(test::RT)

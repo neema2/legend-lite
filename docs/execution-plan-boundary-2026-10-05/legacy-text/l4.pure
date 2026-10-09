@@ -1,0 +1,1 @@
+|#>{test::DB.T}#->extend(over(~grp, [~id->ascending()->emptyFirst(), ~name->descending()->emptyLast()]), ~s:{p,w,r|$r.id}:y|$y->plus())->from(test::RT)

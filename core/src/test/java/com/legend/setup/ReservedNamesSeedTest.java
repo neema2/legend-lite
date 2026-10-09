@@ -63,8 +63,8 @@ public class ReservedNamesSeedTest {
                 s.execute(sql);
             }
         }
-        ExecutionResult order = Execution.execute(model, "#>{s::DB.order}#->select(~[ID, NAME])->sort(~ID->ascending())",
-                "s::RT", c);
+        ExecutionResult order = Execution.execute(model,
+                "#>{s::DB.order}#->select(~[ID, NAME])->sort(~ID->ascending())", "s::RT", c);
         assertEquals(List.of(List.of(1, "a"), List.of(2, "b")), rows(order), dialect.getClass().getSimpleName());
         ExecutionResult t = Execution.execute(model, "#>{s::DB.select.T}#->select(~[ID])", "s::RT", c);
         assertEquals(List.of(List.of(7)), rows(t), dialect.getClass().getSimpleName());
