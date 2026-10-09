@@ -67,16 +67,19 @@ class DataCube(anywidget.AnyWidget):
     height = traitlets.Int(480).tag(sync=True)
 
     def __init__(self, frame: Any, name: str | None = None, *, mode: str = LIVE, height: int = 480) -> None:
+        # closed until it is made: ipywidgets closes a widget when it is collected, one whose making failed too, and
+        # that close must find nothing to undo (the audit of step 7, S1: a bad frame printed a second traceback)
+        self._closed = True
         session = datacube._session
         engine = session.engine()
         assert engine.site is not None  # the session's engine always has DataCube's site
         loader, module = _loader(engine.site)
         name = session.register(frame, name, mode)
         self._session = session
-        self._closed = False
         # show() displayed it in this cell: the cell's own result (the handle show() returned) shows no second copy
         self._shown_here = False
         super().__init__(_esm=loader, _module=module, table=name, version=engine.version(name), height=height)
+        self._closed = False
         self.on_msg(self._received)
         self._unwatch = engine.watch(self._moved)
         session.adopt(self)
@@ -98,11 +101,12 @@ class DataCube(anywidget.AnyWidget):
         self._session.engine().changed(self.name)
 
     def close(self) -> None:
-        """Takes the frame out of the engine and the cube out of the output."""
+        """Takes the frame out of the engine and the cube out of the output. A cube its name has since moved to another
+        (shown again in a tab, or made again) takes only itself away: the frame is that other cube's."""
         if not self._closed:
             self._closed = True
             self._unwatch()
-            self._session.close(self.name)
+            self._session.close(self.name, self)
         super().close()
 
     def _open(self) -> None:
@@ -115,7 +119,8 @@ class DataCube(anywidget.AnyWidget):
     def _moved(self, name: str, version: int) -> None:
         """The engine says a frame changed (from the thread that changed it): this cube's moves its version, which its
         page follows."""
-        if name.lower() == self.table.lower() and not self._closed:
+        # the newest only: two changes on two threads can be told out of order
+        if name.lower() == self.table.lower() and not self._closed and version > self.version:
             self.version = version
 
     def _received(self, _widget: Any, content: Any, _buffers: Any) -> None:
@@ -135,13 +140,20 @@ class DataCube(anywidget.AnyWidget):
             # still an answer: a page waiting on a call never waits forever
             traceback.print_exc()
             answer = Answer(500, 'text/plain; charset=utf-8', f'{type(failure).__name__}: {failure}'.encode())
-        if not self._closed:
+        if self._closed:
+            return
+        try:
             self.send({'kind': 'answer', 'id': call.get('id'), 'status': answer.status, 'type': answer.content_type,
                        'headers': dict(answer.headers)}, [answer.body])
+        except AttributeError:
+            # closed while it answered (ipywidgets drops its channel between its check and its send): no one to tell
+            if not self._closed:
+                raise
 
     def _ipython_display_(self, **_: Any) -> None:
         """Displayed as any widget is, but once in the cell ``show()`` displayed it in: there, the cell's own result
-        (``ll.show(df)`` as its last line) adds no second copy. Typed in a later cell, it shows again."""
+        (``ll.show(df)`` as its last line) adds no second copy -- nor does a ``display(cube)`` in that cell, which IPython
+        cannot tell apart from it. Typed in a later cell, it shows again."""
         if self._shown_here:
             self._shown_here = False
             return

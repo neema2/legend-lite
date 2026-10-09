@@ -35,6 +35,14 @@ interface Answer {
 
 const isAnswer = (m: unknown): m is Answer => typeof m === 'object' && m !== null && (m as { kind?: unknown }).kind === 'answer';
 
+/** A call cut short because its view was taken down (its channel closed), not because the kernel refused it. */
+export class ChannelClosed extends Error {
+  constructor() {
+    super('the cube was closed');
+    this.name = 'ChannelClosed';
+  }
+}
+
 /**
  * The widget's channel as a fetch, for one view of the widget. Every view of a model hears every answer, so a call's id
  * names its view (a random prefix) as well as its number; an answer to another view's call is not this one's.
@@ -89,7 +97,7 @@ export function channel(model: WidgetModel): { readonly fetch: typeof globalThis
     fetch,
     close() {
       model.off('msg:custom', answered as (...args: never[]) => void);
-      for (const call of waiting.values()) call.reject(new Error('the cube was closed'));
+      for (const call of waiting.values()) call.reject(new ChannelClosed());
       waiting.clear();
     },
   };
@@ -107,7 +115,7 @@ export function loaded(hash: string, fetch: typeof globalThis.fetch): Promise<Cu
   const modules = (store[LOADED] ??= new Map());
   let module = modules.get(hash);
   if (module === undefined) {
-    module = load(fetch);
+    module = load(hash, fetch);
     modules.set(hash, module);
     module.catch(() => { if (modules.get(hash) === module) modules.delete(hash); });
   }
@@ -120,20 +128,24 @@ async function file(fetch: typeof globalThis.fetch, name: string): Promise<strin
   return answer.text();
 }
 
-async function load(fetch: typeof globalThis.fetch): Promise<CubeModule> {
+async function load(hash: string, fetch: typeof globalThis.fetch): Promise<CubeModule> {
   const [script, styles] = await Promise.all([file(fetch, 'widget.js'), file(fetch, 'widget.css')]);
-  // DataCube's styles, once for the page: every selector is scoped to its own classes, so nothing else on the page
-  // changes (the design, "Loading DataCube into the notebook page once")
-  const style = document.createElement('style');
-  style.dataset['legendLite'] = 'datacube';
-  style.textContent = styles;
-  document.head.append(style);
   const url = URL.createObjectURL(new Blob([script], { type: 'text/javascript' }));
+  let module: CubeModule;
   try {
-    return (await import(/* @vite-ignore */ url)) as CubeModule;
+    module = (await import(/* @vite-ignore */ url)) as CubeModule;
   } finally {
     URL.revokeObjectURL(url);
   }
+  // DataCube's styles, once for the page and the module, added once it loaded: every selector is scoped to its own
+  // classes, so nothing else on the page changes (the design, "Loading DataCube into the notebook page once")
+  if (document.head.querySelector(`style[data-legend-lite="${hash}"]`) === null) {
+    const style = document.createElement('style');
+    style.dataset['legendLite'] = hash;
+    style.textContent = styles;
+    document.head.append(style);
+  }
+  return module;
 }
 
 /** anywidget's entry: the cube in `el` once DataCube's module is here; what it returns takes the view down. */
@@ -142,11 +154,18 @@ export default {
     const link = channel(model);
     let gone = false;
     let takeDown: (() => void) | undefined;
-    loaded(String(model.get('_module')), link.fetch).then((module) => {
-      if (!gone) takeDown = module.render(model, el, link.fetch);
-    }, (e: unknown) => {
-      if (!gone) el.textContent = `DataCube did not load: ${e instanceof Error ? e.message : String(e)}`;
-    });
+    const open = (): void => {
+      loaded(String(model.get('_module')), link.fetch).then((module) => {
+        if (!gone) takeDown = module.render(model, el, link.fetch);
+      }, (e: unknown) => {
+        if (gone) return;
+        // the load another view started, cut short when that view was taken down (its cell run again, its output
+        // cleared): this view loads it over its own channel (the audit of step 7, S2). Any other failure is said
+        if (e instanceof ChannelClosed) open();
+        else el.textContent = `DataCube did not load: ${e instanceof Error ? e.message : String(e)}`;
+      });
+    };
+    open();
     return () => {
       gone = true;
       takeDown?.();

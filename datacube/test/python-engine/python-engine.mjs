@@ -141,17 +141,23 @@ try {
     fetched.set(path, (fetched.get(path) ?? 0) + 1);
     engine.stdin.write(`widget ${name} ${message}\n`);
   });
+  // what Python's widgets send goes to every page with a view of that widget, as a notebook's channel brings it to
+  // every view of a model
+  const widgetPages = [widgets];
   toWidgets = (line) => {
     const space = line.indexOf(' ');
-    widgets.evaluate(([kind, json]) => {
-      const m = JSON.parse(json);
-      const model = window.__models[m.widget];
-      if (kind === 'trait') model.set(m.name, m.value);
-      else {
-        const views = m.buffers.map((b) => new DataView(Uint8Array.from(atob(b), (c) => c.charCodeAt(0)).buffer));
-        model.fire('msg:custom', m.content, views);
-      }
-    }, [line.slice(0, space), line.slice(space + 1)]).catch((e) => { console.log(`FAIL a widget message: ${e}`); failed = true; });
+    for (const page of widgetPages) {
+      page.evaluate(([kind, json]) => {
+        const m = JSON.parse(json);
+        const model = window.__models?.[m.widget];
+        if (model === undefined) return;
+        if (kind === 'trait') model.set(m.name, m.value);
+        else {
+          const views = m.buffers.map((b) => new DataView(Uint8Array.from(atob(b), (c) => c.charCodeAt(0)).buffer));
+          model.fire('msg:custom', m.content, views);
+        }
+      }, [line.slice(0, space), line.slice(space + 1)]).catch((e) => { console.log(`FAIL a widget message: ${e}`); failed = true; });
+    }
   };
   await widgets.route(`${origin}/widgets.html`, (r) => r.fulfill({
     contentType: 'text/html',
@@ -211,6 +217,53 @@ try {
   const keys = kept.marked && kept.heardAbove === 0;
   console.log(`${keys ? 'ok  ' : 'FAIL'} a key pressed in a notebook cube stays with it (${JSON.stringify(kept)})`);
   if (!keys) failed = true;
+
+  // A VIEW TAKEN DOWN WHILE DATACUBE LOADS (the audit of step 7, S2): on a fresh page, two views of one widget; the
+  // first starts the module's load over its channel and is taken down at once (its cell run again), which cuts its
+  // calls short. The second loads the module over its own channel, and shows its rows.
+  const cut = await browser.newPage();
+  cut.on('pageerror', (e) => { console.log(`second widget page error: ${e.message}`); failed = true; });
+  const cutFetched = new Map();
+  await cut.exposeFunction('__widgetSend', (name, message) => {
+    const { path } = JSON.parse(message);
+    cutFetched.set(path, (cutFetched.get(path) ?? 0) + 1);
+    engine.stdin.write(`widget ${name} ${message}\n`);
+  });
+  await cut.route(`${origin}/cut.html`, (r) => r.fulfill({
+    contentType: 'text/html',
+    body: '<!doctype html><meta charset="utf-8"><title>a view taken down</title><div id="a" style="width:1000px"></div>'
+      + '<div id="b" style="width:1000px"></div>',
+  }));
+  await cut.goto(`${origin}/cut.html`);
+  widgetPages.push(cut);
+  await cut.evaluate(async ({ esm, state }) => {
+    const listeners = new Map();
+    const values = { ...state };
+    const model = {
+      get: (key) => values[key],
+      on: (event, f) => { if (!listeners.has(event)) listeners.set(event, new Set()); listeners.get(event).add(f); },
+      off: (event, f) => { listeners.get(event)?.delete(f); },
+      send: (content) => { window.__widgetSend('nb2', JSON.stringify(content)); },
+      fire: (event, ...args) => { for (const f of listeners.get(event) ?? []) f(...args); },
+      set: (key, value) => { values[key] = value; model.fire(`change:${key}`); },
+    };
+    window.__models = { nb2: model };
+    const url = URL.createObjectURL(new Blob([esm], { type: 'text/javascript' }));
+    const widget = (await import(url)).default;
+    URL.revokeObjectURL(url);
+    const takeDownFirst = widget.render({ model, el: document.getElementById('a') });
+    widget.render({ model, el: document.getElementById('b') });
+    takeDownFirst();
+  }, served.widgets.nb2);
+  const rerun = await cut.waitForFunction(() => /\b3 rows\b/.test(document.getElementById('b').innerText), undefined,
+    { timeout: 60_000 }).then(() => true, () => false);
+  const loads = cutFetched.get('/widget.js');
+  const shownAfterCut = rerun && loads === 2;
+  console.log(`${shownAfterCut ? 'ok  ' : 'FAIL'} a view taken down mid-load leaves the other view to load DataCube itself (${loads} widget.js asked)`);
+  if (!shownAfterCut) {
+    console.log(`  the second view showed: ${(await cut.evaluate(() => document.getElementById('b').innerText)).slice(0, 300)}`);
+    failed = true;
+  }
 } finally {
   await browser?.close();
   // stopped and WAITED for: the engine serves until its input closes, and is gone before the test reports

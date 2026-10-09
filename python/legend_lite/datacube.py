@@ -84,10 +84,10 @@ class Cube:
 
     def close(self) -> None:
         """Takes the frame out of the engine; the page keeps what it shows. The last tab's cube closed stops the web
-        server."""
+        server. A cube its name has since moved to another (shown under a notebook's cell) takes only itself away."""
         if not self._closed:
             self._closed = True
-            self._session.close(self.name)
+            self._session.close(self.name, self)
 
     def _after_cell(self) -> None:
         pass
@@ -170,17 +170,26 @@ class _Session:
                 if self._engine is not None and key in self.frames and self.frames[key].mode == LIVE:
                     self._engine.changed(cube.name)
 
-    def close(self, name: str) -> None:
+    def close(self, name: str, cube: Any) -> None:
+        """``cube`` closed: when it is still its name's cube, the frame goes out of the engine (a cube the name has moved
+        on from leaves the frame to the one it moved to, the audit of step 7, S3); the last tab's cube stops the web
+        server."""
         with self._lock:
-            self.cubes.pop(name.lower(), None)
+            if self.cubes.get(name.lower()) is not cube:
+                self._stop_web_if_unused()
+                return
+            del self.cubes[name.lower()]
             if name in self.frames:
                 self.frames.unregister(name)
                 if self._engine is not None:
                     # its page asks (or is told), finds the frame gone, and stops following it
                     self._engine.changed(name)
-            if self._web is not None and not any(isinstance(c, Cube) for c in self.cubes.values()):
-                self._web.close()
-                self._web = None
+            self._stop_web_if_unused()
+
+    def _stop_web_if_unused(self) -> None:
+        if self._web is not None and not any(isinstance(c, Cube) for c in self.cubes.values()):
+            self._web.close()
+            self._web = None
 
     def _hook(self) -> None:
         """Once: the notebook's after-cell nudge, where there is IPython; the wait at a plain script's end."""
@@ -226,7 +235,7 @@ def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool
     """Shows DataCube on ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one) and returns
     at once: under the cell in a notebook, in a browser tab anywhere else (a plain script that opened one waits at its
     end until Ctrl-C). ``name`` names its table (``frame``, ``frame_2``, ... unless given; showing a name again
-    replaces its frame, and shows its cube where it first showed). ``mode``: Live (the default: each query reads the
+    replaces its frame and shows its cube again, in a tab or under this cell, as it first showed). ``mode``: Live (the default: each query reads the
     frame as it is then) or ``'snapped'`` (copied once). ``browser=False`` opens no tab: the link is ``cube.url``.
     ``inline=False`` opens a tab from a notebook's kernel too (a console that shows no widget: Spyder's, qtconsole);
     under the cell needs the notebook extra (``pip install 'legend-lite[notebook]'``)."""

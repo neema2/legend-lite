@@ -39,6 +39,7 @@ export function render(model: WidgetModel, el: HTMLElement, fetch: typeof global
       if (gone || cube === undefined || Number(model.get('version')) === cube.config.version) return;
       const why = await cube.reread();
       if (why !== undefined) stopped(why);
+      else note.style.display = 'none';
     }).catch((e: unknown) => stopped(e instanceof Error ? e.message : String(e)));
   };
   const resized = (): void => { el.style.height = px(model); };
