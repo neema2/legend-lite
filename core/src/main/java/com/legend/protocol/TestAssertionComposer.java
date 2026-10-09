@@ -9,7 +9,8 @@ import static com.legend.protocol.Composing.TAB;
 
 /**
  * A test assertion ({@code id: Kind #{ ... }#}) as upstream prints it in a mapping's or a service's test
- * suites ({@code HelperTestAssertionGrammarComposer}): {@code EqualTo}, {@code EqualToJson}, {@code Relation}.
+ * suites ({@code HelperTestAssertionGrammarComposer}): {@code EqualTo}, {@code EqualToJson}, {@code Relation} -- over
+ * the record ({@link Protocol.PTestAssertion}; the protocol program's leg 2, step 3).
  */
 final class TestAssertionComposer {
 
@@ -17,25 +18,31 @@ final class TestAssertionComposer {
     }
 
     /** {@code composeTestAssertion} at the context's indentation {@code i}. */
-    static String compose(Json.Obj assertion, String i) {
+    static String compose(Protocol.PTestAssertion assertion, String i) {
         String indented = i + TAB;
         String inner = indented + TAB;
-        String type = Composing.type(assertion);
         String keyword;
         String content;
-        if ("equalTo".equals(type)) {
-            keyword = "EqualTo";
-            content = inner + "expected:\n" + inner + TAB + Composing.valueSpecification(assertion.get("expected"), inner + TAB) + ";";
-        } else if ("equalToJson".equals(type)) {
-            keyword = "EqualToJson";
-            content = inner + "expected:\n" + EmbeddedDataComposer.compose(assertion.getObj("expected"), inner + TAB) + ";";
-        } else if ("equalToRelation".equals(type)) {
-            keyword = "Relation";
-            content = EmbeddedDataComposer.alignedRelation(assertion.getObj("expected"), inner, false);
-        } else {
-            throw Composing.refused("no composer rule for a test assertion of _type '" + type + "'");
+        switch (assertion.expected()) {
+            case Protocol.PEqualToValue v -> {
+                keyword = "EqualTo";
+                content = inner + "expected:\n" + inner + TAB + Composing.valueSpecification(v.value(), inner + TAB) + ";";
+            }
+            case Protocol.PExternalFormatData e -> {
+                keyword = "EqualToJson";
+                content = inner + "expected:\n" + EmbeddedDataComposer.compose(e, inner + TAB) + ";";
+            }
+            case Protocol.PRelationElement r -> {
+                keyword = "Relation";
+                content = EmbeddedDataComposer.alignedRelation(r, inner, false);
+            }
         }
-        return i + Composing.convertIdentifier(assertion.getString("id")) + ":\n"
+        return i + Composing.convertIdentifier(assertion.id()) + ":\n"
                 + indented + keyword + "\n" + indented + "#{\n" + content + "\n" + indented + "}#";
+    }
+
+    /** {@link #compose(Protocol.PTestAssertion, String)} of the JSON, read first. */
+    static String compose(Json.Obj assertion, String i) {
+        return compose(EmbeddedDataReader.assertion(assertion), i);
     }
 }
