@@ -220,8 +220,9 @@ with its own title bar and its own board, as now: the page is DataCube's own app
   grid alone was called; the Properties' Report Title still names a page of one grid.
 - **The bar folds** to a lip (the earlier ruling: the folds live in one column at the right): its fold just left of a
   lone grid's header, whose last control -- the drag zones' way back -- stays at the far right above the zone bar's own
-  fold. For a grid alone the fold is that grid's "show title bar" setting, saved with it as a cube alone's was; folding
-  or showing the bar by hand writes it on every grid, so the grid left alone later says the same. A tile's header puts
+  fold. The bar is folded while every grid on the page says its "show title bar" setting is off -- for a grid alone,
+  that grid's setting, saved with it as a cube alone's was; folding or showing the bar by hand writes it on every grid,
+  and a grid made while the bar is folded starts with it off, so the grids left later say the same. A tile's header puts
   the zones' way back last, after the grid's menu, on a cube alone's board too.
 - **A grid's columns panel** starts open for a grid opened alone (in place, or a page of one reopened), folded for one
   added beside others -- as a source added beside others starts at the row limit (the user, 2026-10-01).

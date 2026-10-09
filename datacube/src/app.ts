@@ -265,6 +265,8 @@ export interface CubeAppBaseOptions {
   readonly onRemove?: () => void;
   /** A grid on a page of its own: the page around it for its export (its charts, this grid as the table). */
   readonly exportPage?: () => ExportPage | undefined;
+  /** A grid made on a page whose bar is folded: its title bar setting starts hidden, as the page's other grids say. */
+  readonly titleBarHidden?: boolean;
   readonly writeClipboard?: (text: string) => void | Promise<void>;
   /**
    * Hand a file to the user.
@@ -546,7 +548,8 @@ export class CubeApp {
     // the editor must open on what is actually running. The tree starts
     // as the CONFIGURATION says (the root total, the expand level) unless
     // the host hands the groups a saved cube had open.
-    const configuration = fromSnapshot(snapshot, options.configuration);
+    const given = fromSnapshot(snapshot, options.configuration);
+    const configuration = options.titleBarHidden ? { ...given, showTitleBar: false } : given;
     this.#owner = new CubeStateOwner({
       snapshot,
       configuration,

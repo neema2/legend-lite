@@ -381,7 +381,22 @@ export async function generateTrades(engine: DuckDbEngine): Promise<void> {
   );
 }
 
+/**
+ * DataCube's app, started: the page, and what the address asks it to open. A start that throws leaves the empty page
+ * saying so -- never an empty page without a word (the status line is in a grid's bar, and there may be none).
+ */
 export async function boot(makePlanner: MakePlanner): Promise<void> {
+  const settled = { show: (_reason: string): void => {} };
+  try {
+    await startPage(makePlanner, settled);
+  } catch (e) {
+    settled.show(`failed to start: ${e instanceof Error ? e.message : String(e)}`);
+    throw e;
+  }
+}
+
+/** The start itself; `settled.show` is set once the page has its empty card, to show it with a reason. */
+async function startPage(makePlanner: MakePlanner, settled: { show: (reason: string) => void }): Promise<void> {
   const status = must('status');
 
   // Start the planner NOW, and await it further down where it is
@@ -807,6 +822,12 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     },
     download: (name, mime, text) => download(name, mime, text),
   });
+  // a start that throws, from here on: the empty page shows its card, saying why
+  settled.show = (reason) => {
+    if (!page.empty) return;
+    sayWhyBlank(reason);
+    if (blankCard) blankCard.hidden = false;
+  };
   // For the browser harness ONLY: the page, its views and its layout; and its first grid (a CubeApp), so a check can
   // read that grid's own configuration and snapshot when what it sees on screen disagrees. Not product code.
   (window as unknown as { __dataPage?: PageApp }).__dataPage = page;
@@ -1037,6 +1058,16 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
 
     /** LATEST WINS: each open in place takes a number, and one overtaken by a newer open lands nothing (P2-330). */
     const opens = new Latest();
+    /**
+     * WHICH PAGE IS ON SCREEN: each page put there (opened in place, a saved one restored, a blank one) takes a number,
+     * and `current` -- what Save writes over -- is set with it. One that lands after another page was put there keeps
+     * no baseline of the newer page.
+     */
+    let placed = 0;
+    const place = (): (() => boolean) => {
+      const mine = (placed += 1);
+      return () => placed === mine;
+    };
 
     /**
      * A FILE FOR A GRID, read into this tab under a table of its own (no grid's table is ever replaced by another's):
@@ -1102,14 +1133,15 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         await o.discard?.();
         return [];
       }
+      const onScreen = place();
       page.clear();
       current = {};
       // the page has no name of its own until saved: its bar says the grid's report title (its source's name)
       page.setTitle('');
       page.addGrid(o.make);
       await page.ready();
-      // overtaken while it landed: the newer open's page is the one to keep a baseline of
-      if (!newest()) return [];
+      // another page put on screen while this one landed: that page is the one to keep a baseline of
+      if (!onScreen()) return [];
       // The baseline is the page as it LANDED (normalized by its first refresh)
       const landed = savedForm(page.title || 'page');
       current = { ...(landed ? { baseline: landed.definition } : {}), lost: [] };
@@ -1269,37 +1301,45 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       const makers = new Map<string, GridMaker>();
       const read: Opened[] = [];
       const notes: string[] = [];
-      for (const { id: cubeId, cube } of doc.cubes) {
-        const o = await reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), doc.cubes.length > 1);
-        if (!newest()) {
-          for (const r of [...read, ...(o ? [o] : [])]) await r.discard?.();
-          return;
+      try {
+        for (const { id: cubeId, cube } of doc.cubes) {
+          const o = await reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), doc.cubes.length > 1);
+          if (o) read.push(o);
+          if (!newest()) {
+            for (const r of read) await r.discard?.();
+            return;
+          }
+          if (!o) {
+            notes.push(`left out: ${cube.source.name} (not opened)`);
+            continue;
+          }
+          makers.set(cubeId, o.make);
+          notes.push(...o.notes);
         }
-        if (!o) {
-          notes.push(`left out: ${cube.source.name} (not opened)`);
-          continue;
-        }
-        read.push(o);
-        makers.set(cubeId, o.make);
-        notes.push(...o.notes);
+      } catch (e) {
+        // a source that could not be opened: what the others read goes, and the page on screen stays
+        for (const r of read) await r.discard?.();
+        throw e;
       }
       if (makers.size === 0) {
         library?.say(`not opened: "${doc.name}" -- none of its sources was opened`, 'warn');
         return;
       }
+      // the page on screen is this one from now: Save writes over it, never over the page it replaced
+      const onScreen = place();
       page.restore(doc, makers);
-      page.setTitle(doc.name);
-      await page.ready();
-      // overtaken while it landed: the newer open's page is the one to keep
-      if (!newest()) return;
-      // each file the page reads, where it was picked: kept for the next time it is opened
-      if (id !== undefined) await keepHandles(id);
       current = {
         ...(id !== undefined ? { cubeId: id } : {}),
         name: doc.name,
         ...(doc.unknown ? { pageUnknown: doc.unknown } : {}),
         cubeUnknown: new Map(doc.cubes.filter((c) => c.cube.unknown).map((c) => [gridOfCube(doc, c.id), c.cube.unknown!])),
       };
+      page.setTitle(doc.name);
+      await page.ready();
+      // another page put on screen while this one landed: that page is the one to keep
+      if (!onScreen()) return;
+      // each file the page reads, where it was picked: kept for the next time it is opened
+      if (id !== undefined) await keepHandles(id);
       // The baseline is the page as it LANDED (normalized by its first refresh); a page opened with parts left out is
       // changed from the start.
       const landed = savedForm(doc.name);
@@ -1958,6 +1998,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     // `empty` above). Asked first when there are unsaved changes; the page stays until the person agrees.
     blankPage = (reason?: string) => {
       if (dirty() && !window.confirm('The page has unsaved changes. Start a blank page anyway?')) return;
+      place();
       page.clear();
       current = {};
       page.setTitle('');

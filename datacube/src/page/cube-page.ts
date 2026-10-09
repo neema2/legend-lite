@@ -76,6 +76,8 @@ export interface SpawnOptions {
   readonly onSettingsChanged?: (values: SettingValues) => void;
   /** The host's readout in its status bar (a page of its own: its first grid's only), on each of its renders. */
   readonly hostStatus?: (slot: HTMLElement) => void;
+  /** Its page's bar is folded: its title bar setting starts hidden, as every grid on the page says. */
+  readonly titleBarHidden?: boolean;
 }
 
 /** A grid on a page (a CubeApp). */

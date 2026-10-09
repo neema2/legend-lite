@@ -177,17 +177,19 @@ export class PageApp {
     this.#paintEmpty();
   }
 
-  /** The grid alone on the page, if it is: one tile, a grid. */
-  #lone(): PageGrid | undefined {
-    const ids = this.#page.tileIds;
-    return ids.length === 1 ? this.grid(ids[0]!) : undefined;
-  }
-
-  /** A grid's state changed: the bar says a lone grid's report title, and folds as its title bar setting says. */
+  /**
+   * A grid's state changed: the bar says the first grid's report title, and is folded while every grid on the page
+   * says its title bar is hidden -- a grid alone as a cube alone always did; several, as the bar was folded by hand.
+   */
   #onGridChange(): void {
     this.#paintTitle();
-    const lone = this.#lone();
-    if (lone) this.#foldBar(!lone.configuration.showTitleBar);
+    const grids = this.#board();
+    if (grids.length > 0) this.#foldBar(grids.every((g) => !g.configuration.showTitleBar));
+  }
+
+  /** The grids on the board, in reading order (not those kept off it). */
+  #board(): PageGrid[] {
+    return this.grids.map((id) => this.grid(id)).filter((g): g is PageGrid => g !== undefined);
   }
 
   /** The page's own element: where its grids' windows float, above every tile. */
@@ -200,9 +202,9 @@ export class PageApp {
    * the lip brings it back -- and a lone grid's header keeps only the zones' way back, where it was.
    */
   setBarFolded(folded: boolean): void {
-    // kept in every grid's title bar setting (saved with it, as a cube alone's always was): whichever grid is left
-    // alone later says the same
-    for (const grid of this.#live()) {
+    // kept in every grid's title bar setting (saved with it, as a cube alone's always was): whichever grids are left
+    // later say the same, and a grid made while it is folded starts so (`#maker`)
+    for (const grid of this.#board()) {
       if (grid.configuration.showTitleBar === folded) grid.setChrome({ showTitleBar: !folded });
     }
     this.#foldBar(folded);
@@ -270,6 +272,8 @@ export class PageApp {
         ...options,
         // the host's readout, in this grid's bar while it is the page's first
         ...(hostStatus && id !== undefined ? { hostStatus: (slot: HTMLElement) => { if (this.grids[0] === id) hostStatus(slot); } } : {}),
+        // made while the bar is folded: it says so too, or the bar would come back once it is the only grid
+        ...(this.barFolded ? { titleBarHidden: true } : {}),
       }, start);
       if (id !== undefined) this.#grids.set(id, { grid, make });
       return grid;
@@ -384,6 +388,8 @@ export class PageApp {
     this.#page.dispose();
     this.#grids.clear();
     this.#page = this.#newBoard();
+    // its grids say how its bar is, as they were saved: not as the page before it had its bar
+    this.#foldBar(false);
     // in the layout's reading order; a grid the layout has no place for, last
     const order = tiles(page.layout);
     const at = (id: string): number => (order.includes(id) ? order.indexOf(id) : order.length);
@@ -401,6 +407,9 @@ export class PageApp {
     }
     this.#page.restore(page, (cube) => tileOf.get(cube) ?? (this.#page.kept.has(cube) ? cube : undefined));
     this.#paintEmpty();
+    this.#onGridChange();
+    // a change of the page, as `clear` is: its host re-reads it (a kept grid let go just now, its table with it)
+    this.#options.onChange?.();
   }
 
   dispose(): void {

@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../src/app.ts';
-import type { FileSource } from '../src/cube-document.ts';
+import { configurationOf, type CubeDocument, type FileSource } from '../src/cube-document.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
 import { pageToJson, readPage } from '../src/page-document.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
@@ -67,11 +67,12 @@ let made: [string | undefined, boolean][] = [];
  * A grid over `name`, made as DataCube's app makes one: compact, its source written down, wired to the page -- or, a
  * copy, starting where its grid is.
  */
-const over = (name: string): GridMaker => (gridHost, spawned, start) => {
+const over = (name: string, saved?: CubeDocument): GridMaker => (gridHost, spawned, start) => {
   made.push([spawned.id, start !== undefined]);
+  const configuration = start?.configuration ?? (saved ? configurationOf(saved) : undefined);
   return new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
     engine, planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
-    ...(start ? { configuration: start.configuration } : {}),
+    ...(configuration ? { configuration } : {}),
     ...(page ? { windowHost: page.root } : {}), ...spawned,
   });
 };
@@ -340,6 +341,33 @@ describe('a page of its own', () => {
     await settle();
     assert.equal(page.barFolded, true);
     assert.equal(dom.window.document.activeElement, elsewhere);
+  });
+
+  it('a grid added while the bar is folded starts folded: the bar stays folded once it is alone; reopened folded', async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    (bar().querySelector('.dc-titlebar-fold') as HTMLElement).click();
+    await settle();
+    const c = page.addGrid(over('fills.csv'), { near: b });
+    await settle();
+    assert.equal(page.grid(c)!.configuration.showTitleBar, false, 'made while folded');
+    const doc = page.document('Q3')!;
+    for (const id of [a, b]) {
+      tile(id).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+      await settle();
+    }
+    assert.deepEqual(page.grids, [c]);
+    assert.equal(page.barFolded, true, 'the grid left says folded, as the bar was');
+    // a page of three grids, folded, reopened (each grid as it was saved, as the host reopens one): folded, as its
+    // grids say
+    page.dispose();
+    newPage();
+    const back = readPage(pageToJson(doc));
+    page.restore(back, new Map(back.cubes.map((x) => [x.id, over(x.cube.source.name, x.cube)])));
+    await settle();
+    assert.equal(page.barFolded, true);
   });
 
   it('its menu: New > Data Source adds a grid through the host\'s picker; the host\'s entries; Page File exports it', async () => {
