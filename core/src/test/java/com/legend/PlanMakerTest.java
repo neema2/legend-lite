@@ -321,6 +321,52 @@ public class PlanMakerTest {
         }
     }
 
+    /** The list cases over {@code table} (ID, NAME, PRICE; three rows): a list parameter bound as one array. */
+    public static List<Parameterised> lists(String table) {
+        String t = "#>{s::DB." + table + "}#";
+        return List.of(
+                new Parameterised("ns: Integer[*]", "let ns = [1, 3];",
+                        t + "->filter(r|$r.ID->in($ns))->select(~[ID, NAME])->sort(~ID->ascending())",
+                        java.util.Map.of("ns", List.of(1L, 3L))),
+                new Parameterised("ns: Integer[*]", "let ns = [];",
+                        t + "->filter(r|$r.ID->in($ns))->select(~[ID])->sort(~ID->ascending())",
+                        java.util.Map.of("ns", List.of())),
+                new Parameterised("ns: Integer[*]", "let ns = [2, 3];",
+                        t + "->filter(r|$ns->contains($r.ID))->select(~[ID])->sort(~ID->ascending())",
+                        java.util.Map.of("ns", List.of(2L, 3L))),
+                new Parameterised("ss: String[*]", "let ss = ['a', 'O\\'Brien'];",
+                        t + "->filter(r|$r.ID->in([1, 2]) && $ss->contains($r.NAME->toOne()))->select(~[ID, NAME])"
+                                + "->sort(~ID->ascending())", java.util.Map.of("ss", List.of("a", "O'Brien"))));
+    }
+
+    @Test
+    void aListParametersPlanAnswersAsTheQueryWithItsValues_everyOutput() throws Exception {
+        for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
+            for (Parameterised q : lists("T")) {
+                for (TypedQuery.Output output : TypedQuery.Output.values()) {
+                    assertAnswersAsToday(type, q.withParameters(), q.withLets(), q.values(), output);
+                }
+            }
+            for (TypedQuery.Output output : TypedQuery.Output.values()) {
+                assertAnswersAsToday(enumModel(type), type, "{sts: s::Status[*]|s::Acct.all()->filter(a|$a.status->in($sts))"
+                        + "->project(~[id: a|$a.id])->sort(~id->ascending())}", "|let sts = [s::Status.ACTIVE];"
+                        + "s::Acct.all()->filter(a|$a.status->in($sts))->project(~[id: a|$a.id])->sort(~id->ascending());",
+                        java.util.Map.of("sts", List.of("ACTIVE")), output);
+            }
+        }
+    }
+
+    @Test
+    void aListIsOneArray_andAListOfDecimalsIsRefusedByName() {
+        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(DatabaseType.H2, lists("T").get(0).withParameters(),
+                TypedQuery.Output.JSON).root()).sql();
+        assertTrue(sql.statement().contains("= ANY(?)"), sql.statement());
+        assertEquals(List.of(new ExecutionPlan.Slot("ns", "BIGINT")), sql.slots());
+        var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(DatabaseType.DuckDB,
+                "{ps: Decimal[*]|#>{s::DB.T}#->filter(r|$r.ID->in($ps))}", TypedQuery.Output.JSON));
+        assertTrue(refused.getMessage().contains("PARK-20"), refused.getMessage());
+    }
+
     /** Compared with a mapped column, an enumeration's name is translated by a value table at that place, so the
      *  comparison reads the stored column and keeps its index (§9, measured: probes/enum-index-results.txt). */
     @Test
@@ -381,16 +427,8 @@ public class PlanMakerTest {
     }
 
     @Test
-    void whatTheNextSlicesBindIsRefusedByName() {
-        String model = """
-                Enum s::Status { ACTIVE, CLOSED }
-                """ + model("DuckDB");
-        for (var refusal : java.util.Map.of(
-                "{ns: Integer[*]|#>{s::DB.T}#->filter(r|$r.ID->in($ns))}", "slice (e)").entrySet()) {
-            var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(
-                    Compiler.compileModel(model), refusal.getKey()).executionPlan("s::RT", TypedQuery.Output.JSON));
-            assertTrue(refused.getMessage().contains(refusal.getValue()), refused.getMessage());
-        }
+    void aClassParameterIsRefusedByName() {
+        String model = model("DuckDB");
         var aClass = assertThrows(IllegalArgumentException.class, () -> Compiler.query(Compiler.compileModel(model),
                 "{i: s::Item[1]|#>{s::DB.T}#->filter(r|$r.ID == $i.id)}").executionPlan("s::RT", TypedQuery.Output.JSON));
         assertTrue(aClass.getMessage().contains("a parameter's value is a plain value"), aClass.getMessage());
@@ -495,6 +533,10 @@ public class PlanMakerTest {
                         // an optional value's absence: a null of the parameter's declared type
                         statement.setNull(i + 1, nullType(plan.parameters().stream()
                                 .filter(p -> p.name().equals(name)).findFirst().orElseThrow().type()));
+                    } else if (value instanceof List<?> list) {
+                        // a list: ONE array of its element type
+                        statement.setArray(i + 1, c.createArrayOf(
+                                java.util.Objects.requireNonNull(slots.get(i).arrayElementSqlType()), list.toArray()));
                     } else {
                         statement.setObject(i + 1, value);
                     }

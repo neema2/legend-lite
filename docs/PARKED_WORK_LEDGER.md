@@ -350,3 +350,31 @@ on H2, every answer the literal's, text for text.
 Cost of leaving it parked past step 4: a query with a Float, Decimal, Date or Number parameter is refused on H2.
 
 **Anchor.** `H2.placeholder`'s refusal, "has no one type a statement names", in `H2.java`.
+
+---
+
+## PARK-20 — a list of decimals, Dates or Numbers is not bound as a parameter
+
+**Parked** 2026-10-09 by the Plan Gen / Exec Split session with step 2's landing 2 slice (e). Found by measuring the
+pinned drivers (`docs/execution-plan-boundary-2026-10-05/probes/ListProbe.java` → `list-results.txt`).
+
+**What happens today.** A list parameter is bound as ONE array made by the driver (`createArrayOf`) under its element
+type's name, and `col = ANY(?)` answers as the literal `col IN (...)` of today's `let` path on DuckDB, H2 and Postgres for
+integers, strings, booleans, dates and timestamps, the empty list included. An array of decimals does not on DuckDB: its
+driver makes a `DECIMAL` array of the default scale, three places, so `0.1234` is read as `0.123` and matches the wrong
+row (`[2]`, the literal `[1, 3]`); H2 and Postgres keep the values. A Date's or a Number's value decides its kind, so a
+list of them has no one element type. So `QueryParameters.Declared.slot` refuses a Float, Decimal, Date or Number list
+by name.
+
+**The fix.** A decimal list bound so each database keeps its values' own scale: on DuckDB as an array of a stated
+precision and scale (the plan cannot know the values' scale), as text cast per element, or as the values written into
+the statement as literals; measured against today's literal list before it lands. A Date or Number list binds each value
+by its kind once the runner (step 3) converts values.
+
+**Acceptance.** `PlanMakerTest`'s list cases gain a Float, a Decimal (a value of more than three places), a Date and a
+Number list, answering as their literal lists on DuckDB, H2 and Postgres.
+
+**When.** Before step 4 switches the server's `execute` to plans: until then today's path serves them. Cost of leaving
+it past step 4: a query with such a list parameter is refused.
+
+**Anchor.** The refusal in `QueryParameters.java`: "a list of decimals, Dates or Numbers has no one element type".
