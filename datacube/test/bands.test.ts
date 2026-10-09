@@ -17,7 +17,9 @@ import {
   add,
   arrange,
   bandOf,
+  draw,
   drop,
+  dropAt,
   evenOut,
   fitted,
   problems,
@@ -229,4 +231,56 @@ describe('a fuzz of gestures keeps every rule', () => {
       }
     });
   }
+});
+
+describe('drawn in pixels', () => {
+  it('bands one under another, parts sharing their split, gaps between, edges meeting', () => {
+    const layout = drop(add(add(EMPTY, 'big'), 'top'), 'top', { onto: 'big', edge: 'right' });
+    const drawn = draw(drop(add(layout, 'bottom'), 'bottom', { onto: 'top', edge: 'bottom' }), 1000, 800, 8);
+    assert.deepEqual(drawn.tiles.get('big'), { x: 0, y: 0, w: 496, h: 400 });
+    assert.deepEqual(drawn.tiles.get('top'), { x: 504, y: 0, w: 496, h: 196 });
+    assert.deepEqual(drawn.tiles.get('bottom'), { x: 504, y: 204, w: 496, h: 196 });
+    assert.equal(drawn.dividers.length, 2);
+    assert.deepEqual(drawn.dividers.find((d) => d.split === 'row')?.box, { x: 496, y: 0, w: 8, h: 400 });
+    assert.equal(drawn.height, 400);
+  });
+
+  it('a page that fits shares the screen; one that scrolls keeps its heights, never below the least', () => {
+    const layout = page('a', 'b', 'c');
+    const fit = draw(fitted(layout, true), 600, 616, 8);
+    assert.deepEqual(fit.bands.map((b) => b.h), [200, 200, 200]);
+    assert.equal(fit.height, 616);
+    const scroll = draw(resizeBand(layout, 2, MIN_BAND_HEIGHT), 600, 400, 8, 120);
+    assert.deepEqual(scroll.bands.map((b) => b.h), [200, 200, 120]);
+  });
+
+  it('three columns of an uneven width still meet: rounded at the edges', () => {
+    const layout = add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'a');
+    const boxes = [...draw(layout, 1001, 600, 8).tiles.values()];
+    assert.equal(boxes[0]!.x, 0);
+    assert.equal(boxes[1]!.x, boxes[0]!.x + boxes[0]!.w + 8);
+    assert.equal(boxes[2]!.x + boxes[2]!.w, 1001);
+  });
+});
+
+describe('where a drop lands', () => {
+  const layout = drop(page('a', 'b'), 'b', { onto: 'a', edge: 'right' });
+  const two = add(layout, 'c');
+  const drawn = draw(two, 1000, 800, 8);
+  it('a tile\'s edges and middle', () => {
+    const a = drawn.tiles.get('a')!;
+    assert.deepEqual(dropAt(drawn, 'c', a.x + 5, a.y + a.h / 2), { onto: 'a', edge: 'left' });
+    assert.deepEqual(dropAt(drawn, 'c', a.x + a.w - 5, a.y + a.h / 2), { onto: 'a', edge: 'right' });
+    assert.deepEqual(dropAt(drawn, 'c', a.x + a.w / 2, a.y + a.h / 2), { swap: 'a' });
+  });
+  it('between bands, above the first and below the last', () => {
+    const first = drawn.bands[0]!;
+    assert.deepEqual(dropAt(drawn, 'c', 100, first.y + first.h + 4), { band: 1 });
+    assert.deepEqual(dropAt(drawn, 'c', 100, -5), { band: 0 });
+    assert.deepEqual(dropAt(drawn, 'a', 100, drawn.height + 30), { band: 2 });
+  });
+  it('over the dragged tile itself: nowhere', () => {
+    const c = drawn.tiles.get('c')!;
+    assert.equal(dropAt(drawn, 'c', c.x + c.w / 2, c.y + c.h / 2), undefined);
+  });
 });

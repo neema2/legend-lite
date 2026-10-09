@@ -367,3 +367,128 @@ export function arrange(layout: Bands, preset: Preset, order: readonly string[] 
 export function stacked(layout: Bands): Bands {
   return { fit: false, bands: tiles(layout).map((tile) => ({ height: BAND_HEIGHT, node: { tile } })) };
 }
+
+// -- drawing: where everything sits, in pixels --------------------------
+
+/** A box on the board, in pixels from its top left. */
+export interface Box {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** A divider between two parts of a split: dragging it is `resize(layout, path, after, ...)`. */
+export interface Divider {
+  readonly path: readonly number[];
+  readonly after: number;
+  /** A row's divider stands between columns (it moves left and right); a column's lies between stacked parts. */
+  readonly split: SplitNode['split'];
+  readonly box: Box;
+  /** The split's own length along the divider's way of moving: a pixel moved is 1 / length of a share. */
+  readonly length: number;
+}
+
+/** What the board draws: each tile's box, the dividers, each band's box, and the page's whole height. */
+export interface Drawn {
+  readonly tiles: ReadonlyMap<string, Box>;
+  readonly dividers: readonly Divider[];
+  readonly bands: readonly Box[];
+  readonly height: number;
+}
+
+/**
+ * THE LAYOUT IN PIXELS on a board `width` wide, a screenful `screen` high: bands one under another, `gap` apart, each
+ * its height in screenfuls (never less than `least` pixels) -- or, when the page fits its window, sharing the screen as
+ * their heights share their sum. Inside a band, parts share their split's length as their shares do, `gap` between
+ * them. Edges are rounded, not lengths, so neighbours always meet and nothing drifts a pixel.
+ */
+export function draw(layout: Bands, width: number, screen: number, gap = 8, least = 120): Drawn {
+  const tileBoxes = new Map<string, Box>();
+  const dividers: Divider[] = [];
+  const bandBoxes: Box[] = [];
+  const count = layout.bands.length;
+  const total = layout.bands.reduce((sum, band) => sum + band.height, 0);
+  const free = Math.max(0, screen - gap * (count - 1));
+  const heights = layout.bands.map((band) => (layout.fit && total > 0
+    ? (free * band.height) / total
+    : Math.max(least, band.height * screen)));
+  /** Lengths `share`d out of `length` (gaps between): each part's start and end, rounded at its edges. */
+  const spans = (start: number, length: number, shares: readonly number[]): [number, number][] => {
+    const room = Math.max(0, length - gap * (shares.length - 1));
+    const out: [number, number][] = [];
+    let at = 0;
+    shares.forEach((share, i) => {
+      const from = Math.round(start + at + gap * i);
+      at += room * share;
+      const to = i === shares.length - 1 ? Math.round(start + length) : Math.round(start + at + gap * i);
+      out.push([from, to]);
+    });
+    return out;
+  };
+  const place = (node: Node, box: Box, path: number[]): void => {
+    if (isTile(node)) {
+      tileBoxes.set(node.tile, box);
+      return;
+    }
+    const across = node.split === 'row';
+    const length = across ? box.w : box.h;
+    const parts = spans(across ? box.x : box.y, length, node.parts.map((part) => part.size));
+    parts.forEach(([from, to], i) => {
+      place(node.parts[i]!.node,
+        across ? { x: from, y: box.y, w: to - from, h: box.h } : { x: box.x, y: from, w: box.w, h: to - from },
+        [...path, i]);
+      if (i < parts.length - 1) {
+        const next = parts[i + 1]![0];
+        dividers.push({
+          path, after: i, split: node.split, length,
+          box: across ? { x: to, y: box.y, w: next - to, h: box.h } : { x: box.x, y: to, w: box.w, h: next - to },
+        });
+      }
+    });
+  };
+  let y = 0;
+  layout.bands.forEach((band, i) => {
+    const top = Math.round(y);
+    const bottom = Math.round(y + heights[i]!);
+    const box = { x: 0, y: top, w: Math.round(width), h: bottom - top };
+    bandBoxes.push(box);
+    place(band.node, box, [i]);
+    y += heights[i]! + gap;
+  });
+  return { tiles: tileBoxes, dividers, bands: bandBoxes, height: count === 0 ? 0 : Math.round(y - gap) };
+}
+
+/** How far into a band, from its top or bottom edge, a drop makes a new band there (pixels). */
+export const BAND_EDGE = 10;
+
+/**
+ * Where a dragged tile would land with the pointer at (`x`, `y`) on a board drawn as `drawn`: between bands (within
+ * BAND_EDGE of a band's top or bottom edge, in the gap between two, above the first or below the last), on a tile's
+ * edge (the quarter of it nearest that edge), or on a tile (its middle: a swap). Over the dragged tile itself, or
+ * nowhere, undefined.
+ */
+export function dropAt(drawn: Drawn, tile: string, x: number, y: number): Drop | undefined {
+  const bands = drawn.bands;
+  if (bands.length === 0) return undefined;
+  for (let i = 0; i <= bands.length; i += 1) {
+    const above = bands[i - 1];
+    const below = bands[i];
+    const from = above === undefined ? -Infinity : above.y + above.h - BAND_EDGE;
+    const to = below === undefined ? Infinity : below.y + BAND_EDGE;
+    if (y >= from && y < to) return { band: i };
+  }
+  for (const [id, box] of drawn.tiles) {
+    if (x < box.x || x >= box.x + box.w || y < box.y || y >= box.y + box.h) continue;
+    if (id === tile) return undefined;
+    const fx = (x - box.x) / box.w;
+    const fy = (y - box.y) / box.h;
+    const nearest = Math.min(fx, 1 - fx, fy, 1 - fy);
+    if (nearest > 0.25) return { swap: id };
+    if (nearest === fx) return { onto: id, edge: 'left' };
+    if (nearest === 1 - fx) return { onto: id, edge: 'right' };
+    if (nearest === fy) return { onto: id, edge: 'top' };
+    return { onto: id, edge: 'bottom' };
+  }
+  return undefined;
+}
