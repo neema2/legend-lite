@@ -26,15 +26,15 @@ final class ServiceComposer {
     }
 
     /** The section's two kinds: services and execution environments. */
-    static String element(Protocol.Element e) {
+    static String element(Protocol.Element e, PureComposer.Style style) {
         return switch (e) {
-            case Protocol.PService s -> service(s);
+            case Protocol.PService s -> service(s, style);
             case Protocol.PExecutionEnvironment ee -> executionEnvironment(ee);
             default -> throw Composing.refused("no Service printer for a " + e.getClass().getSimpleName());
         };
     }
 
-    static String service(Protocol.PService s) {
+    private static String service(Protocol.PService s, PureComposer.Style style) {
         StringBuilder b = new StringBuilder(DomainComposer.declarationPrefix("Service", "", s.stereotypes(), s.taggedValues()))
                 .append(Composing.elementPath(s.pkg(), s.name())).append("\n{\n");
         if (s.pattern() == null) {
@@ -57,23 +57,23 @@ final class ServiceComposer {
         String documentation = s.documentation();
         b.append(TAB).append("documentation: ").append(convertString(documentation != null ? documentation : "", true)).append(";\n");
         b.append(TAB).append("autoActivateUpdates: ").append(Boolean.TRUE.equals(s.autoActivateUpdates()) ? "true" : "false").append(";\n");
-        b.append(TAB).append("execution: ").append(execution(s.execution()));
+        b.append(TAB).append("execution: ").append(execution(s.execution(), style));
         if (s.testSuites() != null) {
             List<String> suites = new ArrayList<>();
             for (Protocol.PServiceTestSuite suite : s.testSuites()) {
-                suites.add(ServiceTestComposer.testSuite(suite));
+                suites.add(ServiceTestComposer.testSuite(suite, style));
             }
             b.append(TAB).append("testSuites:\n").append(TAB).append("[\n").append(String.join(",\n", suites)).append("\n").append(TAB).append("]\n");
         }
         Protocol.PLegacyServiceTest test = s.test();
         if (test != null && !ServiceTestComposer.legacyTestEmpty(test)) {
-            b.append(TAB).append("test: ").append(ServiceTestComposer.legacyTest(test));
+            b.append(TAB).append("test: ").append(ServiceTestComposer.legacyTest(test, style));
         }
         List<Protocol.PPostValidation> postValidations = s.postValidations() == null ? List.of() : s.postValidations();
         if (!postValidations.isEmpty()) {
             List<String> pvs = new ArrayList<>();
             for (Protocol.PPostValidation pv : postValidations) {
-                pvs.add(postValidation(pv));
+                pvs.add(postValidation(pv, style));
             }
             b.append(TAB).append("postValidations:\n").append(TAB).append("[\n").append(String.join(",\n", pvs)).append(TAB).append("]\n");
         }
@@ -93,7 +93,7 @@ final class ServiceComposer {
     }
 
     /** {@code renderServiceExecution}. */
-    private static String execution(Protocol.PServiceExecution e) {
+    private static String execution(Protocol.PServiceExecution e, PureComposer.Style style) {
         return switch (e) {
             case Protocol.PSingleExecution single -> {
                 boolean runtime = single.runtime() != null || single.embeddedRuntime() != null;
@@ -101,12 +101,15 @@ final class ServiceComposer {
                         ? tab(2) + "mapping: " + single.mapping() + ";\n"
                                 + runtime(single.runtime(), single.embeddedRuntime(), 2) + "\n"
                         : "";
-                yield "Single\n" + TAB + "{\n" + tab(2) + "query: " + valueSpecification(single.query()) + ";\n" + explicit
+                // upstream: withIndentation(getTabSize(baseIndentation + 1)), the execution's base being 1
+                yield "Single\n" + TAB + "{\n" + tab(2) + "query: "
+                        + valueSpecification(single.query(), style, Composing.indented("", 4, style)) + ";\n" + explicit
                         + TAB + "}\n";
             }
             case Protocol.PMultiExecution multi -> {
                 StringBuilder b = new StringBuilder("Multi\n").append(TAB).append("{\n")
-                        .append(tab(2)).append("query: ").append(valueSpecification(multi.query())).append(";\n");
+                        .append(tab(2)).append("query: ")
+                        .append(valueSpecification(multi.query(), style, Composing.indented("", 4, style))).append(";\n");
                 if (multi.executionKey() != null) {
                     b.append(tab(2)).append("key: ").append(convertString(multi.executionKey(), true)).append(";\n");
                 }
@@ -145,14 +148,14 @@ final class ServiceComposer {
                 + tab(base) + "}#;";
     }
 
-    private static String postValidation(Protocol.PPostValidation pv) {
+    private static String postValidation(Protocol.PPostValidation pv, PureComposer.Style style) {
         List<String> params = new ArrayList<>();
         for (ValueSpecification p : pv.parameters()) {
-            params.add(tab(4) + valueSpecification(p));
+            params.add(tab(4) + valueSpecification(p, style));
         }
         List<String> assertions = new ArrayList<>();
         for (Protocol.PPostValidationAssertion a : pv.assertions()) {
-            assertions.add(tab(4) + a.id() + ": " + valueSpecification(a.assertion()));
+            assertions.add(tab(4) + a.id() + ": " + valueSpecification(a.assertion(), style));
         }
         return tab(2) + "{\n"
                 + tab(3) + "description: " + convertString(pv.description(), true) + ";\n"

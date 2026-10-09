@@ -19,20 +19,20 @@ final class FunctionTestComposer {
     private FunctionTestComposer() {
     }
 
-    static String testSuites(Protocol.PFunction function) {
+    static String testSuites(Protocol.PFunction function, PureComposer.Style style) {
         List<Protocol.PTestSuite> suites = function.testSuites();
         if (suites.isEmpty()) {
             return "";
         }
         List<String> out = new ArrayList<>();
         for (Protocol.PTestSuite s : suites) {
-            out.add(suite(function, s));
+            out.add(suite(function, s, style));
         }
         return "\n{\n" + String.join("\n" + (suites.size() > 1 ? "\n" : ""), out) + "\n}";
     }
 
     /** The unnamed suite (the wire's {@code default}) prints its tests bare; a named one in its own block. */
-    private static String suite(Protocol.PFunction function, Protocol.PTestSuite suite) {
+    private static String suite(Protocol.PFunction function, Protocol.PTestSuite suite, PureComposer.Style style) {
         String id = suite.id();
         int level = id != null ? 2 : 1;
         StringBuilder b = new StringBuilder();
@@ -48,7 +48,7 @@ final class FunctionTestComposer {
         }
         List<String> tests = new ArrayList<>();
         for (Protocol.PFunctionTest t : suite.tests()) {
-            tests.add(test(function, t, level));
+            tests.add(test(function, t, level, style));
         }
         b.append(String.join("\n", tests));
         if (id != null) {
@@ -69,19 +69,19 @@ final class FunctionTestComposer {
     }
 
     /** A test calls the function by its declared name. */
-    private static String test(Protocol.PFunction function, Protocol.PFunctionTest test, int level) {
+    private static String test(Protocol.PFunction function, Protocol.PFunctionTest test, int level, PureComposer.Style style) {
         List<String> params = new ArrayList<>();
         for (Protocol.PTestParam p : test.parameters()) {
-            params.add(Composing.valueSpecification(p.value()));
+            params.add(Composing.valueSpecification(p.value(), style));
         }
         return tab(level) + test.id() + (test.doc() != null ? " " + convertString(test.doc(), true) : "")
                 + " | " + function.name() + "(" + String.join(",", params) + ") => "
-                + (test.assertion() == null ? "" : assertion(test.assertion(), level)) + ";";
+                + (test.assertion() == null ? "" : assertion(test.assertion(), level, style)) + ";";
     }
 
-    private static String assertion(Protocol.PAssertion a, int level) {
+    private static String assertion(Protocol.PAssertion a, int level, PureComposer.Style style) {
         return switch (a) {
-            case Protocol.PAssertion.EqualTo e -> Composing.valueSpecification(e.expected());
+            case Protocol.PAssertion.EqualTo e -> Composing.valueSpecification(e.expected(), style);
             case Protocol.PAssertion.EqualToJson j -> simpleExternalFormat(j.expected());
             case Protocol.PAssertion.EqualToRelation r -> "Relation\n" + EmbeddedDataComposer.alignedRelation(
                     new Protocol.PRelationElement(r.expected().columns(), r.expected().paths(), r.expected().rows(),

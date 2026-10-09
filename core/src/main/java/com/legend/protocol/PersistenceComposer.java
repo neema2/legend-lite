@@ -32,10 +32,10 @@ final class PersistenceComposer {
     }
 
     /** The section's two kinds: persistences and persistence contexts. */
-    static String element(Protocol.Element e) {
+    static String element(Protocol.Element e, PureComposer.Style style) {
         return switch (e) {
-            case Protocol.PPersistence p -> persistence(p, 1);
-            case Protocol.PPersistenceContext c -> persistenceContext(c, 1);
+            case Protocol.PPersistence p -> persistence(p, 1, style);
+            case Protocol.PPersistenceContext c -> persistenceContext(c, 1, style);
             default -> throw Composing.refused("no Persistence printer for a " + e.getClass().getSimpleName());
         };
     }
@@ -156,7 +156,7 @@ final class PersistenceComposer {
     // Persistence
     // ---------------------------------------------------------------------
 
-    private static String persistence(Protocol.PPersistence p, int i) {
+    private static String persistence(Protocol.PPersistence p, int i, PureComposer.Style style) {
         if (p.doc() == null) {
             throw Composing.refused("a persistence with no documentation (upstream cannot print it)");
         }
@@ -174,7 +174,7 @@ final class PersistenceComposer {
                 + serviceOutputTargets(p.serviceOutputTargets(), i)
                 + (p.persister() == null ? "" : PersistencePersisterComposer.persister(p.persister(), i))
                 + notifier(p.notifier(), i)
-                + tests(p.tests(), i)
+                + tests(p.tests(), i, style)
                 + "}";
     }
 
@@ -208,13 +208,13 @@ final class PersistenceComposer {
                 + tab(i) + "}\n";
     }
 
-    private static String tests(@com.legend.base.Nullable List<Protocol.PPersistenceTest> tests, int i) {
+    private static String tests(@com.legend.base.Nullable List<Protocol.PPersistenceTest> tests, int i, PureComposer.Style style) {
         if (tests == null) {
             return "";
         }
         List<String> out = new ArrayList<>();
         for (Protocol.PPersistenceTest t : tests) {
-            out.add(stripTrailingWhitespace(test(t, i + 1)));
+            out.add(stripTrailingWhitespace(test(t, i + 1, style)));
         }
         return tab(i) + "tests:\n" + tab(i) + "[\n" + String.join(",\n", out) + "\n" + tab(i) + "]\n";
     }
@@ -229,12 +229,12 @@ final class PersistenceComposer {
     }
 
     /** {@code renderPersistenceTest}: the batches and the source-output flag only when the test has them. */
-    private static String test(Protocol.PPersistenceTest t, int i) {
+    private static String test(Protocol.PPersistenceTest t, int i, PureComposer.Style style) {
         String batches = "";
         if (t.testBatches() != null) {
             List<String> bs = new ArrayList<>();
             for (Protocol.PPersistenceTestBatch b : t.testBatches()) {
-                bs.add(testBatch(b, i + 2));
+                bs.add(testBatch(b, i + 2, style));
             }
             batches = "testBatches:\n" + tab(i + 1) + "[\n" + String.join(",\n", bs) + "\n" + tab(i + 1) + "]\n";
         }
@@ -246,7 +246,7 @@ final class PersistenceComposer {
     }
 
     /** {@code renderPersistenceTestBatch}: its data, the data's connection and its asserts only when it has them. */
-    private static String testBatch(Protocol.PPersistenceTestBatch b, int i) {
+    private static String testBatch(Protocol.PPersistenceTestBatch b, int i, PureComposer.Style style) {
         StringBuilder s = new StringBuilder(tab(i)).append(b.id()).append(":\n").append(tab(i)).append("{\n");
         if (b.hasTestData()) {
             s.append(tab(i + 1)).append("data:\n").append(tab(i + 1)).append("{\n");
@@ -260,7 +260,7 @@ final class PersistenceComposer {
         if (b.asserts() != null) {
             List<String> as = new ArrayList<>();
             for (Protocol.PPersistenceAssert a : b.asserts()) {
-                as.add(TestAssertionComposer.compose(assertion(a), tab(i + 2)));
+                as.add(TestAssertionComposer.compose(assertion(a), tab(i + 2), style));
             }
             s.append(tab(i + 1)).append("asserts:\n").append(tab(i + 1)).append("[\n").append(String.join(",\n", as))
                     .append("\n").append(tab(i + 1)).append("]\n");
@@ -288,7 +288,7 @@ final class PersistenceComposer {
     // PersistenceContext
     // ---------------------------------------------------------------------
 
-    private static String persistenceContext(Protocol.PPersistenceContext c, int i) {
+    private static String persistenceContext(Protocol.PPersistenceContext c, int i, PureComposer.Style style) {
         String platform = platform(c.platform(), i);
         StringBuilder b = new StringBuilder("PersistenceContext ").append(Composing.elementPath(c.pkg(), c.name())).append("\n{\n")
                 .append(tab(i)).append("persistence: ").append(convertPath(c.persistence())).append(";\n")
@@ -296,7 +296,7 @@ final class PersistenceComposer {
         if (!c.serviceParameters().isEmpty()) {
             List<String> ps = new ArrayList<>();
             for (Protocol.PCtxParam p : c.serviceParameters()) {
-                ps.add(tab(i + 1) + p.name() + "=" + serviceParameterValue(p.value(), i + 1));
+                ps.add(tab(i + 1) + p.name() + "=" + serviceParameterValue(p.value(), i + 1, style));
             }
             b.append(tab(i)).append("serviceParameters:\n").append(tab(i)).append("[\n").append(String.join(",\n", ps)).append("\n")
                     .append(tab(i)).append("];\n");
@@ -319,9 +319,9 @@ final class PersistenceComposer {
                 + ";\n" + tab(i) + "}#";
     }
 
-    private static String serviceParameterValue(Protocol.PCtxParamValue value, int i) {
+    private static String serviceParameterValue(Protocol.PCtxParamValue value, int i, PureComposer.Style style) {
         return switch (value) {
-            case Protocol.PCtxParamValue.Primitive p -> Composing.valueSpecification(p.spec());
+            case Protocol.PCtxParamValue.Primitive p -> Composing.valueSpecification(p.spec(), style);
             case Protocol.PCtxParamValue.ConnectionPtr p -> convertPath(p.path());
             case Protocol.PCtxParamValue.ConnectionVal v -> connection(v.connection(), null, i);
         };

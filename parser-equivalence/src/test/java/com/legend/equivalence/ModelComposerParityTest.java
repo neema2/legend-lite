@@ -6,6 +6,8 @@ package com.legend.equivalence;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.legend.json.Json;
 import com.legend.protocol.ModelComposer;
+import com.legend.protocol.ModelReader;
+import com.legend.protocol.PureComposer;
 import com.legend.testing.TestOutputs;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.finos.legend.engine.language.pure.grammar.to.PureGrammarComposer;
@@ -13,6 +15,7 @@ import org.finos.legend.engine.language.pure.grammar.to.PureGrammarComposerConte
 import org.finos.legend.engine.protocol.pure.m3.PackageableElement;
 import org.finos.legend.engine.protocol.pure.v1.model.context.PureModelContextData;
 import org.finos.legend.engine.shared.core.ObjectMapperFactory;
+import org.finos.legend.engine.shared.core.api.grammar.RenderStyle;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -35,12 +38,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ({@code TestGrammarRoundtrip} subclasses), printed three ways -- the whole model with its section
  * index (a text's own sections), the whole model WITHOUT it (entity JSON from a real SDLC carries
  * none), and each element alone in its section ({@code PureGrammarComposer.render(element, parser)}).
+ * Each is printed in both render styles: STANDARD (the composer's own default) and PRETTY
+ * ({@code jsonToGrammar/model}'s default; the protocol program's leg 4).
  *
  * <p>Where upstream prints, lite prints the same bytes or REFUSES, naming the {@code _type} it cannot
  * print yet; it never prints something approximate. Where upstream itself cannot print (it throws,
  * or writes its {@code /* Unsupported ...} / {@code /* Can't transform ...} comment) there is nothing to
- * compare. The counts per element {@code _type} are printed as a table; matched counts are pinned
- * up-only, mismatches down-only.
+ * compare. The counts per element {@code _type} are printed as a table, one per style; matched counts are
+ * pinned up-only, mismatches down-only.
  */
 class ModelComposerParityTest {
 
@@ -53,20 +58,22 @@ class ModelComposerParityTest {
     /** Whole models, different bytes. Down-only. */
     private static final int MAX_MODELS_MISMATCHED = 0;
 
+    /** The same four, in PRETTY. */
+    private static final int MIN_PRETTY_ELEMENTS_MATCHED = 31452;   // 2026-10-09, the protocol program's leg 4
+    private static final int MAX_PRETTY_ELEMENTS_MISMATCHED = 0;
+    private static final int MIN_PRETTY_MODELS_MATCHED = 14383;   // 2026-10-09, leg 4
+    private static final int MAX_PRETTY_MODELS_MISMATCHED = 0;
+
     /** A whole model's JSON nests far deeper than one request's default limit. */
     private static final Json.Config DEEP = new Json.Config(4096);
 
     private final ObjectMapper mapper = ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
-    private final PureGrammarComposer upstream = PureGrammarComposer.newInstance(PureGrammarComposerContext.Builder.newInstance().build());
 
-    /** Per element _type: matched, mismatched, refused, upstream could not print. */
-    private final Map<String, int[]> byType = new TreeMap<>();
-    private final Map<String, Integer> refusals = new TreeMap<>();
-    private final List<String> diffs = new ArrayList<>();
-    private final int[] models = new int[5];
+    private final Pass standard = new Pass(RenderStyle.STANDARD, PureComposer.Style.STANDARD);
+    private final Pass pretty = new Pass(RenderStyle.PRETTY, PureComposer.Style.PRETTY);
+
     /** Every case lite does not match, as JSON lines, when MODEL_COMPOSER_DUMP is set: a work list. */
     private java.io.Writer dump;
-    private int deliberate;
 
     /**
      * Where lite DELIBERATELY prints differently (ComposerParityTest's EXACT_DECIMAL): a decimal's exact
@@ -75,6 +82,31 @@ class ModelComposerParityTest {
     private static final String EXACT_DECIMAL_UPSTREAM = "10.1D->divide(";
     private static final String EXACT_DECIMAL_LITE = "10.10D->divide(";
     private static final String EXACT_DECIMAL_JSON = "\"value\":10.10";
+
+    /** One render style's comparison: upstream's composer in that style, lite's printer in it, and the counts. */
+    private final class Pass {
+        final RenderStyle style;
+        final PureComposer.Style lite;
+        final PureGrammarComposer upstream;
+        /** Per element _type: matched, mismatched, refused, upstream could not print, lite-only. */
+        final Map<String, int[]> byType = new TreeMap<>();
+        final Map<String, Integer> refusals = new TreeMap<>();
+        final List<String> diffs = new ArrayList<>();
+        final int[] models = new int[5];
+        final int[] total = new int[5];
+        int deliberate;
+
+        Pass(RenderStyle style, PureComposer.Style lite) {
+            this.style = style;
+            this.lite = lite;
+            this.upstream = PureGrammarComposer.newInstance(PureGrammarComposerContext.Builder.newInstance()
+                    .withRenderStyle(style).build());
+        }
+
+        String tag() {
+            return "[model-composer-parity " + style + "]";
+        }
+    }
 
     @Test
     void litePrintsEveryModelAsUpstreamDoes() throws Exception {
@@ -110,39 +142,54 @@ class ModelComposerParityTest {
             }
         }
 
-        int[] total = new int[5];
+        List<String> allDiffs = new ArrayList<>();
+        for (Pass p : List.of(standard, pretty)) {
+            report(p, sources, roundtripTexts);
+            allDiffs.addAll(p.diffs);
+        }
+        Files.writeString(TestOutputs.file("model-composer-diffs.txt"), String.join("\n\n", allDiffs));
+        if (dump != null) {
+            dump.close();
+        }
+        pin(standard, MIN_ELEMENTS_MATCHED, MAX_ELEMENTS_MISMATCHED, MIN_MODELS_MATCHED, MAX_MODELS_MISMATCHED);
+        pin(pretty, MIN_PRETTY_ELEMENTS_MATCHED, MAX_PRETTY_ELEMENTS_MISMATCHED, MIN_PRETTY_MODELS_MATCHED,
+                MAX_PRETTY_MODELS_MISMATCHED);
+    }
+
+    private void report(Pass p, int sources, int roundtripTexts) {
         // upstream-x: upstream cannot print it (it throws, or writes its unsupported comment); of those,
         // lite-only: lite prints it anyway (nothing to compare it with)
         String row = "%-40s %8s %8s %8s %10s %9s%n";
         StringBuilder table = new StringBuilder(String.format(row, "_type", "matched", "mismatch", "refused", "upstream-x", "lite-only"));
-        byType.forEach((type, c) -> {
+        p.byType.forEach((type, c) -> {
             table.append(String.format(row, type, c[0], c[1], c[2], c[3], c[4]));
             for (int i = 0; i < 5; i++) {
-                total[i] += c[i];
+                p.total[i] += c[i];
             }
         });
-        table.append(String.format(row, "TOTAL", total[0], total[1], total[2], total[3], total[4]));
-        System.out.println("[model-composer-parity] sources=" + sources + " roundtripTexts=" + roundtripTexts
-                + " models: matched=" + models[0] + " mismatched=" + models[1] + " refused=" + models[2]
-                + " upstreamCannot=" + models[3] + " liteOnly=" + models[4]);
+        table.append(String.format(row, "TOTAL", p.total[0], p.total[1], p.total[2], p.total[3], p.total[4]));
+        System.out.println(p.tag() + " sources=" + sources + " roundtripTexts=" + roundtripTexts
+                + " models: matched=" + p.models[0] + " mismatched=" + p.models[1] + " refused=" + p.models[2]
+                + " upstreamCannot=" + p.models[3] + " liteOnly=" + p.models[4]);
         System.out.print(table);
-        refusals.forEach((m, n) -> System.out.println("[model-composer-parity] refused " + n + " x " + m));
-        diffs.stream().limit(30).forEach(d -> System.out.println("[model-composer-parity] DIFF " + d));
-        System.out.println("[model-composer-parity] deliberate (exact decimals) " + deliberate);
-        Files.writeString(TestOutputs.file("model-composer-diffs.txt"), String.join("\n\n", diffs));
-        if (dump != null) {
-            dump.close();
-        }
-        assertTrue(total[0] >= MIN_ELEMENTS_MATCHED, "elements matched " + total[0] + " < " + MIN_ELEMENTS_MATCHED);
-        assertTrue(total[1] <= MAX_ELEMENTS_MISMATCHED, "elements mismatched " + total[1] + " > " + MAX_ELEMENTS_MISMATCHED);
-        assertTrue(models[0] >= MIN_MODELS_MATCHED, "models matched " + models[0] + " < " + MIN_MODELS_MATCHED);
-        assertTrue(models[1] <= MAX_MODELS_MISMATCHED, "models mismatched " + models[1] + " > " + MAX_MODELS_MISMATCHED);
+        p.refusals.forEach((m, n) -> System.out.println(p.tag() + " refused " + n + " x " + m));
+        p.diffs.stream().limit(30).forEach(d -> System.out.println(p.tag() + " DIFF " + d));
+        System.out.println(p.tag() + " deliberate (exact decimals) " + p.deliberate);
     }
 
-    /** One model three ways: with its section index, without it, and element by element. */
+    private static void pin(Pass p, int minElements, int maxElementsMismatched, int minModels, int maxModelsMismatched) {
+        assertTrue(p.total[0] >= minElements, p.style + ": elements matched " + p.total[0] + " < " + minElements);
+        assertTrue(p.total[1] <= maxElementsMismatched,
+                p.style + ": elements mismatched " + p.total[1] + " > " + maxElementsMismatched);
+        assertTrue(p.models[0] >= minModels, p.style + ": models matched " + p.models[0] + " < " + minModels);
+        assertTrue(p.models[1] <= maxModelsMismatched,
+                p.style + ": models mismatched " + p.models[1] + " > " + maxModelsMismatched);
+    }
+
+    /** One model three ways -- with its section index, without it, and element by element -- in each style. */
     private void compare(String id, String json) throws IOException {
         Json.Obj wire = (Json.Obj) Json.parse(json, DEEP);
-        compareModel(id, json, wire);
+        PureModelContextData pmcd = mapper.readValue(json, PureModelContextData.class);
         List<Json.Node> elements = wire.getArr("elements").items();
         List<Json.Node> kept = new ArrayList<>();
         for (Json.Node e : elements) {
@@ -150,53 +197,64 @@ class ModelComposerParityTest {
                 kept.add(e);
             }
         }
+        Json.Obj stripped = null;
+        PureModelContextData strippedPmcd = null;
         if (kept.size() != elements.size()) {
             LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>(wire.fields());
             f.put("elements", new Json.Arr(kept));
-            Json.Obj stripped = new Json.Obj(f);
-            compareModel(id + " (no section index)", Json.toCompact(stripped), stripped);
+            stripped = new Json.Obj(f);
+            strippedPmcd = mapper.readValue(Json.toCompact(stripped), PureModelContextData.class);
         }
-        PureModelContextData pmcd = mapper.readValue(json, PureModelContextData.class);
         Map<String, java.util.ArrayDeque<String>> parserOf = parserNames(wire);
-        for (int i = 0; i < elements.size(); i++) {
-            Json.Obj e = (Json.Obj) elements.get(i);
-            String type = e.getStringOr("_type", "?");
-            if ("sectionIndex".equals(type)) {
-                continue;
+        for (Pass p : List.of(standard, pretty)) {
+            compareModel(p, id, json, wire, pmcd);
+            if (stripped != null && strippedPmcd != null) {
+                compareModel(p, id + " (no section index)", Json.toCompact(stripped), stripped, strippedPmcd);
             }
-            PackageableElement element = pmcd.getElements().get(i);
-            int[] counts = byType.computeIfAbsent(type, k -> new int[5]);
-            java.util.ArrayDeque<String> parsers = parserOf.get(element.getPath());
-            String parser = parsers == null || parsers.isEmpty() ? null : parsers.size() == 1 ? parsers.peek() : parsers.poll();
-            String elementId = id + " element " + element.getPath();
-            String expected;
-            try {
-                expected = parser == null ? upstream.render(element) : upstream.render(element, parser);
-            } catch (Throwable t) {
-                upstreamCannot(counts, elementId, Json.toCompact(e), String.valueOf(t), () -> ModelComposer.element(e));
-                continue;
+            Map<String, java.util.ArrayDeque<String>> parsers = new LinkedHashMap<>();
+            parserOf.forEach((path, names) -> parsers.put(path, new java.util.ArrayDeque<>(names)));
+            for (int i = 0; i < elements.size(); i++) {
+                Json.Obj e = (Json.Obj) elements.get(i);
+                String type = e.getStringOr("_type", "?");
+                if ("sectionIndex".equals(type)) {
+                    continue;
+                }
+                PackageableElement element = pmcd.getElements().get(i);
+                int[] counts = p.byType.computeIfAbsent(type, k -> new int[5]);
+                java.util.ArrayDeque<String> names = parsers.get(element.getPath());
+                String parser = names == null || names.isEmpty() ? null : names.size() == 1 ? names.peek() : names.poll();
+                String elementId = id + " element " + element.getPath();
+                java.util.function.Supplier<String> lite = () -> ModelComposer.element(ModelReader.readElement(e), p.lite);
+                String expected;
+                try {
+                    expected = parser == null ? p.upstream.render(element) : p.upstream.render(element, parser);
+                } catch (Throwable t) {
+                    upstreamCannot(counts, elementId, Json.toCompact(e), String.valueOf(t), lite);
+                    continue;
+                }
+                if (cannotPrint(expected)) {
+                    upstreamCannot(counts, elementId, Json.toCompact(e), expected, lite);
+                    continue;
+                }
+                counts[judge(p, elementId, Json.toCompact(e), expected, lite)]++;
             }
-            if (cannotPrint(expected)) {
-                upstreamCannot(counts, elementId, Json.toCompact(e), expected, () -> ModelComposer.element(e));
-                continue;
-            }
-            counts[judge(elementId, Json.toCompact(e), expected, () -> ModelComposer.element(e))]++;
         }
     }
 
-    private void compareModel(String id, String json, Json.Obj wire) throws IOException {
+    private void compareModel(Pass p, String id, String json, Json.Obj wire, PureModelContextData pmcd) {
+        java.util.function.Supplier<String> lite = () -> ModelComposer.model(ModelReader.read(wire), p.lite);
         String expected;
         try {
-            expected = upstream.renderPureModelContextData(mapper.readValue(json, PureModelContextData.class));
+            expected = p.upstream.renderPureModelContextData(pmcd);
         } catch (Throwable t) {
-            upstreamCannot(models, id, json, String.valueOf(t), () -> ModelComposer.model(wire));
+            upstreamCannot(p.models, id, json, String.valueOf(t), lite);
             return;
         }
         if (cannotPrint(expected)) {
-            upstreamCannot(models, id, json, expected, () -> ModelComposer.model(wire));
+            upstreamCannot(p.models, id, json, expected, lite);
             return;
         }
-        models[judge(id, json, expected, () -> ModelComposer.model(wire))]++;
+        p.models[judge(p, id, json, expected, lite)]++;
     }
 
     /** Upstream cannot print it: counted, and whether lite prints it anyway is counted too (and dumped). */
@@ -212,17 +270,17 @@ class ModelComposerParityTest {
     }
 
     /** 0 matched, 1 mismatched, 2 refused. */
-    private int judge(String id, String json, String expected, java.util.function.Supplier<String> lite) {
+    private int judge(Pass p, String id, String json, String expected, java.util.function.Supplier<String> lite) {
         String actual;
         try {
             actual = lite.get();
         } catch (IllegalArgumentException e) {
-            refusals.merge(String.valueOf(e.getMessage()), 1, Integer::sum);
-            record(id, json, expected);
+            p.refusals.merge(String.valueOf(e.getMessage()), 1, Integer::sum);
+            record(p.style + " " + id, json, expected);
             return 2;
         } catch (RuntimeException e) {
-            diffs.add(id + "\n  lite CRASHED: " + e + "\n  json: " + abbreviate(json));
-            record(id, json, expected);
+            p.diffs.add(p.style + " " + id + "\n  lite CRASHED: " + e + "\n  json: " + abbreviate(json));
+            record(p.style + " " + id, json, expected);
             return 1;
         }
         if (expected.equals(actual)) {
@@ -230,21 +288,22 @@ class ModelComposerParityTest {
         }
         // only where the JSON holds the exact 10.10: there lite's 10.10D is the value, and upstream's 10.1D the loss
         if (json.contains(EXACT_DECIMAL_JSON) && actual.equals(expected.replace(EXACT_DECIMAL_UPSTREAM, EXACT_DECIMAL_LITE))) {
-            deliberate++;
+            p.deliberate++;
             return 0;
         }
-        record(id, json, expected);
-        diffs.add(id + "\n--- upstream\n" + expected + "\n--- lite\n" + actual + "\n--- json\n" + abbreviate(json));
+        record(p.style + " " + id, json, expected);
+        p.diffs.add(p.style + " " + id + "\n--- upstream\n" + expected + "\n--- lite\n" + actual + "\n--- json\n" + abbreviate(json));
         return 1;
     }
 
     private void record(String id, String json, String expected) {
-        if (dump == null) {
+        java.io.Writer w = dump;
+        if (w == null) {
             return;
         }
         try {
-            dump.write(Json.toCompact(Json.of(Map.of("id", id, "json", json, "expected", expected))));
-            dump.write('\n');
+            w.write(Json.toCompact(Json.of(Map.of("id", id, "json", json, "expected", expected))));
+            w.write('\n');
         } catch (IOException e) {
             throw new java.io.UncheckedIOException(e);
         }

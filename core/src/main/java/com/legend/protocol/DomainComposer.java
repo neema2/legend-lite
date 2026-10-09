@@ -35,14 +35,14 @@ final class DomainComposer {
     private DomainComposer() {
     }
 
-    static String element(Protocol.Element e) {
+    static String element(Protocol.Element e, PureComposer.Style style) {
         return switch (e) {
             case Protocol.PProfile p -> profile(p);
             case Protocol.PEnumeration en -> enumeration(en);
-            case Protocol.PMeasure m -> measure(m);
-            case Protocol.PClass c -> klass(c);
-            case Protocol.PAssociation a -> association(a);
-            case Protocol.PFunction f -> function(f);
+            case Protocol.PMeasure m -> measure(m, style);
+            case Protocol.PClass c -> klass(c, style);
+            case Protocol.PAssociation a -> association(a, style);
+            case Protocol.PFunction f -> function(f, style);
             default -> throw Composing.refused("the domain composer has no rule for a " + e.getClass().getSimpleName());
         };
     }
@@ -80,16 +80,16 @@ final class DomainComposer {
                 + "\n{\n" + String.join(",\n", values) + (values.isEmpty() ? "" : "\n") + "}";
     }
 
-    private static String measure(Protocol.PMeasure measure) {
+    private static String measure(Protocol.PMeasure measure, PureComposer.Style style) {
         StringBuilder b = new StringBuilder("Measure ").append(Composing.elementPath(measure.pkg(), measure.name()))
                 .append("\n{\n");
         Protocol.PUnit canonical = measure.canonicalUnit();
         if (canonical != null) {
-            b.append(TAB).append(canonical.body() != null ? "*" : "").append(unit(canonical)).append("\n");
+            b.append(TAB).append(canonical.body() != null ? "*" : "").append(unit(canonical, style)).append("\n");
         }
         List<String> others = new ArrayList<>();
         for (Protocol.PUnit u : measure.nonCanonicalUnits()) {
-            others.add(TAB + unit(u));
+            others.add(TAB + unit(u, style));
         }
         if (!others.isEmpty()) {
             b.append(String.join("\n", others)).append("\n");
@@ -98,15 +98,15 @@ final class DomainComposer {
     }
 
     /** {@code renderUnit} and {@code renderUnitLambda}: a conversion is one parameter and one statement. */
-    private static String unit(Protocol.PUnit unit) {
+    private static String unit(Protocol.PUnit unit, PureComposer.Style style) {
         ValueSpecification body = unit.body();
         if (body == null) {
             return convertIdentifier(unit.name()) + ";";
         }
-        return convertIdentifier(unit.name()) + ": " + unit.paramName() + " -> " + valueSpecification(body) + ";";
+        return convertIdentifier(unit.name()) + ": " + unit.paramName() + " -> " + valueSpecification(body, style) + ";";
     }
 
-    private static String klass(Protocol.PClass c) {
+    private static String klass(Protocol.PClass c, PureComposer.Style style) {
         StringBuilder b = new StringBuilder(declarationPrefix("Class", "", c.stereotypes(), c.taggedValues()))
                 .append(Composing.elementPath(c.pkg(), c.name()));
         List<String> superTypes = new ArrayList<>();
@@ -126,25 +126,25 @@ final class DomainComposer {
         if (!constraints.isEmpty()) {
             List<String> cs = new ArrayList<>();
             for (int i = 0; i < constraints.size(); i++) {
-                cs.add(TAB + constraint(constraints.get(i), i));
+                cs.add(TAB + constraint(constraints.get(i), i, style));
             }
             b.append("[\n").append(String.join(",\n", cs)).append("\n]\n");
         }
         b.append("{\n");
-        List<String> properties = properties(c.properties());
+        List<String> properties = properties(c.properties(), style);
         if (!properties.isEmpty()) {
             b.append(String.join("\n", properties)).append("\n");
         }
-        List<String> derived = derivedProperties(c.derivedProperties());
+        List<String> derived = derivedProperties(c.derivedProperties(), style);
         if (!derived.isEmpty()) {
             b.append(String.join("\n", derived)).append("\n");
         }
         return b.append("}").toString();
     }
 
-    private static String association(Protocol.PAssociation a) {
-        List<String> properties = properties(a.properties());
-        List<String> derived = derivedProperties(a.derivedProperties());
+    private static String association(Protocol.PAssociation a, PureComposer.Style style) {
+        List<String> properties = properties(a.properties(), style);
+        List<String> derived = derivedProperties(a.derivedProperties(), style);
         return declarationPrefix("Association", "", a.stereotypes(), a.taggedValues())
                 + Composing.elementPath(a.pkg(), a.name()) + "\n{\n"
                 + String.join("\n", properties) + (properties.isEmpty() ? "" : "\n")
@@ -153,21 +153,22 @@ final class DomainComposer {
     }
 
     /** The function under its declared name: the reader has taken the wire name's signature mangling off. */
-    private static String function(Protocol.PFunction f) {
+    private static String function(Protocol.PFunction f, PureComposer.Style style) {
         List<String> params = new ArrayList<>();
         for (ParameterDefinition p : f.parameters()) {
             params.add(parameter(p));
         }
         List<String> body = new ArrayList<>();
         for (ValueSpecification b : f.body()) {
-            body.add("  " + valueSpecification(b));
+            // upstream: withIndentation(getTabSize(1))
+            body.add("  " + valueSpecification(b, style, Composing.indented("", 2, style)));
         }
         return declarationPrefix("function", "", f.stereotypes(), f.taggedValues())
                 + Composing.convertPath(f.qualifiedName())
                 + "(" + String.join(", ", params) + ")"
                 + ": " + genericType(f.returnType()) + "[" + multiplicity(f.returnMultiplicity()) + "]\n"
                 + "{\n" + String.join(";\n", body) + (f.body().size() > 1 ? ";" : "") + "\n}"
-                + FunctionTestComposer.testSuites(f);
+                + FunctionTestComposer.testSuites(f, style);
     }
 
     /** A declared parameter, printed as the typed variable it is on the wire. */
@@ -179,31 +180,31 @@ final class DomainComposer {
     // Members
     // ---------------------------------------------------------------------
 
-    private static List<String> properties(List<Protocol.PProperty> properties) {
+    private static List<String> properties(List<Protocol.PProperty> properties, PureComposer.Style style) {
         List<String> out = new ArrayList<>();
         for (Protocol.PProperty p : properties) {
-            out.add(TAB + property(p) + ";");
+            out.add(TAB + property(p, style) + ";");
         }
         return out;
     }
 
-    private static List<String> derivedProperties(List<DerivedPropertyDefinition> properties) {
+    private static List<String> derivedProperties(List<DerivedPropertyDefinition> properties, PureComposer.Style style) {
         List<String> out = new ArrayList<>();
         for (DerivedPropertyDefinition p : properties) {
-            out.add(TAB + derivedProperty(p) + ";");
+            out.add(TAB + derivedProperty(p, style) + ";");
         }
         return out;
     }
 
     /** {@code renderProperty}. */
-    private static String property(Protocol.PProperty p) {
+    private static String property(Protocol.PProperty p, PureComposer.Style style) {
         Protocol.PDefaultValue defaultValue = p.defaultValue();
         String value = "";
         if (defaultValue != null) {
             if (defaultValue.value() == null) {
                 throw Composing.refused("property '" + p.name() + "' has a default value with no expression");
             }
-            value = " = " + valueSpecification(defaultValue.value());
+            value = " = " + valueSpecification(defaultValue.value(), style);
         }
         return declarationPrefix("", TAB, p.stereotypes(), p.taggedValues()) + aggregation(p.aggregation())
                 + convertIdentifier(p.name()) + ": " + genericType(p.type()) + "[" + multiplicity(p.multiplicity()) + "]"
@@ -223,7 +224,7 @@ final class DomainComposer {
     }
 
     /** {@code renderDerivedProperty}: its parameters less any {@code this}. */
-    private static String derivedProperty(DerivedPropertyDefinition qp) {
+    private static String derivedProperty(DerivedPropertyDefinition qp, PureComposer.Style style) {
         List<String> params = new ArrayList<>();
         for (ParameterDefinition p : qp.parameters()) {
             if (!"this".equals(p.name())) {
@@ -232,7 +233,7 @@ final class DomainComposer {
         }
         List<String> body = new ArrayList<>();
         for (ValueSpecification b : inline(qp.realization(), "derived property '" + qp.name() + "'")) {
-            body.add(valueSpecification(b));
+            body.add(valueSpecification(b, style));
         }
         String bodyText = body.size() <= 1
                 ? String.join("\n", body)
@@ -251,9 +252,9 @@ final class DomainComposer {
     }
 
     /** {@code renderConstraint}: {@code index} is the constraint's position among its class's. */
-    private static String constraint(ConstraintDefinition c, int index) {
+    private static String constraint(ConstraintDefinition c, int index, PureComposer.Style style) {
         String name = c.name();
-        String function = Composing.lambdaBodyText(inline(c.realization(), "constraint '" + name + "'"), "");
+        String function = Composing.lambdaBodyText(inline(c.realization(), "constraint '" + name + "'"), style, "");
         String enforcement = c.enforcementLevel();
         String externalId = c.externalId();
         ValueSpecification message = c.message();
@@ -272,7 +273,7 @@ final class DomainComposer {
             b.append(tab(2)).append("~enforcementLevel: ").append(enforcement).append('\n');
         }
         if (message != null) {
-            b.append(tab(2)).append("~message: ").append(Composing.lambdaBodyText(List.of(message), "")).append('\n');
+            b.append(tab(2)).append("~message: ").append(Composing.lambdaBodyText(List.of(message), style, "")).append('\n');
         }
         return b.append(TAB).append(")").toString();
     }

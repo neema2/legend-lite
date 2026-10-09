@@ -64,22 +64,32 @@ final class Composing {
         return PureComposer.genericType(type);
     }
 
-    /** A value specification at the top level of an element: standard style, no indentation. */
-    static String valueSpecification(com.legend.protocol.spec.ValueSpecification vs) {
-        return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD, "");
+    /**
+     * A composer context's indentation moved in by {@code count} spaces, as upstream's {@code withIndentation(count)}
+     * moves it: in PRETTY only, since STANDARD prints a value on one line and its context keeps the indentation it had.
+     */
+    static String indented(String indentation, int count, PureComposer.Style style) {
+        return style == PureComposer.Style.PRETTY ? indentation + " ".repeat(count) : indentation;
+    }
+
+    /** A value specification at the top level of an element, in the model's style, no indentation. */
+    static String valueSpecification(com.legend.protocol.spec.ValueSpecification vs, PureComposer.Style style) {
+        return PureComposer.valueSpecification(vs, style, "");
     }
 
     /** A value specification printed by a composer whose context carries {@code indentation}. */
-    static String valueSpecification(com.legend.protocol.spec.ValueSpecification vs, String indentation) {
-        return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD, indentation);
+    static String valueSpecification(com.legend.protocol.spec.ValueSpecification vs, PureComposer.Style style,
+            String indentation) {
+        return PureComposer.valueSpecification(vs, style, indentation);
     }
 
     /**
      * A lambda's body printed as a lambda with no parameters and its first {@code |} removed: upstream's
      * {@code lambda.parameters = emptyList; lambda.accept(...).replaceFirst("\\|", "")}.
      */
-    static String lambdaBodyText(List<com.legend.protocol.spec.ValueSpecification> body, String indentation) {
-        String text = valueSpecification(new com.legend.protocol.spec.LambdaFunction(List.of(), body), indentation);
+    static String lambdaBodyText(List<com.legend.protocol.spec.ValueSpecification> body, PureComposer.Style style,
+            String indentation) {
+        String text = valueSpecification(new com.legend.protocol.spec.LambdaFunction(List.of(), body), style, indentation);
         int bar = text.indexOf('|');
         return bar < 0 ? text : text.substring(0, bar) + text.substring(bar + 1);
     }

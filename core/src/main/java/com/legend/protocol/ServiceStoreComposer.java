@@ -119,7 +119,13 @@ final class ServiceStoreComposer {
     // Class mapping
     // ---------------------------------------------------------------------
 
+    /**
+     * The class mapping prints the same in every render style: upstream prints its path arguments and its request's
+     * transforms each with a new, context-free transformer ({@code DEPRECATED_PureGrammarComposerCore.Builder
+     * .newInstance().build()}, STANDARD), not the model's.
+     */
     static String classMapping(Protocol.PServiceStoreClassMapping cm) {
+        PureComposer.Style style = PureComposer.Style.STANDARD;
         StringBuilder b = new StringBuilder(": ServiceStore\n").append(TAB).append("{\n");
         for (Protocol.PServiceStoreLocalProp l : cm.localProps()) {
             b.append(tab(2)).append("+").append(Composing.convertIdentifier(l.name())).append(" : ").append(l.type())
@@ -130,13 +136,13 @@ final class ServiceStoreComposer {
             b.append("\n");
         }
         for (Protocol.PServiceMapping sm : cm.services()) {
-            serviceMapping(sm, b, 2);
+            serviceMapping(sm, b, 2, style);
         }
         return b.append(TAB).append("}").toString();
     }
 
     /** Each path segment: its property, then its arguments only when it has more than one (upstream's printer). */
-    private static List<String> pathElements(Protocol.@com.legend.base.Nullable PPathOffset offset) {
+    private static List<String> pathElements(Protocol.@com.legend.base.Nullable PPathOffset offset, PureComposer.Style style) {
         if (offset == null) {
             return List.of();
         }
@@ -145,14 +151,14 @@ final class ServiceStoreComposer {
             List<com.legend.protocol.spec.ValueSpecification> arguments = offset.parameters().get(k);
             List<String> printed = new ArrayList<>();
             for (com.legend.protocol.spec.ValueSpecification a : arguments) {
-                printed.add(Composing.valueSpecification(a));
+                printed.add(Composing.valueSpecification(a, style));
             }
             out.add(offset.propertyPath().get(k) + (printed.size() > 1 ? "(" + String.join(", ", printed) + ")" : ""));
         }
         return out;
     }
 
-    private static void serviceMapping(Protocol.PServiceMapping sm, StringBuilder b, int base) {
+    private static void serviceMapping(Protocol.PServiceMapping sm, StringBuilder b, int base, PureComposer.Style style) {
         Protocol.PServicePtr service = sm.service();
         List<String> segments = new ArrayList<>();
         for (Protocol.PServiceSegment s : service.segments()) {
@@ -160,7 +166,7 @@ final class ServiceStoreComposer {
         }
         b.append(tab(base)).append("~service [").append(service.serviceStore()).append("] ")
                 .append(String.join(".", segments)).append("\n");
-        List<String> path = pathElements(sm.pathOffset());
+        List<String> path = pathElements(sm.pathOffset(), style);
         Protocol.PRequestBuildInfo request = sm.request();
         if (path.isEmpty() && request == null) {
             return;
@@ -177,14 +183,14 @@ final class ServiceStoreComposer {
                 List<String> ps = new ArrayList<>();
                 for (Protocol.PParameterBuildInfo p : params.entries()) {
                     ps.add(tab(base + 3) + DatabaseComposer.convertIdentifierDoubleQuoted(p.serviceParameter()) + " = "
-                            + Composing.lambdaBodyText(List.of(p.transform()), ""));
+                            + Composing.lambdaBodyText(List.of(p.transform()), style, ""));
                 }
                 b.append(tab(base + 2)).append("parameters\n").append(tab(base + 2)).append("(\n").append(String.join(",\n", ps)).append("\n")
                         .append(tab(base + 2)).append(")\n");
             }
             Protocol.PBodyBuildInfo body = request.body();
             if (body != null) {
-                b.append(tab(base + 2)).append("body = ").append(Composing.lambdaBodyText(List.of(body.transform()), ""))
+                b.append(tab(base + 2)).append("body = ").append(Composing.lambdaBodyText(List.of(body.transform()), style, ""))
                         .append("\n");
             }
             b.append(tab(base + 1)).append(")\n");

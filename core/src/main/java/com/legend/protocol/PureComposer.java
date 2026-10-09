@@ -128,13 +128,13 @@ public final class PureComposer {
      * ({@code ServiceParseTreeWalker}) and its printer prints as one -- {@code list([a,b])}, no space after a comma --
      * where anywhere else it is the ordinary call {@code list} (the emitter decides by the same position: TailEmitter).
      */
-    static String legacyServiceParameter(ValueSpecification value) {
+    static String legacyServiceParameter(ValueSpecification value, Style style) {
         if (value instanceof AppliedFunction af && calls(af, AppliedFunction.LIST) && !af.propertyCall()
                 && af.parameters().size() == 1 && af.parameters().get(0) instanceof PureCollection c) {
-            PureComposer composer = new PureComposer(Style.STANDARD, "", false);
+            PureComposer composer = new PureComposer(style, "", false);
             return "list([" + composer.joinVisit(c.values(), ",") + "])";
         }
-        return valueSpecification(value, Style.STANDARD, "");
+        return valueSpecification(value, style, "");
     }
 
     /** A function or derived property's parameter, as its signature spells it: no {@code $}. */
