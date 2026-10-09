@@ -7609,3 +7609,29 @@ What judges it: `//python:engine_test` (the engine and `show()`, a real script w
 itself, a new column reopening the cube), `//datacube:bundle_budget_test`, `//tools/guards:ci_scripts_test`. Local gate
 `//gates:local` green (322) on the rebased tree; full CI run 37872741038 on `ci/datacube-show-3`, green on every lane and
 platform (50 jobs); pushed to main as 2b32f6d25, the tested commit.
+
+## 2026-10-09 — DataCube on a Python dataframe, steps 7 and 8: the cube under a notebook's cell, and Windows (the DataCube + Python line)
+
+The design: `docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md` ("In a notebook", and "Order" steps 7 and 8). Landed as one
+fast-forward, `688ac4542..ead4a7857`:
+
+1. **The notebook cube** (`df826f348` and three follow-ups): `ll.show(df)` in a notebook's kernel puts the cube under the
+   cell, once; `ll.DataCube(df)` is the widget (anywidget, the wheel's `notebook` extra). Its calls travel over the
+   notebook's own widget channel, not HTTP, so it works on a remote JupyterHub, VS Code and Colab. `Engine` is now the
+   answers with no transport (`Engine.answer`), and `WebServer(engine)` serves them to a tab. The widget's script is a
+   small loader that fetches DataCube's module once per page (anywidget sends a widget's script with every widget).
+   `cube.update()` returns nothing (a cell ending in it showed a second copy: the manual JupyterLab check, recorded in
+   `docs/datacube-python-show/jupyterlab-check/`).
+2. **rules_python's venvs** (`3380250b3`, `.bazelrc`): every Python target sees its packages through a venv of its own;
+   short enough paths for Windows' DLL loader.
+3. **Windows** (`ead4a7857`): the compiler's library as `libcompiler.dll`, a `win_amd64` wheel, every Python test and
+   DataCube's browser test against Python's engine on Windows; the DLL's imports held to what every Windows machine has;
+   closing the tabs' web server no longer waits 30 s for an idle connection there; a real Ctrl-C in the plain-script test.
+
+What judges it: `//python:notebook_test`, `//python:wheel_test` (now installing the notebook extra too, and reading a
+Windows DLL's PE header), `//python:engine_test`, `//datacube:python_engine_test` (two notebook cubes through the real
+loader and module, the module fetched once, no HTTP call, an update shown by itself, keys kept, a view taken down
+mid-load), `//datacube:bundle_budget_test` (the module at 461,746 bytes gzipped, budget 480,000; the loader under 10 KB),
+`//tools/guards:compile_only_test` (the library in the native tier on Windows too). Audited twice (the widget; Windows),
+Bazel-reviewed. Local gate `//gates:local` green (323) on the rebased tree; full CI run 37915130012 on
+`ci/datacube-windows-land`, green on every lane and platform (50 jobs); pushed to main as ead4a7857, the tested commit.
