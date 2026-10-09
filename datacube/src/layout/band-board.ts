@@ -96,6 +96,8 @@ interface Placed {
   readonly spec: BandTile;
   readonly root: HTMLElement;
   readonly title: HTMLElement;
+  /** The header's buttons: the tile's own (`spec.actions`), then the board's (layouts, maximise, remove). */
+  readonly actions: HTMLElement;
   readonly remove: HTMLButtonElement;
   name: string;
 }
@@ -129,6 +131,8 @@ export class BandBoard {
   #fits = false;
   #editing = true;
   #maximised: string | null = null;
+  /** A lone tile drawn without its frame, its own header buttons in another place (`setAlone`). */
+  #alone: string | null = null;
   /** Where the page was scrolled when a tile was maximised: back there after. */
   #scrolled = 0;
   #gesture: Gesture | null = null;
@@ -204,10 +208,39 @@ export class BandBoard {
     this.#commit(add(this.#layout, tile.id, near, columns));
   }
 
+  /**
+   * A LONE TILE (a page of its own with one grid; the design's §3.1): drawn without its frame or header, its own header
+   * buttons (`actions`: a grid's source, pill and menu) moved into `slot`, the page's bar. `null` puts every tile back
+   * in its own frame, its buttons in its header.
+   */
+  setAlone(id: string | null, slot: HTMLElement | null): void {
+    const next = id !== null && slot !== null && this.#tiles.has(id) ? id : null;
+    const was = this.#alone !== null ? this.#tiles.get(this.#alone) : undefined;
+    if (was && this.#alone !== next) was.actions.prepend(...(was.spec.actions ?? []));
+    this.#alone = next;
+    const now = next !== null ? this.#tiles.get(next) : undefined;
+    if (now && slot) slot.replaceChildren(...(now.spec.actions ?? []));
+    else slot?.replaceChildren();
+    this.#host.classList.toggle('dc-bands-alone', next !== null);
+    for (const [tile, p] of this.#tiles) p.root.classList.toggle('dc-band-tile-alone', tile === next);
+    this.#paint();
+  }
+
+  /** The tile drawn alone, if any. */
+  get alone(): string | null {
+    return this.#alone;
+  }
+
   /** Take a tile off the board, its neighbours closing over its place. Its element is detached, not destroyed. */
   remove(id: string): void {
     const placed = this.#tiles.get(id);
     if (!placed) return;
+    if (this.#alone === id) {
+      // its buttons go back to it, and go with it
+      placed.actions.prepend(...(placed.spec.actions ?? []));
+      this.#alone = null;
+      this.#host.classList.remove('dc-bands-alone');
+    }
     this.#gesture?.end(false);
     placed.root.remove();
     this.#tiles.delete(id);
@@ -373,7 +406,7 @@ export class BandBoard {
     body.append(spec.element);
     root.append(head, body);
     this.#canvas.append(root);
-    const placed: Placed = { spec, root, title, remove, name: spec.title };
+    const placed: Placed = { spec, root, title, actions, remove, name: spec.title };
     head.addEventListener('pointerdown', (e) => this.#startMove(spec.id, e));
     root.addEventListener('keydown', (e) => this.#onKey(spec.id, e));
     head.addEventListener('dblclick', (e) => {
@@ -421,7 +454,8 @@ export class BandBoard {
       if (box) place(p.root, box);
     }
     this.#canvas.style.height = `${maximised === null ? this.#drawn.height : screen}px`;
-    this.#paintHandles(maximised === null && this.arrangeable && !this.#previewing);
+    // a lone tile has nothing beside it to divide from, and no edge to drag
+    this.#paintHandles(maximised === null && this.#alone === null && this.arrangeable && !this.#previewing);
   }
 
   /**

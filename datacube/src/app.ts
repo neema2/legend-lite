@@ -259,6 +259,10 @@ export interface CubeAppBaseOptions {
   readonly onBlankPage?: () => void;
   /** A grid on a page: its New ▸ Data Source… goes to the page, as `onNewGrid` does. */
   readonly onNewSource?: (make: (host: HTMLElement, options: SpawnOptions) => SpawnedGrid) => void;
+  /** A grid on a page of its own: its menu's Remove from Page, the page taking its tile off. */
+  readonly onRemove?: () => void;
+  /** A grid on a page of its own: the page around it for its export (its charts, this grid as the table). */
+  readonly exportPage?: () => ExportPage | undefined;
   readonly writeClipboard?: (text: string) => void | Promise<void>;
   /**
    * Hand a file to the user.
@@ -2060,6 +2064,9 @@ export class CubeApp {
       case 'page.blank':
         this.#options.onBlankPage?.();
         return;
+      case 'grid.remove':
+        this.#options.onRemove?.();
+        return;
       case 'page.arrange':
         this.#page?.page.showLayouts(this.#burger?.isConnected ? this.#burger : this.#els.root);
         return;
@@ -2490,6 +2497,9 @@ export class CubeApp {
       ...(spawned.onChart ? { onChart: spawned.onChart } : {}),
       ...(spawned.onNewGrid ? { onNewGrid: spawned.onNewGrid } : {}),
       ...(spawned.onNewSource ? { onNewSource: spawned.onNewSource } : {}),
+      ...(spawned.onRemove ? { onRemove: spawned.onRemove } : {}),
+      ...(spawned.exportPage ? { exportPage: spawned.exportPage } : {}),
+      ...(spawned.onSettingsChanged ? { onSettingsChanged: spawned.onSettingsChanged } : {}),
     });
   }
 
@@ -2593,6 +2603,9 @@ export class CubeApp {
           ...(spawned?.onChart ? { onChart: spawned.onChart } : {}),
           ...(spawned?.onNewGrid ? { onNewGrid: spawned.onNewGrid } : {}),
           ...(spawned?.onNewSource ? { onNewSource: spawned.onNewSource } : {}),
+          ...(spawned?.onRemove ? { onRemove: spawned.onRemove } : {}),
+          ...(spawned?.exportPage ? { exportPage: spawned.exportPage } : {}),
+          ...(spawned?.onSettingsChanged ? { onSettingsChanged: spawned.onSettingsChanged } : {}),
         });
       },
     };
@@ -2774,7 +2787,9 @@ export class CubeApp {
   /** The board as an export carries it: each tile where it is, each chart as its picture; none without charts. */
   #exportPage(): ExportPage | undefined {
     const page = this.#page?.page;
-    return page && page.charts > 0 ? page.exportPage() : undefined;
+    if (page) return page.charts > 0 ? page.exportPage() : undefined;
+    // a grid on a page of its own: the page's, this grid its table
+    return this.#options.exportPage?.();
   }
 
   /** A cell's heatmap colour, for the grid and for an export alike; null when it has none. */
@@ -3371,8 +3386,18 @@ export class CubeApp {
     }), { size: SETTINGS_WINDOW });
   }
 
+  /** Settings from elsewhere (another grid on the page saved them): in effect here too, the host not told again. */
+  useSettings(values: SettingValues): void {
+    this.#settingsInEffect(values);
+  }
+
   /** The settings, in effect: each one reaches what it controls. */
   #applySettings(values: SettingValues): void {
+    this.#settingsInEffect(values);
+    this.#options.onSettingsChanged?.(values);
+  }
+
+  #settingsInEffect(values: SettingValues): void {
     this.#settings = values;
     const limit = numericSetting(values, 'dataCube.editor.maxHistoryStackSize');
     const buffer = numericSetting(values, 'dataCube.grid.rowBuffer');
@@ -3381,7 +3406,6 @@ export class CubeApp {
     // and Ad Hoc's, which kept 100 steps and the default buffer (P2-283)
     this.#adhoc?.session.setHistoryLimit(limit);
     this.#adhoc?.setOverscan(buffer);
-    this.#options.onSettingsChanged?.(values);
   }
 
   #settingAction(key: SettingKey): void {
@@ -3864,6 +3888,8 @@ export class CubeApp {
       { label: '', items: this.#undoItems() },
       { label: '', items: this.#outputItems() },
       { label: '', items: this.#viewItems() },
+      // on a page of its own: taken off it, as its tile's x does (and as the one way when it is alone in the bar)
+      ...(this.#options.onRemove ? [{ label: '', items: [{ id: 'grid.remove' as const, label: 'Remove from Page' }] }] : []),
     ];
   }
 

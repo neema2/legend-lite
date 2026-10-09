@@ -209,6 +209,10 @@ export type MenuActionId =
   | 'page.blank'
   // the page's layouts (ui/layout-picker.ts), and edit or view mode (nothing moves)
   | 'page.arrange'
+  // a grid on a page of its own, taken off it from its own menu
+  | 'grid.remove'
+  // a page of its own as a file (page/page-app.ts)
+  | 'page.export'
   | 'page.undoLayout'
   | 'page.redoLayout'
   | 'page.editLayout'

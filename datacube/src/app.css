@@ -31,6 +31,34 @@
   background: var(--tw-white);
 }
 
+/* A PAGE OF ITS OWN (page/page-app.ts): its bar, its board -- or, nothing on it, the host's choices of a source. It
+   fills its host, as a cube alone does. */
+.dc-page {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+  min-height: 0;
+  font-family: var(--dc-font);
+  font-size: var(--dc-text-base-size);
+  line-height: var(--dc-text-base-line);
+  color: var(--tw-black);
+  background: var(--tw-white);
+  position: relative;
+}
+
+.dc-page > .dc-board-host { flex: 1 1 auto; min-height: 0; }
+.dc-page > .dc-board-host[hidden],
+.dc-page > .dc-page-empty[hidden] { display: none; }
+.dc-page > .dc-page-empty { flex: 1 1 auto; min-height: 0; display: flex; }
+.dc-page > .dc-page-empty > * { flex: 1 1 auto; }
+
+/* the host's status line in the bar, quiet; a lone grid's header at the bar's right end */
+.dc-page-status { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-page-alone { flex: none; padding-right: var(--dc-pad-1); }
+.dc-page-alone:empty { display: none; }
+
 /* -- the title bar ------------------------------------------------- */
 
 /* Their h-7 bar in neutral-100: the report's name in text-lg
@@ -2649,6 +2677,10 @@
 .dc-band-edge:hover::before,
 .dc-band-divider:active::before,
 .dc-band-edge:active::before { background: var(--dc-active, #0284c7); opacity: 1; }
+
+/* a lone grid (a page of its own with one tile): no frame, no header -- its header's buttons are in the page's bar */
+.dc-band-tile.dc-band-tile-alone { border: 0; border-radius: 0; }
+.dc-band-tile.dc-band-tile-alone > .dc-tile-head { display: none; }
 
 /* the sizes while a divider or an edge is dragged, by the pointer */
 .dc-bands-readout {

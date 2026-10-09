@@ -107,6 +107,28 @@ export function writePage(o: {
   };
 }
 
+/**
+ * A PAGE OF SEVERAL CUBES (a page of its own: one cube per grid, each over its own source, and one per grid kept off
+ * the board for a detached chart). Each view names its cube by id; a cube no grid view names is a detached chart's.
+ */
+export function writePageOf(o: {
+  readonly name: string;
+  readonly cubes: readonly { readonly id: string; readonly cube: CubeDocument }[];
+  readonly views: PageViews;
+  readonly unknown?: Readonly<Record<string, unknown>>;
+}): PageDocument {
+  return {
+    kind: PAGE_KIND,
+    version: PAGE_VERSION,
+    name: o.name,
+    // the page's name is each cube's too: one name, whichever is opened
+    cubes: o.cubes.map((c) => ({ id: c.id, cube: { ...c.cube, name: o.name } })),
+    views: o.views.views,
+    layout: o.views.layout,
+    ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
+  };
+}
+
 /** The page as a JSON-ready object: each cube as its own document writes itself. */
 export function pageContent(page: PageDocument): Record<string, unknown> {
   const { unknown, cubes, ...rest } = page;

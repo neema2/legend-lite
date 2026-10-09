@@ -183,6 +183,7 @@ _EXTRA_DATA = {
     "cube-adhoc-shell": ["test/cube-fixture.ts", "test/gate.ts"],
     "multi-cube": ["test/cube-fixture.ts", "test/gate.ts"],
     "chart-tiles": ["test/cube-fixture.ts", "test/gate.ts"],
+    "page-app": ["test/cube-fixture.ts", "test/gate.ts"],
 }
 
 # the tests that write a model from a table's columns ask the compiler (T2): legend-lite's

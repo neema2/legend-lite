@@ -307,8 +307,9 @@ describe('grids are tiles like charts: + Grid, their own charts, removing one', 
     };
     const labels = (items: HTMLElement[]): string[] => items.map((i) => i.querySelector(':scope > .dc-menu-label')?.textContent ?? '');
     const theirs = labels(gridMenu(id));
-    assert.deepEqual(theirs, ['New', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis']);
-    assert.deepEqual(labels(gridMenu('grid')), theirs, 'the cube\'s own grid has the same menu');
+    assert.deepEqual(theirs, ['New', 'Undo', 'Redo', 'Export', 'Email', 'Properties...', 'Ad Hoc Analysis', 'Remove from Page']);
+    // the cube's own grid is its host's: the same menu, but it cannot be taken off the page
+    assert.deepEqual(labels(gridMenu('grid')), theirs.filter((l) => l !== 'Remove from Page'), 'the cube\'s own grid has the same menu');
     // its Undo is its own: the added grid's change undone, the cube's grid untouched
     await ungroup(zoneOf(id), 'desk');
     menuEntry(gridMenu(id), 'Undo')!.click();

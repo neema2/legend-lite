@@ -34,6 +34,7 @@
 
 .dc-app,
 .dc-app-floating,
+.dc-page,
 .dc-grid,
 .dc-menu,
 .dc-filters {
@@ -182,7 +183,7 @@
  * ones -- so every rule written against the palette reads right in both. Colours a cube's
  * configuration holds at their DEFAULT come through --dc-theme-* (grid/screen-colours.ts); a
  * colour a person chose is theirs. Exports never read these: a file is light. */
-:root[data-dc-theme='dark'] :is(.dc-app, .dc-app-floating, .dc-grid, .dc-menu, .dc-filters) {
+:root[data-dc-theme='dark'] :is(.dc-app, .dc-app-floating, .dc-page, .dc-grid, .dc-menu, .dc-filters) {
   color-scheme: dark;
   --tw-white: #1b1d21;
   --tw-black: #eceef1;
