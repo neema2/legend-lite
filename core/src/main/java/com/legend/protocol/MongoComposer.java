@@ -10,34 +10,33 @@ import java.util.List;
 import java.util.Map;
 
 import static com.legend.protocol.Composing.TAB;
-import static com.legend.protocol.Composing.elementPath;
-import static com.legend.protocol.Composing.objOr;
-import static com.legend.protocol.Composing.objs;
-import static com.legend.protocol.Composing.str;
 import static com.legend.protocol.Composing.tab;
 
 /**
  * {@code ###MongoDB}'s database store, its class mapping and its connection as upstream prints them
  * ({@code MongoDBGrammarComposerExtension}, {@code MongoDBSchemaComposer}, {@code MongoDBMappingComposer},
- * and the JSON-schema printer {@code BaseTypeVisitorImpl} a collection's validator goes through).
+ * and the JSON-schema printer {@code BaseTypeVisitorImpl} a collection's validator goes through) -- over the records
+ * ({@link Protocol.PMongoDatabase}, {@link Protocol.PClassMappingMongoDb}, {@link Protocol.PMongoDbConnection}; the
+ * protocol program's leg 2, step 3). The schema settings the reader has no rule for (numeric minimums and maximums,
+ * item and property counts, an additional-properties schema) are refused when read.
  */
 final class MongoComposer {
 
     /** A schema node kind's printer, given the node and its indent level. */
     private interface SchemaPrinter {
-        String print(Json.Obj node, int level);
+        String print(Protocol.PBsonSchema node, int level);
     }
 
-    /** The scalar BSON types: their {@code bsonType} and the numeric bounds each prints, in order. */
-    private record Scalar(String bsonType, List<String> bounds) {
+    /** The scalar BSON types: their {@code bsonType}, and whether the node's length bounds print. */
+    private record Scalar(String bsonType, boolean lengthBounds) {
     }
 
     private static final Map<String, Scalar> SCALARS = Map.of(
-            "stringType", new Scalar("string", List.of("minLength", "maxLength")),
-            "intType", new Scalar("int", List.of("minimum", "maximum")),
-            "longType", new Scalar("long", List.of("minimum", "maximum")),
-            "decimalType", new Scalar("decimal", List.of("minimum", "maximum")),
-            "boolType", new Scalar("bool", List.of()));
+            "stringType", new Scalar("string", true),
+            "intType", new Scalar("int", false),
+            "longType", new Scalar("long", false),
+            "decimalType", new Scalar("decimal", false),
+            "boolType", new Scalar("bool", false));
 
     private static final Map<String, SchemaPrinter> SCHEMA_PRINTERS = Map.of(
             "objectIdType", (n, level) -> "{\n" + tab(level + 1) + key("bsonType") + quoted("objectId") + "\n" + tab(level) + "}",
@@ -54,31 +53,28 @@ final class MongoComposer {
     // The store
     // ---------------------------------------------------------------------
 
-    static String store(Json.Obj store) {
-        StringBuilder b = new StringBuilder("Database ").append(elementPath(store)).append("\n(\n");
-        for (Json.Obj c : objs(store, "collections")) {
-            Json.Obj validator = c.getObj("validator");
-            b.append(TAB).append("Collection ").append(DatabaseComposer.convertIdentifierDoubleQuoted(c.getString("name"))).append("\n")
+    static String store(Protocol.PMongoDatabase store) {
+        StringBuilder b = new StringBuilder("Database ").append(Composing.elementPath(store.pkg(), store.name()))
+                .append("\n(\n");
+        for (Protocol.PMongoDatabase.PMongoCollection c : store.collections()) {
+            b.append(TAB).append("Collection ").append(DatabaseComposer.convertIdentifierDoubleQuoted(c.name())).append("\n")
                     .append(TAB).append("(\n")
-                    .append(tab(2)).append("validationLevel: ").append(validator.getString("validationLevel")).append(";\n")
-                    .append(tab(2)).append("validationAction: ").append(validator.getString("validationAction")).append(";\n")
-                    .append(tab(2)).append("jsonSchema: ").append(validatorExpression(validator.getObj("validatorExpression"), 2).trim()).append(";\n")
+                    .append(tab(2)).append("validationLevel: ").append(c.validationLevel()).append(";\n")
+                    .append(tab(2)).append("validationAction: ").append(c.validationAction()).append(";\n")
+                    .append(tab(2)).append("jsonSchema: ").append(schema(c.schema(), 2).trim()).append(";\n")
                     .append(TAB).append(")\n");
         }
         return b.append(")").toString();
     }
 
-    /** {@code MongoDBOperationElementVisitorImpl.visit(JsonSchemaExpression)}: the schema, at {@code level}. */
-    private static String validatorExpression(Json.Obj expression, int level) {
-        if (!"jsonSchemaExpression".equals(Composing.type(expression))) {
-            throw Composing.refused("no composer rule for a MongoDB validator expression of _type '" + Composing.type(expression) + "'");
-        }
-        return schema(expression.getObj("schemaExpression"), level);
+    /** {@link #store(Protocol.PMongoDatabase)} of the JSON, read first. */
+    static String store(Json.Obj store) {
+        return store(Composing.element(store, Protocol.PMongoDatabase.class));
     }
 
     /** {@code BaseTypeVisitorImpl}: one schema node at {@code level}. */
-    private static String schema(Json.Obj node, int level) {
-        String type = Composing.type(node);
+    private static String schema(Protocol.PBsonSchema node, int level) {
+        String type = node.wireType();
         Scalar scalar = SCALARS.get(type);
         if (scalar != null) {
             return scalar(node, scalar, level);
@@ -91,82 +87,66 @@ final class MongoComposer {
         return printer.print(node, level);
     }
 
-    private static String scalar(Json.Obj node, Scalar scalar, int level) {
+    private static String scalar(Protocol.PBsonSchema node, Scalar scalar, int level) {
         StringBuilder b = new StringBuilder("{\n").append(tab(level + 1)).append(key("bsonType")).append(quoted(scalar.bsonType()));
         description(b, node, level + 1);
-        for (String bound : scalar.bounds()) {
-            bound(b, node, bound, level + 1);
+        if (scalar.lengthBounds()) {
+            bound(b, "minLength", node.minLength(), level + 1);
+            bound(b, "maxLength", node.maxLength(), level + 1);
         }
         return b.append("\n").append(tab(level)).append("}").toString();
     }
 
-    private static void description(StringBuilder b, Json.Obj node, int level) {
-        String description = str(node, "description");
-        if (description != null) {
-            b.append(",\n").append(tab(level)).append(key("description")).append(quoted(description));
+    private static void description(StringBuilder b, Protocol.PBsonSchema node, int level) {
+        if (node.description() != null) {
+            b.append(",\n").append(tab(level)).append(key("description")).append(quoted(node.description()));
         }
     }
 
     /** A numeric bound, printed as Java prints the boxed integer. */
-    private static void bound(StringBuilder b, Json.Obj node, String name, int level) {
-        Json.Node v = Composing.value(node, name);
-        if (v == null) {
-            return;
+    private static void bound(StringBuilder b, String name, @com.legend.base.Nullable Long value, int level) {
+        if (value != null) {
+            b.append(",\n").append(tab(level)).append(key(name)).append(value);
         }
-        if (!(v instanceof Json.Num n) || !n.isInteger()) {
-            throw Composing.refused("a MongoDB schema bound '" + name + "' that is not an integer: " + v);
-        }
-        b.append(",\n").append(tab(level)).append(key(name)).append(n.longValue());
     }
 
-    private static String array(Json.Obj node, int level) {
+    private static String array(Protocol.PBsonSchema node, int level) {
         int values = level + 1;
         StringBuilder b = new StringBuilder("{\n").append(tab(values)).append(key("bsonType")).append(quoted("array")).append(",\n");
-        String description = str(node, "description");
-        if (description != null) {
-            b.append(tab(values)).append(key("description")).append(quoted(description)).append(",\n");
+        if (node.description() != null) {
+            b.append(tab(values)).append(key("description")).append(quoted(node.description())).append(",\n");
         }
-        List<Json.Obj> itemNodes = objs(node, "items");
+        List<Protocol.PBsonSchema> itemNodes = node.items() == null ? List.of() : node.items();
         if (itemNodes.size() == 1) {
             b.append(tab(values)).append(key("items")).append(schema(itemNodes.get(0), values));
         } else if (itemNodes.size() > 1) {
             List<String> out = new ArrayList<>();
-            for (Json.Obj i : itemNodes) {
+            for (Protocol.PBsonSchema i : itemNodes) {
                 out.add(schema(i, values + 1));
             }
             b.append(tab(values)).append(key("items")).append("[\n").append(String.join(",\n", out)).append("\n").append(tab(values)).append("]");
-        }
-        bound(b, node, "minItems", values);
-        bound(b, node, "maxItems", values);
-        if (node.getBoolOr("uniqueItems", false)) {
-            b.append(",\n").append(tab(values)).append(key("uniqueItems")).append("true");
         }
         return b.append("\n").append(tab(level)).append("}").toString();
     }
 
     /** {@code renderObjectType}: an object's (or the schema root's) members, at {@code level}. */
-    private static String objectBody(Json.Obj node, int level) {
+    private static String objectBody(Protocol.PBsonSchema node, int level) {
         StringBuilder b = new StringBuilder();
-        String title = str(node, "title");
-        if (title != null) {
-            b.append(",\n").append(tab(level)).append(key("title")).append(quoted(title));
+        if (node.title() != null) {
+            b.append(",\n").append(tab(level)).append(key("title")).append(quoted(node.title()));
         }
         description(b, node, level);
-        List<Json.Obj> properties = objs(node, "properties");
-        if (!properties.isEmpty()) {
+        if (!node.properties().isEmpty()) {
             List<String> out = new ArrayList<>();
-            for (Json.Obj p : properties) {
-                out.add(tab(level + 1) + key(p.getString("key")) + schema(p.getObj("value"), level + 1));
+            for (Map.Entry<String, Protocol.PBsonSchema> p : node.properties()) {
+                out.add(tab(level + 1) + key(p.getKey()) + schema(p.getValue(), level + 1));
             }
             b.append(",\n").append(tab(level)).append(key("properties")).append("{\n").append(String.join(",\n", out)).append("\n")
                     .append(tab(level)).append("}");
         }
-        bound(b, node, "minProperties", level);
-        bound(b, node, "maxProperties", level);
-        List<String> required = node.getStringArrayOr("required", List.of());
-        if (!required.isEmpty()) {
+        if (!node.required().isEmpty()) {
             List<String> out = new ArrayList<>();
-            for (String r : required) {
+            for (String r : node.required()) {
                 out.add("\"" + r + "\"");
             }
             String at = tab(level + 1);
@@ -174,15 +154,8 @@ final class MongoComposer {
                     .append("\n").append(at).append(String.join(",\n" + at, out)).append("\n")
                     .append(tab(level)).append("]");
         }
-        b.append(",\n").append(tab(level)).append(key("additionalProperties"));
-        if (node.getBoolOr("additionalPropertiesAllowed", false)) {
-            if (Composing.value(node, "additionalProperties") != null) {
-                throw Composing.refused("a MongoDB schema object with an additional-properties schema (upstream prints 'not supported')");
-            }
-            b.append("true");
-        } else {
-            b.append("false");
-        }
+        b.append(",\n").append(tab(level)).append(key("additionalProperties"))
+                .append(Boolean.TRUE.equals(node.additionalPropertiesAllowed()) ? "true" : "false");
         return b.toString();
     }
 
@@ -199,41 +172,48 @@ final class MongoComposer {
     // ---------------------------------------------------------------------
 
     /** The class mapping's body, from its {@code :} on. */
-    static String classMapping(Json.Obj cm) {
+    static String classMapping(Protocol.PClassMappingMongoDb cm) {
         StringBuilder b = new StringBuilder(": MongoDB\n").append(TAB).append("{\n");
-        String collection = str(cm, "mainCollectionName");
-        String store = str(cm, "storePath");
-        if (collection != null && store != null) {
-            b.append(tab(2)).append("~mainCollection [").append(store).append("] ").append(Composing.convertIdentifier(collection)).append("\n");
-        }
-        String binding = str(cm, "bindingPath");
-        if (binding != null) {
-            b.append(tab(2)).append("~binding ").append(binding).append("\n");
+        b.append(tab(2)).append("~mainCollection [").append(cm.storePath()).append("] ")
+                .append(Composing.convertIdentifier(cm.mainCollectionName())).append("\n");
+        if (cm.bindingPath() != null) {
+            b.append(tab(2)).append("~binding ").append(cm.bindingPath()).append("\n");
         }
         return b.append(TAB).append("}").toString();
     }
 
+    /** {@link #classMapping(Protocol.PClassMappingMongoDb)} of the JSON, read first. */
+    static String classMapping(Json.Obj cm) {
+        if (!(ClassMappingReader.classMapping(cm) instanceof Protocol.PClassMappingMongoDb r)) {
+            throw Composing.refused("a MongoDB class mapping that reads as another kind");
+        }
+        return classMapping(r);
+    }
+
     /** The connection's body at the context's indentation {@code i}. */
-    static String connection(Json.Obj c, String i) {
-        String store = str(c, "element");
+    static String connection(Protocol.PMongoDbConnection c, String i) {
+        String store = c.element();
         if (store == null) {
             // upstream prints 'store: null;', which does not read back as the same connection
             throw Composing.refused("a MongoDBConnection with no store (upstream prints the word 'null')");
         }
-        Json.Obj source = c.getObj("dataSourceSpecification");
         List<String> urls = new ArrayList<>();
-        for (Json.Obj u : objs(source, "serverURLs")) {
-            urls.add(u.getString("baseUrl") + ":" + RelationalConnectionComposer.raw(u.get("port")));
-        }
-        Json.Obj auth = objOr(c, "authenticationSpecification");
-        if (auth == null) {
-            throw Composing.refused("a MongoDBConnection with no authentication specification (upstream cannot print it)");
+        for (Protocol.PMongoServerUrl u : c.serverUrls()) {
+            urls.add(u.baseUrl() + ":" + u.port());
         }
         return i + "{\n"
-                + i + TAB + "database: " + source.getString("databaseName") + ";\n"
+                + i + TAB + "database: " + c.databaseName() + ";\n"
                 + i + TAB + "store: " + store + ";\n"
                 + i + TAB + "serverURLs: [" + String.join(", ", urls) + "];\n"
-                + i + TAB + "authentication: " + AuthenticationComposer.authentication(auth, 1, i) + ";\n"
+                + i + TAB + "authentication: " + AuthenticationComposer.authentication(c.auth(), 1, i) + ";\n"
                 + i + "}";
+    }
+
+    /** {@link #connection(Protocol.PMongoDbConnection, String)} of the JSON, read first. */
+    static String connection(Json.Obj c, String i) {
+        if (!(ConnectionReader.connectionValue(c) instanceof Protocol.PMongoDbConnection r)) {
+            throw Composing.refused("a MongoDB connection that reads as another kind");
+        }
+        return connection(r, i);
     }
 }
