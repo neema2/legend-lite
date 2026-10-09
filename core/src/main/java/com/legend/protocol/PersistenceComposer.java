@@ -214,11 +214,11 @@ final class PersistenceComposer {
         if ("connectionPointer".equals(Composing.type(connection))) {
             return (prefix == null ? "" : tab(i) + prefix + ": ") + convertPath(connection.getString("connection")) + (prefix == null ? "" : ";\n");
         }
-        ConnectionComposer.Kind kind = ConnectionComposer.kind(connection);
+        Protocol.PConnectionValue value = ConnectionReader.connectionValue(connection);
         return (prefix == null ? "\n" : tab(i) + prefix + ":\n")
                 + tab(i) + "#{\n"
-                + tab(i + 1) + kind.keyword() + "\n"
-                + kind.body().apply(connection, tab(i + 1)) + "\n"
+                + tab(i + 1) + ConnectionComposer.keyword(value) + "\n"
+                + ConnectionComposer.body(value, tab(i + 1)) + "\n"
                 + tab(i) + "}#" + (prefix == null ? "" : ";\n");
     }
 

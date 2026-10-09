@@ -7,62 +7,77 @@ import com.legend.json.Json;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.function.BiFunction;
 
 import static com.legend.protocol.Composing.TAB;
 import static com.legend.protocol.Composing.convertString;
-import static com.legend.protocol.Composing.elementPath;
 import static com.legend.protocol.Composing.tab;
 
 /**
  * {@code ###Connection}'s connections and the connection values a runtime embeds, as upstream prints them
  * ({@code DEPRECATED_PureGrammarComposerCore.visit(PackageableConnection)}, its model connections, and each
- * store extension's connection value composer).
+ * store extension's connection value composer) -- over the records ({@link Protocol.PConnection},
+ * {@link Protocol.PConnectionValue}; the protocol program's leg 2, step 3).
  */
 final class ConnectionComposer {
-
-    /** A connection value kind: the keyword it is declared with, and its body printed at an indentation. */
-    record Kind(String keyword, BiFunction<Json.Obj, String, String> body) {
-    }
-
-    private static final Map<String, Kind> KINDS = Map.of(
-            "JsonModelConnection", new Kind("JsonModelConnection", (c, i) -> modelConnection(c, i)),
-            "XmlModelConnection", new Kind("XmlModelConnection", (c, i) -> modelConnection(c, i)),
-            "ModelChainConnection", new Kind("ModelChainConnection", ConnectionComposer::modelChain),
-            "RelationalDatabaseConnection", new Kind("RelationalDatabaseConnection", RelationalConnectionComposer::connection),
-            "serviceStore", new Kind("ServiceStoreConnection", ServiceStoreComposer::connection),
-            "elasticsearch7StoreConnection", new Kind("Elasticsearch7ClusterConnection", ElasticsearchComposer::connection),
-            "MongoDBConnection", new Kind("MongoDBConnection", MongoComposer::connection),
-            "deephavenConnection", new Kind("DeephavenConnection", DeephavenComposer::connection));
 
     private ConnectionComposer() {
     }
 
+    static String connection(Protocol.PConnection connection) {
+        return keyword(connection.value()) + " " + Composing.elementPath(connection.pkg(), connection.name()) + "\n"
+                + body(connection.value(), "");
+    }
+
+    /** {@link #connection(Protocol.PConnection)} of the JSON, read first. */
     static String connection(Json.Obj connection) {
-        Json.Obj value = connection.getObj("connectionValue");
-        Kind kind = kind(value);
-        return kind.keyword() + " " + elementPath(connection) + "\n" + kind.body().apply(value, "");
+        return connection(Composing.element(connection, Protocol.PConnection.class));
     }
 
-    static Kind kind(Json.Obj value) {
-        Kind kind = KINDS.get(Composing.type(value));
-        if (kind == null) {
-            throw Composing.refused("no composer rule for a connection of _type '" + Composing.type(value) + "'");
-        }
-        return kind;
+    /** The keyword a connection value is declared (or embedded) with. */
+    static String keyword(Protocol.PConnectionValue value) {
+        return switch (value) {
+            case Protocol.PJsonModelConnection c -> "JsonModelConnection";
+            case Protocol.PXmlModelConnection c -> "XmlModelConnection";
+            case Protocol.PModelChainConnection c -> "ModelChainConnection";
+            case Protocol.PRelationalDatabaseConnection c -> "RelationalDatabaseConnection";
+            case Protocol.PServiceStoreConnection c -> "ServiceStoreConnection";
+            case Protocol.PElasticsearchConnection c -> "Elasticsearch7ClusterConnection";
+            case Protocol.PMongoDbConnection c -> "MongoDBConnection";
+            case Protocol.PDeephavenConnection c -> "DeephavenConnection";
+            case Protocol.PConnectionPointer p -> throw pointer();
+        };
     }
 
-    private static String modelConnection(Json.Obj c, String i) {
+    /** A connection value's body, at the context's indentation {@code i}. */
+    static String body(Protocol.PConnectionValue value, String i) {
+        return switch (value) {
+            case Protocol.PJsonModelConnection c -> modelConnection(c.className(), c.url(), i);
+            case Protocol.PXmlModelConnection c -> modelConnection(c.className(), c.url(), i);
+            case Protocol.PModelChainConnection c -> modelChain(c, i);
+            case Protocol.PRelationalDatabaseConnection c -> RelationalConnectionComposer.connection(c, i);
+            case Protocol.PServiceStoreConnection c -> ServiceStoreComposer.connection(c, i);
+            case Protocol.PElasticsearchConnection c -> ElasticsearchComposer.connection(c, i);
+            case Protocol.PMongoDbConnection c -> MongoComposer.connection(c, i);
+            case Protocol.PDeephavenConnection c -> DeephavenComposer.connection(c, i);
+            case Protocol.PConnectionPointer p -> throw pointer();
+        };
+    }
+
+    /** A pointer is printed by its path where a connection may be one; a connection element is never one. */
+    private static IllegalArgumentException pointer() {
+        return Composing.refused("no composer rule for a connection of _type 'connectionPointer'");
+    }
+
+    private static String modelConnection(String className, String url, String i) {
         return i + "{\n"
-                + i + TAB + "class: " + c.getString("class") + ";\n"
-                + i + TAB + "url: " + convertString(c.getString("url"), true) + ";\n"
+                + i + TAB + "class: " + className + ";\n"
+                + i + TAB + "url: " + convertString(url, true) + ";\n"
                 + i + "}";
     }
 
-    private static String modelChain(Json.Obj c, String i) {
+    private static String modelChain(Protocol.PModelChainConnection c, String i) {
         List<String> mappings = new ArrayList<>();
-        for (String m : c.getStringArrayOr("mappings", List.of())) {
+        for (String m : c.mappings()) {
             mappings.add(i + tab(2) + m);
         }
         return i + "{\n"

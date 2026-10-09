@@ -129,7 +129,9 @@ final class ServiceComposer {
             return tab(base) + "runtime: " + runtime.getString("runtime") + ";";
         }
         if ("engineRuntime".equals(type)) {
-            return tab(base) + "runtime:\n" + tab(base) + "#{" + RuntimeComposer.runtimeValue(runtime, base + 1, true, "") + "\n" + tab(base) + "}#;";
+            return tab(base) + "runtime:\n" + tab(base) + "#{"
+                    + RuntimeComposer.embedded(ServiceReader.embeddedRuntime(runtime), base + 1, "") + "\n" + tab(base)
+                    + "}#;";
         }
         throw Composing.refused("no composer rule for a service runtime of _type '" + type + "'");
     }
