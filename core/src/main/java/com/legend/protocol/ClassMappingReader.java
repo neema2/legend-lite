@@ -116,15 +116,7 @@ final class ClassMappingReader {
             throw Wire.refuse(what + " lambda with " + params.size() + " parameters");
         }
         for (Json.Node p : params) {
-            Wire v = Wire.of(p, what + " lambda parameter");
-            v.constant("_type", "var");
-            v.constant("name", bound);
-            Json.Node type = v.opt("genericType");
-            if (type != null && !typeIgnored) {
-                throw Wire.refuse(what + " lambda's $" + bound + " declared with a type: the engine would use it");
-            }
-            v.opt("multiplicity");
-            v.done(v.span());
+            DomainReader.engineBound(p, what + " lambda", bound, typeIgnored);
         }
         return l.done(l.list("body", ProtocolReader::valueSpec));
     }

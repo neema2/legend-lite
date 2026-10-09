@@ -129,6 +129,23 @@ class OlderShapesReadTest {
         assertEquals(compact(lambda(newWith)), readAndWritten(lambda(newWith)));
     }
 
+    /**
+     * An older {@code ^AggregateValue(...)} naming its class with a {@code class} pointer is the engine's converter's
+     * {@code agg(...)} call, its overload id kept: the engine reads the pointer first, then converts.
+     */
+    @Test
+    void convertsAnOlderNewOfASpecialClass() {
+        String key = "{\"_type\":\"keyExpression\",\"add\":false,\"expression\":%s,\"key\":{\"_type\":\"string\",\"values\":"
+                + "[\"%s\"]}}";
+        String olderNew = "{\"_type\":\"func\",\"function\":\"new\",\"parameters\":[{\"_type\":\"class\",\"fullPath\":"
+                + "\"AggregateValue\"},{\"_type\":\"string\",\"value\":\"\"},{\"_type\":\"collection\",\"multiplicity\":"
+                + "{\"lowerBound\":2,\"upperBound\":2},\"values\":[" + String.format(key, X_DOT_A, "mapFn") + ","
+                + String.format(key, Y_SUM, "aggregateFn") + "]}]}";
+        String written = readAndWritten(lambda(olderNew));
+        assertTrue(written.contains("\"fControl\":\"agg_FunctionDefinition_1__FunctionDefinition_1__AggregateValue_1_\","
+                + "\"function\":\"meta::pure::functions::collection::agg\""), written);
+    }
+
     /** An older variable names its type in {@code class}; an upper bound of 2147483647 is "many". */
     @Test
     void readsAnOlderVariable() {
@@ -171,6 +188,10 @@ class OlderShapesReadTest {
         "a sort direction | {\"_type\":\"tdsSortInformation\",\"column\":\"c\",\"direction\":\"UP\"} | direction 'UP'",
         "a reference's type alone | {\"_type\":\"var\",\"name\":\"x\",\"class\":\"String\"} | no multiplicity",
         "no kind | {\"_type\":\"pair\",\"somethingElse\":1} | NOT SUPPORTED",
+        "a special new's lone key | {\"_type\":\"func\",\"function\":\"new\",\"parameters\":[{\"_type\":\"class\","
+                + "\"fullPath\":\"Pair\"},{\"_type\":\"string\",\"value\":\"\"},{\"_type\":\"keyExpression\",\"add\":false,"
+                + "\"expression\":{\"_type\":\"integer\",\"value\":1},\"key\":{\"_type\":\"string\",\"value\":\"first\"}}]}"
+                + " | keys are not a collection",
     })
     void refusesNamingIt(String shape, String body, String named) {
         IllegalArgumentException e = assertThrows(IllegalArgumentException.class,

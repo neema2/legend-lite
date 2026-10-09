@@ -117,7 +117,7 @@ not be written back, so it is refused.
    | a literal with `values: [...]` | none is an empty collection, one is the literal, more a collection (`PrimitiveValueSpecification.customParsePrimitive`) | the same; on `strictTime` and `byteArray`, where the engine drops the list, it is refused |
    | `path`, `rootGraphFetchTree`, `listInstance` written as their own `_type` | read as the `classInstance` of that kind, chosen by which fields are present, in the engine's order (`ClassInstanceWrapper.java`) | the same order, then the `classInstance` rule |
    | `qualifiedProperty` | kept, and compiled exactly as a property access with arguments (`ValueSpecificationBuilder` `processProperty`) | the property access |
-   | `aggregateValue`, `tdsAggregateValue`, `tdsColumnInformation`, `tdsSortInformation`, `tdsOlapRank`, `tdsOlapAggregation`, `pair`, `listInstance`, `unitInstance` (as `classInstance` or their own `_type`) | kept, and compiled to the object that a library function builds: `agg`, `tds::agg`, `tds::col`, `tds::asc`/`desc`, `tds::func` (both), `pair`, `list`, `newUnit` (each function's body in `core/pure/tds/tds.pure`, `corefunctions/collectionExtension.pure`) | that function's call |
+   | `aggregateValue`, `tdsAggregateValue`, `tdsColumnInformation`, `tdsSortInformation`, `tdsOlapRank`, `tdsOlapAggregation`, `pair`, `listInstance` (as `classInstance` or their own `_type`), `unitInstance` (its own `_type` only) | kept, and compiled to the object that a library function builds: `agg`, `tds::agg`, `tds::col`, `tds::asc`/`desc`, `tds::func` (both), `pair`, `list`, `newUnit` (each function's body in `core/pure/tds/tds.pure`, `corefunctions/collectionExtension.pure`) | that function's call |
    | `runtimeInstance`, `executionContextInstance`, `alloySerializationConfig`, `whatever`, `unknownFunc` | kept; the engine's printers cannot write them as Pure (`DEPRECATED_PureGrammarComposerCore`, the Pure `toPure`), and the last two are marked "should not be coming to the system"; no test of the engine's carries one | refused by name: no text means them |
 
    **Decided 2026-10-08 (the user), refining the decision above:** the second kind is brought up to the call that
@@ -145,8 +145,10 @@ not be written back, so it is refused.
    models): 772 elements written as the engine writes them, 332 as the documented upgrade of what it writes (the
    upgrade coded apart from the reader, two of its rules through the engine's own `HelperModelBuilder.getSignature`
    and `LegacyRuntime.toEngineRuntime`), 0 mismatched, 89 whole models read with their envelope (`serializer`,
-   `origin`, now records); 19 refused by name -- 4 that the engine itself discards (S29), 11 that no record carries
-   (S33), 4 open pending the engine's evidence (S33). `OlderShapesReadTest` (core) pins each expression shape against
+   `origin`, now records); 19 elements refused by name -- 4 that the engine itself discards (S29), 11 that no record
+   carries (S33), 4 open pending the engine's evidence (S33). Of the whole models, 89 read and 28 are refused (pinned
+   down-only): 17 for the top-level `version` the engine discards (S29), the rest for an element refused above.
+   `OlderShapesReadTest` (core) pins each expression shape against
    the text it means. The model context now carries `serializer` and `origin` (a model from an SDLC or Depot), and
    `AppliedFunction`/`AppliedProperty`, the class and association records, the table pointer and the relational
    association and embedded mappings carry the written details older JSON has (each excluded from equality where it

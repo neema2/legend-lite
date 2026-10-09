@@ -74,7 +74,9 @@ import java.util.Objects;
  *                    for every call the grammar parses (leg 2 step 2, the user 2026-10-08).
  * @param ownerClass  a written detail of older JSON on a {@link #propertyCall} form: the receiver's class, a
  *                    property node's {@code class}, which no compile step of the engine's reads. Kept and written
- *                    back like {@code fControl}; null otherwise.
+ *                    back like {@code fControl}; null otherwise. (The compiler's own rebuilds -- the name resolver,
+ *                    the checkers -- may drop the written forms: no resolved or typed tree reaches an emitter, whose
+ *                    callers are the parser, the reader and the grammar route over a fresh parse.)
  */
 public record AppliedFunction(
         String function,

@@ -37,6 +37,12 @@ final class MappingReader {
                 w.listOrEmpty("tests", MappingTestReader::legacyTest), null, w.span());
     }
 
+    /** An association mapping's stores: none when older JSON leaves them out, as the engine's AssociationMapping. */
+    private static List<String> stores(Wire w) {
+        List<String> stores = w.optStrings("stores");
+        return stores == null ? List.of() : stores;
+    }
+
     /** An association mapping's association: the bare path in older JSON. */
     private static Protocol.PPointer association(Wire w) {
         return DomainReader.pointer(w.take("association"), "ASSOCIATION");
@@ -50,7 +56,7 @@ final class MappingReader {
     private static final Map<String, Function<Wire, Protocol.PAssociationMapping>> ASSOCIATIONS = Map.of(
             "functionAssociation", MappingReader::functionAssociation,
             "relational", w -> new Protocol.PRelAssociationMapping(association(w),
-                    w.optStr("id"), w.list("propertyMappings", MappingReader::relAssocProperty), w.strings("stores"),
+                    w.optStr("id"), w.list("propertyMappings", MappingReader::relAssocProperty), stores(w),
                     w.span()),
             "xStore", w -> {
                 w.emptyArray("stores");
@@ -166,8 +172,16 @@ final class MappingReader {
         String id = w.optStr("id");
         Protocol.PPointer enumeration = DomainReader.pointer(w.take("enumeration"), "ENUMERATION");
         String sourceType = w.optStr("sourceType");
-        return w.done(new Protocol.PEnumerationMapping(id, enumeration,
-                w.list("enumValueMappings", n -> enumValueMapping(n, sourceType)), w.span()));
+        List<Protocol.PEnumValueMapping> values = w.list("enumValueMappings", n -> enumValueMapping(n, sourceType));
+        if (sourceType != null && w.json().getOr("enumValueMappings", null) instanceof Json.Arr evms
+                && evms.items().stream().noneMatch(e -> e instanceof Json.Obj o
+                        && o.getOr("sourceValues", null) instanceof Json.Arr sv
+                        && EnumSourceValues.readsSourceType(sv.items()))) {
+            // no value mapping reads it: the engine drops it (decision C refuses that)
+            throw Wire.refuse("an enumeration mapping's sourceType '" + sourceType + "' that none of its values"
+                    + " reads: the engine drops it");
+        }
+        return w.done(new Protocol.PEnumerationMapping(id, enumeration, values, w.span()));
     }
 
     private static Protocol.PEnumValueMapping enumValueMapping(Json.Node node,

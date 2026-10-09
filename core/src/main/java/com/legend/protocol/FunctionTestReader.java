@@ -46,8 +46,11 @@ final class FunctionTestReader {
         }
         // neither: refused, naming the current key
         Json.Node pointer = current != null ? current : older != null ? older : d.take("packageableElementPointer");
-        if (current == null && pointer instanceof Json.Str path) {
-            return d.done(new Protocol.PTestData(path.value(), null, payload(d.take("data")), "STORE", d.span()));
+        if (pointer instanceof Json.Str path) {
+            // a bare path: under `store` a STORE (StoreProviderPointer's string creator), under
+            // packageableElementPointer untyped (PackageableElementPointer's)
+            return d.done(new Protocol.PTestData(path.value(), null, payload(d.take("data")),
+                    current == null ? "STORE" : null, d.span()));
         }
         Wire ptr = Wire.of(pointer, "store pointer");
         String path = ptr.str("path");

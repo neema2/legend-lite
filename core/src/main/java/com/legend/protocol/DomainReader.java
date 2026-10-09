@@ -108,6 +108,33 @@ final class DomainReader {
     }
 
     /**
+     * A parameter older JSON declares that the engine binds itself ({@code bound}: a transform's {@code $src}, a
+     * class's {@code $this}), read as the engine's reader reads a variable -- so a malformed one is refused -- and not
+     * kept. Where the engine ignores the whole declaration ({@code typeIgnored}) any type and multiplicity pass; an
+     * untyped {@code $this} must say {@code [1]} if it says anything (a typed one the engine would declare: refused).
+     */
+    static void engineBound(Json.Node node, String where, String bound, boolean typeIgnored) {
+        Wire v = Wire.of(node, where + " parameter");
+        v.constant("_type", "var");
+        v.constant("name", bound);
+        Json.Node type = v.opt("genericType");
+        if (type != null) {
+            if (!typeIgnored) {
+                throw Wire.refuse(where + "'s $" + bound + " declared with a type: the engine would use it");
+            }
+            ProtocolReader.genericType(type);
+        }
+        Json.Node m = v.opt("multiplicity");
+        if (m != null) {
+            Multiplicity read = ProtocolReader.multiplicity(m);
+            if (!typeIgnored && !read.equals(new Multiplicity.Concrete(1, 1))) {
+                throw Wire.refuse(where + "'s $" + bound + " with multiplicity " + read + ": the engine binds [1]");
+            }
+        }
+        v.done(v.span());
+    }
+
+    /**
      * {@code _type:"function"}: the wire name is SIGNATURE-MANGLED ({@link Protocol.PFunction#mangledName});
      * the declared name is what remains once the signature's mangling is taken off the end. Older JSON writes the
      * name without it: the engine compiles that function under the mangled name all the same
@@ -199,7 +226,7 @@ final class DomainReader {
         List<Json.Node> params = new java.util.ArrayList<>(q.arrOrEmpty("parameters"));
         if (!params.isEmpty() && params.get(0) instanceof Json.Obj first && "var".equals(first.getStringOr("_type", null))
                 && "this".equals(first.getStringOr("name", null))) {
-            params.remove(0);
+            engineBound(params.remove(0), "qualified property", "this", true);
         }
         List<ParameterDefinition> declared = new java.util.ArrayList<>(params.size());
         for (Json.Node p : params) {

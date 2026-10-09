@@ -129,6 +129,11 @@ public final class ProtocolUpgrade {
         if (type == null) {
             return af;
         }
+        if (SPECIAL.contains(type) && (params.size() < 3 || !(params.get(2) instanceof Json.Obj keys)
+                || !"collection".equals(keys.getStringOr("_type", "")))) {
+            // the engine's converter casts the third argument to a collection (CorePureProtocolExtension) and fails
+            throw Wire.refuse("a new of " + type + " whose keys are not a collection: the engine cannot read it");
+        }
         return switch (type) {
             case "meta::pure::tds::BasicColumnSpecification", "BasicColumnSpecification" -> {
                 List<Json.Node> ps = present(keyed(params, "func", "lambda"), keyed(params, "name", "string"),
@@ -162,12 +167,32 @@ public final class ProtocolUpgrade {
         };
     }
 
-    /** {@code new}'s type: a generic type's first argument, or a packageable element. */
+    /** The classes the engine's converter turns a {@code new} of into a call. */
+    private static final java.util.Set<String> SPECIAL = java.util.Set.of("meta::pure::tds::BasicColumnSpecification",
+            "BasicColumnSpecification", "meta::pure::tds::TdsOlapRank", "TdsOlapRank",
+            "meta::pure::functions::collection::AggregateValue", "AggregateValue",
+            "meta::pure::functions::collection::Pair", "Pair");
+
+    /** The older pointers the engine reads as a {@code PackageableElementPtr} before its converter runs. */
+    private static final java.util.Set<String> OLDER_POINTERS = java.util.Set.of("class", "enum", "mappingInstance",
+            "databaseInstance");
+
+    /**
+     * {@code new}'s type: a generic type's first argument, or a packageable element -- today's pointer or an older one
+     * ({@code class}, {@code enum}, ...; {@code primitiveType}'s {@code name} first), as the engine's readers make each
+     * a pointer before the converter sees it.
+     */
     private static @com.legend.base.Nullable String newType(Json.Node p) {
         if (!(p instanceof Json.Obj o)) {
             return null;
         }
         String t = o.getStringOr("_type", "");
+        if (OLDER_POINTERS.contains(t)) {
+            return o.getStringOr("fullPath", null);
+        }
+        if ("primitiveType".equals(t)) {
+            return o.getStringOr("name", o.getStringOr("fullPath", null));
+        }
         if ("genericTypeInstance".equals(t)) {
             Json.Obj gt = o.getObjOr("genericType", null);
             List<Json.Node> args = gt == null ? List.of() : items(gt, "typeArguments");
@@ -193,11 +218,21 @@ public final class ProtocolUpgrade {
             return null;
         }
         for (Json.Node v : items(c, "values")) {
-            if (v instanceof Json.Obj ke && ke.get("key") instanceof Json.Obj k && key.equals(k.getStringOr("value", null))) {
+            if (v instanceof Json.Obj ke && ke.getOr("key", null) instanceof Json.Obj k && key.equals(keyName(k))) {
                 return ke.getOr("expression", null);
             }
         }
         return null;
+    }
+
+    /** A key's name: a string literal's value, or the older literal's one-item {@code values}. */
+    private static @com.legend.base.Nullable String keyName(Json.Obj k) {
+        String value = k.getStringOr("value", null);
+        if (value != null) {
+            return value;
+        }
+        List<Json.Node> values = items(k, "values");
+        return values.size() == 1 && values.get(0) instanceof Json.Str s ? s.value() : null;
     }
 
     @SafeVarargs

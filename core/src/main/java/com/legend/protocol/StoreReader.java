@@ -235,9 +235,8 @@ final class StoreReader {
         throw Wire.refuse("a relational literal that is neither a string nor a number: " + Wire.abbreviate(v));
     }
 
-    /** {@code {"_type":"Table", [database, mainTableDb,] schema, sourceInformation, table}}. */
     /**
-     * A table pointer. Older JSON (the engine's Pure-side serializer) spells its {@code _type} {@code "table"} and may
+     * {@code {"_type":"Table", [database, mainTableDb,] schema, sourceInformation, table}}. Older JSON (the engine's Pure-side serializer) spells its {@code _type} {@code "table"} and may
      * give the {@code database} alone; the engine keeps both as written ({@code TablePtr} is a plain object) and its
      * mapping compile reads neither the spelling nor a missing {@code mainTableDb}. A {@code mainTableDb} alone does
      * not compile there ("Can't resolve from 'null' path"): refused.

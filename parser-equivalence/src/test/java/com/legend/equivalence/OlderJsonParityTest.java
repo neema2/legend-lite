@@ -53,6 +53,9 @@ class OlderJsonParityTest {
     private static final int MAX_REFUSED = 19;   // 2026-10-08: 4 the engine discards, 11 no record carries, 4 open
     /** Whole models read, their envelope and older sections included. Up-only. */
     private static final int MIN_DOCUMENTS = 89;   // 2026-10-08
+    /** Whole models refused, by any reason (an element's refusal refuses its model; most are the top-level `version`
+     *  the engine discards, S29). Down-only. */
+    private static final int MAX_DOCUMENT_REFUSALS = 28;   // 2026-10-08: 17 for `version`
 
     private static final Json.Config DEEP = new Json.Config(4096);
 
@@ -108,7 +111,7 @@ class OlderJsonParityTest {
                 .append(refusalSamples.get(r)).append('\n'));
         Files.writeString(TestOutputs.file("older-json-refusals.tsv"), reasons.toString());
         Files.writeString(TestOutputs.file("older-json-mismatches.txt"), String.join("\n", mismatches));
-        System.out.printf("[older-json] %d files: %d models, %d lambdas (%d the engine cannot read); matched %d,"
+        System.out.printf("[older-json] %d files: %d models, %d lambdas (%d of them the engine cannot read); matched %d,"
                         + " upgraded %d, refused %d, mismatched %d%n", files.size(), models, lambdas, engineRefused,
                 matched, upgraded, refused, mismatches.size());
         refusals.forEach((r, n) -> System.out.println("[older-json] refused " + n + "  " + r));
@@ -121,6 +124,9 @@ class OlderJsonParityTest {
         assertTrue(refused <= MAX_REFUSED, "refused: " + refused + " > " + MAX_REFUSED
                 + " (target/older-json-refusals.tsv)");
         assertTrue(documents >= MIN_DOCUMENTS, "whole models read: " + documents + " < " + MIN_DOCUMENTS);
+        int modelsRefused = documentRefusals.values().stream().mapToInt(Integer::intValue).sum();
+        assertTrue(modelsRefused <= MAX_DOCUMENT_REFUSALS, "whole models refused: " + modelsRefused + " > "
+                + MAX_DOCUMENT_REFUSALS);
     }
 
     private void model(String id, String text, Json.Obj top) {
@@ -147,7 +153,7 @@ class OlderJsonParityTest {
         } catch (IllegalArgumentException refusal) {
             documentRefusals.merge(String.valueOf(refusal.getMessage()), 1, Integer::sum);
         } catch (RuntimeException crash) {
-            documentRefusals.merge("crashed: " + crash, 1, Integer::sum);
+            mismatches.add(id + "\tthe whole model crashed: " + crash);
         }
         // element by element, in the engine's merged order
         List<Json.Node> ours = ModelReader.elementNodes(top);

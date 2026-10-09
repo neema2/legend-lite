@@ -30,6 +30,12 @@ final class EnumSourceValues {
     private EnumSourceValues() {
     }
 
+    /** Whether an enumeration mapping's {@code sourceType} reads these values: only plain values (format 3). */
+    static boolean readsSourceType(List<Json.Node> values) {
+        return !values.stream().allMatch(EnumSourceValues::typed)
+                && !(values.size() == 1 && values.get(0) instanceof Json.Obj);
+    }
+
     static List<Protocol.PEnumSourceValue> read(List<Json.Node> values, @com.legend.base.Nullable String sourceType) {
         List<Protocol.PEnumSourceValue> out = new ArrayList<>(values.size());
         if (values.stream().allMatch(EnumSourceValues::typed)) {
