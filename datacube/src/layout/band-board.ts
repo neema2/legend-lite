@@ -254,8 +254,14 @@ export class BandBoard {
     this.#gesture?.end(false);
     placed.root.remove();
     this.#tiles.delete(id);
-    if (this.#maximised === id) this.#maximised = null;
+    // the board no longer maximised: as `maximise(null)` leaves it, scrolled back where it was
+    const maximised = this.#maximised === id;
+    if (maximised) {
+      this.#maximised = null;
+      this.#host.classList.remove('dc-bands-maximised');
+    }
     this.#commit(remove(this.#layout, id));
+    if (maximised) this.#host.scrollTop = this.#scrolled;
   }
 
   /** Put a whole layout (a saved page): tiles not on the board are left out, tiles not in it go below. */

@@ -260,6 +260,16 @@ describe('the band board', () => {
     wellFormed(board);
   });
 
+  it('a maximised tile taken off (removed, or moved to another sheet) leaves the board as maximise(null) would', () => {
+    const { board } = sideBySide(['a', 'b']);
+    board.maximise('a');
+    assert.ok(host.classList.contains('dc-bands-maximised'));
+    board.remove('a');
+    assert.equal(board.maximised, null);
+    assert.equal(host.classList.contains('dc-bands-maximised'), false);
+    assert.equal(root('b').hidden, false);
+  });
+
   it('undoes a tile\'s drag on Escape: back in place, nothing moved', () => {
     const { board, changes } = sideBySide(['a', 'b']);
     const before = board.layout;

@@ -267,8 +267,11 @@ export interface CubeAppBaseOptions {
   readonly exportPage?: () => ExportPage | undefined;
   /** A grid made on a page whose bar is folded: its title bar setting starts hidden, as the page's other grids say. */
   readonly titleBarHidden?: boolean;
-  /** A grid on a page of several sheets: the other sheets, by what their tabs say, for its menu's Move to Sheet. */
-  readonly sheets?: () => readonly { readonly id: string; readonly label: string }[];
+  /**
+   * A grid on a page of sheets, for its menu's Move to Sheet: the other sheets, by what their tabs say, and whether
+   * the page is locked (the entry offered, disabled).
+   */
+  readonly sheets?: () => { readonly locked: boolean; readonly others: readonly { readonly id: string; readonly label: string }[] };
   /** Its Move to Sheet: onto `sheet`, or -- null -- onto a new one. */
   readonly onMoveToSheet?: (sheet: string | null) => void;
   readonly writeClipboard?: (text: string) => void | Promise<void>;
@@ -1959,8 +1962,8 @@ export class CubeApp {
 
   #onMenuAction(item: MenuItem): void {
     if (this.#onHostAction(item)) return;
-    // Move to Sheet: onto a sheet the page has, by its id (a new one is `sheet.to.new`, below)
-    if (item.id?.startsWith('sheet.to.') && item.id !== 'sheet.to.new') {
+    // Move to Sheet: onto a sheet the page has, by its id (a new one is `sheet.toNew`, below)
+    if (item.id?.startsWith('sheet.to.')) {
       this.#options.onMoveToSheet?.(item.id.slice('sheet.to.'.length));
       return;
     }
@@ -2107,7 +2110,7 @@ export class CubeApp {
       case 'grid.remove':
         this.#options.onRemove?.();
         return;
-      case 'sheet.to.new':
+      case 'sheet.toNew':
         this.#options.onMoveToSheet?.(null);
         return;
       case 'page.arrange':
@@ -3935,17 +3938,18 @@ export class CubeApp {
       { label: '', items: this.#viewItems() },
       // on a page of its own: onto another sheet (its charts stay where they are, following it), and taken off it, as
       // its tile's x does (and as the one way when it is alone in the bar)
-      ...(this.#options.onMoveToSheet ? [{ label: '', items: [{ label: 'Move to Sheet', submenu: this.#sheetItems() }] }] : []),
+      ...(this.#options.onMoveToSheet ? [{ label: '', items: [{ label: 'Move to Sheet',
+        ...(this.#options.sheets?.().locked ? { disabled: true } : {}), submenu: this.#sheetItems() }] }] : []),
       ...(this.#options.onRemove ? [{ label: '', items: [{ id: 'grid.remove' as const, label: 'Remove from Page' }] }] : []),
     ];
   }
 
   /** Move to Sheet's entries: each other sheet, then a new one. */
   #sheetItems(): MenuItem[] {
-    const others = this.#options.sheets?.() ?? [];
+    const others = this.#options.sheets?.().others ?? [];
     return [
       ...others.map((s) => ({ id: `sheet.to.${s.id}` as const, label: s.label })),
-      { id: 'sheet.to.new' as const, label: 'New Sheet', ...(others.length > 0 ? { separated: true } : {}) },
+      { id: 'sheet.toNew' as const, label: 'New Sheet', ...(others.length > 0 ? { separated: true } : {}) },
     ];
   }
 

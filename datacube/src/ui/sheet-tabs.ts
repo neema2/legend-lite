@@ -126,7 +126,8 @@ export class SheetTabs {
     });
     const raised = this.#tabAt(shown);
     raised?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
-    if (focused) raised?.focus();
+    // a tab being renamed keeps its field, and the field its focus
+    if (focused && this.#renaming === undefined) raised?.focus();
     this.#paintOverflow();
   }
 

@@ -1157,9 +1157,10 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       await page.ready();
       // another page put on screen while this one landed: that page is the one to keep a baseline of
       if (!onScreen()) return [];
-      // The baseline is the page as it LANDED (normalized by its first refresh)
+      // The baseline is the page as it LANDED (normalized by its first refresh); a name given in the name box while it
+      // landed stays (a change, as a rename is)
       const landed = savedForm(page.suggestedName || 'page');
-      current = { ...(landed ? { baseline: landed.definition } : {}), lost: [] };
+      current = { ...(current.name !== undefined ? { name: current.name } : {}), ...(landed ? { baseline: landed.definition } : {}), lost: [] };
       onCubeView?.();
       library?.sync();
       return o.notes;

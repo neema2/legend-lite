@@ -16,7 +16,7 @@
 // EVERY GRID IS THE HOST'S: made by a maker the host gave (`addGrid`, `restore`) -- a copy of one (Copy of Grid) by the
 // same maker, starting where that grid is now -- so the host knows each grid on the page, and the page knows each one.
 //
-// THE PAGE IS WHAT IS SAVED: one cube document per grid (each over its own source), a view per tile, the layout
+// THE PAGE IS WHAT IS SAVED: one cube document per grid (each over its own source), a view per tile, the sheets
 // (`document`); reopening adds each grid again under its saved id, through the host's own way of opening its source
 // (`restore`). A grid removed while a frozen chart still reads it is kept off the board for that chart, and saved as a
 // cube with no grid view.
@@ -505,15 +505,15 @@ export class PageApp {
 
   /**
    * What the page shows, as its document keeps it: every grid's view (its cube its own id), every chart and the grid
-   * it reads (a kept one for a detached chart), the layout.
+   * it reads (a kept one for a detached chart), the sheets and their layouts.
    */
   views(): PageViews {
     return this.#page.views((grid) => (this.grid(grid) ? grid : undefined));
   }
 
   /**
-   * THE PAGE AS IT IS SAVED (page-document.ts, version 2): one cube per grid -- on the board, then kept off it for a
-   * detached chart -- each the grid's own cube document, under the grid's id; the views and the layout. `unknown`:
+   * THE PAGE AS IT IS SAVED (page-document.ts, version 3): one cube per grid -- on the board, then kept off it for a
+   * detached chart -- each the grid's own cube document, under the grid's id; the views and the sheets. `unknown`:
    * fields a newer writer put in the page and in each cube, written back as they were. Undefined when a grid cannot
    * say its source, or there is nothing on the page.
    */
@@ -547,7 +547,7 @@ export class PageApp {
   /**
    * A SAVED PAGE PUT BACK: its grids, each made by its cube's maker (the host opened each cube's source) under its
    * saved id and title, in the saved layout's reading order; the cubes no grid view names kept off the board for their
-   * detached charts; then the charts and the layout. A cube with no maker (its source not opened) is left out, with
+   * detached charts; then the charts and the sheets' layouts. A cube with no maker (its source not opened) is left out, with
    * the views that read it. The page is emptied first.
    */
   restore(page: PageDocument, makers: ReadonlyMap<string, GridMaker>): void {
@@ -635,7 +635,8 @@ export class PageApp {
     this.#rehomeStatus();
     const empty = this.empty;
     const bare = !empty && (this.#page.sheets.find((s) => s.id === this.#page.shownSheet)?.tiles.length ?? 0) === 0;
-    this.#boardHost.hidden = empty;
+    // an empty sheet's card in the board's place (its board, with nothing on it, has nothing to draw)
+    this.#boardHost.hidden = empty || bare;
     this.#empty.hidden = !empty;
     this.#emptySheet.hidden = !bare;
     this.#root.classList.toggle('dc-page-is-empty', empty);

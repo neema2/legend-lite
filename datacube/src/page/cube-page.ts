@@ -82,8 +82,11 @@ export interface SpawnOptions {
   readonly hostStatus?: (slot: HTMLElement) => void;
   /** Its page's bar is folded: its title bar setting starts hidden, as every grid on the page says. */
   readonly titleBarHidden?: boolean;
-  /** The page's other sheets, by what their tabs say, for its menu's Move to Sheet (a page of several sheets). */
-  readonly sheets?: () => readonly { readonly id: string; readonly label: string }[];
+  /**
+   * For its menu's Move to Sheet: the page's other sheets, by what their tabs say, and whether the page is locked
+   * (nothing moves: the entry is offered, disabled).
+   */
+  readonly sheets?: () => { readonly locked: boolean; readonly others: readonly { readonly id: string; readonly label: string }[] };
   /** Its Move to Sheet: onto `sheet`, or -- null -- onto a new one. */
   readonly onMoveToSheet?: (sheet: string | null) => void;
 }
@@ -346,7 +349,7 @@ export class CubePage {
     return this.#sheetOf(tile)?.id;
   }
 
-  /** Show another sheet: its board drawn, the one shown before hidden (its gestures ended, its grids still running). */
+  /** Show another sheet: its board drawn, the one shown before hidden (its grids still running). */
   showSheet(id: string): void {
     const next = this.#sheets.find((s) => s.id === id);
     if (!next || next === this.#shown) return;
@@ -414,6 +417,8 @@ export class CubePage {
    * shown stays shown; the tile's own sheet says where it went.
    */
   moveToSheet(tile: string, to: string | null): void {
+    // a locked page: nothing moves (the design's §7.2)
+    if (!this.#editing) return;
     const from = this.#sheetOf(tile);
     const spec = this.#specs.get(tile);
     if (!from || !spec) return;
@@ -664,13 +669,19 @@ export class CubePage {
       onNewSource: (other) => this.addGridOver(other, { near: id }),
       onRemove: () => this.#removeGrid(id),
       // a page around the grid's table only when there is a chart to put beside it: the other grids are not in it
-      exportPage: () => (this.#charts.size > 0 ? this.exportPage(id) : undefined),
+      exportPage: () => (this.#chartsBeside(id) ? this.exportPage(id) : undefined),
       ...(this.#options.onSettingsChanged ? { onSettingsChanged: this.#options.onSettingsChanged } : {}),
       ...(this.#options.sheetLabel ? {
-        sheets: () => this.#otherSheets(id),
+        sheets: () => ({ locked: !this.#editing, others: this.#otherSheets(id) }),
         onMoveToSheet: (sheet: string | null) => this.moveToSheet(id, sheet),
       } : {}),
     };
+  }
+
+  /** Whether a chart is on grid `id`'s sheet: its export then lays out that sheet, the grid its table. */
+  #chartsBeside(id: string): boolean {
+    const sheet = this.#sheetOf(id);
+    return [...this.#charts.keys()].some((chart) => this.#sheetOf(chart) === sheet);
   }
 
   /** The sheets a tile is not on, as their tabs say them: where its Move to Sheet can take it. */
@@ -763,7 +774,8 @@ export class CubePage {
         if (item.id === 'tile.options') panel.toggleForm();
         if (item.id === 'tile.edit') this.#openEditor(id);
         if (item.id === 'tile.remove') this.#removeTile(id);
-        if (item.id?.startsWith('sheet.to.')) this.moveToSheet(id, item.id === 'sheet.to.new' ? null : item.id.slice('sheet.to.'.length));
+        if (item.id === 'sheet.toNew') this.moveToSheet(id, null);
+        else if (item.id?.startsWith('sheet.to.')) this.moveToSheet(id, item.id.slice('sheet.to.'.length));
       };
       const sheets = this.#otherSheets(id);
       this.#menu.show([
@@ -772,9 +784,9 @@ export class CubePage {
           { id: 'tile.edit', label: 'Open in grid', ...(editable ? {} : { disabled: true }) },
         ] },
         // a page of sheets: this chart onto another, or a new one (its grid stays where it is, and it follows it)
-        ...(this.#options.sheetLabel ? [{ label: '', items: [{ label: 'Move to Sheet', submenu: [
+        ...(this.#options.sheetLabel ? [{ label: '', items: [{ label: 'Move to Sheet', ...(this.#editing ? {} : { disabled: true }), submenu: [
           ...sheets.map((s) => ({ id: `sheet.to.${s.id}` as const, label: s.label })),
-          { id: 'sheet.to.new' as const, label: 'New Sheet', ...(sheets.length > 0 ? { separated: true } : {}) },
+          { id: 'sheet.toNew' as const, label: 'New Sheet', ...(sheets.length > 0 ? { separated: true } : {}) },
         ] }] }] : []),
         { label: '', items: [{ id: 'tile.remove', label: 'Remove' }] },
       ], event.clientX, event.clientY);

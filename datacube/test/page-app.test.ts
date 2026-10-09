@@ -479,6 +479,28 @@ describe('a page of its own', () => {
     assert.deepEqual(page.views(), { views: doc.views, sheets: doc.sheets });
   });
 
+  it('on a locked page offers Move to Sheet disabled, in a grid\'s menu and a chart\'s, and moves nothing', async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    const chart = await chartOf(a);
+    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    clickTab(tabs()[0]!);
+    page.setLayoutEditing(false);
+    await settle();
+    const move = gridMenuItem(a, 'Move to Sheet');
+    assert.equal(move.getAttribute('aria-disabled'), 'true', 'the grid\'s');
+    (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
+      .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    const chartMove = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Move to Sheet');
+    assert.equal(chartMove?.getAttribute('aria-disabled'), 'true', 'the chart\'s');
+    // and its entries, reached anyway, move nothing
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'New Sheet')?.click();
+    await settle();
+    assert.equal(page.sheets.length, 2);
+    assert.deepEqual(page.views().sheets.map((s) => s.layout.bands.length), [1, 0]);
+  });
+
   it('deletes a sheet with its tiles once asked, never its last; the readout follows the sheet shown', async () => {
     const asked: string[] = [];
     let answer = false;

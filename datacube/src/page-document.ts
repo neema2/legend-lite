@@ -249,7 +249,7 @@ function readSheets(raw: unknown, views: ReadonlySet<string>): readonly PageShee
   if (!Array.isArray(raw) || raw.length === 0) throw new PageDocumentError("'sheets' is not a list of sheets");
   const ids = new Set<string>();
   return raw.map((sheet, i) => {
-    if (!isObject(sheet) || typeof sheet['id'] !== 'string') throw new PageDocumentError(`sheet ${i + 1} has no id`);
+    if (!isObject(sheet) || typeof sheet['id'] !== 'string' || sheet['id'].trim() === '') throw new PageDocumentError(`sheet ${i + 1} has no id`);
     const id = sheet['id'];
     if (ids.has(id)) throw new PageDocumentError(`two sheets are ${id}`);
     ids.add(id);

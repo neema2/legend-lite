@@ -79,6 +79,16 @@ describe('a page\'s sheet tabs', () => {
     assert.deepEqual(asked, ['rename sheet-2 Summary', 'rename sheet-1 ']);
   });
 
+  it('keep a rename\'s field, and its focus, through a repaint (a grid\'s view landing paints the tabs again)', () => {
+    tabs.rename('sheet-2');
+    const field = tab('sheet-2').querySelector('input')!;
+    field.value = 'Q3 r';
+    tabs.paint(SHEETS, 'sheet-2', true);
+    assert.equal(tab('sheet-2').querySelector('input'), field, 'still being renamed');
+    assert.equal(dom.window.document.activeElement, field);
+    assert.deepEqual(asked, [], 'nothing renamed yet');
+  });
+
   it('offer in a tab\'s menu only what can be done: no Move Left first, no Move Right last, no Delete of the last sheet', () => {
     let menu = menuOf('sheet-1');
     assert.equal(disabled(menu.get('Move Left')), true);
