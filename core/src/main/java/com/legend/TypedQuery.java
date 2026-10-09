@@ -102,6 +102,14 @@ public final class TypedQuery {
      *  checked against its connections, lowered (I) — every planning step, no database. {@code streaming}: the
      *  streaming graph root (one json_object per row). */
     public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming) {
+        return lower(runtime, streaming, List.of());
+    }
+
+    /** {@link #lower(String, boolean)} with the query's declared parameters as {@code slots}: each {@code $name} of a
+     *  slot lowers to it, a value the statement binds (a plan's parameters, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
+     *  §9, step 2's landing 2). */
+    Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
+            List<com.legend.sql.SqlExpr.PlanParam> slots) {
         List<TypedSpec> b = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(
                 new java.util.ArrayList<>(body()));   // Phase G½
         boolean temporalRoot = com.legend.compiler.element.Temporal.anyTemporalGetAll(b, ctx);
@@ -119,6 +127,9 @@ public final class TypedQuery {
         }
         if (streaming) {
             planLw = planLw.withStreamingGraphRoot();
+        }
+        for (com.legend.sql.SqlExpr.PlanParam slot : slots) {
+            planLw.bindPlanParam(slot);
         }
         return new Compiler.LoweredQuery(planLw.lower(b), root, ctx);
     }

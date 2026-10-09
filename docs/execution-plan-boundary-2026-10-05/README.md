@@ -21,6 +21,7 @@ java -cp h2-2.1.214.jar          BindProbe.java jdbc:h2:mem:p
 java -cp postgresql-42.7.13.jar  BindProbe.java jdbc:postgresql://localhost:55432/postgres postgres ""
 java -cp <driver>                EnumIndex.java <url> <user> <password>
 java -cp <driver>                TypingProbe.java <url> <user> <password>
+java -cp <driver>                LiteralProbe.java <url> <user> <password>
 ```
 
 - `BindProbe.java` → `bind-results.txt`: a value passed to the database as a value, not pasted into the SQL — a
@@ -48,6 +49,15 @@ F1 is the one form that uses the index on all three and is right for a value sto
   positions with the placeholder cast. Every one answers on all three databases when the JDBC call carries the value's
   type (`setLong`, `setString`, `setBigDecimal`, `setObject(LocalDate)`, `setNull(i, Types.VARCHAR)`), so a plan's
   statement writes `?` without a cast and the runner binds each value by its declared type.
+- `LiteralProbe.java` → `literal-results.txt` (2026-10-09, slice (b)): a bound value against the literal a `let`
+  writes today, for each Pure primitive, in arithmetic with a column (a number) or compared with one, and projected in a
+  subquery and read outside (the wire's cell): the literal, the value bound bare, the value bound in a cast; then a
+  decimal beside an integer column, and H2's casts of a decimal. DuckDB and Postgres type a bare `?` by the bound value,
+  every type answering as its literal (a Float bound as a decimal: as a double, `PRICE * ?` answers
+  `1.6500000000000001`). H2 types a parameter when it prepares the statement — by its neighbour (`ID * ?` with 1.5
+  answers `[2, 6]`) or not at all when it stands alone (the eight `FAIL` lines, `Unknown data type`) — so it takes a
+  typed placeholder, exact for every type but a decimal, whose literal is typed by its own digits: no cast keeps a
+  value's own scale (`NUMERIC` rounds, `NUMERIC(38,2)` pads, `DECFLOAT` drops trailing zeros). PARK-19.
 
 ## `sharing/` — when two runs may share an in-memory database (2026-10-08)
 

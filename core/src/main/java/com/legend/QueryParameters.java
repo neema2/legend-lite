@@ -50,6 +50,32 @@ public final class QueryParameters {
                     enumMapFn);
         }
 
+        /** The lite plan's slot for one value of a primitive type: the value the statement binds where the parameter
+         *  is used, typed as a literal of its declared type is (Integer {@code BIGINT}, String {@code VARCHAR}, ...),
+         *  which a dialect that types a placeholder writes. A Float's, a Decimal's, a Date's and a Number's is unknown:
+         *  a literal decimal's type is its own digits', a Date's or a Number's value decides its kind
+         *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2). */
+        public com.legend.sql.SqlExpr.PlanParam slot() {
+            if (!(type instanceof Type.Primitive primitive)) {
+                throw new IllegalArgumentException("parameter '" + name + "' (" + type.typeName() + "): a parameter's"
+                        + " value is a plain value -- a primitive, an enumeration's value, or a list of them");
+            }
+            com.legend.sql.TypeFact literal = switch (primitive) {
+                case INTEGER -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.BIGINT);
+                case STRING -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR);
+                case BOOLEAN -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.BOOLEAN);
+                case STRICT_DATE -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.DATE);
+                case DATE_TIME -> com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.TIMESTAMP);
+                // a decimal literal's type is its own digits'; a Date's value is a StrictDate or a DateTime, a Number's
+                // an Integer, a Float or a Decimal: no one type is the literal's
+                case FLOAT, DECIMAL, DATE, NUMBER -> com.legend.sql.SqlTyping.UNKNOWN;
+                case BYTE, LATEST_DATE, STRICT_TIME -> throw new com.legend.error.NotImplementedException("parameter '"
+                        + name + "' (" + type.typeName() + "): a value of this type is not bound yet");
+            };
+            return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type), optional(),
+                    null, literal);
+        }
+
         /** The lite plan's declaration: the type's Pure name, the multiplicity's bounds and, for an enumeration, the
          *  names a value may take — what the runner checks a caller's value against, with no model. */
         public ExecutionPlan.Parameter declaration(ModelContext ctx) {

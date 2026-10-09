@@ -108,7 +108,11 @@ class ParkedWorkLedgerTest {
             // IR not telling a query's explicit emptyFirst()/emptyLast() from pure's own null order
             Map.entry("PARK-18 the legacy printer cannot write an explicit null placement",
                     new Anchor("protected String aggOrderNullPlacement\\(com\\.legend\\.sql\\.SqlSelect"
-                            + "\\.SortKey k\\) \\{\\s*return \"\";", List.of("EngineStyleH2.java")))));
+                            + "\\.SortKey k\\) \\{\\s*return \"\";", List.of("EngineStyleH2.java"))),
+            // PARK-19 (2026-10-09, step 2's landing 2 slice (b)): H2 types a parameter when it prepares the statement,
+            // and a Float's, Decimal's, Date's or Number's literal has no one type a statement names
+            Map.entry("PARK-19 on H2, a parameter whose literal has no one type is not bound",
+                    new Anchor("has no one type a statement names", List.of("H2.java")))));
 
     private record Anchor(String pattern, List<String> files) {
     }
