@@ -236,6 +236,12 @@ public final class PureV1Api {
         });
     }
 
+    /**
+     * The {@code renderStyle} query parameter, PRETTY unless asked. Recorded differences: legend-engine's
+     * {@code PRETTY_HTML}, which lite does not print, is refused in the engine's error shape, 500; and a value that is no
+     * style at all is refused so too, where the engine's JAX-RS answers 404 before its resource runs (found by leg 4's
+     * audit, 2026-10-09).
+     */
     private static PureComposer.Style style(@com.legend.base.Nullable String renderStyle) {
         if (renderStyle == null || renderStyle.isEmpty() || "PRETTY".equals(renderStyle)) {
             return PureComposer.Style.PRETTY;

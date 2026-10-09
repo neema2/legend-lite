@@ -70,10 +70,12 @@ export function unfold(answer: string): string {
 /**
  * A `fetch` that answers legend-engine's pure/v1 requests in the tab: each is routed by the planner's `pureV1OrError`,
  * the code legend-lite's server answers them with, its status, media type and body made a Response. An HttpEngine
- * over it asks and is answered exactly as over the network. The planner itself failing rejects, as a network does.
+ * over it asks and is answered exactly as over the network, a refusal included. The planner itself failing (its
+ * folded `ERR` answer) rejects with the EngineError `unfold` makes of it; an aborted request rejects with its reason.
  */
 export function plannerFetch(port: PlannerPort): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    init?.signal?.throwIfAborted();
     const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const url = new URL(href, 'http://planner.invalid');
     const body = init?.body;
@@ -81,8 +83,12 @@ export function plannerFetch(port: PlannerPort): typeof fetch {
       throw new TypeError('the planner answers a pure/v1 request with a text body only');
     }
     const answer = unfold(await port.ask({ kind: 'pureV1', path: url.pathname, query: url.search.slice(1), body: body ?? '' }));
+    init?.signal?.throwIfAborted();
     const first = answer.indexOf('\n');
     const second = answer.indexOf('\n', first + 1);
+    if (first < 0 || second < 0) {
+      throw new EngineError(`the planner answered a pure/v1 call in no form it has: ${JSON.stringify(answer.slice(0, 120))}`, 500);
+    }
     return new Response(answer.slice(second + 1), {
       status: Number(answer.slice(0, first)),
       headers: { 'Content-Type': answer.slice(first + 1, second) },

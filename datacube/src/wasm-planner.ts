@@ -627,6 +627,11 @@ function readsHow(how: ModelOptions): Partial<WasmPlannerOptions> {
 function pureV1Body(answer: string, subject: Lambda | string): string {
   const first = answer.indexOf('\n');
   const second = answer.indexOf('\n', first + 1);
+  if (first < 0 || second < 0) {
+    throw new PlannerUnavailableError(
+      `the planner module returned an unrecognised pure/v1 answer: ${JSON.stringify(answer.slice(0, 120))}`,
+    );
+  }
   const body = answer.slice(second + 1);
   if (answer.slice(0, first) === '200') return body;
   let message = body;

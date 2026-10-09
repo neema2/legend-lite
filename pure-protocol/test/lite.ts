@@ -32,11 +32,14 @@ function load(): Promise<Module> {
 /** One pure/v1 call's body (`OK\n<status>\n<type>\n<body>`), refused unless it is a 200. */
 function pureV1(m: Module, path: string, query: string, body: string): string {
   const answer = m.exports.pureV1OrError(path, query, body);
-  const [ok, status] = answer.split('\n', 2);
-  if (ok !== 'OK' || status !== '200') throw new Error(answer);
   const first = answer.indexOf('\n');
   const second = answer.indexOf('\n', first + 1);
-  return answer.slice(answer.indexOf('\n', second + 1) + 1);
+  const third = answer.indexOf('\n', second + 1);
+  if (first < 0 || second < 0 || third < 0
+      || answer.slice(0, first) !== 'OK' || answer.slice(first + 1, second) !== '200') {
+    throw new Error(answer);
+  }
+  return answer.slice(third + 1);
 }
 
 /** E1: Pure text as lambda JSON, exactly as lite's parser writes it (no source information). */

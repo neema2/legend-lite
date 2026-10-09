@@ -136,7 +136,7 @@ final class MappingComposer {
             case Protocol.PClassMappingMergeOperation m -> operation("MERGE", m.parameters(), m.validationLambda(), style);
             case Protocol.PClassMappingAggregationAware a -> aggregationAware(a, style);
             case Protocol.PClassMappingRelation r -> relationFunction(r, level, style);
-            case Protocol.PClassMappingRel r -> RelationalMappingComposer.classMapping(r, style);
+            case Protocol.PClassMappingRel r -> RelationalMappingComposer.classMapping(r);
             case Protocol.PServiceStoreClassMapping s -> ServiceStoreComposer.classMapping(s);
             case Protocol.PClassMappingMongoDb m -> MongoComposer.classMapping(m);
             case Protocol.PClassMappingFunction f ->
@@ -301,8 +301,7 @@ final class MappingComposer {
             }
             case Protocol.PModelJoinAssociationMapping m -> m.association().path() + mappingId(m.id()) + ": ModelJoin\n"
                     + TAB + "{\n" + tab(2) + Composing.valueSpecification(m.joinCondition(), style) + "\n" + TAB + "}";
-            case Protocol.PRelAssociationMapping r ->
-                    RelationalMappingComposer.associationMapping(r, r.association().path(), style);
+            case Protocol.PRelAssociationMapping r -> RelationalMappingComposer.associationMapping(r, r.association().path());
             case Protocol.PFunctionAssociationMapping f ->
                     throw Composing.refused("no composer rule for an association mapping of _type 'functionAssociation'");
         };

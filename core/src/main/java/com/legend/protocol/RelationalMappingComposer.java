@@ -21,8 +21,9 @@ final class RelationalMappingComposer {
     private RelationalMappingComposer() {
     }
 
-    static String classMapping(Protocol.PClassMappingRel cm, PureComposer.Style style) {
-        RelationalOperations ops = RelationalOperations.mapping("", style);
+    /** The same in every render style: a mapping's relational context is STANDARD ({@link RelationalOperations#mapping}). */
+    static String classMapping(Protocol.PClassMappingRel cm) {
+        RelationalOperations ops = RelationalOperations.mapping("");
         StringBuilder b = new StringBuilder(": Relational\n").append(TAB).append("{\n");
         Protocol.PFilterMapping filter = cm.filter();
         if (filter != null) {
@@ -60,8 +61,9 @@ final class RelationalMappingComposer {
                 .append(String.join(",\n", out)).append("\n").append(tab(2)).append(")\n");
     }
 
-    static String associationMapping(Protocol.PRelAssociationMapping am, String association, PureComposer.Style style) {
-        RelationalOperations ops = RelationalOperations.mapping("", style).indented(6);
+    /** The same in every render style, as {@link #classMapping}. */
+    static String associationMapping(Protocol.PRelAssociationMapping am, String association) {
+        RelationalOperations ops = RelationalOperations.mapping("").indented(6);
         List<String> lines = new ArrayList<>();
         for (Protocol.PRelAssocPropertyMapping pm : am.propertyMappings()) {
             // an association's side prints its source set id: renderSourceId

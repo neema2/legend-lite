@@ -34,9 +34,13 @@ record RelationalOperations(String indentation, @com.legend.base.Nullable String
     private static final Set<String> BOOLEAN = Set.of("and", "or");
     private static final String GROUP = "group";
 
-    /** A mapping's context: no current database, dyna functions by name. */
-    static RelationalOperations mapping(String indentation, PureComposer.Style style) {
-        return new RelationalOperations(indentation, null, true, style);
+    /**
+     * A mapping's context: no current database, dyna functions by name, and STANDARD in every model -- upstream builds it
+     * with {@code RelationalGrammarComposerContext.Builder.newInstance(PureGrammarComposerContext)}, which copies the
+     * indentation and not the render style.
+     */
+    static RelationalOperations mapping(String indentation) {
+        return new RelationalOperations(indentation, null, true, PureComposer.Style.STANDARD);
     }
 
     RelationalOperations indented(int count) {
