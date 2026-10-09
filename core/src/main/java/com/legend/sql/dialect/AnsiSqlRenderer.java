@@ -492,11 +492,6 @@ public class AnsiSqlRenderer implements SqlDialect {
                 parentPrec);
     }
 
-    /** An expression as text, for a method that still builds a string (E's bridge): a bound parameter is refused. */
-    protected final String expr(SqlExpr e, int parentPrec) {
-        return newWriter().expr(e, parentPrec).bridged();
-    }
-
     /** An expression, written: a leaf is spelled as text; a sub-expression is written into the same writer, so a
      *  parameter anywhere below is bound where its placeholder is written. */
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
@@ -1382,18 +1377,17 @@ public class AnsiSqlRenderer implements SqlDialect {
     public String render(com.legend.sql.SqlDml dml) {
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> {
-                StringBuilder sb = new StringBuilder("INSERT INTO ")
-                        .append(ddlQualified(iv.schema(), iv.table()))
+                SqlWriter writer = newWriter().append("INSERT INTO ").append(ddlQualified(iv.schema(), iv.table()))
                         .append(dmlColumns(iv.columns())).append(" VALUES ");
                 for (int r = 0; r < iv.rows().size(); r++) {
-                    sb.append(r == 0 ? "(" : ", (");
-                    java.util.List<com.legend.sql.SqlExpr> row = iv.rows().get(r);
-                    for (int c = 0; c < row.size(); c++) {
-                        sb.append(c == 0 ? "" : ", ").append(expr(row.get(c), 0));
-                    }
-                    sb.append(')');
+                    writer.append(r == 0 ? "(" : ", (").list(iv.rows().get(r)).append(")");
                 }
-                yield sb.append(';').toString();
+                RenderedStatement insert = writer.append(";").statement();
+                if (!insert.binds().isEmpty()) {
+                    throw new DialectCapability("plan parameters " + insert.binds() + " in a DML row: a row holds"
+                            + " values, and a DML statement is text");
+                }
+                yield insert.sql();
             }
             case com.legend.sql.SqlDml.InsertFromTable it -> "INSERT INTO "
                     + ddlQualified(it.schema(), it.table()) + dmlColumns(it.columns())

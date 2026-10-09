@@ -166,11 +166,11 @@ class SqlWriterTest {
     }
 
     @Test
-    void aParameterUnderAPartStillBuiltAsTextIsRefused() {
-        // a DML statement's rows are still built as text (E's bridge, until its stage moves them)
+    void aParameterInADmlRowIsRefused() {
+        // a row holds values; a DML statement is text, with no parameters to bind
         var rows = new com.legend.sql.SqlDml.InsertValues(null, "T_PERSON", List.of("NAME"), List.of(List.of(P_NAME)));
         var refused = assertThrows(DialectCapability.class, () -> new DuckDb().render(rows));
-        assertTrue(refused.getMessage().contains("still built as text"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("in a DML row"), refused.getMessage());
     }
 
     @Test
