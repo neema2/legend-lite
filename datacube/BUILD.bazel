@@ -138,6 +138,8 @@ _EXTRA_ENV = {
     "bundle-budget": {
         "BUNDLE": "$(rlocationpath :demo/bundle.js)",
         "ENGINE_BUNDLE": "$(rlocationpath :demo/bundle-engine.js)",
+        "WIDGET": "$(rlocationpath :demo/widget.js)",
+        "WIDGET_LOADER": "$(rlocationpath :demo/widget-loader.js)",
     },
     # every dictionary version in the tree, and the next one's name: each version needs its hash pinned, and the
     # next one is not cut yet
@@ -158,7 +160,15 @@ _DUCKDB_USERS = ["duckdb", "group-derived", "saved-queries", "sorting", "treevie
 # entry points too (they ship), so they are declared, not assumed.
 _EXTRA_DATA = {
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
-    "bundle-budget": [":bundle_bundle", ":bundle_bundle_engine", ":demo/bundle-engine.js", ":demo/bundle.js"],
+    "bundle-budget": [
+        ":bundle_bundle",
+        ":bundle_bundle_engine",
+        ":demo/bundle-engine.js",
+        ":demo/bundle.js",
+        ":demo/widget-loader.js",
+        ":demo/widget.js",
+        ":widget",
+    ],
     # the saved queries Query writes, and the project they compile against
     "saved-queries": ["//fixtures/saved-queries:records", ":projects"],
     # the in-memory source the Ad Hoc Analysis tests query
@@ -655,7 +665,10 @@ py_binary(
     # where the compiler's library and the Python wheels exist (//python's tests: the same platforms); elsewhere it is
     # skipped as incompatible, never analysed against a wheel there is none of (CI's A25 analysis, the product step)
     target_compatible_with = compatible_with(COMPILER_LIBRARY_PLATFORMS),
-    deps = ["//python:legend_lite"],
+    deps = [
+        "//python:legend_lite",
+        "//python:notebook",
+    ],
 )
 
 # legend-engine's own Arrow answer, recorded in core (upstream-api/): a file of this package, as rules_js's tests take
@@ -730,9 +743,55 @@ _UNSPLIT = ["src/planner-worker.ts"]
     ]),
 ) for entry, out in _BUNDLES.items()]
 
+# A NOTEBOOK'S CUBE (legend_lite.notebook.DataCube; docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md, "In a notebook"):
+# anywidget's script, a small loader (widget-loader.js), and DataCube's module, which the loader fetches over the
+# widget's channel once per notebook page: widget.js, one file with no lazy chunks (a module imported from a blob URL
+# loads none beside it), minified with its names kept, and widget.css, DataCube's styles (in the notebook's own type).
+esbuild_bundle(
+    name = "widget_loader",
+    srcs = ["demo/widget-loader.ts"],
+    outs = ["demo/widget-loader.js"],
+    args = [
+        "demo/widget-loader.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=demo/widget-loader.js",
+    ],
+)
+
+esbuild_bundle(
+    name = "widget",
+    srcs = [
+        "demo/engine-cube.ts",
+        "demo/widget.ts",
+        "demo/widget-loader.ts",
+        "demo/widget-styles.css",
+        ":src",
+    ] + glob(["src/**/*.css"]),
+    outs = [
+        "demo/widget.css",
+        "demo/widget.js",
+    ],
+    args = [
+        # two entry points, both named widget: the module (widget.js) and its styles (widget.css)
+        "widget=demo/widget.ts",
+        "widget=demo/widget-styles.css",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--minify",
+        "--keep-names",
+        "--log-level=warning",
+        "--outdir=demo",
+    ],
+)
+
 # THE BUNDLES DATACUBE SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the app, the embeddable page, the
-# page of one cube on an engine (engine.html: Python's engine serves it) and the planner's worker. remote-bundle and
-# stress are fixtures of their harnesses (verify_remote, run_stress), not product: they leave the site with D5.
+# page of one cube on an engine (engine.html: Python's engine serves it), a notebook's cube (the widget's loader and
+# DataCube's module) and the planner's worker. remote-bundle and stress are fixtures of their harnesses (verify_remote,
+# run_stress), not product: they leave the site with D5.
 filegroup(
     name = "bundles",
     srcs = [
@@ -740,6 +799,8 @@ filegroup(
         ":bundle_bundle_engine",
         ":bundle_bundle_page",
         ":bundle_planner_worker",
+        ":widget",
+        ":widget_loader",
     ],
     visibility = ["//:__pkg__"],
 )
@@ -804,7 +865,12 @@ filegroup(
         "demo/*.json",
         "demo/*.pure",
         "src/**/*.css",
-    ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [":vendor", ":projects"],
+    ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [
+        ":projects",
+        ":vendor",
+        ":widget",
+        ":widget_loader",
+    ],
 )
 
 # Where a harness finds the site (harness.siteRoot): one of its files by runfiles path, never the harness's own

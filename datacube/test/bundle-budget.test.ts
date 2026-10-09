@@ -47,6 +47,13 @@ const BUDGET = 352_000;
  *  (288,876 bytes) and the app's headroom (about 4%), so its growth is a decision too. */
 const ENGINE_BUDGET = 300_000;
 
+/** A notebook's cube (legend_lite.notebook.DataCube): DataCube's module and its styles (widget.js, widget.css),
+ *  gzipped, which the widget's loader fetches over the kernel's channel once per notebook page. Set 2026-10-08 at its
+ *  first measure (461,746 bytes: ECharts within, as the module is one file) and about 4% headroom. And the loader
+ *  itself, which anywidget sends with every widget: small. */
+const WIDGET_BUDGET = 480_000;
+const LOADER_BUDGET = 10_000;
+
 describe('the page loads ECharts only when a chart draws', () => {
   it('no file the page loads at startup contains ECharts', () => {
     const files = startup();
@@ -76,5 +83,34 @@ describe('the page loads ECharts only when a chart draws', () => {
     const size = files.reduce((sum, f) => sum + gzipSync(readFileSync(f)).length, 0);
     assert.ok(size <= ENGINE_BUDGET,
       `the engine page's script is ${size.toLocaleString()} bytes gzipped, over its budget of ${ENGINE_BUDGET.toLocaleString()}`);
+  });
+});
+
+describe('a notebook\'s cube is one module, fetched once, and its loader small', () => {
+  const module = runfileFromEnv('WIDGET');
+  const styles = join(dirname(module), 'widget.css');
+
+  it('the module imports nothing beside itself: a module imported from a blob URL can load no chunk', () => {
+    const text = readFileSync(module, 'utf8');
+    assert.deepEqual([...text.matchAll(/\bimport\s*\(\s*["'`]\.|\bfrom\s*["']\./g)].map((m) => m[0]), []);
+  });
+
+  it(`the module and its styles are at most ${WIDGET_BUDGET.toLocaleString()} bytes gzipped, with no DuckDB-WASM`, () => {
+    const text = readFileSync(module, 'utf8');
+    assert.ok(!text.includes('duckdb-browser'), 'the notebook cube runs nothing in the page: no DuckDB-WASM');
+    const size = gzipSync(readFileSync(module)).length + gzipSync(readFileSync(styles)).length;
+    assert.ok(size <= WIDGET_BUDGET,
+      `a notebook cube's module is ${size.toLocaleString()} bytes gzipped, over its budget of ${WIDGET_BUDGET.toLocaleString()}`);
+  });
+
+  it('its styles fetch nothing: a notebook page has no site to fetch a font or an image from', () => {
+    const css = readFileSync(styles, 'utf8');
+    assert.ok(css.includes('.dc-grid'), 'DataCube\'s styles');
+    assert.ok(!/url\((?!data:)|@font-face/.test(css), 'no font or image fetched by URL');
+  });
+
+  it(`the loader anywidget sends with every widget is at most ${LOADER_BUDGET.toLocaleString()} bytes`, () => {
+    const size = readFileSync(runfileFromEnv('WIDGET_LOADER')).length;
+    assert.ok(size <= LOADER_BUDGET, `the loader is ${size.toLocaleString()} bytes, over its budget of ${LOADER_BUDGET.toLocaleString()}`);
   });
 });

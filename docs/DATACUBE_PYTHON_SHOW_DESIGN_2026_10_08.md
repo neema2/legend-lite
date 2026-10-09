@@ -13,7 +13,8 @@ df.loc[0, "qty"] = 5         # an in-place change: the cube shows it on its next
 cube.update(new_df)          # a NEW frame (rebinding `df` does not reach the cube)
 ```
 
-Later, in a notebook: `DataCube(df)`, the same thing over the notebook's own channel.
+In a notebook the same `ll.show(df)` puts the cube under the cell, and `ll.DataCube(df)` is that cube as a widget
+object (below, "In a notebook").
 
 ## The shape
 
@@ -134,6 +135,68 @@ output, saved with the notebook, a token dead once the kernel ends.
   all 58 engine operations of `datacube/demo/engine-cases.mjs` (2026-10-08); the only feature that mode refuses is Snap
   into the tab, by design.
 
+## In a notebook: the cube under the cell (step 7)
+
+Agreed with the user (2026-10-08): one call that adapts, as notebook libraries do, and the widget object for anyone
+composing layouts.
+
+```python
+cube = ll.show(df)        # in a notebook: the cube appears under the cell; elsewhere, a browser tab
+cube.update(new_df)       # the same handle as in a script: update, refresh, close
+ll.DataCube(df)           # the cube as a widget object (an ipywidgets layout takes it)
+```
+
+- **Where it shows.** In a notebook's kernel `show()` puts the cube in the cell's output; anywhere else it opens a
+  tab, as before. `show(df, inline=False)` opens a tab from a kernel too: a console that runs a kernel but shows no
+  widgets (Spyder's, qtconsole) needs it. `cube.close()` takes the cube out of the output.
+- **One copy under the cell.** `show()` displays the cube itself, so `cube = ll.show(df)` shows it. When `show()` is
+  the cell's last line, Jupyter would display the handle it returns as well; it does not, in the cell `show()` ran in.
+  The handle typed in a later cell shows the cube again, as any widget does.
+- **The extra.** The widget is built on anywidget, the standard base for a notebook widget that needs no notebook
+  extension of its own. It is optional: `pip install 'legend-lite[notebook]'`. `show()` in a kernel without it says
+  so, naming that line. A script never loads it.
+
+**How the cube reaches Python: the widget's own channel, not HTTP.** A notebook page talks to its kernel over Jupyter's
+widget channel, which Jupyter already authenticates. The cube's calls go over it as messages. That works the same for a
+notebook on this machine, a remote JupyterHub, VS Code or Colab, where the browser cannot reach the kernel machine's
+127.0.0.1. No web server is started and no port opened. A call is the HTTP request it stands for: `{id, method,
+path, query, body}`. Its answer is `{id, status, type, headers}`, with the body as one binary buffer (Arrow stays
+binary). The paths are the same: `pure/v1`, `cube.json`, the site's files.
+
+**One engine, two ways to reach it.** The engine's answers are one function, `Engine.answer(method, path, query,
+body)`, with no transport in it. `WebServer(engine)` serves it over HTTP to a browser tab, adding what HTTP needs: the
+token, the `Host` check, the body limit. The widget sends it its channel's messages. A call that needs the compiler is
+answered on the compiler's threads either way. Each call waits on a thread of its own: a connection's thread for HTTP,
+one per message for the widget. So the kernel's main thread never waits on a query.
+
+**Following the frame.** The frame's version is a widget property (`version`), which Python sets when the frame
+changes; the cube reads `cube.json` again when it moves, as the tab does after `version.json`. There is no polling.
+While a cell runs, the cube waits: the kernel reads widget messages between cells, as every notebook widget does.
+
+**Loading DataCube into the notebook page once.** anywidget sends a widget's script with every widget and imports it
+afresh each time (read in anywidget 0.11.0's own front end). DataCube as one file is 1.3 MB minified (measured
+2026-10-08). So the widget's script is a small loader (`widget-loader.js`). It fetches DataCube's module (`widget.js`,
+`widget.css`) over the widget's channel once per notebook page, keyed by the module's hash (a widget property), and
+every later cube reuses it. The module is one file, with no lazy chunks: a module imported from a blob URL cannot load
+a chunk beside it. It is minified with names kept (`--minify --keep-names`). Its styles are DataCube's own, in the
+notebook's type, as a notebook's widgets are: no font comes with them (DataCube's rules name Roboto first and the
+system's sans-serif after it), since a notebook page has no site to fetch a font from and inlining Roboto would put
+file copies into the shipped build (`//tools/guards:compile_only_test`). The loader adds them to the page once. Every selector in DataCube's styles is scoped to its own classes (checked
+2026-10-08), so the notebook's look does not change. DataCube puts its windows inside its own element
+(`windowHost` defaults to the cube's root), so nothing it opens lands elsewhere on the page.
+
+**Keys.** The cube's keys stay with the cube: it stops a key press at its own element and marks it
+`data-lm-suppress-shortcuts` (JupyterLab's mark), so arrow keys move in the grid, not between cells.
+
+**Held by.** Python tests of the widget's messages, answered by the engine (anywidget pinned for the tests). The
+browser test (`//datacube:python_engine_test`) loads the loader and the module in the pinned Chromium, with a stand-in
+for the notebook's widget model whose messages reach the real Python widget: two cubes on one page fetch the module
+once, the frame's rows show, no call goes over HTTP, an update shows by itself, and a key stays with the cube. The
+budget test holds the module as one file with no DuckDB-WASM (461,746 bytes gzipped with its styles at its first
+measure, budget 480,000) and the loader under 10 KB. And a manual check in a real JupyterLab (4.6.4, anywidget 0.11.0), recorded with
+its script and results in `docs/datacube-python-show/jupyterlab-check/`. Whether to run JupyterLab in a test is open
+(the user's call): it brings about 70 packages.
+
 ## Order
 
 Built so far (2026-10-08, branch `datacube-show`): 1, the engine (it also serves a site, so the page and the API are one
@@ -163,8 +226,11 @@ the compiler's library (`_native/`) and DataCube's engine page alone (`_site/`: 
 16.5 MB; settled with the user (2026-10-08): macOS 14 and up (the library's minimum pinned in its build, where it had
 followed the build machine's SDK), Python 3.12 and up (what it is tested on), Linux labelled by the glibc the library is
 measured to need. Held by `//python:wheel_test`: the tag against the library's own header, and the wheel installed
-into a fresh environment offline, `show()` and a query run from it alone. Left for later: the notebook widget,
-publishing to PyPI (the user's decision), Windows.
+into a fresh environment offline, `show()` and a query run from it alone. 7, the cube in a notebook (branch
+`datacube-widget`; above, "In a notebook"): `Engine` is the answers with no transport and `WebServer` serves it to a
+tab; `legend_lite/notebook.py`'s `DataCube` widget carries the cube's calls over the widget's channel; `show()` puts the
+cube under the cell in a notebook's kernel; the wheel's `notebook` extra (anywidget) and its three files in `_site/`.
+Left for later: publishing to PyPI (the user's decision), Windows, a notebook's dark theme (the cube stays light).
 
 1. The boundary's builders; the Python server; its Python tests.
 2. Arrow in DataCube's remote client.
