@@ -6764,6 +6764,113 @@ properties and `getDynaFunctionTypeInferenceMap` now type), `reference typed, we
 73103, `OVERLOAD` 769 → 745 (the six `[1..*]` classes gone); two new `EXTRA` classes (`math::min` 6, `math::max` 1)
 fall under the `EXTRA *` reason.
 
+## 2026-10-08 — D24 (1): the inliner substitutes through TypedSubst; one substitution engine for the typed tree, the inliner's capture machinery deleted
+
+The compiler plan's D24 cleanup, first slice (the plan's Now line since 2026-10-04; the homework
+`docs/plan-audit-2026-09-26/d24-one-substitution-engine-2026-10-08.md`, §2 item 1, §3, §3b, §4). Landed as [[SHA]]
+(branch `compiler/d24-one-subst`; run [[RUN]] ([[TIMES]]): [[CI_RESULT]]).
+
+**What it was.** Two engines substituted over the typed tree. `TypedSubst` (W0.6 push 1) is the capture-avoiding
+substitution: exact free variables, a binder renamed only when a term substituted beneath it has its name free, to a
+deterministic `b_<k>`. `UserCallInliner` carried its own: a substitution environment threaded through its reduction
+walk (`rewrite(node, env)`), and because substitution and reduction were interleaved, every binder met under a
+non-empty environment asked `bind` whether a term substituted beneath it MENTIONED its name (`namesIn`: free or bound,
+the conservative set) and renamed it `_i<N>` from a counter seeded by scanning the query for user-written `_i`
+names (`reserveFreshNames`, `bumpPast`); the hazard set was pushed and popped around every β site (`captureRisk`,
+`pushRisk`, `pushNames`, `popRisk`, `underSubst`, `underNames`). The probe (§3): over the stress corpus's 4,736 service
+tests the inliner renamed 0 binders and no rendered SQL text held an `_i<N>` name.
+
+**What changed.** The inliner substitutes once, up front, at every β site — `inlineBody`'s query lets, `inlineCall`'s
+parameters, `reduceStatements`' forward lets, `reduceEval`, the dispatched match arms, the literal unroll's per-element
+lambdas (map, filter, fold, groupBy), the map-over-[1] arm — through `TypedSubst.apply(body, env)`, and the walk
+reduces the substituted tree with no environment: `rewrite(node)` keeps every reduction (open a call, dispatch a match,
+reduce an eval, the hook, the recursion wall, the unroll budget, the `bound` bookkeeping the hook's shadow guard reads)
+and loses every `env` parameter. Deleted: `captureRisk`, `pushRisk`, `pushNames`, `popRisk`, `underSubst`,
+`underNames`, `bind`, `namesIn`, `fresh`, `reserveFreshNames`, `bumpPast`, the `TypedVariable` arm, the two-branch
+`lambda` and the environment check of the `TypedLet` arm. The inliner goes from 1,625 to 1,460 lines; `core/src/main`
+loses 126 lines net (rule 0b.17).
+
+**Two things the homework did not foresee, found in the code.** (1) The old environment lookup spliced a bound term
+WITHOUT walking it: a variable read yielded the reduced argument as it stood. A substituted tree walked naively would
+re-enter every spliced term — re-attempting a standing call (a recursion wall's, a subsumed program's, a config
+property's) one level further out at each enclosing β site, and spending the unroll budget again on each attempt. So
+the inliner keeps the identity of the terms its open β sites bound (`reducedTerms`, an identity map with counts,
+scoped to the site: `Scope` closes with its try) and `rewrite` returns such a term as it stands: no node is rewritten
+twice, exactly as before. The free variables of a bound term are read once when it is bound, and the fold arm keeps
+its incremental free-variable trick through a `TypedSubst.apply(body, env, knownFree)` overload. (2) The old inliner
+never substituted into execute()'s runtime argument (its execute arm kept the third argument verbatim: the statement
+executor reads that argument in its SOURCE form, a let's name resolved through the query's lets — orchestration
+position), so `TypedSubst` leaves it as spelled too, the renames of binders above it still followed inside; the one
+predicate both use is `NativeFn.Handle.orchestrationArgument`, with two unit tests (`FreeVarsTest`).
+
+**What two audit passes found, fixed before the measurement.** First pass (one blocker, five should-fix): the
+higher-order map arm detected "a lambda the walk revealed" by comparing the argument before and after the walk, which
+the up-front substitution made always-false — the guard is now the lambda after the walk alone (exact: the typer never
+mints a plain `map` call over a literal lambda, `MapChecker`), tested with a lambda bound to a parameter and one
+returned by a call (`UserCallInlinerTest.higherOrderMap`); the identity set leaked across β sites (callee bodies are
+memoised, so a node reduced unchanged in one context was skipped in the next) — scoped now; `ExecuteChainAssembly`
+bound an α-renamed `executeLegendQuery` lambda by position only for `_i` names — it binds by the binder's source
+name now, one rename suffix at a time; the execute arm of `TypedSubst` dropped the renames of binders above the
+runtime argument — kept; five stale comments. Second pass (no blocker, three should-fix, all taken). Declared, not
+foreseen: a rebuilt lambda keeps its `quoted` flag (the old three-argument constructor reset it; only the inliner reads
+it); a user-written `x_1` parameter beside a vars pair `x` now binds where the engine would refuse (the rename spelling
+has no reserved namespace, by push 1's design); `MatchFold`, which also substitutes through `TypedSubst`, leaves
+execute's runtime argument alone too (unreachable in SQL lowering).
+
+**What the render census found, after the audits.** Every unit suite green and two audits done, the census's first
+"after" run still differed from main's in 57 of 52,112 (lane, dialect, kind, text) entries and the DuckDB corpus lost
+two tests. Three kinds of difference, and two corpus findings:
+
+- *The expected renaming.* In `//gates:core`'s capture tests the old `_i0`/`_i1` binders spell `x_1`, `x_2`, `a_1`,
+  `y_1`, `n_1` now (21 entries, pairs): the same programs, the binders named by TypedSubst's rule; nested unrolled
+  levels each pick `a_1` and shadow correctly (the inner body reads only its own binder), which the DuckDB results
+  confirm. Two entries are the new unit test's own SQL (`WHERE t0.AGE * 2 > 80`, rendered three times instead of
+  once).
+- *Instance ids shift by one in `//pct:pct_channel_b`'s fold tests* (12 entries, six pairs identical but for
+  `'__id': 'i6'` becoming `'i5'`): a lambda inside an inlined body that nothing changed keeps its identity now, where
+  the old walk rebuilt it under any non-empty environment; the instance-id site key is the node (F13), so one fewer
+  distinct node is minted. All five channel-B tests pass both ways. The identity key per node is the W1.5 open item
+  (`NavReducer`'s identity-hash temporaries) in another spelling, noted there.
+- *The actual's type for a variable argument* — the digest test above, in "Measured".
+- *A subquery spliced into a predicate disabled the execute's own context*
+  (`meta::relational::graphFetch::tests::simple::testObjectReferenceInUsingResultReferences`, lost, then fixed). The
+  test executes a graph fetch, reads its object references, and runs a second execute whose filter reads them
+  (`$p->objectReferenceIn($referenceSubset)`). The old hook saw the second `execute($query2, ...)` with its arguments
+  still VARIABLES and re-derived the query from the unreduced let prefix, so the first execute stayed a plain
+  `execute(...).values` call inside the predicate; the new hook sees the reduced lambda, in which the first execute's
+  result is already its spliced chain, `TypedFrom(serialize(...), mapping, runtime)` — and
+  `ExecuteChainAssembly.containsTypedFrom`, which walked the whole chain, took that nested `->from` for the query's
+  own and left the outer chain unwrapped: `Person.all()` resolved under the environment's default runtime
+  (`rcorpus::Rt`, no mapping for Person). The fix is in the consumer: a `->from` inside a lambda is a subquery's own
+  context, never the chain's (`containsTypedFrom` stops at lambdas). The test passes; the spliced subquery is the
+  engine's shape (the before-census already carried it as a nested SELECT).
+- *A test that passed by an accident of the old order* (`meta::relational::tests::map::testSubAggregationMultiLevelJoinString`,
+  the one roster move, with this reason). Its second execute, `Firm.all().employees.lastName->joinStrings(',')`, has
+  no engine-style activity SQL: the H2-style renderer refuses `STRING_AGG` over that chain ("collection reduction
+  'STRING_AGG' reached a dialect without a list encoding"), so the hook's fold of `sqlRemoveFormatting($result2)` at
+  the call returns nothing, in both orders. The old inliner then offered the hook the helper's body BEFORE
+  substitution — `sqlRemoveFormatting($result, 0)` with the callee's parameter `result`, which happens to be the
+  name of the test's FIRST execute's frame — and the hook folded the wrong frame's SQL; the referee classed the text
+  divergence and the rows verified, so the test "passed". The new order never shows the hook an unsubstituted callee
+  body (the capture the `bound` guard exists for), the fold cannot happen, the body inlines to the activity-rows form
+  whose `.sql` read the resolver walls ("class query under TypedMap"). The true status is the render gap, now on the
+  DuckDB fail roster (108 rows); the ledger row names it (`docs/CORPUS_ZERO_PROGRAM_2026_09_12.md`, cluster G). H2's
+  roster is unchanged.
+
+**Measured.** The render census before (main's code, c51142f4e, after the protocol leg 2 steps 1 to 3 and the DataCube
+landings; the same 53 entries, text for text, against the earlier mains at 51410a85a, 37f102623 and 2b32f6d25) and after (the branch rebased onto it, with the chain fix and the roster move), all eight lanes (core, stress, the four PCT lanes, the two relational corpus lanes), the scope ids
+checked: 52,111 (lane, dialect, kind, text) entries, 53 differ, every one explained above and in the evidence file `docs/build-inventory/program/evidence/compiler/D24_CENSUS_2026_10_08.txt` (the full list): 21 in `//gates:core` (the capture tests' binder names, and the new unit test's own SQL), 12 in `//pct:pct_channel_b` (the instance id shift), 18 in the DuckDB corpus lane and 2 in the H2 corpus lane. Of the corpus entries, 12 are the roster test's statements, which it no longer reaches, and 8 are `meta::pure::tds::tests::extensions::testExtendDigest_Relational`'s digest over a Float column, which now prints by the engine's float spelling (the `CASE WHEN ... floor(...)` form) where the old order printed a plain `CAST(... AS VARCHAR)`: a bare variable passed to a helper now carries the actual's type, Float, like every other argument (the old `TypedVariable` arm kept the parameter occurrence's declared type for variables alone — the second audit's S2); the test passes on both lanes both ways. Every lane's result equal to before's (the one build failure is the census's known `//pure-protocol:twins_test`); the reference lane (`//spec:reference_lane`) green on the branch..
+
+**Not in this slice** (§4, §5): the syntax level's three policies (`AlphaRename`, `StatementInline`,
+`LiteralMapUnroll` over `SourceSubst`) — a second slice after the probe on spliced lets; `resolver/Substitution`
+(W4.3's); `StaticFold`'s folding (W4.2); the must-inline path's re-typing (W3.4); unique variable ids (with the
+middle, per the Now line); the engine-style render of `STRING_AGG` over a scalar reduction (the roster row).
+
+**Checked.** `//core:core_tests_compiler`, `core_tests_lowering`, `core_tests_resolver`, `//core:guardrails`
+(`UserCallInlinerTest`, `InlinerMatchCaptureTest`, `CaptureStressTest`, `FreeVarsTest` among them; three new tests);
+`//spec:corpus_one` on the two corpus tests; two independent audits; the local gate (`//gates:local`) green
+[[LOCAL]]; CI run [[RUN]].
+
 ## 2026-10-08 — W1.5 (a slice): a table reference's columns in declaration order, never a JVM-salted one; the scope id is stable
 
 The compiler plan's W1.5 ("determinism, dumps", a Phase 2 item, one slice of it taken ahead because the cleanup's gate is
