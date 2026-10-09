@@ -119,6 +119,8 @@ final class TailEmitter {
                     ProtocolEmitter.str(b, s.value());
             case Protocol.PConfigValue.PCBoolean bo -> b.append(bo.value());
             case Protocol.PConfigValue.PCInteger i -> b.append(i.value());
+            // written back as read (the engine's own writer leaves a null out, which reads back as the same null)
+            case Protocol.PConfigValue.PCNull nul -> b.append("null");
             case Protocol.PConfigValue.PCStrings ss -> {
                 b.append('[');
                 for (int i = 0; i < ss.values().size(); i++) {
@@ -1622,10 +1624,10 @@ final class TailEmitter {
         }
         b.append(",\"id\":");
         ProtocolEmitter.str(b, t.id());
-        if (t.isTestDataFromServiceOutput() != null) {
-            b.append(",\"isTestDataFromServiceOutput\":")
-                    .append(t.isTestDataFromServiceOutput());
-        }
+        // always written, a null as null: left out it would read back as the engine's true
+        // (SEMANTICS_REGISTER S37: the engine's own writer leaves the null out)
+        b.append(",\"isTestDataFromServiceOutput\":")
+                .append(t.isTestDataFromServiceOutput());
         b.append(",\"sourceInformation\":");
         ProtocolEmitter.srcInfo(b, t.sourceInformation());
         List<Protocol.PPersistenceTestBatch> batches = t.testBatches();

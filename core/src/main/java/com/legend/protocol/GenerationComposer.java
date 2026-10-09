@@ -51,6 +51,7 @@ final class GenerationComposer {
             case Protocol.PConfigValue.PCString s -> quoted(s.value());
             case Protocol.PConfigValue.PCBoolean b -> String.valueOf(b.value());
             case Protocol.PConfigValue.PCInteger n -> Long.toString(n.value());
+            case Protocol.PConfigValue.PCNull nul -> "null";
             case Protocol.PConfigValue.PCStrings l -> {
                 List<String> out = new ArrayList<>();
                 for (String s : l.values()) {

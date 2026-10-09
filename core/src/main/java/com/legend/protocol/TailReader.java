@@ -58,17 +58,18 @@ final class TailReader {
     /**
      * A config value as the engine's {@code ConfigurationProperty.ValueDeserializer} reads it: an integer, a
      * boolean, a list of strings, a map of strings, and anything else as its text -- a string, and also a decimal
-     * (its token as written) or a {@code null} (the text {@code null}). A list or map holding anything but strings the
-     * engine refuses.
+     * (its token as written). A {@code null} never reaches that deserializer: the value is Java null. A list or map
+     * holding anything but strings the engine refuses.
      */
     private static Protocol.PConfigValue configValue(Json.Node v) {
         if (v instanceof Json.Str s) {
             return new Protocol.PConfigValue.PCString(s.value());
         }
         if (v instanceof Json.Null) {
-            return new Protocol.PConfigValue.PCString("null");
+            return new Protocol.PConfigValue.PCNull();
         }
         if (v instanceof Json.Num n && !n.isInteger()) {
+            // the token as written: the engine's getText (the parser keeps every number's token)
             return new Protocol.PConfigValue.PCString(n.token() != null ? n.token() : Double.toString(n.doubleValue()));
         }
         if (v instanceof Json.Bool b) {

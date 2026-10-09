@@ -538,7 +538,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 && "AggregationAware".equals(text())) {
             advance();
             classMappings.add(parseAggregationAware(target, memberStart,
-                    targetSpan, id, root));
+                    targetSpan, id, root, extendsId));
             return;
         }
         if (peek() == TokenType.VALID_STRING && "ModelJoin".equals(text())) {
@@ -2928,9 +2928,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** {@code cls[id]: AggregationAware { Views: [...] , ~mainMapping:
      *  Relational {...} }} — see probes agg-off-A/B for the two span
      *  shift rules (nested CMs +DELTA lines; lambdas -1 line). */
+    /** {@code extendsId}: the engine's walker keeps an aggregation-aware mapping's {@code extends}
+     *  (CorePureGrammarParser.parseAggregationAwareMapping), unlike an operation's. */
     private Protocol.PClassMappingAggregationAware parseAggregationAware(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.base.Nullable String id, boolean root) {
+            @com.legend.base.Nullable String id, boolean root,
+            @com.legend.base.Nullable String extendsId) {
         if (sectionStartLine < 0) {
             throw error("AggregationAware needs the section start line"
                     + " (span-shift emulation)");
@@ -3074,14 +3077,15 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         for (int i = 0; i < aggBodyToks.size(); i++) {
             Protocol.PClassMapping cm = parseNested(aggBodyToks.get(i),
                     target, shiftedTarget,
-                    outerId + "_Aggregate_" + i, id, root, shiftedMember);
+                    outerId + "_Aggregate_" + i, id, root, shiftedMember,
+                    extendsId);
             asis.add(new Protocol.PAggregateSetImplementation(
                     canAggs.get(i)[0], groupBys.get(i), aggVals.get(i), i,
                     cm));
         }
         Protocol.PClassMapping mainCm = parseNested(mainBodyTok,
                 target, shiftedTarget, outerId + "_Main", id, root,
-                shiftedMember);
+                shiftedMember, extendsId);
         List<Protocol.PPurePropertyMapping> aggPms = new ArrayList<>();
         if (mainCm instanceof Protocol.PClassMappingPure pu) {
             // Pure main mappings COPY their pms onto the agg node
@@ -3089,7 +3093,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             aggPms.addAll(pu.propertyMappings());
         }
         return new Protocol.PClassMappingAggregationAware(target, outerId,
-                asis, mainCm, aggPms, root, spanOf(memberStart, close));
+                asis, mainCm, aggPms, root, spanOf(memberStart, close), extendsId);
     }
 
     private static SourceInfo shiftLines(SourceInfo si, int delta) {
@@ -3100,16 +3104,19 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** A nested Relational CM parsed from the ORIGINAL stream (contents
      *  keep TRUE spans); its class span and OWN span are the SHIFTED
      *  outer spans (probe agg-off). */
+    /** A nested set implementation: the engine parses it against the OUTER mapping's header
+     *  (AggregationAwareMappingParseTreeWalker passes its mappingElementParserRuleContext), so it
+     *  takes the outer class, root and {@code extends}. */
     private Protocol.PClassMapping parseNested(int signedBodyTok,
             String target, SourceInfo shiftedTarget, String cmId,
             @com.legend.base.Nullable String explicitOuterId, boolean root,
-            SourceInfo shiftedMember) {
+            SourceInfo shiftedMember, @com.legend.base.Nullable String extendsId) {
         if (signedBodyTok < 0) {
             MappingProtocolParser p = new MappingProtocolParser(tokens,
                     -signedBodyTok, dialect);
             Protocol.PClassMappingPure cm = p.parsePureClassMapping(target,
                     -signedBodyTok, shiftedTarget, explicitOuterId, root,
-                    null);
+                    extendsId);
             return new Protocol.PClassMappingPure(cm.className(),
                     shiftedTarget, cm.extendsClassMappingId(), cmId,
                     cm.root(), cm.srcClass(),
@@ -3117,19 +3124,19 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     cm.propertyMappings(), shiftedMember);
         }
         return parseNestedRel(signedBodyTok, target, shiftedTarget, cmId,
-                explicitOuterId, root, shiftedMember);
+                explicitOuterId, root, shiftedMember, extendsId);
     }
 
     private Protocol.PClassMappingRel parseNestedRel(int bodyTok,
             String target, SourceInfo shiftedTarget, String cmId,
             @com.legend.base.Nullable String explicitOuterId, boolean root,
-            SourceInfo shiftedMember) {
+            SourceInfo shiftedMember, @com.legend.base.Nullable String extendsId) {
         MappingProtocolParser p = new MappingProtocolParser(tokens, bodyTok, dialect);
         // pm sources keep the EXPLICIT outer id (or null) — the engine
         // suffixes the CM id only AFTER the sub-parse
         // (AggregationAwareMappingParseTreeWalker:218)
         Protocol.PClassMappingRel cm = p.parseRelationalClassMapping(target,
-                bodyTok, shiftedTarget, explicitOuterId, root, null);
+                bodyTok, shiftedTarget, explicitOuterId, root, extendsId);
         return new Protocol.PClassMappingRel(cm.className(), shiftedTarget,
                 cmId, cm.root(), cm.distinct(),
                 cm.extendsClassMappingId(), cm.filter(), cm.groupBy(),
