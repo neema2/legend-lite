@@ -44,6 +44,20 @@ final class Composing {
         return PureComposer.convertPath(path(element));
     }
 
+    /** {@code convertPath(element.getPath())} of a record's package and name. */
+    static String elementPath(String pkg, String name) {
+        return PureComposer.convertPath(pkg.isEmpty() ? name : pkg + "::" + name);
+    }
+
+    /** The element record the JSON reads as: a printer's JSON entry reads first, then prints the record. */
+    static <T extends Protocol.Element> T element(Json.Obj element, Class<T> kind) {
+        Protocol.Element read = ModelReader.readElement(element);
+        if (!kind.isInstance(read)) {
+            throw refused("an element of _type '" + type(element) + "' that reads as " + read.getClass().getSimpleName());
+        }
+        return kind.cast(read);
+    }
+
     static String convertPath(String path) {
         return PureComposer.convertPath(path);
     }
