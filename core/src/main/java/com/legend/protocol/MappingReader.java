@@ -69,7 +69,7 @@ final class MappingReader {
                         w.optStr("id"), ProtocolReader.valueSpec(w.take("joinCondition")), w.span());
             });
 
-    static Protocol.PAssociationMapping associationMapping(Json.Node node) {
+    private static Protocol.PAssociationMapping associationMapping(Json.Node node) {
         Wire w = Wire.of(node, "association mapping");
         return w.done(Wire.rule(ASSOCIATIONS, w.type(), "association mapping").apply(w));
     }

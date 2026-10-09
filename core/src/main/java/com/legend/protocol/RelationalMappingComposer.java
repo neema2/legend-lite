@@ -3,8 +3,6 @@
 
 package com.legend.protocol;
 
-import com.legend.json.Json;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,14 +47,6 @@ final class RelationalMappingComposer {
         return b.append(TAB).append("}").toString();
     }
 
-    /** {@link #classMapping(Protocol.PClassMappingRel)} of the JSON, read first. */
-    static String classMapping(Json.Obj cm) {
-        if (!(ClassMappingReader.classMapping(cm) instanceof Protocol.PClassMappingRel r)) {
-            throw Composing.refused("a relational class mapping that reads as another kind");
-        }
-        return classMapping(r);
-    }
-
     private static void operations(StringBuilder b, String keyword, List<Protocol.PRelOp> operations,
             RelationalOperations ops) {
         if (operations.isEmpty()) {
@@ -84,14 +74,6 @@ final class RelationalMappingComposer {
                 + tab(2) + "AssociationMapping\n" + tab(2) + "(\n"
                 + (lines.isEmpty() ? "" : String.join(",\n", lines) + "\n")
                 + tab(2) + ")\n" + TAB + "}";
-    }
-
-    /** {@link #associationMapping(Protocol.PRelAssociationMapping, String)} of the JSON, read first. */
-    static String associationMapping(Json.Obj am, String association) {
-        if (!(MappingReader.associationMapping(am) instanceof Protocol.PRelAssociationMapping r)) {
-            throw Composing.refused("a relational association mapping that reads as another kind");
-        }
-        return associationMapping(r, association);
     }
 
     /** {@code [source,target]} after the property, or nothing when there is no target. */
