@@ -346,6 +346,158 @@ class ModelComposerRoundTripTest {
         assertTrue(e.getMessage().contains("'noSuchElement'"), e.getMessage());
     }
 
+    // ---------------------------------------------------------------------
+    // JSON the grammar does not write (a person's or an older engine's): printed as the engine prints it
+    // ---------------------------------------------------------------------
+
+    private static final String FUNCTION_WITH_TEST = """
+            ###Pure
+            function my::f(a: Integer[1]): Integer[1]
+            {
+              $a + 1
+            }
+            {
+              t1 | f(1) => 2;
+            }
+            """;
+
+    @Test
+    void aFunctionTestsDocumentationIsReadWrittenBackAndPrinted() {
+        Json.Obj withDoc = (Json.Obj) edit(parse(FUNCTION_WITH_TEST),
+                o -> "functionTest".equals(o.getStringOr("_type", "")) ? with(o, "doc", Json.str("adds one")) : o);
+        String json = Json.toCompact(withDoc);
+        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(json)), "emit(read(J)) is J");
+        String printed = ModelComposer.model(withDoc);
+        assertTrue(printed.contains("t1 'adds one' | f(1) => 2;"), printed);
+    }
+
+    private static final String SERVICE = """
+            ###Service
+            Service my::People
+            {
+              pattern: '/people';
+              documentation: '';
+              autoActivateUpdates: true;
+              execution: Single
+              {
+                query: |my::Person.all();
+                mapping: my::M;
+                runtime:
+                #{
+                  mappings:
+                  [
+                    my::M
+                  ];
+                  connections:
+                  [
+                    ModelStore:
+                    [
+                      connection_1:
+                      #{
+                        JsonModelConnection
+                        {
+                          class: my::Person;
+                          url: 'data:application/json,{}';
+                        }
+                      }#
+                    ]
+                  ];
+                }#;
+              }
+            }
+            """;
+
+    @Test
+    void aServiceWithoutAutoActivateUpdatesPrintsTheEnginesDefault() {
+        Json.Obj without = (Json.Obj) edit(parse(SERVICE),
+                o -> "service".equals(o.getStringOr("_type", "")) ? without(o, "autoActivateUpdates") : o);
+        String printed = ModelComposer.model(without);
+        assertTrue(printed.contains("autoActivateUpdates: true;"), printed);
+    }
+
+    /** An older {@code legacyRuntime} prints as the runtime the engine makes of it ({@code LegacyRuntime.toEngineRuntime}). */
+    @Test
+    void aServicesLegacyRuntimePrintsAsTheRuntimeTheEngineMakesOfIt() {
+        Json.Obj current = parse(SERVICE);
+        Json.Obj legacy = (Json.Obj) edit(current, o -> "engineRuntime".equals(o.getStringOr("_type", ""))
+                ? (Json.Obj) Json.parse("{\"_type\":\"legacyRuntime\",\"mappings\":[{\"path\":\"my::M\",\"type\":\"MAPPING\"}],"
+                        + "\"connections\":[{\"_type\":\"JsonModelConnection\",\"class\":\"my::Person\",\"element\":\"ModelStore\","
+                        + "\"url\":\"data:application/json,{}\"}]}", DEEP)
+                : o);
+        assertEquals(ModelComposer.model(current), ModelComposer.model(legacy));
+    }
+
+    /**
+     * A model mixing an older function (its wire name without the signature's mangling, as its section names it)
+     * with a current one of the same declared name: each is found in the section, once.
+     */
+    @Test
+    void aSectionNamingAnOlderFunctionFindsItBesideACurrentOneOfTheSameName() {
+        Json.Obj current = parse("""
+                ###Pure
+                function my::f(a: String[1]): String[1]
+                {
+                  $a
+                }
+
+                function my::f(a: Integer[1]): Integer[1]
+                {
+                  $a
+                }
+                """);
+        String mangled = "f_Integer_1__Integer_1_";
+        Json.Obj mixed = (Json.Obj) edit(current, o -> {
+            if (mangled.equals(o.getStringOr("name", ""))) {
+                return with(o, "name", Json.str("f"));
+            }
+            if ("default".equals(o.getStringOr("_type", "")) || "importAware".equals(o.getStringOr("_type", ""))) {
+                List<Json.Node> paths = new ArrayList<>();
+                for (Json.Node p : o.getArr("elements").items()) {
+                    paths.add(Json.str(("my::" + mangled).equals(((Json.Str) p).value()) ? "my::f" : ((Json.Str) p).value()));
+                }
+                return with(o, "elements", new Json.Arr(paths));
+            }
+            return o;
+        });
+        assertTrue(Json.toCompact(mixed).contains("\"my::f\""), "the section names the older function");
+        assertEquals(ModelComposer.model(current), ModelComposer.model(mixed));
+    }
+
+    /** {@code n} with every object rewritten by {@code f}, children first. */
+    private static Json.Node edit(Json.Node n, java.util.function.UnaryOperator<Json.Obj> f) {
+        if (n instanceof Json.Obj o) {
+            LinkedHashMap<String, Json.Node> out = new LinkedHashMap<>();
+            o.fields().forEach((k, v) -> out.put(k, edit(v, f)));
+            return f.apply(new Json.Obj(out));
+        }
+        if (n instanceof Json.Arr a) {
+            List<Json.Node> out = new ArrayList<>();
+            for (Json.Node x : a.items()) {
+                out.add(edit(x, f));
+            }
+            return new Json.Arr(out);
+        }
+        return n;
+    }
+
+    /** {@code o} with {@code key} set, in the wire's alphabetical place among the fields. */
+    private static Json.Obj with(Json.Obj o, String key, Json.Node value) {
+        java.util.TreeMap<String, Json.Node> sorted = new java.util.TreeMap<>(o.fields());
+        sorted.put(key, value);
+        LinkedHashMap<String, Json.Node> out = new LinkedHashMap<>();
+        if (sorted.containsKey("_type")) {
+            out.put("_type", sorted.remove("_type"));
+        }
+        out.putAll(sorted);
+        return new Json.Obj(out);
+    }
+
+    private static Json.Obj without(Json.Obj o, String key) {
+        LinkedHashMap<String, Json.Node> out = new LinkedHashMap<>(o.fields());
+        out.remove(key);
+        return new Json.Obj(out);
+    }
+
     private static Json.Obj parse(String text) {
         return (Json.Obj) Json.parse(PmcdParser.parseDocument(text), DEEP);
     }

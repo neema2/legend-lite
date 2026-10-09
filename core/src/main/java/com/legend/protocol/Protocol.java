@@ -2821,9 +2821,18 @@ public final class Protocol {
     public record PFunctionTest(String id,
                                 @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
                                 List<PTestParam> parameters,
-                                PAssertion assertion) {
+                                PAssertion assertion,
+                                /** the test's documentation ({@code AtomicTest.doc}), which the engine reads and
+                                 *  prints ({@code id 'doc' | ...}); lite's grammar does not take one yet */
+                                @com.legend.base.Nullable String doc) {
         public PFunctionTest {
             parameters = List.copyOf(parameters);
+        }
+
+        /** No documentation: what lite's grammar makes. */
+        public PFunctionTest(String id, @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                List<PTestParam> parameters, PAssertion assertion) {
+            this(id, sourceInformation, parameters, assertion, null);
         }
     }
 

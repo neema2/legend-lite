@@ -1407,7 +1407,12 @@ public final class ProtocolEmitter {
             Protocol.PFunctionTest t = s.tests().get(i);
             b.append("{\"_type\":\"functionTest\",\"assertions\":[");
             assertion(b, t.assertion());
-            b.append("],\"id\":");
+            b.append(']');
+            if (t.doc() != null) {
+                b.append(",\"doc\":");
+                str(b, t.doc());
+            }
+            b.append(",\"id\":");
             str(b, t.id());
             if (!t.parameters().isEmpty()) {
                 b.append(",\"parameters\":[");

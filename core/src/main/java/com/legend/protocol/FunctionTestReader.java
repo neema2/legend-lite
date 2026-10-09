@@ -70,7 +70,8 @@ final class FunctionTestReader {
         if (t.has("parameters") && params.isEmpty()) {
             throw Wire.refuse("a function test with an empty parameters array (the wire omits it)");
         }
-        return t.done(new Protocol.PFunctionTest(t.str("id"), t.span(), params, assertion(assertions.get(0))));
+        return t.done(new Protocol.PFunctionTest(t.str("id"), t.span(), params, assertion(assertions.get(0)),
+                t.optStr("doc")));
     }
 
     private static Protocol.PTestParam param(Json.Node node) {

@@ -15,8 +15,9 @@ import static com.legend.protocol.Composing.valueSpecification;
  * validation and the relation comparison, with their test suites -- over the records
  * ({@link Protocol.PDataQualityValidation}, {@link Protocol.PDataQualityRelationValidation},
  * {@link Protocol.PDataQualityRelationComparison}; the protocol program's leg 2, step 3). The extension writes the
- * element's path as the wire spells it (unquoted) and indents with three spaces per level. What its printer has no
- * renderer for (a persistence strategy, a tree's sub-type trees or parameters) has no reader rule: refused when read.
+ * element's path as the wire spells it (unquoted) and indents with three spaces per level. A persistence strategy
+ * (which upstream's printer has no renderer for) and a tree's sub-type trees have no reader rule: refused when read.
+ * A property node's alias and parameters are not read yet either (the step-3 audit's list, PROTOCOL_PROGRAM §4.2).
  */
 final class DataQualityComposer {
 
