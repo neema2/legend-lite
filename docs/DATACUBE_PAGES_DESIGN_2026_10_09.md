@@ -203,6 +203,28 @@ with its own title bar and its own board, as now: the page is DataCube's own app
 - The demo's test handles: `window.__dataCube` stays the grid a test opened (the first); `window.__dataPage` is new,
   the page (its views, its document, its layout).
 
+**As built (2026-10-09)**, where the plan above needed a decision:
+
+- **The host's status line and the planner's word stay in the first grid's status bar**, with the planes offered
+  there, not in the page's bar: a readout belongs in the status bar (an earlier ruling: the title bar says what is on
+  screen). The page's bar holds its name, its menu and, for a grid alone, that grid's header.
+- **The bar's name** is the page's own once it is saved (or reopened), else its first grid's report title -- what a
+  grid alone was called; the Properties' Report Title still names a page of one grid.
+- **The bar folds** to a lip (the earlier ruling: the folds live in one column at the right): its fold just left of a
+  lone grid's header, whose last control -- the drag zones' way back -- stays at the far right above the zone bar's own
+  fold. For a grid alone the fold is that grid's "show title bar" setting, saved with it as a cube alone's was.
+- **A grid's columns panel** starts open for a grid opened alone (in place, or a page of one reopened), folded for one
+  added beside others -- as a source added beside others starts at the row limit (the user, 2026-10-01).
+- **Exports**: each grid's own menu exports its rows with the page's charts where the board puts them (an export holds
+  one table); the page's menu has Export > Page File, the page's document. Each grid's menu has Remove from Page (the
+  one way to remove a grid alone, whose tile has no frame).
+- **Settings** saved on one grid are in effect on every grid on the page.
+- **A detached chart's query edited** (Open in grid, Update) gets a kept grid of its own, so two charts detached from
+  one grid never share an edit.
+- **The download budget** for a grid-only page rises from 352,000 to 368,000 bytes (measured 364,791): every page is
+  a page of its own from the start, so its board loads at startup; the layouts are still fetched when first opened,
+  ECharts when a chart first draws.
+
 Files: `datacube/src/page/page-app.ts` (new), `page/cube-page.ts`, `app.ts` (a grid's changes reported to its page; the
 page's entries out of a compact grid's menus), `page-document.ts` (several cubes written), `layout/band-board.ts` (the
 lone tile shown frameless), `app.css`, `demo/boot.ts`, `demo/index.html` if its host windows move, the demo's browser
