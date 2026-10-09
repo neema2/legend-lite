@@ -19,15 +19,18 @@ import {
   bandOf,
   draw,
   drop,
+  dividerBeside,
   dropAt,
   evenOut,
   fitted,
+  neighbour,
   problems,
   remove,
   resize,
   resizeBand,
   stacked,
   tiles,
+  tradeBands,
 } from '../src/layout/bands.ts';
 
 /** A layout as a picture: bands on lines, `|` between columns, `/` between stacked parts, shares rounded. */
@@ -282,5 +285,44 @@ describe('where a drop lands', () => {
   it('over the dragged tile itself: nowhere', () => {
     const c = drawn.tiles.get('c')!;
     assert.equal(dropAt(drawn, 'c', c.x + c.w / 2, c.y + c.h / 2), undefined);
+  });
+});
+
+describe('the keyboard\'s neighbours and sides', () => {
+  // a large on the left; b over c on the right; d a band below
+  const layout = add(arrange(EMPTY, 'large-and-two', ['a', 'b', 'c']), 'd');
+  const drawn = draw(layout, 900, 600, 8);
+  it('the tile next to another, each way, across bands too', () => {
+    assert.equal(neighbour(drawn, 'a', 'right'), 'b', 'b and c both beside it: b overlaps it as much, and comes first');
+    assert.equal(neighbour(drawn, 'c', 'left'), 'a');
+    assert.equal(neighbour(drawn, 'b', 'down'), 'c');
+    assert.equal(neighbour(drawn, 'c', 'down'), 'd');
+    assert.equal(neighbour(drawn, 'd', 'up'), 'a', 'a overlaps d most');
+    assert.equal(neighbour(drawn, 'a', 'left'), undefined);
+    assert.equal(neighbour(drawn, 'b', 'up'), undefined);
+  });
+  it('the divider along a tile\'s side, if one bounds it there', () => {
+    assert.deepEqual(dividerBeside(drawn, 'a', 'right')?.path, [0]);
+    assert.deepEqual(dividerBeside(drawn, 'b', 'left')?.path, [0], 'the same divider, seen from the other side');
+    assert.deepEqual(dividerBeside(drawn, 'b', 'bottom')?.path, [0, 1]);
+    assert.deepEqual(dividerBeside(drawn, 'c', 'top')?.path, [0, 1]);
+    assert.equal(dividerBeside(drawn, 'a', 'left'), undefined);
+    assert.equal(dividerBeside(drawn, 'a', 'bottom'), undefined, 'a band\'s edge is not a divider');
+    assert.equal(dividerBeside(drawn, 'd', 'top'), undefined);
+  });
+});
+
+describe('two bands trading height (a page that fits its window)', () => {
+  const layout = fitted(page('a', 'b', 'c'), true);
+  it('the edge moved: the band above grows by what the one below gives, the rest untouched', () => {
+    const next = tradeBands(layout, 0, 0.1);
+    assert.deepEqual(next.bands.map((b) => Math.round(b.height * 100) / 100), [0.6, 0.4, 0.5]);
+    assert.deepEqual(problems(next), []);
+  });
+  it('neither below its least, and the last band has no edge below it to move', () => {
+    const near = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} ~ ${expected}`);
+    near(tradeBands(layout, 0, 5).bands[1]!.height, MIN_BAND_HEIGHT);
+    near(tradeBands(layout, 0, -5).bands[0]!.height, MIN_BAND_HEIGHT);
+    assert.equal(tradeBands(layout, 2, 0.1), layout);
   });
 });

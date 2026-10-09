@@ -492,3 +492,61 @@ export function dropAt(drawn: Drawn, tile: string, x: number, y: number): Drop |
   }
   return undefined;
 }
+
+/**
+ * The edge between band `after` and the next moved, in a page that fits its window: the two bands trade height
+ * (`delta` in the bands' own measure), neither below its least (or half of what the two hold, when that is less).
+ */
+export function tradeBands(layout: Bands, after: number, delta: number): Bands {
+  const top = layout.bands[after];
+  const bottom = layout.bands[after + 1];
+  if (!top || !bottom) return layout;
+  const total = top.height + bottom.height;
+  const floor = Math.min(MIN_BAND_HEIGHT, total / 2);
+  const height = Math.min(Math.max(top.height + delta, floor), total - floor);
+  return {
+    fit: layout.fit,
+    bands: layout.bands.map((band, i) => (i === after ? { height, node: band.node }
+      : i === after + 1 ? { height: total - height, node: band.node } : band)),
+  };
+}
+
+/** A direction on the board, for the keyboard. */
+export type Toward = 'left' | 'right' | 'up' | 'down';
+
+/**
+ * The tile next to `tile` toward a direction, on a board drawn as `drawn`: of the tiles wholly past its edge that way
+ * and overlapping it across, the nearest, then the one overlapping it most. None, undefined.
+ */
+export function neighbour(drawn: Drawn, tile: string, toward: Toward): string | undefined {
+  const of = drawn.tiles.get(tile);
+  if (!of) return undefined;
+  const across = toward === 'left' || toward === 'right';
+  let best: { id: string; distance: number; overlap: number } | undefined;
+  for (const [id, box] of drawn.tiles) {
+    if (id === tile) continue;
+    const distance = toward === 'left' ? of.x - (box.x + box.w)
+      : toward === 'right' ? box.x - (of.x + of.w)
+        : toward === 'up' ? of.y - (box.y + box.h)
+          : box.y - (of.y + of.h);
+    const overlap = across
+      ? Math.min(of.y + of.h, box.y + box.h) - Math.max(of.y, box.y)
+      : Math.min(of.x + of.w, box.x + box.w) - Math.max(of.x, box.x);
+    if (distance < 0 || overlap <= 0) continue;
+    if (!best || distance < best.distance || (distance === best.distance && overlap > best.overlap)) {
+      best = { id, distance, overlap };
+    }
+  }
+  return best?.id;
+}
+
+/** The divider along one side of `tile`, on a board drawn as `drawn`: the one that bounds it there, if any. */
+export function dividerBeside(drawn: Drawn, tile: string, side: 'left' | 'right' | 'top' | 'bottom'): Divider | undefined {
+  const of = drawn.tiles.get(tile);
+  if (!of) return undefined;
+  return drawn.dividers.find(({ split, box }) => (side === 'left' || side === 'right'
+    ? split === 'row' && (side === 'right' ? box.x === of.x + of.w : box.x + box.w === of.x)
+      && box.y <= of.y && box.y + box.h >= of.y + of.h
+    : split === 'column' && (side === 'bottom' ? box.y === of.y + of.h : box.y + box.h === of.y)
+      && box.x <= of.x && box.x + box.w >= of.x + of.w));
+}
