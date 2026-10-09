@@ -1260,16 +1260,11 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
-     * A subquery rendered inline (EXISTS / scalar position): SINGLE-LINE mode
+     * A subquery written inline (EXISTS / scalar position), a parameter inside it bound in place: SINGLE-LINE mode
      * — {@link #nl} emits a space instead of a newline while set. Structural,
      * never text post-processing (collapsing rendered text would corrupt
      * whitespace inside string LITERALS).
      */
-    protected String inline(SqlQuery q) {
-        return inline(newWriter(), q).bridged();
-    }
-
-    /** {@link #inline}, written into {@code writer}: a parameter inside the subquery is bound in place. */
     protected final SqlWriter inline(SqlWriter writer, SqlQuery q) {
         boolean previous = inlineMode;
         inlineMode = true;

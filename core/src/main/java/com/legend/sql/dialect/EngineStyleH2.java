@@ -175,7 +175,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return writer.expr(cl.list(), parentPrec);
     }
 
-    private @com.legend.base.Nullable String joinStringsFlat(SqlExpr.Call c) {
+    private SqlWriter.@com.legend.base.Nullable Piece joinStringsFlat(SqlExpr.Call c) {
         // 4-arg forms: CONCAT(CONCAT(prefix, J), suffix) [list-value arm]
         // or CONCAT(prefix, CONCAT(J, suffix)) [pure-value arm]
         if (c.fn() == com.legend.sql.SqlFn.CONCAT && c.args().size() == 2) {
@@ -240,7 +240,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return null;
     }
 
-    private String flatConcat(SqlExpr.ReduceCollection rc,
+    private SqlWriter.Piece flatConcat(SqlExpr.ReduceCollection rc,
             java.util.List<SqlExpr> seps) {
         java.util.List<SqlExpr> parts = new java.util.ArrayList<>();
         for (SqlExpr e : java.util.Objects.requireNonNull(
@@ -248,8 +248,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             parts.add(unwrapElementText(e));
         }
         parts.addAll(seps);
-        return "concat(" + parts.stream().map(e -> expr(e, 0))
-                .collect(java.util.stream.Collectors.joining(", ")) + ")";
+        return w -> w.function("concat", parts);
     }
 
     /** Per-element null-text coercion (coalesce(cast(x as varchar),
@@ -595,7 +594,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * equalEnumOperationSelector(fn(name), 'col in (...)', 'col = ...'),
      * '0 = 1')})} spelling for {@code rawColumn = enumParam}; null when
      * the expression is not that shape. */
-    private @com.legend.base.Nullable String enumSelector(SqlExpr e) {
+    private SqlWriter.@com.legend.base.Nullable Piece enumSelector(SqlExpr e) {
         if (!(e instanceof SqlExpr.Call c)
                 || c.fn() != com.legend.sql.SqlFn.EQUAL
                 || c.args().size() != 2) {
@@ -623,15 +622,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         SqlExpr colExpr = decodeSourceColumn(other);
         // the rendered column sits inside the template's single-quoted
         // args — escape like the selector arm at holder-equality does
-        // (C2.1: a quote-bearing spelling must not walk out of the arg)
-        String col = expr(colExpr != null ? colExpr : other, 4)
+        // (C2.1: a quote-bearing spelling must not walk out of the arg);
+        // one of the legacy printer's text edits (it binds nothing, so the
+        // bridge never refuses here)
+        String col = newWriter().expr(colExpr != null ? colExpr : other, 4).bridged()
                 .replace("'", "\\'");
         String pn = p.name() + (p.optional() ? "![]" : "");
         String fn = p.enumMapFn() + "(" + pn + ")";
-        return "(${optionalVarPlaceHolderOperationSelector(" + pn
+        String selector = "(${optionalVarPlaceHolderOperationSelector(" + pn
                 + ", equalEnumOperationSelector(" + fn + ", '" + col
                 + " in (${" + fn + "})', '" + col + " = ${" + fn
                 + "}'), '0 = 1')})";
+        return w -> w.append(selector);
     }
 
     /** The right-hand literals of an equality or an OR-tree of equalities
@@ -670,7 +672,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * Every kind: the freemarker SELECTOR spellings of the DATE / DATETIME
      * goldens are the LEGACY (H2 1.4.200) halves of the
      * assertEqualsH2Compatible pairs. Null = not this shape. */
-    private @com.legend.base.Nullable String optionalParamEquality(SqlExpr e) {
+    private SqlWriter.@com.legend.base.Nullable Piece optionalParamEquality(SqlExpr e) {
         if (!(e instanceof SqlExpr.Call oc)
                 || oc.fn() != com.legend.sql.SqlFn.EQUAL
                 || oc.args().size() != 2) {
@@ -683,7 +685,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             // every kind is null-safe on the plan surface — the freemarker
             // SELECTOR form for DATE/DATETIME pairs is the LEGACY
             // (H2 1.4.200) golden of the assertEqualsH2Compatible pairs
-            return nullSafeEq(holder(lp2), holder(rp2));
+            return nullSafeEq(w -> w.append(holder(lp2)), w -> w.append(holder(rp2)));
         }
         SqlExpr.PlanParam opt = l instanceof SqlExpr.PlanParam lp
                 && lp.optional() ? lp
@@ -693,17 +695,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             return null;
         }
         SqlExpr other = opt == l ? r : l;
-        String otherTx = expr(other, 4);
+        SqlWriter.Piece otherTx = w -> w.expr(other, 4);
+        SqlWriter.Piece held = w -> w.append(holder(opt));
         return opt == l
-                ? nullSafeEq(holder(opt), otherTx)
-                : nullSafeEq(otherTx, holder(opt));
+                ? nullSafeEq(held, otherTx)
+                : nullSafeEq(otherTx, held);
     }
 
     /** NULL-SAFE equality spelling on the plan surface — H2 spells
      * {@code IS NOT DISTINCT FROM}; dialects without it (DB2) expand
      * the OR form. */
-    protected String nullSafeEq(String l, String r) {
-        return l + " is not distinct from " + r;
+    protected SqlWriter.Piece nullSafeEq(SqlWriter.Piece l, SqlWriter.Piece r) {
+        return w -> w.piece(l).append(" is not distinct from ").piece(r);
     }
 
     /** The engine's renderCollection template for a MANY plan param —
@@ -910,12 +913,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             source(writer, s.from(), depth);
         }
         if (s.where() != null) {
-            writer.append(" where ").append(whereSql(s.where()));
+            whereSql(writer.append(" where "), s.where());
         }
         if (!s.groupBy().isEmpty()) {
-            writer.append(" group by ").append(s.groupBy().stream()
-                    .map(e -> groupKey(s, e))
-                    .collect(Collectors.joining(groupBySeparator())));
+            writer.append(" group by ").join(s.groupBy(), groupBySeparator(), (w, e) -> groupKey(w, s, e));
         }
         if (s.having() != null) {
             writer.append(" having ").expr(s.having(), 0);
@@ -934,8 +935,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     /** The WHERE clause text — DB2-family dialects wrap a top-level
      * conjunction in one extra paren pair. */
-    protected String whereSql(SqlExpr w) {
-        return expr(w, 0);
+    protected SqlWriter whereSql(SqlWriter writer, SqlExpr w) {
+        return writer.expr(w, 0);
     }
 
     /** A group-by key: a key that is PROJECTED UNDER AN ALIAS spells the
@@ -943,7 +944,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * {@code group by "prodName"}); a bare same-name key (mapping
      * ~groupBy has no alias) keeps the physical expression. Render-only:
      * the IR keys stay real expressions for the execution dialects. */
-    protected String groupKey(SqlSelect s, SqlExpr e) {
+    protected SqlWriter groupKey(SqlWriter writer, SqlSelect s, SqlExpr e) {
         if (e instanceof SqlExpr.Column c && c.table() == null) {
             // a SELF-ALIASED key (ENTITY_ID as ENTITY_ID — the view
             // ~groupBy form) spells the PHYSICAL expression (golden:
@@ -953,10 +954,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 if (c.name().equals(p.outputName())
                         && p.expr() instanceof SqlExpr.Column pc
                         && pc.name().equals(c.name())) {
-                    return expr(p.expr(), 0);
+                    return writer.expr(p.expr(), 0);
                 }
             }
-            return '"' + c.name() + '"';
+            return writer.append('"' + c.name() + '"');
         }
         for (SqlSelect.Projection p : s.projections()) {
             if (p.outputName() != null && e.equals(p.expr())) {
@@ -969,12 +970,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                         && sub.alias().equals(uc.table());
                 if (!unionRead && p.expr() instanceof SqlExpr.Column pc
                         && pc.name().equals(p.outputName())) {
-                    return expr(e, 0);
+                    return writer.expr(e, 0);
                 }
-                return '"' + p.outputName().replace("\"", "") + '"';
+                return writer.append('"' + p.outputName().replace("\"", "") + '"');
             }
         }
-        return expr(e, 0);
+        return writer.expr(e, 0);
     }
 
     @Override
@@ -1056,10 +1057,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * from ...)' (buildExistsPredicate emission) — lowercase keyword,
      * literal-1 projection regardless of the subquery's own columns
      * (testProcessingTemporalPropertyQuery golden). */
-    private String correlatedExistsSpelling(SqlSelect xs) {
-        return "exists (" + inline(xs.withProjections(
+    private SqlWriter correlatedExistsSpelling(SqlWriter writer, SqlSelect xs) {
+        return inline(writer.append("exists ("), xs.withProjections(
                 java.util.List.of(new SqlSelect.Projection(
-                        new SqlExpr.IntLit(1), null, null)))) + ")";
+                        new SqlExpr.IntLit(1), null, null)))).append(")");
     }
 
     /** engine text: an arithmetic op with a MIXED-OPERATOR composite
@@ -1131,10 +1132,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** Engine h2Extension dynaFnToSql: nullSafeEqual =
      *  {@code %s is not distinct from %s} (identical in 1.4.200 and
      *  2.1.214), no parens in the format. */
-    private String nullSafeSpelling(SqlExpr.Call bc) {
+    private SqlWriter nullSafeSpelling(SqlWriter writer, SqlExpr.Call bc) {
         String op = bc.fn() == com.legend.sql.SqlFn.NULL_SAFE_EQUAL
                 ? " is not distinct from " : " is distinct from ";
-        return expr(bc.args().get(0), 4) + op + expr(bc.args().get(1), 4);
+        return writer.expr(bc.args().get(0), 4).append(op).expr(bc.args().get(1), 4);
     }
 
     /** Engine H2 text joins group-by keys with {@code ", "}; the DB2
@@ -1165,7 +1166,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         }
         if (e instanceof SqlExpr.Exists xx
                 && xx.subquery() instanceof SqlSelect xs) {
-            return writer.append(correlatedExistsSpelling(xs));
+            return correlatedExistsSpelling(writer, xs);
         }
         if (e instanceof SqlExpr.Call ac
                 && mixedOperandArithmetic(ac, parentPrec)) {
@@ -1207,18 +1208,18 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.Call nc
                 && nc.fn() == com.legend.sql.SqlFn.NOT
                 && nc.args().size() == 1) {
-            String et = enumSelector(nc.args().get(0));
+            SqlWriter.Piece et = enumSelector(nc.args().get(0));
             if (et != null) {
-                return writer.append("not ").append(et);
+                return writer.append("not ").piece(et);
             }
         }
-        String et0 = enumSelector(e);
+        SqlWriter.Piece et0 = enumSelector(e);
         if (et0 != null) {
-            return writer.append(et0);
+            return writer.piece(et0);
         }
-        String optEq = optionalParamEquality(e);
+        SqlWriter.Piece optEq = optionalParamEquality(e);
         if (optEq != null) {
-            return writer.append(optEq);
+            return writer.piece(optEq);
         }
         // a property read THROUGH a plan parameter spells the engine's
         // dotted placeholder ('${reportEndDate.date}' — Allocation-bound
@@ -1264,9 +1265,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.RowOrder ro) {
             return writer.append(rowOrder(ro));
         }
-        String dd = engineDateDiff(e);
+        SqlWriter.Piece dd = engineDateDiff(e);
         if (dd != null) {
-            return writer.append(dd);
+            return writer.piece(dd);
         }
         // engine boolean text: lowercase keywords, AND groups
         // parenthesized once around the flattened chain —
@@ -1274,29 +1275,30 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         if (e instanceof SqlExpr.Call bc) {
             switch (bc.fn()) {
                 case NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL -> {
-                    return writer.append(nullSafeSpelling(bc));
+                    return nullSafeSpelling(writer, bc);
                 }
                 case AND -> {
                     // engine 'and' renders FLAT with no parens at any
                     // arity (extensionDefaults.pure:189) — parens come
                     // only from explicit Group nodes and opposite-operator
                     // nesting (the OR arm below)
-                    java.util.List<String> terms = new java.util.ArrayList<>();
+                    java.util.List<SqlWriter.Piece> terms = new java.util.ArrayList<>();
                     flattenAnd(bc, terms);
-                    return writer.append(String.join(" and ", terms));
+                    return writer.join(terms, " and ", SqlWriter::piece);
                 }
                 case OR -> {
                     // and-under-or parenthesizes (the engine's
                     // newAndOrDynaFunctionRelaxedBrackets opposite-operator
                     // group, pureToSQLQuery.pure:5376)
-                    java.util.List<String> ops = new java.util.ArrayList<>();
-                    for (SqlExpr o : bc.args()) {
+                    return writer.join(bc.args(), " or ", (w, o) -> {
                         boolean andLike = o instanceof SqlExpr.Call oc
                                 && oc.fn() == com.legend.sql.SqlFn.AND;
-                        ops.add(andLike ? "(" + expr(o, 0) + ")"
-                                : expr(o, 0));
-                    }
-                    return writer.append(String.join(" or ", ops));
+                        if (andLike) {
+                            w.append("(").expr(o, 0).append(")");
+                        } else {
+                            w.expr(o, 0);
+                        }
+                    });
                 }
                 case COALESCE -> {
                     // the null-guarded in() (pure in never returns null;
@@ -1382,7 +1384,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return super.expr(writer, e, parentPrec);
     }
 
-    private void flattenAnd(SqlExpr e, java.util.List<String> out) {
+    private void flattenAnd(SqlExpr e, java.util.List<SqlWriter.Piece> out) {
         if (e instanceof SqlExpr.Call c
                 && c.fn() == com.legend.sql.SqlFn.AND) {
             for (SqlExpr a : c.args()) {
@@ -1397,7 +1399,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // Group child wraps ITSELF — no double parens.
         boolean orLike = e instanceof SqlExpr.Call oc
                 && oc.fn() == com.legend.sql.SqlFn.OR;
-        out.add(orLike ? "(" + expr(e, 0) + ")" : expr(e, 3));
+        out.add(orLike ? w -> w.append("(").expr(e, 0).append(")") : w -> w.expr(e, 3));
     }
 
     /** Engine aggregate names are lowercase ({@code sum(}, {@code count(}
@@ -1490,7 +1492,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * The shapes (epoch_ms pairs under integer division; the week CASE)
      * are only produced by the dateDiff lowering.
      */
-    private @com.legend.base.Nullable String engineDateDiff(SqlExpr e) {
+    private SqlWriter.@com.legend.base.Nullable Piece engineDateDiff(SqlExpr e) {
         // truncated elapsed: (epoch_ms(end) - epoch_ms(start)) // unitMs
         if (e instanceof SqlExpr.Call div
                 && div.fn() == com.legend.sql.SqlFn.INT_DIVIDE
@@ -1510,8 +1512,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 default -> null;
             };
             if (unit != null) {
-                return "datediff(" + unit + ", " + expr(start.args().get(0), 0)
-                        + ", " + expr(end.args().get(0), 0) + ")";
+                return w -> w.append("datediff(" + unit + ", ").expr(start.args().get(0), 0).append(", ")
+                        .expr(end.args().get(0), 0).append(")");
             }
         }
         // Sunday-boundary weeks: CASE WHEN date_diff('day', end, start) <= 0
@@ -1532,8 +1534,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 && zero.value() == 0
                 && isSundayIndexDifference(cs.whens().get(0).then())
                 && isSundayIndexDifference(cs.otherwise())) {
-            return "datediff(week, " + expr(dayDiff.args().get(2), 0)
-                    + ", " + expr(dayDiff.args().get(1), 0) + ")";
+            return w -> w.append("datediff(week, ").expr(dayDiff.args().get(2), 0).append(", ")
+                    .expr(dayDiff.args().get(1), 0).append(")");
         }
         // GENERIC case spelling (engine text): lowercase keywords —
         // placed BELOW the specialized recognizers (week-diff) that
@@ -1548,32 +1550,35 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         java.util.Optional<java.util.List<SqlExpr.Case.When>> decodeArms = decodeSrc.isPresent()
                 ? com.legend.sql.DecodeShapes.flattenDecode(e) : java.util.Optional.empty();
         if (decodeSrc.isPresent() && decodeArms.isPresent()) {
-            String src = expr(decodeSrc.get(), 4);
-            StringBuilder sb = new StringBuilder("case");
-            for (SqlExpr.Case.When w : decodeArms.get()) {
-                java.util.List<SqlExpr> values = new java.util.ArrayList<>();
-                collectEqualityRhs(w.condition(), values);
-                sb.append(" when ").append(src);
-                if (values.size() == 1) {
-                    sb.append(" = ").append(expr(values.get(0), 0));
-                } else {
-                    sb.append(" in (").append(values.stream().map(v -> expr(v, 0))
-                            .collect(java.util.stream.Collectors.joining(", "))).append(')');
+            SqlExpr src = decodeSrc.get();
+            java.util.List<SqlExpr.Case.When> arms = decodeArms.get();
+            return writer -> {
+                writer.append("case");
+                for (SqlExpr.Case.When w : arms) {
+                    java.util.List<SqlExpr> values = new java.util.ArrayList<>();
+                    collectEqualityRhs(w.condition(), values);
+                    writer.append(" when ").expr(src, 4);
+                    if (values.size() == 1) {
+                        writer.append(" = ").expr(values.get(0), 0);
+                    } else {
+                        writer.append(" in (").list(values).append(")");
+                    }
+                    writer.append(" then ").expr(w.then(), 0);
                 }
-                sb.append(" then ").append(expr(w.then(), 0));
-            }
-            return sb.append(" else null end").toString();
+                writer.append(" else null end");
+            };
         }
         if (e instanceof SqlExpr.Case c) {
-            StringBuilder sb = new StringBuilder("case");
-            for (SqlExpr.Case.When w : c.whens()) {
-                sb.append(" when ").append(expr(w.condition(), 0))
-                        .append(" then ").append(expr(w.then(), 0));
-            }
-            if (c.otherwise() != null) {
-                sb.append(" else ").append(expr(c.otherwise(), 0));
-            }
-            return sb.append(" end").toString();
+            return writer -> {
+                writer.append("case");
+                for (SqlExpr.Case.When w : c.whens()) {
+                    writer.append(" when ").expr(w.condition(), 0).append(" then ").expr(w.then(), 0);
+                }
+                if (c.otherwise() != null) {
+                    writer.append(" else ").expr(c.otherwise(), 0);
+                }
+                writer.append(" end");
+            };
         }
         return null;
     }
@@ -1628,9 +1633,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         java.util.List<SqlExpr> a = c.args();
-        String flat = joinStringsFlat(c);
+        SqlWriter.Piece flat = joinStringsFlat(c);
         if (flat != null) {
-            return writer.append(flat);
+            return writer.piece(flat);
         }
         // H2 digest spelling: rawtohex(hash('SHA-256', x)) — the engine's
         // relational H2 codegen for every HashType
@@ -1665,10 +1670,8 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             case STRPOS -> writer.append("locate(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
             case LTRIM -> writer.append("regexp_replace(").expr(a.get(0), 0).append(", '^[ ]+', '')");
             case RTRIM -> writer.append("regexp_replace(").expr(a.get(0), 0).append(", '[ ]+$', '')");
-            case LPAD -> writer.append("legend_h2_extension_lpad(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
-                    .append(", ").append((a.size() > 2 ? expr(a.get(2), 0) : "' '")).append(")");
-            case RPAD -> writer.append("legend_h2_extension_rpad(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
-                    .append(", ").append((a.size() > 2 ? expr(a.get(2), 0) : "' '")).append(")");
+            case LPAD -> padCall(writer, "legend_h2_extension_lpad", a);
+            case RPAD -> padCall(writer, "legend_h2_extension_rpad", a);
             // n-ary concat: nested CONCAT calls SPLICE (the engine emits
             // one flat concat(a, '_', b), never concat(concat(a,'_'),b))
             case CONCAT -> writer.append("concat(").list(flattenConcat(a)).append(")");
@@ -1760,11 +1763,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 if (a.size() == 2 && a.get(0) instanceof SqlExpr.StringLit u
                         && Set.of("week", "month", "quarter", "year")
                                 .contains(u.value())) {
-                    String anchor = a.get(1) instanceof SqlExpr.Call tc
-                            && tc.fn() == com.legend.sql.SqlFn.TODAY
-                            ? "now()" : expr(a.get(1), 0);
-                    yield writer.append("cast(cast(date_trunc('").append(u.value()).append("', ").append(anchor)
-                            .append(") as timestamp) as date)");
+                    writer.append("cast(cast(date_trunc('").append(u.value()).append("', ");
+                    if (a.get(1) instanceof SqlExpr.Call tc && tc.fn() == com.legend.sql.SqlFn.TODAY) {
+                        writer.append("now()");
+                    } else {
+                        writer.expr(a.get(1), 0);
+                    }
+                    yield writer.append(") as timestamp) as date)");
                 }
                 yield super.call(writer, c, parentPrec);
             }
@@ -1889,6 +1894,12 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
             return writer.expr(m.needle(), 4).append(" in (").list(elements).append(")");
         }
         return writer.expr(m.needle(), 4).append(" in (").expr(coll, 0).append(")");
+    }
+
+    /** {@code name(s, n, pad)}: the engine's pad extension; Pure's pad character is optional, a space. */
+    private static SqlWriter padCall(SqlWriter writer, String name, java.util.List<SqlExpr> a) {
+        writer.append(name).append("(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0).append(", ");
+        return (a.size() > 2 ? writer.expr(a.get(2), 0) : writer.append("' '")).append(")");
     }
 
     /** splitPart = the engine's own H2 extension function (commons split:

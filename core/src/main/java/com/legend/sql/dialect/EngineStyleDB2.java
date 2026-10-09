@@ -40,25 +40,23 @@ public class EngineStyleDB2 extends EngineStyleH2 {
     @Override
     protected SqlWriter expr(SqlWriter writer, SqlExpr e, int parentPrec) {
         if (e instanceof com.legend.sql.SqlExpr.Call c) {
+            SqlWriter.Piece a = w -> w.expr(c.args().get(0), 4);
+            SqlWriter.Piece b = w -> w.expr(c.args().get(1), 4);
             if (c.fn() == com.legend.sql.SqlFn.NULL_SAFE_EQUAL) {
-                String a = expr(c.args().get(0), 4);
-                String b = expr(c.args().get(1), 4);
-                return writer.append("(").append(a).append(" = ").append(b).append(" or (").append(a)
-                        .append(" is null and ").append(b).append(" is null))");
+                return writer.append("(").piece(a).append(" = ").piece(b).append(" or (").piece(a)
+                        .append(" is null and ").piece(b).append(" is null))");
             }
             if (c.fn() == com.legend.sql.SqlFn.NULL_SAFE_NOT_EQUAL) {
-                String a = expr(c.args().get(0), 4);
-                String b = expr(c.args().get(1), 4);
-                return writer.append("(not (").append(a).append(" = ").append(b).append(") or (").append(a)
-                        .append(" is null and ").append(b).append(" is not null) or (").append(a)
-                        .append(" is not null and ").append(b).append(" is null))");
+                return writer.append("(not (").piece(a).append(" = ").piece(b).append(") or (").piece(a)
+                        .append(" is null and ").piece(b).append(" is not null) or (").piece(a)
+                        .append(" is not null and ").piece(b).append(" is null))");
             }
         }
         return super.expr(writer, e, parentPrec);
     }
 
     @Override
-    protected String whereSql(SqlExpr w) {
+    protected SqlWriter whereSql(SqlWriter writer, SqlExpr w) {
         // DB2 plan goldens wrap a top-level AND only when a conjunct is
         // OR-ROOTED (the null-safe expansions) — 'where ((A) and (B))';
         // plain conjuncts render bare ('where A in (...) and B in (...)'
@@ -66,7 +64,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
         boolean wrap = w instanceof SqlExpr.Call c
                 && c.fn() == com.legend.sql.SqlFn.AND
                 && c.args().stream().anyMatch(EngineStyleDB2::orRooted);
-        return wrap ? "(" + expr(w, 0) + ")" : expr(w, 0);
+        return wrap ? writer.append("(").expr(w, 0).append(")") : writer.expr(w, 0);
     }
 
     /** An OR-rooted conjunct — explicit or/null-safe nodes AND the
@@ -91,11 +89,11 @@ public class EngineStyleDB2 extends EngineStyleH2 {
     }
 
     @Override
-    protected String nullSafeEq(String l, String r) {
+    protected SqlWriter.Piece nullSafeEq(SqlWriter.Piece l, SqlWriter.Piece r) {
         // DB2 has no IS NOT DISTINCT FROM — the engine expands the OR
         // form (testFilterEqualsWithOptionalParameter_DB2)
-        return "(" + l + " = " + r + " or (" + l + " is null and " + r
-                + " is null))";
+        return w -> w.append("(").piece(l).append(" = ").piece(r).append(" or (").piece(l).append(" is null and ")
+                .piece(r).append(" is null))");
     }
 
     /** DB2 QUOTES boolean placeholders — the mapped case-expr yields
@@ -111,8 +109,8 @@ public class EngineStyleDB2 extends EngineStyleH2 {
      * {@code group by "root".FIRSTNAME}); the engine resolves aliases
      * before rendering for DB2 where H2 keeps the TDS alias text. */
     @Override
-    protected String groupKey(com.legend.sql.SqlSelect s, SqlExpr e) {
-        return expr(e, 0);
+    protected SqlWriter groupKey(SqlWriter writer, com.legend.sql.SqlSelect s, SqlExpr e) {
+        return writer.expr(e, 0);
     }
 
     @Override
@@ -172,22 +170,19 @@ public class EngineStyleDB2 extends EngineStyleH2 {
             // term, month/year do not)
             case DATE_TRUNC -> {
                 if (a.size() == 2 && a.get(0) instanceof SqlExpr.StringLit u) {
-                    String anchor = a.get(1) instanceof SqlExpr.Call tc
+                    SqlWriter.Piece anchor = a.get(1) instanceof SqlExpr.Call tc
                             && tc.fn() == com.legend.sql.SqlFn.TODAY
-                            ? "current date" : expr(a.get(1), 0);
-                    String spelled = switch (u.value()) {
-                        case "year" -> "date(1) + (year(" + anchor
-                                + ")-1) YEARS";
-                        case "month" -> "date(1) + (year(" + anchor
-                                + ")-1) YEARS + (month(" + anchor
-                                + ")-1) MONTHS";
-                        case "quarter" -> "date(1) + ((year(" + anchor
-                                + ")-1) YEARS) + (3 * QUARTER(" + anchor
-                                + ") - 3) MONTHS";
+                            ? w -> w.append("current date") : w -> w.expr(a.get(1), 0);
+                    SqlWriter.Piece spelled = switch (u.value()) {
+                        case "year" -> w -> w.append("date(1) + (year(").piece(anchor).append(")-1) YEARS");
+                        case "month" -> w -> w.append("date(1) + (year(").piece(anchor)
+                                .append(")-1) YEARS + (month(").piece(anchor).append(")-1) MONTHS");
+                        case "quarter" -> w -> w.append("date(1) + ((year(").piece(anchor)
+                                .append(")-1) YEARS) + (3 * QUARTER(").piece(anchor).append(") - 3) MONTHS");
                         default -> null;
                     };
                     if (spelled != null) {
-                        yield writer.append(spelled);
+                        yield writer.piece(spelled);
                     }
                 }
                 throw new IllegalStateException("date_trunc unit has no"
