@@ -26,7 +26,6 @@ import {
   type Toward,
   add,
   arrange,
-  arrangeBand,
   bandOf,
   draw,
   drop,
@@ -209,25 +208,9 @@ export class BandBoard {
     this.#commit(next);
   }
 
-  /**
-   * Arrange as a preset, `first` in its first slot and the others in reading order: every tile on the page, or --
-   * `within`, a tile -- only the band that tile is in (a tile's own layouts), the other bands left as they are.
-   */
-  arrange(preset: Preset, first?: string, within?: string): void {
-    this.#change(this.#arranged(this.#layout, preset, first, within));
-  }
-
-  /** The tiles a preset would arrange: the page's, or those of the band `within` is in. */
-  tilesToArrange(within?: string): string[] {
-    if (within === undefined) return tiles(this.#layout);
-    const band = this.#layout.bands[bandOf(this.#layout, within)];
-    return band ? tiles({ fit: this.#layout.fit, bands: [band] }) : [];
-  }
-
-  #arranged(layout: Bands, preset: Preset, first?: string, within?: string): Bands {
-    if (within === undefined) return arrange(layout, preset, this.#order(first));
-    const band = bandOf(layout, within);
-    return band < 0 ? layout : arrangeBand(layout, band, preset, this.#order(first));
+  /** Arrange every tile on the page as a preset, `first` in its first slot; the others in reading order. */
+  arrange(preset: Preset, first?: string): void {
+    this.#change(arrange(this.#layout, preset, this.#order(first)));
   }
 
   /** Even out the whole page: every split's parts alike, every band as tall as the rest. */
@@ -236,11 +219,11 @@ export class BandBoard {
   }
 
   /** Show what a preset would look like (a hovered thumbnail), or the layout again (null); as `arrange` would do it. */
-  preview(preset: Preset | null, first?: string, within?: string): void {
+  preview(preset: Preset | null, first?: string): void {
     if (this.#gesture) return;
     const was = this.#previewing;
     if (preset !== null && !was) this.#previewScroll = this.#host.scrollTop;
-    this.#shown = preset === null ? null : this.#arranged(this.#layout, preset, first, within);
+    this.#shown = preset === null ? null : arrange(this.#layout, preset, this.#order(first));
     this.#previewing = preset !== null;
     this.#paint();
     if (preset === null && was) this.#host.scrollTop = this.#previewScroll;

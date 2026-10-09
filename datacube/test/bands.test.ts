@@ -16,7 +16,6 @@ import {
   PRESETS,
   add,
   arrange,
-  arrangeBand,
   bandOf,
   boundary,
   cells,
@@ -446,30 +445,6 @@ describe('a page saved before bands, read as bands', () => {
       assert.deepEqual(tiles(back), tiles(layout), id);
       assert.equal(back.bands.length, layout.bands.length, id);
     }
-  });
-});
-
-describe('one band arranged (a tile\'s own layouts)', () => {
-  const layout: Bands = {
-    fit: false,
-    bands: [
-      { height: 0.2, node: { split: 'row', parts: [{ node: { tile: 'k1' }, size: 0.5 }, { node: { tile: 'k2' }, size: 0.5 }] } },
-      { height: 0.8, node: { split: 'row', parts: ['a', 'b', 'c'].map((tile) => ({ node: { tile }, size: 1 / 3 })) } },
-    ],
-  };
-  it('the band\'s tiles laid out as the preset, in its place and height; the other bands as they were', () => {
-    const next = arrangeBand(layout, 1, 'grid-2', ['c']);
-    assert.deepEqual(problems(next), []);
-    assert.equal(next.bands[0], layout.bands[0]);
-    assert.deepEqual(next.bands.slice(1).map((b) => tiles({ fit: false, bands: [b] })), [['c', 'a'], ['b']]);
-    assert.deepEqual(next.bands.slice(1).map((b) => b.height), [0.4, 0.4]);
-  });
-  it('a preset of one screen keeps the band\'s height; a tile of another band named first is not brought in', () => {
-    const next = arrangeBand(layout, 1, 'left-and-column', ['k1', 'b']);
-    assert.equal(next.bands.length, 2);
-    assert.equal(next.bands[1]!.height, 0.8);
-    assert.deepEqual(tiles(next), ['k1', 'k2', 'b', 'a', 'c']);
-    assert.equal(arrangeBand(layout, 5, 'stacked'), layout);
   });
 });
 

@@ -183,6 +183,16 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     return item;
   };
   const bands = (): string[][] => app.pageViews().layout.bands.map((b) => tiles({ fit: false, bands: [b] }));
+  /** The bands as the board shows them, every tile in (an added grid too, which the saved page leaves out until v2). */
+  const boardBands = (): string[][] => {
+    const tops = new Map<string, string[]>();
+    for (const el of root.querySelectorAll<HTMLElement>('.dc-band-tile')) {
+      const top = el.style.top;
+      tops.set(top, [...(tops.get(top) ?? []), el.dataset['tile']!]);
+    }
+    return [...tops.entries()].sort((x, y) => parseFloat(x[0]) - parseFloat(y[0]))
+      .map(([, ids]) => ids.sort((x, y) => parseFloat(tile(x).style.left) - parseFloat(tile(y).style.left)));
+  };
 
   it('a new chart goes beside its grid; Arrange lays the page out; Undo Layout and Redo Layout step through it', async () => {
     const [a, b] = await twoCharts();
@@ -211,20 +221,22 @@ describe('the page\'s layout: placed beside, arranged, undone, locked', () => {
     assert.equal(app.snapshot.rows, rows, 'the cube\'s own undo was not taken');
   });
 
-  it('a tile\'s own layouts arrange the band it is in, that tile first, and leave the other bands alone', async () => {
+  it('a tile\'s own layouts arrange the whole page, that tile first: four tiles in 2 x 2 are two rows of two', async () => {
     const [a, b] = await twoCharts();
-    pick('Arrange\u2026').click();
-    root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="top-and-row"]')!.click();
+    app.newGrid();
     await settle();
-    assert.deepEqual(bands(), [['grid'], [a, b]]);
-    const top = app.pageViews().layout.bands[0];
-    (tile(b).querySelector('.dc-tile-layout') as HTMLElement).click();
-    const options = root.querySelectorAll('.dc-layout-picker .dc-layout-option');
-    assert.equal(options[0]!.querySelectorAll('.dc-layout-cell').length, 2, 'the thumbnails show the band\'s tiles');
+    const copy = [...root.querySelectorAll<HTMLElement>('[data-tile^="grid-"]')][0]!.dataset['tile']!;
+    pick('Arrange\u2026').click();
     root.querySelector<HTMLButtonElement>('.dc-layout-picker [data-preset="stacked"]')!.click();
     await settle();
-    assert.deepEqual(bands(), [['grid'], [b], [a]], 'its band stacked, the tile first');
-    assert.deepEqual(app.pageViews().layout.bands[0], top, 'the band above untouched');
+    // the user, 2026-10-09: from a tile of four, the layouts showed two tiles, and 2 x 2 came out 2, 1, 1
+    (tile(b).querySelector('.dc-tile-layout') as HTMLElement).click();
+    const option = root.querySelector<HTMLElement>('.dc-layout-picker [data-preset="grid-2"]')!;
+    assert.equal(option.querySelectorAll('.dc-layout-cell').length, 4, 'the thumbnails show every tile on the page');
+    assert.equal(option.querySelectorAll('.dc-layout-cell-mark').length, 1, 'the tile it was opened from marked');
+    option.click();
+    await settle();
+    assert.deepEqual(boardBands(), [[b, 'grid'], [a, copy]]);
   });
 
   it('Edit Layout unticked locks the page: no handles, nothing moves', async () => {

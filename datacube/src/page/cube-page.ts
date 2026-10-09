@@ -169,17 +169,18 @@ export class CubePage {
   }
 
   /**
-   * The layouts (ui/layout-picker.ts) by `anchor`: the page's (Arrange..., every tile), or -- `first` -- a tile's own,
-   * which arrange the band that tile is in, that tile first, and leave the other bands as they are (the design's §3.3).
+   * The layouts (ui/layout-picker.ts) by `anchor`, each arranging every tile on the page: from Arrange... in reading
+   * order, or -- `first`, from a tile's own layout button -- with that tile in the first slot (the user, 2026-10-09: a
+   * tile's layouts arranging only its band showed two tiles of four, and 2 x 2 came out 2, 1, 1).
    */
   showLayouts(anchor: HTMLElement, first?: string): void {
     const board = this.#board;
     this.#picker.show(anchor, {
-      tiles: board.tilesToArrange(first),
+      tiles: tiles(board.layout),
       ...(first !== undefined ? { first } : {}),
       fit: board.layout.fit,
-      onPreview: (preset) => board.preview(preset, first, first),
-      onPick: (preset) => board.arrange(preset, first, first),
+      onPreview: (preset) => board.preview(preset, first),
+      onPick: (preset) => board.arrange(preset, first),
       onFit: (fit) => board.setFit(fit),
       onEvenOut: () => board.evenOut(),
     });

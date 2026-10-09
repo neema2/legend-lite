@@ -687,22 +687,6 @@ export function fromCells(tiles: readonly Cell[], rows: number): Bands {
   };
 }
 
-/**
- * ONE BAND ARRANGED AS A PRESET (a tile's own layouts, §3.3): band `band`'s tiles in `order` (its own reading order when
- * not given) laid out as `preset`, in that band's place -- the preset's bands replacing it -- and every other band left
- * as it is. A preset of one screen keeps the band's height; one of several bands splits that height among them.
- */
-export function arrangeBand(layout: Bands, band: number, preset: Preset, order?: readonly string[]): Bands {
-  const it = layout.bands[band];
-  if (it === undefined) return layout;
-  const own = tiles({ fit: layout.fit, bands: [it] });
-  const ids = (order ?? own).filter((id) => own.includes(id));
-  const made = arrange({ fit: layout.fit, bands: [it] }, preset, [...ids, ...own.filter((id) => !ids.includes(id))]).bands;
-  const total = made.reduce((sum, b) => sum + b.height, 0);
-  const placed = made.map((b) => ({ height: total > 0 ? (it.height * b.height) / total : it.height, node: b.node }));
-  return { fit: layout.fit, bands: [...layout.bands.slice(0, band), ...placed, ...layout.bands.slice(band + 1)] };
-}
-
 /** Where a divider snaps, as a share of its split: quarters, thirds and the half (§3.3). */
 export const SNAPS: readonly number[] = [1 / 4, 1 / 3, 1 / 2, 2 / 3, 3 / 4];
 

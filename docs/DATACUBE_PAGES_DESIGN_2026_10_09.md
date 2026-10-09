@@ -98,10 +98,14 @@ Arranging pauses while stacked. (Stepping down a column at a time, 3x3 to 2 to 1
 
 1. **A layout picker.** A layout button in each tile's title bar (shown on hover) and an **Arrange** button on the page
    open thumbnails of the common layouts: side by side, stacked, 2x2, 3x3, one on top and N below, one left and N
-   right (and its mirror), one large and two small, and "even out". Hovering a thumbnail previews it on the page;
-   clicking a slot puts *this* tile there and the others fill the remaining slots in reading order (a layout with
-   fewer slots than tiles stacks the rest in its last slot's column; one with more leaves empty slots offering "add a
-   grid / a chart"). The picker arranges the band the tile is in; "Arrange page" arranges every tile.
+   right (and its mirror), one large and two small, and "even out". Each thumbnail is the page's own tiles arranged that
+   way. Hovering a thumbnail previews it on the page; clicking applies it. **Every picker arranges the whole page**: a
+   tile's own puts *that* tile in the first slot (marked in the thumbnails), Arrange keeps the reading order; the
+   others fill the slots in reading order. A layout with more tiles than slots goes on as it goes (2x2 continues in
+   rows of two; one on top and the rest below, in rows of up to four); one with fewer closes up.
+   (As built, 2026-10-09: a tile's picker first arranged only the band the tile was in; the user, trying it with four
+   tiles, found it showed two of them and turned 2x2 into "2, 1, 1" -- so every picker arranges the page. Empty
+   slots offering "add a grid / a chart" are not built.)
 2. **Drop zones.** Dragging a tile by its title bar over another tile shows that tile's zones -- its left, right, top
    and bottom edges divide it there; its centre swaps the two (and, with tabs, adds it as a tab) -- and between two bands
    a line that makes a new band there; the zone that will take it is highlighted, with an outline of the result. Escape
