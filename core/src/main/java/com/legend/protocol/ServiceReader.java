@@ -118,12 +118,55 @@ final class ServiceReader {
                 ConnectionReader.Arrays a = ConnectionReader.arrays(r);
                 embedded = new Protocol.PEmbeddedRuntime(a.mappings(), a.connections(), a.connectionStores(),
                         r.span());
+            } else if ("legacyRuntime".equals(type) || type == null) {
+                // no _type: the engine's default Runtime subtype is the legacy one (CorePureProtocolExtension)
+                embedded = legacyRuntime(r);
             } else {
                 throw Wire.refuse("no reader rule for an execution runtime _type '" + type + "'");
             }
             r.done(r);
         }
         return new Keyed(mapping, mappingSpan, runtime, runtimeSpan, embedded);
+    }
+
+    /**
+     * An older {@code legacyRuntime}: the runtime legend-engine itself turns it into
+     * ({@code LegacyRuntime.toEngineRuntime}, which its service grammar composer and test runner use): its mappings,
+     * and its connections grouped under each one's store, in order, identified {@code connection_1}, {@code _2}, ...
+     */
+    private static Protocol.PEmbeddedRuntime legacyRuntime(Wire r) {
+        List<Protocol.PPointer> mappings = r.listOrEmpty("mappings", n -> DomainReader.pointer(n, "MAPPING"));
+        java.util.LinkedHashMap<String, List<Protocol.PIdentifiedConnection>> byStore = new java.util.LinkedHashMap<>();
+        int n = 1;
+        for (Json.Node c : r.arrOrEmpty("connections")) {
+            Protocol.PConnectionValue value = ConnectionReader.connectionValue(c);
+            String store = element(value);
+            byStore.computeIfAbsent(store, k -> new java.util.ArrayList<>())
+                    .add(new Protocol.PIdentifiedConnection("connection_" + n++, value, null));
+        }
+        List<Protocol.PStoreConnections> connections = new java.util.ArrayList<>();
+        byStore.forEach((store, cs) -> connections.add(new Protocol.PStoreConnections(
+                new Protocol.PPointer("STORE", store, null), cs, null)));
+        return new Protocol.PEmbeddedRuntime(mappings, connections, List.of(), r.span());
+    }
+
+    /** The store a legacy runtime's connection names; a pointer names none, so no store can group it. */
+    private static String element(Protocol.PConnectionValue value) {
+        String element = switch (value) {
+            case Protocol.PConnectionPointer p -> null;
+            case Protocol.PJsonModelConnection c -> c.element();
+            case Protocol.PXmlModelConnection c -> c.element();
+            case Protocol.PModelChainConnection c -> c.element();
+            case Protocol.PRelationalDatabaseConnection c -> c.element();
+            case Protocol.PServiceStoreConnection c -> c.element();
+            case Protocol.PDeephavenConnection c -> c.element();
+            case Protocol.PMongoDbConnection c -> c.element();
+            case Protocol.PElasticsearchConnection c -> c.element();
+        };
+        if (element == null) {
+            throw Wire.refuse("a legacyRuntime connection that names no store (element): it has none to be grouped under");
+        }
+        return element;
     }
 
     // ---------------------------------------------------------------------
@@ -202,7 +245,7 @@ final class ServiceReader {
     private static Protocol.PLegacyServiceTest.PLegacyAssert legacyAssert(Json.Node node) {
         Wire a = Wire.of(node, "legacy assert");
         return a.done(new Protocol.PLegacyServiceTest.PLegacyAssert(
-                a.list("parametersValues", ServiceReader::legacyParameter), ProtocolReader.lambdaNode(a.take("assert")),
+                a.listOrEmpty("parametersValues", ServiceReader::legacyParameter), ProtocolReader.lambdaNode(a.take("assert")),
                 a.span()));
     }
 

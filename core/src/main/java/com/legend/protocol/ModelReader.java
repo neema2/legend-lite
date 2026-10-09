@@ -202,7 +202,11 @@ public final class ModelReader {
         for (Json.Node e : s.arrOrEmpty("elements")) {   // the engine's Section starts it empty
             elements.add(e instanceof Json.Null ? null : s.asStr(e, "elements[]"));
         }
-        List<String> imports = importAware ? s.strings("imports") : List.of();
+        List<String> imports = List.of();
+        if (importAware) {
+            List<String> written = s.optStrings("imports");   // the engine's ImportAwareCodeSection starts it empty
+            imports = written == null ? List.of() : written;
+        }
         return s.done(new Protocol.PSection(importAware, s.str("parserName"), Collections.unmodifiableList(elements),
                 imports, s.span()));
     }

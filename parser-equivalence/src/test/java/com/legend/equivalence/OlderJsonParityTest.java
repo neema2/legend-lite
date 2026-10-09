@@ -54,7 +54,9 @@ class OlderJsonParityTest {
 
     private static final Json.Config DEEP = new Json.Config(4096);
 
-    private final ObjectMapper mapper = ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+    private static final ObjectMapper MAPPER =
+            ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+    private final ObjectMapper mapper = MAPPER;
     private final Map<String, Integer> refusals = new TreeMap<>();
     private final List<String> mismatches = new ArrayList<>();
     private int matched;
@@ -100,7 +102,8 @@ class OlderJsonParityTest {
         }
         Files.createDirectories(TestOutputs.dir());
         StringBuilder reasons = new StringBuilder();
-        refusals.forEach((r, n) -> reasons.append(n).append('\t').append(r).append('\n'));
+        refusals.forEach((r, n) -> reasons.append(n).append('\t').append(r).append('\t')
+                .append(refusalSamples.get(r)).append('\n'));
         Files.writeString(TestOutputs.file("older-json-refusals.tsv"), reasons.toString());
         Files.writeString(TestOutputs.file("older-json-mismatches.txt"), String.join("\n", mismatches));
         System.out.printf("[older-json] %d files: %d models, %d lambdas (%d the engine cannot read); matched %d,"
@@ -157,7 +160,7 @@ class OlderJsonParityTest {
             try {
                 written = ProtocolEmitter.emitElement(ModelReader.readElement(element));
             } catch (IllegalArgumentException refusal) {
-                refuse(refusal);
+                refuse(refusal, where);
                 continue;
             } catch (RuntimeException crash) {
                 mismatches.add(where + "\tcrashed: " + crash);
@@ -179,7 +182,7 @@ class OlderJsonParityTest {
         try {
             written = ProtocolEmitter.emitLambda(ProtocolReader.lambda(top));
         } catch (IllegalArgumentException refusal) {
-            refuse(refusal);
+            refuse(refusal, id);
             return;
         } catch (RuntimeException crash) {
             mismatches.add(id + "\tcrashed: " + crash);
@@ -201,13 +204,17 @@ class OlderJsonParityTest {
         mismatches.add(where + "\t" + firstDifference("$", ours, expected));
     }
 
-    private void refuse(IllegalArgumentException refusal) {
+    private void refuse(IllegalArgumentException refusal, String where) {
         refused++;
         String reason = String.valueOf(refusal.getMessage()).replace('\n', ' ');
         // one bucket per reason, its varying names aside
         reason = reason.length() > 220 ? reason.substring(0, 220) : reason;
         refusals.merge(reason, 1, Integer::sum);
+        refusalSamples.putIfAbsent(reason, where);
     }
+
+    /** The first element refused for each reason: where to look. */
+    private final Map<String, String> refusalSamples = new TreeMap<>();
 
     // ---------------------------------------------------------------------
     // The documented upgrades, applied to the engine's own JSON
@@ -289,8 +296,20 @@ class OlderJsonParityTest {
                     }
                 }
                 case "func" -> olderNew(f);
+                case "function" -> f.put("name", Json.str(engineSignature(o)));
+                case "legacyRuntime" -> {
+                    return engineRuntime(o);
+                }
+                case "relational" -> typed(f, "includedStores", "STORE");
+                case "association" -> withoutLeadingThis(f);
+                case "reference" -> f.put("dataElement", pointerOf(f.get("dataElement"), "DATA"));
+                case "purePropertyMapping" -> {
+                    f.putIfAbsent("explodeProperty", new Json.Bool(false));
+                    f.put("transform", withoutParameters(f.get("transform")));
+                }
                 case "class" -> {
                     typed(f, "superTypes", "CLASS");
+                    withoutLeadingThis(f);
                     if (f.get("constraints") instanceof Json.Arr cs) {
                         List<Json.Node> out = new ArrayList<>();
                         for (Json.Node c : cs.items()) {
@@ -326,9 +345,27 @@ class OlderJsonParityTest {
                     }
                 }
                 default -> {
+                    if (f.containsKey("aggregateValues") && f.containsKey("groupByFunctions")) {
+                        // an aggregation-aware specification: its map and group-by lambdas' $this is the engine's own
+                        f.put("aggregateValues", eachWithout(f.get("aggregateValues"), "mapFn"));
+                        f.put("groupByFunctions", eachWithout(f.get("groupByFunctions"), "groupByFn"));
+                    }
                 }
             }
             return new Json.Obj(f);
+        }
+
+        private static Json.Node eachWithout(Json.Node list, String lambdaKey) {
+            if (!(list instanceof Json.Arr a)) {
+                return list;
+            }
+            List<Json.Node> out = new ArrayList<>();
+            for (Json.Node n : a.items()) {
+                LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>(((Json.Obj) n).fields());
+                f.put(lambdaKey, withoutParameters(f.get(lambdaKey)));
+                out.add(new Json.Obj(f));
+            }
+            return new Json.Arr(out);
         }
 
         private Json.Node enumerationMapping(Json.Obj em) {
@@ -417,8 +454,69 @@ class OlderJsonParityTest {
         return new Json.Obj(f);
     }
 
-    /** A constraint lambda with no parameter declares today's {@code $this}. */
+    /** Qualified properties without the leading {@code this} parameter the engine's compiler removes. */
+    private static void withoutLeadingThis(LinkedHashMap<String, Json.Node> element) {
+        if (!(element.get("qualifiedProperties") instanceof Json.Arr qps)) {
+            return;
+        }
+        List<Json.Node> out = new ArrayList<>();
+        for (Json.Node qp : qps.items()) {
+            LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>(((Json.Obj) qp).fields());
+            List<Json.Node> ps = items((Json.Obj) qp, "parameters");
+            if (!ps.isEmpty() && ps.get(0) instanceof Json.Obj p && "this".equals(p.getStringOr("name", null))) {
+                f.put("parameters", new Json.Arr(ps.subList(1, ps.size())));
+            }
+            out.add(new Json.Obj(f));
+        }
+        element.put("qualifiedProperties", new Json.Arr(out));
+    }
+
+    /** A lambda whose one parameter the engine binds itself, written without it. */
+    private static Json.Node withoutParameters(Json.Node lambda) {
+        if (!(lambda instanceof Json.Obj l) || items(l, "parameters").isEmpty()) {
+            return lambda;
+        }
+        LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>(l.fields());
+        f.put("parameters", new Json.Arr(List.of()));
+        return new Json.Obj(f);
+    }
+
+    /** The function's name as the engine compiles it: {@code HelperModelBuilder.getSignature}, the engine's own. */
+    private static String engineSignature(Json.Obj function) {
+        try {
+            return org.finos.legend.engine.language.pure.compiler.toPureGraph.HelperModelBuilder.getSignature(
+                    MAPPER.readValue(Json.toCompact(function),
+                            org.finos.legend.engine.protocol.pure.m3.function.Function.class));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** A {@code legacyRuntime} as the engine's own {@code LegacyRuntime.toEngineRuntime} makes it. */
+    private static Json.Node engineRuntime(Json.Obj legacy) {
+        try {
+            var runtime = MAPPER.readValue(Json.toCompact(legacy),
+                    org.finos.legend.engine.protocol.pure.v1.model.packageableElement.runtime.LegacyRuntime.class);
+            return Json.parse(MAPPER.writeValueAsString(runtime.toEngineRuntime()), DEEP);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** A constraint lambda with no parameter declares today's {@code $this}; one without a multiplicity has [1]. */
     private static void withThis(LinkedHashMap<String, Json.Node> constraint, String key) {
+        if (constraint.get(key) instanceof Json.Obj l && items(l, "parameters").size() == 1
+                && items(l, "parameters").get(0) instanceof Json.Obj p && !p.has("multiplicity")) {
+            LinkedHashMap<String, Json.Node> pf = new LinkedHashMap<>(p.fields());
+            LinkedHashMap<String, Json.Node> m = new LinkedHashMap<>();
+            m.put("lowerBound", Json.num(1));
+            m.put("upperBound", Json.num(1));
+            pf.put("multiplicity", new Json.Obj(m));
+            LinkedHashMap<String, Json.Node> lf = new LinkedHashMap<>(l.fields());
+            lf.put("parameters", new Json.Arr(List.of(new Json.Obj(pf))));
+            constraint.put(key, new Json.Obj(lf));
+            return;
+        }
         if (constraint.get(key) instanceof Json.Obj l && items(l, "parameters").isEmpty()) {
             LinkedHashMap<String, Json.Node> lf = new LinkedHashMap<>(l.fields());
             LinkedHashMap<String, Json.Node> m = new LinkedHashMap<>();

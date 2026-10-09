@@ -303,8 +303,13 @@ final class MappingEmitter {
                         }
                         Protocol.PRelAssocPropertyMapping pm =
                                 ra.propertyMappings().get(j);
-                        b.append("{\"_type\":\"relationalPropertyMapping\","
-                                + "\"property\":{\"property\":");
+                        b.append("{\"_type\":\"relationalPropertyMapping\",\"property\":{");
+                        if (pm.ownerClass() != null) {
+                            b.append("\"class\":");
+                            str(b, pm.ownerClass());
+                            b.append(',');
+                        }
+                        b.append("\"property\":");
                         str(b, pm.property());
                         b.append(",\"sourceInformation\":");
                         srcInfo(b, pm.propertySourceInformation());
@@ -1381,6 +1386,13 @@ final class MappingEmitter {
         b.append('}');
     }
 
+    /** Older JSON's embedded set {@code class}, written back where it came from (alphabetically after _type). */
+    private static void embeddedClass(StringBuilder b, @com.legend.base.Nullable String embeddedClass) {
+        if (embeddedClass != null) {
+            b.append(",\"class\":");
+            str(b, embeddedClass);
+        }
+    }
 
     static void relPropertyMapping(StringBuilder b,
             Protocol.PPropertyMapping pmi) {
@@ -1439,6 +1451,7 @@ final class MappingEmitter {
             case Protocol.PEmbeddedPropertyMapping em -> {
                 b.append("{\"_type\":\"embeddedPropertyMapping\","
                         + "\"classMapping\":{\"_type\":\"embedded\"");
+                embeddedClass(b, em.embeddedClass());
                 if (em.id() != null) {
                     b.append(",\"id\":");
                     str(b, em.id());
@@ -1507,6 +1520,7 @@ final class MappingEmitter {
             case Protocol.POtherwiseEmbeddedPropertyMapping oe -> {
                 b.append("{\"_type\":\"otherwiseEmbeddedPropertyMapping\","
                         + "\"classMapping\":{\"_type\":\"embedded\"");
+                embeddedClass(b, oe.embeddedClass());
                 if (oe.id() != null) {
                     b.append(",\"id\":");
                     str(b, oe.id());

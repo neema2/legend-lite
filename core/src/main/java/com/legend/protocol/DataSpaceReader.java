@@ -90,7 +90,14 @@ final class DataSpaceReader {
         com.legend.protocol.spec.ValueSpecification query = null;
         if ("dataSpaceTemplateExecutable".equals(type)) {
             query = ProtocolReader.valueSpec(e.take("query"));
-        } else if ("dataSpacePackageableElementExecutable".equals(type)) {
+        } else if (type == null && e.opt("executable") instanceof Json.Str bare) {
+            // older JSON: no _type (the engine's default is this kind) and the executable a bare path
+            // (PackageableElementPointer's string creator)
+            path = bare.value();
+            if (path.indexOf('(') >= 0) {
+                throw Wire.refuse("an untyped bare executable path with a signature: " + path);
+            }
+        } else if ("dataSpacePackageableElementExecutable".equals(type) || type == null) {
             Wire x = e.obj("executable");
             path = x.str("path");
             pathSpan = x.span();

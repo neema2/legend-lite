@@ -23,16 +23,18 @@ final class StoreReader {
     }
 
     static Protocol.Element database(Wire w) {
-        List<Protocol.PDbFilter> filters = w.list("filters", StoreReader::filter);
+        // a list older JSON leaves out is empty, as the engine's Database and Store start it
+        List<Protocol.PDbFilter> filters = w.listOrEmpty("filters", StoreReader::filter);
         List<Protocol.PIncludedStoreSpec> specs = w.listOrEmpty("includedStoreSpecifications",
                 StoreReader::includedStoreSpec);
         if (w.has("includedStoreSpecifications") && specs.isEmpty()) {
             throw Wire.refuse("an empty includedStoreSpecifications (the wire omits it)");
         }
         List<Protocol.PTaggedValue> tvs = nonEmpty(w, "taggedValues", DomainReader::taggedValue);
-        return new Protocol.PDatabase(w.str("package"), w.str("name"), w.list("includedStores", DomainReader::pointer),
-                specs, w.list("schemas", StoreReader::schema), w.list("joins", StoreReader::join), filters,
-                w.list("stereotypes", DomainReader::stereotype), tvs, w.span());
+        return new Protocol.PDatabase(w.str("package"), w.str("name"),
+                w.listOrEmpty("includedStores", n -> DomainReader.pointer(n, "STORE")), specs,
+                w.listOrEmpty("schemas", StoreReader::schema), w.listOrEmpty("joins", StoreReader::join), filters,
+                DomainReader.stereotypes(w), tvs, w.span());
     }
 
     /** A list the emitter writes only when non-empty: absent is empty, present-and-empty is refused. */
@@ -157,12 +159,14 @@ final class StoreReader {
             Wire ptr = f.obj("filter");
             String db = ptr.optStr("db");
             String name = ptr.done(ptr.str("name"));
-            filter = f.done(new Protocol.PViewFilter(db, name, f.list("joins", StoreReader::joinPtr), f.span()));
+            filter = f.done(new Protocol.PViewFilter(db, name, f.listOrEmpty("joins", StoreReader::joinPtr), f.span()));
         }
-        return v.done(new Protocol.PDbView(v.str("name"), v.list("columnMappings", StoreReader::viewColumn),
+        // a list older JSON leaves out is empty, as the engine's View starts it
+        List<String> primaryKey = v.optStrings("primaryKey");
+        return v.done(new Protocol.PDbView(v.str("name"), v.listOrEmpty("columnMappings", StoreReader::viewColumn),
                 nonEmpty(v, "stereotypes", DomainReader::stereotype),
                 nonEmpty(v, "taggedValues", DomainReader::taggedValue), v.bool("distinct"), filter,
-                v.list("groupBy", StoreReader::relOp), v.strings("primaryKey"), v.span()));
+                v.listOrEmpty("groupBy", StoreReader::relOp), primaryKey == null ? List.of() : primaryKey, v.span()));
     }
 
     private static Protocol.PViewColumnMapping viewColumn(Json.Node node) {
@@ -232,15 +236,25 @@ final class StoreReader {
     }
 
     /** {@code {"_type":"Table", [database, mainTableDb,] schema, sourceInformation, table}}. */
+    /**
+     * A table pointer. Older JSON (the engine's Pure-side serializer) spells its {@code _type} {@code "table"} and may
+     * give the {@code database} alone; the engine keeps both as written ({@code TablePtr} is a plain object) and its
+     * mapping compile reads neither the spelling nor a missing {@code mainTableDb}. A {@code mainTableDb} alone does
+     * not compile there ("Can't resolve from 'null' path"): refused.
+     */
     static Protocol.PTablePtr tablePtr(Json.Node node) {
         Wire t = Wire.of(node, "table pointer");
-        t.constant("_type", "Table");
+        String type = t.str("_type");
+        if (!type.equals("Table") && !type.equals("table")) {
+            throw Wire.refuse("table pointer._type is '" + type + "': 'Table', or the older 'table'");
+        }
         String db = t.optStr("database");
         String mainDb = t.optStr("mainTableDb");
-        if ((db == null) != (mainDb == null)) {
-            throw Wire.refuse("a table pointer with one of database/mainTableDb (the wire has both or neither)");
+        if (db == null && mainDb != null) {
+            throw Wire.refuse("a table pointer with a mainTableDb and no database: the engine cannot resolve it");
         }
-        return t.done(new Protocol.PTablePtr(db, mainDb, t.str("schema"), t.str("table"), t.span()));
+        return t.done(new Protocol.PTablePtr(db, mainDb, t.str("schema"), t.str("table"), t.span(),
+                type.equals("Table") ? null : type));
     }
 
     static Protocol.PJoinPtr joinPtr(Json.Node node) {

@@ -101,7 +101,7 @@ public final class ProtocolReader {
             Map.entry("var", ProtocolReader::variableRef),
             Map.entry("func", ProtocolReader::func),
             Map.entry("property", ProtocolReader::property),
-            Map.entry("collection", w -> new PureCollection(w.list("values", ProtocolReader::valueSpec),
+            Map.entry("collection", w -> new PureCollection(w.listOrEmpty("values", ProtocolReader::valueSpec),
                     collectionSpan(w))),
             Map.entry("string", ProtocolReader::string),
             Map.entry("boolean", w -> new CBoolean(w.bool("value"), w.span())),
@@ -124,7 +124,8 @@ public final class ProtocolReader {
     // ---------------------------------------------------------------------
 
     private static LambdaFunction readLambda(Wire w) {
-        List<Variable> params = w.list("parameters", ProtocolReader::lambdaParameter);
+        // left out: none, as the engine's LambdaFunction starts them
+        List<Variable> params = w.listOrEmpty("parameters", ProtocolReader::lambdaParameter);
         List<ValueSpecification> body = w.list("body", ProtocolReader::valueSpec);
         return w.done(new LambdaFunction(params, body, w.span()));
     }
@@ -184,7 +185,7 @@ public final class ProtocolReader {
     private static ValueSpecification func(Wire w) {
         String fControl = w.optStr("fControl");
         String function = w.str("function");
-        List<Json.Node> raw = w.arr("parameters");
+        List<Json.Node> raw = w.arrOrEmpty("parameters");   // left out: none, as the engine's AppliedFunction starts
         SourceInfo pos = w.span();
         if (AppliedFunction.NEW.equals(function)) {
             ValueSpecification ni = SpecIslandReader.newInstance(raw, pos);
@@ -206,7 +207,7 @@ public final class ProtocolReader {
      * serializers, which no compile step of the engine's reads) is kept on the record as a written detail.
      */
     private static ValueSpecification property(Wire w) {
-        List<ValueSpecification> params = w.list("parameters", ProtocolReader::valueSpec);
+        List<ValueSpecification> params = w.listOrEmpty("parameters", ProtocolReader::valueSpec);
         String ownerClass = w.optStr("class");
         return propertyAccess(w.str("property"), params, w.span(), ownerClass);
     }
@@ -230,10 +231,16 @@ public final class ProtocolReader {
         return new AppliedProperty(params.get(0), name, pos, ownerClass);
     }
 
-    /** A collection's multiplicity is its size, written twice; anything else has no record. */
+    /**
+     * A collection's multiplicity is its size, written twice; anything else has no record. Older JSON may leave the
+     * values out (none, as the engine's Collection starts them) and then the multiplicity too (the engine's [0..0]).
+     */
     private static @com.legend.base.Nullable SourceInfo collectionSpan(Wire w) {
-        int size = w.arr("values").size();
-        multiplicityOfSize(w.take("multiplicity"), size, "collection");
+        int size = w.arrOrEmpty("values").size();
+        Json.Node m = w.opt("multiplicity");
+        if (m != null || size != 0) {
+            multiplicityOfSize(w.take("multiplicity"), size, "collection");
+        }
         return w.span();
     }
 

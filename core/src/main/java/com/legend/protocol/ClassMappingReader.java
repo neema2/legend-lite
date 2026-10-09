@@ -65,14 +65,16 @@ final class ClassMappingReader {
             Wire ptr = f.obj("filter");
             String db = ptr.str("db");
             String name = ptr.done(ptr.str("name"));
-            filter = f.done(new Protocol.PFilterMapping(db, name, f.list("joins", StoreReader::joinPtr), f.span()));
+            // joins left out: none, as the engine's FilterMapping starts them
+            filter = f.done(new Protocol.PFilterMapping(db, name, f.listOrEmpty("joins", StoreReader::joinPtr), f.span()));
         }
         Json.Node main = w.opt("mainTable");
         return new Protocol.PClassMappingRel(w.str("class"), w.span("classSourceInformation"), w.optStr("id"),
                 w.bool("root"), w.bool("distinct"), w.optStr("extendsClassMappingId"), filter,
-                w.list("groupBy", StoreReader::relOp), main == null ? null : StoreReader.tablePtr(main),
-                w.list("primaryKey", StoreReader::relOp),
-                w.list("propertyMappings", PropertyMappingReader::relational), w.span());
+                // each empty when older JSON leaves it out, as the engine's relational class mappings start it
+                w.listOrEmpty("groupBy", StoreReader::relOp), main == null ? null : StoreReader.tablePtr(main),
+                w.listOrEmpty("primaryKey", StoreReader::relOp),
+                w.listOrEmpty("propertyMappings", PropertyMappingReader::relational), w.span());
     }
 
     private static Protocol.PClassMapping pure(Wire w) {
@@ -99,9 +101,45 @@ final class ClassMappingReader {
         return l.done(l.list("body", ProtocolReader::valueSpec));
     }
 
+    /**
+     * A bare lambda that older JSON (the engine's Pure-side serializer) writes with the one parameter the engine
+     * binds itself, {@code bound}: the same lambda. {@code typeIgnored} says whether the engine ignores a declared
+     * type there too (a model-to-model transform's {@code src}: {@code HelperMappingBuilder
+     * .processPurePropertyMappingTransform} reads the body alone) or would use it (an untyped {@code this} only:
+     * {@code ValueSpecificationBuilder.visit(Variable)} declares a typed one).
+     */
+    static List<ValueSpecification> bareLambda(Json.Node node, String what, String bound, boolean typeIgnored) {
+        Wire l = Wire.of(node, what + " lambda");
+        l.constant("_type", "lambda");
+        List<Json.Node> params = l.arrOrEmpty("parameters");
+        if (params.size() > 1) {
+            throw Wire.refuse(what + " lambda with " + params.size() + " parameters");
+        }
+        for (Json.Node p : params) {
+            Wire v = Wire.of(p, what + " lambda parameter");
+            v.constant("_type", "var");
+            v.constant("name", bound);
+            Json.Node type = v.opt("genericType");
+            if (type != null && !typeIgnored) {
+                throw Wire.refuse(what + " lambda's $" + bound + " declared with a type: the engine would use it");
+            }
+            v.opt("multiplicity");
+            v.done(v.span());
+        }
+        return l.done(l.list("body", ProtocolReader::valueSpec));
+    }
+
     /** A span-less lambda wrapping exactly one statement. */
     static ValueSpecification bareLambdaOne(Json.Node node, String what) {
-        List<ValueSpecification> body = bareLambda(node, what);
+        return one(bareLambda(node, what), what);
+    }
+
+    /** {@link #bareLambdaOne}, older JSON's untyped {@code $this} declared (the engine binds it from the class). */
+    private static ValueSpecification bareLambdaOneOverThis(Json.Node node, String what) {
+        return one(bareLambda(node, what, "this", false), what);
+    }
+
+    private static ValueSpecification one(List<ValueSpecification> body, String what) {
         if (body.size() != 1) {
             throw Wire.refuse(what + " lambda with " + body.size() + " statements (the record holds one)");
         }
@@ -161,13 +199,13 @@ final class ClassMappingReader {
         Wire spec = a.obj("aggregateSpecification");
         List<Protocol.PAggregateValue> values = spec.list("aggregateValues", n -> {
             Wire v = Wire.of(n, "aggregate value");
-            return v.done(new Protocol.PAggregateValue(bareLambdaOne(v.take("mapFn"), "aggregate map"),
+            return v.done(new Protocol.PAggregateValue(bareLambdaOneOverThis(v.take("mapFn"), "aggregate map"),
                     bareLambdaOne(v.take("aggregateFn"), "aggregate function")));
         });
         boolean canAggregate = spec.bool("canAggregate");
         List<ValueSpecification> groupBy = spec.list("groupByFunctions", n -> {
             Wire g = Wire.of(n, "group by function");
-            return g.done(bareLambdaOne(g.take("groupByFn"), "group by"));
+            return g.done(bareLambdaOneOverThis(g.take("groupByFn"), "group by"));
         });
         spec.done(values);
         return a.done(new Protocol.PAggregateSetImplementation(canAggregate, groupBy, values, a.integer("index"),

@@ -176,7 +176,19 @@ public final class Protocol {
                                            PRelOp relationalOperation,
                                            @com.legend.base.Nullable String source,
                                            @com.legend.base.Nullable String target,
-                                           @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+                                           @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                                           /** older JSON's property-owner class (the engine's Pure-side serializer),
+                                            * which the engine's compiler resolves the property on; the grammar writes
+                                            * none (leg 2 step 2) */
+                                           @com.legend.base.Nullable String ownerClass) {
+        /** No owner class: what the grammar makes. */
+        public PRelAssocPropertyMapping(String property,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo propertySourceInformation,
+                PRelOp relationalOperation, @com.legend.base.Nullable String source,
+                @com.legend.base.Nullable String target,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(property, propertySourceInformation, relationalOperation, source, target, sourceInformation, null);
+        }
     }
 
     public record PXStoreAssociationMapping(PPointer association,
@@ -748,8 +760,20 @@ public final class Protocol {
                                            @com.legend.base.Nullable String id,
                                            List<PRelOp> primaryKey,
                                            List<PPropertyMapping> propertyMappings,
-                                           @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+                                           @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                                           /** older JSON's embedded class mapping {@code class} (the engine's
+                                            * Pure-side serializer), which the engine's compiler maps the embedded
+                                            * set to; the grammar writes none (leg 2 step 2) */
+                                           @com.legend.base.Nullable String embeddedClass)
             implements PPropertyMapping {
+        /** No embedded class written: what the grammar makes. */
+        public PEmbeddedPropertyMapping(@com.legend.base.Nullable String ownerClass, String property,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo propertySourceInformation,
+                @com.legend.base.Nullable String id, List<PRelOp> primaryKey, List<PPropertyMapping> propertyMappings,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(ownerClass, property, propertySourceInformation, id, primaryKey, propertyMappings, sourceInformation,
+                    null);
+        }
     }
 
     /** {@code prop() Inline[setId]} — span paren-open..bracket-close
@@ -776,8 +800,20 @@ public final class Protocol {
                                                     PRelOp otherwiseOp,
                                                     String otherwiseTarget,
                                                     @com.legend.base.Nullable com.legend.protocol.SourceInfo classMappingSourceInformation,
-                                                    @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+                                                    @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                                                    /** as {@link PEmbeddedPropertyMapping#embeddedClass} */
+                                                    @com.legend.base.Nullable String embeddedClass)
             implements PPropertyMapping {
+        /** No embedded class written: what the grammar makes. */
+        public POtherwiseEmbeddedPropertyMapping(@com.legend.base.Nullable String ownerClass, String property,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo propertySourceInformation,
+                @com.legend.base.Nullable String id, List<PRelOp> primaryKey, List<PPropertyMapping> propertyMappings,
+                PRelOp otherwiseOp, String otherwiseTarget,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo classMappingSourceInformation,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(ownerClass, property, propertySourceInformation, id, primaryKey, propertyMappings, otherwiseOp,
+                    otherwiseTarget, classMappingSourceInformation, sourceInformation, null);
+        }
     }
 
     /** {@code ~filter [db] NAME} / {@code ~filter [db]@J | [db2]NAME} —
@@ -1013,7 +1049,16 @@ public final class Protocol {
     public record PTablePtr(@com.legend.base.Nullable String database,
                             @com.legend.base.Nullable String mainTableDb, String schema,
                             String table,
-                            @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+                            @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                            @com.legend.base.Nullable String writtenType) {
+
+        /** Today's pointer, {@code _type} {@code "Table"}. {@code writtenType} keeps older JSON's other spelling
+         *  ({@code "table"}, the engine's Pure-side serializer's), which the engine writes back and its mapping
+         *  compile never reads (leg 2 step 2). */
+        public PTablePtr(@com.legend.base.Nullable String database, @com.legend.base.Nullable String mainTableDb,
+                String schema, String table, @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(database, mainTableDb, schema, table, sourceInformation, null);
+        }
     }
 
     /** {@code _type:"literal"} — value is a string or a number. */
@@ -2895,8 +2940,19 @@ public final class Protocol {
                                List<com.legend.protocol.DerivedPropertyDefinition> derivedProperties,
                                List<PStereotype> stereotypes,
                                List<PTaggedValue> taggedValues,
-                               @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) implements Element {
+                               @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                               /** older JSON's milestoned properties written out, as on {@link PClass} */
+                               List<PProperty> originalMilestonedProperties) implements Element {
+        /** None written out: what the grammar makes. */
+        public PAssociation(String pkg, String name, List<PProperty> properties,
+                            List<com.legend.protocol.DerivedPropertyDefinition> derivedProperties,
+                            List<PStereotype> stereotypes, List<PTaggedValue> taggedValues,
+                            @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(pkg, name, properties, derivedProperties, stereotypes, taggedValues, sourceInformation, List.of());
+        }
+
         public PAssociation {
+            originalMilestonedProperties = List.copyOf(originalMilestonedProperties);
             properties = List.copyOf(properties);
             derivedProperties = List.copyOf(derivedProperties);
             stereotypes = List.copyOf(stereotypes);
@@ -2982,7 +3038,23 @@ public final class Protocol {
                          List<PStereotype> stereotypes,
                          List<PTaggedValue> taggedValues,
                          boolean isNative,
-                         @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) implements Element {
+                         @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
+                         /** older JSON's milestoned properties written out (the engine's Pure-side serializer), which
+                          * the engine's compiler reads and merges and its writer writes back; the grammar writes none
+                          * (docs/PROTOCOL_PROGRAM_2026_10_05.md leg 2 step 2) */
+                         List<PProperty> originalMilestonedProperties) implements Element {
+        /** The arity before the milestoned properties: none written out. */
+        public PClass(String pkg, String name, List<String> typeParams,
+                      List<com.legend.protocol.ParameterDefinition> typeVariables,
+                      List<PSuperType> superTypes, List<PProperty> properties,
+                      List<com.legend.protocol.DerivedPropertyDefinition> derivedProperties,
+                      List<com.legend.protocol.ConstraintDefinition> constraints,
+                      List<PStereotype> stereotypes, List<PTaggedValue> taggedValues,
+                      boolean isNative, @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            this(pkg, name, typeParams, typeVariables, superTypes, properties, derivedProperties,
+                    constraints, stereotypes, taggedValues, isNative, sourceInformation, List.of());
+        }
+
         /** The pre-type-variable arity: no type variables. */
         public PClass(String pkg, String name, List<String> typeParams,
                       List<PSuperType> superTypes, List<PProperty> properties,
@@ -2995,6 +3067,7 @@ public final class Protocol {
         }
 
         public PClass {
+            originalMilestonedProperties = List.copyOf(originalMilestonedProperties);
             typeParams = List.copyOf(typeParams);
             typeVariables = List.copyOf(typeVariables);
             superTypes = List.copyOf(superTypes);

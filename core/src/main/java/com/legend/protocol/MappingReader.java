@@ -86,16 +86,20 @@ final class MappingReader {
                 w.span());
     }
 
-    /** A relational association side: the property carries no class on this wire. */
+    /**
+     * A relational association side: the property carries no class on the grammar's wire; older JSON writes the
+     * property's owner class, which the engine's compiler resolves the property on -- kept.
+     */
     private static Protocol.PRelAssocPropertyMapping relAssocProperty(Json.Node node) {
         Wire w = Wire.of(node, "relational association property mapping");
         w.constant("_type", "relationalPropertyMapping");
         Wire p = w.obj("property");
+        String owner = p.optStr("class");
         String property = p.str("property");
         SourceInfo propSpan = p.done(p.span());
         return w.done(new Protocol.PRelAssocPropertyMapping(property, propSpan,
                 StoreReader.relOp(w.take("relationalOperation")), w.optStr("source"), w.optStr("target"),
-                w.span()));
+                w.span(), owner));
     }
 
     /** An xStore side: its cross expression is a span-less parameterless lambda. */

@@ -429,17 +429,12 @@ public final class ProtocolEmitter {
     }
 
     static void tablePtr(StringBuilder b, Protocol.PTablePtr t) {
-        b.append("{\"_type\":\"Table\"");
-        String db = t.database();
-        String mainDb = t.mainTableDb();
-        if (db != null && mainDb != null) {
-            // a table ref with NO db anywhere (bare mapping-embedded op)
-            // OMITS both db keys (probe bare-no-db)
-            b.append(",\"database\":");
-            str(b, db);
-            b.append(",\"mainTableDb\":");
-            str(b, mainDb);
-        }
+        b.append("{\"_type\":");
+        str(b, t.writtenType() != null ? t.writtenType() : "Table");
+        // a table ref with NO db anywhere (bare mapping-embedded op) OMITS both db keys (probe bare-no-db);
+        // older JSON's database-only pointer keeps its one
+        optField(b, "database", t.database());
+        optField(b, "mainTableDb", t.mainTableDb());
         b.append(",\"schema\":");
         str(b, t.schema());
         b.append(",\"sourceInformation\":");
@@ -1593,7 +1588,14 @@ public final class ProtocolEmitter {
     private static void association(StringBuilder b, Protocol.PAssociation a) {
         b.append("{\"_type\":\"association\",\"name\":");
         str(b, a.name());
-        b.append(",\"originalMilestonedProperties\":[],\"package\":");
+        b.append(",\"originalMilestonedProperties\":[");
+        for (int i = 0; i < a.originalMilestonedProperties().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            property(b, a.originalMilestonedProperties().get(i));
+        }
+        b.append("],\"package\":");
         str(b, a.pkg());
         b.append(",\"properties\":[");
         for (int i = 0; i < a.properties().size(); i++) {
@@ -1696,7 +1698,14 @@ public final class ProtocolEmitter {
         }
         b.append("],\"name\":");
         str(b, c.name());
-        b.append(",\"originalMilestonedProperties\":[],\"package\":");
+        b.append(",\"originalMilestonedProperties\":[");
+        for (int i = 0; i < c.originalMilestonedProperties().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            property(b, c.originalMilestonedProperties().get(i));
+        }
+        b.append("],\"package\":");
         str(b, c.pkg());
         b.append(",\"properties\":[");
         List<PProperty> ps = c.properties();
@@ -2404,7 +2413,7 @@ public final class ProtocolEmitter {
                     valueSpec(b, new com.legend.protocol.spec.PureCollection(c.values(), span));
             case com.legend.protocol.spec.AppliedProperty pr ->
                     valueSpec(b, new com.legend.protocol.spec.AppliedProperty(
-                            pr.receiver(), pr.property(), span));
+                            pr.receiver(), pr.property(), span, pr.ownerClass()));
             case com.legend.protocol.spec.EnumValue e ->
                     valueSpec(b, new com.legend.protocol.spec.EnumValue(
                             e.fullPath(), e.value(), e.enumerationPos(), span, e.node()));

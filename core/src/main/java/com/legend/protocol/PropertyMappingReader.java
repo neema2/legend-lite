@@ -74,15 +74,18 @@ final class PropertyMappingReader {
 
     /** The {@code _type:"embedded"} class mapping an embedded line nests: id, primary key, lines, span. */
     private record Embedded(@com.legend.base.Nullable String id, List<Protocol.PRelOp> primaryKey,
-            List<Protocol.PPropertyMapping> lines, @com.legend.base.Nullable SourceInfo span) {
+            List<Protocol.PPropertyMapping> lines, @com.legend.base.Nullable SourceInfo span,
+            @com.legend.base.Nullable String embeddedClass) {
     }
 
+    /** Older JSON writes the embedded set's {@code class} (the engine's compiler maps the set to it): kept. */
     private static Embedded embeddedClassMapping(Json.Node node) {
         Wire c = Wire.of(node, "embedded class mapping");
         c.constant("_type", "embedded");
         c.constant("root", false);
+        String embeddedClass = c.optStr("class");
         return c.done(new Embedded(c.optStr("id"), c.list("primaryKey", StoreReader::relOp),
-                c.list("propertyMappings", PropertyMappingReader::relational), c.span()));
+                c.list("propertyMappings", PropertyMappingReader::relational), c.span(), embeddedClass));
     }
 
     /** {@code prop[k] ( lines )}: one id (class mapping id, line id, target) and one span on both levels. */
@@ -98,7 +101,7 @@ final class PropertyMappingReader {
         StoreReader.sameSpan(cm.span(), span, "embedded property mapping");
         PropertyRef p = property(w.take("property"));
         return new Protocol.PEmbeddedPropertyMapping(p.ownerClass(), p.property(), p.span(), id, cm.primaryKey(),
-                cm.lines(), span);
+                cm.lines(), span, cm.embeddedClass());
     }
 
     private static Protocol.PPropertyMapping inlineEmbedded(Wire w) {
@@ -124,21 +127,26 @@ final class PropertyMappingReader {
         StoreReader.sameSpan(otherwise.sourceInformation(), o.span(), "otherwise property mapping");
         String target = o.done(o.str("target"));
         return new Protocol.POtherwiseEmbeddedPropertyMapping(p.ownerClass(), p.property(), p.span(), cm.id(),
-                cm.primaryKey(), cm.lines(), otherwise, target, cm.span(), w.span());
+                cm.primaryKey(), cm.lines(), otherwise, target, cm.span(), w.span(), cm.embeddedClass());
     }
 
     // ---------------------------------------------------------------------
     // Pure and aggregation aware
     // ---------------------------------------------------------------------
 
-    /** A pure property mapping: the transform is a span-less parameterless lambda. */
+    /**
+     * A pure property mapping: the transform is a span-less parameterless lambda. Older JSON leaves out
+     * {@code explodeProperty} (the engine's null, read as false) and declares the transform's {@code $src}, which
+     * the engine binds itself whatever is declared.
+     */
     static Protocol.PPurePropertyMapping pure(Json.Node node) {
         Wire w = Wire.of(node, "pure property mapping");
         w.constant("_type", "purePropertyMapping");
         PropertyRef p = property(w.take("property"));
+        Boolean explode = w.optBool("explodeProperty");
         return w.done(new Protocol.PPurePropertyMapping(p.ownerClass(), p.property(), p.span(),
-                w.optStr("enumMappingId"), w.bool("explodeProperty"), localProperty(w),
-                ClassMappingReader.bareLambda(w.take("transform"), "pure transform"), w.optStr("source"),
+                w.optStr("enumMappingId"), explode != null && explode, localProperty(w),
+                ClassMappingReader.bareLambda(w.take("transform"), "pure transform", "src", true), w.optStr("source"),
                 w.optStr("target"), w.span()));
     }
 

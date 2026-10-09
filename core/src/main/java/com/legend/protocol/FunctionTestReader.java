@@ -30,9 +30,26 @@ final class FunctionTestReader {
                 s.list("testData", FunctionTestReader::testData), s.list("tests", FunctionTestReader::test)));
     }
 
+    /**
+     * A function test's data. Older JSON names the store in {@code store} ({@code StoreProviderPointer}: a bare path,
+     * a STORE, or the pointer object), which the engine reads as the pointer and writes back as
+     * {@code packageableElementPointer} ({@code Function.FunctionDeserializer}); it reads the newer key first, so
+     * both at once is refused.
+     */
     private static Protocol.PTestData testData(Json.Node node) {
         Wire d = Wire.of(node, "function test data");
-        Wire ptr = d.obj("packageableElementPointer");
+        Json.Node older = d.opt("store");
+        Json.Node current = d.opt("packageableElementPointer");
+        if (older != null && current != null) {
+            throw Wire.refuse("function test data with both 'packageableElementPointer' and the older 'store': the"
+                    + " engine reads the first and drops the other");
+        }
+        // neither: refused, naming the current key
+        Json.Node pointer = current != null ? current : older != null ? older : d.take("packageableElementPointer");
+        if (current == null && pointer instanceof Json.Str path) {
+            return d.done(new Protocol.PTestData(path.value(), null, payload(d.take("data")), "STORE", d.span()));
+        }
+        Wire ptr = Wire.of(pointer, "store pointer");
         String path = ptr.str("path");
         SourceInfo storeSpan = ptr.span();
         String type = ptr.done(ptr.optStr("type"));
@@ -97,9 +114,19 @@ final class FunctionTestReader {
         return w.done(Wire.rule(PAYLOADS, w.type(), "test data").apply(w));
     }
 
-    /** A data-element reference: the pointer and the payload share one span; {@code DATA} is the default type. */
+    /**
+     * A data-element reference: the pointer and the payload share one span; {@code DATA} is the default type. Older
+     * JSON writes the bare path ({@code PackageableElementPointer}'s string creator): that DATA pointer, no span.
+     */
     private static PTestPayload reference(Wire w) {
-        Wire de = w.obj("dataElement");
+        Json.Node written = w.take("dataElement");
+        if (written instanceof Json.Str bare) {
+            if (w.span() != null) {
+                throw Wire.refuse("a reference to " + bare.value() + " with a span and a bare path");
+            }
+            return new PTestPayload.Reference(bare.value(), null, null);
+        }
+        Wire de = Wire.of(written, "test data.dataElement");
         String path = de.str("path");
         SourceInfo inner = de.span();
         String type = de.done(de.str("type"));

@@ -94,7 +94,9 @@ final class MappingTestReader {
         } else {
             throw Wire.refuse("no reader rule for legacy input data _type '" + type + "'");
         }
-        return w.done(new Protocol.PLegacyInputData(relational, target, w.str("inputType"), w.str("data"),
-                w.span()));
+        // an object input older JSON gives no inputType is JSON, as the engine's ObjectInputData starts it
+        String inputType = relational ? w.str("inputType") : w.optStr("inputType");
+        return w.done(new Protocol.PLegacyInputData(relational, target, inputType == null ? "JSON" : inputType,
+                w.str("data"), w.span()));
     }
 }

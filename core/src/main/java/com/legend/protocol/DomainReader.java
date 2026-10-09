@@ -32,21 +32,22 @@ final class DomainReader {
     private DomainReader() {
     }
 
+    /** Older JSON's milestoned properties written out are kept: the engine's compiler reads and merges them. */
     static Protocol.Element pclass(Wire w) {
         List<ConstraintDefinition> constraints = w.listOrEmpty("constraints", DomainReader::constraint);
-        w.emptyOrAbsent("originalMilestonedProperties");
+        List<Protocol.PProperty> milestoned = w.listOrEmpty("originalMilestonedProperties", DomainReader::property);
         return new Protocol.PClass(w.str("package"), w.str("name"), List.of(), List.of(),
                 w.listOrEmpty("superTypes", DomainReader::superType), w.listOrEmpty("properties", DomainReader::property),
                 w.listOrEmpty("qualifiedProperties", DomainReader::qualifiedProperty), constraints,
-                stereotypes(w), taggedValues(w), false, w.span());
+                stereotypes(w), taggedValues(w), false, w.span(), milestoned);
     }
 
     static Protocol.Element association(Wire w) {
-        w.emptyOrAbsent("originalMilestonedProperties");
+        List<Protocol.PProperty> milestoned = w.listOrEmpty("originalMilestonedProperties", DomainReader::property);
         return new Protocol.PAssociation(w.str("package"), w.str("name"),
                 w.listOrEmpty("properties", DomainReader::property),
                 w.listOrEmpty("qualifiedProperties", DomainReader::qualifiedProperty),
-                stereotypes(w), taggedValues(w), w.span());
+                stereotypes(w), taggedValues(w), w.span(), milestoned);
     }
 
     static Protocol.Element profile(Wire w) {
@@ -108,7 +109,10 @@ final class DomainReader {
 
     /**
      * {@code _type:"function"}: the wire name is SIGNATURE-MANGLED ({@link Protocol.PFunction#mangledName});
-     * the declared name is what remains once the signature's mangling is taken off the end.
+     * the declared name is what remains once the signature's mangling is taken off the end. Older JSON writes the
+     * name without it: the engine compiles that function under the mangled name all the same
+     * ({@code HelperModelBuilder.getSignature} strips the mangling only where the name ends in it, then appends it),
+     * so the wire name is then the declared name.
      */
     static Protocol.Element function(Wire w) {
         List<ParameterDefinition> params = w.listOrEmpty("parameters", DomainReader::parameter);
@@ -124,11 +128,12 @@ final class DomainReader {
         List<PTaggedValue> taggedValues = taggedValues(w);
         String mangling = new Protocol.PFunction(pkg, "", List.of(), List.of(), params, returnType, returnMult,
                 body, List.of(), tests, stereotypes, taggedValues, null).mangledName();
-        if (!wireName.endsWith(mangling) || wireName.length() == mangling.length()) {
-            throw Wire.refuse("function name '" + wireName + "' does not end in its signature's mangling '"
-                    + mangling + "'");
+        if (wireName.equals(mangling)) {
+            throw Wire.refuse("function name '" + wireName + "' is its signature's mangling alone");
         }
-        return new Protocol.PFunction(pkg, wireName.substring(0, wireName.length() - mangling.length()), List.of(),
+        String declared = wireName.endsWith(mangling) ? wireName.substring(0, wireName.length() - mangling.length())
+                : wireName;
+        return new Protocol.PFunction(pkg, declared, List.of(),
                 List.of(), params, returnType, returnMult, body, List.of(), tests, stereotypes, taggedValues,
                 w.span());
     }
@@ -184,10 +189,23 @@ final class DomainReader {
                 p.optStr("aggregation")));
     }
 
-    /** A qualified (derived) property: the body is the bare statement list, the parameters typed vars. */
+    /**
+     * A qualified (derived) property: the body is the bare statement list, the parameters typed vars. Older JSON
+     * declares the receiver as a leading {@code this} parameter, which the engine's compiler removes before it reads
+     * the rest ({@code HelperModelBuilder}: "this" first is dropped): read without it.
+     */
     static DerivedPropertyDefinition qualifiedProperty(Json.Node node) {
         Wire q = Wire.of(node, "qualified property");
-        return q.done(new DerivedPropertyDefinition(q.str("name"), q.listOrEmpty("parameters", DomainReader::parameter),
+        List<Json.Node> params = new java.util.ArrayList<>(q.arrOrEmpty("parameters"));
+        if (!params.isEmpty() && params.get(0) instanceof Json.Obj first && "var".equals(first.getStringOr("_type", null))
+                && "this".equals(first.getStringOr("name", null))) {
+            params.remove(0);
+        }
+        List<ParameterDefinition> declared = new java.util.ArrayList<>(params.size());
+        for (Json.Node p : params) {
+            declared.add(parameter(p));
+        }
+        return q.done(new DerivedPropertyDefinition(q.str("name"), declared,
                 new Realization.Inline(q.listOrEmpty("body", ProtocolReader::valueSpec)),
                 typeOrName(q, "returnGenericType", "returnType", null),
                 ProtocolReader.multiplicity(q.take("returnMultiplicity")),
@@ -238,7 +256,10 @@ final class DomainReader {
         Wire p = Wire.of(params.get(0), "constraint $this");
         p.constant("_type", "var");
         p.constant("name", "this");
-        Multiplicity m = ProtocolReader.multiplicity(p.take("multiplicity"));
+        // older JSON (the engine's Pure-side serializer) leaves the multiplicity out: the engine compiles the
+        // class's own $this, [1], either way (ValueSpecificationBuilder.visit(Variable) declares only a typed one)
+        Json.Node written = p.opt("multiplicity");
+        Multiplicity m = written == null ? new Multiplicity.Concrete(1, 1) : ProtocolReader.multiplicity(written);
         if (!m.equals(new Multiplicity.Concrete(1, 1))) {
             throw Wire.refuse("a constraint $this of multiplicity " + m);
         }
