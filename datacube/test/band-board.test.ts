@@ -145,6 +145,23 @@ describe('the band board', () => {
     wellFormed(board);
   });
 
+  it('evens out the whole page: every split alike, every band as tall', () => {
+    const { board, changes } = sideBySide(['a', 'b']);
+    board.add(tile('c'));
+    const divider = host.querySelector<HTMLElement>('.dc-band-divider-row')!;
+    pointer(divider, 'pointerdown', 500, 100);
+    pointer(divider, 'pointerup', 650, 100);
+    const edge = host.querySelectorAll<HTMLElement>('.dc-band-edge')[1]!;
+    pointer(edge, 'pointerdown', 500, 612);
+    pointer(edge, 'pointerup', 500, 700);
+    board.evenOut();
+    assert.equal(box('a').w, 496);
+    assert.equal(box('a').h, box('c').h, 'the bands alike, the page as tall as it was');
+    assert.equal(box('c').y + box('c').h, 300 + 8 + 388);
+    assert.equal(changes.length, 3);
+    wellFormed(board);
+  });
+
   it('drags a tile by its title bar onto another\'s edge: the zone outlined while dragging, the tile placed on let go', () => {
     const { board, changes } = sideBySide(['a', 'b']);
     const head = root('a').querySelector<HTMLElement>('.dc-tile-head')!;

@@ -2686,6 +2686,69 @@
 /* a maximised tile's own button shows it is on */
 .dc-bands-maximised .dc-tile-maximise { opacity: 1; border-color: var(--dc-active, #0284c7); color: var(--dc-active, #0284c7); }
 
+/* The layout picker (ui/layout-picker.ts): the page's tiles as each layout would arrange them, four to a row. */
+.dc-layout-picker {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--dc-pad-2);
+  padding: var(--dc-pad-2);
+  background: var(--tw-white);
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-sm);
+  box-shadow: var(--dc-popup-shadow);
+}
+
+.dc-layout-picker:focus { outline: none; }
+
+.dc-layout-options { display: grid; grid-template-columns: repeat(4, auto); gap: 6px; }
+
+.dc-layout-option {
+  padding: 3px;
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  cursor: pointer;
+}
+
+.dc-layout-option:hover,
+.dc-layout-option:focus-visible { border-color: var(--dc-active, #0284c7); background: var(--dc-selected-bg); outline: none; }
+
+.dc-layout-thumb { display: block; position: relative; width: 64px; height: 44px; }
+
+.dc-layout-cell {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--dc-line-strong);
+  border-radius: 1px;
+  background: var(--tw-neutral-100);
+}
+
+/* the tile the picker was opened from: where it goes */
+.dc-layout-cell.dc-layout-cell-mark { border-color: var(--dc-active, #0284c7); background: var(--dc-active, #0284c7); }
+
+.dc-layout-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dc-pad-2);
+  font-size: var(--dc-text-sm-size);
+}
+
+.dc-layout-fit { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+.dc-layout-even {
+  font: inherit;
+  padding: 0 6px;
+  line-height: 20px;
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
 .dc-chart-tile { display: flex; }
 .dc-chart-tile .dc-chartpanel { flex: 1 1 auto; min-width: 0; }
 .dc-chart-tile .dc-chartpanel-form[hidden] { display: none; }

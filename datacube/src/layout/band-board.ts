@@ -31,6 +31,7 @@ import {
   drop,
   dividerBeside,
   dropAt,
+  evenAll,
   evenOut,
   fitted,
   neighbour,
@@ -194,6 +195,12 @@ export class BandBoard {
   /** Arrange every tile as a preset, `first` in its first slot; the others in reading order. */
   arrange(preset: Preset, first?: string): void {
     this.#commit(arrange(this.#layout, preset, this.#order(first)));
+    this.#options.onChange?.(this.#layout);
+  }
+
+  /** Even out the whole page: every split's parts alike, every band as tall as the rest. */
+  evenOut(): void {
+    this.#commit(evenAll(this.#layout));
     this.#options.onChange?.(this.#layout);
   }
 

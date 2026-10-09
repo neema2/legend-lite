@@ -1172,6 +1172,11 @@ TEST_IMPORTS = {
         "src/treeview.ts",
         "src/ui/json-fields.ts",
     ],
+    "layout-picker": [
+        "src/focus.ts",
+        "src/layout/bands.ts",
+        "src/ui/layout-picker.ts",
+    ],
     "menu-ids": [],
     "menu-view": [
         "src/adhoc/state.ts",

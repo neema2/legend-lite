@@ -278,6 +278,14 @@ export function evenOut(layout: Bands, path: readonly number[]): Bands {
   return withBand(layout, bandIndex!, { height: band.height, node: at(band.node, inner) });
 }
 
+/** EVEN OUT THE WHOLE PAGE (the layout picker's Even out): every split's parts share alike, every band as tall as the rest. */
+export function evenAll(layout: Bands): Bands {
+  const even = (node: Node): Node => (isTile(node) ? node
+    : { split: node.split, parts: node.parts.map((part) => ({ node: even(part.node), size: 1 / node.parts.length })) });
+  const height = layout.bands.reduce((sum, band) => sum + band.height, 0) / Math.max(1, layout.bands.length);
+  return { fit: layout.fit, bands: layout.bands.map((band) => ({ height, node: even(band.node) })) };
+}
+
 /** The page fitting its window, or scrolling past it. */
 export function fitted(layout: Bands, fit: boolean): Bands {
   return { fit, bands: layout.bands };

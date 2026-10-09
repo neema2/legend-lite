@@ -21,6 +21,7 @@ import {
   drop,
   dividerBeside,
   dropAt,
+  evenAll,
   evenOut,
   fitted,
   neighbour,
@@ -324,5 +325,22 @@ describe('two bands trading height (a page that fits its window)', () => {
     near(tradeBands(layout, 0, 5).bands[1]!.height, MIN_BAND_HEIGHT);
     near(tradeBands(layout, 0, -5).bands[0]!.height, MIN_BAND_HEIGHT);
     assert.equal(tradeBands(layout, 2, 0.1), layout);
+  });
+});
+
+describe('evening out the whole page', () => {
+  it('every split\'s parts alike, at every depth; every band as tall, the page as tall as it was', () => {
+    let layout = arrange(EMPTY, 'large-and-two', ['a', 'b', 'c', 'd']);
+    layout = resize(resize(layout, [0], 0, 0.1), [0, 1], 0, 0.2);
+    layout = resizeBand(layout, 1, 0.9);
+    const even = evenAll(layout);
+    assert.deepEqual(problems(even), []);
+    const top = even.bands[0]!.node as Extract<Node, { split: unknown }>;
+    assert.deepEqual(top.parts.map((p) => p.size), [0.5, 0.5]);
+    const column = top.parts[1]!.node as Extract<Node, { split: unknown }>;
+    assert.deepEqual(column.parts.map((p) => p.size), [0.5, 0.5]);
+    assert.equal(even.bands[0]!.height, even.bands[1]!.height);
+    assert.ok(Math.abs(even.bands[0]!.height + even.bands[1]!.height - (0.6 + 0.9)) < 1e-9);
+    assert.deepEqual(tiles(even), tiles(layout));
   });
 });
