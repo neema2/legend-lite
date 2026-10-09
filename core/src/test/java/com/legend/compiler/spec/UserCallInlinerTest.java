@@ -47,6 +47,10 @@ class UserCallInlinerTest {
             function m::adults(): m::Person[*] { m::Person.all()->filter(p|m::isAdult($p)) }
             function m::applyTo(f: Function<{Integer[1]->Integer[1]}>[1], v: Integer[1]): Integer[1]
             { $f->eval($v) }
+            function m::mapOne(v: Integer[1], f: Function<{Integer[1]->Integer[1]}>[1]): Integer[1]
+            { $v->map($f) }
+            function m::doubler(): Function<{Integer[1]->Integer[1]}>[1] { {x: Integer[1] | $x * 2} }
+            function m::mapDoubled(v: Integer[1]): Integer[1] { $v->map(m::doubler()) }
             function m::recurse(n: Integer[1]): Integer[1] { m::recurse($n - 1) }
             """;
 
@@ -112,6 +116,22 @@ class UserCallInlinerTest {
         var r = run("m::Person.all()->filter(p|m::applyTo(v|$v * 2, $p.age) > 80)"
                 + "->project(~[name: p|$p.name])");
         assertEquals(java.util.List.of("Cat"), col(r));
+    }
+
+    @Test
+    @DisplayName("higher-order map: a lambda bound to a function parameter reduces where the checker saw a variable")
+    void higherOrderMap() throws SQLException {
+        // MapChecker emitted the plain native map($v, $f) over the
+        // function-valued parameter; the substitution places the literal
+        // lambda there (a term the call site bound), and an exactly-[1]
+        // source β-reduces: map(v[1], f) ≡ f(v)
+        var r = run("m::Person.all()->filter(p|m::mapOne($p.age, v|$v * 2) > 80)"
+                + "->project(~[name: p|$p.name])");
+        assertEquals(java.util.List.of("Cat"), col(r));
+        // the lambda may also arrive by REDUCTION: a call that returns one
+        var r2 = run("m::Person.all()->filter(p|m::mapDoubled($p.age) > 80)"
+                + "->project(~[name: p|$p.name])");
+        assertEquals(java.util.List.of("Cat"), col(r2));
     }
 
     @Test

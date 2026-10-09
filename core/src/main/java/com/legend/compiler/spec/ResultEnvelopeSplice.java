@@ -195,10 +195,12 @@ public final class ResultEnvelopeSplice {
         // where it stands, no separate eager run
         if (n instanceof TypedNativeCall lq
                 && (com.legend.builtin.NativeFn.Handle.of(lq.callee().id()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
-            // the hook fires BEFORE and AFTER the inliner's env
-            // substitution: a still-variable query argument (a helper's
-            // parameter — runLegendTest($f, …)) waits for the substituted
-            // pass; the frame builds once the lambda is in view
+            // the hook fires on the SUBSTITUTED tree (the inliner
+            // substitutes at every β site before it reduces, and re-offers
+            // the call when a reduction changes an argument): a
+            // still-variable query argument is a binder's read the
+            // substitution could not bind (an enclosing lambda's parameter)
+            // — the call stands; the frame builds once the lambda is in view
             if (lq.args().get(0) instanceof TypedVariable) {
                 return n;
             }

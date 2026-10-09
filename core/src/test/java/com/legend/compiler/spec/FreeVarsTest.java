@@ -13,6 +13,9 @@ import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedMatch;
 import com.legend.compiler.spec.typed.TypedMatchRuntime;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.element.PureModelContext;
+import com.legend.compiler.element.TypedFunction;
+import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSubst;
 import com.legend.compiler.spec.typed.TypedVariable;
 import org.junit.jupiter.api.Test;
@@ -96,6 +99,38 @@ class FreeVarsTest {
         assertEquals(Set.of("q", "b"), FreeVars.of(both(known, v("b")), known, Set.of("q")));
         // an equal term that is not the same node is read as usual
         assertEquals(Set.of("a", "x"), FreeVars.of(both(v("a"), v("x")), known, Set.of("q")));
+    }
+
+    @Test
+    void anExecuteCallsRuntimeArgumentStaysAsSpelled() {
+        // the ORCHESTRATION position (NativeFn.Handle.orchestrationArgument): the
+        // statement executor reads execute()'s runtime argument in its source
+        // form, a let's name resolved through the query's lets -- the
+        // substitution leaves it, and substitutes the other arguments
+        PureModelContext ctx = (PureModelContext) com.legend.Compiler.buildModel(
+                com.legend.testing.Own.model("Class model::Person {}\n"));
+        TypedFunction execute = ctx.findFunction("meta::pure::router::execute").stream()
+                .filter(f -> f.parameters().size() == 4).findFirst().orElseThrow();
+        TypedNativeCall call = new TypedNativeCall(execute, List.of(v("q"), v("m"), v("rt"), v("x")), INT);
+        TypedSpec r = TypedSubst.apply(call, Map.of("q", both(v("a")), "rt", both(v("b"))));
+        assertEquals(new TypedNativeCall(execute, List.of(both(v("a")), v("m"), v("rt"), v("x")), INT), r);
+        assertSame(call, TypedSubst.apply(call, Map.of("rt", both(v("b")))));
+    }
+
+    @Test
+    void aBinderRenamedAboveAnExecuteCallIsFollowedInsideItsRuntimeArgument() {
+        // the lambda's x would capture the term of i (x free in it) and is
+        // renamed; the runtime argument's read of x follows the binder,
+        // though nothing is substituted into that argument
+        PureModelContext ctx = (PureModelContext) com.legend.Compiler.buildModel(
+                com.legend.testing.Own.model("Class model::Person {}\n"));
+        TypedFunction execute = ctx.findFunction("meta::pure::router::execute").stream()
+                .filter(f -> f.parameters().size() == 4).findFirst().orElseThrow();
+        TypedLambda l = lam("x", new TypedNativeCall(execute,
+                List.of(v("i"), v("m"), v("x"), v("e")), INT));
+        TypedSpec r = TypedSubst.apply(l, Map.of("i", v("x")));
+        assertEquals(lam("x_1", new TypedNativeCall(execute,
+                List.of(v("x"), v("m"), v("x_1"), v("e")), INT)), r);
     }
 
     @Test

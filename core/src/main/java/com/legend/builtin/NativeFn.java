@@ -875,6 +875,19 @@ public final class NativeFn {
             return h == EXECUTE || h == EXECUTION_PLAN_EXECUTE;
         }
 
+        /** The ORCHESTRATION position of an execute call: its runtime
+         * argument (the third), which the statement executor reads in its
+         * SOURCE form — a let's name resolved through the query's lets,
+         * the user calls inside it run once as effects — so the inliner
+         * and the substitution ({@code TypedSubst}) leave it as spelled.
+         * {@code -1} when {@code id} is not execute or the call is
+         * shorter (the three-argument floor is the inliner's old
+         * {@code args().size() >= 3}). */
+        public static int orchestrationArgument(@com.legend.base.Nullable com.legend.model.FunctionId id,
+                int argCount) {
+            return isExecute(id) && argCount >= 3 ? 2 : -1;
+        }
+
         /** Which handle forces EAGERLY when consumed at a statement's value
          *  position: execute's frame run IS the value; plan handles stay
          *  symbolic (navigated by the plan reader). */

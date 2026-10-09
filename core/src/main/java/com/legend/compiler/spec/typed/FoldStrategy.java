@@ -35,7 +35,7 @@ public sealed interface FoldStrategy {
      * cross-tree binding is invisible to every compositional rewriter,
      * so the inliner's α-renaming left the strategy referencing dead
      * names (testPlusInIterate — the let-inlined fold's transform still
-     * asked for {@code $p} after the reducer renamed to {@code _i0}).
+     * asked for {@code $p} after the reducer renamed it — {@code _i0} then, {@code p_1} under TypedSubst).
      * As lambdas they re-enter the walker's own TypedLambda arm and
      * α-hygiene stays uniform (UserCallInliner's documented contract);
      * the old {@code accParam}/{@code freshParam} name strings — which

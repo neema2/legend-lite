@@ -14,6 +14,7 @@ import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSelect;
 import com.legend.compiler.spec.typed.TypedSerializeGraph;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedSubst;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.builtin.Pure;
@@ -47,13 +48,16 @@ import java.util.Optional;
  *   <li><b>lets reduce</b> &mdash; a callee's intermediate
  *       {@code let x = e;} statements substitute forward (Pure lets are
  *       single-assignment), so a call becomes ONE expression. Query-level
- *       lets are untouched (the lowerer owns those).</li>
- *   <li><b>&alpha;-hygiene</b> &mdash; a binder (lambda parameter, let
- *       name, match parameter) is renamed to a fresh {@code _i&lt;N&gt;} when
- *       a term substituted beneath it mentions its name: EVERY site that
- *       extends the substitution runs under {@link #underSubst}, so a
- *       substituted term's free variables can never be captured.
- *       (Occurrences keep their own infos.)</li>
+ *       lets reduce the same way ({@link #inlineBody}); the store resolver
+ *       reads the consumed ones through {@link #queryLets()}.</li>
+ *   <li><b>&alpha;-hygiene</b> &mdash; is {@link TypedSubst}'s, the one
+ *       substitution engine (D24): at every &beta; site the environment is
+ *       substituted ONCE, up front ({@code TypedSubst.apply}; a binder is
+ *       renamed only when a term substituted beneath it has its name free,
+ *       to the deterministic {@code b_&lt;k&gt;}), and the walk reduces the
+ *       substituted tree with no environment. A term a &beta; site bound
+ *       was reduced before it was bound and is spliced verbatim:
+ *       {@link #reducedTerms} keeps the walk out of it.</li>
  *   <li><b>recursion is loud</b> &mdash; a call cycle throws naming the
  *       path ({@code f/1 -> g/2 -> f/1}); SQL cannot express it.</li>
  *   <li><b>eval of a literal lambda</b> &mdash; after substitution a
@@ -98,13 +102,17 @@ public final class UserCallInliner {
     /** Inside a postprocessor-CONFIG property: user calls STAND
      * (extraction reads them structurally); variables still substitute. */
     private boolean configMode;
-    private int fresh;
-    /** The names a binder may not keep (see {@link #bind}): a call frame
-     * pushes the names its arguments mention; every other substitution
-     * site pushes the enclosing set plus the free variables of the terms
-     * it substitutes ({@link #underSubst}). Empty when nothing is being
-     * substituted. */
-    private final ArrayDeque<java.util.Set<String>> captureRisk = new ArrayDeque<>();
+    /** The terms the OPEN &beta; sites bound (arguments, let values, match
+     * inputs, unrolled elements), each with the number of open scopes
+     * holding it: each was reduced before it was bound and the substitution
+     * splices it verbatim, so the walk returns it as it stands — a standing
+     * call inside it (a recursion wall, a subsumed program, a config
+     * property's) is never re-attempted, and no node is rewritten twice.
+     * Scoped to the site ({@link Scope#close()}): callee bodies are
+     * memoised, so a node of one is met again at the next inline site,
+     * where it reduces afresh in that site's context (a quoted frame, the
+     * hook's binders). By identity; never iterated. */
+    private final Map<TypedSpec, Integer> reducedTerms = new java.util.IdentityHashMap<>();
 
     public UserCallInliner(SpecCompiler specs) {
         this(specs, null);
@@ -155,13 +163,6 @@ public final class UserCallInliner {
     }
 
     public List<TypedSpec> inlineBody(List<TypedSpec> body) {
-        // The fresh namespace must clear every user-written _i<N> — a query
-        // variable literally named _i0 would otherwise be CAPTURED by an
-        // α-renamed callee binder (audit). Callee bodies are closed, so the
-        // query body is the only collision source.
-        for (TypedSpec stmt : body) {
-            reserveFreshNames(stmt);
-        }
         // QUERY-level lets β-reduce exactly like callee lets — binders die
         // in the one substitution pass. A relation-typed let ($t = #TDS…#)
         // splices its pipeline into every use; downstream phases never see
@@ -170,54 +171,68 @@ public final class UserCallInliner {
         // in SQL — for a non-deterministic row set (limit with no total
         // order) the two splices may disagree where real pure's
         // single-evaluation binding could not; CTE sharing is the future fix.
-        Map<String, TypedSpec> scope = new LinkedHashMap<>();
-        int pushed = 0;
-        try {
+        try (Scope scope = new Scope()) {
             for (int i = 0; i < body.size() - 1; i++) {
                 if (!(body.get(i) instanceof TypedLet let)) {
                     throw new NotImplementedException(
                             "only let statements may precede the query expression");
                 }
-                TypedSpec value = rewrite(let.value(), scope);
-                scope.put(let.name(), value);
-                // the value lands under every later binder
-                pushRisk(List.of(value));
-                pushed++;
+                scope.put(let.name(), reduce(let.value(), scope));
             }
             // graph-tree args are NOT β-reduced (source spelling is the
             // serialize key) — the resolver reads consumed lets through this
             // (engine inScopeVars)
-            queryLets.putAll(scope);
+            queryLets.putAll(scope.terms);
             TypedSpec last = body.get(body.size() - 1);
-            TypedSpec root = last instanceof TypedLet let
-                    ? rewrite(let.value(), scope)
-                    : rewrite(last, scope);
-            return List.of(root);
-        } finally {
-            popRisk(pushed);
+            return List.of(last instanceof TypedLet let
+                    ? reduce(let.value(), scope)
+                    : reduce(last, scope));
         }
     }
 
-    private void reserveFreshNames(TypedSpec n) {
-        switch (n) {
-            case TypedVariable v -> bumpPast(v.name());
-            case TypedLet let -> bumpPast(let.name());
-            case TypedLambda l -> l.parameters().forEach(this::bumpPast);
-            default -> { }
-        }
-        for (TypedSpec c : n.children()) {
-            reserveFreshNames(c);
-        }
-    }
+    /** The environment of one &beta; site: each name's REDUCED term and
+     * the term's free variables, read once when the term is bound (the
+     * substitution reads them at every statement beneath). Open while the
+     * site reduces (try-with-resources): its terms are in
+     * {@link #reducedTerms} until it closes. */
+    private final class Scope implements AutoCloseable {
+        final Map<String, TypedSpec> terms = new LinkedHashMap<>();
+        final Map<String, java.util.Set<String>> free = new LinkedHashMap<>();
+        private final List<TypedSpec> own = new ArrayList<>();
 
-    private void bumpPast(String name) {
-        if (name.startsWith("_i")) {
-            try {
-                fresh = Math.max(fresh, Integer.parseInt(name.substring(2)) + 1);
-            } catch (NumberFormatException ignored) {
-                // _iFoo is outside the fresh namespace
+        Scope() {
+        }
+
+        /** An inner site: the outer terms are read, not re-held. */
+        Scope(Scope outer) {
+            terms.putAll(outer.terms);
+            free.putAll(outer.free);
+        }
+
+        /** Bind {@code name} to a reduced term for the statements beneath. */
+        void put(String name, TypedSpec term) {
+            put(name, term, FreeVars.of(term));
+        }
+
+        /** The same, the term's free variables already known. */
+        void put(String name, TypedSpec term, java.util.Set<String> termFree) {
+            terms.put(name, term);
+            free.put(name, termFree);
+            reducedTerms.merge(term, 1, Integer::sum);
+            own.add(term);
+        }
+
+        @Override
+        public void close() {
+            for (TypedSpec t : own) {
+                reducedTerms.compute(t, (k, c) -> c == null || c <= 1 ? null : c - 1);
             }
         }
+    }
+
+    /** {@code body} with the scope substituted, then reduced. */
+    private TypedSpec reduce(TypedSpec body, Scope scope) {
+        return rewrite(TypedSubst.apply(body, scope.terms, scope.free));
     }
 
     // =====================================================================
@@ -239,7 +254,7 @@ public final class UserCallInliner {
      * input and inlines like any user call, STRICTLY — every field, every
      * let (Phase 5 batch 147, USER: strict first; each engine program the
      * chain meets is a ledger row). Anything else returns {@code src}. */
-    private TypedSpec spelledProgramOr(TypedSpec src, Map<String, TypedSpec> env) {
+    private TypedSpec spelledProgramOr(TypedSpec src) {
         // SWITCHED OFF for batch 147 (landed as mechanism + ledger): with the
         // hand-off on, every test that passes a field of the extension record
         // through platform Pure depends on the WHOLE record compiling, and the
@@ -256,7 +271,7 @@ public final class UserCallInliner {
         if (programs.size() != 1) {
             return src;
         }
-        return inlineCall(new TypedUserCall(programs.get(0), nc.args(), nc.info(), nc.pos()), env);
+        return inlineCall(new TypedUserCall(programs.get(0), nc.args(), nc.info(), nc.pos()));
     }
 
     /** The UNROLL BUDGET: expansions one compile may perform before the
@@ -291,7 +306,7 @@ public final class UserCallInliner {
     // (the five original entries and every walled prelude body now live in
     // WalledBodies.REASONS — ONE list with reasons, batch 173)
 
-    private TypedSpec inlineCall(TypedUserCall call, Map<String, TypedSpec> env) {
+    private TypedSpec inlineCall(TypedUserCall call) {
         // THE PICK (untangle step 4a): the implementation table says what runs
         // this declaration. A rule or a form: the call stands as a NATIVE call
         // with its arguments rewritten (the typer mints these; one reaches here
@@ -304,7 +319,7 @@ public final class UserCallInliner {
                 || row instanceof com.legend.platform.Implementation.Form) {
             List<TypedSpec> pargs = new ArrayList<>(call.args().size());
             for (TypedSpec a : call.args()) {
-                pargs.add(rewrite(a, env));
+                pargs.add(rewrite(a));
             }
             return NormalizeFolds.foldReflection(
                     new TypedNativeCall(call.callee(), pargs, call.info(), null));
@@ -324,7 +339,7 @@ public final class UserCallInliner {
         }
         List<TypedSpec> args = new ArrayList<>(call.args().size());
         for (TypedSpec a : call.args()) {
-            args.add(rewrite(a, env));
+            args.add(rewrite(a));
         }
         if (configMode || isStoreElementIdentity(call.callee().qualifiedName(), args)) {
             return new TypedUserCall(call.callee(), args, call.info(), call.pos());
@@ -381,7 +396,6 @@ public final class UserCallInliner {
         literalSizes.push(literalSize);
         argClassSets.push(argClasses(args));
         names.push(shown);
-        captureRisk.push(namesIn(args));
         try {
             List<TypedSpec> body;
             try {
@@ -395,24 +409,26 @@ public final class UserCallInliner {
                 throw new TypeInferenceException(e.getMessage()
                         + " [inlined via " + String.join(" -> ", path) + "]", e);
             }
-            Map<String, TypedSpec> callEnv = new LinkedHashMap<>();
             // A relation param accepts a SUPERSET schema (covariant call);
             // the spliced body then carries the caller's extra columns in
             // SQL while the call site is typed by the DECLARED return —
             // conform by EMISSION with a select down to the declared columns.
             boolean widened = false;
-            for (int i = 0; i < call.callee().parameters().size(); i++) {
-                callEnv.put(call.callee().parameters().get(i).name(), args.get(i));
-                if (rowType(call.callee().parameters().get(i).type()) instanceof
-                            com.legend.compiler.element.type.Type.RelationType dp
-                        && rowType(args.get(i).info().type()) instanceof
-                            com.legend.compiler.element.type.Type.RelationType ap
-                        && ap.columns().size() > dp.columns().size()) {
-                    widened = true;
+            TypedSpec reduced;
+            try (Scope callEnv = new Scope()) {
+                for (int i = 0; i < call.callee().parameters().size(); i++) {
+                    callEnv.put(call.callee().parameters().get(i).name(), args.get(i));
+                    if (rowType(call.callee().parameters().get(i).type()) instanceof
+                                com.legend.compiler.element.type.Type.RelationType dp
+                            && rowType(args.get(i).info().type()) instanceof
+                                com.legend.compiler.element.type.Type.RelationType ap
+                            && ap.columns().size() > dp.columns().size()) {
+                        widened = true;
+                    }
                 }
+                reduced = instantiate(deepFoldInlined(
+                        reduceStatements(body, callEnv)), call, args);
             }
-            TypedSpec reduced = instantiate(deepFoldInlined(
-                    reduceStatements(body, callEnv)), call, args);
             if (widened && com.legend.compiler.element.type.Type
                     .relationSchema(call.info().type())
                     instanceof com.legend.compiler.element.type.Type.RelationType rt) {
@@ -444,7 +460,6 @@ public final class UserCallInliner {
             literalSizes.pop();
             argClassSets.pop();
             names.pop();
-            captureRisk.pop();
         }
     }
 
@@ -532,7 +547,7 @@ public final class UserCallInliner {
         for (com.legend.compiler.element.TypedFunction body
                 : specs.ctx().findFunction(d.bodyFunctionFqn())) {
             if (body.parameters().size() == c.args().size()) {
-                return inlineCall(new TypedUserCall(body, c.args(), c.info(), c.pos()), Map.of());
+                return inlineCall(new TypedUserCall(body, c.args(), c.info(), c.pos()));
             }
         }
         return walked;
@@ -804,56 +819,43 @@ public final class UserCallInliner {
      * FORWARD (their values see the bindings so far); the last statement is
      * the value. One expression comes out.
      */
-    private TypedSpec reduceStatements(List<TypedSpec> body, Map<String, TypedSpec> env) {
-        int[] pushed = {0};
-        try {
-            return reduceStatements(body, env, pushed);
-        } finally {
-            popRisk(pushed[0]);
-        }
-    }
-
-    private TypedSpec reduceStatements(List<TypedSpec> body, Map<String, TypedSpec> env,
-            int[] pushed) {
-        Map<String, TypedSpec> scope = new LinkedHashMap<>(env);
-        for (int i = 0; i < body.size() - 1; i++) {
-            if (!(body.get(i) instanceof TypedLet let)) {
-                // a non-let intermediate whose value FOLDS to a literal
-                // structure is dead (a self-check whose asserts folded away
-                // — toPostgresModel's converter registry); anything else
-                // may raise and stays loud
-                TypedSpec reduced = rewrite(body.get(i), scope);
-                if (LiteralUnroll.literalStructure(reduced)) {
-                    continue;
+    private TypedSpec reduceStatements(List<TypedSpec> body, Scope env) {
+        try (Scope scope = new Scope(env)) {
+            for (int i = 0; i < body.size() - 1; i++) {
+                if (!(body.get(i) instanceof TypedLet let)) {
+                    // a non-let intermediate whose value FOLDS to a literal
+                    // structure is dead (a self-check whose asserts folded away
+                    // — toPostgresModel's converter registry); anything else
+                    // may raise and stays loud
+                    TypedSpec reduced = reduce(body.get(i), scope);
+                    if (LiteralUnroll.literalStructure(reduced)) {
+                        continue;
+                    }
+                    TypedSpec residue = reduced;
+                    while (residue instanceof com.legend.compiler.spec.typed.TypedCollection tc
+                            && tc.elements().stream().anyMatch(e -> !LiteralUnroll.literalStructure(e))) {
+                        residue = tc.elements().stream()
+                                .filter(e -> !LiteralUnroll.literalStructure(e)).findFirst().orElse(tc);
+                    }
+                    throw new NotImplementedException("a non-let intermediate statement ("
+                            + body.get(i).getClass().getSimpleName() + ", reduced to "
+                            + residue.getClass().getSimpleName()
+                            + (residue instanceof TypedNativeCall rc ? " " + rc.callee().qualifiedName() : "")
+                            + (residue instanceof TypedMap rm ? " over " + rm.source().getClass().getSimpleName()
+                                    + (rm.source() instanceof TypedNativeCall sc ? " " + sc.callee().qualifiedName()
+                                            + " of " + sc.args().get(0).getClass().getSimpleName() : "") : "")
+                            + ") in an inlined function body is not supported");
                 }
-                TypedSpec residue = reduced;
-                while (residue instanceof com.legend.compiler.spec.typed.TypedCollection tc
-                        && tc.elements().stream().anyMatch(e -> !LiteralUnroll.literalStructure(e))) {
-                    residue = tc.elements().stream()
-                            .filter(e -> !LiteralUnroll.literalStructure(e)).findFirst().orElse(tc);
-                }
-                throw new NotImplementedException("a non-let intermediate statement ("
-                        + body.get(i).getClass().getSimpleName() + ", reduced to "
-                        + residue.getClass().getSimpleName()
-                        + (residue instanceof TypedNativeCall rc ? " " + rc.callee().qualifiedName() : "")
-                        + (residue instanceof TypedMap rm ? " over " + rm.source().getClass().getSimpleName()
-                                + (rm.source() instanceof TypedNativeCall sc ? " " + sc.callee().qualifiedName()
-                                        + " of " + sc.args().get(0).getClass().getSimpleName() : "") : "")
-                        + ") in an inlined function body is not supported");
+                scope.put(let.name(), reduce(let.value(), scope));
             }
-            TypedSpec value = rewrite(let.value(), scope);
-            scope.put(let.name(), value);
-            // the value lands under every later binder
-            pushRisk(List.of(value));
-            pushed[0]++;
+            // A TRAILING let IS its value (real pure: the let statement yields
+            // it) — `{ let r = $x + 100 }` returns the sum, and no let node
+            // survives into H/I.
+            TypedSpec last = body.get(body.size() - 1);
+            return last instanceof TypedLet let
+                    ? reduce(let.value(), scope)
+                    : reduce(last, scope);
         }
-        // A TRAILING let IS its value (real pure: the let statement yields
-        // it) — `{ let r = $x + 100 }` returns the sum, and no let node
-        // survives into H/I.
-        TypedSpec last = body.get(body.size() - 1);
-        return last instanceof TypedLet let
-                ? rewrite(let.value(), scope)
-                : rewrite(last, scope);
     }
 
     /** &beta;-reduce {@code eval(<literal lambda>, args)}. */
@@ -863,15 +865,11 @@ public final class UserCallInliner {
                     + lam.parameters().size() + " parameter(s), " + args.size()
                     + " argument(s) — G should have rejected this");
         }
-        Map<String, TypedSpec> env = new LinkedHashMap<>();
-        for (int i = 0; i < args.size(); i++) {
-            env.put(lam.parameters().get(i), args.get(i));
-        }
-        captureRisk.push(namesIn(args));
-        try {
+        try (Scope env = new Scope()) {
+            for (int i = 0; i < args.size(); i++) {
+                env.put(lam.parameters().get(i), args.get(i));
+            }
             return reduceStatements(lam.body(), env);
-        } finally {
-            captureRisk.pop();
         }
     }
 
@@ -891,11 +889,11 @@ public final class UserCallInliner {
      * recursive call inside descends on the literal instead of standing
      * on an unbound parameter. Empty when the node is none of these.
      */
-    private Optional<TypedSpec> literalArms(TypedSpec n, Map<String, TypedSpec> env) {
+    private Optional<TypedSpec> literalArms(TypedSpec n) {
         if (n instanceof TypedLambda l && l.quoted()) {
             quotedFrames.push(n);
             try {
-                return Optional.of(lambda(l, env));
+                return Optional.of(lambda(l));
             } finally {
                 quotedFrames.pop();
             }
@@ -903,7 +901,7 @@ public final class UserCallInliner {
         if (n instanceof com.legend.compiler.spec.typed.TypedDeactivate d) {
             quotedFrames.push(n);
             try {
-                return Optional.of(d.mapChildren(k -> rewrite(k, env)));
+                return Optional.of(d.mapChildren(this::rewrite));
             } finally {
                 quotedFrames.pop();
             }
@@ -913,15 +911,15 @@ public final class UserCallInliner {
         }
         return switch (n) {
             case com.legend.compiler.spec.typed.TypedIf i -> {
-                TypedSpec cond = rewrite(i.condition(), env);
+                TypedSpec cond = rewrite(i.condition());
                 if (cond instanceof TypedCBoolean lit) {
-                    yield Optional.of(lit.value() ? rewrite(i.thenBranch(), env)
-                            : i.elseBranch().map(e -> rewrite(e, env)).orElseGet(() ->
+                    yield Optional.of(lit.value() ? rewrite(i.thenBranch())
+                            : i.elseBranch().map(this::rewrite).orElseGet(() ->
                                     new com.legend.compiler.spec.typed.TypedCollection(
                                             List.of(), i.info())));
                 }
-                TypedSpec then = rewrite(i.thenBranch(), env);
-                Optional<TypedSpec> els = i.elseBranch().map(e -> rewrite(e, env));
+                TypedSpec then = rewrite(i.thenBranch());
+                Optional<TypedSpec> els = i.elseBranch().map(this::rewrite);
                 yield Optional.of(cond == i.condition() && then == i.thenBranch()
                         && els.equals(i.elseBranch()) ? i
                         : new com.legend.compiler.spec.typed.TypedIf(cond, then, els, i.info()));
@@ -929,7 +927,7 @@ public final class UserCallInliner {
             case TypedMap m -> {
                 // a [*]-returning typing-surface native read through an
                 // AUTO-MAP ($exts.routerExtensions()) hands off to its program
-                TypedSpec src = spelledProgramOr(rewrite(m.source(), env), env);
+                TypedSpec src = spelledProgramOr(rewrite(m.source()));
                 // a SPELLED collection (its elements may be any expression —
                 // lambdas, standing calls: β-substitution is exact for pure
                 // values) applies the mapper per element
@@ -941,10 +939,11 @@ public final class UserCallInliner {
                     List<TypedSpec> out = new ArrayList<>();
                     boolean spliceable = true;
                     for (TypedSpec e : LiteralUnroll.elements(src)) {
-                        Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
-                        inner.put(m.mapper().parameters().get(0), e);
-                        TypedSpec r = underSubst(List.of(e),
-                                () -> reduceStatements(m.mapper().body(), inner));
+                        TypedSpec r;
+                        try (Scope inner = new Scope()) {
+                            inner.put(m.mapper().parameters().get(0), e);
+                            r = reduceStatements(m.mapper().body(), inner);
+                        }
                         if (!(r instanceof com.legend.compiler.spec.typed.TypedCollection)
                                 && !(r.info().multiplicity() instanceof
                                         com.legend.compiler.element.type.Multiplicity.Bounded rb
@@ -958,12 +957,12 @@ public final class UserCallInliner {
                         yield Optional.of(new com.legend.compiler.spec.typed.TypedCollection(out, m.info()));
                     }
                 }
-                TypedLambda mapper = lambda(m.mapper(), env);
+                TypedLambda mapper = lambda(m.mapper());
                 yield Optional.of(src == m.source() && mapper == m.mapper() ? m
                         : m.withChildren(List.of(src, mapper)));
             }
             case com.legend.compiler.spec.typed.TypedFilter f -> {
-                TypedSpec src = rewrite(f.source(), env);
+                TypedSpec src = rewrite(f.source());
                 if (LiteralUnroll.spelledList(src) && f.predicate().parameters().size() == 1) {
                     // CONDITIONAL MEMBERSHIP (WORLD_MAP §4): a predicate that
                     // stays a SQL boolean after the element is substituted
@@ -972,10 +971,11 @@ public final class UserCallInliner {
                     // decides; the list shape is still the compiler's
                     List<TypedSpec> out = new ArrayList<>();
                     for (TypedSpec e : LiteralUnroll.elements(src)) {
-                        Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
-                        inner.put(f.predicate().parameters().get(0), e);
-                        TypedSpec pred = underSubst(List.of(e),
-                                () -> reduceStatements(f.predicate().body(), inner));
+                        TypedSpec pred;
+                        try (Scope inner = new Scope()) {
+                            inner.put(f.predicate().parameters().get(0), e);
+                            pred = reduceStatements(f.predicate().body(), inner);
+                        }
                         if (pred instanceof TypedCBoolean keep) {
                             if (keep.value()) {
                                 out.add(e);
@@ -995,7 +995,7 @@ public final class UserCallInliner {
                             ? new ExprType(src.info().type(), f.info().multiplicity()) : f.info();
                     yield Optional.of(new com.legend.compiler.spec.typed.TypedCollection(out, fi));
                 }
-                TypedLambda pred = lambda(f.predicate(), env);
+                TypedLambda pred = lambda(f.predicate());
                 yield Optional.of(src == f.source() && pred == f.predicate() ? f
                         : f.withChildren(List.of(src, pred)));
             }
@@ -1005,24 +1005,22 @@ public final class UserCallInliner {
             // constructed instance (toPostgresModel's and/or chains)
             case com.legend.compiler.spec.typed.TypedFold fd
                     when fd.reducer().parameters().size() == 2 -> {
-                TypedSpec src = rewrite(fd.source(), env);
+                TypedSpec src = rewrite(fd.source());
                 if (!LiteralUnroll.spelledList(src)) {
                     yield Optional.empty();
                 }
-                TypedSpec acc = rewrite(fd.init(), env);
+                TypedSpec acc = rewrite(fd.init());
                 // the accumulator grows around its previous value: its free
                 // variables are read step by step, never the whole again
                 java.util.Set<String> accFree = FreeVars.of(acc);
                 for (TypedSpec e : LiteralUnroll.elements(src)) {
-                    Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
                     TypedSpec soFar = acc;
                     java.util.Set<String> soFarFree = accFree;
-                    inner.put(fd.reducer().parameters().get(0), e);
-                    inner.put(fd.reducer().parameters().get(1), soFar);
-                    java.util.Set<String> landing = new java.util.HashSet<>(soFarFree);
-                    landing.addAll(FreeVars.of(e));
-                    acc = underNames(landing,
-                            () -> reduceStatements(fd.reducer().body(), inner));
+                    try (Scope inner = new Scope()) {
+                        inner.put(fd.reducer().parameters().get(0), e);
+                        inner.put(fd.reducer().parameters().get(1), soFar, soFarFree);
+                        acc = reduceStatements(fd.reducer().body(), inner);
+                    }
                     accFree = FreeVars.of(acc, soFar, soFarFree);
                 }
                 yield Optional.of(acc);
@@ -1033,31 +1031,32 @@ public final class UserCallInliner {
             case TypedNativeCall gb when (com.legend.builtin.Pure.AT_COLLECTION_GROUP_BY.contains(gb.callee().id()) || com.legend.builtin.Pure.AT_TDS_GROUP_BY.contains(gb.callee().id()) || com.legend.builtin.Pure.AT_RELATION_GROUP_BY.contains(gb.callee().id())) && gb.args().size() == 2
                     && gb.args().get(1) instanceof TypedLambda keyFn
                     && keyFn.parameters().size() == 1 -> {
-                TypedSpec src = rewrite(gb.args().get(0), env);
+                TypedSpec src = rewrite(gb.args().get(0));
                 // a SPELLED collection (elements may be any expression — the
                 // registry's pairs carry lambdas); only the KEYS must fold
                 if (!LiteralUnroll.spelledList(src)) {
-                    TypedLambda kf = lambda(keyFn, env);
+                    TypedLambda kf = lambda(keyFn);
                     yield Optional.of(src == gb.args().get(0) && kf == keyFn ? gb
                             : gb.withChildren(List.of(src, kf)));
                 }
                 Map<Object, List<TypedSpec>> groups = new LinkedHashMap<>();
                 Map<Object, TypedSpec> keyNodes = new LinkedHashMap<>();
                 for (TypedSpec e : LiteralUnroll.elements(src)) {
-                    Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
-                    inner.put(keyFn.parameters().get(0), e);
-                    TypedSpec key = underSubst(List.of(e),
-                            () -> reduceStatements(keyFn.body(), inner));
+                    TypedSpec key;
+                    try (Scope inner = new Scope()) {
+                        inner.put(keyFn.parameters().get(0), e);
+                        key = reduceStatements(keyFn.body(), inner);
+                    }
                     Optional<Object> k = LiteralUnroll.scalarValue(key);
                     if (k.isEmpty()) {
-                        yield Optional.of(gb.withChildren(List.of(src, lambda(keyFn, env))));
+                        yield Optional.of(gb.withChildren(List.of(src, lambda(keyFn))));
                     }
                     groups.computeIfAbsent(k.get(), x -> new ArrayList<>()).add(e);
                     keyNodes.putIfAbsent(k.get(), key);
                 }
                 if (!(gb.info().type() instanceof com.legend.compiler.element.type.Type.GenericType mapT)
                         || mapT.arguments().size() != 2) {
-                    yield Optional.of(gb.withChildren(List.of(src, lambda(keyFn, env))));
+                    yield Optional.of(gb.withChildren(List.of(src, lambda(keyFn))));
                 }
                 var pairFn = specs.ctx().findFunction("meta::pure::functions::collection::pair").get(0);
                 var newMapFn = specs.ctx().findFunction("meta::pure::functions::collection::newMap").stream()
@@ -1083,11 +1082,11 @@ public final class UserCallInliner {
                         gb.info()));
             }
             case com.legend.compiler.spec.typed.TypedMatchRuntime mr -> {
-                TypedSpec input = rewrite(mr.input(), env);
-                Optional<TypedSpec> extra = mr.extra().map(e -> rewrite(e, env));
+                TypedSpec input = rewrite(mr.input());
+                Optional<TypedSpec> extra = mr.extra().map(this::rewrite);
                 // a DYNAMIC arm prefix (extension-contributed arms) must fold
                 // to [] before the spelled arms may dispatch
-                Optional<TypedSpec> dyn = mr.dynamicArms().map(d -> rewrite(d, env));
+                Optional<TypedSpec> dyn = mr.dynamicArms().map(this::rewrite);
                 boolean dynEmpty = dyn.isEmpty()
                         || dyn.get() instanceof com.legend.compiler.spec.typed.TypedCollection dc
                                 && LiteralUnroll.elements(dc).isEmpty();
@@ -1095,7 +1094,7 @@ public final class UserCallInliner {
                         dynEmpty ? LiteralUnroll.arm(mr, input, specs.ctx()) : Optional.empty();
                 if (arm.isPresent()) {
                     yield Optional.of(dispatchArm(arm.get().param(), mr.extraParam(),
-                            arm.get().body(), input, extra, env));
+                            arm.get().body(), input, extra));
                 }
                 // STATIC RE-DISPATCH on the input's declared type: an arm whose
                 // class no model class shares with the input's static type can
@@ -1109,14 +1108,14 @@ public final class UserCallInliner {
                         && input.info().multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded ib
                         && ib.lower() == 1 && Integer.valueOf(1).equals(ib.upper())) {
                     yield Optional.of(dispatchArm(live.get(0).param(), mr.extraParam(),
-                            live.get(0).body(), input, extra, env));
+                            live.get(0).body(), input, extra));
                 }
                 List<TypedSpec> kids = new ArrayList<>();
                 kids.add(input);
                 extra.ifPresent(kids::add);
                 dyn.ifPresent(kids::add);
                 for (com.legend.compiler.spec.typed.TypedMatchRuntime.Arm a : mr.arms()) {
-                    kids.add(live.contains(a) ? rewrite(a.body(), env) : a.body());
+                    kids.add(live.contains(a) ? rewrite(a.body()) : a.body());
                 }
                 yield Optional.of(sameRefs(kids, mr.children()) ? mr : mr.withChildren(kids));
             }
@@ -1144,33 +1143,36 @@ public final class UserCallInliner {
         return NormalizeFolds.foldInlined(n);
     }
 
-    private TypedSpec rewrite(TypedSpec n, Map<String, TypedSpec> env) {
+    private TypedSpec rewrite(TypedSpec n) {
+        if (reducedTerms.containsKey(n)) {
+            return n;
+        }
         if (hook != null) {
             TypedSpec h = hook.apply(n, bound.keySet());
             if (h != n) {
-                return rewrite(h, env);
+                return rewrite(h);
             }
         }
         // literal-structure folds (tier 1): exact, or the node itself —
         // never inside quoted code
-        TypedSpec r = rewriteSwitch(n, env);
+        TypedSpec r = rewriteSwitch(n);
         return quotedFrames.isEmpty() ? LiteralUnroll.fold(r, specs.ctx()) : r;
     }
 
-    private TypedSpec rewriteSwitch(TypedSpec n, Map<String, TypedSpec> env) {
-        Optional<TypedSpec> quotedOrUnrolled = literalArms(n, env);
+    private TypedSpec rewriteSwitch(TypedSpec n) {
+        Optional<TypedSpec> quotedOrUnrolled = literalArms(n);
         if (quotedOrUnrolled.isPresent()) {
             return quotedOrUnrolled.get();
         }
         return switch (n) {
-            case TypedUserCall uc -> inlineCall(uc, env);
+            case TypedUserCall uc -> inlineCall(uc);
 
             // pair(a, b).first / .second — a STRUCTURAL read of a pair the
             // substitution made visible (a helper returning
             // pair($plan, $plan->planToString(...)), read through a query
             // let): the component itself; no pair value is ever built
             case com.legend.compiler.spec.typed.TypedPropertyAccess pa -> {
-                TypedSpec src = spelledProgramOr(rewrite(pa.source(), env), env);
+                TypedSpec src = spelledProgramOr(rewrite(pa.source()));
                 if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall pc
                         && pc.args().size() == 2
                         && pc.callee().definition() != null
@@ -1186,25 +1188,13 @@ public final class UserCallInliner {
             }
 
             case TypedEval ev -> {
-                TypedSpec fn = rewrite(ev.fn(), env);
-                List<TypedSpec> args = list(ev.args(), env);
+                TypedSpec fn = rewrite(ev.fn());
+                List<TypedSpec> args = list(ev.args());
                 yield fn instanceof TypedLambda lam
                         ? reduceEval(ev, args, lam)
                         : fn == ev.fn() && sameRefs(args, ev.args())
                                 ? ev
                                 : new TypedEval(fn, args, ev.info());
-            }
-
-            case TypedVariable v -> {
-                TypedSpec r = env.get(v.name());
-                if (r == null) {
-                    yield v;
-                }
-                // An α-rename preserves the OCCURRENCE's own info; a real
-                // substitution splices the argument/let expression verbatim.
-                yield r instanceof TypedVariable rv
-                        ? new TypedVariable(rv.name(), v.info())
-                        : r;
             }
 
             // Postprocessor CONFIG is consumed STRUCTURALLY at the plan
@@ -1234,12 +1224,12 @@ public final class UserCallInliner {
                         configMode = true;
                         try {
                             props.put(pe.getKey(),
-                                    rewrite(pe.getValue(), env));
+                                    rewrite(pe.getValue()));
                         } finally {
                             configMode = false;
                         }
                     } else {
-                        props.put(pe.getKey(), rewrite(pe.getValue(), env));
+                        props.put(pe.getKey(), rewrite(pe.getValue()));
                     }
                 }
                 yield new com.legend.compiler.spec.typed.TypedNewInstance(
@@ -1259,40 +1249,37 @@ public final class UserCallInliner {
                         configMode = true;
                         try {
                             ovs.put(pe.getKey(),
-                                    rewrite(pe.getValue(), env));
+                                    rewrite(pe.getValue()));
                         } finally {
                             configMode = false;
                         }
                     } else {
-                        ovs.put(pe.getKey(), rewrite(pe.getValue(), env));
+                        ovs.put(pe.getKey(), rewrite(pe.getValue()));
                     }
                 }
                 yield new com.legend.compiler.spec.typed.TypedCopyInstance(
-                        rewrite(cpi.source(), env), cpi.classFqn(), ovs,
+                        rewrite(cpi.source()), cpi.classFqn(), ovs,
                         cpi.info());
             }
 
-            // BINDERS — α-fresh inside inlined bodies (env non-empty),
-            // untouched at the query's own level.
-            case TypedLambda l -> lambda(l, env);
+            // BINDERS — already α-hygienic (the substitution renamed what a
+            // spliced term would capture); the walk records them for the
+            // hook and reduces beneath.
+            case TypedLambda l -> lambda(l);
             // match is STATICALLY DISPATCHED (the checker picked the branch)
             // — the node IS a β-redex: substitute the input (and the extra
             // argument) into the chosen body and the match disappears; the
             // lowerer never needs a match arm.
             case TypedMatch m -> {
-                TypedSpec input = rewrite(m.input(), env);
-                Optional<TypedSpec> extra = m.extra().map(e -> rewrite(e, env));
-                yield dispatchArm(m.param(), m.extraParam(), m.body(), input, extra, env);
+                TypedSpec input = rewrite(m.input());
+                Optional<TypedSpec> extra = m.extra().map(this::rewrite);
+                yield dispatchArm(m.param(), m.extraParam(), m.body(), input, extra);
             }
             case TypedLet let -> {
-                // Reached only for QUERY-LEVEL lets (callee lets reduce in
-                // reduceStatements) and lets inside lambda bodies, which
-                // lambda() handles statement-wise. env must not know it.
-                if (env.containsKey(let.name())) {
-                    throw new IllegalStateException("resolver bug: a let name '"
-                            + let.name() + "' collided with an inlining binding");
-                }
-                TypedSpec lv = rewrite(let.value(), env);
+                // Reached only for lets inside lambda bodies (callee and
+                // query-level lets reduce in reduceStatements / inlineBody):
+                // the let stays, its value reduces.
+                TypedSpec lv = rewrite(let.value());
                 yield lv == let.value() ? let
                         : new TypedLet(let.name(), lv, let.info());
             }
@@ -1305,12 +1292,13 @@ public final class UserCallInliner {
                 // runs their effects once and treats the value as an
                 // opaque handle. Inlining them hits the non-let
                 // intermediate-statement wall on their effect bodies.
-                if (com.legend.builtin.NativeFn.Handle.isExecute(c.callee().id())
-                        && c.args().size() >= 3) {
+                int orchestration = com.legend.builtin.NativeFn.Handle
+                        .orchestrationArgument(c.callee().id(), c.args().size());
+                if (orchestration >= 0) {
                     List<TypedSpec> keepRt = new ArrayList<>(c.args().size());
                     for (int i = 0; i < c.args().size(); i++) {
-                        keepRt.add(i == 2 ? c.args().get(i)
-                                : rewrite(c.args().get(i), env));
+                        keepRt.add(i == orchestration ? c.args().get(i)
+                                : rewrite(c.args().get(i)));
                     }
                     yield sameRefs(keepRt, c.args()) ? c
                             : c.withChildren(keepRt);
@@ -1319,10 +1307,12 @@ public final class UserCallInliner {
                 // literal boolean evaluates ONLY the taken branch — a
                 // partial evaluator never rewrites the untaken branch (its
                 // recursion would not descend; its walls are not ours)
-                List<TypedSpec> args = list(c.args(), env);
-                // HIGHER-ORDER map: substitution revealed a literal lambda
-                // where the checker saw a function-valued variable
-                // ($f->map($func) — MapChecker emitted the plain call).
+                List<TypedSpec> args = list(c.args());
+                // HIGHER-ORDER map: a literal lambda stands where the checker
+                // saw a function-valued expression ($f->map($func) —
+                // MapChecker emits the plain call for anything but a literal,
+                // so one here ARRIVED: by substitution (a bound term) or by
+                // reduction (a call returning a lambda, a pair's component).
                 // ONLY an exactly-[1] source β-reduces (map(v[1], f) ≡
                 // f(v), pure semantics). A [0..1] source must NOT (audit
                 // 22 self-catch): map over EMPTY is EMPTY, but a lambda
@@ -1334,7 +1324,6 @@ public final class UserCallInliner {
                 if ("meta::pure::functions::collection::map"
                         .equals(c.callee().qualifiedName())
                         && args.size() == 2
-                        && !(c.args().get(1) instanceof TypedLambda)
                         && args.get(1) instanceof TypedLambda lam
                         && lam.parameters().size() == 1) {
                     // audit 22a H1: the guard reads the POST-substitution
@@ -1347,10 +1336,10 @@ public final class UserCallInliner {
                                     .Multiplicity.Bounded mb
                             && mb.lower() == 1 && mb.upper() != null
                             && mb.upper() == 1) {
-                        Map<String, TypedSpec> inner = new LinkedHashMap<>();
-                        inner.put(lam.parameters().get(0), args.get(0));
-                        yield underSubst(List.of(args.get(0)),
-                                () -> reduceStatements(lam.body(), inner));
+                        try (Scope inner = new Scope()) {
+                            inner.put(lam.parameters().get(0), args.get(0));
+                            yield reduceStatements(lam.body(), inner);
+                        }
                     }
                     yield new TypedMap(args.get(0), lam, c.info());
                 }
@@ -1358,15 +1347,15 @@ public final class UserCallInliner {
                 // instance-identity site key is the NODE — a gratuitous
                 // rebuild would re-mint a let-bound instance per side)
                 TypedSpec rebuilt = sameRefs(args, c.args()) ? c : c.withChildren(args);
-                // the STRING ENTRY (executeLegendQuery) inside an inlined
-                // body: its query argument is a helper parameter until the
-                // substitution above — the frame splice (the hook) sees
-                // the lambda only NOW; re-offer the substituted call
+                // the STRING ENTRY (executeLegendQuery): the hook saw the
+                // call at entry, substituted; when a reduction above changed
+                // an argument (a call opened into the query lambda), the
+                // frame splice sees the lambda only NOW — re-offer it
                 if (hook != null && rebuilt != c
                         && (com.legend.builtin.NativeFn.Handle.of(c.callee().id()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
                     TypedSpec h = hook.apply(rebuilt, bound.keySet());
                     if (h != rebuilt) {
-                        yield rewrite(h, env);
+                        yield rewrite(h);
                     }
                 }
                 yield rebuilt;
@@ -1377,12 +1366,13 @@ public final class UserCallInliner {
                     "TypedSerializeGraph reached the inliner — it runs BEFORE the store resolver");
             // EVERY other variant is a pure structural rebuild: rewrite the
             // children (a lambda child re-enters through the TypedLambda arm,
-            // so α-hygiene stays uniform) and reassemble through the variant's
-            // own withChildren inverse — field preservation is the VARIANT's
-            // contract, not this walker's. The hand-written arms this replaces
-            // dropped TypedAggCol.orderKey and skipped MapReduce strategy
-            // lambdas (remediation T2.1). Untouched subtrees keep identity.
-            default -> n.mapChildren(k -> rewrite(k, env));
+            // which records its binders for the hook) and reassemble through
+            // the variant's own withChildren inverse — field preservation is
+            // the VARIANT's contract, not this walker's. The hand-written arms
+            // this replaces dropped TypedAggCol.orderKey and skipped MapReduce
+            // strategy lambdas (remediation T2.1). Untouched subtrees keep
+            // identity.
+            default -> n.mapChildren(this::rewrite);
         };
     }
 
@@ -1391,62 +1381,26 @@ public final class UserCallInliner {
     // =====================================================================
 
     /**
-     * A lambda under {@code env}: inside an inlined body (non-empty env)
-     * every parameter α-renames to a fresh name and body LETS bind
-     * statement-wise (renamed too); at the query's own level parameters and
-     * let names stay.
+     * A lambda: its binders are recorded for the hook's shadow guard
+     * (parameters, then each body let from its statement on) and its
+     * statements reduce; names stay as the substitution left them.
      */
-    private TypedLambda lambda(TypedLambda l, Map<String, TypedSpec> env) {
-        if (env.isEmpty()) {
-            l.parameters().forEach(p -> bound.merge(p, 1, Integer::sum));
-            try {
-                List<TypedSpec> body = new ArrayList<>(l.body().size());
-                for (TypedSpec stmt : l.body()) {
-                    body.add(rewrite(stmt, env));
-                }
-                return sameRefs(body, l.body()) ? l
-                        : new TypedLambda(l.parameters(), body, l.info());
-            } finally {
-                l.parameters().forEach(p -> bound.compute(p,
-                        (k, c) -> c == null || c <= 1 ? null : c - 1));
-            }
-        }
-        Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
-        var fnType = l.functionType();
-        List<String> params = new ArrayList<>(l.parameters().size());
-        // binder bookkeeping runs in BOTH branches (ledger cluster 16:
-        // recording binders only under an empty env left spliceHook's
-        // shadow guard inert inside inlined bodies — the exec frame
-        // captured the map lambda's own row var); ORIGINAL and renamed
-        // names both guard, since the hook fires on nodes before and
-        // after env substitution.
-        List<String> guard = new ArrayList<>();
-        for (int i = 0; i < l.parameters().size(); i++) {
-            var p = fnType.params().get(i);
-            String renamed = bind(l.parameters().get(i), inner,
-                    new com.legend.compiler.element.type.ExprType(
-                            p.type(), p.multiplicity()));
-            params.add(renamed);
-            guard.add(l.parameters().get(i));
-            guard.add(renamed);
-        }
-        guard.forEach(g -> bound.merge(g, 1, Integer::sum));
+    private TypedLambda lambda(TypedLambda l) {
+        // the names to release at exit: the parameters now, each body
+        // let as its statement passes
+        List<String> guard = new ArrayList<>(l.parameters());
+        l.parameters().forEach(p -> bound.merge(p, 1, Integer::sum));
         try {
             List<TypedSpec> body = new ArrayList<>(l.body().size());
             for (TypedSpec stmt : l.body()) {
+                body.add(rewrite(stmt));
                 if (stmt instanceof TypedLet let) {
-                    TypedSpec value = rewrite(let.value(), inner);
-                    String renamed = bind(let.name(), inner, let.value().info());
                     bound.merge(let.name(), 1, Integer::sum);
-                    bound.merge(renamed, 1, Integer::sum);
                     guard.add(let.name());
-                    guard.add(renamed);
-                    body.add(new TypedLet(renamed, value, let.info()));
-                    continue;
                 }
-                body.add(rewrite(stmt, inner));
             }
-            return new TypedLambda(params, body, l.info());
+            return sameRefs(body, l.body()) ? l
+                    : new TypedLambda(l.parameters(), body, l.info(), l.quoted());
         } finally {
             guard.forEach(g -> bound.compute(g,
                     (k, c) -> c == null || c <= 1 ? null : c - 1));
@@ -1454,101 +1408,16 @@ public final class UserCallInliner {
     }
 
     /** A dispatched match arm is a β-redex: the input (and the extra
-     * argument) substitute into the chosen body, under their own capture
-     * set. */
+     * argument) substitute into the chosen body. */
     private TypedSpec dispatchArm(String param, Optional<String> extraParam, TypedSpec body,
-            TypedSpec input, Optional<TypedSpec> extra, Map<String, TypedSpec> env) {
-        Map<String, TypedSpec> inner = new LinkedHashMap<>(env);
-        List<TypedSpec> terms = new ArrayList<>(2);
-        inner.put(param, input);
-        terms.add(input);
-        if (extraParam.isPresent()) {
-            TypedSpec bound = extra.orElse(input);
-            inner.put(extraParam.get(), bound);
-            terms.add(bound);
-        }
-        return underSubst(terms, () -> rewrite(body, inner));
-    }
-
-    /** Run {@code k}, which substitutes {@code terms} beneath binders:
-     * the capture set is the ENCLOSING one (its substitutions are still
-     * in the environment) plus the terms' free variables. */
-    private <T> T underSubst(List<TypedSpec> terms, java.util.function.Supplier<T> k) {
-        return underNames(FreeVars.of(terms), k);
-    }
-
-    /** {@link #underSubst} for terms whose free variables are already
-     * known. */
-    private <T> T underNames(java.util.Set<String> free, java.util.function.Supplier<T> k) {
-        pushNames(free);
-        try {
-            return k.get();
-        } finally {
-            captureRisk.pop();
-        }
-    }
-
-    private void pushRisk(List<TypedSpec> terms) {
-        pushNames(FreeVars.of(terms));
-    }
-
-    private void pushNames(java.util.Set<String> free) {
-        java.util.Set<String> enclosing =
-                captureRisk.isEmpty() ? java.util.Set.of() : captureRisk.peek();
-        if (enclosing.containsAll(free)) {
-            // nothing new lands: the enclosing set stands (sets are never
-            // changed once pushed)
-            captureRisk.push(enclosing);
-            return;
-        }
-        java.util.Set<String> risk = new java.util.HashSet<>(enclosing);
-        risk.addAll(free);
-        captureRisk.push(risk);
-    }
-
-    private void popRisk(int count) {
-        for (int i = 0; i < count; i++) {
-            captureRisk.pop();
-        }
-    }
-
-    /** Bind {@code name} into {@code scope}; returns the binder's name in
-     * the inlined body. A binder keeps its SOURCE name unless a term
-     * substituted beneath it mentions that name (the one capture hazard
-     * of β-reduction: the term lands under the binder) — the plan
-     * surface prints binders
-     * ({@code functionParameters = [optionalID:String[0..1]]}), so a
-     * name is renamed only when hygiene demands it. */
-    private String bind(String name, Map<String, TypedSpec> scope,
-            com.legend.compiler.element.type.ExprType info) {
-        // nothing substituted under the binder mentions its name: no
-        // hazard, the source name stands
-        if (captureRisk.isEmpty() || !captureRisk.peek().contains(name)) {
-            scope.put(name, new TypedVariable(name, info));
-            return name;
-        }
-        String renamed = "_i" + fresh++;
-        scope.put(name, new TypedVariable(renamed, info));
-        return renamed;
-    }
-
-    /** The variable names an argument list mentions (free or bound —
-     * the conservative capture set of a call frame). */
-    private static java.util.Set<String> namesIn(List<TypedSpec> args) {
-        java.util.Set<String> out = new java.util.HashSet<>();
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(args);
-        while (!work.isEmpty()) {
-            TypedSpec n = work.poll();
-            if (n instanceof TypedVariable v) {
-                out.add(v.name());
-            } else if (n instanceof TypedLambda l) {
-                out.addAll(l.parameters());
-            } else if (n instanceof TypedLet let) {
-                out.add(let.name());
+            TypedSpec input, Optional<TypedSpec> extra) {
+        try (Scope inner = new Scope()) {
+            inner.put(param, input);
+            if (extraParam.isPresent()) {
+                inner.put(extraParam.get(), extra.orElse(input));
             }
-            work.addAll(n.children());
+            return reduce(body, inner);
         }
-        return out;
     }
 
     /** Element-wise REFERENCE equality — the identity-preservation
@@ -1566,10 +1435,10 @@ public final class UserCallInliner {
         return true;
     }
 
-    private List<TypedSpec> list(List<TypedSpec> ns, Map<String, TypedSpec> env) {
+    private List<TypedSpec> list(List<TypedSpec> ns) {
         List<TypedSpec> out = new ArrayList<>(ns.size());
         for (TypedSpec n : ns) {
-            out.add(rewrite(n, env));
+            out.add(rewrite(n));
         }
         return out;
     }

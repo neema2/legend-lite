@@ -165,20 +165,22 @@ public final class ExecuteChainAssembly {
         }
         Map<String, TypedSpec> vars = varPairs(
                 Lets.bound(ec.args().get(1), letPrefix), letPrefix);
-        // an α-RENAMED lambda (the inliner's fresh binders inside an inlined
-        // helper body — `_i<n>`, the source name gone) binds by POSITION:
-        // the vars list is spelled in parameter order (the engine binds by
-        // name; position is the one fact a renamed binder still carries).
-        // Only when NO parameter matches by name and the counts agree.
+        // an α-RENAMED lambda (the substitution's `<name>_<k>` for a binder
+        // a spliced term would have captured — TypedSubst) still spells its
+        // source name before the suffix: a parameter binds by its own name,
+        // else by that; failing both, by POSITION when every parameter is
+        // such a rename and the counts agree (the vars list is spelled in
+        // parameter order; the engine binds by name, and position is the
+        // one fact a renamed binder still carries).
         boolean positional = !lam.parameters().isEmpty()
                 && lam.parameters().size() == vars.size()
-                && lam.parameters().stream().noneMatch(vars::containsKey)
-                && lam.parameters().stream().allMatch(p -> p.startsWith("_i"));
+                && lam.parameters().stream().noneMatch(p -> byName(vars, p) != null)
+                && lam.parameters().stream().noneMatch(p -> sourceName(p).equals(p));
         List<TypedSpec> positionalValues = new ArrayList<>(vars.values());
         List<TypedSpec> body = new ArrayList<>();
         for (int i = 0; i < lam.parameters().size(); i++) {
             String name = lam.parameters().get(i);
-            TypedSpec value = positional ? positionalValues.get(i) : vars.get(name);
+            TypedSpec value = positional ? positionalValues.get(i) : byName(vars, name);
             if (value == null) {
                 throw new com.legend.error.NotImplementedException(
                         "executeLegendQuery: no vars pair binds the query"
@@ -192,6 +194,34 @@ public final class ExecuteChainAssembly {
         TypedLambda zeroArg = new TypedLambda(List.of(), body,
                 ExprType.one(new Type.FunctionType(List.of(), ft.result())));
         return new Prepared(zeroArg, null);
+    }
+
+    /** The vars pair a binder binds to: by its own name, else by its source
+     * name, one rename suffix at a time (a binder renamed at two β sites
+     * spells {@code x_1_1}); null when none. */
+    private static @com.legend.base.Nullable TypedSpec byName(Map<String, TypedSpec> vars, String binder) {
+        for (String n = binder;; n = sourceName(n)) {
+            TypedSpec v = vars.get(n);
+            if (v != null || sourceName(n).equals(n)) {
+                return v;
+            }
+        }
+    }
+
+    /** A binder's source name one rename back: {@code <name>_<k>}
+     * (TypedSubst's rename on a capture hazard) spells it before the
+     * suffix; any other name is its own. */
+    private static String sourceName(String binder) {
+        int cut = binder.lastIndexOf('_');
+        if (cut <= 0 || cut == binder.length() - 1) {
+            return binder;
+        }
+        for (int i = cut + 1; i < binder.length(); i++) {
+            if (!Character.isDigit(binder.charAt(i))) {
+                return binder;
+            }
+        }
+        return binder.substring(0, cut);
     }
 
     /** STRUCTURAL query selection — pure data selection over literal
@@ -499,9 +529,17 @@ public final class ExecuteChainAssembly {
                 ? ec.args().get(3) : null;
     }
 
+    /** Whether the chain carries a {@code ->from()} of its OWN — on its
+     * pipeline, not inside a lambda: a subquery spliced into a predicate
+     * (another execute's result, read through a let) brings its own
+     * context for itself alone and leaves the chain's to the execute
+     * call. */
     public static boolean containsTypedFrom(TypedSpec n) {
         if (n instanceof TypedFrom) {
             return true;
+        }
+        if (n instanceof TypedLambda) {
+            return false;
         }
         for (TypedSpec c : n.children()) {
             if (containsTypedFrom(c)) {

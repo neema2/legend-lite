@@ -28,6 +28,11 @@ import java.util.Set;
  * A binder is renamed only on a real hazard, so a tree with no capture
  * comes back with its own names. A substituted term is spliced verbatim;
  * a renamed occurrence keeps its own {@code info}.
+ *
+ * <p>One position is never substituted into: execute()'s runtime argument
+ * ({@code NativeFn.Handle.orchestrationArgument}), which the statement
+ * executor reads in its source form; a binder renamed above it is still
+ * followed inside it.
  */
 public final class TypedSubst {
 
@@ -35,15 +40,27 @@ public final class TypedSubst {
     }
 
     /** The body with every free read of an {@code env} name replaced by
-     * its term. */
+     * its term (but for execute()'s runtime argument, left as spelled). */
     public static TypedSpec apply(TypedSpec body, Map<String, TypedSpec> env) {
+        return apply(body, env, Map.of());
+    }
+
+    /** The same, with the free variables of the terms named in
+     * {@code knownFree} already read (a caller that binds a term once and
+     * substitutes it under many statements reads them once); the others
+     * are read here. */
+    public static TypedSpec apply(TypedSpec body, Map<String, TypedSpec> env,
+            Map<String, Set<String>> knownFree) {
         if (env.isEmpty()) {
             return body;
         }
         Map<String, Set<String>> free = new LinkedHashMap<>();
         Set<String> mentioned = new LinkedHashSet<>();
         env.forEach((name, term) -> {
-            Set<String> f = FreeVars.of(term);
+            Set<String> f = knownFree.get(name);
+            if (f == null) {
+                f = FreeVars.of(term);
+            }
             free.put(name, f);
             mentioned.addAll(f);
         });
@@ -123,6 +140,27 @@ public final class TypedSubst {
                 }
                 case TypedMatch m -> match(m);
                 case TypedMatchRuntime mr -> matchRuntime(mr);
+                // execute()'s ORCHESTRATION argument (its runtime) is read
+                // by the statement executor in its source form — a let's
+                // name resolved through the query's lets — so nothing is
+                // SUBSTITUTED into it (NativeFn.Handle.orchestrationArgument;
+                // the inliner's execute arm leaves it alone the same way);
+                // the renames of binders above it and the reserved names
+                // still apply inside, a read following its binder wherever
+                // it stands
+                case TypedNativeCall c when com.legend.builtin.NativeFn.Handle
+                        .orchestrationArgument(c.callee().id(), c.args().size()) >= 0 -> {
+                    int keep = com.legend.builtin.NativeFn.Handle
+                            .orchestrationArgument(c.callee().id(), c.args().size());
+                    Scope spelled = env.isEmpty() ? this
+                            : new Scope(Map.of(), Map.of(), renames, Set.of(), reserved, reservedForLets);
+                    List<TypedSpec> args = new ArrayList<>(c.args().size());
+                    for (int i = 0; i < c.args().size(); i++) {
+                        TypedSpec a = c.args().get(i);
+                        args.add(i == keep ? spelled.walk(a) : walk(a));
+                    }
+                    yield sameRefs(args, c.args()) ? c : c.withChildren(args);
+                }
                 default -> n.mapChildren(this::walk);
             };
         }

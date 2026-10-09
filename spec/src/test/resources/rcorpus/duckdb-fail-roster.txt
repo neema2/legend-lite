@@ -79,6 +79,7 @@ meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregation
 meta::relational::tests::groupBy::testGroupByWithJoinDB2
 meta::relational::tests::json::testResultToJsonStream
 meta::relational::tests::m2m2r::testProp3
+meta::relational::tests::map::testSubAggregationMultiLevelJoinString
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
 meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject
 meta::relational::tests::mapping::union::biTemporal::testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting
