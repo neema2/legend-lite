@@ -470,8 +470,12 @@ tests, and PARK-23's fix moved into TeaVM's class library. **Landing 2026-10-10 
 conformance test of TeaVM's class library against the JDK (`//wasm:conformance_test`, its ledger of known differences
 `wasm/conformance-known.tsv`), and TeaVM's number conversions made exact (`third_party/teavm_classlib`, put first on
 every `teavm_wasm` build's class path by `tools/teavm/defs.bzl`; `MODULE.bazel` declares `teavm-interop`): every
-number family equal to the JDK in the tab; PARK-23 restated to its one speed clause. **Next:** legs 6 to 8; PARK-17
-closes in leg 6. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
+number family equal to the JDK in the tab; PARK-23 restated to its one speed clause. **Next, announced 2026-10-10
+(core):** retiring `PortableText`, the server's win -- the protocol and the parser back on the JDK's own conversions
+(`Double.toString`, `Double.parseDouble`, `BigDecimal.valueOf`) now that the tab's are exact; files: the 22 call sites
+in `core/.../protocol/` and `core/.../parser/`, `protocol/NumberText.java` and `json/.../PortableText.java` deleted, the
+double half of `ArchitectureTest.textTheTabWritesDifferentlyIsWrittenPortably` and `theProtocolConcatenatesNoDoubleIntoText`
+(the `isBlank` half stays). Then legs 6 to 8; PARK-17 closes in leg 6. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
 function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
