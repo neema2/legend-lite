@@ -99,11 +99,9 @@ export class BrowserEngine implements Engine {
     });
   }
 
-  /** `compilation/compile` in the tab, the planner's whole-model compile: the server's answer, OK or its first failure. */
-  async compile(model: PureModelContext): Promise<CompileResult> {
-    const [first] = await this.#planner.compileErrors(model.code);
-    if (first !== undefined) throw new EngineError(first, 400, 'COMPILATION');
-    return { message: 'OK', defects: [] };
+  /** `compilation/compile` in the tab, answered by the planner as the server answers it: OK, or its first failure. */
+  compile(model: PureModelContext): Promise<CompileResult> {
+    return this.#planner.compile(model);
   }
 
   returnType(): Promise<string> {

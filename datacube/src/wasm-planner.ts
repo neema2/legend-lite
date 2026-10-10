@@ -40,7 +40,6 @@ interface TeavmModule {
     tableModelOrError(table: string): string;
     catalogColumnsSqlOrError(schema: string, table: string): string;
     planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
-    relationTypeJsonOrError(model: string, lambdaJson: string): string;
     // legend-engine's pure/v1, routed as legend-lite's server routes it: `OK\n<status>\n<type>\n<body>`
     pureV1OrError(path: string, rawQuery: string, body: string): string;
     testDataSqlOrError(model: string, database: string, tablesJson: string): string;
@@ -401,7 +400,7 @@ export class WasmPlanner implements Planner, TableModels {
   }
 
   /**
-   * E5's twin: a query typed, compile-only. How the cube types its source and calculated
+   * E5 (`compilation/lambdaRelationType`): a query typed, compile-only. How the cube types its source and calculated
    * columns before any level query runs. Cached by the query's JSON, like plans.
    */
   async relationType(query: Lambda, signal?: AbortSignal): Promise<PlanColumn[]> {
@@ -410,11 +409,11 @@ export class WasmPlanner implements Planner, TableModels {
     const hit = useCache ? this.#types.get(json) : undefined;
     if (hit !== undefined) return hit;
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    const answer = this.#useWorker()
-      ? await this.#ask({ kind: 'relationTypeJson', model: this.#options.model, lambda: json })
-      : (await this.#load()).exports.relationTypeJsonOrError(this.#options.model, json);
+    // the lambda's JSON spliced in as toJson wrote it, so its numbers keep their digits
+    const body = `{"model":${JSON.stringify({ _type: 'text', code: this.#options.model })},"lambda":${json}}`;
+    const answer = await this.#pureV1('/api/pure/v1/compilation/lambdaRelationType', '', body, query);
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    const columns = relationColumns(JSON.parse(decode(answer, query)), undefined, new Set(this.#options.enumerations ?? []));
+    const columns = relationColumns(JSON.parse(answer), undefined, new Set(this.#options.enumerations ?? []));
     if (useCache) this.#types.set(json, columns);
     return columns;
   }
@@ -600,7 +599,7 @@ function onWindows(): boolean {
 }
 
 /**
- * A module answer: "OK\n<json>" or "ERR\n<exception class>\n<message>". Failure
+ * A module answer: "OK\n<json>" or "ERR\n<kind>\n<message>" (the kind as the server names a refusal). Failure
  * travels in the return value rather than as a thrown Java exception so that the
  * answer does not depend on how TeaVM bridges throwables into JS -- see
  * wasm/README.md. A refusal keeps the compiler's own message: the same text the

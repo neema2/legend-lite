@@ -283,6 +283,8 @@ class PureV1ApiTest {
         assertEquals(404, missing.status());
         assertEquals("{\"code\":-1,\"message\":\"no such legend-engine API in legend-lite: /api/pure/v1/nope\",\"status\":\"error\"}",
                 missing.json());
+        assertEquals("{\"code\":-1,\"message\":\"no such legend-lite API: /api/lite/v1/nope\",\"status\":\"error\"}",
+                PureV1Api.route("/api/lite/v1/nope", null, "", NO_RUN).json());
 
         String[] ran = new String[1];
         PureV1Api.Answer refused = PureV1Api.route("/api/pure/v1/execution/execute", null,
@@ -353,6 +355,68 @@ class PureV1ApiTest {
         Json.Obj o = Json.parseObject(refused.json());
         assertEquals("COMPILATION", o.getString("errorType"));
         assertTrue(o.getString("message").contains("trades::h2::broken"), refused.json());
+    }
+
+    /**
+     * legend-lite's own {@code /api/lite/v1/compilation/compile} (leg 6): the same whole-model compile, EVERY error
+     * answered, 200 -- both of two bodies that do not type, where legend-engine's route answers the first; an element
+     * error alone, since it stops the compile; none when the model compiles. A request it cannot read is refused as
+     * legend-engine's route refuses it.
+     */
+    @Test
+    void liteCompile_answersEveryError_whereTheEnginesRouteAnswersTheFirst() {
+        String lite = "/api/lite/v1/compilation/compile";
+        PureV1Api.Answer ok = PureV1Api.route(lite, null, textModel(), NO_RUN);
+        assertEquals(200, ok.status(), ok.json());
+        assertEquals("{\"errors\":[]}", ok.json());
+
+        String two = Json.toCompact(Map.of("_type", "text", "code", model + "\n###Pure\n"
+                + "function trades::h2::broken(): Any[*] { #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[nope]) }\n"
+                + "function trades::h2::alsoBroken(): Any[*] { #>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->select(~[nada]) }\n"));
+        PureV1Api.Answer every = PureV1Api.route(lite, null, two, NO_RUN);
+        assertEquals(200, every.status(), every.json());
+        List<String> messages = new ArrayList<>();
+        for (Json.Node e : Json.parseObject(every.json()).getArr("errors").items()) {
+            messages.add(((Json.Obj) e).getString("message"));
+        }
+        assertEquals(2, messages.size(), every.json());
+        assertTrue(messages.get(0).contains("trades::h2::alsoBroken"), every.json());
+        assertTrue(messages.get(1).contains("trades::h2::broken"), every.json());
+        PureV1Api.Answer first = PureV1Api.route("/api/pure/v1/compilation/compile", null, two, NO_RUN);
+        assertEquals(400, first.status(), first.json());
+        assertEquals(messages.get(0), Json.parseObject(first.json()).getString("message"));
+
+        String element = Json.toCompact(Map.of("_type", "text", "code",
+                model + "\n###Pure\nClass trades::h2::Desk\n{\n  name: Strin[1];\n}\n"));
+        PureV1Api.Answer one = PureV1Api.route(lite, null, element, NO_RUN);
+        assertEquals(200, one.status(), one.json());
+        List<Json.Node> errors = Json.parseObject(one.json()).getArr("errors").items();
+        assertEquals(1, errors.size(), one.json());
+        assertEquals(Json.parseObject(PureV1Api.compile(element).json()).getString("message"),
+                ((Json.Obj) errors.get(0)).getString("message"));
+
+        PureV1Api.Answer unread = PureV1Api.route(lite, null, "{\"_type\":\"data\",\"elements\":[]}", NO_RUN);
+        assertEquals(PureV1Api.compile("{\"_type\":\"data\",\"elements\":[]}"), unread);
+        assertEquals(500, unread.status(), unread.json());
+    }
+
+    /**
+     * A failure outside a route (the boundary's own operations, which the tab and Python fold) is named as the routes
+     * name it: legend-engine's errorType when the text is refused, else the server's status with the failure's class.
+     */
+    @Test
+    void aFailureOutsideARoute_isNamedAsTheRoutesNameIt() {
+        RuntimeException parse = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> com.legend.Compiler.parseQuery("1 +"));
+        assertEquals("PARSER", PureV1Api.refusal(parse).kind());
+        assertEquals(parse.getMessage(), PureV1Api.refusal(parse).message());
+        RuntimeException compile = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> com.legend.Compiler.compileModel("Class demo::Desk\n{\n  name: Strin[1];\n}\n"));
+        assertEquals("COMPILATION", PureV1Api.refusal(compile).kind());
+        assertEquals(new PureV1Api.Refusal("500", "IllegalArgumentException: no"),
+                PureV1Api.refusal(new IllegalArgumentException("no")));
+        assertEquals(new PureV1Api.Refusal("500", "NullPointerException: broke"),
+                PureV1Api.refusal(new NullPointerException("broke")));
     }
 
     /** E6: a lambda's result type, named as the engine names it (measured, 4.145.0). */

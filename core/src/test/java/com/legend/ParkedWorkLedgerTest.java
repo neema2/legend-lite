@@ -137,14 +137,6 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-16 the test-data generator's hand-built SQL spells names raw",
                     new Anchor("\\|\\| \"default\"\\.equals\\(schema\\) \\? table : schema \\+ \"\\.\" \\+ table;",
                             List.of("TestDataGenerator.java"))),
-            // PARK-17 (2026-10-09, the DataCube + Python line, on the protocol
-            // program's leg 4): Python's refusal kind is the engine's for its
-            // grammar and a Java class name for the rest, until leg 6. Leg 6's
-            // one whole-model compile replaces the copy PureV1Api.compile strings
-            // together: that copy is the anchor.
-            Map.entry("PARK-17 Python's refusal kind is mixed until leg 6",
-                    new Anchor("com\\.legend\\.Compiler\\.compileAllBodies\\(\\s*\\n\\s*com\\.legend\\.Compiler\\.compileModel\\(",
-                            List.of("PureV1Api.java"))),
             // PARK-18 (2026-10-09, E-4b): the legacy printer writes no null placement, the
             // IR not telling a query's explicit emptyFirst()/emptyLast() from pure's own null order
             Map.entry("PARK-18 the legacy printer cannot write an explicit null placement",

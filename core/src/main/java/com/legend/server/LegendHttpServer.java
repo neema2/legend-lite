@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
  * Endpoints:
  * - POST /lsp - Handle LSP JSON-RPC messages (diagnostics, completions, etc.)
  * - POST /api/pure/v1/... - legend-engine's own pure/v1 API
+ * - POST /api/lite/v1/compilation/compile - a model's every compile error (lite's own)
  * - POST /engine/diagram - a class diagram from a Pure model
  * - GET /health - Health check
  *
@@ -110,6 +111,8 @@ public class LegendHttpServer {
         // legend-engine's own pure/v1 API, exactly (PureV1Api; the user's ruling of
         // 2026-09-27: lite serves upstream's APIs and nothing of its own)
         route("/api/pure/v1/", new PureV1Handler());
+        // and lite's own route beside it, on the same dispatcher (every compile error; the user, 2026-10-10)
+        route("/api/lite/v1/", new PureV1Handler());
         // legend-engine's query store and current user (SavedQueries; the Query app's G5/G7)
         route("/api/pure/v1/query", exchange -> {
             addCorsHeaders(exchange);
@@ -361,6 +364,7 @@ public class LegendHttpServer {
         System.out.println("Endpoints:");
         System.out.println("  POST http://localhost:" + port + "/lsp         - LSP Protocol");
         System.out.println("  POST http://localhost:" + port + "/api/pure/v1/... - legend-engine's pure/v1 API");
+        System.out.println("  POST http://localhost:" + port + "/api/lite/v1/compilation/compile - every compile error");
         System.out.println("  GET  http://localhost:" + port + "/health         - Health check");
         System.out.println();
         System.out.println("Press Ctrl+C to stop");

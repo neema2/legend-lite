@@ -38,7 +38,8 @@ nothing.
 about dialect, null ordering or aggregates.
 
 **Failure is a return value, not a throw.** `planOrError` returns
-`"OK\n" + sql` or `"ERR\n" + class + "\n" + message`. Refusals are answers
+`"OK\n" + sql` or `"ERR\n" + kind + "\n" + message` (the kind as the server's routes name a refusal: `PARSER`,
+`COMPILATION`, else `500`). Refusals are answers
 the planner is expected to give, so they are compared too — through the
 return value, which avoids depending on how TeaVM bridges Java throwables
 into JS.

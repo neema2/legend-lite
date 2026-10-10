@@ -25,7 +25,6 @@ interface TeavmModule {
     tableModelOrError(table: string): string;
     catalogColumnsSqlOrError(schema: string, table: string): string;
     planJsonOrError(model: string, lambdaJson: string, runtime: string): string;
-    relationTypeJsonOrError(model: string, lambdaJson: string): string;
     // legend-engine's pure/v1, routed as legend-lite's server routes it: `OK\n<status>\n<type>\n<body>`
     pureV1OrError(path: string, rawQuery: string, body: string): string;
     testDataSqlOrError(model: string, database: string, tablesJson: string): string;
@@ -53,7 +52,6 @@ export type Request =
     readonly lambda: string;
     readonly runtime: string;
   }
-  | { readonly id: number; readonly kind: 'relationTypeJson'; readonly model: string; readonly lambda: string }
   // one pure/v1 call: its path (`/api/pure/v1/...`), its raw query string ('' for none) and its body
   | { readonly id: number; readonly kind: 'pureV1'; readonly path: string; readonly query: string; readonly body: string }
   | { readonly id: number; readonly kind: 'testData'; readonly model: string; readonly database: string; readonly tables: string };
@@ -89,7 +87,6 @@ function answerOf(module: TeavmModule, msg: Request): string {
     case 'tableModel': return module.exports.tableModelOrError(msg.table);
     case 'catalogColumnsSql': return module.exports.catalogColumnsSqlOrError(msg.schema, msg.table);
     case 'planJson': return module.exports.planJsonOrError(msg.model, msg.lambda, msg.runtime);
-    case 'relationTypeJson': return module.exports.relationTypeJsonOrError(msg.model, msg.lambda);
     case 'pureV1': return module.exports.pureV1OrError(msg.path, msg.query, msg.body);
     case 'testData': return module.exports.testDataSqlOrError(msg.model, msg.database, msg.tables);
     case 'plan': return module.exports.planOrError(msg.model, msg.query, msg.runtime);

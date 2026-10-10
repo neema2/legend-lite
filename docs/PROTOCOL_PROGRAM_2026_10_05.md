@@ -378,6 +378,24 @@ not be written back, so it is refused.
    route in the tab and on a lite server alike. `relationTypeJson` is E5's true twin (the same computation, the same
    renderer; checked): it goes from both adapters. `planJson` stays (not E9's). Every error means today's: the first
    element error alone, else every body's -- leg 6 changes no answer.
+   **As built (2026-10-10):** `Compiler.compileErrors(model)` is the one whole-model compile. `PureV1Api.compile`
+   answers its first error; `PureV1Api.compileEveryError`, at `/api/lite/v1/compilation/compile`, answers
+   `{"errors":[{"message":...}, ...]}`, 200 (each error an object, so 6b can add where it is beside the message);
+   `LegendHttpServer` routes `/api/lite/v1/` to the same handler, and the tab and Python reach it through the same
+   dispatcher (`pureV1OrError`, `lite_pure_v1`). engine-client's `HttpEngine.compileErrors` asks the lite route and,
+   once a server has answered it 404 (legend-engine), that server's `compilation/compile`; the tab's `WasmGrammar` is
+   the same client over the planner, so Studio has one path to either. Gone: `Boundary.compile` and
+   `Boundary.relationTypeJson`, the tab's `compileOrError` and `relationTypeJsonOrError`, Python's
+   `lite_relation_type_json`; the tab's, DataCube's and Python's relation type ask E5. The SDLC's `CoreGrammar.compile`
+   calls `compileErrors`. PARK-17 is closed, by the DataCube + Python line's choice: the fold (`planner.Folded`) writes
+   a refusal's kind as the routes name it (`PureV1Api.refusal`: `PARSER`, `COMPILATION`, else `500`, the message then
+   led by the failure's class), so Python's `LegendError.kind` has one rule for every call, and engine-client's
+   `unfold` no longer keeps a list of Java class names. What that changes (the leg's audit): the legend-engine route's
+   answers and the SDLC's list are the same as before, but the tab's old list missed three refusals of the text
+   (`SchemaInvariantException`, `WalledBodyException`, `DialectCapability`), so in the tab those are now refused as
+   the server already refused them (400 `COMPILATION`, in Studio a listed problem, where they were a 500 thrown), and
+   a failure that is not the text's now reads as the server writes it, its class's simple name before the message (the
+   tab wrote the full name; DataCube and Python wrote none).
    **6b, a follow-up after leg 6 (the user, 2026-10-10):** the lite route collects every ELEMENT error too, through
    the tolerant build (`Compiler.buildModule`, tested but on no user-facing path today). Homework first: (1) its errors
    carry the element's `[line:col]` as the strict path's do (Studio places them); (2) a broken element's dependents
@@ -401,6 +419,22 @@ not be written back, so it is refused.
    `PureModelContextData`, as upstream Studio sends. How the compiler takes a model given as records -- straight into
    its model (the direction ArchitectureTest 7c sets the parser) or through the text printed from them -- is decided
    at the leg's start, before code.
+9. **Imports and comments through the round trip** (added 2026-10-10, the user: "add a leg to design/implement
+   imports and comments too so we don't forget"). Today a model's text keeps both only because lite's own SDLC
+   stores the text itself (`docs/STUDIO_DESIGN_2026_10_02.md` S13, S5), and imports are refused at save, as
+   upstream's SDLC refuses them (S20, v0). Protocol JSON -- what a real legend-sdlc stores, Depot serves and the
+   engine reads -- has a place for neither: an entity carries fully qualified names and no comments, and printing it
+   back gives text with neither. Designed at the leg's start, before code, with the Compiler Rewrite line (name
+   resolution is its area):
+   - **Imports:** saving text that uses imports as entity JSON needs names resolved on the records, with legend-engine's
+     own rules, so the engine compiles the JSON as lite compiled the text -- the function-resolution fix recorded in
+     `docs/function-resolution/README.md` (steps 0 to 5), then S20's v1, the import refusal lifted. And the way back:
+     whether text printed from JSON gets imports again (and which), or stays fully qualified.
+   - **Comments:** whether they survive a save to a real legend-sdlc (somewhere beside the entities) or are dropped
+     there with the author told before saving; and, for editing in forms, a parser that keeps comments and layout as
+     data, so a form edits the text and never reprints it (design §3 piece d).
+   - **Done when:** a file with imports and comments saves and reopens on lite's stack unchanged and on a real
+     legend-sdlc as the design says, each proven by a test.
 
 Then the Studio plan's B2 to B4 (real legend-sdlc, Depot and engine) build on it: entities JSON read and printed in the
 tab, text parsed and emitted on save.

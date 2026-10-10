@@ -843,4 +843,23 @@ public final class Compiler {
         return walls;
     }
 
+    /**
+     * A WHOLE MODEL compiled, and every error in it (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 6): its elements
+     * ({@link #compileModel}, which stops at the first element error), then every body in it
+     * ({@link #compileAllBodies}, which collects them all). The messages: the first element error alone, else every
+     * body's, in {@code compileAllBodies}' order; empty when the model compiles. Both {@code compilation/compile}
+     * routes answer from it -- legend-engine's with the first error, legend-lite's with all of them -- and the SDLC
+     * checks a tree with it. A failure that is not the model's (a malformed argument, a compiler bug) is thrown, not
+     * listed as one of its errors.
+     */
+    public static java.util.List<String> compileErrors(String model) {
+        ModelContext ctx;
+        try {
+            ctx = compileModel(model);
+        } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException e) {
+            return java.util.List.of(String.valueOf(e.getMessage()));
+        }
+        return java.util.List.copyOf(compileAllBodies(ctx).values());
+    }
+
 }

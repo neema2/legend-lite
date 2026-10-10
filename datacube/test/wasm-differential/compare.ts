@@ -38,7 +38,7 @@ function blocks(text: string): Map<string, string> {
   return out;
 }
 
-// The JVM side keeps the exception class; the TS planner drops it by
+// The JVM side keeps the refusal's kind; the TS planner drops it by
 // design. Compare on the parts both sides carry. An OK answer is the plan
 // -- its SQL and the compiler's result type -- read through the product's
 // own reader, so the types are held to the JVM too.

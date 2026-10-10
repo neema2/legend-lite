@@ -44,7 +44,7 @@ public final class Sdlc {
         /** Pure text to its protocol JSON ({@code {"_type":"data","elements":[...]}}), or a refusal (a RuntimeException). */
         String modelJson(String text);
 
-        /** A whole model's compile errors, as the server's {@code compilation/compile} finds them: none when it compiles. */
+        /** A whole model's compile errors, every one, as legend-lite's {@code compilation/compile} finds them: none when it compiles. */
         List<String> compile(String model);
     }
 

@@ -7,10 +7,11 @@ here by GraalVM's native-image (`//native:compiler` → `libcompiler.dylib` on m
 Linux; no JVM).
 
 - `src/main/java/com/legend/nativelib/Compiler.java`: Python's adapter, the C entry points, each a delegation to one
-  `planner.Boundary` operation -- `lite_plan_json`, `lite_plan_text`, `lite_relation_type_json`,
-  `lite_database_from_catalog`, ..., and legend-engine's `pure/v1` through `lite_pure_v1` (Python's grammar asks it
-  there: docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5) -- each returning the boundary's answer in the encoding the
-  tab's adapter answers in (`planner.Folded`: `OK\n<result>`, or `ERR\n<class>\n<message>`)
+  `planner.Boundary` operation -- `lite_plan_json`, `lite_plan_text`, `lite_database_from_catalog`, ..., and
+  legend-engine's `pure/v1` through `lite_pure_v1` (Python's grammar and a query's relation type ask it there:
+  docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5) -- each returning the boundary's answer in the encoding the
+  tab's adapter answers in (`planner.Folded`: `OK\n<result>`, or `ERR\n<kind>\n<message>`, the kind the engine's
+  errorType or the server's status)
   as a UTF-8 C string freed with `lite_free`. A Java error the planner does not answer itself (its
   heap exhausted, say) comes back as an `ERR` answer too, never an abort of the host process.
   `lite_unfreed` counts the answers not yet freed, so a host can check that it frees every one.

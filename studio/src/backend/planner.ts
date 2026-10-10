@@ -12,7 +12,7 @@ export { WorkerPort, type PlannerPort } from '../../../engine-client/src/legend/
 export interface ModelCompiler {
   /** `grammarToJson/model`: the elements a text declares, or the parser's refusal (thrown). */
   modelJson(text: string): Promise<PureModelContextData>;
-  /** `compilation/compile`: [] when the model compiles; the in-tab engine answers every error, a server its one. */
+  /** [] when the model compiles, else its errors: every one from legend-lite (in the tab or a server), legend-engine's first. */
   compileErrors(code: string): Promise<string[]>;
 }
 
