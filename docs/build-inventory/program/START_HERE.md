@@ -61,6 +61,13 @@ generated file, never a signature we typed ourselves.
   message, the reference lane's verdicts (S40, S41). Census load walls 37 → 27; the lane AGREE 74,586 → 76,884 (76,920 before the audit's B1 fix replaced one more upstream body).
 - **Next: L7 "resolve once"** (PARK-5's full fix, option (c), `COLD_READ_2026_10_09.md` F1), then D24's second slice;
   the cold read's F2 and F3 still await the user's rulings; then L4 (Phase 6).
+- **What the default world (the prelude) contains is decided; do not redo the analysis** (asked again 2026-10-10):
+  the rule is in `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md` §1 (the measurements that decided it), the plan's
+  Phase 4, and `PHASES_4_5_7.md` §2.2 — upstream's core whole (legend-pure `platform*`, engine `core_functions_*`,
+  tests stripped by upstream's markers), plus upstream's own query surface (the engine compilers' handler
+  registrations and the classes they instantiate: 455 functions, 156 classes) closed over what it references, plus the
+  87 built-in m3 declarations; the only input is the module choice. Open inside it: only D4-1/F3 (follow every body,
+  or runnable bodies, which reads our table) and D4-5/F2 (how the seal admits our parser in the closure).
 
 **State on 2026-10-09, morning** (kept for the record):
 - **L2, Phase 3, landed** (1e4a2bd40; run 38000346579; GATES "Build rebuild Phase 3"): rebased over 231 commits, re-judged
