@@ -66,6 +66,20 @@ F1 is the one form that uses the index on all three and is right for a value sto
   database answers as the literal under every name tried — but for decimals on DuckDB, whose driver makes a `DECIMAL`
   array of three places (`0.1234` read as `0.123`: the wrong row; PARK-20). On H2 the array must stay bare: a cast
   inside `ANY(...)` is read as H2's boolean `ANY` aggregate (the 15 `FAIL` lines).
+- `ValueTypedCastProbe.java` → `value-typed-cast-results.txt` (2026-10-09, step 3): on H2, a value bound in a cast to
+  its own literal's type — the type the runner writes into a plan's type hole — against the literal: decimals of every
+  shape, whole numbers, extreme magnitudes, dates and date-times to the nanosecond (passed as text), alone, in
+  arithmetic, compared and inside the answer's JSON. The same type and text throughout, but a small whole number's type
+  (BIGINT for the literal's INTEGER, the same text); the last case is the control: a plain `TIMESTAMP` rounds. PARK-19's
+  fix.
+- `TimestampProbe.java` → `timestamp-results.txt` (2026-10-09, step 3): on DuckDB, a date-time bound bare and in each
+  cast, as a `LocalDateTime`, a `Timestamp` and its text, against the `TIMESTAMP` and `TIMESTAMP_NS` literals. The
+  driver cuts a bound date-time to the microsecond, even into a `TIMESTAMP_NS` cast; passed as text, the cast keeps
+  every digit, as the literal does. Why a date-time parameter is passed as its text on every database.
+- `EngineValidationProbe.java` → `engine-validation-results.txt` (2026-10-09, step 3): legend-engine 4.145.0's own
+  parameter validation, run on its released jars: its messages, its order of checks (missing, validation, its
+  normalizer), its type list's order, and what it passes on (a null value, an empty list, NaN). The compatibility
+  mode's reference (phase 2); the lite runner checks in its own words.
 
 ## `sharing/` — when two runs may share an in-memory database (2026-10-08)
 

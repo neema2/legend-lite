@@ -21,9 +21,8 @@ public final class PlanCases {
     }
 
     /** A query with parameters, and the same query with each parameter a {@code let} of its value -- how the server
-     *  binds a request's values today ({@code PureV1Api.boundParameters}) -- with the values as legend-engine's execute
-     *  API makes them from a request: a number as a Long, a Double or a BigDecimal, a date as its text, a list as a
-     *  List. */
+     *  binds a request's values today ({@code PureV1Api.boundParameters}) -- with the values as the runner takes them:
+     *  each its Pure type's Java value ({@code exec.PlanParameters}), a list a List. */
     public record Parameterised(String parameters, String lets, String body, java.util.Map<String, Object> values) {
 
         /** The query with its parameters, as a plan is made from it. */
@@ -36,11 +35,6 @@ public final class PlanCases {
             return "|" + lets + body + ";";
         }
 
-        /** Whether a parameter's literal has no one type -- a Float's, a Decimal's, a Date's or a Number's: refused on
-         *  H2, which types a parameter when it prepares the statement. */
-        public boolean untypedOnH2() {
-            return java.util.regex.Pattern.compile("\\b(Float|Decimal|Date|Number)\\[").matcher(parameters).find();
-        }
     }
 
     /** The scalar cases over {@code table} (ID, NAME, PRICE; three rows). */
@@ -60,7 +54,7 @@ public final class PlanCases {
                             + "->sort(~ID->ascending())", java.util.Map.of("n", 2L)),
             new Parameterised("d: StrictDate[1]", "let d = %2024-01-02;",
                     "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
-                    java.util.Map.of("d", "2024-01-02")),
+                    java.util.Map.of("d", java.time.LocalDate.of(2024, 1, 2))),
             new Parameterised("b: Boolean[1]", "let b = true;",
                     "#>{s::DB." + table + "}#->filter(r|$b)->select(~[ID])->sort(~ID->ascending())", java.util.Map.of("b", true)),
             // a Float is bound as a decimal (the numeric charter's Rule 1: a Float literal is a decimal in the database)
@@ -82,19 +76,32 @@ public final class PlanCases {
                     java.util.Map.of("p", new java.math.BigDecimal("2.50"))),
             new Parameterised("t: DateTime[1]", "let t = %2024-01-02T10:30:00;",
                     "#>{s::DB." + table + "}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending())",
-                    java.util.Map.of("t", "2024-01-02T10:30:00")),
-            // an offset is converted to UTC
-            new Parameterised("t: DateTime[1]", "let t = %2024-01-02T10:30:00;",
+                    java.util.Map.of("t", java.time.LocalDateTime.of(2024, 1, 2, 10, 30))),
+            // to the nanosecond, as its literal keeps it (H2's cast is TIMESTAMP(9); DuckDB and Postgres keep
+            // microseconds, the literal and the bound value alike)
+            new Parameterised("t: DateTime[1]", "let t = %2024-01-02T10:30:00.123456789;",
                     "#>{s::DB." + table + "}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending())",
-                    java.util.Map.of("t", "2024-01-02T12:30:00.000+0200")),
+                    java.util.Map.of("t", java.time.LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789))),
             // a parameter whose value decides its type: bound as its value's kind
             new Parameterised("d: Date[1]", "let d = %2024-01-02;",
                     "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
-                    java.util.Map.of("d", "2024-01-02")),
+                    java.util.Map.of("d", java.time.LocalDate.of(2024, 1, 2))),
+            new Parameterised("d: Date[1]", "let d = %2024-01-02T10:30:00;",
+                    "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
+                    java.util.Map.of("d", java.time.LocalDateTime.of(2024, 1, 2, 10, 30))),
+            // a Number: a whole one, and a decimal one (a Float's literal)
+            new Parameterised("n: Number[1]", "let n = 1;",
+                    "#>{s::DB." + table + "}#->filter(r|$r.ID > $n)->select(~[ID])->sort(~ID->ascending())",
+                    java.util.Map.of("n", 1L)),
+            // (compared, not projected: a projected Number is typed by its declaration in the plan and by its value's
+            // literal, a Float, in the let -- on Postgres their CSV texts differ, 3.0 and 3: step 4's to settle)
+            new Parameterised("n: Number[1]", "let n = 1.5;",
+                    "#>{s::DB." + table + "}#->filter(r|$r.ID * $n > 2)->select(~[ID])->sort(~ID->ascending())",
+                    java.util.Map.of("n", 1.5d)),
             // two parameters
             new Parameterised("lo: Integer[1], hi: Integer[1]", "let lo = 1; let hi = 3;",
                     "#>{s::DB." + table + "}#->filter(r|($r.ID > $lo) && ($r.ID < $hi))->select(~[ID, NAME])",
-                    java.util.Map.of("lo", "1", "hi", 3L)));
+                    java.util.Map.of("lo", 1L, "hi", 3L)));
     }
 
     /** A query with an optional parameter {@code x}: run with a value, its plan answers as the query with that value as
@@ -122,7 +129,10 @@ public final class PlanCases {
                 new OptionalCase("x: String[0..1]", t + "->filter(r|$r.NAME == $x)->select(~[ID, NAME])"
                         + "->sort(~ID->ascending())", "let x = 'a';", "a"),
                 new OptionalCase("x: Integer[0..1]", t + "->filter(r|$r.ID != $x)->select(~[ID])"
-                        + "->sort(~ID->ascending())", "let x = 1;", 1L));
+                        + "->sort(~ID->ascending())", "let x = 1;", 1L),
+                // a value-typed one: its absence a null of its absent kind (on H2, a cast to that kind's type)
+                new OptionalCase("x: Float[0..1]", t + "->filter(r|$r.ID != $x)->select(~[ID])"
+                        + "->sort(~ID->ascending())", "let x = 2.0;", 2.0d));
     }
 
     /** An account's status stored as a code: ACTIVE as 'A' or 'X' (one name, two codes), CLOSED as 'C'; one account
@@ -189,10 +199,11 @@ public final class PlanCases {
                 // a DateTime list: its elements bound as timestamps
                 new Parameterised("ts: DateTime[*]", "let ts = [%2024-01-02T10:30:00, %2024-01-05T00:00:00];",
                         t + "->filter(r|%2024-01-02T10:30:00->in($ts))->select(~[ID])->sort(~ID->ascending())",
-                        java.util.Map.of("ts", List.of("2024-01-02T10:30:00", "2024-01-05 00:00:00"))),
+                        java.util.Map.of("ts", List.of(java.time.LocalDateTime.of(2024, 1, 2, 10, 30),
+                                java.time.LocalDateTime.of(2024, 1, 5, 0, 0)))),
                 new Parameterised("ts: DateTime[*]", "let ts = [%2024-01-05T00:00:00];",
                         t + "->filter(r|%2024-01-02T10:30:00->in($ts))->select(~[ID])->sort(~ID->ascending())",
-                        java.util.Map.of("ts", List.of("2024-01-05T00:00:00"))));
+                        java.util.Map.of("ts", List.of(java.time.LocalDateTime.of(2024, 1, 5, 0, 0)))));
     }
 
     /** {@link #run(ExecutionPlan, Connection, java.util.Map)} for a plan of no parameters. */

@@ -370,7 +370,7 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    `VARCHAR`, Boolean, StrictDate `DATE`, DateTime `TIMESTAMP`; a Float's, a Decimal's, a Date's and a Number's unknown:
    its value decides), and the plan declares them. A dialect writes the placeholder (`AnsiSqlRenderer.placeholder`):
    bare on DuckDB and Postgres, typed on H2 (`CAST(? AS T)`), which refuses a slot of no one type by name (PARK-19,
-   proposed: `docs/PARKED_WORK_LEDGER.md`). Optional, enumeration and list parameters stay refused by name until
+   proposed: `docs/PARKED_WORK_LEDGER.md`; fixed in step 3 by type holes). Optional, enumeration and list parameters stay refused by name until
    (c)-(e). `PlanMakerTest` and `PostgresArmTest`: a query's plan, run with its values (a Float's and a Decimal's as
    decimals), answers byte for byte as the same query with each parameter a `let` of its value, on DuckDB, H2 and
    Postgres and in every output — an integer, a string with a quote, a decimal and a float in a filter, in arithmetic
@@ -425,46 +425,46 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    Before step 4 (switching callers), two consumers of `PureV1Api.boundParameters` besides `execute` to settle:
    `arrowPlan` (Python's host runs the plan's SQL itself, so it must bind the values: agreed with the DataCube + Python
    line first), and the `execute` answer's activity, which reports the statement that ran (with its `?`s).
-3. **The runner, in `exec`** — `exec.PlanRunner.run(plan, parameterValues, Sessions.Source, out)`: validates and
+3. **The runner, in `exec`** — `exec.PlanRunner.run(plan, parameterValues, Sessions.Source, out)`: checks and
    converts parameters (§8), opens or checks each node's session through `Sessions` (running its setup once; shared by
    the target's own content, decision A — `Sessions.Source` no longer takes the model), binds, executes, streams the
    database's text.
    The shrink-only guard on `exec`'s planning-library references starts here (slice c, below).
-   **Step 3's design (2026-10-09; homework: legend-engine's own validation, read from its source,
-   `FunctionParametersParametersValidation`, `FunctionParameterTypeValidator`, `FunctionParametersNormalizer`,
-   `PrimitiveValueSpecificationToObjectVisitor`, and its tests `TestParametersValidation`, `TestEngineDate`,
-   `TestQueryExecutionWithParameters`).**
-   - *The runner's input is legend-engine's.* A caller hands the runner each value as legend-engine's execute API turns
-     a request's protocol value into a Java value: a string, a `Long`, a `Double`, a `BigDecimal`, a `Boolean`, a date
-     as its text (no `%`), an enumeration value as its name, a list for a collection. The server's `execute` makes them
-     from `parameterValues` in step 4; the runner knows no protocol.
-   - *Checked as legend-engine checks, in its order and with its messages* (each case measured on its own 4.145.0 jars:
-     `probes/EngineValidationProbe.java`, `probes/engine-validation-results.txt`). First its missing check: a declared
-     parameter with a lower bound above 0 and no value is `Missing external parameter(s): name:Type[m]` (several joined
-     by `,`); so is one given a null value or an empty list, a deliberate difference (legend-engine counts either
-     present, and its template then writes no statement a database runs, or an empty collection where one value or more
-     is declared). A value for no declared parameter is ignored; a one-element list for a parameter of upper bound 1 is
-     its element. Then its validation: each value checked by its declared type — the right Java type, or a string that
-     parses (Integer: `Long`, `Integer`; Float: `Double`, `Float`, `Integer`, `Long`; Decimal: `BigDecimal` only;
-     Boolean; String; StrictDate `yyyy-MM-dd`; DateTime its six formats, an `Instant` or a `ZonedDateTime`, an offset
-     converted to UTC; Date either; a Byte a stream; a Variant JSON's text) — and an enumeration's name against the
-     plan's names; every failure collected into `Invalid provided parameter(s): [...]`, each in the engine's words
-     (`Unable to process 'Integer' parameter, value: true.`, `Invalid enum value X for path, valid enum values: [A,
-     B]`). A list's failure names its first failing element, as legend-engine validates element by element (a null
-     element passes); an enumeration's names the whole value. A type legend-engine has no validator for (a Number) is
-     its `Unknown external parameter type: T, valid external parameter types: [...]`, the ten types in the order it
-     prints them (its validators' map's iteration order, the same on every run). Then its normalizer: a null element of
-     a type it converts is `Invalid T value: null` (a Float's `Double`). Only then the runner's own refusals, of values
-     legend-engine passes on, every one collected under `Parameter value(s) the plan does not bind: [...]`: a list for a
-     parameter of upper bound 1 (legend-engine's template writes no SQL a database runs), a null element of a String or
-     an enumeration (a Pure collection holds none), a Float that is not finite (NaN, Infinity: no SQL literal;
-     legend-engine writes `NaN` into its statement), and a Byte or a Variant, which no plan binds yet (PARK-21).
-   - *Bound as the plan's slots say.* Each slot binds its parameter's checked value, converted for the driver: an
-     Integer a `long`; a Float as its literal is typed (the numeric charter's Rule 1: its plain digits a `BigDecimal`,
-     at an extreme magnitude — at least 1e15, or below 1e-6 — a `double`; one owner, `SqlTyping.floatDecimal`, which
-     the dialects spell a Float literal by); a Decimal a `BigDecimal`; a StrictDate a `LocalDate`; a DateTime a
-     `LocalDateTime` in UTC; an enumeration its name; an absent optional value a null of its type; a list one array of
-     its element type (`createArrayOf`; a timestamp element as `java.sql.Timestamp`). Nothing edits the statement.
+   **Step 3's design (2026-10-09; revised the same day with the user: "two plan modes" — the compatibility plan
+   matches legend-engine, the lite plan is ours, its decisions made on their merits).**
+   - *The runner's input is typed.* A caller hands each value as its Pure type's Java value: an Integer a `Long`, a
+     Float a `Double`, a Decimal a `BigDecimal`, a Number any of those three, a Boolean, a String, a StrictDate a
+     `LocalDate`, a DateTime a `LocalDateTime` in UTC, a Date either of those two, an enumeration value its name; a
+     collection a `List`; none (null, or an empty list) for no value. The runner reads no text: a request's values are
+     read by the server's `execute` in step 4, which takes legend-engine's request formats (that is its API's contract).
+     legend-engine's own validation — its lenient text parsing, its messages and its order, measured on its 4.145.0 jars
+     (`probes/EngineValidationProbe.java`, `probes/engine-validation-results.txt`) — is the compatibility mode's, when
+     lite runs legend-engine's plans (phase 2), not the lite runner's.
+   - *Checked in our own words, every problem at once.* A required parameter given no value (null, or an empty list) is
+     missing (`Missing external parameter(s): n:Integer[1], ...`); each value its parameter does not take is named
+     (`Invalid provided parameter(s): [parameter 'n' (Integer[1]): given "5" (String): an Integer is a Long; ...]`): a
+     value of another Java type, a list for a parameter of one value or one value for a parameter of a list, more or
+     fewer values than the multiplicity, a null in a list, a name not among an enumeration's, a Float that is not finite
+     (no SQL literal stands for it), a type no plan binds (PARK-21). A value for no declared parameter is ignored.
+   - *The plan says how each `?` is bound* (`ExecutionPlan.Slot`'s binding, decided by the dialect when the plan is
+     made; the runner only follows it): one value — an absent one a null of the slot's JDBC type — or a list as one
+     array of the slot's element type; and, where the database must be told a value's type in the statement and that
+     type is the value's, a TYPE HOLE: the statement's text has no type there (`CAST(? AS )`), and the runner writes the
+     type of the value's own literal into it, spelled by the plan for each kind of value, before it prepares the
+     statement. The value itself never enters the text. A Float binds as its literal is typed (the numeric charter's
+     Rule 1, one owner, `SqlTyping.floatDecimal`: its plain digits a decimal, an extreme magnitude a double); a Decimal
+     of a negative scale as its plain digits.
+   - *Type holes, per database* (each value against its literal, alone, in arithmetic, compared and in the answer's
+     JSON: `probes/value-typed-cast-results.txt`, `probes/timestamp-results.txt`). H2 types a placeholder when it
+     prepares the statement, so a Float's, a Decimal's, a Number's, a Date's and a DateTime's are holes, filled with the
+     type H2 gives the literal: `NUMERIC(precision,scale)` of the value's digits, `DECFLOAT(precision)` at an extreme
+     magnitude, `BIGINT` for a whole number (the literal of a small one is an `INTEGER`: the same text), `DATE`,
+     `TIMESTAMP(9)`; every other type is cast to its own (a plain `TIMESTAMP` rounds what the literal keeps). DuckDB and
+     Postgres type a bare placeholder from the bound value, as its literal, for every value but a date-time: a date-time
+     is a hole on every database, passed as its text, because no driver passes digits finer than a microsecond alike —
+     DuckDB's cuts them, even into a `TIMESTAMP_NS` cast; Postgres's rounds them, where Postgres's literal writer cuts
+     them. So DuckDB's hole is `TIMESTAMP`, or `TIMESTAMP_NS` for a value with finer digits, as its literal is;
+     Postgres's is `TIMESTAMP` with the text cut to six digits, as its literal is. PARK-19 is fixed by this.
    - *Sessions by the target (decision A).* `exec.PlanSessions` gives out a session for a plan's target. An in-memory
      database (the platform's engine, an in-memory or `LocalH2` connection) is shared by every run whose target is equal
      — the connection, its server versions, its session statements and its setup, keyed by the target's whole content
@@ -489,36 +489,36 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      binding, which only its value decides, at run time.
    - *Slices:* (a) the runner and its sessions for plans without parameters — `PlanCases`' hand-written run replaced by
      `PlanRunner`, every landing-2 case then the runner's test on DuckDB, H2 and Postgres; (b) parameters checked,
-     converted and bound, legend-engine's validation cases ported; (c) the guard.
-   **Step 3, on branch 2026-10-09** (`dbowner/plan-runner`): `exec.PlanRunner`, `PlanParameters`, `PlanSessions`. Every
-   landing-2 case runs through the runner (`PlanCases.run`) and answers byte for byte as today's path on DuckDB, H2 and
-   Postgres, its values as legend-engine's execute API makes them (dates as text, an offset DateTime, a DateTime list
-   bound as timestamps, Floats at both extreme magnitudes); landing 2's `Number` case left `PlanCases` with the runner,
-   which refuses it before opening any session. `PlanRunnerTest` ports legend-engine's `TestParametersValidation` case
-   for case — each type's valid values, with what the runner binds, and each invalid value with its exact message
-   (to-many too, where legend-engine's test asserts only the prefix) — and pins legend-engine's order as measured on its
-   jars (missing, validation, normalizer, then the runner's own refusals). It holds the sessions' rules: a target's
-   database shared and set up once, its setup statements counted, for two runs in turn and for eight started together
-   (that a run waits for a setup in progress, and another target's is not held up meanwhile, is `HandleStoreTest`'s,
-   deterministically, with a failed open forgotten and a waiter opening in its turn); another target's its own,
-   look-alike cells included; a failed setup leaving nothing, a statement's failure on DuckDB and H2 and a refusal
-   before any statement; a URL or a user-named database with setup refused, the URL never opened; a platform target; a
-   session of another database or H2 version refused. One shape for a bulk load: a plan's `SetupStep.Rows`, which
-   `RowLoad.staged` writes and the loader takes (`BulkLoad`, `BulkLoads`; `RowLoad.Staging` gone).
-   `ArchitectureTest.theRunnerIsModelFree` pins the runner's classes as above (it fails on a planted reference). The
-   guard (slice c): `ArchitectureTest.execsReachIntoPlanningOnlyShrinks` pins each of the 16 `exec` classes that still
-   reach a planning library with the number of planning classes it reaches (36 in all) — the compiler, the resolver, the
-   lowering, the dialect, the plan side's setup and plan packages, and the builtin, parser, normalizer, platform and
-   database packages — and fails when a class joins or a count grows; one that shrinks is re-pinned lower. §8's measure
-   of 2026-10-05 (20 files) counted source files by what they import, the SQL tree among it; this counts compiled
-   classes by what they depend on, and the SQL tree is not counted, being the plan records' own vocabulary (a plan's
-   `Sql` carries it). Audited twice before landing, every finding fixed: the first audit (one blocker, eight should-fix,
-   four nits: the list message, the type list, the null difference named, Floats bound as their literal is typed and NaN
-   refused, the target key, failed setups, setup outside the lock, this paragraph's claims, the guard); the second
-   (seven should-fix, four nits: legend-engine's order of checks and of its type list, measured; an empty list for a
-   required parameter; setups counted; the runner rule's exception dated; the guard's counts; PARK-21's Variant; a null
-   element; a run joining only a database that exists). The render census (`render-census/step3-result.txt`): no
-   statement of today's paths changes, every Float literal included.
+     converted and bound as the plan says; (c) the guard.
+   **Step 3, on branch 2026-10-09** (`dbowner/plan-runner`): `exec.PlanRunner`, `PlanParameters`, `PlanSessions`; the
+   plan's slot bindings and type holes (plan format v4). Every case of `PlanCases` runs through the runner
+   (`PlanCases.run`) and answers byte for byte as today's path on DuckDB, H2 — every case now, PARK-19's included — and
+   Postgres: each scalar type; a Float at both extreme magnitudes; a Number, whole and decimal; a Date holding a date
+   and a date-time; a DateTime to the nanosecond; a list of DateTimes; an optional Float's absence. `PlanRunnerTest`
+   holds the runner's own checks and messages, the type holes filled on H2 and each answering as its literal, and the
+   sessions' rules: a target's database shared and set up once, its setup statements counted, for two runs in turn and
+   for eight started together (that a run waits for a setup in progress, and another target's is not held up meanwhile,
+   is `HandleStoreTest`'s, deterministically, with a failed open forgotten and a waiter opening in its turn); another
+   target's its own, look-alike cells included; a failed setup leaving nothing, a statement's failure on DuckDB and H2
+   and a refusal before any statement; a URL or a user-named database with setup refused, the URL never opened; a
+   platform target; a session of another database or H2 version refused. One shape for a bulk load: a plan's
+   `SetupStep.Rows`, which `RowLoad.staged` writes and the loader takes (`BulkLoad`, `BulkLoads`; `RowLoad.Staging`
+   gone). `ArchitectureTest.theRunnerIsModelFree` pins the runner's classes as above (it fails on a planted reference).
+   The guard (slice c): `ArchitectureTest.execsReachIntoPlanningOnlyShrinks` pins each of the 16 `exec` classes that
+   still reach a planning library with the number of planning classes it reaches (36 in all) — the compiler, the
+   resolver, the lowering, the dialect, the plan side's setup and plan packages, and the builtin, parser, normalizer,
+   platform and database packages — and fails when a class joins or a count grows; one that shrinks is re-pinned lower.
+   §8's measure of 2026-10-05 (20 files) counted source files by what they import, the SQL tree among it; this counts
+   compiled classes by what they depend on, and the SQL tree is not counted, being the plan records' own vocabulary (a
+   plan's `Sql` carries it). Audited twice; then revised with the user: the first round's legend-engine-exact checks
+   were the compatibility mode's, not the lite runner's, and the runner now takes typed values and says what is wrong in
+   its own words; the plan states how each placeholder is bound, which closed PARK-19 and found that a DateTime
+   parameter on landing 2's plans kept fewer digits than its literal (H2's `TIMESTAMP` and DuckDB's driver rounded or
+   cut what the literal keeps, Postgres's driver rounded what its literal writer cuts), now each its literal's. For step
+   4: a projected Number parameter is typed by its declaration in the plan and by its value's literal (a Float) in
+   today's let path, and on Postgres their CSV texts differ (`3.0`, `3`): which one is Pure's is step 4's to settle
+   before the switch. The render census (`render-census/step3-result.txt`, items 1-3): no let-path query of today's paths
+   changes; plan statements change as each item says.
 4. **Switch the callers, delete what they replace** — `pure/v1/execution/execute`: plan once, run with
    `parameterValues`; `Execution.executeWire` / `executeStreaming` and `QueryService`'s wire and streaming paths: plan +
    run. DELETED (rule 15): `PureV1Api.boundParameters`, `Execution`'s `wireOn` / `streamOn`, and `ConnectionResolver`'s
