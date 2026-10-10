@@ -72,6 +72,24 @@ What follows, in order:
    exact one, written from the published algorithms (Schubfach or Ryu; Eisel and Lemire), not from the JDK's code.
    They close TeaVM's own issue #735. Until a release carries them, the corrected classes ride in our build ahead of
    TeaVM's own (a Bazel change, reviewed), and go when we upgrade.
+   **How the fixes are written: clean room (the user, 2026-10-10: "make sure we don't plagiarize GPL or other
+   licensed code").** A fix is written from what the behaviour IS, never from another implementation's code:
+   - *What may be read:* the Java SE API specification (the Javadoc: what a method must return); the published
+     papers (Giulietti, "The Schubfach way to render doubles", 2020; Adams, "Ryū: fast float-to-string conversion",
+     PLDI 2018; Clinger, "How to read floating point numbers accurately", PLDI 1990; Lemire, "Number parsing at a
+     gigabyte per second", 2021, and the Eisel-Lemire algorithm it describes); the Unicode Character Database's data
+     files (the Unicode licence: permissive, with its notice) for character tables; the IANA time zone database (public
+     domain) for zone rules; and the JDK's behaviour as a black box, which the conformance test compares against.
+   - *What may not:* OpenJDK's source (GPL 2 with the Classpath Exception) for anything being reimplemented, including
+     recalled from memory; and any other implementation's code, whatever its licence (Ryu's C, fast_float,
+     double-conversion, ...): the papers, not their code. A permissively licensed implementation is only ever taken
+     whole, as a dependency carrying its own licence notice, by an explicit decision, never pasted in.
+   - *TeaVM's own files* are Apache 2.0: a fix edits them in place under their header, and is offered back under the
+     same licence.
+   - *Provenance:* every new algorithm names in its header the papers and specifications it was written from, and its
+     commit says so; test inputs are generated, not copied from OpenJDK's tests (GPL too).
+   - *Review:* the audit before landing checks each fix's provenance note and that its code follows the papers'
+     structure rather than any implementation's.
 3. **PARK-23 moves into TeaVM.** The fast exact double conversion it asks for becomes TeaVM's, so every
    `Double.toString` in the tab is exact, the JDK's own uses included, not only the call sites lite routes through
    `PortableText`. `PortableText` and its bans stay until the conformance test shows TeaVM exact.

@@ -642,7 +642,8 @@ up to 600 times on the hardest (1.9 s), too slow for every result the server wri
 class library (the user, 2026-10-10: the tab stays on TeaVM, held to the JDK by tests; `docs/WEB_IMAGE_SPIKE_2026_10_10.md`).
 `Double.toString` and `Float.toString` by a published shortest-digits algorithm (Schubfach or Ryu), `parseDouble` and
 TeaVM's other decimal-to-double paths by a fast exact one (Eisel and Lemire, with an exact slow path), written from the
-papers, not copied from the JDK; held to the JDK by the TeaVM conformance test; offered upstream to TeaVM (its issue
+papers, not from any implementation's code (the clean-room rule, `docs/WEB_IMAGE_SPIKE_2026_10_10.md`); held to the
+JDK by the TeaVM conformance test; offered upstream to TeaVM (its issue
 #735) and carried in our build, ahead of TeaVM's own classes, until a TeaVM release has them. `Json`'s writer and reader
 then need no change: the platform's conversion is exact on every platform, at the platform's speed. The plan of
 2026-10-09 put a fast exact spelling inside lite instead (`PortableText.doubleText` and the reader through
