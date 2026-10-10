@@ -217,11 +217,7 @@ async function run(): Promise<void> {
   });
 }
 
-/**
- * A PAGE OVER THE ENGINE'S FRAMES, written as DataCube writes one: on its first sheet the trades grid, grouped by
- * region, and its chart beside it; on a second, named Desks, a grid over the desks frame. Each grid's cube over its
- * frame by name, its columns as the engine's model types them.
- */
+/** A page as Python wrote it, read by DataCube's own reader (page-document.ts): why it refuses it, or null. */
 window.__readPythonPage = (text: string): string | null => {
   try {
     readPage(text);
@@ -231,6 +227,11 @@ window.__readPythonPage = (text: string): string | null => {
   }
 };
 
+/**
+ * A PAGE OVER THE ENGINE'S FRAMES, written as DataCube writes one: on its first sheet the trades grid, grouped by
+ * region, and its chart beside it; on a second, named Desks, a grid over the desks frame. Each grid's cube over its
+ * frame by name, its columns as the engine's model types them.
+ */
 window.__pythonPageDocument = async () => {
   const served = window.__pythonEngineServed!;
   const cubeOf = async (frame: string, rows: readonly string[], measures: CubeSnapshot['measures']) => {

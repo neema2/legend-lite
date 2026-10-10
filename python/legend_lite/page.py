@@ -619,6 +619,8 @@ class Sheet:
                 raise ValueError('a band is a list of tiles, one at least: sheet.layout([grid, chart], [other])')
             row = []
             for tile in band:
+                if isinstance(tile, Tile):
+                    _ = tile._view
                 leaf = leaves.get(tile._id) if isinstance(tile, Tile) else None
                 if leaf is None:
                     raise ValueError(f'{tile!r} is not on the sheet {self._id}')
@@ -730,12 +732,13 @@ class Page:
              sort: Sequence[tuple[str, str]] = (), title: str | None = None, sheet: Sheet | None = None,
              mode: str = LIVE) -> Grid:
         """A grid over ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one), served
-        under ``name`` (``frame``, ``frame_2``, ... unless given; a frame served by that name already is replaced), in a
-        band of its own at the bottom of ``sheet`` (the first unless given). ``rows``, ``columns``, ``measures``
-        (``{column: aggregate}`` or ``[(column, aggregate)]``), ``filter`` and ``sort``: as ``group``, ``pivot``,
-        ``measure``, ``filter`` and ``sort`` say -- all checked before the grid is on the page, so a mistake leaves the
-        page and the frames as they were (the name serving what it served before, or nothing). ``mode``: Live (each query
-        reads the frame as it is then) or ``'snapped'``."""
+        under ``name`` (``frame``, ``frame_2``, ... unless given), in a band of its own at the bottom of ``sheet`` (the
+        first unless given). A name served already is this grid's when it serves this same frame, the same way (two
+        grids over one frame), and refused when it serves another: ``grid.update(frame)`` replaces a frame, every grid
+        over it showing the new one. ``rows``, ``columns``, ``measures`` (``{column: aggregate}`` or ``[(column,
+        aggregate)]``), ``filter`` and ``sort``: as ``group``, ``pivot``, ``measure``, ``filter`` and ``sort`` say -- all
+        checked before the grid is on the page, so a mistake leaves the page and the frames as they were. ``mode``:
+        Live (each query reads the frame as it is then) or ``'snapped'``."""
         if mode not in (LIVE, SNAPPED):
             raise ValueError(f'mode is {LIVE!r} or {SNAPPED!r}, not {mode!r}')
         if sheet is not None and sheet._page is not self:
@@ -744,8 +747,17 @@ class Page:
         _ = target._doc
         _named(title, 'a title')
         id = self._next('grid')
-        # served for the grid while it is set; a mistake serves the name as before, and takes the grid off again
-        with self._session.registered(frame, name, mode) as served:
+        session = self._session
+        if name is not None and name in session.frames:
+            table = session.frames[name]
+            if table.given is not frame or table.mode != mode:
+                serves = 'another frame' if table.given is not frame else f'this frame {table.mode}'
+                raise ValueError(f'{name!r} serves {serves} already: grid.update(frame) replaces a frame, every grid over '
+                                 f'it showing the new one; or give this grid a name of its own')
+            served, new = table.name, False
+        else:
+            served, new = session.register(frame, name, mode), True
+        try:
             columns_now = [{'name': c.name, 'type': c.type} for c in self._session.frames[served].columns]
             self._doc['cubes'].append({'id': id, 'cube': {
                 'kind': CUBE_KIND, 'version': CUBE_VERSION, 'name': self.name,
@@ -755,22 +767,24 @@ class Page:
                 'configuration': {'reportTitle': served}, 'tree': {'open': [], 'showTotals': False}}})
             self._doc['views'].append({'id': id, 'kind': 'grid', 'cube': id, **({'title': title} if title else {})})
             grid = self._tile(id, Grid)
-            try:
-                # set before it is placed, nothing told meanwhile
-                with self._batch(tell=False):
-                    grid.group(*rows)
-                    grid.pivot(*columns)
-                    for column, fn in (measures.items() if isinstance(measures, Mapping) else measures or ()):
-                        grid.measure(column, fn)
-                    if filter is not None:
-                        grid.filter(filter)
-                    for column, direction in sort:
-                        grid.sort(column, direction)
-            except BaseException:
-                self._doc['cubes'].pop()
-                self._doc['views'].pop()
-                self._forget({id})
-                raise
+            # set before it is placed, nothing told meanwhile
+            with self._batch(tell=False):
+                grid.group(*rows)
+                grid.pivot(*columns)
+                for column, fn in (measures.items() if isinstance(measures, Mapping) else measures or ()):
+                    grid.measure(column, fn)
+                if filter is not None:
+                    grid.filter(filter)
+                for column, direction in sort:
+                    grid.sort(column, direction)
+        except BaseException:
+            # the grid taken off again, and a frame served for it served no more
+            self._doc['cubes'] = [c for c in self._doc['cubes'] if c['id'] != id]
+            self._doc['views'] = [v for v in self._doc['views'] if v['id'] != id]
+            self._forget({id})
+            if new:
+                session.unregister(served)
+            raise
         self._place(id, target)
         return grid
 

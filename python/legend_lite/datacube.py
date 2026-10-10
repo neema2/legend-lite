@@ -17,7 +17,6 @@ it is open waits there, saying so, until Ctrl-C (or an IDE's Stop).
 from __future__ import annotations
 
 import atexit
-import contextlib
 import os
 import sys
 import threading
@@ -25,7 +24,6 @@ import time
 import weakref
 import webbrowser
 from pathlib import Path
-from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 from .engine import Engine, WebServer
@@ -197,23 +195,11 @@ class _Session:
                 engine.changed(name)
             return name
 
-    @contextlib.contextmanager
-    def registered(self, frame: Any, name: str | None, mode: str) -> Iterator[str]:
-        """The frame registered (``register``) for what the block makes of it: the block failing, its name serves
-        what it served before -- the frame it had, read the way it was -- or, a new name, nothing."""
+    def unregister(self, name: str) -> None:
+        """A frame registered for nothing that came of it (a page's grid refused): out of the engine again."""
         with self._lock:
-            before = self.frames[name] if name is not None and name in self.frames else None
-            kept = (before.reader, before.mode) if before is not None else None
-        served = self.register(frame, name, mode)
-        try:
-            yield served
-        except BaseException:
-            with self._lock:
-                if kept is not None:
-                    self.register(kept[0], served, kept[1])
-                elif served in self.frames and served.lower() not in self.cubes:
-                    self.frames.unregister(served)
-            raise
+            if name in self.frames and name.lower() not in self.cubes:
+                self.frames.unregister(name)
 
     def show(self, frame: Any, name: str | None, mode: str) -> Cube:
         """The frame registered, and its name's cube in a tab: the one it has, else a new one."""

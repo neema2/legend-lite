@@ -280,14 +280,27 @@ class Document(Paged):
             self.assertEqual(page.to_dict(), before)
             self.assertNotIn('desks', datacube._session.frames, 'a frame served for the grid refused is served no more')
         self.assertEqual(page.grid(desks(), name='desks').id, 'grid-2', 'the ids go on as if nothing was refused')
-        # a name served already: refused, it serves its frame as before -- the grid over it shows what it showed
+
+    def test_a_name_served_already_is_shared_by_its_own_frame_and_refused_to_another(self):
+        page = ll.Page('Two over one')
+        df = trades()
+        first = page.grid(df, name='trades', rows=['region'])
+        second = page.grid(df, name='trades', rows=['desk'])
+        self.assertEqual([g.frame for g in page.grids], ['trades', 'trades'])
         served = datacube._session.frames['trades']
+        # another frame under the name: refused (grid.update replaces a frame), the name serving what it served
+        for other, mode in ((trades(), 'live'), (df, 'snapped')):
+            with self.assertRaisesRegex(ValueError, r'grid\.update\(frame\) replaces a frame'):
+                page.grid(other, name='trades', mode=mode)
+        self.assertIs(datacube._session.frames['trades'], served)
+        self.assertEqual(page.grids, [first, second])
+        # and a refused grid over its own frame takes nothing away from the frame the others show
         with self.assertRaises(ValueError):
-            page.grid(desks(), name='trades', rows=['nope'])
-        self.assertEqual([c.name for c in datacube._session.frames['trades'].columns], [c.name for c in served.columns])
-        self.assertEqual(page.to_dict()['cubes'][0]['cube']['source']['name'], 'trades')
+            page.grid(df, name='trades', rows=['nope'])
+        self.assertIs(datacube._session.frames['trades'], served)
 
     def test_no_handle_meets_a_new_tile_under_its_old_ones_id(self):
+        # (and a handle gone is refused wherever it is given: here, to a layout)
         page, grid, chart = self.built()
         later = grid.chart('line', x='region', title='later')
         page.remove(later)
@@ -295,6 +308,8 @@ class Document(Paged):
         self.assertNotEqual(again.id, later.id, 'an id the page held is not given out again')
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             later.title = 'still the old one?'
+        with self.assertRaisesRegex(ValueError, 'no longer on its page'):
+            page.sheets[0].layout([grid, chart, again, later])
         page.remove(grid)
         other = page.grid(desks(), name='desks')
         self.assertNotEqual(other.id, grid.id)
@@ -468,6 +483,18 @@ class Live(Paged):
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             chart.title = 'the old chart'
         self.assertEqual(page.charts[0].title, 'new there')
+
+    def test_a_page_opening_on_it_opens_it_as_it_is_open_now(self):
+        page, _, _ = self.built()
+        ll.show(page, browser=False)
+        open_now = page.to_dict()
+        open_now['sheets'][0]['name'] = 'Renamed in DataCube'
+        self.assertEqual(self.said(page, open_now), 204)
+        # another tab, or the first reloaded: the page as the open one said it is, read into Python or not
+        self.assertEqual(self.get(f'/page.json?page={page._key}')[1]['page']['sheets'][0]['name'], 'Renamed in DataCube')
+        page.read()
+        ll.show(page, browser=False)
+        self.assertEqual(self.get(f'/page.json?page={page._key}')[1], {'version': 1, 'page': page.to_dict()})
 
     def test_shown_again_and_closed_and_shown_again(self):
         page, grid, _ = self.built()

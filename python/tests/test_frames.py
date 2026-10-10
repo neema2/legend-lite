@@ -119,6 +119,17 @@ class Names(unittest.TestCase):
             frames.register('Ledger', trades())
         self.assertEqual(frames.connection.execute('SELECT count(*) FROM ledger').fetchone(), (0,))
 
+    def test_a_frame_that_cannot_be_served_leaves_its_name_free(self):
+        # a Live column of nothing but nulls (no type a Pure column can have), a frame of no columns: refused, and
+        # nothing of either left behind
+        for frame, mode in ((pd.DataFrame({'id': [1, 2], 'nothing': [None, None]}), 'live'),
+                            (pd.DataFrame(), 'live'), (pd.DataFrame(), 'snapped')):
+            frames = ll.Frames()
+            with self.assertRaises(Exception):
+                frames.register('trades', frame, mode=mode)
+            self.assertNotIn('trades', frames)
+            self.assertEqual(len(frames.register('trades', trades(), mode=mode).execute('->select(~[id])')), 5)
+
     def test_unregister_and_close_take_the_tables_out(self):
         frames = ll.Frames()
         one = frames.register('one', trades())

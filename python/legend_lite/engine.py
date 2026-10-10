@@ -275,7 +275,8 @@ class Engine:
         return Answer(200, 'application/json', json.dumps({'version': self.version(name)}).encode('utf-8'))
 
     def _page(self, query: str) -> Answer:
-        """A page it serves (``serve_page``): ``{"version": n, "page": <its document>}``, or 404."""
+        """A page it serves (``serve_page``) as it is open now (the open page's last word on it, at its version):
+        ``{"version": n, "page": <its document>}``, or 404."""
         name = parse_qs(query).get('page', [''])[0]
         with self._changes:
             served = self._pages.get(name)
@@ -305,6 +306,8 @@ class Engine:
             if served[0] != int(version):
                 return _said(409, f'the page {name!r} is at version {served[0]}: what version {version} says is replaced')
             self._read[name] = document
+            # and it is the page as it is open now: what a page opening on it (another tab, a reload) opens
+            self._pages[name] = (served[0], document)
         return Answer(204, 'text/plain; charset=utf-8', b'')
 
     def read_page(self, name: str) -> dict[str, Any] | None:

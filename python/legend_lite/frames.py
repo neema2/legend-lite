@@ -63,11 +63,13 @@ class Table:
     """A registered frame: its Legend model and the queries over it. Unusable once its name is registered
     again or unregistered."""
 
-    def __init__(self, frames: Frames, name: str, read: Callable[[], Any], mode: str) -> None:
+    def __init__(self, frames: Frames, name: str, read: Callable[[], Any], mode: str, given: Any = None) -> None:
         self._frames = frames
         self.name = name
         self.mode = mode
         self._read = read
+        # the frame (or function) it was registered with, as given: what a page's grid asks for by name is it
+        self.given = given
         self._registered = f'__legend_lite_{name}'
         self._target = 'main.' + _quoted(name)
         self._schema: pa.Schema | None = None
@@ -78,11 +80,6 @@ class Table:
         self.source: dict[str, Any] = {}
         self.excluded: tuple[str, ...] = ()
         self.columns: tuple[compiler.Column, ...] = ()
-
-    @property
-    def reader(self) -> Callable[[], Any]:
-        """What it reads its frame from: the function given, or the frame itself (a Snapped one's, as it was given)."""
-        return self._read
 
     def _load(self, arrow: pa.Table) -> None:
         """Puts the frame in DuckDB as the table it is named, reads its catalog, and writes its model."""
@@ -197,12 +194,14 @@ class Frames:
                 old._drop()
             elif self._exists(name):
                 raise ValueError(f'the database already has a table or view named {name!r}, and Frames did not make it')
-            table = Table(self, name, read, mode)
+            table = Table(self, name, read, mode, frame)
             try:
                 table._load(arrow)
             except BaseException:
-                # its old table dropped, the name serves nothing: said so, not left serving a table that is gone
+                # the name serves nothing (its old table dropped): what the load made of it so far taken out again,
+                # so the name is free for a frame that can be served
                 self._tables.pop(key, None)
+                table._drop()
                 raise
             self._tables[key] = table
             return table
