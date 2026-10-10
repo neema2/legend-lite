@@ -377,7 +377,11 @@ not be written back, so it is refused.
    first and falls back to the engine's). The tab's `compileOrError` and the SDLC server's copy go; Studio asks the lite
    route in the tab and on a lite server alike. `relationTypeJson` is E5's true twin (the same computation, the same
    renderer; checked): it goes from both adapters. `planJson` stays (not E9's). Every error means today's: the first
-   element error alone, else every body's; collecting every element error (the tolerant build) is a later step.
+   element error alone, else every body's -- leg 6 changes no answer.
+   **6b, a follow-up after leg 6 (the user, 2026-10-10):** the lite route collects every ELEMENT error too, through
+   the tolerant build (`Compiler.buildModule`, tested but on no user-facing path today). Homework first: (1) its errors
+   carry the element's `[line:col]` as the strict path's do (Studio places them); (2) a broken element's dependents
+   raise no follow-on errors that bury it; (3) legend-engine's route answers the same first error as before.
 7. **The SDLC server's rules free of Pure.** SDLC's rules (`//sdlc-server:rules`) depend on all of `//core` today,
    because the class that answers their two Pure questions (`CoreGrammar`) sits in the same library; nothing stops
    the rules from calling the compiler directly, and the SDLC server carries the whole engine. The rules keep asking
