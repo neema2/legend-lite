@@ -23,9 +23,14 @@ final class Out {
         return text.toString();
     }
 
-    /** A thrown answer: the class always, the message after it (a difference in the message alone is told apart). */
+    /**
+     * A thrown answer: the class always, the message after it (a difference in the message alone is told apart). A
+     * message's line breaks are written as "\n": the JDK builds some (PatternSyntaxException's) with the platform's
+     * line separator, so on Windows its own answer differs from macOS's (CI, 2026-10-10) -- this compares TeaVM with
+     * the JDK, not one platform with another.
+     */
     static String err(Throwable t) {
-        return "ERR " + t.getClass().getName() + ": " + t.getMessage();
+        return "ERR " + t.getClass().getName() + ": " + String.valueOf(t.getMessage()).replace("\r\n", "\n");
     }
 
     static String hex(long bits) {
