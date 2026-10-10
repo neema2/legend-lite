@@ -193,6 +193,61 @@ node_test(
     entry_point = "zoneprobe.mjs",
 )
 
+# THE CONFORMANCE DIFFERENTIAL (docs/WEB_IMAGE_SPIKE_2026_10_10.md, step 1): TeaVM's class library held to the JDK's
+# over what lite's browser code calls -- a number's text both ways, Character and String, the formats and regular
+# expressions lite writes, time and zones, the order hashed collections iterate in, the codecs. The families
+# (src/main/java/conformance) are compiled twice, as the zone probe is: run on the JVM as a build action, and by TeaVM
+# into a module of their own; conformance.mjs compares the two line by line.
+legend_java_library(
+    name = "conformance",
+    srcs = glob(["src/main/java/conformance/*.java"]),
+    deps = [":teavm_api"],
+)
+
+java_run(
+    name = "conformance_jvm",
+    testonly = True,
+    outs = ["conformance_jvm.txt"],
+    arguments = ["{OUT}"],
+    main_class = "conformance.ConformanceJvm",
+    deps = [":conformance"],
+)
+
+teavm_wasm(
+    name = "conformance_module",
+    testonly = True,
+    main_class = "conformance.ConformanceExports",
+    deps = [
+        ":conformance",
+        "@maven_teavm//:org_teavm_teavm_classlib",
+        "@maven_teavm//:org_teavm_teavm_jso",
+    ],
+)
+
+# the module as ONE directory, named by one $(rlocationpath), as :planner_dir is
+copy_to_directory(
+    name = "conformance_dir",
+    testonly = True,
+    srcs = [":conformance_module"],
+    root_paths = ["wasm/conformance_module"],
+)
+
+node_test(
+    name = "conformance_test",
+    size = "medium",
+    data = [
+        ":conformance_dir",
+        ":conformance_jvm",
+    ],
+    entry_point = "conformance.mjs",
+    env = {
+        "CONFORMANCE_JVM": "$(rlocationpath :conformance_jvm)",
+        "CONFORMANCE_MODULE": "$(rlocationpath :conformance_dir)",
+    },
+    # TeaVM emits the newer exception-handling opcodes (differential.mjs)
+    node_options = ["--experimental-wasm-exnref"],
+)
+
 # `bazel run //wasm:startup`: where the module's cold start goes, phase by phase.
 # It TIMES things — run it on an idle machine, never as a test. Manual (2026-10-07, PHASE_8.md Gen-5): a hand tool,
 # built when run; CI's product job still analyses it by name.
