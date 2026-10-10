@@ -54,16 +54,31 @@ class ImplementationTableTest {
         for (com.legend.builtin.Subsumed sub : com.legend.builtin.Subsumed.values()) {
             registeredFqns.add(sub.fqn());
         }
+        // and the names the platform implements in its own Pure (Phase 3b, item 1b): upstream's versions there
+        // are declarations the table decides (a twin by id, the platform's body; another version, its decision)
+        for (com.legend.model.FunctionDefinition sys : com.legend.builtin.SystemMetamodel.functionsById().values()) {
+            registeredFqns.add(sys.qualifiedName());
+        }
         List<Function> declarations = new ArrayList<>(Pure.all());
         int stdlib = 0;
         int atCatalogFqns = 0;
+        Set<FunctionId> declared = new LinkedHashSet<>();
         for (UpstreamDeclarations.Declared d : upstream.all) {
             if (d.stdlib()) {
                 declarations.add(d.function());
+                declared.add(d.id());
                 stdlib++;
             } else if (registeredFqns.contains(d.function().qualifiedName())) {
                 declarations.add(d.function());
+                declared.add(d.id());
                 atCatalogFqns++;
+            }
+        }
+        // the platform's own declarations serve only the ids upstream does not declare (as the merge keeps
+        // upstream's declaration for a twin)
+        for (var e : com.legend.builtin.SystemMetamodel.functionsById().entrySet()) {
+            if (!declared.contains(e.getKey())) {
+                declarations.add(e.getValue());
             }
         }
         DeclarationTable table = DeclarationTable.of(declarations);
@@ -169,6 +184,7 @@ class ImplementationTableTest {
                     + " " + in.families().stream().map(Class::getSimpleName).toList();
             case Implementation.Refused r -> r.reason() + ": " + r.why();
             case Implementation.Body b -> "";
+            case Implementation.PlatformPure pp -> "";
             case Implementation.Unimplemented u -> "";
         };
     }

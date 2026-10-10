@@ -30,10 +30,12 @@ import java.util.Set;
  * form, a wall, a walled body and a subsumed program name exact FQNs, and apply
  * to every declaration there. A declaration no registration names takes the
  * default of its kind — {@code Unimplemented} when it is a native; when it has a
- * body, {@code Body}, unless the catalog declares a function at its FQN: then it is
- * a version of a function the platform declares, with no row of its own, and is
- * {@link Implementation.Reason#NO_ROW refused} — upstream's body is the spec, never
- * the platform's implementation. This table is the one authority (build rebuild
+ * body, {@code Body}, unless the catalog declares a function at its FQN or the
+ * platform implements one there in its own Pure ({@link Implementation.PlatformPure},
+ * by id): then it is a version of a function the platform declares, with no row of
+ * its own, and is {@link Implementation.Reason#NO_ROW refused} — upstream's body is
+ * the spec, never the platform's implementation — unless a decision names its id
+ * ({@code Registrations.upstreamBodies}, {@code refusedVersions}). This table is the one authority (build rebuild
  * Phase 3): the compiler's by-name suppressions (the PCT rule, the platform-owned
  * list) are gone, and every declaration at an FQN is a candidate.
  *
@@ -164,6 +166,37 @@ public final class ImplementationTable {
         for (NativeFunctionDefinition n : registrations.catalog()) {
             catalogFqns.add(n.qualifiedName());
         }
+        // the platform's own Pure, by id (Phase 3b, item 1b): the same rule covers the names it implements at
+        Set<FunctionId> platformPure = new LinkedHashSet<>();
+        for (FunctionId id : registrations.platformPure()) {
+            Function f = declarations.get(id);
+            if (f == null) {
+                dangling.add("platform's own Pure " + id);
+                continue;
+            }
+            platformPure.add(id);
+            catalogFqns.add(f.qualifiedName());
+        }
+        // the decisions on the other versions at those names, by id
+        Map<FunctionId, String> upstreamBodies = new LinkedHashMap<>();
+        for (var e : registrations.upstreamBodies().entrySet()) {
+            if (!(declarations.get(e.getKey()) instanceof FunctionDefinition)) {
+                dangling.add("upstream body " + e.getKey());
+                continue;
+            }
+            upstreamBodies.put(e.getKey(), e.getValue());
+        }
+        for (var e : registrations.refusedVersions().entrySet()) {
+            if (declarations.get(e.getKey()) == null) {
+                dangling.add("refused version " + e.getKey());
+                continue;
+            }
+            Implementation.Reason reason = switch (e.getValue().kind()) {
+                case ENGINE_MACHINERY -> Implementation.Reason.ENGINE_MACHINERY;
+                case CANNOT_IMPLEMENT -> Implementation.Reason.CANNOT_IMPLEMENT;
+            };
+            refused.put(e.getKey(), new Implementation.Refused(reason, e.getValue().why()));
+        }
 
         // one row per declaration
         Map<FunctionId, Implementation> rows = new LinkedHashMap<>();
@@ -174,19 +207,39 @@ public final class ImplementationTable {
             CoreFn form = forms.get(id);
             Implementation.Refused refusal = refused.get(id);
             boolean implemented = !ps.isEmpty() || !fs.isEmpty();
+            boolean ownPure = platformPure.contains(id);
+            boolean decidedBody = upstreamBodies.containsKey(id);
             Implementation row;
             if (form != null) {
                 if (refusal != null) {
                     conflicts.add(id + ": form " + form + " and a refusal (" + refusal.reason() + ")");
+                }
+                if (ownPure || decidedBody) {
+                    conflicts.add(id + ": form " + form + " and " + (ownPure ? "the platform's own Pure" : "an upstream body"));
                 }
                 row = new Implementation.Form(form, ps, fs);
             } else if (refusal != null) {
                 if (implemented) {
                     conflicts.add(id + ": refused (" + refusal.reason() + ") and implemented " + ps + " " + fs);
                 }
+                if (ownPure || decidedBody) {
+                    conflicts.add(id + ": refused (" + refusal.reason() + ") and "
+                            + (ownPure ? "the platform's own Pure" : "an upstream body"));
+                }
                 row = refusal;
+            } else if (ownPure) {
+                if (implemented || decidedBody) {
+                    conflicts.add(id + ": the platform's own Pure and " + (implemented ? "implemented " + ps + " " + fs
+                            : "an upstream body"));
+                }
+                row = new Implementation.PlatformPure();
             } else if (implemented) {
+                if (decidedBody) {
+                    conflicts.add(id + ": implemented " + ps + " " + fs + " and an upstream body");
+                }
                 row = new Implementation.Intrinsic(ps, fo, fs);
+            } else if (decidedBody) {
+                row = new Implementation.Body();
             } else if (declarations.get(id) instanceof FunctionDefinition fd) {
                 row = catalogFqns.contains(fd.qualifiedName())
                         ? new Implementation.Refused(Implementation.Reason.NO_ROW,

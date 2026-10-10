@@ -9,8 +9,9 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * WHAT EXECUTES ONE DECLARATION — exactly one of five kinds (platform
- * architecture untangle, step 2). A declaration's implementation is a fact about
+ * WHAT EXECUTES ONE DECLARATION — exactly one of six kinds (platform
+ * architecture untangle, step 2; the platform's own Pure added by the build
+ * rebuild's Phase 3b, item 1b). A declaration's implementation is a fact about
  * the declaration, keyed by its {@link FunctionId}; it never moves the
  * declaration and never depends on how the function's name is spelled.
  */
@@ -47,6 +48,15 @@ public sealed interface Implementation {
 
     /** Upstream's Pure body, compiled and inlined by the platform. */
     record Body() implements Implementation {
+    }
+
+    /** The platform's own Pure: the system metamodel's body implements this
+     * id over the platform's own rows ({@code PlatformPure}). A program that
+     * declares the id (upstream's declaration, loaded or generated into the
+     * default world) keeps its declaration and takes that body; the
+     * platform's own declaration serves where no program declares the id.
+     * Compiled and inlined like a body. */
+    record PlatformPure() implements Implementation {
     }
 
     /** Declared (an upstream native) with no implementation here. */
@@ -89,9 +99,9 @@ public sealed interface Implementation {
         /** a native the platform cannot implement (an effect with no database
          *  meaning), or a capability it does not model (reflection) */
         CANNOT_IMPLEMENT,
-        /** a version of a function the platform declares (a catalog native at its name), with no row of its own:
-         *  its upstream body is the spec, never the platform's implementation (build
-         *  rebuild Phase 3); a call that reaches it fails, naming it, until it has one */
+        /** a version of a function the platform declares (a catalog native at its name) or implements in its own
+         *  Pure (Phase 3b, item 1b), with no row of its own: its upstream body is the spec, never the platform's
+         *  implementation (build rebuild Phase 3); a call that reaches it fails, naming it, until it has one */
         NO_ROW
     }
 }

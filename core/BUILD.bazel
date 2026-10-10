@@ -102,7 +102,9 @@ legend_java_library(
     ),
     deps = ["//base", ":error", ":model", ":parser", ":protocol"],
 )
-legend_java_library(name = "platform", srcs = glob(["src/main/java/com/legend/platform/*.java"]), deps = ["//base", ":builtin", ":model"])
+# :error since 2026-10-09 (build rebuild Phase 3b, item 1b): PlatformPure.adopt refuses a declaration whose parameter
+# names differ from the platform's own version with a ModelException, the model error it is
+legend_java_library(name = "platform", srcs = glob(["src/main/java/com/legend/platform/*.java"]), deps = ["//base", ":builtin", ":error", ":model"])
 legend_java_library(
     name = "compiler_element_type",
     visibility = ["//datacube:__pkg__", "//engine-client:__pkg__"],

@@ -4,10 +4,11 @@ corpus.census.discovered	2613
 corpus.census.excluded	148
 dynafn.unsupported	41
 engine.handlers.undeclared	142
-implementation.kinds.Body	2051
+implementation.kinds.Body	2034
 implementation.kinds.Form	217
 implementation.kinds.Intrinsic	698
-implementation.kinds.Refused	129
+implementation.kinds.PlatformPure	34
+implementation.kinds.Refused	132
 implementation.kinds.Unimplemented	71
 implementation.unrowed	109
 upstream.paths	91

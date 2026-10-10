@@ -27,11 +27,12 @@ import java.util.stream.Stream;
  *
  * <p>H1 — the twin cause: for every function the system metamodel declares under an upstream name, each upstream
  * declaration of that name in the closure, with both sides' function id and the parameter-type spellings
- * {@code SystemMetamodel.shadows} compares. Expected: ids equal, spellings differ.
+ * {@code SystemMetamodel.shadows} compared (deleted by item 1b). Expected: ids equal, spellings differ.
  *
  * <p>H2 — the other versions: every declaration at those names, its id, its file, and whether it twins the system
  * metamodel's version, so each gets a decision (a row, a refusal, or a signature fix).
  */
+@org.junit.jupiter.api.Tag("heavy")   // manual, in no lane: //spec:spec_tests excludes it (it needs -Dmanifest.census)
 class Phase3bProbesTest {
 
     @Test
@@ -74,7 +75,7 @@ class Phase3bProbesTest {
             }
         }
 
-        StringBuilder h1 = new StringBuilder("name\tside\tfunction id\tparameter spellings\tsame id as a system version\tsame spellings\tfile\n");
+        StringBuilder h1 = new StringBuilder("name\tside\tfunction id\tparameter spellings\tsame id as a system version\tsame spellings\tfile\tparameter names\tsame names as the system version with this id\treturn spelling\n");
         StringBuilder h2 = new StringBuilder("name\tsystem versions\tupstream versions\tupstream version id\ttwin of a system version\tfile\n");
         int names = 0;
         int twinsById = 0;
@@ -89,7 +90,8 @@ class Phase3bProbesTest {
             names++;
             for (FunctionDefinition s : ours) {
                 h1.append(name).append("\tsystem\t").append(FunctionId.of(s).qualified()).append('\t')
-                        .append(spellings(s)).append("\t-\t-\tSystemMetamodel\n");
+                        .append(spellings(s)).append("\t-\t-\tSystemMetamodel\t").append(names(s)).append("\t-\t")
+                        .append(spelling(s.returnType())).append('\n');
             }
             for (FunctionDefinition u : theirs) {
                 FunctionId uid = FunctionId.of(u);
@@ -101,12 +103,17 @@ class Phase3bProbesTest {
                 if (sameId && sameSpelling) {
                     twinsBySpelling++;
                 }
+                // item 1b's merge takes upstream's declaration with the system version's body: the body binds the
+                // system version's parameter NAMES, so the names must agree (measured here, 2026-10-09)
+                boolean sameNames = ours.stream().anyMatch(s -> FunctionId.of(s).equals(uid) && names(s).equals(names(u)));
                 h1.append(name).append("\tupstream\t").append(uid.qualified()).append('\t').append(spellings(u))
                         .append('\t').append(sameId).append('\t').append(sameSpelling).append('\t')
-                        .append(fileOf.getOrDefault(u.qualifiedName(), "?")).append('\n');
+                        .append(fileOf.getOrDefault(uid.qualified(), "?")).append('\t').append(names(u)).append('\t')
+                        .append(sameId ? String.valueOf(sameNames) : "-").append('\t').append(spelling(u.returnType()))
+                        .append('\n');
                 h2.append(name).append('\t').append(ours.size()).append('\t').append(theirs.size()).append('\t')
                         .append(uid.qualified()).append('\t').append(sameId).append('\t')
-                        .append(fileOf.getOrDefault(u.qualifiedName(), "?")).append('\n');
+                        .append(fileOf.getOrDefault(uid.qualified(), "?")).append('\n');
             }
         }
         String out = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
@@ -185,7 +192,12 @@ class Phase3bProbesTest {
                 + "; of those, from files with different import lines: " + differingImports);
     }
 
-    /** The parameter-type spellings {@code SystemMetamodel.shadows} compares (its private {@code spelling}). */
+    private static String names(FunctionDefinition f) {
+        return f.parameters().stream().map(p -> p.name()).collect(Collectors.joining(", ", "(", ")"));
+    }
+
+    /** The parameter-type spellings {@code SystemMetamodel.shadows} compared (its private {@code spelling}, both
+     *  deleted by item 1b). */
     private static String spellings(FunctionDefinition f) {
         return f.parameters().stream().map(p -> spelling(p.type())).collect(Collectors.joining(", ", "(", ")"));
     }

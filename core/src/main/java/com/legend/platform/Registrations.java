@@ -32,6 +32,10 @@ import java.util.Set;
  * @param members          per implementer family, the CLASS MEMBERS (derived
  *                         properties) it implements — matched to lifted
  *                         declarations by their provenance
+ * @param platformPure     the ids the platform implements in its own Pure (the system metamodel's bodies;
+ *                         {@link PlatformPure#ids})
+ * @param upstreamBodies   versions at the platform's own names whose upstream body runs here, id → why
+ * @param refusedVersions  versions at the platform's own names refused by decision, id → the wall
  */
 public record Registrations(
         List<NativeFunctionDefinition> catalog,
@@ -42,7 +46,10 @@ public record Registrations(
         Map<String, String> walledNatives,
         Map<String, WalledBodies.Wall> walledBodies,
         Set<String> subsumed,
-        Map<Class<? extends NativeFn.Member>, Set<ClassMember>> members) {
+        Map<Class<? extends NativeFn.Member>, Set<ClassMember>> members,
+        Set<FunctionId> platformPure,
+        Map<FunctionId, String> upstreamBodies,
+        Map<FunctionId, WalledBodies.Wall> refusedVersions) {
 
     public Registrations {
         catalog = List.copyOf(catalog);
@@ -54,5 +61,8 @@ public record Registrations(
         walledBodies = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(walledBodies));
         subsumed = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(subsumed));
         members = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(members));
+        platformPure = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(platformPure));
+        upstreamBodies = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(upstreamBodies));
+        refusedVersions = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(refusedVersions));
     }
 }

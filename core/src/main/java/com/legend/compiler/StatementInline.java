@@ -210,8 +210,7 @@ public final class StatementInline {
                 // String[1..*]) body must not splice in where the join form owns
                 // relation::join (build rebuild Phase 3).
                 for (var n : com.legend.builtin.Pure.nativeFunctionsAt(fqn)) {
-                    if (!(ctx.implementations().of(com.legend.model.FunctionId.of(n))
-                            instanceof com.legend.platform.Implementation.Body)) {
+                    if (!inlinedAsABody(ctx.implementations().of(com.legend.model.FunctionId.of(n)))) {
                         return null;
                     }
                 }
@@ -225,8 +224,7 @@ public final class StatementInline {
                     if (fd.parameters().size() != af.parameters().size()) {
                         continue;
                     }
-                    if (!(ctx.implementations().of(com.legend.model.FunctionId.of(fd))
-                            instanceof com.legend.platform.Implementation.Body)) {
+                    if (!inlinedAsABody(ctx.implementations().of(com.legend.model.FunctionId.of(fd)))) {
                         return null;
                     }
                     if (d != null) {
@@ -296,5 +294,12 @@ public final class StatementInline {
             }
             return v.children().stream().anyMatch(this::reachesStatementOnly);
         }
+    }
+
+    /** A row the platform runs by inlining a Pure body: upstream's ({@code Body}) or its own
+     *  ({@code PlatformPure}, Phase 3b item 1b). */
+    private static boolean inlinedAsABody(com.legend.platform.@com.legend.base.Nullable Implementation row) {
+        return row instanceof com.legend.platform.Implementation.Body
+                || row instanceof com.legend.platform.Implementation.PlatformPure;
     }
 }

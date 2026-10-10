@@ -353,6 +353,8 @@ public final class UserCallInliner {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SUBSUMED");
             return new TypedUserCall(call.callee(), args, call.info(), call.pos());
         }
+        // a Body row (upstream's), or a PlatformPure row (the platform's own, Phase 3b item 1b): the callee's
+        // body — the merge gave an adopted declaration the platform's — is inlined below
         com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "BODY");
         // signatureKey identifies the OVERLOAD — name/arity conflated two
         // same-arity overloads into a false recursion (audit).

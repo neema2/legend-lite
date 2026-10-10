@@ -91,6 +91,8 @@ public final class PlatformRegistrations {
                     members.computeIfAbsent(NativeFn.JavaRoutine.class, k -> new LinkedHashSet<>()).add(m));
         }
         return new Registrations(Pure.all(), keys, RegistryKeys.featureOverrides(), families, forms,
-                walledNatives, WalledBodies.reasons(), subsumed, members);
+                walledNatives, WalledBodies.reasons(), subsumed, members,
+                com.legend.platform.PlatformPure.ids(), com.legend.platform.PlatformPure.upstreamBodies(),
+                com.legend.platform.PlatformPure.refusedVersions());
     }
 }

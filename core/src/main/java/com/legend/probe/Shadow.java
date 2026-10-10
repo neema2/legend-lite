@@ -238,6 +238,7 @@ public final class Shadow implements DecisionProbe {
             case Implementation.Intrinsic in -> in.positions().stream().anyMatch(p -> p.name().equals(today))
                     || (today.equals("SCALAR-FEATURE") && in.positions().contains(Implementation.Position.SCALAR));
             case Implementation.Body b -> today.equals("BODY");
+            case Implementation.PlatformPure pp -> today.equals("BODY");
             case Implementation.Unimplemented u -> today.equals("UNIMPLEMENTED");
             case Implementation.Refused r -> today.equals("WALLED-BODY") || today.equals("WALLED-NATIVE")
                     || today.equals("SUBSUMED");
@@ -250,6 +251,7 @@ public final class Shadow implements DecisionProbe {
             case Implementation.Intrinsic in -> "Intrinsic" + in.positions()
                     + (in.families().isEmpty() ? "" : in.families().stream().map(Class::getSimpleName).toList());
             case Implementation.Body b -> "Body";
+            case Implementation.PlatformPure pp -> "PlatformPure";
             case Implementation.Unimplemented u -> "Unimplemented";
             case Implementation.Refused r -> "Refused(" + r.reason() + ")";
         };

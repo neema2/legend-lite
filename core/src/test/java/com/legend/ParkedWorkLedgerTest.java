@@ -117,9 +117,6 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-11 legacy TDS functions and agg by name, not rows",
                             new Anchor("candidateFqns\\(\\)\\.isEmpty\\(\\) \\? name\\.equals\\(bare\\(\\)\\)",
                                     List.of("TdsLegacy.java"))),
-            // PARK-12: the boot layer hides upstream versions by id; about 12 still run upstream's body
-            Map.entry("PARK-12 the boot layer's versions of upstream functions",
-                            new Anchor("boolean shadows\\(", List.of("SystemMetamodel.java"))),
             // PARK-13: a debug trace switched by an environment variable
             Map.entry("PARK-13 a debug trace in product code",
                             new Anchor("LEGEND_LITE_RAW_EXPAND_TRACE", List.of("Overloads.java"))),

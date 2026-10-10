@@ -223,13 +223,19 @@ public final class Compiler {
         // owner, parsed elements, no parallel lane)
         Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
                 bootFqns(), null), null);
-        return PureModelContext.from(layer.model(), layer.index(), null, boot().checked(),
+        return PureModelContext.from(layer.model(), layer.index(), null, boot().checked().without(layer.adopted()),
                 com.legend.lowering.PlatformRegistrations.current());
     }
 
     /** A normalized layer with THE index its Phase E read (T4.1 step 2):
-     * the gate adds the layer's products to that same index. */
-    private record Layer(NormalizedModel model, ModelBuilder index) {}
+     * the gate adds the layer's products to that same index; {@code adopted}
+     * are the boot ids this graph declares itself with the platform's body
+     * (the platform's own Pure, Phase 3b item 1b: empty for a bare layer). */
+    private record Layer(NormalizedModel model, ModelBuilder index, java.util.Set<com.legend.model.FunctionId> adopted) {
+        Layer(NormalizedModel model, ModelBuilder index) {
+            this(model, index, java.util.Set.of());
+        }
+    }
 
     /**
      * name-resolved elements &rarr; F1 knowledge (association qualified
@@ -260,11 +266,8 @@ public final class Compiler {
     /** The boot layer and its integrity: checked ON ITS OWN when it is
      * built, so a graph's check covers only the graph (and what spans the
      * two) instead of re-checking the whole platform per compile. */
-    private record Boot(NormalizedModel model, PureModelContext.CheckedLayer checked) {
-    }
-
-    private static NormalizedModel bootLayer() {
-        return boot().model();
+    private record Boot(NormalizedModel model, PureModelContext.CheckedLayer checked,
+            java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> functionsById) {
     }
 
     private static Boot boot() {
@@ -274,23 +277,53 @@ public final class Compiler {
         // derived body resolves through them), the system metamodel's
         // resolve in the empty scope as before
         return BOOT.getOrCompute(BootKey.HASH, () -> {
-            // the system metamodel's own row-reading twins of platform
-            // functions (classMappingById, mainTable, …) are the platform's
-            // implementations — they win over the library's copies exactly
-            // as they win over a graph's (batch 169)
-            ParsedModel pre = com.legend.builtin.SystemMetamodel.withoutSystemShadows(
+            // THE PLATFORM'S OWN PURE (Phase 3b, item 1b): a prelude function with
+            // a system version's id keeps its declaration (upstream's, generated)
+            // and takes the system version's body; the system's own declaration
+            // serves only the ids no prelude function declares (its meta::lite
+            // functions, and upstream names outside the prelude's modules)
+            ParsedModel pre = com.legend.builtin.SystemMetamodel.requireNoSystemElementRedefined(
                     com.legend.builtin.Prelude.parsedModel());
-            List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>(
-                    com.legend.builtin.SystemMetamodel.elements());
-            elements.addAll(pre.elements());
+            java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> own =
+                    com.legend.builtin.SystemMetamodel.functionsById();
+            java.util.Set<com.legend.model.FunctionId> adopted = new java.util.HashSet<>();
+            List<com.legend.model.PackageableElement> prelude = new java.util.ArrayList<>(pre.elements().size());
+            for (com.legend.model.PackageableElement el : pre.elements()) {
+                if (el instanceof com.legend.model.FunctionDefinition fd) {
+                    com.legend.model.FunctionId id = com.legend.model.FunctionId.of(fd);
+                    com.legend.model.FunctionDefinition version = own.get(id);
+                    if (version != null) {
+                        prelude.add(com.legend.platform.PlatformPure.adopt(fd, version));
+                        adopted.add(id);
+                        continue;
+                    }
+                }
+                prelude.add(el);
+            }
+            List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
+            for (com.legend.model.PackageableElement el : com.legend.builtin.SystemMetamodel.elements()) {
+                if (!(el instanceof com.legend.model.FunctionDefinition fd
+                        && adopted.contains(com.legend.model.FunctionId.of(fd)))) {
+                    elements.add(el);
+                }
+            }
+            elements.addAll(prelude);
             ParsedModel boot = new ParsedModel(elements, com.legend.model.ImportScope.empty(), null,
                     pre.elementOffsets(), pre.elementImports(), pre.elementSources());
             // the boot layer's own index is checked and then discarded: its
             // prepared elements enter every graph's index at that graph's gate
             Layer layer = normalizeLayer(NameResolver.resolve(boot), null);
+            java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> byId =
+                    new java.util.LinkedHashMap<>();
+            for (com.legend.model.PackageableElement el : layer.model().elements()) {
+                if (el instanceof com.legend.model.FunctionDefinition fd) {
+                    byId.put(com.legend.model.FunctionId.of(fd), fd);
+                }
+            }
             return new Boot(layer.model(),
                     PureModelContext.checkLayer(layer.model(), layer.index(),
-                            com.legend.lowering.PlatformRegistrations.current()));
+                            com.legend.lowering.PlatformRegistrations.current()),
+                    java.util.Collections.unmodifiableMap(byId));
         });
     }
 
@@ -352,27 +385,62 @@ public final class Compiler {
     }
 
     /**
-     * Phase E over the graph's OWN elements (name-resolved first, so a
-     * same-signature system function shadow is recognized by its resolved
-     * parameter types — the corpus carries the engine's own
-     * inferRelationalType), then the boot layer's prepared elements join
-     * the normalized model; a graph element redefining a system element
-     * is an error (SystemMetamodel.withoutSystemShadows).
+     * Phase E over the graph's OWN elements (name-resolved first), then the
+     * boot layer's prepared elements join the normalized model. A graph
+     * function with a boot version's id is THE PLATFORM'S OWN PURE (Phase 3b,
+     * item 1b): it keeps its declaration (upstream's, as the graph loaded it)
+     * and takes the boot version's body, and the boot's element for that id
+     * stays out of this graph; its other versions under the name are their
+     * own functions, decided by the implementation table. A graph element
+     * redefining a system element is an error
+     * (SystemMetamodel.requireNoSystemElementRedefined).
      */
     private static Layer normalizeWithSystem(ParsedModel resolved,
             java.util.@com.legend.base.Nullable Map<String, String> walls) {
-        Layer user = normalizeLayer(
-                com.legend.builtin.SystemMetamodel.withoutSystemShadows(
-                        withoutPreludeShadows(resolved)), walls);
-        NormalizedModel sys = bootLayer();
+        Boot boot = boot();
+        ParsedModel graph = com.legend.builtin.SystemMetamodel.requireNoSystemElementRedefined(
+                withoutPreludeShadows(resolved));
+        java.util.Set<com.legend.model.FunctionId> adopted = new java.util.HashSet<>();
+        List<com.legend.model.PackageableElement> own = new java.util.ArrayList<>(graph.elements().size());
+        for (com.legend.model.PackageableElement el : graph.elements()) {
+            if (el instanceof com.legend.model.FunctionDefinition fd) {
+                com.legend.model.FunctionId id = com.legend.model.FunctionId.of(fd);
+                com.legend.model.FunctionDefinition version = boot.functionsById().get(id);
+                if (version != null) {
+                    try {
+                        own.add(com.legend.platform.PlatformPure.adopt(fd, version));
+                        adopted.add(id);
+                        continue;
+                    } catch (com.legend.error.ModelException e) {
+                        if (walls == null) {
+                            throw e;
+                        }
+                        // POISON-NOT-DROP: the declaration stays as loaded, walled
+                        // (the duplicate-signature check names it again under the
+                        // same key, which the first reason keeps)
+                        walls.putIfAbsent(id.qualified(), String.valueOf(e.getMessage()).split("\n")[0]);
+                    }
+                }
+            }
+            own.add(el);
+        }
+        Layer user = normalizeLayer(adopted.isEmpty() ? graph
+                : new ParsedModel(own, graph.imports(), graph.source(), graph.elementOffsets(),
+                        graph.elementImports(), graph.elementSources(), graph.unclaimedSections()), walls);
+        NormalizedModel sys = boot.model();
         List<com.legend.model.PackageableElement> elements =
                 new java.util.ArrayList<>(user.model().elements().size() + sys.elements().size());
         elements.addAll(user.model().elements());
-        elements.addAll(sys.elements());
+        for (com.legend.model.PackageableElement el : sys.elements()) {
+            if (!(el instanceof com.legend.model.FunctionDefinition fd
+                    && adopted.contains(com.legend.model.FunctionId.of(fd)))) {
+                elements.add(el);
+            }
+        }
         // the compiled mappings carry their own facts (poisons, unions, the
         // nullable census) — the layer union has nothing else to merge
         return new Layer(new NormalizedModel(elements, user.model().imports(),
-                union(user.model().legacySurfaces(), sys.legacySurfaces())), user.index());
+                union(user.model().legacySurfaces(), sys.legacySurfaces())), user.index(), adopted);
     }
 
     private static <V> java.util.Map<String, V> union(
@@ -417,7 +485,7 @@ public final class Compiler {
         Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
                 bootFqns(), walls), walls);
         PureModelContext ctx = PureModelContext.from(layer.model(), layer.index(), walls,
-                boot().checked(), com.legend.lowering.PlatformRegistrations.current());
+                boot().checked().without(layer.adopted()), com.legend.lowering.PlatformRegistrations.current());
         return new BuiltModule(ctx, walls);
     }
 
@@ -734,16 +802,11 @@ public final class Compiler {
         // are compiled once per process and typed by the spec census
         // (SpecBodyCensusTest) — its failures are the census's rows, never a
         // user module's walls (PRELUDE_MODULE_HOMEWORK §9.4)
-        java.util.Set<String> boot = new java.util.HashSet<>();
-        for (com.legend.model.PackageableElement el : bootLayer().elements()) {
-            if (el instanceof com.legend.model.FunctionDefinition) {
-                boot.add(el.qualifiedName());
-            }
-        }
+        // the boot layer's bodies are checked once at boot: skipped by ID (a
+        // graph's other version at a boot name is the graph's, typed here;
+        // Phase 3b item 1b — by name, every version at those names was skipped)
+        java.util.Set<com.legend.model.FunctionId> bootIds = boot().functionsById().keySet();
         for (String fqn : new java.util.TreeSet<>(ctx.functionFqns())) {
-            if (boot.contains(fqn)) {
-                continue;
-            }
             java.util.List<com.legend.compiler.element.TypedFunction> overloads;
             try {
                 overloads = ctx.findFunction(fqn);
@@ -752,7 +815,7 @@ public final class Compiler {
                 continue;
             }
             for (com.legend.compiler.element.TypedFunction tf : overloads) {
-                if (tf.body().isEmpty()) {
+                if (tf.body().isEmpty() || bootIds.contains(tf.id())) {
                     continue;
                 }
                 try {

@@ -111,6 +111,20 @@ public final class PureModelContext implements ModelContext {
         java.util.Set<com.legend.model.FunctionId> signatureKeys() {
             return signatureKeys;
         }
+
+        /** This layer with {@code adopted} ids no longer counted as its signatures: a graph that took the
+         *  platform's own Pure for those ids declares them itself (Phase 3b, item 1b), and its declaration is not
+         *  a duplicate of the layer's. */
+        public CheckedLayer without(java.util.Set<com.legend.model.FunctionId> adopted) {
+            if (adopted.isEmpty()) {
+                return this;
+            }
+            CheckedLayer out = new CheckedLayer();
+            out.elements.addAll(elements);
+            out.signatureKeys.addAll(signatureKeys);
+            out.signatureKeys.removeAll(adopted);
+            return out;
+        }
     }
 
     /** Check {@code normalized}'s layer on its own, STRICTLY (a failure is a

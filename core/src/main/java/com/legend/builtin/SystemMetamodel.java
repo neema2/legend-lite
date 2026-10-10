@@ -1153,6 +1153,14 @@ public final class SystemMetamodel {
             {
                 $t->meta::lite::lineage::relationTreeLines($withJoin)->joinStrings('', '\n', '\n')
             }
+            function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], space:String[1]):String[1]
+            {
+                $t->meta::pure::lineage::scanRelations::relationTreeAsString(true, $space)
+            }
+            function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1], space:String[1]):String[1]
+            {
+                $t->meta::lite::lineage::relationTreeLines($withJoin)->map(l|$space + $l)->joinStrings('', '\n', '\n')
+            }
             function meta::lite::lineage::relationTreeLines(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[*]
             {
                 $t.nodes->sortBy(n|$n.preorder)->map(n|if($n.kind == 'root', |$n.indent + 'root', |$n.indent + '------> (' + $n.kind + ') ' + $n.name->toOne() + if($withJoin && $n.joinLabel->isNotEmpty(), |'(' + $n.joinLabel->toOne() + ')', |'') + ' [' + $n.columns->sortBy(c|$c.ordinal).name->joinStrings(', ') + ']'))
@@ -1180,7 +1188,7 @@ public final class SystemMetamodel {
                 $_this.mainTableAlias.base
             }
 
-            function meta::pure::mapping::superMapping(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::SetImplementation[0..1]
+            function meta::pure::mapping::superMapping(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::PropertyMappingsImplementation[0..1]
             {
                 $_this->cast(@meta::relational::mapping::RootRelationalInstanceSetImplementation).ancestry->filter(a|$a.depth == 1).ancestor->first()
             }
@@ -1469,46 +1477,6 @@ public final class SystemMetamodel {
                     opRoutes("relationalOperationElement", "PropertyMappingToOp"),
                     typeRoutes(), opSets(), inferredTypeEnds(), planSets());
 
-    /** A model element shadows a system element of the same qualified
-     * name — for FUNCTIONS only when the parameter types agree too: a
-     * same-name function over other parameter types is an OVERLOAD (the
-     * engine's own {@code resolvePrimaryKey(rsi:RelationalInstanceSet
-     * Implementation)} beside the root-set body), never a shadow. */
-    private static boolean shadows(PackageableElement e, PackageableElement sys) {
-        if (!e.qualifiedName().equals(sys.qualifiedName())) {
-            return false;
-        }
-        if (e instanceof com.legend.model.FunctionDefinition f
-                && sys instanceof com.legend.model.FunctionDefinition g) {
-            // by function id (build rebuild Phase 3): another version under the name — another multiplicity or
-            // return — is its own function, never a shadow; the type spellings below tell apart two functions the
-            // id cannot (it spells types by their short names)
-            if (!com.legend.model.FunctionId.of(f).equals(com.legend.model.FunctionId.of(g))
-                    || f.parameters().size() != g.parameters().size()) {
-                return false;
-            }
-            for (int i = 0; i < f.parameters().size(); i++) {
-                if (!spelling(f.parameters().get(i).type()).equals(
-                        spelling(g.parameters().get(i).type()))) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    /** A parameter type's spelling without source positions (a resolved
-     * model type carries its parse position; the system source carries
-     * none — the record text never compared equal). */
-    private static String spelling(com.legend.protocol.TypeExpression t) {
-        return switch (t) {
-            case com.legend.protocol.TypeExpression.NameRef nr -> nr.name();
-            case com.legend.protocol.TypeExpression.Generic g -> g.name() + "<"
-                    + g.arguments().stream().map(SystemMetamodel::spelling)
-                            .collect(java.util.stream.Collectors.joining(",")) + ">";
-            default -> String.valueOf(t);
-        };
-    }
 
     /** The system Pure source (tests inspect it; never edited at run time). */
     public static String source() {
@@ -1539,6 +1507,38 @@ public final class SystemMetamodel {
         static final java.util.Set<String> ALL = ELEMENTS.stream()
                 .map(PackageableElement::qualifiedName)
                 .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
+        /** The system ELEMENTS' names (functions excluded): reserved, never redefined. */
+        static final java.util.Set<String> NOT_FUNCTIONS = ELEMENTS.stream()
+                .filter(e -> !(e instanceof com.legend.model.FunctionDefinition))
+                .map(PackageableElement::qualifiedName)
+                .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
+        /** The system functions by id: the platform's own Pure ({@code PlatformPure}). */
+        static final java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> FUNCTIONS_BY_ID = functionsById();
+
+        private static java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> functionsById() {
+            java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> out = new java.util.LinkedHashMap<>();
+            for (PackageableElement e : ELEMENTS) {
+                if (e instanceof com.legend.model.FunctionDefinition f) {
+                    com.legend.model.FunctionDefinition prior = out.put(com.legend.model.FunctionId.of(f), f);
+                    if (prior != null) {
+                        throw new IllegalStateException("the system metamodel declares " + com.legend.model.FunctionId.of(f) + " twice");
+                    }
+                }
+            }
+            return java.util.Collections.unmodifiableMap(out);
+        }
+    }
+
+    /** The ids of the system metamodel's functions: the platform's own Pure ({@code Implementation.PlatformPure};
+     *  build rebuild Phase 3b, item 1b). */
+    public static java.util.Set<com.legend.model.FunctionId> functionIds() {
+        return Fqns.FUNCTIONS_BY_ID.keySet();
+    }
+
+    /** The system metamodel's functions as parsed, by id — the body a loaded declaration with that id takes
+     *  ({@code PlatformPure.adopt}). */
+    public static java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> functionsById() {
+        return Fqns.FUNCTIONS_BY_ID;
     }
 
     /** Whether {@code fqn} names a system ELEMENT (class, association,
@@ -1554,34 +1554,24 @@ public final class SystemMetamodel {
     }
 
     /**
-     * The ONE injection seam's parsed-level half: the model with every
-     * same-signature system FUNCTION shadow removed (a system function
-     * body is the platform's implementation of a real engine function; a
-     * same-signature function in the model is the ENGINE'S OWN SOURCE
-     * riding in the corpus universe — spec material, never our runtime,
-     * user-ratified 2026-08-18). A model element redefining a system
-     * ELEMENT is an error: the system layer is protected.
+     * The system layer is protected: a parsed element with the qualified name of a system ELEMENT (a class, an
+     * association, a store, a mapping — not a function) is an error. Functions are no longer hidden here (build
+     * rebuild Phase 3b, item 1b, PARK-12 closed): a loaded function with a system version's id is the platform's own
+     * Pure ({@code Implementation.PlatformPure}) and takes the system version's body where the boot layer and a
+     * graph are merged ({@code Compiler.boot}, {@code Compiler.normalizeWithSystem}), keeping its own declaration;
+     * another version under the name is its own function, decided by the implementation table. Returns
+     * {@code parsed} unchanged, for chaining.
      */
-    public static ParsedModel withoutSystemShadows(ParsedModel parsed) {
-        List<PackageableElement> kept = new ArrayList<>(parsed.elements());
-        for (PackageableElement el : ELEMENTS) {
-            if (el instanceof com.legend.model.FunctionDefinition) {
-                kept.removeIf(e -> shadows(e, el));
-                continue;
-            }
-            for (PackageableElement e : parsed.elements()) {
-                if (shadows(e, el)) {
-                    throw new com.legend.error.ModelException(
-                            com.legend.error.LegendCompileException.Phase.NORMALIZE,
-                            "'" + el.qualifiedName() + "' is a system element of the"
-                            + " platform's metamodel layer and cannot be redefined",
-                            el.qualifiedName());
-                }
+    public static ParsedModel requireNoSystemElementRedefined(ParsedModel parsed) {
+        for (PackageableElement e : parsed.elements()) {
+            if (Fqns.NOT_FUNCTIONS.contains(e.qualifiedName())) {
+                throw new com.legend.error.ModelException(
+                        com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                        "'" + e.qualifiedName() + "' is a system element of the"
+                        + " platform's metamodel layer and cannot be redefined",
+                        e.qualifiedName());
             }
         }
-        return kept.size() == parsed.elements().size() ? parsed
-                : new ParsedModel(kept, parsed.imports(), parsed.source(),
-                        parsed.elementOffsets(), parsed.elementImports(),
-                        parsed.elementSources(), parsed.unclaimedSections());
+        return parsed;
     }
 }
