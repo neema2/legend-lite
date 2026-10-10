@@ -464,7 +464,8 @@ describes generation "by demand" from "the platform's own Java names"). AGENTS.m
 
 ### 2.8 Open decisions for the user
 
-**D4-1. Which bodies the closure follows.** The plan says "the bodies of runnable functions" and "No Java scan, claims,
+**D4-1. Which bodies the closure follows.** **Ruled 2026-10-10 (the user): (a), follow every body** (the plan's decision
+6). The plan says "the bodies of runnable functions" and "No Java scan, claims,
 hand enums, path lists". The measured version knew which functions are "runnable" (not lowered, not a form, not walled)
 by reading `Pure.java`, `CoreFn.java` and `WalledBodies.java` (`EXP/closure.py:61-77`): our code.
 - (a) Follow every body. Upstream only. At the measured size: +563 names, +402 KB on top of upstream core, against
@@ -514,7 +515,10 @@ or the lifted-property id (`SynthHat.PROP`).
   still has 5). PARK-12 closes in Phase 3b item 1. Which phase adds the row kind is unassigned; Phase 4 needs it when the
   three functions move.
 
-**D4-5. Which parser and resolver the generator uses.** The closure needs names resolved.
+**D4-5. Which parser and resolver the generator uses.** **Ruled 2026-10-10 (the user): (b), upstream's own compiler from
+the pinned jars, at bump time only** (the plan's decision 6: the world is group A, sealed by the pins and the module
+choice; our parser reads it; the compiled boot form is a build step, 4b, with our front end as a declared input). The
+closure needs names resolved.
 - (a) Ours (`Compiler.parseSources`, `NameResolver`), as `PreludeGenerator` and `EXP/probe/ClosureProbe.java` do. Then
   the default world can change with our parser, not only with upstream, and the seal (Phase 7) cannot notice: the record
   is "upstream plus our parser" (GENERATORS.md §2 / BUILD_REBUILD_DESIGN §4.2 group B).

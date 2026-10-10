@@ -59,8 +59,12 @@ generated file, never a signature we typed ourselves.
   has each commit with its judge): the schema view lifted once, import scopes per element, the platform's own Pure as a
   row kind (`shadows` deleted, PARK-12 closed), legend-pure's qualified-property lookup (PARK-14 refused), the ambiguity
   message, the reference lane's verdicts (S40, S41). Census load walls 37 → 27; the lane AGREE 74,586 → 76,884 (76,920 before the audit's B1 fix replaced one more upstream body).
-- **Next: L7 "resolve once"** (PARK-5's full fix, option (c), `COLD_READ_2026_10_09.md` F1), then D24's second slice;
-  the cold read's F2 and F3 still await the user's rulings; then L4 (Phase 6).
+- **Next: L7 "resolve once"** (PARK-5's full fix, option (c), `COLD_READ_2026_10_09.md` F1), design first; then L4
+  (Phase 6), L5 (Phase 4), L6 (Phase 5), the typing-order count, L8 (the bump). The order and cadence: the plan's §6.
+- **Ruled 2026-10-10 (the user):** the default world is made by upstream's own compiler at bump time, every body
+  followed (F2, F3; the plan's decision 6); the pre-built boot layer is part of Phase 4, sized on the numbers
+  (decision 2 as amended); the typer's order is measured before the bump (decision 7). Nothing is pending from the
+  user for L7.
 - **What the default world (the prelude) contains is decided; do not redo the analysis** (asked again 2026-10-10):
   the rule is in `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md` §1 (the measurements that decided it), the plan's
   Phase 4, and `PHASES_4_5_7.md` §2.2 — upstream's core whole (legend-pure `platform*`, engine `core_functions_*`,
