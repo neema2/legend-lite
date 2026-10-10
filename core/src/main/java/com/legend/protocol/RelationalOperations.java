@@ -154,7 +154,7 @@ record RelationalOperations(String indentation, @com.legend.base.Nullable String
     private static String literal(Protocol.PRelLiteral l) {
         return switch (l.value()) {
             case String s -> Composing.convertString(s, true);
-            case Double d -> com.legend.json.PortableText.doubleText(d);
+            case Double d -> Double.toString(d);
             case Long n when n == n.intValue() -> Long.toString(n);
             default -> throw Composing.refused("a relational literal whose value upstream cannot print: " + l.value());
         };

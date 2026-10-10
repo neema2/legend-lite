@@ -297,7 +297,7 @@ public final class ProtocolReader {
     private static ValueSpecification floating(Wire w) {
         double d = Wire.asDouble(w.take("value"), "float literal");
         BigDecimal exact = w.decimal("value");
-        return new CFloat(d, exact.compareTo(NumberText.decimal(d)) != 0 ? exact : null, w.span());
+        return new CFloat(d, exact.compareTo(java.math.BigDecimal.valueOf(d)) != 0 ? exact : null, w.span());
     }
 
     /**

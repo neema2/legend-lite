@@ -303,7 +303,7 @@ public final class ServiceSectionGrammar
             }
             if (lt == TokenType.FLOAT) {
                 return new com.legend.protocol.spec.CFloat(
-                        com.legend.protocol.NumberText.doubleOf("-" + txt), span);
+                        Double.parseDouble("-" + txt), span);
             }
         }
         // path DOT ident → enumValue

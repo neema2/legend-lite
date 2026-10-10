@@ -5,7 +5,6 @@ package com.legend.protocol;
 
 import java.util.List;
 
-import static com.legend.json.PortableText.doubleText;
 
 /**
  * Wire emission for the TAIL-section elements — Text,
@@ -591,10 +590,10 @@ final class TailEmitter {
             }
             b.append(",\"id\":");
             ProtocolEmitter.str(b, v.id());
-            b.append(",\"position\":{\"x\":").append(doubleText(v.x()))
-                    .append(",\"y\":").append(doubleText(v.y()))
-                    .append("},\"rectangle\":{\"height\":").append(doubleText(v.height()))
-                    .append(",\"width\":").append(doubleText(v.width()))
+            b.append(",\"position\":{\"x\":").append(Double.toString(v.x()))
+                    .append(",\"y\":").append(Double.toString(v.y()))
+                    .append("},\"rectangle\":{\"height\":").append(Double.toString(v.height()))
+                    .append(",\"width\":").append(Double.toString(v.width()))
                     .append("},\"sourceInformation\":");
             ProtocolEmitter.srcInfo(b, v.sourceInformation());
             b.append('}');
@@ -649,8 +648,8 @@ final class TailEmitter {
             if (i > 0) {
                 b.append(',');
             }
-            b.append("{\"x\":").append(doubleText(points.get(i).x()))
-                    .append(",\"y\":").append(doubleText(points.get(i).y()))
+            b.append("{\"x\":").append(Double.toString(points.get(i).x()))
+                    .append(",\"y\":").append(Double.toString(points.get(i).y()))
                     .append('}');
         }
         b.append("]}");

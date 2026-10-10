@@ -131,8 +131,9 @@ describe('numbers are spelled as the wire spells them: byte for byte with lite\'
   /*
    * The tab's build of lite once read and wrote some doubles with TeaVM's own conversions: 30 spelled differently
    * at the last digit and 2 read one unit in the last place off, accepted by the user on 2026-09-28 and pinned. Since
-   * 2026-10-09 lite converts a double's text both ways through its own PortableText (the JDK's definitions, computed
-   * exactly; the protocol program's leg 5), so the tab answers as the JVM does: every double byte for byte.
+   * 2026-10-10 TeaVM's own conversions are the JDK's (//third_party/teavm_classlib, held by //wasm:conformance_test;
+   * from 2026-10-09 lite had routed them through its own exact code), so the tab answers as the JVM does: every double
+   * byte for byte.
    */
   it(`${floats.length} floats`, async () => {
     const lite = await ready();

@@ -790,14 +790,12 @@ final class ArchitectureTest {
     }
 
     /**
-     * TeaVM's class library (0.15, the tab's WebAssembly build) answers two JDK methods differently: its
-     * {@code String.isBlank()} counts only {@code ' '} as blank, and it writes a double as text by another rule than
-     * {@code Double.toString}'s (found by //wasm:round_trip_test: a ModelStore island refused, diagram coordinates a
-     * digit off; the protocol program's leg 5, 2026-10-09). So lite asks neither: blank is {@code s.strip().isEmpty()}
-     * everywhere -- the JDK's definition of {@code isBlank}, and TeaVM's {@code strip} reads whitespace as the JDK does
-     * -- and a double's text in the protocol's conversions (text to JSON and back, what the round trip holds the tab
-     * to) is {@code com.legend.json.PortableText.doubleText}. A string concatenation with a double compiles to an
-     * invokedynamic this cannot see; the protocol writes none.
+     * TeaVM's class library (0.15, the tab's WebAssembly build) answers {@code String.isBlank()} differently: it counts
+     * only {@code ' '} as blank (found by //wasm:round_trip_test, the protocol program's leg 5, 2026-10-09; still so,
+     * //wasm:conformance-known.tsv's {@code string} row). So lite does not ask it: blank is {@code s.strip().isEmpty()}
+     * everywhere -- the JDK's definition of {@code isBlank}, and TeaVM's {@code strip} reads whitespace as the JDK does.
+     * (A double's text, which TeaVM also wrote differently until 2026-10-10, needs no rule here any more:
+     * //third_party/teavm_classlib makes TeaVM's conversions the JDK's, and //wasm:conformance_test holds them there.)
      */
     @Test
     void textTheTabWritesDifferentlyIsWrittenPortably() {
@@ -806,139 +804,6 @@ final class ArchitectureTest {
             .should().callMethod(String.class, "isBlank")
             .as("String.isBlank() is TeaVM's ' ' only in the tab: write s.strip().isEmpty()")
             .check(CORE_PROD_CLASSES);
-        noClasses()
-            .that().resideInAnyPackage("com.legend.protocol..", "com.legend.parser..")
-            .should().callMethod(Double.class, "toString", double.class)
-            .orShould().callMethod(Double.class, "toString")
-            .orShould().callMethod(String.class, "valueOf", double.class)
-            .orShould().callMethod(StringBuilder.class, "append", double.class)
-            .orShould().callMethod(Float.class, "toString", float.class)
-            .orShould().callMethod(String.class, "valueOf", float.class)
-            .orShould().callMethod(StringBuilder.class, "append", float.class)
-            .orShould().callMethod(java.math.BigDecimal.class, "valueOf", double.class)
-            .orShould().callMethod(Double.class, "parseDouble", String.class)
-            .orShould().callMethod(Double.class, "valueOf", String.class)
-            .orShould().callMethod(Float.class, "parseFloat", String.class)
-            .orShould().callMethod(java.math.BigDecimal.class, "doubleValue")
-            .as("a double's text, either way, in the parser and the protocol is PortableText's (doubleText, doubleOf):"
-                    + " the platform's differs in the tab")
-            .check(CORE_PROD_CLASSES);
-    }
-
-    /**
-     * The half of {@link #textTheTabWritesDifferentlyIsWrittenPortably} ArchUnit cannot see: a string concatenation
-     * with a double ({@code "(" + x + ")"}) compiles to an invokedynamic named {@code makeConcatWithConstants} whose
-     * descriptor lists the operands' types, and the platform writes the double (found in DiagramComposer.point, the
-     * protocol program's leg 5, 2026-10-09). Read from each protocol class's constant pool: no such call site takes a
-     * {@code double} or a {@code float}.
-     */
-    @Test
-    void theProtocolConcatenatesNoDoubleIntoText() throws java.io.IOException {
-        java.util.List<String> found = new java.util.ArrayList<>();
-        for (java.nio.file.Path jar : com.legend.testing.Runfile.listed("legend.product.jars")) {
-            try (java.util.jar.JarFile file = new java.util.jar.JarFile(jar.toFile())) {
-                for (java.util.jar.JarEntry entry : java.util.Collections.list(file.entries())) {
-                    String name = entry.getName();
-                    if ((name.startsWith("com/legend/protocol/") || name.startsWith("com/legend/parser/"))
-                            && name.endsWith(".class")) {
-                        try (java.io.InputStream in = file.getInputStream(entry)) {
-                            for (String descriptor : concatenations(in.readAllBytes())) {
-                                if (takesADoubleOrFloat(descriptor)) {
-                                    found.add(name + " " + descriptor);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), found,
-                "a double concatenated into text in the protocol: write PortableText.doubleText");
-        // the reader sees what it looks for: a class here that concatenates a double, and one that concatenates none
-        try (java.io.InputStream probe = ArchitectureTest.class.getResourceAsStream("ArchitectureTest$ConcatProbe.class")) {
-            java.util.List<String> sites = concatenations(java.util.Objects.requireNonNull(probe).readAllBytes());
-            org.junit.jupiter.api.Assertions.assertEquals(2, sites.size(), sites.toString());
-            org.junit.jupiter.api.Assertions.assertEquals(1, sites.stream().filter(ArchitectureTest::takesADoubleOrFloat).count(),
-                    sites.toString());
-        }
-    }
-
-    /** {@link #theProtocolConcatenatesNoDoubleIntoText}'s self-check: one concatenation with a double, one without. */
-    @SuppressWarnings("unused")
-    private static final class ConcatProbe {
-        static String withADouble(double x, String s) {
-            return "(" + x + s + ")";
-        }
-
-        static String withoutOne(Double boxed, double[] array, String s) {
-            return "(" + s + boxed + java.util.Arrays.toString(array) + ")";
-        }
-    }
-
-    /** The descriptors of a class file's string-concatenation call sites (JVMS 4.4: the constant pool). */
-    private static java.util.List<String> concatenations(byte[] classFile) {
-        java.nio.ByteBuffer in = java.nio.ByteBuffer.wrap(classFile);
-        in.position(8);                                         // magic, minor, major
-        int count = Short.toUnsignedInt(in.getShort());
-        String[] utf8 = new String[count];
-        int[] natName = new int[count];
-        int[] natType = new int[count];
-        java.util.List<Integer> indy = new java.util.ArrayList<>();
-        for (int i = 1; i < count; i++) {
-            int tag = Byte.toUnsignedInt(in.get());
-            switch (tag) {
-                case 1 -> {
-                    byte[] bytes = new byte[Short.toUnsignedInt(in.getShort())];
-                    in.get(bytes);
-                    utf8[i] = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
-                }
-                case 12 -> {
-                    natName[i] = Short.toUnsignedInt(in.getShort());
-                    natType[i] = Short.toUnsignedInt(in.getShort());
-                }
-                case 18 -> {
-                    in.getShort();                              // the bootstrap method
-                    indy.add(Short.toUnsignedInt(in.getShort()));
-                }
-                case 3, 4, 9, 10, 11, 17 -> in.position(in.position() + 4);
-                case 5, 6 -> {
-                    in.position(in.position() + 8);
-                    i++;                                        // a long or double takes two entries
-                }
-                case 7, 8, 16, 19, 20 -> in.position(in.position() + 2);
-                case 15 -> in.position(in.position() + 3);
-                default -> throw new IllegalStateException("constant pool tag " + tag);
-            }
-        }
-        java.util.List<String> out = new java.util.ArrayList<>();
-        for (int nat : indy) {
-            if ("makeConcatWithConstants".equals(utf8[natName[nat]])) {
-                out.add(utf8[natType[nat]]);
-            }
-        }
-        return out;
-    }
-
-    /** Whether a method descriptor's parameters include a {@code double} or a {@code float} (not an array of one). */
-    private static boolean takesADoubleOrFloat(String descriptor) {
-        for (int i = 1; descriptor.charAt(i) != ')'; i++) {
-            char c = descriptor.charAt(i);
-            if (c == 'L') {
-                i = descriptor.indexOf(';', i);
-            } else if (c == '[') {
-                while (descriptor.charAt(i + 1) == '[') {
-                    i++;
-                }
-                if (descriptor.charAt(i + 1) == 'L') {
-                    i = descriptor.indexOf(';', i);
-                } else {
-                    i++;
-                }
-            } else if (c == 'D' || c == 'F') {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

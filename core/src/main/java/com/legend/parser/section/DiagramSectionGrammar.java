@@ -501,7 +501,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
             if (i == s) {
                 throw fail("expected a number");
             }
-            return com.legend.protocol.NumberText.doubleOf(t.substring(s, i));
+            return Double.parseDouble(t.substring(s, i));
         }
 
         /** {@code (x,y)}. */

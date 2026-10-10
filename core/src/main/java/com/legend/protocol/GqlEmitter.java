@@ -329,7 +329,7 @@ final class GqlEmitter {
             case Gql.IntValue i -> b.append("{\"_type\":\"intValue\","
                     + "\"value\":").append(i.value()).append('}');
             case Gql.FloatValue f -> b.append("{\"_type\":\"floatValue\","
-                    + "\"value\":").append(com.legend.json.PortableText.doubleText(f.value())).append('}');
+                    + "\"value\":").append(Double.toString(f.value())).append('}');
             case Gql.StringValue s -> {
                 b.append("{\"_type\":\"stringValue\",\"value\":");
                 ProtocolEmitter.str(b, s.value());

@@ -226,7 +226,7 @@ public final class PureComposer {
             case CDecimal c -> c.value().toString() + "D";
             case CString c -> c.multiLine() ? renderTextBlock(c.value(), indentation) : convertString(c.value(), true);
             case CBoolean c -> String.valueOf(c.value());
-            case CFloat c -> com.legend.json.PortableText.doubleText(c.value());
+            case CFloat c -> Double.toString(c.value());
             case CDate d -> percent(written(d.written(), "date"));
             case CTime t -> percent(written(t.written(), "time"));
             case CLatestDate l -> "%latest";

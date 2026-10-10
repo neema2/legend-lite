@@ -61,10 +61,10 @@ final class NumberLiterals {
                 text = text.substring(0, text.length() - 1);
             }
         }
-        double d = com.legend.protocol.NumberText.doubleOf(text);
+        double d = Double.parseDouble(text);
         if (!dialect.refusesLiteExtensions()) {
             BigDecimal exact = new BigDecimal(text);
-            if (exact.compareTo(com.legend.protocol.NumberText.decimal(d)) != 0) {
+            if (exact.compareTo(BigDecimal.valueOf(d)) != 0) {
                 return new CFloat(d, exact, span);
             }
         }

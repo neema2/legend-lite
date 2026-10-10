@@ -2156,7 +2156,7 @@ public final class ProtocolEmitter {
                     c.pos());
             case com.legend.protocol.spec.AppliedFunction f -> appliedFunction(b, f, null);
             case com.legend.protocol.spec.CFloat c ->
-                    literal(b, "float", com.legend.json.PortableText.doubleText(c.value()), c.pos());
+                    literal(b, "float", Double.toString(c.value()), c.pos());
             case com.legend.protocol.spec.PackageableElementPtr ptr -> {
                 // the ROOT PACKAGE spelled '::' (fold(..., ::)) reaches the engine's
                 // serializer as a Java null — the wire carries LITERAL null (probe
