@@ -369,6 +369,15 @@ not be written back, so it is refused.
    `compileOrError`, `planJsonOrError`, `relationTypeJsonOrError`; Python's `lite_plan_json`,
    `lite_relation_type_json`), their callers moved onto the route as in leg 4. The boundary's own operations that
    are not `pure/v1` endpoints stay.
+   **Decided 2026-10-10 (the user), at the leg's start:** `compile` is not a true twin -- the tab's answers every
+   error, legend-engine's `compilation/compile` its first. So: one implementation that answers every error, and two
+   routes over it on the one dispatcher every host serves (lite's server, the tab's `pureV1OrError`, Python's
+   `lite_pure_v1`): `/api/pure/v1/compilation/compile`, legend-engine's exact answer (OK or the first error), and
+   `/api/lite/v1/compilation/compile`, lite's own (every error; legend-engine has no such route, so a client asks it
+   first and falls back to the engine's). The tab's `compileOrError` and the SDLC server's copy go; Studio asks the lite
+   route in the tab and on a lite server alike. `relationTypeJson` is E5's true twin (the same computation, the same
+   renderer; checked): it goes from both adapters. `planJson` stays (not E9's). Every error means today's: the first
+   element error alone, else every body's; collecting every element error (the tolerant build) is a later step.
 7. **The SDLC server's rules free of Pure.** SDLC's rules (`//sdlc-server:rules`) depend on all of `//core` today,
    because the class that answers their two Pure questions (`CoreGrammar`) sits in the same library; nothing stops
    the rules from calling the compiler directly, and the SDLC server carries the whole engine. The rules keep asking

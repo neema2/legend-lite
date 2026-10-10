@@ -475,13 +475,15 @@ number family equal to the JDK in the tab; PARK-23 restated to its one speed cla
 (`Double.toString`, `Double.parseDouble`, `BigDecimal.valueOf`) now that the tab's are exact (the 22 call sites in
 `core/.../protocol/` and `core/.../parser/`; `protocol/NumberText.java`, `json/.../PortableText.java` deleted; the
 `isBlank` half of `ArchitectureTest.textTheTabWritesDifferentlyIsWrittenPortably` stays). **Next, announced
-2026-10-10 (core): leg 6** (`docs/PROTOCOL_PROGRAM_2026_10_05.md` §4) -- one whole-model compile on
-`com.legend.Compiler`, called by `PureV1Api.compile`, the tab's boundary and `sdlc-server`'s `CoreGrammar`; and the
-boundary's operations that are true twins of a `pure/v1` endpoint (`compile`; `relationTypeJson` if it is E5's, checked
-first; `planJson` stays, not E9's) gone from both adapters, their callers on the route. Files: `core/.../Compiler.java`,
-`core/.../server/PureV1Api.java`, `wasm/.../planner/{Boundary,TabExports}.java`, `native/` (Python's adapter),
-`python/` (its bindings), `sdlc-server/.../CoreGrammar.java`, and the callers in `studio/`, `datacube/` (the DataCube +
-Python line's: told here, before the edit) and `python/`. PARK-17 closes with it. Then legs 7 and 8. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
+2026-10-10 (core): leg 6** (`docs/PROTOCOL_PROGRAM_2026_10_05.md` §4, its decision of 2026-10-10) -- one
+whole-model compile on `com.legend.Compiler` answering every error, behind two routes on the one dispatcher:
+`/api/pure/v1/compilation/compile` (legend-engine's exact answer, the first error) and the new
+`/api/lite/v1/compilation/compile` (every error); the tab's `compileOrError` and the SDLC server's copy go, Studio on
+the lite route; `relationTypeJson` (E5's twin) gone from both adapters, `planJson` stays. Files:
+`core/.../Compiler.java`, `core/.../server/{PureV1Api,LegendHttpServer}.java`, `wasm/.../planner/{Boundary,TabExports}.java`,
+`native/` (Python's adapter), `python/` (its bindings), `sdlc-server/.../CoreGrammar.java`, `engine-client/` (the
+in-tab engine and `HttpEngine`), and the callers in `studio/`, `datacube/` (the DataCube + Python line's: told here,
+before the edit) and `python/`. PARK-17 closes with it. Then legs 7 and 8. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
 function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
