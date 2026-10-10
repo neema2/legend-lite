@@ -15,6 +15,10 @@ copy_to_directory(
     name = "dist",
     srcs = [
         "index.html",
+        # the licence, the notice and the third-party software the apps redistribute, at the site's root
+        "//:LICENSE",
+        "//:NOTICE",
+        "//:THIRD_PARTY_NOTICES.md",
         "//datacube:site",
         "//query:site",
         "//studio:site",

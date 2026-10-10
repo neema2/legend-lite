@@ -1,5 +1,6 @@
 {
   "name": "@legend-lite/pure-protocol",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "description": "Pure queries as legend-engine's V1 lambda JSON: typed builders (Relation API only), exact JSON, a validating reader. No dependencies."

@@ -1,6 +1,6 @@
 # Legend Lite
 
-A **clean-sheet implementation** of the [FINOS Legend](https://legend.finos.org/) platform's Pure language and engine in modern Java 21 — ~120K lines of compiler, designed and written anew, with [legend-pure](https://github.com/finos/legend-pure) and [legend-engine](https://github.com/finos/legend-engine) as its specification (credited in [`NOTICE`](NOTICE); Apache-2.0, [`LICENSE`](LICENSE)). Legend Lite compiles Pure models and queries to SQL and executes them entirely inside the database — **zero rows are ever fetched into the JVM**.
+A **clean-sheet implementation** of the [FINOS Legend](https://legend.finos.org/) platform's Pure language and engine in modern Java 21 — ~120K lines of compiler, designed and written anew, with [legend-pure](https://github.com/finos/legend-pure) and [legend-engine](https://github.com/finos/legend-engine) as its specification, and [legend-studio](https://github.com/finos/legend-studio) as its apps' (credited in [`NOTICE`](NOTICE); Apache-2.0, [`LICENSE`](LICENSE)). Legend Lite compiles Pure models and queries to SQL and executes them entirely inside the database — **zero rows are ever fetched into the JVM**.
 
 **Start here:** [`AGENTS.md`](AGENTS.md) for the invariants, [`core/README.md`](core/README.md) for the per-package spec, [`docs/GATES.md`](docs/GATES.md) for what must be green.
 
@@ -475,4 +475,4 @@ from surefire reports.
 
 ## License
 
-Apache 2.0
+Apache License 2.0 ([`LICENSE`](LICENSE); SPDX: `Apache-2.0`). What legend-lite takes from FINOS Legend's legend-pure, legend-engine and legend-studio, and the notices it carries, are in [`NOTICE`](NOTICE); the third-party software its products redistribute, with their licenses, is in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

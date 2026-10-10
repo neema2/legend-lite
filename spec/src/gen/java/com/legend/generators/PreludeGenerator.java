@@ -642,7 +642,8 @@ public final class PreludeGenerator {
         // 4. EMIT: one ###Pure section per (spec file, import scope), the
         // scope's imports, then each declaration VERBATIM in source order
         StringBuilder sb = new StringBuilder();
-        sb.append("// Copyright 2026 Legend Contributors\n");
+        sb.append("// Copyright 2020 Goldman Sachs (the declarations: legend-pure and legend-engine, see NOTICE)\n");
+        sb.append("// Copyright 2026 Legend Contributors (their selection and arrangement here)\n");
         sb.append("// SPDX-License-Identifier: Apache-2.0\n");
         sb.append("//\n");
         sb.append("// GENERATED — do not edit (com.legend.generators.PreludeGenerator; regenerate: bazel run //:update_generated).\n");

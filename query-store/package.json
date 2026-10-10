@@ -1,5 +1,6 @@
 {
   "name": "@legend-lite/query-store",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "description": "Upstream's saved-query store (/api/pure/v1/query): its Query records, one typed client over a fetch, and the same API answered in the page from IndexedDB. No dependencies."

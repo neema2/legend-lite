@@ -223,8 +223,10 @@ class Label(unittest.TestCase):
             notice = wheel.read(info['NOTICE']).decode()
             licence = wheel.read(info['LICENSE']).decode()
         self.assertIn('Apache License', licence)
-        for credited in ('clean-sheet implementation', 'legend-pure', 'legend-engine', 'Copyright 2020 Goldman Sachs'):
+        for credited in ('clean-sheet implementation', 'legend-pure', 'legend-engine', 'legend-studio',
+                         'Copyright 2020 Goldman Sachs', 'Apache Arrow', 'CC BY 4.0'):
             self.assertIn(credited, notice)
+        self.assertIn('THIRD_PARTY_NOTICES.md', info, 'the third-party software it redistributes is listed')
         for graalvm in ('GRAALVM-LICENSE.txt', 'GRAALVM-LICENSE-NATIVEIMAGE.txt', 'GRAALVM-THIRD-PARTY-LICENSE.txt'):
             self.assertIn(graalvm, info, 'the runtime compiled into the library brings its licences')
 

@@ -1,4 +1,5 @@
-// Copyright 2026 Legend Contributors
+// Copyright 2020 Goldman Sachs (the declarations: legend-pure and legend-engine, see NOTICE)
+// Copyright 2026 Legend Contributors (their selection and arrangement here)
 // SPDX-License-Identifier: Apache-2.0
 //
 // GENERATED — do not edit (com.legend.generators.PreludeGenerator; regenerate: bazel run //:update_generated).

@@ -20,7 +20,7 @@ Legend Lite is a **clean-sheet implementation** of the [FINOS Legend](https://le
 
 ### Is Legend Lite a fork of Legend Engine?
 
-No. Legend Lite is a **clean-sheet implementation**: its code was written anew, not copied from legend-pure or legend-engine. It takes them as its specification — their grammar, typing rules and behaviour — and tests itself against their test suites and recorded answers, which [`NOTICE`](NOTICE) credits; some of those test fixtures are included, under their Apache 2.0 license. It reads the same Pure syntax but compiles it through a completely different pipeline built from scratch.
+No. Legend Lite is a **clean-sheet implementation**: its compiler and engine were written anew, not forked from legend-pure or legend-engine. It takes them as its specification — their grammar, typing rules and behaviour — and tests itself against their test suites and recorded answers. Some upstream material is included, under its Apache 2.0 license, and [`NOTICE`](NOTICE) lists it: the platform's Pure declarations, copied verbatim into `prelude.pure`; function signatures and registry names extracted from upstream by the generators in `spec/`; some test fixtures; and, for the apps, legend-studio's colour tokens, icons and Pure editor grammar. It reads the same Pure syntax but compiles it through a completely different pipeline built from scratch.
 
 ### What does "100% SQL push-down" mean?
 

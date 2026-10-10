@@ -331,12 +331,13 @@ py_wheel(
     visibility = ["//datacube:__pkg__"],
     description_file = "README.md",
     distribution = "legend-lite",
-    # the licences, in the wheel's .dist-info: the project's (Apache-2.0) and its NOTICE (legend-pure and legend-engine
-    # credited, their fixtures' notice), and GraalVM Community Edition's, whose runtime is compiled into the library
+    # the licences, in the wheel's .dist-info: the project's (Apache-2.0), its NOTICE (legend-pure, legend-engine and
+    # legend-studio credited, and the notices it carries), the third-party software it redistributes, and GraalVM Community Edition's, whose runtime is compiled into the library
     # (GPLv2 with the Classpath Exception, and its third parties')
     extra_distinfo_files = {
         "//:LICENSE": "LICENSE",
         "//:NOTICE": "NOTICE",
+        "//:THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
         "@graalvm//:LICENSE.txt": "GRAALVM-LICENSE.txt",
         "@graalvm//:LICENSE_NATIVEIMAGE.txt": "GRAALVM-LICENSE-NATIVEIMAGE.txt",
         "@graalvm//:THIRD_PARTY_LICENSE.txt": "GRAALVM-THIRD-PARTY-LICENSE.txt",

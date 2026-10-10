@@ -1,5 +1,6 @@
 {
   "name": "@legend-lite/engine-client",
+  "license": "Apache-2.0",
   "private": true,
   "type": "module",
   "description": "Where a query runs, for every app here: the engine interface, results and receipts, legend-engine's pure/v1 client, DuckDB in the tab, and the warehouse.",
