@@ -110,6 +110,10 @@ class PlanRunnerTest {
             assertEquals(invalid("parameter 'p' (Float[1]): " + v + " is not finite: no SQL literal stands for it"),
                     refusal(declared("p", "Float", 1, 1), v));
         }
+        // a date-time is passed as its text, which no database reads beyond the year 9999
+        assertEquals(invalid("parameter 't' (DateTime[1]): +10000-01-01T00:00 is outside the years 1 to 9999: no"
+                + " date-time text a database reads stands for it"),
+                refusal(declared("t", "DateTime", 1, 1), LocalDateTime.of(10000, 1, 1, 0, 0)));
         // what no plan binds yet (the planner refuses it first; PARK-21)
         assertEquals(invalid("parameter 'b' (Byte[1]): a Byte value is not bound by a plan (PARK-21)"),
                 refusal(declared("b", "Byte", 1, 1), 1L));
@@ -174,9 +178,24 @@ class PlanRunnerTest {
                 refused.getMessage());
     }
 
+    /** A slot's null type is a JDBC type's name, or the plan is refused by name before any session is opened. */
+    @Test
+    void aSlotWhoseNullTypeIsNoJdbcTypeIsRefusedBeforeASessionIsOpened() {
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.DuckDB),
+                new ExecutionPlan.Servers.Every(), List.of(), List.of());
+        ExecutionPlan bad = new ExecutionPlan(List.of(declared("n", "Integer", 0, 1)), new ExecutionPlan.TextResult(
+                ExecutionPlan.Format.JSON, new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "Integer"))),
+                new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
+                        new ExecutionPlan.Binding.One("NOT_A_TYPE", null))), target, null)));
+        var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.run(bad, Map.of(), t -> {
+            throw new AssertionError("a session was opened");
+        }, new StringWriter()));
+        assertEquals("slot of 'n': its null type 'NOT_A_TYPE' is no JDBC type", refused.getMessage());
+    }
+
     // ---- a type hole (H2, which types a placeholder when it prepares it) -----------------------------------------
 
-    /** H2's spelling of each kind of value, as its dialect writes a type hole's (H2.literalType). */
+    /** H2's spelling of each kind of value, as its dialect writes a type hole's (H2.holeType). */
     private static final Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> H2_TYPES = Map.of(
             ExecutionPlan.ValueKind.INTEGER, new ExecutionPlan.TypeSpelling("BIGINT", ExecutionPlan.Digits.NONE),
             ExecutionPlan.ValueKind.DECIMAL, new ExecutionPlan.TypeSpelling("NUMERIC",

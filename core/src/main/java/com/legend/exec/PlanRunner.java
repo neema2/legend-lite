@@ -52,6 +52,11 @@ public final class PlanRunner {
     private static void text(ExecutionPlan.TextResult text, Map<String, PlanParameters.Checked> checked,
             PlanSessions.Source sessions, Writer out) throws IOException {
         ExecutionPlan.Sql sql = text.sql();
+        for (ExecutionPlan.Slot slot : sql.slots()) {
+            if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
+                nullType(one, slot);
+            }
+        }
         try (Sessions.Session session = sessions.open(sql.target())) {
             Connection c = session.connection();
             check(c, sql.target());
@@ -246,8 +251,7 @@ public final class PlanRunner {
                             st.setObject(index, v.value());
                         }
                     }
-                    case PlanParameters.None none -> st.setNull(index, java.sql.JDBCType.valueOf(one.nullType())
-                            .getVendorTypeNumber());
+                    case PlanParameters.None none -> st.setNull(index, nullType(one, slot));
                     case PlanParameters.Many many -> throw new IllegalStateException("slot " + index + " binds one"
                             + " value of '" + slot.parameter() + "', given a list");
                 }
@@ -255,7 +259,18 @@ public final class PlanRunner {
         }
     }
 
-    /** An array element as the drivers take it: a timestamp as {@code java.sql.Timestamp} (measured,
+    /** The JDBC type number of {@code one}'s null: its type's name is a {@code java.sql.JDBCType}'s, or the plan is refused
+     *  by name (checked for every slot before any session is opened). */
+    private static int nullType(ExecutionPlan.Binding.One one, ExecutionPlan.Slot slot) {
+        try {
+            return java.sql.JDBCType.valueOf(one.nullType()).getVendorTypeNumber();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("slot of '" + slot.parameter() + "': its null type '" + one.nullType()
+                    + "' is no JDBC type", e);
+        }
+    }
+
+        /** An array element as the drivers take it: a timestamp as {@code java.sql.Timestamp} (measured,
      *  probes/list-results.txt), every other value as it is. */
     private static Object arrayElement(Object v) {
         return v instanceof LocalDateTime t ? java.sql.Timestamp.valueOf(t) : v;

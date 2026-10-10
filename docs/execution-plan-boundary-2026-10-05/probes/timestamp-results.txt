@@ -1,7 +1,9 @@
 TimestampProbe.java, run 2026-10-09 on DuckDB 1.4.4 (driver 1.4.4.0). DuckDB's driver cuts a bound date-time to the
 microsecond, even into a TIMESTAMP_NS cast; passed as its text, the cast keeps every digit and answers as the
-TIMESTAMP_NS literal does. (Postgres: its literal writer cuts to six digits and its driver rounds a bound value;
-PostgresArmTest's nanosecond case, passed as cut text, answers as the literal.)
+TIMESTAMP_NS literal does. (Postgres 16, measured by PostgresArmTest's nanosecond case on 2026-10-09: before the fix, the value
+2024-01-02T10:30:00.123456789 bound as a LocalDateTime answered "2024-01-02T10:30:00.123457" -- the driver rounds --
+where the let path's literal, which Postgres.timestampLit cuts to six digits, answered "2024-01-02T10:30:00.123456";
+passed as its text cut to six digits, the case answers as the literal.)
 
 == DuckDB v1.4.4
 -- 2024-01-02T10:30

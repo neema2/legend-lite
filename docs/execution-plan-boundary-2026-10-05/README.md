@@ -66,16 +66,24 @@ F1 is the one form that uses the index on all three and is right for a value sto
   database answers as the literal under every name tried — but for decimals on DuckDB, whose driver makes a `DECIMAL`
   array of three places (`0.1234` read as `0.123`: the wrong row; PARK-20). On H2 the array must stay bare: a cast
   inside `ANY(...)` is read as H2's boolean `ANY` aggregate (the 15 `FAIL` lines).
-- `ValueTypedCastProbe.java` → `value-typed-cast-results.txt` (2026-10-09, step 3): on H2, a value bound in a cast to
+- `ValueTypedCastProbe.java` → `value-typed-cast-results.txt` (2026-10-09, step 3): on H2 2.1.214 and 2.4.240 alike, a value bound in a cast to
   its own literal's type — the type the runner writes into a plan's type hole — against the literal: decimals of every
   shape, whole numbers, extreme magnitudes, dates and date-times to the nanosecond (passed as text), alone, in
   arithmetic, compared and inside the answer's JSON. The same type and text throughout, but a small whole number's type
-  (BIGINT for the literal's INTEGER, the same text); the last case is the control: a plain `TIMESTAMP` rounds. PARK-19's
-  fix.
+  (BIGINT for the literal's INTEGER, the same text); the last case is the control: a plain `TIMESTAMP` rounds. Then an
+  absent value of each kind, a null cast to its type by name alone: valid, and null, in every position. PARK-19's fix.
 - `TimestampProbe.java` → `timestamp-results.txt` (2026-10-09, step 3): on DuckDB, a date-time bound bare and in each
   cast, as a `LocalDateTime`, a `Timestamp` and its text, against the `TIMESTAMP` and `TIMESTAMP_NS` literals. The
   driver cuts a bound date-time to the microsecond, even into a `TIMESTAMP_NS` cast; passed as text, the cast keeps
-  every digit, as the literal does. Why a date-time parameter is passed as its text on every database.
+  every digit, as the literal does; and Postgres's driver rounding a bound value (measured by `PostgresArmTest`, its
+  header). Why a date-time parameter is passed as its text on every database.
+- `engine-reference/` (2026-10-10, step 3): the real reference. `record_parameters.py` and `record_literals.py` send
+  the plan tests' queries (`model.pure`), with parameters and with the values written in, to legend-engine 4.145.0's
+  execute and keep its answers; `compare_with_lite.py` sends the identical requests to lite's execute and compares
+  every cell's exact text; `pure_text.py` runs plain Pure expressions on the engine's Pure, no database, printed by
+  `toString` — Pure's own text. `results.txt`: where the engine answers, lite's values are its own but in four
+  places (PARK-24); the engine cannot run a projected parameter, a Number parameter or a DateTime list; today's lite
+  path refuses an absent optional value.
 - `EngineValidationProbe.java` → `engine-validation-results.txt` (2026-10-09, step 3): legend-engine 4.145.0's own
   parameter validation, run on its released jars: its messages, its order of checks (missing, validation, its
   normalizer), its type list's order, and what it passes on (a null value, an empty list, NaN). The compatibility
