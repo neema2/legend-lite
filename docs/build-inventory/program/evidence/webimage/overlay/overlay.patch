@@ -1,0 +1,421 @@
+--- a/core/src/main/java/com/legend/builtin/DecisionProbe.java
++++ b/core/src/main/java/com/legend/builtin/DecisionProbe.java
+@@ -79,14 +79,7 @@
+     @Nullable DecisionProbe INSTALLED = installed();
+ 
+     private static @Nullable DecisionProbe installed() {
+-        if (System.getenv("LL_SHADOW") == null) {
+-            return null;
+-        }
+-        java.util.Iterator<DecisionProbe> provided = ServiceLoader.load(DecisionProbe.class).iterator();
+-        if (!provided.hasNext()) {
+-            throw new IllegalStateException("LL_SHADOW set, no DecisionProbe bound (//core:shadow_binding)");
+-        }
+-        return provided.next();
++        return null;
+     }
+ 
+     static void overloads(String fqn, List<Function> today, Object model, Stream<Function> modelFunctions) {
+--- a/core/src/main/java/com/legend/builtin/SystemMetamodel.java
++++ b/core/src/main/java/com/legend/builtin/SystemMetamodel.java
+@@ -534,7 +534,7 @@
+     }
+ 
+     /** Schema (charter &sect;4 + step 3); grow BY WITNESS ONLY. */
+-    private static final String SOURCE = """
++    private static final String SOURCE = com.legend.base.SpikeFormat.template("""
+             ###Relational
+             Database meta::lite::metamodel::MetamodelStore
+             (
+@@ -1096,10 +1096,6 @@
+             function meta::relational::functions::typeInference::inferRelationalType(rop:meta::relational::metamodel::RelationalOperationElement[1]):meta::relational::metamodel::datatype::DataType[0..1]
+             {
+                 $rop.inferredType
+-            }
+-            function meta::relational::functions::typeInference::inferRelationalType(rop:meta::relational::metamodel::RelationalOperationElement[1], failOnMatchFailure:Boolean[1]):meta::relational::metamodel::datatype::DataType[0..1]
+-            {
+-                $rop->meta::relational::functions::typeInference::inferRelationalType()
+             }
+ 
+             function meta::relational::metamodel::datatype::dataTypeToSqlText(type:meta::relational::metamodel::datatype::DataType[1]):String[1]
+@@ -1156,15 +1152,7 @@
+             function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[1]
+             {
+                 $t->meta::lite::lineage::relationTreeLines($withJoin)->joinStrings('', '\n', '\n')
+-            }
+-            function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], space:String[1]):String[1]
+-            {
+-                $t->meta::pure::lineage::scanRelations::relationTreeAsString(true, $space)
+             }
+-            function meta::pure::lineage::scanRelations::relationTreeAsString(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1], space:String[1]):String[1]
+-            {
+-                $t->meta::lite::lineage::relationTreeLines($withJoin)->map(l|$space + $l)->joinStrings('', '\n', '\n')
+-            }
+             function meta::lite::lineage::relationTreeLines(t:meta::pure::lineage::scanRelations::RelationTree[1], withJoin:Boolean[1]):String[*]
+             {
+                 $t.nodes->sortBy(n|$n.preorder)->map(n|if($n.kind == 'root', |$n.indent + 'root', |$n.indent + '------> (' + $n.kind + ') ' + $n.name->toOne() + if($withJoin && $n.joinLabel->isNotEmpty(), |'(' + $n.joinLabel->toOne() + ')', |'') + ' [' + $n.columns->sortBy(c|$c.ordinal).name->joinStrings(', ') + ']'))
+@@ -1192,7 +1180,7 @@
+                 $_this.mainTableAlias.base
+             }
+ 
+-            function meta::pure::mapping::superMapping(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::PropertyMappingsImplementation[0..1]
++            function meta::pure::mapping::superMapping(_this:meta::pure::mapping::PropertyMappingsImplementation[1]):meta::pure::mapping::SetImplementation[0..1]
+             {
+                 $_this->cast(@meta::relational::mapping::RootRelationalInstanceSetImplementation).ancestry->filter(a|$a.depth == 1).ancestor->first()
+             }
+@@ -1476,12 +1464,52 @@
+                     )
+                 }
+             )
+-            """.formatted(S, INHERITANCE_OP, filters(), dataTypeSets(),
++            """, S, INHERITANCE_OP, filters(), dataTypeSets(),
+                     opRoutes("relationalOperationElement", "ColumnMappingToOp"),
+                     opRoutes("relationalOperationElement", "PropertyMappingToOp"),
+                     typeRoutes(), opSets(), inferredTypeEnds(), planSets());
+ 
++    /** A model element shadows a system element of the same qualified
++     * name — for FUNCTIONS only when the parameter types agree too: a
++     * same-name function over other parameter types is an OVERLOAD (the
++     * engine's own {@code resolvePrimaryKey(rsi:RelationalInstanceSet
++     * Implementation)} beside the root-set body), never a shadow. */
++    private static boolean shadows(PackageableElement e, PackageableElement sys) {
++        if (!e.qualifiedName().equals(sys.qualifiedName())) {
++            return false;
++        }
++        if (e instanceof com.legend.model.FunctionDefinition f
++                && sys instanceof com.legend.model.FunctionDefinition g) {
++            // by function id (build rebuild Phase 3): another version under the name — another multiplicity or
++            // return — is its own function, never a shadow; the type spellings below tell apart two functions the
++            // id cannot (it spells types by their short names)
++            if (!com.legend.model.FunctionId.of(f).equals(com.legend.model.FunctionId.of(g))
++                    || f.parameters().size() != g.parameters().size()) {
++                return false;
++            }
++            for (int i = 0; i < f.parameters().size(); i++) {
++                if (!spelling(f.parameters().get(i).type()).equals(
++                        spelling(g.parameters().get(i).type()))) {
++                    return false;
++                }
++            }
++        }
++        return true;
++    }
+ 
++    /** A parameter type's spelling without source positions (a resolved
++     * model type carries its parse position; the system source carries
++     * none — the record text never compared equal). */
++    private static String spelling(com.legend.protocol.TypeExpression t) {
++        return switch (t) {
++            case com.legend.protocol.TypeExpression.NameRef nr -> nr.name();
++            case com.legend.protocol.TypeExpression.Generic g -> g.name() + "<"
++                    + g.arguments().stream().map(SystemMetamodel::spelling)
++                            .collect(java.util.stream.Collectors.joining(",")) + ">";
++            default -> String.valueOf(t);
++        };
++    }
++
+     /** The system Pure source (tests inspect it; never edited at run time). */
+     public static String source() {
+         return SOURCE;
+@@ -1511,40 +1539,8 @@
+         static final java.util.Set<String> ALL = ELEMENTS.stream()
+                 .map(PackageableElement::qualifiedName)
+                 .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
+-        /** The system ELEMENTS' names (functions excluded): reserved, never redefined. */
+-        static final java.util.Set<String> NOT_FUNCTIONS = ELEMENTS.stream()
+-                .filter(e -> !(e instanceof com.legend.model.FunctionDefinition))
+-                .map(PackageableElement::qualifiedName)
+-                .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet));
+-        /** The system functions by id: the platform's own Pure ({@code PlatformPure}). */
+-        static final java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> FUNCTIONS_BY_ID = functionsById();
+-
+-        private static java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> functionsById() {
+-            java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> out = new java.util.LinkedHashMap<>();
+-            for (PackageableElement e : ELEMENTS) {
+-                if (e instanceof com.legend.model.FunctionDefinition f) {
+-                    com.legend.model.FunctionDefinition prior = out.put(com.legend.model.FunctionId.of(f), f);
+-                    if (prior != null) {
+-                        throw new IllegalStateException("the system metamodel declares " + com.legend.model.FunctionId.of(f) + " twice");
+-                    }
+-                }
+-            }
+-            return java.util.Collections.unmodifiableMap(out);
+-        }
+     }
+ 
+-    /** The ids of the system metamodel's functions: the platform's own Pure ({@code Implementation.PlatformPure};
+-     *  build rebuild Phase 3b, item 1b). */
+-    public static java.util.Set<com.legend.model.FunctionId> functionIds() {
+-        return Fqns.FUNCTIONS_BY_ID.keySet();
+-    }
+-
+-    /** The system metamodel's functions as parsed, by id — the body a loaded declaration with that id takes
+-     *  ({@code PlatformPure.adopt}). */
+-    public static java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> functionsById() {
+-        return Fqns.FUNCTIONS_BY_ID;
+-    }
+-
+     /** Whether {@code fqn} names a system ELEMENT (class, association,
+      * store, mapping — not a function body): reserved, never redefined. */
+     public static boolean isSystemElement(String fqn) {
+@@ -1558,24 +1554,34 @@
+     }
+ 
+     /**
+-     * The system layer is protected: a parsed element with the qualified name of a system ELEMENT (a class, an
+-     * association, a store, a mapping — not a function) is an error. Functions are no longer hidden here (build
+-     * rebuild Phase 3b, item 1b; the ledger's PARK-12 closed 2026-10-09): a loaded function with a system version's id is the platform's own
+-     * Pure ({@code Implementation.PlatformPure}) and takes the system version's body where the boot layer and a
+-     * graph are merged ({@code Compiler.boot}, {@code Compiler.normalizeWithSystem}), keeping its own declaration;
+-     * another version under the name is its own function, decided by the implementation table. Returns
+-     * {@code parsed} unchanged, for chaining.
++     * The ONE injection seam's parsed-level half: the model with every
++     * same-signature system FUNCTION shadow removed (a system function
++     * body is the platform's implementation of a real engine function; a
++     * same-signature function in the model is the ENGINE'S OWN SOURCE
++     * riding in the corpus universe — spec material, never our runtime,
++     * user-ratified 2026-08-18). A model element redefining a system
++     * ELEMENT is an error: the system layer is protected.
+      */
+-    public static ParsedModel requireNoSystemElementRedefined(ParsedModel parsed) {
+-        for (PackageableElement e : parsed.elements()) {
+-            if (Fqns.NOT_FUNCTIONS.contains(e.qualifiedName())) {
+-                throw new com.legend.error.ModelException(
+-                        com.legend.error.LegendCompileException.Phase.NORMALIZE,
+-                        "'" + e.qualifiedName() + "' is a system element of the"
+-                        + " platform's metamodel layer and cannot be redefined",
+-                        e.qualifiedName());
++    public static ParsedModel withoutSystemShadows(ParsedModel parsed) {
++        List<PackageableElement> kept = new ArrayList<>(parsed.elements());
++        for (PackageableElement el : ELEMENTS) {
++            if (el instanceof com.legend.model.FunctionDefinition) {
++                kept.removeIf(e -> shadows(e, el));
++                continue;
+             }
++            for (PackageableElement e : parsed.elements()) {
++                if (shadows(e, el)) {
++                    throw new com.legend.error.ModelException(
++                            com.legend.error.LegendCompileException.Phase.NORMALIZE,
++                            "'" + el.qualifiedName() + "' is a system element of the"
++                            + " platform's metamodel layer and cannot be redefined",
++                            el.qualifiedName());
++                }
++            }
+         }
+-        return parsed;
++        return kept.size() == parsed.elements().size() ? parsed
++                : new ParsedModel(kept, parsed.imports(), parsed.source(),
++                        parsed.elementOffsets(), parsed.elementImports(),
++                        parsed.elementSources(), parsed.unclaimedSections());
+     }
+ }
+--- a/core/src/main/java/com/legend/lineage/ScanRelations.java
++++ b/core/src/main/java/com/legend/lineage/ScanRelations.java
+@@ -430,7 +430,7 @@
+                 new RelationalOperation.TargetColumnRef(r));
+         right.labelOverride = "equal_\"joinleft_\"\"" + lAlias
+                 + "\"_\"joinright_\"\"" + rAlias + "\"";
+-        parent.children.put(String.format(java.util.Locale.ROOT, "%03d", 999 - parent.children.size())
++        parent.children.put(com.legend.base.SpikeFormat.pad(999 - parent.children.size(), 3)
+                 + right.table + "(tds_join)", right);
+     }
+ 
+@@ -462,7 +462,7 @@
+         if (body instanceof com.legend.protocol.spec.CBoolean cb && cb.value()) {
+             Node parent = roots.get(roots.size() - 1);
+             right.labelOverride = "tdsJoin";
+-            parent.children.put(String.format(java.util.Locale.ROOT, "%03d", 999 - parent.children.size())
++            parent.children.put(com.legend.base.SpikeFormat.pad(999 - parent.children.size(), 3)
+                     + right.table + "(tds_join)", right);
+             return;
+         }
+--- a/core/src/main/java/com/legend/lowering/AsorRef.java
++++ b/core/src/main/java/com/legend/lowering/AsorRef.java
+@@ -41,7 +41,7 @@
+             + "\"type\":\"H2\"}";
+ 
+     public static String seg(String v) {
+-        return String.format(java.util.Locale.ROOT, "%010d", v.length()) + ":" + v + ":";
++        return com.legend.base.SpikeFormat.pad(v.length(), 10) + ":" + v + ":";
+     }
+ 
+     /** The STATIC prefix — everything before the per-row pk segment. */
+@@ -59,7 +59,7 @@
+     public static String ref(String definingMapping, String rootSetId,
+             String setId, String pkJson) {
+         String full = prefix(definingMapping, rootSetId, setId)
+-                + String.format(java.util.Locale.ROOT, "%0" + SEG_LEN_WIDTH + "d", pkJson.length())
++                + com.legend.base.SpikeFormat.pad(pkJson.length(), SEG_LEN_WIDTH)
+                 + ":" + pkJson;
+         return MARKER + java.util.Base64.getEncoder().withoutPadding()
+                 .encodeToString(full.getBytes(
+--- a/core/src/main/java/com/legend/parser/SectionGrammarRegistry.java
++++ b/core/src/main/java/com/legend/parser/SectionGrammarRegistry.java
+@@ -111,10 +111,6 @@
+         // ServiceLoader overlays — registered LAST so an extension claiming
+         // a built-in name WINS (the engine's own shadowing rule: that is
+         // exactly what lets legend-lite drop into the engine's ###Pure)
+-        for (com.legend.spi.SectionGrammar g : java.util.ServiceLoader
+-                .load(com.legend.spi.SectionGrammar.class)) {
+-            m.put(g.name(), g);
+-        }
+         return m;
+     }
+ 
+--- a/core/src/main/java/com/legend/protocol/PureComposer.java
++++ b/core/src/main/java/com/legend/protocol/PureComposer.java
+@@ -864,7 +864,7 @@
+         for (int i = 0; i < line.length(); i++) {
+             char c = line.charAt(i);
+             if (i >= trailingFrom || (i == 0 && (allWhitespace || (escapeLeadingWhitespace && leading > 0)))) {
+-                b.append(String.format(Locale.ROOT, "\\u%04x", (int) c));
++                b.append("\\u").append(com.legend.base.SpikeFormat.hex4(c));
+             } else if (c == '\\') {
+                 b.append("\\\\");
+             } else if (c == '\r') {
+--- a/core/src/main/java/com/legend/sql/Json.java
++++ b/core/src/main/java/com/legend/sql/Json.java
+@@ -204,7 +204,7 @@
+                 case '\f' -> b.append("\\f");
+                 default -> {
+                     if (c < 0x20) {
+-                        b.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int) c));
++                        b.append("\\u").append(com.legend.base.SpikeFormat.hex4(c));
+                     } else {
+                         b.append(c);
+                     }
+--- a/core/src/main/java/com/legend/values/PureDateLiteral.java
++++ b/core/src/main/java/com/legend/values/PureDateLiteral.java
+@@ -94,15 +94,21 @@
+             case Year y -> y.toEngineString();
+             case YearMonth ym -> ym.toEngineString();
+             case StrictDate d -> d.toEngineString();
+-            case DateWithHour h -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:00:00.000000000+0000",
+-                    h.year(), h.month(), h.day(), h.hour());
+-            case DateWithMinute m -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:00.000000000+0000",
+-                    m.year(), m.month(), m.day(), m.hour(), m.minute());
+-            case DateWithSecond sec -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.000000000+0000",
+-                    sec.year(), sec.month(), sec.day(), sec.hour(), sec.minute(), sec.second());
+-            case DateWithSubsecond ss -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s+0000",
+-                    ss.year(), ss.month(), ss.day(), ss.hour(), ss.minute(), ss.second(),
+-                    (ss.subsecond() + "000000000").substring(0, 9));
++            case DateWithHour h -> h.year() + "-" + com.legend.base.SpikeFormat.pad(h.month(), 2) + "-"
++                    + com.legend.base.SpikeFormat.pad(h.day(), 2) + "T" + com.legend.base.SpikeFormat.pad(h.hour(), 2)
++                    + ":00:00.000000000+0000";
++            case DateWithMinute m -> m.year() + "-" + com.legend.base.SpikeFormat.pad(m.month(), 2) + "-"
++                    + com.legend.base.SpikeFormat.pad(m.day(), 2) + "T" + com.legend.base.SpikeFormat.pad(m.hour(), 2)
++                    + ":" + com.legend.base.SpikeFormat.pad(m.minute(), 2) + ":00.000000000+0000";
++            case DateWithSecond sec -> sec.year() + "-" + com.legend.base.SpikeFormat.pad(sec.month(), 2) + "-"
++                    + com.legend.base.SpikeFormat.pad(sec.day(), 2) + "T" + com.legend.base.SpikeFormat.pad(sec.hour(), 2)
++                    + ":" + com.legend.base.SpikeFormat.pad(sec.minute(), 2) + ":"
++                    + com.legend.base.SpikeFormat.pad(sec.second(), 2) + ".000000000+0000";
++            case DateWithSubsecond ss -> ss.year() + "-" + com.legend.base.SpikeFormat.pad(ss.month(), 2) + "-"
++                    + com.legend.base.SpikeFormat.pad(ss.day(), 2) + "T" + com.legend.base.SpikeFormat.pad(ss.hour(), 2)
++                    + ":" + com.legend.base.SpikeFormat.pad(ss.minute(), 2) + ":"
++                    + com.legend.base.SpikeFormat.pad(ss.second(), 2) + "."
++                    + (ss.subsecond() + "000000000").substring(0, 9) + "+0000";
+         };
+     }
+ 
+@@ -247,7 +253,7 @@
+                     t.getDayOfMonth(), t.getHour(), t.getMinute(),
+                     t.getSecond());
+         }
+-        String frac = String.format(java.util.Locale.ROOT, "%09d", t.getNano())
++        String frac = com.legend.base.SpikeFormat.pad(t.getNano(), 9)
+                 .replaceFirst("0+$", "");
+         return new DateWithSubsecond(t.getYear(), t.getMonthValue(),
+                 t.getDayOfMonth(), t.getHour(), t.getMinute(),
+@@ -295,7 +301,7 @@
+ 
+     record YearMonth(int year, int month) implements PureDateLiteral {
+         @Override public String toEngineString() {
+-            return String.format(java.util.Locale.ROOT, "%d-%02d", year, month);
++            return year + "-" + com.legend.base.SpikeFormat.pad(month, 2);
+         }
+ 
+         @Override public String toString() { return toEngineString(); }
+@@ -303,7 +309,7 @@
+ 
+     record StrictDate(int year, int month, int day) implements PureDateLiteral {
+         @Override public String toEngineString() {
+-            return String.format(java.util.Locale.ROOT, "%d-%02d-%02d", year, month, day);
++            return year + "-" + com.legend.base.SpikeFormat.pad(month, 2) + "-" + com.legend.base.SpikeFormat.pad(day, 2);
+         }
+ 
+         @Override public String toString() { return toEngineString(); }
+@@ -311,7 +317,8 @@
+ 
+     record DateWithHour(int year, int month, int day, int hour) implements PureDateLiteral {
+         @Override public String toEngineString() {
+-            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d", year, month, day, hour);
++            return year + "-" + com.legend.base.SpikeFormat.pad(month, 2) + "-" + com.legend.base.SpikeFormat.pad(day, 2)
++                    + "T" + com.legend.base.SpikeFormat.pad(hour, 2);
+         }
+ 
+         /** Pure's print form: time-bearing values carry the
+@@ -322,7 +329,8 @@
+ 
+     record DateWithMinute(int year, int month, int day, int hour, int minute) implements PureDateLiteral {
+         @Override public String toEngineString() {
+-            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d", year, month, day, hour, minute);
++            return year + "-" + com.legend.base.SpikeFormat.pad(month, 2) + "-" + com.legend.base.SpikeFormat.pad(day, 2)
++                    + "T" + com.legend.base.SpikeFormat.pad(hour, 2) + ":" + com.legend.base.SpikeFormat.pad(minute, 2);
+         }
+ 
+         /** Pure's print form: time-bearing values carry the
+@@ -333,8 +341,9 @@
+ 
+     record DateWithSecond(int year, int month, int day, int hour, int minute, int second) implements PureDateLiteral {
+         @Override public String toEngineString() {
+-            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d",
+-                    year, month, day, hour, minute, second);
++            return year + "-" + com.legend.base.SpikeFormat.pad(month, 2) + "-" + com.legend.base.SpikeFormat.pad(day, 2)
++                    + "T" + com.legend.base.SpikeFormat.pad(hour, 2) + ":" + com.legend.base.SpikeFormat.pad(minute, 2)
++                    + ":" + com.legend.base.SpikeFormat.pad(second, 2);
+         }
+ 
+         /** Pure's print form: time-bearing values carry the
+@@ -347,8 +356,9 @@
+                              int hour, int minute, int second,
+                              String subsecond) implements PureDateLiteral {
+         @Override public String toEngineString() {
+-            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s",
+-                    year, month, day, hour, minute, second, subsecond);
++            return year + "-" + com.legend.base.SpikeFormat.pad(month, 2) + "-" + com.legend.base.SpikeFormat.pad(day, 2)
++                    + "T" + com.legend.base.SpikeFormat.pad(hour, 2) + ":" + com.legend.base.SpikeFormat.pad(minute, 2)
++                    + ":" + com.legend.base.SpikeFormat.pad(second, 2) + "." + subsecond;
+         }
+ 
+         /** Pure's print form: time-bearing values carry the
+--- a/core/src/main/java/com/legend/values/PureTimeLiteral.java
++++ b/core/src/main/java/com/legend/values/PureTimeLiteral.java
+@@ -51,7 +51,7 @@
+     record TimeWithMinute(int hour, int minute) implements PureTimeLiteral {
+         public TimeWithMinute { validateHour(hour); validateMinute(minute); }
+         @Override public String toEngineString() {
+-            return String.format(java.util.Locale.ROOT, "%02d:%02d", hour, minute);
++            return com.legend.base.SpikeFormat.pad(hour, 2) + ":" + com.legend.base.SpikeFormat.pad(minute, 2);
+         }
+     }
+ 
+@@ -62,7 +62,8 @@
+             validateSecond(second);
+         }
+         @Override public String toEngineString() {
+-            return String.format(java.util.Locale.ROOT, "%02d:%02d:%02d", hour, minute, second);
++            return com.legend.base.SpikeFormat.pad(hour, 2) + ":" + com.legend.base.SpikeFormat.pad(minute, 2) + ":"
++                    + com.legend.base.SpikeFormat.pad(second, 2);
+         }
+     }
+ 
+@@ -74,7 +75,8 @@
+             validateSubsecond(subsecond);
+         }
+         @Override public String toEngineString() {
+-            return String.format(java.util.Locale.ROOT, "%02d:%02d:%02d.%s", hour, minute, second, subsecond);
++            return com.legend.base.SpikeFormat.pad(hour, 2) + ":" + com.legend.base.SpikeFormat.pad(minute, 2) + ":"
++                    + com.legend.base.SpikeFormat.pad(second, 2) + "." + subsecond;
+         }
+     }
+ 

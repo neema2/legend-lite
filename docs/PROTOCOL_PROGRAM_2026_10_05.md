@@ -356,6 +356,8 @@ not be written back, so it is refused.
    `com.legend.json.Json`'s writer still writes a double the platform's way, which can differ by a digit in the tab
    (PARK-23: lite's exact writer, `PortableText.doubleText`, measured 85 times the JDK's cost on result-like values and
    up to 600 on the hardest, too slow for the server's results; the fix is a fast exact spelling, next after leg 5).
+   Revised 2026-10-10: the fix goes into TeaVM's class library, after a conformance test of it against the JVM (the
+   user kept the tab on TeaVM after a GraalVM Web Image spike, `docs/WEB_IMAGE_SPIKE_2026_10_10.md`).
 6. **One whole-model compile, and the tab's other `pure/v1` twins on the route.** "Compile a whole model" (its
    elements, then every body in it) is strung together three times today: `PureV1Api.compile`, the tab's
    `compileOrError` and the SDLC server's `CoreGrammar.compile`. It becomes one function on the compiler's front door

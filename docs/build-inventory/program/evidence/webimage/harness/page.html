@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+// SPIKE (2026-10-10): both modules in the pinned Chromium, the same checks as the Node differentials.
+async function loadWebImage() {
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'build/planner.js';
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+  await GraalVM.run([], new GraalVM.Config());
+  const call = globalThis.legendPlanner;
+  return {
+    planOrError: (a, b, c) => call('planOrError', a, b, c),
+    pureV1OrError: (a, b, c) => call('pureV1OrError', a, b, c),
+    zoneProbe: (a, b) => call('zoneProbe', a, b),
+  };
+}
+
+async function loadTeaVM() {
+  const { load } = await import('./teavm/wasm-gc-module-runtime.js');
+  const m = await load('./teavm/classes.wasm', {
+    stackDeobfuscator: { enabled: false },
+    installImports(o) {
+      o.teavmConsole = o.teavmConsole || {};
+      o.teavmConsole.putcharStdout = () => {};
+      o.teavmConsole.putcharStderr = () => {};
+    },
+  });
+  return m.exports;
+}
+
+const text = async (p) => (await fetch(p)).text();
+const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+const sha256 = async (s) => hex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)));
+
+function okBody(folded) {
+  const prefix = 'OK\n200\n';
+  if (!folded.startsWith(prefix)) return undefined;
+  const type = folded.indexOf('\n', prefix.length);
+  return type < 0 ? undefined : folded.slice(type + 1);
+}
+
+async function runBench(kind, withRoundTrip) {
+  const out = { kind };
+  const t0 = performance.now();
+  const m = kind === 'webimage' ? await loadWebImage() : await loadTeaVM();
+  const t1 = performance.now();
+  out.loadMs = Math.round(t1 - t0);
+
+  const model = await text('data/model.pure');
+  const queries = (await text('data/queries.tsv')).split('\n').filter((l) => l !== '')
+    .map((l) => [l.slice(0, l.indexOf('\t')), l.slice(l.indexOf('\t') + 1)]);
+  const jvm = new Map();
+  const re = /<<<([^>]+)>>>\n([\s\S]*?)\n<<<END>>>\n/g;
+  const answers = await text('data/jvm_answers.txt');
+  let mm;
+  while ((mm = re.exec(answers)) !== null) jvm.set(mm[1], mm[2]);
+
+  const t2 = performance.now();
+  let matched = 0;
+  let first;
+  for (const [n, q] of queries) {
+    const v = m.planOrError(model, q, 'trades::RT');
+    if (first === undefined) first = performance.now() - t2;
+    if (jvm.get(n) === v) matched++;
+  }
+  const t3 = performance.now();
+  out.firstPlanMs = Math.round(first);
+  out.restPlansMs = Math.round(t3 - t2 - first);
+  for (const [, q] of queries) m.planOrError(model, q, 'trades::RT');
+  out.secondPassMs = Math.round(performance.now() - t3);
+  out.differential = `${matched}/${queries.length}`;
+
+  const zones = (await text('data/zone_jvm.txt')).split(/\r?\n/).filter((l) => l !== '');
+  out.zones = `${zones.filter((l) => { const [iso, z] = l.split('\t'); return `${iso}\t${z}\t${m.zoneProbe(iso, z)}` === l; }).length}/${zones.length}`;
+
+  if (withRoundTrip) {
+    const lines = (await text('data/tab-round-trip.jsonl')).split('\n').filter((l) => l !== '');
+    const t4 = performance.now();
+    let ok = 0;
+    for (const line of lines) {
+      const { text: src, answers: want } = JSON.parse(line);
+      const toJson = m.pureV1OrError('/api/pure/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', src);
+      const asked = [await sha256(toJson)];
+      const json = okBody(toJson);
+      if (json !== undefined) {
+        for (const style of ['STANDARD', 'PRETTY']) {
+          asked.push(await sha256(m.pureV1OrError('/api/pure/v1/grammar/jsonToGrammar/model', `renderStyle=${style}`, json)));
+        }
+      }
+      if (asked.length === want.length && asked.every((a, i) => a === want[i])) ok++;
+    }
+    out.roundTrip = `${ok}/${lines.length}`;
+    out.roundTripMs = Math.round(performance.now() - t4);
+  }
+  if (performance.memory) out.jsHeapMB = Math.round(performance.memory.usedJSHeapSize / 1e6);
+  return out;
+}
+</script>
+</body>
+</html>

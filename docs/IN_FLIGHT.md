@@ -464,9 +464,13 @@ well as STANDARD (exact over the corpus in both), legend-engine's `jsonToGrammar
 to text to JSON exact over legend-engine's test collection, lite's 60 projects and the eight upstream Legend showcase
 projects, in both styles, in the JVM (`//parser-equivalence:round_trip_proof`) and in the tab (`//wasm:round_trip_test`,
 9,423 inputs byte for byte); S38 and S39 (lite keeps the braces and the column multiplicity the engine's printer drops);
-TeaVM's `isBlank` and double conversions made portable and guarded; PARK-22 and PARK-23 parked. **Next, not yet
-started:** PARK-23 (one fast exact double conversion for `com.legend.json.Json`'s reader and writer), then legs 6 to 8;
-PARK-17 closes in leg 6. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
+TeaVM's `isBlank` and double conversions made portable and guarded; PARK-22 and PARK-23 parked. **2026-10-10:** a spike
+built the tab with GraalVM Web Image (`docs/WEB_IMAGE_SPIKE_2026_10_10.md`); the user kept TeaVM, held to the JDK by
+tests, and PARK-23's fix moved into TeaVM's class library. **Next, started 2026-10-10 on branch `teavm-conformance`:**
+a conformance test of TeaVM's class library against the JVM over the JDK methods lite's browser code calls, run in the
+wasm lane (files: new sources and targets in `wasm/`, the lane in `gates/BUILD.bazel`; nothing in `core/`); then the
+exact conversions in TeaVM's library (PARK-23), carried in our build until TeaVM releases them (`tools/teavm/`); then
+legs 6 to 8; PARK-17 closes in leg 6. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
 function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`

@@ -30,6 +30,7 @@ apart from local paths (written `<checkout>`, `<output_base>`, `<tmp>`, `~`). Th
 | `world/e1_seeds.json`, `user_modules.txt`, `e8_extra.files`, `repos.json` | recorded results of the manifest-world experiments that the briefs quote (the seeds, the user side's modules, experiment 8's extra files, the repositories) | `PHASES_4_5_7.md`, `PHASES_3B_6.md`, the experiments README |
 | `phase8/CI_LANES_2026_10_07.md` | CI measured on 2026-10-07 (written in the planning session, not moved from scratch): every lane's minutes per platform, the minutes of actual testing per lane, the browser lane step by step, the 10 GB cache cap and the five-macOS-jobs cap, the native image built three times | the plan's §4 (L1), `PHASE_8.md` §8 |
 | `phase8/lane_minutes.py`, `job_steps.py`, `concurrency.py`, `test_minutes.py` | the scripts that produced it, over `gh run view <run> --json jobs`, `gh api .../actions/jobs/<job>`, the same job list, and a downloaded `test logs` artifact (`gh run download <run> -n <platform>-lane-<key>`); run with `python3 -I` | `CI_LANES_2026_10_07.md` |
+| `webimage/` | the GraalVM Web Image spike (written in the protocol line's session, 2026-10-10, not moved from scratch): the tab's planner built by Web Image, its adapter, the harness that runs the repo's differentials and times both builds in Node and Chromium, the class-library probes, the size analysis, the reproducibility runs, and every number (`webimage/README.md`) | `docs/WEB_IMAGE_SPIKE_2026_10_10.md` |
 
 ## What stays in scratch, and why
 

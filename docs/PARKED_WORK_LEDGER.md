@@ -638,26 +638,31 @@ through `doubleOf`. The writer is the one conversion left: `PortableText.doubleT
 numbers, measured 2026-10-09 at about 85 times the JDK's cost on result-like values (255 ms per 100,000 against 3) and
 up to 600 times on the hardest (1.9 s), too slow for every result the server writes.
 
-**The fix.** A fast exact spelling -- the published shortest-digits algorithms (Ryu, Schubfach: the JDK's own since 19),
-written from the papers, not copied -- held to the JDK by `PortableTextTest`'s differential, and used by `Json`'s writer,
-`PortableText.doubleText` and the dialects' float literals alike: one path, exact on every platform, at the JDK's speed.
-The same work covers `Json`'s READER, which also keeps the platform's conversion (`BigDecimal.doubleValue`): the protocol
-reads a JSON number by its own text through the exact `PortableText.doubleOf` (a fast path for the common case), but
-put on the library's reader it measured about 2.5 times `BigDecimal.doubleValue` on result-like values (2026-10-09),
-a cost every JSON the server reads would pay for nothing on the JVM; so, the user, 2026-10-09, it waits for the fast
-exact conversion.
+**The fix (revised 2026-10-10).** Make the platform's own conversion exact in the tab, where it is wrong: in TeaVM's
+class library (the user, 2026-10-10: the tab stays on TeaVM, held to the JDK by tests; `docs/WEB_IMAGE_SPIKE_2026_10_10.md`).
+`Double.toString` and `Float.toString` by a published shortest-digits algorithm (Schubfach or Ryu), `parseDouble` and
+TeaVM's other decimal-to-double paths by a fast exact one (Eisel and Lemire, with an exact slow path), written from the
+papers, not copied from the JDK; held to the JDK by the TeaVM conformance test; offered upstream to TeaVM (its issue
+#735) and carried in our build, ahead of TeaVM's own classes, until a TeaVM release has them. `Json`'s writer and reader
+then need no change: the platform's conversion is exact on every platform, at the platform's speed. The plan of
+2026-10-09 put a fast exact spelling inside lite instead (`PortableText.doubleText` and the reader through
+`PortableText.doubleOf`, which measured about 2.5 times `BigDecimal.doubleValue` on result-like values, a cost every
+JSON the server reads would pay for nothing on the JVM); it moved because a fix in TeaVM covers every conversion in the
+tab, the JDK's own uses included, not only the call sites lite routes by hand. `PortableText` and its bans stay until
+the conformance test shows TeaVM exact.
 
-**Acceptance.** `Json`'s writer spells every double through the one exact spelling; `PortableTextTest` holds it to
-the JDK (its edges, every power of two and ten, random values); a measurement shows it within a small factor of
-`Double.toString`.
+**Acceptance.** The conformance test holds TeaVM's `Double.toString`, `Float.toString`, `parseDouble` and
+`BigDecimal.doubleValue` to the JDK (their edges, every power of two and ten, a million random values) in the wasm
+lane; the tab's differentials stay byte-identical; a measurement shows TeaVM's conversions no slower than today's.
 
 **Cost of leaving it.** An answer the tab builds through `Json`'s writer with a hard-to-print double can spell its last
 digit differently from the server's; the value read back is the same in every case measured. The tab's model conversions,
 which leg 5 proves, do not go through it.
 
-**When.** As the next piece of the protocol program after leg 5 lands (it also covers the planner's SQL float literals in
-the tab).
+**When.** Next in the protocol program: the TeaVM conformance test first (it measures the whole gap, not only this row's),
+then these fixes (they also cover the planner's SQL float literals in the tab).
 
 **Anchors.** In json's own tests (`ParkedWorkLedgerTest` reads core's sources only): `PortableTextTest`'s
 `jsonsWriterStillSpellsADoubleThePlatformsWay_park23`, which finds `append(Double.toString(v));` (the writer) and
-`exact.doubleValue()` (the reader) in `Json.java`, and fails once either moves.
+`exact.doubleValue()` (the reader) in `Json.java`, and fails once either moves. Under the revised fix `Json.java` need
+not move: when the row closes, the anchor test goes with it.

@@ -1,0 +1,49 @@
+--- a/tools/teavm/TeaVmCompile.java
++++ b/TeaVmCompileFull.java
+@@ -1,4 +1,4 @@
+-package com.legend.tools.teavm;
++package teavmfull;
+ 
+ import org.teavm.tooling.ConsoleTeaVMToolLog;
+ import org.teavm.tooling.TeaVMProblemRenderer;
+@@ -35,11 +35,11 @@
+  * the MODULAR, unminified {@code wasm-gc-module-runtime.js}, the one DataCube's
+  * {@code WasmPlanner} and the differentials import.
+  */
+-public final class TeaVmCompile {
++public final class TeaVmCompileFull {
+ 
+     private static final String RUNTIME = "org/teavm/backend/wasm/wasm-gc-module-runtime.js";
+ 
+-    private TeaVmCompile() {
++    private TeaVmCompileFull() {
+     }
+ 
+     public static void main(String[] args) throws IOException, TeaVMToolException {
+@@ -63,7 +63,7 @@
+         }
+         ConsoleTeaVMToolLog log = new ConsoleTeaVMToolLog(false);
+         TeaVMTool tool = new TeaVMTool();
+-        try (URLClassLoader program = new URLClassLoader(urls, TeaVmCompile.class.getClassLoader())) {
++        try (URLClassLoader program = new URLClassLoader(urls, TeaVmCompileFull.class.getClassLoader())) {
+             tool.setLog(log);
+             tool.setTargetType(TeaVMTargetType.WEBASSEMBLY_GC);
+             tool.setMainClass(mainClass);
+@@ -71,7 +71,7 @@
+             tool.setTargetDirectory(out);
+             tool.setClassLoader(program);
+             tool.setClassPath(classPath);
+-            tool.setOptimizationLevel(TeaVMOptimizationLevel.ADVANCED);
++            tool.setOptimizationLevel(TeaVMOptimizationLevel.FULL);
+             tool.setObfuscated(true);
+             tool.setIncremental(false);
+             tool.setCacheDirectory(null);
+@@ -86,7 +86,7 @@
+             // class it cannot find: the module is not what the source says
+             System.exit(1);
+         }
+-        try (InputStream runtime = TeaVmCompile.class.getClassLoader().getResourceAsStream(RUNTIME)) {
++        try (InputStream runtime = TeaVmCompileFull.class.getClassLoader().getResourceAsStream(RUNTIME)) {
+             if (runtime == null) {
+                 throw new IllegalStateException(RUNTIME + " is not in teavm-core");
+             }
