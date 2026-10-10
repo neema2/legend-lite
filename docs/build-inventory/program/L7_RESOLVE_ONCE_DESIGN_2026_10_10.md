@@ -164,3 +164,28 @@ Core: `compiler/NameResolver.java`, `compiler/ResolvedNames.java`, `compiler/Bar
   constructor dropped the wire's three; nothing-found calls with a record are rebuilt now, so the pre-existing drop
   would have reached them (the audit's N4).
 
+## 11. Step 3 sized from the sites (2026-10-10, while step 2's CI ran; `grep 'new AppliedFunction('` over `core/src/main`)
+
+- **209 direct constructions** outside the parser, the resolver and the record's own file: 94 in `compiler/`, 96 in
+  `normalizer/`, 5 in `validation/`, 12 in `protocol/` (the JSON and older-spec readers and the composers: they build
+  calls before resolution, as the parser does, and are excepted with it), 2 in `test/` (the test runners' `letFunction`
+  and the function under test, resolved through `resolveQuery`). `lineage/`, `testdatagen/` and `plan/` build none
+  directly (§7 listed them from the 243 count; that count included the parser's and the readers' sites). So step 3's
+  set is **195 sites in 23 files**: `RelOpTranslator` 33, `TdsDesugars` 31, `MappingNormalizer` 24, `Typer` 16,
+  `JoinChainEmission` 13, `ViewRelation` 10, `DeclaredCoercions` 7, `LambdaBodies` 7, `JoinChecker` 6, `ValidateDesugar`
+  5, `SortChecker` 5, `JsonChecker` 5, `CallShapes` 5, `IsDistinctChecker` 3, and the rest under 3 each.
+- **By the name's shape:** 136 bare literals over 54 distinct names (`map` 13, `tableReference` 7, `project` 7, `not`,
+  `isEmpty`, `filter`, `equal`, `distinct` 6 each, `if`, `cast` 5 each, ...): `Calls.platform(name, args)`, or
+  `Calls.form(CoreFn.X, args)` where the site already holds the form; 25 lite-internal full names (`Pure.Lite.TRUST_ONE`
+  18, `LEGACY_ASSOC_PREDICATE` 4, `JOIN_SLOT` 3) and `"meta::legend::lite::tds"`: `Calls.exact`; about 20 names from a
+  variable (`original.function()` 6, `fn`, `function`, `name`, `p.fn()`, `d.bodyFunctionFqn()`): `Calls.like(original,
+  args)` for the rebuilds, `Calls.exact` for the full names; 4 `AppliedFunction.NEW` (a parser carrier the language has
+  no function for): a fifth shape, `Calls.carrier(spelling, args)`, whose record is empty by definition, so the typer's
+  carrier paths read it as today. Nine private helper factories already wrap sites (`RelOpTranslator.operatorCall`,
+  `SortChecker`'s three, `TdsDesugars`' two, `GetAllChecker.resolveClassRef`, ...): converting a helper converts its
+  callers, so the mechanical work is nearer 120 edits than 195.
+- **The ArchUnit rule** (§6 step 3): no class under `compiler`, `normalizer`, `validation`, `lineage`, `testdatagen`
+  calls an `AppliedFunction` constructor; `Calls` alone may; `parser`, `protocol` (the readers), `test` and
+  `NameResolver` are outside the rule. `AppliedFunction.withParameters`, `asGrouped` and `withWrittenDetails` copy the
+  record and stay allowed everywhere.
+

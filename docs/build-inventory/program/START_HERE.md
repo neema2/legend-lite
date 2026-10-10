@@ -45,6 +45,7 @@ generated file, never a signature we typed ourselves.
 | The code | `main`. Phases 0, 1 and 2 are on it (PR #25, PR #26, `ff70aef01`). | yes |
 | Phase 3 | `main` since 2026-10-09 (1e4a2bd40, run 38000346579; GATES "Build rebuild Phase 3") | yes |
 | Phase 3b (L3) | `main` since 2026-10-10 (991df952b, run 38022354707; GATES "Build rebuild Phase 3b"; `PHASE_3B_LANDING.md`) | yes |
+| L7 "resolve once", step 2 | `main` since 2026-10-10 (f32037517, run 38081706046; GATES "L7 step 2"; the design `L7_RESOLVE_ONCE_DESIGN_2026_10_10.md`; the measurement in `DEBTS_RESOLVE_AND_TYPE_ONCE.md` "Step 2 landed") | yes |
 | The program's debts | `docs/PARKED_WORK_LEDGER.md` rows PARK-5 to PARK-14 (on `build/phase3`; they land with Phase 3), anchored by `core/src/test/java/com/legend/ParkedWorkLedgerTest.java` | with Phase 3 |
 | Who works on what | `docs/IN_FLIGHT.md` on `main` (the program's entry lists every core file each phase touches) | yes |
 | Gate results and what moved, per change | `docs/GATES.md` (one entry per landing) | with each landing |
@@ -59,8 +60,14 @@ generated file, never a signature we typed ourselves.
   has each commit with its judge): the schema view lifted once, import scopes per element, the platform's own Pure as a
   row kind (`shadows` deleted, PARK-12 closed), legend-pure's qualified-property lookup (PARK-14 refused), the ambiguity
   message, the reference lane's verdicts (S40, S41). Census load walls 37 → 27; the lane AGREE 74,586 → 76,884 (76,920 before the audit's B1 fix replaced one more upstream body).
-- **Next: L7 "resolve once"** (PARK-5's full fix, option (c), `COLD_READ_2026_10_09.md` F1), design first; then L4
-  (Phase 6), L5 (Phase 4), L6 (Phase 5), the typing-order count, L8 (the bump). The order and cadence: the plan's §6.
+- **L7 "resolve once", step 2, landed** (f32037517; run 38081706046; GATES "L7 step 2"; the design
+  `L7_RESOLVE_ONCE_DESIGN_2026_10_10.md`, agreed 2026-10-10: the record is `referents`, step 2 lands on its own): every
+  parsed call carries every full name it can mean, recorded once by the resolver; the readers read the record. The
+  eager compile's typing median 2,701 → 2,188 ms (`DEBTS_RESOLVE_AND_TYPE_ONCE.md` "Step 2 landed"); candidate sets,
+  census and the judges unchanged. PARK-5 stays open until step 3.
+- **Next: L7 step 3** (the `Calls` builder for the 243 built calls, the ArchUnit rule, the read-time rule deleted,
+  PARK-5 closed; its own IN_FLIGHT line), then L4 (Phase 6), L5 (Phase 4), L6 (Phase 5), the typing-order count, L8
+  (the bump). The order and cadence: the plan's §6.
 - **Ruled 2026-10-10 (the user):** the default world is made by upstream's own compiler at bump time, every body
   followed (F2, F3; the plan's decision 6); the pre-built boot layer is part of Phase 4, sized on the numbers
   (decision 2 as amended); the typer's order is measured before the bump (decision 7). Nothing is pending from the
@@ -281,6 +288,9 @@ the browser with `bazel run //wasm:startup`).
   configuration directory `darwin_arm64-fastbuild`: adjust both before trusting a heap or another platform.
 - The warehouse corpus passes build the GraalVM server first: slow on a cold cache.
 - A guard's growth is a finding: do not raise a shrink-only pin to make a change pass.
+- **An action's command line run outside Bazel fails with `NoClassDefFoundError`** (2026-10-10, the eager-compile
+  timing): Bazel 9 builds without the bytes, so jars that hit the disk cache are not in the execution root. Build the
+  target with `--remote_download_all` first (`evidence/l7/eager_ab.sh`).
 
 ## 7. Reading order
 

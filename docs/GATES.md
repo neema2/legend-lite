@@ -8335,3 +8335,27 @@ tests; one Studio browser test failed once waiting on the review page, then pass
 on `leg7-sdlc-rules` (c7ebb421f), the lanes it touches (product, checks, sdlc, ui, datacube) on every platform, green;
 rebased since onto docs-only commits (its code unchanged) as 6305ebef5. Pushed to main with this record, the user's
 go.
+
+## 2026-10-10 — L7 "resolve once", step 2: a parsed call's names are worked out once, by the resolver, and read from the call
+
+**Landed 2026-10-10 as f32037517** (branch `build/l7-resolve-once`; run 38081706046, full gate.yml on all platforms: green on every job, 50 of 50, 2026-10-10).
+The design: `docs/build-inventory/program/L7_RESOLVE_ONCE_DESIGN_2026_10_10.md` (agreed 2026-10-10: the record is
+`referents`; step 2 lands on its own). The ledger's PARK-5 stays open until step 3 (the 243 built calls born resolved
+through one builder, then the read-time rule deleted).
+
+1. **The record.** `AppliedFunction.candidateFqns` is `referents`: every full name a call written bare can mean. The
+   resolver (`NameResolver`'s call arm) records, on a bare call the program declares nothing for, the platform's names
+   at the call's arity from the bare-name rule — the list `ResolvedNames.referents` used to compute at every read; an
+   ambiguous call's record is as the merge made it; a bare name qualified to one function keeps that name, as before.
+   A call with a record is not resolved again (its spelling and record stay; the audit's B2). `ResolvedNames.referents`
+   returns the record; the rule runs at a read only for a call with no record (a call built after the resolver: step
+   3's). Nothing about which names a call can mean changed; the design note's §10 has each departure from the design's
+   text and its reason. The audit: `evidence/l7/AUDIT_L7_STEP2.md` (ready after fixes; 2 blockers, 4 should-fix, 6
+   notes, every one answered).
+2. **Measured.** The probe's candidate rows (`evidence/l7/compare_candidates.py`, `candidates_step2.txt`; the census
+   with `LL_SHADOW=1`, main's core against the change): 7,209 rows on main, 7,255 on the change; 48 rows differ, all
+   calls in synthesized bodies that main's second resolution pass qualified to a platform full name and that now keep
+   the bare spelling with a one-name record, typed from it (the design note's §10, "the first scope decides"); every
+   other row identical, name and ids. The census identical (27 load walls, 16,133 bodies typed, 1,120 failing). The eager corpus compile's typing, six
+   pairs alternated outside Bazel's cache, below main's in every pair (run 1 of `evidence/l7/eager_timings_step2.tsv`, a quiet machine, before the audit's fixes; `evidence/l7/eager_ab.sh`): `typeAll` main 2,431 to 2,927 ms, median 2,701; the change 1,913 to 2,392 ms, median 2,188 (459 to 675 ms less in each pair); the `build` phase (parse and resolve, where the bare-name rule now runs once per bare call) median 2,017 → 2,088 ms; the whole compile's medians 4,718 → 4,275 ms; the profile (`evidence/l7/jfr_step2.txt`, one run each side, 1 ms samples, the whole probe): `ResolvedNames.referents` 698 of 2,378 samples on main (29%) → 359 of 2,249 on the change (16%), all of it now the no-record path (`BareNames.catalog` 351 samples: the 1,076 built calls and the 95 probes, read by the rule at every read; step 3's); `Typer.applyFunction` 1,334 → 1,089; the resolver's `resolveVs` 369 → 434 (the rule once per bare call the program does not declare). Repeated on the final tree under load (run 2 of `eager_timings_step2.tsv`): `typeAll` medians main 3,794 → change 2,855 ms, below main's in every pair.
+3. **Judges:** the render census (`docs/execution-plan-boundary-2026-10-05/render-census/run.sh`, main's tree against the change, every lane with the probe): 52,530 (lane, dialect, kind, text) entries, 0 differ (`evidence/l7/render_census_compare.txt`); the six corpus passes against the baseline built from main before the change: 22 result files identical (`evidence/l7/corpus_passes_compare.txt`); the reference lane green (`//spec:reference_lane`, `//spec:update_reference_lane_test`: no class moved, AGREE 76,884); PCT DuckDB, H2, Postgres and channel B green (17 targets); core's compiler, root and guardrail suites green on the fixed tree; the lane-membership query empty. Local gate: 323 targets green on the final tree (`bazel test --lockfile_mode=error //gates:local`, 2026-10-10 15:53).
