@@ -13,13 +13,13 @@ ours only	4256
 reference typed, we FAILED	984
 
 == buckets
-AGREE	76920
+AGREE	76884
 OVERLOAD	70
 PACKAGE	14
 DRIFT	0
-ABSENT	75586
+ABSENT	75622
 PROPERTY_AS_CALL	0
-EXTRA	17922
+EXTRA	17918
 
 == dropped sources
 /core/pure/corefunctions/unit.pure
@@ -1213,7 +1213,7 @@ ABSENT	aggregate			8
 ABSENT	allNodes			3
 ABSENT	allProperties			1
 ABSENT	allSuperSetImplementations			1
-ABSENT	and			17
+ABSENT	and			18
 ABSENT	asOfJoin			8
 ABSENT	asString			25
 ABSENT	asc			56
@@ -1230,7 +1230,7 @@ ABSENT	assertNotSize			1
 ABSENT	assertSameElements			2
 ABSENT	assertSize			5
 ABSENT	assertTestData			26
-ABSENT	at			61
+ABSENT	at			62
 ABSENT	average			2
 ABSENT	buildClass			1
 ABSENT	buildUniqueName			2
@@ -1261,6 +1261,7 @@ ABSENT	dayOfWeek			1
 ABSENT	dayOfWeekNumber			3
 ABSENT	deactivate			31
 ABSENT	debug			16
+ABSENT	defaultIfEmpty			1
 ABSENT	defaultScanConfig			1
 ABSENT	desc			50
 ABSENT	descending			269
@@ -1271,12 +1272,12 @@ ABSENT	dropAndCreateTableInDb			2
 ABSENT	dropSchemaStatement			2
 ABSENT	dropTableStatement			2
 ABSENT	dropTempTable			1
-ABSENT	elementToPath			11
+ABSENT	elementToPath			12
 ABSENT	emptyFirst			5
 ABSENT	emptyLast			5
 ABSENT	enrichSourceTreeNode			2
 ABSENT	eq			5
-ABSENT	equal			123
+ABSENT	equal			129
 ABSENT	eval			3484
 ABSENT	evalWrapper			1
 ABSENT	evaluate			29
@@ -1345,18 +1346,19 @@ ABSENT	groupBy			375
 ABSENT	groupByWithWindowSubset			5
 ABSENT	hasToOneUpperBound			1
 ABSENT	hasUpperBound			2
-ABSENT	head			4
+ABSENT	head			6
 ABSENT	id			2
 ABSENT	if			3922
-ABSENT	in			1
+ABSENT	in			2
 ABSENT	indent			6
 ABSENT	indexOf			3
-ABSENT	inferRelationalType			1
+ABSENT	inferDynaFunctionReturnType			1
+ABSENT	inferRelationalType			7
 ABSENT	insertIntoTempTableStatement			3
-ABSENT	instanceOf			24
+ABSENT	instanceOf			27
 ABSENT	is			3
 ABSENT	isEmpty			12
-ABSENT	isNotEmpty			9
+ABSENT	isNotEmpty			12
 ABSENT	isOnDay			2
 ABSENT	isOptionSet			17
 ABSENT	join			143
@@ -1446,11 +1448,11 @@ ABSENT	newLambdaFunction			1
 ABSENT	newMap			2
 ABSENT	newTDSRelationAccessor			1
 ABSENT	noDebug			10
-ABSENT	not			52
+ABSENT	not			54
 ABSENT	olapGroupBy			8
 ABSENT	openVariableValues			1
 ABSENT	optimizedTdsJSONStringStream			2
-ABSENT	or			8
+ABSENT	or			10
 ABSENT	orElse			1
 ABSENT	orElseEmptyPath			1
 ABSENT	over			225
@@ -1462,7 +1464,7 @@ ABSENT	pathToElement			31
 ABSENT	personProjected			1
 ABSENT	pivot			21
 ABSENT	planNodeToString			1
-ABSENT	plus			1516
+ABSENT	plus			1517
 ABSENT	preval			2
 ABSENT	print			104
 ABSENT	printDebug			10
@@ -1523,7 +1525,7 @@ ABSENT	toJSON			1
 ABSENT	toLower			1
 ABSENT	toMany			44
 ABSENT	toMultiplicity			9
-ABSENT	toOne			115
+ABSENT	toOne			119
 ABSENT	toOneMany			233
 ABSENT	toRepresentation			1
 ABSENT	toSQL			2
@@ -1531,7 +1533,7 @@ ABSENT	toSQLString			2
 ABSENT	toString			103
 ABSENT	toUpper			1
 ABSENT	twoDBRunTime			2
-ABSENT	type			4
+ABSENT	type			5
 ABSENT	union			8
 ABSENT	validate			4
 ABSENT	value4Tag			1
@@ -2923,7 +2925,7 @@ EXTRA	meta::pure::functions::math::min			6
 EXTRA	meta::pure::functions::math::minus			57
 EXTRA	meta::pure::functions::math::mod			3
 EXTRA	meta::pure::functions::math::plus			75
-EXTRA	meta::pure::functions::math::sum			3
+EXTRA	meta::pure::functions::math::sum			2
 EXTRA	meta::pure::functions::math::times			4
 EXTRA	meta::pure::functions::math::wrapInsideNumberInstanceValue			1
 EXTRA	meta::pure::functions::meta::bypassExtendedPrimitives			1
@@ -2964,7 +2966,7 @@ EXTRA	meta::pure::functions::meta::sourceInformation			3
 EXTRA	meta::pure::functions::meta::stereotype			3
 EXTRA	meta::pure::functions::meta::stringToDataType			15
 EXTRA	meta::pure::functions::meta::type			24
-EXTRA	meta::pure::functions::multiplicity::toOne			3417
+EXTRA	meta::pure::functions::multiplicity::toOne			3416
 EXTRA	meta::pure::functions::multiplicity::toOneMany			23
 EXTRA	meta::pure::functions::relation::toString			1
 EXTRA	meta::pure::functions::string::endsWith			2
@@ -2972,7 +2974,7 @@ EXTRA	meta::pure::functions::string::format			9
 EXTRA	meta::pure::functions::string::generation::generateGuid			2
 EXTRA	meta::pure::functions::string::joinStrings			22
 EXTRA	meta::pure::functions::string::lastIndexOf			1
-EXTRA	meta::pure::functions::string::length			13
+EXTRA	meta::pure::functions::string::length			12
 EXTRA	meta::pure::functions::string::makeString			55
 EXTRA	meta::pure::functions::string::parseDate			60
 EXTRA	meta::pure::functions::string::parseInteger			1
@@ -3307,7 +3309,7 @@ EXTRA	meta::relational::functions::toPostgresModel::qualifiedName			9
 EXTRA	meta::relational::functions::toPostgresModel::tests::getColumn			19
 EXTRA	meta::relational::functions::toPostgresModel::tests::getTable			9
 EXTRA	meta::relational::functions::toPostgresModel::toIdentifier			4
-EXTRA	meta::relational::functions::typeInference::getSize			4
+EXTRA	meta::relational::functions::typeInference::getSize			3
 EXTRA	meta::relational::functions::typeInference::inferRelationalType			47
 EXTRA	meta::relational::grammar::serialization::printDatabase			1
 EXTRA	meta::relational::grammar::serialization::printMapping			1

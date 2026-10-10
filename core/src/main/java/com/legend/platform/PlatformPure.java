@@ -19,7 +19,7 @@ import java.util.Set;
  * of those names with no decision is refused ({@link Implementation.Reason#NO_ROW}), as a version at a catalog
  * native's name is: upstream's body is the spec, never the platform's implementation by accident.
  *
- * <p>Before this (Phase 3, {@code SystemMetamodel.shadows}, PARKED_WORK_LEDGER PARK-12) a loaded twin was hidden
+ * <p>Before this (Phase 3, {@code SystemMetamodel.shadows}; the ledger's PARK-12, closed 2026-10-09) a loaded twin was hidden
  * when its id and its parameter spellings matched a system version; 29 twins spelled a type differently
  * ({@code String} against {@code meta::pure::metamodel::type::String}, {@code EnumerationMapping} against
  * {@code EnumerationMapping<T>}) and five upstream files dropped as "defined more than once".
@@ -107,15 +107,19 @@ public final class PlatformPure {
 
     private static Map<FunctionId, WalledBodies.Wall> refusedVersionsTable() {
         Map<FunctionId, WalledBodies.Wall> t = new LinkedHashMap<>();
-        // core_relational/relational/relationalExtension.pure
-        t.put(new FunctionId("meta::relational::functions::typeInference::inferRelationalType_RelationalOperationElement_1__Boolean_1__DataType_$0_1$_"),
-                new WalledBodies.Wall(WalledBodies.Kind.ENGINE_MACHINERY,
-                        "the engine's relational type inference over its own metamodel; the platform's"
-                                + " inferRelationalType(RelationalOperationElement) reads the typed rows (upstream's"
-                                + " one-argument body called this one; the platform's replaces it)"));
+        // core_relational/relational/relationalExtension.pure: the two versions that translate the inferred type to
+        // one database's spelling. inferRelationalType(rop, failOnMatchFailure) is NOT refused: core_relational's
+        // own mapping execution calls it (relationalMappingExecution.pure, getRelationalTypeFromRelationalPropertyMapping:
+        // `->inferRelationalType(false)`), so it is a platform version over the rows (SystemMetamodel). Callers of the
+        // two refused versions in the closure are engine machinery the platform serves itself: relationalGraphFetch.pure
+        // (the engine's graph-fetch planner), testDataGeneration.pure and testRunner.pure (the engine's test-data
+        // generator; the platform's is Java, //core testdatagen).
         WalledBodies.Wall translation = new WalledBodies.Wall(WalledBodies.Kind.ENGINE_MACHINERY,
                 "the engine's translation of a relational type to one database's spelling"
-                        + " (translateCoreTypeToDbSpecificType); the platform's dialects spell types");
+                        + " (translateCoreTypeToDbSpecificType); the platform's dialects spell types. Its callers in"
+                        + " core_relational are the engine's graph-fetch planner (relationalGraphFetch.pure) and its"
+                        + " test-data generator (testDataGeneration.pure, testRunner.pure), machinery the platform"
+                        + " serves itself");
         t.put(new FunctionId("meta::relational::functions::typeInference::inferRelationalType_RelationalOperationElement_1__TranslationContext_1__DataType_$0_1$_"),
                 translation);
         t.put(new FunctionId("meta::relational::functions::typeInference::inferRelationalType_RelationalOperationElement_1__Boolean_1__TranslationContext_1__DataType_$0_1$_"),

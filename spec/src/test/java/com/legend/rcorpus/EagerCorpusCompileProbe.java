@@ -61,9 +61,7 @@ public final class EagerCorpusCompileProbe {
             }
         }
         for (String k : walls.keySet()) {
-            String fqn = k.contains("(") ? k.substring(0, k.indexOf('(')) : k;
-            bySource.merge(corpus.elementSources().getOrDefault(k,
-                    corpus.elementSources().getOrDefault(fqn, "?")), 1, Integer::sum);
+            bySource.merge(corpus.elementSources().getOrDefault(k, "?"), 1, Integer::sum);
         }
         // THE FAMILIES (COMPILE_EVERYTHING_HOMEWORK §10.5, the last step): a
         // failing NON-TEST body is either the engine's machinery loaded because
@@ -75,7 +73,7 @@ public final class EagerCorpusCompileProbe {
         List<String> residue = new ArrayList<>();
         for (var e : walls.entrySet()) {
             String k = e.getKey(); String fqn = k.contains("(") ? k.substring(0, k.indexOf('(')) : k;
-            String source = corpus.elementSources().getOrDefault(k, corpus.elementSources().getOrDefault(fqn, "?"));
+            String source = corpus.elementSources().getOrDefault(k, "?");
             String fam = family(fqn, source);
             families.merge(fam, 1, Integer::sum);
             if (fam.startsWith("RESIDUE")) {

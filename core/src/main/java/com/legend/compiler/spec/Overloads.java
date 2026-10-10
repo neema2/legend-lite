@@ -410,12 +410,6 @@ final class Overloads {
                                 && asFunctionType(c.returnType()) instanceof Type.FunctionType rft
                                 && isSchemaErased(rft)))
                 .toList();
-        if (System.getenv("LEGEND_LITE_RAW_EXPAND_TRACE") != null) {
-            System.err.println("[raw-expand] " + af.function() + " cands="
-                    + cands.size() + " all=" + functionCandidates(af).stream()
-                            .map(c -> c.qualifiedName() + " ret="
-                                    + c.returnType().typeName()).toList());
-        }
         if (cands.size() != 1) {
             return null;
         }

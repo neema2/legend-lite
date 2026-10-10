@@ -94,8 +94,15 @@ from files whose `import` lines differ**, so today all their overloads resolve w
 four `toDDL` statement functions, and two upstream tests (`phase3b-h4-imports.tsv`). Those are the places whose
 resolution may change when the map is keyed per element; the corpus passes, PCT and the reference lane judge them.
 
-**H5 — still to run with item 3** (step 9 of the brief): one computed column over a missing value on DuckDB and H2
-against legend-engine's SQL; what Studio and DataCube show for `max` over integers.
+**H5 — measured with item 3 (2026-10-09; `core/src/test/java/com/legend/exec/MissingValueInComputedColumnTest.java`).**
+A computed column over a missing value (`$c.STR->in(['a'])`, `$c.N > 3` in an `extend`) is `false` on DuckDB and on
+H2: the lowering guards the missing value (`coalesce(x IN (...), FALSE)`, `x IS NOT NULL AND x > 3`), which is
+legend-pure's own value for its `[0..1]` body over an empty argument (read from upstream's bodies, not run);
+legend-engine's plain SQL (`x IN (...)`, `x > 3`) would give NULL — a claim from its SQL shape, not run here. In a filter the rows are the same. So the `[1]`
+typing changes no value against legend-pure: recorded as SEMANTICS_REGISTER S38. For `max` over integers the
+difference is the result column's declared type (`Number` in legend-pure, `Integer` here; the values are the same):
+recorded as S39; what Studio and DataCube display for the two type names was not measured (they show the column's
+values the same way).
 
 The census ceilings were already known to be stale (the 3b brief's line 15 and `PHASE_8.md` Short-21, "no owner");
 they are re-pinned at 37 and 1,437 in this branch's first commit, and `//spec:manifest_world_census` passes again.

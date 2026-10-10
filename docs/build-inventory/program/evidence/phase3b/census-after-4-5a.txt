@@ -1,0 +1,126 @@
+# manifest-world census — core_relational — 2026-10-10
+# modules=27 files=1772 loadWalls=27 duplicates=0 bodies OK=16133 FAILED=1120 WALLED=32
+# by reason: {kernel=218, normalize=50, other=589, overload=111, unknown-function=6, unknown-property=15, unknown-type=131}
+
+## per module: files | parse+model walls | bodies ok | failed | walled | native-or-by-rule | failed by reason
+platform                                                             244 |    1 |     0 |     0 |    0 |     0 | {}
+platform_dsl_store                                                     2 |    0 |     0 |     0 |    0 |     0 | {}
+platform_dsl_mapping                                                   6 |    0 |     0 |     0 |    0 |     0 | {}
+platform_dsl_graph                                                     2 |    0 |     0 |     0 |    0 |     0 | {}
+platform_dsl_path                                                      1 |    0 |     0 |     0 |    0 |     0 | {}
+platform_dsl_tds                                                       1 |    0 |     0 |     0 |    0 |     0 | {}
+platform_store_relational                                              9 |    0 |     0 |     0 |    0 |     0 | {}
+platform_precise_primitives                                            1 |    0 |     0 |     0 |    0 |     0 | {}
+core_functions_json                                                    1 |    0 |     0 |     0 |    0 |     0 | {}
+core_functions_variant                                                 7 |    0 |     0 |     0 |    0 |     0 | {}
+core_functions_unclassified                                           65 |    0 |     0 |     0 |    0 |     0 | {}
+core_functions_relation                                               65 |    0 |     0 |     0 |    0 |     0 | {}
+core_functions_standard                                               55 |    0 |     0 |     0 |    0 |     0 | {}
+platform_dsl_diagram                                                   1 |    0 |     0 |     0 |    0 |     0 | {}
+core                                                                 574 |   21 |     0 |     0 |    0 |     0 | {}
+core_diagram_metamodel                                                 2 |    0 |     0 |     0 |    0 |     0 | {}
+core_data_space_metamodel                                              4 |    0 |     0 |     0 |    0 |     0 | {}
+core_generation                                                       18 |    0 |     0 |     0 |    0 |     0 | {}
+core_external_format_json                                             25 |    2 |     0 |     0 |    0 |     0 | {}
+core_service                                                           5 |    0 |     0 |     0 |    0 |     0 | {}
+core_external_store_relational_postgres_sql_model                      2 |    0 |     0 |     0 |    0 |     0 | {}
+core_external_store_relational_postgres_sql_model_extensions           1 |    0 |     0 |     0 |    0 |     0 | {}
+core_external_store_relational_sql_dialect_translation               116 |    0 |     0 |     0 |    0 |     0 | {}
+core_external_store_relational_postgres_sql_parser                     2 |    0 |     0 |     0 |    0 |     0 | {}
+core_external_store_relational_sql_planning                            8 |    0 |     0 |     0 |    0 |     0 | {}
+core_external_store_relational_sql_dialect_translation_h2              2 |    0 |     0 |     0 |    0 |     0 | {}
+core_relational                                                      553 |    3 |     2 |     0 |    0 |     0 | {}
+
+## top failure messages (normalized)
+   97  overload :: in function '…': no overload of '…' accepts N argument(s)
+   86  kernel :: in function '…': in call to '…', argument N: type variable T bound to Class<meta::pure::metamodel::type::Any> cannot also bind meta::pure::m
+   71  unknown-type :: '…' is not a known class, mapping, runtime, connection, or database
+   70  other :: in function '…': match expects a collection of branch lambdas
+   65  other :: in function '…': project expects ~[…] column specifications
+   60  unknown-type :: '…' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+   56  other :: in function '…': legacy groupBy aggregate N must be agg(mapFn, aggFn)
+   50  normalize :: in function '…': NormalizeRequired function '…' has non-let intermediate statements — cannot inline
+   44  other :: in function '…': JSONKeyValue.key reads only inside keyValuePairs->filter(kv|$kv.key.value == <key>) — the member access (a member is repres
+   43  kernel :: in function '…': in call to '…', argument N: type variable T bound to meta::pure::metamodel::type::Type cannot also bind Class<meta::pure::m
+   41  other :: in function '…': validate is desugared before typing (ValidateDesugar): a validate call reached the typer
+   21  other :: in function '…': deferred let binding '…' has no type outside a consuming call position (tree/colspec bindings resolve at their call sites)
+   20  other :: in function '…': '…' expects a lambda argument in position N
+   19  kernel :: in function '…': in call to '…', argument N: type variable T bound to FunctionDefinition<meta::pure::metamodel::type::Any> cannot also bind 
+   19  other :: in function '…': unknown enumeration '…'
+   17  kernel :: in function '…': in call to '…', argument N: type variable T bound to meta::pure::metamodel::type::Type cannot also bind Enumeration<meta::p
+   17  other :: in function '…': in call to '…', argument N: expected meta::pure::metamodel::function::FunctionDefinition, got {meta::pure::metamodel::type:
+   11  kernel :: in function '…': unbound type variable T
+   11  other :: in function '…': a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed colu
+   11  other :: in function '…': from() argument N must be a mapping or runtime reference, got TypedVariable
+   10  other :: in function '…': property '…' of '…': multiplicity [*] is not compatible with result [N] (value: PackageableElementPtr[fullPath=meta::pure::
+    9  other :: in function '…': ambiguous overload of '…': N candidates tie for the argument types [meta::pure::mapping::modelToModel::test::alloy::autoMap
+    8  other :: in function '…': a bare lambda has no type outside a call position (lambdas type against their call's signature)
+    8  overload :: in function '…': no overload of '…' structurally matches the argument types (ExprType[type=GenericType[rawFqn=meta::pure::metamodel::functio
+    7  kernel :: in function '…': in call to '…', argument N: type variable U bound to Class<meta::pure::metamodel::type::Any> cannot also bind meta::pure::m
+    7  kernel :: in function '…': unbound type variable U
+    7  other :: in function '…': cast expects (source, @Type)
+    7  other :: in function '…': expected a Relation, got meta::pure::tds::TabularDataSet
+    7  other :: in function '…': unknown type '…' in @Z
+    6  other :: in function '…': expected a function-typed parameter, got LambdaFunction<meta::pure::metamodel::type::Any>
+    6  other :: in function '…': property '…' of '…': expected (), got meta::pure::tds::TDSRow (value: PureCollection[values=[AppliedFunction[function=new, 
+    6  other :: in function '…': relation has no column '…'
+    6  unknown-function :: in function '…': unknown function '…' — no function of this name in the native or user catalog (unported platform function, or a misspelling
+    5  other :: in function '…': declares return type Any>, String> but body returns Any, String> (expected meta::pure::metamodel::function::Function, got m
+    5  other :: in function '…': renameColumns expects literal pair('…','…') / ^Pair(first=,second=) mappings
+    5  other :: in function '…': unbound multiplicity variable m
+    4  kernel :: in function '…': in call to '…', argument N: type variable T bound to AbstractProperty<meta::pure::metamodel::type::Any> cannot also bind Pr
+    4  other :: cannot union multiplicities [N] and [m] (an unresolved variable met a different bound)
+    4  other :: in function '…': graphFetch expects (classCollection, #{Class{…}}#)
+    4  other :: in function '…': meta::pure::functions::lang::cast expects (source, @Type)
+    4  other :: in function '…': property '…' of '…': expected meta::pure::metamodel::PackageableElement, got meta::pure::metamodel::testable::Testable (val
+    4  other :: in function '…': property '…' of '…': multiplicity [*] is not compatible with result [N] (value: PureCollection[values=[PackageableElementPt
+    4  other :: in function '…': ~ageString: mapped/aggregate column specifications need an enclosing call to type against
+    4  unknown-property :: in function '…': class meta::relational::tests::model::simple::Person has no property '…'
+    3  other :: cannot union multiplicities [m] and [N] (an unresolved variable met a different bound)
+    3  other :: in function '…': eval argument N: multiplicity [N..N] is not compatible with [N]
+    3  other :: in function '…': generateTestData needs its query lambda and mapping reference INLINE at the call site (>=N args)
+    3  other :: in function '…': graph-fetch tree #{meta::pure::executionPlan::platformBinding::typeInfo::tests::E{...}}# types only as the tree argument of
+    3  other :: in function '…': in call to '…', argument N: expected meta::pure::functions::collection::List, got meta::pure::graphFetch::GraphFetchTree
+    3  other :: in function '…': in call to '…', argument N: expected meta::pure::metamodel::PackageableElement, got {meta::pure::metamodel::type::Any[N..N]
+    3  other :: in function '…': in call to '…', argument N: expected meta::pure::metamodel::type::Class, got meta::pure::executionPlan::platformBinding::ty
+    3  other :: in function '…': meta::legend::test::mayExecuteLegendTest needs a zero-arg fallback thunk of lets + one expression (the engine'…'s ONLY bran
+    3  other :: in function '…': property '…' of '…': multiplicity [*] is not compatible with [N] (value: LambdaFunction[parameters=[Variable[name=p, type=N
+    3  other :: in function '…': unknown class '…' in ^(…)
+    3  overload :: in function '…': no overload of '…' structurally matches the argument types (ExprType[type=RelationType[columns=[], dynamicColumns=[Column[n
+    3  unknown-property :: in function '…': class meta::relational::tests::model::simple::Firm has no property '…'
+    2  kernel :: in function '…': in call to '…', argument N: type variable T bound to Function<meta::pure::metamodel::type::Any> cannot also bind QualifiedP
+    2  kernel :: in function '…': in call to '…', argument N: type variable T bound to meta::pure::metamodel::PackageableElement cannot also bind Class<meta:
+    2  other :: cannot union multiplicities [m] and [*] (an unresolved variable met a different bound)
+    2  other :: in function '…': flatten expects (source, ~column)
+
+## load walls (27)
+core:core/pure/graphFetch/tests/sourceTreeCalc/testSourceTreeCalc.pure: MODEL M2M set-routed binding 'c[c1]' targets a non-root set of 'meta::pure::graphFetch::tests::sourceTreeCalc::withFilters::UnionC'; per-set routing on the M2M side is a roadmap feature (root-routing would produce wrong rows); mapping=meta::pure::graphFetch::tests::sourceTreeCalc::withFilters::UnionMappingWithSingleFilter
+core:core/pure/graphFetch/tests/testUnion.pure: MODEL M2M set-routed binding 't[SDL]' targets a non-root set of 'meta::pure::graphFetch::tests::union::TargetSub'; per-set routing on the M2M side is a roadmap feature (root-routing would produce wrong rows); mapping=meta::pure::graphFetch::tests::union::MyMapping
+core:core/store/m2m/tests/legend/graphWithSubTypes/testMultipleSubTypeWithAbstractClass.pure: MODEL M2M set-routed binding 'data[PAY]' targets a non-root set of 'meta::pure::graphFetch::tests::sourceTreeCalc::withSubType::mostSpecific::TData'; per-set routing on the M2M side is a roadmap feature (root-routing would produce wrong rows); mapping=meta::pure::graphFetch::tests::sourceTreeCalc::withSubType::mostSpecific::testMappingMostSpecific
+core:core/store/m2m/tests/legend/merge.pure: MODEL M2M set-routed binding 'address[a1]' targets a non-root set of 'meta::pure::mapping::modelToModel::test::alloy::merge::Address'; per-set routing on the M2M side is a roadmap feature (root-routing would produce wrong rows); mapping=meta::pure::mapping::modelToModel::test::alloy::merge::SimpleMergeModelMappingNonRoot
+core:core/store/m2m/tests/legend/propertyUnion.pure: MODEL M2M set-routed binding 'nested[ds1]' targets a non-root set of 'meta::pure::mapping::modelToModel::test::alloy::propertyUnion::dest::TargetDeepChild'; per-set routing on the M2M side is a roadmap feature (root-routing would produce wrong rows); mapping=meta::pure::mapping::modelToModel::test::alloy::propertyUnion::multiLevelUnionMapping
+core:core/store/m2m/tests/simple.pure: MODEL M2M set-routed binding 'vehicles[car]' targets a non-root set of 'meta::pure::mapping::modelToModel::test::shared::dest::RoadVehicle'; per-set routing on the M2M side is a roadmap feature (root-routing would produce wrong rows); mapping=meta::pure::mapping::modelToModel::test::simple::simpleModelMappingWithMultipleSubTypes
+core:core/pure/graphFetch/tests/testCrossStoreGraphFetch.pure: MODEL M2M enum transformer 'EnumerationMapping SynonymTypeMapping' on 'type' is a roadmap feature (source-value decode on the M2M read); mapping=meta::pure::graphFetch::tests::XStore::inMemory::JsonCrossStoreMapping
+core:core/store/m2m/tests/createInstances.pure: MODEL M2M explosion 'fullName*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::mapping::modelToModel::test::createInstances::createInstancesModelMappingOneMany
+core:core/store/m2m/tests/legend/testExplosion.pure: MODEL M2M explosion 'fullName*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::mapping::modelToModel::test::alloy::explosion::basicExplosionMapping
+core:core/store/m2m/tests/mft/filter.pure: MODEL M2M enum transformer 'EnumerationMapping AddressTypeMapping' on 'type' is a roadmap feature (source-value decode on the M2M read); mapping=meta::pure::mapping::modelToModel::test::mft::mapping::filter::filterUnionMapping
+core:core/store/m2m/tests/mft/merge.pure: MODEL M2M enum transformer 'EnumerationMapping AddressTypeMapping' on 'type' is a roadmap feature (source-value decode on the M2M read); mapping=meta::pure::mapping::modelToModel::test::mft::mapping::merge::mergeTestMapping
+core:core/store/m2m/tests/mft/rowExposion.pure: MODEL M2M explosion 'description*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::mapping::modelToModel::test::mft::mapping::rowexplosion::rowexplosionTestUnionMapping
+core:core/store/m2m/tests/mft/simple.pure: MODEL M2M enum transformer 'EnumerationMapping AddressTypeMapping' on 'type' is a roadmap feature (source-value decode on the M2M read); mapping=meta::pure::mapping::modelToModel::test::mft::mapping::simple::simpleTestMapping
+core:core/store/m2m/tests/mft/union.pure: MODEL M2M enum transformer 'EnumerationMapping AddressTypeMapping' on 'type' is a roadmap feature (source-value decode on the M2M read); mapping=meta::pure::mapping::modelToModel::test::mft::mapping::union::unionTestMapping
+core_external_format_json:core_external_format_json/executionPlan/tests/simple.pure: MODEL M2M enum transformer 'EnumerationMapping SynonymTypeMapping' on 'type' is a roadmap feature (source-value decode on the M2M read); mapping=meta::external::format::json::executionPlan::test::simple::M2MCrossStoreMapping
+core_relational:core_relational/relational/graphFetch/tests/testCrossStoreGraphFetch.pure: MODEL M2M explosion 'tradeId*' is a roadmap feature (index-aligned zip fan-out — one target instance per source element); mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5
+core_relational:core_relational/relational/tests/mapping/modelJoin/modelJoinAdvancedSetup.pure: MODEL association 'meta::relational::tests::mapping::modelJoin::domain::Person_Address': $person.profile has no column binding on the Relation mapping of 'meta::relational::tests::mapping::modelJoin::domain::Person' (mapping=meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess)
+core_relational:core_relational/relational/tests/mft/modelChain/modelChainTest.pure: MODEL Embedded PM 'address' on 'S_Person' but owner class unknown; mapping=meta::relational::tests::mapping::modelChain::model::mapping::mft::modelChainTestMapping
+core:core/store/m2m/tests/legend/unitMeasure.pure: MODEL Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+core_external_format_json:core_external_format_json/executionPlan/tests/dataTypes.pure: MODEL Unknown type: 'Mass~Kilogram' is not a known primitive, class, or enum
+core:core/pure/corefunctions/unit.pure: MODEL Unknown type: 'meta::pure::unit::Mass' is not a known primitive, class, or enum
+core:core/store/m2m/tests/legend/testUnitMeasure.pure: MODEL Unknown type: 'HealthProfile' is not a known primitive, class, or enum
+platform:pure/grammar/m3.pure: PARSE [15:10] top-level ^Instance must be followed by (...)
+core:core/pure/binding/executionPlan/tests/executionPlanTests.pure: PARSE [693:52] a property mapping binds ONE expression and is separated by ',' — ';' is not a mapping separator
+core:core/pure/corefunctions/tests/language/testLambda.pure: PARSE [71:42] unsupported expression token: ARROW ('->')
+core:core/pure/graphFetch/tests/sourceTreeCalc/subType/testOnSourceRoot.pure: PARSE [336:127] a property mapping binds ONE expression and is separated by ',' — ';' is not a mapping separator
+core:core/store/m2m/tests/legend/simpleObject.pure: PARSE [1869:5] trailing tokens after code block: VALID_STRING ('i')
+
+## duplicates the parser reported (0)
+

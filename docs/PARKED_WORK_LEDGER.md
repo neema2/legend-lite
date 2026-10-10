@@ -361,23 +361,6 @@ file, `TdsLegacy.java`.
 
 ---
 
-## PARK-13 — A debug trace switched by an environment variable in product code
-
-**What we do today.** `Overloads.rawSchemaErasedExpansion` prints to standard error when
-`LEGEND_LITE_RAW_EXPAND_TRACE` is set (older than this program; `ObservabilityGuardrailTest` keeps such flags from
-growing).
-
-**Why parked.** Older than this program; found while reading the code for Phase 3.
-
-**Cost while parked.** Debug code in the product: when the variable is set, a raw print to standard error on a typing
-path; off by default.
-
-**Acceptance.** Removed, or replaced by the platform's existing diagnostics.
-
-**Anchor.** `LEGEND_LITE_RAW_EXPAND_TRACE` appears in exactly one product file, `Overloads.java`.
-
----
-
 ## PARK-15 — The legacy plan picks an enumeration mapping without the place it is used
 
 **Parked** 2026-10-08 by the user's step 2 decisions (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9), found while

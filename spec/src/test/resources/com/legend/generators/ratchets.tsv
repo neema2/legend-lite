@@ -7,8 +7,8 @@ engine.handlers.undeclared	142
 implementation.kinds.Body	2034
 implementation.kinds.Form	217
 implementation.kinds.Intrinsic	698
-implementation.kinds.PlatformPure	34
-implementation.kinds.Refused	132
+implementation.kinds.PlatformPure	35
+implementation.kinds.Refused	131
 implementation.kinds.Unimplemented	71
 implementation.unrowed	109
 upstream.paths	91

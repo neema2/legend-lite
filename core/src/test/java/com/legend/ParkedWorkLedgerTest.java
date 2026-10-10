@@ -117,9 +117,6 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-11 legacy TDS functions and agg by name, not rows",
                             new Anchor("candidateFqns\\(\\)\\.isEmpty\\(\\) \\? name\\.equals\\(bare\\(\\)\\)",
                                     List.of("TdsLegacy.java"))),
-            // PARK-13: a debug trace switched by an environment variable
-            Map.entry("PARK-13 a debug trace in product code",
-                            new Anchor("LEGEND_LITE_RAW_EXPAND_TRACE", List.of("Overloads.java"))),
             // PARK-15 (2026-10-08, execution plan boundary step 2): the legacy plan
             // picks an enumeration mapping without the place it is used — the first
             // over the enum for a parameter, the first declared for a result column

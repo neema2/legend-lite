@@ -1298,7 +1298,8 @@ public final class InferenceKernel {
     /** The C3 linearizations of this context's types, for the type distances. */
     private FunctionMatch.@com.legend.base.Nullable Linearizer linearizer;
 
-    private FunctionMatch.Linearizer linearizer() {
+    /** The context's C3 linearizations (the typer's qualified-property lookup walks them too). */
+    FunctionMatch.Linearizer linearizer() {
         FunctionMatch.Linearizer l = linearizer;
         if (l == null) {
             l = new FunctionMatch.Linearizer(

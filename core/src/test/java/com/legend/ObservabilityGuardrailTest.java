@@ -39,7 +39,9 @@ class ObservabilityGuardrailTest {
             // line per prepared statement to the named file — the input to
             // "is prepare time linear in text / operators"; off by default
             "LEGEND_LITE_PREP_TRACE",
-            "LEGEND_LITE_RAW_EXPAND_TRACE", "LEGEND_LITE_SPLIT_TRACE",
+            // LEGEND_LITE_RAW_EXPAND_TRACE left the list 2026-10-09: the trace it switched (Overloads
+            // .rawSchemaErasedExpansion) is deleted (the ledger's PARK-13, build rebuild Phase 3b)
+            "LEGEND_LITE_SPLIT_TRACE",
             "LEGEND_LITE_STACKS", "LEGEND_LITE_STAMP_TRACE",
             "LL_DUMP_RESOLVED", "LL_FNLR_DEBUG", "LL_LINEAGE_DEBUG",
             "LL_ORD_COUNT", "LL_SQLTEXT_DEBUG",

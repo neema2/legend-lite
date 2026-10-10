@@ -277,42 +277,57 @@ public final class Compiler {
         // derived body resolves through them), the system metamodel's
         // resolve in the empty scope as before
         return BOOT.getOrCompute(BootKey.HASH, () -> {
-            // THE PLATFORM'S OWN PURE (Phase 3b, item 1b): a prelude function with
-            // a system version's id keeps its declaration (upstream's, generated)
-            // and takes the system version's body; the system's own declaration
-            // serves only the ids no prelude function declares (its meta::lite
-            // functions, and upstream names outside the prelude's modules)
             ParsedModel pre = com.legend.builtin.SystemMetamodel.requireNoSystemElementRedefined(
                     com.legend.builtin.Prelude.parsedModel());
+            List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>(
+                    com.legend.builtin.SystemMetamodel.elements());
+            elements.addAll(pre.elements());
+            ParsedModel boot = new ParsedModel(elements, com.legend.model.ImportScope.empty(), null,
+                    pre.elementOffsets(), pre.elementImports(), pre.elementSources());
+            ParsedModel resolved = NameResolver.resolve(boot);
+            // THE PLATFORM'S OWN PURE (Phase 3b, item 1b), merged AFTER resolution as
+            // a graph is (normalizeWithSystem): a prelude function with a system
+            // version's id keeps its declaration (upstream's, generated) and takes
+            // the system version's body, resolved in the system's own empty scope
+            // above; the system's own declaration serves only the ids no prelude
+            // function declares (its meta::lite functions, and upstream names
+            // outside the prelude's modules)
             java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> own =
-                    com.legend.builtin.SystemMetamodel.functionsById();
+                    new java.util.HashMap<>();
             java.util.Set<com.legend.model.FunctionId> adopted = new java.util.HashSet<>();
-            List<com.legend.model.PackageableElement> prelude = new java.util.ArrayList<>(pre.elements().size());
-            for (com.legend.model.PackageableElement el : pre.elements()) {
+            int systemCount = com.legend.builtin.SystemMetamodel.elements().size();
+            for (int i = 0; i < systemCount; i++) {
+                if (resolved.elements().get(i) instanceof com.legend.model.FunctionDefinition fd) {
+                    own.put(com.legend.model.FunctionId.of(fd), fd);
+                }
+            }
+            List<com.legend.model.PackageableElement> merged = new java.util.ArrayList<>(resolved.elements().size());
+            for (int i = systemCount; i < resolved.elements().size(); i++) {
+                com.legend.model.PackageableElement el = resolved.elements().get(i);
                 if (el instanceof com.legend.model.FunctionDefinition fd) {
-                    com.legend.model.FunctionId id = com.legend.model.FunctionId.of(fd);
-                    com.legend.model.FunctionDefinition version = own.get(id);
+                    com.legend.model.FunctionDefinition version = own.get(com.legend.model.FunctionId.of(fd));
                     if (version != null) {
-                        prelude.add(com.legend.platform.PlatformPure.adopt(fd, version));
-                        adopted.add(id);
+                        merged.add(com.legend.platform.PlatformPure.adopt(fd, version));
+                        adopted.add(com.legend.model.FunctionId.of(fd));
                         continue;
                     }
                 }
-                prelude.add(el);
+                merged.add(el);
             }
-            List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
-            for (com.legend.model.PackageableElement el : com.legend.builtin.SystemMetamodel.elements()) {
+            List<com.legend.model.PackageableElement> all = new java.util.ArrayList<>(resolved.elements().size());
+            for (int i = 0; i < systemCount; i++) {
+                com.legend.model.PackageableElement el = resolved.elements().get(i);
                 if (!(el instanceof com.legend.model.FunctionDefinition fd
                         && adopted.contains(com.legend.model.FunctionId.of(fd)))) {
-                    elements.add(el);
+                    all.add(el);
                 }
             }
-            elements.addAll(prelude);
-            ParsedModel boot = new ParsedModel(elements, com.legend.model.ImportScope.empty(), null,
-                    pre.elementOffsets(), pre.elementImports(), pre.elementSources());
+            all.addAll(merged);
             // the boot layer's own index is checked and then discarded: its
             // prepared elements enter every graph's index at that graph's gate
-            Layer layer = normalizeLayer(NameResolver.resolve(boot), null);
+            Layer layer = normalizeLayer(new ParsedModel(all, resolved.imports(), resolved.source(),
+                    resolved.elementOffsets(), resolved.elementImports(), resolved.elementSources(),
+                    resolved.unclaimedSections()), null);
             java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> byId =
                     new java.util.LinkedHashMap<>();
             for (com.legend.model.PackageableElement el : layer.model().elements()) {

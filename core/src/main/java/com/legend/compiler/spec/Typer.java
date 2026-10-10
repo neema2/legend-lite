@@ -553,7 +553,7 @@ final class Typer {
             // ends targeting a temporal class): prop(date) — point access;
             // propAllVersions() — version sweep; propAllVersionsInRange(s, e).
             if (classFqn != null) {
-                String name = af.function();
+                String name = qname;   // the simple name: the resolver may have qualified a same-named function
                 String base = name;
                 boolean sweep = false;
                 int wantDates = 1;
@@ -591,13 +591,16 @@ final class Typer {
                             new ExprType(mprop.type(), mprop.multiplicity()));
                 }
             }
-            if (af.propertyCall() && classFqn != null) {
+            if (af.propertyCall() && !GETALL_FAMILY.contains(qname)) {
                 // legend-pure refuses it (FunctionExpressionProcessor: a dot call with
-                // arguments is matched on the class's qualified properties alone, never on
-                // a function of that name) — PARKED_WORK_LEDGER PARK-14, decided 2026-10-09
-                // (the user): refused as legend-pure refuses it, not a recorded leniency
+                // arguments is matched on the receiver's qualified properties alone, never on
+                // a function of that name), whatever the receiver's type — the ledger's
+                // PARK-14, decided 2026-10-09 (the user): refused as legend-pure refuses it,
+                // not a recorded leniency. The getAll family (`Person.all($x)`, the parser's
+                // property-form call on a class pointer) keeps the generic path's own error.
                 throw new TypeInferenceException("no qualified property '" + qname + "' with "
-                        + (af.parameters().size() - 1) + " argument(s) on '" + classFqn
+                        + (af.parameters().size() - 1) + " argument(s) on '"
+                        + (classFqn != null ? classFqn : recv.info().type().typeName())
                         + "' (a dot call with arguments is a qualified-property call; a function"
                         + " is called with ->)");
             }
@@ -605,35 +608,30 @@ final class Typer {
         return applyGeneric(af, env);
     }
 
+    /** The parser's property-form calls on a class pointer ({@code Person.all($x)}): the getAll family, not
+     *  qualified properties. */
+    private static final java.util.Set<String> GETALL_FAMILY = java.util.Set.of("all", "allVersions", "allVersionsInRange");
+
     /**
      * legend-pure's lookup for a dot call with arguments ({@code _Class.findQualifiedPropertiesUsingGeneralization},
      * build rebuild Phase 3b, item 4): the qualified properties named {@code name} on {@code classFqn} and its
-     * generalizations, the class's own first, the one taking {@code arity} arguments after the receiver. A plain
-     * property of the same name is not consulted (the read without parentheses, {@code $x.name}, takes it:
-     * {@code synthProperty}).
+     * generalizations in C3 order (the kernel's linearizer, {@code Any} last), the one taking {@code arity}
+     * arguments after the receiver, from the most specific owner that declares one. A plain property of the same
+     * name is not consulted (the read without parentheses, {@code $x.name}, takes it: {@code synthProperty}).
+     * Where it differs from legend-pure, recorded as SEMANTICS_REGISTER S40: legend-pure runs its function matcher
+     * over every candidate across the generalizations (by parameter types); this takes the most specific owner's by
+     * arity, and the matcher then picks among that owner's overloads (they share the lifted function's name).
      */
     private Optional<Property.Derived> qualifiedProperty(String classFqn, String name, int arity) {
-        return qualifiedProperty(classFqn, name, arity, new java.util.HashSet<>());
-    }
-
-    private Optional<Property.Derived> qualifiedProperty(String classFqn, String name, int arity,
-            java.util.Set<String> seen) {
-        if (!seen.add(classFqn)) {
-            return Optional.empty();
-        }
-        Optional<com.legend.compiler.element.TypedClass> tc = ctx.findClass(classFqn);
-        if (tc.isEmpty()) {
-            return Optional.empty();
-        }
-        for (Property p : tc.get().properties()) {
-            if (p instanceof Property.Derived d && d.name().equals(name) && d.parameters().size() == arity) {
-                return Optional.of(d);
+        for (String owner : kernel.linearizer().linearization(classFqn)) {
+            Optional<com.legend.compiler.element.TypedClass> tc = ctx.findClass(owner);
+            if (tc.isEmpty()) {
+                continue;
             }
-        }
-        for (String superFqn : tc.get().superClassFqns()) {
-            Optional<Property.Derived> inherited = qualifiedProperty(superFqn, name, arity, seen);
-            if (inherited.isPresent()) {
-                return inherited;
+            for (Property p : tc.get().properties()) {
+                if (p instanceof Property.Derived d && d.name().equals(name) && d.parameters().size() == arity) {
+                    return Optional.of(d);
+                }
             }
         }
         return Optional.empty();

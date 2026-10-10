@@ -75,7 +75,7 @@ class MissingValueInComputedColumnTest {
     }
 
     @Test
-    @DisplayName("DuckDB: a computed column over a missing value is NULL; a filter keeps the same rows")
+    @DisplayName("DuckDB: a computed column over a missing value is false; a filter keeps the same rows")
     void duckdb() throws Exception {
         try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
             probe(conn, DatabaseType.DuckDB);
@@ -83,7 +83,7 @@ class MissingValueInComputedColumnTest {
     }
 
     @Test
-    @DisplayName("H2: a computed column over a missing value is NULL; a filter keeps the same rows")
+    @DisplayName("H2: a computed column over a missing value is false; a filter keeps the same rows")
     void h2() throws Exception {
         try (Connection conn = DriverManager.getConnection("jdbc:h2:mem:h5probe" + System.nanoTime())) {
             probe(conn, DatabaseType.H2);

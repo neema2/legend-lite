@@ -1097,6 +1097,10 @@ public final class SystemMetamodel {
             {
                 $rop.inferredType
             }
+            function meta::relational::functions::typeInference::inferRelationalType(rop:meta::relational::metamodel::RelationalOperationElement[1], failOnMatchFailure:Boolean[1]):meta::relational::metamodel::datatype::DataType[0..1]
+            {
+                $rop->meta::relational::functions::typeInference::inferRelationalType()
+            }
 
             function meta::relational::metamodel::datatype::dataTypeToSqlText(type:meta::relational::metamodel::datatype::DataType[1]):String[1]
             {
@@ -1556,7 +1560,7 @@ public final class SystemMetamodel {
     /**
      * The system layer is protected: a parsed element with the qualified name of a system ELEMENT (a class, an
      * association, a store, a mapping — not a function) is an error. Functions are no longer hidden here (build
-     * rebuild Phase 3b, item 1b, PARK-12 closed): a loaded function with a system version's id is the platform's own
+     * rebuild Phase 3b, item 1b; the ledger's PARK-12 closed 2026-10-09): a loaded function with a system version's id is the platform's own
      * Pure ({@code Implementation.PlatformPure}) and takes the system version's body where the boot layer and a
      * graph are merged ({@code Compiler.boot}, {@code Compiler.normalizeWithSystem}), keeping its own declaration;
      * another version under the name is its own function, decided by the implementation table. Returns

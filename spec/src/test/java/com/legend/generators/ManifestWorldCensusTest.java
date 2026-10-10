@@ -351,12 +351,15 @@ public class ManifestWorldCensusTest {
             // 32 -> 37 walls, 1,447 -> 1,437 bodies (2026-10-09, re-measured on main before Phase 3b, the same 37 on
             // main before Phase 3: 18 unsupported mapping files, 7 duplicate definitions (the boot layer's twins
             // and the two views lifted twice), 7 unknown types (units of measure, the per-name import scopes),
-            // 5 parser gaps; docs/build-inventory/program/PHASE_3B_HOMEWORK_2026_10_09.md H7). Phase 3b lowers the
-            // walls (its items 1a, 1b and 5b); a growth here is a finding, never a pin to raise.
-            org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 37,
-                    "manifest-world load walls grew: " + loadWalls.size() + " > 37");
-            org.junit.jupiter.api.Assertions.assertTrue(failures.size() <= 1437,
-                    "manifest-world failing bodies grew: " + failures.size() + " > 1437");
+            // 5 parser gaps; docs/build-inventory/program/PHASE_3B_HOMEWORK_2026_10_09.md H7).
+            // 37 -> 27 walls, 1,437 -> 1,120 bodies (2026-10-09, Phase 3b landed: the 2 F-L1 files, the 3 import-scope
+            // files and the 5 twin files load; the 18 mapping files, 4 unit files and 5 parser gaps remain; item 4
+            // typed the 391 `serializerExtension` bodies; docs/build-inventory/program/PHASE_3B_LANDING.md). A growth
+            // here is a finding, never a pin to raise.
+            org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 27,
+                    "manifest-world load walls grew: " + loadWalls.size() + " > 27");
+            org.junit.jupiter.api.Assertions.assertTrue(failures.size() <= 1120,
+                    "manifest-world failing bodies grew: " + failures.size() + " > 1120");
         }
     }
 
