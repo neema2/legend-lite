@@ -280,6 +280,29 @@ class Document(Paged):
             self.assertEqual(page.to_dict(), before)
             self.assertNotIn('desks', datacube._session.frames, 'a frame served for the grid refused is served no more')
         self.assertEqual(page.grid(desks(), name='desks').id, 'grid-2', 'the ids go on as if nothing was refused')
+        # a name served already: refused, it serves its frame as before -- the grid over it shows what it showed
+        served = datacube._session.frames['trades']
+        with self.assertRaises(ValueError):
+            page.grid(desks(), name='trades', rows=['nope'])
+        self.assertEqual([c.name for c in datacube._session.frames['trades'].columns], [c.name for c in served.columns])
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['source']['name'], 'trades')
+
+    def test_no_handle_meets_a_new_tile_under_its_old_ones_id(self):
+        page, grid, chart = self.built()
+        later = grid.chart('line', x='region', title='later')
+        page.remove(later)
+        again = grid.chart('pie', x='region', title='again')
+        self.assertNotEqual(again.id, later.id, 'an id the page held is not given out again')
+        with self.assertRaisesRegex(ValueError, 'no longer on its page'):
+            later.title = 'still the old one?'
+        page.remove(grid)
+        other = page.grid(desks(), name='desks')
+        self.assertNotEqual(other.id, grid.id)
+        with self.assertRaisesRegex(ValueError, 'no longer on its page'):
+            grid.group('desk')
+        # a tile stacked with itself is no stack
+        with self.assertRaisesRegex(ValueError, 'two tiles or more'):
+            page.stack(other, other)
 
     def test_saved_and_loaded_again_as_it_was_what_it_does_not_model_kept(self):
         page, grid, chart = self.built()
@@ -344,6 +367,14 @@ class Document(Paged):
             ll.Page.load(unplaced, frames={'trades': trades()})
         with self.assertRaisesRegex(ValueError, 'version 2'):
             ll.Page.load({**doc, 'version': 2}, frames={'trades': trades()})
+        twice = copy.deepcopy(doc)
+        twice['sheets'].append({'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
+        with self.assertRaisesRegex(ValueError, 'share an id'):
+            ll.Page.load(twice, frames={'trades': trades()})
+        listed = copy.deepcopy(doc)
+        listed['views'][0]['cube'] = ['grid-1']
+        with self.assertRaisesRegex(ValueError, 'not what a page holds'):
+            ll.Page.load(listed, frames={'trades': trades()})
 
 
 class Live(Paged):
@@ -417,6 +448,50 @@ class Live(Paged):
         served = self.get(f'/page.json?page={page._key}')[1]
         self.assertEqual(served['page']['sheets'][0]['name'], 'Renamed in DataCube')
         self.assertEqual(served['page']['cubes'][0]['cube']['query']['rows'], ['desk'])
+
+    def test_a_tile_closed_in_datacube_and_its_id_given_again_there_is_not_its_old_handles(self):
+        page, grid, chart = self.built()
+        ll.show(page, browser=False)
+        # DataCube closed the chart, and later made another under the same id (a page opened afresh counts from the
+        # ids it has)
+        open_now = page.to_dict()
+        open_now['views'] = [v for v in open_now['views'] if v['id'] != chart.id]
+        open_now['sheets'][0]['layout']['bands'][0]['node'] = {'tile': grid.id}
+        self.assertEqual(self.said(page, open_now), 204)
+        page.read()
+        again = copy.deepcopy(open_now)
+        again['views'].append({**page.to_dict()['views'][0], 'id': chart.id, 'kind': 'chart', 'title': 'new there',
+                               'spec': {'version': 1, 'mark': 'pie', 'y': [{'column': 'notional', 'fn': 'sum'}], 'options': {}}})
+        again['sheets'][0]['layout']['bands'].append({'height': 0.5, 'node': {'tile': chart.id}})
+        self.assertEqual(self.said(page, again), 204)
+        page.read()
+        with self.assertRaisesRegex(ValueError, 'no longer on its page'):
+            chart.title = 'the old chart'
+        self.assertEqual(page.charts[0].title, 'new there')
+
+    def test_shown_again_and_closed_and_shown_again(self):
+        page, grid, _ = self.built()
+        first = ll.show(page, browser=False)
+        # shown again in another tab: the page as it is, the tab open on it not opened again
+        ll.show(page, browser=False)
+        self.assertEqual(self.get(f'/version.json?page={page._key}')[1]['version'], 1)
+        # closed everywhere and shown again: its version goes on, so the first showing's tab says nothing taken
+        for view in list(datacube._session.pages):
+            view.close()
+        del first
+        ll.show(page, browser=False)
+        self.assertEqual(self.get(f'/version.json?page={page._key}')[1]['version'], 2)
+        self.assertEqual(self.said(page, page.to_dict(), version=1), 409)
+
+    def test_a_frozen_chart_left_without_its_grid_follows_its_frame(self):
+        page, grid, chart = self.built()
+        chart.plot(frozen=True)
+        page.grid(desks(), name='desks')
+        page.remove(grid)
+        ll.show(page, browser=False)
+        before = self.get(f'/version.json?page={page._key}')[1]['frames']['trades']
+        datacube._session.register(trades().iloc[:1], 'trades', 'live')
+        self.assertEqual(self.get(f'/version.json?page={page._key}')[1]['frames']['trades'], before + 1)
 
     def test_what_the_open_page_says_of_a_page_since_replaced_is_not_read(self):
         page, _, _ = self.built()

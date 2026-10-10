@@ -105,6 +105,8 @@ export class EnginePage {
   /** Its document's next report to the engine, while a change waits to settle. */
   #reporting: ReturnType<typeof setTimeout> | undefined;
   #disposed = false;
+  /** Not followed any more (the page closed, the engine gone): what it shows stays, and it reports nothing. */
+  #stopped = false;
 
   private constructor(link: PageLink, page: PageApp, versions: Versions) {
     this.#link = link;
@@ -175,6 +177,13 @@ export class EnginePage {
     this.#page.dispose();
   }
 
+  /** It follows the engine's page no more: what it shows stays, and it says nothing more of it (a page shown again in
+   * Python is another showing, which this one's reports must never be taken for). */
+  stop(): void {
+    this.#stopped = true;
+    clearTimeout(this.#reporting);
+  }
+
   /** The page changed (in DataCube, or opened again): its document reported once the change settles. */
   #changed(): void {
     clearTimeout(this.#reporting);
@@ -183,7 +192,7 @@ export class EnginePage {
 
   /** Its document as it is now, to the engine (Python's `page.read()`): a page the engine no longer serves says nothing. */
   async #report(): Promise<void> {
-    if (this.#disposed) return;
+    if (this.#disposed || this.#stopped) return;
     const doc = this.#page.document(this.#title, this.#unknown);
     if (!doc) return;
     const at = `page=${encodeURIComponent(this.#link.page)}&version=${this.#shown}`;

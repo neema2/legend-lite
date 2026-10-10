@@ -223,7 +223,7 @@ class PageCube(_EngineWidget):
 
     def _frame_moved(self, name: str, _version: int) -> None:
         """A frame changed (from the thread that changed it): one of the page's moves its versions."""
-        if not self._closed and any(g.frame.lower() == name.lower() for g in self._page.grids):
+        if not self._closed and any(f.lower() == name.lower() for f in self._page._frames()):
             self.versions = self._session.engine().page_versions(self._page._key) or {}
 
     def __repr__(self) -> str:

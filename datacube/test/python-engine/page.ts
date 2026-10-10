@@ -17,7 +17,7 @@
 //
 // And A PAGE FROM PYTHON'S ENGINE (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md, step 1): `__pythonPageDocument`
 // writes a page of two frames on two sheets with DataCube's own writers, for the harness to have Python serve it and a
-// tab open it (demo/engine.html?page=).
+// tab open it (demo/engine.html?page=); `__readPythonPage` reads a page Python wrote with DataCube's own reader.
 
 import { startDuckDbInTab } from '../../../engine-client/src/duckdb-tab.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
@@ -30,7 +30,7 @@ import type { CubeSnapshot } from '../../src/snapshot.ts';
 import { defaultChart } from '../../src/chart-spec.ts';
 import { DEFAULT_CONFIGURATION } from '../../src/config.ts';
 import { writeCube, type FrameSource } from '../../src/cube-document.ts';
-import { pageToJson, writePageOf } from '../../src/page-document.ts';
+import { pageToJson, readPage, writePageOf } from '../../src/page-document.ts';
 import { sourceColumns } from '../../src/source-columns.ts';
 import { TreeState } from '../../src/tree.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
@@ -61,6 +61,8 @@ declare global {
     __pythonEngineStage?: string;
     /** A page of the engine's two frames on two sheets, as DataCube writes one (page-document.ts), as JSON. */
     __pythonPageDocument?: () => Promise<unknown>;
+    /** A page as Python wrote it (its JSON text) read by DataCube's own reader: why it refuses it, or null. */
+    __readPythonPage?: (text: string) => string | null;
   }
 }
 
@@ -220,6 +222,15 @@ async function run(): Promise<void> {
  * region, and its chart beside it; on a second, named Desks, a grid over the desks frame. Each grid's cube over its
  * frame by name, its columns as the engine's model types them.
  */
+window.__readPythonPage = (text: string): string | null => {
+  try {
+    readPage(text);
+    return null;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
+};
+
 window.__pythonPageDocument = async () => {
   const served = window.__pythonEngineServed!;
   const cubeOf = async (frame: string, rows: readonly string[], measures: CubeSnapshot['measures']) => {

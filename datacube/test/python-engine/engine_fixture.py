@@ -6,7 +6,8 @@ the test's commands until its standard input closes: `update`, `columns`, `widge
 its frames served, as `q3`), `page-again` (that page served again, its second sheet renamed), `desks-update` (the second
 frame a row more), `py-page` (a page built with ll.Page and shown; answered `done py-page <its link as JSON>`),
 `py-page-sheet` (a sheet added to it in Python), `widget-page-sheet` (a sheet added to the notebook's page), `py-page-read` (answered `done py-page-read <its sheets' names, as
-page.read() says them, as JSON>`) -- each answered `done <command>` -- and `widget <name> <message>`, a message from a widget's page, as
+page.read() says them, as JSON>`), `py-documents` (answered `done py-documents <pages Python writes, each its JSON
+text, as JSON>`: for DataCube's reader to read) -- each answered `done <command>` -- and `widget <name> <message>`, a message from a widget's page, as
 a notebook's channel brings it. What a widget sends its page is printed as it goes: `sent <json>` (its buffers in
 base64) and `trait <json>` (a property set). A second frame, `desks`, is served Live from the start, for the page.
 
@@ -21,6 +22,7 @@ import json
 import os
 import sys
 import threading
+from decimal import Decimal
 
 import pyarrow as pa
 
@@ -59,6 +61,36 @@ SCHEMA = pa.schema([
     ('region', pa.string()), ('desk', pa.string()), ('book', pa.string()), ('year', pa.int32()),
     ('qtr', pa.string()), ('notional', pa.float64()), ('pnl', pa.float64()), ('qty', pa.int32()),
 ])
+
+
+def python_documents(frame: pa.Table, written: dict, desks: dict) -> list[str]:
+    """Pages as Python writes them, each its JSON text, for DataCube's own reader to read: built with every kind of
+    edit Python makes -- filters of every kind of value, a calculated column with an exact decimal, charts beside and
+    below their grid and one removed, a stack, a layout in the document's own words -- a frozen chart kept with its grid
+    gone, and DataCube's own page (the test's) loaded, changed in Python and written again."""
+    built = ll.Page('Built')
+    grid = built.grid(frame, name='doc_trades', rows=['region'], measures={'notional': 'sum'}, sort=[('notional', 'desc')],
+                      filter=[('notional', 'greaterThan', Decimal('12.30')), ('year', 'in', [2023, 2024]),
+                              ('region', 'notEqual', 'APAC'), ('qtr', 'isNotEmpty')])
+    grid.calculate('scaled', '$x.notional->toOne() * 1.50D')
+    charts = [grid.chart(mark, x='region') for mark in ('bar', 'line', 'area', 'pie', 'scatter')]
+    built.remove(charts[1])
+    other = built.grid(lambda: desks['now'], name='doc_desks')
+    built.stack(other, charts[4])
+    laid = built.sheet('Laid out')
+    laid.add(charts[2], charts[3])
+    laid.layout_from({'kind': 'bands', 'fit': False, 'bands': [{'height': 1.2, 'node': {'split': 'column', 'parts': [
+        {'node': {'tile': charts[2].id}, 'size': 0.4}, {'node': {'tile': charts[3].id}, 'size': 0.6}]}}]})
+    frozen = ll.Page('Frozen')
+    held = frozen.grid(frame, name='doc_frozen', measures={'qty': 'sum'})
+    held.chart('bar', x='desk', frozen=True)
+    frozen.grid(lambda: desks['now'], name='doc_desks_2')
+    frozen.remove(held)
+    loaded = ll.Page.load(written, frames={'trades': frame, 'desks': lambda: desks['now']})
+    first = loaded.grids[0]
+    first.group('desk')
+    loaded.stack(first, first.chart('line', x='desk'))
+    return [page.to_json() for page in (built, frozen, loaded)]
 
 
 def main() -> None:
@@ -132,6 +164,8 @@ def main() -> None:
                 command = f'py-page {json.dumps(shown_page.url)}'
             elif command == 'py-page-sheet':
                 pypage.sheet('Added in Python')
+            elif command == 'py-documents':
+                command = f'py-documents {json.dumps(python_documents(frame, served_page, desks))}'
             elif command == 'py-page-read':
                 command = f'py-page-read {json.dumps([s.name for s in pypage.read().sheets])}'
             elif command == 'desks-update':

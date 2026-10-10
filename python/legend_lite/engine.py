@@ -175,6 +175,9 @@ class Engine:
         # the pages it serves (Python's ll.Page; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md): each its document --
         # DataCube's page document, its cubes over these frames -- and its version, moved each time it is served again
         self._pages: dict[str, tuple[int, dict[str, Any]]] = {}
+        # each page's last version, kept when it closes: a page shown again goes on from it, so what a tab still open
+        # on its earlier showing says is of a version replaced
+        self._page_versions: dict[str, int] = {}
         # each page's document as the open page says it is now (its changes made in DataCube included: page.read()).
         # Documents are kept as the compiler's exact JSON reads them (_json): a calculated column's numbers exact
         self._read: dict[str, dict[str, Any]] = {}
@@ -317,7 +320,7 @@ class Engine:
         open on it opens it again. Returns its version."""
         kept = _json.loads(_json.dumps(document))
         with self._changes:
-            version = self._pages.get(name, (0, {}))[0] + 1
+            version = self._page_versions[name] = self._page_versions.get(name, 0) + 1
             self._pages[name] = (version, kept)
             # what the open page said is of the document before: it opens this one
             self._read.pop(name, None)

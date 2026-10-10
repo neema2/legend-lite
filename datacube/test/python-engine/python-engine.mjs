@@ -199,6 +199,20 @@ try {
   console.log(`${read ? 'ok  ' : 'FAIL'} a sheet renamed in DataCube is in page.read() in Python${read ? ` (${read.join(', ')})` : ''}`);
   if (!read) failed = true;
 
+  // EVERY PAGE PYTHON WRITES IS ONE DATACUBE READS: pages built with each kind of edit Python makes, one with a frozen
+  // chart kept without its grid, and DataCube's own page loaded and changed in Python, read by DataCube's reader
+  engine.stdin.write('py-documents\n');
+  const written = await nextLine();
+  if (!written.startsWith('done py-documents ')) throw new Error(`the engine did not write the pages: ${written}`);
+  const texts = JSON.parse(written.slice('done py-documents '.length));
+  const refused = await page.evaluate((all) => all.map((text) => window.__readPythonPage(text)), texts);
+  const readAll = texts.length === 3 && refused.every((why) => why === null);
+  console.log(`${readAll ? 'ok  ' : 'FAIL'} every page Python writes DataCube's reader reads (${texts.length} pages)`);
+  if (!readAll) {
+    refused.forEach((why, i) => { if (why !== null) console.log(`  page ${i + 1}: ${why}`); });
+    failed = true;
+  }
+
   // A NOTEBOOK'S CUBES (legend_lite.notebook.DataCube): two widgets on one page, each its script loaded as anywidget
   // loads one (its text as a module), their messages carried to Python's widgets and back as a notebook's channel
   // carries them. DataCube's module comes over the channel once for the page; no call goes over HTTP.

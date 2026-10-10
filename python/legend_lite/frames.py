@@ -79,6 +79,11 @@ class Table:
         self.excluded: tuple[str, ...] = ()
         self.columns: tuple[compiler.Column, ...] = ()
 
+    @property
+    def reader(self) -> Callable[[], Any]:
+        """What it reads its frame from: the function given, or the frame itself (a Snapped one's, as it was given)."""
+        return self._read
+
     def _load(self, arrow: pa.Table) -> None:
         """Puts the frame in DuckDB as the table it is named, reads its catalog, and writes its model."""
         con = self._frames.connection
@@ -185,13 +190,20 @@ class Frames:
         arrow = _arrow(first)
         with self._lock:
             key = name.lower()
-            old = self._tables.pop(key, None)
+            # the old table stays under its name until the new one takes its place: a reader asking for the name
+            # meanwhile (a tab asking its version, which takes no lock) finds it all along, never a frame gone
+            old = self._tables.get(key)
             if old is not None:
                 old._drop()
             elif self._exists(name):
                 raise ValueError(f'the database already has a table or view named {name!r}, and Frames did not make it')
             table = Table(self, name, read, mode)
-            table._load(arrow)
+            try:
+                table._load(arrow)
+            except BaseException:
+                # its old table dropped, the name serves nothing: said so, not left serving a table that is gone
+                self._tables.pop(key, None)
+                raise
             self._tables[key] = table
             return table
 

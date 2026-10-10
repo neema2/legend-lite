@@ -531,7 +531,10 @@ export function layoutsFor(n: number): readonly OfferedLayout[] {
 }
 
 /** A band's height in a preset of `count` bands: they share one screenful, three to a screen at most. */
-const bandHeight = (count: number): number => 1 / Math.min(Math.max(count, 1), 3);
+/** The bands the layout picker fits to a screen, at most: more, and each is a third of one (the page scrolls). */
+export const SCREEN_BANDS = 3;
+
+const bandHeight = (count: number): number => 1 / Math.min(Math.max(count, 1), SCREEN_BANDS);
 
 /** `ids` cut into runs of `counts` (the last count again for tiles past them; fewer tiles, fewer runs). */
 function runs(ids: readonly string[], counts: readonly number[]): string[][] {

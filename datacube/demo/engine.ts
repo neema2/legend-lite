@@ -89,7 +89,10 @@ async function openPage(link: import('./engine-page.ts').PageLink): Promise<void
   const { EnginePage, askedVersions } = await import('./engine-page.ts');
   const page = await EnginePage.open(document.getElementById('cube')!, link);
   document.title = page.title;
-  const stopped = (why: string): void => { document.title = `${page.title} (not followed: ${why})`; };
+  const stopped = (why: string): void => {
+    page.stop();
+    document.title = `${page.title} (not followed: ${why})`;
+  };
   for (;;) {
     await pause(ASK_EVERY);
     await shown();

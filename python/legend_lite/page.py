@@ -56,9 +56,11 @@ AGGREGATES = frozenset({
 })
 MARKS = frozenset({'bar', 'line', 'area', 'scatter', 'pie', 'heatmap', 'treemap'})
 DIRECTIONS = frozenset({'asc', 'desc'})
-# a band added at the bottom of a sheet, in screenfuls; the places a band holds side by side, at most
+# a band added at the bottom of a sheet, in screenfuls; the places a band holds side by side, at most; the bands the
+# layout picker fits to a screen, at most
 BAND_HEIGHT = 0.5
 MAX_COLUMNS = 4
+SCREEN_BANDS = 3
 
 PAGE_KIND = 'datacube.page'
 PAGE_VERSION = 3
@@ -196,7 +198,8 @@ def _split(direction: str, nodes: list[dict[str, Any]], sizes: list[Any] | None 
 
 def _without(node: dict[str, Any], tile: str) -> dict[str, Any] | None:
     """``node`` without ``tile`` (None when nothing is left), its neighbours taking its share; out of a stack, the stack
-    keeps its place, a stack left with one tile being that tile."""
+    keeps its place, a stack left with one tile being that tile. (A stack's tile in front is what a page shows, not what
+    it saves -- bands.ts, asSaved -- so a stack here has none to keep.)"""
     if _is_leaf(node):
         if tile not in _leaf_tiles(node):
             return node
@@ -287,6 +290,8 @@ class Tile:
     def __init__(self, page: Page, id: str) -> None:
         self._page = page
         self._id = id
+        # its tile gone (removed, or closed in DataCube): it stays refused, whatever later has its id
+        self._dead = False
 
     @property
     def page(self) -> Page:
@@ -299,7 +304,8 @@ class Tile:
     @property
     def _view(self) -> dict[str, Any]:
         """Its view in the document now, or refused: it is no longer on the page (closed there, or removed)."""
-        view = next((v for v in self._page._doc['views'] if v['id'] == self._id and v['kind'] == self._kind), None)
+        view = None if self._dead else \
+            next((v for v in self._page._doc['views'] if v['id'] == self._id and v['kind'] == self._kind), None)
         if view is None:
             raise ValueError(f'{self!r} is no longer on its page')
         return view
@@ -490,7 +496,9 @@ def _spec(grid: Grid, mark: str, x: str | None, y: Sequence[tuple[str, str]] | N
         raise ValueError(f'{mark!r} is not one of DataCube\'s charts: {", ".join(sorted(MARKS))}')
     # the grid's first measure a chart can plot (a weighted average needs its weight, which a chart's y has not)
     measures = grid._query.get('measures', [])
-    plotted = list(y if y is not None else [(m['column'], m['fn']) for m in measures if m['fn'] != 'wavg'][:1])
+    columns = grid._columns()
+    plotted = list(y if y is not None else [(m['column'], m['fn']) for m in measures
+                                            if m['fn'] != 'wavg' and m['column'] in columns][:1])
     if not plotted:
         raise ValueError('a chart plots something: give y=[(column, aggregate)] (or the grid a measure)')
     if not all(isinstance(p, tuple) and len(p) == 2 for p in plotted):
@@ -550,6 +558,7 @@ class Sheet:
     def __init__(self, page: Page, id: str) -> None:
         self._page = page
         self._id = id
+        self._dead = False
 
     @property
     def page(self) -> Page:
@@ -561,7 +570,7 @@ class Sheet:
 
     @property
     def _doc(self) -> dict[str, Any]:
-        sheet = next((s for s in self._page._doc['sheets'] if s['id'] == self._id), None)
+        sheet = None if self._dead else next((s for s in self._page._doc['sheets'] if s['id'] == self._id), None)
         if sheet is None:
             raise ValueError(f'{self!r} is no longer on its page')
         return sheet
@@ -661,8 +670,8 @@ class Sheet:
 
 
 def _band_height(count: int) -> float:
-    """A band's height as the layout picker makes its bands: up to three to a screen."""
-    return 1 / min(max(count, 1), 3)
+    """A band's height as the layout picker makes its bands: up to SCREEN_BANDS to a screen."""
+    return 1 / min(max(count, 1), SCREEN_BANDS)
 
 
 # -- the page ---------------------------------------------------------------------------------------------------------
@@ -682,6 +691,8 @@ class Page:
                                      'sheets': [{'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}}]}
         # each handle given, by its kind and id: the same object each time it is asked for
         self._handles: dict[tuple[type[Any], str], Any] = {}
+        # every id the page has held: none is given out again, so no handle meets a new tile under its old one's id
+        self._ids: set[str] = {'sheet-1'}
         # where it is shown (datacube.show_page): told each time it changes
         self._shown: list[Any] = []
         self._quiet = 0
@@ -723,8 +734,8 @@ class Page:
         band of its own at the bottom of ``sheet`` (the first unless given). ``rows``, ``columns``, ``measures``
         (``{column: aggregate}`` or ``[(column, aggregate)]``), ``filter`` and ``sort``: as ``group``, ``pivot``,
         ``measure``, ``filter`` and ``sort`` say -- all checked before the grid is on the page, so a mistake leaves the
-        page as it was (and a frame served under a new name for it, served no more). ``mode``: Live (each query reads the
-        frame as it is then) or ``'snapped'``."""
+        page and the frames as they were (the name serving what it served before, or nothing). ``mode``: Live (each query
+        reads the frame as it is then) or ``'snapped'``."""
         if mode not in (LIVE, SNAPPED):
             raise ValueError(f'mode is {LIVE!r} or {SNAPPED!r}, not {mode!r}')
         if sheet is not None and sheet._page is not self:
@@ -732,35 +743,34 @@ class Page:
         target = self.sheets[0] if sheet is None else sheet
         _ = target._doc
         _named(title, 'a title')
-        new = name is None or name not in self._session.frames
-        served = self._session.register(frame, name, mode)
         id = self._next('grid')
-        columns_now = [{'name': c.name, 'type': c.type} for c in self._session.frames[served].columns]
-        self._doc['cubes'].append({'id': id, 'cube': {
-            'kind': CUBE_KIND, 'version': CUBE_VERSION, 'name': self.name,
-            'source': {'_type': 'frame', 'name': served, 'columns': columns_now},
-            'query': {'columns': [dict(c) for c in columns_now], 'derived': [], 'rows': [], 'pivotOn': [],
-                      'measures': [], 'sorts': []},
-            'configuration': {'reportTitle': served}, 'tree': {'open': [], 'showTotals': False}}})
-        self._doc['views'].append({'id': id, 'kind': 'grid', 'cube': id, **({'title': title} if title else {})})
-        grid = self._tile(id, Grid)
-        try:
-            # set before it is placed, nothing told meanwhile: a mistake takes it off again
-            with self._batch(tell=False):
-                grid.group(*rows)
-                grid.pivot(*columns)
-                for column, fn in (measures.items() if isinstance(measures, Mapping) else measures or ()):
-                    grid.measure(column, fn)
-                if filter is not None:
-                    grid.filter(filter)
-                for column, direction in sort:
-                    grid.sort(column, direction)
-        except Exception:
-            self._doc['cubes'].pop()
-            self._doc['views'].pop()
-            if new:
-                self._session.unregister(served)
-            raise
+        # served for the grid while it is set; a mistake serves the name as before, and takes the grid off again
+        with self._session.registered(frame, name, mode) as served:
+            columns_now = [{'name': c.name, 'type': c.type} for c in self._session.frames[served].columns]
+            self._doc['cubes'].append({'id': id, 'cube': {
+                'kind': CUBE_KIND, 'version': CUBE_VERSION, 'name': self.name,
+                'source': {'_type': 'frame', 'name': served, 'columns': columns_now},
+                'query': {'columns': [dict(c) for c in columns_now], 'derived': [], 'rows': [], 'pivotOn': [],
+                          'measures': [], 'sorts': []},
+                'configuration': {'reportTitle': served}, 'tree': {'open': [], 'showTotals': False}}})
+            self._doc['views'].append({'id': id, 'kind': 'grid', 'cube': id, **({'title': title} if title else {})})
+            grid = self._tile(id, Grid)
+            try:
+                # set before it is placed, nothing told meanwhile
+                with self._batch(tell=False):
+                    grid.group(*rows)
+                    grid.pivot(*columns)
+                    for column, fn in (measures.items() if isinstance(measures, Mapping) else measures or ()):
+                        grid.measure(column, fn)
+                    if filter is not None:
+                        grid.filter(filter)
+                    for column, direction in sort:
+                        grid.sort(column, direction)
+            except BaseException:
+                self._doc['cubes'].pop()
+                self._doc['views'].pop()
+                self._forget({id})
+                raise
         self._place(id, target)
         return grid
 
@@ -770,13 +780,14 @@ class Page:
         id = self._next('sheet')
         self._doc['sheets'].append({'id': id, **({'name': name} if name else {}),
                                     'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
+        self._ids.add(id)
         self._changed()
         return self._sheet(id)
 
     def stack(self, *tiles: Tile) -> None:
         """``tiles`` in one place, as tabs, one shown at a time, where the first one is: all on one sheet. A tile
         stacked already brings its stack's others, after those given."""
-        if len(tiles) < 2:
+        if len({t._id for t in tiles}) < 2:
             raise ValueError('a stack is two tiles or more')
         if any(t._page is not self for t in tiles):
             raise ValueError('the tiles of a stack are of this page')
@@ -808,6 +819,7 @@ class Page:
         self._doc['views'], self._doc['cubes'] = views, cubes
         for id in gone:
             self._unplace(id)
+        self._forget(gone)
         self._changed()
 
     # -- the document --------------------------------------------------------------------------------------------------
@@ -824,7 +836,7 @@ class Page:
 
     def save(self, path: str | Path) -> None:
         """The page document, as a file (as DataCube's Export > Page File writes it)."""
-        Path(path).write_text(self.to_json() + '\n', 'utf-8')
+        Path(path).write_text(self.to_json() + '\n', 'utf-8', newline='')
 
     @classmethod
     def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any], *, mode: str = LIVE) -> Page:
@@ -840,6 +852,7 @@ class Page:
         for name in wanted:
             page._session.register(frames[name], name, mode)
         page._doc = doc
+        page._ids |= _ids(doc)
         return page
 
     # -- shown ---------------------------------------------------------------------------------------------------------
@@ -857,8 +870,10 @@ class Page:
             unserved = sorted({c['cube']['source']['name'] for c in doc['cubes']} - set(self._served()))
             if unserved:
                 raise ValueError(f'the open page reads the frames {", ".join(unserved)}, which this session does not serve')
-            # taken quietly: the open page is this already
+            # taken quietly: the open page is this already; a handle of a tile it no longer has, gone
+            self._forget(_ids(self._doc) - _ids(doc))
             self._doc = doc
+            self._ids |= _ids(doc)
         return self
 
     @property
@@ -900,15 +915,23 @@ class Page:
     # -- the document's parts ------------------------------------------------------------------------------------------
 
     def _next(self, kind: str) -> str:
-        """A new id of ``kind`` (``grid-3``): after every one the page has, a cube's kept for a frozen chart included."""
-        taken = [x['id'] for part in ('cubes', 'views', 'sheets') for x in self._doc[part]]
-        return f'{kind}-{max((_number(t) for t in taken if t.startswith(kind + "-")), default=0) + 1}'
+        """A new id of ``kind`` (``grid-3``): after every one the page has held, so never one a handle had."""
+        return f'{kind}-{max((_number(t) for t in self._ids if t.startswith(kind + "-")), default=0) + 1}'
+
+    def _forget(self, ids: set[str]) -> None:
+        """The handles of tiles and sheets gone, refused from now on."""
+        for key in [k for k in self._handles if k[1] in ids]:
+            self._handles.pop(key)._dead = True
+
+    def _frames(self) -> set[str]:
+        """The frames its cubes read, a frozen chart's whose grid is gone included."""
+        return {c['cube']['source']['name'] for c in self._doc['cubes']}
 
     def _cube(self, id: str) -> dict[str, Any]:
         return next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
 
     def _served(self) -> list[str]:
-        return [n for n in {c['cube']['source']['name'] for c in self._doc['cubes']} if n in self._session.frames]
+        return [n for n in self._frames() if n in self._session.frames]
 
     def _tile(self, id: str, kind: type[Any]) -> Any:
         handle = self._handles.get((kind, id))
@@ -927,6 +950,7 @@ class Page:
         """A place for tile ``id`` on ``sheet``, as DataCube places a new tile (bands.ts, add): beside ``near`` while its
         band is a row of fewer than MAX_COLUMNS places, otherwise in a band of its own below it; with no ``near``, a band
         at the bottom."""
+        self._ids.add(id)
         layout = sheet._doc['layout']
         bands = list(layout['bands'])
         at = next((i for i, b in enumerate(bands) if near is not None and _contains(b['node'], near)), -1)
@@ -973,35 +997,41 @@ def _bands_without(bands: list[dict[str, Any]], tile: str) -> list[dict[str, Any
     return [{**b, 'node': n} for b in bands if (n := _without(b['node'], tile)) is not None]
 
 
+def _ids(doc: dict[str, Any]) -> set[str]:
+    """The ids a page document gives its cubes, views and sheets."""
+    return {x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]}
+
+
 def _check(doc: Any) -> None:
-    """Refused, saying why, unless ``doc`` is a page document Python works on: DataCube's (version 3), each cube over a
-    frame, each view of one of its cubes, every view on one sheet, every layout one DataCube draws."""
+    """Refused, saying why, unless ``doc`` is a page document Python can work on: DataCube's (version 3), each cube over a
+    frame, each id once, each view of one of its cubes and on one sheet, each layout of the shape Python edits. What else
+    DataCube's reader asks of a page (page-document.ts: a chart's mark, a sheet's name), it asks when the page is shown:
+    Python keeps no second copy of its rules."""
     def need(ok: bool, why: str) -> None:
         if not ok:
             raise ValueError(f'not a page Python reads: {why}')
+
+    def each(part: str, ok: Any) -> list[dict[str, Any]]:
+        items = doc.get(part)
+        need(isinstance(items, list) and all(isinstance(x, dict) and isinstance(x.get('id'), str) and ok(x)
+                                             for x in items), f'its {part} are not what a page holds')
+        need(len({x['id'] for x in items}) == len(items), f'two of its {part} share an id')
+        return items
     need(isinstance(doc, dict) and doc.get('kind') == PAGE_KIND, f'it is not a DataCube page ({PAGE_KIND})')
     need(doc.get('version') == PAGE_VERSION,
          f'it is of version {doc.get("version")!r}, not {PAGE_VERSION} (open it in DataCube and export it again)')
-    need(isinstance(doc.get('name'), str) and bool(doc['name'].strip()), 'it has no name')
-    cubes = doc.get('cubes')
-    need(isinstance(cubes, list) and bool(cubes), 'it has no cube')
+    need(isinstance(doc.get('name'), str), 'it has no name')
+    cubes = each('cubes', lambda c: isinstance(c.get('cube'), dict) and isinstance(c['cube'].get('query'), dict))
+    need(bool(cubes), 'it has no cube')
     for c in cubes:
-        need(isinstance(c, dict) and isinstance(c.get('id'), str) and isinstance(c.get('cube'), dict)
-             and isinstance(c['cube'].get('query'), dict), 'a cube is not an id and a saved cube')
         source = c['cube'].get('source')
         need(isinstance(source, dict) and source.get('_type') == 'frame' and isinstance(source.get('name'), str),
              f'the cube {c["id"]} reads no frame (a page in Python is over frames)')
     ids = {c['id'] for c in cubes}
-    views = doc.get('views')
-    need(isinstance(views, list) and all(isinstance(v, dict) and isinstance(v.get('id'), str)
-                                         and v.get('kind') in ('grid', 'chart') and v.get('cube') in ids for v in views),
-         'a view is not a grid or a chart of one of its cubes')
-    need(len({v['id'] for v in views}) == len(views), 'two views share an id')
-    need(all(isinstance(v.get('spec'), dict) and isinstance(v['spec'].get('y'), list) for v in views
-             if v['kind'] == 'chart'), 'a chart has no spec')
-    sheets = doc.get('sheets')
-    need(isinstance(sheets, list) and bool(sheets) and all(isinstance(s, dict) and isinstance(s.get('id'), str)
-                                                           for s in sheets), 'it has no sheets')
+    views = each('views', lambda v: v.get('kind') in ('grid', 'chart') and isinstance(v.get('cube'), str)
+                 and v['cube'] in ids and (v['kind'] == 'grid' or isinstance(v.get('spec'), dict)))
+    sheets = each('sheets', lambda s: True)
+    need(bool(sheets), 'it has no sheet')
     placed: list[str] = []
     for s in sheets:
         wrong = _problems(s.get('layout'))

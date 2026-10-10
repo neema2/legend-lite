@@ -51,8 +51,8 @@ describe('Python writes pages in DataCube\'s own words', () => {
     assert.equal(pyNumber('CUBE_VERSION'), tsNumber('src/cube-document.ts', 'CUBE_VERSION'));
   });
 
-  it('it places a tile as the layout does: a new band\'s height, the places a band holds', () => {
-    for (const name of ['BAND_HEIGHT', 'MAX_COLUMNS']) {
+  it('it places a tile as the layout does: a new band\'s height, the places a band holds, the bands to a screen', () => {
+    for (const name of ['BAND_HEIGHT', 'MAX_COLUMNS', 'SCREEN_BANDS']) {
       const ts = tsNumber('src/layout/bands.ts', name);
       assert.ok(ts > 0, `bands.ts declares ${name}`);
       assert.equal(pyNumber(name), ts, name);

@@ -17,6 +17,7 @@ it is open waits there, saying so, until Ctrl-C (or an IDE's Stop).
 from __future__ import annotations
 
 import atexit
+import contextlib
 import os
 import sys
 import threading
@@ -24,6 +25,7 @@ import time
 import weakref
 import webbrowser
 from pathlib import Path
+from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
 from .engine import Engine, WebServer
@@ -185,9 +187,9 @@ class _Session:
         with self._lock:
             if name is None:
                 name = self._next_name()
-            # shown by a cube of its name, or by a grid of a page shown
-            shown = name.lower() in self.cubes or any(g.frame.lower() == name.lower()
-                                                      for view in self.pages for g in view._page.grids)
+            # shown by a cube of its name, or read by a page shown
+            shown = name.lower() in self.cubes or any(f.lower() == name.lower()
+                                                      for view in self.pages for f in view._page._frames())
             self.frames.register(name, frame, mode)
             engine = self.engine()
             if shown or engine.seen(name):
@@ -195,11 +197,23 @@ class _Session:
                 engine.changed(name)
             return name
 
-    def unregister(self, name: str) -> None:
-        """A frame registered for nothing that came of it (a page's grid refused): out of the engine again."""
+    @contextlib.contextmanager
+    def registered(self, frame: Any, name: str | None, mode: str) -> Iterator[str]:
+        """The frame registered (``register``) for what the block makes of it: the block failing, its name serves
+        what it served before -- the frame it had, read the way it was -- or, a new name, nothing."""
         with self._lock:
-            if name in self.frames and name.lower() not in self.cubes:
-                self.frames.unregister(name)
+            before = self.frames[name] if name is not None and name in self.frames else None
+            kept = (before.reader, before.mode) if before is not None else None
+        served = self.register(frame, name, mode)
+        try:
+            yield served
+        except BaseException:
+            with self._lock:
+                if kept is not None:
+                    self.register(kept[0], served, kept[1])
+                elif served in self.frames and served.lower() not in self.cubes:
+                    self.frames.unregister(served)
+            raise
 
     def show(self, frame: Any, name: str | None, mode: str) -> Cube:
         """The frame registered, and its name's cube in a tab: the one it has, else a new one."""
@@ -233,7 +247,7 @@ class _Session:
                     self._engine.changed(cube.name)
             for view in self.pages:
                 view._after_cell()
-            frames = {g.frame for shown in self.pages for g in shown._page.grids}
+            frames = {f for shown in self.pages for f in shown._page._frames()}
             for name in frames:
                 if self._engine is not None and name in self.frames and self.frames[name].mode == LIVE:
                     self._engine.changed(name)
@@ -249,7 +263,10 @@ class _Session:
         """``page`` served by the engine, shown in ``view`` (a tab's or a notebook's) and told of each change."""
         page._showable()
         with self._lock:
-            self.engine().serve_page(page._key, page.to_dict())
+            # served when it is first shown; shown again, the engine has it as it is (served each time it changed), and
+            # a page open on it stays as it is
+            if not page._shown:
+                self.engine().serve_page(page._key, page._doc)
             page._shown.append(view)
             self.pages.append(view)
             self._hook()
@@ -407,7 +424,6 @@ def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool
 def _show_page(page: Page, *, browser: bool, inline: bool | None) -> PageTab | PageCube:
     """A page (``ll.Page``) shown: under the cell in a notebook's kernel, as the cell's output in marimo (as a frame is),
     else in a browser tab; live from then on."""
-    page._showable()
     if _marimo() and inline is not False:
         from .notebook import page_for_marimo
         return page_for_marimo(page)
