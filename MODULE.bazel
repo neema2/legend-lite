@@ -411,6 +411,30 @@ http_archive(
     ("roboto-mono", "sha512-yhwplHMHW9dCk+1pZuERfcJe+K3rosGVZEoK0XktkxRSqQ9qsipSwwiuW2/8Qmtp9lzu3Ixa/ie4BMH3i8CkZQ=="),
 ]]
 
+# THE UPSTREAM LEGEND SHOWCASE PROJECTS (docs/PROTOCOL_PROGRAM_2026_10_05.md §4, leg 5): the eight SDLC projects the
+# Legend documentation lists (legend.finos.org/docs/showcases/showcase-projects), each GitLab's archive of one commit,
+# pinned by its sha256 (measured 2026-10-09, twice each: GitLab answered the same bytes). GitLab builds an archive on
+# request, so an upgrade of theirs could change its bytes: a sha256 mismatch here means re-measure the same commit,
+# never a newer one. Not keyed on the engine release, so not release.MODULE.bazel's. Test input only: the round-trip
+# proof reads each project's .pure files (one element per file) as Studio opens an SDLC project
+# (third_party/legend_showcase.BUILD).
+[http_archive(
+    name = "legend_showcase_" + name,
+    build_file = "//third_party:legend_showcase.BUILD",
+    sha256 = sha256,
+    strip_prefix = "%s-%s" % (repo, commit),
+    urls = ["https://gitlab.com/finosfoundation/legend/showcase/%s/-/archive/%s/%s-%s.tar.gz" % (repo, commit, repo, commit)],
+) for name, repo, commit, sha256 in [
+    ("logical_modeling", "legend-showcase-logical-modeling", "6964aaf42f9c3d003a6a294667a3e71593196a9c", "0d32b5621a9dc6c313205ceb694dab666403510d2d992a66fc2276cefb1c67c7"),
+    ("installer_demo", "InstallerDemo", "c79e39ddb13152950a1f845d8584e1ef8a01e422", "5955e5fba70dc8a78475f27f8d63f8332e897a32ad81d177969e40a1abd18040"),
+    ("relational_mapping", "legend-showcase-relational-mapping", "80a05f4124bd8deb1ed60728714e6fdbdc57867e", "1072bc96ae40d03be36166601087911af2ce2b3c12f1091a4df8f09166c043f3"),
+    ("service_store", "legend-showcase-service-store", "a0b4eee720bdbfd8dc485c87f95b8c38a6169c81", "0d48f13c1a0a8e932e50e57499e4f79824671b971ed78ec909dcdeb47059c186"),
+    ("external_formats", "legend-showcase-external-formats", "afbfc0967a5fc9199c20302f6380c046111b703f", "7713c96ca6dc83ca5b324269b4f70a9fcc03b55dab298fdade7e020d5de6548c"),
+    ("query_demo", "legend-query-demo", "d7192d1d764bb076df5ab593d22fede925c9b9d4", "2c3eb9ca08becc2ff5e9b4f3b1b0452f232d3cdaac80037796b7dc225604e0fe"),
+    ("graphql", "legend-graphql-showcase", "cd997278b2b06cefa9e8ee3e05eb2a292a831535", "df1becbda6e4331c24f5900b47bf13da6f061a61d1c42090adff118981dd767b"),
+    ("service_jar", "legend-showcase-project2", "34dd0cb9586190b486207ff5f74304ec87e4712e", "00b41f274ea77e4b6aa908cc3b05ec4c2a1455c8c6a7ef5501ad54be42a93419"),
+]]
+
 # DuckDB's postgres extension for the warehouse's DuckDB (1.5.5; it must match the library's version
 # exactly), one per platform, pinned by content. `bazel run //warehouse:serve` puts it beside the server.
 http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")

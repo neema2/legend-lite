@@ -418,7 +418,7 @@ public final class DataQualityValidationSectionGrammar
                 case "expectedMatch" -> {
                     String num = c.text();
                     c.advance();
-                    expectedMatch = Double.valueOf(num);
+                    expectedMatch = com.legend.protocol.NumberText.doubleOf(num);
                 }
                 case "testSuites" -> {
                     // 4.145.0: the Testable block — no terminating semicolon

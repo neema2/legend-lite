@@ -327,6 +327,76 @@ class ModelComposerRoundTripTest {
         assertEquals(elementSet(entities), elementSet(withoutSectionIndex(parse(printed))), printed);
     }
 
+    @Test
+    void aLambdaKeepsItsBraces_whereWhatFollowsWouldBeReadIntoIt_andOnlyThere() {
+        // upstream drops a one-statement lambda's braces everywhere, and its print of a sequence's first statement then
+        // reads back with the statements after it inside the lambda; lite keeps those braces (docs/SEMANTICS_REGISTER.md)
+        String text = """
+                Class my::C
+                {
+                  d() {let f = {x: Integer[1]|$x + 1}; $f->eval(1);}: Integer[1];
+                }
+
+                function my::f(): Any[*]
+                {
+                  let q = {|1 + 1};
+                  let r = {|2};
+                  let h = {|let g = {|1}; $g->eval();};
+                  let n = 1 + {|2};
+                  $q->eval();
+                }
+
+                function my::g(): Any[*]
+                {
+                  let c = ~a:{x|$x.b};
+                  let d = ~[a:x|$x.b];
+                  let e = {x: Integer[1]|$x + 1}->cast(@Function<Any>);
+                  let s = {|1} == {|2};
+                  let t = ~a:Integer[1];
+                  let u = ~[a:Integer[1], b:String[*]];
+                  let n = {|{|1}};
+                  $c;
+                }
+                """;
+        String printed = ModelComposer.model(parse(text));
+        assertEquals("""
+                Class my::C
+                {
+                  d() {
+                    let f = {x: Integer[1]|$x + 1};
+                    $f->eval(1);
+                  }: Integer[1];
+                }
+
+                function my::f(): Any[*]
+                {
+                  let q = {|1 + 1};
+                  let r = |2;
+                  let h = {|
+                let g = {|1};
+                $g->eval();
+                };
+                  let n = 1 + |2;
+                  $q->eval();
+                }
+
+                function my::g(): Any[*]
+                {
+                  let c = ~a:{x|$x.b};
+                  let d = ~[a:x|$x.b];
+                  let e = {x: Integer[1]|$x + 1}->cast(@Function<Any>);
+                  let s = {|1} == |2;
+                  let t = ~a:Integer[1];
+                  let u = ~[a:Integer[1], b:String[*]];
+                  let n = |{|1};
+                  $c;
+                }
+                """, printed);
+        assertEquals(stripped(parse(text)), stripped(parse(printed)), printed);
+        String pretty = ModelComposer.model(Json.toCompact(parse(text)), PureComposer.Style.PRETTY);
+        assertEquals(stripped(parse(text)), stripped(parse(pretty)), pretty);
+    }
+
     private static List<String> elementSet(Json.Obj pmcd) {
         List<String> out = new ArrayList<>();
         for (Json.Node e : pmcd.getArr("elements").items()) {

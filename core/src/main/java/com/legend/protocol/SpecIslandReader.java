@@ -268,11 +268,31 @@ final class SpecIslandReader {
     // Column specs
     // ---------------------------------------------------------------------
 
-    /** {@code ~name}: the outer and value spans are one span. */
+    /** {@code ~name}: the outer and value spans are one span -- except as a let's value ({@link #letValue}). */
     private static ValueSpecification colSpec(Json.Node value, @com.legend.base.Nullable SourceInfo pos) {
         ColSpec cs = colSpecValue(value);
         sameSpan(pos, cs.pos(), "colSpec " + cs.name());
         return cs;
+    }
+
+    /**
+     * A let's value, the let's span {@code letSpan}: read as any value -- but a column spec's outer span is the let's
+     * and its value keeps its own (the let-value form, as the engine writes it and the emitter writes it back from the
+     * let), so here the outer span must be the let's exactly.
+     */
+    static ValueSpecification letValue(Json.Node node, @com.legend.base.Nullable SourceInfo letSpan) {
+        if (!(node instanceof Json.Obj o) || !"classInstance".equals(o.getStringOr("_type", null))
+                || !"colSpec".equals(o.getStringOr("type", null))) {
+            return ProtocolReader.valueSpec(node);
+        }
+        Wire w = Wire.of(node, "value specification");
+        // as ProtocolReader.valueSpec reads any node: an older shape's single-value multiplicity taken first
+        OlderSpecReader.singleValue(w, w.type());
+        w.str("type");
+        SourceInfo outer = w.span();
+        ColSpec cs = colSpecValue(w.take("value"));
+        sameSpan(outer, letSpan, "colSpec " + cs.name() + " as a let's value: the let's span");
+        return w.done(cs);
     }
 
     private static ValueSpecification colSpecArray(Json.Node value, @com.legend.base.Nullable SourceInfo pos) {
@@ -426,6 +446,7 @@ final class SpecIslandReader {
         SourceInfo pos = null;
         if (outer != null) {
             if (outer.startLine() != outer.endLine()) {
+                // the spans do not say where the literal's lines break: docs/PARKED_WORK_LEDGER.md PARK-22
                 throw Wire.refuse("a multi-line path literal span " + outer);
             }
             len = outer.endColumn() - outer.startColumn() - 2;
@@ -453,7 +474,8 @@ final class SpecIslandReader {
         }
         LambdaFunction fn = new LambdaFunction(List.of(new Variable("_path",
                 new com.legend.protocol.TypeExpression.NameRef(startType), null)), List.of(body));
-        return v.done(new PathLiteral(startType, segments, fn, alias, dated, pos, len));
+        // one line: a multi-line span is refused above, and a literal without spans has no position
+        return v.done(new PathLiteral(startType, segments, fn, alias, dated, pos, len, List.of()));
     }
 
     private static PathLiteral.Segment segment(Json.Node node, int base, boolean spanned) {

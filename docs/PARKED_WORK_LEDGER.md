@@ -645,3 +645,73 @@ it past step 4: such a query is refused.
 
 **Anchors.** The three refusals in `QueryParameters.java`: "an optional enumeration's absence is not bound", "a class
 instance is not bound as a plan's parameter", "a Byte, LatestDate or StrictTime value is not bound".
+
+---
+
+## PARK-22 — engine JSON with spans for a path literal across lines is refused by lite's reader
+
+**Parked** 2026-10-09 by the Studio / SDLC / Depot line, with the protocol program's leg 5 (the user: "can wait for
+the server phase").
+
+**What happens today.** A path literal (`#/Person/firm/name#`) reaches several lines only where the engine's PRETTY
+printer breaks a list argument inside it (4 texts of the corpus). Read from TEXT, lite writes such a literal's spans
+exactly as the engine does (leg 5). Read from engine JSON that CARRIES spans, lite refuses it by name: the engine
+writes a literal's spans shifted by its start column plus its whole length on the literal's first line only, so from a
+one-line span lite works back the literal's column and length and writes them back exactly; across lines the spans do
+not say where the literal's lines break, and lite cannot rebuild a position it would write back the same.
+
+**The fix (to design).** A record read from JSON keeps the spans it was given and the emitter writes those back,
+where today it rebuilds them from a position; for the path literal (and the other island forms whose spans the engine
+shifts) the record then carries its spans as read. That is a change to what lite's records carry, so it is designed
+with the protocol program's leg 8 (the server reads models as records), which decides what a record read from JSON
+holds.
+
+**Acceptance.** Engine JSON with spans for a multi-line path literal (the 4 texts of
+`legend-pure-m2-dsl-path-grammar`'s `TestDSLCompilation`) reads, and writes back byte for byte
+(`ModelReaderParityTest`'s exact-inverse rule).
+
+**Cost of leaving it.** Such JSON is refused by name. The JSON an SDLC stores and Studio sends normally carries no
+spans, and text lite reads itself is unaffected.
+
+**When.** With leg 8.
+
+**Anchors.** The refusal in `SpecIslandReader.java`: "a multi-line path literal span".
+
+---
+
+## PARK-23 — lite's JSON library converts a double the platform's way, which the tab can do a digit differently
+
+**Parked** 2026-10-09 by the Studio / SDLC / Depot line, with the protocol program's leg 5 (the user: "park the exact").
+
+**What happens today.** `com.legend.json.Json`'s writer (`Writer.writeDouble`, and every JSON answer built through it:
+the server's results and its other JSON) spells a double with `Double.toString`. On the JVM that is the JDK's spelling;
+in the tab, TeaVM's class library can pick the other of two shortest decimals at the last digit (`602.2708129882813`
+where the JDK writes `602.2708129882812`). Leg 5 moved everything it proves off that path: the parser and the protocol
+convert a double's text both ways through `PortableText` (`doubleText`, `doubleOf`), exact, and the JSON reader reads
+through `doubleOf`. The writer is the one conversion left: `PortableText.doubleText` computes exactly with big
+numbers, measured 2026-10-09 at about 85 times the JDK's cost on result-like values (255 ms per 100,000 against 3) and
+up to 600 times on the hardest (1.9 s), too slow for every result the server writes.
+
+**The fix.** A fast exact spelling -- the published shortest-digits algorithms (Ryu, Schubfach: the JDK's own since 19),
+written from the papers, not copied -- held to the JDK by `PortableTextTest`'s differential, and used by `Json`'s writer,
+`PortableText.doubleText` and the dialects' float literals alike: one path, exact on every platform, at the JDK's speed.
+The same work covers `Json`'s READER, which also keeps the platform's conversion (`BigDecimal.doubleValue`): the protocol
+reads a JSON number by its own text through the exact `PortableText.doubleOf` (a fast path for the common case), but
+put on the library's reader it measured about 2.5 times `BigDecimal.doubleValue` on result-like values (2026-10-09),
+a cost every JSON the server reads would pay for nothing on the JVM; so, the user, 2026-10-09, it waits for the fast
+exact conversion.
+
+**Acceptance.** `Json`'s writer spells every double through the one exact spelling; `PortableTextTest` holds it to
+the JDK (its edges, every power of two and ten, random values); a measurement shows it within a small factor of
+`Double.toString`.
+
+**Cost of leaving it.** An answer the tab builds through `Json`'s writer with a hard-to-print double can spell its last
+digit differently from the server's; the value read back is the same in every case measured. The tab's model conversions,
+which leg 5 proves, do not go through it.
+
+**When.** As the next piece of the protocol program after leg 5 lands (it also covers the planner's SQL float literals in
+the tab).
+
+**Anchors.** In json's own tests (`ParkedWorkLedgerTest` reads core's sources only): `PortableTextTest`'s
+`jsonsWriterStillSpellsADoubleThePlatformsWay_park23`, which finds `append(Double.toString(v));` (the writer) and
+`exact.doubleValue()` (the reader) in `Json.java`, and fails once either moves.

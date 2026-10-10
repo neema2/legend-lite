@@ -316,11 +316,11 @@ public final class SpecParser implements TokenStreamCursor {
     /**
      * Text to JSON for a lambda (the conversion legend-engine's {@code grammarToJson/lambda} makes, its
      * {@code returnSourceInformation} the second argument): {@link #parseLambda}, emitted, without any source
-     * information when it is off, as the engine's parser then records none.
+     * information when it is off -- every span, the named ones included, as the engine's parser then records none.
      */
     public static String lambdaJson(String source, boolean sourceInformation) {
         String json = com.legend.protocol.ProtocolEmitter.emitLambda(parseLambda(source));
-        return sourceInformation ? json : com.legend.protocol.SourceInformation.strip(json);
+        return sourceInformation ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
     }
 
     private ValueSpecification wholeLine() {
@@ -496,16 +496,23 @@ public final class SpecParser implements TokenStreamCursor {
         if (atTerminator(terminator)) {
             return stmts;
         }
-        stmts.add(parseProgramLine());
         boolean lastTerminated = false;
-        while (!atEnd() && peek() == TokenType.SEMI_COLON) {
-            pos++; // consume ';'
-            lastTerminated = true;
-            if (atTerminator(terminator)) {
-                break;
-            }
+        int enclosing = owingStatement;
+        owingStatement = -1; // the first statement's ';' is optional
+        try {
             stmts.add(parseProgramLine());
-            lastTerminated = false;
+            while (!atEnd() && peek() == TokenType.SEMI_COLON) {
+                pos++; // consume ';'
+                lastTerminated = true;
+                if (atTerminator(terminator)) {
+                    break;
+                }
+                owingStatement = pos; // a later statement: its ';' is required
+                stmts.add(parseProgramLine());
+                lastTerminated = false;
+            }
+        } finally {
+            owingStatement = enclosing;
         }
         if (stmts.size() > 1 && !lastTerminated && atTerminator(terminator)) {
             // EVERY dialect: in a MULTI-statement body every statement
@@ -1018,12 +1025,7 @@ public final class SpecParser implements TokenStreamCursor {
     private ValueSpecification parseCollection() {
         int openTok = pos;
         pos++; // consume '['
-        boundedDepth++;
-        try {
-            return parseCollectionBody(openTok);
-        } finally {
-            boundedDepth--;
-        }
+        return parseCollectionBody(openTok);
     }
 
     private ValueSpecification parseCollectionBody(int openTok) {
@@ -1499,12 +1501,7 @@ public final class SpecParser implements TokenStreamCursor {
      */
     private List<ValueSpecification> parseArgList() {
         pos++; // consume '('
-        boundedDepth++;
-        try {
-            return parseArgListBody();
-        } finally {
-            boundedDepth--;
-        }
+        return parseArgListBody();
     }
 
     private List<ValueSpecification> parseArgListBody() {
@@ -1928,43 +1925,10 @@ public final class SpecParser implements TokenStreamCursor {
         Variable param = parseLambdaParam();
         int pipeTok = pos;
         expect(TokenType.PIPE, "expected '|' after shorthand lambda parameter");
-        // The body is a CODE BLOCK per real Pure (lambdaPipe: PIPE
-        // codeBlock), parsed as a DETERMINISTIC subset of ANTLR's
-        // backtracking resolution of the grammar's ambiguity:
-        //   - a body STARTING with 'let' commits to multi-statement —
-        //     every statement requires its trailing ';' and the block
-        //     runs to a closing token (corpus:
-        //     filter(p | let n = ...; $n->at(0);))
-        //   - an expression body stays single-statement; a ';'
-        //     IMMEDIATELY followed by a closer is the codeBlock's own
-        //     optional END_LINE (corpus: [d: Database[*]| f($d);]);
-        //     any other ';' belongs to the ENCLOSING statement sequence
-        //     ($x->map(e|$e+1); let b = ... must not swallow the let)
+        // The body is a code block, as the pipe form's (readBraceLessBlock).
         List<ValueSpecification> body = new java.util.ArrayList<>();
-        boolean letStart = !atEnd() && peek() == TokenType.LET;
         body.add(parseProgramLine());
-        if (!atEnd() && peek() == TokenType.SEMI_COLON) {
-            if (boundedDepth > 0 || letStart) {
-                // BOUNDED context (call args / collection): no outer
-                // statement can own a ';' here, so the greedy codeBlock
-                // read is unambiguous. STATEMENT context: only a body
-                // that STARTS with 'let' commits (the outer sequence owns
-                // an expression body's ';').
-                pos++; // the first statement's ';'
-                while (!atEnd() && !isLambdaBodyTerminator(peek())) {
-                    body.add(parseProgramLine());
-                    if (atEnd() || peek() != TokenType.SEMI_COLON) {
-                        throw error("expected ';' after statement in a"
-                                + " multi-statement lambda body (real Pure"
-                                + " requires it)");
-                    }
-                    pos++; // the REQUIRED trailing ';'
-                }
-            } else if (pos + 1 < tokens.count()
-                    && isLambdaBodyTerminator(tokens.type(pos + 1))) {
-                pos++; // the codeBlock's own trailing END_LINE
-            }
-        }
+        readBraceLessBlock(body);
         // Engine convention (ProbeWireShapes cLambda/cLambda2, verified against token
         // columns): an inline lambda spans from the PIPE to the body's end.
         return new LambdaFunction(List.of(param), body, spanOf(pipeTok, pos - 1));
@@ -2090,25 +2054,11 @@ public final class SpecParser implements TokenStreamCursor {
     private LambdaFunction parseLambdaPipe() {
         int pipeTok = pos;
         pos++; // consume '|'
-        // The body is a STATEMENT SEQUENCE per REAL Pure's grammar
-        // (M3ParserGrammar.g4): codeBlock: programLine (';' (programLine ';')*)?
-        // — the FIRST statement's ';' is optional; every SUBSEQUENT statement
-        // REQUIRES its trailing ';'. "|let a = 1; $a" is invalid Pure.
         List<ValueSpecification> body = new java.util.ArrayList<>();
         pushConstScope(List.of());
         try {
             body.add(parseProgramLine());
-            if (!atEnd() && peek() == TokenType.SEMI_COLON) {
-                pos++; // the first statement's optional ';'
-                while (!atEnd() && !isLambdaBodyTerminator(peek())) {
-                    body.add(parseProgramLine());
-                    if (atEnd() || peek() != TokenType.SEMI_COLON) {
-                        throw error("expected ';' after statement in a multi-statement"
-                                + " lambda body (real Pure requires it)");
-                    }
-                    pos++; // the REQUIRED trailing ';'
-                }
-            }
+            readBraceLessBlock(body);
         } finally {
             constStrings.pop();
         }
@@ -2116,10 +2066,62 @@ public final class SpecParser implements TokenStreamCursor {
         return new LambdaFunction(List.of(), body, spanOf(pipeTok, pos - 1));
     }
 
-    /** Depth of contexts where a ';' cannot belong to an enclosing
-     * statement (call argument lists, collection literals) — inside them
-     * the unbraced-lambda codeBlock reads greedily, matching real Pure. */
-    private int boundedDepth = 0;
+    /**
+     * The rest of a brace-less lambda's body, its first statement read: the body is a code block (M3ParserGrammar.g4
+     * {@code lambdaPipe: PIPE codeBlock}; {@code codeBlock: programLine (';' (programLine ';')*)?} -- the first
+     * statement's ';' optional, every later statement's required; "|let a = 1; $a" is not Pure), read as
+     * legend-engine's ANTLR parser settles the grammar's ambiguity. A ';' after the first statement is the block's,
+     * with the statements after it, unless the statement sequence around the lambda needs it: that sequence's second
+     * and later statements end with a required ';', which a lambda inside one, outside any bracket, must leave
+     * ({@link #endLineOwed}). Anywhere else both readings parse and ANTLR takes the block's, its first alternative: a
+     * function body {@code |1; 2;} is one lambda of two statements, {@code let a = 1; |1; 2;} a lambda and then 2,
+     * {@code f(|1; 2;)} one lambda (legend-engine 4.145.0 probed in every position: the protocol program's leg 5,
+     * 2026-10-09).
+     */
+    private void readBraceLessBlock(List<ValueSpecification> body) {
+        if (atEnd() || peek() != TokenType.SEMI_COLON || endLineOwed()) {
+            return;
+        }
+        pos++; // the first statement's optional ';'
+        int enclosing = owingStatement;
+        try {
+            while (!atEnd() && !isLambdaBodyTerminator(peek())) {
+                owingStatement = pos; // a later statement: its ';' is required
+                body.add(parseProgramLine());
+                if (atEnd() || peek() != TokenType.SEMI_COLON) {
+                    throw error("expected ';' after statement in a multi-statement"
+                            + " lambda body (real Pure requires it)");
+                }
+                pos++;
+            }
+        } finally {
+            owingStatement = enclosing;
+        }
+    }
+
+    /**
+     * Where the statement that owes its sequence the next ';' began: the innermost enclosing statement sequence's
+     * current statement when it is the second or a later one, whose ';' the grammar requires -- or -1, in a first
+     * statement (its ';' optional) and outside any sequence.
+     */
+    private int owingStatement = -1;
+
+    /** Whether the ';' at the cursor is owed to the enclosing statement sequence: it is past its first statement, and
+     *  every bracket opened since that statement began is closed. */
+    private boolean endLineOwed() {
+        if (owingStatement < 0) {
+            return false;
+        }
+        int depth = 0;
+        for (int k = owingStatement; k < pos; k++) {
+            switch (tokens.type(k)) {
+                case PAREN_OPEN, BRACKET_OPEN, BRACE_OPEN -> depth++;
+                case PAREN_CLOSE, BRACKET_CLOSE, BRACE_CLOSE -> depth--;
+                default -> { }
+            }
+        }
+        return depth == 0;
+    }
 
     private static boolean isLambdaBodyTerminator(TokenType t) {
         return t == TokenType.PAREN_CLOSE || t == TokenType.COMMA
@@ -2799,8 +2801,9 @@ public final class SpecParser implements TokenStreamCursor {
         }
         // a SEGMENT-LESS path (#/Person#) is legal: path [] + startType on the wire
         // (probe "pf path exotic")
-        // Track each PLAIN segment's 0-based char range inside the literal text — the
-        // emitter's shifted-span rule needs them (PathLiteral javadoc).
+        // Track each segment's 0-based char range inside the literal text — from just past
+        // its '/' (the engine's span starts at the '/', whatever blank follows it) to its
+        // last char; the emitter's shifted-span rule needs them (PathLiteral javadoc).
         List<com.legend.protocol.spec.PathLiteral.Segment> pieces = new ArrayList<>();
         boolean hasDated = false;
         int cursor = 2;   // index of the current segment's first char within `text`
@@ -2844,11 +2847,13 @@ public final class SpecParser implements TokenStreamCursor {
                 List<com.legend.protocol.spec.PathLiteral.PathArg> wireArgs =
                         new ArrayList<>();
                 boolean[] unsupportedFlag = {false};
+                // the argument scan indexes rawSeg, which starts at the cursor (any blank
+                // before the name included)
                 scanPathArgs(rawSeg, rawSeg.indexOf('(') + 1, rawSeg.lastIndexOf(')'),
-                        cursor + lead, wireArgs, unsupportedFlag, false);
+                        cursor, wireArgs, unsupportedFlag, false);
                 boolean unsupported = unsupportedFlag[0];
                 pieces.add(new com.legend.protocol.spec.PathLiteral.Segment(
-                        datedName, cursor + lead, cursor + lead + seg.length() - 1,
+                        datedName, cursor, cursor + lead + seg.length() - 1,
                         wireArgs, unsupported));
                 body = new AppliedFunction(datedName, args);
                 continue;
@@ -2859,7 +2864,7 @@ public final class SpecParser implements TokenStreamCursor {
                         + " property segments desugar): " + text);
             }
             pieces.add(new com.legend.protocol.spec.PathLiteral.Segment(
-                    seg, cursor + lead, cursor + lead + seg.length() - 1));
+                    seg, cursor, cursor + lead + seg.length() - 1));
             body = new AppliedProperty(body, seg);
         }
         // the path's ROOT segment IS the param's type (real pure's Path
@@ -2868,9 +2873,15 @@ public final class SpecParser implements TokenStreamCursor {
         LambdaFunction fn = new LambdaFunction(List.of(new Variable("_path",
                 new com.legend.protocol.TypeExpression.NameRef(segs[0].strip()),
                 null)), List.of(body));
+        // where each of the literal's later lines starts: the emitter's island rule shifts the
+        // first line's columns only (PathLiteral javadoc)
+        List<Integer> lineStarts = new ArrayList<>();
+        for (int k = text.indexOf('\n'); k >= 0; k = text.indexOf('\n', k + 1)) {
+            lineStarts.add(k + 1);
+        }
         com.legend.protocol.spec.PathLiteral lit = new com.legend.protocol.spec.PathLiteral(
                 segs[0].strip(), pieces, fn, alias, hasDated,
-                spanOf(litTok, litTok), text.length());
+                spanOf(litTok, litTok), text.length(), lineStarts);
         // the alias rides the node (real pure Path.name); the project and
         // sort checkers read it there — no carrier (2026-09-11 audit)
         return lit;

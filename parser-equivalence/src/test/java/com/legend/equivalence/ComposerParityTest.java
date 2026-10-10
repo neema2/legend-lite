@@ -34,7 +34,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ComposerParityTest {
 
     /** Lambdas both printers print, byte-equal, summed over both styles. Up-only. */
-    private static final int MIN_MATCHED = 56988;   // 2026-09-28: 56,990 less the 2 prints of EXACT_DECIMAL below (the user chose exact decimals); upstream threw on 2
+    private static final int MIN_MATCHED = 56968;   // 2026-09-28: 56,990 less the 2 prints of EXACT_DECIMAL below (the user chose exact decimals); upstream threw on 2. 2026-10-09: less the 20 prints of BRACES_KEPT (the user chose S38, the protocol program's leg 5; 18 of them upstream's unparseable ||)
+
+    /** The prints where lite keeps a lambda's braces that upstream's dropping changes the reading of
+     *  (docs/SEMANTICS_REGISTER.md S38; {@link #keepsBracesUpstreamDrops}). Pinned both ways, as EXACT_DECIMAL is. */
+    private static final int BRACES_KEPT = 20;
 
     /**
      * Where lite DELIBERATELY prints differently: a decimal's exact digits. Upstream's reader
@@ -88,6 +92,7 @@ class ComposerParityTest {
 
         int matched = 0;
         int upstreamThrew = 0;
+        int bracesKept = 0;
         java.util.Set<String> deliberate = new java.util.TreeSet<>();
         List<String> diffs = new ArrayList<>();
         Map<String, Integer> refusals = new TreeMap<>();
@@ -114,6 +119,8 @@ class ComposerParityTest {
                     matched++;
                 } else if (actual.equals(EXACT_DECIMAL.get(expected))) {
                     deliberate.add(expected);
+                } else if (keepsBracesUpstreamDrops(oracle, wire, expected, actual)) {
+                    bracesKept++;
                 } else if (diffs.size() < 40) {
                     diffs.add(style + "\n  upstream: " + expected + "\n  lite:     " + actual
                             + "\n  wire:     " + (wire.length() > 1500 ? wire.substring(0, 1500) : wire));
@@ -122,15 +129,44 @@ class ComposerParityTest {
         }
         System.out.println("[composer-parity] sources=" + sources + " corpusLambdas=" + corpusLambdas
                 + " roundtripLambdas=" + (lambdas.size() - corpusLambdas) + " matched=" + matched
-                + " deliberate=" + deliberate.size() + " diffs=" + diffs.size() + " refused=" + refusals.values().stream().mapToInt(Integer::intValue).sum()
+                + " deliberate=" + deliberate.size() + " bracesKept=" + bracesKept + " diffs=" + diffs.size() + " refused=" + refusals.values().stream().mapToInt(Integer::intValue).sum()
                 + " upstreamThrew=" + upstreamThrew);
         refusals.forEach((m, n) -> System.out.println("[composer-parity] refused " + n + " x " + m));
         diffs.forEach(d -> System.out.println("[composer-parity] DIFF " + d));
         assertEquals(List.of(), diffs, "lite printed a lambda differently from upstream");
         assertEquals(new java.util.TreeSet<>(EXACT_DECIMAL.keySet()), deliberate,
                 "a deliberate exact-decimal difference no longer occurs: take it off EXACT_DECIMAL");
+        assertEquals(BRACES_KEPT, bracesKept, "the prints where lite keeps braces upstream drops (S38) moved");
         assertEquals(Map.of(), refusals, "lite refused a lambda upstream prints");
         assertTrue(matched >= MIN_MATCHED, "matched " + matched + " < " + MIN_MATCHED);
+    }
+
+    /**
+     * Where lite DELIBERATELY prints differently (docs/SEMANTICS_REGISTER.md, "a lambda's braces where dropping them
+     * changes the reading"; ModelComposerParityTest's rule): lite's print is upstream's with braces added, nothing
+     * else; upstream's own parser reads the two prints differently or cannot read upstream's, and reads lite's with
+     * the statement boundaries of the lambda printed (ModelComposerParityTest.statementShapes). Counted, not compared.
+     */
+    private static boolean keepsBracesUpstreamDrops(PureGrammarParser oracle, String wire, String expected,
+            String actual) {
+        if (!ModelComposerParityTest.onlyBracesAdded(expected, actual)) {
+            return false;
+        }
+        ObjectMapper mapper = ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+        String liteReads;
+        try {
+            liteReads = mapper.writeValueAsString(oracle.parseLambda(actual, "", 0, 0, false));
+        } catch (RuntimeException | java.io.IOException e) {
+            return false;
+        }
+        String upstreamReads;
+        try {
+            upstreamReads = mapper.writeValueAsString(oracle.parseLambda(expected, "", 0, 0, false));
+        } catch (RuntimeException | java.io.IOException e) {
+            upstreamReads = null;   // upstream's print does not parse
+        }
+        return !liteReads.equals(upstreamReads)
+                && ModelComposerParityTest.statementShapes(liteReads).equals(ModelComposerParityTest.statementShapes(wire));
     }
 
     private static void collectLambdas(Json.Node node, List<Json.Obj> out) {

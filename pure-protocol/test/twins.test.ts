@@ -128,48 +128,22 @@ describe('numbers are spelled as the wire spells them: byte for byte with lite\'
     decimals.push(scale === 0 ? whole : `${whole}.${fraction}`);
   }
 
-  /**
-   * The tab's build of lite spells a double with TeaVM's `Double.toString`, which is not the JDK's:
-   * at an exact 17-digit tie it rounds the last digit up (`…313` where the JDK, and this library,
-   * write `…312`), and it writes a subnormal's full digits. lite's JVM agrees with this library on
-   * every one of these values (JDK 25, checked 2026-09-28: 0 of 21,845 differ). Accepted by the user,
-   * 2026-09-28: the SAME double, spelled differently at its last digit. Pinned exactly: a new one, or
-   * one that is not the same double, fails.
+  /*
+   * The tab's build of lite once read and wrote some doubles with TeaVM's own conversions: 30 spelled differently
+   * at the last digit and 2 read one unit in the last place off, accepted by the user on 2026-09-28 and pinned. Since
+   * 2026-10-09 lite converts a double's text both ways through its own PortableText (the JDK's definitions, computed
+   * exactly; the protocol program's leg 5), so the tab answers as the JVM does: every double byte for byte.
    */
-  const TEAVM_SPELLING = 30;
-
-  /**
-   * Two doubles the tab's build reads or writes ONE ULP off (the 17th digit: `1.9043925686624381E-264`
-   * comes back `1.904392568662438E-264`, a neighbouring double) -- TeaVM's float parsing or printing,
-   * not the JDK's. Accepted by the user, 2026-09-28, as a 17th-digit divergence; pinned by value.
-   */
-  const TEAVM_ONE_ULP = new Set([1.9043925686624381e-264, 5.5512325242606664e+137]);
-
-  /** The distance from v to the next double up. */
-  const ulp = (v: number): number => {
-    const b = new BigUint64Array(new Float64Array([v]).buffer);
-    b[0] = b[0]! + 1n;
-    return new Float64Array(b.buffer)[0]! - v;
-  };
-
   it(`${floats.length} floats`, async () => {
     const lite = await ready();
     const differ: string[] = [];
-    let spelling = 0;
-    const oneUlp = new Set<number>();
     for (const v of floats) {
       if (!Number.isFinite(v) || v <= 0) continue;
       const ours = toJson(lambda([], lit.float(v)));
       const theirs = lite.parse(`|${v.toExponential()}`.replace('e+', 'e'));
-      if (ours === theirs) continue;
-      const value = (json: string): number => Number((JSON.parse(json) as { body: [{ value: number }] }).body[0].value);
-      if (value(ours) === value(theirs) && value(ours) === v) spelling++;
-      else if (TEAVM_ONE_ULP.has(v) && Math.abs(value(theirs) - v) <= ulp(v)) oneUlp.add(v);
-      else differ.push(`${v}: ours ${ours} lite ${theirs}`);
+      if (ours !== theirs) differ.push(`${v}: ours ${ours} lite ${theirs}`);
     }
-    assert.deepEqual(differ.slice(0, 20), [], `${differ.length} of ${floats.length} differ in VALUE:\n${differ.slice(0, 20).join("\n")}`);
-    assert.equal(spelling, TEAVM_SPELLING, 'doubles spelled differently by the tab\'s build (TeaVM): the pin moved');
-    assert.deepEqual([...oneUlp].sort(), [...TEAVM_ONE_ULP].sort(), 'the tab\'s one-ulp doubles: the pin moved');
+    assert.deepEqual(differ.slice(0, 20), [], `${differ.length} of ${floats.length} differ:\n${differ.slice(0, 20).join("\n")}`);
   });
 
   it(`${decimals.length} decimals`, async () => {

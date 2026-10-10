@@ -1177,10 +1177,10 @@ public final class TestDataGenerator {
 
     private static void flushBlock(List<String> lines,
             Map<String, String[][]> out) {
-        while (!lines.isEmpty() && lines.get(lines.size() - 1).isBlank()) {
+        while (!lines.isEmpty() && lines.get(lines.size() - 1).strip().isEmpty()) {
             lines.remove(lines.size() - 1);
         }
-        while (!lines.isEmpty() && lines.get(0).isBlank()) {
+        while (!lines.isEmpty() && lines.get(0).strip().isEmpty()) {
             lines.remove(0);
         }
         if (lines.size() < 3) {

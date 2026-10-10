@@ -47,7 +47,7 @@ final class TdsChecker {
             content = content.substring(0, content.length() - 1);
         }
         String[] lines = content.strip().split("\n");
-        if (lines.length == 0 || lines[0].isBlank()) {
+        if (lines.length == 0 || lines[0].strip().isEmpty()) {
             throw new TypeInferenceException("a TDS literal needs a header row of column names");
         }
 
@@ -80,7 +80,7 @@ final class TdsChecker {
         // Data rows (raw cells; carried for lowering).
         List<List<String>> rows = new ArrayList<>();
         for (int i = 1; i < lines.length; i++) {
-            if (lines[i].isBlank()) {
+            if (lines[i].strip().isEmpty()) {
                 continue;
             }
             List<String> row = splitCells(lines[i]);

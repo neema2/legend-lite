@@ -6,6 +6,7 @@ package com.legend.protocol;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.legend.json.PortableText.doubleText;
 import static com.legend.protocol.Composing.TAB;
 import static com.legend.protocol.Composing.convertIdentifier;
 import static com.legend.protocol.Composing.convertPath;
@@ -26,8 +27,8 @@ final class DiagramComposer {
             b.append(TAB).append("classView ").append(v.id()).append("\n").append(TAB).append("{\n")
                     .append(tab(2)).append("class: ").append(convertPath(v.classPath())).append(";\n")
                     .append(tab(2)).append("position: ").append(point(v.x(), v.y())).append(";\n")
-                    .append(tab(2)).append("rectangle: (").append(Double.toString(v.width())).append(",")
-                    .append(Double.toString(v.height())).append(");\n");
+                    .append(tab(2)).append("rectangle: (").append(doubleText(v.width())).append(",")
+                    .append(doubleText(v.height())).append(");\n");
             if (Boolean.TRUE.equals(v.hideProperties())) {
                 b.append(tab(2)).append("hideProperties: true;\n");
             }
@@ -65,6 +66,6 @@ final class DiagramComposer {
 
     /** A point: each coordinate a Java double's {@code toString}. */
     private static String point(double x, double y) {
-        return "(" + x + "," + y + ")";
+        return "(" + doubleText(x) + "," + doubleText(y) + ")";
     }
 }

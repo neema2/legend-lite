@@ -61,6 +61,8 @@ legend_java_library(
     ],
     resources = ["src/main/resources/META-INF/services/org.teavm.classlib.ResourceSupplier"],
     resource_strip_prefix = "wasm/src/main/resources",
+    # the round trip in the tab: its JVM half asks these same exports (//parser-equivalence:tab_round_trip)
+    visibility = ["//parser-equivalence:__pkg__"],
     deps = [
         ":boundary",
         ":teavm_api",
@@ -156,6 +158,17 @@ node_test(
         ":jvm_answers",
     ],
     entry_point = ":differential",
+)
+
+# THE ROUND TRIP IN THE TAB (docs/PROTOCOL_PROGRAM_2026_10_05.md §4, leg 5): the module asked what the tab asks
+# pure/v1 for over every input of the JVM's round-trip proof, its answers held to the JVM's byte for byte (by digest).
+node_test(
+    name = "round_trip_test",
+    wasm = True,
+    size = "large",
+    data = ["//parser-equivalence:tab_round_trip"],
+    entry_point = "round_trip.mjs",
+    env = {"TAB_ROUND_TRIP": "$(rlocationpath //parser-equivalence:tab_round_trip)"},
 )
 
 # THE TIMEZONE DIFFERENTIAL: a tz database is a resource, not code, so only the

@@ -589,7 +589,7 @@ public final class GqlParser {
             String num = src.substring(s, pos);
             try {
                 return isFloat
-                        ? new Gql.FloatValue(Double.parseDouble(num))
+                        ? new Gql.FloatValue(com.legend.protocol.NumberText.doubleOf(num))
                         : new Gql.IntValue(Long.parseLong(num));
             } catch (NumberFormatException e) {
                 throw fail("number out of range: " + num);

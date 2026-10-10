@@ -190,6 +190,8 @@ public class CorpusSweepTest {
         int calAgree = 0;
         int strictAsymmetry = 0;
         List<String> docDiffs = new ArrayList<>();
+        int spanFreeMatched = 0;
+        List<String> spanFreeDiffs = new ArrayList<>();
         List<String> weRefuse = new ArrayList<>();
         List<String> modelRefuse = new ArrayList<>();
         List<String> seamDiffs = new ArrayList<>();
@@ -226,6 +228,25 @@ public class CorpusSweepTest {
                             .parseDocument(src.text());
                     if (Comparators.sameBytes(oracleJson, doc)) {
                         docsMatched++;
+                        // CLAIM 1c: and WITHOUT source information too (grammarToJson's
+                        // returnSourceInformation=false): the engine's parser then records no
+                        // span at all, the named ones (classSourceInformation, ...) included
+                        // (ParseTreeWalkerSourceInformation.getSourceInformation answers null).
+                        // Found by the protocol program's leg 5, 2026-10-09.
+                        try {
+                            String oracleSpanFree = mapper.writeValueAsString(
+                                    oracle.parseModel(src.text(), "", 0, 0, false));
+                            String docSpanFree = com.legend.parser.PmcdParser
+                                    .parseDocument(src.text(), false);
+                            if (Comparators.sameBytes(oracleSpanFree, docSpanFree)) {
+                                spanFreeMatched++;
+                            } else {
+                                spanFreeDiffs.add(src.id() + " :: "
+                                        + firstDivergence(oracleSpanFree, docSpanFree));
+                            }
+                        } catch (Throwable t) {
+                            spanFreeDiffs.add(src.id() + " :: " + msgOf(rootOf(t)));
+                        }
                     } else if (c12Diffs.containsKey(src.id())) {
                         c12DiffsUsed.add(src.id());
                     } else {
@@ -486,7 +507,10 @@ public class CorpusSweepTest {
                 engineAsym.size(), bothReject, asymRows.size(), stale.size(),
                 strictAsymmetry, calibration);
 
+        System.out.printf("SWEEP: without source information, docs matched %d diff %d%n",
+                spanFreeMatched, spanFreeDiffs.size());
         final int fDocs = docsMatched;
+        final int fSpanFree = spanFreeMatched;
         final int fSeam = seamMatched;
         final int fStrict = strictAsymmetry;
         final double fCal = calibration;
@@ -502,6 +526,10 @@ public class CorpusSweepTest {
                                 + head(strictUnexplained)),
                 () -> assertEquals(0, docDiffs.size(), () -> "document byte"
                         + " diffs:\n  " + head(docDiffs)),
+                () -> assertEquals(0, spanFreeDiffs.size(), () -> "document byte"
+                        + " diffs WITHOUT source information (claim 1c):\n  " + head(spanFreeDiffs)),
+                () -> assertEquals(fDocs, fSpanFree, "every document that byte-matches with its spans"
+                        + " matches without them (claim 1c)"),
                 () -> assertEquals(0, weRefuse.size(), () -> "oracle-accepted"
                         + " sources the document parser refuses:\n  "
                         + head(weRefuse)),

@@ -72,12 +72,12 @@ public class LegendHttpServer {
 
         /** {@code LEGEND_LITE_ALLOWED_ORIGINS}: comma-separated exact origins, e.g. {@code https://studio.example}. */
         public static Origins fromEnv(@com.legend.base.Nullable String list) {
-            if (list == null || list.isBlank()) {
+            if (list == null || list.strip().isEmpty()) {
                 return LOOPBACK;
             }
             java.util.Set<String> out = new java.util.LinkedHashSet<>();
             for (String o : list.split(",")) {
-                if (!o.isBlank()) {
+                if (!o.strip().isEmpty()) {
                     out.add(o.strip());
                 }
             }
@@ -281,7 +281,7 @@ public class LegendHttpServer {
                 Json.Obj request = Json.parseObject(body);
                 String pureSource = request.getStringOr("code", null);
 
-                if (pureSource == null || pureSource.isBlank()) {
+                if (pureSource == null || pureSource.strip().isEmpty()) {
                     sendResponse(exchange, 400, "{\"error\":\"Missing 'code' field\"}");
                     return;
                 }
@@ -320,7 +320,7 @@ public class LegendHttpServer {
     public static void main(String[] args) throws IOException {
         int port = 8080;
         String envPort = System.getenv("PORT");
-        if (envPort != null && !envPort.isBlank()) {
+        if (envPort != null && !envPort.strip().isEmpty()) {
             try {
                 port = Integer.parseInt(envPort);
             } catch (NumberFormatException e) {
@@ -342,7 +342,7 @@ public class LegendHttpServer {
         }
 
         String bind = System.getenv("LEGEND_LITE_BIND");
-        java.net.InetAddress address = bind == null || bind.isBlank()
+        java.net.InetAddress address = bind == null || bind.strip().isEmpty()
                 ? java.net.InetAddress.getLoopbackAddress()
                 : java.net.InetAddress.getByName(bind);
         if (!address.isLoopbackAddress()) {

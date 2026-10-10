@@ -130,6 +130,8 @@ filegroup(
     srcs = glob(["**/*.pure"]),
     visibility = [
         "//core:__pkg__",
+        # the round-trip proof (RoundTripProofTest, the protocol program's leg 5)
+        "//parser-equivalence:__pkg__",
         "//scripts/corpus:__pkg__",
     ],
 )

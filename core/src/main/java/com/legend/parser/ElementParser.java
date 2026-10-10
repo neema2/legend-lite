@@ -1984,7 +1984,7 @@ public final class ElementParser implements TokenStreamCursor {
                             tokens.endLine(innerEndTok), tokens.endColumn(innerEndTok))));
             // trailing whitespace chunk before the outer close is fine
             if (!atEnd() && peek() != TokenType.ISLAND_END
-                    && tokens.text(pos).isBlank()) {
+                    && tokens.text(pos).strip().isEmpty()) {
                 advance();
             }
         }
@@ -2133,6 +2133,12 @@ public final class ElementParser implements TokenStreamCursor {
      *  the signature runs out). */
     private com.legend.protocol.Protocol.PFunctionTest parseFunctionTest(
             FunctionSignature sig, int testStart, String testId) {
+        // the test's documentation, between its id and '|' (the engine's simpleFunctionTest:
+        // identifier (STRING)? PIPE ...; found by the protocol program's leg 2, step 3)
+        String doc = null;
+        if (peek() == TokenType.STRING) {
+            doc = TokenStreamCursor.unquoteAndUnescape(consume(TokenType.STRING), this);
+        }
         expect(TokenType.PIPE);
         // the call NAME is not serialized but the engine VALIDATES it against the
         // enclosing function (rejection corpus: 'Function name in test ... does not
@@ -2225,7 +2231,7 @@ public final class ElementParser implements TokenStreamCursor {
         }
         expect(TokenType.SEMI_COLON);
         return new com.legend.protocol.Protocol.PFunctionTest(testId,
-                spanOf(testStart, pos - 1), params, assertion);
+                spanOf(testStart, pos - 1), params, assertion, doc);
     }
 
     /**
@@ -2421,7 +2427,7 @@ public final class ElementParser implements TokenStreamCursor {
         List<List<String>> rows = new ArrayList<>();
         boolean first = true;
         for (String line : linesOf(body)) {
-            if (line.isBlank()) {
+            if (line.strip().isEmpty()) {
                 continue;
             }
             List<String> cells = csvCells(line);

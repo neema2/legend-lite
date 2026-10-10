@@ -138,7 +138,7 @@ public final class Ddl {
         String[] lines = data.split("\n", -1);
         int i = 0;
         while (i < lines.length) {
-            while (i < lines.length && (lines[i].isBlank()
+            while (i < lines.length && (lines[i].strip().isEmpty()
                     || lines[i].strip().matches("-+"))) {
                 i++;
             }
@@ -151,7 +151,7 @@ public final class Ddl {
             DatabaseDefinition.TableDefinition def =
                     findTable(db, schema, table);
             i += 3;
-            while (i < lines.length && !lines[i].isBlank()
+            while (i < lines.length && !lines[i].strip().isEmpty()
                     && !lines[i].strip().matches("-+")) {
                 out.add(insertText(schema, table, def, header,
                         csvCells(lines[i])));
@@ -203,7 +203,7 @@ public final class Ddl {
     }
 
     private static boolean blankRecord(java.util.List<String> r) {
-        return r.isEmpty() || (r.size() == 1 && r.get(0).isBlank());
+        return r.isEmpty() || (r.size() == 1 && r.get(0).strip().isEmpty());
     }
 
     private static DatabaseDefinition.@com.legend.base.Nullable TableDefinition

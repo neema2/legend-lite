@@ -148,7 +148,7 @@ final class Wire {
     static double asDouble(Json.Node v, String what) {
         if (v instanceof Json.Num n) {
             // the token, not the BigDecimal: a decimal has no negative zero
-            return n.token() != null ? Double.parseDouble(n.token()) : n.doubleValue();
+            return n.token() != null ? com.legend.json.PortableText.doubleOf(n.token()) : n.doubleValue();
         }
         throw refuse(what + " is not a number: " + abbreviate(v));
     }
@@ -322,7 +322,7 @@ final class Wire {
             return new BigDecimal(n.token());
         }
         return n.isInteger() ? BigDecimal.valueOf(n.longValue())
-                : new BigDecimal(Double.toString(n.doubleValue()));
+                : new BigDecimal(com.legend.json.PortableText.doubleText(n.doubleValue()));
     }
 
     /** {@code {endColumn, endLine, sourceId, startColumn, startLine}}, every field required. */

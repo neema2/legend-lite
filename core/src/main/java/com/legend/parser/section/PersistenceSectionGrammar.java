@@ -138,8 +138,10 @@ public final class PersistenceSectionGrammar
                     c.match(TokenType.SEMI_COLON);
                 }
                 case "tests" -> {
+                    // no ';' after the list: the engine's grammar has none (tests: PERSISTENCE_TESTS COLON
+                    // BRACKET_OPEN (test (COMMA test)*)? BRACKET_CLOSE), and lite took one it would refuse
+                    // (found by the protocol program's leg 2, step 3)
                     tests = parseTests(c);
-                    c.match(TokenType.SEMI_COLON);
                 }
                 default -> throw c.error("unknown key '" + key
                         + "' inside Persistence '" + qn + "'");

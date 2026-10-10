@@ -132,6 +132,20 @@ public final class PureComposer {
     }
 
     /**
+     * A statement sequence -- a function's or a derived property's body -- each statement printed as
+     * {@link #valueSpecification(ValueSpecification, Style, String)} prints it, but the first, when more follow,
+     * keeping the braces of a lambda its text ends with ({@link #lambdaText}).
+     */
+    static List<String> statements(List<ValueSpecification> body, Style style, String indentation) {
+        PureComposer composer = new PureComposer(style, indentation, false);
+        List<String> out = new ArrayList<>(body.size());
+        for (int i = 0; i < body.size(); i++) {
+            out.add(composer.visit(body.get(i), i == 0 && body.size() > 1));
+        }
+        return out;
+    }
+
+    /**
      * A legacy service test's parameter: there {@code list([...])} is the list instance the engine's grammar writes
      * ({@code ServiceParseTreeWalker}) and its printer prints as one -- {@code list([a,b])}, no space after a comma --
      * where anywhere else it is the ordinary call {@code list} (the emitter decides by the same position: TailEmitter).
@@ -194,11 +208,17 @@ public final class PureComposer {
     // ---------------------------------------------------------------------
 
     private String visit(ValueSpecification v) {
+        return visit(v, false);
+    }
+
+    /** {@code v}'s text; {@code tail}: text follows it that a brace-less lambda ending it would read as its own -- the
+     *  rest of a sequence's first statement, or an arrow, a dot or an operator after it ({@link #lambdaText}). */
+    private String visit(ValueSpecification v, boolean tail) {
         return switch (v) {
-            case LambdaFunction l -> lambdaText(l);
+            case LambdaFunction l -> lambdaText(l, tail);
             case Variable var -> variable(var);
-            case AppliedFunction af -> appliedFunction(af);
-            case AppliedProperty ap -> visit(ap.receiver()) + "." + convertIdentifier(ap.property());
+            case AppliedFunction af -> appliedFunction(af, tail);
+            case AppliedProperty ap -> visit(ap.receiver(), true) + "." + convertIdentifier(ap.property());
             // on the wire a property on the enumeration's pointer, or an enumValue node: the same text
             case EnumValue e -> e.fullPath() + "." + convertIdentifier(e.value());
             case PureCollection c -> renderCollection(c.values(), this::possiblyAddParenthesis);
@@ -206,7 +226,7 @@ public final class PureComposer {
             case CDecimal c -> c.value().toString() + "D";
             case CString c -> c.multiLine() ? renderTextBlock(c.value(), indentation) : convertString(c.value(), true);
             case CBoolean c -> String.valueOf(c.value());
-            case CFloat c -> String.valueOf(c.value());
+            case CFloat c -> com.legend.json.PortableText.doubleText(c.value());
             case CDate d -> percent(written(d.written(), "date"));
             case CTime t -> percent(written(t.written(), "time"));
             case CLatestDate l -> "%latest";
@@ -217,7 +237,7 @@ public final class PureComposer {
             case TypeAnnotation.MultiplicityRef m -> throw refused("a multiplicity annotation: upstream writes none");
             case TypeAnnotation.Wildcard w -> throw refused("a wildcard type annotation: upstream writes none");
             case NewInstance ni -> newInstance(ni);
-            case ColSpec cs -> "~" + printColSpec(cs);
+            case ColSpec cs -> "~" + printColSpec(cs, tail);
             case ColSpecArray ca -> printColSpecArray(ca);
             case PathLiteral pl -> path(pl);
             case GraphFetchLiteral gf -> rootGraphFetchTree(gf);
@@ -228,8 +248,8 @@ public final class PureComposer {
             case GqlIsland gi -> throw refused("no composer rule for classInstance type 'GQL' -- add the rule, do not"
                     + " drop it");
             // a quote/eval carrier's wire face is its original call
-            case QuotedTreeCall q -> visit(q.original());
-            case QuotedGrammarCall q -> visit(q.original());
+            case QuotedTreeCall q -> visit(q.original(), tail);
+            case QuotedGrammarCall q -> visit(q.original(), tail);
             case NewInstanceCast nc -> throw refused("a new-instance cast: upstream writes none");
         };
     }
@@ -238,25 +258,42 @@ public final class PureComposer {
     // Lambda, variable
     // ---------------------------------------------------------------------
 
-    private String lambdaText(LambdaFunction lambda) {
+    /**
+     * A lambda: braced when its body has more than one statement or it has more than one parameter, as upstream
+     * prints it -- and, a deliberate difference (docs/SEMANTICS_REGISTER.md S38, "a lambda's braces where dropping them
+     * changes the reading"), where text follows it that its body would read as its own ({@code tail}). A brace-less
+     * lambda's body reads on as far as the grammar lets it: in a sequence's first statement that more statements
+     * follow, the grammar makes the ';' optional, so the reader takes the ';' and the statements after it
+     * (SpecParser.readBraceLessBlock; legend-engine's parser alike) -- upstream's print of
+     * {@code let q = {|1}; $q->eval();} reads back as one statement; and a lambda followed by an arrow, a dot or an
+     * operator ({@code {x|$x}->cast(@T)}, {@code {|1} == {|2}}) has it read into its body. Anywhere else the braces drop
+     * as upstream drops them, and the print is upstream's byte for byte.
+     */
+    private String lambdaText(LambdaFunction lambda, boolean tail) {
         List<ValueSpecification> body = lambda.body();
         List<Variable> params = lambda.parameters();
-        boolean addWrapper = body.size() > 1 || params.size() > 1;
+        boolean upstreamWrapper = body.size() > 1 || params.size() > 1;
+        // the kept braces close tight: the print is upstream's with the two braces added, in either style
+        boolean addWrapper = upstreamWrapper || tail;
         boolean addCR = body.size() > 1;
         List<String> ps = new ArrayList<>();
         for (Variable p : params) {
             ps.add(signature().visit(p));
         }
         PureComposer inner = addCR ? indented(tabs(1)) : this;
+        // a lone statement that is itself a brace-less lambda with no parameters would print right after this one's
+        // '|' as '||', which lexes as the or operator: its braces stay too (S38; upstream's print does not parse)
+        boolean opensWithPipe = !addCR && body.size() == 1 && body.get(0) instanceof LambdaFunction l
+                && l.parameters().isEmpty();
         List<String> bs = new ArrayList<>();
-        for (ValueSpecification b : body) {
-            bs.add(inner.visit(b));
+        for (int i = 0; i < body.size(); i++) {
+            bs.add(inner.visit(body.get(i), i == 0 && body.size() > 1 || opensWithPipe));
         }
         return (addWrapper ? "{" : "")
                 + String.join(", ", ps)
                 + "|" + (addCR ? returnChar() + indent(tabs(1)) : "")
                 + String.join(";" + returnChar() + indent(tabs(1)), bs)
-                + (addCR ? ";" + returnChar() : "") + (addWrapper ? indentation + "}" : "");
+                + (addCR ? ";" + returnChar() : "") + (upstreamWrapper ? indentation + "}" : addWrapper ? "}" : "");
     }
 
     private String variable(Variable v) {
@@ -269,11 +306,14 @@ public final class PureComposer {
     // Applied functions
     // ---------------------------------------------------------------------
 
-    private String appliedFunction(AppliedFunction af) {
+    /** {@code tail}: as {@link #visit(ValueSpecification, boolean)}'s -- passed on to the operand the call's text ends
+     *  with, where it ends with one (a let's value, an operator's last operand), not one a bracket closes after; an
+     *  operand that text follows (a receiver before an arrow or a dot, an operator's left operand) is a tail itself. */
+    private String appliedFunction(AppliedFunction af, boolean tail) {
         if (af.propertyCall()) {
             // receiver.name(args): a property node, its arguments after the receiver
             List<ValueSpecification> ps = af.parameters();
-            return visit(ps.get(0)) + "." + convertIdentifier(af.function())
+            return visit(ps.get(0), true) + "." + convertIdentifier(af.function())
                     + (ps.size() > 1 ? "(" + joinVisit(ps.subList(1, ps.size()), ", ") + ")" : "");
         }
         if (af.island()) {
@@ -299,17 +339,17 @@ public final class PureComposer {
                     + ")";
         }
         if ("letFunction".equals(function)) {
-            return "let " + convertIdentifier(((CString) parameters.get(0)).value()) + " = " + visit(parameters.get(1));
+            return "let " + convertIdentifier(((CString) parameters.get(0)).value()) + " = " + visit(parameters.get(1), tail);
         }
         if (Set.of("cast", "to", "toMany").contains(function)) {
             String castType = visit(parameters.get(1));
             if (parameters.get(1) instanceof TypeAnnotation) {
                 castType = "@" + castType;
             }
-            return possiblyAddParenthesis(parameters.get(0)) + "->" + fullName + "(" + castType + ")";
+            return possiblyAddParenthesis(parameters.get(0), true) + "->" + fullName + "(" + castType + ")";
         }
         if ("subType".equals(function)) {
-            return visit(parameters.get(0)) + "->" + fullName + "(@" + visit(parameters.get(1)) + ")";
+            return visit(parameters.get(0), true) + "->" + fullName + "(@" + visit(parameters.get(1)) + ")";
         }
         if ("new".equals(function)) {
             // a new the reader kept as written (not today's ^X(...)): its last argument's values are the keys
@@ -324,9 +364,9 @@ public final class PureComposer {
         if ("not".equals(function)) {
             if (isFunction(parameters.get(0), "equal")) {
                 List<ValueSpecification> eq = ((AppliedFunction) parameters.get(0)).parameters();
-                return possiblyAddParenthesis("not", eq.get(0)) + " != " + possiblyAddParenthesis("not", eq.get(1));
+                return possiblyAddParenthesis("not", eq.get(0), true) + " != " + possiblyAddParenthesis("not", eq.get(1), tail);
             }
-            return "!" + possiblyAddParenthesis("not", parameters.get(0));
+            return "!" + possiblyAddParenthesis("not", parameters.get(0), tail);
         }
         if ("divide".equals(function) && parameters.size() == 3) {
             return renderFunction(af);
@@ -334,22 +374,23 @@ public final class PureComposer {
         if (isInfix(af)) {
             if (parameters.get(0) instanceof PureCollection run && Set.of("plus", "minus", "times", "divide").contains(function)) {
                 List<String> parts = new ArrayList<>();
-                for (ValueSpecification v : run.values()) {
-                    parts.add(possiblyAddParenthesis(function, v));
+                List<ValueSpecification> values = run.values();
+                for (int i = 0; i < values.size(); i++) {
+                    parts.add(possiblyAddParenthesis(function, values.get(i), i < values.size() - 1 || tail));
                 }
                 return String.join(" " + SPECIAL_INFIX.get(function) + " ", parts);
             }
             if ("minus".equals(function)) {
-                return "-" + possiblyAddParenthesis("minus", parameters.get(0));
+                return "-" + possiblyAddParenthesis("minus", parameters.get(0), tail);
             }
             if (parameters.size() == 1) {
                 return renderFunction(af);
             }
             boolean newLine = pretty() && !isPrimitiveValue(parameters.get(0)) && !isPrimitiveValue(parameters.get(1));
-            return possiblyAddParenthesis(function, parameters.get(0))
+            return possiblyAddParenthesis(function, parameters.get(0), true)
                     + " " + SPECIAL_INFIX.get(function)
                     + (newLine ? returnChar() + indent(tabs(1)) : " ")
-                    + possiblyAddParenthesis(function, parameters.get(1));
+                    + possiblyAddParenthesis(function, parameters.get(1), tail);
         }
         if (CORE_FUNCTIONS_WITH_PREFIX_RENDERING.contains(function)) {
             PureComposer inner = indented(tabs(1));
@@ -369,7 +410,7 @@ public final class PureComposer {
     private String newInstance(NewInstance ni) {
         AppliedFunction special = CaretSpecials.call(ni);
         if (special != null) {
-            return appliedFunction(special);
+            return appliedFunction(special, false);
         }
         if (ni.className().isEmpty()) {
             throw refused("a new-instance on a variable receiver: upstream writes none");
@@ -433,17 +474,26 @@ public final class PureComposer {
 
     private String mayWrapInParenthesis(ValueSpecification value) {
         boolean wrap = isFunction(value, "minus") || isFunction(value, "not");
-        return (wrap ? "(" : "") + visit(value) + (wrap ? ")" : "");
+        return (wrap ? "(" : "") + visit(value, !wrap) + (wrap ? ")" : "");
     }
 
     private String possiblyAddParenthesis(String function, ValueSpecification param) {
+        return possiblyAddParenthesis(function, param, false);
+    }
+
+    /** {@code tail}: as {@link #visit(ValueSpecification, boolean)}'s; inside parentheses nothing is at the tail. */
+    private String possiblyAddParenthesis(String function, ValueSpecification param, boolean tail) {
         if (Set.of("and", "or", "plus", "minus", "times", "divide", "not").contains(function)) {
-            return possiblyAddParenthesis(param);
+            return possiblyAddParenthesis(param, tail);
         }
-        return visit(param);
+        return visit(param, tail);
     }
 
     private String possiblyAddParenthesis(ValueSpecification param) {
+        return possiblyAddParenthesis(param, false);
+    }
+
+    private String possiblyAddParenthesis(ValueSpecification param, boolean tail) {
         if (wireCall(param) instanceof AppliedFunction p && isInfix(p)) {
             List<ValueSpecification> ps = p.parameters();
             boolean oneParamAndApplied = ps.size() == 1 && wireCall(ps.get(0)) != null;
@@ -452,7 +502,7 @@ public final class PureComposer {
                 return "(" + visit(param) + ")";
             }
         }
-        return visit(param);
+        return visit(param, tail);
     }
 
     /**
@@ -510,10 +560,20 @@ public final class PureComposer {
     // ---------------------------------------------------------------------
 
     private String printColSpec(ColSpec col) {
+        return printColSpec(col, false);
+    }
+
+    /** {@code tail}: as {@link #visit(ValueSpecification, boolean)}'s -- a lone column spec's text ends with its last
+     *  lambda ({@code ~a:x|$x.b}), which the grammar reads as any lambda ({@code oneColSpec: ... COLON anyLambda}). */
+    private String printColSpec(ColSpec col, boolean tail) {
         return convertIdentifier(col.name())
                 + (col.colType() != null ? ":" + printGenericType(col.colType()) : "")
-                + (col.function1() != null ? ":" + (pretty() ? " " : "") + visit(col.function1()) : "")
-                + (col.function2() != null ? ":" + visit(col.function2()) : "");
+                // a deliberate difference (docs/SEMANTICS_REGISTER.md S39): upstream's printColSpec leaves a declared
+                // multiplicity out, and its print then reads back without it; lite writes it, as the grammar spells it
+                + (col.colType() != null && col.colTypeMult() != null ? "[" + multiplicity(col.colTypeMult()) + "]" : "")
+                + (col.function1() != null
+                        ? ":" + (pretty() ? " " : "") + visit(col.function1(), tail && col.function2() == null) : "")
+                + (col.function2() != null ? ":" + visit(col.function2(), tail) : "");
     }
 
     private String printColSpecArray(ColSpecArray array) {
