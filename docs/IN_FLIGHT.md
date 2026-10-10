@@ -470,12 +470,18 @@ tests, and PARK-23's fix moved into TeaVM's class library. **Landing 2026-10-10 
 conformance test of TeaVM's class library against the JDK (`//wasm:conformance_test`, its ledger of known differences
 `wasm/conformance-known.tsv`), and TeaVM's number conversions made exact (`third_party/teavm_classlib`, put first on
 every `teavm_wasm` build's class path by `tools/teavm/defs.bzl`; `MODULE.bazel` declares `teavm-interop`): every
-number family equal to the JDK in the tab; PARK-23 restated to its one speed clause. **Next, announced 2026-10-10
-(core):** retiring `PortableText`, the server's win -- the protocol and the parser back on the JDK's own conversions
-(`Double.toString`, `Double.parseDouble`, `BigDecimal.valueOf`) now that the tab's are exact; files: the 22 call sites
-in `core/.../protocol/` and `core/.../parser/`, `protocol/NumberText.java` and `json/.../PortableText.java` deleted, the
-double half of `ArchitectureTest.textTheTabWritesDifferentlyIsWrittenPortably` and `theProtocolConcatenatesNoDoubleIntoText`
-(the `isBlank` half stays). Then legs 6 to 8; PARK-17 closes in leg 6. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
+number family equal to the JDK in the tab; PARK-23 restated to its one speed clause. **And from the same branch:**
+`PortableText` retired, the server's win -- the protocol and the parser back on the JDK's own conversions
+(`Double.toString`, `Double.parseDouble`, `BigDecimal.valueOf`) now that the tab's are exact (the 22 call sites in
+`core/.../protocol/` and `core/.../parser/`; `protocol/NumberText.java`, `json/.../PortableText.java` deleted; the
+`isBlank` half of `ArchitectureTest.textTheTabWritesDifferentlyIsWrittenPortably` stays). **Next, announced
+2026-10-10 (core): leg 6** (`docs/PROTOCOL_PROGRAM_2026_10_05.md` §4) -- one whole-model compile on
+`com.legend.Compiler`, called by `PureV1Api.compile`, the tab's boundary and `sdlc-server`'s `CoreGrammar`; and the
+boundary's operations that are true twins of a `pure/v1` endpoint (`compile`; `relationTypeJson` if it is E5's, checked
+first; `planJson` stays, not E9's) gone from both adapters, their callers on the route. Files: `core/.../Compiler.java`,
+`core/.../server/PureV1Api.java`, `wasm/.../planner/{Boundary,TabExports}.java`, `native/` (Python's adapter),
+`python/` (its bindings), `sdlc-server/.../CoreGrammar.java`, and the callers in `studio/`, `datacube/` (the DataCube +
+Python line's: told here, before the edit) and `python/`. PARK-17 closes with it. Then legs 7 and 8. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
 function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
