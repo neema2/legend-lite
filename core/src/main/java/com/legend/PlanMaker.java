@@ -85,9 +85,44 @@ final class PlanMaker {
             SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
         RenderedStatement rendered = dialect.renderStatement(statement);
         List<ExecutionPlan.Slot> slots = rendered.binds().stream()
-                .map(b -> new ExecutionPlan.Slot(b.parameter(), b.arrayElementSqlType())).toList();
+                .map(b -> new ExecutionPlan.Slot(b.parameter(), binding(b.binding()))).toList();
         return new ExecutionPlan.TextResult(format, type, new ExecutionPlan.Sql(rendered.sql(), slots, target,
                 statement));
+    }
+
+    /** A placeholder's binding, as the dialect decided it, in the plan's own terms. */
+    private static ExecutionPlan.Binding binding(RenderedStatement.Binding b) {
+        return switch (b) {
+            case RenderedStatement.Binding.One one -> {
+                RenderedStatement.TypeHole hole = one.hole();
+                yield new ExecutionPlan.Binding.One(one.nullType(), hole == null ? null
+                        : new ExecutionPlan.TypeHole(hole.at(), spellings(hole.types()), kind(hole.absent())));
+            }
+            case RenderedStatement.Binding.Array array -> new ExecutionPlan.Binding.Array(array.elementSqlType());
+        };
+    }
+
+    private static java.util.Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> spellings(
+            java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types) {
+        java.util.Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> out =
+                new java.util.EnumMap<>(ExecutionPlan.ValueKind.class);
+        types.forEach((k, t) -> out.put(kind(k), new ExecutionPlan.TypeSpelling(t.name(), switch (t.digits()) {
+            case NONE -> ExecutionPlan.Digits.NONE;
+            case PRECISION -> ExecutionPlan.Digits.PRECISION;
+            case PRECISION_AND_SCALE -> ExecutionPlan.Digits.PRECISION_AND_SCALE;
+        }, t.fraction())));
+        return out;
+    }
+
+    private static ExecutionPlan.ValueKind kind(com.legend.sql.ValueKind k) {
+        return switch (k) {
+            case INTEGER -> ExecutionPlan.ValueKind.INTEGER;
+            case DECIMAL -> ExecutionPlan.ValueKind.DECIMAL;
+            case FLOATING -> ExecutionPlan.ValueKind.FLOATING;
+            case DATE -> ExecutionPlan.ValueKind.DATE;
+            case DATE_TIME -> ExecutionPlan.ValueKind.DATE_TIME;
+            case DATE_TIME_NANOS -> ExecutionPlan.ValueKind.DATE_TIME_NANOS;
+        };
     }
 
     private static ExecutionPlan.Relation relation(Type.RelationType schema) {

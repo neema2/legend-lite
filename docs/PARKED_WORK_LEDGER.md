@@ -530,7 +530,16 @@ on H2, every answer the literal's, text for text.
 **When.** Before step 4 switches the server's `execute` to plans: until then today's path serves H2 decimal parameters.
 Cost of leaving it parked past step 4: a query with a Float, Decimal, Date or Number parameter is refused on H2.
 
-**Anchor.** `H2.placeholder`'s refusal, "has no one type a statement names", in `H2.java`.
+**Anchor.** `H2.placeholder`'s refusal, "has no one type a statement names", in `H2.java` (gone with the fix).
+
+**Fixed 2026-10-09 (step 3, `docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §9), neither (B) nor (C).** The user: "we own
+this whole pipeline" — the plan says how each placeholder is bound, and where the type is the value's, H2's plan casts
+the placeholder to a TYPE HOLE (`CAST(? AS )`) that the runner fills, when the value is known, with the type H2 gives
+that value's literal: `NUMERIC(precision,scale)` of its own digits, `DECFLOAT(precision)` at an extreme magnitude,
+`BIGINT`, `DATE`, `TIMESTAMP(9)`. The value is still bound, never written into the text. Measured, every value against
+its literal, alone, in arithmetic, compared and in the answer's JSON (`probes/ValueTypedCastProbe.java` →
+`value-typed-cast-results.txt`): the same type and text, a small whole number's type apart (BIGINT for the literal's
+INTEGER: the same text). `PlanMakerTest` runs every scalar case on H2.
 
 ---
 
@@ -560,6 +569,12 @@ it past step 4: a query with such a list parameter is refused.
 
 **Anchor.** The refusal in `QueryParameters.java`: "a list of decimals, Dates or Numbers has no one element type".
 
+**Also (2026-10-09, step 3).** A list of DateTimes is bound, as one array of timestamps through the driver, and the
+drivers do not pass digits finer than a microsecond alike (DuckDB's cuts them, Postgres's rounds them:
+`probes/timestamp-results.txt`), where one DateTime parameter is passed as its text into the cast of its literal's
+type. A DateTime list with finer digits than a microsecond can answer otherwise than its literal list on DuckDB and
+Postgres; the fix is this row's (a list's elements each typed as its literal), and its acceptance gains such a list.
+
 ---
 
 ## PARK-21 — a plan does not bind an optional enumeration, a class instance, or a Byte, LatestDate, StrictTime or Variant value
@@ -579,10 +594,8 @@ finding S6).
 - **a Byte, LatestDate or StrictTime value**: no measured binding. A Variant, being a class to the planner, is refused
   as a class instance.
 
-The runner (step 3, `PlanParameters`), should a plan carry one, checks a Byte's and a Variant's value as legend-engine
-does (a Byte a stream, a Variant JSON's text: measured, `probes/engine-validation-results.txt`) and refuses a value that
-passes by name (a LatestDate or a StrictTime has no validator in legend-engine, which refuses it as an unknown type, and
-so does the runner, in its words).
+The runner (step 3, `PlanParameters`), should a plan carry one, refuses a value of any of these types by name ("a
+Byte value is not bound by a plan (PARK-21)").
 
 **The fix.** For the optional enumeration: run the three shapes (`==`, `!=`, absent and present) through legend-engine
 4.145.0's `execute` and bind what it answers — the value table's `NOT IN` beside the null arms already gives the

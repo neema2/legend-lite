@@ -649,6 +649,15 @@ public final class Postgres extends AnsiSqlRenderer {
         return super.expr(writer, e, parentPrec);
     }
 
+    /** A date-time finer than a microsecond is a {@code TIMESTAMP} of its first six digits, the finer ones cut, as its
+     *  literal is ({@link #timestampLit}). */
+    @Override
+    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+        return kind == com.legend.sql.ValueKind.DATE_TIME_NANOS
+                ? new RenderedStatement.TypeSpelling("TIMESTAMP", RenderedStatement.Digits.NONE, 6)
+                : super.holeType(kind);
+    }
+
     /** Postgres keeps microseconds and ROUNDS finer digits (59.9999999 becomes the next
      * minute; the 9999-12-31 23:59:59.999999999 sentinel would become year 10000):
      * finer digits are TRUNCATED, as DuckDB's TIMESTAMP does. */

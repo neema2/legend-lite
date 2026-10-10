@@ -109,6 +109,20 @@ final class SqlWriter {
         return this;
     }
 
+    /** The placeholder bound last is typed by its value, its type written HERE when the value is known: records the
+     *  hole at this place in the statement, with the spelling of each kind of value. */
+    SqlWriter typeHole(java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types,
+            com.legend.sql.ValueKind absent) {
+        if (binds.isEmpty() || !(binds.get(binds.size() - 1).binding() instanceof RenderedStatement.Binding.One one)
+                || one.hole() != null) {
+            throw new IllegalStateException("a type hole follows a placeholder of one value with none: " + binds);
+        }
+        RenderedStatement.Bind last = binds.get(binds.size() - 1);
+        binds.set(binds.size() - 1, new RenderedStatement.Bind(last.parameter(), new RenderedStatement.Binding.One(
+                one.nullType(), new RenderedStatement.TypeHole(sql.length(), types, absent))));
+        return this;
+    }
+
     /** The statement written, with its parameters in placeholder order. */
     RenderedStatement statement() {
         return new RenderedStatement(sql.toString(), binds);

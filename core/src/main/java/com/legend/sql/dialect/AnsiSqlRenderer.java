@@ -1237,10 +1237,38 @@ public class AnsiSqlRenderer implements SqlDialect {
     /**
      * A plan parameter's placeholder: the value bound bare, typed by the database from the bound value (DuckDB and
      * Postgres do, every type answering as its literal does: docs/execution-plan-boundary-2026-10-05/probes/
-     * literal-results.txt). A dialect whose database types a parameter otherwise writes it typed.
+     * literal-results.txt) -- but a date-time, which is cast to a TYPE HOLE the runner fills with the type of the
+     * value's literal ({@link #holeType}) and passed as its text: the drivers pass no digit finer than a microsecond
+     * alike (DuckDB's cuts it, Postgres's rounds it; probes/timestamp-results.txt). A dialect whose database types a
+     * parameter otherwise writes it typed.
      */
     protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
+        com.legend.sql.ValueTyping byValue = p.byValue();
+        if (byValue != null && byValue.kinds().stream().anyMatch(k -> k == com.legend.sql.ValueKind.DATE_TIME
+                || k == com.legend.sql.ValueKind.DATE_TIME_NANOS)) {
+            java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types =
+                    new java.util.EnumMap<>(com.legend.sql.ValueKind.class);
+            for (com.legend.sql.ValueKind kind : byValue.kinds()) {
+                types.put(kind, holeType(kind));
+            }
+            return writer.append("CAST(").bind(scalarBind(p)).append(" AS ").typeHole(types, byValue.absent())
+                    .append(")");
+        }
         return writer.bind(scalarBind(p));
+    }
+
+    /** The type this dialect's database gives a literal of a value of {@code kind}, for a placeholder cast to its value's
+     *  type: here, a date and a date-time's (every other value is bound bare); a date-time finer than a microsecond is
+     *  each dialect's own. */
+    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+        return switch (kind) {
+            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
+            case DATE_TIME -> new RenderedStatement.TypeSpelling("TIMESTAMP", RenderedStatement.Digits.NONE);
+            case DATE_TIME_NANOS -> throw new DialectCapability("a date-time finer than a microsecond: this dialect"
+                    + " names no type its literal has");
+            case INTEGER, DECIMAL, FLOATING -> throw new DialectCapability("a value of kind " + kind + " is bound"
+                    + " bare here, typed by the database from the value");
+        };
     }
 
     /**
@@ -1259,7 +1287,51 @@ public class AnsiSqlRenderer implements SqlDialect {
             throw new DialectCapability("enum plan parameter '" + p.name() + "' carries the legacy printer's mapping"
                     + " function (a value table, a plan template's): never a bound value");
         }
-        return new RenderedStatement.Bind(p.name(), null);
+        return new RenderedStatement.Bind(p.name(), new RenderedStatement.Binding.One(nullType(p), null));
+    }
+
+    /** The JDBC type an absent value of {@code p} is bound as: its type's; for a parameter its value types, its absent
+     *  kind's. Refused by name for a parameter of neither (a legacy plan's template parameter). */
+    protected static String nullType(SqlExpr.PlanParam p) {
+        if (p.type() instanceof com.legend.sql.TypeFact.Typed t) {
+            return jdbcType(t.type(), p.name());
+        }
+        com.legend.sql.ValueTyping byValue = p.byValue();
+        if (byValue == null) {
+            throw new DialectCapability("plan parameter '" + p.name() + "' has no type and is not typed by its value:"
+                    + " not bound");
+        }
+        return switch (byValue.absent()) {
+            case INTEGER -> "BIGINT";
+            case DECIMAL -> "DECIMAL";
+            case FLOATING -> "DOUBLE";
+            case DATE -> "DATE";
+            case DATE_TIME, DATE_TIME_NANOS -> "TIMESTAMP";
+        };
+    }
+
+    /** {@code t}'s JDBC type name (a {@code java.sql.JDBCType}'s), for a parameter's null. */
+    private static String jdbcType(com.legend.sql.SqlType t, String parameter) {
+        return switch (t) {
+            case com.legend.sql.SqlType.Scalar scalar -> switch (scalar) {
+                case BOOLEAN -> "BOOLEAN";
+                case INTEGER -> "INTEGER";
+                case BIGINT -> "BIGINT";
+                case DOUBLE -> "DOUBLE";
+                case VARCHAR -> "VARCHAR";
+                case DATE -> "DATE";
+                case TIMESTAMP -> "TIMESTAMP";
+                case HUGEINT, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
+                        "plan parameter '" + parameter + "' is typed " + scalar + ", which no parameter is bound as");
+            };
+            case com.legend.sql.SqlType.Decimal d -> "DECIMAL";
+            case com.legend.sql.SqlType.Array a -> throw new DialectCapability("plan parameter '" + parameter
+                    + "' is a list: bound as one array, never as one value");
+            case com.legend.sql.SqlType.Map m -> throw new DialectCapability("plan parameter '" + parameter
+                    + "' is a map, which no parameter is bound as");
+            case com.legend.sql.SqlType.Struct st -> throw new DialectCapability("plan parameter '" + parameter
+                    + "' is a struct, which no parameter is bound as");
+        };
     }
 
     /**
@@ -1280,7 +1352,8 @@ public class AnsiSqlRenderer implements SqlDialect {
         if (wrap) {
             writer.append("(");
         }
-        writer.expr(needle, 5).append(" = ANY(").bind(new RenderedStatement.Bind(list.name(), element.name()))
+        writer.expr(needle, 5).append(" = ANY(").bind(new RenderedStatement.Bind(list.name(),
+                        new RenderedStatement.Binding.Array(element.name())))
                 .append(")");
         return wrap ? writer.append(")") : writer;
     }

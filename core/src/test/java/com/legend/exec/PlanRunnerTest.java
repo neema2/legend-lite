@@ -14,13 +14,9 @@ import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,10 +26,11 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The runner (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3): its parameter checks are legend-engine's, case for
- * case and message for message (its {@code TestParametersValidation}, {@code TestServiceRunner}); its sessions are given
- * out by the plan's target (decision A). The plans' answers on DuckDB, H2 and Postgres are {@code PlanMakerTest}'s and
- * {@code PostgresArmTest}'s, which run every case through it.
+ * The runner (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3): it takes each value as its Pure type's Java value,
+ * refuses what its parameter does not take in its own words, every problem at once; binds each slot as the plan says,
+ * writing a value's type where the statement leaves it to the value (H2); and gives out sessions by the plan's target
+ * (decision A). The plans' answers on DuckDB, H2 and Postgres are {@code PlanMakerTest}'s and {@code PostgresArmTest}'s,
+ * which run every case through it.
  */
 class PlanRunnerTest {
 
@@ -52,350 +49,194 @@ class PlanRunnerTest {
                 () -> PlanParameters.check(List.of(p), Map.of(p.name(), value))).getMessage();
     }
 
+    private static String invalid(String... problems) {
+        return "Invalid provided parameter(s): [" + String.join("; ", problems) + "]";
+    }
+
     @Test
-    void aValueOfTheRightJavaTypeOrAStringThatParsesIsChecked_andConvertedForItsSlot() {
-        assertEquals(5L, one("Integer", "5"));
-        assertEquals(5L, one("Integer", 5));
-        assertEquals(new BigDecimal("5.0"), one("Float", 5));
-        assertEquals(new BigDecimal("1.1"), one("Float", 1.1d));
+    void aValueOfItsTypesJavaType_isConvertedAsItsSlotBindsIt() {
+        assertEquals(5L, one("Integer", 5L));
+        assertEquals(true, one("Boolean", true));
+        assertEquals("O'Brien", one("String", "O'Brien"));
+        assertEquals(LocalDate.of(2020, 7, 14), one("StrictDate", LocalDate.of(2020, 7, 14)));
+        assertEquals(LocalDateTime.of(2020, 7, 14, 15, 18, 23, 123_456_789),
+                one("DateTime", LocalDateTime.of(2020, 7, 14, 15, 18, 23, 123_456_789)));
+        assertEquals(LocalDate.of(2020, 7, 14), one("Date", LocalDate.of(2020, 7, 14)));
+        assertEquals(LocalDateTime.of(2020, 7, 14, 15, 18), one("Date", LocalDateTime.of(2020, 7, 14, 15, 18)));
+        assertEquals("FULL_TIME", one(declared("type", "test::EmployeeType", 1, 1, "CONTRACT", "FULL_TIME"),
+                "FULL_TIME"));
+        // a Decimal as its literal is written: its own digits, a negative scale's as plain digits
         assertEquals(new BigDecimal("2.50"), one("Decimal", new BigDecimal("2.50")));
-        assertEquals(new BigDecimal("1.5"), one("Decimal", "1.5"));
-        assertEquals(false, one("Boolean", "false"));
-        assertEquals(LocalDate.of(2020, 7, 14), one("StrictDate", "2020-07-14"));
-        // an offset is converted to UTC (legend-engine's TestParametersValidation)
-        assertEquals(LocalDateTime.of(2020, 7, 14, 18, 18, 23, 123_000_000), one("DateTime", "2020-07-14T15:18:23.123-0300"));
-        assertEquals(LocalDateTime.of(2020, 7, 14, 15, 18, 23), one("DateTime", "2020-07-14 15:18:23"));
-        assertEquals(LocalDate.of(2020, 7, 14), one("Date", "2020-07-14"));
-        // a one-element list for a parameter of upper bound 1 is its element
-        assertEquals(7L, one("Integer", List.of(7L)));
+        assertEquals(new BigDecimal("1000"), one("Decimal", new BigDecimal("1E+3")));
+        // a Number: a Long, a Double (as a Float), a BigDecimal (as a Decimal)
+        assertEquals(7L, one("Number", 7L));
+        assertEquals(new BigDecimal("1.5"), one("Number", 1.5d));
+        assertEquals(new BigDecimal("2.50"), one("Number", new BigDecimal("2.50")));
     }
 
-    @Test
-    void aValueThatFailsIsRefusedInLegendEnginesWords() {
-        assertEquals("Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: true.]",
-                refusal(declared("p", "Integer", 1, 1), true));
-        // a Decimal takes a BigDecimal only: a Long and a Double are refused
-        assertEquals("Invalid provided parameter(s): [Unable to process 'Decimal' parameter, value: 5.]",
-                refusal(declared("p", "Decimal", 1, 1), 5L));
-        assertEquals("Invalid provided parameter(s): [Unable to process 'Decimal' parameter, value: 2.73.]",
-                refusal(declared("p", "Decimal", 1, 1), 2.73d));
-        assertEquals("Invalid provided parameter(s): [Unable to process 'String' parameter, value: 5.]",
-                refusal(declared("p", "String", 1, 1), 5));
-        assertEquals("Invalid provided parameter(s): [Unable to process 'Boolean' parameter, value: 'x' is not"
-                + " parsable.]", refusal(declared("p", "Boolean", 1, 1), "x"));
-        assertEquals("Invalid provided parameter(s): [Unable to process 'StrictDate' parameter, value:"
-                + " '2020-07-14T15:18:23' is not parsable. Expected formats: [yyyy-MM-dd]]",
-                refusal(declared("p", "StrictDate", 1, 1), "2020-07-14T15:18:23"));
-        assertEquals("Invalid provided parameter(s): [Unable to process 'DateTime' parameter, value: '2020-07-14' is"
-                + " not parsable. Expected formats: [" + DATE_TIME_FORMATS + "]]",
-                refusal(declared("p", "DateTime", 1, 1), "2020-07-14"));
-        // legend-engine's TestServiceRunner
-        assertEquals("Invalid provided parameter(s): [Invalid enum value CONTRCT for test::EmployeeType, valid enum"
-                + " values: [CONTRACT, FULL_TIME]]",
-                refusal(declared("type", "test::EmployeeType", 1, 1, "CONTRACT", "FULL_TIME"), "CONTRCT"));
-        // a list's failure names its failing element (FunctionParametersParametersValidation validates each); an
-        // enumeration's, the whole value (ParameterValidationContextExecutor)
-        assertEquals("Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: true.]",
-                refusal(declared("ns", "Integer", 0, null), Arrays.asList(1L, true)));
-        assertEquals("Invalid provided parameter(s): [Invalid enum value [CONTRACT, CONTRCT] for test::EmployeeType,"
-                + " valid enum values: [CONTRACT, FULL_TIME]]", refusal(declared("types", "test::EmployeeType", 0,
-                        null, "CONTRACT", "FULL_TIME"), List.of("CONTRACT", "CONTRCT")));
-    }
-
-    // ---- legend-engine's TestParametersValidation, case for case -------------------------------------------------
-    // Its valid values, each with what the runner binds (legend-engine's own expected values are its EngineDate and
-    // Double forms; the runner's are its slots' Java types); its invalid values, each with its exact message (to-many
-    // too, where legend-engine's test asserts only the prefix). Its "now" values are fixed instants here.
-
-    private static final String DATE_TIME_FORMATS = "yyyy-MM-dd'T'HH:mm:ss,yyyy-MM-dd'T'HH:mm:ss.SSS,"
-            + "yyyy-MM-dd HH:mm:ss.SSS,yyyy-MM-dd HH:mm:ss,yyyy-MM-dd'T'HH:mm:ss.SSSZ,yyyy-MM-dd'T'HH:mm:ssZ";
-    private static final Instant NOW = Instant.parse("2021-03-04T05:06:07.089Z");
-    private static final LocalDateTime NOW_UTC = LocalDateTime.of(2021, 3, 4, 5, 6, 7, 89_000_000);
-    private static final ZonedDateTime ZONED_NOW = ZonedDateTime.ofInstant(NOW, ZoneOffset.UTC);
-    private static final LocalDate TODAY = LocalDate.of(2021, 3, 4);
-
-    private static LocalDateTime at(int h, int m, int s, int millis) {
-        return LocalDateTime.of(2020, 7, 14, h, m, s, millis * 1_000_000);
-    }
-
-    private static void toOne(String type, List<?> valid, List<?> expected, List<?> invalid, String suffix) {
-        assertEquals(valid.size(), expected.size());
-        for (int i = 0; i < valid.size(); i++) {
-            Object v = valid.get(i);
-            Object bound = one(type, v);
-            assertEquals(expected.get(i), bound, type + " " + v);
-            assertEquals(expected.get(i).getClass(), bound.getClass(), type + " " + v);
-        }
-        for (Object v : invalid) {
-            assertEquals(engineMessage(type, v, suffix), refusal(declared("p", type, 1, 1), v), type + " " + v);
-        }
-    }
-
-    /** {@code invalid}: each list, with its failing element. */
-    private static void toMany(String type, List<List<?>> valid, List<List<?>> expected, Map<List<?>, Object> invalid,
-            String suffix) {
-        ExecutionPlan.Parameter p = declared("p", type, 0, null);
-        Map<String, Object> absent = new HashMap<>();
-        absent.put("p", null);
-        assertEquals(new PlanParameters.None(), PlanParameters.check(List.of(p), absent).get("p"), type + " null");
-        assertEquals(new PlanParameters.None(), PlanParameters.check(List.of(p), Map.of("p", List.of())).get("p"),
-                type + " []");
-        for (int i = 0; i < valid.size(); i++) {
-            assertEquals(new PlanParameters.Many(new java.util.ArrayList<>(expected.get(i))),
-                    PlanParameters.check(List.of(p), Map.of("p", valid.get(i))).get("p"), type + " " + valid.get(i));
-        }
-        invalid.forEach((list, failing) -> assertEquals(engineMessage(type, failing, suffix), refusal(p, list),
-                type + " " + list));
-    }
-
-    /** legend-engine's test's expected message ({@code getExpectedExceptionMessage}). */
-    private static String engineMessage(String type, Object value, String suffix) {
-        StringBuilder b = new StringBuilder("Invalid provided parameter(s): [Unable to process '").append(type)
-                .append("' parameter, value: ");
-        if (value instanceof String) {
-            b.append("'").append(value).append("'");
-            if (!"String".equals(type)) {
-                b.append(" is not parsable");
-            }
-        } else {
-            b.append(value);
-        }
-        b.append(".");
-        if (suffix != null) {
-            b.append(" ").append(suffix);
-        }
-        return b.append("]").toString();
-    }
-
-    @Test
-    void legendEnginesStringCases() {
-        toOne("String", List.of("the quick brown fox", "ABCDE", "5", "6.0", "true"),
-                List.of("the quick brown fox", "ABCDE", "5", "6.0", "true"),
-                List.of(5, 6.0, true, false, NOW, TODAY), null);
-        toMany("String", List.of(List.of("a", "b", "c"), List.of("the quick brown fox")),
-                List.of(List.of("a", "b", "c"), List.of("the quick brown fox")),
-                Map.of(List.of("a", "b", true), true, List.of(5, 6.0, "string", false), 5), null);
-    }
-
-    @Test
-    void legendEnginesBooleanCases() {
-        toOne("Boolean", List.of(true, false, "true", "false"), List.of(true, false, true, false),
-                List.of(5, 6.0, "the quick brown fox", "jumped over the lazy dog", NOW, TODAY), null);
-        toMany("Boolean", List.of(List.of(true, true), List.of(true, "false"), List.of(false)),
-                List.of(List.of(true, true), List.of(true, false), List.of(false)),
-                Map.of(List.of(true, "b"), "b", List.of("c", 5, "e"), "c"), null);
-    }
-
-    @Test
-    void legendEnginesIntegerCases() {
-        toOne("Integer", List.of(5, 6L, -1L, Long.MAX_VALUE, Long.MIN_VALUE, Integer.MAX_VALUE, "-1", "5", "6"),
-                List.of(5L, 6L, -1L, Long.MAX_VALUE, Long.MIN_VALUE, (long) Integer.MAX_VALUE, -1L, 5L, 6L),
-                List.of(true, false, "the quick brown fox", "jumped over the lazy dog", NOW, TODAY), null);
-        toMany("Integer", List.of(List.of(1, "2", 3L), List.of(6L), List.of(Long.MAX_VALUE, Long.MIN_VALUE)),
-                List.of(List.of(1L, 2L, 3L), List.of(6L), List.of(Long.MAX_VALUE, Long.MIN_VALUE)),
-                Map.of(List.of(1, 2, "b"), "b", List.of("c", false), "c"), null);
-    }
-
-    @Test
-    void legendEnginesDecimalCases() {
-        toOne("Decimal", List.of(BigDecimal.valueOf(3.14d), BigDecimal.valueOf(5L), "-1.23", "2.73"),
-                List.of(BigDecimal.valueOf(3.14d), BigDecimal.valueOf(5L), BigDecimal.valueOf(-1.23),
-                        BigDecimal.valueOf(2.73)),
-                List.of(5L, 2.73d, 1.23f, true, false, "the quick brown fox", "jumped over the lazy dog", NOW, TODAY),
-                null);
-        toMany("Decimal", List.of(List.of(BigDecimal.valueOf(3.14d)), List.of(BigDecimal.valueOf(5L), "-1.23")),
-                List.of(List.of(BigDecimal.valueOf(3.14d)), List.of(BigDecimal.valueOf(5L), BigDecimal.valueOf(-1.23))),
-                Map.of(List.of(1, 2, "b"), 1, List.of("c", false, 5L), "c"), null);
+    private static Object one(ExecutionPlan.Parameter p, Object value) {
+        return ((PlanParameters.One) PlanParameters.check(List.of(p), Map.of(p.name(), value)).get(p.name())).value();
     }
 
     /** A Float binds as its literal is typed (the numeric charter's Rule 1): its plain digits as a decimal; at an
-     *  extreme magnitude (at least 1e15, or below 1e-6) a double. */
+     *  extreme magnitude (at least 1e15, or below 1e-6) a double, as the literal is written in exponent form. */
     @Test
-    void legendEnginesFloatCases() {
-        toOne("Float", List.of(5.0, 6.12d, Double.MAX_VALUE, Double.MIN_VALUE, "-1.0", "5.234", "678978678", 5, 4,
-                        Long.MAX_VALUE),
-                List.of(new BigDecimal("5.0"), new BigDecimal("6.12"), Double.MAX_VALUE, Double.MIN_VALUE,
-                        new BigDecimal("-1.0"), new BigDecimal("5.234"), new BigDecimal("678978678.0"),
-                        new BigDecimal("5.0"), new BigDecimal("4.0"), (double) Long.MAX_VALUE),
-                List.of(true, false, "the quick brown fox", "jumped over the lazy dog", NOW, TODAY), null);
-        toMany("Float", List.of(List.of("5.0", 6.12d, -2.71), List.of(0.0), List.of(Double.MAX_VALUE, Double.MIN_VALUE)),
-                List.of(List.of(new BigDecimal("5.0"), new BigDecimal("6.12"), new BigDecimal("-2.71")),
-                        List.of(new BigDecimal("0.0")), List.of(Double.MAX_VALUE, Double.MIN_VALUE)),
-                Map.of(List.of(5.0, 6.12d, "c"), "c", List.of(false, true, "a", "B"), false), null);
-        // the edges of Rule 1's plain range
+    void aFloatIsBoundAsItsLiteralIsTyped() {
+        assertEquals(new BigDecimal("1.1"), one("Float", 1.1d));
+        assertEquals(new BigDecimal("5.0"), one("Float", 5.0d));
+        assertEquals(new BigDecimal("0.0"), one("Float", -0.0d));
         assertEquals(new BigDecimal("999999999999999.9"), one("Float", 999999999999999.9d));
         assertEquals(1e15d, one("Float", 1e15d));
         assertEquals(new BigDecimal("0.0000010"), one("Float", 1e-6d));
         assertEquals(9.99e-7d, one("Float", 9.99e-7d));
+        assertEquals(Double.MAX_VALUE, one("Float", Double.MAX_VALUE));
     }
 
     @Test
-    void legendEnginesDateCases() {
-        String formats = "Expected formats: [yyyy-MM-dd," + DATE_TIME_FORMATS + "]";
-        toOne("Date", List.of(NOW, TODAY, LocalDateTime.ofInstant(NOW, ZoneOffset.UTC), ZONED_NOW, "2020-07-14",
-                        "2020-07-14 15:18:23", "2020-07-14T15:18:23", "2020-07-14 15:18:23.992", "2020-07-14T15:18:23.123",
-                        "2020-07-14T15:18:23-0300"),
-                List.of(NOW_UTC, TODAY, NOW_UTC, NOW_UTC, LocalDate.of(2020, 7, 14), at(15, 18, 23, 0),
-                        at(15, 18, 23, 0), at(15, 18, 23, 992), at(15, 18, 23, 123), at(18, 18, 23, 0)),
-                List.of(true, false, "the quick brown fox", "jumped over the lazy dog", 4.2, -3.14, 5, 4, 3), formats);
-        toMany("Date", List.of(List.of(NOW), List.of(NOW, TODAY), List.of(ZONED_NOW, "2020-07-14")),
-                List.of(List.of(NOW_UTC), List.of(NOW_UTC, TODAY), List.of(NOW_UTC, LocalDate.of(2020, 7, 14))),
-                Map.of(List.of(5, 2, 3), 5, List.of(NOW, 2), 2), formats);
+    void aValueItsParameterDoesNotTake_isRefusedSayingWhatItTakes() {
+        assertEquals(invalid("parameter 'p' (Integer[1]): given \"5\" (String): an Integer is a Long"),
+                refusal(declared("p", "Integer", 1, 1), "5"));
+        assertEquals(invalid("parameter 'p' (Integer[1]): given 5 (Integer): an Integer is a Long"),
+                refusal(declared("p", "Integer", 1, 1), 5));
+        assertEquals(invalid("parameter 'p' (Float[1]): given 1.5 (BigDecimal): a Float is a Double"),
+                refusal(declared("p", "Float", 1, 1), new BigDecimal("1.5")));
+        assertEquals(invalid("parameter 'p' (DateTime[1]): given 2020-07-14 (LocalDate): a DateTime is a"
+                + " LocalDateTime (in UTC)"), refusal(declared("p", "DateTime", 1, 1), LocalDate.of(2020, 7, 14)));
+        assertEquals(invalid("parameter 't' (test::EmployeeType[1]): \"CONTRCT\" is not a value of"
+                + " test::EmployeeType [CONTRACT, FULL_TIME]"),
+                refusal(declared("t", "test::EmployeeType", 1, 1, "CONTRACT", "FULL_TIME"), "CONTRCT"));
+        // a Float that is not finite has no SQL literal
+        for (double v : new double[] {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+            assertEquals(invalid("parameter 'p' (Float[1]): " + v + " is not finite: no SQL literal stands for it"),
+                    refusal(declared("p", "Float", 1, 1), v));
+        }
+        // what no plan binds yet (the planner refuses it first; PARK-21)
+        assertEquals(invalid("parameter 'b' (Byte[1]): a Byte value is not bound by a plan (PARK-21)"),
+                refusal(declared("b", "Byte", 1, 1), 1L));
     }
 
+    /** One value for a parameter of one, a list for a parameter of many, as many as it takes, none of them null; no
+     *  value, or an empty list, is a required parameter's absence. */
     @Test
-    void legendEnginesStrictDateCases() {
-        String formats = "Expected formats: [yyyy-MM-dd]";
-        toOne("StrictDate", List.of(TODAY, "2020-07-14"), List.of(TODAY, LocalDate.of(2020, 7, 14)),
-                List.of(NOW, NOW_UTC, ZONED_NOW, true, false, "the quick brown fox", "jumped over the lazy dog", 4.2,
-                        -3.14, 5, 4, 3, "2020-07-14 15:18:23", "2020-07-14T15:18:23", "2020-07-14 15:18:23.992",
-                        "2020-07-14T15:18:23.123"), formats);
-        toMany("StrictDate", List.of(List.of(TODAY), List.of(TODAY, "2020-07-14"), List.of("2020-07-14", "2020-08-06")),
-                List.of(List.of(TODAY), List.of(TODAY, LocalDate.of(2020, 7, 14)),
-                        List.of(LocalDate.of(2020, 7, 14), LocalDate.of(2020, 8, 6))),
-                Map.of(List.of(5, 2, "c", false), 5, List.of(TODAY, ZONED_NOW), ZONED_NOW), formats);
-    }
-
-    @Test
-    void legendEnginesDateTimeCases() {
-        String formats = "Expected formats: [" + DATE_TIME_FORMATS + "]";
-        // an offset is converted to UTC
-        toOne("DateTime", List.of(NOW, LocalDateTime.ofInstant(NOW, ZoneOffset.UTC), ZONED_NOW, "2020-07-14 15:18:23",
-                        "2020-07-14T15:18:23", "2020-07-14 15:18:23.992", "2020-07-14T15:18:23.123",
-                        "2020-07-14T15:18:23.123-0300", "2020-07-14T15:18:23.123+0500"),
-                List.of(NOW_UTC, NOW_UTC, NOW_UTC, at(15, 18, 23, 0), at(15, 18, 23, 0), at(15, 18, 23, 992),
-                        at(15, 18, 23, 123), at(18, 18, 23, 123), at(10, 18, 23, 123)),
-                List.of(TODAY, true, false, "the quick brown fox", "jumped over the lazy dog", 4.2, -3.14, 5, 4, 3,
-                        "2020-07-14"), formats);
-        toMany("DateTime", List.of(List.of(ZONED_NOW, NOW), List.of(ZONED_NOW), List.of("2020-07-14T15:18:23",
-                        "2020-07-14 15:18:23.992", "2020-07-14T15:18:23.123", "2020-07-14T15:18:23.123-0300",
-                        "2020-07-14T15:18:23.123+0500")),
-                List.of(List.of(NOW_UTC, NOW_UTC), List.of(NOW_UTC), List.of(at(15, 18, 23, 0), at(15, 18, 23, 992),
-                        at(15, 18, 23, 123), at(18, 18, 23, 123), at(10, 18, 23, 123))),
-                Map.of(List.of(5, "b", 3), 5, List.of(ZONED_NOW, "b"), "b", List.of(TODAY, ZONED_NOW), TODAY), formats);
-    }
-
-    // ---- legend-engine's steps, in its order (measured on its own jars:
-    //      docs/execution-plan-boundary-2026-10-05/probes/engine-validation-results.txt) -----------------------------
-
-    private static final String NOT_BOUND = "Parameter value(s) the plan does not bind: [";
-
-    @Test
-    void everyFailureIsCollected_andEveryMissingValueNamed() {
-        String both = assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(
-                List.of(declared("a", "Integer", 1, 1), declared("b", "Boolean", 1, 1)), Map.of("a", "x", "b", 3)))
-                .getMessage();
-        assertEquals("Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: 'x' is not"
-                + " parsable.,Unable to process 'Boolean' parameter, value: 3.]", both);
-        String missing = assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(
-                List.of(declared("input", "String", 1, 1), declared("n", "Integer", 1, null),
-                        declared("o", "String", 0, 1)), Map.of())).getMessage();
-        assertEquals("Missing external parameter(s): input:String[1],n:Integer[1..*]", missing);
-    }
-
-    /** legend-engine's checks come first: a value it fails is refused in its words, whatever the runner would refuse
-     *  in the same values; the runner's own refusals, of values legend-engine passes on, come after, every one
-     *  collected under their own heading. */
-    @Test
-    void legendEnginesFailuresComeFirst_thenTheRunnersOwnRefusals() {
-        // a list for an upper bound of 1: legend-engine validates its elements
-        assertEquals("Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: 'x' is not"
-                + " parsable.]", refusal(declared("p", "Integer", 1, 1), List.of(1L, "x")));
-        assertEquals("Invalid provided parameter(s): [Unable to process 'Boolean' parameter, value: 3.]",
-                assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(
-                        List.of(declared("a", "Integer", 1, 1), declared("b", "Boolean", 1, 1)),
-                        Map.of("a", List.of(1L, 2L), "b", 3))).getMessage());
-        // values legend-engine passes on, and the runner refuses
-        assertEquals(NOT_BOUND + "parameter 'a' (Integer[1]) takes one value, given 2; parameter 'f' (Float) is NaN: a"
-                + " value that is not finite has no SQL literal, and is not bound]",
-                assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(
-                        List.of(declared("a", "Integer", 1, 1), declared("f", "Float", 1, 1)),
-                        Map.of("a", List.of(1L, 2L), "f", "NaN"))).getMessage());
-    }
-
-    /** A required parameter given a null value or an empty list is missing: a deliberate difference (legend-engine
-     *  counts either present, and its template then writes no statement a database runs, or an empty collection where
-     *  one value or more is declared; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9). An optional one's empty list is
-     *  its absence. */
-    @Test
-    void aNullValueOrAnEmptyListForARequiredParameterIsMissing() {
-        Map<String, Object> values = new HashMap<>();
-        values.put("p", null);
+    void aValueMatchesItsParametersMultiplicity() {
+        assertEquals(invalid("parameter 'p' (Integer[1]): takes one value, given a list of 2"),
+                refusal(declared("p", "Integer", 1, 1), List.of(1L, 2L)));
+        assertEquals(invalid("parameter 'p' (Integer[1]): takes one value, given a list of 1"),
+                refusal(declared("p", "Integer", 1, 1), List.of(1L)));
+        assertEquals(invalid("parameter 'ns' (Integer[*]): takes a list, given one value"),
+                refusal(declared("ns", "Integer", 0, null), 1L));
+        assertEquals(invalid("parameter 'ns' (Integer[1..2]): takes 1..2 values, given 3"),
+                refusal(declared("ns", "Integer", 1, 2), List.of(1L, 2L, 3L)));
+        assertEquals(invalid("parameter 'ns' (Integer[*]): a list holds no null"),
+                refusal(declared("ns", "Integer", 0, null), Arrays.asList(1L, null)));
+        assertEquals(invalid("parameter 'ns' (Integer[*]): given \"2\" (String): an Integer is a Long"),
+                refusal(declared("ns", "Integer", 0, null), List.of(1L, "2")));
+        Map<String, Object> none = new HashMap<>();
+        none.put("p", null);
         assertEquals("Missing external parameter(s): p:Integer[1]", assertThrows(IllegalArgumentException.class,
-                () -> PlanParameters.check(List.of(declared("p", "Integer", 1, 1)), values)).getMessage());
-        assertEquals("Missing external parameter(s): p:Integer[1]", refusal(declared("p", "Integer", 1, 1), List.of()));
-        assertEquals("Missing external parameter(s): p:Integer[1..*]",
-                refusal(declared("p", "Integer", 1, null), List.of()));
-        assertEquals(new PlanParameters.None(),
-                PlanParameters.check(List.of(declared("o", "Integer", 0, 1)), Map.of("o", List.of())).get("o"));
+                () -> PlanParameters.check(List.of(declared("p", "Integer", 1, 1)), none)).getMessage());
+        assertEquals("Missing external parameter(s): ns:Integer[1..*]",
+                refusal(declared("ns", "Integer", 1, null), List.of()));
     }
 
-    /** A null element: legend-engine's validation passes it, and its normalizer refuses it where it converts the type
-     *  (in its own words, a Float's as a Double); a String's or an enumeration's it passes on, and the runner refuses
-     *  (a Pure collection holds no null). */
+    /** Every problem is named at once: the missing values, then each value refused. */
     @Test
-    void aNullElementIsRefused_inLegendEnginesWordsWhereItHasThem() {
-        assertEquals("Invalid Integer value: null", refusal(declared("p", "Integer", 0, null), Arrays.asList(1L, null)));
-        assertEquals("Invalid Double value: null", refusal(declared("p", "Float", 0, null), Arrays.asList(1.5, null)));
-        // validation first: a later element that fails it is named
-        assertEquals("Invalid provided parameter(s): [Unable to process 'Integer' parameter, value: 'x' is not"
-                + " parsable.]", refusal(declared("p", "Integer", 0, null), Arrays.asList(null, "x")));
-        assertEquals(NOT_BOUND + "parameter 'p' (String[*]) is given a null element]",
-                refusal(declared("p", "String", 0, null), Arrays.asList("a", null)));
-        assertEquals(NOT_BOUND + "parameter 'p' (test::E[*]) is given a null element]",
-                refusal(declared("p", "test::E", 0, null, "A"), Arrays.asList("A", null)));
+    void everyProblemIsNamedAtOnce() {
+        String all = assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(List.of(
+                declared("a", "Integer", 1, 1), declared("b", "String", 1, null), declared("f", "Float", 1, 1),
+                declared("e", "s::E", 1, 1, "A", "B")), Map.of("f", Double.NaN, "e", "X"))).getMessage();
+        assertEquals("Missing external parameter(s): a:Integer[1], b:String[1..*]; " + invalid(
+                "parameter 'f' (Float[1]): NaN is not finite: no SQL literal stands for it",
+                "parameter 'e' (s::E[1]): \"X\" is not a value of s::E [A, B]"), all);
     }
 
     @Test
     void anOptionalValueMayBeAbsent_aListEmpty_andAValueForNoParameterIsIgnored() {
         var checked = PlanParameters.check(List.of(declared("o", "String", 0, 1), declared("ns", "Integer", 0, null)),
-                Map.of("ns", List.of(1, "2", 3L), "stray", 9));
+                Map.of("ns", List.of(1L, 2L, 3L), "stray", 9));
         assertEquals(new PlanParameters.None(), checked.get("o"));
         assertEquals(new PlanParameters.Many(List.of(1L, 2L, 3L)), checked.get("ns"));
         assertEquals(new PlanParameters.None(),
                 PlanParameters.check(List.of(declared("ns", "Integer", 0, null)), Map.of("ns", List.of())).get("ns"));
     }
 
-    @Test
-    void whatLegendEngineDoesNotRunIsRefusedByName() {
-        // legend-engine has no validator for a Number: its own message, its types in the order it prints them
-        assertEquals("Invalid provided parameter(s): [Unknown external parameter type: Number, valid external parameter"
-                + " types: [Float, Byte, meta::pure::metamodel::variant::Variant, DateTime, Date, Decimal, String,"
-                + " Integer, Boolean, StrictDate]]", refusal(declared("n", "Number", 1, 1), 1L));
-        // a Byte and a Variant: checked as legend-engine checks them (a stream; JSON's text), and a value it passes is
-        // not bound by a plan yet
-        assertEquals("Invalid provided parameter(s): [Unable to process 'Byte' parameter, value: 1.]",
-                refusal(declared("b", "Byte", 1, 1), 1L));
-        assertEquals(NOT_BOUND + "parameter 'b' of type Byte is not bound by a plan (PARK-21)]",
-                refusal(declared("b", "Byte", 1, 1), new java.io.ByteArrayInputStream(new byte[] {1})));
-        String variant = "meta::pure::metamodel::variant::Variant";
-        assertEquals("Invalid provided parameter(s): [Unable to process '" + variant + "' parameter, value: 5.]",
-                refusal(declared("v", variant, 1, 1), 5L));
-        assertEquals(NOT_BOUND + "parameter 'v' of type " + variant + " is not bound by a plan (PARK-21)]",
-                refusal(declared("v", variant, 1, 1), "{}"));
-        // a list for a parameter of upper bound 1: legend-engine's template writes no SQL a database runs
-        assertEquals(NOT_BOUND + "parameter 'p' (Integer[1]) takes one value, given 2]",
-                refusal(declared("p", "Integer", 1, 1), List.of(1L, 2L)));
-        // a Float that is not finite has no SQL literal (legend-engine passes it, and writes NaN into its statement)
-        for (Object v : List.<Object>of("NaN", Double.NaN, Double.POSITIVE_INFINITY, "-Infinity")) {
-            String shown = String.valueOf(v instanceof String s ? Double.parseDouble(s) : v);
-            assertEquals(NOT_BOUND + "parameter 'p' (Float) is " + shown + ": a value that is not finite has no SQL"
-                    + " literal, and is not bound]", refusal(declared("p", "Float", 1, 1), v));
-        }
-    }
-
     /** A plan whose parameters fail is refused before any session is opened. */
     @Test
     void aPlanWhoseParametersFailOpensNoSession() {
-        ExecutionPlan numbered = new ExecutionPlan(List.of(declared("n", "Number", 1, 1)),
-                counting(inMemory("s::Duck", DatabaseType.DuckDB, new ConnectionSpecification.InMemory()), "NUMBER_T",
+        ExecutionPlan given = new ExecutionPlan(List.of(declared("n", "Integer", 1, 1)),
+                counting(inMemory("s::Duck", DatabaseType.DuckDB, new ConnectionSpecification.InMemory()), "UNOPENED_T",
                         new ExecutionPlan.Servers.Every()).root());
-        var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.run(numbered, Map.of("n", 1L),
+        var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.run(given, Map.of("n", "1"),
                 target -> {
                     throw new AssertionError("a session was opened");
                 }, new StringWriter()));
-        assertTrue(refused.getMessage().startsWith("Invalid provided parameter(s): [Unknown external parameter type:"
-                + " Number"), refused.getMessage());
+        assertEquals(invalid("parameter 'n' (Integer[1]): given \"1\" (String): an Integer is a Long"),
+                refused.getMessage());
+    }
+
+    // ---- a type hole (H2, which types a placeholder when it prepares it) -----------------------------------------
+
+    /** H2's spelling of each kind of value, as its dialect writes a type hole's (H2.literalType). */
+    private static final Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> H2_TYPES = Map.of(
+            ExecutionPlan.ValueKind.INTEGER, new ExecutionPlan.TypeSpelling("BIGINT", ExecutionPlan.Digits.NONE),
+            ExecutionPlan.ValueKind.DECIMAL, new ExecutionPlan.TypeSpelling("NUMERIC",
+                    ExecutionPlan.Digits.PRECISION_AND_SCALE),
+            ExecutionPlan.ValueKind.FLOATING, new ExecutionPlan.TypeSpelling("DECFLOAT", ExecutionPlan.Digits.PRECISION),
+            ExecutionPlan.ValueKind.DATE, new ExecutionPlan.TypeSpelling("DATE", ExecutionPlan.Digits.NONE),
+            ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
+                    ExecutionPlan.Digits.NONE),
+            ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
+                    ExecutionPlan.Digits.NONE));
+
+    /** A plan reading one value typed by its value, through a type hole, as text: {@code type} is the parameter's. */
+    private static ExecutionPlan holed(String type) {
+        String before = "SELECT CAST(CAST(? AS ";
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(inMemory("s::H2",
+                DatabaseType.H2, new ConnectionSpecification.LocalH2(null))), H2_SERVERS, List.of(), List.of());
+        return new ExecutionPlan(List.of(declared("v", type, 0, 1)), new ExecutionPlan.TextResult(
+                ExecutionPlan.Format.JSON, new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("v", "String"))),
+                new ExecutionPlan.Sql(before + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
+                        new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(before.length(), H2_TYPES,
+                                type.equals("Date") ? ExecutionPlan.ValueKind.DATE
+                                        : ExecutionPlan.ValueKind.DECIMAL)))), target, null)));
+    }
+
+    /** The runner fills a type hole with the type of the value's own literal: each value answers on H2 exactly as its
+     *  literal does, text included (the whole sweep, every position: probes/value-typed-cast-results.txt). */
+    @Test
+    void aTypeHoleIsFilledWithTheTypeOfTheValuesLiteral_andAnswersAsTheLiteralDoes() throws Exception {
+        Map<Object, String> literals = new java.util.LinkedHashMap<>();
+        literals.put(1.1d, "1.1");
+        literals.put(new BigDecimal("2.50"), "2.50");
+        literals.put(1e-6d, "0.0000010");
+        literals.put(1.5e15d, "1.5E15");
+        literals.put(2.5e-7d, "2.5E-7");
+        literals.put(7L, "CAST(7 AS BIGINT)");
+        try (Connection h2 = DriverManager.getConnection("jdbc:h2:mem:holes" + H2Settings.SETTINGS)) {
+            for (var e : literals.entrySet()) {
+                StringWriter out = new StringWriter();
+                PlanRunner.run(holed("Number"), Map.of("v", e.getKey()), PlanSessions.given(h2), out);
+                assertEquals(literalText(h2, e.getValue()), out.toString(), String.valueOf(e.getKey()));
+            }
+            Map<Object, String> dates = Map.of(LocalDate.of(2024, 1, 2), "DATE '2024-01-02'",
+                    LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789), "TIMESTAMP '2024-01-02 10:30:00.123456789'");
+            for (var e : dates.entrySet()) {
+                StringWriter out = new StringWriter();
+                PlanRunner.run(holed("Date"), Map.of("v", e.getKey()), PlanSessions.given(h2), out);
+                assertEquals(literalText(h2, e.getValue()), out.toString(), String.valueOf(e.getKey()));
+            }
+            // an absent value: a null of its absent kind's type, by name alone
+            StringWriter absent = new StringWriter();
+            PlanRunner.run(holed("Number"), Map.of(), PlanSessions.given(h2), absent);
+            assertEquals("", absent.toString());
+        }
+    }
+
+    private static String literalText(Connection c, String literal) throws Exception {
+        try (var st = c.createStatement(); var rs = st.executeQuery("SELECT CAST(" + literal + " AS VARCHAR)")) {
+            rs.next();
+            return rs.getString(1);
+        }
     }
 
     // ---- sessions -------------------------------------------------------------------------------------------------
