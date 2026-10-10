@@ -1,5 +1,7 @@
 # Phases 3b and 6: the execution brief (build rebuild program)
 
+**Phase 3b landed [[DATE]] as [[SHA]] (run [[RUN]]); `PHASE_3B_LANDING.md` has each commit with its judge, the rulings and the ledger rows that closed. Phase 6's half stays the brief for L4.**
+
 **Applied on 2026-10-07, after this brief was written** (so a reader does not redo them): the plan's Phase 3b now
 carries item 1b's cause (`shadows` comparing spellings, `superMapping`, 14 versions by a text count, F-L1's caveat
 and file), item 4's two routes and the PROPERTY_AS_CALL row, item 5a's crash site and item 5b's import-scope bug

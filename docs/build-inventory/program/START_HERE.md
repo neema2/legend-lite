@@ -44,6 +44,7 @@ generated file, never a signature we typed ourselves.
 | The plan, the designs, the research, these briefs, the evidence | `main`: `docs/REBUILD_PROGRAM_2026_10_06.md`, `docs/BUILD_REBUILD_DESIGN_2026_10_05.md`, `docs/GENERATORS.md`, `docs/UPSTREAM_ONLY_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_HOMEWORK_2026_10_05.md`, `docs/MANIFEST_WORLD_EXPERIMENTS_2026_10_06.md`, `docs/build-inventory/` (inventories, dossiers, experiments, censuses), `docs/build-inventory/program/` (this folder; its `evidence/` holds the audits, scripts and recorded results) | yes, since 2026-10-07: merged from the plan branch `docs/bazel-first-class-plan` (pushed, kept as history). Edit them on main or a branch from it, not in `runs/bazel-plan` |
 | The code | `main`. Phases 0, 1 and 2 are on it (PR #25, PR #26, `ff70aef01`). | yes |
 | Phase 3 | `main` since 2026-10-09 (1e4a2bd40, run 38000346579; GATES "Build rebuild Phase 3") | yes |
+| Phase 3b (L3) | `main` since [[DATE]] ([[SHA]], run [[RUN]]; GATES "Build rebuild Phase 3b"; `PHASE_3B_LANDING.md`) | yes |
 | The program's debts | `docs/PARKED_WORK_LEDGER.md` rows PARK-5 to PARK-14 (on `build/phase3`; they land with Phase 3), anchored by `core/src/test/java/com/legend/ParkedWorkLedgerTest.java` | with Phase 3 |
 | Who works on what | `docs/IN_FLIGHT.md` on `main` (the program's entry lists every core file each phase touches) | yes |
 | Gate results and what moved, per change | `docs/GATES.md` (one entry per landing) | with each landing |
@@ -53,7 +54,15 @@ generated file, never a signature we typed ourselves.
 
 ## 3. State, and the next action
 
-**State on 2026-10-09** (the one place this is kept; other documents point here):
+**State on [[DATE]]** (the one place this is kept; other documents point here):
+- **L3, Phase 3b, landed** ([[SHA]]; run [[RUN]]; GATES "Build rebuild Phase 3b"; the landing note `PHASE_3B_LANDING.md`
+  has each commit with its judge): the schema view lifted once, import scopes per element, the platform's own Pure as a
+  row kind (`shadows` deleted, PARK-12 closed), legend-pure's qualified-property lookup (PARK-14 refused), the ambiguity
+  message, the reference lane's verdicts (S38, S39). Census load walls 37 → 27; the lane AGREE 74,586 → 76,884 (76,920 before the audit's B1 fix replaced one more upstream body).
+- **Next: L7 "resolve once"** (PARK-5's full fix, option (c), `COLD_READ_2026_10_09.md` F1), then D24's second slice;
+  the cold read's F2 and F3 still await the user's rulings; then L4 (Phase 6).
+
+**State on 2026-10-09, morning** (kept for the record):
 - **L2, Phase 3, landed** (1e4a2bd40; run 38000346579; GATES "Build rebuild Phase 3"): rebased over 231 commits, re-judged
   on that main (every lane identical), two rebase fix-ups, no new audit (the fix-ups are mechanical and listed in GATES).
 - **The order after L2, as ruled 2026-10-09 on the cold read** (`COLD_READ_2026_10_09.md`; the plan's §4): L3 Phase 3b,

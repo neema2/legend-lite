@@ -375,7 +375,10 @@ of the 1,469 bodies we fail to type, 931 (364 functions) are engine machinery th
 upstream's own tests, 52 are library functions user code could call (mostly legacy TDS functions the forms handle, or
 reflection not run here), 26 other. The six corpus passes and the PCT suites measure what users get; the reference lane
 stays a guard that must not get worse, not a target. Small: days (the Phase 3b brief, 2026-10-07, finds items 1b and
-5b larger than that: size it with the user). **The execution brief is `docs/build-inventory/program/PHASES_3B_6.md`.**
+5b larger than that: size it with the user). **The execution brief is `docs/build-inventory/program/PHASES_3B_6.md`.** **Status ([[DATE]]): landed as [[SHA]] (run
+[[RUN]]; GATES "Build rebuild Phase 3b"; `docs/build-inventory/program/PHASE_3B_LANDING.md` has each commit with its
+judge): all five items, with the user's rulings 3b-O1 (b), 3b-O2 (a), 3b-O3 (b) and PARK-14 refused; PARK-12, PARK-13
+and PARK-14 closed; the census's load walls 37 → 27, the reference lane's AGREE 74,586 → 76,884.**
 1. **The boot layer's twins merge by function id, and the view lifted twice (F-L1) is fixed.** Today 5 upstream
    files drop as twins of the boot layer's versions ("defined more than once": 3 in `platform_dsl_mapping`, 1 in
    `platform_store_relational`, the engine's `scanRelations.pure`), and 2 more for F-L1; Phases 4 and 6 load them. Found by the brief (inferred from the

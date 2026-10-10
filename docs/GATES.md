@@ -7979,6 +7979,53 @@ the user: keep refusing, or write the value as its literal on H2); PARK-20, a li
 unmeasured against the engine), a class instance, a Byte, LatestDate or StrictTime value. Found on the way: today's
 server path answers no rows for an optional parameter sent empty, where the engine answers the rows whose value is empty;
 plans answer as the engine does, and step 4 retires that path.
+## 2026-10-09 — Build rebuild Phase 3b (L3): the edges of the one table — a view lifted once, import scopes per element, the platform's own Pure, qualified properties, one crash, the reference lane's verdicts
+
+**Landed [[DATE]] as [[SHA]]** (branch `build/phase3b` on main at 691c5002d; run [[RUN]], full gate.yml on all platforms: [[CI_RESULT]]).
+The landing document is `docs/build-inventory/program/PHASE_3B_LANDING.md` (each commit with its judge); the brief
+`PHASES_3B_6.md`, the homework `PHASE_3B_HOMEWORK_2026_10_09.md`. The user's rulings (2026-10-09): 3b-O1 (b) the
+"platform's own Pure" row kind; 3b-O2 (a) import scopes per element; 3b-O3 (b) the resolver keeps one object per view;
+PARK-14 refused as legend-pure refuses it.
+
+1. **A schema view lifted once** (item 1a, F-L1): `ModelBuilder` indexes the default schema's views from the flat mirror
+   and each schema's from its schema; `NameResolver.resolveDatabase` resolves every view once and the flat list shares
+   the schema's objects. `firm-balance-sheet` out of quarantine, `projects/FINDINGS.md` empty.
+2. **Import scopes per element** (item 5b): the three side maps of a parsed model are keyed by `ParsedModel.keyOf` (a
+   function's id, every other element's name), through the parser, `parseSources`, the resolver, `PureTests` and the
+   sectionizer; a wall or strict error about a function names the overload. Three census walls were this bug
+   (`Runtime` in core's `from`, `Mapping` in the router's `routeFunction`); `router_main.pure` loads, so the Phase 3
+   entry's "the closure lacks the 4-argument `routeFunction`" no longer holds. `SectionImportScopeKnownDefectTest`'s
+   pin (owner W2.2) came off.
+3. **The platform's own Pure** (item 1b): `Implementation.PlatformPure`, registered by the system metamodel's function
+   ids; a loaded or generated declaration with one of those ids keeps its declaration and takes the platform's body
+   (`PlatformPure.adopt`, at the boot and at the graph merge; parameter names must agree, an error otherwise); the
+   "no row means refused" rule covers the names the platform implements at, and upstream's 14 other versions there each
+   carry a decision (8 bodies run, 2 engine-machinery walls (the TranslationContext versions of `inferRelationalType`,
+   called only by the engine's graph-fetch planner and test-data generator); `superMapping` a twin once its return type
+   was corrected to upstream's; `inferRelationalType(rop, Boolean)` (core_relational's mapping execution calls it) and
+   `relationTreeAsString`'s two `space` versions platform versions over the rows). `SystemMetamodel.shadows` deleted
+   (PARK-12 closed; PARK-13's trace deleted too); the boot resolves first and merges after, as a graph does;
+   `compileAllBodies` skips the boot's bodies by id, not by name. `core/BUILD.bazel`: `:platform` gains `:error`.
+4. **Qualified properties as legend-pure finds them** (item 4): a dot call with arguments is matched on the receiver's
+   qualified properties through its generalizations in C3 order by arity; a same-named plain property no longer hides
+   them (`serializerExtension`, `toString`); a dot call that matches none is refused whatever the receiver's type
+   (PARK-14; the parser's `.all(...)` family excepted); the read without parentheses takes the plain property. The one
+   difference left from legend-pure's matcher is SEMANTICS_REGISTER S40.
+5. **One crash an error** (item 5a): the "ambiguous overload" message names every candidate with all its parameters.
+6. **The reference lane's verdicts** (item 3): each of the 23 disagreement classes has its verdict in `reasons.tsv`; the 34
+   "`[0..1]` where we type `[1]`" calls and the 17 "`Number` where we type `Integer`/`Float`" calls are type-only
+   differences, recorded as SEMANTICS_REGISTER S38 and S39 (H5 measured: a computed column over a missing value is
+   `false` on DuckDB and H2, legend-pure's own value, the lowering guarding the missing value;
+   `MissingValueInComputedColumnTest`); the golden re-blessed: AGREE 74,586 → 76,920; after the audit's B1 fix 76,884 (the 36 calls inside upstream's `inferRelationalType(rop, failOnMatchFailure)` body, which the platform's version now replaces, are ABSENT on our side as every adopted twin's are; measured by rebuilding the lane with the previous typer and with the previous boot order, both 76,884); DROPPED 32 → 22; FAILED bodies 1,469 → 1,152; "reference typed, we FAILED" 1,298 → 984; the three `propertyMappingsByPropertyName` classes and the `PROPERTY_AS_CALL` row gone, `isNotEmpty` (17 calls) joined; `//spec:reference_lane` and `//spec:update_reference_lane_test` green. `OurResolutions` attributes each
+   overload's calls to its own file (by name, the lane's join collapsed to 5 agreements on the first run after 5b).
+
+**Measured** (census `//spec:manifest_world_census`, core_relational's 27 modules, 1,772 files): load walls 37 → 27 (2
+F-L1 + 3 import scopes + 5 twins; the 18 mapping files, 4 unit files and 5 parse walls remain), bodies OK 15,735 →
+16,133, failed 1,437 → 1,120 (unknown-function failures 403 → 6), walled 32, duplicates 0. The implementation table: PlatformPure 35, Body 2,051 → 2,034,
+Refused 129 → 131, dangling 0, conflicts 0, unrowed 109. The audit (`evidence/phase3b/AUDIT_PHASE3B.md`): one blocker
+(a refusal on a false reason) and seven should-fix items, all answered (`PHASE_3B_LANDING.md` §3). The own-corpus parity ratchet 2,751 → 2,762 (new test
+snippets). Judges: [[JUDGES]]. Local gate: [[LOCAL]].
+
 ## 2026-10-06 — Build rebuild Phase 3: one table decides, by function id; overloads ranked as legend-pure ranks them
 
 **Landed 2026-10-09 as 1e4a2bd40** (branch `build/phase3`, the five commits of 2026-10-06/07 rebased onto main at 1c05e2946 plus
