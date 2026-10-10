@@ -2,9 +2,9 @@ package com.legend.sdlc.page;
 
 import com.legend.depot.Depot;
 import com.legend.json.Json;
-import com.legend.sdlc.CoreGrammar;
 import com.legend.sdlc.MemoryStorage;
 import com.legend.sdlc.Sdlc;
+import com.legend.sdlc.grammar.CoreGrammar;
 
 import java.util.ArrayList;
 import java.util.List;

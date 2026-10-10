@@ -1,8 +1,9 @@
 # SDLC-lite (design S1, S21): legend-sdlc's REST API and lite's text routes, its RULES written once in
 # Java (com.legend.sdlc.Sdlc over a Storage) and run two ways -- by the model home's server (HTTP over a
 # git repository, with Depot-lite beside it) and in the page, compiled to WebAssembly (:page). One
-# conformance suite holds both (sdlc-client/test/conformance.ts). Depends on //core's public API, never
-# the reverse.
+# conformance suite holds both (sdlc-client/test/conformance.ts). The rules depend on no Pure code: their two
+# Pure questions are answered by //sdlc-server/grammar, the one SDLC package that may see the compiler, which the
+# server and the page wire in (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 7). Never the reverse.
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
@@ -10,13 +11,13 @@ load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/teavm:defs.bzl", "teavm_wasm")
 
 # THE RULES: TeaVM-safe by rule (no files, sockets, threads, reflection, java.security), so the same
-# classes compile into the page's module.
+# classes compile into the page's module. No compiler: //core is not visible to this package.
 legend_java_library(
     name = "rules",
     srcs = glob(["src/main/java/com/legend/sdlc/*.java"]),
+    visibility = ["//sdlc-server/grammar:__pkg__"],
     deps = [
         "//base",
-        "//core",
         # Depot's interface and resolver: SDLC asks Depot (as upstream's does), never the reverse
         "//depot-server:rules",
         "//json",
@@ -32,6 +33,7 @@ legend_java_library(
         "//base",
         "//depot-server:rules",
         "//json",
+        "//sdlc-server/grammar",
     ],
 )
 
@@ -69,6 +71,7 @@ legend_java_library(
         ":teavm_api",
         "//depot-server:rules",
         "//json",
+        "//sdlc-server/grammar",
     ],
 )
 
@@ -103,6 +106,7 @@ junit_test(
         ":rules",
         ":server_lib",
         "//json",
+        "//sdlc-server/grammar",
         "@maven_test//:org_eclipse_jgit_org_eclipse_jgit",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],

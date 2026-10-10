@@ -266,7 +266,8 @@ _PLAN_SIDE_TARGETS = [
 legend_java_library(
     name = "plan_side",
     exports = _PLAN_SIDE_TARGETS,
-    visibility = ["//wasm:__pkg__"],
+    # //sdlc-server/grammar: the SDLC's one door to the compiler (the protocol program's leg 7, 2026-10-10)
+    visibility = ["//sdlc-server/grammar:__pkg__", "//wasm:__pkg__"],
 )
 
 # THE UMBRELLA: what every consumer depends on today and keeps depending on.
@@ -276,8 +277,9 @@ legend_java_library(
     name = "core",
     exports = _CORE_TARGETS,
     # //datacube, //engine-client and //wasm name narrower targets (the build rebuild's Phase 1), so the whole of core
-    # is not theirs to reach again by accident
-    visibility = ["//parser-equivalence:__pkg__", "//pct:__pkg__", "//sdlc-server:__pkg__", "//spec:__pkg__", "//tools/census:__pkg__", "//tools/engine-runner:__pkg__", "//tools/legend:__pkg__"],
+    # is not theirs to reach again by accident; nor SDLC-lite's, whose compiler is //sdlc-server/grammar's, on the plan
+    # side (the protocol program's leg 7, 2026-10-10)
+    visibility = ["//parser-equivalence:__pkg__", "//pct:__pkg__", "//spec:__pkg__", "//tools/census:__pkg__", "//tools/engine-runner:__pkg__", "//tools/legend:__pkg__"],
 )
 
 # THE JDBC DRIVERS, as their own target. core never compiles against a driver: it
