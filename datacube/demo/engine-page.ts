@@ -9,11 +9,13 @@
 //   - each frame: `cube.json?table=<name>`, its model, runtime and source, as for one cube;
 //   - that something changed: the page's version (Python changed the page: it is opened again, on the sheet shown) and
 //     each frame's (a frame updated: the grids over it query again), from `version.json?page=<name>` or the widget.
+// And it says what it is now: its document, posted to `page.json?page=<name>` as it changes (a sheet arranged, a chart
+// added in DataCube), for Python's `page.read()`.
 
 import { CubeApp, RemoteRun, sourceColumns } from '../src/embed.ts';
 import { LegendEngineExecutor } from '../../engine-client/src/engine-remote.ts';
 import { openCube, type CubeDocument, type FrameSource } from '../src/cube-document.ts';
-import { readPage, type PageDocument } from '../src/page-document.ts';
+import { pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
 import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import { asked, type CubeConfig, type EngineLink } from './engine-cube.ts';
 
@@ -33,6 +35,9 @@ export interface Versions {
   readonly version: number;
   readonly frames: Readonly<Record<string, number>>;
 }
+
+/** How long a change waits to settle before the page reports its document (a drag, a typed name: one report, ms). */
+const REPORT_AFTER = 500;
 
 const headers = (link: PageLink): HeadersInit => (link.authorization === undefined ? {} : { Authorization: link.authorization });
 
@@ -86,6 +91,9 @@ export class EnginePage {
   /** Each frame as the engine said it was when the page was opened (a model that changes opens the page again). */
   #frames = new Map<string, CubeConfig>();
   #title = '';
+  /** Its document's next report to the engine, while a change waits to settle. */
+  #reporting: ReturnType<typeof setTimeout> | undefined;
+  #disposed = false;
 
   private constructor(link: PageLink, page: PageApp, versions: Versions) {
     this.#link = link;
@@ -97,6 +105,7 @@ export class EnginePage {
   static async open(host: HTMLElement, link: PageLink): Promise<EnginePage> {
     const doc = await askedPage(link);
     if (typeof doc === 'string') throw new Error(doc);
+    let changed = (): void => {};
     const page = new PageApp({
       host,
       title: doc.page.name,
@@ -104,8 +113,10 @@ export class EnginePage {
         slot.textContent = 'Nothing is on this page.';
       },
       download: (name, mime, content) => download(name, mime, content),
+      onChange: () => changed(),
     });
     const opened = new EnginePage(link, page, { version: doc.version, frames: {} });
+    changed = () => opened.#changed();
     await opened.#show(doc.page);
     // the frames' versions as the page opened over them: a later move is a change to follow
     const versions = await askedVersions(link);
@@ -144,7 +155,27 @@ export class EnginePage {
   }
 
   dispose(): void {
+    this.#disposed = true;
+    clearTimeout(this.#reporting);
     this.#page.dispose();
+  }
+
+  /** The page changed (in DataCube, or opened again): its document reported once the change settles. */
+  #changed(): void {
+    clearTimeout(this.#reporting);
+    this.#reporting = setTimeout(() => void this.#report(), REPORT_AFTER);
+  }
+
+  /** Its document as it is now, to the engine (Python's `page.read()`): a page the engine no longer serves says nothing. */
+  async #report(): Promise<void> {
+    if (this.#disposed) return;
+    const doc = this.#page.document(this.#title);
+    if (!doc) return;
+    await this.#link.fetch(`${this.#link.baseUrl}/page.json?page=${encodeURIComponent(this.#link.page)}`, {
+      method: 'POST',
+      headers: { ...headers(this.#link), 'Content-Type': 'application/json' },
+      body: pageToJson(doc),
+    }).catch(() => undefined);
   }
 
   /** The page opened again as the engine says it is now, on the sheet it shows (when that sheet is still there). */

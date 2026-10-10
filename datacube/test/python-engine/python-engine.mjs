@@ -166,6 +166,36 @@ try {
   await seen('the page changed in Python opens again, on the sheet it showed',
     `(${String(sheetNames)})() === 'trades|Desks (v2)' && document.querySelector('[data-tile="grid-2"]')?.offsetParent !== null`);
 
+  // A PAGE BUILT WITH ll.Page (step 2): built and shown in Python as a person does; its link is the one show() gives.
+  // Then a sheet added in Python (the open page opens it again), and a sheet renamed in DataCube read back by
+  // page.read() (the open page reports its document as it changes)
+  engine.stdin.write('py-page\n');
+  const built = await nextLine();
+  if (!built.startsWith('done py-page ')) throw new Error(`the engine did not build the page: ${built}`);
+  await tabbed.goto(JSON.parse(built.slice('done py-page '.length)));
+  await seen('a page built with ll.Page opens in a tab: its sheets, its grid over its frame and the chart beside it',
+    `(${String(sheetNames)})() === 'pytrades|Desks' && document.querySelector('[data-tile="grid-1"]')?.innerText.includes('EMEA')
+      && document.querySelector('[data-tile="chart-1"]') !== null`);
+  await python('py-page-sheet');
+  await seen('a sheet added to it in Python shows on the open page', `(${String(sheetNames)})() === 'pytrades|Desks|Added in Python'`);
+  await tabbed.locator('.dc-sheet-tab', { hasText: 'Desks' }).dblclick();
+  await tabbed.locator('.dc-sheet-tab input').fill('Renamed in DataCube');
+  await tabbed.locator('.dc-sheet-tab input').press('Enter');
+  const read = await (async () => {
+    // the page reports its document once a change settles (half a second): asked until it has, or ten seconds
+    for (let tries = 0; tries < 20; tries += 1) {
+      await new Promise((done) => { setTimeout(done, 500); });
+      engine.stdin.write('py-page-read\n');
+      const line = await nextLine();
+      if (!line.startsWith('done py-page-read ')) throw new Error(`the engine did not read the page: ${line}`);
+      const names = JSON.parse(line.slice('done py-page-read '.length));
+      if (names.includes('Renamed in DataCube')) return names;
+    }
+    return undefined;
+  })();
+  console.log(`${read ? 'ok  ' : 'FAIL'} a sheet renamed in DataCube is in page.read() in Python${read ? ` (${read.join(', ')})` : ''}`);
+  if (!read) failed = true;
+
   // A NOTEBOOK'S CUBES (legend_lite.notebook.DataCube): two widgets on one page, each its script loaded as anywidget
   // loads one (its text as a module), their messages carried to Python's widgets and back as a notebook's channel
   // carries them. DataCube's module comes over the channel once for the page; no call goes over HTTP.
@@ -201,7 +231,7 @@ try {
   await widgets.route(`${origin}/widgets.html`, (r) => r.fulfill({
     contentType: 'text/html',
     body: '<!doctype html><meta charset="utf-8"><title>notebook cubes</title><div id="nb" style="width:1000px"></div>'
-      + '<div id="nb2" style="width:1000px"></div>',
+      + '<div id="nb2" style="width:1000px"></div><div id="nbp" style="width:1000px"></div>',
   }));
   await widgets.goto(`${origin}/widgets.html`);
   await widgets.evaluate(async (given) => {
@@ -244,6 +274,16 @@ try {
   if (!once) failed = true;
   console.log(`${http.length === 0 ? 'ok  ' : 'FAIL'} the notebook cubes made no HTTP call${http.length ? `: ${http.join(', ')}` : ''}`);
   if (http.length) failed = true;
+  // A NOTEBOOK'S PAGE (ll.Page under a cell, notebook.PageCube): its sheet and its grid, over the widget's channel; a
+  // sheet added in Python shows by itself (its versions followed, no polling)
+  const pageTabs = () => [...document.getElementById('nbp').querySelectorAll('.dc-sheet-tab .dc-sheet-label')]
+    .map((t) => t.textContent).join('|');
+  await check('a notebook\'s page shows its sheet and its grid over its frame, over the widget\'s channel',
+    `(${String(pageTabs)})() === 'nbpage' && document.getElementById('nbp').innerText.includes('EMEA')`);
+  engine.stdin.write('widget-page-sheet\n');
+  if ((await nextLine()) !== 'done widget-page-sheet') throw new Error('the engine did not do widget-page-sheet');
+  await check('a sheet added to the notebook\'s page in Python shows by itself (its versions followed)',
+    `(${String(pageTabs)})() === 'nbpage|Added in Python'`);
   engine.stdin.write('widget-update\n');
   if ((await nextLine()) !== 'done widget-update') throw new Error('the engine did not do widget-update');
   await check('a notebook cube\'s frame updated in Python shows by itself (its version followed, no polling)',

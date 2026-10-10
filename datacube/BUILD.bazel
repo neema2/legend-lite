@@ -98,6 +98,8 @@ _SCANNED = {
         "//wasm:differential",
     ],
     "menu-ids": [":src"],
+    # the vocabularies Python's ll.Page writes (python/legend_lite/page.py) against DataCube's own
+    "python-vocabulary": [":src", "//python:page_source"],
     # everything a build or a person runs from this package
     "portability": [":src", ":scanned_scripts"],
     "state-guardrail": [":src"],

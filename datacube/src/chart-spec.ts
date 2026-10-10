@@ -74,7 +74,8 @@ export const DEFAULT_CHART_LIMIT = 50;
 /** A scatter plots rows, not groups, so it may ask for more of them. */
 export const SCATTER_LIMIT = 2000;
 
-const DEFAULT_OPTIONS: ChartOptions = {
+/** A chart's options before anyone sets one: a saved chart that leaves one out has it (page-document.ts). */
+export const DEFAULT_OPTIONS: ChartOptions = {
   orientation: 'vertical',
   stack: 'none',
   sort: { by: 'y', direction: 'desc' },

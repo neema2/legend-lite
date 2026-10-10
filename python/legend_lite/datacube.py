@@ -30,7 +30,8 @@ from .engine import Engine, WebServer
 from .frames import LIVE, Frames
 
 if TYPE_CHECKING:
-    from .notebook import DataCube
+    from .notebook import DataCube, PageCube
+    from .page import Page
 
 
 def _site() -> Path:
@@ -109,13 +110,53 @@ class Cube:
         return f'<DataCube {self.name!r}: {self.url}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
 
 
+class PageTab:
+    """A page (``ll.Page``) shown in DataCube in a browser tab: its link, and what closes it. The tab follows the page:
+    a change made to it in Python opens it again there, a frame updated queries again."""
+
+    def __init__(self, session: _Session, page: Page) -> None:
+        self._session = session
+        self._page = page
+        self._closed = False
+
+    @property
+    def page(self) -> Page:
+        return self._page
+
+    @property
+    def url(self) -> str:
+        """The page's link: DataCube's page on the engine, and the engine's token (in the fragment, never sent)."""
+        self._open()
+        web = self._session.web()
+        return f'{web.url}/engine.html?page={self._page._key}#token={web.token}'
+
+    def close(self) -> None:
+        """Stops serving the page; the tab keeps what it shows. The last tab closed stops the web server."""
+        if not self._closed:
+            self._closed = True
+            self._session.close_page(self)
+
+    def _page_moved(self, version: int) -> None:
+        # the tab asks (version.json?page=): nothing to tell it
+        pass
+
+    def _open(self) -> None:
+        if self._closed:
+            raise ValueError(f'the page {self.page.name!r} was closed in its tab: show it again')
+
+    def __repr__(self) -> str:
+        return f'<DataCube page {self.page.name!r}: {self.url}>' if not self._closed else f'<DataCube page {self.page.name!r}: closed>'
+
+
 class _Session:
-    """The process's one engine, the frames it serves, the cubes over them (one a name: a tab's or a notebook's), and the
-    web server the tabs reach it through."""
+    """The process's one engine, the frames it serves, the cubes over them (one a name: a tab's or a notebook's), the
+    pages shown (``ll.Page``), and the web server the tabs reach it through."""
 
     def __init__(self) -> None:
         self.frames = Frames()
         self.cubes: dict[str, Cube | DataCube] = {}
+        # the pages shown, each where it is shown: a tab's or a notebook's
+        self.pages: list[PageTab | PageCube] = []
         self._engine: Engine | None = None
         self._web: WebServer | None = None
         self._lock = threading.RLock()
@@ -172,12 +213,44 @@ class _Session:
         return name
 
     def after_cell(self, *_: Any) -> None:
-        """A notebook cell (or an IPython command) has run: each Live cube queries again, so a change shows."""
+        """A notebook cell (or an IPython command) has run: each Live cube, and each Live frame of a page shown, queries
+        again, so a change shows."""
         with self._lock:
             for key, cube in list(self.cubes.items()):
                 cube._after_cell()
                 if self._engine is not None and key in self.frames and self.frames[key].mode == LIVE:
                     self._engine.changed(cube.name)
+            frames = {g.frame for shown in self.pages for g in shown._page.grids}
+            for name in frames:
+                if self._engine is not None and name in self.frames and self.frames[name].mode == LIVE:
+                    self._engine.changed(name)
+
+    def show_page(self, page: Page) -> PageTab:
+        """A page served and shown in a tab: a new tab each time it is shown."""
+        with self._lock:
+            tab = PageTab(self, page)
+            self.serve(page, tab)
+            return tab
+
+    def serve(self, page: Page, view: PageTab | PageCube) -> None:
+        """``page`` served by the engine, shown in ``view`` (a tab's or a notebook's) and told of each change."""
+        with self._lock:
+            self.engine().serve_page(page._key, page.to_dict())
+            page._shown.append(view)
+            self.pages.append(view)
+            self._hook()
+
+    def close_page(self, view: PageTab | PageCube) -> None:
+        """A page's view closed: the page no longer told of its changes there; served no more when it is shown nowhere."""
+        with self._lock:
+            if view in self.pages:
+                self.pages.remove(view)
+            page = view._page
+            if view in page._shown:
+                page._shown.remove(view)
+            if not page._shown and self._engine is not None:
+                self._engine.close_page(page._key)
+            self._stop_web_if_unused()
 
     def close(self, name: str, cube: Any) -> None:
         """``cube`` closed: when it is still its name's cube, the frame goes out of the engine (a cube the name has moved
@@ -196,7 +269,8 @@ class _Session:
             self._stop_web_if_unused()
 
     def _stop_web_if_unused(self) -> None:
-        if self._web is not None and not any(isinstance(c, Cube) for c in self.cubes.values()):
+        if self._web is not None and not any(isinstance(c, Cube) for c in self.cubes.values()) \
+                and not any(isinstance(p, PageTab) for p in self.pages):
             self._web.close()
             self._web = None
 
@@ -221,7 +295,7 @@ class _Session:
         """A plain script ending with a cube open in a browser waits, saying so, until Ctrl-C (an IDE's Stop): the
         cube is this process's."""
         with self._lock:
-            open_cubes = [c for c in self.cubes.values() if isinstance(c, Cube)]
+            open_cubes = [c for c in self.cubes.values() if isinstance(c, Cube)] + [p for p in self.pages if isinstance(p, PageTab)]
         if not open_cubes or _stays():
             return
         if not self.waits():
@@ -282,7 +356,7 @@ def _release(key: int) -> None:
 
 
 def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool = True,
-         inline: bool | None = None) -> Cube | DataCube:
+         inline: bool | None = None) -> Cube | DataCube | PageTab | PageCube:
     """Shows DataCube on ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one) and returns
     at once: under the cell in a Jupyter notebook; in a marimo notebook, as the cell's output when it is the cell's last
     expression (marimo's way); in a browser tab anywhere else (a plain script that opened one waits at its end until
@@ -292,6 +366,9 @@ def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool
     is then) or ``'snapped'`` (copied once). ``browser=False`` opens no tab: the link is ``cube.url``.
     ``inline=False`` opens a tab from a notebook's kernel too (a console that shows no widget: Spyder's, qtconsole);
     under the cell needs the notebook extra (``pip install 'legend-lite[notebook]'``)."""
+    from .page import Page
+    if isinstance(frame, Page):
+        return _show_page(frame, browser=browser, inline=inline)
     if _marimo() and inline is not False:
         # a marimo notebook: the cube for the cell to show, as its last expression (marimo's way: nothing is added to
         # the cell's output, which would show it twice); the cell's next run closes it
@@ -311,3 +388,18 @@ def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool
     if browser and webbrowser.open(cube.url):
         session.opened = True
     return cube
+
+
+def _show_page(page: Page, *, browser: bool, inline: bool | None) -> PageTab | PageCube:
+    """A page (``ll.Page``) shown: under the cell in a notebook's kernel, else in a browser tab; live from then on."""
+    if inline is None:
+        inline = _kernel()
+    if inline:
+        from .notebook import shown_page
+        return shown_page(page)
+    session = page._session
+    tab = session.show_page(page)
+    print(f'DataCube: {tab.url}', flush=True)
+    if browser and webbrowser.open(tab.url):
+        session.opened = True
+    return tab

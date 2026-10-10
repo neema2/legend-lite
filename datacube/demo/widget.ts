@@ -6,7 +6,7 @@
 // The cube is engine-cube.ts's, its calls over the channel. It follows its frame by the widget's `version`, which
 // Python sets when the frame changes (Engine.watch): no polling. Its keys stay with it.
 //
-// Or A PAGE (the widget's `page`, Python's `ll.Page`; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md):
+// Or A PAGE (the widget's `page_key`, Python's `ll.Page`; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md):
 // engine-page.ts's, its sheets, grids and charts over the engine's frames, following the widget's `versions` -- the
 // page's and each frame's -- which Python sets as it changes them.
 
@@ -17,7 +17,7 @@ import { BASE, type WidgetModel } from './widget-loader.ts';
 const px = (model: WidgetModel): string => `${Number(model.get('height')) || 480}px`;
 
 export function render(model: WidgetModel, el: HTMLElement, fetch: typeof globalThis.fetch): () => void {
-  const page = model.get('page');
+  const page = model.get('page_key');
   if (typeof page === 'string' && page !== '') return renderPage(model, el, fetch, page);
   const link: EngineLink = { baseUrl: BASE, fetch, table: String(model.get('table')) };
   const { note, host, undo } = frame(model, el);

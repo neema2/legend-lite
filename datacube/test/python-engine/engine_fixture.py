@@ -4,7 +4,9 @@ them). It prints one JSON line -- the engine's address and token, the cube's lin
 source, the rows (the page loads the same rows into the tab's DuckDB), and each widget's script and state -- then takes
 the test's commands until its standard input closes: `update`, `columns`, `widget-update`, `page <json>` (a page of
 its frames served, as `q3`), `page-again` (that page served again, its second sheet renamed), `desks-update` (the second
-frame a row more) -- each answered `done <command>` -- and `widget <name> <message>`, a message from a widget's page, as
+frame a row more), `py-page` (a page built with ll.Page and shown; answered `done py-page <its link as JSON>`),
+`py-page-sheet` (a sheet added to it in Python), `widget-page-sheet` (a sheet added to the notebook's page), `py-page-read` (answered `done py-page-read <its sheets' names, as
+page.read() says them, as JSON>`) -- each answered `done <command>` -- and `widget <name> <message>`, a message from a widget's page, as
 a notebook's channel brings it. What a widget sends its page is printed as it goes: `sent <json>` (its buffers in
 base64) and `trait <json>` (a property set). A second frame, `desks`, is served Live from the start, for the page.
 
@@ -13,6 +15,8 @@ base64) and `trait <json>` (a property set). A second frame, `desks`, is served 
 
 import argparse
 import base64
+import contextlib
+import io
 import json
 import os
 import sys
@@ -23,7 +27,7 @@ import pyarrow as pa
 import legend_lite as ll
 from legend_lite import datacube
 from legend_lite.frames import LIVE
-from legend_lite.notebook import DataCube
+from legend_lite.notebook import DataCube, PageCube
 
 _said = threading.Lock()
 
@@ -35,12 +39,12 @@ def say(line: str) -> None:
         sys.stdout.flush()
 
 
-def channel(cube: DataCube) -> None:
-    """The widget's channel, as the test carries it: what it sends its page, printed."""
+def channel(cube: DataCube | PageCube, name: str) -> None:
+    """The widget's channel, as the test carries it: what it sends its page, printed, under the widget's ``name``."""
     cube.send = lambda content, buffers=None: say('sent ' + json.dumps({
-        'widget': cube.name, 'content': content, 'buffers': [base64.b64encode(bytes(b)).decode() for b in buffers or []]}))
-    cube.observe(lambda change: say('trait ' + json.dumps({'widget': cube.name, 'name': change['name'],
-                                                           'value': change['new']})), names=['version'])
+        'widget': name, 'content': content, 'buffers': [base64.b64encode(bytes(b)).decode() for b in buffers or []]}))
+    cube.observe(lambda change: say('trait ' + json.dumps({'widget': name, 'name': change['name'],
+                                                           'value': change['new']})), names=['version', 'versions'])
 
 # The corpus's rows (datacube/test/live-snap/page.ts's): unique on (book, year, qtr); NULLs in the measures and in a
 # dimension.
@@ -72,8 +76,12 @@ def main() -> None:
     served_page: dict = {}
     # two notebook cubes, as ll.DataCube(df) makes them: the page shows both and fetches DataCube's module once
     widgets = {'nb': DataCube(frame, name='nb'), 'nb2': DataCube(frame.slice(0, 3), name='nb2')}
-    for widget in widgets.values():
-        channel(widget)
+    # and a notebook's PAGE (ll.Page, shown under a cell): a grid grouped by region
+    notebook_page = ll.Page('Notebook page')
+    notebook_page.grid(frame, name='nbpage', rows=['region'], measures={'notional': 'sum'})
+    widgets['nbp'] = PageCube(notebook_page)
+    for name, widget in widgets.items():
+        channel(widget, name)
     say(json.dumps({
         'url': web.url,
         'authorization': web.authorization,
@@ -83,8 +91,9 @@ def main() -> None:
         'source': table.source,
         'columns': SCHEMA.names,
         'rows': [list(row) for row in ROWS],
-        'widgets': {name: {'esm': w._esm, 'state': {'_module': w._module, 'table': w.table, 'version': w.version,
-                                                    'height': w.height}} for name, w in widgets.items()},
+        'widgets': {name: {'esm': w._esm, 'state': {'_module': w._module, 'height': w.height, **(
+            {'table': w.table, 'version': w.version} if isinstance(w, DataCube)
+            else {'page_key': w.page_key, 'versions': w.versions})}} for name, w in widgets.items()},
     }))
     # the test's commands, one a line: `update` -- one row more; `columns` -- a column more (a new model);
     # `widget-update` -- the first widget's frame a row more; `widget <name> <message>` -- a widget page's message.
@@ -102,6 +111,8 @@ def main() -> None:
                 cube.update(frame.append_column('trader', pa.array([f't{i}' for i in range(frame.num_rows)])))
             elif command == 'widget-update':
                 widgets['nb'].update(pa.concat_tables([frame, frame.slice(0, 1)]))
+            elif command == 'widget-page-sheet':
+                notebook_page.sheet('Added in Python')
             elif command.startswith('page '):
                 served_page.update(json.loads(command[len('page '):]))
                 web.engine.serve_page('q3', served_page)
@@ -109,6 +120,20 @@ def main() -> None:
             elif command == 'page-again':
                 served_page['sheets'][1]['name'] = 'Desks (v2)'
                 web.engine.serve_page('q3', served_page)
+            elif command == 'py-page':
+                # a page built in Python (ll.Page), as a person builds one, and shown (the test opens the tab)
+                pypage = ll.Page('Built in Python')
+                grid = pypage.grid(frame, name='pytrades', rows=['region'], measures={'notional': 'sum'})
+                grid.chart('bar', x='region', y=[('notional', 'sum')], title='By region')
+                pypage.sheet('Desks').add(pypage.grid(lambda: desks['now'], name='pydesks'))
+                # (show() says its link to a person, on standard output: here the test's line is the answer)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    shown_page = ll.show(pypage, browser=False)
+                command = f'py-page {json.dumps(shown_page.url)}'
+            elif command == 'py-page-sheet':
+                pypage.sheet('Added in Python')
+            elif command == 'py-page-read':
+                command = f'py-page-read {json.dumps([s.name for s in pypage.read().sheets])}'
             elif command == 'desks-update':
                 desks['now'] = pa.table({'desk': ['Rates', 'FX', 'Credit', 'Equity'], 'head': ['Ana', 'Ben', 'Cy', 'Di']})
                 web.engine.changed('desks')

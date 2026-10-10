@@ -4,6 +4,7 @@
 # pyarrow, pinned in //tools/python.
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
 load("@bazel_lib//lib:copy_file.bzl", "copy_file")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_python//python:packaging.bzl", "py_package", "py_wheel")
 load("@rules_python//python:py_binary.bzl", "py_binary")
@@ -22,6 +23,7 @@ py_library(
             "legend_lite/engine.py",
             "legend_lite/frames.py",
             "legend_lite/notebook.py",
+            "legend_lite/page.py",
         ],
     ),
     # the package is typed (PEP 561): an editor or a type checker reads its annotations
@@ -38,6 +40,8 @@ py_library(
         "legend_lite/datacube.py",
         "legend_lite/engine.py",
         "legend_lite/frames.py",
+        # a DataCube page built in Python (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md)
+        "legend_lite/page.py",
     ],
     imports = ["."],
     deps = [
@@ -45,6 +49,15 @@ py_library(
         "@pypi//duckdb",
         "@pypi//pyarrow",
     ],
+)
+
+# DataCube's vocabularies as page.py copies them (its filter operators, aggregates, charts, the page's version), read by
+# DataCube's own test against DataCube's sources (//datacube:python_vocabulary_test)
+# (in the output tree: a js_test takes a file of another package only from there)
+copy_to_bin(
+    name = "page_source",
+    srcs = ["legend_lite/page.py"],
+    visibility = ["//datacube:__pkg__"],
 )
 
 _PLATFORMS = compatible_with(COMPILER_LIBRARY_PLATFORMS)
@@ -182,10 +195,12 @@ py_test(
     srcs = [
         "tests/main.py",
         "tests/test_engine.py",
+        "tests/test_page.py",
         "tests/test_show.py",
     ],
     args = [
         "test_engine",
+        "test_page",
         "test_show",
     ],
     data = ["//native:compiler"],

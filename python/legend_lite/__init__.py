@@ -8,7 +8,8 @@ DataCube on a dataframe -- ``show(df)``, in ``legend_lite.datacube`` -- the data
 (``Frames``, in ``legend_lite.frames``) and the engine that serves them to DataCube (``Engine``, in
 ``legend_lite.engine``) need duckdb and pyarrow; the compiler alone needs only Python's standard
 library, so each loads them when first used. In a notebook, the cube under the cell (``DataCube``, in
-``legend_lite.notebook``) also needs anywidget: ``pip install 'legend-lite[notebook]'``.
+``legend_lite.notebook``) also needs anywidget: ``pip install 'legend-lite[notebook]'``. A whole DataCube page built in
+Python -- its grids, charts, sheets and stacks -- is ``Page``, in ``legend_lite.page``, shown with ``show(page)``.
 """
 
 from .compiler import (
@@ -27,7 +28,7 @@ from .compiler import (
     table_model,
 )
 
-# Frames, Engine, show and DataCube are not listed: `from legend_lite import *` would import duckdb through them
+# Frames, Engine, show, DataCube and Page are not listed: `from legend_lite import *` would import duckdb through them
 __all__ = [
     'Column', 'LegendError', 'Plan', 'catalog_columns_sql', 'database_from_catalog', 'model_elements', 'parse',
     'plan', 'plan_text', 'print_tree', 'relation_type', 'session_setup', 'table_model',
@@ -49,4 +50,7 @@ def __getattr__(name: str):
     if name == 'DataCube':
         from .notebook import DataCube
         return DataCube
+    if name == 'Page':
+        from .page import Page
+        return Page
     raise AttributeError(f"module 'legend_lite' has no attribute {name!r}")

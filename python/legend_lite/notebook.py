@@ -55,18 +55,69 @@ def _loader(site: Path) -> tuple[str, str]:
     return (site / _LOADER).read_text('utf-8'), digest.hexdigest()
 
 
-class DataCube(anywidget.AnyWidget):
-    """DataCube on a frame, under a notebook's cell: what ``ll.show(df)`` shows in a notebook, and a widget object an
-    ipywidgets layout takes. ``name``, ``mode``: as ``show``'s. ``height``: the cube's, in pixels (``cube.height = 700``
-    resizes it). Its handle is a tab's: ``update``, ``refresh``, ``close`` (which takes it out of the output)."""
+class _EngineWidget(anywidget.AnyWidget):
+    """What a notebook's cube and a notebook's page share: DataCube's module (fetched once a notebook page), its height,
+    its calls answered by the session's engine over the widget's channel, and shown once in the cell show() ran in."""
 
     # anywidget's script, set per widget from DataCube's site (a trait of the class, so anywidget adds none)
     _esm = traitlets.Unicode().tag(sync=True)
     # the hash of DataCube's module: the page fetches it once (widget-loader.js) and keeps it by this
     _module = traitlets.Unicode().tag(sync=True)
+    height = traitlets.Int(480).tag(sync=True)
+
+    _session: Any
+    _closed: bool
+    _shown_here: bool
+
+    def _received(self, _widget: Any, content: Any, _buffers: Any) -> None:
+        """A message from the cube's page: a call, answered on a thread of its own, so the kernel never waits on it."""
+        if isinstance(content, dict) and content.get('kind') == 'call':
+            threading.Thread(target=self._answer, args=(content,), name='legend-lite-call', daemon=True).start()
+
+    def _answer(self, call: dict[str, Any]) -> None:
+        try:
+            method, path, query, body = call['method'], call['path'], call.get('query', ''), call.get('body')
+            if not (isinstance(method, str) and isinstance(path, str) and path.startswith('/')
+                    and isinstance(query, str) and (body is None or isinstance(body, str))):
+                answer = Answer(400, 'text/plain; charset=utf-8', b'a call is {method, path, query, body} as text')
+            else:
+                answer = self._session.engine().answer(method, path, query, body)
+        except Exception as failure:
+            # still an answer: a page waiting on a call never waits forever
+            traceback.print_exc()
+            answer = Answer(500, 'text/plain; charset=utf-8', f'{type(failure).__name__}: {failure}'.encode())
+        if self._closed:
+            return
+        try:
+            self.send({'kind': 'answer', 'id': call.get('id'), 'status': answer.status, 'type': answer.content_type,
+                       'headers': dict(answer.headers)}, [answer.body])
+        except AttributeError:
+            # closed while it answered (ipywidgets drops its channel between its check and its send): no one to tell
+            if not self._closed:
+                raise
+
+    def _ipython_display_(self, **_: Any) -> None:
+        """Displayed as any widget is, but once in the cell ``show()`` displayed it in: there, the cell's own result
+        (``ll.show(df)`` as its last line) adds no second copy -- nor does a ``display(cube)`` in that cell, which IPython
+        cannot tell apart from it. Typed in a later cell, it shows again."""
+        if self._shown_here:
+            self._shown_here = False
+            return
+        from IPython.display import display
+        data, metadata = self._repr_mimebundle_()
+        display(data, metadata=metadata, raw=True)
+
+    def _after_cell(self) -> None:
+        self._shown_here = False
+
+
+class DataCube(_EngineWidget):
+    """DataCube on a frame, under a notebook's cell: what ``ll.show(df)`` shows in a notebook, and a widget object an
+    ipywidgets layout takes. ``name``, ``mode``: as ``show``'s. ``height``: the cube's, in pixels (``cube.height = 700``
+    resizes it). Its handle is a tab's: ``update``, ``refresh``, ``close`` (which takes it out of the output)."""
+
     table = traitlets.Unicode().tag(sync=True)
     version = traitlets.Int(0).tag(sync=True)
-    height = traitlets.Int(480).tag(sync=True)
 
     def __init__(self, frame: Any, name: str | None = None, *, mode: str = LIVE, height: int = 480) -> None:
         # closed until it is made: ipywidgets closes a widget when it is collected, one whose making failed too, and
@@ -115,9 +166,6 @@ class DataCube(anywidget.AnyWidget):
         if self._closed:
             raise ValueError(f'the cube {self.name!r} was closed: show the frame again')
 
-    def _after_cell(self) -> None:
-        self._shown_here = False
-
     def _moved(self, name: str, version: int) -> None:
         """The engine says a frame changed (from the thread that changed it): this cube's moves its version, which its
         page follows."""
@@ -125,46 +173,60 @@ class DataCube(anywidget.AnyWidget):
         if name.lower() == self.table.lower() and not self._closed and version > self.version:
             self.version = version
 
-    def _received(self, _widget: Any, content: Any, _buffers: Any) -> None:
-        """A message from the cube's page: a call, answered on a thread of its own, so the kernel never waits on it."""
-        if isinstance(content, dict) and content.get('kind') == 'call':
-            threading.Thread(target=self._answer, args=(content,), name='legend-lite-call', daemon=True).start()
-
-    def _answer(self, call: dict[str, Any]) -> None:
-        try:
-            method, path, query, body = call['method'], call['path'], call.get('query', ''), call.get('body')
-            if not (isinstance(method, str) and isinstance(path, str) and path.startswith('/')
-                    and isinstance(query, str) and (body is None or isinstance(body, str))):
-                answer = Answer(400, 'text/plain; charset=utf-8', b'a call is {method, path, query, body} as text')
-            else:
-                answer = self._session.engine().answer(method, path, query, body)
-        except Exception as failure:
-            # still an answer: a page waiting on a call never waits forever
-            traceback.print_exc()
-            answer = Answer(500, 'text/plain; charset=utf-8', f'{type(failure).__name__}: {failure}'.encode())
-        if self._closed:
-            return
-        try:
-            self.send({'kind': 'answer', 'id': call.get('id'), 'status': answer.status, 'type': answer.content_type,
-                       'headers': dict(answer.headers)}, [answer.body])
-        except AttributeError:
-            # closed while it answered (ipywidgets drops its channel between its check and its send): no one to tell
-            if not self._closed:
-                raise
-
-    def _ipython_display_(self, **_: Any) -> None:
-        """Displayed as any widget is, but once in the cell ``show()`` displayed it in: there, the cell's own result
-        (``ll.show(df)`` as its last line) adds no second copy -- nor does a ``display(cube)`` in that cell, which IPython
-        cannot tell apart from it. Typed in a later cell, it shows again."""
-        if self._shown_here:
-            self._shown_here = False
-            return
-        from IPython.display import display
-        data, metadata = self._repr_mimebundle_()
-        display(data, metadata=metadata, raw=True)
-
     def __repr__(self) -> str:
         return f'<DataCube {self.name!r}>' if not self._closed else f'<DataCube {self.name!r}: closed>'
+
+
+class PageCube(_EngineWidget):
+    """A page (``ll.Page``) under a notebook's cell: what ``ll.show(page)`` shows in a notebook -- its sheets, grids and
+    charts over the session's frames -- live: a change made to the page in Python opens it again there, a frame updated
+    queries again. ``close`` takes it out of the output."""
+
+    # the page's name on the engine (page.json?page=), and its versions -- the page's and each frame's -- as the page
+    # follows them (demo/widget.ts)
+    page_key = traitlets.Unicode().tag(sync=True)
+    versions = traitlets.Dict().tag(sync=True)
+
+    def __init__(self, page: Any, *, height: int = 640) -> None:
+        self._closed = True
+        session = page._session
+        engine = session.engine()
+        assert engine.site is not None  # the session's engine always has DataCube's site
+        loader, module = _loader(engine.site)
+        self._session = session
+        self._page = page
+        self._shown_here = False
+        super().__init__(_esm=loader, _module=module, page_key=page._key, height=height)
+        self._closed = False
+        self.on_msg(self._received)
+        session.serve(page, self)
+        self.versions = engine.page_versions(page._key) or {}
+        self._unwatch = engine.watch(self._frame_moved)
+
+    @property
+    def page(self) -> Any:
+        return self._page
+
+    def close(self) -> None:
+        """Takes the page out of the output; it is served no more when it is shown nowhere else."""
+        if not self._closed:
+            self._closed = True
+            self._unwatch()
+            self._session.close_page(self)
+        super().close()
+
+    def _page_moved(self, _version: int) -> None:
+        """The page changed in Python: its versions moved, which its page follows (opening the page again)."""
+        if not self._closed:
+            self.versions = self._session.engine().page_versions(self._page._key) or {}
+
+    def _frame_moved(self, name: str, _version: int) -> None:
+        """A frame changed (from the thread that changed it): one of the page's moves its versions."""
+        if not self._closed and any(g.frame.lower() == name.lower() for g in self._page.grids):
+            self.versions = self._session.engine().page_versions(self._page._key) or {}
+
+    def __repr__(self) -> str:
+        return f'<DataCube page {self._page.name!r}>' if not self._closed else f'<DataCube page {self._page.name!r}: closed>'
 
 
 def for_marimo(frame: Any, name: str | None, mode: str) -> DataCube:
@@ -223,6 +285,15 @@ def shown(frame: Any, name: str | None, mode: str) -> DataCube:
     from IPython.display import display
     # shown here, even when it was in this cell already (show() of its name again)
     cube._shown_here = False
+    display(cube)
+    cube._shown_here = True
+    return cube
+
+
+def shown_page(page: Any) -> PageCube:
+    """``show(page)`` in a notebook: the page under this cell, live."""
+    cube = PageCube(page)
+    from IPython.display import display
     display(cube)
     cube._shown_here = True
     return cube

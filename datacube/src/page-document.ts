@@ -26,7 +26,7 @@
 // names its cube.
 
 import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protocol/src/index.ts';
-import { CHART_MARKS, type ChartSpec } from './chart-spec.ts';
+import { CHART_MARKS, DEFAULT_OPTIONS, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument } from './cube-document.ts';
 import { type Bands, type Node, fromCells, problems, tiles as tilesOf } from './layout/bands.ts';
 import type { FilterNode } from './snapshot.ts';
@@ -295,7 +295,9 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     kind: 'chart',
     cube: v['cube'],
     title: v['title'],
-    spec: spec as unknown as ChartSpec,
+    // an option it leaves out (a page written in Python sets only those it means: §3 of the Python pages design) is
+    // the chart's own default
+    spec: { ...spec, options: { ...DEFAULT_OPTIONS, ...spec['options'] } } as unknown as ChartSpec,
     ...(selection && selection.length > 0 ? { selection: selection as FilterNode[] } : {}),
   };
 }

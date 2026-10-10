@@ -175,12 +175,16 @@ class Engine:
         # the pages it serves (Python's ll.Page; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md): each its document --
         # DataCube's page document, its cubes over these frames -- and its version, moved each time it is served again
         self._pages: dict[str, tuple[int, dict[str, Any]]] = {}
+        # each page's document as the open page says it is now (its changes made in DataCube included: page.read())
+        self._read: dict[str, dict[str, Any]] = {}
 
     def answer(self, method: str, path: str, query: str, body: str | None) -> Answer:
         """One call: ``POST`` to the API, or ``GET`` of a frame's cube (``cube.json``), its version (``version.json``) or
         a file of the site. It waits for its answer, which the compiler's threads compute when it needs the compiler,
         so it is called from a thread of the caller's own (a connection's, a message's), never a compiler thread."""
         if method == 'POST':
+            if path == '/page.json':
+                return self._page_said(query, body or '')
             if not path.startswith(_API):
                 return _said(404, f'no such path: {path}')
             return _workers().submit(self._api, path, query, body or '').result()
@@ -275,6 +279,28 @@ class Engine:
             return _said(404, f'this engine serves no page named {name!r}')
         return Answer(200, 'application/json', json.dumps({'version': served[0], 'page': served[1]}).encode('utf-8'))
 
+    def _page_said(self, query: str, body: str) -> Answer:
+        """The open page's document as it is now (posted by the page as it changes): kept for ``read_page``."""
+        name = parse_qs(query).get('page', [''])[0]
+        with self._changes:
+            if name not in self._pages:
+                return _said(404, f'this engine serves no page named {name!r}')
+        try:
+            document = json.loads(body)
+        except ValueError:
+            return _said(400, 'a page is its document, as JSON')
+        if not isinstance(document, dict) or document.get('kind') != 'datacube.page':
+            return _said(400, 'a page is its document (kind datacube.page)')
+        with self._changes:
+            self._read[name] = document
+        return Answer(204, 'text/plain; charset=utf-8', b'')
+
+    def read_page(self, name: str) -> dict[str, Any] | None:
+        """A page's document as the open page last said it is (its changes made in DataCube included), or None when it
+        has said nothing since it was served."""
+        with self._changes:
+            return self._read.get(name)
+
     def serve_page(self, name: str, document: dict[str, Any]) -> int:
         """Serves ``document`` -- DataCube's page document (version 3), each cube over one of this engine's frames
         (``{"_type": "frame", "name": ...}``) -- as the page ``name``; served again, its version moves, and a page open
@@ -282,12 +308,15 @@ class Engine:
         with self._changes:
             version = self._pages.get(name, (0, {}))[0] + 1
             self._pages[name] = (version, document)
+            # what the open page said is of the document before: it opens this one
+            self._read.pop(name, None)
         return version
 
     def close_page(self, name: str) -> None:
         """Stops serving a page: one open on it stops following it."""
         with self._changes:
             self._pages.pop(name, None)
+            self._read.pop(name, None)
 
     def page_versions(self, name: str) -> dict[str, Any] | None:
         """A page's version, and each of its frames' (the frames its cubes read), or None when it serves no such page."""
@@ -478,7 +507,8 @@ class _Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802 -- the stdlib's name
         url = urlsplit(self.path)
-        if not url.path.startswith(_API):
+        # the API, and an open page saying what it is now (page.json: Python's page.read())
+        if not (url.path.startswith(_API) or url.path == '/page.json'):
             self._refuse_unread(404, f'no such path: {url.path}')
             return
         if not self._admitted(url.path):
