@@ -69,7 +69,10 @@ class ChannelBUnclassifiedTest {
         // relocated upstream (the drift read predicted 89; the arithmetic
         // did not model which files moved); 94/94 PASS
         assertEquals(PctRatchets.measured("channel_b.unclassified.discovered"), out.size(), "unclassified discovery moved -- an upstream move or a discovery-rule change: bazel run //pct:update_ratchets, with the reason in the commit");
-        assertTrue(c.pass() >= 94, "unclassified PASS fell: " + c.pass());
+        // 94 -> 93 (2026-10-10, build rebuild Phase 3b item 5b): the lane reads a test's file by its id, so the
+        // platform root's testGet (collection/anonymous/map/get.pure; the scope declares a plain function of that
+        // name) is no longer counted here as a passing unclassified test; essential counts it; 93/93 PASS
+        assertTrue(c.pass() >= 93, "unclassified PASS fell: " + c.pass());
         assertTrue(c.trueWireBug() == 0,
                 "a TRUE wire bug appeared: " + c.trueWireBug());
         // V1 (OPEN_REGISTER): THE DUAL-VERDICT ALARM — the DB byte

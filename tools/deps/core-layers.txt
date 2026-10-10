@@ -23,6 +23,8 @@
 # `execution_plan` (the server versions a database's statements are written for, Databases.servers).
 # 2026-10-08: `pure_v1` (server/PureV1Api: legend-engine's pure/v1 API, the plan side, so the compiler's boundary
 # answers with the server's code; docs/DATACUBE_PYTHON_SHOW_DESIGN_2026_10_08.md); server_lib reaches it.
+# 2026-10-10 (build rebuild Phase 3b item 1b, GATES "Build rebuild Phase 3b"): `platform` reaches `error` -- PlatformPure.adopt
+# refuses a declaration whose parameter names differ from the platform's own version with a ModelException, the model error it is.
 spi	
 cache	base
 values	base
@@ -34,7 +36,7 @@ protocol	base json values
 model	base protocol
 parser	base error lexer model protocol spi values
 builtin	base error model parser protocol
-platform	base builtin model
+platform	base builtin error model
 compiler_element_type	base builtin model platform protocol sql
 sql_dialect	base sql
 database	base error execution_plan model sql_dialect
