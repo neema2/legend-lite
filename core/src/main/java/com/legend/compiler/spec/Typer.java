@@ -444,11 +444,9 @@ final class Typer {
             // the property is looked up by its simple name
             int sep = af.function().lastIndexOf("::");
             String simple = sep < 0 ? af.function() : af.function().substring(sep + 2);
-            if (rcls != null
-                    && ctx.findProperty(rcls, simple).orElse(null)
-                            instanceof Property.Derived d
-                    && d.parameters().size() == af.parameters().size() - 1
-                    && rt.multiplicity() instanceof Multiplicity.Bounded rb && !rb.isMany()) {
+            Property.Derived d = rcls == null ? null
+                    : qualifiedProperty(rcls, simple, af.parameters().size() - 1).orElse(null);
+            if (d != null && rt.multiplicity() instanceof Multiplicity.Bounded rb && !rb.isMany()) {
                 java.util.List<ValueSpecification> qargs = new ArrayList<>(af.parameters());
                 if (rb.lower() != 1) {
                     qargs.set(0, new AppliedFunction(com.legend.builtin.Pure.Lite.TRUST_ONE,
@@ -512,14 +510,14 @@ final class Typer {
             // qualified property under its bare name (batch 5 leg 5c)
             int qcut = af.function().lastIndexOf("::");
             String qname = qcut < 0 ? af.function() : af.function().substring(qcut + 2);
-            if (classFqn != null
-                    && ctx.findProperty(classFqn, qname).orElse(null)
-                            instanceof Property.Derived d
-                    && (d.parameters().size() == af.parameters().size() - 1
-                            // an OVERLOAD by arity (res() / res(z)) shares the lifted FQN;
-                            // the call picks among its signatures like any function
-                            || derivedOverloadArity(classFqn, qname,
-                                    af.parameters().size() - 1))) {
+            // legend-pure's rule (build rebuild Phase 3b, item 4): the qualified properties of
+            // that name through the class's generalizations, by arity — a same-named PLAIN
+            // property never hides them (Extension.serializerExtension and
+            // serializerExtension(version)); overloads by arity (res() / res(z)) share the
+            // lifted FQN, and the call picks among its signatures like any function
+            Property.Derived d = classFqn == null ? null
+                    : qualifiedProperty(classFqn, qname, af.parameters().size() - 1).orElse(null);
+            if (d != null) {
                 // AUTO-MAP: a qualifier call on a MANY receiver applies per
                 // element (engine qualified-property auto-map:
                 // $o.product($bd).qualifier() over a [*] milestoned read)
@@ -593,8 +591,52 @@ final class Typer {
                             new ExprType(mprop.type(), mprop.multiplicity()));
                 }
             }
+            if (af.propertyCall() && classFqn != null) {
+                // legend-pure refuses it (FunctionExpressionProcessor: a dot call with
+                // arguments is matched on the class's qualified properties alone, never on
+                // a function of that name) — PARKED_WORK_LEDGER PARK-14, decided 2026-10-09
+                // (the user): refused as legend-pure refuses it, not a recorded leniency
+                throw new TypeInferenceException("no qualified property '" + qname + "' with "
+                        + (af.parameters().size() - 1) + " argument(s) on '" + classFqn
+                        + "' (a dot call with arguments is a qualified-property call; a function"
+                        + " is called with ->)");
+            }
         }
         return applyGeneric(af, env);
+    }
+
+    /**
+     * legend-pure's lookup for a dot call with arguments ({@code _Class.findQualifiedPropertiesUsingGeneralization},
+     * build rebuild Phase 3b, item 4): the qualified properties named {@code name} on {@code classFqn} and its
+     * generalizations, the class's own first, the one taking {@code arity} arguments after the receiver. A plain
+     * property of the same name is not consulted (the read without parentheses, {@code $x.name}, takes it:
+     * {@code synthProperty}).
+     */
+    private Optional<Property.Derived> qualifiedProperty(String classFqn, String name, int arity) {
+        return qualifiedProperty(classFqn, name, arity, new java.util.HashSet<>());
+    }
+
+    private Optional<Property.Derived> qualifiedProperty(String classFqn, String name, int arity,
+            java.util.Set<String> seen) {
+        if (!seen.add(classFqn)) {
+            return Optional.empty();
+        }
+        Optional<com.legend.compiler.element.TypedClass> tc = ctx.findClass(classFqn);
+        if (tc.isEmpty()) {
+            return Optional.empty();
+        }
+        for (Property p : tc.get().properties()) {
+            if (p instanceof Property.Derived d && d.name().equals(name) && d.parameters().size() == arity) {
+                return Optional.of(d);
+            }
+        }
+        for (String superFqn : tc.get().superClassFqns()) {
+            Optional<Property.Derived> inherited = qualifiedProperty(superFqn, name, arity, seen);
+            if (inherited.isPresent()) {
+                return inherited;
+            }
+        }
+        return Optional.empty();
     }
 
 
@@ -1621,15 +1663,6 @@ final class Typer {
 
     private Type annotationType(TypeAnnotation ta) {
         return annotations.annotationType(ta);
-    }
-
-    /** True when class {@code classFqn} declares a derived property {@code name}
-     * taking exactly {@code arity} parameters (an overload of the one findProperty returned). */
-    private boolean derivedOverloadArity(String classFqn, String name, int arity) {
-        return ctx.findClassDefinition(classFqn)
-                .map(cd -> cd.derivedProperties().stream()
-                        .anyMatch(dp -> dp.name().equals(name) && dp.parameters().size() == arity))
-                .orElse(false);
     }
 
     /** A lambda parameter's declared type and multiplicity ({@code minQty: Integer[1]}; [1] when unstated). */

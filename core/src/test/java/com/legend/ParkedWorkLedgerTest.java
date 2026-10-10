@@ -120,10 +120,6 @@ class ParkedWorkLedgerTest {
             // PARK-13: a debug trace switched by an environment variable
             Map.entry("PARK-13 a debug trace in product code",
                             new Anchor("LEGEND_LITE_RAW_EXPAND_TRACE", List.of("Overloads.java"))),
-            // PARK-14: a dot call with no qualified property falls back to a function
-            Map.entry("PARK-14 a dot call falls back to a function",
-                            new Anchor("af\\.propertyCall\\(\\) \\|\\| functionCandidates\\(af\\)",
-                                    List.of("Typer.java"))),
             // PARK-15 (2026-10-08, execution plan boundary step 2): the legacy plan
             // picks an enumeration mapping without the place it is used — the first
             // over the enum for a parameter, the first declared for a result column
