@@ -1011,8 +1011,9 @@ class JavaEvalLedgerTest {
                     // execution plan step 3 (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
                     // §9): THE RUNNER -- a plan's own statement run as the plan says, model-free
                     // (ArchitectureTest.theRunnerIsModelFree): PlanRunner binds the plan's slots and
-                    // carries the database's text out; PlanParameters checks and converts a caller's
-                    // values as legend-engine does (types parsed, none computed); PlanSessions gives out
+                    // carries the database's text out, writing a value's type into a plan's type hole;
+                    // PlanParameters checks a caller's typed values (none parsed, none computed:
+                    // a Float bound as its literal is typed, SqlTyping.floatDecimal); PlanSessions gives out
                     // sessions by the plan's target and runs its setup once; BulkLoads finds an
                     // engine's loader. No value is computed or compared: the database executes
                     "PlanRunner.java", "PlanParameters.java", "PlanSessions.java", "BulkLoads.java",

@@ -445,7 +445,10 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      (`Invalid provided parameter(s): [parameter 'n' (Integer[1]): given "5" (String): an Integer is a Long; ...]`): a
      value of another Java type, a list for a parameter of one value or one value for a parameter of a list, more or
      fewer values than the multiplicity, a null in a list, a name not among an enumeration's, a Float that is not finite
-     (no SQL literal stands for it), a type no plan binds (PARK-21). A value for no declared parameter is ignored.
+     (no SQL literal stands for it), a date-time outside the years 1 to 9999 (no database reads its text), a type
+     no plan binds (PARK-21). A value for no declared parameter is ignored. The two headings are the server's own
+     (`PureV1Api`'s `Missing external parameter(s)`, pinned by `PureV1ApiTest`), so a request's message keeps its
+     heading when step 4 moves `execute` onto plans; what follows them is the runner's.
    - *The plan says how each `?` is bound* (`ExecutionPlan.Slot`'s binding, decided by the dialect when the plan is
      made; the runner only follows it): one value — an absent one a null of the slot's JDBC type — or a list as one
      array of the slot's element type; and, where the database must be told a value's type in the statement and that
@@ -454,7 +457,8 @@ read from the model at execution (`ConnectionResolver.storesKey`).
      statement. The value itself never enters the text. A Float binds as its literal is typed (the numeric charter's
      Rule 1, one owner, `SqlTyping.floatDecimal`: its plain digits a decimal, an extreme magnitude a double); a Decimal
      of a negative scale as its plain digits.
-   - *Type holes, per database* (each value against its literal, alone, in arithmetic, compared and in the answer's
+   - *Type holes, per database* (each value against its literal — on H2 2.1.214 and 2.4.240, which `H2Modern`
+     serves — alone, in arithmetic, compared and in the answer's
      JSON: `probes/value-typed-cast-results.txt`, `probes/timestamp-results.txt`). H2 types a placeholder when it
      prepares the statement, so a Float's, a Decimal's, a Number's, a Date's and a DateTime's are holes, filled with the
      type H2 gives the literal: `NUMERIC(precision,scale)` of the value's digits, `DECFLOAT(precision)` at an extreme
@@ -514,11 +518,18 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    were the compatibility mode's, not the lite runner's, and the runner now takes typed values and says what is wrong in
    its own words; the plan states how each placeholder is bound, which closed PARK-19 and found that a DateTime
    parameter on landing 2's plans kept fewer digits than its literal (H2's `TIMESTAMP` and DuckDB's driver rounded or
-   cut what the literal keeps, Postgres's driver rounded what its literal writer cuts), now each its literal's. For step
-   4: a projected Number parameter is typed by its declaration in the plan and by its value's literal (a Float) in
-   today's let path, and on Postgres their CSV texts differ (`3.0`, `3`): which one is Pure's is step 4's to settle
-   before the switch. The render census (`render-census/step3-result.txt`, items 1-3): no let-path query of today's paths
-   changes; plan statements change as each item says.
+   cut what the literal keeps, Postgres's driver rounded what its literal writer cuts), now each its literal's. The
+   revision was audited in turn (seven should-fix, three nits, all fixed: among them this design's one exception to
+   "never edit rendered SQL" named in AGENTS.md, the evidence run on both H2 versions, PARK-24). Then measured against
+   the real reference (2026-10-10, `probes/engine-reference/`): the same requests sent to legend-engine 4.145.0 and to
+   lite, and plain expressions run by Pure itself. Where the engine answers, the plan's values are today's; the engine
+   cannot run a parameter projected as a column, a Number parameter or a list of DateTimes, which lite plans run; and
+   today's lite path refuses an absent optional value, which the engine and the plan answer. Lite's printed values
+   differ from Pure's in four places — Float arithmetic in decimal, a whole Float's missing `.0`, a Decimal literal's
+   scale, a DateTime's text — on today's path and a plan alike: PARK-24. The user's ruling (2026-10-10): an answer is
+   Pure's value, its text the served API's; step 3 lands first, the output layer's fix next. The render census
+   (`render-census/step3-result.txt`, items 1-3): no let-path query of today's paths changes; plan statements change as
+   each item says.
 4. **Switch the callers, delete what they replace** — `pure/v1/execution/execute`: plan once, run with
    `parameterValues`; `Execution.executeWire` / `executeStreaming` and `QueryService`'s wire and streaming paths: plan +
    run. DELETED (rule 15): `PureV1Api.boundParameters`, `Execution`'s `wireOn` / `streamOn`, and `ConnectionResolver`'s
