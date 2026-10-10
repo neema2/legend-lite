@@ -7981,7 +7981,7 @@ server path answers no rows for an optional parameter sent empty, where the engi
 plans answer as the engine does, and step 4 retires that path.
 ## 2026-10-09 — Build rebuild Phase 3b (L3): the edges of the one table — a view lifted once, import scopes per element, the platform's own Pure, qualified properties, one crash, the reference lane's verdicts
 
-**Landed [[DATE]] as [[SHA]]** (branch `build/phase3b`, twelve commits on main at 691c5002d, rebased onto 634b2246b before CI; run [[RUN]], full gate.yml on all platforms: [[CI_RESULT]]).
+**Landed 2026-10-10 as 991df952b** (branch `build/phase3b`, twelve commits on main at 691c5002d, rebased onto 634b2246b before CI; run 38022354707, full gate.yml on all platforms: green on every job (50 of 51, the dispatch's summary job skipped as always); the linux datacube lane's layout timing check (DataCube's own test: a drag task of 54 ms against a 50 ms budget; macOS and Windows green, main's own runs green) failed once and passed on the re-run of that job).
 The landing document is `docs/build-inventory/program/PHASE_3B_LANDING.md` (each commit with its judge); the brief
 `PHASES_3B_6.md`, the homework `PHASE_3B_HOMEWORK_2026_10_09.md`. The user's rulings (2026-10-09): 3b-O1 (b) the
 "platform's own Pure" row kind; 3b-O2 (a) import scopes per element; 3b-O3 (b) the resolver keeps one object per view;
@@ -8024,7 +8024,7 @@ F-L1 + 3 import scopes + 5 twins; the 18 mapping files, 4 unit files and 5 parse
 16,133, failed 1,437 → 1,120 (unknown-function failures 403 → 6), walled 32, duplicates 0. The implementation table: PlatformPure 35, Body 2,051 → 2,034,
 Refused 129 → 131, dangling 0, conflicts 0, unrowed 109. The audit (`evidence/phase3b/AUDIT_PHASE3B.md`): one blocker
 (a refusal on a false reason) and seven should-fix items, all answered (`PHASE_3B_LANDING.md` §3). The own-corpus parity ratchet 2,751 → 2,762 (new test
-snippets). Judges: the four corpus passes (DuckDB and H2, host and database) identical to the baseline built before the change, file for file (22 result files, `compare_judges.py`); the two warehouse passes built (no baseline before the change); PCT DuckDB, H2 and Postgres green; channel B green with one re-pin (unclassified discovery and pass 94 → 93: the platform root's `testGet` is no longer counted as an unclassified test); the parity lane green (`own_corpus.matched` 2,775). Local gate: 321 targets, every one green on the rerun (five load timeouts on the first pass, as before; `core_layering_test` and channel B's pass floor re-pinned with their reasons).
+snippets). Judges: the four corpus passes (DuckDB and H2, host and database) identical to the baseline built before the change, file for file (22 result files, `compare_judges.py`); the two warehouse passes built (no baseline before the change); PCT DuckDB, H2 and Postgres green; channel B green with one re-pin (unclassified discovery and pass 94 → 93: the platform root's `testGet` is no longer counted as an unclassified test); the parity lane green (`own_corpus.matched` 2,775). Local gate: 321 targets green (on the tip rebased onto protocol leg 5, 3304a48d9: every one on the first pass; before the rebase, five load timeouts passed alone and `core_layering_test` and channel B's pass floor were re-pinned with their reasons); the parity ratchet 2,796 = main's 2,772 + the branch's 24.
 
 ## 2026-10-06 — Build rebuild Phase 3: one table decides, by function id; overloads ranked as legend-pure ranks them
 
