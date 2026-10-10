@@ -1590,14 +1590,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             }
             expect(TokenType.BRACKET_CLOSE);
             expect(TokenType.COMMA);
+            // the validation is ANY expression up to the call's closing ')' (the engine's
+            // OperationClassMappingParserGrammar: validationLambda: combinedExpression) -- a braced
+            // {a, b|...} as written, or the brace-less |true its printer writes (found by the protocol
+            // program's round-trip proof, leg 5)
             int lS = pos;
-            expect(TokenType.BRACE_OPEN);
             int depth = 0;
             while (!atEnd()) {
                 TokenType t = peek();
-                if (t == TokenType.BRACE_OPEN) {
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN || t == TokenType.BRACE_OPEN) {
                     depth++;
-                } else if (t == TokenType.BRACE_CLOSE) {
+                } else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE || t == TokenType.BRACE_CLOSE) {
                     if (depth == 0) {
                         break;
                     }
@@ -1605,8 +1608,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 }
                 advance();
             }
-            int lEnd = pos;
-            expect(TokenType.BRACE_CLOSE);
+            int lEnd = pos - 1;
+            if (lEnd < lS || atEnd() || peek() != TokenType.PAREN_CLOSE) {
+                throw error("merge validation: expected an expression and then ')'");
+            }
             // the engine reparses ANTLR getText() — the lambda's TOKEN
             // TEXTS concatenated with NO whitespace — anchored at the
             // merge FQN token's line:column

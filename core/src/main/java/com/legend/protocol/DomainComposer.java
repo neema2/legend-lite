@@ -159,9 +159,9 @@ final class DomainComposer {
             params.add(parameter(p));
         }
         List<String> body = new ArrayList<>();
-        for (ValueSpecification b : f.body()) {
-            // upstream: withIndentation(getTabSize(1))
-            body.add("  " + valueSpecification(b, style, Composing.indented("", 2, style)));
+        // upstream: withIndentation(getTabSize(1))
+        for (String statement : PureComposer.statements(f.body(), style, Composing.indented("", 2, style))) {
+            body.add("  " + statement);
         }
         return declarationPrefix("function", "", f.stereotypes(), f.taggedValues())
                 + Composing.convertPath(f.qualifiedName())
@@ -231,10 +231,8 @@ final class DomainComposer {
                 params.add(parameter(p));
             }
         }
-        List<String> body = new ArrayList<>();
-        for (ValueSpecification b : inline(qp.realization(), "derived property '" + qp.name() + "'")) {
-            body.add(valueSpecification(b, style));
-        }
+        List<String> body = PureComposer.statements(inline(qp.realization(), "derived property '" + qp.name() + "'"),
+                style, "");
         String bodyText = body.size() <= 1
                 ? String.join("\n", body)
                 : "\n" + tab(2) + String.join(";\n" + tab(2), body) + ";\n" + TAB;

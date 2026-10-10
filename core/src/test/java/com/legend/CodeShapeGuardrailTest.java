@@ -118,10 +118,12 @@ class CodeShapeGuardrailTest {
             // the shared minimal JSON reader's walk position — a parser
             // cursor, same family as Lexer.pos
             "Json.i",
-            // ';'-ambiguity context for unbraced lambda code blocks: inside
-            // call args/collections a ';' is unambiguously the lambda's —
-            // a cursor-adjacent depth, same lifecycle as pos
-            "SpecParser.boundedDepth",
+            // ';'-ownership context for unbraced lambda code blocks: where the
+            // enclosing sequence's statement that owes the next ';' began (or
+            // -1) -- a cursor-adjacent mark, saved and restored around each
+            // sequence, same lifecycle as pos (replaced boundedDepth, the
+            // protocol program's leg 5, 2026-10-09)
+            "SpecParser.owingStatement",
             // per-resolution frames + counters
             "StoreResolver.freshVarCounter", "StoreResolver.temporal",
             // driver-scoped emission opt-in (builder-style, set once

@@ -164,7 +164,7 @@ public final class SavedQueries {
 
     /** {@code POST query/search}. */
     public synchronized String search(String body, String currentUser) {
-        Json.Obj spec = Json.parseObject(body.isBlank() ? "{}" : body);
+        Json.Obj spec = Json.parseObject(body.strip().isEmpty() ? "{}" : body);
         List<Json.Obj> matches = new ArrayList<>();
         for (Json.Obj q : latestOfAll()) {
             if (matchesSearch(q, spec, currentUser)) {

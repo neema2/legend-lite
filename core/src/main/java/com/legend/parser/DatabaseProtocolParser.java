@@ -1008,7 +1008,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 long v = -consumeLong();
                 return new Protocol.PRelLiteral(v, spanOf(s, numTok));
             }
-            double v = -Double.parseDouble(text());
+            double v = -com.legend.protocol.NumberText.doubleOf(text());
             expect(TokenType.FLOAT);
             return new Protocol.PRelLiteral(v, spanOf(s, numTok));
         }
@@ -1017,7 +1017,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             return new Protocol.PRelLiteral(v, spanOf(s, s));
         }
         if (peek() == TokenType.FLOAT) {
-            double v = Double.parseDouble(text());
+            double v = com.legend.protocol.NumberText.doubleOf(text());
             advance();
             return new Protocol.PRelLiteral(v, spanOf(s, s));
         }

@@ -73,19 +73,26 @@ def _rlocationpath(ctx, f):
 def _file_list_impl(ctx):
     files = sorted(depset(transitive = [t[DefaultInfo].files for t in ctx.attr.srcs]).to_list(), key = lambda f: f.short_path)
     out = ctx.actions.declare_file(ctx.label.name + ".files")
-    ctx.actions.write(out, "".join([_rlocationpath(ctx, f) + "\n" for f in files]))
+    lines = [f.path for f in files] if ctx.attr.exec_paths else [_rlocationpath(ctx, f) for f in files]
+    ctx.actions.write(out, "".join([line + "\n" for line in lines]))
     return [DefaultInfo(files = depset([out]), runfiles = ctx.runfiles(files = [out] + files))]
 
 file_list = rule(
     implementation = _file_list_impl,
     attrs = {
         "srcs": attr.label_list(allow_files = True, mandatory = True),
+        "exec_paths": attr.bool(
+            default = False,
+            doc = "List execroot paths (a build action's input: its srcs carry the files too) instead of runfiles " +
+                  "paths (a test's), as java_jars' exec_paths.",
+        ),
     },
     doc = """Writes <name>.files: every file of srcs by its runfiles path, one per line, sorted (Bazel workplan P3-27).
 
 A test names the list with ONE -D<property>=$(rlocationpath :<name>) and reads it with SourceFiles (//testing): a set
 of hundreds of files in jvm_flags would pass Windows' 32,767-character command-line limit (A4). The files ride in the
-list's runfiles, so a test that depends on the list has them.""",
+list's runfiles, so a test that depends on the list has them. With exec_paths, a build action (java_run) names it with
+$(execpath :<name>) and reads it with ProgramPaths.listed; the action's srcs then carry the files.""",
 )
 
 def _java_runtime_jars_impl(ctx):

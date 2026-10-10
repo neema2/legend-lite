@@ -70,7 +70,7 @@ final class TailReader {
         }
         if (v instanceof Json.Num n && !n.isInteger()) {
             // the token as written: the engine's getText (the parser keeps every number's token)
-            return new Protocol.PConfigValue.PCString(n.token() != null ? n.token() : Double.toString(n.doubleValue()));
+            return new Protocol.PConfigValue.PCString(n.token() != null ? n.token() : com.legend.json.PortableText.doubleText(n.doubleValue()));
         }
         if (v instanceof Json.Bool b) {
             return new Protocol.PConfigValue.PCBoolean(b.value());

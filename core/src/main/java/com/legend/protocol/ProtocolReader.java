@@ -206,8 +206,10 @@ public final class ProtocolReader {
             }
         }
         List<ValueSpecification> params = new ArrayList<>(raw.size());
-        for (Json.Node p : raw) {
-            params.add(valueSpec(p));
+        for (int i = 0; i < raw.size(); i++) {
+            // a let's value is read knowing the let's span: a column spec there carries it outside (the let-value form)
+            params.add("letFunction".equals(function) && i == 1 ? SpecIslandReader.letValue(raw.get(i), pos)
+                    : valueSpec(raw.get(i)));
         }
         return new AppliedFunction(function, params, List.of(), pos, false, false, false, false, fControl, null);
     }
@@ -295,7 +297,7 @@ public final class ProtocolReader {
     private static ValueSpecification floating(Wire w) {
         double d = Wire.asDouble(w.take("value"), "float literal");
         BigDecimal exact = w.decimal("value");
-        return new CFloat(d, exact.compareTo(BigDecimal.valueOf(d)) != 0 ? exact : null, w.span());
+        return new CFloat(d, exact.compareTo(NumberText.decimal(d)) != 0 ? exact : null, w.span());
     }
 
     /**

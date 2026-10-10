@@ -58,7 +58,7 @@ public final class EngineHandlers {
         Map<String, List<String>> ids = new LinkedHashMap<>();
         List<String> undeclared = new ArrayList<>();
         for (String line : read().split("\n")) {
-            if (line.isBlank() || line.startsWith("#") || line.equals("name\tid")) {
+            if (line.strip().isEmpty() || line.startsWith("#") || line.equals("name\tid")) {
                 continue;
             }
             String[] c = line.split("\t", -1);

@@ -93,6 +93,9 @@ _JUNIT5 = [
 # the protocol's reachable classes (an upstream record) and the worklist joined with our roster, each its own program
 _PMCD = ["src/test/java/com/legend/equivalence/%s.java" % c for c in ["PmcdReachability", "PmcdWorklist"]]
 
+# the round trip in the tab, its JVM half (:tab_round_trip): a program of its own, over the tab's adapter
+_TAB_ROUND_TRIP = ["src/test/java/com/legend/equivalence/TabRoundTripRequests.java"]
+
 legend_java_library(
     name = "pe_corpus",
     # not yet written to the null discipline (Bazel workplan P1-20)
@@ -127,7 +130,7 @@ legend_java_library(
     testonly = True,
     # the recording shims are :harvest_shims' alone: no parity test sees an engine class re-declared; the corpus
     # machinery is :pe_corpus' and the harvest's program :harvest_program's
-    srcs = glob(["src/test/java/**/*.java"], exclude = _HARVEST_SHIMS + _HARVEST_PROGRAM + _CORPUS + _PMCD),
+    srcs = glob(["src/test/java/**/*.java"], exclude = _HARVEST_SHIMS + _HARVEST_PROGRAM + _CORPUS + _PMCD + _TAB_ROUND_TRIP),
     # not the two generated records: no class reads them from the class path (the tests read the snapshot by its
     # path), so a bump's rewrite of them reruns no parity program
     resources = glob(
@@ -192,6 +195,37 @@ file_list(
 
 _SOURCES_FLAG = "-Dlegend.sources=$(rlocationpath :parity_sources)"
 
+# THE ROUND-TRIP PROOF'S PROJECTS (RoundTripProofTest; docs/PROTOCOL_PROGRAM_2026_10_05.md §4, leg 5): lite's own
+# projects and the upstream Legend showcase projects (MODULE.bazel, pinned by commit), every file by its runfiles path.
+_SHOWCASE = [
+    "logical_modeling",
+    "installer_demo",
+    "relational_mapping",
+    "service_store",
+    "external_formats",
+    "query_demo",
+    "graphql",
+    "service_jar",
+]
+
+_ROUND_TRIP_PROJECTS = ["//projects:srcs"] + ["@legend_showcase_%s//:pure" % name for name in _SHOWCASE]
+
+file_list(
+    name = "round_trip_projects",
+    testonly = True,
+    srcs = _ROUND_TRIP_PROJECTS,
+)
+
+_ROUND_TRIP_FLAG = "-Dlegend.roundtrip.projects=$(rlocationpath :round_trip_projects)"
+
+# the same projects for a build action (:tab_round_trip), by exec path
+file_list(
+    name = "round_trip_projects_exec",
+    testonly = True,
+    exec_paths = True,
+    srcs = _ROUND_TRIP_PROJECTS,
+)
+
 _INPUTS = [
     # what the parity tests read as files (Bazel workplan P3-07): every module's test sources (the own corpus:
     # InlineSnippets reads src/test/**/*.java), this module's sibling corpus, and the oracle pins
@@ -239,6 +273,11 @@ _DIAGNOSTICS = [
     "GrammarCoverageCensusTest",
 ]
 
+# Asserting parity classes in a gate-8 target of their own (named below), not in parser_parity
+_OWN_TARGETS = [
+    "RoundTripProofTest",
+]
+
 # Gate 8: every asserting parity class. Selected by PACKAGE, so a new test is in the
 # gate the moment it exists: no hand-kept roster of class names to go stale.
 junit_test(
@@ -255,8 +294,32 @@ junit_test(
     exclude_tags = [],
     runtime_deps = [":pe_tests_lib"],
     select = ["--select-package=com.legend.equivalence"] + [
-        "--exclude-classname=.*\\." + c for c in _DIAGNOSTICS
+        "--exclude-classname=.*\\." + c for c in _DIAGNOSTICS + _OWN_TARGETS
     ],
+    upstream = True,
+)
+
+# The round-trip proof (the protocol program's leg 5): its own target, beside parser_parity in gate 8, so the two run
+# side by side -- together they came within seconds of parser_parity's limit on a loaded desk (2026-10-09) -- and the
+# projects it alone reads are its data alone.
+junit_test(
+    name = "round_trip_proof",
+    memory_mb = 2816,
+    # what it reads: the corpus (the upstream trees, `upstream`; the fixture snapshot, held to the oracle pins) and the
+    # projects
+    data = [
+        ":round_trip_projects",
+        "src/test/resources/engine-grammar-fixtures.jsonl",
+        "//tools:oracle-pins.env",
+    ],
+    jvm_flags = [
+        _PINS_TEST_FLAG,
+        _ROUND_TRIP_FLAG,
+        "-Dpe.engine.fixtures.rlocation=$(rlocationpath src/test/resources/engine-grammar-fixtures.jsonl)",
+    ],
+    exclude_tags = [],
+    runtime_deps = [":pe_tests_lib"],
+    select = ["--select-class=com.legend.equivalence.RoundTripProofTest"],
     upstream = True,
 )
 
@@ -461,6 +524,46 @@ java_run(
     mnemonic = "Generate",
     roots = UPSTREAM_ROOTS,
     deps = [":pe_corpus"],
+)
+
+legend_java_library(
+    name = "tab_round_trip_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20)
+    nullaway = False,
+    testonly = True,
+    srcs = _TAB_ROUND_TRIP,
+    deps = [
+        ":pe_corpus",
+        "//testing",
+        "//wasm:tab",
+        "@maven_upstream//:com_fasterxml_jackson_core_jackson_databind",
+    ],
+)
+
+# THE ROUND TRIP IN THE TAB, its JVM half (docs/PROTOCOL_PROGRAM_2026_10_05.md §4, leg 5): every input
+# RoundTripProofTest reads -- the corpus (with the committed fixture snapshot, as the parity tests read it), lite's
+# projects and the showcase projects -- asked of the tab's own adapter on the JVM; //wasm:round_trip_test asks the
+# WebAssembly module the same and compares. A build output: re-asked only when an input or the tab's source changes.
+java_run(
+    name = "tab_round_trip",
+    testonly = True,
+    srcs = UPSTREAM_TREES + _ROUND_TRIP_PROJECTS + [
+        ":round_trip_projects_exec",
+        "src/test/resources/engine-grammar-fixtures.jsonl",
+        "//tools:oracle-pins.env",
+    ],
+    outs = ["generated/tab-round-trip.jsonl"],
+    arguments = ["{OUT}"],
+    jvm_flags = program_jvm_flags("parser-equivalence") + [_PINS_ACTION_FLAG] + [
+        "-Dlegend.engine.fixtures=$(execpath src/test/resources/engine-grammar-fixtures.jsonl)",
+        "-Dlegend.roundtrip.projects=$(execpath :round_trip_projects_exec)",
+    ],
+    main_class = "com.legend.equivalence.TabRoundTripRequests",
+    memory_mb = 4096,
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
+    visibility = ["//wasm:__pkg__"],
+    deps = [":tab_round_trip_lib"],
 )
 
 # docs/protocol-roster.tsv: every protocol subtype tag, COVERED or UNCOVERED by

@@ -269,6 +269,93 @@ not be written back, so it is refused.
    5. The SDLC server's `CoreGrammar.modelJson` calls the text-to-JSON conversion (its edge moves in leg 7).
 5. **Round trip proven** over the corpus and the showcase projects (plan S5), in the JVM and in the tab (the
    WebAssembly build of the same code, a differential run as `//wasm:differential_test` does for the planner).
+   Design (2026-10-09; scope the user's: the upstream showcase projects included):
+   - **Three inputs, all pinned.** legend-engine's test collection (`@legend_engine_src`, the corpus the parity tests
+     read); lite's own projects (`projects/`, 60); and the upstream Legend showcase projects -- the eight the Legend
+     docs list (`legend.finos.org/docs/showcases/showcase-projects`: logical modeling, the installer demo, relational
+     mapping, service store, external formats, the query demo, GraphQL, the service execution jar), each a GitLab
+     archive pinned by commit and sha256 among `MODULE.bazel`'s pinned downloads (not keyed on the engine release, so
+     not `release.MODULE.bazel`'s; a Bazel change: the Bazel review, and a full CI run). They are SDLC projects in
+     their Pure-file layout (123 `.pure` files, one element each, its section header first; no JSON entities), so each
+     project is read as Studio would open it: every file parsed on its own, the elements gathered into one model with
+     no section index (an SDLC's JSON carries none); files the engine's own parser refuses are counted apart, not
+     tried.
+   - **The round trip, per input, in the JVM** (`RoundTripProofTest`, `//parser-equivalence`): text → JSON → text →
+     JSON, the two JSONs equal (no source information); and the JSON → text → JSON closure, in each style
+     (STANDARD, PRETTY): reading the JSON and printing it, then parsing the print, gives the same records. An input
+     the engine itself refuses is not counted; one lite refuses by name (S36, the printer's named refusals) is
+     counted and listed as such, never as a pass; anything else is a failure, listed. The counts are pinned per input
+     (matched up-only, failed down-only, 0 failed the target), as the other parity tests pin theirs.
+   - **The same answers in the tab.** The JVM writes, as a build action (`java_run`, as `//wasm:jvm_answers`), each
+     input and the tab adapter's own answers to it -- `grammarToJson/model` without source information, then
+     `jsonToGrammar/model` in each style, through `TabExports.pureV1OrError`; a test loads the WebAssembly module,
+     asks the same requests, and compares byte for byte (`//wasm:round_trip_test`). The whole of the three inputs;
+     its time measured before it is placed in a lane (the heavy lane if it does not fit a pushed run's).
+   - **The two parser gaps closed** (found by step 3): lite's grammar takes a function test's `doc` (the engine's
+     does), and refuses `];` after a persistence's tests (the engine's does), each with the engine's own text as its
+     test.
+   - **Done when** the three inputs round-trip with equal records, in both styles, in the JVM and in the tab, every
+     exception named, the counts pinned.
+
+   **Leg 5's outcome (2026-10-09).** In the JVM (`RoundTripProofTest`, its own target
+   `//parser-equivalence:round_trip_proof` beside `parser_parity`): the engine's collection 6,905 matched, 40 refused by
+   name (the engine's own printer cannot print them), 270 where the engine's own print does not read back (counted
+   apart, never as a pass), 0 failed; lite's projects 222 and the showcase projects 131 matched, 0 failed, each
+   file and each project as one model; the counts pinned, the engine's own non-round-trips (270) among them, down
+   only. In the tab (`//wasm:round_trip_test`, in the `parser_equivalence` lane; its JVM half the build action
+   `//parser-equivalence:tab_round_trip`): all 9,423 inputs -- 9,134 of the collection, refusals included, 166 and 123
+   project files -- answered as the JVM answers, in about 26 seconds. One difference from the design's wording: the JVM
+   half writes each answer's SHA-256, not the answer (the answers would be several times the 48 MB of input text); the
+   module's half asks the same requests and compares the digests, so a byte of difference still shows. Found and fixed
+   on the way:
+   - **Text to JSON without source information** kept the named spans the engine leaves out (3,241 corpus sources
+     differed), and the engine keeps spans in five places whatever it is asked (`SourceInformation.withoutSpans`, from
+     the engine's source; `CorpusSweepTest`'s claim 1c, 6,755 of 6,755).
+   - **Where a brace-less lambda ends.** Lite read it by two rules of thumb; the engine's grammar decides it by the
+     statement's position (probed in every position): in a sequence's first statement the lambda takes the `;` and the
+     statements after it, in a later one the `;` is the sequence's (`SpecParser.readBraceLessBlock`).
+   - **The engine's printer drops braces where its own parser then reads the print changed**: a brace-less lambda's
+     body reads on as far as the grammar lets it, so it takes in what follows it -- the rest of a sequence's first
+     statement (`let q = {|1}; ...`), or an arrow, a dot or an operator after it (`{x|...}->cast(@T)`, found by the
+     parity test's statement-shape check); and a lambda whose one statement is a parameterless lambda prints `||...`,
+     the or operator, which does not parse at all (found by the second audit). Lite keeps those braces, closed tight,
+     and only those (the user's decision, `docs/SEMANTICS_REGISTER.md` S38); the parity tests count those prints apart
+     (475 per style for models, 20 lambdas), each checked to differ only by the braces, to read differently in the
+     engine's own parser (or upstream's not to read), and to read back with the statement boundaries of the JSON
+     printed. With the braces kept, 83 sources whose print the engine's dropped braces had broken round-trip: the
+     engine's-own-print count fell from 354 to 271 (and to the 270 above with S39 below).
+   - **Five grammar gaps a print reaches:** a merge mapping's brace-less validation, a service's post-validation
+     assertions separated by commas, a function test's `doc`, persistence's `];` (refused, as the engine refuses it), and
+     a path literal across lines (its spans, by the engine's island rule, probed).
+   - **TeaVM's class library answers two things differently from the JDK** (the tab's round trip found both):
+     `String.isBlank()` counts only `' '` (a ModelStore island refused in the tab), and a double's text can end a digit
+     off (diagram coordinates), and reading one back can land a unit in the last place off (the protocol twin test,
+     `//pure-protocol:twins_test`). Lite now writes blank as `strip().isEmpty()` everywhere, and converts a double's
+     text both ways through `com.legend.json.PortableText` -- `doubleText` (the JDK 19 definition) and `doubleOf`
+     (the nearest double, ties to even), computed exactly, held to the JDK by `PortableTextTest` -- in the parser
+     (through the protocol's `NumberText`, so the parser's dependency surface stays pinned) and the protocol, which
+     reads a JSON number by its own text, never by the JSON library's double; `ArchitectureTest` guards both, the
+     concatenations it cannot see read from the class files' constant pools. The twin test's accepted TeaVM
+     divergences (30 doubles spelled differently, 2 read one unit off; the user, 2026-09-28) are gone: it now holds
+     every double byte for byte. `doubleOf` takes a float literal's `f`/`F` (the engine's grammar writes it; the
+     third audit's blocker) and computes the common case -- digits of at most 53 bits and a power of ten up to 10^22
+     -- with one exact IEEE operation (Clinger's fast path), the rest with big integers: about 2.5 times
+     `BigDecimal.doubleValue`'s cost on result-like values (measured 2026-10-09: 26 against 10 ms per 200,000), paid
+     only where a model or code holds a number. The JSON library's own reader keeps the JDK's conversion (the user,
+     2026-10-09): the protocol does not use it, and on the server it would only slow the data it reads; in the tab, a
+     number read through it by anything but the protocol can still land a unit off, with PARK-23's writer.
+   - **A column spec as a let's value** carried the let's span on its value too, where the engine keeps the value's
+     own (as for a path literal and a graph fetch); found by the own corpus on S38's test text.
+   Counts moved: `own_corpus.matched` (the new test texts); `ComposerParityTest`'s floor by the 20 S38 prints.
+   - **The engine's printer drops a typed column spec's multiplicity** (`~a:Integer[1]` prints `~a:Integer`), so that
+     print reads back without it: lite writes it (the user's decision, `docs/SEMANTICS_REGISTER.md` S39, "so our round
+     trip is exact"); the form is written in five texts of the corpus (legend-pure's `TestColumnBuilders` and
+     `AbstractTestColSpecAnnotations`), whose prints the model parity test counts apart (24 per style).
+   Parked, found here: engine JSON with spans for a path literal across lines is refused by lite's reader, the spans
+   not saying where the literal's lines break (`docs/PARKED_WORK_LEDGER.md` PARK-22, designed with leg 8); and
+   `com.legend.json.Json`'s writer still writes a double the platform's way, which can differ by a digit in the tab
+   (PARK-23: lite's exact writer, `PortableText.doubleText`, measured 85 times the JDK's cost on result-like values and
+   up to 600 on the hardest, too slow for the server's results; the fix is a fast exact spelling, next after leg 5).
 6. **One whole-model compile, and the tab's other `pure/v1` twins on the route.** "Compile a whole model" (its
    elements, then every body in it) is strung together three times today: `PureV1Api.compile`, the tab's
    `compileOrError` and the SDLC server's `CoreGrammar.compile`. It becomes one function on the compiler's front door

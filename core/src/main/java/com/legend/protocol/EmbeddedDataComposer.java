@@ -253,7 +253,7 @@ final class EmbeddedDataComposer {
             case CBoolean b -> String.valueOf(b.value());
             case EnumValue e -> Composing.convertPath(e.fullPath()) + "." + Composing.convertIdentifier(e.value());
             case CInteger n -> n.value().toString();
-            case CFloat f -> Double.toString(f.value());
+            case CFloat f -> com.legend.json.PortableText.doubleText(f.value());
             case CDecimal d -> d.value().toPlainString() + "D";
             default -> throw Composing.refused("no model data rule for a value " + vs.getClass().getSimpleName());
         };

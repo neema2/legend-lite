@@ -15,7 +15,10 @@ import java.util.Objects;
  * {@code path} whose spans are SHIFTED RIGHT by exactly the literal's length — an engine
  * island-reparse artifact reproduced faithfully: for a literal starting at column {@code s}
  * with length {@code len}, the outer span is {@code [s+len, s+2*len+2]} and a segment at
- * 0-based inclusive character range {@code [a,b]} spans {@code [s+len+a-2, s+len+b-1]}.
+ * 0-based inclusive character range {@code [a,b]} spans {@code [s+len+a-2, s+len+b-1]}. The
+ * shift is the first line's only: a literal written over several lines (the engine's PRETTY
+ * printer breaks a list argument so) keeps its later lines' own columns, so the literal carries
+ * where each of its lines starts ({@link #lineStarts}).
  *
  * <p>Positions and offsets are excluded from equality, matching every other spec record.
  */
@@ -26,17 +29,23 @@ public record PathLiteral(
         @com.legend.base.Nullable String alias,
         boolean hasDatedSegment,
         @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
-        int literalLength) implements ValueSpecification {
+        int literalLength,
+        List<Integer> lineStarts) implements ValueSpecification {
 
+    /** {@code lineStarts}: the 0-based offset in the literal text of each line after its first
+     *  (the character after each line break), ascending; empty for a literal on one line. */
     public PathLiteral {
         Objects.requireNonNull(startType, "startType");
         Objects.requireNonNull(segments, "segments");
         Objects.requireNonNull(desugared, "desugared");
         segments = List.copyOf(segments);
+        lineStarts = List.copyOf(lineStarts);
     }
 
     /** One property segment: the name plus its 0-based inclusive char range inside the
-     *  literal text. A DATED segment ({@code prop(%latest)}, {@code prop(%2017-6-10)},
+     *  literal text, from just past its {@code /} (the engine's span starts at the {@code /},
+     *  whatever blank -- a line break included -- comes before the name) to its last char.
+     *  A DATED segment ({@code prop(%latest)}, {@code prop(%2017-6-10)},
      *  {@code prop(Enum.VALUE)}) records each argument as a typed {@link PathArg}; an
      *  argument outside that set marks the segment unsupported and the emitter walls. */
     public record Segment(String name, int innerStart, int innerEnd,

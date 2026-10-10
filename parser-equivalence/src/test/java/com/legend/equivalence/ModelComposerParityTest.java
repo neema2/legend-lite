@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -64,6 +65,17 @@ class ModelComposerParityTest {
     private static final int MIN_PRETTY_MODELS_MATCHED = 14383;   // 2026-10-09, leg 4
     private static final int MAX_PRETTY_MODELS_MISMATCHED = 0;
 
+    /** Prints (elements and whole models) where lite keeps a lambda's braces that upstream's dropping changes the
+     *  reading of, per style (docs/SEMANTICS_REGISTER.md S38; {@link #keepsBracesUpstreamDrops}). Counted among the
+     *  matched, as the exact decimals are, and pinned both ways. 2026-10-09, the protocol program's leg 5: 442 for a
+     *  sequence's first statement, 454 with receivers, operators and a lone column spec's lambda, 475 with a lambda
+     *  whose one statement is a parameterless lambda (upstream's ||, which does not parse) -- the same day. */
+    private static final int BRACES_KEPT = 475;
+
+    /** Prints where lite writes a typed column spec's multiplicity, which upstream's print leaves out (S39), per style;
+     *  counted among the matched and pinned both ways. 2026-10-09, the protocol program's leg 5. */
+    private static final int MULTIPLICITIES_KEPT = 24;
+
     /** A whole model's JSON nests far deeper than one request's default limit. */
     private static final Json.Config DEEP = new Json.Config(4096);
 
@@ -83,6 +95,170 @@ class ModelComposerParityTest {
     private static final String EXACT_DECIMAL_LITE = "10.10D->divide(";
     private static final String EXACT_DECIMAL_JSON = "\"value\":10.10";
 
+    /** Upstream's parser: which prints read alike ({@link #keepsBracesUpstreamDrops}). */
+    private final PureGrammarParser parser = PureGrammarParser.newInstance();
+
+    /**
+     * Where lite DELIBERATELY prints differently (docs/SEMANTICS_REGISTER.md, "a lambda's braces where dropping them
+     * changes the reading"; the protocol program's leg 5, the user's choice, 2026-10-09): lite's print is upstream's
+     * with braces added, nothing else; upstream's own parser reads the two prints differently, or cannot read
+     * upstream's at all ({@code ||}, a lambda's body opening with a parameterless lambda, lexes as the or operator) --
+     * a brace-less lambda takes in what follows it -- and reads lite's with the statement boundaries of the JSON
+     * printed ({@link #statementShapes}): the braces keep each lambda whole where it was. (The whole reading need not
+     * equal the JSON printed: an element can carry another of upstream's non-round-trips, such as {@code a + 2 == b}
+     * reading back as {@code a + (2 == b)}; those move no lambda.) Counted, not compared.
+     */
+    private int keepsBracesUpstreamDrops(String json, String expected, String actual) {
+        int kinds = added(expected, actual);
+        if (kinds == 0) {
+            return 0;
+        }
+        String liteReads;
+        try {
+            liteReads = mapper.writeValueAsString(parser.parseModel(actual, "", 0, 0, false));
+        } catch (RuntimeException | IOException e) {
+            return 0;
+        }
+        String upstreamReads;
+        try {
+            upstreamReads = mapper.writeValueAsString(parser.parseModel(expected, "", 0, 0, false));
+        } catch (RuntimeException | IOException e) {
+            upstreamReads = null;   // upstream's print does not parse
+        }
+        // a multiplicity counted as kept must be one upstream's print lost: its reading's column multiplicities differ
+        boolean multiplicitiesLost = (kinds & MULTIPLICITIES) == 0 || upstreamReads == null
+                || !columnMultiplicities(upstreamReads).equals(columnMultiplicities(json));
+        return !liteReads.equals(upstreamReads) && multiplicitiesLost
+                && statementShapes(liteReads).equals(statementShapes(json))
+                && columnMultiplicities(liteReads).equals(columnMultiplicities(json)) ? kinds : 0;
+    }
+
+    /** Braces lite added ({@link #keepsBracesUpstreamDrops}'s kinds): S38. */
+    static final int BRACES = 1;
+    /** A typed column spec's multiplicity lite added: S39. */
+    static final int MULTIPLICITIES = 2;
+
+    /**
+     * What {@code actual} adds to {@code expected}, nothing else changed: braces ({@link #BRACES}), whole multiplicity
+     * segments ({@code [1]}, {@code [*]}, {@code [0..1]}: {@link #MULTIPLICITIES}), or both; 0 when it is not that.
+     */
+    static int added(String expected, String actual) {
+        int i = 0;
+        int kinds = 0;
+        int k = 0;
+        while (k < actual.length()) {
+            char c = actual.charAt(k);
+            if (i < expected.length() && expected.charAt(i) == c) {
+                i++;
+                k++;
+            } else if (c == '{' || c == '}') {
+                kinds |= BRACES;
+                k++;
+            } else if (c == '[' && actual.indexOf(']', k) > k
+                    && actual.substring(k + 1, actual.indexOf(']', k)).matches("[0-9]+|\\*|[0-9]+\\.\\.([0-9]+|\\*)")) {
+                kinds |= MULTIPLICITIES;
+                k = actual.indexOf(']', k) + 1;
+            } else {
+                return 0;
+            }
+        }
+        return i == expected.length() ? kinds : 0;
+    }
+
+    /** Every column spec's declared multiplicity, depth first, by element (as {@link #statementShapes}): what S39's
+     *  printed multiplicities must read back as. */
+    static List<String> columnMultiplicities(String json) {
+        Json.Obj o = (Json.Obj) Json.parse(json, DEEP);
+        List<Json.Node> elements = o.fields().containsKey("elements") ? o.getArr("elements").items() : List.of(o);
+        List<String> out = new ArrayList<>();
+        for (Json.Node e : elements) {
+            Json.Obj element = (Json.Obj) e;
+            if (!"sectionIndex".equals(element.getStringOr("_type", ""))) {
+                List<String> found = new ArrayList<>();
+                columnMultiplicities(element, found);
+                out.add(element.getStringOr("package", "") + "::" + element.getStringOr("name", "") + " " + found);
+            }
+        }
+        out.sort(String::compareTo);
+        return out;
+    }
+
+    private static void columnMultiplicities(Json.Node node, List<String> out) {
+        if (node instanceof Json.Obj o) {
+            if ("classInstance".equals(o.getStringOr("_type", "")) && o.fields().get("value") instanceof Json.Obj value) {
+                String type = o.getStringOr("type", "");
+                if ("colSpec".equals(type)) {
+                    out.add(String.valueOf(value.fields().get("multiplicity")));
+                } else if ("colSpecArray".equals(type) && value.fields().get("colSpecs") instanceof Json.Arr specs) {
+                    for (Json.Node spec : specs.items()) {
+                        out.add(String.valueOf(((Json.Obj) spec).fields().get("multiplicity")));
+                    }
+                }
+            }
+            for (Json.Node f : o.fields().values()) {
+                columnMultiplicities(f, out);
+            }
+        } else if (node instanceof Json.Arr a) {
+            for (Json.Node item : a.items()) {
+                columnMultiplicities(item, out);
+            }
+        }
+    }
+
+    /**
+     * Each element's statement boundaries: every statement sequence in it (each {@code body}: a function's, a derived
+     * property's, a lambda's) by where it sits -- its path from the element, keys and indices -- and its length; by
+     * element path, the section index aside, sorted. A lambda the braces kept whole sits where the JSON printed has
+     * it, at its length; one that took in what followed it sits elsewhere or runs longer. {@code json} is a model or
+     * one element.
+     */
+    static List<String> statementShapes(String json) {
+        Json.Obj o = (Json.Obj) Json.parse(json, DEEP);
+        List<Json.Node> elements = o.fields().containsKey("elements") ? o.getArr("elements").items() : List.of(o);
+        List<String> out = new ArrayList<>();
+        for (Json.Node e : elements) {
+            Json.Obj element = (Json.Obj) e;
+            if (!"sectionIndex".equals(element.getStringOr("_type", ""))) {
+                List<String> bodies = new ArrayList<>();
+                bodies(element, "", bodies);
+                bodies.sort(String::compareTo);
+                out.add(element.getStringOr("package", "") + "::" + element.getStringOr("name", "") + " " + bodies);
+            }
+        }
+        out.sort(String::compareTo);
+        return out;
+    }
+
+    private static void bodies(Json.Node node, String path, List<String> out) {
+        if (node instanceof Json.Obj o) {
+            for (Map.Entry<String, Json.Node> f : o.fields().entrySet()) {
+                String at = path + "." + f.getKey();
+                if ("body".equals(f.getKey()) && f.getValue() instanceof Json.Arr body) {
+                    out.add(at + "=" + body.items().size());
+                }
+                bodies(f.getValue(), at, out);
+            }
+        } else if (node instanceof Json.Arr a) {
+            for (int i = 0; i < a.items().size(); i++) {
+                bodies(a.items().get(i), path + "[" + i + "]", out);
+            }
+        }
+    }
+
+    /** Whether {@code actual} is {@code expected} with '{' and '}' added, and nothing else. */
+    static boolean onlyBracesAdded(String expected, String actual) {
+        int i = 0;
+        for (int k = 0; k < actual.length(); k++) {
+            char c = actual.charAt(k);
+            if (i < expected.length() && expected.charAt(i) == c) {
+                i++;
+            } else if (c != '{' && c != '}') {
+                return false;
+            }
+        }
+        return i == expected.length() && actual.length() > expected.length();
+    }
+
     /** One render style's comparison: upstream's composer in that style, lite's printer in it, and the counts. */
     private final class Pass {
         final RenderStyle style;
@@ -95,6 +271,8 @@ class ModelComposerParityTest {
         final int[] models = new int[5];
         final int[] total = new int[5];
         int deliberate;
+        int bracesKept;
+        int multiplicitiesKept;
 
         Pass(RenderStyle style, PureComposer.Style lite) {
             this.style = style;
@@ -154,6 +332,11 @@ class ModelComposerParityTest {
         pin(standard, MIN_ELEMENTS_MATCHED, MAX_ELEMENTS_MISMATCHED, MIN_MODELS_MATCHED, MAX_MODELS_MISMATCHED);
         pin(pretty, MIN_PRETTY_ELEMENTS_MATCHED, MAX_PRETTY_ELEMENTS_MISMATCHED, MIN_PRETTY_MODELS_MATCHED,
                 MAX_PRETTY_MODELS_MISMATCHED);
+        for (Pass p : List.of(standard, pretty)) {
+            assertEquals(BRACES_KEPT, p.bracesKept, p.style + ": the prints where lite keeps braces upstream drops (S38) moved");
+            assertEquals(MULTIPLICITIES_KEPT, p.multiplicitiesKept,
+                    p.style + ": the prints where lite keeps a column spec's multiplicity upstream drops (S39) moved");
+        }
     }
 
     private void report(Pass p, int sources, int roundtripTexts) {
@@ -175,6 +358,10 @@ class ModelComposerParityTest {
         p.refusals.forEach((m, n) -> System.out.println(p.tag() + " refused " + n + " x " + m));
         p.diffs.stream().limit(30).forEach(d -> System.out.println(p.tag() + " DIFF " + d));
         System.out.println(p.tag() + " deliberate (exact decimals) " + p.deliberate);
+        System.out.println(p.tag() + " deliberate (braces kept where upstream's dropping them changes the reading) "
+                + p.bracesKept);
+        System.out.println(p.tag() + " deliberate (a column spec's multiplicity kept, which upstream's print drops) "
+                + p.multiplicitiesKept);
     }
 
     private static void pin(Pass p, int minElements, int maxElementsMismatched, int minModels, int maxModelsMismatched) {
@@ -289,6 +476,12 @@ class ModelComposerParityTest {
         // only where the JSON holds the exact 10.10: there lite's 10.10D is the value, and upstream's 10.1D the loss
         if (json.contains(EXACT_DECIMAL_JSON) && actual.equals(expected.replace(EXACT_DECIMAL_UPSTREAM, EXACT_DECIMAL_LITE))) {
             p.deliberate++;
+            return 0;
+        }
+        int kept = keepsBracesUpstreamDrops(json, expected, actual);
+        if (kept != 0) {
+            p.bracesKept += (kept & BRACES) != 0 ? 1 : 0;
+            p.multiplicitiesKept += (kept & MULTIPLICITIES) != 0 ? 1 : 0;
             return 0;
         }
         record(p.style + " " + id, json, expected);

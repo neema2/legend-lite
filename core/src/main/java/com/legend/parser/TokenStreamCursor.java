@@ -1215,6 +1215,15 @@ public interface TokenStreamCursor {
 
     default com.legend.protocol.SourceInfo spanOf(int fromTok, int toTok) {
         TokenStream ts = tokens();
+        if (ts.type(toTok) == TokenType.PATH_LITERAL) {
+            // a path literal is ONE token of the engine's lexer (NAVIGATION_PATH_BLOCK), and a span the
+            // engine ends at a token ends on that token's start line, its column the token's start
+            // column plus its raw length -- over several lines too (as docStringSpan's; legend-engine
+            // 4.145.0 probed: a let ending at a two-line path literal, the protocol program's leg 5)
+            return new com.legend.protocol.SourceInfo(spanSourceId(),
+                    ts.startLine(fromTok), ts.startColumn(fromTok),
+                    ts.startLine(toTok), ts.startColumn(toTok) + ts.end(toTok) - ts.start(toTok) - 1);
+        }
         return new com.legend.protocol.SourceInfo(spanSourceId(),
                 ts.startLine(fromTok), ts.startColumn(fromTok),
                 ts.endLine(toTok), ts.endColumn(toTok));

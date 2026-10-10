@@ -82,7 +82,7 @@ public final class CsvSeed {
     private static void blockSqls(String csv, @com.legend.base.Nullable String dbFqn, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect, List<Step> out) {
         String[] lines = csv.split("\n");
-        while (lines.length > 0 && lines[0].isBlank()) {
+        while (lines.length > 0 && lines[0].strip().isEmpty()) {
             lines = java.util.Arrays.copyOfRange(lines, 1, lines.length);
         }
         if (lines.length < 3) {
@@ -124,7 +124,7 @@ public final class CsvSeed {
         // both H2 (mirror replay) and DuckDB accept multi-row VALUES
         List<String[]> rows = new ArrayList<>();
         for (int i = 3; i < lines.length; i++) {
-            if (!lines[i].isBlank()) {
+            if (!lines[i].strip().isEmpty()) {
                 rows.add(cells(lines[i]));
             }
         }

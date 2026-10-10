@@ -47,7 +47,7 @@ final class CsvLoad {
         String[] lines = resources.apply(path).split("\r?\n");
         List<String[]> rows = new java.util.ArrayList<>();
         for (int i = 1; i < lines.length; i++) {   // the header row is dropped
-            if (lines[i].isBlank()) {
+            if (lines[i].strip().isEmpty()) {
                 continue;
             }
             String[] vals = lines[i].split(",", -1);

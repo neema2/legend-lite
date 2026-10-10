@@ -2156,7 +2156,7 @@ public final class ProtocolEmitter {
                     c.pos());
             case com.legend.protocol.spec.AppliedFunction f -> appliedFunction(b, f, null);
             case com.legend.protocol.spec.CFloat c ->
-                    literal(b, "float", String.valueOf(c.value()), c.pos());
+                    literal(b, "float", com.legend.json.PortableText.doubleText(c.value()), c.pos());
             case com.legend.protocol.spec.PackageableElementPtr ptr -> {
                 // the ROOT PACKAGE spelled '::' (fold(..., ::)) reaches the engine's
                 // serializer as a Java null — the wire carries LITERAL null (probe
@@ -2437,9 +2437,7 @@ public final class ProtocolEmitter {
                     valueSpec(b, new com.legend.protocol.spec.CLatestDate(span));
             case com.legend.protocol.spec.ColSpecArray ca ->
                     valueSpec(b, new com.legend.protocol.spec.ColSpecArray(ca.colSpecs(), span));
-            case com.legend.protocol.spec.ColSpec cs ->
-                    valueSpec(b, new com.legend.protocol.spec.ColSpec(cs.name(), cs.function1(),
-                            cs.function2(), cs.alias(), cs.args(), cs.qualified(), span));
+            case com.legend.protocol.spec.ColSpec cs -> colSpec(b, cs, span);
             case com.legend.protocol.spec.NewInstance ni ->
                     valueSpec(b, ni);   // ^X(...) carries no span on the wire at all
             case com.legend.protocol.spec.TypeAnnotation.Named named ->
@@ -2820,31 +2818,65 @@ public final class ProtocolEmitter {
     private static void pathLiteral(StringBuilder b, com.legend.protocol.spec.PathLiteral pl,
             @com.legend.base.Nullable SourceInfo outerOverride) {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
-        srcInfo(b, outerOverride != null ? outerOverride
-                : shifted(pl, 0, pl.literalLength() + 2));
+        srcInfo(b, outerOverride != null ? outerOverride : islandSpan(pl));
         b.append(",\"type\":\"path\",\"value\":");
         pathValue(b, pl);
         b.append('}');
     }
 
-    /** A span on the literal's line, {@code from..to} columns past {@code s+len} (the shift); none
-     *  when the literal has no position. */
+    /**
+     * A span inside a path literal as the engine writes it: it re-lexes the text between the {@code #}s as an island of
+     * its own (DomainParseTreeWalker.visitNavigationPath), whose lines count on from the literal's and whose FIRST line's
+     * columns are shifted right by the literal's column and its whole length -- the first line's only, as every island's
+     * (ParseTreeWalkerSourceInformation): a later line keeps its own columns. {@code from} is the island index (the
+     * literal's offset less its opening {@code #}) of the span's first character, {@code to} of its last, which ends a
+     * token on one line (no path token holds a line break). None when the literal has no position. On one line this is
+     * the "path offsets" rule (PathLiteral javadoc); over several, legend-engine 4.145.0 probed (the protocol program's
+     * leg 5, 2026-10-09: the PRETTY printer's {@code #/Person/f('a', [\n    'a',\n    'b'\n  ])#}).
+     */
     private static @com.legend.base.Nullable SourceInfo shifted(com.legend.protocol.spec.PathLiteral pl,
             int from, int to) {
         SourceInfo lit = pl.pos();
         if (lit == null) {
             return null;
         }
-        require(lit.startLine() == lit.endLine(), "multi-line path literal", pl.startType());
-        int base = lit.startColumn() + pl.literalLength();
-        return new SourceInfo(lit.sourceId(), lit.startLine(), base + from, lit.startLine(), base + to);
+        int[] start = islandPosition(pl, from);
+        int[] end = islandPosition(pl, to);
+        return new SourceInfo(lit.sourceId(), start[0], start[1], end[0], end[1]);
+    }
+
+    /** The whole island's span, as the engine's walker writes its definition's: from the first character to the
+     *  island's end-of-input token, which ends five columns ({@code <EOF>}) past where the island ends. */
+    private static @com.legend.base.Nullable SourceInfo islandSpan(com.legend.protocol.spec.PathLiteral pl) {
+        SourceInfo lit = pl.pos();
+        if (lit == null) {
+            return null;
+        }
+        int[] start = islandPosition(pl, 0);
+        int[] eof = islandPosition(pl, pl.literalLength() - 2);
+        return new SourceInfo(lit.sourceId(), start[0], start[1], eof[0], eof[1] + 4);
+    }
+
+    /** {line, column} of island index {@code i}: on the island's first line shifted by the literal's column and
+     *  length; on a later line, its own column. */
+    private static int[] islandPosition(com.legend.protocol.spec.PathLiteral pl, int i) {
+        SourceInfo lit = java.util.Objects.requireNonNull(pl.pos(), "pos");
+        int offset = i + 1;   // in the literal, past its opening '#'
+        List<Integer> starts = pl.lineStarts();
+        int line = 0;         // the later lines begun at or before the offset
+        while (line < starts.size() && starts.get(line) <= offset) {
+            line++;
+        }
+        return line == 0
+                ? new int[]{lit.startLine(), lit.startColumn() + pl.literalLength() + i}
+                : new int[]{lit.startLine() + line, offset - starts.get(line - 1) + 1};
     }
 
     /** The path VALUE object alone (no classInstance wrapper) — shifted
      *  spans as above; persistence graphFetch slots embed this directly. */
     static void pathValue(StringBuilder b,
             com.legend.protocol.spec.PathLiteral pl) {
-        SourceInfo outer = shifted(pl, 0, pl.literalLength() + 2);
+        SourceInfo outer = islandSpan(pl);
         b.append('{');
         if (pl.alias() != null) {
             // the !alias becomes the path's NAME, alphabetically first in the value
@@ -3098,11 +3130,19 @@ public final class ProtocolEmitter {
      *  outer and value spans are identical (ProbeWireShapes "path and cols" + "colspec
      *  fn spans"). */
     private static void colSpec(StringBuilder b, com.legend.protocol.spec.ColSpec cs) {
+        colSpec(b, cs, null);
+    }
+
+    /** Let-value form: the OUTER classInstance takes the letFunction span; the value keeps its own, as a path
+     *  literal's and a graph fetch's do (the own corpus: ModelComposerRoundTripTest's {@code let c = ~a:{x|$x.b}},
+     *  the protocol program's leg 5, 2026-10-09). */
+    private static void colSpec(StringBuilder b, com.legend.protocol.spec.ColSpec cs,
+            @com.legend.base.Nullable SourceInfo outerOverride) {
         require(cs.alias() == null && cs.args().isEmpty() && !cs.qualified(),
                 "colSpec with alias/args", cs.name());
         SourceInfo pos = cs.pos();
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
-        srcInfo(b, pos);
+        srcInfo(b, outerOverride != null ? outerOverride : pos);
         b.append(",\"type\":\"colSpec\",\"value\":");
         colSpecValue(b, cs, pos);
         b.append('}');

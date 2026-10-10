@@ -2930,14 +2930,14 @@ public final class Protocol {
                                 /** none when the JSON's assertions are empty (the engine prints {@code => ;}); the
                                  *  grammar always writes one */
                                 @com.legend.base.Nullable PAssertion assertion,
-                                /** the test's documentation ({@code AtomicTest.doc}), which the engine reads and
-                                 *  prints ({@code id 'doc' | ...}); lite's grammar does not take one yet */
+                                /** the test's documentation ({@code AtomicTest.doc}), read and printed as the
+                                 *  engine does ({@code id 'doc' | ...}) */
                                 @com.legend.base.Nullable String doc) {
         public PFunctionTest {
             parameters = List.copyOf(parameters);
         }
 
-        /** No documentation: what lite's grammar makes. */
+        /** No documentation. */
         public PFunctionTest(String id, @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation,
                 List<PTestParam> parameters, PAssertion assertion) {
             this(id, sourceInformation, parameters, assertion, null);

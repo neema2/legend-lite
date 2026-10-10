@@ -117,10 +117,16 @@ test_suite(
     tests = ["//pct:pct_channel_b"],
 )
 
-# parser equivalence (gate 8)
+# parser equivalence (gate 8), and the round trip (the protocol program's leg 5): in the JVM, and in the tab -- the
+# module asked over the same pinned inputs, which this lane already fetches; it builds the WebAssembly planner, about
+# 26 s to run
 test_suite(
     name = "parser_equivalence",
-    tests = ["//parser-equivalence:parser_parity"],
+    tests = [
+        "//parser-equivalence:parser_parity",
+        "//parser-equivalence:round_trip_proof",
+        "//wasm:round_trip_test",
+    ],
 )
 
 # the stress corpus (gate 10)

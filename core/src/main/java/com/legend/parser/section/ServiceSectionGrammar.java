@@ -303,7 +303,7 @@ public final class ServiceSectionGrammar
             }
             if (lt == TokenType.FLOAT) {
                 return new com.legend.protocol.spec.CFloat(
-                        Double.parseDouble("-" + txt), span);
+                        com.legend.protocol.NumberText.doubleOf("-" + txt), span);
             }
         }
         // path DOT ident → enumValue
@@ -465,8 +465,13 @@ public final class ServiceSectionGrammar
                         int d = 0;
                         while (!c.atEnd()) {
                             TokenType tk = c.peek();
+                            // an assertion ends at the list's ',' (the engine's grammar:
+                            // postValidationAssertion (COMMA postValidationAssertion)*, each
+                            // identifier COLON combinedExpression -- the brace-less lambda its
+                            // printer writes), or at a ';', which is the lambda's own (below)
                             if (d == 0 && (tk == TokenType.SEMI_COLON
-                                    || tk == TokenType.BRACKET_CLOSE)) {
+                                    || tk == TokenType.BRACKET_CLOSE
+                                    || tk == TokenType.COMMA)) {
                                 break;
                             }
                             if (tk == TokenType.PAREN_OPEN
@@ -480,9 +485,11 @@ public final class ServiceSectionGrammar
                             }
                             c.advance();
                         }
+                        // a ';' after it is the expression's own: a brace-less lambda's code block takes
+                        // it (the engine's grammar has no ';' here), and anything else refuses it
+                        c.match(TokenType.SEMI_COLON);
                         com.legend.protocol.spec.ValueSpecification lambda =
                                 com.legend.parser.SpecParser.parse(c.tokens().slice(ls, c.pos()), c.dialect());
-                        c.match(TokenType.SEMI_COLON);
                         // ALL assertion spans include the trailing ';' —
                         // the engine's walker parses `<lambda>;` as one
                         // slice, so the LAMBDA's own span extends through

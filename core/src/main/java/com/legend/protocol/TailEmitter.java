@@ -5,6 +5,8 @@ package com.legend.protocol;
 
 import java.util.List;
 
+import static com.legend.json.PortableText.doubleText;
+
 /**
  * Wire emission for the TAIL-section elements — Text,
  * GenerationSpecification, FileGeneration, Deephaven store, MongoDB,
@@ -589,10 +591,10 @@ final class TailEmitter {
             }
             b.append(",\"id\":");
             ProtocolEmitter.str(b, v.id());
-            b.append(",\"position\":{\"x\":").append(v.x())
-                    .append(",\"y\":").append(v.y())
-                    .append("},\"rectangle\":{\"height\":").append(v.height())
-                    .append(",\"width\":").append(v.width())
+            b.append(",\"position\":{\"x\":").append(doubleText(v.x()))
+                    .append(",\"y\":").append(doubleText(v.y()))
+                    .append("},\"rectangle\":{\"height\":").append(doubleText(v.height()))
+                    .append(",\"width\":").append(doubleText(v.width()))
                     .append("},\"sourceInformation\":");
             ProtocolEmitter.srcInfo(b, v.sourceInformation());
             b.append('}');
@@ -647,8 +649,8 @@ final class TailEmitter {
             if (i > 0) {
                 b.append(',');
             }
-            b.append("{\"x\":").append(points.get(i).x())
-                    .append(",\"y\":").append(points.get(i).y())
+            b.append("{\"x\":").append(doubleText(points.get(i).x()))
+                    .append(",\"y\":").append(doubleText(points.get(i).y()))
                     .append('}');
         }
         b.append("]}");

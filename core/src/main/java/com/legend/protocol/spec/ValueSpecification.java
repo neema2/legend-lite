@@ -147,7 +147,7 @@ public sealed interface ValueSpecification permits
             case CByteArray b -> b;                 // leaf
             case PathLiteral pl -> new PathLiteral(pl.startType(), pl.segments(),
                     (LambdaFunction) cs.get(0), pl.alias(), pl.hasDatedSegment(),
-                    pl.pos(), pl.literalLength());
+                    pl.pos(), pl.literalLength(), pl.lineStarts());
             case GraphFetchLiteral gf -> gf.withArguments(cs);
             case QuotedTreeCall q -> new QuotedTreeCall(
                     (AppliedFunction) cs.get(0), cs.get(1), q.pos());
