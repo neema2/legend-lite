@@ -8089,3 +8089,36 @@ after this phase. An argument typed more than once (PARK-6); `Any` with the type
 legend-pure lacks (PARK-8); the platform-rule rank (PARK-9); unported ranking parts (PARK-10); the legacy TDS functions
 by name (PARK-11, Phase 4); the boot layer's versions (PARK-12, Phase 3b); a debug trace (PARK-13); the dot-call
 fallback (PARK-14). Whether PARK-5 is fixed before this phase lands is the user's decision.
+
+## 2026-10-09 — DataCube pages, phase 3: sheets and stacked tiles (the DataCube + Python line)
+
+The design: `docs/DATACUBE_PAGES_DESIGN_2026_10_09.md` §5 (the user's decisions 5-7) and §7 (each decision made while
+building recorded "as built"). Landed as one fast-forward, `7d3096416..93e506e9b` (five commits):
+
+1. **Sheets (3a)**: the page's bar as a browser's tabs -- the menu, the page's name in a box (renamed in place; a dot
+   once changed since saved), a tab per sheet and a + (`datacube/src/ui/sheet-tabs.ts`, new: shown, renamed, reordered,
+   moved and deleted -- by its × or its menu -- the arrow keys as a tablist). A page is one or more sheets, each its own
+   board of bands (`page/cube-page.ts`); every tile on one; a chart follows its grid on any sheet; Move to Sheet from a
+   tile's menu or by dragging it onto a tab (`layout/band-board.ts` `outside`); a locked page switches sheets and moves
+   nothing. Saved as page version 3 (`page-document.ts`: `sheets` in place of `layout`; versions 1 and 2 read as one
+   sheet); a page reopens on its first sheet.
+2. **Stacked tiles (3b)**: a tile dropped on another's middle shares its place, as tabs in its header -- each with its
+   ×, the front one shown (`layout/bands.ts`: the stack, one place to Arrange, the keyboard and an export; `bringToFront`,
+   `reorderStack`, `asSaved`: a stack saved without its front, reopening on its first tab); a tab pressed shows its
+   tile, dragged along the strip reorders, dragged off takes its tile out, anywhere.
+3. **The download budget** for a grid-only page rises 368,000 -> 378,000 -> 381,000 bytes, dated (sheets +8,022, stacks
+   +2,369 measured).
+
+What judges it: `//datacube:sheet_tabs_test` (new), `//datacube:page_app_test` (new cases: sheets, the name box, Move to
+Sheet, a locked page, a sheet deleted, the readout following the sheet shown, a stacked grid's export), `//datacube:bands_test`
+(stacks, and the fuzz of 15,000 gestures stacking, bringing to the front and reordering tabs), `//datacube:band_board_test`
+(new cases: a stack's tabs, a tab dragged off and put back, reordering, the ×, a maximised stack), `//datacube:page_document_test`
+(version 3, sheets, stacks, versions 1 and 2), `//datacube:share_link_test`; in Chromium, `verify_layout_test` (a tile
+dragged onto a sheet's tab; a stack made, shown and taken apart) and `verify_cubes_test` (a page of two sheets, its chart
+following a grid on the other, saved, shared and reopened; a stack saved and reopened). Three browser checks that
+compared a page's `layout` now compare its `sheets` (with `layout` gone they compared nothing, and passed). Audited four
+times (0217b820a, then its fixes with bb1c8b30a, then daba2032f; 0 blockers, every should-fix fixed with a test). Local
+gate green on the tree but for four tests of the in-tab compiler (Query's and Studio's) that timed out under the
+machine's load (load average about 40) and pass alone; CI run 38005815382 on `ci/datacube-sheets`, green on the lanes
+with a path to `//datacube:src` (product, checks, warehouse, datacube, ui) on every platform (21 jobs; the Windows ui job
+once more after Maven Central answered one jar 404 and then served it); pushed to main as 93e506e9b, the tested commit.
