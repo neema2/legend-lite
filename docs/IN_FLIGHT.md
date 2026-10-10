@@ -485,8 +485,18 @@ the lite route; `relationTypeJson` (E5's twin) gone from both adapters, `planJso
 writes a refusal's kind as the routes name it, the DataCube + Python line's choice). **Landed 2026-10-10: leg 7**
 (6305ebef5; GATES 2026-10-10), the SDLC's rules free of Pure -- in `core/BUILD.bazel`, only two visibility lists
 (`:core` no longer visible to `//sdlc-server`; `:plan_side` visible to the new `//sdlc-server/grammar`, where
-`CoreGrammar` moved); the rest in `sdlc-server/` and the docs. Next: leg 8, and leg 9,
-imports and comments (added by the user, design first). Open, and not yet in the plan's legs: printing lite-only
+`CoreGrammar` moved); the rest in `sdlc-server/` and the docs. **Announced 2026-10-10 (core): leg 8**, a model sent
+as JSON straight from the protocol records into the compiler (the user's decision; design in
+`docs/PROTOCOL_PROGRAM_2026_10_05.md` leg 8, agreed with the Compiler Rewrite line -- positions -- and the Plan Gen /
+Exec Split line -- execute's compiled-model seam), on branch `leg8-records`, landing only after the Compiler Rewrite
+line's L7 step 2 has. Files: `core/.../model/` (`ModelFromProtocol`, new; `FromProtocol`; `ParsedModel`, a span map and
+its `position` accessor), `core/.../parser/section/` (each grammar's `toModel` delegating to the door),
+`core/.../parser/ElementParser.java` (`Data` through the door), `core/.../Compiler.java` (`compileModel` over records;
+the three error-decoration sites through `ParsedModel.position`), `core/.../Execution.java` (`executeWire` over a
+compiled model), `core/.../server/{PureV1Api,QueryService}.java` (the data context; `connectionOf` over records), and
+their tests; a text-versus-JSON oracle in `parser-equivalence/`. Its last step (the parser returning protocol only,
+`ElementParser.parse`'s callers moved) is announced on its own after L7 step 3. Then leg 9, imports and comments
+(added by the user, design first). Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`

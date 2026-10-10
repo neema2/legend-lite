@@ -428,6 +428,43 @@ not be written back, so it is refused.
    `PureModelContextData`, as upstream Studio sends. How the compiler takes a model given as records -- straight into
    its model (the direction ArchitectureTest 7c sets the parser) or through the text printed from them -- is decided
    at the leg's start, before code.
+   **Decided 2026-10-10 (the user): straight from the records.** A model sent as JSON is read into the typed
+   protocol records (`ModelReader`), and the records go into the compiler's model through the same converters text
+   already goes through -- never printed and parsed again. The design (the files and the overlap agreed with the
+   Compiler Rewrite line before code; its L7 changes how a call's names are recorded, not this path):
+   - **One door from records to the compiler: `ModelFromProtocol`** (in `com.legend.model`, beside `FromProtocol`):
+     a `PureModelContextData` to the compiler's `ParsedModel`. Each element by its kind: the Pure kinds through
+     `FromProtocol` and `MappingFromProtocol` (as the parser calls them today); the section kinds (Service, Runtime,
+     Data Space, Diagram, Text, ...) through their converters, which move out of the parser's section grammars
+     (`toModel`) to the model side, one per section, so the parser and the door call the same function. A section
+     index's imports apply to the elements its section lists, as legend-engine compiles them; without one (an SDLC's
+     entities) a model has no imports. An element kind with no converter is refused by name, never dropped.
+   - **Positions:** a JSON model's errors carry `[line:col]` only when its JSON carries source information (the
+     converters drop positions on purpose, `FromProtocol`'s rule). Agreed with the Compiler Rewrite line: the door
+     fills a fourth per-element map on `ParsedModel`, each element's span, keyed by `ParsedModel.keyOf` (a function's
+     id, otherwise its qualified name) and built and copied as `elementOffsets`, `elementImports` and `elementSources`
+     are (`parseSources`' per-source copy included); never both it and the offsets for one model. `ParsedModel` gets
+     ONE accessor, `position(key)` (`"[line:col]"`, from the source and offset for a text model, from the span for a
+     protocol one), and the three places that decorate an element's error today (`Compiler.compileModel`,
+     `parseSources`, the module path) call it, none of them asking which kind of model it has.
+   - **The routes:** compile (both), `lambdaRelationType`, `lambdaReturnType`, `generatePlan` and `execute` take
+     `{"_type":"data", ...}` as well as `{"_type":"text", ...}` (`Compiler.compileModel(PureModelContextData)`, the
+     same build after the door); a pointer context is still refused by name (not this leg). Python's Arrow route
+     keeps text (its host runs the models it serves, by their text). Execute compiles the model ONCE (it compiled it
+     twice: the route, for the query's target, and the runner again from the text): the route hands the compiled
+     model on -- `Runner.run(ModelContext, ...)`, `Execution.executeWire(ModelContext, ...)` beside the text
+     overload, which compiles and calls it -- the seam the execution plan's step 4 builds on (agreed with the Plan Gen /
+     Exec Split line, which keeps `boundParameters` as it is: step 4 deletes it).
+   - **`connectionOf` reads the records** (the text's by `PmcdParser.parseModel`, a JSON model's as read) and
+     writes the plan's connection from the record through the emitter, never from the parser's JSON.
+   - **The oracle:** every input of the round-trip proof (legend-engine's collection, lite's projects, the
+     showcase projects) compiled from its text and from its JSON (`grammarToJson/model` without source information)
+     gives the same model and the same errors, counted and pinned as leg 5's counts are; each route tested with both
+     contexts.
+   - **Last, the parser returns protocol only** (ArchitectureTest 7c's endgame, its `model..` allowance deleted):
+     the parser's remaining model building moves behind the door, and `ElementParser.parse`'s callers (about 44
+     files: the compiler's boot, `Prelude`, the tests, the corpora, the census) move to it -- mechanical, landed after
+     L7 (both touch `builtin/` and the compiler's callers).
 9. **Imports and comments through the round trip** (added 2026-10-10, the user: "add a leg to design/implement
    imports and comments too so we don't forget"). Today a model's text keeps both only because lite's own SDLC
    stores the text itself (`docs/STUDIO_DESIGN_2026_10_02.md` S13, S5), and imports are refused at save, as
