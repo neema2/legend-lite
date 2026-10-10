@@ -55,7 +55,7 @@ public final class PersistenceSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.FromProtocol.toPersistenceElement(element);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     /** One element: {@code Persistence} or {@code PersistenceContext}. */

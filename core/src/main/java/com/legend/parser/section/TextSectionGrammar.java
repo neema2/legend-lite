@@ -28,9 +28,7 @@ public final class TextSectionGrammar implements ElementwiseSectionGrammar {
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        Protocol.PText t = (Protocol.PText) element;
-        return new com.legend.model.GenericSectionElementDefinition("Text",
-                "Text", t.qualifiedName(), java.util.Map.of(), null);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     @Override

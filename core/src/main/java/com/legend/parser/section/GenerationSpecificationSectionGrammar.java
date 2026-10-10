@@ -33,11 +33,7 @@ public final class GenerationSpecificationSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        Protocol.PGenerationSpecification g =
-                (Protocol.PGenerationSpecification) element;
-        return new com.legend.model.GenericSectionElementDefinition(
-                "GenerationSpecification", "GenerationSpecification",
-                g.qualifiedName(), java.util.Map.of(), null);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     @Override

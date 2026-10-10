@@ -393,7 +393,7 @@ class RoundTripProofTest {
      * a showcase project's {@code <its repository>/<module>/src/main/pure/...} (the repository named
      * {@code ...legend_showcase_<name>}); each project's files in their path order.
      */
-    private static Map<String, List<Path>> projects() throws IOException {
+    static Map<String, List<Path>> projects() throws IOException {
         Path list = Runfile.property(PROJECTS_PROPERTY);
         Map<String, List<Path>> out = new TreeMap<>();
         for (String line : Files.readAllLines(list, StandardCharsets.UTF_8)) {

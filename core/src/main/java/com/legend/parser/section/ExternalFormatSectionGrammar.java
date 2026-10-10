@@ -39,11 +39,7 @@ public final class ExternalFormatSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        String kind = element instanceof Protocol.PSchemaSet ? "SchemaSet"
-                : "Binding";
-        return new com.legend.model.GenericSectionElementDefinition(
-                "ExternalFormat", kind, qualifiedNameOf(element),
-                java.util.Map.of(), null);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     @Override

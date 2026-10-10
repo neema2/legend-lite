@@ -139,11 +139,7 @@ public final class QueryPostProcessorSectionGrammar
     @Override
     public com.legend.model.PackageableElement toModel(
             Protocol.Element element) {
-        Protocol.PRelationalMapper rm = (Protocol.PRelationalMapper) element;
-        // parse-only element: the model carries the named carrier; no
-        // compiler phase opens it (like the other keyed-section kinds)
-        return new com.legend.model.GenericSectionElementDefinition(
-                "QueryPostProcessor", "RelationalMapper",
-                rm.qualifiedName(), java.util.Map.of(), null);
+        // parse-only element: the model carries the named carrier; no compiler phase opens it
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 }

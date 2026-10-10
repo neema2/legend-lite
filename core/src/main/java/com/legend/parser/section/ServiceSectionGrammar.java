@@ -58,7 +58,7 @@ public final class ServiceSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.FromProtocol.toServiceSectionElement(element);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     /** One element at the cursor: {@code Service} or

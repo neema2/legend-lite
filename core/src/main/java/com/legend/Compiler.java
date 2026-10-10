@@ -71,22 +71,43 @@ public final class Compiler {
      */
     public static ModelContext compileModel(@com.legend.base.Nullable String model) {
         Objects.requireNonNull(model, "model");
-        ParsedModel parsed = ElementParser.parse(model,
-                com.legend.parser.Dialect.LEGEND_LITE);
+        return buildPositioned(ElementParser.parse(model,
+                com.legend.parser.Dialect.LEGEND_LITE));
+    }
+
+    /**
+     * A model given as protocol records -- read from its JSON ({@code ModelReader}), as a client sends a
+     * {@code PureModelContextData} -- compiled as {@link #compileModel(String)} compiles a text: the records go into the
+     * compiler's model through the one door ({@code ModelFromProtocol}, the converters the parser uses), never printed
+     * and parsed again (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 8). An element's error carries {@code [line:col]} when
+     * its record carries source information.
+     */
+    public static ModelContext compileModel(com.legend.protocol.Protocol.PureModelContextData model) {
+        ParsedModel parsed;
+        try {
+            parsed = com.legend.model.ModelFromProtocol.of(Objects.requireNonNull(model, "model"));
+        } catch (com.legend.model.FromProtocol.UnsupportedConnectionShape
+                | com.legend.model.MappingFromProtocol.UnsupportedMappingShape u) {
+            // a shape the compiler's model cannot represent: a construct legend-lite does not compile (from text, the
+            // parser refuses the same shape at its position)
+            throw new com.legend.error.NotImplementedException(String.valueOf(u.getMessage()));
+        }
+        return buildPositioned(parsed);
+    }
+
+    /** {@link #buildModel}, an element's error decorated with where the element starts ({@code ParsedModel.position}:
+     *  the positions live on the model as given -- resolution rebuilds it without them -- so the driver is where the
+     *  source meets the failure). */
+    private static ModelContext buildPositioned(ParsedModel parsed) {
         try {
             return buildModel(parsed);
         } catch (com.legend.error.ModelException e) {
-            // Decorate with the offending ELEMENT's [line:col] — the offsets
-            // live on the original parse (resolution rebuilds ParsedModel
-            // without them), so the driver is where source meets failure.
-            Integer off = e.element() == null ? null
-                    : parsed.elementOffsets().get(e.element());
-            if (off == null || parsed.source() == null) {
+            java.util.Optional<String> where = e.element() == null ? java.util.Optional.empty()
+                    : parsed.position(e.element());
+            if (where.isEmpty()) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(),
-                    com.legend.error.LegendCompileException.position(parsed.source(), off)
-                            + " " + e.getMessage(), e.element());
+            throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
         }
     }
 
@@ -522,8 +543,7 @@ public final class Compiler {
                 throw e;
             }
             throw new com.legend.error.ModelException(e.phase(),
-                    srcName + " " + com.legend.error.LegendCompileException
-                            .position(java.util.Objects.requireNonNull(
+                    srcName + " " + ParsedModel.positionIn(java.util.Objects.requireNonNull(
                                     module.sourceTexts().get(srcName)), off)
                             + " " + e.getMessage(), e.element());
         }

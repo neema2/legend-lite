@@ -57,26 +57,10 @@ public abstract class LegendCompileException extends RuntimeException {
     /**
      * FQN of the model element the failure is about, when the throw site
      * knows it — the driver decorates the message with the element's
-     * {@code [line:col]} from the parse-time side index ({@code ParsedModel
-     * .elementOffsets}). Null when unknown.
+     * {@code [line:col]} ({@code ParsedModel.position}: its offset into the
+     * text, or its span when the model came as records). Null when unknown.
      */
     public @com.legend.base.Nullable String element() {
         return element;
-    }
-
-    /** Render a char offset in {@code source} as {@code [line:col]} (1-based). */
-    public static String position(String source, int offset) {
-        int line = 1;
-        int col = 1;
-        int end = Math.min(offset, source.length());
-        for (int i = 0; i < end; i++) {
-            if (source.charAt(i) == '\n') {
-                line++;
-                col = 1;
-            } else {
-                col++;
-            }
-        }
-        return "[" + line + ":" + col + "]";
     }
 }

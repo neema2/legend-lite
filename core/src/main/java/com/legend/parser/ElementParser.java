@@ -504,7 +504,7 @@ public final class ElementParser implements TokenStreamCursor {
         parseDecorations();
         parseQualifiedName();
         skipBalancedBlock();         // { <body> }
-        return new com.legend.model.DataDefinition(de.qualifiedName(), de);
+        return com.legend.model.ModelFromProtocol.element(de);
     }
 
     private boolean skipTopLevelNonElement() {

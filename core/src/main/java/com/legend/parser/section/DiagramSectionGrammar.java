@@ -106,9 +106,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        Protocol.PDiagram d = (Protocol.PDiagram) element;
-        return new com.legend.model.GenericSectionElementDefinition("Diagram",
-                "Diagram", d.qualifiedName(), java.util.Map.of(), null);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     private static Protocol.PDiagram parseDiagram(Raw r,

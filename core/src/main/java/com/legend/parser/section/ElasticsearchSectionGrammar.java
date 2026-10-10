@@ -36,11 +36,7 @@ public final class ElasticsearchSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        Protocol.PElasticsearch7Cluster s =
-                (Protocol.PElasticsearch7Cluster) element;
-        return new com.legend.model.GenericSectionElementDefinition(
-                "Elasticsearch", "Elasticsearch7Cluster", s.qualifiedName(),
-                java.util.Map.of(), null);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     @Override

@@ -104,22 +104,7 @@ public final class FunctionActivatorSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        Protocol.PFunctionActivator a = (Protocol.PFunctionActivator) element;
-        java.util.Map<String, String> fields = new java.util.LinkedHashMap<>(
-                a.scalars());
-        fields.put("function", a.functionPath());
-        if (a.ownerId() != null) {
-            fields.put("ownership", "Deployment " + a.ownerId());
-        }
-        if (a.userListUsers() != null) {
-            fields.put("ownership",
-                    "UserList " + String.join(",", a.userListUsers()));
-        }
-        if (a.activationConnection() != null) {
-            fields.put("activationConfiguration", a.activationConnection());
-        }
-        return new com.legend.model.SnowflakeActivatorDefinition(
-                a.qualifiedName(), a.kind(), fields);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     /** {@code XDeploymentConfiguration qn { activationConnection: qn; }}

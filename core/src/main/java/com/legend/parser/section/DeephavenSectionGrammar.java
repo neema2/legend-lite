@@ -48,13 +48,7 @@ public final class DeephavenSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        if (element instanceof Protocol.PFunctionActivator a) {
-            return APP.toModel(a);
-        }
-        Protocol.PDeephavenDatabase d = (Protocol.PDeephavenDatabase) element;
-        return new com.legend.model.GenericSectionElementDefinition(
-                "Deephaven", "Deephaven", d.qualifiedName(),
-                java.util.Map.of(), null);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     @Override

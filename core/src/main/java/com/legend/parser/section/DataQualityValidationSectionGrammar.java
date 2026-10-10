@@ -48,15 +48,7 @@ public final class DataQualityValidationSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        String kind = switch (element) {
-            case Protocol.PDataQualityValidation v -> "DataQualityValidation";
-            case Protocol.PDataQualityRelationValidation v ->
-                    "DataQualityRelationValidation";
-            default -> "DataQualityRelationComparison";
-        };
-        return new com.legend.model.GenericSectionElementDefinition(
-                "DataQualityValidation", kind, qualifiedNameOf(element),
-                java.util.Map.of(), null);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     @Override

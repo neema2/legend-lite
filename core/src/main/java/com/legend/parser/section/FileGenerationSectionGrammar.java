@@ -39,10 +39,7 @@ public final class FileGenerationSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        Protocol.PFileGeneration f = (Protocol.PFileGeneration) element;
-        return new com.legend.model.GenericSectionElementDefinition(
-                "FileGeneration", f.type(), f.qualifiedName(),
-                java.util.Map.of(), null);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     @Override

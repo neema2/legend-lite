@@ -54,8 +54,7 @@ public final class DataSpaceSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        return com.legend.model.FromProtocol.toDataSpaceDefinition(
-                (Protocol.PDataSpace) element);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     /** The engine's own enum names (DataSpaceRegion, DataSpaceDeliveryFrequency):

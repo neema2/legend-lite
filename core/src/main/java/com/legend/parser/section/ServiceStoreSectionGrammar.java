@@ -40,11 +40,7 @@ public final class ServiceStoreSectionGrammar
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        Protocol.PServiceStoreDefinition s =
-                (Protocol.PServiceStoreDefinition) element;
-        return new com.legend.model.GenericSectionElementDefinition(
-                "ServiceStore", "ServiceStore", s.qualifiedName(),
-                java.util.Map.of(), null);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     @Override

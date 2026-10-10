@@ -94,8 +94,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
         try {
-            return com.legend.model.FromProtocol.toConnectionElement(
-                    (Protocol.PConnection) element);
+            return com.legend.model.ModelFromProtocol.element(element);
         } catch (com.legend.model.FromProtocol.UnsupportedConnectionShape u) {
             throw new UnsupportedElementShape(u.reason());
         }

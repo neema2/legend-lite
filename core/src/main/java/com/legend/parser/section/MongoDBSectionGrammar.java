@@ -36,9 +36,7 @@ public final class MongoDBSectionGrammar implements ElementwiseSectionGrammar {
 
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
-        Protocol.PMongoDatabase m = (Protocol.PMongoDatabase) element;
-        return new com.legend.model.GenericSectionElementDefinition("MongoDB",
-                "Database", m.qualifiedName(), java.util.Map.of(), null);
+        return com.legend.model.ModelFromProtocol.element(element);
     }
 
     @Override

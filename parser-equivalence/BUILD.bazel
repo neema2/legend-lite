@@ -319,7 +319,11 @@ junit_test(
     ],
     exclude_tags = [],
     runtime_deps = [":pe_tests_lib"],
-    select = ["--select-class=com.legend.equivalence.RoundTripProofTest"],
+    # with leg 8's oracle over the same inputs: a model given as JSON reaches the compiler as its text does
+    select = [
+        "--select-class=com.legend.equivalence.RoundTripProofTest",
+        "--select-class=com.legend.equivalence.JsonModelDoorTest",
+    ],
     upstream = True,
 )
 

@@ -73,8 +73,7 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
     @Override
     public com.legend.model.PackageableElement toModel(Protocol.Element element) {
         try {
-            return com.legend.model.FromProtocol.toRuntimeElement(
-                    (Protocol.PRuntime) element);
+            return com.legend.model.ModelFromProtocol.element(element);
         } catch (com.legend.model.FromProtocol.UnsupportedConnectionShape u) {
             throw new UnsupportedElementShape(u.reason());
         }

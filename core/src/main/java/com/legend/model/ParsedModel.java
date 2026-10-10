@@ -9,8 +9,8 @@ import java.util.List;
  * {@link PackageableElement} declarations the parser saw, plus the
  * {@link ImportScope} accumulated from {@code import} statements.
  *
- * <p>The three side maps ({@code elementOffsets}, {@code elementImports},
- * {@code elementSources}) are keyed by {@link #keyOf the element's key}:
+ * <p>The side maps ({@code elementOffsets}, {@code elementImports},
+ * {@code elementSources}, {@code elementSpans}) are keyed by {@link #keyOf the element's key}:
  * a function's id, every other element's qualified name. They were keyed
  * by qualified name alone until 2026-10-09 (build rebuild Phase 3b, item
  * 5b), so a function's overloads shared one record and the last file read
@@ -33,11 +33,17 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                           java.util.Map<String, Integer> elementOffsets,
                           java.util.Map<String, ImportScope> elementImports,
                           java.util.Map<String, String> elementSources,
-                          List<UnclaimedSection> unclaimedSections) {
+                          List<UnclaimedSection> unclaimedSections,
+                          java.util.Map<String, Position> elementSpans) {
 
     /** A {@code ###} section no registered grammar claims — explicit and
      *  reportable, never lexer silence (SectionGrammarRegistry step 1). */
     public record UnclaimedSection(String name, int startOffset, int endOffset) {
+    }
+
+    /** Where an element starts, as a model given as protocol records says it ({@code ModelFromProtocol}): its
+     *  source information's start. A model parsed from text keeps offsets into its text instead. */
+    public record Position(int line, int column) {
     }
 
     public ParsedModel {
@@ -53,6 +59,56 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
                 : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(elementSources));
         unclaimedSections = unclaimedSections == null ? List.of()
                 : List.copyOf(unclaimedSections);
+        elementSpans = elementSpans == null ? java.util.Map.of()
+                : java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(elementSpans));
+        if (!elementSpans.isEmpty() && !elementOffsets.isEmpty()) {
+            // one model, one kind of position: offsets into its text, or the spans its records carried
+            throw new IllegalArgumentException("a model has offsets into a text or spans from its records, not both");
+        }
+    }
+
+    /** A model parsed from text: its elements' offsets into that text, and no spans. */
+    public ParsedModel(List<PackageableElement> elements, ImportScope imports,
+                       @com.legend.base.Nullable String source,
+                       java.util.Map<String, Integer> elementOffsets,
+                       java.util.Map<String, ImportScope> elementImports,
+                       java.util.Map<String, String> elementSources,
+                       List<UnclaimedSection> unclaimedSections) {
+        this(elements, imports, source, elementOffsets, elementImports, elementSources, unclaimedSections,
+                java.util.Map.of());
+    }
+
+    /**
+     * Where the element with key {@code key} ({@link #keyOf}) starts, as {@code "[line:col]"}: from its span for a
+     * model given as records, from its offset into the source for a model parsed from one text; empty when the model
+     * does not say (records without source information, a model with no source text). The one rule an error's
+     * position is decorated by.
+     */
+    public java.util.Optional<String> position(String key) {
+        Position span = elementSpans.get(key);
+        if (span != null) {
+            return java.util.Optional.of("[" + span.line() + ":" + span.column() + "]");
+        }
+        Integer offset = elementOffsets.get(key);
+        return offset == null || source == null ? java.util.Optional.empty()
+                : java.util.Optional.of(positionIn(source, offset));
+    }
+
+    /** {@code "[line:col]"} of char {@code offset} in {@code text}, both from 1 -- how an error names a place in the
+     *  text it was read from (a multi-source module's per-file texts as well as one model's). */
+    public static String positionIn(String text, int offset) {
+        int line = 1;
+        int col = 1;
+        int end = Math.min(offset, text.length());
+        for (int i = 0; i < end; i++) {
+            if (text.charAt(i) == '\n') {
+                line++;
+                col = 1;
+            } else {
+                col++;
+            }
+        }
+        return "[" + line + ":" + col + "]";
     }
 
     /**
