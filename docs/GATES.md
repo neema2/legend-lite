@@ -8234,3 +8234,26 @@ at load 35-52 and passed alone); CI run 38018795800 on `protocol-leg5-land2`, th
 `test_requests_at_once_are_each_answered` failed once, one of twelve concurrent answers missing, and passed on the rerun;
 reported to the DataCube + Python line). Pushed to main as 7c9a358ac (the leg a5db1086e and its local-gate record), the
 tested commit, with the Python / Datacube, Compiler Rewrite and Legend Query sessions' agreement on the order.
+
+## 2026-10-10 — TeaVM's number conversions made exact, the conformance test, PortableText retired (the Studio / SDLC / Depot line)
+
+After a GraalVM Web Image spike (`docs/WEB_IMAGE_SPIKE_2026_10_10.md`; the user kept the tab on TeaVM, held to the JDK by
+tests): `//wasm:conformance_test` (datacube lane) holds TeaVM's class library to the JDK's over what lite's browser code
+calls -- twenty families, 337,551 cases -- with a ledger of the known differences (`wasm/conformance-known.tsv`: counts and
+a digest of each differing case with both answers; it only shrinks). `third_party/teavm_classlib` corrects the numbers:
+`ExactDecimal` (the decimal `Double`/`Float.toString` write and the value `valueOf` reads, from the Java SE specification
+and the papers, clean room) and four of TeaVM 0.15.0's classes (`TAbstractStringBuilder`, `TDouble`, `TFloat`,
+`TBigDecimal`: equals, an overflowing half-way test, digit counts, a miscounted precision, the conversions), put first on
+every `teavm_wasm` build's class path; every number family now equal to the JDK in the tab. `MODULE.bazel` declares
+`teavm-interop`. `//third_party/teavm_classlib:tests` (core lane) holds `ExactDecimal` and `TBigDecimal` to the JDK on
+the JVM (nine million values per family ran clean before landing, `evidence/teavm-numbers/`). PARK-23 restated to its
+speed clause (the exact route, in the tab only). Then `PortableText` retired: core's protocol and parser back on the JDK's
+own conversions (the server's win), `ArchitectureTest` keeping only the `isBlank` ban. Also landed: the order census
+(`evidence/order-census/`) and the clean-room rule.
+
+One audit (1 blocker -- `precision()` of `Long.MIN_VALUE` -- and 5 should-fix, all fixed in the commit; the Bazel review
+in it). Local gate green on each commit (324, then 326 tests). CI run 38060347709 found the conformance ledger's regex
+digest differing on Windows (the JDK's `PatternSyntaxException` message carries the platform's line separator; the probe
+now writes `\n`), cancelled for the fix; CI run 38061598321 on `teavm-numbers-land` (b45004732), the full gate on every
+platform, green. Pushed to main as 3f9388f7b (the tested commit and documentation), the user's go, the Legend Query
+session's licensing PR next by agreement.
