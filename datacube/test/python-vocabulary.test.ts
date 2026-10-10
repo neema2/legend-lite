@@ -1,7 +1,8 @@
 // What Python's ll.Page writes (python/legend_lite/page.py; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md), in
-// DataCube's own words: its filter operators, aggregates, sort directions and charts, and the page's and the cube's
-// versions, each the set DataCube's sources spell -- so a name added here is one Python offers too, and Python never
-// writes one DataCube does not read. It reads both sides as text: the two halves are in two languages.
+// DataCube's own words: its filter operators, aggregates, sort directions and charts, the page's and the cube's
+// versions, and the numbers a layout places tiles by, each as DataCube's sources spell them -- so a name added here is
+// one Python offers too, and Python never writes one DataCube does not read, nor places a tile where DataCube would
+// not. It reads both sides as text: the two halves are in two languages.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -28,9 +29,9 @@ function python(name: string): string[] {
   return [...body.matchAll(/'([A-Za-z]+)'/g)].map((m) => m[1]!).sort();
 }
 
-/** A numeric constant: `export const NAME = 3;` in TypeScript, `NAME = 3` in Python. */
-const tsNumber = (file: string, name: string): number => Number(new RegExp(`export const ${name} = (\\d+);`).exec(SOURCES.read(file))?.[1]);
-const pyNumber = (name: string): number => Number(new RegExp(`^${name} = (\\d+)$`, 'm').exec(PYTHON)?.[1]);
+/** A numeric constant: `export const NAME = 0.5;` in TypeScript, `NAME = 0.5` in Python. */
+const tsNumber = (file: string, name: string): number => Number(new RegExp(`export const ${name} = ([\\d.]+);`).exec(SOURCES.read(file))?.[1]);
+const pyNumber = (name: string): number => Number(new RegExp(`^${name} = ([\\d.]+)$`, 'm').exec(PYTHON)?.[1]);
 
 describe('Python writes pages in DataCube\'s own words', () => {
   it('its filter operators are the filter editor\'s', () => {
@@ -48,5 +49,13 @@ describe('Python writes pages in DataCube\'s own words', () => {
   it('its page and cube versions are the documents\'', () => {
     assert.equal(pyNumber('PAGE_VERSION'), tsNumber('src/page-document.ts', 'PAGE_VERSION'));
     assert.equal(pyNumber('CUBE_VERSION'), tsNumber('src/cube-document.ts', 'CUBE_VERSION'));
+  });
+
+  it('it places a tile as the layout does: a new band\'s height, the places a band holds', () => {
+    for (const name of ['BAND_HEIGHT', 'MAX_COLUMNS']) {
+      const ts = tsNumber('src/layout/bands.ts', name);
+      assert.ok(ts > 0, `bands.ts declares ${name}`);
+      assert.equal(pyNumber(name), ts, name);
+    }
   });
 });

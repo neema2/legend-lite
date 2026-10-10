@@ -137,6 +137,9 @@ try {
   tabbed.on('pageerror', (e) => { console.log(`page tab error: ${e.message}`); failed = true; });
   tabbed.on('console', (m) => { if (m.type() === 'error') console.log(`page tab console: ${m.text()}`); });
   tabbed.on('response', (r) => {
+    // the one refusal that is not a failure: the page's report of a version Python replaced while it was on its way
+    // (engine.py, _page_said), the page then opening the new one
+    if (r.status() === 409 && r.request().method() === 'POST' && new URL(r.url()).pathname === '/page.json') return;
     if (r.status() >= 400) { console.log(`FAIL page tab answer ${r.status()}: ${r.url()}`); failed = true; }
   });
   await tabbed.goto(`${origin}/engine.html?page=q3${new URL(served.link).hash}`);

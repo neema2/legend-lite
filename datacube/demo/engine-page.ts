@@ -9,13 +9,16 @@
 //   - each frame: `cube.json?table=<name>`, its model, runtime and source, as for one cube;
 //   - that something changed: the page's version (Python changed the page: it is opened again, on the sheet shown) and
 //     each frame's (a frame updated: the grids over it query again), from `version.json?page=<name>` or the widget.
-// And it says what it is now: its document, posted to `page.json?page=<name>` as it changes (a sheet arranged, a chart
-// added in DataCube), for Python's `page.read()`.
+// And it says what it is now: its document, posted to `page.json?page=<name>&version=<n>` as it changes (a sheet
+// arranged, a chart added in DataCube), for Python's `page.read()` -- with the version it opened, so what it says of a
+// document Python has since replaced is refused, never read back as now. Both ways the document is the protocol's exact
+// JSON (a calculated column's `12.30` stays `12.30`), and what a newer writer put in it is written back as it was.
 
 import { CubeApp, RemoteRun, sourceColumns } from '../src/embed.ts';
 import { LegendEngineExecutor } from '../../engine-client/src/engine-remote.ts';
 import { openCube, type CubeDocument, type FrameSource } from '../src/cube-document.ts';
 import { pageToJson, readPage, type PageDocument } from '../src/page-document.ts';
+import { ExactNumber, fromJson } from '../../pure-protocol/src/index.ts';
 import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import { asked, type CubeConfig, type EngineLink } from './engine-cube.ts';
 
@@ -24,9 +27,10 @@ export interface PageLink extends Omit<EngineLink, 'table'> {
   readonly page: string;
 }
 
-/** What the engine says the page is: its document and its version (how often Python changed it). */
+/** What the engine says the page is, as the protocol's exact JSON reads it: its document and its version (how often
+ * Python changed it). */
 interface PageAnswer {
-  readonly version: number;
+  readonly version: unknown;
   readonly page: unknown;
 }
 
@@ -47,9 +51,11 @@ async function askedPage(link: PageLink): Promise<{ version: number; page: PageD
     .catch((e: unknown) => String(e));
   if (typeof answer === 'string') return `the engine did not answer: ${answer}`;
   if (!answer.ok) return `the engine did not say what to show: ${answer.status} ${await answer.text()}`;
-  const said = (await answer.json()) as PageAnswer;
   try {
-    return { version: said.version, page: readPage(said.page) };
+    const said = fromJson(await answer.text()) as PageAnswer;
+    const version = said.version instanceof ExactNumber && said.version.isInteger ? Number(said.version.text) : NaN;
+    if (!Number.isSafeInteger(version)) return 'the engine said no version of the page';
+    return { version, page: readPage(said.page) };
   } catch (e) {
     return e instanceof Error ? e.message : String(e);
   }
@@ -91,6 +97,11 @@ export class EnginePage {
   /** Each frame as the engine said it was when the page was opened (a model that changes opens the page again). */
   #frames = new Map<string, CubeConfig>();
   #title = '';
+  /** The version of the page it shows (the document opened last), which its reports name. */
+  #shown = 0;
+  /** What the document opened had that this page does not read -- the page's own fields, each grid's cube's -- written
+   * back in its reports as it was (boot.ts keeps a saved page's the same way). */
+  #unknown: { page?: Readonly<Record<string, unknown>>; cubes: Map<string, Readonly<Record<string, unknown>>> } = { cubes: new Map() };
   /** Its document's next report to the engine, while a change waits to settle. */
   #reporting: ReturnType<typeof setTimeout> | undefined;
   #disposed = false;
@@ -117,7 +128,7 @@ export class EnginePage {
     });
     const opened = new EnginePage(link, page, { version: doc.version, frames: {} });
     changed = () => opened.#changed();
-    await opened.#show(doc.page);
+    await opened.#show(doc.page, doc.version);
     // the frames' versions as the page opened over them: a later move is a change to follow
     const versions = await askedVersions(link);
     if (typeof versions !== 'string') opened.#versions = { version: doc.version, frames: versions.frames };
@@ -142,7 +153,11 @@ export class EnginePage {
   async follow(versions: Versions): Promise<string | undefined> {
     const was = this.#versions;
     this.#versions = versions;
-    if (versions.version !== was.version) return this.#reopen();
+    if (versions.version !== was.version) {
+      // a report waiting to go is of the document being replaced: it goes no more
+      clearTimeout(this.#reporting);
+      return this.#reopen();
+    }
     for (const [frame, version] of Object.entries(versions.frames)) {
       if (was.frames[frame] === version) continue;
       const now = await asked({ ...this.#link, table: frame });
@@ -169,9 +184,10 @@ export class EnginePage {
   /** Its document as it is now, to the engine (Python's `page.read()`): a page the engine no longer serves says nothing. */
   async #report(): Promise<void> {
     if (this.#disposed) return;
-    const doc = this.#page.document(this.#title);
+    const doc = this.#page.document(this.#title, this.#unknown);
     if (!doc) return;
-    await this.#link.fetch(`${this.#link.baseUrl}/page.json?page=${encodeURIComponent(this.#link.page)}`, {
+    const at = `page=${encodeURIComponent(this.#link.page)}&version=${this.#shown}`;
+    await this.#link.fetch(`${this.#link.baseUrl}/page.json?${at}`, {
       method: 'POST',
       headers: { ...headers(this.#link), 'Content-Type': 'application/json' },
       body: pageToJson(doc),
@@ -183,13 +199,13 @@ export class EnginePage {
     const doc = await askedPage(this.#link);
     if (typeof doc === 'string') return doc;
     const shown = this.#page.shownSheet;
-    await this.#show(doc.page);
+    await this.#show(doc.page, doc.version);
     if (this.#page.sheets.includes(shown)) this.#page.showSheet(shown);
     return undefined;
   }
 
-  /** `doc` on the page: each cube's frame asked for, its grid made over it, the page restored as saved. */
-  async #show(doc: PageDocument): Promise<void> {
+  /** `doc` (the page's `version`) on the page: each cube's frame asked for, its grid made over it, the page restored. */
+  async #show(doc: PageDocument, version: number): Promise<void> {
     this.#title = doc.name;
     const makers = new Map<string, GridMaker>();
     const frames = new Map<string, CubeConfig>();
@@ -204,6 +220,14 @@ export class EnginePage {
     }
     this.#frames = frames;
     this.#grids.clear();
+    // each cube's fields this page does not read, by the grid it is shown in (its grid view's id, or its own)
+    const gridOf = (cube: string): string => doc.views.find((v) => v.kind === 'grid' && v.cube === cube)?.id ?? cube;
+    this.#unknown = {
+      ...(doc.unknown ? { page: doc.unknown } : {}),
+      cubes: new Map(doc.cubes.filter((c) => c.cube.unknown).map((c) => [gridOf(c.id), c.cube.unknown!])),
+    };
+    // what it reports from now on is of this version (restoring it is a change, reported once it settles)
+    this.#shown = version;
     this.#page.restore(doc, makers);
     this.#page.setTitle(doc.name);
     await this.#page.ready();

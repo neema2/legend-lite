@@ -53,7 +53,7 @@ py_library(
 
 # DataCube's vocabularies as page.py copies them (its filter operators, aggregates, charts, the page's version), read by
 # DataCube's own test against DataCube's sources (//datacube:python_vocabulary_test)
-# (in the output tree: a js_test takes a file of another package only from there)
+# (rules_js takes another package's source file only from the output tree, copied in its own package)
 copy_to_bin(
     name = "page_source",
     srcs = ["legend_lite/page.py"],

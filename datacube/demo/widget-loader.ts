@@ -58,7 +58,9 @@ export function channel(model: WidgetModel): { readonly fetch: typeof globalThis
     const call = waiting.get(message.id);
     if (call === undefined) return;
     waiting.delete(message.id);
-    call.resolve(new Response(buffers?.[0] ?? null, {
+    // a status that has no body (a 204) is answered with none: a Response refuses one, even empty
+    const bodiless = [101, 103, 204, 205, 304].includes(message.status);
+    call.resolve(new Response(bodiless ? null : buffers?.[0] ?? null, {
       status: message.status,
       headers: { ...message.headers, 'Content-Type': message.type },
     }));

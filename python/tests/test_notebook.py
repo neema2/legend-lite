@@ -39,6 +39,8 @@ class Widget(unittest.TestCase):
     def tearDown(self):
         for cube in list(datacube._session.cubes.values()):
             cube.close()
+        for view in list(datacube._session.pages):
+            view.close()
 
     def cube(self, frame=None, **given):
         cube = DataCube(trades() if frame is None else frame, **given)
@@ -193,7 +195,7 @@ class InAKernel(Widget):
 
     def display(self, shown, **given):
         # what reaches the notebook: a widget's view, or the bundle a widget displays itself as
-        if isinstance(shown, DataCube):
+        if isinstance(shown, notebook._EngineWidget):
             shown._ipython_display_()
         else:
             self.displayed.append((shown, given))
@@ -250,6 +252,29 @@ class InAKernel(Widget):
         with mock.patch.object(IPython, 'get_ipython', lambda: None):
             self.assertIsInstance(ll.show(trades(), browser=False), datacube.Cube)
 
+    def test_a_page_shows_under_the_cell_once_and_its_widget_is_shown_again(self):
+        page = ll.Page('P')
+        with self.assertRaisesRegex(ValueError, 'a grid at least'):
+            ll.show(page)
+        page.grid(trades(), name='t')
+        first = ll.show(page)
+        self.assertIsInstance(first, notebook.PageCube)
+        self.assertEqual(len(self.displayed), 1)
+        first._ipython_display_()
+        self.assertEqual(len(self.displayed), 1, 'the cell\'s result shows no second copy')
+        # shown again: the page's own widget, displayed again here (not a second widget following the page)
+        again = ll.show(page)
+        self.assertIs(again, first)
+        self.assertEqual(len(self.displayed), 2)
+        self.assertEqual(datacube._session.pages, [first])
+        # after the cell, typed again it shows again (the session tells the page's views a cell ended)
+        self.cell_ends()
+        first._ipython_display_()
+        self.assertEqual(len(self.displayed), 3)
+        # a change in Python moves its versions, which its page follows
+        page.sheet('More')
+        self.assertEqual(first.versions['version'], 2)
+
 
 class WithoutTheExtra(unittest.TestCase):
     def test_without_anywidget_the_import_says_how_to_install_it(self):
@@ -295,6 +320,8 @@ class InMarimo(Widget):
         for session in list(datacube._marimo_sessions.values()):
             for cube in list(session.cubes.values()):
                 cube.close()
+            for view in list(session.pages):
+                view.close()
         datacube._marimo_sessions.clear()
         super().tearDown()
 
@@ -345,6 +372,19 @@ class InMarimo(Widget):
 
     def test_inline_false_still_opens_a_tab(self):
         self.assertIsInstance(ll.show(trades(), browser=False, inline=False), datacube.Cube)
+
+    def test_a_page_is_the_cell_s_output_and_closes_with_its_cell(self):
+        page = ll.Page('P')
+        page.grid(trades(), name='t')
+        cube = ll.show(page)
+        self.assertIsInstance(cube, notebook.PageCube)
+        self.assertEqual(self.displayed, [], 'marimo shows the cell\'s last expression: show() adds nothing')
+        self.assertEqual(len(self.items), 1)
+        engine = datacube._current().engine()
+        self.assertIsNotNone(engine.page_versions(page._key))
+        self.cell_runs_again()
+        self.assertTrue(cube._closed)
+        self.assertIsNone(engine.page_versions(page._key), 'served no more')
 
     def test_outside_a_cell_the_cube_works_and_says_it_keeps_its_frame(self):
         self.context.cell_id = None

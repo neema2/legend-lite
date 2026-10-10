@@ -1,6 +1,7 @@
 """legend_lite's bindings: trees in and out, exact numbers, typing and planning, refusals as
 LegendError, several threads at once, and every answer freed."""
 
+import json
 import os
 import threading
 import unittest
@@ -38,6 +39,10 @@ class Trees(unittest.TestCase):
         self.assertEqual(values, [Decimal('1.50'), 9007199254740993, Decimal('0.1')])
         self.assertEqual(ll.print_tree(tree, 'STANDARD'), '|[1.50D, 9007199254740993, 0.1]')
         self.assertEqual(_json.dumps({'d': Decimal('12.30'), 'i': 2 ** 70}), '{"d":12.30,"i":1180591620717411303424}')
+        # laid out as json.dumps lays it out, the numbers still exact
+        value = {'a': [1, {'b': 'é', 'c': []}, {}], 'd': None, 'e': [True, 0.5]}
+        self.assertEqual(_json.dumps(value, indent=2), json.dumps(value, indent=2, ensure_ascii=False))
+        self.assertEqual(_json.dumps({'d': Decimal('12.30')}, indent=2), '{\n  "d": 12.30\n}')
 
     def test_a_refusal_says_what_and_where(self):
         with self.assertRaises(ll.LegendError) as e:

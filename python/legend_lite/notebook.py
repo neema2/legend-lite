@@ -24,7 +24,7 @@ import threading
 import traceback
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 try:
     import anywidget
@@ -189,6 +189,7 @@ class PageCube(_EngineWidget):
 
     def __init__(self, page: Any, *, height: int = 640) -> None:
         self._closed = True
+        page._showable()
         session = page._session
         engine = session.engine()
         assert engine.site is not None  # the session's engine always has DataCube's site
@@ -236,6 +237,22 @@ def for_marimo(frame: Any, name: str | None, mode: str) -> DataCube:
     public hook for that: this is its own (``CellLifecycleItem``, by which it closes every widget's channel), held by
     //datacube:marimo_test at the pinned marimo. Without it -- a marimo that moved it, or a show() run outside a cell (a
     UI element's callback) -- the cube works and keeps its frame until ``close()``, and says so once."""
+    return _closes_with_its_cell(DataCube(frame, name, mode=mode), 'its frame')
+
+
+def page_for_marimo(page: Any) -> PageCube:
+    """``show(page)`` in a marimo notebook: the page under a new widget, for the cell to show as its output, closed
+    with its cell as a frame's cube is (``for_marimo``)."""
+    return _closes_with_its_cell(PageCube(page), 'its page served')
+
+
+_Closable = TypeVar('_Closable', bound=_EngineWidget)
+
+
+def _closes_with_its_cell(cube: _Closable, kept: str) -> _Closable:
+    """``cube`` closed when the marimo cell that made it runs again or is deleted -- through marimo's own hook
+    (``CellLifecycleItem``, by which it closes every widget's channel), held by //datacube:marimo_test at the pinned
+    marimo. Without it, the cube keeps ``kept`` until ``close()``, and says so once."""
     registry = None
     try:
         from marimo._runtime.cell_lifecycle_item import CellLifecycleItem
@@ -244,12 +261,10 @@ def for_marimo(frame: Any, name: str | None, mode: str) -> DataCube:
         if context.cell_id is not None:
             registry = context.cell_lifecycle_registry
     except (ImportError, AttributeError):
-        _warn_once('this marimo has no cell lifecycle legend-lite knows: a cube keeps its frame until cube.close()')
-    else:
-        if registry is None:
-            _warn_once('show() ran outside a marimo cell: its cube keeps its frame until cube.close()')
-    cube = DataCube(frame, name, mode=mode)
+        _warn_once(f'this marimo has no cell lifecycle legend-lite knows: a cube keeps {kept} until cube.close()')
+        return cube
     if registry is None:
+        _warn_once(f'show() ran outside a marimo cell: its cube keeps {kept} until cube.close()')
         return cube
 
     class ClosesWithItsCell(CellLifecycleItem):
@@ -291,9 +306,12 @@ def shown(frame: Any, name: str | None, mode: str) -> DataCube:
 
 
 def shown_page(page: Any) -> PageCube:
-    """``show(page)`` in a notebook: the page under this cell, live."""
-    cube = PageCube(page)
+    """``show(page)`` in a notebook: the page under this cell, live -- the page's own widget when it has one open (shown
+    again here), else a new one."""
+    cube = next((v for v in page._shown if isinstance(v, PageCube) and not v._closed), None) or PageCube(page)
     from IPython.display import display
+    # shown here, even when it was in this cell already (show(page) again)
+    cube._shown_here = False
     display(cube)
     cube._shown_here = True
     return cube

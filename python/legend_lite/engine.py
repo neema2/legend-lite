@@ -48,7 +48,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.ipc
 
-from . import compiler
+from . import _json, compiler
 from .frames import Frames
 
 _API = '/api/pure/v1/'
@@ -175,7 +175,8 @@ class Engine:
         # the pages it serves (Python's ll.Page; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md): each its document --
         # DataCube's page document, its cubes over these frames -- and its version, moved each time it is served again
         self._pages: dict[str, tuple[int, dict[str, Any]]] = {}
-        # each page's document as the open page says it is now (its changes made in DataCube included: page.read())
+        # each page's document as the open page says it is now (its changes made in DataCube included: page.read()).
+        # Documents are kept as the compiler's exact JSON reads them (_json): a calculated column's numbers exact
         self._read: dict[str, dict[str, Any]] = {}
 
     def answer(self, method: str, path: str, query: str, body: str | None) -> Answer:
@@ -277,37 +278,47 @@ class Engine:
             served = self._pages.get(name)
         if served is None:
             return _said(404, f'this engine serves no page named {name!r}')
-        return Answer(200, 'application/json', json.dumps({'version': served[0], 'page': served[1]}).encode('utf-8'))
+        return Answer(200, 'application/json', _json.dumps({'version': served[0], 'page': served[1]}).encode('utf-8'))
 
     def _page_said(self, query: str, body: str) -> Answer:
-        """The open page's document as it is now (posted by the page as it changes): kept for ``read_page``."""
-        name = parse_qs(query).get('page', [''])[0]
-        with self._changes:
-            if name not in self._pages:
-                return _said(404, f'this engine serves no page named {name!r}')
+        """The open page's document as it is now (posted by the page as it changes, with the version it opened):
+        kept for ``read_page`` -- unless the page has been served again since, when what it says is of a document
+        Python has replaced (409), and the page opens the new one."""
+        asked = parse_qs(query)
+        name = asked.get('page', [''])[0]
+        version = asked.get('version', [''])[0]
+        if not version.isdigit():
+            return _said(400, 'a page says what it is with the version it opened (version=n)')
         try:
-            document = json.loads(body)
+            document = _json.loads(body)
         except ValueError:
             return _said(400, 'a page is its document, as JSON')
         if not isinstance(document, dict) or document.get('kind') != 'datacube.page':
             return _said(400, 'a page is its document (kind datacube.page)')
         with self._changes:
+            served = self._pages.get(name)
+            if served is None:
+                return _said(404, f'this engine serves no page named {name!r}')
+            if served[0] != int(version):
+                return _said(409, f'the page {name!r} is at version {served[0]}: what version {version} says is replaced')
             self._read[name] = document
         return Answer(204, 'text/plain; charset=utf-8', b'')
 
     def read_page(self, name: str) -> dict[str, Any] | None:
-        """A page's document as the open page last said it is (its changes made in DataCube included), or None when it
-        has said nothing since it was served."""
+        """A page's document as the open page last said it is (its changes made in DataCube included), a copy -- or
+        None when it has said nothing since it was served."""
         with self._changes:
-            return self._read.get(name)
+            said = self._read.get(name)
+        return None if said is None else _json.loads(_json.dumps(said))
 
     def serve_page(self, name: str, document: dict[str, Any]) -> int:
-        """Serves ``document`` -- DataCube's page document (version 3), each cube over one of this engine's frames
-        (``{"_type": "frame", "name": ...}``) -- as the page ``name``; served again, its version moves, and a page open
-        on it opens it again. Returns its version."""
+        """Serves a copy of ``document`` -- DataCube's page document (version 3), each cube over one of this engine's
+        frames (``{"_type": "frame", "name": ...}``) -- as the page ``name``; served again, its version moves, and a page
+        open on it opens it again. Returns its version."""
+        kept = _json.loads(_json.dumps(document))
         with self._changes:
             version = self._pages.get(name, (0, {}))[0] + 1
-            self._pages[name] = (version, document)
+            self._pages[name] = (version, kept)
             # what the open page said is of the document before: it opens this one
             self._read.pop(name, None)
         return version

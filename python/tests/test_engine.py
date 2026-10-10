@@ -5,6 +5,7 @@ engine's own page answered (its token, a local Host, no cross-origin answer)."""
 
 import http.client
 import json
+from decimal import Decimal
 import os
 import socket
 import tempfile
@@ -378,3 +379,31 @@ class Page(Cube):
         self.server.engine.serve_page('q3', self.DOC)
         self.assertEqual(self.get('/page.json?page=q3')[0], 401)
         self.assertEqual(self.get('/version.json?page=q3')[0], 401)
+
+    def test_what_the_open_page_says_is_kept_only_for_the_version_it_opened(self):
+        engine = self.server.engine
+        engine.serve_page('q3', self.DOC)
+        said = json.dumps({**self.DOC, 'name': 'Renamed there'})
+        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3', said).status, 400, 'no version named')
+        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 204)
+        self.assertEqual(engine.read_page('q3')['name'], 'Renamed there')
+        # Python served it again: what the page says of version 1 is of a document replaced, and refused
+        engine.serve_page('q3', {**self.DOC, 'name': 'Q4'})
+        self.assertIsNone(engine.read_page('q3'))
+        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 409)
+        self.assertIsNone(engine.read_page('q3'))
+        self.assertEqual(engine.answer('POST', '/page.json', 'page=nope&version=1', said).status, 404)
+
+    def test_a_pages_numbers_exact_both_ways(self):
+        # a calculated column's 12.30 is 12.30, an integer past 2**53 every digit (the protocol's exact JSON)
+        engine = self.server.engine
+        lambda_ = {'_type': 'lambda', 'body': [{'_type': 'decimal', 'value': Decimal('12.30')},
+                                               {'_type': 'integer', 'value': 2 ** 70}], 'parameters': []}
+        engine.serve_page('q3', {**self.DOC, 'lambda': lambda_})
+        body = self.get('/page.json?page=q3', {'Authorization': self.server.authorization})[2].decode('utf-8')
+        self.assertIn('12.30', body)
+        self.assertIn(str(2 ** 70), body)
+        said = ('{"kind": "datacube.page", "version": 3, "name": "Q3", "cubes": [], "views": [], "sheets": [],'
+                ' "lambda": {"_type": "lambda", "body": [{"_type": "decimal", "value": 12.30}]}}')
+        self.assertEqual(engine.answer('POST', '/page.json', 'page=q3&version=1', said).status, 204)
+        self.assertEqual(str(engine.read_page('q3')['lambda']['body'][0]['value']), '12.30')

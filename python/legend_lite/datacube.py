@@ -140,6 +140,9 @@ class PageTab:
         # the tab asks (version.json?page=): nothing to tell it
         pass
 
+    def _after_cell(self) -> None:
+        pass
+
     def _open(self) -> None:
         if self._closed:
             raise ValueError(f'the page {self.page.name!r} was closed in its tab: show it again')
@@ -182,13 +185,21 @@ class _Session:
         with self._lock:
             if name is None:
                 name = self._next_name()
-            shown = name.lower() in self.cubes
+            # shown by a cube of its name, or by a grid of a page shown
+            shown = name.lower() in self.cubes or any(g.frame.lower() == name.lower()
+                                                      for view in self.pages for g in view._page.grids)
             self.frames.register(name, frame, mode)
             engine = self.engine()
             if shown or engine.seen(name):
                 # shown again under its name (or again after it was closed): a page showing it reads it again
                 engine.changed(name)
             return name
+
+    def unregister(self, name: str) -> None:
+        """A frame registered for nothing that came of it (a page's grid refused): out of the engine again."""
+        with self._lock:
+            if name in self.frames and name.lower() not in self.cubes:
+                self.frames.unregister(name)
 
     def show(self, frame: Any, name: str | None, mode: str) -> Cube:
         """The frame registered, and its name's cube in a tab: the one it has, else a new one."""
@@ -220,6 +231,8 @@ class _Session:
                 cube._after_cell()
                 if self._engine is not None and key in self.frames and self.frames[key].mode == LIVE:
                     self._engine.changed(cube.name)
+            for view in self.pages:
+                view._after_cell()
             frames = {g.frame for shown in self.pages for g in shown._page.grids}
             for name in frames:
                 if self._engine is not None and name in self.frames and self.frames[name].mode == LIVE:
@@ -234,6 +247,7 @@ class _Session:
 
     def serve(self, page: Page, view: PageTab | PageCube) -> None:
         """``page`` served by the engine, shown in ``view`` (a tab's or a notebook's) and told of each change."""
+        page._showable()
         with self._lock:
             self.engine().serve_page(page._key, page.to_dict())
             page._shown.append(view)
@@ -391,7 +405,12 @@ def show(frame: Any, name: str | None = None, *, mode: str = LIVE, browser: bool
 
 
 def _show_page(page: Page, *, browser: bool, inline: bool | None) -> PageTab | PageCube:
-    """A page (``ll.Page``) shown: under the cell in a notebook's kernel, else in a browser tab; live from then on."""
+    """A page (``ll.Page``) shown: under the cell in a notebook's kernel, as the cell's output in marimo (as a frame is),
+    else in a browser tab; live from then on."""
+    page._showable()
+    if _marimo() and inline is not False:
+        from .notebook import page_for_marimo
+        return page_for_marimo(page)
     if inline is None:
         inline = _kernel()
     if inline:

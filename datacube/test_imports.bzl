@@ -1483,6 +1483,7 @@ TEST_IMPORTS = {
         "src/treeview.ts",
     ],
     "portability": [],
+    "python-vocabulary": [],
     "query": [
         "src/calc.ts",
         "src/cube.ts",
