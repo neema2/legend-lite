@@ -1,0 +1,3 @@
+seed 11, 3,000,000: differences: 0  (writing 15686 ms, reading 11754 ms)
+seed 12345, 3,000,000: differences: 0  (writing 15977 ms, reading 11678 ms)
+seed 99, 3,000,000: differences: 0  (writing 16019 ms, reading 11743 ms)

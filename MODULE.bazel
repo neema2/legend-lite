@@ -203,8 +203,10 @@ maven.install(
         "org.teavm:teavm-jso:0.15.0",
 
         # USED DIRECTLY by BUILD files, so declared: strict_visibility (Bazel workplan P1-25) makes an
-        # undeclared transitive artifact invisible.
+        # undeclared transitive artifact invisible. teavm-interop: the annotations TeaVM's own TDouble and TFloat
+        # carry, which //third_party/teavm_classlib compiles (2026-10-10).
         "org.teavm:teavm-core:0.15.0",
+        "org.teavm:teavm-interop:0.15.0",
     ],
     fail_if_repin_required = True,
     strict_visibility = True,

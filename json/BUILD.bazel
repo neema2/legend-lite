@@ -21,13 +21,9 @@ junit_test(
     memory_mb = 768,
     size = "small",
     srcs = glob(["src/test/java/com/legend/json/*.java"]),
-    # the writer's own source, read by PARK-23's anchor (docs/PARKED_WORK_LEDGER.md: ParkedWorkLedgerTest reads core)
-    data = ["src/main/java/com/legend/json/Json.java"],
-    jvm_flags = ["-Djson.source=$(rlocationpath src/main/java/com/legend/json/Json.java)"],
     select = ["--select-package=com.legend.json"],
     deps = [
         ":json",
-        "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
     ],

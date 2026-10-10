@@ -466,11 +466,12 @@ projects, in both styles, in the JVM (`//parser-equivalence:round_trip_proof`) a
 9,423 inputs byte for byte); S38 and S39 (lite keeps the braces and the column multiplicity the engine's printer drops);
 TeaVM's `isBlank` and double conversions made portable and guarded; PARK-22 and PARK-23 parked. **2026-10-10:** a spike
 built the tab with GraalVM Web Image (`docs/WEB_IMAGE_SPIKE_2026_10_10.md`); the user kept TeaVM, held to the JDK by
-tests, and PARK-23's fix moved into TeaVM's class library. **Next, started 2026-10-10 on branch `teavm-conformance`:**
-a conformance test of TeaVM's class library against the JVM over the JDK methods lite's browser code calls, run in the
-wasm lane (files: new sources and targets in `wasm/`, the lane in `gates/BUILD.bazel`; nothing in `core/`); then the
-exact conversions in TeaVM's library (PARK-23), carried in our build until TeaVM releases them (`tools/teavm/`); then
-legs 6 to 8; PARK-17 closes in leg 6. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
+tests, and PARK-23's fix moved into TeaVM's class library. **Landing 2026-10-10 from branch `teavm-conformance`:** the
+conformance test of TeaVM's class library against the JDK (`//wasm:conformance_test`, its ledger of known differences
+`wasm/conformance-known.tsv`), and TeaVM's number conversions made exact (`third_party/teavm_classlib`, put first on
+every `teavm_wasm` build's class path by `tools/teavm/defs.bzl`; `MODULE.bazel` declares `teavm-interop`): every
+number family equal to the JDK in the tab; PARK-23 restated to its one speed clause. **Next:** legs 6 to 8; PARK-17
+closes in leg 6. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
 function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`

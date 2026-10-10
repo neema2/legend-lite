@@ -212,6 +212,17 @@ final class Numbers {
             String b = decimal(r);
             out.add(a + " " + b, bigDecimalOps(a, b));
         }
+        // each long extreme (Long.MIN_VALUE's Math.abs stays negative), leading zeros, and each digit count's edge
+        String[] edges = {String.valueOf(Long.MIN_VALUE), String.valueOf(Long.MAX_VALUE), "9223372036854775808",
+            "-9223372036854775809", "-0.000123", "0.0000", "00012.300", "-000.5", "99999999999999999",
+            "999999999999999999", "1000000000000000000", "9999999999999999999", "108088296808187250"};
+        for (String a : edges) {
+            for (String b : new String[] {"7", "-3", "0.006", String.valueOf(Long.MIN_VALUE)}) {
+                out.add(a + " " + b, bigDecimalOps(a, b));
+            }
+            out.add("precision/round " + a, new BigDecimal(a).precision() + " "
+                    + new BigDecimal(a).round(new MathContext(3)) + " " + new BigDecimal(a).round(MathContext.DECIMAL64));
+        }
         for (int i = 0; i < 2_000; i++) {
             long l = r.next() >> r.below(64);
             out.add("valueOf(long) " + l, BigDecimal.valueOf(l).toString());
@@ -220,6 +231,22 @@ final class Numbers {
                 out.add("valueOf(double) " + Out.hex(Double.doubleToRawLongBits(d)), BigDecimal.valueOf(d).toString());
                 out.add("new(double) " + Out.hex(Double.doubleToRawLongBits(d)), new BigDecimal(d).toString());
             }
+        }
+        return out.toString();
+    }
+
+    /**
+     * BigDecimal.hashCode on its own: the specification says only that it is a function of the unscaled value and
+     * the scale (BigInteger.hashCode is not specified at all), so a difference here is no class library bug -- it
+     * matters only where a hash code orders something (the order census, evidence/order-census/).
+     */
+    static String bigDecimalHashCode() {
+        Out out = new Out();
+        Rng r = new Rng(7);
+        for (int i = 0; i < 3_000; i++) {
+            String a = decimal(r);
+            String b = decimal(r);
+            out.add(a, String.valueOf(new BigDecimal(a).hashCode()));
         }
         return out.toString();
     }
@@ -250,7 +277,7 @@ final class Numbers {
                     .append(x.setScale(0, RoundingMode.HALF_EVEN)).append('|').append(x.negate()).append('|')
                     .append(x.abs()).append('|').append(x.scaleByPowerOfTen(3)).append('|').append(x.longValue())
                     .append('|').append(x.compareTo(y)).append('|').append(x.add(y)).append('|').append(x.subtract(y))
-                    .append('|').append(x.equals(y)).append('|').append(x.hashCode());
+                    .append('|').append(x.equals(y));
             if (y.signum() != 0) {
                 s.append('|').append(x.divide(y, 10, RoundingMode.HALF_EVEN)).append('|')
                         .append(x.divide(y, MathContext.DECIMAL64));

@@ -31,6 +31,8 @@ test_suite(
         "//core:postgres_arm_test",
         "//spec:spec_tests",
         "//json:tests",
+        # TeaVM's corrected number conversions against the JDK, on the JVM (seconds)
+        "//third_party/teavm_classlib:tests",
         "//pure-protocol:twins_test",
         "//tools/engine-runner:smoke_test",
     ],
@@ -191,6 +193,8 @@ test_suite(
         "//datacube:browser",
         "//wasm:differential_test",
         "//wasm:zone_test",
+        # TeaVM's class library against the JDK's, held to its ledger of known differences (seconds)
+        "//wasm:conformance_test",
         # the hand tools of these two packages compile (their closures: the site, the planner this lane builds)
         "//datacube:tools_build_test",
         "//wasm:tools_build_test",

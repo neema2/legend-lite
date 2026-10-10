@@ -3,6 +3,7 @@
   "__INPUT_ARTIFACTS_HASH": {
     "org.teavm:teavm-classlib": 247480082,
     "org.teavm:teavm-core": 2135598272,
+    "org.teavm:teavm-interop": -946968796,
     "org.teavm:teavm-jso": 1006534395,
     "org.teavm:teavm-tooling": -247351561,
     "repositories": -1949687017

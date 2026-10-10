@@ -236,12 +236,14 @@ node_test(
     name = "conformance_test",
     size = "medium",
     data = [
+        "conformance-known.tsv",
         ":conformance_dir",
         ":conformance_jvm",
     ],
     entry_point = "conformance.mjs",
     env = {
         "CONFORMANCE_JVM": "$(rlocationpath :conformance_jvm)",
+        "CONFORMANCE_KNOWN": "$(rlocationpath conformance-known.tsv)",
         "CONFORMANCE_MODULE": "$(rlocationpath :conformance_dir)",
     },
     # TeaVM emits the newer exception-handling opcodes (differential.mjs)

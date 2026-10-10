@@ -625,45 +625,35 @@ spans, and text lite reads itself is unaffected.
 
 ---
 
-## PARK-23 — lite's JSON library converts a double the platform's way, which the tab can do a digit differently
+## PARK-23 — the tab writes some doubles and every float exactly, but by the slow route
 
 **Parked** 2026-10-09 by the Studio / SDLC / Depot line, with the protocol program's leg 5 (the user: "park the exact").
+**Restated** 2026-10-10, when its exactness was fixed: TeaVM's class library now converts every double and float both
+ways exactly as the JDK does (`third_party/teavm_classlib`, `ExactDecimal`; the user, 2026-10-10: the tab stays on
+TeaVM, held to the JDK by tests, `docs/WEB_IMAGE_SPIKE_2026_10_10.md`). `//wasm:conformance_test` holds every number
+family to the JDK with no difference; `Json`'s writer and reader needed no change. What is left of the row is its speed
+clause ("no slower than today's"), which one route does not meet.
 
-**What happens today.** `com.legend.json.Json`'s writer (`Writer.writeDouble`, and every JSON answer built through it:
-the server's results and its other JSON) spells a double with `Double.toString`. On the JVM that is the JDK's spelling;
-in the tab, TeaVM's class library can pick the other of two shortest decimals at the last digit (`602.2708129882813`
-where the JDK writes `602.2708129882812`). Leg 5 moved everything it proves off that path: the parser and the protocol
-convert a double's text both ways through `PortableText` (`doubleText`, `doubleOf`), exact, and the JSON reader reads
-through `doubleOf`. The writer is the one conversion left: `PortableText.doubleText` computes exactly with big
-numbers, measured 2026-10-09 at about 85 times the JDK's cost on result-like values (255 ms per 100,000 against 3) and
-up to 600 times on the hardest (1.9 s), too slow for every result the server writes.
+**What happens today.** `ExactDecimal.shortest` takes a fast route for a normal double whose shortest decimal has at
+most 15 digits and whose scale is within 10^±22 (about 1e-7 to 1e37: what people write), at TeaVM's old speed (40,000
+such values in 74 ms in the module, against 72 before). Everything else takes the exact route over big integers: a
+double of 16 or 17 digits, a subnormal, a double outside that range, and every float. Measured on random doubles (all
+17 digits): 40,000 in 261 ms against TeaVM's old (inexact) 74, about 3.5 times, 6.5 microseconds a value; random floats,
+40,000 in 53 ms. Reading is at the old speed (Clinger's fast case, else big integers: 40,000 random decimals in 88 ms
+against 82).
 
-**The fix (revised 2026-10-10).** Make the platform's own conversion exact in the tab, where it is wrong: in TeaVM's
-class library (the user, 2026-10-10: the tab stays on TeaVM, held to the JDK by tests; `docs/WEB_IMAGE_SPIKE_2026_10_10.md`).
-`Double.toString` and `Float.toString` by a published shortest-digits algorithm (Schubfach or Ryu), `parseDouble` and
-TeaVM's other decimal-to-double paths by a fast exact one (Eisel and Lemire, with an exact slow path), written from the
-papers, not from any implementation's code (the clean-room rule, `docs/WEB_IMAGE_SPIKE_2026_10_10.md`); held to the
-JDK by the TeaVM conformance test; offered upstream to TeaVM (its issue
-#735) and carried in our build, ahead of TeaVM's own classes, until a TeaVM release has them. `Json`'s writer and reader
-then need no change: the platform's conversion is exact on every platform, at the platform's speed. The plan of
-2026-10-09 put a fast exact spelling inside lite instead (`PortableText.doubleText` and the reader through
-`PortableText.doubleOf`, which measured about 2.5 times `BigDecimal.doubleValue` on result-like values, a cost every
-JSON the server reads would pay for nothing on the JVM); it moved because a fix in TeaVM covers every conversion in the
-tab, the JDK's own uses included, not only the call sites lite routes by hand. `PortableText` and its bans stay until
-the conformance test shows TeaVM exact.
+**The fix.** A shortest-digits algorithm for the remaining case, written from its paper (Schubfach, Giulietti 2020; or
+Ryu, Adams 2018) under the clean-room rule, held by the same tests.
 
-**Acceptance.** The conformance test holds TeaVM's `Double.toString`, `Float.toString`, `parseDouble` and
-`BigDecimal.doubleValue` to the JDK (their edges, every power of two and ten, a million random values) in the wasm
-lane; the tab's differentials stay byte-identical; a measurement shows TeaVM's conversions no slower than today's.
+**Acceptance.** `//third_party/teavm_classlib:tests` and `//wasm:conformance_test` unchanged; the module writes 40,000
+random doubles within a small factor of TeaVM's old 74 ms.
 
-**Cost of leaving it.** An answer the tab builds through `Json`'s writer with a hard-to-print double can spell its last
-digit differently from the server's; the value read back is the same in every case measured. The tab's model conversions,
-which leg 5 proves, do not go through it.
+**Cost of leaving it.** Only the tab pays (the server writes with the JDK), and only for the values the exact route
+takes: about 6.5 microseconds a double. The tab prints few doubles (literals, plan answers).
 
-**When.** Next in the protocol program: the TeaVM conformance test first (it measures the whole gap, not only this row's),
-then these fixes (they also cover the planner's SQL float literals in the tab).
+**When.** When the tab writes doubles in bulk, or with the offer of these fixes to TeaVM, whose users would want the
+old speed.
 
-**Anchors.** In json's own tests (`ParkedWorkLedgerTest` reads core's sources only): `PortableTextTest`'s
-`jsonsWriterStillSpellsADoubleThePlatformsWay_park23`, which finds `append(Double.toString(v));` (the writer) and
-`exact.doubleValue()` (the reader) in `Json.java`, and fails once either moves. Under the revised fix `Json.java` need
-not move: when the row closes, the anchor test goes with it.
+**Anchors.** `ExactDecimal.FAST_DIGITS` is 15, and the fast route's limit is derived from it (`FAST_LIMIT =
+POW10[FAST_DIGITS]`); `third_party/teavm_classlib`'s `ExactDecimalTest.theFastRouteStopsAtFifteenDigits_park23` holds
+it: a faster route for the rest changes it, and the row closes.

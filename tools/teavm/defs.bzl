@@ -14,7 +14,11 @@ def _teavm_memory(os, inputs):
     return {"cpu": 1, "memory": 2048}
 
 def _teavm_wasm_impl(ctx):
-    jars = depset(transitive = [d[JavaInfo].transitive_runtime_jars for d in ctx.attr.deps])
+    # TeaVM's class library CORRECTED where lite needs it exact (//third_party/teavm_classlib): its own jar FIRST, so the
+    # compiler's class loader finds its classes before TeaVM's own of the same name (the class library is on no other
+    # loader: //tools/teavm:compile carries only teavm-core and teavm-tooling)
+    fixes = ctx.attr._classlib_fixes[JavaInfo].runtime_output_jars
+    jars = depset(fixes, transitive = [d[JavaInfo].transitive_runtime_jars for d in ctx.attr.deps], order = "preorder")
     wasm = ctx.actions.declare_file(ctx.label.name + "/classes.wasm")
     runtime = ctx.actions.declare_file(ctx.label.name + "/wasm-gc-module-runtime.js")
     args = ctx.actions.args()
@@ -40,6 +44,10 @@ _teavm_wasm = rule(
     attrs = {
         "deps": attr.label_list(providers = [JavaInfo], mandatory = True),
         "main_class": attr.string(mandatory = True),
+        "_classlib_fixes": attr.label(
+            default = "//third_party/teavm_classlib:fixes",
+            providers = [JavaInfo],
+        ),
         "_compiler": attr.label(
             default = "//tools/teavm:compile",
             executable = True,

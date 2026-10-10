@@ -11,6 +11,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -105,5 +106,35 @@ test("TeaVM's class library answers as the JDK does", async () => {
     writeFileSync(join(outputs, 'conformance-diffs.tsv'),
       diffs.map(([f, l, w, g]) => `${f}\t${l}\t${w}\t${g}`).join('\n') + '\n');
   }
-  assert.equal(diffs.length, 0, `${diffs.length} answers differ from the JDK's (conformance-diffs.tsv)`);
+
+  // THE KNOWN DIFFERENCES (conformance-known.tsv): each family that still differs, with its counts, a digest of WHICH
+  // cases differ, and why. The test holds the module to the ledger exactly: a new difference fails it, and so does a
+  // fixed one, until its row is lowered -- the ledger only shrinks (a row moves only with a dated reason).
+  const known = new Map(readFileSync(runfileFromEnv('CONFORMANCE_KNOWN'), 'utf8').split('\n')
+    .filter((l) => l !== '' && !l.startsWith('#'))
+    .map((l) => l.split('\t'))
+    .map(([family, answer, message, missing, digest]) => [family, { answer: +answer, message: +message,
+      input: +missing, digest }]));
+  // the digest covers each differing case's input AND both answers, so an answer that changes to another wrong one
+  // fails too
+  const digestOf = (family) => createHash('sha256')
+    .update(diffs.filter(([f]) => f === family).map(([, , w, g]) => `${w}\u0000${g}`).sort().join('\n'), 'utf8')
+    .digest('hex').slice(0, 16);
+  const wrong = [];
+  for (const c of rows) {
+    const has = c.answer + c.message + c.input > 0;
+    const row = known.get(c.family);
+    const now = { answer: c.answer, message: c.message, input: c.input, digest: has ? digestOf(c.family) : '-' };
+    const then = row ?? { answer: 0, message: 0, input: 0, digest: '-' };
+    if (now.answer !== then.answer || now.message !== then.message || now.input !== then.input
+        || now.digest !== then.digest) {
+      wrong.push(`${c.family}\t${now.answer}\t${now.message}\t${now.input}\t${now.digest}\t(the ledger: ${then.answer} `
+        + `${then.message} ${then.input} ${then.digest})`);
+    }
+  }
+  for (const family of known.keys()) {
+    if (!families.includes(family)) wrong.push(`${family}: in the ledger, but no such family`);
+  }
+  assert.deepEqual(wrong, [], 'the module differs from conformance-known.tsv: a fewer count is a fix (lower the row, '
+    + 'with a dated reason), a greater or a different digest is a new difference (conformance-diffs.tsv)');
 });

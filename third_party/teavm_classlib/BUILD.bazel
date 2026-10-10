@@ -1,0 +1,47 @@
+# TeaVM's class library CORRECTED where lite needs it exact (docs/WEB_IMAGE_SPIKE_2026_10_10.md, step 2; PARK-23):
+# four of TeaVM 0.15.0's own classes (Apache 2.0: their headers kept, a notice of each change added) and one new one,
+# ExactDecimal, written from the Java SE specification and the published algorithms under the clean-room rule. teavm_wasm
+# (//tools/teavm) puts this jar ahead of TeaVM's own on the compiler's class path, so these classes are the ones every
+# module compiles. README.md says what changed and why; each class goes when a TeaVM release carries its fix.
+
+load("//tools/guards:defs.bzl", "guards_package")
+load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/junit:defs.bzl", "junit_test")
+
+legend_java_library(
+    name = "fixes",
+    # TeaVM's own code, not written to lite's null discipline
+    nullaway = False,
+    # TeaVM's NaN test `a != a` is deliberate (TDouble IS Double: it cannot call Double.isNaN for itself); its code is
+    # kept as TeaVM wrote it, the changes confined to what README.md lists
+    javacopts = ["-Xep:IdentityBinaryExpression:OFF"],
+    srcs = glob(["src/org/**/*.java"]),
+    visibility = ["//tools/teavm:__pkg__"],
+    deps = [
+        "@maven_teavm//:org_teavm_teavm_classlib",
+        "@maven_teavm//:org_teavm_teavm_core",
+        "@maven_teavm//:org_teavm_teavm_interop",
+        "@maven_teavm//:org_teavm_teavm_jso",
+    ],
+)
+
+# ExactDecimal and the corrected TBigDecimal held to the JDK on the JVM (both are plain Java), value by value (the
+# module's own differential is //wasm:conformance_test)
+junit_test(
+    name = "tests",
+    memory_mb = 768,
+    size = "medium",
+    srcs = glob(["test/org/**/*.java"]),
+    select = [
+        "--select-package=org.teavm.classlib.impl.text",
+        "--select-package=org.teavm.classlib.java.math",
+    ],
+    deps = [
+        ":fixes",
+        # TMathContext and TRoundingMode, which TBigDecimal's test passes it
+        "@maven_teavm//:org_teavm_teavm_classlib",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+guards_package()

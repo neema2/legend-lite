@@ -15,7 +15,7 @@ final class Families {
 
     static final List<String> NAMES = List.of("double.toString.edges", "double.toString.random", "double.append",
             "double.shortDecimals", "double.parse.forms", "double.parse.random", "double.parse.midpoints",
-            "float.toString", "bigDecimal", "bigInteger", "integers", "character", "string", "format", "regex",
+            "float.toString", "bigDecimal", "bigDecimal.hashCode", "bigInteger", "integers", "character", "string", "format", "regex",
             "codecs", "time.text", "time.zones", "ordering.hash", "ordering.codes");
 
     static String answers(String family) {
@@ -29,6 +29,7 @@ final class Families {
             case "double.parse.midpoints" -> Numbers.doubleParseMidpoints();
             case "float.toString" -> Numbers.floatToString();
             case "bigDecimal" -> Numbers.bigDecimal();
+            case "bigDecimal.hashCode" -> Numbers.bigDecimalHashCode();
             case "bigInteger" -> Numbers.bigInteger();
             case "integers" -> Numbers.integers();
             case "character" -> Text.character();

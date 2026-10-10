@@ -31,10 +31,11 @@ POOL_USERS = {
     # rules (with depot-server's) compile to the page's SDLC module the same way (2026-10-04, the Studio line,
     # docs/STUDIO_DESIGN_2026_10_02.md S21: its :teavm_api and :page targets, as //wasm's)
     # warehouse: the SQL API compiled to WebAssembly, //warehouse:sqlapi_wasm (Bazel workplan P3-24)
-    "maven_teavm": ["sdlc-server", "tools/teavm", "warehouse", "wasm"],
+    # third_party/teavm_classlib: TeaVM's class library corrected where lite needs it exact, compiled against TeaVM's
+    "maven_teavm": ["sdlc-server", "third_party/teavm_classlib", "tools/teavm", "warehouse", "wasm"],
     # test tooling: JUnit, ArchUnit; for the packages with tests. sdlc-server also takes JGit from here, the judge
     # of the git repository it writes by hand (2026-10-04, the Studio line: no host git in tests)
-    "maven_test": ["core", "json", "parser-equivalence", "pct", "sdlc-server", "spec", "tools/bump", "tools/deps", "tools/engine-runner", "tools/guards", "tools/junit", "tools/legend", "warehouse"],
+    "maven_test": ["core", "json", "parser-equivalence", "pct", "sdlc-server", "spec", "third_party/teavm_classlib", "tools/bump", "tools/deps", "tools/engine-runner", "tools/guards", "tools/junit", "tools/legend", "warehouse"],
     # compiler plugins (NullAway), never on a classpath
     "maven_tools": ["tools/nullaway"],
     # legend-engine and legend-pure: TEST INPUTS ONLY, for the packages that referee lite against them (AGENTS.md,

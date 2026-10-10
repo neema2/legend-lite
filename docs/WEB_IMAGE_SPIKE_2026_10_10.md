@@ -63,7 +63,10 @@ query); exactness is what lite needs, and a test can hold TeaVM to it where lite
 What it costs to choose TeaVM: lite's exactness in the tab is as wide as its tests, not guaranteed by construction.
 An answer in a corner no differential covers can still differ from the JVM.
 
-What follows, in order:
+What follows, in order (status 2026-10-10: step 1 done, `//wasm:conformance_test` with its ledger
+`wasm/conformance-known.tsv`; step 2 done for the numbers, `third_party/teavm_classlib`: every number family the
+conformance test probes (a double's and a float's text both ways, BigDecimal) equals the JDK in the tab, built as
+recorded under step 2; step 3 done but for one speed clause, PARK-23 restated):
 1. **A conformance test of TeaVM's class library** against the JVM, over the JDK methods lite's browser code calls
    (488 by class and name, the riskiest first: text and numbers, `Character`, regex, `java.time`, the order maps and
    sets iterate in), run in the wasm lane. It measures the gap before anything is fixed.
@@ -72,6 +75,14 @@ What follows, in order:
    exact one, written from the published algorithms (Schubfach or Ryu; Eisel and Lemire), not from the JDK's code.
    They close TeaVM's own issue #735. Until a release carries them, the corrected classes ride in our build ahead of
    TeaVM's own (a Bazel change, reviewed), and go when we upgrade.
+
+   **As built (2026-10-10), a deviation from the plan above, recorded:** not Schubfach/Ryu and Eisel-Lemire. Writing
+   is a fast route for a double of at most 15 digits within 10^±22 (one correctly rounded operation decides; at
+   TeaVM's old speed) and an exact route over big integers for the rest (a bisection on the scale, then the
+   specification's choice); reading is Clinger's fast case, else big integers. Correctness first, from the
+   specification, simple enough to check line by line; the published fast algorithms carry proofs whose every constant
+   would have had to be right with no code to check against. The cost is the exact route's speed in the tab only
+   (about 3.5 times TeaVM's old, inexact writer on 17-digit doubles), which is PARK-23 as restated.
    **How the fixes are written: clean room (the user, 2026-10-10: "make sure we don't plagiarize GPL or other
    licensed code").** A fix is written from what the behaviour IS, never from another implementation's code:
    - *What may be read:* the Java SE API specification (the Javadoc: what a method must return); the published

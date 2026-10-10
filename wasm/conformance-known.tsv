@@ -1,0 +1,17 @@
+# THE KNOWN DIFFERENCES between TeaVM's class library and the JDK's (//wasm:conformance_test, conformance.mjs): one row
+# per family that still differs -- family, answers that differ, answers that differ only in an exception's message,
+# cases one side lacks, a digest of the differing cases (each input with both answers), and why. Held exactly: a row
+# only shrinks, each change dated.
+# The number families (a double's and a float's text both ways, BigDecimal) have no row: //third_party/teavm_classlib
+# made them exact (2026-10-10, PARK-23).
+# family	answer	message	missing	digest	why
+bigDecimal.hashCode	2990	0	0	d3ed930f69f61e74	2026-10-10: no defect -- the specification says only that the hash is a function of the unscaled value and the scale (BigInteger.hashCode is unspecified); it matters only where a hash orders output, which the order census found nowhere in the tab
+integers	8	65	0	95eabb4906f542d4	2026-10-10: parseInt/parseLong refuse digits of other scripts the JDK reads (Character.digit), and their messages differ; lite's lexer reads ASCII digits only
+character	325	0	0	3dbc878687b6e9c3	2026-10-10: TeaVM's Unicode tables are a later version than JDK 25's (case mappings and letters of characters assigned since), and isUpperCase misses Other_Uppercase (Roman numerals, circled letters)
+string	30	0	0	2cdbed9514cfffac	2026-10-10: isBlank tests only ' ' (banned in lite, ArchitectureTest); case mapping skips Unicode's special casing (ß to SS, final sigma, dotted I) and equalsIgnoreCase with it; a lone surrogate written to UTF-8 is dropped where the JDK writes '?', and malformed UTF-8 reads differently
+format	6	0	0	743a1ca8cd09ede9	2026-10-10: %d of Long.MIN_VALUE writes "--9223372036854775808"
+regex	70	70	0	23e061dfd36cfcd5	2026-10-10: \R (any line break) is refused (PatternSyntaxException); lite's one \R (PureTestRunner) is not in the tab
+codecs	9	5	0	40311f6c634a752d	2026-10-10: the Base64 decoder accepts malformed input the JDK refuses; URLDecoder reads overlong UTF-8 (%C0%80) as U+0000; Optional.toString writes "Optional.of(x)"; and messages
+time.text	0	2	0	e3c256895da38deb	2026-10-10: two LocalDateTime.parse refusals word their messages differently
+time.zones	1945	1	0	ca9c66b1a30b60d3	2026-10-10: TeaVM's rules for Pacific/Chatham lose its daylight saving from 2022 on; ZoneId.of("EST") is accepted where the JDK refuses a short id
+ordering.hash	147	0	0	769c62764b2079a7	2026-10-10: no defect -- HashMap and HashSet promise no order, and TeaVM's differs; the order census (docs/build-inventory/program/evidence/order-census) found none reaching the tab's output

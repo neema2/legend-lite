@@ -44,21 +44,6 @@ class PortableTextTest {
         }
     }
 
-    /**
-     * PARK-23's anchor (docs/PARKED_WORK_LEDGER.md; ParkedWorkLedgerTest reads core's sources, not this module's):
-     * {@link Json}'s writer still spells a double with the platform's {@code Double.toString}, not
-     * {@link PortableText#doubleText} (exact, but too slow for the server's results). When the writer moves to a fast
-     * exact spelling, this fails: close the row.
-     */
-    @Test
-    void jsonsWriterStillSpellsADoubleThePlatformsWay_park23() throws java.io.IOException {
-        String source = java.nio.file.Files.readString(com.legend.testing.Runfile.property("json.source"));
-        assertTrue(source.contains("append(Double.toString(v));"),
-                "Json's writer no longer spells a double with Double.toString: PARK-23 is closed -- delete its row");
-        assertTrue(source.contains("return new Num(exact.longValue(), exact.doubleValue(), false, exact, num);"),
-                "Json's reader no longer converts a decimal with BigDecimal.doubleValue: restate or close PARK-23");
-    }
-
     @Test
     void doubleOfIsTheJdks_atTheEdges() {
         List<String> texts = new ArrayList<>(List.of("0", "-0", "0.0", "-0.0", "1", "-1", "0.1", "1e23", "8.41e21",
