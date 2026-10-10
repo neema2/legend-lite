@@ -198,10 +198,16 @@ public final class ChannelB {
             if (only != null && !fd.qualifiedName().contains(only)) {
                 continue;
             }
+            // the side maps are keyed per element, a function's id (build rebuild Phase 3b, item 5b)
             String src = module.model().elementSources()
-                    .get(fd.qualifiedName());
-            if (src == null || scopePrefixes.stream()
-                    .noneMatch(src::startsWith)) {
+                    .get(com.legend.model.FunctionId.of(fd).qualified());
+            if (src == null) {
+                // a PCT test with no source record: its id is shared with another declaration
+                // (the maps hold one record per id) -- said, never silently skipped
+                System.out.println("[chB-discovery] no source record for " + com.legend.model.FunctionId.of(fd));
+                continue;
+            }
+            if (scopePrefixes.stream().noneMatch(src::startsWith)) {
                 continue;
             }
             out.add(runOne(fd, module, ctx));
@@ -261,7 +267,7 @@ public final class ChannelB {
         }
         try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
             var lambda = new LambdaFunction(List.of(), body);
-            var imports = module.model().elementImports().get(fqn);
+            var imports = module.model().elementImports().get(com.legend.model.FunctionId.of(fd).qualified());
             ValueSpecification resolved = imports == null
                     ? NameResolver.resolveQuery(lambda)
                     : NameResolver.resolveQueryIn(lambda, imports,

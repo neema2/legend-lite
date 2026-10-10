@@ -27,22 +27,33 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class MissingValueInComputedColumnTest {
 
-    /** The table's runtime declares the database it executes on (the connection the test opens). */
+    /** The table's runtime declares the database it executes on (the connection the test opens); one whole model
+     *  per database, so each literal is a model the own-corpus parity lane can read. */
+    private static final String DUCKDB_MODEL = """
+            ###Relational
+            Database h5::db
+            (
+              Table T (ID INTEGER PRIMARY KEY, STR VARCHAR(10), N INTEGER)
+            )
+            ###Connection
+            RelationalDatabaseConnection h5::Conn { store: h5::db; type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            Runtime h5::RT { mappings: []; connections: [ h5::db: [ c: h5::Conn ] ]; }
+            """;
+    private static final String H2_MODEL = """
+            ###Relational
+            Database h5::db
+            (
+              Table T (ID INTEGER PRIMARY KEY, STR VARCHAR(10), N INTEGER)
+            )
+            ###Connection
+            RelationalDatabaseConnection h5::Conn { store: h5::db; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+            ###Runtime
+            Runtime h5::RT { mappings: []; connections: [ h5::db: [ c: h5::Conn ] ]; }
+            """;
+
     private static String model(DatabaseType type) {
-        String connection = type == DatabaseType.H2
-                ? "type: H2; specification: LocalH2 { }; auth: DefaultH2;"
-                : "type: DuckDB; specification: DuckDB { }; auth: Test;";
-        return """
-                ###Relational
-                Database h5::db
-                (
-                  Table T (ID INTEGER PRIMARY KEY, STR VARCHAR(10), N INTEGER)
-                )
-                ###Connection
-                RelationalDatabaseConnection h5::Conn { store: h5::db; %s }
-                ###Runtime
-                Runtime h5::RT { mappings: []; connections: [ h5::db: [ c: h5::Conn ] ]; }
-                """.formatted(connection);
+        return type == DatabaseType.H2 ? H2_MODEL : DUCKDB_MODEL;
     }
 
     private static List<Row> run(Connection conn, DatabaseType type, String query) throws Exception {

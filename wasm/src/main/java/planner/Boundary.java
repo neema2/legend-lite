@@ -398,8 +398,10 @@ public final class Boundary {
      * all.
      */
     public static int resolveBootLayer() {
+        // the system layer's protection only: the boot's merge of the platform's own Pure onto the prelude's
+        // twins (Compiler.boot, build rebuild Phase 3b item 1b) is not part of this timing split
         com.legend.model.ParsedModel pre =
-                com.legend.builtin.SystemMetamodel.withoutSystemShadows(
+                com.legend.builtin.SystemMetamodel.requireNoSystemElementRedefined(
                         com.legend.builtin.Prelude.parsedModel());
         java.util.List<com.legend.model.PackageableElement> elements =
                 new java.util.ArrayList<>(

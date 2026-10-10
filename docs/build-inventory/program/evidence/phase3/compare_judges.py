@@ -14,6 +14,9 @@ for j in judges:
         if name.endswith('.log') or name.endswith('.params'):
             continue
         b = os.path.join(base, j, name)
+        if os.path.isdir(b):
+            # a pass's census subdirectory (the H2 passes write one): not a result file (2026-10-10)
+            continue
         c = os.path.join(cur, j, name)
         if not os.path.exists(c):
             print('MISSING  %s/%s' % (j, name))
