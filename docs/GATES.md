@@ -8158,3 +8158,32 @@ blocker, 7 should-fix; 0ad1558f5: 0 blockers, 4 should-fix; every one fixed with
 `ci/datacube-python-pages`, green on the lanes with a path to the change (product, checks, warehouse, datacube, ui) on
 every platform (21 jobs); pushed to main as 94ee44b08, the tested commit, with the Studio, Compiler Rewrite and Plan
 Gen sessions' go.
+
+## 2026-10-09 — The protocol program's leg 5: the round trip proven, in the JVM and in the tab (the Studio / SDLC / Depot line)
+
+Text to JSON to text to JSON, matching legend-engine 4.145.0, over legend-engine's test collection, lite's 60 projects and
+the eight upstream Legend showcase projects (`MODULE.bazel`, pinned by commit and sha256), in both render styles
+(`docs/PROTOCOL_PROGRAM_2026_10_05.md` §4, leg 5, and its outcome). The oracles: `//parser-equivalence:round_trip_proof`
+(`RoundTripProofTest`, its own target beside `parser_parity` in gate 8) -- the collection 6,905 matched, 40 refused by
+name, 270 where the engine's own print does not read back (counted apart, down-only), 0 failed; lite's projects 222 and
+the showcase projects 131, 0 failed; `//wasm:round_trip_test` over its JVM half `//parser-equivalence:tab_round_trip`
+-- all 9,423 inputs answered by the WebAssembly module as the JVM answers, byte for byte (by digest), in about 26 s;
+`CorpusSweepTest`'s claim 1c (text to JSON without source information equal to the engine's, 6,755 of 6,755). Found and
+fixed: the named spans without source information (save the five places the engine keeps them); where a brace-less
+lambda ends (the engine's grammar, probed); S38 and S39 (the user's decisions: lite keeps the braces and a typed column
+spec's multiplicity that the engine's printer drops, so its print reads back -- the parity tests count those prints
+apart: S38 475 per style and 20 lambdas, S39 24 per style, each checked to add only those and to read back with the
+JSON's statement shapes and multiplicities); five grammar gaps a print reaches and a float literal's `f` suffix; TeaVM's
+`String.isBlank` and double conversions (lite's own `PortableText` both ways, held to the JDK; the protocol twin test's
+accepted divergences gone), guarded by `ArchitectureTest`. Parked: PARK-22 (engine JSON with spans for a path literal
+across lines; leg 8), PARK-23 (the JSON library's double, reader and writer: a fast exact conversion next). Counts:
+`ComposerParityTest`'s floor 56,988 -> 56,968 (the 20 S38 lambdas, dated); `own_corpus.matched` 2,751 -> 2,772 (the
+leg's test texts).
+
+Three audits (0, 0 and 1 blocker -- a float literal's `f` suffix -- every finding fixed; the Bazel review in the first).
+Local gate green on the tested commit (324 tests; `//datacube:verify_cubes_test` and `//studio:verify_test` waited out
+at load 35-52 and passed alone); CI run 38018795800 on `protocol-leg5-land2`, the full gate on every platform, green --
+`macos / warehouse` on its second attempt (`python/tests/test_engine.py`'s
+`test_requests_at_once_are_each_answered` failed once, one of twelve concurrent answers missing, and passed on the rerun;
+reported to the DataCube + Python line). Pushed to main as 7c9a358ac (the leg a5db1086e and its local-gate record), the
+tested commit, with the Python / Datacube, Compiler Rewrite and Legend Query sessions' agreement on the order.

@@ -460,33 +460,14 @@ older or hand-written shapes the step's audits found refused (S35 to S37; `own_c
 well as STANDARD (exact over the corpus in both), legend-engine's `jsonToGrammar/model` in `PureV1Api`, the tab on
 `pure/v1`'s grammar, and one boundary for the embedded hosts with thin adapters (`planner.Boundary`, `Folded`,
 `TabExports`; `native/` Python's adapter), leg 3 folded into it (invariant 5 revised with the user; legs 6 to 8 added).
-**Now: leg 5, the round trip proven, on branch `protocol-leg5`** (§4, item 5; its design in the program doc, the
-upstream showcase projects included, the user 2026-10-09): every model of legend-engine's test collection, lite's 60
-projects and the eight upstream Legend showcase projects survives text to JSON to text to JSON, in both styles, in the
-JVM and in the tab. Found on the way, and fixed in the leg: lite's text-to-JSON without source information kept the
-named spans the engine leaves out, except the ones it keeps inside five test-value positions (3,241 corpus sources
-differed); lite's parser read where a brace-less lambda ends by two rules of thumb, where the engine's grammar decides
-it by the statement's position (probed: in a sequence's first statement the lambda takes the `;` and the statements
-after it); the engine's printer drops a lambda's braces there too, so its own print reads back changed -- lite keeps
-those braces (`docs/SEMANTICS_REGISTER.md` S38, the user 2026-10-09); the lite grammar gaps a printed text reaches (a
-merge mapping's brace-less validation lambda, a service's post-validation assertions, a path literal across lines, a
-function test's `doc`, persistence's `];`); and, from the round trip in the tab, two places TeaVM's class library
-answers differently from the JDK (`String.isBlank()` counts only `' '`; a double's text can end a digit off), each now
-written the same way on both and guarded (`ArchitectureTest`). Files: `MODULE.bazel` (the showcase pins) and
-`third_party/legend_showcase.BUILD`; `projects/BUILD.bazel` (one visibility); `tools/jars/defs.bzl` (`file_list`'s
-`exec_paths`); `parser-equivalence` (`RoundTripProofTest`; `CorpusSweepTest`'s claim 1c; `ModelComposerParityTest` and
-`ComposerParityTest` count S38's prints apart; `TabRoundTripRequests`, the tab round trip's JVM half; its BUILD);
-**`core/src/main/java/com/legend/parser/`** (`SpecParser`: the brace-less lambda's end, the path literal's lines;
-`PmcdParser`: span-free JSON; `TokenStreamCursor`; `ElementParser`, `MappingProtocolParser`, the service and persistence
-section grammars); **`core/src/main/java/com/legend/protocol/`** (`SourceInformation`; `PureComposer` and
-`DomainComposer`: S38; `ProtocolEmitter`, `SpecIslandReader`, `spec/PathLiteral`, `spec/ValueSpecification`: the path
-literal across lines; `Protocol`: the function test's `doc`; a double's text in the emitters and composers); nineteen
-`isBlank()` calls across core (`setup/`, `server/`, `testdatagen/`, `compiler/spec/TdsChecker`, `builtin/EngineHandlers`,
-`CsvLoad`); `json/` (`PortableText`); `core/src/test/.../ArchitectureTest.java`, `CodeShapeGuardrailTest.java`;
-`docs/SEMANTICS_REGISTER.md` (S38); `wasm/` (`round_trip_test`, `:tab`'s visibility). Then legs 6 to 8; PARK-17
-closes in leg 6. Open, and not yet
-in the plan's legs: printing lite-only mappings (a class mapping by function, a function association), which needs a
-design first.
+**Leg 5, the round trip proven, landed (2026-10-09)** as a5db1086e (run 38018795800; GATES 2026-10-09): text to JSON
+to text to JSON exact over legend-engine's test collection, lite's 60 projects and the eight upstream Legend showcase
+projects, in both styles, in the JVM (`//parser-equivalence:round_trip_proof`) and in the tab (`//wasm:round_trip_test`,
+9,423 inputs byte for byte); S38 and S39 (lite keeps the braces and the column multiplicity the engine's printer drops);
+TeaVM's `isBlank` and double conversions made portable and guarded; PARK-22 and PARK-23 parked. **Next, not yet
+started:** PARK-23 (one fast exact double conversion for `com.legend.json.Json`'s reader and writer), then legs 6 to 8;
+PARK-17 closes in leg 6. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
+function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
 (engine code: `core/.../protocol/`, eleven files of `core/.../parser/`, `native-claims.tsv`; the engine's lanes). For
