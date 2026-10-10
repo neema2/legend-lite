@@ -17,7 +17,7 @@ bazel test //studio:verify_test               # the whole loop in the pinned Chr
 | Piece | Code | In the page (level 0) | On a server (level 1-2) |
 |---|---|---|---|
 | The editor | `studio/` (TypeScript, Monaco) | yes | the same page |
-| The compiler (live errors) | `//wasm:planner`'s `compileOrError` | WebAssembly, in a worker | the same |
+| The compiler (live errors) | `//wasm:planner`, asked `/api/lite/v1/compilation/compile` (every error) | WebAssembly, in a worker | the server's same route (legend-engine: its `compilation/compile`, the first error) |
 | The SDLC (projects, workspaces, saves, reviews, versions) | `sdlc-server/` rules (Java, written once) | compiled to WebAssembly, records in IndexedDB | `//sdlc-server:server` at `/sdlc/api`, over a real git repository |
 | Depot (published versions, dependencies) | `depot-server/` rules (Java, written once) | the same module, over the page's own versions | the same server at `/depot/api` |
 

@@ -18,11 +18,10 @@ Tree = dict[str, Any]
 
 
 class LegendError(Exception):
-    """The compiler refused: what it said, and the kind of refusal. For the calls that ask legend-engine's ``pure/v1``
-    (``parse``, ``print_tree``, ``model_elements``) the kind is the engine's ``errorType`` (``PARSER``), else the
-    answer's status; for the rest (``relation_type``, ``plan``, ``plan_text``, ``database_from_catalog``,
-    ``table_model``, ``catalog_columns_sql``, ``session_setup``) it is still the compiler's Java exception class, until
-    the protocol program's leg 6 (docs/PARKED_WORK_LEDGER.md, PARK-17)."""
+    """The compiler refused: what it said, and the kind of refusal, by one rule for every call: legend-engine's
+    ``errorType`` when the text is refused (``PARSER`` when it does not parse, ``COMPILATION`` when it does not
+    compile or uses a construct not implemented), else the status legend-lite's server answers (``'500'``), the
+    message then led by the failure's class, as the server writes it."""
 
     def __init__(self, message: str, kind: str) -> None:
         super().__init__(message)
@@ -58,7 +57,7 @@ class Plan:
 
 
 def _answer(text: str) -> str:
-    """The compiler's answer, or its refusal raised."""
+    """The compiler's answer, or its refusal raised (its kind as the server names it: ``planner.Folded``)."""
     tag, _, rest = text.partition('\n')
     if tag == 'OK':
         return rest
@@ -77,9 +76,9 @@ def _columns(relation_type: dict[str, Any]) -> tuple[Column, ...]:
     return tuple(Column(c['name'], c['genericType']['rawType']['fullPath'], c) for c in relation_type['columns'])
 
 
-def _grammar(path: str, query: str, body: str) -> str:
-    """One ``pure/v1`` grammar call's body, as legend-lite's server answers it; a refusal raised, its kind the
-    engine's (``PARSER``), else the answer's status."""
+def _engine(path: str, query: str, body: str) -> str:
+    """One ``pure/v1`` call's body, as legend-lite's server answers it; a refusal raised, its kind the engine's
+    ``errorType``, else the answer's status."""
     answer = pure_v1(path, query, body)
     if answer.status == 200:
         return answer.body
@@ -94,19 +93,21 @@ def _grammar(path: str, query: str, body: str) -> str:
 
 def parse(text: str) -> Tree:
     """Pure text as its lambda's protocol tree, e.g. ``parse("|1 + 1")`` (``grammar/grammarToJson/lambda``)."""
-    return _json.loads(_grammar('/api/pure/v1/grammar/grammarToJson/lambda', 'returnSourceInformation=false', text))
+    return _json.loads(_engine('/api/pure/v1/grammar/grammarToJson/lambda', 'returnSourceInformation=false', text))
 
 
 def print_tree(tree: Tree, style: str = 'PRETTY') -> str:
     """A lambda's tree as Pure text: ``PRETTY`` across lines, or ``STANDARD`` on one (``grammar/jsonToGrammar/lambda``)."""
     if style not in ('PRETTY', 'STANDARD'):
         raise ValueError(f"style must be 'PRETTY' or 'STANDARD', not {style!r}")
-    return _grammar('/api/pure/v1/grammar/jsonToGrammar/lambda', f'renderStyle={style}', _json.dumps(tree))
+    return _engine('/api/pure/v1/grammar/jsonToGrammar/lambda', f'renderStyle={style}', _json.dumps(tree))
 
 
 def relation_type(model: str, tree: Tree) -> tuple[Column, ...]:
-    """The columns a relation query returns, as the compiler types them, compile-only."""
-    return _columns(_json.loads(_answer(library().call('lite_relation_type_json', model, _json.dumps(tree)))))
+    """The columns a relation query returns, as the compiler types them, compile-only
+    (``compilation/lambdaRelationType``)."""
+    request = {'model': {'_type': 'text', 'code': model}, 'lambda': tree}
+    return _columns(_json.loads(_engine('/api/pure/v1/compilation/lambdaRelationType', '', _json.dumps(request))))
 
 
 def plan(model: str, tree: Tree, runtime: str) -> Plan:
@@ -123,7 +124,7 @@ def plan_text(model: str, text: str, runtime: str) -> Plan:
 
 def model_elements(text: str) -> list[dict[str, Any]]:
     """A model's text as its elements (PureModelContextData), as the compiler reads them (``grammar/grammarToJson/model``)."""
-    return _json.loads(_grammar('/api/pure/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', text))['elements']
+    return _json.loads(_engine('/api/pure/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', text))['elements']
 
 
 def database_from_catalog(catalog: dict[str, Any]) -> dict[str, Any]:

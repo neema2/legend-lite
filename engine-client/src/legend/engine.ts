@@ -1,6 +1,7 @@
 // The calls a query app makes to a legend engine -- legend-engine's own `/api` paths and shapes,
-// served by legend-lite or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1). Nothing
-// here is legend-lite's own; pointing the app at legend-engine is a base URL.
+// served by legend-lite or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1). One is
+// legend-lite's own (a model's every compile error, `compileErrors`), asked first and answered by
+// legend-engine's route where the server has no such route; pointing the app at legend-engine is a base URL.
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
@@ -60,6 +61,8 @@ function withContext(input: ExecuteInput): ExecuteInput {
 export class HttpEngine implements Engine {
   readonly #base: string;
   readonly #fetch: typeof fetch;
+  /** Whether the server serves legend-lite's own compile route: unknown until it is first asked. */
+  #liteCompile: boolean | undefined;
 
   constructor(baseUrl: string, fetcher: typeof fetch = globalThis.fetch.bind(globalThis)) {
     this.#base = baseUrl.replace(/\/+$/, '');
@@ -128,10 +131,26 @@ export class HttpEngine implements Engine {
     return this.#json('POST', '/pure/v1/compilation/compile', model);
   }
 
-  /** `compile` as a list of errors ([] when it compiles): a server answers its one refusal (the in-tab twin, all). */
+  /**
+   * A whole model's compile errors, [] when it compiles. legend-lite's own route answers every one
+   * (`/lite/v1/compilation/compile`: the first element error alone, else every body's); legend-engine has no such
+   * route, and once it has answered 404 its `compilation/compile` is asked instead, which answers the first.
+   */
   async compileErrors(code: string): Promise<string[]> {
+    const model: PureModelContext = { _type: 'text', code };
+    if (this.#liteCompile !== false) {
+      try {
+        const answer = await this.#json<{ errors: { message: string }[] }>('POST', '/lite/v1/compilation/compile', model);
+        this.#liteCompile = true;
+        return answer.errors.map((e) => e.message);
+      } catch (e) {
+        // two compiles in flight before the first answer both see the route unknown: either's 404 answers both
+        if (!(this.#liteCompile !== true && e instanceof EngineError && e.status === 404)) throw e;
+        this.#liteCompile = false;
+      }
+    }
     try {
-      await this.compile({ _type: 'text', code });
+      await this.compile(model);
       return [];
     } catch (e) {
       if (e instanceof EngineError && e.status < 500) return [e.message];

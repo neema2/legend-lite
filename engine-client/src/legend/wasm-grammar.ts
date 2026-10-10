@@ -1,14 +1,15 @@
-// Grammar and typing answered in the tab by legend-lite's planner (WebAssembly, in a worker). The grammar is
-// legend-engine's pure/v1 asked of the planner (plannerFetch): the same client as a server's (HttpEngine), the same
-// code answering it (PureV1Api), so the tab and a server cannot answer differently (docs/PROTOCOL_PROGRAM_2026_10_05.md,
-// invariant 5). The rest are the planner's own calls (docs/QUERY_APP_DESIGN_2026_09_30.md D3).
+// Grammar and typing answered in the tab by legend-lite's planner (WebAssembly, in a worker). The grammar, a query's
+// relation type and a model's compile are legend-engine's pure/v1 (and lite's own compile route) asked of the planner
+// (plannerFetch): the same client as a server's (HttpEngine), the same code answering it (PureV1Api), so the tab and a
+// server cannot answer differently (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5; leg 6). The rest are the
+// planner's own calls (docs/QUERY_APP_DESIGN_2026_09_30.md D3).
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, HttpEngine, type Grammar } from './engine.ts';
 import type { PlannerRequest, PlannerResponse } from './planner-worker.ts';
-import type { PureModelContext, RelationTypeAnswer } from './wire.ts';
+import type { CompileResult, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { SeedTable, TableSeed } from '../model-data.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
@@ -45,26 +46,17 @@ export class WorkerPort implements PlannerPort {
 }
 
 /**
- * legend-lite's refusals the server answers 400 (PureV1Api.answer): the parse error, and the
- * compile errors -- LegendCompileException's subclasses -- and an unimplemented construct.
+ * An export's folded answer (`OK\n<json>` / `ERR\n<kind>\n<message>`) as its value or a refusal. The kind is the one
+ * legend-lite's server gives the refusal (planner.Folded): legend-engine's errorType when the text is refused
+ * (`PARSER`, `COMPILATION`, answered 400 as the server's grammar routes answer them), else the server's status.
  */
-const PARSE_ERRORS = new Set(['com.legend.parser.ParseException']);
-const COMPILE_ERRORS = new Set([
-  'com.legend.error.LegendCompileException', 'com.legend.error.ModelException',
-  'com.legend.error.ResolutionException', 'com.legend.error.MappingResolutionException',
-  'com.legend.compiler.spec.TypeInferenceException', 'com.legend.error.NotImplementedException',
-]);
-
-/** An export's folded answer (`OK\n<json>` / `ERR\n<class>\n<message>`) as its value or a refusal. */
 export function unfold(answer: string): string {
   if (answer.startsWith('OK\n')) return answer.slice(3);
-  const [, kind = '', ...rest] = answer.split('\n');
-  const message = rest.join('\n') || kind;
-  if (PARSE_ERRORS.has(kind)) throw new EngineError(message, 400, 'PARSER');
-  if (COMPILE_ERRORS.has(kind)) {
-    throw new EngineError(message, 400, 'COMPILATION');
-  }
-  throw new EngineError(`${kind}: ${message}`, 500);
+  const [tag, kind = '', ...rest] = answer.split('\n');
+  const message = rest.join('\n');
+  if (tag === 'ERR' && (kind === 'PARSER' || kind === 'COMPILATION')) throw new EngineError(message, 400, kind);
+  if (tag === 'ERR' && /^5\d\d$/.test(kind)) throw new EngineError(message, Number(kind));
+  throw new EngineError(`the planner answered in no form it has: ${JSON.stringify(answer.slice(0, 120))}`, 500);
 }
 
 /**
@@ -127,8 +119,8 @@ export class WasmGrammar implements Grammar {
     return this.#pureV1.modelText(model, style);
   }
 
-  async relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'relationType', model: model.code, lambda: toJson(lambda) }))) as RelationTypeAnswer;
+  relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
+    return this.#pureV1.relationType(model, lambda);
   }
 
   /** The SQL a query compiles to on its runtime, and the type of its result (upstream's relationType shape). */
@@ -146,18 +138,14 @@ export class WasmGrammar implements Grammar {
     unfold(await this.#port.ask({ kind: 'warm', model: model.code }));
   }
 
-  /**
-   * A whole model compiled (`compilation/compile` in the tab): every error, [] when it compiles -- the first element
-   * error stops the compile, as the server's does; every body error is collected (Studio's live problems). A parse or
-   * compile refusal is a problem listed; anything else (the planner failing) is thrown, as HttpEngine's is.
-   */
-  async compileErrors(code: string): Promise<string[]> {
-    try {
-      return JSON.parse(unfold(await this.#port.ask({ kind: 'compile', model: code }))) as string[];
-    } catch (e) {
-      if (e instanceof EngineError && e.status < 500) return [e.message];
-      throw e;
-    }
+  /** `compilation/compile` in the tab, as the server answers it: OK, or the first failure, 400 COMPILATION. */
+  compile(model: PureModelContext): Promise<CompileResult> {
+    return this.#pureV1.compile(model);
+  }
+
+  /** A whole model's every error (Studio's live problems), [] when it compiles: HttpEngine's, asked of the planner. */
+  compileErrors(code: string): Promise<string[]> {
+    return this.#pureV1.compileErrors(code);
   }
 
   /**

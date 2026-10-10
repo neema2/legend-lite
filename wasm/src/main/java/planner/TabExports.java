@@ -6,7 +6,9 @@ import org.teavm.jso.JSExport;
  * THE TAB'S ADAPTER to the {@link Boundary}: TeaVM's entry class (//wasm:planner), whose {@code @JSExport} functions
  * are the WebAssembly module's exports -- the tab's whole API, each a one-line delegation through {@link Folded}
  * (docs/PROTOCOL_PROGRAM_2026_10_05.md, invariant 5). legend-engine's operations the tab asks through
- * {@link #pureV1OrError}, as it would ask a server; no export here is its own version of a {@code pure/v1} endpoint.
+ * {@link #pureV1OrError}, as it would ask a server; no export here is its own version of a {@code pure/v1} endpoint
+ * (and {@link #pureV1OrError} routes legend-lite's own {@code /api/lite/v1/compilation/compile} too, as the server
+ * does).
  * The JVM differential ({@code JvmMain}) calls these same functions, so it compares the tab's own answers.
  */
 public final class TabExports {
@@ -46,18 +48,6 @@ public final class TabExports {
     @JSExport
     public static String planJsonOrError(String model, String lambdaJson, String runtime) {
         return Folded.of(() -> Boundary.planJson(model, lambdaJson, runtime));
-    }
-
-    /** {@link Boundary#relationTypeJson}. */
-    @JSExport
-    public static String relationTypeJsonOrError(String model, String lambdaJson) {
-        return Folded.of(() -> Boundary.relationTypeJson(model, lambdaJson));
-    }
-
-    /** {@link Boundary#compile}. */
-    @JSExport
-    public static String compileOrError(String model) {
-        return Folded.of(() -> Boundary.compile(model));
     }
 
     // ---- a model's data and its tables

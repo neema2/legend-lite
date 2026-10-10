@@ -131,6 +131,7 @@ user-visible error carries one of these eight.
 | `Compiler.compileModel(String)` | A→F | **STRICT** — first error aborts |
 | `Compiler.buildModule(ParsedModel)` | A→F | **TOLERANT** — poison-don't-drop, returns a wall map |
 | `Compiler.compileAllBodies(ctx)` | eager G over all bodies | **never throws**, returns walls |
+| `Compiler.compileErrors(String)` | A→F, then eager G over all bodies: a whole model | its errors as a list: the first element error alone, else every body's; both `compilation/compile` routes answer from it |
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
 | `Execution.execute(...)` | A→K | STRICT — **the production seam** |

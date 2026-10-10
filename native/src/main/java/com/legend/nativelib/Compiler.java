@@ -22,7 +22,7 @@ import planner.Folded;
  * its own version of a {@code pure/v1} endpoint.
  *
  * <p>Every function takes C strings (UTF-8) and returns the boundary's answer -- {@code "OK\n<result>"} or
- * {@code "ERR\n<class>\n<message>"}, a {@code pure/v1} answer {@code "OK\n<status>\n<type>\n<body>"} -- as a NEW C
+ * {@code "ERR\n<kind>\n<message>"}, a {@code pure/v1} answer {@code "OK\n<status>\n<type>\n<body>"} -- as a NEW C
  * string the caller releases with {@code lite_free}. The first argument is the calling thread's isolate thread:
  * GraalVM requires every OS thread that calls in to have attached itself ({@code graal_attach_thread}).
  *
@@ -81,19 +81,6 @@ public final class Compiler {
         try {
             String m = text(model), q = text(query), r = text(runtime);
             a = Folded.of(() -> Boundary.plan(m, q, r));
-        } catch (Throwable failure) {
-            a = Folded.failure(failure);
-        }
-        return answer(a);
-    }
-
-    /** A lambda's protocol JSON typed, compile-only -- its {@code RelationType} ({@code Boundary.relationTypeJson}). */
-    @CEntryPoint(name = "lite_relation_type_json")
-    static CCharPointer relationTypeJson(IsolateThread thread, CCharPointer model, CCharPointer lambdaJson) {
-        String a;
-        try {
-            String m = text(model), l = text(lambdaJson);
-            a = Folded.of(() -> Boundary.relationTypeJson(m, l));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }

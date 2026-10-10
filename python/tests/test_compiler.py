@@ -78,19 +78,24 @@ class Compiling(unittest.TestCase):
             ll.relation_type(MODEL, ll.parse("|#>{trades::DB.TRADES}#->select(~[nope])"))
         self.assertIn('nope', e.exception.message)
 
-    def test_refusal_kinds_are_mixed_until_leg_6(self):
-        """PARK-17 (docs/PARKED_WORK_LEDGER.md): a grammar call's refusal carries the engine's kind, the other calls'
-        still a Java class name, until the protocol program's leg 6. Either set changing turns this red: close or
-        restate the row."""
-        with self.assertRaises(ll.LegendError) as e:
-            ll.print_tree({'_type': 'lambda', 'parameters': [], 'body': [{'_type': 'nope'}]})
-        self.assertNotIn('.', e.exception.kind, 'the grammar: the engine\'s kind, not a Java class')
-        bad = ll.parse("|#>{trades::DB.TRADES}#->filter(x|$x.nope == 1)")
-        for call in (lambda: ll.relation_type(MODEL, bad), lambda: ll.plan(MODEL, bad, 'trades::RT'),
-                     lambda: ll.plan_text(MODEL, "#>{trades::DB.TRADES}#->filter(x|$x.nope == 1)", 'trades::RT')):
+    def test_every_refusal_has_its_kind_by_one_rule(self):
+        """A refusal's kind is legend-engine's errorType when the text is refused, else the status legend-lite's server
+        answers -- for a call that asks pure/v1 and for the compiler's own calls alike (the protocol program's leg 6,
+        docs/PROTOCOL_PROGRAM_2026_10_05.md)."""
+        for call in (lambda: ll.parse('|1 +'), lambda: ll.plan_text(MODEL, '1 +', 'trades::RT')):
             with self.assertRaises(ll.LegendError) as e:
                 call()
-            self.assertTrue(e.exception.kind.startswith('com.legend.'), e.exception.kind)
+            self.assertEqual(e.exception.kind, 'PARSER')
+        bad = ll.parse("|#>{trades::DB.TRADES}#->filter(x|$x.nope == 1)")
+        for call in (lambda: ll.relation_type(MODEL, bad), lambda: ll.plan(MODEL, bad, 'trades::RT')):
+            with self.assertRaises(ll.LegendError) as e:
+                call()
+            self.assertEqual(e.exception.kind, 'COMPILATION')
+            self.assertIn("'nope'", e.exception.message)
+        with self.assertRaises(ll.LegendError) as e:
+            ll.table_model({'table': 'orders'})
+        self.assertEqual(e.exception.kind, '500')
+        self.assertEqual(e.exception.message, 'IllegalArgumentException: Missing required field: databaseType')
 
     def test_writes_a_tables_whole_model_from_its_catalog(self):
         m = ll.table_model({'table': 'orders', 'pkg': 'shop', 'convertible': True, 'databaseType': 'DuckDB',

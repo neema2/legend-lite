@@ -42,8 +42,9 @@ public final class Boundary {
 
     /**
      * One {@code pure/v1} call by its path and raw query string ({@code ""} for none), routed and answered as
-     * legend-lite's server answers it. An execute's run is the host's (its rows come from {@link #executePlan}), so
-     * one asked for here is refused, naming the format that is served.
+     * legend-lite's server answers it -- lite's own {@code /api/lite/v1/compilation/compile} included. An execute's
+     * run is the host's (its rows come from {@link #executePlan}), so one asked for here is refused, naming the
+     * format that is served.
      */
     public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
         return com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body,
@@ -107,17 +108,16 @@ public final class Boundary {
                 com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).resultType()));
     }
 
-    /** A lambda's protocol JSON planned -- {@code {"sql","type"}}, as {@link #plan} (docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md, T4a). */
+    /**
+     * A lambda's protocol JSON planned -- {@code {"sql","type"}}, as {@link #plan} (docs/DATACUBE_TYPES_TO_SERVER_2026_09_27.md, T4a).
+     * Not {@code execution/generatePlan}'s twin (that answers legend-engine's execution plan), so it stays the
+     * boundary's own; a lambda typed alone is {@code compilation/lambdaRelationType}, asked through {@link #pureV1},
+     * and a whole model compiled is {@code compilation/compile} on either route (docs/PROTOCOL_PROGRAM_2026_10_05.md,
+     * leg 6).
+     */
     public static String planJson(String model, String lambdaJson, String runtime) {
         return planned(com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
                 com.legend.protocol.ProtocolReader.lambda(lambdaJson)).plan(runtime));
-    }
-
-    /** A lambda's protocol JSON typed, compile-only -- the {@code RelationType}, as {@link #relationType}. */
-    public static String relationTypeJson(String model, String lambdaJson) {
-        return com.legend.json.Json.toCompact(com.legend.plan.UpstreamRelationType.of(
-                com.legend.Compiler.query(com.legend.Compiler.compileModel(model),
-                        com.legend.protocol.ProtocolReader.lambda(lambdaJson)).resultType()));
     }
 
     private static String planned(com.legend.plan.QueryPlan p) {
@@ -125,17 +125,6 @@ public final class Boundary {
         out.put("sql", p.sql());
         out.put("type", com.legend.plan.UpstreamRelationType.of(p.rootType()));
         return com.legend.json.Json.toCompact(out);
-    }
-
-    /**
-     * What the server's {@code compilation/compile} does, for Studio's in-tab compile
-     * (docs/STUDIO_DESIGN_2026_10_02.md S4): the model's elements ({@code Compiler.compileModel}, which refuses on the
-     * first element error), then every body in it ({@code Compiler.compileAllBodies}, which collects them all).
-     * {@code [message, ...]}, empty when it compiles.
-     */
-    public static String compile(String model) {
-        java.util.Map<String, String> walls = com.legend.Compiler.compileAllBodies(com.legend.Compiler.compileModel(model));
-        return com.legend.json.Json.toCompact(new java.util.ArrayList<>(walls.values()));
     }
 
     // ---- a model's data and its tables

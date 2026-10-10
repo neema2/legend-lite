@@ -25,7 +25,10 @@ import java.util.function.Supplier;
  * (docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md; the user's ruling of 2026-09-27: lite's
  * client surface is upstream's APIs and nothing of its own). Each call is a pure function
  * of its request -- text in, a status and JSON out -- so it is tested without HTTP;
- * {@code LegendHttpServer} only carries it, through {@link #route}.
+ * {@code LegendHttpServer} only carries it, through {@link #route}. One route is legend-lite's own, beside them
+ * ({@code /api/lite/v1/compilation/compile}, every error where legend-engine's answers the first: the user's decision
+ * of 2026-10-10, docs/PROTOCOL_PROGRAM_2026_10_05.md leg 6), routed by the same dispatcher, so each host that calls
+ * {@link #route} answers it (lite's server, the tab, Python's library).
  *
  * <p>THE PLAN SIDE ({@code //core:pure_v1}): no database and no driver, so the compiler's
  * boundary answers with this same code -- Python's engine serves DataCube through it
@@ -103,7 +106,9 @@ public final class PureV1Api {
             case "/api/pure/v1/compilation/lambdaReturnType" -> lambdaReturnType(body);
             case "/api/pure/v1/execution/generatePlan" -> generatePlan(body);
             case "/api/pure/v1/execution/execute" -> execute(body, runner);
-            default -> error(404, null, "no such legend-engine API in legend-lite: " + path);
+            case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
+            default -> error(404, null, (path.startsWith("/api/lite/") ? "no such legend-lite API: "
+                    : "no such legend-engine API in legend-lite: ") + path);
         };
     }
 
@@ -196,25 +201,39 @@ public final class PureV1Api {
     /**
      * C1 {@code compilation/compile}: a model context compiled whole -- its elements, then every
      * body in it (functions, derived properties, service queries) -- as legend-engine compiles
-     * a model before answering. {@code {"message":"OK","defects":[]}}, or the first failure in
-     * the engine's error shape, 400 (measured, 4.145.0, 2026-09-30). Recorded differences: lite
-     * reports no {@code defects} (the engine's are warnings, e.g. a service without a title), and
-     * its refusal carries the element in the message, not a {@code sourceInformation}.
+     * a model before answering ({@code Compiler.compileErrors}, which {@link #compileEveryError} answers whole).
+     * {@code {"message":"OK","defects":[]}}, or the first failure in the engine's error shape, 400 (measured,
+     * 4.145.0, 2026-09-30). Recorded differences: lite reports no {@code defects} (the engine's are warnings, e.g. a
+     * service without a title), and its refusal carries the element in the message, not a
+     * {@code sourceInformation}.
      */
     public static Answer compile(String body) {
-        String[] wall = new String[1];
+        List<String> errors = new ArrayList<>();
         Answer a = answer(400, "COMPILATION", () -> {
-            Map<String, String> walls = com.legend.Compiler.compileAllBodies(
-                    com.legend.Compiler.compileModel(modelText(request(body))));
-            if (!walls.isEmpty()) {
-                // the wall's message names the element ("in function '...'"); its key is the
-                // overload signature, which a person does not need
-                wall[0] = walls.values().iterator().next();
-                return "";
-            }
+            errors.addAll(com.legend.Compiler.compileErrors(modelText(request(body))));
             return "{\"message\":\"OK\",\"defects\":[]}";
         });
-        return wall[0] != null ? error(400, "COMPILATION", wall[0]) : a;
+        // a body's message names its element ("in function '...'")
+        return errors.isEmpty() ? a : error(400, "COMPILATION", errors.get(0));
+    }
+
+    /**
+     * legend-lite's own {@code /api/lite/v1/compilation/compile} (the user's decision, 2026-10-10; legend-engine has
+     * no such route, so a client that may be talking to it asks this first and, answered 404, asks
+     * {@link #compile}): the model compiled as {@link #compile} compiles it, answered with EVERY error, 200 --
+     * {@code {"errors":[{"message":...}, ...]}}, the list empty when it compiles ({@code Compiler.compileErrors}: the
+     * first element error alone, else every body's). Each error is an object, so where it is can be added beside its
+     * message later (leg 6b) without changing the shape. A request that cannot be read, or a failure that is not the
+     * model's, is answered as {@link #compile} answers it.
+     */
+    public static Answer compileEveryError(String body) {
+        return answer(400, "COMPILATION", () -> {
+            List<Map<String, Object>> errors = new ArrayList<>();
+            for (String message : com.legend.Compiler.compileErrors(modelText(request(body)))) {
+                errors.add(Map.of("message", message));
+            }
+            return Json.toCompact(Map.of("errors", errors));
+        });
     }
 
     /**
@@ -663,17 +682,48 @@ public final class PureV1Api {
     private static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call) {
         try {
             return new Answer(200, call.get());
-        } catch (com.legend.error.LegendCompileException
-                | com.legend.error.NotImplementedException
-                | com.legend.sql.dialect.DialectCapability e) {
-            return error(status, errorType, String.valueOf(e.getMessage()));
-        } catch (IllegalArgumentException | com.legend.error.DataError e) {
-            Throwable named = e instanceof com.legend.error.DataError && e.getCause() != null ? e.getCause() : e;
-            return error(500, null, named.getClass().getSimpleName() + ": " + named.getMessage());
         } catch (RuntimeException | StackOverflowError e) {
-            e.printStackTrace();
-            return error(500, null, e.getClass().getSimpleName() + ": " + e.getMessage());
+            if (refusesTheText(e)) {
+                return error(status, errorType, String.valueOf(e.getMessage()));
+            }
+            if (!(e instanceof IllegalArgumentException || e instanceof com.legend.error.DataError)) {
+                e.printStackTrace();
+            }
+            return error(500, null, named(e));
         }
+    }
+
+    /**
+     * A failure as the routes name it, for a host that answers one outside a route: the boundary's own operations,
+     * which the tab and Python fold ({@code planner.Folded}), so that their callers read one vocabulary for every call
+     * (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 6, with the DataCube + Python line). {@code kind} is legend-engine's
+     * errorType for a refusal of the text -- {@code PARSER} when it does not parse, {@code COMPILATION} when it does
+     * not compile or uses a construct not implemented -- else the status the server answers, {@code "500"};
+     * {@code message} is as {@link #answer} writes it.
+     */
+    public record Refusal(String kind, String message) {
+    }
+
+    /** {@code e} as a {@link Refusal}. */
+    public static Refusal refusal(Throwable e) {
+        if (refusesTheText(e)) {
+            return new Refusal(e instanceof com.legend.parser.ParseException ? "PARSER" : "COMPILATION",
+                    String.valueOf(e.getMessage()));
+        }
+        return new Refusal("500", named(e));
+    }
+
+    /** The text does not parse or compile, or a construct is not implemented: answered with an errorType. */
+    private static boolean refusesTheText(Throwable e) {
+        return e instanceof com.legend.error.LegendCompileException
+                || e instanceof com.legend.error.NotImplementedException
+                || e instanceof com.legend.sql.dialect.DialectCapability;
+    }
+
+    /** Any other failure, as the server writes it: its class's simple name and its message (a database's refusal, its cause's). */
+    private static String named(Throwable e) {
+        Throwable n = e instanceof com.legend.error.DataError && e.getCause() != null ? e.getCause() : e;
+        return n.getClass().getSimpleName() + ": " + n.getMessage();
     }
 
     private static Answer error(int status, @com.legend.base.Nullable String errorType, String message) {

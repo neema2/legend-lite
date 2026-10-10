@@ -40,7 +40,6 @@ function fakeRuntime(
           tableModelOrError: () => 'ERR\nfake\nnot in this fake',
           catalogColumnsSqlOrError: () => 'ERR\nfake\nnot in this fake',
           planJsonOrError: (m: string, q: string, r: string) => answer(m, q, r),
-          relationTypeJsonOrError: () => 'OK\n{"_type":"relationType","columns":[]}',
           pureV1OrError: () => 'ERR\nfake\nnot in this fake',
           testDataSqlOrError: () => 'ERR\nfake\nnot in this fake',
           warmModel: (m: string) => { onWarm?.(m); return 1; },
@@ -111,11 +110,11 @@ describe('WasmPlanner', () => {
 
   it('raises a PlanError carrying the compiler message on ERR', async () => {
     const p = planner(() =>
-      'ERR\ncom.legend.compiler.spec.TypeInferenceException\n'
+      'ERR\nCOMPILATION\n'
       + "unknown column 'nope'");
     await assert.rejects(() => p.planText('g2'), (e: unknown) => {
       assert.ok(e instanceof PlanError);
-      // The exception CLASS is dropped; the message is what a user
+      // The refusal's KIND is dropped; the message is what a user
       // can act on, and it must match the HTTP planner's text.
       assert.equal(e.message, "unknown column 'nope'");
       assert.equal(e.subject, 'g2');
@@ -125,7 +124,7 @@ describe('WasmPlanner', () => {
 
   it('keeps a multi-line compiler message whole', async () => {
     const p = planner(() =>
-      'ERR\ncom.legend.parser.ParseException\n[1:40] expected expression,'
+      'ERR\nPARSER\n[1:40] expected expression,'
       + '\n  got end of input');
     await assert.rejects(() => p.planText('g'), (e: unknown) => {
       assert.ok(e instanceof PlanError);
@@ -283,7 +282,6 @@ describe('WasmPlanner', () => {
                 tableModelOrError: () => 'ERR\nfake\nnot in this fake',
                 catalogColumnsSqlOrError: () => 'ERR\nfake\nnot in this fake',
                 planJsonOrError: () => 'ERR\nfake\nnot in this fake',
-                relationTypeJsonOrError: () => 'ERR\nfake\nnot in this fake',
                 pureV1OrError: () => 'ERR\nfake\nnot in this fake',
                 testDataSqlOrError: () => 'ERR\nfake\nnot in this fake',
                 warmModel: () => 1,
