@@ -466,7 +466,7 @@ projects, in both styles, in the JVM (`//parser-equivalence:round_trip_proof`) a
 9,423 inputs byte for byte); S38 and S39 (lite keeps the braces and the column multiplicity the engine's printer drops);
 TeaVM's `isBlank` and double conversions made portable and guarded; PARK-22 and PARK-23 parked. **2026-10-10:** a spike
 built the tab with GraalVM Web Image (`docs/WEB_IMAGE_SPIKE_2026_10_10.md`); the user kept TeaVM, held to the JDK by
-tests, and PARK-23's fix moved into TeaVM's class library. **Landing 2026-10-10 from branch `teavm-conformance`:** the
+tests, and PARK-23's fix moved into TeaVM's class library. **Landed 2026-10-10 (3f9388f7b; GATES 2026-10-10):** the
 conformance test of TeaVM's class library against the JDK (`//wasm:conformance_test`, its ledger of known differences
 `wasm/conformance-known.tsv`), and TeaVM's number conversions made exact (`third_party/teavm_classlib`, put first on
 every `teavm_wasm` build's class path by `tools/teavm/defs.bzl`; `MODULE.bazel` declares `teavm-interop`): every
@@ -474,17 +474,15 @@ number family equal to the JDK in the tab; PARK-23 restated to its one speed cla
 `PortableText` retired, the server's win -- the protocol and the parser back on the JDK's own conversions
 (`Double.toString`, `Double.parseDouble`, `BigDecimal.valueOf`) now that the tab's are exact (the 22 call sites in
 `core/.../protocol/` and `core/.../parser/`; `protocol/NumberText.java`, `json/.../PortableText.java` deleted; the
-`isBlank` half of `ArchitectureTest.textTheTabWritesDifferentlyIsWrittenPortably` stays). **Next, announced
-2026-10-10 (core): leg 6** (`docs/PROTOCOL_PROGRAM_2026_10_05.md` §4, its decision of 2026-10-10) -- one
-whole-model compile on `com.legend.Compiler` answering every error, behind two routes on the one dispatcher:
+`isBlank` half of `ArchitectureTest.textTheTabWritesDifferentlyIsWrittenPortably` stays). **Landed 2026-10-10:
+leg 6** (`docs/PROTOCOL_PROGRAM_2026_10_05.md` §4, its decision and as-built note; GATES 2026-10-10) -- one
+whole-model compile, `Compiler.compileErrors`, behind two routes on the one dispatcher:
 `/api/pure/v1/compilation/compile` (legend-engine's exact answer, the first error) and the new
-`/api/lite/v1/compilation/compile` (every error); the tab's `compileOrError` and the SDLC server's copy go, Studio on
-the lite route; `relationTypeJson` (E5's twin) gone from both adapters, `planJson` stays. Files:
-`core/.../Compiler.java`, `core/.../server/{PureV1Api,LegendHttpServer}.java`, `wasm/.../planner/{Boundary,TabExports}.java`,
-`native/` (Python's adapter), `python/` (its bindings), `sdlc-server/.../CoreGrammar.java`, `engine-client/` (the
-in-tab engine and `HttpEngine`), and the callers in `studio/`, `datacube/` (the DataCube + Python line's: told here,
-before the edit) and `python/`. PARK-17 closes with it. Then legs 7 and 8. Open, and not yet in the plan's legs: printing lite-only mappings (a class mapping by
-function, a function association), which needs a design first.
+`/api/lite/v1/compilation/compile` (every error); the tab's `compileOrError` and the SDLC server's copy gone, Studio on
+the lite route; `relationTypeJson` (E5's twin) gone from both adapters, `planJson` stays; PARK-17 closed (the fold
+writes a refusal's kind as the routes name it, the DataCube + Python line's choice). Next: legs 7 and 8, and leg 9,
+imports and comments (added by the user, design first). Open, and not yet in the plan's legs: printing lite-only
+mappings (a class mapping by function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):
 first `studio-engine-1007` (`query-by-name` inside it; CI lanes `ui`, `datacube`, `sdlc`), then `protocol-1007`
 (engine code: `core/.../protocol/`, eleven files of `core/.../parser/`, `native-claims.tsv`; the engine's lanes). For

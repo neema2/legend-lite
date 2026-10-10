@@ -8257,3 +8257,22 @@ digest differing on Windows (the JDK's `PatternSyntaxException` message carries 
 now writes `\n`), cancelled for the fix; CI run 38061598321 on `teavm-numbers-land` (b45004732), the full gate on every
 platform, green. Pushed to main as 3f9388f7b (the tested commit and documentation), the user's go, the Legend Query
 session's licensing PR next by agreement.
+
+## 2026-10-10 — the protocol program's leg 6: one whole-model compile, two routes (the Studio / SDLC / Depot line)
+
+`Compiler.compileErrors(model)` is the one whole-model compile (the first element error alone, else every body's),
+answered by legend-engine's `/api/pure/v1/compilation/compile` (its first error, as before) and lite's own
+`/api/lite/v1/compilation/compile` (every error), both on `PureV1Api.route`, so lite's server, the tab and Python serve
+them. Gone: the tab's `compileOrError` and `relationTypeJsonOrError`, Python's `lite_relation_type_json`, the SDLC's copy
+of the compile; the relation type asks E5 everywhere; Studio asks the lite route (legend-engine's after a 404). PARK-17
+closed: the fold writes a refusal's kind as the routes name it (the DataCube + Python line's choice, their review of
+their files given). Leg 9 (imports and comments) added to the program by the user. `own_corpus.matched` 2796 to 2800
+(the new tests' model texts).
+
+One audit (no blockers; 2 should-fix -- the 404 memory's race in `HttpEngine.compileErrors`, and the as-built note to
+name what changes in the tab -- and 4 nits, all fixed in the commit). Local gate green (323 tests), with the parser lane,
+Studio's, DataCube's, Query's and Python's suites. CI run 38066401755 on `leg6-compile` (9c7db6295), the lanes the change
+touches (product, core, checks, parser_equivalence, warehouse, datacube, ui, sdlc) on every platform, green. Rebased onto
+the Legend Query session's licensing landing (2db6de6fe; no file in common) as ede6f0c51: the local gate, the parser
+lane, Studio's and Python's suites green again there (327 tests; six timeouts on the first run, with the machine's load
+at 40 under three Bazel servers, each passing on its re-run). Pushed to main with this record, the user's go.
