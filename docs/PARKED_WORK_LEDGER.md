@@ -361,29 +361,6 @@ file, `TdsLegacy.java`.
 
 ---
 
-## PARK-12 — The boot layer's versions of upstream functions (closes in Phase 3b, item 1)
-
-**What we do today.** The system metamodel defines its own versions of 29 upstream names; `SystemMetamodel.shadows`
-hides a loaded function with the same function id. About 12 upstream versions (14 by a text count in the Phase 3b brief, to verify by function id) at those names (`resolvePrimaryKey`,
-`propertyMappingsByPropertyName`, `inferRelationalType`, …) still run upstream's body. Five upstream files drop as "defined more than once" because they
-duplicate the boot layer's versions: `platform_dsl_mapping`'s `functions_EnumerationMapping.pure`, `functions_Mapping.pure`
-and `functions_PropertyMappingsImplementation.pure`, `platform_store_relational`'s `functions.pure`, and the engine's
-`core_relational/relational/lineage/scanRelations/scanRelations.pure` (two more drop for F-L1, a view lifted twice,
-which the same Phase 3b item fixes). The rule before Phase 3 also hid same-parameter versions with another multiplicity
-or return type, which the by-id rule keeps; which of them that affects was not checked.
-
-**Why parked.** Phase 3b item 1 does it, with the twins' merge by function id.
-
-**Cost while parked.** Upstream bodies run for functions the platform defines its own way; 5 files do not load.
-
-**Acceptance.** The boot layer's versions win by implementation rows ("the platform's version", the plan's decision
-1), not by hiding: `SystemMetamodel.shadows` deleted; each of those versions decided (a row or a refusal); the 5 files
-loading (Phase 3b item 1).
-
-**Anchor.** `boolean shadows(` appears in exactly one product file, `SystemMetamodel.java`.
-
----
-
 ## PARK-13 — A debug trace switched by an environment variable in product code
 
 **What we do today.** `Overloads.rawSchemaErasedExpansion` prints to standard error when
@@ -401,20 +378,6 @@ path; off by default.
 
 ---
 
-## PARK-14 — A dot call with no qualified property falls back to a function
-
-**What we do today.** A dot call with arguments tries the receiver's qualified property first (legend-pure's rule)
-and, when there is none, calls a function of that name. legend-pure refuses the call.
-
-**Why parked.** Refusing the call changes which programs compile; the user decides between legend-pure's rule and a
-recorded leniency.
-
-**Cost while parked.** Programs legend-pure rejects compile here.
-
-**Acceptance.** Decided: refused as legend-pure does, or kept and recorded in `SEMANTICS_REGISTER.md` with its reason.
-Either way this row and its anchor are deleted (the section's closing rule).
-
-**Anchor.** `af.propertyCall() || functionCandidates(af)` appears in exactly one product file, `Typer.java`.
 ## PARK-15 — The legacy plan picks an enumeration mapping without the place it is used
 
 **Parked** 2026-10-08 by the user's step 2 decisions (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9), found while

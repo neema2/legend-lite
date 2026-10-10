@@ -52,13 +52,18 @@ public final class EagerCorpusCompileProbe {
         }
         Map<String, Integer> bySource = new TreeMap<>();
         Map<String, Integer> bodiesBySource = new TreeMap<>();
+        // the side maps are keyed per element, a function's id (Phase 3b item 5b): a wall key is an id too
         for (String fqn : corpus.context().functionFqns()) {
-            String src = corpus.elementSources().getOrDefault(fqn, "?");
-            bodiesBySource.merge(src, 1, Integer::sum);
+            for (var fn : corpus.context().findFunction(fqn)) {
+                String src = fn.definition() == null ? "?" : corpus.elementSources().getOrDefault(
+                        com.legend.model.FunctionId.of(fn.definition()).qualified(), "?");
+                bodiesBySource.merge(src, 1, Integer::sum);
+            }
         }
         for (String k : walls.keySet()) {
             String fqn = k.contains("(") ? k.substring(0, k.indexOf('(')) : k;
-            bySource.merge(corpus.elementSources().getOrDefault(fqn, "?"), 1, Integer::sum);
+            bySource.merge(corpus.elementSources().getOrDefault(k,
+                    corpus.elementSources().getOrDefault(fqn, "?")), 1, Integer::sum);
         }
         // THE FAMILIES (COMPILE_EVERYTHING_HOMEWORK §10.5, the last step): a
         // failing NON-TEST body is either the engine's machinery loaded because
@@ -70,11 +75,12 @@ public final class EagerCorpusCompileProbe {
         List<String> residue = new ArrayList<>();
         for (var e : walls.entrySet()) {
             String k = e.getKey(); String fqn = k.contains("(") ? k.substring(0, k.indexOf('(')) : k;
-            String fam = family(fqn, corpus.elementSources().getOrDefault(fqn, "?"));
+            String source = corpus.elementSources().getOrDefault(k, corpus.elementSources().getOrDefault(fqn, "?"));
+            String fam = family(fqn, source);
             families.merge(fam, 1, Integer::sum);
             if (fam.startsWith("RESIDUE")) {
                 residue.add(k + " :: " + e.getValue().replace('\n', ' '));
-                residueBySource.merge(corpus.elementSources().getOrDefault(fqn, "?"), 1, Integer::sum);
+                residueBySource.merge(source, 1, Integer::sum);
             }
         }
         List<String> out = new ArrayList<>();

@@ -54,3 +54,13 @@ With the user (2026-10-07): Phase 3b does what the bump and users need (the boot
 qualified-property lookup, a user-impact review of the 58 OVERLOAD and 14 PACKAGE rows) and drops typing the machinery
 and upstream's unrun tests, and the lane instrumentation. The reference lane stays strict: the 18 mapping files stay
 dropped and pinned (a recorded product gap; the corpus loads them tolerantly). See the plan's Phase 3b.
+
+**After Phase 3b (2026-10-09; `docs/build-inventory/program/PHASE_3B_LANDING.md`).** Corrections to the counts above,
+found while doing the work (the brief's §3b.9): the "`Runtime`/`Mapping` not found" drops were one bug, a function's
+overloads sharing one import scope keyed by name (the blamed files were the last ones read; `router_main.pure` and the
+two `mappingExtension.pure` files load since item 5b); the twin list names 10 of the 11 elements
+(`_propertyMappingsByPropertyName` is the eleventh); item 5 (the crash made an error) was added to the plan after this
+README; and of the 18 strict-only files, 16 use a model-to-model feature the platform does not support, while
+`modelJoinAdvancedSetup.pure` and `modelChainTest.pure` drop for reasons of their own (the brief's 3b-O8, still open).
+The strict lane's 32 drops are 27 after 3b (the 5 twin files, the 2 F-L1 files and the 3 import-scope files load):
+the 18 mapping files, the 4 unit-of-measure files and 5 parse walls.

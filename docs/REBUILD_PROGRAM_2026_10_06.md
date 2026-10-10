@@ -222,10 +222,12 @@ true trigger; no Node anywhere; one shape per app.
    - **The three functions** exist upstream too. Which version runs is decided by the implementation table, by
      function id: each has a row saying "the platform's version", here our Pure over the rows. That needs one more
      kind of row, **the platform's own Pure**, which the system metamodel's other upstream-named functions
-     (`classMappingById`, `mainTable`, …) also use. (2026-10-07: Phase 3 replaced the name rule with hiding by function id, `SystemMetamodel.shadows`; the
-     row kind itself is not built yet. Whether Phase 3b item 1 builds it, so that its acceptance can delete `shadows`
-     (PARKED_WORK_LEDGER PARK-12), is the 3b brief's open decision 3b-O1, its one owner; Phase 4 needs it when the
-     result views move.)
+     (`classMappingById`, `mainTable`, …) also use. (2026-10-07: Phase 3 replaced the name rule with hiding by function id, `SystemMetamodel.shadows`.
+     **2026-10-09, Phase 3b item 1b (3b-O1, option (b)): built.** `Implementation.PlatformPure` is the row; its registration
+     is the system metamodel's function ids (`platform/PlatformPure.java`); a loaded or generated declaration with one of
+     those ids keeps its declaration and takes the platform's body (`PlatformPure.adopt`, at the boot and at the graph
+     merge); the "no row means refused" rule covers the names the platform implements at, so each of upstream's 14 other
+     versions there carries a decision (its body runs, or a wall); `shadows` is deleted and PARK-12 closed.)
 2. **Boot speed: profile and optimize the boot first**; the pre-built boot layer (Phase 4b, the parked compiler plan's
    W2.1 "generated at build time, not parsed at class load") is decided with measured numbers.
 3. **The product ships a generated copy of upstream bodies** (the default world). AGENTS.md and TENET_CHARTER C6.3

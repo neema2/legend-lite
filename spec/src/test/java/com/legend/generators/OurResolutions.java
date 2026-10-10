@@ -97,7 +97,6 @@ final class OurResolutions {
         List<String> failed = new ArrayList<>();
         w.println("sourceId\tline\tcolumn\tkind\tresolvedFqn\tresolvedId\tenclosingFqn\tenclosingId");
         for (String fqn : new TreeSet<>(ctx.functionFqns())) {
-            String src = referenceSourceId(elementSources.get(fqn));
             List<TypedFunction> overloads;
             try {
                 overloads = ctx.findFunction(fqn);
@@ -108,6 +107,9 @@ final class OurResolutions {
                 if (fn.isNative() || fn.body().isEmpty() || ctx.implementations().runsByRule(fn.definition())) {
                     continue;
                 }
+                // the source is the OVERLOAD's: the side maps are keyed per element (a function's id) since
+                // build rebuild Phase 3b item 5b; by name, every overload reported the last file read
+                String src = referenceSourceId(elementSources.get(idOf(fn)));
                 functions++;
                 String enclosing = fqn + "\t" + idOf(fn);
                 CompiledFunction compiled;
