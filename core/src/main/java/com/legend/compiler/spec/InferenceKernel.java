@@ -1198,14 +1198,17 @@ public final class InferenceKernel {
                     if (literal != null) {
                         return resolveChosen(literal, args, name, expected);
                     }
+                    // each candidate with ALL its parameters (a zero-parameter candidate has no
+                    // p0: two same-named no-argument functions, one in the caller's package and
+                    // one imported, crashed this message — build rebuild Phase 3b, item 5a)
                     throw new TypeInferenceException("ambiguous overload of '" + name + "': "
                             + winners.size() + " candidates tie for the argument types ["
                             + winners.stream().map(w -> w.qualifiedName()
-                                    + "/" + w.parameters().size()
                                     + (w.isNative() ? ":native" : ":module")
-                                    + " p0=" + w.parameters().get(0).type().typeName()
-                                    + " ret=" + w.returnType().typeName()
-                                    + "[" + w.returnMultiplicity() + "]")
+                                    + w.parameters().stream()
+                                            .map(p -> p.type().typeName() + p.multiplicity().text())
+                                            .collect(java.util.stream.Collectors.joining(", ", "(", ")"))
+                                    + ":" + w.returnType().typeName() + w.returnMultiplicity().text())
                                     .collect(java.util.stream.Collectors.joining("; "))
                             + "]");
                 }
