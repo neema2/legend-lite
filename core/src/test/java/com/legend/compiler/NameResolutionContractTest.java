@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -159,9 +160,9 @@ class NameResolutionContractTest {
         var resolved = (com.legend.protocol.spec.AppliedFunction)
                 com.legend.compiler.NameResolver.resolveQueryIn(call, imports,
                         universe(java.util.Set.of("app::fns::joinStrings")));
-        assertTrue(resolved.candidateFqns().contains("app::fns::joinStrings"),
+        assertTrue(resolved.referents().contains("app::fns::joinStrings"),
                 "the user wildcard candidate is carried");
-        assertTrue(resolved.candidateFqns().contains(
+        assertTrue(resolved.referents().contains(
                         "meta::pure::functions::string::joinStrings"),
                 "the prelude native joins the candidate set instead of"
                         + " being shadowed");
@@ -192,8 +193,59 @@ class NameResolutionContractTest {
         var resolved = (com.legend.protocol.spec.AppliedFunction)
                 com.legend.compiler.NameResolver.resolveQuery(call);
         assertEquals("map", resolved.function(), "several packages: the spelling stays, the candidates ride");
-        assertTrue(resolved.candidateFqns().contains("meta::pure::functions::collection::map"), String.valueOf(resolved.candidateFqns()));
-        assertTrue(resolved.candidateFqns().contains("meta::pure::functions::relation::map"), String.valueOf(resolved.candidateFqns()));
+        assertTrue(resolved.referents().contains("meta::pure::functions::collection::map"), String.valueOf(resolved.referents()));
+        assertTrue(resolved.referents().contains("meta::pure::functions::relation::map"), String.valueOf(resolved.referents()));
+    }
+
+    /** L7 "resolve once", step 2 (2026-10-10; the ledger's PARK-5): the record on a resolved call IS what every
+     *  reader gets — the resolver works the names out once, ResolvedNames reads the record and derives nothing. */
+    @Test
+    @DisplayName("a resolved call's record is read as it was recorded; the platform's names at the call's arity ride")
+    void theRecordIsReadNotRederived() {
+        // a hand-made record: the reader returns it, whatever the spelling would give
+        var recorded = new com.legend.protocol.spec.AppliedFunction("map",
+                List.of(new com.legend.protocol.spec.Variable("xs"), new com.legend.protocol.spec.Variable("f")),
+                List.of("x::y::map"));
+        assertEquals(List.of("x::y::map"), com.legend.compiler.ResolvedNames.referents(recorded),
+                "the reader returns the record, nothing more");
+        // a name the program's tiers leave bare and only the platform's rule names (from's package is not in the
+        // core import group): the resolver records the platform's names at the call's arity; the spelling stays
+        var bare = new com.legend.protocol.spec.AppliedFunction("from", THREE);
+        var r2 = (com.legend.protocol.spec.AppliedFunction) com.legend.compiler.NameResolver.resolveQuery(bare);
+        assertEquals("from", r2.function(), "the spelling stays (readers that match it still see it)");
+        assertEquals(List.of("meta::pure::mapping::from"), r2.referents());
+        assertEquals(r2.referents(), com.legend.compiler.ResolvedNames.referents(r2));
+    }
+
+    private static final List<com.legend.protocol.spec.ValueSpecification> THREE = List.of(
+            new com.legend.protocol.spec.Variable("q"), new com.legend.protocol.spec.Variable("m"),
+            new com.legend.protocol.spec.Variable("r"));
+
+    /** The audit of 2026-10-10 (B2): a call the resolver left bare but recorded names for resolves to itself on a
+     *  second pass (the normalizer re-resolves synthesized bodies); the spelling and the record stay. */
+    @Test
+    @DisplayName("resolving a resolved call again changes nothing: the spelling and the record stay")
+    void resolutionIsIdempotentForARecordedBareCall() {
+        var call = new com.legend.protocol.spec.AppliedFunction("from", THREE);
+        var once = (com.legend.protocol.spec.AppliedFunction) com.legend.compiler.NameResolver.resolveQuery(call);
+        assertEquals(List.of("meta::pure::mapping::from"), once.referents());
+        var twice = (com.legend.protocol.spec.AppliedFunction) com.legend.compiler.NameResolver.resolveQuery(once);
+        assertEquals("from", twice.function(), "a second pass does not qualify the bare name");
+        assertEquals(once, twice);
+        assertSame(once, twice, "an unchanged call is the same object");
+    }
+
+    /** Until L7 step 3, a call BUILT after the resolver has no record; the reader still answers it by the rule
+     *  (the same names the resolver would have recorded), so the typer's desugars keep working between the steps. */
+    @Test
+    @DisplayName("a call with no record is still answered by the bare-name rule, until step 3")
+    void aBuiltCallIsAnsweredByTheRule() {
+        var built = new com.legend.protocol.spec.AppliedFunction("map",
+                List.of(new com.legend.protocol.spec.Variable("xs"), new com.legend.protocol.spec.Variable("f")));
+        var resolved = (com.legend.protocol.spec.AppliedFunction)
+                com.legend.compiler.NameResolver.resolveQuery(built);
+        assertEquals(resolved.referents(), com.legend.compiler.ResolvedNames.referents(built),
+                "the rule at a read gives the same names the resolver records");
     }
 
     /** 4b.1: a name in ONE core package qualifies, and the form that owns that

@@ -1,0 +1,87 @@
+samples tip 2249 main 2378
+inclusive samples                                                                 tip      main
+com.legend.compiler.spec.InferenceKernel.resolveOverload                          106        86
+com.legend.compiler.spec.InferenceKernel.match                                     31        21
+com.legend.compiler.spec.InferenceKernel.typeFit                                   10         8
+com.legend.compiler.spec.InferenceKernel.nominalTypeFit                             5         3
+com.legend.compiler.spec.InferenceKernel.rankNonLambda                             15         7
+com.legend.compiler.spec.FunctionMatch$Linearizer.linearization                     3         1
+com.legend.compiler.spec.FunctionMatch$Linearizer.c3                                2         0
+com.legend.compiler.spec.FunctionMatch$TypeFit.<init>                               1         0
+com.legend.compiler.ResolvedNames.form                                            143       243
+com.legend.compiler.ResolvedNames.referents                                       359       698
+com.legend.compiler.BareNames.catalog                                             351       661
+com.legend.compiler.BareNames.catalogTiered                                       433       637
+com.legend.compiler.NameResolver.resolveVs                                        434       369
+com.legend.compiler.BareNames.tiered                                              195       276
+com.legend.platform.CoreFn.of                                                       2         3
+com.legend.compiler.element.FunctionCompiler.functionsAt                           15         8
+com.legend.compiler.element.FunctionCompiler.compileAll                            19        18
+com.legend.model.SignatureMangle.mangle                                            44        35
+com.legend.model.FunctionId.of                                                     43        33
+com.legend.compiler.spec.Typer.applyFunction                                     1089      1334
+com.legend.compiler.spec.Overloads.checkGenericTyped                              125       101
+com.legend.compiler.spec.Overloads.selectRankedByPresentArgs                       36        27
+com.legend.compiler.spec.Overloads.functionCandidates                              23        16
+com.legend.compiler.StatementInline$Pass.resolvedDefinition                        13        11
+com.legend.builtin.TdsLegacy.matches                                               47        38
+com.legend.compiler.spec.Typer.synth                                             1089      1335
+com.legend.Compiler.compileAllBodies                                              467       578
+
+top self (tip):
+     341    283  java.util.HashMap.getNode
+      93    108  java.util.HashMap.putVal
+      91     65  com.legend.compiler.NameResolver.resolveVs
+      68    110  java.util.HashMap.resize
+      63     49  java.lang.StringLatin1.lastIndexOf
+      39     37  jdk.internal.util.ArraysSupport.mismatch
+      35     33  com.legend.parser.TokenStreamCursor.peek
+      33     29  com.legend.compiler.NameResolver.resolveCallCandidates
+      32     26  java.util.stream.ReferencePipeline$3$1.accept
+      31     17  java.util.ArrayList.indexOfRange
+      28      9  java.util.HashMap.hash
+      26     33  com.legend.compiler.spec.Typer.applyFunction
+      21      8  java.util.AbstractCollection.addAll
+      20     15  com.legend.lexer.TokenStream.lineStarts
+      20     28  java.util.Arrays.copyOf
+      20      9  com.legend.builtin.TdsLegacy.matches
+      19     29  java.util.ArrayList.addAll
+      18     14  com.legend.compiler.NameResolver.resolveNameMulti
+      18     12  java.lang.invoke.DirectMethodHandle$Holder.invokeStatic
+      17     59  java.util.HashMap.put
+      16     21  java.util.stream.ReferencePipeline$2$1.accept
+      16     10  com.legend.compiler.spec.InferenceKernel.unify
+      15      5  com.legend.compiler.spec.Overloads.bindDeferredAndBuild
+      15     27  java.util.ImmutableCollections$ListItr.next
+      14     11  java.util.stream.AbstractPipeline.wrapSink
+biggest inclusive increases tip-main (com.legend only):
+    +482  tip    482 main      0  com.legend.compiler.spec.NewChecker$$Lambda.0x00007ffe011874d8.accept
+    +478  tip    478 main      0  com.legend.compiler.spec.SpecCompiler$$Lambda.0x00007ffe01182bf8.get
+    +474  tip    474 main      0  com.legend.compiler.spec.Typer$$Lambda.0x00007ffe01182e28.get
+    +423  tip    423 main      0  com.legend.compiler.NameResolver$$Lambda.0x00007ffe010d8b00.apply
+    +140  tip   1040 main    900  com.legend.rcorpus.MinimalCorpus.<init>
+    +135  tip    135 main      0  com.legend.compiler.spec.NewChecker$$Lambda.0x00007ffe01195348.accept
+     +97  tip    670 main    573  com.legend.Compiler.buildModule
+     +83  tip    409 main    326  com.legend.compiler.NameResolver.resolve
+     +79  tip     79 main      0  com.legend.normalizer.MappingNormalizer$$Lambda.0x00007ffe01109e30.get
+     +79  tip    406 main    327  com.legend.compiler.NameResolver.resolveAlongside
+     +77  tip    400 main    323  com.legend.compiler.NameResolver.resolveElement
+     +76  tip    451 main    375  com.legend.compiler.NameResolver.resolveList
+     +71  tip     71 main      0  com.legend.compiler.spec.SourceSubst$$Lambda.0x00007ffe0118c890.apply
+     +71  tip    380 main    309  com.legend.compiler.NameResolver.resolveFunction
+     +67  tip    423 main    356  com.legend.compiler.NameResolver.resolveVsList
+     +67  tip    423 main    356  com.legend.compiler.NameResolver.lambda$resolveVsList$0
+     +65  tip    434 main    369  com.legend.compiler.NameResolver.resolveVs
+     +51  tip    223 main    172  com.legend.compiler.NameResolver.resolveLambda
+     +45  tip     45 main      0  com.legend.normalizer.MappingPrePass$$Lambda.0x00007ffe011038c0.get
+     +44  tip     44 main      0  com.legend.cache.ContentStore$$Lambda.0x00007ffe010df928.apply
+     +44  tip     44 main      0  com.legend.Compiler$$Lambda.0x00007ffe010df700.get
+     +38  tip     38 main      0  com.legend.compiler.spec.SourceSubst$Call$$Lambda.0x00007ffe0119f8b0.apply
+     +36  tip     36 main      0  com.legend.compiler.BareNames$$Lambda.0x00007ffe010d88a0.test
+     +30  tip    235 main    205  com.legend.parser.ElementParser.parseModel
+     +29  tip   1532 main   1503  com.legend.rcorpus.EagerCorpusCompileProbe.main
+     +28  tip     28 main      0  com.legend.compiler.spec.Overloads$$Lambda.0x00007ffe0117a420.test
+     +27  tip    216 main    189  com.legend.parser.ElementParser.parseSingleElement
+     +26  tip    281 main    255  com.legend.parser.ElementParser.parse
+     +24  tip    125 main    101  com.legend.compiler.spec.Overloads.checkGenericTyped
+     +23  tip    289 main    266  com.legend.Compiler.parseSources

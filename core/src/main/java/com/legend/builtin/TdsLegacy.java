@@ -66,6 +66,6 @@ public enum TdsLegacy {
         }
         // a bare name's candidates, else (the resolver found nothing for it) its spelling — a full name that is not
         // this one is neither
-        return af.candidateFqns().isEmpty() ? name.equals(bare()) : af.candidateFqns().contains(fqn);
+        return af.referents().isEmpty() ? name.equals(bare()) : af.referents().contains(fqn);
     }
 }

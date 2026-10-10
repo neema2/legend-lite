@@ -139,7 +139,7 @@ public final class OfferFacts {
         }
         AppliedFunction call = (AppliedFunction) NameResolver.resolveQuery(
                 new AppliedFunction(name, List.of(), List.of()));
-        List<String> candidates = call.candidateFqns().isEmpty() ? List.of(call.function()) : call.candidateFqns();
+        List<String> candidates = call.referents().isEmpty() ? List.of(call.function()) : call.referents();
         String path;
         if (candidates.size() == 1) {
             path = candidates.get(0);

@@ -84,7 +84,7 @@ final class CallShapes {
         String e = "_am_" + af.function().replace("::", "_");
         List<ValueSpecification> rest = new ArrayList<>(af.parameters());
         rest.set(0, new Variable(e, null, null, null));
-        AppliedFunction inner = new AppliedFunction(af.function(), rest, af.candidateFqns(),
+        AppliedFunction inner = new AppliedFunction(af.function(), rest, af.referents(),
                 af.pos(), false, af.grouped(), af.infix());
         return t.synth(new AppliedFunction("map", List.of(af.parameters().get(0),
                 new LambdaFunction(List.of(new Variable(e, null, null, null)), List.of(inner)))), env);

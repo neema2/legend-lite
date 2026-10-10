@@ -61,6 +61,16 @@ import java.util.Objects;
  *                    {@code "my::pkg::add"})
  * @param parameters  every parameter in source order; for arrow-form
  *                    source the receiver is at index 0
+ * @param referents   THE CALL'S NAMES, worked out once (L7 "resolve once", 2026-10-10; the ledger's PARK-5): every
+ *                    full name a call written bare can mean — the program's functions by the file's imports, the
+ *                    element's package and the core import group, joined by the platform's names when several are
+ *                    found, and the platform's names at the call's arity when the program declares none — recorded
+ *                    by the name resolver on a parsed call (step 2) and by the builder on a call built after it
+ *                    (step 3). Empty when the name is written in full (the name is the one referent), when the
+ *                    resolver qualified a bare name to one full name, the program's or the platform's (then
+ *                    {@code function} carries it), and when nothing names it (the typer then reports an unknown
+ *                    function); until step 3 a call built after the resolver has no record either, and a read
+ *                    answers it by the rule. A call with a record is not resolved again.
  * @param island      a written form, as {@code propertyCall}, {@code grouped} and {@code infix} are: the
  *                    {@code #>{db[.schema.table]}#} island, not the ordinary call
  *                    {@code tableReference(db[, 'schema.table'])} it means. The two are one record and one
@@ -81,7 +91,7 @@ import java.util.Objects;
 public record AppliedFunction(
         String function,
         List<ValueSpecification> parameters,
-        List<String> candidateFqns,
+        List<String> referents,
         @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
         boolean propertyCall,
         boolean grouped,
@@ -115,38 +125,38 @@ public record AppliedFunction(
         Objects.requireNonNull(function, "function");
         Objects.requireNonNull(parameters, "parameters");
         parameters = List.copyOf(parameters);
-        candidateFqns = candidateFqns == null ? List.of()
-                : List.copyOf(candidateFqns);
+        referents = referents == null ? List.of()
+                : List.copyOf(referents);
     }
 
     /** Eight-component compatibility constructor: no written detail of older JSON (only the protocol reader sets
      *  one). */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
-            List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+            List<String> referents, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
             boolean propertyCall, boolean grouped, boolean infix, boolean island) {
-        this(function, parameters, candidateFqns, pos, propertyCall, grouped, infix, island, null, null);
+        this(function, parameters, referents, pos, propertyCall, grouped, infix, island, null, null);
     }
 
     /** Seven-component compatibility constructor: every form but the island (only {@link #tableReference} makes
      *  one). */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
-            List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+            List<String> referents, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
             boolean propertyCall, boolean grouped, boolean infix) {
-        this(function, parameters, candidateFqns, pos, propertyCall, grouped, infix, false);
+        this(function, parameters, referents, pos, propertyCall, grouped, infix, false);
     }
 
     /** A copy carrying older JSON's written details ({@link #fControl}, {@link #ownerClass}). */
     public AppliedFunction withWrittenDetails(@com.legend.base.Nullable String newFControl,
             @com.legend.base.Nullable String newOwnerClass) {
-        return new AppliedFunction(function, parameters, candidateFqns, pos, propertyCall, grouped, infix, island,
+        return new AppliedFunction(function, parameters, referents, pos, propertyCall, grouped, infix, island,
                 newFControl, newOwnerClass);
     }
 
     /** Six-component compatibility constructor (non-infix). */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
-            List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+            List<String> referents, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
             boolean propertyCall, boolean grouped) {
-        this(function, parameters, candidateFqns, pos, propertyCall, grouped, false);
+        this(function, parameters, referents, pos, propertyCall, grouped, false);
     }
 
     /** A copy with new parameters and EVERYTHING ELSE preserved — the only
@@ -156,7 +166,7 @@ public record AppliedFunction(
      *  a dropped {@code infix} un-binarizes an operator chain downstream
      *  (sum(VARCHAR) regression during the 2026-08-12 burn-down). */
     public AppliedFunction withParameters(List<ValueSpecification> newParameters) {
-        return new AppliedFunction(function, newParameters, candidateFqns, pos,
+        return new AppliedFunction(function, newParameters, referents, pos,
                 propertyCall, grouped, infix, island, fControl, ownerClass);
     }
 
@@ -166,28 +176,28 @@ public record AppliedFunction(
      *  {@code or} span the operator token only; named calls span the name token only;
      *  {@code not}-from-{@code !} spans {@code !}..operand-end. */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
-            List<String> candidateFqns) {
-        this(function, parameters, candidateFqns, null, false, false);
+            List<String> referents) {
+        this(function, parameters, referents, null, false, false);
     }
 
     /** Span-carrying form for ordinary (non-dot) applications. */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
-            List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
-        this(function, parameters, candidateFqns, pos, false, false);
+            List<String> referents, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
+        this(function, parameters, referents, pos, false, false);
     }
 
     /** Dot-call form. */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
-            List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+            List<String> referents, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
             boolean propertyCall) {
-        this(function, parameters, candidateFqns, pos, propertyCall, false);
+        this(function, parameters, referents, pos, propertyCall, false);
     }
 
     /** A copy marked as PARENTHESISED — a flatten boundary: engine folds `a - b - 7` into
      *  one 3-operand collection but keeps `(a - b) - 7` as two nested 2-operand calls
      *  (harness DIFF on mostRecentDayOfWeek). Excluded from equality like pos. */
     public AppliedFunction asGrouped() {
-        return new AppliedFunction(function, parameters, candidateFqns, pos, propertyCall,
+        return new AppliedFunction(function, parameters, referents, pos, propertyCall,
                 true, infix, island, fControl, ownerClass);
     }
 
@@ -202,22 +212,19 @@ public record AppliedFunction(
         return o instanceof AppliedFunction other
                 && function.equals(other.function())
                 && parameters.equals(other.parameters())
-                && candidateFqns.equals(other.candidateFqns());
+                && referents.equals(other.referents());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(function, parameters, candidateFqns);
+        return Objects.hash(function, parameters, referents);
     }
 
     /**
-     * The common form: no import-ambiguity candidates. {@code candidateFqns}
-     * is filled ONLY by the name resolver when a SIMPLE call name matches
-     * several imported packages — real pure merges same-named functions
-     * from every imported package into ONE overload set and picks by
-     * signature, so the resolver carries the candidate FQNs and the Typer
-     * unions their overloads (types stay single-referent: an ambiguous
-     * TYPE reference is still an error).
+     * The common form: no record yet. {@code referents} is filled by the name resolver (every full name a bare
+     * call can mean: real pure merges same-named functions from every imported package into ONE overload set and
+     * picks by signature, so the resolver carries the names and the Typer unions their overloads; types stay
+     * single-referent: an ambiguous TYPE reference is still an error).
      */
     public AppliedFunction(String function, List<ValueSpecification> parameters) {
         this(function, parameters, List.of());

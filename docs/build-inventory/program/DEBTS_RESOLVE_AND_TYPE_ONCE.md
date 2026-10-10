@@ -78,6 +78,22 @@ options, with sizes:
   the checks read the record. The resolver plus about 200 call-building sites and the 10 files that read
   `candidateFqns()`. Its own design and audit.
 
+### Step 2 landed (2026-10-10; `L7_RESOLVE_ONCE_DESIGN_2026_10_10.md`)
+
+The resolver records, on every bare call the program declares nothing for, the platform's names at the call's arity:
+the list main's read-time rule produced, recorded (`AppliedFunction.referents`, the record `candidateFqns` was); an
+ambiguous call's record is as before (the program's candidates and the platform's names). `ResolvedNames.referents`
+reads the record and runs the rule only for a call with no record (a call built after the resolver: step 3's); a call
+with a record is not resolved again (the design note's §10 has each departure from the design's text and its reason). Measured (the judges in the GATES
+entry "L7 step 2"): the probe's candidate sets identical at every site (7,198 (name, candidates) rows on main's core and
+on the change); the census identical (27 walls, 16,133 bodies typed, 1,120 failing); the eager compile's typing
+below main's in every one of six alternated pairs (run 1 of `evidence/l7/eager_timings_step2.tsv`, a quiet machine, before the audit's fixes; run by `evidence/l7/eager_ab.sh` outside Bazel's cache on 2026-10-10): `typeAll` main 2,431 to 2,927 ms, median 2,701; the change 1,913 to 2,392 ms, median 2,188 (459 to 675 ms less in each pair); the `build` phase (parse and resolve, where the bare-name rule now runs once per bare call) median 2,017 → 2,088 ms; the whole compile's medians 4,718 → 4,275 ms; the profile (`evidence/l7/jfr_step2.txt`, one run each side, 1 ms samples, the whole probe): `ResolvedNames.referents` 698 of 2,378 samples on main (29%) → 359 of 2,249 on the change (16%), all of it now the no-record path (`BareNames.catalog` 351 samples: the 1,076 built calls and the 95 probes, read by the rule at every read; step 3's); `Typer.applyFunction` 1,334 → 1,089; the resolver's `resolveVs` 369 → 434 (the rule once per bare call the program does not declare). Repeated on the final tree under load (run 2 of `eager_timings_step2.tsv`): `typeAll` medians main 3,794 → change 2,855 ms, below main's in every pair. Of the 7,149 record-less calls the typer still meets, 5,978 are written in full (the name is the referent),
+95 are bare parsed names nothing declares (property probes), and 1,076 are built calls: step 3's.
+For step 4 (the audit of 2026-10-10, N1): the typer's bare path (`Overloads.candidatesOf` when the record is empty)
+also merged the model's declarations at tier names that have no native at the call's arity, which a record built from
+the natives leaves out; no engine-only name has more than one package today, so the probe's rows agree, and the
+deletion of the bare path must keep that merge or show it empty. The audit's full table: `evidence/l7/AUDIT_L7_STEP2.md`.
+
 ### How to measure a fix
 
 The numbers above came from the audit's scripts, copied with the runs' numbers to `evidence/phase3/park5/` (`eager_timings.tsv`;
@@ -87,7 +103,9 @@ two trees; `eager_jfr.sh` adds the recording; `jfr_agg.py` reads it). To redo th
   (manual, a 4 GB `java_run`; its outputs land in `bazel-bin/spec/eager_corpus_compile/`, and the timing line
   `build=<ms> typeAll=<ms>` is in its log).
 - Bazel caches the action, so to time it repeatedly run the same Java command outside Bazel: the action's command
-  line (`bazel aquery //spec:eager_corpus_compile`) gives the class path and flags; run it from the execution root.
+  line (`bazel aquery //spec:eager_corpus_compile`) gives the class path and flags; run it from the execution root. Build
+  with `bazel build --remote_download_all` first: Bazel 9 leaves the jars that hit its cache off the disk, and the
+  command fails with `NoClassDefFoundError` (2026-10-10; `evidence/l7/eager_ab.sh` does both).
 - Compare main's tree and the change's tree on the same machine, alternating runs (six pairs), and read the median.
 - For the profile, add `-XX:StartFlightRecording:filename=<file>,settings=profile,jdk.ExecutionSample#period=1ms`,
   then `jfr print --json --stack-depth 200 --events jdk.ExecutionSample <file>`.

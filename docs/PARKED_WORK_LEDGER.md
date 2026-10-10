@@ -210,8 +210,15 @@ typing time on main and 29% after Phase 3, whose forms are read by the names a c
 parsed calls; calls built after the resolver built resolved; every check reads the record. Typing time on the eager
 compile at or below main's; the six corpus passes, PCT and the reference lane unchanged.
 
-**Anchor.** `BareNames.catalog(` is called from exactly one product file, `ResolvedNames.java` (`referents`).
-Recording the names on the call removes that call.
+**Step 2 landed (L7, 2026-10-10; `docs/build-inventory/program/L7_RESOLVE_ONCE_DESIGN_2026_10_10.md`):** the
+resolver records every parsed call's names once (`AppliedFunction.referents`: the program's candidates as before and,
+on a call the program declares nothing for, the platform's names at the call's arity, main's read-time answer recorded)
+and `ResolvedNames` reads the record; the rule runs at a read only for a call with no record, which after step 2 is
+a call built after the resolver. A call with a record is not resolved again (the design note's §10). What remains is step 3: the 243 built calls, born resolved through one
+builder, and then the read-time rule deleted.
+
+**Anchor.** `BareNames.catalog(` is called from exactly one product file, `ResolvedNames.java` (`referents`, the
+no-record path). Step 3 removes that call.
 
 **Research.** `docs/build-inventory/program/DEBTS_RESOLVE_AND_TYPE_ONCE.md` (plan branch): the profile with every
 calling site, the cause, the options weighed and the ones rejected.

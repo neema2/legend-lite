@@ -1,0 +1,99 @@
+CANDIDATES rows: main 7209 (distinct (name, ids) 7198), change 7255 (distinct 7243)
+differing (name, ids) rows: 50
+  acos	main=0	change=1	meta::pure::functions::math::acos_Number_1__Float_1_
+  asin	main=0	change=1	meta::pure::functions::math::asin_Number_1__Float_1_
+  atan	main=0	change=1	meta::pure::functions::math::atan_Number_1__Float_1_
+  atan2	main=0	change=1	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_
+  ceiling	main=0	change=1	meta::pure::functions::math::ceiling_Number_1__Integer_1_
+  cos	main=0	change=1	meta::pure::functions::math::cos_Number_1__Float_1_
+  datePart	main=0	change=1	meta::pure::functions::date::datePart_Date_$0_1$__Date_$0_1$_,meta::pure::functions::date::datePart_Date_1__Date_1_
+  dayOfYear	main=0	change=1	meta::pure::functions::date::dayOfYear_Date_1__Integer_1_
+  decodeBase64	main=0	change=1	meta::pure::functions::string::decodeBase64_String_1__String_1_
+  divide	main=0	change=1	meta::pure::functions::math::divide_Decimal_1__Decimal_1__Integer_1__Decimal_1_,meta::pure::functions::math::divide_Number_1__Number_1__Float_1_
+  encodeBase64	main=0	change=1	meta::pure::functions::string::encodeBase64_String_1__String_1_
+  exp	main=0	change=1	meta::pure::functions::math::exp_Number_1__Float_1_
+  floor	main=0	change=1	meta::pure::functions::math::floor_Number_1__Integer_1_
+  hour	main=0	change=1	meta::pure::functions::date::hour_Date_1__Integer_1_
+  left	main=0	change=1	meta::pure::functions::string::left_String_1__Integer_1__String_1_
+  length	main=0	change=1	meta::pure::functions::string::length_String_1__Integer_1_
+  log	main=0	change=1	meta::pure::functions::math::log_Number_1__Float_1_
+  ltrim	main=0	change=1	meta::pure::functions::string::ltrim_String_1__String_1_
+  meta::relational::functions::sqlQueryToString::sqlFalse	main=1	change=0	meta::relational::functions::sqlQueryToString::sqlFalse__Boolean_1_
+  meta::relational::functions::sqlQueryToString::sqlTrue	main=1	change=0	meta::relational::functions::sqlQueryToString::sqlTrue__Boolean_1_
+  minus	main=1	change=2	meta::pure::functions::math::minus_Decimal_MANY__Decimal_1_,meta::pure::functions::math::minus_Float_MANY__Float_1_,meta::pure::functions::math::minus_Integer_M
+  mod	main=0	change=1	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_
+  monthNumber	main=0	change=1	meta::pure::functions::date::monthNumber_Date_$0_1$__Integer_$0_1$_,meta::pure::functions::date::monthNumber_Date_1__Integer_1_,meta::pure::functions::date::mon
+  now	main=0	change=1	meta::pure::functions::date::now__DateTime_1_
+  parseBoolean	main=0	change=1	meta::pure::functions::string::parseBoolean_String_1__Boolean_1_
+  parseDate	main=0	change=1	meta::pure::functions::string::parseDate_String_1__Date_1_
+  parseDecimal	main=0	change=1	meta::pure::functions::string::parseDecimal_String_1__Decimal_1_,meta::pure::functions::string::parseDecimal_String_1__Integer_1__Integer_1__Decimal_1_
+  parseFloat	main=0	change=1	meta::pure::functions::string::parseFloat_String_1__Float_1_
+  parseInteger	main=0	change=1	meta::pure::functions::string::parseInteger_String_1__Integer_1_
+  pow	main=0	change=1	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_
+  rem	main=0	change=1	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_
+  replace	main=0	change=1	meta::pure::functions::string::replace_String_1__String_1__String_1__String_1_
+  right	main=0	change=1	meta::pure::functions::string::right_String_1__Integer_1__String_1_
+  round	main=0	change=1	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_,meta::pure::functions::math::round_Float_1__Integer_1__Float_1_,meta::pure::functions::math:
+  rtrim	main=0	change=1	meta::pure::functions::string::rtrim_String_1__String_1_
+  sin	main=0	change=1	meta::pure::functions::math::sin_Number_1__Float_1_
+  sqlFalse	main=0	change=1	meta::relational::functions::sqlQueryToString::sqlFalse__Boolean_1_
+  sqlNull	main=0	change=1	meta::relational::functions::sqlQueryToString::sqlNull__SQLNull_1_
+  sqlTrue	main=0	change=1	meta::relational::functions::sqlQueryToString::sqlTrue__Boolean_1_
+  sqrt	main=0	change=1	meta::pure::functions::math::sqrt_Number_1__Float_1_
+  stdDevPopulation	main=0	change=1	meta::pure::functions::math::stdDevPopulation_Number_$1_MANY$__Number_1_,meta::pure::functions::math::stdDevPopulation_Number_MANY__Number_1_,meta::pure::functi
+  stdDevSample	main=0	change=1	meta::pure::functions::math::stdDevSample_Number_$1_MANY$__Number_1_,meta::pure::functions::math::stdDevSample_Number_MANY__Number_1_
+  tan	main=0	change=1	meta::pure::functions::math::tan_Number_1__Float_1_
+  toLower	main=0	change=1	meta::pure::functions::string::toLower_String_1__String_1_
+  toString	main=0	change=1	meta::pure::functions::string::toString_Any_1__String_1_
+  toUpper	main=0	change=1	meta::pure::functions::string::toUpper_String_1__String_1_
+  trim	main=0	change=1	meta::pure::functions::string::trim_String_1__String_1_
+  variancePopulation	main=0	change=1	meta::pure::functions::math::variancePopulation_Number_MANY__Number_1_
+  varianceSample	main=0	change=1	meta::pure::functions::math::varianceSample_Number_MANY__Number_1_
+  weekOfYear	main=0	change=1	meta::pure::functions::date::weekOfYear_Date_$0_1$__Integer_$0_1$_,meta::pure::functions::date::weekOfYear_Date_1__Integer_1_
+differing ids rows (the spelling ignored): 46
+  main=1	change=2	meta::pure::functions::date::datePart_Date_$0_1$__Date_$0_1$_,meta::pure::functions::date::datePart_Date_1__Date_1_
+  main=1	change=2	meta::pure::functions::date::dayOfYear_Date_1__Integer_1_
+  main=1	change=2	meta::pure::functions::date::hour_Date_1__Integer_1_
+  main=1	change=2	meta::pure::functions::date::monthNumber_Date_$0_1$__Integer_$0_1$_,meta::pure::functions::date::monthNumber_Date_1__Integer_1_,meta::pure::functions::date::monthNumber_Month_1__Integer_1_
+  main=1	change=2	meta::pure::functions::date::now__DateTime_1_
+  main=1	change=2	meta::pure::functions::date::weekOfYear_Date_$0_1$__Integer_$0_1$_,meta::pure::functions::date::weekOfYear_Date_1__Integer_1_
+  main=2	change=3	meta::pure::functions::math::acos_Number_1__Float_1_
+  main=2	change=3	meta::pure::functions::math::asin_Number_1__Float_1_
+  main=2	change=3	meta::pure::functions::math::atan2_Number_1__Number_1__Float_1_
+  main=2	change=3	meta::pure::functions::math::atan_Number_1__Float_1_
+  main=2	change=3	meta::pure::functions::math::ceiling_Number_1__Integer_1_
+  main=2	change=3	meta::pure::functions::math::cos_Number_1__Float_1_
+  main=1	change=2	meta::pure::functions::math::divide_Decimal_1__Decimal_1__Integer_1__Decimal_1_,meta::pure::functions::math::divide_Number_1__Number_1__Float_1_
+  main=1	change=2	meta::pure::functions::math::exp_Number_1__Float_1_
+  main=2	change=3	meta::pure::functions::math::floor_Number_1__Integer_1_
+  main=1	change=2	meta::pure::functions::math::log_Number_1__Float_1_
+  main=2	change=3	meta::pure::functions::math::minus_Decimal_MANY__Decimal_1_,meta::pure::functions::math::minus_Float_MANY__Float_1_,meta::pure::functions::math::minus_Integer_MANY__Integer_1_,meta::pure::functions::m
+  main=2	change=3	meta::pure::functions::math::mod_Integer_1__Integer_1__Integer_1_
+  main=1	change=2	meta::pure::functions::math::pow_Number_1__Number_1__Number_1_
+  main=2	change=3	meta::pure::functions::math::rem_Number_1__Number_1__Number_1_
+  main=1	change=2	meta::pure::functions::math::round_Decimal_1__Integer_1__Decimal_1_,meta::pure::functions::math::round_Float_1__Integer_1__Float_1_,meta::pure::functions::math::round_Number_1__Integer_1_
+  main=2	change=3	meta::pure::functions::math::sin_Number_1__Float_1_
+  main=2	change=3	meta::pure::functions::math::sqrt_Number_1__Float_1_
+  main=1	change=2	meta::pure::functions::math::stdDevPopulation_Number_$1_MANY$__Number_1_,meta::pure::functions::math::stdDevPopulation_Number_MANY__Number_1_,meta::pure::functions::math::stdDevPopulation_Relation_1__
+  main=1	change=2	meta::pure::functions::math::stdDevSample_Number_$1_MANY$__Number_1_,meta::pure::functions::math::stdDevSample_Number_MANY__Number_1_
+  main=2	change=3	meta::pure::functions::math::tan_Number_1__Float_1_
+  main=1	change=2	meta::pure::functions::math::variancePopulation_Number_MANY__Number_1_
+  main=1	change=2	meta::pure::functions::math::varianceSample_Number_MANY__Number_1_
+  main=1	change=2	meta::pure::functions::string::decodeBase64_String_1__String_1_
+  main=1	change=2	meta::pure::functions::string::encodeBase64_String_1__String_1_
+  main=1	change=2	meta::pure::functions::string::left_String_1__Integer_1__String_1_
+  main=2	change=3	meta::pure::functions::string::length_String_1__Integer_1_
+  main=1	change=2	meta::pure::functions::string::ltrim_String_1__String_1_
+  main=1	change=2	meta::pure::functions::string::parseBoolean_String_1__Boolean_1_
+  main=1	change=2	meta::pure::functions::string::parseDate_String_1__Date_1_
+  main=1	change=2	meta::pure::functions::string::parseDecimal_String_1__Decimal_1_,meta::pure::functions::string::parseDecimal_String_1__Integer_1__Integer_1__Decimal_1_
+  main=2	change=3	meta::pure::functions::string::parseFloat_String_1__Float_1_
+  main=2	change=3	meta::pure::functions::string::parseInteger_String_1__Integer_1_
+  main=1	change=2	meta::pure::functions::string::replace_String_1__String_1__String_1__String_1_
+  main=1	change=2	meta::pure::functions::string::right_String_1__Integer_1__String_1_
+  main=1	change=2	meta::pure::functions::string::rtrim_String_1__String_1_
+  main=1	change=2	meta::pure::functions::string::toLower_String_1__String_1_
+  main=0	change=1	meta::pure::functions::string::toString_Any_1__String_1_
+  main=1	change=2	meta::pure::functions::string::toUpper_String_1__String_1_
+  main=2	change=3	meta::pure::functions::string::trim_String_1__String_1_
+  main=1	change=2	meta::relational::functions::sqlQueryToString::sqlNull__SQLNull_1_

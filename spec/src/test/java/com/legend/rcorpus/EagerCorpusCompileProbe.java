@@ -54,10 +54,15 @@ public final class EagerCorpusCompileProbe {
         Map<String, Integer> bodiesBySource = new TreeMap<>();
         // the side maps are keyed per element, a function's id (Phase 3b item 5b): a wall key is an id too
         for (String fqn : corpus.context().functionFqns()) {
-            for (var fn : corpus.context().findFunction(fqn)) {
-                String src = fn.definition() == null ? "?" : corpus.elementSources().getOrDefault(
-                        com.legend.model.FunctionId.of(fn.definition()).qualified(), "?");
-                bodiesBySource.merge(src, 1, Integer::sum);
+            try {
+                for (var fn : corpus.context().findFunction(fqn)) {
+                    String src = fn.definition() == null ? "?" : corpus.elementSources().getOrDefault(
+                            com.legend.model.FunctionId.of(fn.definition()).qualified(), "?");
+                    bodiesBySource.merge(src, 1, Integer::sum);
+                }
+            } catch (RuntimeException e) {
+                // a name whose overloads are all signature-broken (the first loop counts it the same way)
+                bodiesBySource.merge("?", 1, Integer::sum);
             }
         }
         for (String k : walls.keySet()) {

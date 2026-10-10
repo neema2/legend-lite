@@ -125,3 +125,42 @@ Core: `compiler/NameResolver.java`, `compiler/ResolvedNames.java`, `compiler/Bar
 2. Whether step 2 lands on its own (recommended: it is the whole of the measured cost, judged alone, and step 3 is
    then a mechanical follow-up with its own judge), or the branch lands as one.
 3. Nothing else: the rule, the record's contents and the measurement are PARK-5's acceptance as written.
+
+## 10. Step 2 as built: where it departs from §2 and §3, and why (2026-10-10, from the audit)
+
+- **The record is at the call's arity where the program found nothing.** For a bare call the program declares
+  nothing for, the resolver records the platform's names at the call's arity: exactly the list main's read-time rule
+  produced for that call (`BareNames.catalog` filtered by arity, deduplicated by name), so the shadow probe's
+  candidate rows judge "nothing changed" row for row. An ambiguous call's record is as main's merge made it (the
+  program's candidates, then the platform's names at every arity). The reader returns the record as it is: §2's
+  reader-side arity filter ("a lookup of the natives at each recorded name") is not built, because it would drop the
+  program's names (no natives there) and change the ambiguous case's list; the typer's matcher filters by arity. §3's
+  reason for an unfiltered record, a rewriter that changes a call's arity, is step 3's: `Calls.like(original, args)`
+  copies the record at the original's arity and records anew by the rule otherwise. No rewriter changes a
+  nothing-found call's arity today (`FromChecker` keeps it; the audit's S2).
+- **The resolver records only where the program found nothing** ("left bare or ambiguous" in §2 is "left bare" in the
+  code): an ambiguous call's record already holds the platform's names through the merge that precedes it (the
+  audit's N5: the ambiguous arm was dead work, a second catalog walk per `map` and `filter`).
+- **A call with a record is not resolved again:** its spelling and record stay and only its parameters resolve. The
+  normalizer re-resolves synthesized bodies (`ModelNormalizer`'s second pass over derived properties, constraints,
+  service queries and views), and with one-name records a second pass would have qualified a bare `from`, `graphFetch`,
+  `serialize`, `toMany` or `toVariant` to its platform name and emptied the record (the audit's B2; the test
+  `NameResolutionContractTest.resolutionIsIdempotentForARecordedBareCall`).
+- **The first scope decides, measured.** With a call's record kept on a second pass, the shadow probe's candidate
+  rows (`evidence/l7/compare_candidates.py`, `candidates_step2.txt`) differ from main's in 48 rows, every one a call
+  in a synthesized body (a lifted derived property, constraint or view; `ModelNormalizer.resolveSynthesized`) naming a
+  platform function the first pass's universe does not hold (`buildModel` resolves with the model's and the boot
+  layer's names; the normalizer's second pass adds `platformFqns`): `sin`, `sqrt`, `round`, `replace`, `toLower`,
+  `trim`, `weekOfYear`, `sqlTrue` and the like. On main the second pass qualified them to the full name, and the typer
+  then typed 46 of them without collecting candidates (no probe row) and 2 (`sqlTrue`, `sqlFalse`) by the bare path;
+  now all 48 keep the bare spelling with the one-name record and are typed from it, as the same call in an ordinary
+  body always was (main left it bare for the typer's bare path). Each row's ids are the one name's overloads. The
+  census is identical (27 walls, 16,133 typed, 1,120 failing); the corpus passes, the render census, the reference lane
+  and the lanes judge the outcome.
+- **Outside a prelude scope** a bare call records no platform names and `referents` returns the program's candidates
+  only, where the old rule appended the platform's at a read; no product caller builds such a scope (the audit's N6
+  (v)).
+- **The rebuilt call keeps every component** (`island`, `fControl`, `ownerClass` included), where the seven-argument
+  constructor dropped the wire's three; nothing-found calls with a record are rebuilt now, so the pre-existing drop
+  would have reached them (the audit's N4).
+

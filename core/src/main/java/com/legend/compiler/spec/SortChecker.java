@@ -181,7 +181,7 @@ final class SortChecker {
         // descending(~COL) — the ColSpec overload lives only there (batch 5 leg 5c)
         if (af.parameters().size() == 1 && af.parameters().get(0) instanceof CString c) {
             af = new AppliedFunction((ascending ? CoreFn.ASC : CoreFn.DESC).parseName(),
-                    List.of(new ColSpec(c.value())), af.candidateFqns(), af.pos(),
+                    List.of(new ColSpec(c.value())), af.referents(), af.pos(),
                     af.propertyCall(), af.grouped(), af.infix());
         }
         Application a = t.checkGeneric(af, env);

@@ -1700,10 +1700,14 @@ public final class NameResolver {
                 yield r.equals(ev.fullPath()) ? ev : new EnumValue(r, ev.value());
             }
             case AppliedFunction af -> {
-                // IDEMPOTENT: a node already carrying candidates was resolved
-                // (its scope decided them); only its parameters resolve again
-                List<String> matches = af.candidateFqns().isEmpty()
-                        ? resolveCallCandidates(af.function(), scope) : af.candidateFqns();
+                // IDEMPOTENT: a call carrying its record was resolved (its scope decided the names; since L7 step 2
+                // a one-name record is a bare call the platform alone names, which a second pass must not qualify):
+                // the spelling and the record stay, only the parameters resolve again
+                if (!af.referents().isEmpty()) {
+                    List<ValueSpecification> again = resolveVsList(af.parameters(), scope);
+                    yield again == af.parameters() ? af : af.withParameters(again);
+                }
+                List<String> matches = resolveCallCandidates(af.function(), scope);
                 // CALL position: several imported packages defining the name
                 // is NOT an error — the candidates travel on the node and
                 // the Typer unions their overloads (real pure's function
@@ -1716,8 +1720,8 @@ public final class NameResolver {
                 // corpus compile made both visible at once).
                 boolean captured = !(matches.size() == 1
                         && matches.get(0).equals(af.function()));
-                if (captured && scope.prelude()
-                        && !af.function().contains("::")) {
+                boolean bare = !af.function().contains("::");
+                if (captured && scope.prelude() && bare) {
                     List<String> merged = null;
                     for (var tier : BareNames.catalogTiered(af.function())) {
                         // the probe records what the tier ADDS: an FQN the
@@ -1744,16 +1748,40 @@ public final class NameResolver {
                         matches = merged;
                     }
                 }
-                String fn = matches.size() == 1 ? matches.get(0) : af.function();
-                List<String> candidates = matches.size() > 1 ? matches : List.of();
+                // THE RECORD (L7 "resolve once", step 2; the ledger's PARK-5): for a bare call the tiers above left
+                // bare, the platform's names at the call's arity are recorded here, once (ResolvedNames.referents
+                // computed exactly this list at every read, through BareNames.catalog); an ambiguous call's record
+                // already holds the platform's names through the merge above; a bare name the tiers qualified to
+                // ONE function keeps that name, as before
+                boolean nothingFound = matches.size() == 1 && matches.get(0).equals(af.function());
+                List<String> platform = List.of();
+                if (scope.prelude() && bare && nothingFound) {
+                    List<String> found = null;
+                    for (var tier : BareNames.catalogTiered(af.function())) {
+                        for (var nf : tier.getValue()) {
+                            String nfq = nf.qualifiedName();
+                            if (nf.parameters().size() == af.parameters().size() && !matches.contains(nfq)
+                                    && (found == null || !found.contains(nfq))) {
+                                if (found == null) {
+                                    found = new ArrayList<>(2);
+                                }
+                                found.add(nfq);
+                            }
+                        }
+                    }
+                    if (found != null) {
+                        platform = found;
+                    }
+                }
+                List<String> all = platform.isEmpty() ? matches : platform;
+                String fn = !nothingFound && all.size() == 1 ? all.get(0) : af.function();
+                List<String> candidates = nothingFound ? platform : (all.size() > 1 ? all : List.<String>of());
                 List<ValueSpecification> params = resolveVsList(af.parameters(), scope);
-                yield (fn.equals(af.function()) && params == af.parameters()
-                        && candidates.equals(af.candidateFqns())) ? af
-                        // preserve pos + the spelling markers: infix is
-                        // load-bearing downstream (the emitter's
-                        // key-expression rule)
-                        : new AppliedFunction(fn, params, candidates, af.pos(),
-                                af.propertyCall(), af.grouped(), af.infix());
+                yield (fn.equals(af.function()) && params == af.parameters() && candidates.isEmpty()) ? af
+                        // preserve pos + every written form: infix is load-bearing downstream (the emitter's
+                        // key-expression rule); island, fControl and ownerClass are the wire's
+                        : new AppliedFunction(fn, params, candidates, af.pos(), af.propertyCall(), af.grouped(),
+                                af.infix(), af.island(), af.fControl(), af.ownerClass());
             }
             case AppliedProperty ap -> {
                 ValueSpecification receiver = resolveVs(ap.receiver(), scope);

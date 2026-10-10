@@ -79,6 +79,7 @@ class ParkedWorkLedgerTest {
             // PARK-5 to PARK-14: the build rebuild's debts (2026-10-07, the user: fixed correctly after the program
             // lands, never worked around meanwhile). PARK-5: a platform call's names are worked out again at every
             // check, from the spelling.
+            // (L7 step 2, 2026-10-10: parsed calls carry their record; the rule runs only for built calls, step 3's)
             Map.entry("PARK-5 a platform call is never resolved once",
                             new Anchor("BareNames\\.catalog\\(", List.of("ResolvedNames.java"))),
             // PARK-6: a receiver typed to choose a route, then typed again by the route (the dot-call branch, the
@@ -115,7 +116,7 @@ class ParkedWorkLedgerTest {
                                     List.of("InferenceKernel.java"))),
             // PARK-11: legacy TDS functions recognized by name, falling back to the spelling
             Map.entry("PARK-11 legacy TDS functions and agg by name, not rows",
-                            new Anchor("candidateFqns\\(\\)\\.isEmpty\\(\\) \\? name\\.equals\\(bare\\(\\)\\)",
+                            new Anchor("referents\\(\\)\\.isEmpty\\(\\) \\? name\\.equals\\(bare\\(\\)\\)",
                                     List.of("TdsLegacy.java"))),
             // PARK-15 (2026-10-08, execution plan boundary step 2): the legacy plan
             // picks an enumeration mapping without the place it is used — the first

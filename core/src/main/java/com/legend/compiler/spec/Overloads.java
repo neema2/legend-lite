@@ -1180,19 +1180,19 @@ final class Overloads {
         List<TypedFunction> found = candidatesOf(af);
         if (com.legend.builtin.DecisionProbe.INSTALLED != null) {
             com.legend.builtin.DecisionProbe.candidates(af.function(),
-                    af.candidateFqns().isEmpty() ? "bare" : "node", found.stream().map(TypedFunction::definition));
+                    af.referents().isEmpty() ? "bare" : "node", found.stream().map(TypedFunction::definition));
         }
         return found;
     }
 
     private List<TypedFunction> candidatesOf(AppliedFunction af) {
-        if (af.candidateFqns().isEmpty()) {
+        if (af.referents().isEmpty()) {
             com.legend.builtin.DecisionProbe.bareCall(af.function(), af.pos() != null, af.propertyCall(), af.infix());
             return functionCandidates(af.function());
         }
         List<TypedFunction> union = new ArrayList<>();
         RuntimeException firstBroken = null;
-        for (String fqn : af.candidateFqns()) {
+        for (String fqn : af.referents()) {
             try {
                 union.addAll(ctx.findFunction(fqn));
             } catch (RuntimeException e) {

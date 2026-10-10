@@ -280,7 +280,7 @@ public final class ValidateDesugar {
         if (af.parameters().isEmpty()) {
             var fd = ctx.findFunctionDefinition(af.function());
             if (fd.isEmpty()) {
-                for (String c : af.candidateFqns()) {
+                for (String c : af.referents()) {
                     fd = ctx.findFunctionDefinition(c);
                     if (fd.isPresent()) {
                         break;

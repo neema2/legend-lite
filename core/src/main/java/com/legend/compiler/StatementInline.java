@@ -200,7 +200,7 @@ public final class StatementInline {
          * the arity, or when several do. */
         private @com.legend.base.Nullable FunctionDefinition resolvedDefinition(AppliedFunction af) {
             List<String> names = af.function().contains("::")
-                    ? List.of(af.function()) : af.candidateFqns();
+                    ? List.of(af.function()) : af.referents();
             FunctionDefinition found = null;
             for (String fqn : names) {
                 // THE TYPER'S TO RESOLVE: a call one of whose referents the

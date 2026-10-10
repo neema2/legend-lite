@@ -95,8 +95,8 @@ public final class PkInference {
                 default -> {
                     // composition: a corpus relation function's body
                     var fd = ctx.findFunctionDefinition(af.function());
-                    if (fd.isEmpty() && !af.candidateFqns().isEmpty()) {
-                        for (String c : af.candidateFqns()) {
+                    if (fd.isEmpty() && !af.referents().isEmpty()) {
+                        for (String c : af.referents()) {
                             fd = ctx.findFunctionDefinition(c);
                             if (fd.isPresent()) {
                                 break;
