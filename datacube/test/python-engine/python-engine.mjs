@@ -127,6 +127,45 @@ try {
   await after('columns', 'a frame with a new column opens the cube again over its new model',
     () => document.body.innerText.includes('trader'));
 
+  // A PAGE FROM PYTHON (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md, step 1): a page of the engine's two frames
+  // on two sheets, written by DataCube's own writers (the test page's __pythonPageDocument), served by Python as `q3`,
+  // and opened as a person opens it (demo/engine.html?page=q3); then a frame updated, and the page changed, in Python
+  const doc = await page.evaluate(() => window.__pythonPageDocument());
+  engine.stdin.write(`page ${JSON.stringify(doc)}\n`);
+  if ((await nextLine()) !== 'done page') throw new Error('the engine did not serve the page');
+  const tabbed = await browser.newPage();
+  tabbed.on('pageerror', (e) => { console.log(`page tab error: ${e.message}`); failed = true; });
+  tabbed.on('console', (m) => { if (m.type() === 'error') console.log(`page tab console: ${m.text()}`); });
+  tabbed.on('response', (r) => {
+    if (r.status() >= 400) { console.log(`FAIL page tab answer ${r.status()}: ${r.url()}`); failed = true; }
+  });
+  await tabbed.goto(`${origin}/engine.html?page=q3${new URL(served.link).hash}`);
+  const sheetNames = () => [...document.querySelectorAll('.dc-sheet-tab .dc-sheet-label')].map((t) => t.textContent).join('|');
+  const seen = async (name, test, arg) => {
+    const ok = await tabbed.waitForFunction(test, arg, { timeout: 60_000 }).then(() => true, () => false);
+    console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`);
+    if (!ok) {
+      console.log(`  the page showed: ${(await tabbed.evaluate(() => document.body.innerText)).slice(0, 400)}`);
+      failed = true;
+    }
+  };
+  await seen('a page from Python opens in a tab: its sheets, the first one\'s grid over its frame and the chart beside it',
+    `(${String(sheetNames)})() === 'trades|Desks' && document.querySelector('[data-tile="grid-1"]')?.innerText.includes('EMEA')
+      && document.querySelector('[data-tile="chart-1"]') !== null`);
+  await tabbed.locator('.dc-sheet-tab', { hasText: 'Desks' }).click();
+  await seen('its second sheet shows the grid over the second frame',
+    () => document.querySelector('[data-tile="grid-2"]')?.innerText.includes('Credit') === true);
+  const python = async (command) => {
+    engine.stdin.write(`${command}\n`);
+    if ((await nextLine()) !== `done ${command}`) throw new Error(`the engine did not do ${command}`);
+  };
+  await python('desks-update');
+  await seen('a frame updated in Python shows on the open page by itself',
+    () => document.querySelector('[data-tile="grid-2"]')?.innerText.includes('Equity') === true);
+  await python('page-again');
+  await seen('the page changed in Python opens again, on the sheet it showed',
+    `(${String(sheetNames)})() === 'trades|Desks (v2)' && document.querySelector('[data-tile="grid-2"]')?.offsetParent !== null`);
+
   // A NOTEBOOK'S CUBES (legend_lite.notebook.DataCube): two widgets on one page, each its script loaded as anywidget
   // loads one (its text as a module), their messages carried to Python's widgets and back as a notebook's channel
   // carries them. DataCube's module comes over the channel once for the page; no call goes over HTTP.

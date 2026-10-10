@@ -14,6 +14,10 @@
 // Also: upstream's own Arrow answer (legend-engine 4.145.0's, recorded) read by the same reader; the compiler's other
 // answers (a query's types, parse, print) the same on both sides; an engine read as JSON, and a call without the
 // token, refused by name.
+//
+// And A PAGE FROM PYTHON'S ENGINE (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md, step 1): `__pythonPageDocument`
+// writes a page of two frames on two sheets with DataCube's own writers, for the harness to have Python serve it and a
+// tab open it (demo/engine.html?page=).
 
 import { startDuckDbInTab } from '../../../engine-client/src/duckdb-tab.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
@@ -23,6 +27,12 @@ import type { ResultTable } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { PlanThenRun, RemoteRun } from '../../src/runner.ts';
 import type { CubeSnapshot } from '../../src/snapshot.ts';
+import { defaultChart } from '../../src/chart-spec.ts';
+import { DEFAULT_CONFIGURATION } from '../../src/config.ts';
+import { writeCube, type FrameSource } from '../../src/cube-document.ts';
+import { pageToJson, writePageOf } from '../../src/page-document.ts';
+import { sourceColumns } from '../../src/source-columns.ts';
+import { TreeState } from '../../src/tree.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
 import { CASES, queries } from '../wasm-differential/cases.ts';
 
@@ -49,6 +59,8 @@ declare global {
     __pythonEngine?: { readonly done: boolean; readonly outcomes: readonly Outcome[]; readonly setupError?: string };
     /** Where the page is: the harness says it when the page does not finish. */
     __pythonEngineStage?: string;
+    /** A page of the engine's two frames on two sheets, as DataCube writes one (page-document.ts), as JSON. */
+    __pythonPageDocument?: () => Promise<unknown>;
   }
 }
 
@@ -202,6 +214,46 @@ async function run(): Promise<void> {
     await rejects(answersJson.run(q, first.snapshot), /not ARROW_IPC/);
   });
 }
+
+/**
+ * A PAGE OVER THE ENGINE'S FRAMES, written as DataCube writes one: on its first sheet the trades grid, grouped by
+ * region, and its chart beside it; on a second, named Desks, a grid over the desks frame. Each grid's cube over its
+ * frame by name, its columns as the engine's model types them.
+ */
+window.__pythonPageDocument = async () => {
+  const served = window.__pythonEngineServed!;
+  const cubeOf = async (frame: string, rows: readonly string[], measures: CubeSnapshot['measures']) => {
+    const said = await (await fetch(`cube.json?table=${frame}`, { headers: { Authorization: served.authorization } })).json() as
+      { model: string; runtime: string; source: never };
+    const run = new RemoteRun(new LegendEngineExecutor({
+      baseUrl: location.origin, model: said.model, runtime: said.runtime, serializationFormat: 'ARROW_IPC',
+      authorization: served.authorization,
+    }));
+    const columns = await sourceColumns(run, said.source);
+    const snapshot: CubeSnapshot = { source: { query: said.source }, columns, derived: [], rows, pivotOn: [], measures, sorts: [], epoch: 1 };
+    const source: FrameSource = { _type: 'frame', name: frame, columns: columns.map((c) => ({ name: c.name, type: c.type })) };
+    return { snapshot, cube: writeCube({ name: frame, source, snapshot, configuration: { ...DEFAULT_CONFIGURATION, reportTitle: frame }, tree: TreeState.empty() }) };
+  };
+  const trades = await cubeOf('trades', ['region'], [{ name: 'notional', column: 'notional', fn: 'sum' }]);
+  const desks = await cubeOf('desks', [], []);
+  const doc = writePageOf({
+    name: 'Q3 from Python',
+    cubes: [{ id: 'grid-1', cube: trades.cube }, { id: 'grid-2', cube: desks.cube }],
+    views: {
+      views: [
+        { id: 'grid-1', kind: 'grid', cube: 'grid-1' },
+        { id: 'grid-2', kind: 'grid', cube: 'grid-2' },
+        { id: 'chart-1', kind: 'chart', cube: 'grid-1', title: 'Notional by region', spec: defaultChart(trades.snapshot)! },
+      ],
+      sheets: [
+        { id: 'sheet-1', layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { split: 'row', parts: [
+          { node: { tile: 'grid-1' }, size: 0.5 }, { node: { tile: 'chart-1' }, size: 0.5 }] } }] } },
+        { id: 'sheet-2', name: 'Desks', layout: { kind: 'bands', fit: true, bands: [{ height: 1, node: { tile: 'grid-2' } }] } },
+      ],
+    },
+  });
+  return JSON.parse(pageToJson(doc));
+};
 
 run().then(
   () => { window.__pythonEngine = { done: true, outcomes }; },

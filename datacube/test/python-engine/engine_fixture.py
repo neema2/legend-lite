@@ -2,9 +2,11 @@
 Live frame (show()), with DataCube's site, and two notebook cubes over it (DataCube widgets: the rows, and three of
 them). It prints one JSON line -- the engine's address and token, the cube's link, the frame's model, runtime and
 source, the rows (the page loads the same rows into the tab's DuckDB), and each widget's script and state -- then takes
-the test's commands until its standard input closes: `update`, `columns`, `widget-update` (each answered `done
-<command>`), and `widget <name> <message>`, a message from a widget's page, as a notebook's channel brings it. What a
-widget sends its page is printed as it goes: `sent <json>` (its buffers in base64) and `trait <json>` (a property set).
+the test's commands until its standard input closes: `update`, `columns`, `widget-update`, `page <json>` (a page of
+its frames served, as `q3`), `page-again` (that page served again, its second sheet renamed), `desks-update` (the second
+frame a row more) -- each answered `done <command>` -- and `widget <name> <message>`, a message from a widget's page, as
+a notebook's channel brings it. What a widget sends its page is printed as it goes: `sent <json>` (its buffers in
+base64) and `trait <json>` (a property set). A second frame, `desks`, is served Live from the start, for the page.
 
     engine_fixture --site <DataCube's built site>
 """
@@ -20,6 +22,7 @@ import pyarrow as pa
 
 import legend_lite as ll
 from legend_lite import datacube
+from legend_lite.frames import LIVE
 from legend_lite.notebook import DataCube
 
 _said = threading.Lock()
@@ -63,6 +66,10 @@ def main() -> None:
     cube = ll.show(frame, name='trades', browser=False)
     table = datacube._session.frames['trades']
     web = datacube._session.web()
+    # a second frame for a page of two (read Live: an update is the next query's)
+    desks = {'now': pa.table({'desk': ['Rates', 'FX', 'Credit'], 'head': ['Ana', 'Ben', 'Cy']})}
+    datacube._session.register(lambda: desks['now'], 'desks', LIVE)
+    served_page: dict = {}
     # two notebook cubes, as ll.DataCube(df) makes them: the page shows both and fetches DataCube's module once
     widgets = {'nb': DataCube(frame, name='nb'), 'nb2': DataCube(frame.slice(0, 3), name='nb2')}
     for widget in widgets.values():
@@ -95,6 +102,16 @@ def main() -> None:
                 cube.update(frame.append_column('trader', pa.array([f't{i}' for i in range(frame.num_rows)])))
             elif command == 'widget-update':
                 widgets['nb'].update(pa.concat_tables([frame, frame.slice(0, 1)]))
+            elif command.startswith('page '):
+                served_page.update(json.loads(command[len('page '):]))
+                web.engine.serve_page('q3', served_page)
+                command = 'page'
+            elif command == 'page-again':
+                served_page['sheets'][1]['name'] = 'Desks (v2)'
+                web.engine.serve_page('q3', served_page)
+            elif command == 'desks-update':
+                desks['now'] = pa.table({'desk': ['Rates', 'FX', 'Credit', 'Equity'], 'head': ['Ana', 'Ben', 'Cy', 'Di']})
+                web.engine.changed('desks')
             say(f'done {command}')
     finally:
         for widget in widgets.values():

@@ -347,3 +347,34 @@ class Cube(Served):
     def test_asked_with_the_token_only_and_for_a_frame_it_serves(self):
         self.assertEqual(self.get('/cube.json?table=trades')[0], 401)
         self.assertEqual(self.get('/cube.json?table=nope', {'Authorization': self.server.authorization})[0], 404)
+
+
+class Page(Cube):
+    """page.json: a page it serves (Python's ll.Page; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md) -- its document
+    and its version -- and version.json for a page: its own version and each of its frames'."""
+
+    DOC = {'kind': 'datacube.page', 'version': 3, 'name': 'Q3',
+           'cubes': [{'id': 'grid-1', 'cube': {'source': {'_type': 'frame', 'name': 'trades', 'columns': []}}}],
+           'views': [], 'sheets': []}
+
+    def test_a_page_served_its_document_and_version_moving_when_served_again(self):
+        auth = {'Authorization': self.server.authorization}
+        self.assertEqual(self.get('/page.json?page=q3', auth)[0], 404)
+        self.assertEqual(self.server.engine.serve_page('q3', self.DOC), 1)
+        status, content_type, body = self.get('/page.json?page=q3', auth)
+        self.assertEqual((status, content_type), (200, 'application/json'))
+        self.assertEqual(json.loads(body), {'version': 1, 'page': self.DOC})
+        self.assertEqual(json.loads(self.get('/version.json?page=q3', auth)[2]), {'version': 1, 'frames': {'trades': 0}})
+        # its frame changed: the frame's version moves, the page's not
+        self.server.engine.changed('trades')
+        self.assertEqual(json.loads(self.get('/version.json?page=q3', auth)[2]), {'version': 1, 'frames': {'trades': 1}})
+        # served again: its version moves
+        self.assertEqual(self.server.engine.serve_page('q3', {**self.DOC, 'name': 'Q4'}), 2)
+        self.assertEqual(json.loads(self.get('/page.json?page=q3', auth)[2])['page']['name'], 'Q4')
+        self.server.engine.close_page('q3')
+        self.assertEqual(self.get('/version.json?page=q3', auth)[0], 404)
+
+    def test_a_page_asked_with_the_token_only(self):
+        self.server.engine.serve_page('q3', self.DOC)
+        self.assertEqual(self.get('/page.json?page=q3')[0], 401)
+        self.assertEqual(self.get('/version.json?page=q3')[0], 401)

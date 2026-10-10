@@ -10,6 +10,9 @@
 //     warehouse's launch key is given; every call carries it;
 //   - the cube: `cube.json?table=<name>` (asked with the token; engine-cube.ts);
 //   - that the frame changed: `version.json?table=<name>`, asked about once a second (follow, below).
+//
+// Or A PAGE (`?page=<name>`, Python's `ll.Page`; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md): engine-page.ts's, its
+// sheets, grids and charts, each grid over a frame. Fetched only then: one cube's tab loads none of the page's code.
 
 import { EngineCube, type EngineLink } from './engine-cube.ts';
 
@@ -23,6 +26,7 @@ function refuse(message: string): never {
 function linked(): EngineLink {
   const token = new URLSearchParams(location.hash.slice(1)).get('token');
   if (!token) refuse('this page opens from the link the engine gave (it carries the engine\'s token)');
+  // (a page's link names no table: `?page=`)
   return {
     baseUrl: location.origin,
     fetch: (input, init) => fetch(input, init),
@@ -67,9 +71,34 @@ async function follow(link: EngineLink, cube: EngineCube): Promise<void> {
 }
 
 async function open(link: EngineLink): Promise<void> {
+  const page = new URLSearchParams(location.search).get('page');
+  if (page !== null) {
+    await openPage({ baseUrl: link.baseUrl, fetch: link.fetch, ...(link.authorization ? { authorization: link.authorization } : {}), page });
+    return;
+  }
   const cube = await EngineCube.open(document.getElementById('cube')!, link);
   document.title = cube.config.title;
   await follow(link, cube);
+}
+
+/**
+ * A PAGE ON THE ENGINE, followed as one cube is: about once a second its versions (`version.json?page=`), which Python
+ * moves when it changes the page or a frame on it (EnginePage.follow).
+ */
+async function openPage(link: import('./engine-page.ts').PageLink): Promise<void> {
+  const { EnginePage, askedVersions } = await import('./engine-page.ts');
+  const page = await EnginePage.open(document.getElementById('cube')!, link);
+  document.title = page.title;
+  const stopped = (why: string): void => { document.title = `${page.title} (not followed: ${why})`; };
+  for (;;) {
+    await pause(ASK_EVERY);
+    await shown();
+    const versions = await askedVersions(link);
+    if (typeof versions === 'string') return stopped(versions);
+    const why = await page.follow(versions);
+    if (why !== undefined) return stopped(why);
+    document.title = page.title;
+  }
 }
 
 // a page that cannot open says why, on the page (the cube's own failures it shows in its status bar)

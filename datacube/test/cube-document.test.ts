@@ -19,6 +19,7 @@ import {
   writeCube,
   type FileSource,
   type QuerySource,
+  type FrameSource,
   type RemoteSource,
   type WarehouseSource,
 } from '../src/cube-document.ts';
@@ -210,6 +211,26 @@ describe('a cube over a warehouse table, or a remote file: where it is, never ho
     const noUrl = JSON.parse(cubeToJson(over(REMOTE)));
     delete noUrl.source.url;
     assert.throws(() => readCube(noUrl), /the remote file source has no url/);
+  });
+});
+
+describe('a cube over a dataframe: by its name on the engine that serves it, never its rows', () => {
+  const FRAME: FrameSource = { _type: 'frame', name: 'trades', columns: [{ name: 'qty', type: 'Integer' }] };
+  const over = (source: FrameSource) => writeCube({
+    name: 'Trades', source, snapshot: EVERY, configuration: CONFIG, tree: TreeState.fromPaths([]),
+  });
+
+  it('writes it down and reads it back exactly', () => {
+    assert.deepEqual(readCube(cubeToJson(over(FRAME))).source, FRAME);
+  });
+
+  it('refuses one whose name is not a frame\'s (a plain identifier), or with no columns', () => {
+    const named = JSON.parse(cubeToJson(over(FRAME)));
+    named.source.name = 'trades; drop';
+    assert.throws(() => readCube(named), /the frame source has no name/);
+    const noColumns = JSON.parse(cubeToJson(over(FRAME)));
+    delete noColumns.source.columns;
+    assert.throws(() => readCube(noColumns), /the frame source has no columns/);
   });
 });
 

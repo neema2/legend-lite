@@ -844,6 +844,7 @@ esbuild_bundle(
     name = "widget",
     srcs = [
         "demo/engine-cube.ts",
+        "demo/engine-page.ts",
         "demo/widget.ts",
         "demo/widget-loader.ts",
         "demo/widget-styles.css",

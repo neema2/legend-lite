@@ -61,8 +61,11 @@ const ENGINE_BUDGET = 300_000;
 /** A notebook's cube (legend_lite.notebook.DataCube): DataCube's module and its styles (widget.js, widget.css),
  *  gzipped, which the widget's loader fetches over the kernel's channel once per notebook page. Set 2026-10-08 at its
  *  first measure (461,746 bytes: ECharts within, as the module is one file) and about 4% headroom. And the loader
- *  itself, which anywidget sends with every widget: small. */
-const WIDGET_BUDGET = 480_000;
+ *  itself, which anywidget sends with every widget: small.
+ *  480,000 -> 500,000 (2026-10-09, Python pages step 1, docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md): a notebook's
+ *  cube can be a whole page (demo/engine-page.ts, the page shell with its sheets and stacks), in the one file -- a module
+ *  from a blob URL loads no chunk. Measured 489,067 (+11,532 over main, by widget.js and widget.css alone). */
+const WIDGET_BUDGET = 500_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

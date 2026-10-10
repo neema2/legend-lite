@@ -134,7 +134,7 @@ def _said(status: int, message: str) -> Answer:
 def private(path: str) -> bool:
     """Whether a call reads the engine's data -- the API, a frame's cube, its version -- and so, over HTTP, carries the
     token. The site's files are the page's own and carry no secret."""
-    return path.startswith(_API) or path in ('/cube.json', '/version.json')
+    return path.startswith(_API) or path in ('/cube.json', '/version.json', '/page.json')
 
 
 def _arrow_requested(query: str) -> bool:
@@ -172,6 +172,9 @@ class Engine:
         self._models: dict[str, str] = {}
         self._watchers: list[Callable[[str, int], None]] = []
         self._changes = threading.Lock()
+        # the pages it serves (Python's ll.Page; docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md): each its document --
+        # DataCube's page document, its cubes over these frames -- and its version, moved each time it is served again
+        self._pages: dict[str, tuple[int, dict[str, Any]]] = {}
 
     def answer(self, method: str, path: str, query: str, body: str | None) -> Answer:
         """One call: ``POST`` to the API, or ``GET`` of a frame's cube (``cube.json``), its version (``version.json``) or
@@ -188,6 +191,8 @@ class Engine:
         if path == '/version.json':
             # no compiler call: on the caller's thread
             return self._version(query)
+        if path == '/page.json':
+            return self._page(query)
         return self._file(path)
 
     def _api(self, path: str, query: str, body: str) -> Answer:
@@ -248,11 +253,51 @@ class Engine:
     def _version(self, query: str) -> Answer:
         """``table``'s version (``changed``): ``{"version": n}`` at once, or 404 when the engine serves no such frame
         (it was closed). A tab asks about once a second; nothing is held open while it waits, so cubes in many tabs
-        never use up the browser's six connections to one origin."""
-        name = parse_qs(query).get('table', [''])[0]
+        never use up the browser's six connections to one origin. Asked with ``page``, a page's: ``{"version": n,
+        "frames": {name: n}}``, the page's own and each of its frames' (``page_versions``)."""
+        asked = parse_qs(query)
+        if 'page' in asked:
+            versions = self.page_versions(asked['page'][0])
+            if versions is None:
+                return _said(404, f'this engine serves no page named {asked["page"][0]!r}')
+            return Answer(200, 'application/json', json.dumps(versions).encode('utf-8'))
+        name = asked.get('table', [''])[0]
         if name not in self.frames:
             return _said(404, f'this engine serves no frame named {name!r}')
         return Answer(200, 'application/json', json.dumps({'version': self.version(name)}).encode('utf-8'))
+
+    def _page(self, query: str) -> Answer:
+        """A page it serves (``serve_page``): ``{"version": n, "page": <its document>}``, or 404."""
+        name = parse_qs(query).get('page', [''])[0]
+        with self._changes:
+            served = self._pages.get(name)
+        if served is None:
+            return _said(404, f'this engine serves no page named {name!r}')
+        return Answer(200, 'application/json', json.dumps({'version': served[0], 'page': served[1]}).encode('utf-8'))
+
+    def serve_page(self, name: str, document: dict[str, Any]) -> int:
+        """Serves ``document`` -- DataCube's page document (version 3), each cube over one of this engine's frames
+        (``{"_type": "frame", "name": ...}``) -- as the page ``name``; served again, its version moves, and a page open
+        on it opens it again. Returns its version."""
+        with self._changes:
+            version = self._pages.get(name, (0, {}))[0] + 1
+            self._pages[name] = (version, document)
+        return version
+
+    def close_page(self, name: str) -> None:
+        """Stops serving a page: one open on it stops following it."""
+        with self._changes:
+            self._pages.pop(name, None)
+
+    def page_versions(self, name: str) -> dict[str, Any] | None:
+        """A page's version, and each of its frames' (the frames its cubes read), or None when it serves no such page."""
+        with self._changes:
+            served = self._pages.get(name)
+        if served is None:
+            return None
+        frames = sorted({cube['cube']['source']['name'] for cube in served[1].get('cubes', [])
+                         if cube.get('cube', {}).get('source', {}).get('_type') == 'frame'})
+        return {'version': served[0], 'frames': {frame: self.version(frame) for frame in frames}}
 
     def _file(self, path: str) -> Answer:
         """A file of the site, by its path under it."""

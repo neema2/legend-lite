@@ -114,8 +114,20 @@ export interface RemoteSource {
   readonly columns: readonly { readonly name: string; readonly type: string }[];
 }
 
-/** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file. */
-export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource;
+/**
+ * A DATAFRAME the cube was built over, by its name on the engine that serves it (Python's `ll.Page`;
+ * docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md): reopened over the frame of that name, by whichever engine serves the
+ * page. Never its rows: they are the engine's.
+ */
+export interface FrameSource {
+  readonly _type: 'frame';
+  /** The frame's table name on its engine (a plain identifier). */
+  readonly name: string;
+  readonly columns: readonly { readonly name: string; readonly type: string }[];
+}
+
+/** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe. */
+export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource;
 
 /** The cube's definition: a snapshot without its runtime state (source relation, epoch, row window). */
 export type SavedQuery = Omit<CubeSnapshot, 'source' | 'epoch' | 'window'>;
@@ -240,6 +252,7 @@ function readSource(raw: unknown): CubeSource {
   if (s['_type'] === 'savedQuery') return readQuerySource(s);
   if (s['_type'] === 'warehouseTable') return readWarehouseSource(s);
   if (s['_type'] === 'remoteFile') return readRemoteSource(s);
+  if (s['_type'] === 'frame') return readFrameSource(s);
   if (s['_type'] !== 'file') {
     throw new CubeDocumentError(`a source of kind ${JSON.stringify(s['_type'] ?? null)} is not supported yet`);
   }
@@ -288,6 +301,14 @@ function readRemoteSource(s: Record<string, unknown>): RemoteSource {
   if (!hasColumns(s)) throw new CubeDocumentError('the remote file source has no columns');
   if ('secretAccessKey' in s || 'secret' in s) throw new CubeDocumentError('the remote file source carries a credential: it is refused');
   return s as unknown as RemoteSource;
+}
+
+function readFrameSource(s: Record<string, unknown>): FrameSource {
+  if (typeof s['name'] !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(s['name'])) {
+    throw new CubeDocumentError('the frame source has no name (a plain identifier: letters, digits, \'_\')');
+  }
+  if (!hasColumns(s)) throw new CubeDocumentError('the frame source has no columns');
+  return s as unknown as FrameSource;
 }
 
 function readQuerySource(s: Record<string, unknown>): QuerySource {

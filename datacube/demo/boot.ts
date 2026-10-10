@@ -1292,6 +1292,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
       if (src._type === 'savedQuery') return openedSavedQuery(await openedRecord(await pageConfig(), src.query), doc, several);
       if (src._type === 'warehouseTable') return reopenTable(src, doc, several);
       if (src._type === 'remoteFile') return reopenRemote(src, doc, several);
+      // a dataframe's rows are the Python's that serves it: opened there (`ll.show(page)`), never here
+      if (src._type === 'frame') throw new Error(`"${doc.name}" reads the dataframe ${src.name}: open it from Python, where it is (ll.show)`);
       if (!isFileCube(doc)) throw new Error(`"${doc.name}" reads a source this page cannot open`);
       const got = await fileFor(doc, keys);
       if (!got) return undefined;
@@ -1483,11 +1485,13 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
           ? src._type === 'savedQuery' ? `opening it runs the saved query “${src.name}” again`
             : src._type === 'warehouseTable' ? `opening it reads ${src.name} on the warehouse again, signed in as whoever opens it`
               : src._type === 'remoteFile' ? `opening it reads ${src.name} again from its URL`
+                : src._type === 'frame' ? `it reads the dataframe ${src.name}: it opens where Python serves it`
                 : src.sample ? `the example (${src.sample.rows.toLocaleString(UI_LOCALE)} rows) is generated again when it opens`
                   : `opening it reads ${src.name} again, from your computer`
           : src._type === 'savedQuery' ? `it reads the saved query “${src.name}” again, where its project (${src.query.groupId}:${src.query.artifactId}) is known`
             : src._type === 'warehouseTable' ? `whoever opens it signs in to the warehouse as themselves and needs to be granted ${src.name}; no sign-in is in the link`
               : src._type === 'remoteFile' ? `it reads ${src.url} again; no keys are in the link, a private bucket asks for them`
+                : src._type === 'frame' ? `it reads the dataframe ${src.name}, which only the Python that serves it has`
                 : src.sample ? 'it rebuilds its sample on its own'
                   : `whoever opens it needs ${src.name}`);
       }

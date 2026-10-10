@@ -374,6 +374,11 @@ export class PageApp {
     return this.#page.shownSheet;
   }
 
+  /** Show a sheet, as its tab's click does (a page opened again on the sheet it showed). */
+  showSheet(id: string): void {
+    this.#page.showSheet(id);
+  }
+
   /** What a sheet's tab says. */
   sheetLabel(id: string): string {
     const sheet = this.#page.sheets.find((s) => s.id === id);
