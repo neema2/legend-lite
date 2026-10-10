@@ -381,7 +381,11 @@ not be written back, so it is refused.
    **6b, a follow-up after leg 6 (the user, 2026-10-10):** the lite route collects every ELEMENT error too, through
    the tolerant build (`Compiler.buildModule`, tested but on no user-facing path today). Homework first: (1) its errors
    carry the element's `[line:col]` as the strict path's do (Studio places them); (2) a broken element's dependents
-   raise no follow-on errors that bury it; (3) legend-engine's route answers the same first error as before.
+   raise no follow-on errors that bury it; (3) legend-engine's route answers the same first error as before. From the
+   Compiler Rewrite line (2026-10-10): since Phase 3b item 5b a wall or strict error about a function is keyed by the
+   function's id (`my::f_String_1__Integer_1_`), not its name, and the module driver's file-and-line attribution reads
+   the parsed model's side maps by that key (`ParsedModel.keyOf`); `compileAllBodies` skips the boot layer's bodies by
+   id; the wall map's keys and messages are pinned by Phase 3b's tests -- 6b is designed with that line first.
 7. **The SDLC server's rules free of Pure.** SDLC's rules (`//sdlc-server:rules`) depend on all of `//core` today,
    because the class that answers their two Pure questions (`CoreGrammar`) sits in the same library; nothing stops
    the rules from calling the compiler directly, and the SDLC server carries the whole engine. The rules keep asking
