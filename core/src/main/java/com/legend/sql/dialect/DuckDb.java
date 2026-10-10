@@ -49,6 +49,14 @@ public final class DuckDb extends AnsiSqlRenderer {
         return c.materialized() ? " AS MATERIALIZED (" : " AS (";
     }
 
+    /** A date-time finer than a microsecond is a {@code TIMESTAMP_NS}, as its literal is ({@link #timestampLit}). */
+    @Override
+    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+        return kind == com.legend.sql.ValueKind.DATE_TIME_NANOS
+                ? new RenderedStatement.TypeSpelling("TIMESTAMP_NS", RenderedStatement.Digits.NONE)
+                : super.holeType(kind);
+    }
+
     /** DuckDB's bare {@code TIMESTAMP} is MICROSECOND precision — a
      *  literal with NONZERO sub-microsecond digits silently truncates
      *  (proven with a standalone repro: comparisons against a

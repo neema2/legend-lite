@@ -182,19 +182,53 @@ public class H2 extends AnsiSqlRenderer {
 
     /** H2 types a parameter when it prepares the statement — by its neighbour (a decimal beside an integer column is
      *  read as an integer: {@code ID * ?} with 1.5 answers {@code [2, 6]}), or not at all when it stands alone
-     *  ({@code Unknown data type}) — so every placeholder is written typed, as a literal of the parameter's type is,
+     *  ({@code Unknown data type}) — so every placeholder is written typed, as a literal of the parameter's value is,
      *  which answers as the literal does (docs/execution-plan-boundary-2026-10-05/probes/literal-results.txt). A
-     *  parameter whose literal has no one type is refused by name: a decimal's (a Float's, a Decimal's) is its own
-     *  digits', and no type a statement names keeps a value's own scale ({@code NUMERIC} rounds, {@code DECFLOAT}
-     *  drops trailing zeros); a Date's or a Number's value decides its kind. */
+     *  parameter of one type is cast to it, a date-time to the nanosecond (a plain {@code TIMESTAMP} keeps six digits
+     *  and rounds the rest, where the literal keeps nine). A parameter whose value decides its type (a Float's, a
+     *  Decimal's, a Date's, a Number's) is cast to a TYPE HOLE the runner fills when the value is known, with the type
+     *  H2 gives a literal of that value: a decimal of its own precision and scale, a floating decimal of its own digits,
+     *  a date, a date-time to the nanosecond; and a whole number a BIGINT, as an Integer parameter is (the literal of a
+     *  small one is an INTEGER: the same text, and Pure's Integer is 64 bits). A date-time is passed as its text, as on
+     *  every database. Measured, every value against its literal, alone, in arithmetic, compared and in the answer's
+     *  JSON (probes/value-typed-cast-results.txt). */
     @Override
     protected SqlWriter placeholder(SqlWriter writer, com.legend.sql.SqlExpr.PlanParam p) {
-        if (!(p.type() instanceof com.legend.sql.TypeFact.Typed t)) {
-            throw new DialectCapability("plan parameter '" + p.name() + "' has no one type a statement names (a"
-                    + " decimal's is its value's own digits, a Date's or a Number's value decides its kind), and H2"
-                    + " types a parameter when it prepares the statement: not bound on H2");
+        com.legend.sql.ValueTyping byValue = p.byValue();
+        if (byValue != null) {
+            java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types =
+                    new java.util.EnumMap<>(com.legend.sql.ValueKind.class);
+            for (com.legend.sql.ValueKind kind : byValue.kinds()) {
+                types.put(kind, holeType(kind));
+            }
+            return writer.append("CAST(").bind(scalarBind(p)).append(" AS ").typeHole(types, byValue.absent())
+                    .append(")");
         }
-        return writer.append("CAST(").bind(scalarBind(p)).append(" AS ").append(castTypeName(t.type())).append(")");
+        if (!(p.type() instanceof com.legend.sql.TypeFact.Typed t)) {
+            throw new DialectCapability("plan parameter '" + p.name() + "' has no type and is not typed by its value,"
+                    + " and H2 types a parameter when it prepares the statement: not bound on H2");
+        }
+        return writer.append("CAST(").bind(scalarBind(p)).append(" AS ").append(parameterTypeName(t.type()))
+                .append(")");
+    }
+
+    /** A parameter's cast type: its type's, a date-time's to the nanosecond. */
+    private String parameterTypeName(com.legend.sql.SqlType t) {
+        return t == com.legend.sql.SqlType.Scalar.TIMESTAMP ? "TIMESTAMP(9)" : castTypeName(t);
+    }
+
+    /** The type H2 gives a literal of a value of {@code kind}, spelled with the value's own digits where it takes them:
+     *  every kind, H2 typing every placeholder when it prepares it. */
+    @Override
+    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+        return switch (kind) {
+            case INTEGER -> new RenderedStatement.TypeSpelling("BIGINT", RenderedStatement.Digits.NONE);
+            case DECIMAL -> new RenderedStatement.TypeSpelling("NUMERIC", RenderedStatement.Digits.PRECISION_AND_SCALE);
+            case FLOATING -> new RenderedStatement.TypeSpelling("DECFLOAT", RenderedStatement.Digits.PRECISION);
+            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
+            case DATE_TIME, DATE_TIME_NANOS -> new RenderedStatement.TypeSpelling("TIMESTAMP(9)",
+                    RenderedStatement.Digits.NONE);
+        };
     }
 
     /** CAPABILITY BY CONNECTED VERSION: H2 2.3+ has typed-JSON navigation ({@code (j)."f"},

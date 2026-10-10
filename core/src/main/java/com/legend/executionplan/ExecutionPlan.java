@@ -6,6 +6,7 @@ package com.legend.executionplan;
 import com.legend.model.ConnectionDefinition;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -129,10 +130,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /**
-     * One statement, final for its target: the text with bind placeholders, the parameter each placeholder binds (in
-     * order), and the target it runs on. {@code tree} is the typed SQL tree it was rendered from — metadata for lineage
-     * and explanation, never read by the executor; it is not written to the lite JSON yet (a later step), so a plan read
-     * back from JSON has none.
+     * One statement, final for its target: the text with bind placeholders, the parameter each placeholder binds and how
+     * (in order), and the target it runs on. Where a placeholder's type is its value's ({@link TypeHole}: H2), the text
+     * has no type at the hole's place, and the runner writes the value's there before it prepares the statement.
+     * {@code tree} is the typed SQL tree it was rendered from — metadata for lineage and explanation, never read by the
+     * executor; it is not written to the lite JSON yet (a later step), so a plan read back from JSON has none.
      */
     public record Sql(String statement, List<Slot> slots, Target target,
             com.legend.sql.@com.legend.base.Nullable SqlQuery tree) {
@@ -140,12 +142,106 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             Objects.requireNonNull(statement, "statement");
             slots = List.copyOf(slots);
             Objects.requireNonNull(target, "target");
+            int previous = -1;
+            for (Slot slot : slots) {
+                if (slot.binding() instanceof Binding.One one && one.hole() != null) {
+                    int at = one.hole().at();
+                    if (at <= previous || at > statement.length()) {
+                        throw new IllegalArgumentException("type hole of '" + slot.parameter() + "' at " + at + " is not"
+                                + " after the previous one (" + previous + ") within the statement ("
+                                + statement.length() + ")");
+                    }
+                    previous = at;
+                }
+            }
         }
     }
 
-    /** A bind placeholder: the declared parameter it takes its value from; {@code arrayElementSqlType} when the slot
-     *  binds the parameter's whole collection as one array (the target's form of a list, e.g. {@code = ANY(?)}). */
-    public record Slot(String parameter, @com.legend.base.Nullable String arrayElementSqlType) {
+    /** A bind placeholder: the declared parameter it takes its value from, and how its value is bound (decided when
+     *  the plan was made, for the target's database: the runner only follows it). */
+    public record Slot(String parameter, Binding binding) {
+        public Slot {
+            Objects.requireNonNull(parameter, "parameter");
+            Objects.requireNonNull(binding, "binding");
+        }
+    }
+
+    /** How a placeholder is bound. */
+    public sealed interface Binding permits Binding.One, Binding.Array {
+
+        /** One value, as the caller's checked value is; an absent one a null of {@code nullType} (a
+         *  {@code java.sql.JDBCType}'s name). {@code hole}: set where the statement must name the value's type (H2 types
+         *  a placeholder when it prepares the statement), the hole the runner writes it into. */
+        record One(String nullType, @com.legend.base.Nullable TypeHole hole) implements Binding {
+            public One {
+                Objects.requireNonNull(nullType, "nullType");
+            }
+        }
+
+        /** The parameter's whole list, as one array of {@code elementSqlType} (the target's form of a list, e.g.
+         *  {@code = ANY(?)}). */
+        record Array(String elementSqlType) implements Binding {
+            public Array {
+                Objects.requireNonNull(elementSqlType, "elementSqlType");
+            }
+        }
+    }
+
+    /**
+     * Where a placeholder's type is its value's: the statement's text has none at {@code at}, and the runner writes the
+     * value's there, spelled by {@code types} for the value's kind ({@code absent}'s for an absent value) -- the type the
+     * database gives a literal of that value, so the placeholder answers as the literal does.
+     */
+    public record TypeHole(int at, Map<ValueKind, TypeSpelling> types, ValueKind absent) {
+        public TypeHole {
+            if (types.isEmpty()) {
+                throw new IllegalArgumentException("a type hole with no spelling");
+            }
+            // in the kinds' declared order: the order a plan's JSON writes them in
+            types = java.util.Collections.unmodifiableMap(new java.util.EnumMap<>(types));
+            if (!types.containsKey(absent)) {
+                throw new IllegalArgumentException("an absent value's kind " + absent + " has no spelling in " + types);
+            }
+        }
+    }
+
+    /** The kinds of value a parameter typed by its value takes (a Float's, a Decimal's, a Number's, a Date's, a
+     *  DateTime's). */
+    public enum ValueKind {
+        /** A whole number (a {@code Long}). */
+        INTEGER,
+        /** A decimal of its own digits (a {@code BigDecimal}: its precision and scale). */
+        DECIMAL,
+        /** A float at an extreme magnitude (a {@code Double}: its own digits). */
+        FLOATING,
+        /** A date (a {@code LocalDate}). */
+        DATE,
+        /** A date-time to the microsecond (a {@code LocalDateTime}). */
+        DATE_TIME,
+        /** A date-time with digits finer than a microsecond (a {@code LocalDateTime}). */
+        DATE_TIME_NANOS
+    }
+
+    /** A type's spelling for one kind of value: its name, followed by the value's own digits as {@code digits} says.
+     *  {@code fraction}: for a date-time, the digits of a second its value keeps, finer ones cut, as its literal's are
+     *  (Postgres keeps six); null where the value keeps its own. */
+    public record TypeSpelling(String name, Digits digits, @com.legend.base.Nullable Integer fraction) {
+        public TypeSpelling {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(digits, "digits");
+            if (fraction != null && (fraction < 0 || fraction > 9)) {
+                throw new IllegalArgumentException("a second's fraction of " + fraction + " digits");
+            }
+        }
+
+        public TypeSpelling(String name, Digits digits) {
+            this(name, digits, null);
+        }
+    }
+
+    /** The value's own digits a type spelling takes: none, {@code (precision)}, or {@code (precision,scale)}. */
+    public enum Digits {
+        NONE, PRECISION, PRECISION_AND_SCALE
     }
 
     /**

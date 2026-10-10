@@ -39,17 +39,31 @@ class SqlWriterTest {
     @Test
     void parametersAreListedInTheOrderTheirPlaceholdersAreWritten() {
         SqlWriter w = textOnly();
-        w.append("a = ").bind(new RenderedStatement.Bind("x", null)).append(" AND b = ANY(")
-                .bind(new RenderedStatement.Bind("ids", "INTEGER")).append(") AND c = ")
-                .bind(new RenderedStatement.Bind("x", null));
-        assertEquals(new RenderedStatement("a = ? AND b = ANY(?) AND c = ?", List.of(
-                new RenderedStatement.Bind("x", null), new RenderedStatement.Bind("ids", "INTEGER"),
-                new RenderedStatement.Bind("x", null))), w.statement());
+        RenderedStatement.Bind x = new RenderedStatement.Bind("x", new RenderedStatement.Binding.One("BIGINT", null));
+        RenderedStatement.Bind ids = new RenderedStatement.Bind("ids", new RenderedStatement.Binding.Array("INTEGER"));
+        w.append("a = ").bind(x).append(" AND b = ANY(").bind(ids).append(") AND c = ").bind(x);
+        assertEquals(new RenderedStatement("a = ? AND b = ANY(?) AND c = ?", List.of(x, ids, x)), w.statement());
+    }
+
+    /** A placeholder typed by its value: the type hole is recorded at its place in the text, on that placeholder. */
+    @Test
+    void aTypeHoleIsRecordedWhereItIsWritten_onThePlaceholderBoundLast() {
+        var types = java.util.Map.of(com.legend.sql.ValueKind.DECIMAL,
+                new RenderedStatement.TypeSpelling("NUMERIC", RenderedStatement.Digits.PRECISION_AND_SCALE));
+        SqlWriter w = textOnly().append("a = CAST(")
+                .bind(new RenderedStatement.Bind("f", new RenderedStatement.Binding.One("DECIMAL", null)))
+                .append(" AS ").typeHole(types, com.legend.sql.ValueKind.DECIMAL).append(")");
+        assertEquals(new RenderedStatement("a = CAST(? AS )", List.of(new RenderedStatement.Bind("f",
+                new RenderedStatement.Binding.One("DECIMAL", new RenderedStatement.TypeHole(14, types,
+                        com.legend.sql.ValueKind.DECIMAL))))), w.statement());
+        assertThrows(IllegalStateException.class, () -> textOnly().append("a = ").typeHole(types,
+                com.legend.sql.ValueKind.DECIMAL), "a type hole follows a placeholder of one value");
     }
 
     @Test
     void aStatementWithBoundParametersIsRefusedAsText() {
-        SqlWriter w = textOnly().append("a = ").bind(new RenderedStatement.Bind("x", null));
+        SqlWriter w = textOnly().append("a = ").bind(new RenderedStatement.Bind("x",
+                new RenderedStatement.Binding.One("BIGINT", null)));
         var refused = assertThrows(IllegalStateException.class, w::text);
         assertTrue(refused.getMessage().contains("render it as a statement"), refused.getMessage());
     }
@@ -73,8 +87,11 @@ class SqlWriterTest {
 
     private static final SqlExpr NAME = SqlExpr.Column.physical("t0", "NAME");
     private static final SqlExpr AGE = SqlExpr.Column.physical("t0", "AGE");
-    private static final SqlExpr.PlanParam P_NAME = new SqlExpr.PlanParam("name", SqlExpr.PlanParam.Kind.STRING);
-    private static final SqlExpr.PlanParam P_AGE = new SqlExpr.PlanParam("maxAge", SqlExpr.PlanParam.Kind.OTHER);
+    // a plan's parameters, typed as the planner types them (QueryParameters.Declared.slot): one bound must have a type
+    private static final SqlExpr.PlanParam P_NAME = new SqlExpr.PlanParam("name", SqlExpr.PlanParam.Kind.STRING, false,
+            null, com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR), null);
+    private static final SqlExpr.PlanParam P_AGE = new SqlExpr.PlanParam("maxAge", SqlExpr.PlanParam.Kind.OTHER, false,
+            null, com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.BIGINT), null);
 
     private static SqlSelect where(SqlExpr predicate) {
         return QUERY.withWhere(predicate);

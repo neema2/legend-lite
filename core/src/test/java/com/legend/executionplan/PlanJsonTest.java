@@ -74,7 +74,19 @@ class PlanJsonTest {
                 new Sequence(List.of(
                         new TdsResult(List.of(new TdsColumn("name", "String", "VARCHAR(100)")),
                                 new Sql("select NAME as \"name\" from T where NAME = ? and ID = ANY(?)",
-                                        List.of(new Slot("name", null), new Slot("ids", "INTEGER")), t, null)),
+                                        List.of(new Slot("name", new ExecutionPlan.Binding.One("VARCHAR", null)),
+                                                new Slot("ids", new ExecutionPlan.Binding.Array("INTEGER"))), t, null)),
+                        // a placeholder typed by its value (H2): its type hole, with each kind's spelling
+                        new TextResult(Format.JSON, new Relation(List.of(new Column("x", "Float"))),
+                                new Sql("select ID * CAST(? AS ) as x from T", List.of(new Slot("f",
+                                        new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(22,
+                                                java.util.Map.of(ExecutionPlan.ValueKind.DECIMAL,
+                                                        new ExecutionPlan.TypeSpelling("NUMERIC",
+                                                                ExecutionPlan.Digits.PRECISION_AND_SCALE),
+                                                        ExecutionPlan.ValueKind.FLOATING,
+                                                        new ExecutionPlan.TypeSpelling("DECFLOAT",
+                                                                ExecutionPlan.Digits.PRECISION)),
+                                                ExecutionPlan.ValueKind.DECIMAL)))), t, null)),
                         new TextResult(Format.JSON, new Value("model::Person", new Multiplicity(0, null)),
                                 new Sql("select json_group_array(...) from T", List.of(), t, null)),
                         new TextResult(Format.CSV, new Relation(List.of(new Column("name", "String"))),
@@ -138,14 +150,14 @@ class PlanJsonTest {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(List.of(),
                 new Sql("select 1", List.of(), t, null))));
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":3,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":4,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v3 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v4 plan"), refused.getMessage());
     }
 
     @Test
@@ -159,7 +171,7 @@ class PlanJsonTest {
 
     @Test
     void anEarlierVersionIsRefused() {
-        for (int version = 1; version <= 2; version++) {
+        for (int version = 1; version <= 3; version++) {
             int v = version;
             var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(
                     "{\"format\":\"legend-lite-plan\",\"version\":" + v + ",\"parameters\":[],\"root\":{}}"));

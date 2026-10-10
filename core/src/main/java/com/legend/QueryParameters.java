@@ -64,7 +64,7 @@ public final class QueryParameters {
             com.legend.sql.TypeFact value = valueType();
             if (multiplicity instanceof Multiplicity.Bounded b && Integer.valueOf(1).equals(b.upper())) {
                 return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type),
-                        optional(), null, value);
+                        optional(), null, value, valueTyping());
             }
             // a list: ONE array of its values, its element type named for the driver
             if (!(value instanceof com.legend.sql.TypeFact.Typed element)) {
@@ -73,13 +73,13 @@ public final class QueryParameters {
                         + " exactly (DuckDB's rounds a decimal to 3 places): not bound (PARK-20)");
             }
             return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type), false, null,
-                    com.legend.sql.SqlTyping.typed(new com.legend.sql.SqlType.Array(element.type())));
+                    com.legend.sql.SqlTyping.typed(new com.legend.sql.SqlType.Array(element.type())), null);
         }
 
         /** One value's type, as a literal of the declared type carries it: an enumeration's is its NAME's
          *  ({@code VARCHAR}; a comparison with a mapped column translates it through that place's value table,
          *  {@code EnumValueTables}); a decimal literal's type is its own digits', a Date's or a Number's value decides
-         *  its kind, so theirs is unknown. */
+         *  its kind, so theirs is unknown ({@link #valueTyping} says how the value types it). */
         private com.legend.sql.TypeFact valueType() {
             if (type instanceof Type.EnumType) {
                 return com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR);
@@ -101,6 +101,32 @@ public final class QueryParameters {
                 case BYTE, LATEST_DATE, STRICT_TIME -> throw new com.legend.error.NotImplementedException("parameter '"
                         + name + "' (" + type.typeName() + "): a Byte, LatestDate or StrictTime value is not bound as a"
                         + " plan's parameter (PARK-21)");
+            };
+        }
+
+        /** How one value is typed when its value decides its literal's type: a Float's literal is a decimal of its own
+         *  digits, or a floating number at an extreme magnitude (the numeric charter's Rule 1); a Decimal's a decimal of
+         *  its digits; a Number's an integer or a Float's; a DateTime's a date-time to the microsecond or finer (DuckDB
+         *  types a finer one's literal TIMESTAMP_NS); a Date's a date or a DateTime's. An absent value is a null decimal
+         *  (a Date's a null date, a DateTime's a null date-time). Null for every other type, whose type is its fact. */
+        private com.legend.sql.@com.legend.base.Nullable ValueTyping valueTyping() {
+            if (!(type instanceof Type.Primitive primitive)) {
+                return null;
+            }
+            return switch (primitive) {
+                case FLOAT -> new com.legend.sql.ValueTyping(List.of(com.legend.sql.ValueKind.DECIMAL,
+                        com.legend.sql.ValueKind.FLOATING), com.legend.sql.ValueKind.DECIMAL);
+                case DECIMAL -> new com.legend.sql.ValueTyping(List.of(com.legend.sql.ValueKind.DECIMAL),
+                        com.legend.sql.ValueKind.DECIMAL);
+                case DATE -> new com.legend.sql.ValueTyping(List.of(com.legend.sql.ValueKind.DATE,
+                        com.legend.sql.ValueKind.DATE_TIME, com.legend.sql.ValueKind.DATE_TIME_NANOS),
+                        com.legend.sql.ValueKind.DATE);
+                case DATE_TIME -> new com.legend.sql.ValueTyping(List.of(com.legend.sql.ValueKind.DATE_TIME,
+                        com.legend.sql.ValueKind.DATE_TIME_NANOS), com.legend.sql.ValueKind.DATE_TIME);
+                case NUMBER -> new com.legend.sql.ValueTyping(List.of(com.legend.sql.ValueKind.INTEGER,
+                        com.legend.sql.ValueKind.DECIMAL, com.legend.sql.ValueKind.FLOATING),
+                        com.legend.sql.ValueKind.DECIMAL);
+                case INTEGER, STRING, BOOLEAN, STRICT_DATE, BYTE, LATEST_DATE, STRICT_TIME -> null;
             };
         }
 

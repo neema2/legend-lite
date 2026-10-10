@@ -39,8 +39,10 @@ public final class PlanJson {
     public static final String FORMAT = "legend-lite-plan";
     /** 2 since 2026-10-08: step 2's records (enum values by name, {@code textResult}, setup steps, no identity); 3 since
      *  2026-10-09: the planner's plans (step 2's landing 2) — a target's database (declared or the platform's), its
-     *  server versions and session statements, and a text result's columns without a SQL type. */
-    public static final int VERSION = 3;
+     *  server versions and session statements, and a text result's columns without a SQL type; 4 since 2026-10-09: the
+     *  runner's plans (step 3) — each slot's binding (one value with its null's type and, where the statement names the
+     *  value's type, its type hole; or a list as one array). */
+    public static final int VERSION = 4;
 
     private PlanJson() {
     }
@@ -52,6 +54,8 @@ public final class PlanJson {
     enum ResultTypeTag { relation, value }
 
     enum SetupTag { statement, rows }
+
+    enum BindingTag { one, array }
 
     enum DatabaseTag { declared, platform }
 
@@ -170,13 +174,47 @@ public final class PlanJson {
         for (Slot slot : s.slots()) {
             Map<String, Object> so = new LinkedHashMap<>();
             so.put("parameter", slot.parameter());
-            if (slot.arrayElementSqlType() != null) {
-                so.put("arrayElementSqlType", slot.arrayElementSqlType());
-            }
+            so.put("binding", binding(slot.binding()));
             slots.add(so);
         }
         o.put("slots", slots);
         o.put("target", target(s.target()));
+        return o;
+    }
+
+    private static Map<String, Object> binding(ExecutionPlan.Binding binding) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        switch (binding) {
+            case ExecutionPlan.Binding.One one -> {
+                o.put("_type", BindingTag.one.name());
+                o.put("nullType", one.nullType());
+                ExecutionPlan.TypeHole hole = one.hole();
+                if (hole != null) {
+                    Map<String, Object> h = new LinkedHashMap<>();
+                    h.put("at", hole.at());
+                    Map<String, Object> types = new LinkedHashMap<>();
+                    for (ExecutionPlan.ValueKind kind : ExecutionPlan.ValueKind.values()) {
+                        ExecutionPlan.TypeSpelling t = hole.types().get(kind);
+                        if (t != null) {
+                            Map<String, Object> spelling = new LinkedHashMap<>();
+                            spelling.put("name", t.name());
+                            spelling.put("digits", t.digits().name());
+                            if (t.fraction() != null) {
+                                spelling.put("fraction", t.fraction());
+                            }
+                            types.put(kind.name(), spelling);
+                        }
+                    }
+                    h.put("types", types);
+                    h.put("absent", hole.absent().name());
+                    o.put("typeHole", h);
+                }
+            }
+            case ExecutionPlan.Binding.Array array -> {
+                o.put("_type", BindingTag.array.name());
+                o.put("elementSqlType", array.elementSqlType());
+            }
+        }
         return o;
     }
 
@@ -443,11 +481,35 @@ public final class PlanJson {
         };
     }
 
+    private static ExecutionPlan.Binding readBinding(Json.Obj o) {
+        return switch (tag(BindingTag.class, o, "binding")) {
+            case one -> {
+                Json.Obj h = o.getObjOr("typeHole", null);
+                ExecutionPlan.TypeHole hole = null;
+                if (h != null) {
+                    Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> types =
+                            new java.util.EnumMap<>(ExecutionPlan.ValueKind.class);
+                    for (Map.Entry<String, Json.Node> e : h.getObj("types").fields().entrySet()) {
+                        Json.Obj t = (Json.Obj) e.getValue();
+                        types.put(named(ExecutionPlan.ValueKind.class, e.getKey(), "value kind"),
+                                new ExecutionPlan.TypeSpelling(t.getString("name"),
+                                        named(ExecutionPlan.Digits.class, t.getString("digits"), "type digits"),
+                                        t.getOr("fraction", null) == null ? null : t.getInt("fraction")));
+                    }
+                    hole = new ExecutionPlan.TypeHole(h.getInt("at"), types,
+                            named(ExecutionPlan.ValueKind.class, h.getString("absent"), "absent value kind"));
+                }
+                yield new ExecutionPlan.Binding.One(o.getString("nullType"), hole);
+            }
+            case array -> new ExecutionPlan.Binding.Array(o.getString("elementSqlType"));
+        };
+    }
+
     private static Sql readSql(Json.Obj o) {
         List<Slot> slots = new ArrayList<>();
         for (Json.Node n : o.getArr("slots").items()) {
             Json.Obj s = (Json.Obj) n;
-            slots.add(new Slot(s.getString("parameter"), s.getStringOr("arrayElementSqlType", null)));
+            slots.add(new Slot(s.getString("parameter"), readBinding(s.getObj("binding"))));
         }
         Json.Obj t = o.getObj("target");
         List<SetupStep> setup = new ArrayList<>();

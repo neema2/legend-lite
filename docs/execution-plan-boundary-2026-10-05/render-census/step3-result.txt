@@ -16,3 +16,17 @@ eight lanes (the census's known build failure, //pure-protocol:twins_test, apart
    with existing ones: an offset DateTime and a string-valued Integer answer through the same plans). No entry is gone
    and no other lane differs: the numeric charter's Rule 1 moved to its one owner (SqlTyping.floatDecimal) with every
    Float literal spelled byte for byte as before.
+
+3. The revision (typed values; the plan says how each placeholder is bound; type holes) -- against item 2, after the
+   branch's rebase onto main's Phase 3 (7d3096416): 166 of 52,550 entries differ.
+   - //spec:corpus_duckdb and //spec:corpus_h2, 22 each: the metamodel queries' function ids (`fn:d32d125:8843` became
+     `fn:dcbd61a5:8851`), which name a platform function by its source's hash and line, moved by Phase 3; with the ids
+     normalised, no entry of either corpus differs. Not this revision's.
+   - //gates:core, 122: plan statements and the new cases' own. A DateTime parameter's plan statement is now cast to a
+     type hole on every database (`CAST(? AS )`), so its earlier statements are gone (2 each on DuckDB, H2 and
+     Postgres); H2 now runs every scalar case, so its Float, Decimal, Number and Date cases add their let-path queries
+     and plan statements (22 new queries, 20 new statements); the new cases (a Number whole and decimal, a Date holding a
+     date-time, a DateTime to the nanosecond, an optional Float's absence) add theirs on DuckDB and Postgres. Each
+     let-path query rendered fewer times (2 each) is the DateTime let shared by the offset case, which left PlanCases. No
+     let-path query is gone: today's paths render exactly what they rendered.
+   - The PCT lanes and //gates:stress: no entry differs.

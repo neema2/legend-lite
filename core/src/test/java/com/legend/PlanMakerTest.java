@@ -213,7 +213,7 @@ class PlanMakerTest {
         ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(DatabaseType.H2, PlanCases.lists("T").get(0).withParameters(),
                 TypedQuery.Output.JSON).root()).sql();
         assertTrue(sql.statement().contains("= ANY(?)"), sql.statement());
-        assertEquals(List.of(new ExecutionPlan.Slot("ns", "BIGINT")), sql.slots());
+        assertEquals(List.of(new ExecutionPlan.Slot("ns", new ExecutionPlan.Binding.Array("BIGINT"))), sql.slots());
         var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(DatabaseType.DuckDB,
                 "{ps: Decimal[*]|#>{s::DB.T}#->filter(r|$r.ID->in($ps))}", TypedQuery.Output.JSON));
         assertTrue(refused.getMessage().contains("PARK-20"), refused.getMessage());
@@ -242,9 +242,6 @@ class PlanMakerTest {
     void aScalarParametersPlanAnswersAsTheQueryWithItsValue_everyOutput() throws Exception {
         for (DatabaseType type : List.of(DatabaseType.DuckDB, DatabaseType.H2)) {
             for (Parameterised q : SCALARS) {
-                if (type == DatabaseType.H2 && q.untypedOnH2()) {
-                    continue;   // aParameterWithNoOneTypeIsRefusedOnH2ByName
-                }
                 for (TypedQuery.Output output : TypedQuery.Output.values()) {
                     assertAnswersAsToday(type, q.withParameters(), q.withLets(), q.values(), output);
                 }
@@ -252,18 +249,59 @@ class PlanMakerTest {
         }
     }
 
-    /** H2 types a parameter when it prepares the statement, and no type keeps a decimal value's own scale
-     *  (probes/literal-results.txt), nor names a Date's or a Number's: refused on H2, by name. */
+    /** H2 types a parameter when it prepares the statement, and a Float's, a Decimal's, a Date's or a Number's type is
+     *  its value's: H2's plan casts it to a TYPE HOLE the runner fills with the type H2 gives that value's literal
+     *  (probes/value-typed-cast-results.txt); DuckDB's binds it bare, as the database types the value. Every scalar case
+     *  above answers through it on H2. */
     @Test
-    void aParameterWithNoOneTypeIsRefusedOnH2ByName() {
-        for (Parameterised q : SCALARS) {
-            if (q.untypedOnH2()) {
-                var refused = assertThrows(com.legend.sql.dialect.DialectCapability.class,
-                        () -> plan(DatabaseType.H2, q.withParameters(), TypedQuery.Output.JSON));
-                assertTrue(refused.getMessage().contains("has no one type a statement names"),
-                        refused.getMessage());
-            }
-        }
+    void aParameterTypedByItsValueIsCastToATypeHoleOnH2() {
+        ExecutionPlan.Sql h2 = ((ExecutionPlan.TextResult) plan(DatabaseType.H2, "{f: Float[1]|#>{s::DB.T}#"
+                + "->extend(~x: r|$r.ID * $f)->select(~[ID, x])}", TypedQuery.Output.JSON).root()).sql();
+        assertEquals(1, h2.slots().size());
+        ExecutionPlan.Binding.One one = (ExecutionPlan.Binding.One) h2.slots().get(0).binding();
+        ExecutionPlan.TypeHole hole = java.util.Objects.requireNonNull(one.hole(), "a type hole");
+        assertEquals("CAST(? AS )", h2.statement().substring(hole.at() - "CAST(? AS ".length(), hole.at() + 1),
+                h2.statement());
+        assertEquals(java.util.Map.of(
+                ExecutionPlan.ValueKind.DECIMAL, new ExecutionPlan.TypeSpelling("NUMERIC",
+                        ExecutionPlan.Digits.PRECISION_AND_SCALE),
+                ExecutionPlan.ValueKind.FLOATING, new ExecutionPlan.TypeSpelling("DECFLOAT",
+                        ExecutionPlan.Digits.PRECISION)), hole.types());
+        assertEquals(ExecutionPlan.ValueKind.DECIMAL, hole.absent());
+        assertEquals("DECIMAL", one.nullType());
+        ExecutionPlan.Sql duck = ((ExecutionPlan.TextResult) plan(DatabaseType.DuckDB, "{f: Float[1]|#>{s::DB.T}#"
+                + "->extend(~x: r|$r.ID * $f)->select(~[ID, x])}", TypedQuery.Output.JSON).root()).sql();
+        assertEquals(List.of(new ExecutionPlan.Slot("f", new ExecutionPlan.Binding.One("DECIMAL", null))),
+                duck.slots());
+    }
+
+    /** A DateTime parameter is cast to the type of its value's literal on every database, and passed as its text: H2's
+     *  keeps nanoseconds (a plain TIMESTAMP keeps six digits and rounds the rest; probes/value-typed-cast-results.txt),
+     *  DuckDB's is a TIMESTAMP_NS only when the value has digits finer than a microsecond, Postgres's keeps six and cuts
+     *  the rest, as each literal writer does (probes/timestamp-results.txt). */
+    @Test
+    void aDateTimeParameterIsCastToItsLiteralsTypeOnEveryDatabase() {
+        String query = "{t: DateTime[1]|#>{s::DB.T}#->extend(~t: r|$t)->select(~[ID, t])}";
+        java.util.Map<DatabaseType, java.util.Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling>> expected =
+                java.util.Map.of(
+                        DatabaseType.H2, java.util.Map.of(
+                                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
+                                        ExecutionPlan.Digits.NONE),
+                                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP(9)",
+                                        ExecutionPlan.Digits.NONE)),
+                        DatabaseType.DuckDB, java.util.Map.of(
+                                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP",
+                                        ExecutionPlan.Digits.NONE),
+                                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP_NS",
+                                        ExecutionPlan.Digits.NONE)));
+        expected.forEach((type, types) -> {
+            ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(type, query, TypedQuery.Output.JSON).root()).sql();
+            ExecutionPlan.Binding.One one = (ExecutionPlan.Binding.One) sql.slots().get(0).binding();
+            ExecutionPlan.TypeHole hole = java.util.Objects.requireNonNull(one.hole(), type + ": a type hole");
+            assertEquals(types, hole.types(), type.name());
+            assertEquals(ExecutionPlan.ValueKind.DATE_TIME, hole.absent(), type.name());
+            assertEquals("TIMESTAMP", one.nullType(), type.name());
+        });
     }
 
 
@@ -274,7 +312,8 @@ class PlanMakerTest {
         assertEquals(List.of(new ExecutionPlan.Parameter("n", "Integer", new ExecutionPlan.Multiplicity(1, 1),
                 List.of())), plan.parameters());
         ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan.root()).sql();
-        assertEquals(List.of(new ExecutionPlan.Slot("n", null), new ExecutionPlan.Slot("n", null)), sql.slots());
+        ExecutionPlan.Slot n = new ExecutionPlan.Slot("n", new ExecutionPlan.Binding.One("BIGINT", null));
+        assertEquals(List.of(n, n), sql.slots());
         assertEquals(2, sql.statement().chars().filter(ch -> ch == '?').count(), sql.statement());
     }
 
