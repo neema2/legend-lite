@@ -65,18 +65,40 @@ only while the flat and per-schema lists share objects. 3b-O3 takes (b): `NameRe
 view once and rebuilds the flat list from the resolved objects; the test is a schema view whose column reaches a
 `[db]`-qualified join.
 
-## H1, H2, H4, H5 — probes still to run (each on the census classpath, §C.3 of the brief)
+## H1, H2 and H4 — measured by `//spec:phase3b_probes` (manual; `Phase3bProbesTest`; tables in `evidence/phase3b/`)
 
-- H1 (the twin cause): a probe printing, for each of the 7 duplicate definitions above, both copies' `FunctionId` and
-  the parameter spellings `SystemMetamodel.shadows` compares. Expected: ids equal, spellings differ (bare `String`
-  against `meta::pure::metamodel::type::String`; `EnumerationMapping` against `EnumerationMapping<T>`).
-- H2 (the other versions at the boot layer's 29 names): every declaration at those names in the 27-module closure
-  with its id, which ones twin, which the corpus, PCT and the reference lane call; a decision per version (row,
-  refusal, or a signature fix such as `superMapping`'s return type).
-- H4 (item 5b's blast radius): overloaded full names whose overloads come from files with different import sets, in
-  the reference lane's closure, the corpus composition and the 56 projects.
-- H5 (item 3's user impact): one computed column over a missing value on DuckDB and H2 against legend-engine's SQL;
-  and what Studio and DataCube show for a `max` over integers (ours `Integer`, legend-pure `Number`).
+The probes load the same 27-module closure as the census (`ManifestWorldCensusTest.closure`) and parse it whole;
+H4 parses each file alone, because the whole-module parse keeps one file per full name (the very bug it measures).
+
+**H1 — the twin cause, confirmed.** 28 names are declared by both the system metamodel and the closure. The closure
+holds 43 upstream versions of them: **29 have the same function id as a system version but different parameter-type
+spellings** (bare `String` against `meta::pure::metamodel::type::String`, `EnumerationMapping` against
+`EnumerationMapping<T>`, and the like), so `SystemMetamodel.shadows` does not see them as twins; 3 have the same id
+and the same spellings (`dataTypeToSqlText`, `inferPrimaryKeyColumnNames`, one `extractDBs`), which it does; 14 are
+other versions with ids of their own (`phase3b-h1-twins.tsv`). The duplicate-definition walls are the 29 that fall in
+files the loader cannot split.
+
+**H2 — the other versions, by id** (`phase3b-h2-versions.tsv`, the 14 rows with "twin of a system version" false):
+`propertyMappingsByPropertyName` over `OtherwiseEmbeddedSetImplementation`, `AggregationAwareSetImplementation` and
+`EmbeddedSetImplementation` (3); `inferRelationalType` with a `TranslationContext`, with a `Boolean` and a context, and
+with a `Boolean` alone (3); `relationTreeAsString` with a separator and with a `Boolean` (2); `extractDBs` over
+`Mapping[*]` and over two mappings (2); `superMapping` over `PropertyMappingsImplementation` (1); `resolvePrimaryKey`
+over `RelationalInstanceSetImplementation`, `RelationFunctionInstanceSetImplementation` and
+`InstanceSetImplementation` (3). Each is a decision in item 1b: a row ("runs as the platform's version", or upstream's
+body runs), a refusal, or a signature fix in the system metamodel (`superMapping`'s return type is the known one).
+
+**H4 — item 5b's blast radius in the closure.** 19 function names are declared in more than one file; **18 of them
+from files whose `import` lines differ**, so today all their overloads resolve with the last file's imports:
+`from`, `routeFunction`, `execute`, `joinStrings`, `assert`, `resolvePrimaryKey`, `toLowerFirstCharacter`,
+`toUpperFirstCharacter`, `buildConcatenate`, `loadCsvDataToDbTable`, `loadValuesToDbTable2`, `setUpDataSQLs`, the
+four `toDDL` statement functions, and two upstream tests (`phase3b-h4-imports.tsv`). Those are the places whose
+resolution may change when the map is keyed per element; the corpus passes, PCT and the reference lane judge them.
+
+**H5 — still to run with item 3** (step 9 of the brief): one computed column over a missing value on DuckDB and H2
+against legend-engine's SQL; what Studio and DataCube show for `max` over integers.
+
+The census ceilings were already known to be stale (the 3b brief's line 15 and `PHASE_8.md` Short-21, "no owner");
+they are re-pinned at 37 and 1,437 in this branch's first commit, and `//spec:manifest_world_census` passes again.
 
 ## Decisions these answers point at (for the 3b plan)
 

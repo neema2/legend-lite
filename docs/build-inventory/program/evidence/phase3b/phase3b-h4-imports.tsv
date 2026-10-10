@@ -1,0 +1,19 @@
+name	files	distinct import sets
+meta::pure::functions::collection::tests::get::testGet	core_functions_unclassified:core_functions_unclassified/meta/get.pure | platform:pure/essential/collection/anonymous/map/get.pure	2
+meta::pure::functions::string::joinStrings	core:core/pure/corefunctions/stringExtension.pure | platform:pure/essential/string/toString/joinStrings.pure	2
+meta::pure::functions::asserts::assert	core:core/pure/corefunctions/testExtension.pure | platform:pure/essential/tests/assert.pure	2
+meta::relational::mapping::resolvePrimaryKey	core_relational:core_relational/relational/helperFunctions/helperFunctions.pure | platform_store_relational:platform_store_relational/functions.pure	2
+meta::pure::functions::string::toLowerFirstCharacter	core:core/pure/corefunctions/stringExtension.pure | core_functions_unclassified:core_functions_unclassified/string/transformation/toLowerFirstCharacter.pure	2
+meta::pure::functions::string::toUpperFirstCharacter	core:core/pure/corefunctions/stringExtension.pure | core_functions_unclassified:core_functions_unclassified/string/transformation/toUpperFirstCharacter.pure	2
+meta::pure::functions::collection::tests::and::testAnd	core:core/pure/corefunctions/tests/collections/testAnd.pure | core_functions_standard:core_functions_standard/collection/and.pure	2
+meta::pure::mapping::from	core:core/pure/mapping/mappingExtension.pure | core_data_space_metamodel:core_data_space_metamodel/mappingExtension.pure | core_service:core_service/service/mappingExtension.pure	2
+meta::pure::router::routeFunction	core:core/pure/router/deprecated/deprecated.pure | core:core/pure/router/router_main.pure	2
+meta::pure::router::execute	core:core/pure/router/router_entry.pure | core:core/pure/router/router_execution.pure	2
+meta::pure::router::store::routing::buildConcatenate	core:core/pure/router/store/builder.pure | core:core/pure/router/store/routing.pure	2
+meta::relational::functions::database::loadCsvDataToDbTable	core_relational:core_relational/relational/helperFunctions/databaseHelperFunctions.pure | core_relational:core_relational/relational/sqlQueryToString/DDL/toDDL.pure	2
+meta::relational::functions::database::loadValuesToDbTable2	core_relational:core_relational/relational/helperFunctions/databaseHelperFunctions.pure | core_relational:core_relational/relational/sqlQueryToString/DDL/toDDL.pure	2
+meta::alloy::service::execution::setUpDataSQLs	core_relational:core_relational/relational/helperFunctions/helperFunctions.pure | core_relational:core_relational/relational/sqlQueryToString/DDL/toDDL.pure	2
+meta::relational::functions::toDDL::createSchemaStatement	core_relational:core_relational/relational/helperFunctions/toDDL.pure | core_relational:core_relational/relational/sqlQueryToString/DDL/toDDL.pure	2
+meta::relational::functions::toDDL::dropSchemaStatement	core_relational:core_relational/relational/helperFunctions/toDDL.pure | core_relational:core_relational/relational/sqlQueryToString/DDL/toDDL.pure	2
+meta::relational::functions::toDDL::dropTableStatement	core_relational:core_relational/relational/helperFunctions/toDDL.pure | core_relational:core_relational/relational/sqlQueryToString/DDL/toDDL.pure	2
+meta::relational::functions::toDDL::createTableStatement	core_relational:core_relational/relational/helperFunctions/toDDL.pure | core_relational:core_relational/relational/sqlQueryToString/DDL/toDDL.pure	2

@@ -571,6 +571,21 @@ junit_test(
     upstream = True,
 )
 
+# PHASE 3b's HOMEWORK PROBES (Phase3bProbesTest; docs/build-inventory/program/PHASE_3B_HOMEWORK_2026_10_09.md H1,
+# H2): the boot layer's versions of upstream functions against the closure's declarations, by function id and by the
+# parameter spellings the twin check compares. Manual, in no lane, over the census's inputs; its tables land in the
+# test's outputs.
+junit_test(
+    name = "phase3b_probes",
+    memory_mb = 4096,
+    data = _INPUTS,
+    jvm_flags = ["-Dmanifest.census=core_relational"],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.generators.Phase3bProbesTest"],
+    tags = ["manual"],
+    upstream = True,
+)
+
 # Our side of the reference differential for one module, for ad-hoc joins (tools/reference/README.md):
 #   bazel run //spec:our_resolutions -- <module> [--out FILE]
 legend_java_binary(
