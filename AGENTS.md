@@ -226,7 +226,11 @@ writer (so its dispatching switch stays an expression javac checks, below) — n
 pastes (a piece pasted twice would carry its parameter once); a method that only spells a name, a literal or a type
 returns its text; a helper that wraps SQL it does not build takes or returns a `SqlWriter.Piece`, never that SQL's
 text. E is complete (2026-10-09): every dialect writes all of a query, and DML's rows, into the writer; DDL spells only
-names, types and keywords, so it is text. Never edit rendered SQL after it is written. The legacy engine-text printer
+names, types and keywords, so it is text. Never edit rendered SQL after it is written — but for one designed hole
+(2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3): where a plan's placeholder takes the type of its
+value's literal (H2 types a placeholder when it prepares it; a date-time on every database), the dialect writes no type
+at a place the writer records (`SqlWriter.typeHole`), and the runner writes there, before it prepares the statement,
+the type the plan's own spelling table gives the value's kind; the value itself is bound, never written. The legacy engine-text printer
 (`EngineStyleH2`, the backwards-compatibility mode) writes legend-engine's own spellings directly — lowercase keywords and
 function names through the `keyword` and `aggregateName` hooks, `listagg ... within group` — and its one text step is
 legend-engine's own: a rendered column quoted into a FreeMarker template argument (each `'` as `\'`).

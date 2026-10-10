@@ -1,0 +1,16 @@
+Class s::Item { id: Integer[1]; name: String[0..1]; price: Decimal[0..1]; }
+###Relational
+Database s::DB ( Table T ( ID INTEGER PRIMARY KEY, NAME VARCHAR(20), PRICE DECIMAL(10,2) ) )
+###Mapping
+Mapping s::M ( *s::Item: Relational { ~mainTable [s::DB] T
+    id: [s::DB] T.ID, name: [s::DB] T.NAME, price: [s::DB] T.PRICE } )
+###Connection
+RelationalDatabaseConnection s::Conn
+{
+    store: s::DB;
+    type: H2;
+    specification: LocalH2 { testDataSetupCSV: 'default\nT\nID,NAME,PRICE\n1,a,1.50\n2,O\'Brien,---null---\n3,---null---,3.25\n'; };
+    auth: DefaultH2;
+}
+###Runtime
+Runtime s::RT { mappings: [s::M]; connections: [ s::DB: [ c1: s::Conn ] ]; }

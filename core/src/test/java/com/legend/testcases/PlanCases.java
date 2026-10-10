@@ -93,8 +93,8 @@ public final class PlanCases {
             new Parameterised("n: Number[1]", "let n = 1;",
                     "#>{s::DB." + table + "}#->filter(r|$r.ID > $n)->select(~[ID])->sort(~ID->ascending())",
                     java.util.Map.of("n", 1L)),
-            // (compared, not projected: a projected Number is typed by its declaration in the plan and by its value's
-            // literal, a Float, in the let -- on Postgres their CSV texts differ, 3.0 and 3: step 4's to settle)
+            // (compared, not projected: projected, the plan's Number column answers 3.0, Pure's text, and the let's
+            // Float column 3 on Postgres -- today's whole-Float text, PARK-24)
             new Parameterised("n: Number[1]", "let n = 1.5;",
                     "#>{s::DB." + table + "}#->filter(r|$r.ID * $n > 2)->select(~[ID])->sort(~ID->ascending())",
                     java.util.Map.of("n", 1.5d)),

@@ -61,7 +61,7 @@ public class ValueTypedCastProbe {
                         + " (2, 3.25, 5, DATE '2024-01-02', TIMESTAMP '2024-01-02 10:30:00')");
             }
             List<Case> numbers = new ArrayList<>();
-            for (String d : List.of("1.1", "2.50", "0.0", "-0.5", "0.0000010", "100000000000000.0",
+            for (String d : List.of("1.1", "2.50", "0.0", "0.00", "-0.5", "0.0000010", "100000000000000.0",
                     "12345678901234567890.123", "7", "9999999999")) {
                 BigDecimal bd = new BigDecimal(d);
                 // a Number's integer is a BIGINT in a plan (a Long); every other value its own decimal type
@@ -70,7 +70,7 @@ public class ValueTypedCastProbe {
                         integer ? (Object) bd.longValueExact() : bd));
             }
             // an extreme magnitude: the literal is written in exponent form (Rule 1), a DOUBLE
-            for (double v : new double[] {1.5e15, 2.5e-7}) {
+            for (double v : new double[] {1.5e15, 2.5e-7, Double.MIN_VALUE, Double.MAX_VALUE}) {
                 numbers.add(new Case(Double.toString(v), Double.toString(v), "DECFLOAT(" + BigDecimal.valueOf(v).precision() + ")", v));
             }
             String[][] numberShapes = {
@@ -118,6 +118,17 @@ public class ValueTypedCastProbe {
                 }
             }
             System.out.println("== " + same + " same, " + diff + " different");
+            // an absent value: a null of the hole's absent kind, its type spelled by name alone -- valid, and null, in
+            // every position (the let path writes the query with the value empty, another statement)
+            System.out.println("-- absent values, each a null cast to its kind's type by name alone");
+            for (String type : List.of("NUMERIC", "DECFLOAT", "BIGINT", "DATE", "TIMESTAMP(9)")) {
+                boolean number = !type.startsWith("DATE") && !type.startsWith("TIMESTAMP");
+                String[][] shapes = number ? numberShapes : dateShapes;
+                for (String[] shape : shapes) {
+                    System.out.println("  " + type + " " + shape[0] + ": "
+                            + run(c, String.format(shape[1], "CAST(? AS " + type + ")"), null));
+                }
+            }
         }
     }
 }

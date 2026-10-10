@@ -138,7 +138,8 @@ class PostgresArmTest {
                 }
             }
             // a query's scalar parameters: bound where they are written, answering as the query with their values does
-            // (Postgres types a bare placeholder by the bound value: no cast, every type)
+            // (Postgres types a bare placeholder by the bound value, every type but a date-time, which is cast to the
+            // type of its literal and passed as its text, cut to six digits as the literal is)
             for (com.legend.testcases.PlanCases.Parameterised q : com.legend.testcases.PlanCases.scalars("PLAN_T")) {
                 assertPlanAnswersAsToday(model, ctx, q, c);
             }

@@ -645,3 +645,39 @@ old speed.
 **Anchors.** `ExactDecimal.FAST_DIGITS` is 15, and the fast route's limit is derived from it (`FAST_LIMIT =
 POW10[FAST_DIGITS]`); `third_party/teavm_classlib`'s `ExactDecimalTest.theFastRouteStopsAtFifteenDigits_park23` holds
 it: a faster route for the rest changes it, and the row closes.
+
+---
+
+## PARK-24 — lite's answers differ from Pure's values in four measured places (the output layer)
+
+**Recorded** 2026-10-10 by the Plan Gen / Exec Split session, with the user's ruling the same day: an answer is Pure's
+value — its kind, its value, Pure's own decimal rules — everywhere; its text follows the API served (`pure/v1`:
+legend-engine's JSON conventions, the 2026-09-27 ruling; lite's own outputs: Pure's own text). Measured against Pure
+itself (plain expressions run by legend-engine 4.145.0's Pure, no database, each printed by `toString`) and against
+the engine's execute: `docs/execution-plan-boundary-2026-10-05/probes/engine-reference/` (`results.txt`).
+
+**What happens today** — today's path and a plan alike (a plan reproduces today's path):
+1. Float arithmetic runs in decimal: `$r.ID * 1.1` answers `3.3` where Pure, and the engine (`cast(1.1 as float)`),
+   answer `3.3000000000000003`. The numeric charter's Rule 1 writes a Float literal bare, so the database types it a
+   DECIMAL, citing the engine's default literal writer; on H2 the 4.145.0 engine casts every Float to `float`. PCT's
+   allowance of two units in the last place hides the difference.
+2. A whole Float prints without its `.0`: `$r.ID * 1.5` answers `3` where Pure and the engine answer `3.0`. (On
+   Postgres a plan's Number-typed column answered `3.0` and today's `let` path's Float column `3`: `PlanCases`' decimal
+   Number case compares its value in a filter until this is fixed.)
+3. A Decimal literal keeps its trailing zeros: `2.50D` answers `2.50` where Pure's literal is `2.5` (Pure reads a
+   decimal literal through a double — `10.00D` is `10.0` — while `parseDecimal('2.50')` keeps `2.50`); `$r.ID * 2.50D`
+   answers `5` where Pure's is `5.0`.
+4. A DateTime prints `2024-01-02T10:30:00`, where Pure prints `2024-01-02T10:30:00+0000` and the engine's execute
+   `2024-01-02T10:30:00.000000000+0000`.
+
+**The fix.** One piece of work on the output layer, both paths at once: Float arithmetic as Pure computes it (Rule 1
+revisited against its own citation), a Float's text with its `.0`, a Decimal literal's scale as Pure's, a DateTime's
+text as the API served writes it; each deliberate difference from legend-engine's text (its 16-place decimal
+arithmetic, `cast(x as Decimal(32,16))`) a row of `docs/SEMANTICS_REGISTER.md`.
+
+**Acceptance.** The engine-reference cases as a test: each answer Pure's value, in the API's text; `PlanCases`' decimal
+Number case projects its value again.
+
+**When.** Next, after step 3 lands (the user's order, 2026-10-10).
+
+**Anchor.** The Float literal written bare: `plainFloat(` in `AnsiSqlRenderer.java`.

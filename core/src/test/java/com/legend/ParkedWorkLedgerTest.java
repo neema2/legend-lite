@@ -155,6 +155,10 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-21 a Byte, LatestDate or StrictTime value is not bound",
                     new Anchor("a Byte, LatestDate or StrictTime value is not bound", List.of("QueryParameters.java"))),
             // (2026-10-09, step 3's audit): the runner refuses the same, should a plan carry a Byte or a Variant
+            // PARK-24 (2026-10-10, measured against Pure and legend-engine): lite's answers differ from Pure's values
+            // in four places, Float arithmetic in decimal the first (the numeric charter's Rule 1: a literal bare)
+            Map.entry("PARK-24 lite's answers differ from Pure's values in four measured places",
+                    new Anchor("static String plainFloat\\(", List.of("AnsiSqlRenderer.java"))),
             Map.entry("PARK-21 the runner binds no Byte or Variant value",
                     new Anchor("is not bound by a plan \\(PARK-21\\)", List.of("PlanParameters.java"))),
             // PARK-22 (2026-10-09, the protocol program's leg 5): engine JSON with spans for a path literal across

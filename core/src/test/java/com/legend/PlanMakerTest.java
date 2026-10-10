@@ -293,7 +293,12 @@ class PlanMakerTest {
                                 ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP",
                                         ExecutionPlan.Digits.NONE),
                                 ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP_NS",
-                                        ExecutionPlan.Digits.NONE)));
+                                        ExecutionPlan.Digits.NONE)),
+                        DatabaseType.Postgres, java.util.Map.of(
+                                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP",
+                                        ExecutionPlan.Digits.NONE),
+                                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP",
+                                        ExecutionPlan.Digits.NONE, 6)));
         expected.forEach((type, types) -> {
             ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(type, query, TypedQuery.Output.JSON).root()).sql();
             ExecutionPlan.Binding.One one = (ExecutionPlan.Binding.One) sql.slots().get(0).binding();
