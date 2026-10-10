@@ -262,6 +262,8 @@ test_suite(
         "//spec:update_reference_lane_test",
         "//spec:corpus_warehouse_verdict",
         "//spec:manifest_world_census",
+        # Phase 3b's homework probes (2026-10-09): manual, over the census's inputs; in no per-push lane
+        "//spec:phase3b_probes",
         "//parser-equivalence:diagnostics",
         "//pct:update_ratchets_test",
         "//tools/python:requirements.test",
