@@ -482,10 +482,10 @@ whole-model compile, `Compiler.compileErrors`, behind two routes on the one disp
 `/api/pure/v1/compilation/compile` (legend-engine's exact answer, the first error) and the new
 `/api/lite/v1/compilation/compile` (every error); the tab's `compileOrError` and the SDLC server's copy gone, Studio on
 the lite route; `relationTypeJson` (E5's twin) gone from both adapters, `planJson` stays; PARK-17 closed (the fold
-writes a refusal's kind as the routes name it, the DataCube + Python line's choice). **Announced 2026-10-10
-(core, one file): leg 7**, the SDLC's rules free of Pure, on branch `leg7-sdlc-rules` -- in `core/BUILD.bazel`, only
-two visibility lists (`:core` no longer visible to `//sdlc-server`; `:plan_side` visible to the new
-`//sdlc-server/grammar`, where `CoreGrammar` moves); the rest in `sdlc-server/` and the docs. Then leg 8, and leg 9,
+writes a refusal's kind as the routes name it, the DataCube + Python line's choice). **Landed 2026-10-10: leg 7**
+(6305ebef5; GATES 2026-10-10), the SDLC's rules free of Pure -- in `core/BUILD.bazel`, only two visibility lists
+(`:core` no longer visible to `//sdlc-server`; `:plan_side` visible to the new `//sdlc-server/grammar`, where
+`CoreGrammar` moved); the rest in `sdlc-server/` and the docs. Next: leg 8, and leg 9,
 imports and comments (added by the user, design first). Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first.
 **Planned landings, in this order** (each: the local gate, one CI run on the branch, then a fast-forward of `main`):

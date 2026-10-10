@@ -8319,3 +8319,19 @@ arithmetic in decimal (the numeric charter's Rule 1), a whole Float's missing `.
 DateTime's text: PARK-24, the output layer's fix, next (the user's ruling, 2026-10-10: an answer is Pure's value, its
 text the served API's). legend-engine cannot run a parameter projected as a column, a Number parameter or a DateTime
 list; lite's plans run them. Today's server path refuses an absent optional value; plans answer it as the engine does.
+
+## 2026-10-10 — the protocol program's leg 7: the SDLC's rules free of Pure (the Studio / SDLC / Depot line)
+
+`CoreGrammar` (the SDLC's two Pure questions: a file's text read into an entity, a tree's whole-model compile) moved
+from `//sdlc-server:rules` to its own package, `//sdlc-server/grammar`, on `//core:plan_side`; the SDLC's server, page
+and git test wire it in. `//core` is no longer visible to `//sdlc-server` and `//core:plan_side` only to
+`//sdlc-server/grammar` and `//wasm`, so a rule reaching the compiler is a visibility error (checked both ways); the
+SDLC server no longer carries execution. `core/BUILD.bazel`: two visibility lists, announced in IN_FLIGHT first
+(172969f56). PHASE_8's Compile-9 row updated.
+
+The Bazel review (an audit agent; no blockers; 2 should-fix -- the page's module "unchanged" overstated, its bytes
+differing with the moved class's package; PHASE_8 stale -- and 3 nits, fixed in the commit). Local gate green (323
+tests; one Studio browser test failed once waiting on the review page, then passed four runs alone). CI run 38075735056
+on `leg7-sdlc-rules` (c7ebb421f), the lanes it touches (product, checks, sdlc, ui, datacube) on every platform, green;
+rebased since onto docs-only commits (its code unchanged) as 6305ebef5. Pushed to main with this record, the user's
+go.
