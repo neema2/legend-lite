@@ -8122,3 +8122,39 @@ gate green on the tree but for four tests of the in-tab compiler (Query's and St
 machine's load (load average about 40) and pass alone; CI run 38005815382 on `ci/datacube-sheets`, green on the lanes
 with a path to `//datacube:src` (product, checks, warehouse, datacube, ui) on every platform (21 jobs; the Windows ui job
 once more after Maven Central answered one jar 404 and then served it); pushed to main as 93e506e9b, the tested commit.
+
+## 2026-10-09 — Python pages: a whole DataCube page built from Python (the DataCube + Python line)
+
+The design: `docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md` (agreed: Pure for calculated columns and filter tuples,
+objects with methods, live edits after showing), its §7 recording what was decided while building. Landed as one
+fast-forward, `691c5002d..94ee44b08` (five commits):
+
+1. **A page over Python's engine** (step 1): the frame source kind (`cube-document.ts`, `{_type: 'frame', name,
+   columns}`); the engine serves a page's document beside its frames (`page.json`, `version.json?page=`) and keeps what
+   the open page reports (`python/legend_lite/engine.py`); `datacube/demo/engine-page.ts` (new) opens it in a tab
+   (`engine.html?page=`) and in a notebook's widget (`widget.ts`, `page_key`), following the page's version and each
+   frame's.
+2. **`ll.Page`** (step 2, `python/legend_lite/page.py`, new): the page IS DataCube's page document (version 3); grids,
+   charts and sheets are handles by id whose methods edit it, each edit checked at its line (columns, DataCube's
+   operators, aggregates and marks, the compiler typing a calculated column through the ones before it). Tiles are
+   placed and taken off as `layout/bands.ts` does; `layout_from` and `configure`/`options` take the document's own
+   words for the rest. `ll.show(page)` in a tab, under a Jupyter cell or as a marimo cell's output; `save`, `load` and
+   `to_json` keep everything DataCube writes; `read()` takes the open page's document in, the handles still good.
+3. **The page channel**: the protocol's exact JSON both ways (a `1.50D` stays `1.50`); a report names the version it
+   shows, and one of a version replaced is refused (409); versions go on across closes; a page shown again is not
+   served again; the engine serves the page as it is open now.
+4. Fixed on the way: `Frames.register` took a name out while it replaced its table (a tab asking then stopped
+   following) and left a failed load's half-made view behind (the name stuck); the widget loader threw on a 204.
+
+What judges it: `//python:engine_test` (`test_page.py`, new, 22 cases; the engine's page tests), `//python:frames_test`,
+`//python:notebook_test` (a page under a Jupyter cell and as a marimo cell's output), `//python:bindings_test` (the
+exact JSON writer laid out), `//datacube:python_vocabulary_test` (new: Python's operators, aggregates, marks, versions
+and the layout's three numbers read against DataCube's sources), and in Chromium `//datacube:python_engine_test` (a
+page from Python in a tab and in a notebook's widget, followed as Python and its frames change, a rename read back;
+every page Python writes -- each kind of edit, a frozen chart kept without its grid, DataCube's own page loaded and
+changed -- read by DataCube's `readPage`). Audited three times (2b4509990: 0 blockers, 11 should-fix; f92b9c170: 1
+blocker, 7 should-fix; 0ad1558f5: 0 blockers, 4 should-fix; every one fixed with a test). Local gate green (330 tests;
+`//query:build_test` and `//studio:demo_test` timed out at load 30 and passed alone); CI run 38016351887 on
+`ci/datacube-python-pages`, green on the lanes with a path to the change (product, checks, warehouse, datacube, ui) on
+every platform (21 jobs); pushed to main as 94ee44b08, the tested commit, with the Studio, Compiler Rewrite and Plan
+Gen sessions' go.

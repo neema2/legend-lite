@@ -119,9 +119,9 @@ with the compiler's plan/execution split**, in this order:
    `datacube-pages`. `native/`, `python/` and, since 2026-10-09, all of `datacube/`. Landed: the compiler as a native
    library (`bc8107c4e`), `ll.show(df)` and the notebook cube on every platform, a real JupyterLab test and marimo
    (`169e0f062`), DataCube pages phase 1, the layout (`e397f107a`), and phase 2, a page of its own saved with every
-   source (`eb2e38fa8`), and phase 3, sheets and stacked tiles (`93e506e9b`). Now: Python pages -- everything a page
-   does, built from Python (`docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md`, agreed), branch `datacube-python-pages`;
-   then every ECharts chart that fits a grid.
+   source (`eb2e38fa8`), phase 3, sheets and stacked tiles (`93e506e9b`), and Python pages, `ll.Page`: everything a
+   page does, built from Python (`94ee44b08`; `docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md`). Now: every ECharts
+   chart that fits a grid (a design note first, for the user's agreement).
 
 **Parked:** the compiler rebuild (`docs/EXECUTION_PLAN_2026_09_26.md`; paused, coming back later — its open items C4,
 B2/B3 and the W6.2 runner wait for it); the server

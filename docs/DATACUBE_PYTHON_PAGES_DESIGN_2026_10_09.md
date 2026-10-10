@@ -27,7 +27,8 @@ trades = page.grid(trades_df, name="trades",
                    measures={"notional": "sum", "pnl": "sum"},
                    filter=[("region", "notEqual", "APAC")],
                    sort=[("notional", "desc")])
-trades.calculate("margin", "$x.pnl / $x.notional")        # a calculated column, in Pure, checked by the compiler
+# a calculated column, in Pure, checked by the compiler (a frame's column can be empty: arithmetic takes it toOne())
+trades.calculate("margin", "$x.pnl->toOne() / $x.notional->toOne()")
 
 # charts of it, as Insert > Visualization makes them (every mark and option the chart's Options window has)
 by_desk = trades.chart("bar", x="desk", y=[("notional", "sum")], split="region", title="Notional by desk")
@@ -104,3 +105,26 @@ and `demo/widget.ts` (a page, not one cube, when the engine serves one), `demo/e
 frame, shared), `src/page/page-app.ts` if the page needs a host hook, and their tests; `python/legend_lite/engine.py`
 (`page.json`) for the browser check. Step 2: `python/legend_lite/page.py` (new: `Page`, `Grid`, `Chart`, `Sheet`),
 `datacube.py` and `notebook.py` (`show(page)`), `python/tests/test_page.py`.
+
+## 7. As built (landed 2026-10-09, `94ee44b08`)
+
+1. **The page IS its document.** `ll.Page` holds DataCube's page document; `Grid`, `Chart` and `Sheet` are handles by
+   id whose methods edit it in place, each edit checked at its line. (The first build split the document into Python
+   objects and rebuilt it: it lost what it did not model, could not read the open page back into the same page, and
+   kept a second copy of DataCube's rules -- the first review traced most of its findings there.) Whatever DataCube
+   writes in a page is kept as it is.
+2. **`read()`** makes the open page's document the page's own; the handles stay good, and one of a tile closed in
+   DataCube is dead from then on. No id is given out twice, so no handle ever meets a new tile under its old one's id.
+3. **The page channel.** Both ways the protocol's exact JSON (a calculated column's `1.50D` stays `1.50`). The open
+   page reports with the version it shows; a report of a version Python has replaced is refused (409: harmless, the
+   page then opens the new one). Versions go on across a close; the engine serves the open page's last report, so
+   another tab or a reload opens what is open.
+4. **A frame's name** is shared by grids over the same frame and never replaced by `page.grid`, which refuses another
+   frame under a served name and points at `grid.update(frame)`.
+5. **A frozen chart stays** when its grid is removed, in the document, as DataCube keeps one (its detached chart).
+6. **Added while building, at the user's word ("you tell me")**: `sheet.layout_from(...)` (a sheet's layout in the
+   document's own words: the "everything, by two routes" of §3 for layouts) and `chart.plot(...)`. Not added: moving
+   or deleting sheets, a sheet's `fit`, removing a measure -- the document's own words reach them, or a later step.
+7. **Python checks what it needs to work on a page** (frame sources, each id once, views on sheets, layouts of the
+   shape it edits); what else DataCube's reader asks of a page it asks when the page is shown -- no second copy of its
+   rules. `//datacube:python_engine_test` reads every kind of page Python writes with DataCube's own `readPage`.
