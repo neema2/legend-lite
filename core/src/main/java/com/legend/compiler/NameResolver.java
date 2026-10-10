@@ -214,7 +214,8 @@ public final class NameResolver {
         List<PackageableElement> resolved = new ArrayList<>(model.elements().size());
         boolean changed = false;
         for (PackageableElement el : model.elements()) {
-            ImportScope own = model.elementImports().get(el.qualifiedName());
+            String elementKey = ParsedModel.keyOf(el);
+            ImportScope own = model.elementImports().get(elementKey);
             String fqn0 = el.qualifiedName();
             int cut0 = fqn0.lastIndexOf("::");
             String ownPkg = cut0 > 0 ? fqn0.substring(0, cut0) : null;
@@ -232,14 +233,14 @@ public final class NameResolver {
                     // POISON-NOT-DROP: the element stays, UNRESOLVED as
                     // parsed — downstream lazy compilation fails loudly if
                     // anything actually uses it; mere references survive
-                    wallSink.putIfAbsent(el.qualifiedName(),
+                    wallSink.putIfAbsent(elementKey,
                             String.valueOf(e.getMessage()).split("\n")[0]);
                     resolved.add(el);
                     continue;
                 }
                 throw new com.legend.error.ModelException(
                         com.legend.error.LegendCompileException.Phase.RESOLVE,
-                        e.getMessage(), el.qualifiedName());
+                        e.getMessage(), elementKey);
             }
             resolved.add(r);
             changed |= r != el;

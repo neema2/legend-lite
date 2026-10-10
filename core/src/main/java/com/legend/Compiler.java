@@ -191,16 +191,19 @@ public final class Compiler {
                     continue;
                 }
                 elements.add(el);
-                String fqn = el.qualifiedName();
-                Integer off = unit.elementOffsets().get(fqn);
+                // per ELEMENT (ParsedModel.keyOf): an overload's section,
+                // position and file are its own — keyed by name, the last
+                // file read set every overload's import scope (Phase 3b, 5b)
+                String elementKey = ParsedModel.keyOf(el);
+                Integer off = unit.elementOffsets().get(elementKey);
                 if (off != null) {
-                    offsets.put(fqn, off);
+                    offsets.put(elementKey, off);
                 }
-                com.legend.model.ImportScope own = unit.elementImports().get(fqn);
+                com.legend.model.ImportScope own = unit.elementImports().get(elementKey);
                 if (own != null) {
-                    elementImports.put(fqn, own);
+                    elementImports.put(elementKey, own);
                 }
-                elementSources.put(fqn, src.name());
+                elementSources.put(elementKey, src.name());
             }
         }
         return new ParsedModule(

@@ -94,7 +94,7 @@ public final class PureTests {
             }
             if (test) {
                 List<String> wildcards = new ArrayList<>();
-                ImportScope own = model.elementImports().get(fqn);
+                ImportScope own = model.elementImports().get(ParsedModel.keyOf(f));
                 if (own != null) {
                     wildcards.addAll(own.wildcards());
                 }

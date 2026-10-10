@@ -19,15 +19,17 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  */
 class SchemaViewLiftTest {
 
-    private static PureModelContext build(String relational) {
-        return (PureModelContext) Compiler.buildModel(com.legend.testing.Own.model(
-                "Class m::X { k: String[1]; }\n###Relational\n" + relational));
+    private static PureModelContext build(String model) {
+        return (PureModelContext) Compiler.buildModel(com.legend.testing.Own.model(model));
     }
 
     @Test
     @DisplayName("the recorded minimal model: a view inside a schema is lifted exactly once")
     void aSchemaViewIsLiftedOnce() {
         PureModelContext ctx = build("""
+                ###Pure
+                Class m::X { k: String[1]; }
+                ###Relational
                 Database r::Store
                 (
                   Schema s
@@ -44,6 +46,9 @@ class SchemaViewLiftTest {
     @DisplayName("two schemas with a same-named view: two lifted functions, one each")
     void twoSchemasOneViewNameEach() {
         PureModelContext ctx = build("""
+                ###Pure
+                Class m::X { k: String[1]; }
+                ###Relational
                 Database r::Store
                 (
                   Schema a ( Table L (K VARCHAR(10) PRIMARY KEY, V INTEGER) View V ( K: a.L.K PRIMARY KEY, N: a.L.V ) )
@@ -58,6 +63,9 @@ class SchemaViewLiftTest {
     @DisplayName("a schema view the resolver rewrites (its column reaches a [db]-qualified join) stays one object")
     void aRewrittenSchemaViewIsOneObject() {
         PureModelContext ctx = build("""
+                ###Pure
+                Class m::X { k: String[1]; }
+                ###Relational
                 Database r::Store
                 (
                   Schema s

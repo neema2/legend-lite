@@ -322,8 +322,9 @@ public final class ElementParser implements TokenStreamCursor {
                 PackageableElement e = parseSingleElement();
                 sawElementSinceImport = true;
                 lastElementStart = at;
-                elementImports.putIfAbsent(e.qualifiedName(), sectionImports.build());
-                offsets.putIfAbsent(e.qualifiedName(), at);
+                String key = ParsedModel.keyOf(e);
+                elementImports.putIfAbsent(key, sectionImports.build());
+                offsets.putIfAbsent(key, at);
                 elements.add(e);
             }
         }
@@ -388,9 +389,9 @@ public final class ElementParser implements TokenStreamCursor {
                         throw error(u.reason());
                     }
                     elements.add(el);
-                    offsets.putIfAbsent(el.qualifiedName(),
-                            sk.startOffset() + pe.startOffset());
-                    elementImports.putIfAbsent(el.qualifiedName(), sectionScope);
+                    String key = ParsedModel.keyOf(el);
+                    offsets.putIfAbsent(key, sk.startOffset() + pe.startOffset());
+                    elementImports.putIfAbsent(key, sectionScope);
                 }
             } else if (!g.get().lexable()) {
                 // an OVERLAY grammar owns this opaque section: hand it the
@@ -474,8 +475,9 @@ public final class ElementParser implements TokenStreamCursor {
                 throw error(u.reason());
             }
             elements.add(el);
-            offsets.putIfAbsent(el.qualifiedName(), pe.startOffset());
-            elementImports.putIfAbsent(el.qualifiedName(), sectionScope);
+            String key = ParsedModel.keyOf(el);
+            offsets.putIfAbsent(key, pe.startOffset());
+            elementImports.putIfAbsent(key, sectionScope);
         }
     }
 

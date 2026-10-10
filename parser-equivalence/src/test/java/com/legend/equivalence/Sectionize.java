@@ -76,16 +76,16 @@ final class Sectionize {
                 new ArrayList<>(pm.elements());
         Map<String, Integer> offs = pm.elementOffsets();
         for (com.legend.model.PackageableElement e : els) {
-            if (offs.get(e.qualifiedName()) == null) {
+            if (offs.get(com.legend.model.ParsedModel.keyOf(e)) == null) {
                 return null;
             }
         }
-        els.sort(Comparator.comparingInt(e -> offs.get(e.qualifiedName())));
+        els.sort(Comparator.comparingInt(e -> offs.get(com.legend.model.ParsedModel.keyOf(e))));
         List<Insertion> inserts = new ArrayList<>();
         String current = "Pure";
         int nextHeader = 0;
         for (com.legend.model.PackageableElement e : els) {
-            int off = offs.get(e.qualifiedName());
+            int off = offs.get(com.legend.model.ParsedModel.keyOf(e));
             while (nextHeader < headers.size()
                     && headers.get(nextHeader).contentStartOffset() <= off) {
                 current = headers.get(nextHeader).name();   // real header wins

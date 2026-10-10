@@ -67,7 +67,9 @@ final class ModelIntegrity {
         model.classes().filter(fresh).forEach(cd -> withElement(cd.qualifiedName(),
                 () -> checkClass(cd, classifier, functions), wallSink));
         checkInheritanceAcyclic(model, classifier, wallSink, fresh);
-        model.functions().filter(fresh).forEach(f -> withElement(f.qualifiedName(),
+        // a function's wall is under its KEY, its id (ParsedModel.keyOf): the
+        // overload the signature belongs to, with its own file and position
+        model.functions().filter(fresh).forEach(f -> withElement(com.legend.model.FunctionId.of(f).qualified(),
                 () -> checkFunction(f, classifier), wallSink));
         checkDuplicateSignatures(model, wallSink, fresh,
                 prior == null ? java.util.Set.of() : prior.signatureKeys());
@@ -161,7 +163,7 @@ final class ModelIntegrity {
         for (Function f : model.functions().filter(fresh).toList()) {
             com.legend.model.FunctionId key = com.legend.model.FunctionId.of(f);
             if (priorKeys.contains(key) || !seen.add(key)) {
-                withElement(f.qualifiedName(), () -> {
+                withElement(key.qualified(), () -> {
                     throw new com.legend.error.ModelException(
                             com.legend.error.LegendCompileException.Phase.MODEL,
                             "function '" + f.qualifiedName()

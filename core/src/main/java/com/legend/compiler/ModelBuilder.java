@@ -1270,8 +1270,8 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
 
     /** The ELEMENT's own import scope, else the model-wide one — store
      * refs inside a mapping resolve through the section that declared it. */
-    public ImportScope importsOf(String elementFqn) {
-        return elementImports.getOrDefault(elementFqn, imports);
+    public ImportScope importsOf(String elementKey) {
+        return elementImports.getOrDefault(elementKey, imports);
     }
 
     /** Registered database by EXACT FQN only (no simple-name leniency) —

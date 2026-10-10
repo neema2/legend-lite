@@ -9,6 +9,15 @@ import java.util.List;
  * {@link PackageableElement} declarations the parser saw, plus the
  * {@link ImportScope} accumulated from {@code import} statements.
  *
+ * <p>The three side maps ({@code elementOffsets}, {@code elementImports},
+ * {@code elementSources}) are keyed by {@link #keyOf the element's key}:
+ * a function's id, every other element's qualified name. They were keyed
+ * by qualified name alone until 2026-10-09 (build rebuild Phase 3b, item
+ * 5b), so a function's overloads shared one record and the last file read
+ * set the import scope for all of them (three of the manifest census's
+ * load walls: {@code Runtime} and {@code Mapping} not found in the
+ * service's {@code from} and the router's {@code routeFunction}).
+ *
  * <p>Returned by {@link ElementParser#parseLegendLite(String)} and the other
  * named-level entries.
  *
@@ -50,7 +59,7 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
      * Single-source form ({@code elementSources} empty): every element
      * came from {@code source}. The multi-source module compile
      * ({@code Compiler.parseSources}) fills {@code elementSources} (element
-     * FQN &rarr; source unit name) so errors attribute to the right FILE.
+     * key &rarr; source unit name) so errors attribute to the right FILE.
      */
     /** Multi-source form without section data. */
     public ParsedModel(List<PackageableElement> elements, ImportScope imports,
@@ -73,7 +82,7 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
     /**
      * Real pure imports are SECTION-scoped, not file-global: each element
      * resolves against the imports of ITS OWN section ({@code elementImports},
-     * keyed by FQN). {@code imports()} stays the union — the query-side scope
+     * keyed by {@link #keyOf}). {@code imports()} stays the union — the query-side scope
      * and older callers — but element resolution prefers the per-element view
      * (concatenated multi-file models would otherwise cross-contaminate:
      * two files wildcard-importing different packages made every shared
@@ -86,12 +95,13 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
     }
 
     /**
-     * Positions live in a SIDE INDEX keyed by element FQN — not on the
-     * element records (they are protocol-faithful shapes, and the normalizer
-     * rebuilds them; an FQN key survives both). Empty for synthesized models.
+     * Positions live in a SIDE INDEX keyed by {@link #keyOf element key} — not
+     * on the element records (they are protocol-faithful shapes, and the
+     * normalizer rebuilds them; a string key survives both). Empty for
+     * synthesized models.
      *
      * @param source         original source text ({@code null} when unknown)
-     * @param elementOffsets element FQN &rarr; char offset of its declaration
+     * @param elementOffsets element key &rarr; char offset of its declaration
      */
     public ParsedModel(List<PackageableElement> elements, ImportScope imports) {
         this(elements, imports, null, java.util.Map.of());
@@ -100,5 +110,16 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
     /** {@code true} if no elements and no imports were parsed. */
     public boolean isEmpty() {
         return elements.isEmpty() && imports.isEmpty();
+    }
+
+    /**
+     * The key the side maps record {@code el} under: a function's
+     * {@link FunctionId id} (its overloads are distinct elements and each
+     * has its own section, file and position), any other element's
+     * qualified name. The id spells types by simple name, so the key is
+     * the same before and after name resolution.
+     */
+    public static String keyOf(PackageableElement el) {
+        return el instanceof Function f ? FunctionId.of(f).qualified() : el.qualifiedName();
     }
 }

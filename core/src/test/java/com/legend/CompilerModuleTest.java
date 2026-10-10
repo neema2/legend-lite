@@ -98,7 +98,9 @@ class CompilerModuleTest {
                 Compiler.parseSources(List.of(
                         new Compiler.ModelSource("m.pure", src))).model());
         assertEquals(1, built.context().findFunction("my::pkg::f").size());
-        assertTrue(built.walls().containsKey("my::pkg::f"),
+        // the wall names the OVERLOAD (its id), as body walls do: the side
+        // maps and the walls are per element since Phase 3b item 5b
+        assertTrue(built.walls().containsKey("my::pkg::f_Missing_1__Integer_1_"),
                 () -> "the broken overload must be ENUMERATED: " + built.walls());
         // and the STRICT path fails LOUDLY — the lenient skip is a
         // tolerant-module-only semantics, never a silent strict drop
