@@ -494,7 +494,15 @@ its `position` accessor), `core/.../parser/section/` (each grammar's `toModel` d
 `core/.../parser/ElementParser.java` (`Data` through the door), `core/.../Compiler.java` (`compileModel` over records;
 the three error-decoration sites through `ParsedModel.position`), `core/.../Execution.java` (`executeWire` over a
 compiled model), `core/.../server/{PureV1Api,QueryService}.java` (the data context; `connectionOf` over records), and
-their tests; a text-versus-JSON oracle in `parser-equivalence/`. Its last step (the parser returning protocol only,
+their tests; a text-versus-JSON oracle in `parser-equivalence/`. **Reordered (the user, the same day): one parser
+first** -- the compiler's text through the protocol parser's one section walk and import scoping (imports bound to
+their section, as legend-engine and legend-pure bind them), judged by the Compiler Rewrite line's census, reference
+lane, corpus passes and shadow probe before it lands. Its files beyond the list above:
+`core/.../parser/PmcdParser.java` (the one assembly, taking the dialect), `core/.../parser/ElementParser.java` (its
+own top-level assembly deleted; `parse` the door over the one parser), `core/.../protocol/{Protocol,ProtocolEmitter,
+ModelReader}.java` (lite-only records for native functions, `Primitive` and a foreign grammar's opaque elements, which
+the emitter refuses by name; then the JSON hop made lossless), `core/.../model/FromProtocol.java` (their converters).
+Nothing in `compiler/` without the Compiler Rewrite line first. Its last step (the parser returning protocol only,
 `ElementParser.parse`'s callers moved) is announced on its own after L7 step 3. Then leg 9, imports and comments
 (added by the user, design first). Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first.
