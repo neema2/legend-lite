@@ -1,8 +1,8 @@
 package com.legend.sdlc.server;
 
-import com.legend.sdlc.CoreGrammar;
 import com.legend.sdlc.Sdlc;
 import com.legend.sdlc.Storage;
+import com.legend.sdlc.grammar.CoreGrammar;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;

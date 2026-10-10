@@ -5,8 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.json.Json;
-import com.legend.sdlc.CoreGrammar;
 import com.legend.sdlc.Sdlc;
+import com.legend.sdlc.grammar.CoreGrammar;
 
 import java.io.IOException;
 import java.net.URLEncoder;

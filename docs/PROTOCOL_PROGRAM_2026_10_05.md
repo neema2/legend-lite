@@ -266,7 +266,8 @@ not be written back, so it is refused.
      and Python's planning calls); and the tab's grammar refusals (DataCube's and the apps' print and parse) are a
      server's -- a parse error 400 `PARSER`, any other refusal 500 with its exception's simple name before its message
      (`IllegalArgumentException: ...`) -- where they were the folded `ERR` text.
-   5. The SDLC server's `CoreGrammar.modelJson` calls the text-to-JSON conversion (its edge moves in leg 7).
+   5. The SDLC server's `CoreGrammar.modelJson` calls the text-to-JSON conversion (its edge moved in leg 7, to
+      `//sdlc-server/grammar`).
 5. **Round trip proven** over the corpus and the showcase projects (plan S5), in the JVM and in the tab (the
    WebAssembly build of the same code, a differential run as `//wasm:differential_test` does for the planner).
    Design (2026-10-09; scope the user's: the upstream showcase projects included):
@@ -413,6 +414,14 @@ not be written back, so it is refused.
    where a deployment wants it (legend-sdlc leaves compiling to the project's build). The server binary wires them,
    and the build enforces the split: `//sdlc-server:rules` with no `//core` dependency, a Bazel change reviewed by
    the Bazel program's session.
+   **As built (2026-10-10):** the adapter is its own package, `//sdlc-server/grammar` (`CoreGrammar`, now
+   `com.legend.sdlc.grammar`), on `//core:plan_side` -- the text-to-JSON conversion and leg 6's `compileErrors`, no
+   database and no driver; the SDLC's server, its page and its test wire it in. `//core` is no longer visible to
+   `//sdlc-server`, and `//core:plan_side` only to `//sdlc-server/grammar` (and `//wasm`), so a rule that reaches for
+   the compiler fails the build (checked: adding either to `:rules` is a visibility error). The server no longer
+   carries execution (no path to `//core:driver` or `:exec`); the page reaches the same compiler code as before.
+   Not built: checking through an engine's `compilation/compile` over HTTP -- no deployment asks for it yet; it is a
+   second `Sdlc.Grammar` beside `CoreGrammar` when one does.
 8. **The server reads models as records.** `PureV1Api.connectionOf` finds a runtime's connection by reading the JSON
    the parser wrote, where invariant 1 says to read the records; and the compile, plan and execute routes take a model
    as text only (`modelText`: "the PMCD reader is not built", which it now is), where legend-engine also takes a
