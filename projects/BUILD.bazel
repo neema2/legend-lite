@@ -74,13 +74,9 @@ PROJECT_DEPS = {
 # KNOWN legend-lite failures, each with its finding (FINDINGS.md): the project's test holds it to failing with this
 # message, and turns red the day it compiles, so the row comes out then. While quarantined, the compile stops at that
 # error, so the project's other checks (an undeclared dependency among them) wait for the fix too.
-# the view's own lifted function, named: a generic "defined more than once" would also pass for another collision
-_SCHEMA_VIEW_TWICE = "'firm_balance_sheet::Store$view$fbs.FBS_CATEGORY_TOTAL' is defined more than once"
-
+# (F-L1, a view declared inside a Schema lifted twice, held firm-balance-sheet here 2026-10-05 to 2026-10-09; fixed by
+# the build rebuild's Phase 3b, item 1a, and the row left FINDINGS.md)
 QUARANTINE = {
-    # 2026-10-05, FINDINGS.md F-L1: a view declared inside a Schema is lifted twice (ModelBuilder indexes the flat
-    # views() mirror AND the schema's views), so its function is "defined more than once"
-    "firm-balance-sheet": _SCHEMA_VIEW_TWICE,
 }
 
 [legend_library(

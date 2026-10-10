@@ -117,23 +117,3 @@ Every project is compiled by legend-lite alone with its declared closure, and th
 its row here; the quarantined test holds the project to the recorded failure and turns red when
 legend-lite compiles it, so the row comes out then.
 
-* **F-L1 (2026-10-05): a view declared inside a `Schema` is lifted twice.** Quarantined:
-  `firm-balance-sheet` (its views are in `Schema fbs`), which the graph test leaves out until then. The smallest model that
-  fails:
-
-      ###Relational
-      Database r::Store
-      (
-        Schema s
-        (
-          Table L (K VARCHAR(10) PRIMARY KEY, V INTEGER)
-          View V ( K: s.L.K PRIMARY KEY, N: s.L.V )
-        )
-      )
-
-  `function 'r::Store$view$s.V' is defined more than once with the same signature`. The same
-  view outside a schema compiles. Cause: `DatabaseDefinition.views()` is the flat mirror of
-  EVERY schema's views, and `ModelBuilder`'s view index walks it and then each schema's views,
-  so a schema view is declared twice (`LiftedViews` then lifts it twice).
-  `DatabaseDefinition.defaultSchemaViews()` exists for exactly this walk; the index should read
-  it. Not fixed here: it is a compiler change outside the Bazel program's files.

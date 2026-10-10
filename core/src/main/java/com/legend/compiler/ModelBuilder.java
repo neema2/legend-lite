@@ -440,7 +440,10 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
             // read the spelling from here
             Map<String, IndexedView> byName = new HashMap<>();
             List<IndexedView> declared = new ArrayList<>();
-            for (ViewDefinition v : db.views()) {
+            // the flat views() list mirrors EVERY schema's views: a schema view is
+            // indexed from its schema below, and only the default schema's here
+            // (build rebuild Phase 3b, item 1a: F-L1, a schema view lifted twice)
+            for (ViewDefinition v : db.defaultSchemaViews()) {
                 IndexedView iv = new IndexedView(v, new ViewLift(db.qualifiedName(), v.name()));
                 byName.put(v.name(), iv);
                 declared.add(iv);

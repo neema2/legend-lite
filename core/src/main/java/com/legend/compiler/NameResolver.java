@@ -1254,9 +1254,18 @@ public final class NameResolver {
     private static DatabaseDefinition resolveDatabase(
             DatabaseDefinition db, Scope scope) {
         List<String> includes = resolveFqnList(db.includes(), scope);
-        List<SchemaDefinition> schemas = resolveSchemas(db.schemas(), scope);
+        // each view resolved ONCE: the flat views() list mirrors every schema's views by
+        // identity (DatabaseDefinition.defaultSchemaViews reads that identity), so a
+        // schema view the resolver rewrites must be the same object in both lists
+        // (build rebuild Phase 3b, item 1a: F-L1). Never iterated: by identity only.
+        java.util.Map<ViewDefinition, ViewDefinition> resolvedViews = new java.util.IdentityHashMap<>();
+        List<SchemaDefinition> schemas = resolveList(db.schemas(),
+                (s, sc) -> resolveSchema(s, sc, resolvedViews), scope);
         List<DatabaseDefinition.TableDefinition> tables = db.tables(); // column data types only; no FQN
-        List<ViewDefinition> views = resolveViews(db.views(), scope);
+        List<ViewDefinition> views = resolveList(db.views(), (v, sc) -> {
+            ViewDefinition shared = resolvedViews.get(v);
+            return shared != null ? shared : resolveView(v, sc);
+        }, scope);
         List<JoinDefinition> joins = resolveJoins(db.joins(), scope);
         List<FilterDefinition> filters = resolveFilters(db.filters(), scope);
         List<FilterDefinition> multiGrain = resolveFilters(db.multiGrainFilters(), scope);
@@ -1268,14 +1277,14 @@ public final class NameResolver {
                 tables, views, db.tabularFunctions(), joins, filters, multiGrain);
     }
 
-    private static SchemaDefinition resolveSchema(SchemaDefinition s, Scope scope) {
-        List<ViewDefinition> views = resolveViews(s.views(), scope);
+    private static SchemaDefinition resolveSchema(SchemaDefinition s, Scope scope,
+            java.util.Map<ViewDefinition, ViewDefinition> resolvedViews) {
+        List<ViewDefinition> views = resolveList(s.views(), (v, sc) -> {
+            ViewDefinition r = resolveView(v, sc);
+            resolvedViews.put(v, r);
+            return r;
+        }, scope);
         return views == s.views() ? s : new SchemaDefinition(s.name(), s.tables(), views, s.tabularFunctions());
-    }
-
-    private static List<SchemaDefinition> resolveSchemas(
-            List<SchemaDefinition> schemas, Scope scope) {
-        return resolveList(schemas, NameResolver::resolveSchema, scope);
     }
 
     private static ViewDefinition resolveView(ViewDefinition v, Scope scope) {
@@ -1285,11 +1294,6 @@ public final class NameResolver {
         return (filter == v.filter() && groupBy == v.groupByColumns()
                 && cols == v.columnMappings()) ? v
                 : new ViewDefinition(v.name(), filter, groupBy, v.distinct(), cols);
-    }
-
-    private static List<ViewDefinition> resolveViews(
-            List<ViewDefinition> views, Scope scope) {
-        return resolveList(views, NameResolver::resolveView, scope);
     }
 
     private static ViewColumnMapping resolveViewColumn(ViewColumnMapping c, Scope scope) {
