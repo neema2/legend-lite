@@ -618,7 +618,7 @@ final class Typer {
      * generalizations in C3 order (the kernel's linearizer, {@code Any} last), the one taking {@code arity}
      * arguments after the receiver, from the most specific owner that declares one. A plain property of the same
      * name is not consulted (the read without parentheses, {@code $x.name}, takes it: {@code synthProperty}).
-     * Where it differs from legend-pure, recorded as SEMANTICS_REGISTER S40: legend-pure runs its function matcher
+     * Where it differs from legend-pure, recorded as SEMANTICS_REGISTER S42: legend-pure runs its function matcher
      * over every candidate across the generalizations (by parameter types); this takes the most specific owner's by
      * arity, and the matcher then picks among that owner's overloads (they share the lifted function's name).
      */

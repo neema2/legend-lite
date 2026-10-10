@@ -7981,7 +7981,7 @@ server path answers no rows for an optional parameter sent empty, where the engi
 plans answer as the engine does, and step 4 retires that path.
 ## 2026-10-09 — Build rebuild Phase 3b (L3): the edges of the one table — a view lifted once, import scopes per element, the platform's own Pure, qualified properties, one crash, the reference lane's verdicts
 
-**Landed [[DATE]] as [[SHA]]** (branch `build/phase3b` on main at 691c5002d; run [[RUN]], full gate.yml on all platforms: [[CI_RESULT]]).
+**Landed [[DATE]] as [[SHA]]** (branch `build/phase3b`, twelve commits on main at 691c5002d, rebased onto 634b2246b before CI; run [[RUN]], full gate.yml on all platforms: [[CI_RESULT]]).
 The landing document is `docs/build-inventory/program/PHASE_3B_LANDING.md` (each commit with its judge); the brief
 `PHASES_3B_6.md`, the homework `PHASE_3B_HOMEWORK_2026_10_09.md`. The user's rulings (2026-10-09): 3b-O1 (b) the
 "platform's own Pure" row kind; 3b-O2 (a) import scopes per element; 3b-O3 (b) the resolver keeps one object per view;
@@ -8010,11 +8010,11 @@ PARK-14 refused as legend-pure refuses it.
    qualified properties through its generalizations in C3 order by arity; a same-named plain property no longer hides
    them (`serializerExtension`, `toString`); a dot call that matches none is refused whatever the receiver's type
    (PARK-14; the parser's `.all(...)` family excepted); the read without parentheses takes the plain property. The one
-   difference left from legend-pure's matcher is SEMANTICS_REGISTER S40.
+   difference left from legend-pure's matcher is SEMANTICS_REGISTER S42.
 5. **One crash an error** (item 5a): the "ambiguous overload" message names every candidate with all its parameters.
 6. **The reference lane's verdicts** (item 3): each of the 23 disagreement classes has its verdict in `reasons.tsv`; the 34
    "`[0..1]` where we type `[1]`" calls and the 17 "`Number` where we type `Integer`/`Float`" calls are type-only
-   differences, recorded as SEMANTICS_REGISTER S38 and S39 (H5 measured: a computed column over a missing value is
+   differences, recorded as SEMANTICS_REGISTER S40 and S41 (H5 measured: a computed column over a missing value is
    `false` on DuckDB and H2, legend-pure's own value, the lowering guarding the missing value;
    `MissingValueInComputedColumnTest`); the golden re-blessed: AGREE 74,586 → 76,920; after the audit's B1 fix 76,884 (the 36 calls inside upstream's `inferRelationalType(rop, failOnMatchFailure)` body, which the platform's version now replaces, are ABSENT on our side as every adopted twin's are; measured by rebuilding the lane with the previous typer and with the previous boot order, both 76,884); DROPPED 32 → 22; FAILED bodies 1,469 → 1,152; "reference typed, we FAILED" 1,298 → 984; the three `propertyMappingsByPropertyName` classes and the `PROPERTY_AS_CALL` row gone, `isNotEmpty` (17 calls) joined; `//spec:reference_lane` and `//spec:update_reference_lane_test` green. `OurResolutions` attributes each
    overload's calls to its own file (by name, the lane's join collapsed to 5 agreements on the first run after 5b).
@@ -8024,7 +8024,7 @@ F-L1 + 3 import scopes + 5 twins; the 18 mapping files, 4 unit files and 5 parse
 16,133, failed 1,437 → 1,120 (unknown-function failures 403 → 6), walled 32, duplicates 0. The implementation table: PlatformPure 35, Body 2,051 → 2,034,
 Refused 129 → 131, dangling 0, conflicts 0, unrowed 109. The audit (`evidence/phase3b/AUDIT_PHASE3B.md`): one blocker
 (a refusal on a false reason) and seven should-fix items, all answered (`PHASE_3B_LANDING.md` §3). The own-corpus parity ratchet 2,751 → 2,762 (new test
-snippets). Judges: [[JUDGES]]. Local gate: [[LOCAL]].
+snippets). Judges: the four corpus passes (DuckDB and H2, host and database) identical to the baseline built before the change, file for file (22 result files, `compare_judges.py`); the two warehouse passes built (no baseline before the change); PCT DuckDB, H2 and Postgres green; channel B green with one re-pin (unclassified discovery and pass 94 → 93: the platform root's `testGet` is no longer counted as an unclassified test); the parity lane green (`own_corpus.matched` 2,775). Local gate: 321 targets, every one green on the rerun (five load timeouts on the first pass, as before; `core_layering_test` and channel B's pass floor re-pinned with their reasons).
 
 ## 2026-10-06 — Build rebuild Phase 3: one table decides, by function id; overloads ranked as legend-pure ranks them
 

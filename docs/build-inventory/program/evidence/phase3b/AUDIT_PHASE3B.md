@@ -1,14 +1,14 @@
-# Phase 3b audit (2026-10-09, the `auditor` agent, read-only over the nine commits 691c5002d..bacbda6f5)
+# Phase 3b audit (2026-10-09, the `auditor` agent, read-only over the branch's nine commits, then based on 691c5002d; the same commits are fb1edea93..fd1f69610 after the rebase onto 634b2246b)
 
 Verdict: ready after fixes. 1 blocker, 7 should-fix, 5 notes. The agent ran no Bazel command; everything came from
 reading git, the code and the pinned upstream trees (`@legend_engine_src`, `@legend_pure_src`). The fixes landed in the
-commit after bacbda6f5 (`PHASE_3B_LANDING.md` §3 says which fix answers which item).
+commit after fd1f69610 (`PHASE_3B_LANDING.md` §3 says which fix answers which item).
 
 ## Blocker
 
 **B1. The refusal of `inferRelationalType(rop, Boolean)` rests on a false reason, and it changes behaviour.**
 - Where: `core/src/main/java/com/legend/platform/PlatformPure.java`, `refusedVersionsTable()`, the first entry; commit
-  84fb743bc's message says "only the databricks extension outside the closure calls it".
+  017c30b78's message says "only the databricks extension outside the closure calls it".
 - Evidence: core_relational itself calls it: `core_relational/relational/relationalMappingExecution.pure:207`
   (`getRelationalTypeFromRelationalPropertyMapping`: `relationalOperationElement->inferRelationalType(false)`), used at
   lines 96 and 101 to work out a relational property mapping's `sourceDataType`. Upstream's one-argument version is
@@ -22,7 +22,7 @@ commit after bacbda6f5 (`PHASE_3B_LANDING.md` §3 says which fix answers which i
 - **S1. TranslationContext refusals: reason holds, callers unnamed.** In-closure callers: `relationalGraphFetch.pure:616/707`,
   `testDataGeneration.pure:912/999/1121/1156`, `testRunner.pure` (graph-fetch and test-data machinery). Name them.
 - **S2. Census ceilings not lowered after the walls fell.** `ManifestWorldCensusTest` still pinned 37 walls / 1,437
-  bodies while 84fb743bc measured 27 / 1,430. Re-pin to the final tip's census, dated.
+  bodies while 017c30b78 measured 27 / 1,430. Re-pin to the final tip's census, dated.
 - **S3. The dot-call refusal's scope is wider and narrower than the design.** Wider: `classFqn` includes the raw name of
   a generic receiver, so `my::Person.all(now())` (the parser's property-form call) gets "no qualified property 'all'
   ... on 'meta::pure::metamodel::type::Class'" (before: an unknown-function error). Narrower: primitive and enum-value
@@ -34,11 +34,11 @@ commit after bacbda6f5 (`PHASE_3B_LANDING.md` §3 says which fix answers which i
 - **S5. The boot path resolves the platform's bodies in a different scope than before.** `Compiler.boot()` adopted
   before `NameResolver.resolve`, so a system body resolved under the prelude declaration's section imports; the graph
   path adopts after resolution. Resolve first and adopt after, and update the comment.
-- **S6. Ledger rows not closed in their fix commits.** PARK-12's and PARK-14's anchors went in 84fb743bc and
-  a6ac6d618, the rows only in bacbda6f5; stale references at `Typer.java:597`, `PlatformPure.java:22`,
+- **S6. Ledger rows not closed in their fix commits.** PARK-12's and PARK-14's anchors went in 017c30b78 and
+  407278df5, the rows only in fd1f69610; stale references at `Typer.java:597`, `PlatformPure.java:22`,
   `SystemMetamodel.java:1559`: reword as history.
-- **S7. Two commit messages overstate.** 469ebfa38 says "2751 -> 2762" while its file says 2757 (f26c2fefb corrects
-  it). bacbda6f5 and S38 say legend-engine's plain SQL "would give NULL" and that `false` is legend-pure's own value;
+- **S7. Two commit messages overstate.** 5ecb5dc73 says "2751 -> 2762" while its file says 2757 (70ee34753 corrects
+  it). fd1f69610 and S40 say legend-engine's plain SQL "would give NULL" and that `false` is legend-pure's own value;
   neither was measured (`MissingValueInComputedColumnTest` measures lite's DuckDB and H2 output only). Mark them as
   claims read from upstream.
 

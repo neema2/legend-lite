@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * value), and so is ours: the lowering guards the missing value ({@code coalesce(x IN (...), FALSE)},
  * {@code x IS NOT NULL AND x > 3}), so the computed value is {@code false} on DuckDB and on H2, where legend-engine's
  * plain SQL ({@code x IN (...)}, {@code x > 3}) would give NULL. Pinned here as the evidence for the recorded,
- * type-only difference ({@code reasons.tsv} OVERLOAD rows; SEMANTICS_REGISTER S38).
+ * type-only difference ({@code reasons.tsv} OVERLOAD rows; SEMANTICS_REGISTER S40).
  */
 class MissingValueInComputedColumnTest {
 

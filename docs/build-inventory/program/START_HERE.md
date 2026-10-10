@@ -58,7 +58,7 @@ generated file, never a signature we typed ourselves.
 - **L3, Phase 3b, landed** ([[SHA]]; run [[RUN]]; GATES "Build rebuild Phase 3b"; the landing note `PHASE_3B_LANDING.md`
   has each commit with its judge): the schema view lifted once, import scopes per element, the platform's own Pure as a
   row kind (`shadows` deleted, PARK-12 closed), legend-pure's qualified-property lookup (PARK-14 refused), the ambiguity
-  message, the reference lane's verdicts (S38, S39). Census load walls 37 → 27; the lane AGREE 74,586 → 76,884 (76,920 before the audit's B1 fix replaced one more upstream body).
+  message, the reference lane's verdicts (S40, S41). Census load walls 37 → 27; the lane AGREE 74,586 → 76,884 (76,920 before the audit's B1 fix replaced one more upstream body).
 - **Next: L7 "resolve once"** (PARK-5's full fix, option (c), `COLD_READ_2026_10_09.md` F1), then D24's second slice;
   the cold read's F2 and F3 still await the user's rulings; then L4 (Phase 6).
 

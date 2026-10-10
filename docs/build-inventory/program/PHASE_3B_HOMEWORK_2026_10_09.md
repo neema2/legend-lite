@@ -99,9 +99,9 @@ A computed column over a missing value (`$c.STR->in(['a'])`, `$c.N > 3` in an `e
 H2: the lowering guards the missing value (`coalesce(x IN (...), FALSE)`, `x IS NOT NULL AND x > 3`), which is
 legend-pure's own value for its `[0..1]` body over an empty argument (read from upstream's bodies, not run);
 legend-engine's plain SQL (`x IN (...)`, `x > 3`) would give NULL — a claim from its SQL shape, not run here. In a filter the rows are the same. So the `[1]`
-typing changes no value against legend-pure: recorded as SEMANTICS_REGISTER S38. For `max` over integers the
+typing changes no value against legend-pure: recorded as SEMANTICS_REGISTER S40. For `max` over integers the
 difference is the result column's declared type (`Number` in legend-pure, `Integer` here; the values are the same):
-recorded as S39; what Studio and DataCube display for the two type names was not measured (they show the column's
+recorded as S41; what Studio and DataCube display for the two type names was not measured (they show the column's
 values the same way).
 
 The census ceilings were already known to be stale (the 3b brief's line 15 and `PHASE_8.md` Short-21, "no owner");
