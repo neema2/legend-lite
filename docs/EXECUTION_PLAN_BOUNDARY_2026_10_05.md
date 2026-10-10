@@ -494,7 +494,7 @@ read from the model at execution (`ConnectionResolver.storesKey`).
    - *Slices:* (a) the runner and its sessions for plans without parameters — `PlanCases`' hand-written run replaced by
      `PlanRunner`, every landing-2 case then the runner's test on DuckDB, H2 and Postgres; (b) parameters checked,
      converted and bound as the plan says; (c) the guard.
-   **Step 3, on branch 2026-10-09** (`dbowner/plan-runner`): `exec.PlanRunner`, `PlanParameters`, `PlanSessions`; the
+   **Step 3, landed 2026-10-10 as `a2e879a8e`** (run 38070603189; GATES "Execution plan step 3"): `exec.PlanRunner`, `PlanParameters`, `PlanSessions`; the
    plan's slot bindings and type holes (plan format v4). Every case of `PlanCases` runs through the runner
    (`PlanCases.run`) and answers byte for byte as today's path on DuckDB, H2 — every case now, PARK-19's included — and
    Postgres: each scalar type; a Float at both extreme magnitudes; a Number, whole and decimal; a Date holding a date

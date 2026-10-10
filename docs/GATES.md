@@ -8276,3 +8276,46 @@ touches (product, core, checks, parser_equivalence, warehouse, datacube, ui, sdl
 the Legend Query session's licensing landing (2db6de6fe; no file in common) as ede6f0c51: the local gate, the parser
 lane, Studio's and Python's suites green again there (327 tests; six timeouts on the first run, with the machine's load
 at 40 under three Bazel servers, each passing on its re-run). Pushed to main with this record, the user's go.
+
+## 2026-10-10 — Execution plan step 3: the runner — a plan run with no model, each placeholder bound as the plan says (the Plan Gen / Exec Split line)
+
+Step 3 (`docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md` §9) landed as a2e879a8e (five commits on 7a661600b, rebased there
+from 09438de9a over documents only after the run; run 38070603189 on `dbowner/plan-runner-r2`: green on every job, 50 of
+51 (the summary job skipped as always), after one re-run of the linux datacube job, whose drag-timing check (59 ms
+against a 50 ms budget) failed once, as it did for Phase 3b).
+
+**What it is.** `exec.PlanRunner.run(plan, values, sessions, out)` runs a lite plan with no model, no compiler and no
+dialect: it checks the caller's values — each its Pure type's Java value — in its own words, every problem at once
+(`PlanParameters`); takes the session for the statement's target, shared by the target's whole content and set up once,
+outside the store's lock, a failed setup leaving nothing (`PlanSessions`, decision A); checks it is the database and
+server version the statement is written for; binds each placeholder as the plan says; and passes on the text the
+database writes. The plan says how each `?` is bound (`ExecutionPlan.Slot`'s binding, plan format version 4): one value
+with its null's JDBC type, a list as one array, and — where the type is the value's — a TYPE HOLE: the statement has no
+type there, and the runner writes the type of the value's own literal into it before preparing, the value itself bound,
+never written (AGENTS.md invariant 3 names it, the one designed exception to "never edit rendered SQL"). H2, which types
+a placeholder when it prepares it, holes a Float's, a Decimal's, a Number's, a Date's and a DateTime's: `NUMERIC(p,s)`
+of the value's digits, `DECFLOAT(p)`, `BIGINT`, `DATE`, `TIMESTAMP(9)` — PARK-19 fixed. A date-time is a hole on every
+database, passed as its text, because no driver passes digits finer than a microsecond alike (DuckDB's cuts them, even
+into a `TIMESTAMP_NS` cast; Postgres's rounds them): DuckDB's `TIMESTAMP` or `TIMESTAMP_NS`, Postgres's `TIMESTAMP` cut
+to six digits, each as its literal is — which fixed landing 2's DateTime parameters, which kept fewer digits than their
+literals. A shrink-only guard pins what `exec` still reads from planning libraries: 16 classes, 36 references
+(`ArchitectureTest.execsReachIntoPlanningOnlyShrinks`).
+
+**Checked.** Measured first: every value bound in its hole against its literal, alone, in arithmetic, compared and in
+the answer's JSON, on H2 2.1.214 and 2.4.240 (`probes/ValueTypedCastProbe.java`), and DuckDB's date-time binding
+(`probes/TimestampProbe.java`). Every `PlanCases` case runs through the runner and answers byte for byte as today's
+path, on DuckDB, H2 (every case now) and Postgres: each scalar type, Float extremes, a Number whole and decimal, a Date
+holding a date and a date-time, a DateTime to the nanosecond, a DateTime list, an optional Float's absence.
+`PlanRunnerTest` holds the runner's checks and messages, the holes filled on H2 each answering as its literal, and the
+sessions' rules (setup statements counted: once for two runs and for eight started together; `HandleStoreTest` pins the
+store's overlap deterministically). The render census (`render-census/step3-result.txt`): no statement of today's paths
+changes. Then the real reference (`probes/engine-reference/`): the same requests sent to legend-engine 4.145.0 and to
+lite's execute, cell by cell, and plain expressions run by Pure itself. Audited three times, every finding fixed, and
+revised with the user between ("two plan modes": the compatibility plan matches legend-engine, the lite plan is ours).
+Local gate green (325 tests; 15 timed out under other sessions' load and passed on re-run).
+
+**Recorded.** Lite's printed values differ from Pure's in four places, on today's path and a plan alike — Float
+arithmetic in decimal (the numeric charter's Rule 1), a whole Float's missing `.0`, a Decimal literal's scale, a
+DateTime's text: PARK-24, the output layer's fix, next (the user's ruling, 2026-10-10: an answer is Pure's value, its
+text the served API's). legend-engine cannot run a parameter projected as a column, a Number parameter or a DateTime
+list; lite's plans run them. Today's server path refuses an absent optional value; plans answer it as the engine does.

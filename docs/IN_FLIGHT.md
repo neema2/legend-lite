@@ -110,11 +110,13 @@ with the compiler's plan/execution split**, in this order:
    queries do). **Step 2's landing 2, the planner makes lite plans, landed 2026-10-09** (`682c6fedf`; GATES "Execution plan step 2,
    landing 2"; run 37988343620): `TypedQuery.executionPlan`, every parameter kind bound as a value where it is written
    (scalars, optionals, enumerations through value tables, lists as one array); what is not bound yet is refused by name
-   (PARK-19, PARK-20, PARK-21). **Next: step 3, the runner** (`exec.PlanRunner`, §9: validates and converts the
-   parameter values, opens or shares the session by the target's content, runs the setup once, binds, streams the
-   database's text): files `core/src/main/java/com/legend/exec/` (new `PlanRunner`, `Sessions`), the server's connection
-   resolver for sharing (decision A), tests beside it; announced here before the first edit. Then step 4 (the callers
-   switch, the old paths deleted).
+   (PARK-19, PARK-20, PARK-21). **Step 3, the runner, landed 2026-10-10** (`a2e879a8e`; GATES "Execution plan step 3";
+   run 38070603189): `exec.PlanRunner` runs a lite plan with no model, its values typed and checked in its own words,
+   each placeholder bound as the plan says (type holes where the type is the value's: H2's, and a date-time's on every
+   database; PARK-19 fixed), sessions shared by the target's content; measured against legend-engine 4.145.0 and Pure
+   itself (`probes/engine-reference/`). **Next: PARK-24, the output layer** (the user's ruling 2026-10-10: an answer is
+   Pure's value — Float arithmetic, a whole Float's `.0`, a Decimal literal's scale, a DateTime's text — its text the
+   served API's), files announced here before the first edit; then step 4 (the callers switch, the old paths deleted).
 4. **DataCube + Python** (resumed 2026-10-07 by the user; the sixth line below): worktree `legend-lite-dcsnap`, branch
    `datacube-pages`. `native/`, `python/` and, since 2026-10-09, all of `datacube/`. Landed: the compiler as a native
    library (`bc8107c4e`), `ll.show(df)` and the notebook cube on every platform, a real JupyterLab test and marimo
