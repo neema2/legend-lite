@@ -1,5 +1,5 @@
-// THE PACKAGE'S ENTRIES (the build rebuild's L1d): //datacube:app_package holds the app folder's four things -- the
-// server, DuckDB's library, its postgres extension and site/ -- under datacube/app/, and nothing else: not the runfiles
+// THE PACKAGE'S ENTRIES (the build rebuild's L1d): //datacube:app_package holds the app folder's five things -- the
+// server, DuckDB's library, its postgres extension, site/ and licenses/ -- under datacube/app/, and nothing else: not the runfiles
 // tree Bazel keeps beside the executable (the audit of L1c found the package carrying a second copy of the app that
 // way), no file of Bazel's. The archive is read here, by this test, with Node's own gunzip and the tar format's
 // 512-byte headers: no host tar.
@@ -44,7 +44,12 @@ test('the package holds the app folder and nothing else', () => {
   assert.ok(byName.has('datacube/app/postgres_scanner.duckdb_extension'), 'no postgres extension');
   assert.ok(files.some((e) => e.name.startsWith('datacube/app/libduckdb_java.so')), "no DuckDB library");
   assert.ok(byName.has('datacube/app/site/index.html'), 'no site/index.html');
-  // the folder's top level: the three files and site/, no fifth thing
+  // what it redistributes, and on what terms: ours, the notices it carries, and GraalVM's (compiled into the server)
+  for (const licence of ['LICENSE', 'NOTICE', 'THIRD_PARTY_NOTICES.md', 'GRAALVM-LICENSE.txt',
+    'GRAALVM-LICENSE-NATIVEIMAGE.txt', 'GRAALVM-THIRD-PARTY-LICENSE.txt']) {
+    assert.ok(byName.get(`datacube/app/licenses/${licence}`)?.size, `no licenses/${licence}`);
+  }
+  // the folder's top level: the three files, site/ and licenses/, no sixth thing
   const top = files.filter((e) => /^datacube\/app\/[^/]+\/?$/.test(e.name)).map((e) => e.name.replace('datacube/app/', ''));
-  assert.deepEqual(top.sort(), [exe.replace('datacube/app/', ''), ...top.filter((n) => n.startsWith('libduckdb_java.so')), 'postgres_scanner.duckdb_extension', 'site/'].sort());
+  assert.deepEqual(top.sort(), [exe.replace('datacube/app/', ''), ...top.filter((n) => n.startsWith('libduckdb_java.so')), 'postgres_scanner.duckdb_extension', 'site/', 'licenses/'].sort());
 });

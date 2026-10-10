@@ -996,6 +996,16 @@ warehouse_folder(
     ],
     extension = "//warehouse:postgres_extension",
     library = "//warehouse:duckdb_library",
+    # what the app redistributes, and on what terms: ours, the notices we carry and GraalVM's (its runtime is compiled
+    # into the server), in licenses/ -- the package is the folder, so it carries them too
+    licenses = {
+        "//:LICENSE": "LICENSE",
+        "//:NOTICE": "NOTICE",
+        "//:THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+        "@graalvm//:LICENSE.txt": "GRAALVM-LICENSE.txt",
+        "@graalvm//:LICENSE_NATIVEIMAGE.txt": "GRAALVM-LICENSE-NATIVEIMAGE.txt",
+        "@graalvm//:THIRD_PARTY_LICENSE.txt": "GRAALVM-THIRD-PARTY-LICENSE.txt",
+    },
     server = "//warehouse:server_native",
     site = ":dist",
 )

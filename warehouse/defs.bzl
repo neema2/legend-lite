@@ -80,6 +80,13 @@ def _warehouse_folder_impl(ctx):
             copy_directory_bin = ctx.toolchains[_COPY_DIRECTORY_TOOLCHAIN].copy_directory_info.bin,
         )
         files.append(site)
+    for target, name in ctx.attr.licenses.items():
+        src = target.files.to_list()
+        if len(src) != 1:
+            fail("licenses: %s is %d files, not one" % (target.label, len(src)))
+        out = ctx.actions.declare_file(folder + "/licenses/" + name)
+        copy_file_action(ctx, src[0], out)
+        files.append(out)
     return [DefaultInfo(executable = exe, files = depset(files), runfiles = ctx.runfiles(files = files))]
 
 warehouse_folder = rule(
@@ -90,11 +97,16 @@ warehouse_folder = rule(
         "library": attr.label(allow_single_file = True, mandatory = True, doc = "DuckDB's native library for the platform."),
         "extension": attr.label(allow_single_file = True, mandatory = True, doc = "DuckDB's postgres extension."),
         "site": attr.label(allow_single_file = True, doc = "The site, a directory: the DataCube app's page (--app)."),
+        "licenses": attr.label_keyed_string_dict(
+            allow_files = True,
+            doc = "Licence and notice files, each to `licenses/<name>`: what a package of the folder must carry.",
+        ),
     },
     # bazel_lib's pinned coreutils and copy_directory binaries: no shell on any platform
     toolchains = COPY_FILE_TOOLCHAINS + [_COPY_DIRECTORY_TOOLCHAIN],
     doc = """The native warehouse as one folder, named after the target: `warehouse` (the server), DuckDB's library and
-its postgres extension under their own names, and `site/` when a site is given (the DataCube app). `bazel run`
+its postgres extension under their own names, `site/` when a site is given (the DataCube app), and `licenses/` when
+licences are given. `bazel run`
 starts the server in that folder with the target's `args`; a package is the folder as an archive. The server knows
 nothing of Bazel: it finds what is beside itself (DuckLibrary), and `--app` serves `site/`.""",
 )

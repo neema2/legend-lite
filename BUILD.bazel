@@ -9,10 +9,11 @@ load("//tools/jars:defs.bzl", "java_runtime_jars")
 exports_files(["MODULE.bazel", "release.MODULE.bazel"] + ["%s_install.json" % pool for pool in POOLS])
 
 # the project's licence, its notice (Apache-2.0; legend-pure, legend-engine and legend-studio credited) and the
-# third-party software it redistributes, shipped in its packages (//python:wheel, //site:dist)
+# third-party software it redistributes, shipped in its packages (//python:wheel, //site:dist, //datacube:app)
 exports_files(
     ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md"],
     visibility = [
+        "//datacube:__pkg__",
         "//python:__pkg__",
         "//site:__pkg__",
     ],

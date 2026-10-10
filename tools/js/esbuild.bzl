@@ -25,6 +25,9 @@ load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 
 _COREUTILS = Label("@bazel_lib//lib:coreutils_toolchain_type")
 
+_LICENCE_BANNER = ("/*! legend-lite (Apache-2.0) and the third-party software bundled here: licences and notices in " +
+                   "LICENSE, NOTICE and THIRD_PARTY_NOTICES.md, https://github.com/neema2/legend-lite */")
+
 def _esbuild_bundle_impl(ctx):
     coreutils = ctx.toolchains[_COREUTILS].coreutils_info.bin
     esbuild = ctx.executable._esbuild
@@ -55,6 +58,10 @@ def _esbuild_bundle_impl(ctx):
     args = ctx.actions.args()
     args.add_all(["env", "-C", workdir, up + "/" + esbuild.path])
     args.add_all(ctx.attr.args)
+
+    # every bundle names its licences: esbuild keeps only the third parties' `/*!` and `@license` comments, so this
+    # points at the files the site ships at its root (LICENSE, NOTICE, THIRD_PARTY_NOTICES.md: //site:dist)
+    args.add_all(["--banner:js=" + _LICENCE_BANNER, "--banner:css=" + _LICENCE_BANNER])
     ctx.actions.run(
         executable = coreutils,
         arguments = [args],
