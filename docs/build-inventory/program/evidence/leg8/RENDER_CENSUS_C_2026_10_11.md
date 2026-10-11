@@ -27,14 +27,15 @@ once before and once after, all in `//gates:core` on DuckDB: a filter comparing 
 | `WHERE t0."2011__\|__total" > 3000` (a pivot, then a cast to a written relation type) | `WHERE (t0."2011__\|__total" IS NOT NULL AND t0."2011__\|__total" > 3000)` |
 | `WHERE t0."2011__\|__total" > 1000` (the same, another pivot) | `WHERE (t0."2011__\|__total" IS NOT NULL AND t0."2011__\|__total" > 1000)` |
 | `WHERE _tds0.age > 30` (a TDS, its lambda's row type written) | `WHERE (_tds0.age IS NOT NULL AND _tds0.age > 30)` |
-| `SELECT t0.AGE_VAL ... WHERE t0.AGE_VAL > 30` | `... WHERE (t0.AGE_VAL IS NOT NULL AND t0.AGE_VAL > 30)` |
-| `SELECT t0.FIRST_NAME, t0.AGE_VAL ... WHERE t0.AGE_VAL > 30` (rendered 3 times) | `... WHERE (t0.AGE_VAL IS NOT NULL AND t0.AGE_VAL > 30)` (3 times) |
-| `... WHERE t0.AGE_VAL > 30 AND t0.FIRST_NAME = 'Bob'` | `... WHERE t0.AGE_VAL IS NOT NULL AND t0.AGE_VAL > 30 AND t0.FIRST_NAME = 'Bob'` |
+| `SELECT t0.AGE_VAL ... WHERE t0.AGE_VAL > 30` (a user function's written `Relation<(FIRST_NAME:String, AGE_VAL:Integer)>`, `UserFunctionIntegrationTest`) | `... WHERE (t0.AGE_VAL IS NOT NULL AND t0.AGE_VAL > 30)` |
+| `SELECT t0.FIRST_NAME, t0.AGE_VAL ... WHERE t0.AGE_VAL > 30` (rendered 3 times; the same written type, as a parameter's or a return's) | `... WHERE (t0.AGE_VAL IS NOT NULL AND t0.AGE_VAL > 30)` (3 times) |
+| `... WHERE t0.AGE_VAL > 30 AND t0.FIRST_NAME = 'Bob'` (the same written type) | `... WHERE t0.AGE_VAL IS NOT NULL AND t0.AGE_VAL > 30 AND t0.FIRST_NAME = 'Bob'` |
 
-Each comparison stands directly in the WHERE, or in a conjunction there; none is negated or on one side of an OR. So
-each selects the same rows: a missing value is excluded by the bare comparison's NULL and by the guard's `false`
-alike. Under a NOT or in a disjunction the two would differ (the guard's `false` negated includes the row); no such
-statement is in the census. legend-engine renders the bare comparison (`docs/SEMANTICS_REGISTER.md` S40, read from
+Each comparison stands directly in the WHERE, or in a conjunction there; none is negated. So each selects the same
+rows: a missing value is excluded by the bare comparison's NULL and by the guard's `false` alike (and so it would be
+on one side of an OR: `FALSE OR y` and `NULL OR y` keep the same rows). The two differ only under a NOT (the guard's
+`false` negated includes the row, NULL negated still excludes it) or where the comparison is a value -- a projected
+column, a CASE, a coalesce -- where a missing value gives `false` instead of NULL; no such statement is in the census. legend-engine renders the bare comparison (`docs/SEMANTICS_REGISTER.md` S40, read from
 its code): the guard is a difference of SQL text, recorded in S40. No cast moved and no projection gained a guard.
 
 ## The census
