@@ -130,8 +130,8 @@ public sealed interface TypeAnnotation
 
     /**
      * Inline relation type literal. Each column carries a name (or
-     * wildcard), a column-type annotation, and an optional
-     * multiplicity.
+     * wildcard), a column-type annotation, and a multiplicity
+     * ({@code [0..1]} when none is written).
      *
      * <p>An empty column list is structurally legal in the parser
      * (e.g. {@code @Relation<()>}); any rejection lives in the
@@ -179,12 +179,12 @@ public sealed interface TypeAnnotation
          * the {@code name:?} form, matching engine-pure's
          * {@code mayColumnType: QUESTION | type} grammar.
          *
-         * <p>The {@code multiplicity} is {@code null} when no
-         * {@code [mult]} annotation is present in source. We
-         * preserve it (rather than parse-and-discard like
-         * engine-lite) because engine-pure's M3 metamodel keeps
-         * column multiplicities on the structural type and a future
-         * relation-type-checker will need them.
+         * <p>The {@code multiplicity} is {@code [0..1]} when no
+         * {@code [mult]} annotation is present in source, as
+         * legend-pure and legend-engine read it (leg 8 step 2). It is
+         * kept (rather than parsed and discarded) because legend-pure's
+         * M3 metamodel keeps column multiplicities on the structural
+         * type.
          *
          * @param name         column name; {@code null} for wildcard
          * @param type         column type annotation; never null;
