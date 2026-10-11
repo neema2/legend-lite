@@ -58,7 +58,7 @@ function sessionOf(project: LoadedProject, start: EmbedStart): Session {
   const graph = project.graph;
   const cls = start.kind === 'class' ? start.class : graph.mappedClasses(start.mapping)[0];
   if (!cls) throw new Error(`the mapping ${start.kind === 'mapping' ? start.mapping : ''} maps no class`);
-  const mapping = start.mapping ?? graph.mappingsFor(cls)[0];
+  const mapping = start.mapping ?? graph.defaultMappingFor(cls);
   if (!mapping) throw new Error(`no mapping in this workspace maps ${cls}`);
   const runtime = (start.kind === 'class' ? start.runtime : undefined) ?? graph.runtimesFor(mapping)[0];
   if (!runtime) throw new Error(`no runtime in this workspace runs the mapping ${mapping}`);

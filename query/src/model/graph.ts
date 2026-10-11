@@ -365,13 +365,25 @@ export class ModelGraph {
     return [...out].sort((a, b) => simpleName(a).localeCompare(simpleName(b)));
   }
 
-  /** The mappings whose class mappings name a class (or one of its subclasses), as the elements declare. */
+  /**
+   * The mappings that map a class (or one of its subclasses): whose class mappings, or an included
+   * mapping's, name it -- upstream's reading (a mapping's class mappings are its includes' too), and
+   * {@link mappedClasses}' walk. A mapping that only includes others (DataCube's Model) maps their classes.
+   */
   mappingsFor(classPath: string): string[] {
     const wanted = new Set([classPath, ...this.subclasses(classPath)]);
-    return [...this.mappings.entries()]
-      .filter(([, m]) => (m.classMappings ?? []).some((cm) => wanted.has(cm.class)))
-      .map(([p]) => p)
+    return [...this.mappings.keys()]
+      .filter((p) => this.mappedClasses(p).some((c) => wanted.has(c)))
       .sort();
+  }
+
+  /**
+   * The mapping a query on a class opens on when none is given: the first that maps it which some
+   * runtime runs (one no runtime runs cannot execute), else the first that maps it.
+   */
+  defaultMappingFor(classPath: string): string | undefined {
+    const mappings = this.mappingsFor(classPath);
+    return mappings.find((m) => this.runtimesFor(m).length > 0) ?? mappings[0];
   }
 
   /** The runtimes that declare a mapping. */

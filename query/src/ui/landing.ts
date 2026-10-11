@@ -117,9 +117,8 @@ function classSection(app: AppContext, term: string): Child {
   for (const p of app.projects) {
     for (const [path, cls] of p.graph.classes) {
       if (!matches(`${path} ${docOf(cls) ?? ''}`, term)) continue;
-      const mappings = p.graph.mappingsFor(path);
-      if (mappings.length === 0) continue;
-      const mapping = mappings[0]!;
+      const mapping = p.graph.defaultMappingFor(path);
+      if (mapping === undefined) continue;
       const runtime = p.graph.runtimesFor(mapping)[0];
       if (runtime === undefined) continue;
       const pkg = packageOf(path);

@@ -131,8 +131,7 @@ export function renderEditor(root: HTMLElement, app: AppContext, session: Sessio
     rows.push(h('div', { class: 'q-field' }, h('label', null, 'Entity'),
       select(src.class, (classes.includes(src.class) ? classes : [src.class, ...classes]).map((c) => ({ value: c, label: simpleName(c) })), (cls) => {
         if (src.dataSpace) { void changeSource({ ...src, class: cls }); return; }
-        const mappings = graph.mappingsFor(cls);
-        const mapping = mappings.includes(src.mapping) ? src.mapping : mappings[0]!;
+        const mapping = graph.mappingsFor(cls).includes(src.mapping) ? src.mapping : graph.defaultMappingFor(cls)!;
         const runtimes = graph.runtimesFor(mapping);
         void changeSource({ kind: 'class', class: cls, mapping, runtime: runtimes.includes(src.runtime) ? src.runtime : runtimes[0]! });
       }, { 'aria-label': 'Entity' })));
