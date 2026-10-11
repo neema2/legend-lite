@@ -199,14 +199,14 @@ public sealed interface TypeExpression {
     }
 
     /** A column in a {@link RelationType}: name + type + multiplicity.
-     *  Multiplicity is never null &mdash; engine defaults to
-     *  {@code [1]} when the source does not declare one, and we match.
-     *  The {@code name} slot accepts {@code "?"} for wildcard column
-     *  positions used in the rename DSL
+     *  Multiplicity is never null &mdash; the engine and legend-pure read
+     *  {@code [0..1]} when the source does not declare one, and so does lite
+     *  (leg 8 step 2; it read {@code [1]}). Whether one was written is on no
+     *  wire, so not here either. The {@code name} slot accepts {@code "?"}
+     *  for wildcard column positions used in the rename DSL
      *  ({@code Z=(?:K)\u2286T}); engine stores the literal {@code "?"}
      *  string and we do too. */
     record Column(String name, TypeExpression type, Multiplicity multiplicity,
-                  boolean multiplicityDeclared,
                   @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
         public Column {
             Objects.requireNonNull(name, "name");
@@ -214,13 +214,12 @@ public sealed interface TypeExpression {
             Objects.requireNonNull(multiplicity, "multiplicity");
         }
 
-        /** Wire-metadata-free convenience constructor (fixtures, synthesized columns). */
+        /** Position-free convenience constructor (fixtures, synthesized columns). */
         public Column(String name, TypeExpression type, Multiplicity multiplicity) {
-            this(name, type, multiplicity, false, null);
+            this(name, type, multiplicity, null);
         }
 
-        /** Wire metadata (declaredness, position) is excluded from equality, matching
-         *  every other spec record. */
+        /** The position is excluded from equality, matching every other spec record. */
         @Override
         public boolean equals(Object o) {
             return o instanceof Column other

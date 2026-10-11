@@ -493,7 +493,8 @@ public final class NativesGenerator {
                     }
                     var c = r.columns().get(i);
                     sb.append(c.name()).append(':').append(type(c.type(), typeParams));
-                    if (c.multiplicityDeclared()) {
+                    // [0..1], written or not, is a column's default (leg 8 step 2): printed only otherwise
+                    if (!c.multiplicity().equals(com.legend.protocol.Multiplicity.range(0, 1))) {
                         sb.append(c.multiplicity());
                     }
                 }

@@ -1904,14 +1904,10 @@ public final class ProtocolEmitter {
                     com.legend.protocol.TypeExpression.Column col = rt.columns().get(i);
                     b.append("{\"genericType\":");
                     genericType(b, col.type());
+                    // undeclared is [0..1] on the record as on the wire; a declared one's span
+                    // extends through the ']' (probe "declared col mult and relation shape")
                     b.append(",\"multiplicity\":");
-                    if (col.multiplicityDeclared()) {
-                        // declared -> emitted as declared, column span extends through
-                        // the ']' (probe "declared col mult and relation shape")
-                        multiplicity(b, col.multiplicity());
-                    } else {
-                        b.append("{\"lowerBound\":0,\"upperBound\":1}");
-                    }
+                    multiplicity(b, col.multiplicity());
                     b.append(",\"name\":");
                     str(b, col.name());
                     b.append(",\"sourceInformation\":");
@@ -2280,12 +2276,8 @@ public final class ProtocolEmitter {
                     }
                     b.append("{\"genericType\":");
                     genericType(b, nt.type());
-                    b.append(",\"multiplicity\":");
-                    if (col.multiplicity() != null) {
-                        multiplicity(b, col.multiplicity());
-                    } else {
-                        b.append("{\"lowerBound\":0,\"upperBound\":1}");
-                    }
+                    b.append(",\"multiplicity\":");   // [0..1] when unwritten, on the record as on the wire
+                    multiplicity(b, col.multiplicity());
                     b.append(",\"name\":");
                     str(b, col.name());
                     b.append(",\"sourceInformation\":");

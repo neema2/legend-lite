@@ -169,7 +169,8 @@ final class TypeAnnotations {
                         "unknown type '" + name + "' in @" + name)));
     }
 
-    /** {@code @Relation<(name:Type[m], …)>}: each column resolves recursively; multiplicity defaults to [1]. */
+    /** {@code @Relation<(name:Type[m], …)>}: each column resolves recursively, its multiplicity as parsed ([0..1]
+     *  when none is written, as the engine and legend-pure read it; leg 8 step 2). */
     Type.RelationType relationShapeType(TypeAnnotation.RelationShape rs) {
         List<Type.Column> cols = new ArrayList<>(rs.columns().size());
         for (TypeAnnotation.RelationShape.Column c : rs.columns()) {
@@ -177,8 +178,7 @@ final class TypeAnnotations {
                 throw new TypeInferenceException(
                         "wildcard columns in @Relation<(…)> are not implemented yet");
             }
-            Multiplicity m = c.multiplicity() == null
-                    ? Multiplicity.Bounded.ONE : Multiplicity.from(c.multiplicity());
+            Multiplicity m = Multiplicity.from(c.multiplicity());
             cols.add(new Type.Column(c.name(), annotationType(c.type()), m));
         }
         return new Type.RelationType(cols);

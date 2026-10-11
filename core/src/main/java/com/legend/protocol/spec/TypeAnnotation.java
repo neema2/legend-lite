@@ -189,21 +189,23 @@ public sealed interface TypeAnnotation
          * @param name         column name; {@code null} for wildcard
          * @param type         column type annotation; never null;
          *                     may be {@link Wildcard}
-         * @param multiplicity declared multiplicity, or {@code null}
-         *                     when absent
+         * @param multiplicity its multiplicity; never null: {@code [0..1]} when
+         *                     none is written, as the engine and legend-pure
+         *                     read it (leg 8 step 2)
          */
         public record Column(
                 @com.legend.base.Nullable String name,
                 TypeAnnotation type,
-                @com.legend.base.Nullable Multiplicity multiplicity,
+                Multiplicity multiplicity,
                 @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
             public Column {
                 Objects.requireNonNull(type, "type");
+                Objects.requireNonNull(multiplicity, "multiplicity");
             }
 
             /** Span-free convenience constructor. */
             public Column(@com.legend.base.Nullable String name, TypeAnnotation type,
-                          @com.legend.base.Nullable Multiplicity multiplicity) {
+                          Multiplicity multiplicity) {
                 this(name, type, multiplicity, null);
             }
 

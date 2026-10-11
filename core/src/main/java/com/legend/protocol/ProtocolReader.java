@@ -411,7 +411,7 @@ public final class ProtocolReader {
     private static TypeExpression.Column column(Json.Node node) {
         Wire c = Wire.of(node, "relation column");
         return c.done(new TypeExpression.Column(c.str("name"), genericType(c.take("genericType")),
-                multiplicity(c.take("multiplicity")), true, c.span()));
+                multiplicity(c.take("multiplicity")), c.span()));
     }
 
     /**

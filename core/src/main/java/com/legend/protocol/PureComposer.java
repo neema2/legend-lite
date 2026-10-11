@@ -712,8 +712,8 @@ public final class PureComposer {
             case TypeExpression.RelationType rt -> {
                 List<String> cols = new ArrayList<>();
                 for (TypeExpression.Column c : rt.columns()) {
-                    // an undeclared multiplicity is 0..1 on the wire, which prints none
-                    boolean zeroOne = !c.multiplicityDeclared() || isZeroOne(c.multiplicity());
+                    // [0..1], written or not (the same on the wire), prints none
+                    boolean zeroOne = isZeroOne(c.multiplicity());
                     cols.add(convertIdentifier(c.name()) + ":" + printGenericType(c.type())
                             + (zeroOne ? "" : "[" + multiplicity(c.multiplicity()) + "]"));
                 }
@@ -730,7 +730,7 @@ public final class PureComposer {
             if (!(c.type() instanceof TypeAnnotation.Named nt) || c.name() == null) {
                 throw refused("a wildcard @Relation column: upstream writes none");
             }
-            boolean zeroOne = c.multiplicity() == null || isZeroOne(c.multiplicity());
+            boolean zeroOne = isZeroOne(c.multiplicity());
             cols.add(convertIdentifier(c.name()) + ":" + printGenericType(nt.type())
                     + (zeroOne ? "" : "[" + multiplicity(c.multiplicity()) + "]"));
         }

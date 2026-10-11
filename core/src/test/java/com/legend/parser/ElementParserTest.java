@@ -1002,8 +1002,9 @@ final class ElementParserTest {
                                 + "{ $r }")
                         .elements().get(0));
         // Z=(?:K)⊆T parses to SUBSET wrapping EQUAL; wildcard column (?:K)
-        // becomes a RelationType with one Column named "?".
-        TypeExpression wildcardOfK = rel(col("?", nr("K"), Multiplicity.exactly(1)));
+        // becomes a RelationType with one Column named "?" -- [0..1], an unwritten
+        // column multiplicity as the engine and legend-pure read it.
+        TypeExpression wildcardOfK = rel(col("?", nr("K"), Multiplicity.range(0, 1)));
         TypeExpression zEqQK_subT = sa(
                 sa(nr("Z"), Op.EQUAL, wildcardOfK),
                 Op.SUBSET, nr("T"));
@@ -1148,8 +1149,8 @@ final class ElementParserTest {
                         .elements().get(0));
         assertEquals(List.of("T", "Z", "K", "V"), f.typeParameters());
         // All four algebra operators (=, ⊆, +, -) survive as structured
-        // SchemaAlgebra nodes; wildcard column (?:K) is a RelationType.
-        TypeExpression wildcardOfK = rel(col("?", nr("K"), Multiplicity.exactly(1)));
+        // SchemaAlgebra nodes; wildcard column (?:K) is a RelationType ([0..1]: unwritten).
+        TypeExpression wildcardOfK = rel(col("?", nr("K"), Multiplicity.range(0, 1)));
         assertEquals(
                 tg("ColSpec", sa(sa(nr("Z"), Op.EQUAL, wildcardOfK), Op.SUBSET, nr("T"))),
                 f.parameters().get(1).type());
@@ -1174,9 +1175,10 @@ final class ElementParserTest {
                                 + "): Relation<T>[1];")
                         .elements().get(0));
         assertEquals(List.of("T"), f.typeParameters());
-        // (age:Integer)⊆T parses as SchemaAlgebra(RelationType([age:Integer[1]]), SUBSET, T).
+        // (age:Integer)⊆T parses as SchemaAlgebra(RelationType([age:Integer[0..1]]), SUBSET, T):
+        // an unwritten column multiplicity is [0..1], as the engine and legend-pure read it.
         TypeExpression ageColSubT = sa(
-                rel(col("age", nr("Integer"), Multiplicity.exactly(1))),
+                rel(col("age", nr("Integer"), Multiplicity.range(0, 1))),
                 Op.SUBSET, nr("T"));
         assertEquals(tg("Relation", ageColSubT), f.parameters().get(0).type());
         assertEquals(tg("Relation", nr("T")), f.returnType());

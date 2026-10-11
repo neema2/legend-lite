@@ -145,8 +145,9 @@ class NativeFunctionTest {
         //   ColSpec<Z=(?:K) \u2286 T>[1],
         //   ColSpec<V=(?:K)>[1]
         // ): Relation<T-Z+V>[1]
-        // Wildcard column (?:K) parses as RelationType([Column("?",NameRef("K"),[1])]).
-        TypeExpression wildcardOfK = rel(col("?", nr("K"), Multiplicity.exactly(1)));
+        // Wildcard column (?:K) parses as RelationType([Column("?",NameRef("K"),[0..1])]): an
+        // unwritten column multiplicity is [0..1], as the engine and legend-pure read it.
+        TypeExpression wildcardOfK = rel(col("?", nr("K"), Multiplicity.range(0, 1)));
         // Z=(?:K)⊆T parses left-associatively: SUBSET wraps the EQUAL
         // node, matching engine's parseTypeWithOperation precedence.
         TypeExpression zEqQK_subT = sa(

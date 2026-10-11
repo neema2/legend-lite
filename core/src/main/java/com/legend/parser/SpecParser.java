@@ -2657,10 +2657,9 @@ public final class SpecParser implements TokenStreamCursor {
             type = new TypeAnnotation.Named(parseType());
         }
 
-        Multiplicity multiplicity = null;
-        if (!atEnd() && peek() == TokenType.BRACKET_OPEN) {
-            multiplicity = parseMultiplicity();
-        }
+        // undeclared is [0..1], as the engine's walker and legend-pure read a relation column (leg 8 step 2)
+        Multiplicity multiplicity = !atEnd() && peek() == TokenType.BRACKET_OPEN
+                ? parseMultiplicity() : Multiplicity.range(0, 1);
         // wire span = name .. type end, extended through a DECLARED multiplicity
         return new TypeAnnotation.RelationShape.Column(name, type, multiplicity,
                 spanOf(nameTokIdx, pos - 1));

@@ -1441,11 +1441,13 @@ public interface TokenStreamCursor {
                 : parseType();
         // wire span = name token (quotes included) .. TYPE end, extended through a
         // DECLARED multiplicity (ProbeWireShapes "relation type sigs", "declared col
-        // mult and relation shape")
-        boolean declared = peek() == TokenType.BRACKET_OPEN;
-        Multiplicity mult = declared ? parseMultiplicity() : Multiplicity.exactly(1);
+        // mult and relation shape"). An undeclared multiplicity is [0..1], as the
+        // engine's walker (DomainParseTreeWalker.relationType, ZERO_ONE) and legend-pure
+        // (AntlrContextToM3CoreInstance's column type) read it -- lite read [1] (leg 8
+        // step 2): the JSON cannot tell it from a written [0..1]
+        Multiplicity mult = peek() == TokenType.BRACKET_OPEN ? parseMultiplicity() : Multiplicity.range(0, 1);
         com.legend.protocol.SourceInfo span = spanOf(nameTok, pos() - 1);
-        return new TypeExpression.Column(colName, colType, mult, declared, span);
+        return new TypeExpression.Column(colName, colType, mult, span);
     }
 
     /** {@code Type[mult]} &mdash; a typed parameter in a function-type
