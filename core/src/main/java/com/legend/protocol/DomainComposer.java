@@ -241,12 +241,14 @@ final class DomainComposer {
                 + genericType(qp.type()) + "[" + multiplicity(qp.multiplicity()) + "]";
     }
 
-    /** An inline body: the wire carries only the body, so a function-ref binding has nothing to print. */
+    /** The body to print ({@link Realization#writtenBody}): a function-ref binding with no kept node has none. */
     private static List<ValueSpecification> inline(Realization r, String what) {
-        if (!(r instanceof Realization.Inline inl)) {
-            throw Composing.refused(what + " bound to a function, not written inline (the wire carries a body only)");
+        List<ValueSpecification> body = r.writtenBody();
+        if (body == null) {
+            throw Composing.refused(what + " bound to a function by name, with no body to print (the wire carries a"
+                    + " body only)");
         }
-        return inl.body();
+        return body;
     }
 
     /** {@code renderConstraint}: {@code index} is the constraint's position among its class's. */

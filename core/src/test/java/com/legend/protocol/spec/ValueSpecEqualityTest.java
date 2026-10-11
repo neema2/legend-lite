@@ -54,6 +54,27 @@ class ValueSpecEqualityTest {
         assertEquals(A, new CString("x", A).pos());
     }
 
+    /** The literals and islands that once kept the record default (leg 8 step 2: a let's TDS value, written with the
+     *  let's span, read back unequal). */
+    @Test
+    void literalsAndIslandsAreEqualRegardlessOfPosition() {
+        AppliedFunction call = new AppliedFunction("f", java.util.List.of(new CInteger(1L)));
+        LambdaFunction fn = new LambdaFunction(java.util.List.of(), java.util.List.of(new CInteger(1L)));
+        java.util.List<java.util.function.Function<SourceInfo, ValueSpecification>> nodes = java.util.List.of(
+                p -> TdsLiteral.of("a\n1", "#TDS{a\n1}#", p),
+                p -> new SqlIsland("select 1", p),
+                p -> new GqlIsland(new Gql.Document(java.util.List.of()), p),
+                p -> new CByteArray("YQ==", p),
+                p -> new QuotedTreeCall(call, new CInteger(2L), p),
+                p -> new QuotedGrammarCall(call, java.util.List.of(fn), p));
+        for (java.util.function.Function<SourceInfo, ValueSpecification> node : nodes) {
+            assertEquals(node.apply(A), node.apply(B));
+            assertEquals(node.apply(A).hashCode(), node.apply(B).hashCode());
+            assertEquals(node.apply(null), node.apply(A));
+        }
+        assertNotEquals(new SqlIsland("select 1", A), new SqlIsland("select 2", A));
+    }
+
     @Test
     void booleansAreEqualRegardlessOfPosition() {
         assertEquals(new CBoolean(true), new CBoolean(true, A));

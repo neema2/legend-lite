@@ -20,6 +20,17 @@ public record GqlIsland(Gql.Document document,
         @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
+    /** Position is excluded from equality, as on every value specification ({@code ValueSpecEqualityTest}). */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof GqlIsland other && document.equals(other.document());
+    }
+
+    @Override
+    public int hashCode() {
+        return document.hashCode();
+    }
+
     public GqlIsland {
         Objects.requireNonNull(document, "document");
     }

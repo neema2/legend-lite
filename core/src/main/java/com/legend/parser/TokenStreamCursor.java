@@ -1335,6 +1335,16 @@ public interface TokenStreamCursor {
             return lower;
         }
         if (isIdentifierToken(t)) {
+            if (dialect().refusesLiteExtensions()) {
+                // DECLARED extension LITE-DESIGN-function-types-generics
+                // (OWN_CORPUS_DECISIONS §11): the engine's walker reads
+                // every multiplicity argument as a number (buildMultiplicity:
+                // a name fails there), and its protocol's multiplicity has
+                // bounds only, so no JSON carries one (leg 8 step 2)
+                throw error("The multiplicity parameter '" + text()
+                        + "' as a type argument is not supported in Legend"
+                        + " Engine");
+            }
             String name = text();
             advance();
             return name;

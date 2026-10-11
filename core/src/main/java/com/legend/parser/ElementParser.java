@@ -20,7 +20,6 @@ import com.legend.model.FunctionDefinition;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.LegacyMappingDefinition;
 import com.legend.protocol.Realization;
-import com.legend.protocol.spec.PackageableElementPtr;
 import com.legend.model.JsonModelConnection;
 import com.legend.model.PackageableElement;
 import com.legend.model.RuntimeDefinition;
@@ -838,21 +837,8 @@ public final class ElementParser implements TokenStreamCursor {
         // terminated tail (name..';' end column is the ';' - 1? — the probe shows the span
         // running to the declaration's last token; the harness arbitrates).
         return new DerivedPropertyDefinition(
-                name, params, realizationOf(body), type, mult,
+                name, params, Realization.of(body), type, mult,
                 stereotypes, taggedValues, spanOf(declStart, pos - 1));
-    }
-
-    /**
-     * Classify a parsed body as a {@link Realization}: a single bare element
-     * reference ({@link PackageableElementPtr}) is a function ref (Door 1/4);
-     * anything else is an inline expression body (sugar / Door 3). Shared by
-     * mapping bindings and the class/service hats.
-     */
-    static Realization realizationOf(List<ValueSpecification> body) {
-        if (body.size() == 1 && body.get(0) instanceof PackageableElementPtr ptr) {
-            return new Realization.Ref(ptr.fullPath(), ptr);
-        }
-        return new Realization.Inline(body);
     }
 
     private ParameterDefinition parseDerivedPropertyParameter() {
@@ -1023,7 +1009,7 @@ public final class ElementParser implements TokenStreamCursor {
             }
             expect(TokenType.PAREN_CLOSE);
             // Engine convention: the span covers the whole `name ( ... )` block.
-            return new ConstraintDefinition(name, realizationOf(List.of(fn)),
+            return new ConstraintDefinition(name, Realization.of(List.of(fn)),
                     message, level, externalId, owner, spanOf(constraintStart, pos - 1));
         }
         if (isIdentifierToken(peek()) && peek(1) == TokenType.COLON) {
@@ -1054,7 +1040,7 @@ public final class ElementParser implements TokenStreamCursor {
         // Door 4: `[name: some::fn]` binds the constraint to a predicate
         // function; any other expression is the sugar (inline) predicate.
         // Engine convention: the span covers `name: expr`, name inclusive.
-        return new ConstraintDefinition(name, realizationOf(List.of(expression)),
+        return new ConstraintDefinition(name, Realization.of(List.of(expression)),
                 null, null, null, null, spanOf(constraintStart, pos - 1));
     }
 

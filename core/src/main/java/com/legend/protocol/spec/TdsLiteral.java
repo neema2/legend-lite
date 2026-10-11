@@ -15,6 +15,19 @@ public record TdsLiteral(String tdsString, AppliedFunction desugared,
         @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
+    /** Position is excluded from equality, as on every value specification ({@code ValueSpecEqualityTest}): a
+     *  let's value is written with the let's span, so it reads back with that one (leg 8 step 2). */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof TdsLiteral other && tdsString.equals(other.tdsString())
+                && desugared.equals(other.desugared());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(tdsString, desugared);
+    }
+
     public TdsLiteral {
         Objects.requireNonNull(tdsString, "tdsString");
         Objects.requireNonNull(desugared, "desugared");

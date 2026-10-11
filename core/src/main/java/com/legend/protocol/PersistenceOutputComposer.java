@@ -38,7 +38,7 @@ final class PersistenceOutputComposer {
     /** A graphFetch output is headed by its path ({@code #path}); a TDS output by its keyword. */
     private static final Map<String, Printer> SERVICE_OUTPUTS = Map.of(
             "#path", (o, i) -> tab(i) + PersistenceComposer.path(head(o)) + "\n" + tab(i) + "{\n"
-                    + keys(fields(o, "keys", "keys"), i + 1) + datasetType(o, i + 1) + deduplication(o, i + 1) + tab(i) + "}\n",
+                    + keys(fields(o, "keys"), i + 1) + datasetType(o, i + 1) + deduplication(o, i + 1) + tab(i) + "}\n",
             "TDS", (o, i) -> tab(i) + "TDS\n" + tab(i) + "{\n"
                     + keys(String.join(", ", strings(o, "keys")), i + 1) + datasetType(o, i + 1) + deduplication(o, i + 1)
                     + tab(i) + "}\n");
@@ -52,7 +52,7 @@ final class PersistenceOutputComposer {
     private static final Map<String, Printer> PARTITIONINGS = Map.of(
             "None", (o, i) -> tab(i) + "partitioning: None\n" + tab(i) + "{\n"
                     + optional(PersistenceOutputComposer.EMPTY_DATASET_HANDLINGS, optChild(o, "emptyDatasetHandling"), i + 1, "empty dataset handling") + tab(i) + "}\n",
-            "FieldBased", (o, i) -> fieldBased(fields(o, "partitionFields", "partitionFieldPaths"), i));
+            "FieldBased", (o, i) -> fieldBased(fields(o, "partitionFields"), i));
 
     private static final Map<String, Printer> EMPTY_DATASET_HANDLINGS = Map.of(
             "NoOp", (o, i) -> tab(i) + "emptyDatasetHandling: NoOp;\n",

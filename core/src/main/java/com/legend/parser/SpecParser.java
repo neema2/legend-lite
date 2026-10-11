@@ -3374,7 +3374,17 @@ public final class SpecParser implements TokenStreamCursor {
         // tree has parameters and no mark for the parentheses; leg 8 step 2)
         List<ValueSpecification> args = List.of();
         if (!atEnd() && peek() == TokenType.PAREN_OPEN) {
+            int open = pos;
             args = parseArgList();
+            for (int t = open; t < pos && dialect().refusesLiteExtensions(); t++) {
+                if (tokens.type(t) == TokenType.LATEST_DATE) {
+                    // the engine's grammar admits %latest here and its walker reads it as a literal, which it is
+                    // not (GraphFetchTreeParseTreeWalker.visitScalarParameterContext fails), so no JSON carries
+                    // one (leg 8 step 2)
+                    throw TokenStreamCursor.throwAt(tokens, t,
+                            "%latest as a graph fetch argument is not supported in Legend Engine");
+                }
+            }
         }
         // prop->subType(@Sub) { ... } — the PROPERTY-LEVEL subtype view
         // (simpleObject corpus family): the node's children read Sub's properties

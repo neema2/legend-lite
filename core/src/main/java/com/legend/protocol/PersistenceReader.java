@@ -166,7 +166,9 @@ final class PersistenceReader {
             return new PPersistenceEntry.Strings(scalarKey(wireKey, tgt, gfPartition), values);
         }
         if (items.get(0) instanceof Json.Obj o && o.fields().get("path") instanceof Json.Arr) {
-            return new PPersistenceEntry.PathList(wireKey, StoreReader.each(items, SpecIslandReader::pathValue));
+            // the graphFetch partition's paths: partitionFieldPaths, the grammar's partitionFields
+            return new PPersistenceEntry.PathList(gfPartition && "partitionFieldPaths".equals(wireKey)
+                    ? "partitionFields" : wireKey, StoreReader.each(items, SpecIslandReader::pathValue));
         }
         return new PPersistenceEntry.NodeList(wireKey, StoreReader.each(items, n -> node(n, wireKey, gf, tgt)));
     }

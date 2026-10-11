@@ -704,10 +704,14 @@ public class CorpusSweepTest {
     private static final ThreadLocal<String> CLASSIFYING_ID = new ThreadLocal<>();
 
     /** F3.7b: pardon-ledger size pins — growth is a reviewed event. */
+    // 7 -> 4 (2026-10-11, the protocol program's leg 8 step 2): the three "EMITTER WALL" rows are refused at the
+    // engine's dialect now, as the engine refuses them -- a multiplicity parameter as a type argument
+    // (validation_rules_test_service_tds.pure, shared.pure) and %latest as a graph-fetch argument
+    // (TestMilestonedPropertyUsageInGraph#5): the engine's walker fails on both and no JSON carries either
     // 8 -> 7 (2026-10-10, the protocol program's leg 8, one parser): m2m2rExecutionPlanTests.pure's stray `)` is
     // refused at the engine's dialect now, as the engine refuses it -- the compiler's own top-level walk, which read
     // past it at every dialect, is gone (the platform dialect alone still reads past it)
-    private static final int REFUSAL_ALLOW_TOTAL = 7;
+    private static final int REFUSAL_ALLOW_TOTAL = 4;
     private static final int MODEL_REFUSE_ALLOW_TOTAL = 4;   // 2026-08-16 F3.7b: 67 stale rows pruned (the ledger predated full section parity)
 
     /** F3.7: the ledger's exact size — a new claim is a reviewed event. */

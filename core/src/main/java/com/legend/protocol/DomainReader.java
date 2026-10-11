@@ -17,8 +17,8 @@ import java.util.List;
  *
  * <p>What the wire does not carry comes back as the record's absent value, as the parser produces it
  * for text without the clause: a class's type parameters and type variables (the emitter writes
- * neither), a function's pre-constraints (always written empty), and a realization's function
- * reference (the wire carries only the body: a {@link Realization.Inline}).
+ * neither) and a function's pre-constraints (always written empty). A realization is told from its body
+ * as the parser tells it ({@link Realization#of}: the wire carries only the body).
  *
  * <p>Older JSON reads as the engine reads it (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 2 step 2): a list it
  * leaves out is empty wherever the engine's class starts it empty ({@code Class}, {@code Association},
@@ -233,7 +233,7 @@ final class DomainReader {
             declared.add(parameter(p));
         }
         return q.done(new DerivedPropertyDefinition(q.str("name"), declared,
-                new Realization.Inline(q.listOrEmpty("body", ProtocolReader::valueSpec)),
+                Realization.of(q.listOrEmpty("body", ProtocolReader::valueSpec)),
                 typeOrName(q, "returnGenericType", "returnType", null),
                 ProtocolReader.multiplicity(q.take("returnMultiplicity")),
                 stereotypes(q), taggedValues(q), q.span()));
@@ -263,7 +263,7 @@ final class DomainReader {
             }
             message = m.get(0);
         }
-        return c.done(new ConstraintDefinition(c.str("name"), new Realization.Inline(body), message,
+        return c.done(new ConstraintDefinition(c.str("name"), Realization.of(body), message,
                 c.optStr("enforcementLevel"), c.optStr("externalId"), c.optStr("owner"), c.span()));
     }
 

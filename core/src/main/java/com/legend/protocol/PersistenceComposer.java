@@ -118,9 +118,10 @@ final class PersistenceComposer {
         };
     }
 
-    /** A list of fields: strings, or (the graphFetch spelling) path values, joined by {@code ", "}. */
-    static String fields(PPersistenceNode node, String key, String pathKey) {
-        if (entry(node, pathKey) instanceof PPersistenceEntry.PathList l) {
+    /** A list of fields: strings, or (the graphFetch spelling) path values, joined by {@code ", "}; under the
+     *  grammar's key either way (a graphFetch partition's paths are read back under it, leg 8 step 2). */
+    static String fields(PPersistenceNode node, String key) {
+        if (entry(node, key) instanceof PPersistenceEntry.PathList l) {
             return paths(l.specs());
         }
         return String.join(", ", strings(node, key));

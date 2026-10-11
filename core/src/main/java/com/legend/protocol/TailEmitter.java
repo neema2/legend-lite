@@ -1211,7 +1211,7 @@ final class TailEmitter {
                 if (i > 0) {
                     b.append(',');
                 }
-                persistenceNode(b, "notifyee", nf.notifyees().get(i), true);
+                persistenceNode(b, "notifyee", nf.notifyees().get(i));
             }
         }
         b.append(']');
@@ -1223,7 +1223,7 @@ final class TailEmitter {
         ProtocolEmitter.str(b, p.pkg());
         if (p.persister() != null) {
             b.append(",\"persister\":");
-            persistenceNode(b, "persister", p.persister(), true);
+            persistenceNode(b, "persister", p.persister());
         }
         if (p.service() != null) {
             b.append(",\"service\":");
@@ -1241,11 +1241,11 @@ final class TailEmitter {
                 if (!"__empty__".equals(t.persistenceTarget().kind())) {
                     b.append("\"persistenceTarget\":");
                     persistenceNode(b, "persistenceTarget",
-                            t.persistenceTarget(), true);
+                            t.persistenceTarget());
                     b.append(',');
                 }
                 b.append("\"serviceOutput\":");
-                persistenceNode(b, "serviceOutput", t.serviceOutput(), true);
+                persistenceNode(b, "serviceOutput", t.serviceOutput());
                 b.append(",\"sourceInformation\":");
                 ProtocolEmitter.srcInfo(b, t.sourceInformation());
                 b.append('}');
@@ -1268,30 +1268,21 @@ final class TailEmitter {
                 .append("\"}}");
     }
 
-    /** Leaf {@code _type}s the wire prints WITHOUT sourceInformation
-     *  (DIFF-pinned: noAuditing; manualTrigger handled at its slot). */
-    private static final java.util.Set<String> SPANLESS_LEAVES =
-            java.util.Set.of("noAuditing", "noDeletesMergeStrategy",
-                    "deleteIndicatorMergeStrategy");
-
     /** The generic node walk: {@code _type} first, entries alphabetical by
-     *  key with {@code sourceInformation} merged into sorted position. */
+     *  key with {@code sourceInformation} merged into sorted position. The
+     *  span is written when the record has one: the nodes the engine's JSON
+     *  writes without one the grammar makes spanless (leg 8 step 2,
+     *  PersistenceSectionGrammar.wireSpans). */
     private static void persistenceNode(StringBuilder b, String slot,
-            Protocol.PPersistenceNode n, boolean withSpan) {
-        persistenceNode(b, slot, n, withSpan, false, false);
-    }
-
-    private static void persistenceNode(StringBuilder b, String slot,
-            Protocol.PPersistenceNode n, boolean withSpan, boolean gf) {
-        persistenceNode(b, slot, n, withSpan, gf, false);
+            Protocol.PPersistenceNode n) {
+        persistenceNode(b, slot, n, false, false);
     }
 
     /** {@code gf} = inside a graphFetch service output, {@code tgt} =
      *  inside a persistenceTarget — both wire context-dependent
-     *  {@code _type}s and span rules. */
+     *  {@code _type}s. */
     private static void persistenceNode(StringBuilder b, String slot,
-            Protocol.PPersistenceNode n, boolean withSpan, boolean gf,
-            boolean tgt) {
+            Protocol.PPersistenceNode n, boolean gf, boolean tgt) {
         boolean part = "__part__".equals(n.kind());
         boolean pathHead = "#path".equals(n.kind());
         if (pathHead) {
@@ -1303,20 +1294,6 @@ final class TailEmitter {
         String wireType = part ? null
                 : pathHead ? "graphFetchServiceOutput"
                         : persistenceType(slot, n.kind(), gf, tgt);
-        // V1-context leaves drop their spans; the SAME kinds inside a
-        // persistenceTarget keep them (DIFF-pinned). Among the spelled
-        // deduplication strategies only no/duplicateCount are spanless.
-        if (wireType != null
-                && ((SPANLESS_LEAVES.contains(wireType) && !tgt)
-                        || "noDeduplicationStrategy".equals(wireType)
-                        // a BARE-keyword strategy (no body) is spanless;
-                        // one with entries keeps its span — engine emits
-                        // anyVersion bare + duplicateCount spanned in the
-                        // SAME fixture (harvest persistenceMultiFlat)
-                        || ("deduplicationStrategy".equals(slot)
-                                && n.entries().isEmpty()))) {
-            withSpan = false;
-        }
         b.append('{');
         boolean first = true;
         if (wireType != null) {
@@ -1345,7 +1322,7 @@ final class TailEmitter {
                             ? "partitionFieldPaths" : k;
                 };
         entries.sort(java.util.Comparator.comparing(keyOf));
-        boolean spanEmitted = !withSpan;
+        boolean spanEmitted = false;
         for (Protocol.PPersistenceEntry e : entries) {
             String key = keyOf.apply(e);
             if (!spanEmitted && key.compareTo("sourceInformation") > 0) {
@@ -1374,7 +1351,7 @@ final class TailEmitter {
                     }
                 }
                 case Protocol.PPersistenceEntry.Node nd ->
-                        persistenceNode(b, nd.key(), nd.node(), true, gf, tgt);
+                        persistenceNode(b, nd.key(), nd.node(), gf, tgt);
                 case Protocol.PPersistenceEntry.Pointer pt -> {
                     if ("binding".equals(pt.key())) {
                         // binding pointers carry NO type tag (DIFF-pinned)
@@ -1420,8 +1397,8 @@ final class TailEmitter {
                         if (i > 0) {
                             b.append(',');
                         }
-                        persistenceNode(b, nl.key(), nl.nodes().get(i),
-                                true, gf, tgt);
+                        persistenceNode(b, nl.key(), nl.nodes().get(i), gf,
+                                tgt);
                     }
                     b.append(']');
                 }
@@ -1541,7 +1518,7 @@ final class TailEmitter {
             ProtocolEmitter.srcInfo(b, pc.platform().sourceInformation());
             b.append('}');
         } else {
-            persistenceNode(b, "platform", pc.platform(), true);
+            persistenceNode(b, "platform", pc.platform());
         }
         b.append(",\"serviceParameters\":[");
         for (int i = 0; i < pc.serviceParameters().size(); i++) {
@@ -1639,7 +1616,7 @@ final class TailEmitter {
                 Protocol.PPersistenceNode connection = tb.connectionData();
                 if (connection != null) {
                     b.append("\"connection\":{\"data\":");
-                    persistenceNode(b, "connectionData", connection, true);
+                    persistenceNode(b, "connectionData", connection);
                     b.append(",\"sourceInformation\":");
                     ProtocolEmitter.srcInfo(b, tb.connectionSpan());
                     b.append("},");
@@ -1672,7 +1649,7 @@ final class TailEmitter {
                 switch (e) {
                     case Protocol.PPersistenceEntry.Node nd ->
                             persistenceNode(b, "connectionData",
-                                    nd.node(), true);
+                                    nd.node());
                     case Protocol.PPersistenceEntry.Scalar s ->
                             ProtocolEmitter.str(b, s.value());
                     default -> throw new UnsupportedOperationException(

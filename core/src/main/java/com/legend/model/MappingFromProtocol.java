@@ -100,7 +100,7 @@ public final class MappingFromProtocol {
         for (Protocol.PClassMapping cm : m.classMappings()) {
             Protocol.PClassMappingFunction fn = (Protocol.PClassMappingFunction) cm;
             // Ref vs Inline is decided by the WIRE's mutually-exclusive
-            // pair, exactly as ElementParser.realizationOf decides it from
+            // pair, exactly as Realization.of decides it from
             // the parsed body — a lone packageable-element pointer is a
             // reference to an ordinary user function. Sources are NOT
             // stamped here: the stamp is born at the Phase-E lift, after
@@ -134,7 +134,7 @@ public final class MappingFromProtocol {
 
     /** The wire's mutually-exclusive pair becomes the model's sealed
      *  Realization — the same Ref/Inline decision
-     *  {@code ElementParser.realizationOf} makes from a parsed body. */
+     *  {@code Realization.of} makes from a parsed body. */
     private static com.legend.protocol.Realization realizationOf(
             com.legend.protocol.spec.@com.legend.base.Nullable PackageableElementPtr fn,
             com.legend.protocol.spec.@com.legend.base.Nullable LambdaFunction lambda) {

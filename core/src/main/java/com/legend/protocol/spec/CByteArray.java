@@ -10,4 +10,15 @@ package com.legend.protocol.spec;
 public record CByteArray(String value,
                          @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
+
+    /** Position is excluded from equality, as on every value specification ({@code ValueSpecEqualityTest}). */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof CByteArray other && java.util.Objects.equals(value, other.value());
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hashCode(value);
+    }
 }

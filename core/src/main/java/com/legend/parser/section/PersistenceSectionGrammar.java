@@ -157,14 +157,20 @@ public final class PersistenceSectionGrammar
         }
         if (persister != null) {
             validateNode(c, "persister", persister);
+            persister = wireSpans(persister, "persister", false);
         }
         if (outputTargets != null) {
             // the v2 tree validates the same way as the persister tree —
             // it was UNVALIDATED until the sibling fixtures caught the
             // wrong-kind keys leaking through (sweep 2026-08-14)
-            for (Protocol.PServiceOutputTarget t : outputTargets) {
+            List<Protocol.PServiceOutputTarget> spanned = outputTargets;
+            outputTargets = new ArrayList<>();
+            for (Protocol.PServiceOutputTarget t : spanned) {
                 validateNode(c, "serviceOutput", t.serviceOutput());
                 validateNode(c, "target", t.persistenceTarget());
+                outputTargets.add(new Protocol.PServiceOutputTarget(
+                        wireSpans(t.serviceOutput(), "serviceOutput", false),
+                        wireSpans(t.persistenceTarget(), "persistenceTarget", true), t.sourceInformation()));
             }
         }
         return new Protocol.PPersistence(pkg, name, dec.stereotypes(),
@@ -324,6 +330,35 @@ public final class PersistenceSectionGrammar
             new Protocol.PPersistenceNode("None", List.of(), null);
     private static final Protocol.PPersistenceNode KEYLESS_TARGET =
             new Protocol.PPersistenceNode("__empty__", List.of(), null);
+
+    /** The {@code slot:kind}s whose node the engine's JSON writes without a span outside a persistence target; the
+     *  same kinds inside one keep theirs (probed). */
+    private static final java.util.Set<String> SPANLESS_OUTSIDE_TARGET = java.util.Set.of(
+            "auditing:None", "mergeStrategy:NoDeletes", "mergeStrategy:DeleteIndicator");
+
+    /**
+     * {@code node} with the spans the engine's JSON carries and no others (leg 8 step 2: the record holds what the
+     * wire does, and the emitter writes what the record holds): {@link #SPANLESS_OUTSIDE_TARGET}'s nodes outside a
+     * persistence target and a deduplication strategy with no entries ({@code None}, a bare {@code AnyVersion}) are
+     * spanless; a strategy with entries keeps its span (harvest persistenceMultiFlat). Applied after validation, which
+     * anchors its errors at every node's span.
+     */
+    private static Protocol.PPersistenceNode wireSpans(Protocol.PPersistenceNode node, String slot, boolean target) {
+        List<Protocol.PPersistenceEntry> entries = new ArrayList<>();
+        for (Protocol.PPersistenceEntry e : node.entries()) {
+            entries.add(switch (e) {
+                case Protocol.PPersistenceEntry.Node nd ->
+                        new Protocol.PPersistenceEntry.Node(nd.key(), wireSpans(nd.node(), nd.key(), target));
+                case Protocol.PPersistenceEntry.NodeList nl -> new Protocol.PPersistenceEntry.NodeList(nl.key(),
+                        nl.nodes().stream().map(n -> wireSpans(n, nl.key(), target)).toList());
+                default -> e;
+            });
+        }
+        boolean spanless = (!target && SPANLESS_OUTSIDE_TARGET.contains(slot + ":" + node.kind()))
+                || ("deduplicationStrategy".equals(slot) && node.entries().isEmpty());
+        return new Protocol.PPersistenceNode(node.kind(), node.headPath(), entries,
+                spanless ? null : node.sourceInformation());
+    }
 
     private static void validateNode(TokenStreamCursor c, String slot,
             Protocol.PPersistenceNode node) {
@@ -863,11 +898,13 @@ public final class PersistenceSectionGrammar
                             String aid = c.parseIdentifier();
                             c.expect(TokenType.COLON);
                             // the wire span starts at the assertion VALUE
-                            // (kind keyword), not the id (DIFF-pinned)
+                            // (kind keyword), not the id (DIFF-pinned); it is
+                            // the assertion's, its node's own is on no wire
                             int as = c.pos();
                             Protocol.PPersistenceNode an = parseNode(c);
                             asserts.add(new Protocol.PPersistenceAssert(aid,
-                                    an, c.spanOf(as, c.pos() - 1)));
+                                    new Protocol.PPersistenceNode(an.kind(), an.headPath(), an.entries(), null),
+                                    c.spanOf(as, c.pos() - 1)));
                             if (!c.match(TokenType.COMMA)) {
                                 break;
                             }

@@ -924,7 +924,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      * {@code SpecParser}, the same entry point every ###Pure function body
      * goes through, and a body that is a single packageable-element pointer
      * collapses to a function REFERENCE exactly as
-     * {@code ElementParser.realizationOf} decides it.
+     * {@code Realization.of} decides it.
      */
     private Protocol.PClassMappingFunction parseFunctionClassMapping(
             String target, int memberStart, SourceInfo targetSpan,

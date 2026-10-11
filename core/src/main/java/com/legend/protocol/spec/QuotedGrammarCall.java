@@ -37,6 +37,18 @@ public record QuotedGrammarCall(
         @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
+    /** Position is excluded from equality, as on every value specification ({@code ValueSpecEqualityTest}). */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof QuotedGrammarCall other && original.equals(other.original())
+                && functions.equals(other.functions());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(original, functions);
+    }
+
     public QuotedGrammarCall {
         Objects.requireNonNull(original, "original");
         functions = List.copyOf(Objects.requireNonNull(functions, "functions"));

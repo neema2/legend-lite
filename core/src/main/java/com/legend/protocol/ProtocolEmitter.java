@@ -2509,21 +2509,17 @@ public final class ProtocolEmitter {
         b.append('}');
     }
 
-    /** A realization's WIRE body: inline statements, or the kept reference NODE for the
-     *  bare-name form ({@code Ref.source}); a Ref without a node cannot emit. */
+    /** A realization's WIRE body ({@link com.legend.protocol.Realization#writtenBody}): inline
+     *  statements, or the kept reference NODE for the bare-name form; a Ref without a node cannot emit. */
     private static List<com.legend.protocol.spec.ValueSpecification> realizationBody(
             com.legend.protocol.Realization r, String what) {
-        return switch (r) {
-            case com.legend.protocol.Realization.Inline inl -> inl.body();
-            case com.legend.protocol.Realization.Ref ref -> {
-                if (ref.source() == null) {
-                    throw new UnsupportedOperationException(
-                            "ProtocolEmitter needs the parsed reference node for " + what
-                                    + " and the parser did not keep one — fix the parse site.");
-                }
-                yield List.of(ref.source());
-            }
-        };
+        List<com.legend.protocol.spec.ValueSpecification> body = r.writtenBody();
+        if (body == null) {
+            throw new UnsupportedOperationException(
+                    "ProtocolEmitter needs the parsed reference node for " + what
+                            + " and the parser did not keep one — fix the parse site.");
+        }
+        return body;
     }
 
     private static void appliedFunction(StringBuilder b,

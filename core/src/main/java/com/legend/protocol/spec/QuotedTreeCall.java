@@ -32,6 +32,17 @@ public record QuotedTreeCall(
         @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
+    /** Position is excluded from equality, as on every value specification ({@code ValueSpecEqualityTest}). */
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof QuotedTreeCall other && original.equals(other.original()) && tree.equals(other.tree());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(original, tree);
+    }
+
     public QuotedTreeCall {
         Objects.requireNonNull(original, "original");
         Objects.requireNonNull(tree, "tree");

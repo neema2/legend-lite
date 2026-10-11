@@ -24,6 +24,27 @@ import java.util.Objects;
  */
 public sealed interface Realization permits Realization.Ref, Realization.Inline {
 
+    /**
+     * A body's realization: a single bare element reference ({@code PackageableElementPtr}) is a function ref
+     * (Door 1/4); anything else is an inline expression body (sugar / Door 3). The one rule for a parsed body and a
+     * body read from JSON, which carries only the body (leg 8 step 2).
+     */
+    static Realization of(List<ValueSpecification> body) {
+        if (body.size() == 1 && body.get(0) instanceof com.legend.protocol.spec.PackageableElementPtr ptr) {
+            return new Ref(ptr.fullPath(), ptr);
+        }
+        return new Inline(body);
+    }
+
+    /** The body the JSON and the text write: the inline statements, or a reference's kept node ({@link #of}'s
+     *  inverse); none for a reference with no node (one made by name, not parsed or read). */
+    default @com.legend.base.Nullable List<ValueSpecification> writtenBody() {
+        return switch (this) {
+            case Inline inl -> inl.body();
+            case Ref ref -> ref.source() == null ? null : List.of(ref.source());
+        };
+    }
+
     /** A realizing function named by FQN. The optional {@code source} keeps the parsed
      *  reference NODE (with its span) — the wire serializes hats/constraints as the plain
      *  expression, so emission needs the original node, not just the name. Excluded from
