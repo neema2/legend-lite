@@ -81,6 +81,6 @@ final class NumberLiterals {
         if (last == 'd' || last == 'D') {
             text = text.substring(0, text.length() - 1);
         }
-        return new CDecimal(new BigDecimal(text), text, span);
+        return new CDecimal(new BigDecimal(text), span);
     }
 }

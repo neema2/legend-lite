@@ -2417,8 +2417,7 @@ public final class ProtocolEmitter {
             case com.legend.protocol.spec.CDecimal c ->
                     // same let-span override as the other literals (probed:
                     // `let x = 1.5d;` spans let..literal-end on the wire)
-                    valueSpec(b, new com.legend.protocol.spec.CDecimal(
-                            c.value(), c.written(), span));
+                    valueSpec(b, new com.legend.protocol.spec.CDecimal(c.value(), span));
             case com.legend.protocol.spec.CDate c ->
                     valueSpec(b, new com.legend.protocol.spec.CDate(c.value(), c.written(), span));
             case com.legend.protocol.spec.Variable var ->
@@ -3349,11 +3348,10 @@ public final class ProtocolEmitter {
                             -c.value().longValue(), span);
             case com.legend.protocol.spec.CFloat c ->
                     new com.legend.protocol.spec.CFloat(-c.value(), span);
-            // a decimal goes on the wire in its VERBATIM source digits, so the
-            // sign has to move into the spelling too, not just the value
+            // a decimal goes on the wire as its value's digits (BigDecimal.toString),
+            // so the sign is the value's
             case com.legend.protocol.spec.CDecimal c ->
-                    new com.legend.protocol.spec.CDecimal(c.value().negate(),
-                            c.written() == null ? null : "-" + c.written(), span);
+                    new com.legend.protocol.spec.CDecimal(c.value().negate(), span);
             default -> v;
         };
     }

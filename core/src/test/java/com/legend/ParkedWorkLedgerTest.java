@@ -174,6 +174,11 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-26 a mapping included under two spellings is refused as an include cycle",
                     new Anchor("if \\(fqn != null\\) \\{\\s+incs\\.add\\(fqn\\);",
                             List.of("StoreSubstitutionRewrite.java"))),
+            // PARK-27 (2026-10-11, the protocol program's leg 8 step 2, with the Compiler Rewrite line): a decimal
+            // literal beyond DECIMAL(38) rounds at the TYPER, where Pure's Decimal is unbounded and legend-engine
+            // compiles any scale -- the width is the store's, met at render; which plan decides where it belongs
+            Map.entry("PARK-27 a decimal literal past DECIMAL(38) rounds at the typer",
+                    new Anchor("setScale\\(Type\\.PrecisionDecimal\\.MAX_PRECISION", List.of("Typer.java"))),
             // PARK-28 (2026-10-11, the descriptor-type refusal's audit): the descriptor's signature is cut away and
             // the name alone resolves, where the engine resolves by the full id
             Map.entry("PARK-28 a ~func descriptor's signature is not matched against the function's",

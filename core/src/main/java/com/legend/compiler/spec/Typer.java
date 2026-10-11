@@ -192,19 +192,18 @@ final class Typer {
             case CBoolean lit -> new TypedCBoolean(lit.value(), ExprType.one(Type.Primitive.BOOLEAN));
             case CFloat lit -> new TypedCFloat(lit.value(), lit.exact(), ExprType.one(Type.Primitive.FLOAT));
             case CDecimal lit -> {
+                // beyond the DECIMAL(38) carrier a decimal literal ROUNDS to the
+                // carrier's edge, as it always has: the D-suffix test that was to
+                // refuse a written decimal instead never fired (the parser stripped
+                // the suffix before it was read), and the JSON has no spelling to
+                // test (leg 8 step 2 deleted it, the behaviour unchanged). Whether a
+                // width belongs here at all is open, PARK-27: Pure's Decimal is
+                // unbounded and legend-engine compiles any scale; DECIMAL(38) is the
+                // store's width, met when the value is rendered. A bare float with
+                // more digits than a double holds is a CFloat carrying its exact
+                // value, never a CDecimal (essential testComplexPow's 44-digit literal)
                 BigDecimal dv = lit.value();
-                // a PROMOTED literal (no D suffix — the parser's
-                // precision-promotion of a bare float literal) beyond the
-                // DECIMAL(38) carrier ROUNDS to the carrier's edge: the
-                // exact tail is physically unrepresentable, and 38 digits
-                // is still ~10^21x tighter than the double it was promoted
-                // from (essential testComplexPow's 44-digit literal). An
-                // EXPLICIT D-suffixed decimal keeps the loud reject —
-                // silent truncation of a declared decimal lies.
-                if (dv.scale() > Type.PrecisionDecimal.MAX_PRECISION
-                        && (lit.written() == null
-                                || !lit.written().toUpperCase(java.util.Locale.ROOT)
-                                        .endsWith("D"))) {
+                if (dv.scale() > Type.PrecisionDecimal.MAX_PRECISION) {
                     dv = dv.setScale(Type.PrecisionDecimal.MAX_PRECISION,
                             java.math.RoundingMode.HALF_EVEN);
                 }
