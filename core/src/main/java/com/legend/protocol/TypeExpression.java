@@ -28,7 +28,8 @@ import java.util.Objects;
  *   <li>{@link RelationType} &mdash; {@code (col:Type[mult], ...)} &mdash;
  *       inline relation type literal. Paren-delimited, not braces (braces
  *       in this position are always function types). Column multiplicity
- *       defaults to {@code [1]} when not written; mirrors engine's
+ *       is {@code [0..1]} when not written, as the engine and legend-pure
+ *       read it (leg 8 step 2); mirrors engine's
  *       {@code Type.RelationTypeVar} shape.</li>
  *   <li>{@link SchemaAlgebra} &mdash; the schema operations used inside
  *       native generic arguments: {@code T+Z} (union), {@code T-Z}

@@ -251,7 +251,7 @@ final class SpecIslandReader {
             return new com.legend.protocol.spec.TypeAnnotation.RelationShape(shapeColumns(bare), null, pos, pos);
         }
         if (type instanceof com.legend.protocol.TypeExpression.Generic g
-                && "Relation".equals(g.name().substring(g.name().lastIndexOf(':') + 1))
+                && com.legend.protocol.spec.TypeAnnotation.RelationShape.spelledRelation(g.name())
                 && g.arguments().size() == 1
                 && g.arguments().get(0) instanceof com.legend.protocol.TypeExpression.RelationType rel
                 && g.multiplicityArguments().isEmpty() && g.typeVariableValues().isEmpty()) {

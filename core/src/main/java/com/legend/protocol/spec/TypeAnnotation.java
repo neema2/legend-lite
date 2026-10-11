@@ -155,6 +155,13 @@ public sealed interface TypeAnnotation
             this(columns, null, null, null);
         }
 
+        /** Whether a type name as written spells a relation shape's {@code Relation<(...)>}: its simple name is
+         *  {@code Relation}, qualified or not. The one test for the parser and the JSON reader (leg 8 step 2). */
+        public static boolean spelledRelation(String name) {
+            int cut = name.lastIndexOf("::");
+            return "Relation".equals(cut < 0 ? name : name.substring(cut + 2));
+        }
+
         /** Wire metadata (spelled name, spans) is excluded from equality. */
         @Override
         public boolean equals(Object o) {

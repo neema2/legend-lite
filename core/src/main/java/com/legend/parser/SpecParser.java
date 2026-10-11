@@ -2530,16 +2530,12 @@ public final class SpecParser implements TokenStreamCursor {
             name = name + "~" + text();
             pos++;
         }
-        String simple = name.contains("::")
-                ? name.substring(name.lastIndexOf("::") + 2)
-                : name;
-
         // @Relation<(col:Type, ...)> — structural relation shape.
         // The lookahead must check BOTH '<' and the following '(' to
         // distinguish from @Relation<T> (a hypothetical generic
         // application of a class named 'Relation'). Engine grammar
         // reserves the structural form for the parenthesised inner.
-        if ("Relation".equals(simple)
+        if (TypeAnnotation.RelationShape.spelledRelation(name)
                 && !atEnd()
                 && peek() == TokenType.LESS_THAN
                 && pos + 1 < tokens.count()

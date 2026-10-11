@@ -1410,8 +1410,9 @@ public interface TokenStreamCursor {
                 new TypeExpression.TypedParameter(resultType, resultMult));
     }
 
-    /** {@code (col:Type[mult], ...)}. Column multiplicity defaults to
-     *  {@code [1]} when not declared (engine parity). */
+    /** {@code (col:Type[mult], ...)}. Column multiplicity is
+     *  {@code [0..1]} when not declared, as the engine and legend-pure
+     *  read it (leg 8 step 2). */
     private TypeExpression parseRelationType() {
         expect(TokenType.PAREN_OPEN);
         List<TypeExpression.Column> columns = new ArrayList<>();
