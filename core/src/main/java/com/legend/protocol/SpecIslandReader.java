@@ -244,6 +244,20 @@ final class SpecIslandReader {
         }
         com.legend.protocol.TypeExpression type = ProtocolReader.genericType(w.take("genericType"));
         SourceInfo pos = w.span();
+        // a relation shape, as the parser reads its two spellings (leg 8 step 2): `@(x:String, ...)` is a bare
+        // relationType rawType, the annotation's span the shape's too; `@Relation<(x:String, ...)>` (the name as
+        // spelled, its simple name Relation) the packageable type over one relation type argument
+        if (type instanceof com.legend.protocol.TypeExpression.RelationType bare) {
+            return new com.legend.protocol.spec.TypeAnnotation.RelationShape(shapeColumns(bare), null, pos, pos);
+        }
+        if (type instanceof com.legend.protocol.TypeExpression.Generic g
+                && "Relation".equals(g.name().substring(g.name().lastIndexOf(':') + 1))
+                && g.arguments().size() == 1
+                && g.arguments().get(0) instanceof com.legend.protocol.TypeExpression.RelationType rel
+                && g.multiplicityArguments().isEmpty() && g.typeVariableValues().isEmpty()) {
+            return new com.legend.protocol.spec.TypeAnnotation.RelationShape(shapeColumns(rel), g.name(), g.pos(),
+                    pos);
+        }
         if (type instanceof com.legend.protocol.TypeExpression.NameRef n && n.name().indexOf('~') >= 0) {
             if (n.pos() != null) {
                 throw Wire.refuse("a unit type annotation whose rawType carries a span: " + n.name());
@@ -251,6 +265,17 @@ final class SpecIslandReader {
             return ProtocolReader.named(new com.legend.protocol.TypeExpression.NameRef(n.name(), pos), pos);
         }
         return ProtocolReader.named(type, pos);
+    }
+
+    /** A relation type's columns as a shape's: each column's type the annotation the parser makes of it. */
+    private static List<com.legend.protocol.spec.TypeAnnotation.RelationShape.Column> shapeColumns(
+            com.legend.protocol.TypeExpression.RelationType rel) {
+        List<com.legend.protocol.spec.TypeAnnotation.RelationShape.Column> out = new ArrayList<>(rel.columns().size());
+        for (com.legend.protocol.TypeExpression.Column c : rel.columns()) {
+            out.add(new com.legend.protocol.spec.TypeAnnotation.RelationShape.Column(c.name(),
+                    new com.legend.protocol.spec.TypeAnnotation.Named(c.type()), c.multiplicity(), c.pos()));
+        }
+        return out;
     }
 
     /**

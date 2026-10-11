@@ -45,9 +45,9 @@ class JsonModelDoorTest {
 
     /** {min matched, max failed} per input: matched up-only, failed down-only. Measured 2026-10-11 (leg 8, step 2's
      *  first part landed: the engine collection's failures are step 2's remaining work list; 401 -> 363 with a
-     *  relation column's [0..1]). */
+     *  relation column's [0..1]; 363 -> 267 with a relation shape read as the parser reads it). */
     private static final Map<String, int[]> PINS = Map.of(
-            "engine corpus", new int[]{6855, 363},
+            "engine corpus", new int[]{6951, 267},
             "lite projects", new int[]{166, 0},
             "showcase projects", new int[]{123, 0});
 
