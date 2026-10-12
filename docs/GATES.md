@@ -8807,3 +8807,47 @@ on the landing and on its amendment after the audit); the lane query empty.
    port and the landed file (the collection wrapper's methods are unreachable from the planner and dropped).
 5. **Not chased:** `Class.getEnumConstants` (2.5 % of the profile: TeaVM's `EnumSet` asks for the constants on every
    lookup) and the module's remaining 2.4x over the native library.
+
+## 2026-10-11 — the protocol program's leg 8, step 2 continued: a relation column's `[0..1]`, a decimal as its value, a relation cast read as parsed (the Studio / SDLC / Depot line)
+
+`docs/PROTOCOL_PROGRAM_2026_10_05.md` leg 8, step 2; two of the Compiler Rewrite line's items, (c) and (f), each
+reviewed by it, and one reader change. Each its own commit on `leg8-records`.
+
+1. **(c) A relation column written without a multiplicity is `[0..1]`**, as legend-engine's walker
+   (`DomainParseTreeWalker.relationType`: `ZERO_ONE`) and legend-pure read it; lite read `[1]`, which no JSON carries
+   (the engine writes `ZERO_ONE` either way). In signatures, named relation types, lambda parameter annotations and
+   `@(..)` casts. `TypeExpression.Column.multiplicityDeclared` is gone, and the type audit's D66 loses its sub-claim
+   about it (struck, dated; the rest of D66 stands). `NameResolver.java` is unchanged, but the columns it resolves now
+   keep the written multiplicity: a latent change, since no product path emits a resolved model (0 records changed);
+   it matters for the Studio design's S14 (entity JSON from a resolved model). One lite test changed: its copy of PCT's
+   `test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort` had dropped the original's two `->toOne()` calls, unneeded
+   only while lite read `[1]`; it now matches upstream. `docs/SEMANTICS_REGISTER.md` S40 gains the boundary: a filter
+   on such a column renders the `[0..1]` guard where legend-engine renders the bare comparison -- different SQL, the
+   same rows directly in a WHERE, a conjunction or one side of an OR; they differ only under a NOT or where the
+   comparison is a value, and no such statement is in the census. Audited twice (no blocker; the second's correction
+   of S40's sentence is in it).
+2. **(f) A decimal literal keeps no spelling.** `CDecimal.written` is deleted (the JSON carries the value alone, its
+   scale included): the parser, the reader and the emitter carry the value. The typer's `CDecimal` arm keeps what it
+   did -- a literal past DECIMAL(38) rounds -- with its dead test of the `D` suffix removed (the parser stripped the
+   suffix before the spelling was kept). Where that width belongs is PARK-27 (with the Compiler Rewrite line: Pure's
+   Decimal is unbounded and legend-engine compiles any scale; DECIMAL(38) is the store's, met at render), anchored in
+   `ParkedWorkLedgerTest` at the rounding. The Plan Gen line confirmed PARK-24 reads no spelling.
+3. **The reader: a relation cast read from JSON as the parser reads its text.** `SpecIslandReader` builds the
+   parser's `RelationShape` from the wire's two spellings (a bare `relationType`, and a type named `Relation` over one
+   relation type argument) instead of a named generic type. The "spells `Relation`" test is one method,
+   `TypeAnnotation.RelationShape.spelledRelation`, for the parser and the reader, so `IdentityGuardrailTest`'s
+   `NAME_CUTTING` stays 107.
+
+**Measured.** Against main's baseline after L7 (430ff7420), at (c) and at (f): the six corpus passes identical, the
+census identical but its date (27 walls, 1,120 failing bodies), the shadow probe's candidate rows and the reference
+lane unchanged, PCT 17 of 17. The render census (every JVM lane), main 741f24f9a against (c): 52,567 entries, 48
+differ; 36 by a lambda's scope id alone (the id hashes the lambda's print, which now shows the `[0..1]`); 12 are six
+statements, each a filter on a now-`[0..1]` column gaining the guard (S40). Evidence:
+`docs/build-inventory/program/evidence/leg8/` (the render census, `render_pairs.py`, and leg 8's cost check: compiling
+is not slower after the one parser). The new oracle (`JsonModelDoorTest`): the engine collection's texts the JSON
+round trip loses go 401 → 363 with (c) → 267 with the reader; lite's 166 project files and the showcase's 123 still
+all match.
+
+**Checked.** Rebased on main (39218e803, the TeaVM wrappers; PARK-27 placed between PARK-26 and PARK-28 in the ledger
+and its test). Local gate: //gates:local green (347 tests); //parser-equivalence/... 6 of 6 (the own-corpus ratchet
+at 2,832, `NAME_CUTTING` 107).

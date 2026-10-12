@@ -566,8 +566,12 @@ records, and the records mirroring the engine's JSON where it was cut so far -- 
 `compiler/` with the Compiler Rewrite line's review: `spec/Typer.java` (the zero-argument qualified-property lift
 takes a parameterized class), `spec/GraphFetchChecker.java`, `spec/typed/TypedGraphTree.java` and
 `resolver/GraphEmission.java` (no `qualified` mark), `NameResolver.java` and `normalizer/` (the mapping's dead
-`testSuitesSource`). Step 2 continues on `leg8-records`: a relation column's `[0..1]`, a decimal decided by its kind,
-the operator spelling (each with the Compiler Rewrite line, judged as before), and the dropped-text rule, the user's
+`testSuitesSource`). **Landed 2026-10-11: a relation column's `[0..1]`, a decimal as its value, a relation cast read
+as parsed** (GATES 2026-10-11), with the Compiler Rewrite line's review -- in `compiler/`, `spec/Typer.java` (a decimal
+by its value; its rounding past DECIMAL(38) is PARK-27) and `spec/TypeAnnotations.java` (the parsed column
+multiplicity read as it is); `NameResolver.java` unchanged, but its resolved columns now keep the written
+multiplicity. Step 2 continues on `leg8-step2b`: persistence spans, a reference body, value equality without position;
+then the operator spelling (with the Compiler Rewrite line, judged as before), and the dropped-text rule, the user's
 to decide first. Then leg 9, imports and comments
 (added by the user, design first). Open, and not yet in the plan's legs: printing lite-only
 mappings (a class mapping by function, a function association), which needs a design first.

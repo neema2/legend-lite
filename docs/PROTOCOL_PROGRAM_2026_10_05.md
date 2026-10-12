@@ -511,8 +511,12 @@ not be written back, so it is refused.
    (`JsonModelDoorTest`): the JSON round trip loses 401 of the engine collection's texts (821 before step 2), none
    of lite's projects or the showcase. Judged against main's baseline at each change: the six corpus passes
    identical, the census within its ceilings, the shadow probe and the reference lane unchanged, PCT 17 of 17.
-   **Still open in step 2:** a relation column without a multiplicity is `[0..1]` (the engine and legend-pure; lite
-   says `[1]`); the typer deciding a decimal by its node kind, `CDecimal.written` deleted; the compiler no longer
+   **Landed next (2026-10-11; GATES 2026-10-11):** a relation column without a multiplicity is `[0..1]` (the engine
+   and legend-pure; lite said `[1]`); `CDecimal.written` deleted, the typer deciding a decimal by its value (its
+   rounding past DECIMAL(38) parked as PARK-27); a relation cast read from JSON as the parser reads its text. The JSON
+   round trip then loses 267 of the engine collection's texts.
+
+   **Still open in step 2:** the compiler no longer
    reading how an operator was spelled (`infix`); spans and orders the parser still keeps that no JSON has. And one
    decision for the user, before code: text the engine's grammar accepts and its parser then drops (function
    pre-constraints, an include's several store substitutions, an Operation mapping's `extends`, a generic supertype's
