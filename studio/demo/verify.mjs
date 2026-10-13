@@ -278,6 +278,42 @@ async function loop(browser, name, query) {
     await partyTable.getByTestId('data-reset').click();
     await partyTable.locator('[data-source=test]').waitFor({ timeout: 60_000 });
     assert.equal((await partyTable.locator('.data-tables__rows').textContent())?.trim(), '5');
+    // 3h. a person's file the model no longer takes (C5): a table of the workspace's own filled from a CSV, then a
+    // column added to it -- the file is kept, not loaded, and said so (why on hover); Reset lets it go. The Database
+    // is deleted again, so the workspace's changes are as they were.
+    const changesBefore = await statusOf('changes-count');
+    const notesDb = (columns) => `###Relational\nDatabase demo::trading::NotesDB\n(\nSchema NOTES\n(\nTable NOTE\n(\n${columns}\n)\n)\n)\n`;
+    const notesTable = page.locator('[data-testid=data-tables] tr[data-table="NOTES.NOTE"]');
+    await page.getByTestId('new-element').click();
+    await page.getByTestId('new-kind').selectOption({ label: 'Database' });
+    await page.getByTestId('new-path').fill('demo::trading::NotesDB');
+    await page.locator('.dialog .btn-primary').click();
+    await page.locator('.monaco-editor .view-lines').click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.insertText(notesDb('ID INTEGER PRIMARY KEY'));
+    await waitCompiled();
+    await page.locator('[data-panel-tab=data]').click();
+    await notesTable.locator('[data-source=none]').waitFor({ timeout: 60_000 });
+    await notesTable.locator('input[type=file]').setInputFiles({ name: 'notes.csv', mimeType: 'text/csv', buffer: Buffer.from('ID\n1\n2\n') });
+    await notesTable.locator('[data-source=file]').waitFor({ timeout: 60_000 });
+    assert.equal((await notesTable.locator('.data-tables__rows').textContent())?.trim(), '2');
+    await page.locator('.monaco-editor .view-lines').click();
+    await page.keyboard.press('ControlOrMeta+A');
+    await page.keyboard.insertText(notesDb('ID INTEGER PRIMARY KEY,\nBODY VARCHAR(64)'));
+    await waitCompiled();
+    await page.locator('[data-panel-tab=data]').click();
+    await notesTable.locator('[data-refused="notes.csv"]').waitFor({ timeout: 60_000 });
+    assert.equal(await notesTable.locator('td[data-source]').getAttribute('data-source'), 'none', 'the table has the model\'s own rows: none');
+    assert.match(await notesTable.locator('[data-refused]').getAttribute('title'), /BODY/, 'why, in the database\'s words');
+    await notesTable.getByTestId('data-reset').click();
+    await page.waitForFunction(() => {
+      const row = document.querySelector('[data-testid=data-tables] tr[data-table="NOTES.NOTE"]');
+      return row !== null && row.querySelector('[data-refused]') === null && row.querySelector('[data-testid=data-reset]') === null;
+    }, undefined, { timeout: 60_000 });
+    await page.getByTestId('delete-element').click();
+    await page.locator('.dialog .btn-primary').click();
+    await page.waitForFunction((before) => document.querySelector('[data-testid=changes-count]')?.textContent?.trim() === before,
+      changesBefore, { timeout: 60_000 });
     await page.getByTestId('save-status').click();
     await page.locator('.dialog .btn-primary').click();
     await waitStatus('changes-count', /no changes detected/);

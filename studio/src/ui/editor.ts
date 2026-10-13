@@ -112,7 +112,8 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       h('button', { class: 'btn btn-primary', 'data-testid': 'sql-run', title: 'Run the SQL (Ctrl + Enter)', onclick: () => void runSql() }, icon('play', '10px'), 'Run')),
     sqlOut);
   // the tab's tables (plan A2): every table the model's Databases declare, where its rows are from -- the model's test
-  // data, a person's file (CSV or Parquet, kept until reset), or nothing -- and how many
+  // data, a person's file (CSV or Parquet, kept until reset), or nothing -- and how many; and a person's file the
+  // model no longer takes
   const dataPanel = h('div', { class: 'panel-group__content data-tables', 'data-testid': 'data-tables' });
   const renderData = async (): Promise<void> => {
     clear(dataPanel);
@@ -141,13 +142,19 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
           .then(() => { toast(`${name}: ${f.name} loaded`, 'success'); return renderData(); }, failed);
       } });
       const source = t.source.kind === 'test' ? `test data · ${t.source.element}` : t.source.kind === 'file' ? `file · ${t.source.name}` : 'no rows yet';
+      // a person's file the model no longer takes (its table's columns changed since): kept, not in the table, which
+      // has the model's own rows -- why in the database's words; Reset lets it go (engine-client's tab-data.ts, C5)
+      const refused = t.refusedFile && h('div', { class: 'data-tables__refused', 'data-refused': t.refusedFile.name, title: t.refusedFile.why },
+        icon('warning'), h('span', {}, `file · ${t.refusedFile.name} not loaded: it no longer fits this table`));
+      const reset = t.source.kind === 'file' ? "Back to the model's own rows"
+        : t.refusedFile ? `Forget ${t.refusedFile.name}: the table keeps the model's own rows` : undefined;
       return h('tr', { 'data-table': name },
         h('td', { title: t.database }, name),
-        h('td', { 'data-source': t.source.kind }, source),
+        h('td', { 'data-source': t.source.kind }, source, refused),
         h('td', { class: 'data-tables__rows' }, t.rows === undefined ? '' : String(t.rows)),
         h('td', { class: 'data-tables__actions' }, file,
           h('button', { class: 'btn btn-small', 'data-testid': 'data-upload', title: 'Fill this table from a .csv (a header row) or .parquet file', onclick: () => file.click() }, 'Upload…'),
-          t.source.kind === 'file' ? h('button', { class: 'btn btn-small', 'data-testid': 'data-reset', title: "Back to the model's own rows",
+          reset !== undefined ? h('button', { class: 'btn btn-small', 'data-testid': 'data-reset', title: reset,
             onclick: () => void ctx.run.resetTable(ws.model().text, t.schema, t.table).then(() => renderData(), failed) }, 'Reset') : null));
     });
     dataPanel.append(h('table', { class: 'run-result__table' },

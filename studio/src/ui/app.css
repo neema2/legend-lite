@@ -352,6 +352,8 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 .data-tables { overflow: auto; }
 .data-tables__rows { text-align: right; }
 .data-tables__actions { display: flex; justify-content: flex-end; gap: 6px; }
+/* a person's file the model no longer takes: said under the table's source, why on hover */
+.data-tables__refused { display: flex; align-items: center; gap: 6px; margin-top: 2px; color: var(--color-status-warn); cursor: help; }
 
 /* the query builder (plan A5): Query's, full screen over the editor as upstream's embedded builder is -- under its own
    dialogs, menus and toasts (Query's stylesheet, vendor/query/app.css, at z-index 50 and up), in Query's type size */
