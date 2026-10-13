@@ -1008,6 +1008,25 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             assertEquals(3, result.rows().size());
         }
 
+        /** The braced form, legend-engine's own (#TDS{...}#): the same table as the brace-less, its braces no row
+         *  (the Python / DataCube line's report, 2026-10-13: "{" was read as the header, "}" as a row). */
+        @Test
+        @DisplayName("#TDS{...}# literal reads the table inside its braces")
+        void testTdsLiteralBraced() throws SQLException {
+            var one = executeRelation("#TDS{\nid\n1\n2\n}#");
+            assertEquals(List.of("id"), one.columns().stream().map(c -> c.name()).toList());
+            assertEquals(List.of(1L, 2L), one.rows().stream().map(r -> ((Number) r.get(0)).longValue()).toList());
+
+            var two = executeRelation("#TDS{\nid, name\n1, a\n}#");
+            assertEquals(List.of("id", "name"), two.columns().stream().map(c -> c.name()).toList());
+            assertEquals(1, two.rows().size());
+            assertEquals("a", two.rows().get(0).get(1));
+
+            // a '#' in a value is the value's: the braced form ends at its "}#"
+            var hash = executeRelation("#TDS{\nid, tag\n1, a#b\n}#");
+            assertEquals("a#b", hash.rows().get(0).get(1));
+        }
+
         @Test
         @DisplayName("#TDS literal with null values")
         void testTdsLiteralWithNulls() throws SQLException {

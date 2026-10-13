@@ -3033,24 +3033,30 @@ public final class SpecParser implements TokenStreamCursor {
         String raw = text();
         int tok = pos;
         pos++;
-        // the wire's tdsString is the INNER text — after the '{', before
-        // the '}#', UNTRIMMED (ZTailProbe "tds-accessor"); the desugared
-        // tds(...) application keeps the verbatim token text the compiler
-        // has always consumed
-        int open = raw.indexOf('{');
-        int close = raw.lastIndexOf('}');
         // The BRACE form (#TDS{...}#) is the ENGINE's own xt-tds grammar;
         // the BRACE-LESS form (#TDS ... #) is legend-pure's
         // platform_dsl_tds spelling, which the engine REFUSES
         // (adjudication probe 2026-08-14: brace form ACCEPT, brace-less
         // refuse — the earlier "#TDS is real everywhere" note conflated
         // the two). Drop-in refuses brace-less; PLATFORM/LITE keep it.
-        if (!(open >= 0 && close > open) && dialect().refusesLiteExtensions()) {
+        boolean braced = raw.startsWith("#TDS{") && raw.endsWith("}#");
+        // a braced literal the input ends, or a section cuts, before its "}#": refused in its own words, never read
+        // as brace-less with its '{' for a header (the Compiler Rewrite line's review, 2026-10-13)
+        if (!braced && raw.startsWith("#TDS{")) {
+            throw error("unterminated #TDS{ literal: no }# closes it");
+        }
+        if (!braced && dialect().refusesLiteExtensions()) {
             throw error("brace-less #TDS literal is not supported");
         }
-        String inner = open >= 0 && close > open
-                ? raw.substring(open + 1, close) : raw;
-        return com.legend.protocol.spec.TdsLiteral.of(inner, raw, spanOf(tok, tok));
+        // the table is the text between the delimiters, UNTRIMMED: the
+        // wire's tdsString for the brace form (ZTailProbe "tds-accessor"),
+        // and what the desugared tds(...) application hands the compiler in
+        // either form (the lexer ends a brace-less token at its first '#',
+        // so one cut by a section boundary has none to drop)
+        String inner = braced
+                ? raw.substring("#TDS{".length(), raw.length() - "}#".length())
+                : raw.substring("#TDS".length(), raw.endsWith("#") ? raw.length() - 1 : raw.length());
+        return com.legend.protocol.spec.TdsLiteral.of(inner, spanOf(tok, tok));
     }
 
     // -------------------------------------------------------------------

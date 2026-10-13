@@ -61,8 +61,7 @@ final class SpecIslandReader {
                     "GQL", (value, pos) -> new GqlIsland(GqlReader.document(value), pos),
                     "TDS", (value, pos) -> {
                         Wire w = Wire.of(value, "TDS island");
-                        String tds = w.str("tdsString");
-                        return w.done(TdsLiteral.of(tds, "#TDS{" + tds + "}#", pos));
+                        return w.done(TdsLiteral.of(w.str("tdsString"), pos));
                     }));
 
     private static Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> withOlderKinds(

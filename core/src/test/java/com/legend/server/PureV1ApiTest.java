@@ -200,6 +200,31 @@ class PureV1ApiTest {
         }
     }
 
+    /**
+     * A braced #TDS literal -- legend-engine's own form -- through grammarToJson and execute: the JSON's tdsString is
+     * the text inside the braces, and execute reads that table, never a brace as a row (the Python / DataCube line's
+     * report, 2026-10-13: a column "{" with rows id, 1, 2, "}"; with two columns, an IndexOutOfBoundsException).
+     */
+    @Test
+    void e8_execute_aBracedTdsLiteral_readsTheTableInsideItsBraces() {
+        String one = PureV1Api.grammarToJsonLambda(
+                "|#TDS{\nid\n1\n2\n}#->extend(~[h: x|1])->from(trades::h2::RT)", false).json();
+        assertTrue(one.contains("\"tdsString\":\"\\nid\\n1\\n2\\n\""), one);
+        assertEquals("{\"columns\":[\"id\",\"h\"],\"rows\":[{\"values\":[1,1]},{\"values\":[2,1]}]}",
+                resultOf(execute("{\"function\":" + one + ",\"model\":" + textModel() + "}")));
+
+        String two = PureV1Api.grammarToJsonLambda(
+                "|#TDS{\nid, name\n1, a\n}#->extend(~[h: x|1])->from(trades::h2::RT)", false).json();
+        assertEquals("{\"columns\":[\"id\",\"name\",\"h\"],\"rows\":[{\"values\":[1,\"a\",1]}]}",
+                resultOf(execute("{\"function\":" + two + ",\"model\":" + textModel() + "}")));
+    }
+
+    /** An execute's {@code result}, compact; its answer must be a 200. */
+    private static String resultOf(PureV1Api.Answer a) {
+        assertEquals(200, a.status(), a.json());
+        return Json.toCompact(Json.parseObject(a.json()).getObj("result"));
+    }
+
     @Test
     void e8_execute_aParameterWithNoValue_isRefused_aStrayValueIgnored_asTheEngineAnswers() {
         String lam = PureV1Api.grammarToJsonLambda("{region:String[1]|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#"

@@ -61,7 +61,7 @@ class ValueSpecEqualityTest {
         AppliedFunction call = new AppliedFunction("f", java.util.List.of(new CInteger(1L)));
         LambdaFunction fn = new LambdaFunction(java.util.List.of(), java.util.List.of(new CInteger(1L)));
         java.util.List<java.util.function.Function<SourceInfo, ValueSpecification>> nodes = java.util.List.of(
-                p -> TdsLiteral.of("a\n1", "#TDS{a\n1}#", p),
+                p -> TdsLiteral.of("a\n1", p),
                 p -> new SqlIsland("select 1", p),
                 p -> new GqlIsland(new Gql.Document(java.util.List.of()), p),
                 p -> new CByteArray("YQ==", p),

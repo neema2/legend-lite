@@ -582,12 +582,20 @@ public final class Lexer {
 
     private void scanHash() {
         int start = pos;
-        // #TDS...#
+        // #TDS...#, or the engine's braced #TDS{...}#: that one ends at its first "}#", a '#' inside
+        // its table being a value's (the Compiler Rewrite line's review, 2026-10-13)
         if (pos + 3 < length && source.startsWith("TDS", pos + 1)) {
+            boolean braced = pos + 4 < length && source.charAt(pos + 4) == '{';
             pos++;
-            while (pos < length && source.charAt(pos) != '#'
-                    && !atSectionBoundary(pos)) pos++;
-            if (pos < length && source.charAt(pos) == '#') pos++;
+            if (braced) {
+                while (pos < length && !source.startsWith("}#", pos)
+                        && !atSectionBoundary(pos)) pos++;
+                if (pos < length && source.startsWith("}#", pos)) pos += 2;
+            } else {
+                while (pos < length && source.charAt(pos) != '#'
+                        && !atSectionBoundary(pos)) pos++;
+                if (pos < length && source.charAt(pos) == '#') pos++;
+            }
             emit(TokenType.TDS_LITERAL, start, pos); return;
         }
         // #/Type/prop...# navigation path — one token; the parser desugars

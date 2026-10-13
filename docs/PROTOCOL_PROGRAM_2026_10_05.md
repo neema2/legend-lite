@@ -524,6 +524,16 @@ not be written back, so it is refused.
    engine's JSON has no place for most of them, so an include's several substitutions and an Operation mapping's
    `extends` cannot survive the hop as step 2's text above says (one substitution, and an ordinary class mapping's
    `extends`, do); which rule lite follows is the user's to choose.
+
+   **Found and fixed on `leg8-tds` (2026-10-13, reported by the Python / DataCube line):** a braced `#TDS{...}#`
+   literal, the engine's own form, read its braces as the header and a row (a column `{`; with two columns, an
+   IndexOutOfBoundsException in the lowering), through the text door and the JSON door alike: the compiler stripped
+   `#TDS` and `#` only. Now the literal carries the table between its delimiters in either form, from either door
+   (`TdsLiteral.of`), and the compiler reads no delimiter. Two more come with it: a brace-less literal composed back
+   to text is the engine's `#TDS{...}#` (it was `#TDS{#TDS ... #}#`, its tdsString the whole token), and the lexer
+   ends a braced literal at its `}#`, so a `#` in a value is the value's (it cut the literal there); one with no
+   `}#` is refused ("unterminated #TDS{ literal"). Lands with step
+   2b; the compiler's part approved by the Compiler Rewrite line (2026-10-13).
 9. **Imports and comments through the round trip** (added 2026-10-10, the user: "add a leg to design/implement
    imports and comments too so we don't forget"). Today a model's text keeps both only because lite's own SDLC
    stores the text itself (`docs/STUDIO_DESIGN_2026_10_02.md` S13, S5), and imports are refused at save, as

@@ -14,8 +14,8 @@ import java.util.List;
 
 /**
  * The inline TDS literal {@code #TDS col:Type, … / rows #} (engine
- * {@code TdsChecker}). The parser hands the verbatim grid as
- * {@code tds('TDS', raw)}; the call is validated against the registered
+ * {@code TdsChecker}). The parser hands the grid between the literal's delimiters as
+ * {@code tds('TDS', table)}; the call is validated against the registered
  * {@code tds(String[1], String[1])} signature (never bypassed), then the header
  * is parsed into the REAL column schema &mdash; explicit {@code col:Type}
  * annotations, or inference from the first data row for unannotated columns
@@ -39,14 +39,9 @@ final class TdsChecker {
                 t.model().findFunction(com.legend.builtin.Pure.Lite.TDS),
                 List.of(ExprType.one(Type.Primitive.STRING), ExprType.one(Type.Primitive.STRING)));
 
-        String content = rawLit.value().strip();
-        if (content.startsWith("#TDS")) {
-            content = content.substring(4);
-        }
-        if (content.endsWith("#")) {
-            content = content.substring(0, content.length() - 1);
-        }
-        String[] lines = content.strip().split("\n");
+        // the table alone: the parser and the model reader hand the text between the literal's delimiters, in either
+        // spelling (TdsLiteral.of), so no delimiter is read here
+        String[] lines = rawLit.value().strip().split("\n");
         if (lines.length == 0 || lines[0].strip().isEmpty()) {
             throw new TypeInferenceException("a TDS literal needs a header row of column names");
         }

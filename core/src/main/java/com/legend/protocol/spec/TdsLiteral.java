@@ -36,13 +36,15 @@ public record TdsLiteral(String tdsString, AppliedFunction desugared,
     /**
      * The literal and its desugaring -- an application of the lite-internal {@code tds} native,
      * spelled by its EXACT FQN (the bare name {@code tds} is not user-resolvable, so this is the only
-     * route to the native) over the {@code "TDS"} discriminator and the literal's verbatim text. ONE
-     * owner of the spelling for the parser (text) and the model reader (JSON, whose literal text is
-     * the brace form around {@code tdsString}).
+     * route to the native) over the {@code "TDS"} discriminator and the table: {@code tdsString},
+     * the text between the literal's delimiters, in either spelling ({@code #TDS{...}#}, the
+     * engine's; {@code #TDS ... #}, legend-pure's). ONE owner for the parser (text) and the model
+     * reader (JSON), so the compiler reads a table and never a delimiter (2026-10-13: it stripped
+     * {@code #TDS} and {@code #} only, and read the engine's braces as the header and a row).
      */
-    public static TdsLiteral of(String tdsString, String literalText,
+    public static TdsLiteral of(String tdsString,
             @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
         return new TdsLiteral(tdsString, new AppliedFunction("meta::legend::lite::tds",
-                java.util.List.of(new CString("TDS"), new CString(literalText))), pos);
+                java.util.List.of(new CString("TDS"), new CString(tdsString))), pos);
     }
 }
