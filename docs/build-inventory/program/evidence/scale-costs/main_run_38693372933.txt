@@ -69,9 +69,9 @@ windows  487a0f460 (run 38689728911, this landing's branch run)
             4.9 s  RelationalMappingCompositionTest$AssociationToOne
 
 Reading: on Linux the suite's time FELL with this landing (153.8 s to 106.7 s); nothing of this landing
-slows it. On Windows the whole suite runs two to three times slower in the lane than alone (the tenth line's
+slows it. On Windows the whole suite runs two to three times slower in the lane than alone (the seventh line's
 diagnosis, PR #44: alone on the runner 64 s, CPU-bound, no I/O cost; in the lane 277 s beside the other 42
-tests' JVMs), a margin problem of the lane that predates this landing. The remedy is the tenth line's to
-land (PR #44's findings) and the Bazel program's to review; the Phase 8 brief already listed the target
+tests' JVMs), a margin problem of the lane that predates this landing. The remedy is the seventh line's to
+land (PR #46) and the Bazel program's to review; the Phase 8 brief already listed the target
 "at 173 s on Windows (sharding; third order)".
 

@@ -9812,9 +9812,9 @@ two jobs, neither this landing's: the macOS datacube job's runner was lost by Gi
 lost communication with the server"; no log; the same SHA green on the branch run), and the Windows core job timed out
 `//core:core_tests_integration` at 300 s, as main's run 38667214956 on 10bc6fbe2 (PR #41, before this landing) had at
 305.8 s; on Linux the suite's summed test time FELL with this landing, 153.8 s to 106.7 s, and on Windows the lane runs
-it two to three times slower than it runs alone (the tenth line's diagnosis, PR #44: CPU contention beside the other 42
-tests' JVMs, no I/O cost), a margin of the lane that predates this landing, which the tenth line is fixing and the Bazel
-program reviews (the Phase 8 brief's "sharding; third order" item); the reading, with five runs' class times:
+it two to three times slower than it runs alone (the seventh line's diagnosis, PR #44: CPU contention beside the other
+42 tests' JVMs, no I/O cost), a margin of the lane that predates this landing, which the seventh line is fixing and the
+Bazel program reviews (the Phase 8 brief's "sharding; third order" item); the reading, with five runs' class times:
 `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`.
 
 ## 2026-10-15 — CI's test JVMs on the C1 JIT only: main's Windows core timeout (the seventh line)

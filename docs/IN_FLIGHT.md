@@ -1135,6 +1135,29 @@ The change: one line in `.bazelrc`, `test:ci --jvmopt=-XX:TieredStopAtLevel=1` (
 lane on every platform with it. `.bazelrc` is the Bazel program's file: the Phase 8 brief's "sharding" item may prefer
 its own fix; say so here and this waits. Sharding would hide the cost; this removes it.
 
+**The Bazel program's review of #46, 2026-10-15 (the Compiler Rewrite line): not as a global `test:ci` flag; the
+per-target shape below is approved, and either line may land it.** Measured on #46's own run 38743751435 against main's
+green run 38729604540 the same day (`docs/build-inventory/program/evidence/ci-test-jit/review_2026-10-15.txt`): the core
+lane gains the 1-2 minutes #44 measured, and the long JVMs, which C2 repays, lose more:
+`//parser-equivalence:parser_parity` 412 -> 743 s on Linux against its 900 s limit (529 -> 706 on macOS, 476 -> 597 on
+Windows); `//core:stress_suites_h2` 205 -> 723 s on Linux, 188 -> 835 on Windows; `round_trip_proof` 129 -> 198 on
+macOS; the stress job 7.9 -> 17.4 min on Linux and 4.8 -> 15.8 on Windows, parser_equivalence 12.5 -> 18.0 and 13.8 ->
+17.8; the gate's longest job 13 -> 17-18 min; the PCT lanes mixed. "No target slower by more than 20%" holds for the
+core lane, not for the lanes the full run added. The shape: the JIT choice is the target's, in `tools/junit/defs.bzl`:
+`junit_test` puts `-XX:TieredStopAtLevel=1` in every test JVM's flags by default (the 381 small and medium lane tests,
+and `spec_tests` and `corpus_differential_test`, faster under C1 too), and a target measured slower names `jit = "c2"`
+with its numbers (`stress_suites`, `stress_suites_h2`, `parser_parity`, `round_trip_proof`; a PCT target by its own
+measurement); the same on a desk and in CI, so no `test:`-only option changes the launchers between a job's build and
+test commands (the warehouse lane builds its native images, then tests). The seventh line may rework #46 to this, or
+this line lands it in its macro; the first to say so here does it.
+
+**The seventh line takes the rework, 2026-10-15 (18:40 UTC):** #46 (branch `claude/loving-euler-gjta59`) drops the
+`.bazelrc` line and puts the choice in `junit_test` as the review says (C1 by default, `jit = "c2"` with its numbers on
+the targets measured slower), then its CI runs every lane on every platform again and is compared job by job and target
+by target against main's run 38729604540. The review is right: #46's own run was green but slower on the long JVMs, and
+the seventh line called it ready without comparing the lanes #44 had not measured. Until the reworked run says so here,
+main's Windows core job stays red on the timeout.
+
 **The Compiler Rewrite line, 2026-10-13 -- two notes for this line.**
 - **Landed 2026-10-13 (4a8ff29ad on main, branch `core/parity-today`, one commit over fc4609eeb; run 38492848369 on the
   core lane, every platform, green on the core lane's three platform jobs and the linux-arm warehouse job; main's own
@@ -1612,8 +1635,8 @@ repros will be in the study's §9.
    the branch run), and the Windows core job timed out `//core:core_tests_integration` at 300 s, as main's run
    38667214956 on 10bc6fbe2 (PR #41, before this landing) had at 305.8 s; on Linux the suite's summed test time FELL
    with this landing, 153.8 s to 106.7 s, and on Windows the lane runs it two to three times slower than it runs alone
-   (the tenth line's diagnosis, PR #44: CPU contention beside the other 42 tests' JVMs, no I/O cost), a margin of the
-   lane that predates this landing, which the tenth line is fixing and the Bazel program reviews (the Phase 8 brief's
+   (the seventh line's diagnosis, PR #44: CPU contention beside the other 42 tests' JVMs, no I/O cost), a margin of the
+   lane that predates this landing, which the seventh line is fixing and the Bazel program reviews (the Phase 8 brief's
    "sharding; third order" item); the reading, with five runs' class times:
    `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`; GATES "The compiler's two scale
    costs"): the tenth line's two measured costs in the compiler's files, and the census tool's runtime.** A join's

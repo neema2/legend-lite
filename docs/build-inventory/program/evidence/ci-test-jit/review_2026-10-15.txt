@@ -1,0 +1,132 @@
+The Bazel program's review of PR #46 (test:ci --jvmopt=-XX:TieredStopAtLevel=1), 2026-10-15
+============================================================================================
+
+Compared: main's green run 38729604540 (15846d2ca, the C2 default, 11:45 UTC) against PR #46's run
+38743751435 (4573e9347 = that main plus the flag and its docs, 13:33 UTC), every lane on every platform, the
+same day. Job durations from the GitHub API (started to completed); a target's time from its test.xml in the
+lane's uploaded logs (bazel-testlogs/<target>/test.xml, the testsuite's time). Lane membership and sizes from
+`bazel query` on main.
+
+1. Every job's duration, minutes (the product job builds only: test:ci does not reach it; its Windows spread shows
+   the runners' own variance)
+
+   job                                     main C2   #46 C1   delta
+   linux / checks (linux)                      8.6      8.4    -0.2
+   linux / core (linux)                        7.9      8.8    +1.0
+   linux / corpus_duckdb (linux)               4.9      5.6    +0.7
+   linux / corpus_h2 (linux)                   4.7      4.8    +0.1
+   linux / datacube (linux)                   13.2     12.7    -0.5
+   linux / parser_equivalence (linux)         12.5     18.0    +5.5
+   linux / pct_channel_b (linux)               5.7      4.6    -1.1
+   linux / pct_duckdb (linux)                  6.8      7.1    +0.3
+   linux / pct_h2 (linux)                      5.6      6.0    +0.4
+   linux / pct_postgres (linux)                7.0      8.0    +1.0
+   linux / product (linux)                    11.2     10.6    -0.7
+   linux / sdlc (linux)                        5.2      5.9    +0.8
+   linux / stress (linux)                      7.9     17.4    +9.5
+   linux / ui (linux)                          7.2      7.7    +0.5
+   linux / warehouse (linux)                   8.0      7.7    -0.3
+   linux-arm / warehouse (linux-arm)           6.2      6.4    +0.2
+   macos / checks (macos)                      5.2      6.4    +1.1
+   macos / core (macos)                        5.9      5.9    -0.0
+   macos / corpus_duckdb (macos)               1.9      1.2    -0.6
+   macos / corpus_h2 (macos)                   1.8      1.8    +0.0
+   macos / datacube (macos)                   10.9      8.9    -2.0
+   macos / parser_equivalence (macos)         13.8     17.8    +4.0
+   macos / pct_channel_b (macos)               1.9      2.3    +0.4
+   macos / pct_duckdb (macos)                  5.7      6.9    +1.2
+   macos / pct_h2 (macos)                      3.1      3.8    +0.7
+   macos / pct_postgres (macos)                5.5      5.5    -0.1
+   macos / product (macos)                     3.4      3.9    +0.5
+   macos / sdlc (macos)                        2.0      1.7    -0.4
+   macos / stress (macos)                      6.6      8.7    +2.1
+   macos / ui (macos)                          2.0      1.8    -0.1
+   macos / warehouse (macos)                   7.7      7.7    +0.0
+   windows / checks (windows)                  8.6      7.6    -0.9
+   windows / core (windows)                    9.2      7.9    -1.3
+   windows / corpus_duckdb (windows)           2.5      2.5    +0.0
+   windows / corpus_h2 (windows)               2.5      2.4    -0.0
+   windows / datacube (windows)                9.2      9.0    -0.2
+   windows / parser_equivalence (windows)     12.4     15.5    +3.1
+   windows / pct_channel_b (windows)           6.1      8.7    +2.6
+   windows / pct_duckdb (windows)              5.0      6.7    +1.7
+   windows / pct_h2 (windows)                  2.4      3.8    +1.4
+   windows / pct_postgres (windows)            5.2      6.0    +0.9
+   windows / product (windows)                 6.8     10.9    +4.1
+   windows / sdlc (windows)                    1.9      2.2    +0.4
+   windows / stress (windows)                  4.8     15.8   +11.0
+   windows / ui (windows)                      3.8      3.5    -0.2
+   windows / warehouse (windows)              10.3     13.2    +2.9
+
+2. The targets of the lanes that grew, seconds (size: the target's Bazel size; its limit: medium 300 s, large 900 s,
+   enormous 3,600 s)
+
+   linux-lane-stress
+   target                                        size  main C2   #46 C1  ratio
+   core/stress_suites_h2                     enormous    205.5    722.6   3.52
+   core/stress_suites                        enormous     46.2     53.8   1.17
+
+   windows-lane-stress
+   target                                        size  main C2   #46 C1  ratio
+   core/stress_suites_h2                     enormous    188.0    834.7   4.44
+   core/stress_suites                        enormous    113.0    246.1   2.18
+
+   linux-lane-parser_equivalence
+   target                                        size  main C2   #46 C1  ratio
+   parser-equivalence/parser_parity             large    411.7    743.1   1.80
+   parser-equivalence/round_trip_proof          large    149.0    190.0   1.27
+   wasm/round_trip_test                         large     50.0     34.0   0.68
+
+   macos-lane-parser_equivalence
+   target                                        size  main C2   #46 C1  ratio
+   parser-equivalence/parser_parity             large    529.0    705.5   1.33
+   parser-equivalence/round_trip_proof          large    128.6    198.4   1.54
+   wasm/round_trip_test                         large     27.0     34.0   1.26
+
+   windows-lane-parser_equivalence
+   target                                        size  main C2   #46 C1  ratio
+   parser-equivalence/parser_parity             large    476.1    597.1   1.25
+   parser-equivalence/round_trip_proof          large    171.0    169.2   0.99
+   wasm/round_trip_test                         large     28.0     22.0   0.79
+
+   windows-lane-pct_duckdb
+   target                                        size  main C2   #46 C1  ratio
+   pct/pct_duckdb_relation                      large     69.2     94.7   1.37
+   pct/pct_duckdb_essential                     large     56.6     51.8   0.91
+   pct/pct_duckdb_standard                      large     47.4     41.0   0.86
+   pct/pct_duckdb_grammar                       large     30.1     36.0   1.20
+   pct/pct_duckdb_unclassified                  large     15.9     16.7   1.05
+   pct/pct_discipline                           large      0.2      0.1   0.55
+
+   windows-lane-pct_channel_b
+   target                                        size  main C2   #46 C1  ratio
+   pct/pct_channel_b_relation                   large     39.3     18.0   0.46
+   pct/pct_channel_b_essential                  large     38.8     23.5   0.61
+   pct/pct_channel_b_standard                   large     29.3     20.9   0.71
+   pct/pct_channel_b_unclassified               large      7.9     11.4   1.44
+   pct/pct_channel_b_grammar                    large      9.1      8.2   0.90
+
+3. Sizes in the lanes (bazel query on main 068685584): 381 tests small or medium, 38 large or enormous. The core
+   lane's large ones are //core:corpus_differential_test and //spec:spec_tests, both FASTER under C1 on PR #44's
+   core-lane measurement (37.9 -> 23.5 s and 66.2 -> 36.0 s on Linux; 26.2 -> 24.1 and 31.1 -> 28.4 on Windows:
+   evidence/ci-test-jit/measurements.txt). The 38 large/enormous: the two stress suites, parser_parity,
+   round_trip_proof, wasm/round_trip_test, the 17 PCT targets (JVMs), and DataCube's verify_* and run_stress_test
+   (browser tests, no JVM).
+
+Reading
+-------
+The flag's gain is the core lane's, as PR #44 measured: its many short-lived JVMs (the 40 targets, all under 300 s)
+spend more CPU in C2 than in their tests. Its cost is the few long JVMs, which C2 repays: with C1 alone
+parser_parity runs 743 s on Linux against its 900 s limit (412 s before; 706 s on macOS from 529; 597 s on Windows
+from 476), stress_suites_h2 723 s on Linux (205) and 835 s on Windows (188), round_trip_proof 198 s on macOS (129);
+the stress job 7.9 -> 17.4 min on Linux and 4.8 -> 15.8 on Windows, parser_equivalence 12.5 -> 18.0 and
+13.8 -> 17.8; the gate's longest job grows from 13 to 17-18 minutes. The PCT lanes are mixed (pct_duckdb_relation
+69 -> 95 s, the channel B targets faster). PR #46's "no target slower by more than 20%" holds for the core lane it
+measured, not for the lanes its own run added.
+
+Verdict: not as a global test:ci flag. The JIT choice is the target's, in tools/junit/defs.bzl: junit_test puts
+-XX:TieredStopAtLevel=1 in every test JVM's flags by default, and a target measured slower names jit = "c2" with
+its numbers (stress_suites, stress_suites_h2, parser_parity, round_trip_proof; a PCT target by its own measurement).
+The same on a desk and in CI: one JVM per target everywhere, and no test:-only option that changes the launchers
+between a job's build and test commands (the warehouse lane builds its native images, then tests).
+
