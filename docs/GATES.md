@@ -9822,7 +9822,8 @@ Bazel program reviews (the Phase 8 brief's "sharding; third order" item); the re
 Announced in `docs/IN_FLIGHT.md` (277be4b); reworked after the Bazel program's review (bdaa2de, taken in f477283).
 Branch `claude/loving-euler-gjta59`, PR #46; the diagnosis is the throwaway draft PR neema2/legend-lite#44, never to be
 merged. Evidence, `docs/build-inventory/program/evidence/ci-test-jit/`: `measurements.txt` (the diagnosis),
-`review_2026-10-15.txt` (the review), `per_target.txt` (every target's time, C2 against C1, every lane and platform).
+`review_2026-10-15.txt` (the review), `per_target.txt` (every target's time, C2 against C1, every lane and platform),
+`per_target_run.txt` (the per-target choice's own run against both).
 
 1. **The failure:** `//core:core_tests_integration` TIMEOUT at 300 s in the Windows core job of main's runs
    38667214956 (10bc6fb, twice) and 38693372933 (487a0f4); 262.6 s on the green run 38729604540 (15846d2).
@@ -9850,4 +9851,10 @@ merged. Evidence, `docs/build-inventory/program/evidence/ci-test-jit/`: `measure
    `guardrails`. The `.bazelrc` line is gone. `core_tests_integration` stays on C1 (263 -> 156 s on Windows; 72 ->
    123 s on Linux, far from its limit). Summed at each target's measured time with the compiler it now names: 6,088 s.
 5. **Judges:** the pull request's CI, every lane on every platform, compared job by job and target by target against
-   main's run 38729604540.
+   main's run 38729604540 (`per_target_run.txt`). Run 38788210946 (b0e07b8): every job green but `linux / core`, which
+   died fetching `junit-jupiter-5.11.3.jar` before any test ran (Maven Central's 403; this PR touches no dependency).
+   `core_tests_integration` on Windows 262.6 s with C2, 155.6 s with C1 everywhere, 106.8 s here. Every target summed
+   (the Linux core lane left out): C2 6,305 s, C1 everywhere 8,198 s, per target 5,748 s; the nine on C2 back near
+   their C2 times on Linux and macOS (`parser_parity` 412 -> 413 s on Linux, 529 -> 428 s on macOS). The test jobs
+   summed: 261.4 min with C2, 305.5 with C1 everywhere, 270.6 here. One run per side: the two Windows stress suites,
+   on C2 in both runs and the same code, took 113 -> 307 s and 188 -> 368 s, the runner's variance alone.
