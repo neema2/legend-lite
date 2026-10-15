@@ -1,0 +1,158 @@
+# CI's test JVMs on the C1 JIT only: the measurements (2026-10-15, the seventh line, draft PR neema2/legend-lite#44)
+
+Runs (gates workflow, draft PR #44, branch claude/diag-windows-core-hang over main 1cb4009):
+  38682504139  the core lane, C2 (the JVM's default), Windows and Linux; each test's wall and CPU logged
+  38685811130  //core:core_tests_integration ALONE (--local_test_jobs=1) on the CI runners, C2 and then C1 only,
+               with a Java Flight Recording and, on Windows, performance counters every second
+  38688819347  the core lane with test:ci --jvmopt=-XX:TieredStopAtLevel=1 (C1 only), Windows and Linux
+Main's failing runs it explains: 38667214956 (10bc6fb, twice) and 38693372933 (487a0f4): the Windows core job's
+//core:core_tests_integration TIMEOUT at 300 s.
+
+## The Windows runner (windows-2022)
+  Name                      : AMD EPYC 9V45 96-Core Processor
+  NumberOfCores             : 2
+  NumberOfLogicalProcessors : 4
+  MaxClockSpeed             : 2596
+  TotalPhysicalMemory : 17174360064
+  FriendlyName                  MediaType BusType         Size
+  ------------                  --------- -------         ----
+  Microsoft NVMe Direct Disk v2 SSD       NVMe    236223201280
+  Virtual_Disk NVME Premium     SSD       NVMe    274877906944
+  DriveLetter FileSystem         Size SizeRemaining
+  ----------- ----------         ---- -------------
+            C NTFS       274284392448   79631314944
+              NTFS          471855104     457297920
+              FAT32          99614720      67964928
+            D NTFS       236205371392  235921518592
+  TEMP=C:\Users\RUNNER~1\AppData\Local\Temp
+  AMServiceEnabled          : True
+  AntivirusEnabled          : True
+  RealTimeProtectionEnabled : False
+  OnAccessProtectionEnabled : False
+  IoavProtectionEnabled     : False
+  BehaviorMonitorEnabled    : False
+  IsTamperProtected         : False
+  C:\
+  D:\
+  Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (High performance)
+
+## core_tests_integration alone on the CI runners (run 38685811130; the runner's [diag] SUMMARY line)
+  windows C2: wall 64.0s |
+              tests: wall 60.2s, test-thread cpu 57.0s | process cpu 114.9s on 4 processors | gc 115 collections 0.5s | jit 45.4s | classes loaded 9695 | peak threads 12 | uptime 64.3s
+  windows C1: wall 59.6s |
+              tests: wall 57.0s, test-thread cpu 54.3s | process cpu 70.7s on 4 processors | gc 200 collections 0.6s | jit 3.1s | classes loaded 9690 | peak threads 12 | uptime 59.8s
+  linux   C2: wall 70.3s |
+              tests: wall 66.4s, test-thread cpu 63.2s | process cpu 143.3s on 4 processors | gc 105 collections 0.5s | jit 63.2s | classes loaded 9711 | peak threads 12 | uptime 70.7s
+  linux   C1: wall 68.0s |
+              tests: wall 65.0s, test-thread cpu 62.6s | process cpu 86.9s on 4 processors | gc 240 collections 0.8s | jit 4.5s | classes loaded 9706 | peak threads 12 | uptime 68.2s
+
+## Windows performance counters, the run alone with C2 (69 one-second samples)
+  Processor(_Total)\% Processor Time            mean    49.179  max    97.806
+  Processor(_Total)\% Privileged Time           mean     4.368  max    31.019
+  PhysicalDisk(_Total)\Disk Reads/sec           mean     3.808  max    61.245
+  PhysicalDisk(_Total)\Disk Writes/sec          mean    49.359  max   463.259
+  PhysicalDisk(_Total)\Avg. Disk sec/Read       mean     0.001  max     0.011
+  PhysicalDisk(_Total)\Avg. Disk sec/Write      mean     0.004  max     0.019
+  PhysicalDisk(_Total)\Current Disk Queue Length mean     0.203  max     6.000
+  Memory\Available MBytes                       mean 11719.841  max 12341.000
+  Process(MsMpEng)\% Processor Time             mean    10.549  max   100.990
+
+## Its Java Flight Recording (Windows, alone, C2): file I/O at every size
+  jdk.FileWrite: 15,043 events, 0.06 s in all, 3.7 MB (the DuckDB and SQLite native libraries unpacked to the
+  test's temp directory, 3.2 MB; the rest stdout and the JUnit XML)
+  jdk.FileRead:   2,229 events, 0.01 s in all, 4.1 MB (jar reads: duckdb_jdbc, sqlite-jdbc, h2, the core jars)
+
+## The core lane, C2 (run 38682504139) against C1 only (run 38688819347): every target's wall, process CPU, JIT
+## (the [diag] SUMMARY of each test target's own JVM; the lane runs about four at once on four vCPUs)
+  windows: 40 targets; lane step 8.4 min -> 6.7 min; every test passed in both
+    sum of walls            988 s ->     613 s
+    sum of process CPU     1160 s ->     605 s
+    sum of JIT time         710 s ->      67 s
+    target                                        wall C2  wall C1   cpu C2   cpu C1   jit C2   jit C1
+    core/core_tests_integration                     277.1    112.7    189.5    116.1     84.4      4.7
+    core/iq_parity_test                              97.0     79.7    105.5     72.6     59.6      3.4
+    core/core_tests_root                             61.4     42.9     85.7     44.5     50.8      4.1
+    core/iq_parity_postgres_test                     51.3     58.8     84.1     55.3     52.9      3.4
+    core/sql_parity_postgres_test                    48.8     35.8     57.8     30.5     39.4      2.8
+    core/sql_parity_test                             42.4     32.4     67.5     34.3     40.7      2.7
+    core/sql_island_postgres_test                    34.7     11.0     16.4      5.8     12.5      1.6
+    spec/spec_tests                                  31.1     28.4     72.4     37.1     41.8      2.6
+    tools/engine-runner/smoke_test                   30.8     18.5      1.5      1.2      0.7      0.3
+    core/core_tests_server                           27.2     12.6     38.3     12.3     30.1      3.0
+    core/corpus_differential_test                    26.2     24.1     46.2     25.7     27.5      2.3
+    core/core_tests_sql                              25.8     11.2     30.3     11.4     21.3      2.0
+    core/core_tests_resolver                         22.8     16.2     39.3     16.5     26.7      2.9
+    core/core_tests_exec                             22.2     11.6     31.6     12.8     22.7      2.3
+    core/core_tests_lowering                         21.1     14.6     35.9     15.6     23.8      2.7
+    core/postgres_arm_test                           19.6      8.6     15.3      6.8     10.2      1.7
+    core/core_tests_compiler                         18.8     14.8     38.3     15.0     27.5      2.6
+    third_party/teavm_classlib/tests                 16.1      8.6     18.2      9.3      9.4      0.6
+    core/core_tests_protocol                         14.7      7.1     23.8      8.5     17.9      2.2
+    core/core_tests_normalizer                       10.8      6.0     16.5      7.1     12.3      1.7
+    core/host_operations_postgres_test                8.7      3.9      2.1      1.3      0.9      0.4
+    core/core_tests_model                             8.0      4.2     12.2      4.7      8.7      1.4
+    core/core_tests_setup                             7.7      4.7     12.2      5.2      8.4      1.2
+    core/duckdb_load_test                             7.7      4.3     10.0      4.3      7.1      1.0
+    core/core_tests_ladder                            6.5      4.0     11.1      4.8      7.3      1.2
+    core/core_tests_test                              5.9      4.1     11.3      5.0      7.9      1.2
+    core/core_tests_platform                          5.4      3.2     10.0      4.4      7.1      1.2
+    core/core_tests_builtin                           4.7      3.1      9.0      3.8      6.6      1.0
+    core/core_tests_testing                           4.5      1.9      4.6      2.7      2.9      0.7
+    core/core_tests_ide                               4.4      2.5      5.8      2.9      3.6      0.7
+    core/core_tests_parser                            4.2      3.7     11.6      5.1      8.2      1.3
+    core/core_tests_architecture                      3.5      3.0      9.0      3.8      6.2      1.0
+    core/core_tests_values                            3.0      1.8      4.6      2.5      2.8      0.6
+    core/core_tests_lineage                           2.6      1.8      5.4      2.7      3.1      0.7
+    core/core_tests_cache                             2.6      2.4      5.2      2.8      3.3      0.7
+    core/core_tests_lexer                             2.4      2.2      5.4      2.7      3.1      0.7
+    core/core_tests_testdatagen                       1.9      1.8      5.0      2.6      3.2      0.7
+    json/tests                                        1.9      2.0      4.8      2.0      3.4      0.8
+    core/iq_syntax_cases_test                         1.8      1.7      5.3      2.1      3.4      0.7
+    core/section_grammar_registry_test                1.1      1.0      1.8      1.3      0.9      0.4
+
+  linux: 40 targets; lane step 9.8 min -> 8.1 min; every test passed in both
+    sum of walls           1039 s ->     570 s
+    sum of process CPU     1035 s ->     565 s
+    sum of JIT time        1483 s ->      94 s
+    target                                        wall C2  wall C1   cpu C2   cpu C1   jit C2   jit C1
+    core/core_tests_integration                     220.2    103.1    193.6    108.9    207.5      6.9
+    core/iq_parity_test                              80.0     51.2     97.7     54.1    126.3      4.8
+    core/iq_parity_postgres_test                     74.3     63.9     76.1     54.8    110.1      5.1
+    core/sql_parity_postgres_test                    68.2     38.8     56.1     34.4     90.6      4.3
+    core/sql_parity_test                             67.4     36.4     62.5     37.7     85.2      4.0
+    core/core_tests_root                             66.3     39.8     70.3     41.3    103.2      5.7
+    spec/spec_tests                                  66.2     36.0     68.2     38.9    103.8      3.4
+    core/corpus_differential_test                    37.9     23.5     39.4     22.6     52.3      3.6
+    core/core_tests_lowering                         28.3     13.7     31.2     13.7     53.8      3.6
+    core/core_tests_resolver                         28.2     15.1     34.9     15.1     58.1      4.2
+    core/core_tests_server                           27.9     11.5     26.6     11.6     51.4      4.3
+    core/core_tests_compiler                         26.5     12.6     31.8     13.2     54.6      3.7
+    core/core_tests_exec                             25.2     10.9     27.1     11.2     48.6      3.3
+    tools/engine-runner/smoke_test                   24.9     12.1      1.3      0.9      1.1      0.4
+    core/core_tests_sql                              18.5      9.8     21.2     10.1     31.6      2.7
+    third_party/teavm_classlib/tests                 16.9     15.7     17.4     14.4     15.3      0.9
+    core/postgres_arm_test                           13.4      6.8     14.5      6.0     25.5      2.3
+    core/core_tests_normalizer                       13.0      5.6     14.2      6.1     26.2      2.3
+    core/core_tests_protocol                         12.9      6.2     18.7      7.3     28.6      3.1
+    core/sql_island_postgres_test                    10.8      5.6      9.4      4.8     11.1      2.0
+    core/core_tests_setup                             9.9      4.5     10.3      4.9     19.0      1.8
+    core/core_tests_test                              9.7      3.9     10.7      4.4     19.4      1.6
+    core/duckdb_load_test                             9.4      3.6      8.5      3.9     13.2      1.5
+    core/core_tests_ladder                            8.8      4.0     10.5      4.4     17.7      1.9
+    core/core_tests_parser                            8.5      3.7      9.1      4.3     18.1      1.9
+    core/core_tests_architecture                      7.4      2.9      8.1      3.4     13.1      1.3
+    core/core_tests_model                             7.2      3.8      8.9      4.1     14.2      1.8
+    core/core_tests_platform                          6.8      3.7      8.2      3.7     14.4      1.6
+    core/core_tests_builtin                           5.8      2.6      6.9      3.1     12.5      1.3
+    core/core_tests_ide                               4.6      2.2      4.6      2.5      5.5      0.8
+    core/core_tests_values                            4.4      1.8      4.5      2.1      7.9      0.8
+    core/core_tests_cache                             4.2      2.1      4.8      2.4      6.9      0.9
+    core/core_tests_testdatagen                       4.1      2.3      4.6      2.3      6.9      0.8
+    core/iq_syntax_cases_test                         3.9      1.3      4.7      1.8      7.8      1.0
+    core/core_tests_testing                           3.8      1.9      3.8      2.2      4.7      0.8
+    core/core_tests_lineage                           3.7      2.2      3.8      2.3      4.8      0.8
+    core/core_tests_lexer                             3.1      1.8      4.4      2.2      6.5      0.9
+    core/host_operations_postgres_test                3.1      1.8      1.7      1.1      1.4      0.5
+    json/tests                                        2.3      1.4      3.3      1.7      2.9      0.9
+    core/section_grammar_registry_test                1.5      0.7      1.6      1.0      1.5      0.4
+

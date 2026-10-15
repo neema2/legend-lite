@@ -9816,3 +9816,29 @@ it two to three times slower than it runs alone (the tenth line's diagnosis, PR 
 tests' JVMs, no I/O cost), a margin of the lane that predates this landing, which the tenth line is fixing and the Bazel
 program reviews (the Phase 8 brief's "sharding; third order" item); the reading, with five runs' class times:
 `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`.
+
+## 2026-10-15 — CI's test JVMs on the C1 JIT only: main's Windows core timeout (the seventh line)
+
+Announced in `docs/IN_FLIGHT.md` (277be4b). Branch `claude/loving-euler-gjta59`, one pull request; the diagnosis is
+the throwaway draft PR neema2/legend-lite#44, never to be merged. Evidence:
+`docs/build-inventory/program/evidence/ci-test-jit/measurements.txt`.
+
+1. **The failure:** `//core:core_tests_integration` TIMEOUT at 300 s in the Windows core job of main's runs
+   38667214956 (10bc6fb, twice) and 38693372933 (487a0f4).
+2. **The diagnosis, on the CI runners themselves** (each test's wall and CPU logged by the runner, a Java Flight
+   Recording, Windows performance counters):
+   - **Alone the target is fast and CPU-bound on both platforms:** 64 s on Windows, 70 s on Linux; its test thread on
+     the CPU 57 of 60 s; file I/O 0.07 s over 17,000 events; disk latency 1-4 ms; kernel time 4%; Defender's
+     real-time scanning already off on the runners. A run with the limit raised finished at 262 s, no test over 4 s:
+     no hang. PR #41's code changed neither the target's time nor the stress suites' (locally, before and after).
+   - **In the core lane it takes 220-277 s:** about four test JVMs share the runner's four vCPUs (two cores with
+     hyperthreading on the Windows runner measured), and each spends nearly as much CPU in the C2 compiler as in its
+     tests: the lane's 40 targets, 1,160 s of process CPU on Windows with 710 s of JIT time, 1,035 s and 1,483 s on
+     Linux. The lane has grown with each landing; Windows' slower runners crossed 300 s first.
+3. **The change:** `.bazelrc`, `test:ci --jvmopt=-XX:TieredStopAtLevel=1`: CI's test JVMs compile with C1 alone, a
+   desk keeps C2.
+4. **Measured with it** (run 38688819347, the core lane on Windows and Linux, every test passing): the target 277 ->
+   113 s on Windows, 220 -> 103 s on Linux; the lane's process CPU 1,160 -> 605 s and 1,035 -> 565 s; its JIT time
+   710 -> 67 s and 1,483 -> 94 s; the lane step 8.4 -> 6.7 min and 9.8 -> 8.1 min; no target slower by more than 20%.
+   Alone, C1 gave the same wall (64 -> 60 s, 70 -> 68 s) on 40% less process CPU.
+5. **Judges:** the pull request's CI, every lane on every platform with the flag.
