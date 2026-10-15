@@ -204,6 +204,9 @@ junit_test(
     name = "tests",
     memory_mb = 768,
     size = "medium",
+    # C2 (tools/junit/defs.bzl's jit; docs/build-inventory/program/evidence/ci-test-jit/per_target.txt): with C1,
+    # 21 -> 43 s on Linux, 10 -> 35 s on Linux arm64, 9 -> 30 s on macOS, 19 -> 67 s on Windows
+    jit = "c2",
     data = [
         ":arrow_matches_json",
         ":arrow_matches_json_executable",

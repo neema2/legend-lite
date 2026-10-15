@@ -9817,28 +9817,37 @@ it two to three times slower than it runs alone (the seventh line's diagnosis, P
 Bazel program reviews (the Phase 8 brief's "sharding; third order" item); the reading, with five runs' class times:
 `docs/build-inventory/program/evidence/scale-costs/main_run_38693372933.txt`.
 
-## 2026-10-15 — CI's test JVMs on the C1 JIT only: main's Windows core timeout (the seventh line)
+## 2026-10-15 — The JIT choice per test target: main's Windows core timeout (the seventh line)
 
-Announced in `docs/IN_FLIGHT.md` (277be4b). Branch `claude/loving-euler-gjta59`, one pull request; the diagnosis is
-the throwaway draft PR neema2/legend-lite#44, never to be merged. Evidence:
-`docs/build-inventory/program/evidence/ci-test-jit/measurements.txt`.
+Announced in `docs/IN_FLIGHT.md` (277be4b); reworked after the Bazel program's review (bdaa2de, taken in f477283).
+Branch `claude/loving-euler-gjta59`, PR #46; the diagnosis is the throwaway draft PR neema2/legend-lite#44, never to be
+merged. Evidence, `docs/build-inventory/program/evidence/ci-test-jit/`: `measurements.txt` (the diagnosis),
+`review_2026-10-15.txt` (the review), `per_target.txt` (every target's time, C2 against C1, every lane and platform).
 
 1. **The failure:** `//core:core_tests_integration` TIMEOUT at 300 s in the Windows core job of main's runs
-   38667214956 (10bc6fb, twice) and 38693372933 (487a0f4).
+   38667214956 (10bc6fb, twice) and 38693372933 (487a0f4); 262.6 s on the green run 38729604540 (15846d2).
 2. **The diagnosis, on the CI runners themselves** (each test's wall and CPU logged by the runner, a Java Flight
    Recording, Windows performance counters):
    - **Alone the target is fast and CPU-bound on both platforms:** 64 s on Windows, 70 s on Linux; its test thread on
      the CPU 57 of 60 s; file I/O 0.07 s over 17,000 events; disk latency 1-4 ms; kernel time 4%; Defender's
      real-time scanning already off on the runners. A run with the limit raised finished at 262 s, no test over 4 s:
-     no hang. PR #41's code changed neither the target's time nor the stress suites' (locally, before and after).
-   - **In the core lane it takes 220-277 s:** about four test JVMs share the runner's four vCPUs (two cores with
+     no hang.
+   - **In the core lane it took 220-277 s:** about four test JVMs share the runner's four vCPUs (two cores with
      hyperthreading on the Windows runner measured), and each spends nearly as much CPU in the C2 compiler as in its
      tests: the lane's 40 targets, 1,160 s of process CPU on Windows with 710 s of JIT time, 1,035 s and 1,483 s on
-     Linux. The lane has grown with each landing; Windows' slower runners crossed 300 s first.
-3. **The change:** `.bazelrc`, `test:ci --jvmopt=-XX:TieredStopAtLevel=1`: CI's test JVMs compile with C1 alone, a
-   desk keeps C2.
-4. **Measured with it** (run 38688819347, the core lane on Windows and Linux, every test passing): the target 277 ->
-   113 s on Windows, 220 -> 103 s on Linux; the lane's process CPU 1,160 -> 605 s and 1,035 -> 565 s; its JIT time
-   710 -> 67 s and 1,483 -> 94 s; the lane step 8.4 -> 6.7 min and 9.8 -> 8.1 min; no target slower by more than 20%.
-   Alone, C1 gave the same wall (64 -> 60 s, 70 -> 68 s) on 40% less process CPU.
-5. **Judges:** the pull request's CI, every lane on every platform with the flag.
+     Linux.
+3. **The first change and its review:** `test:ci --jvmopt=-XX:TieredStopAtLevel=1`, every CI test JVM on C1. On the
+   core lane (run 38688819347) it held: the target 277 -> 113 s on Windows, the lane's JIT time 710 -> 67 s, no target
+   slower by more than 20%. On every lane (PR #46's run 38743751435 against main's 38729604540) it did not: the long
+   JVMs, which C2 repays, ran slower, `stress_suites_h2` 205 -> 723 s on Linux and 188 -> 835 s on Windows,
+   `parser_parity` 412 -> 743 s on Linux against its 900 s limit; summed over every target and platform, C2 6,830 s,
+   C1 8,701 s. The seventh line called the PR ready on a green run without that comparison; the review made it.
+4. **The change:** the choice is the target's, the same on a desk and in CI. `junit_test` (`tools/junit/defs.bzl`)
+   takes `jit`: `"c1"`, the default, adds `-XX:TieredStopAtLevel=1` to the JVM's flags; `"c2"` keeps the full
+   compiler. A `jvm_flags` JIT flag fails the macro. The rule for `"c2"`: C1 made the target more than 30 s slower
+   summed over its platforms. Nine targets, each with its numbers beside it: `stress_suites_h2`, `parser_parity`,
+   `stress_suites`, `warehouse:tests`, `pct_postgres_relation`, `round_trip_proof`, `pct_h2`, `pct_duckdb_relation`,
+   `guardrails`. The `.bazelrc` line is gone. `core_tests_integration` stays on C1 (263 -> 156 s on Windows; 72 ->
+   123 s on Linux, far from its limit). Summed at each target's measured time with the compiler it now names: 6,088 s.
+5. **Judges:** the pull request's CI, every lane on every platform, compared job by job and target by target against
+   main's run 38729604540.

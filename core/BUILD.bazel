@@ -856,6 +856,9 @@ junit_test(
     name = "guardrails",
     memory_mb = 1280,
     size = "medium",
+    # C2 (tools/junit/defs.bzl's jit; docs/build-inventory/program/evidence/ci-test-jit/per_target.txt): with C1,
+    # 42 -> 90 s on Windows, 20 -> 49 s on macOS, 78 -> 39 s on Linux
+    jit = "c2",
     # exactly what the guards read (P3-05, A11): the declared source list (its files ride in its runfiles), the two
     # single files, and the jar lists
     data = [
@@ -972,8 +975,8 @@ junit_test(
     name = "stress_suites",
     memory_mb = 768,
     size = "enormous",
-    # C2 (tools/junit/defs.bzl's jit): with C1, 113 -> 246 s on Windows and 46 -> 54 s on Linux (2026-10-15, main's run
-    # 38729604540 against PR #46's 38743751435; docs/build-inventory/program/evidence/ci-test-jit/review_2026-10-15.txt)
+    # C2 (tools/junit/defs.bzl's jit; docs/build-inventory/program/evidence/ci-test-jit/per_target.txt): with C1,
+    # 113 -> 246 s on Windows, 46 -> 54 s on Linux
     jit = "c2",
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
     runtime_deps = [
@@ -989,8 +992,8 @@ junit_test(
     # live peak 232 MB, 692 MB before a collection (measured 2026-10-05 at -Xmx1024m): stress_suites' 768 holds it
     memory_mb = 768,
     size = "enormous",
-    # C2 (tools/junit/defs.bzl's jit): with C1, 205 -> 723 s on Linux and 188 -> 835 s on Windows (2026-10-15, main's run
-    # 38729604540 against PR #46's 38743751435; docs/build-inventory/program/evidence/ci-test-jit/review_2026-10-15.txt)
+    # C2 (tools/junit/defs.bzl's jit; docs/build-inventory/program/evidence/ci-test-jit/per_target.txt): with C1,
+    # 205 -> 723 s on Linux, 262 -> 422 s on macOS, 188 -> 835 s on Windows
     jit = "c2",
     select = ["--select-class=com.legend.integration.StressServiceSuitesH2Test"],
     runtime_deps = [

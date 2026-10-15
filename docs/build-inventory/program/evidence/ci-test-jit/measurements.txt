@@ -1,5 +1,9 @@
 # CI's test JVMs on the C1 JIT only: the measurements (2026-10-15, the seventh line, draft PR neema2/legend-lite#44)
 
+(Read with review_2026-10-15.txt and per_target.txt beside it: these runs measured the core lane alone, where C1 made
+no target slower by more than 20%. PR #46's own run of every lane showed the long JVMs slower with C1, so the choice
+became the target's, C1 by default, C2 where measured slower: tools/junit/defs.bzl's `jit`.)
+
 Runs (gates workflow, draft PR #44, branch claude/diag-windows-core-hang over main 1cb4009):
   38682504139  the core lane, C2 (the JVM's default), Windows and Linux; each test's wall and CPU logged
   38685811130  //core:core_tests_integration ALONE (--local_test_jobs=1) on the CI runners, C2 and then C1 only,
