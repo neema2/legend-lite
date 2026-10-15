@@ -15,7 +15,16 @@ file) with the same settings, so no target sets them on its own:
     each JVM may actually use, and CI and the desk run the same command line (and
     share cache keys). Set from a measured peak plus headroom: each run prints its
     live heap ("[bazel] heap: live peak ..."). The rule: the live peak plus half again, at least
-    512 MB, rounded up to 256 MB; a lane sized otherwise says why beside it.
+    512 MB, rounded up to 256 MB; a lane sized otherwise says why beside it;
+  * ONE choice of JIT compiler, `jit` (2026-10-15, PR #46; the measurements:
+    docs/build-inventory/program/evidence/ci-test-jit/): "c1", the default, stops the JVM's
+    tiered compilation at C1 (-XX:TieredStopAtLevel=1). A test JVM is mostly short-lived, and
+    C2's compiles cost it more CPU than they repay: the core lane, about four JVMs on a CI
+    runner's four vCPUs, spent 710 s of its 1,160 s of process CPU in the JIT on Windows (67 of
+    605 s with C1), and //core:core_tests_integration took 277 s there against its 300 s limit
+    (113 s with C1). "c2" keeps the full tiered compiler, for a long-running JVM that C2 repays;
+    a target names it beside its measurement. The same on a desk and in CI, so the launcher a
+    job builds is the one it tests.
 
 `select` is selectors in the JUnit console launcher's vocabulary, e.g.
 ["--select-package=com.legend"] or ["--select-class=com.legend.rcorpus.MinimalCorpusTest"];
@@ -38,6 +47,7 @@ def junit_test(
         runtime_deps = [],
         size = "large",
         tags = [],
+        jit = "c1",
         **kwargs):
     check_pool_use(name, deps, runtime_deps, data)  # the package may use each Maven pool named (tools/deps/pools.bzl)
     args = select + ["--exclude-tag=" + t for t in exclude_tags] + ["--fail-if-no-tests"]
@@ -47,13 +57,17 @@ def junit_test(
     for flag in jvm_flags:
         if flag.startswith("-Xmx"):
             fail("%s: the heap is memory_mb, not a jvm_flags -Xmx (one number for the JVM and the scheduler)" % name)
+        if flag.startswith("-XX:TieredStopAtLevel") or flag.startswith("-XX:-TieredCompilation"):
+            fail("%s: the JIT is jit = \"c1\" or \"c2\", not a jvm_flags %s" % (name, flag))
+    if jit not in ("c1", "c2"):
+        fail("%s: jit is \"c1\" (the default) or \"c2\", not %r" % (name, jit))
     flags = [
         "-Duser.timezone=GMT",
         "-Duser.language=en",
         "-Duser.country=US",
         "-Dfile.encoding=UTF-8",
         "-Xmx%dm" % memory_mb,
-    ] + jvm_flags
+    ] + (["-XX:TieredStopAtLevel=1"] if jit == "c1" else []) + jvm_flags
     inputs = list(data)
     if upstream:
         # each tree by the runfiles path of its root's pom.xml; Upstream resolves it through the runfiles

@@ -972,6 +972,9 @@ junit_test(
     name = "stress_suites",
     memory_mb = 768,
     size = "enormous",
+    # C2 (tools/junit/defs.bzl's jit): with C1, 113 -> 246 s on Windows and 46 -> 54 s on Linux (2026-10-15, main's run
+    # 38729604540 against PR #46's 38743751435; docs/build-inventory/program/evidence/ci-test-jit/review_2026-10-15.txt)
+    jit = "c2",
     select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
     runtime_deps = [
         ":core_tests_lib",
@@ -986,6 +989,9 @@ junit_test(
     # live peak 232 MB, 692 MB before a collection (measured 2026-10-05 at -Xmx1024m): stress_suites' 768 holds it
     memory_mb = 768,
     size = "enormous",
+    # C2 (tools/junit/defs.bzl's jit): with C1, 205 -> 723 s on Linux and 188 -> 835 s on Windows (2026-10-15, main's run
+    # 38729604540 against PR #46's 38743751435; docs/build-inventory/program/evidence/ci-test-jit/review_2026-10-15.txt)
+    jit = "c2",
     select = ["--select-class=com.legend.integration.StressServiceSuitesH2Test"],
     runtime_deps = [
         ":core_tests_lib",

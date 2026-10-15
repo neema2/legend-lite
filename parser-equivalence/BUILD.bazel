@@ -285,6 +285,10 @@ _OWN_TARGETS = [
 junit_test(
     name = "parser_parity",
     memory_mb = 2816,
+    # C2 (tools/junit/defs.bzl's jit): with C1, 412 -> 743 s on Linux against the 900 s limit, 529 -> 706 s on macOS,
+    # 476 -> 597 s on Windows (2026-10-15, main's run 38729604540 against PR #46's 38743751435;
+    # docs/build-inventory/program/evidence/ci-test-jit/review_2026-10-15.txt)
+    jit = "c2",
     data = _INPUTS + _FILE_DATA + [
         ":engine_jars",
         ":parity_sources",
@@ -307,6 +311,9 @@ junit_test(
 junit_test(
     name = "round_trip_proof",
     memory_mb = 2816,
+    # C2 (tools/junit/defs.bzl's jit): with C1, 149 -> 190 s on Linux, 129 -> 198 s on macOS (2026-10-15, main's run
+    # 38729604540 against PR #46's 38743751435; docs/build-inventory/program/evidence/ci-test-jit/review_2026-10-15.txt)
+    jit = "c2",
     # what it reads: the corpus (the upstream trees, `upstream`; the fixture snapshot, held to the oracle pins) and the
     # projects
     data = [

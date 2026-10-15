@@ -49,13 +49,6 @@ test:ci --test_output=errors --test_summary=terse
 # with its last result, so a push would get no verdict of its own and a flaky test that passed once would stay passed.
 # The cache's gain is the build: the native image, the planner, the bundles.
 test:ci --nocache_test_results
-# CI's test JVMs compile with C1 alone (2026-10-15, the seventh line's measurement on the CI runners, draft PR #44;
-# docs/build-inventory/program/evidence/ci-test-jit/measurements.txt): a lane runs about four test JVMs on the runner's
-# four vCPUs, and each spent nearly as much CPU in C2 as in its tests (the core lane: 1,160 s of process CPU on Windows,
-# 710 s of it JIT), so //core:core_tests_integration, 64 s alone, took 277 s in the lane and timed out on Windows.
-# With C1 alone: 113 s in the lane, the lane's JIT time 710 -> 67 s, no test slower by more than 20%. A test JVM is
-# short-lived: C2's code arrives too late to repay its compile. A desk keeps C2 (this is the ci config).
-test:ci --jvmopt=-XX:TieredStopAtLevel=1
 # CI never updates a lock file: MODULE.bazel.lock must already match MODULE.bazel (and each jar
 # pool's maven_*_install.json must match its artifacts: fail_if_repin_required in MODULE.bazel).
 # A dependency edit without its lock fails here instead of resolving silently.
