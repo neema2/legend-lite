@@ -1,6 +1,11 @@
 # IDE
+
+# IntelliJ and its Bazel plugin
 .idea/
 *.iml
+.bazelbsp/
+
+# VS Code
 .vscode/
 
 # OS

@@ -12,5 +12,9 @@ query/node_modules
 #   .git: git's own store (a directory in a clone, a file in a worktree); its files churn with every commit in any
 #     worktree, and a glob over it would make the guards' inputs (//:all_files) flake (Bazel workplan P6-00).
 #   .claude: agent worktrees and settings in the main checkout; their BUILD files are other checkouts' packages.
+#   .idea: IntelliJ's project files, which it rewrites as it runs; the root package's glob (//:all_files) would take in
+#     every write. Not .bazelbsp: the IntelliJ Bazel plugin loads its aspect from there, so tools/guards/inventory.bzl
+#     skips it instead.
 .git
 .claude
+.idea

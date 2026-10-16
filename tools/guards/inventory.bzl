@@ -2,7 +2,7 @@
 
 No glob crosses a package boundary, so a guard that must see "every file" (G1, G2, G5-G7, G9, G13) reads this
 repository's files.txt instead. It walks the main workspace from its root, skipping what .bazelignore names (and
-.git and the bazel-* convenience links), and writes:
+.git, the IDE plugin's .bazelbsp and the bazel-* convenience links), and writes:
 
   files.txt     every file, one workspace-relative path per line, sorted
   packages.txt  every directory holding a BUILD.bazel (or BUILD), sorted; "" is the root package
@@ -15,7 +15,11 @@ depends on. The guards that read contents take them from each package's `all_fil
 """
 
 def _ignored(rctx, root):
-    ignored = {".git": True}
+    # .bazelbsp: the IntelliJ Bazel plugin's aspect, which it writes into the workspace and builds with
+    # (--aspects=//.bazelbsp/config:aspect.bzl%intellij_aspect), so its directories must stay packages and .bazelignore
+    # cannot name them; they are not this repository's, and have no guards_package() (2026-10-13: an IDE sync failed
+    # analysis of //tools/guards on every .bazelbsp package).
+    ignored = {".git": True, ".bazelbsp": True}
     bazelignore = root.get_child(".bazelignore")
     rctx.watch(bazelignore)
     if bazelignore.exists:
