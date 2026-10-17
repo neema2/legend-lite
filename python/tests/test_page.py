@@ -21,6 +21,7 @@ import pandas as pd
 import legend_lite as ll
 from legend_lite import datacube
 from legend_lite import page as page_module
+from legend_lite._types import plain_type
 
 
 def trades():
@@ -85,8 +86,11 @@ class Document(Paged):
         self.assertEqual(query['rows'], ['region'])
         self.assertEqual(query['measures'], [{'name': 'notional', 'column': 'notional', 'fn': 'sum'}])
         self.assertEqual(query['sorts'], [{'column': 'notional', 'direction': 'desc'}])
-        self.assertEqual(query['filter'], {'kind': 'and', 'children': [
-            {'kind': 'condition', 'column': 'desk', 'operator': 'notEqual', 'value': 'Equity'}]})
+        # a list of one condition, in the filter editor's normal form: a group of one is that one, as DataCube writes it
+        self.assertEqual(query['filter'],
+                         {'kind': 'condition', 'column': 'desk', 'operator': 'notEqual', 'value': 'Equity'})
+        self.assertEqual(json.loads(page.to_json())['cubes'][0]['cube']['query']['filter'], query['filter'],
+                         'read back as DataCube reads it: the same')
         self.assertEqual([(v['id'], v['kind'], v['cube']) for v in doc['views']],
                          [(grid.id, 'grid', grid.id), (chart.id, 'chart', grid.id)])
         # made as DataCube makes a new chart (_made): what it was not told is DataCube's own -- the grid's row group
@@ -154,8 +158,12 @@ class Document(Paged):
         # deleted meanwhile (in DataCube's Open…): saved again as a new one under its id
         self.assertEqual(engine.answer('DELETE', f'/api/pure/v1/query/dataCube/{first}', '', None).status, 204)
         self.assertEqual(page.save(), first)
-        # another page is another saved page
-        self.assertNotEqual(ll.Page('Other').save(), first)
+        # another page is another saved page; one DataCube would not open (no grid) is not saved, in DataCube's words
+        other = ll.Page('Other')
+        with self.assertRaisesRegex(ValueError, 'it has no cube'):
+            other.save()
+        other.grid(trades(), name='other_trades')
+        self.assertNotEqual(other.save(), first)
         with self.assertRaises(ValueError):
             page.save(name=' ')
 
@@ -181,6 +189,33 @@ class Document(Paged):
             with self.assertRaisesRegex(ValueError, 'no longer on its page'):
                 gone.title = 'again'
 
+    def test_a_sheet_is_arranged_as_datacube_arranges_it(self):
+        # DataCube's own arrangements (bands.ts arrange, headless): the layout picker's every shape, in reading order
+        page, grid, chart = self.built()
+        more = [grid.chart('line', title=f'line {i}') for i in range(2)]
+        sheet = page.sheets[0]
+        sheet.arrange('rows:1-3')
+        self.assertEqual([len(b['node']['parts']) if 'split' in b['node'] else 1 for b in self.bands(sheet)], [1, 3])
+        self.assertEqual([b['height'] for b in self.bands(sheet)], [0.5, 0.5])
+        sheet.arrange('focus-left')
+        bands = self.bands(sheet)
+        self.assertEqual((len(bands), bands[0]['node']['parts'][0]), (1, {'node': {'tile': grid.id}, 'size': 0.5}))
+        self.assertEqual(sheet.tiles, [grid, chart, *more])
+
+    def test_a_grid_over_a_frame_of_other_columns_is_rebuilt_as_datacube_rebuilds_one(self):
+        # DataCube's reopening over the frame as it is now (cube-document.ts rebuilt, headless): a gone column left out
+        # of everything that read it, said in DataCube's words; a new one hidden; the page one DataCube opens
+        page = ll.Page('changed')
+        grid = page.grid(trades(), name='changed_trades', rows=['region', 'desk'], measures={'notional': 'sum'})
+        with self.assertWarnsRegex(UserWarning, 'left out grouping by desk'):
+            grid.update(trades().drop(columns=['desk']).assign(book='B1'))
+        cube = page.to_dict()['cubes'][0]['cube']
+        self.assertEqual(cube['query']['rows'], ['region'])
+        self.assertNotIn('desk', [c['name'] for c in cube['query']['columns']])
+        self.assertEqual(cube['configuration']['columns']['book'], {'hidden': True})
+        self.assertEqual([c['name'] for c in cube['source']['columns']], ['region', 'notional', 'pnl', 'book'])
+        ll.Page.load(page.to_dict(), frames={'changed_trades': trades().drop(columns=['desk']).assign(book='B1')})
+
     def test_a_layout_of_splits_and_sizes_is_kept_as_tiles_come_and_go(self):
         page, grid, chart = self.built()
         other = page.grid(desks(), name='desks')
@@ -205,13 +240,41 @@ class Document(Paged):
         self.assertEqual([p['node'] for p in self.bands(sheet)[0]['node']['parts']],
                          [{'tile': grid.id}, {'tile': other.id}, {'tile': added.id}])
         self.assertEqual([p['size'] for p in self.bands(sheet)[0]['node']['parts']], [1 / 3] * 3)
-        with self.assertRaisesRegex(ValueError, 'not a layout DataCube draws'):
+        with self.assertRaisesRegex(ValueError, 'cannot be laid out: band 0: shares summing to 1.4'):
             sheet.layout_from({'kind': 'bands', 'fit': True, 'bands': [{'height': 1, 'node': {'split': 'row', 'parts': [
                 {'node': {'tile': grid.id}, 'size': 0.7}, {'node': {'tile': other.id}, 'size': 0.7}]}},
                 {'height': 1, 'node': {'split': 'row', 'parts': [{'node': {'tile': added.id}, 'size': 0.5},
                                                                  {'node': {'tile': heads.id}, 'size': 0.5}]}}]})
-        with self.assertRaisesRegex(ValueError, 'left out'):
+        with self.assertRaisesRegex(ValueError, 'no sheet has a place for'):
             sheet.layout_from({'kind': 'bands', 'fit': True, 'bands': [{'height': 1, 'node': {'tile': grid.id}}]})
+
+    def test_a_sheet_gone_is_refused_its_layout_and_an_empty_one_laid_out_in_no_bands_is_as_it_was(self):
+        # (the audit of neema2/legend-lite#47) an empty sheet laid out in no bands is as it is -- no shape names no
+        # bands -- and a sheet no longer on its page is refused, layout_from too, as every sheet call refuses one
+        page, grid, chart = self.built()
+        empty = page.sheet('Empty')
+        self.assertIs(empty.layout(), empty)
+        self.assertEqual(self.bands(empty), [])
+        # taken out as reading the open page takes out a sheet closed there (Page.read: the document, then its handles)
+        page._doc['sheets'] = [s for s in page._doc['sheets'] if s['id'] != empty.id]
+        page._forget({empty.id})
+        with self.assertRaisesRegex(ValueError, 'no longer on its page'):
+            empty.layout_from({'kind': 'bands', 'fit': True, 'bands': []})
+
+    def test_a_grid_beside_others_is_capped_as_datacube_caps_a_source_added_beside_others(self):
+        # DataCube's one rule (gridCapped), of the page's grids counting the new one: the page's first grid is not capped,
+        # one beside it is
+        page, grid, chart = self.built()
+        other = page.grid(desks(), name='desks')
+        cubes = {c['id']: c['cube'] for c in page.to_dict()['cubes']}
+        self.assertNotIn('maxRows', cubes[grid._view['cube']]['configuration'])
+        self.assertIsInstance(cubes[other._view['cube']]['configuration']['maxRows'], int)
+
+    def test_an_empty_list_of_conditions_is_no_filter(self):
+        # the filter editor's normal form: an empty group is none, so [] takes the filter off, as None does
+        page, grid, chart = self.built()
+        grid.filter([])
+        self.assertNotIn('filter', page.to_dict()['cubes'][0]['cube']['query'])
 
     def test_sheets_layouts_and_stacks(self):
         page, grid, chart = self.built()
@@ -227,10 +290,19 @@ class Document(Paged):
         # two tiles in one place, as tabs, where the first was (the band the second emptied gone)
         page.stack(other, chart)
         self.assertEqual(self.bands(summary), [{'height': 0.5, 'node': {'stack': [other.id, chart.id]}}])
+        # onto a tile stacked already, as DataCube drops one on its middle: its place keeps its tabs, the new one after
+        third = other.chart('pie', x='desk', y=[('desk', 'count')], title='Desks')
+        self.assertEqual(self.bands(summary)[0]['node']['parts'][1]['node'], {'tile': third.id})
+        page.stack(other, third)
+        self.assertEqual(self.bands(summary), [{'height': 0.5, 'node': {'stack': [other.id, chart.id, third.id]}}])
         with self.assertRaisesRegex(ValueError, 'one sheet'):
             page.stack(grid, chart)
         summary.arrange('side-by-side')
-        self.assertEqual(summary.tiles, [other, chart])
+        self.assertEqual(summary.tiles, [other, chart, third])
+        self.assertEqual(self.bands(summary), [{'height': 1, 'node': {'stack': [other.id, chart.id, third.id]}}])
+        # the layout picker's shapes, as DataCube names them; one it does not name is refused in its words
+        with self.assertRaisesRegex(ValueError, 'not a layout: diagonal'):
+            summary.arrange('diagonal')
         self.assertIs(page.sheets[1], summary, 'the same handle each time')
 
     def test_a_chart_takes_the_spec_version_2_slots_in_their_own_words(self):
@@ -328,22 +400,33 @@ class Document(Paged):
         Python refuses exactly the same charts by asking DataCube's own code (page._made), never by rules of its own. A
         frame makes the cases' String, Float, StrictDate and DateTime columns; a Date and a StrictTime are calculated
         columns' (Pure's firstDayOfMonth returns a Date, and a time of day is written %10:30:00), judged with the
-        compiler's types, as DataCube judges them -- no frame carries a StrictTime (the compiler's catalog reads a
-        database's TIME as text: docs/PYTHON_ASKS_DATACUBE_2026_10_15.md), so a calculated column is the way to one.
-        Every case is asked, none skipped."""
+        compiler's types, as DataCube judges them. No frame carries a StrictTime (the compiler's catalog reads a
+        database's TIME as text), and on this plane DataCube adds no StrictTime column either (its compile lowers the
+        cube, which has no SQL type for a time of day: docs/PYTHON_ASKS_DATACUBE_2026_10_15.md) -- so the StrictTime
+        column comes as a page saved where one is lowered (a server's plane) holds it, loaded. Every case is asked,
+        none skipped."""
         rules = json.loads(Path(os.environ['LEGEND_LITE_CHART_RULES']).read_text('utf-8'))
         made = {'String': ['EMEA', 'APAC'], 'Float': [1.5, 2.5], 'StrictDate': [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
                 'DateTime': [pd.Timestamp('2024-01-01 09:30'), pd.Timestamp('2024-01-01 10:30')]}
         framed = [c for c in rules['columns'] if c['type'] in made]
         page = ll.Page('rules')
         grid = page.grid(pd.DataFrame({c['name']: made[c['type']] for c in framed}), name='rules')
-        types = {c.name: c.type.split('::')[-1] for c in grid._page._session.frames[grid.frame].columns}
+        types = {c.name: plain_type(c.type) for c in grid._page._session.frames[grid.frame].columns}
         self.assertEqual(types, {c['name']: c['type'] for c in framed}, 'the frame is typed as the cases say')
         days = next(c['name'] for c in framed if c['type'] == 'StrictDate')
-        calculated = {'Date': f'$x.{days}->toOne()->firstDayOfMonth()', 'StrictTime': '%10:30:00'}
-        for column in (c for c in rules['columns'] if c['type'] not in made):
-            grid.calculate(column['name'], calculated[column['type']])
-        cube = grid._view['cube']
+        dated = next(c['name'] for c in rules['columns'] if c['type'] == 'Date')
+        grid.calculate(dated, f'$x.{days}->toOne()->firstDayOfMonth()')
+        timed = next(c['name'] for c in rules['columns'] if c['type'] == 'StrictTime')
+        self.assertEqual({c['type'] for c in rules['columns']} - set(made), {'Date', 'StrictTime'}, 'the cases\' types')
+        with self.assertRaisesRegex(ValueError, 'STRICT_TIME'):
+            grid.calculate(timed, '%10:30:00')
+        # the compiler lowers no time of day yet (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, "A finding for the compiler
+        # line"): when it does, the column is grid.calculate's like the Date's, this refusal goes, and so does the page
+        # document made by hand below
+        doc = page.to_dict()
+        doc['cubes'][0]['cube']['query']['derived'].append({'name': timed, 'lambda': ll.parse('x|%10:30:00')})
+        page = ll.Page.load(doc, frames={'rules': grid._page._session.frames['rules'].given})
+        cube = page.grids[0]._view['cube']
         for case in rules['cases']:
             with self.subTest(case=case['case']):
                 if case['refused']:
@@ -421,13 +504,26 @@ class Document(Paged):
         derived = page.to_dict()['cubes'][0]['cube']['query']['derived']
         self.assertEqual(derived[0]['name'], 'margin')
         self.assertEqual(derived[0]['lambda']['_type'], 'lambda')
-        with self.assertRaisesRegex(ll.LegendError, 'nope'):
+        # added as DataCube's column editor adds one: a measure unless told, as the editor starts one (a number summed
+        # when grouped, anything else its unique value), declared as told; refused in DataCube's and the compiler's
+        # words -- a column it does not have, a multiplicity, a name the grid has already, a kind DataCube has not
+        self.assertEqual(derived[0]['kind'], 'measure')
+        grid.calculate('loss', '$x.pnl->toOne() < 0', kind='dimension')
+        self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['derived'][-1]['kind'], 'dimension')
+        with self.assertRaisesRegex(ValueError, "a column's kind is 'dimension' or 'measure', not 'sum'"):
+            grid.calculate('odd', '$x.pnl', kind='sum')
+        with self.assertRaisesRegex(ValueError, 'nope'):
             grid.calculate('wrong', '$x.nope * 2')
-        with self.assertRaisesRegex(ll.LegendError, 'multiplicity'):
+        with self.assertRaisesRegex(ValueError, 'multiplicity'):
             grid.calculate('nullable', '$x.pnl / $x.notional')
+        with self.assertRaisesRegex(ValueError, "'margin' is already a column"):
+            grid.calculate('margin', '$x.pnl')
+        with self.assertRaisesRegex(ValueError, 'a calculated column needs a name'):
+            grid.calculate(' ', '$x.pnl')
         # one reads the calculated columns before it, typed as the grid runs them
         grid.calculate('margin_pct', '$x.margin * 100')
-        self.assertEqual([d['name'] for d in page.to_dict()['cubes'][0]['cube']['query']['derived']], ['margin', 'margin_pct'])
+        self.assertEqual([d['name'] for d in page.to_dict()['cubes'][0]['cube']['query']['derived']],
+                         ['margin', 'loss', 'margin_pct'])
         # a chart can plot it, as any column
         grid.chart('line', x='region', y=[('margin', 'average')])
 
@@ -444,6 +540,17 @@ class Document(Paged):
             grid.filter(('desk', 'in', {'FX', 'Rates'}))
         with self.assertRaisesRegex(ValueError, 'not several'):
             grid.filter(('desk', 'equal', ['FX']))
+        with self.assertRaisesRegex(ValueError, 'one at least'):
+            grid.filter(('desk', 'in', []))
+        # an empty group is no filter only at the top (filter([]), below); inside a filter it is refused, never dropped
+        with self.assertRaisesRegex(ValueError, "an 'and' needs one condition at least"):
+            grid.filter(('or', [('desk', 'equal', 'FX'), ('and', [])]))
+        with self.assertRaisesRegex(ValueError, "an 'or' needs one condition at least"):
+            grid.filter(('not', ('or', [])))
+        with self.assertRaisesRegex(ValueError, "'contains' is not offered on notional, a Float column"):
+            grid.filter(('notional', 'contains', '1'))
+        with self.assertRaisesRegex(ValueError, 'no overload'):
+            grid.filter(('region', 'lessThan', {'relative': 'today'}))
         for wrong in (None, float('nan'), object(), datetime.datetime(2024, 1, 31)):
             with self.assertRaisesRegex(ValueError, 'takes text, a number'):
                 grid.filter(('notional', 'greaterThan', wrong))
@@ -455,20 +562,34 @@ class Document(Paged):
             grid.chart('violin', x='region')
         with self.assertRaisesRegex(ValueError, 'not a column'):
             grid.group('nope')
-        with self.assertRaisesRegex(ValueError, 'is a name'):
-            page.sheet('  ')
-        with self.assertRaisesRegex(ValueError, 'is a name'):
+        # DataCube's one name rule (page-names.ts givenName): a tile's or a page's blank is refused, in its words
+        with self.assertRaisesRegex(ValueError, "a tile's name is not blank"):
             grid.chart('bar', title='')
+        with self.assertRaisesRegex(ValueError, "a page's name is not blank"):
+            page.name = '  '
+        with self.assertRaisesRegex(ValueError, 'is a name, not 3'):
+            grid.title = 3
         self.assertEqual(page.to_dict(), before, 'nothing refused changed the page')
+        # ... a sheet's blank is none of its own (named after its first grid), as the screen's rename makes it; a name
+        # is kept trimmed, as the screen keeps one
+        blank = page.sheet('  ')
+        self.assertIsNone(blank.name)
+        blank.name = ' Summary '
+        self.assertEqual(blank.name, 'Summary')
+        blank.name = ''
+        self.assertIsNone(blank.name)
         # what it takes: nested groups and a negation, as the filter editor writes them; a date and a decimal as their
         # exact text, a relative date as DataCube keeps one
         grid.filter(('or', [('region', 'equal', 'EMEA'), ('not', ('desk', 'in', ['FX', 'Rates']))]))
         self.assertEqual(page.to_dict()['cubes'][0]['cube']['query']['filter']['children'][1],
                          {'kind': 'not', 'child': {'kind': 'condition', 'column': 'desk', 'operator': 'in', 'value': ['FX', 'Rates']}})
         grid.filter([('notional', 'greaterThan', Decimal('12.30')), ('region', 'equal', datetime.date(2024, 1, 31)),
-                     ('region', 'lessThan', {'relative': 'today'}), ('notional', 'lessThan', 10)])
+                     ('notional', 'lessThan', 10)])
         self.assertEqual([c['value'] for c in page.to_dict()['cubes'][0]['cube']['query']['filter']['children']],
-                         ['12.30', '2024-01-31', {'relative': 'today'}, 10])
+                         ['12.30', '2024-01-31', 10])
+        dated = page.grid(pd.DataFrame({'day': [datetime.date(2024, 1, 1)], 'qty': [1]}), name='dated')
+        dated.filter(('day', 'lessThan', {'relative': 'today'}))
+        self.assertEqual(page.to_dict()['cubes'][1]['cube']['query']['filter']['value'], {'relative': 'today'})
 
     def test_a_grid_refused_leaves_the_page_and_the_frames_as_they_were(self):
         page, _, _ = self.built()
@@ -515,9 +636,13 @@ class Document(Paged):
         self.assertNotEqual(other.id, grid.id)
         with self.assertRaisesRegex(ValueError, 'no longer on its page'):
             grid.group('desk')
-        # a tile stacked with itself is no stack
+        # a tile stacked with itself is no stack; one taken off, or not a tile, is refused before anything is asked
         with self.assertRaisesRegex(ValueError, 'two tiles or more'):
             page.stack(other, other)
+        with self.assertRaisesRegex(ValueError, 'no longer on its page'):
+            page.stack(other, later)
+        with self.assertRaisesRegex(ValueError, 'a stack is of tiles'):
+            page.stack(other, 'chart-1')
 
     def test_saved_and_loaded_again_as_it_was_what_it_does_not_model_kept(self):
         page, grid, chart = self.built()
@@ -599,27 +724,37 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, "follows its grid takes 'desk' as its split, not none"):
             grid.chart('bar', split=None, frozen=False)
 
-    def test_a_document_python_cannot_work_on_is_refused_saying_why(self):
+    def test_a_document_is_read_as_datacube_reads_it_and_refused_in_its_words(self):
+        # DataCube's own reader (page-document.ts readPage, headless): Python keeps no copy of its rules
         page, _, _ = self.built()
         doc = page.to_dict()
-        elsewhere = copy.deepcopy(doc)
-        elsewhere['cubes'][0]['cube']['source'] = {'_type': 'warehouseTable', 'name': 'trades'}
-        with self.assertRaisesRegex(ValueError, 'reads no frame'):
-            ll.Page.load(elsewhere, frames={'trades': trades()})
         unplaced = copy.deepcopy(doc)
         unplaced['sheets'][0]['layout']['bands'] = []
-        with self.assertRaisesRegex(ValueError, 'every view has its place'):
+        with self.assertRaisesRegex(ValueError, 'no sheet has a place for grid-1'):
             ll.Page.load(unplaced, frames={'trades': trades()})
-        with self.assertRaisesRegex(ValueError, 'version 2'):
-            ll.Page.load({**doc, 'version': 2}, frames={'trades': trades()})
+        with self.assertRaisesRegex(ValueError, r'written by a newer version \(99 > 4\)'):
+            ll.Page.load({**doc, 'version': 99}, frames={'trades': trades()})
         twice = copy.deepcopy(doc)
         twice['sheets'].append({'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
-        with self.assertRaisesRegex(ValueError, 'share an id'):
+        with self.assertRaisesRegex(ValueError, 'two sheets are sheet-1'):
             ll.Page.load(twice, frames={'trades': trades()})
+        cubes = copy.deepcopy(doc)
+        cubes['cubes'].append(copy.deepcopy(cubes['cubes'][0]))
+        with self.assertRaisesRegex(ValueError, 'two cubes share an id'):
+            ll.Page.load(cubes, frames={'trades': trades()})
         listed = copy.deepcopy(doc)
         listed['views'][0]['cube'] = ['grid-1']
-        with self.assertRaisesRegex(ValueError, 'not what a page holds'):
+        with self.assertRaisesRegex(ValueError, 'shows no cube of this page'):
             ll.Page.load(listed, frames={'trades': trades()})
+        # an older page DataCube reads is read, brought to DataCube's own version
+        self.assertEqual(ll.Page.load({**doc, 'version': 3}, frames={'trades': trades()}).to_dict()['version'], 4)
+        # and what Python adds: a page in Python is over frames
+        elsewhere = copy.deepcopy(doc)
+        elsewhere['cubes'][0]['cube']['source'] = {'_type': 'remoteFile', 'name': 'trades.parquet',
+                                                   'url': 'https://example.com/trades.parquet',
+                                                   'columns': doc['cubes'][0]['cube']['source']['columns']}
+        with self.assertRaisesRegex(ValueError, 'reads no frame'):
+            ll.Page.load(elsewhere, frames={'trades': trades()})
 
 
 class Live(Paged):
@@ -663,7 +798,12 @@ class Live(Paged):
         self.assertEqual(self.get(f'/page.json?page={page._key}')[0], 404)
 
     def test_an_empty_page_is_not_shown(self):
-        with self.assertRaisesRegex(ValueError, 'a grid at least'):
+        # DataCube opens no page without a grid: refused in its words, then Python's call that makes one, and never
+        # written either
+        with self.assertRaisesRegex(ValueError, r'^cannot read saved page: it has no cube -- in Python, page\.grid\(frame\) '
+                                                r'adds one$'):
+            ll.Page('Empty').to_json()
+        with self.assertRaisesRegex(ValueError, 'it has no cube'):
             ll.show(ll.Page('Empty'), browser=False)
         self.assertEqual(datacube._session.pages, [])
 

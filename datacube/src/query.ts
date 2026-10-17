@@ -441,9 +441,7 @@ function levelRelation(snapshot: CubeSnapshot, scope?: LevelScope, pivot?: Pivot
     for (const name of projected) {
       if (isKey.has(name)) continue;
       const configured = byMeasure.get(name);
-      const spec = specOf.get(name);
-      const measures = spec?.kind === 'measure' || (isNumeric(spec?.type) && spec?.kind === undefined);
-      specs.push(aggregateSpec(configured ?? defaultMeasure(name, spec, measures ? 'sum' : 'unique')));
+      specs.push(aggregateSpec(configured ?? defaultMeasure(name, specOf.get(name))));
     }
     if (snapshot.leafCount === true && keys.length > 0) specs.push(LEAF_COUNT_SPEC());
     if (specs.length > 0) return specs;
@@ -547,10 +545,7 @@ export function childAggregateLambda(
   const specOf = columnSpecs(snapshot);
   const measureOf = (of: string): Measure => {
     const configured = snapshot.measures.find((m) => m.name === of);
-    if (configured) return configured;
-    const spec = specOf.get(of);
-    const numeric = spec?.kind === 'measure' || (isNumeric(spec?.type) && spec?.kind === undefined);
-    return defaultMeasure(of, spec, numeric ? 'sum' : 'unique');
+    return configured ?? defaultMeasure(of, specOf.get(of));
   };
   const { pivotValues: _v, pivotTotal: _t, window: _w, ...rest } = snapshot;
   void _v; void _t; void _w;
@@ -791,7 +786,7 @@ export function spreadMeasures(s: CubeSnapshot): Measure[] {
     const specOf = columnSpecs(s);
     const synthesised = rowColumns(s)
       .filter((c) => !isOn.has(c.name) && !excluded.has(c.name) && c.kind === 'measure')
-      .map((c) => defaultMeasure(c.name, specOf.get(c.name), 'sum'));
+      .map((c) => defaultMeasure(c.name, specOf.get(c.name)));
     if (synthesised.length > 0) return synthesised;
   }
   return [{ name: 'count', column: on[0] ?? '', fn: 'count' }];
@@ -887,10 +882,7 @@ export function carriedMeasures(s: CubeSnapshot, groupCols: readonly string[]): 
   const out: Measure[] = [...excludedConfigured];
   for (const name of detailColumns(s)) {
     if (isKey.has(name) || handled.has(name)) continue;
-    const spec = specOf.get(name);
-    const measure = spec?.kind === 'measure'
-      || (isNumeric(spec?.type) && spec?.kind === undefined);
-    out.push(defaultMeasure(name, spec, measure ? 'sum' : 'unique'));
+    out.push(defaultMeasure(name, specOf.get(name)));
   }
   return out;
 }
@@ -948,19 +940,29 @@ export function columnSpecs(s: CubeSnapshot): Map<string, SpecLike> {
 }
 
 /**
+ * THE AGGREGATE A COLUMN TAKES BY DEFAULT, the one rule every query
+ * builder asks: `sum` for a numeric column not declared a dimension,
+ * `unique` for any other. A declared measure that is no number is not
+ * summed -- the column editor starts a new column a measure whatever its
+ * type, and a saved cube can declare one, and `sum` refuses a Boolean or
+ * a String. An untyped column is not numeric: every column is typed
+ * before a query reads it (a refresh's and a compile's step 0, plan.ts
+ * `typeColumns`), so only a runner that types nothing leaves one.
+ */
+export function defaultAggregate(spec: SpecLike | undefined): AggregateFn {
+  return isNumeric(spec?.type) && spec?.kind !== 'dimension' ? 'sum' : 'unique';
+}
+
+/**
  * The aggregate a column takes when nothing configured a MEASURE for
  * it: Column Properties > Aggregation when set (census §2 -- the
- * dropdown reached no query before), else the kind's default.
+ * dropdown reached no query before), else the default (`defaultAggregate`).
  */
-export function defaultMeasure(
-  name: string,
-  spec: SpecLike | undefined,
-  fallback: AggregateFn,
-): Measure {
+export function defaultMeasure(name: string, spec: SpecLike | undefined): Measure {
   return {
     name,
     column: name,
-    fn: spec?.aggregate ?? fallback,
+    fn: spec?.aggregate ?? defaultAggregate(spec),
     ...(spec?.aggregateWeight !== undefined
       ? { weight: spec.aggregateWeight }
       : {}),

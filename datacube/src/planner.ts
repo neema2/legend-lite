@@ -11,7 +11,6 @@
 import type { Planner } from './cube.ts';
 import { PureV1Client, type PrintStyle, type PureV1Options } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, tdsColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
-import { parseExact } from '../../engine-client/src/values.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { GridSource } from './model-writer.ts';
 
@@ -137,32 +136,14 @@ export class UpstreamPlanner implements Planner {
 /**
  * A server's `generatePlan` answer as a Plan: its one SQL node's statement (`sqlNode`), and the plan's own
  * `tdsColumns`, the result's type as the compiler gave it. The one reading of a server's plan: the tab's planner on a
- * server reads it so, and so does a page on Python whose Python plans on a server and runs the SQL itself
- * (python-host.ts; Python reads it the same way, python/legend_lite/upstream.py, the two held alike by
- * test/fixtures/upstream-plans.json). INTERIM: core reads no legend-engine plan into its own ExecutionPlan yet; when it
- * does (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, phase 2) the tab reads a server's plan through the module and
- * this reader and Python's go, the fixture their cases.
+ * server reads it so (its cases: test/fixtures/upstream-plans.json). A Python host plans in process and reads no
+ * server's plan (the program's §1.1, 2026-10-15). INTERIM: core reads no legend-engine plan into its own ExecutionPlan
+ * yet; when it does (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, phase 2) the tab reads a server's plan through the
+ * module and this reader goes, the fixture its cases.
  */
 export function serverPlan(body: unknown, query: Lambda, bitColumns: ReadonlySet<string> = new Set(),
   database = 'DuckDB'): Plan {
   return { sql: sqlNode(body, query, database), columns: tdsColumns(body, bitColumns) };
-}
-
-/** A server's `generatePlan` answer, as its text, read as `serverPlan` reads it; a refusal (legend-engine's error
- *  shape) thrown in the server's own words. */
-export function readServerPlan(text: string, query: Lambda, bitColumns: ReadonlySet<string> = new Set(),
-  database = 'DuckDB'): Plan {
-  let body: unknown;
-  try {
-    body = parseExact(text);
-  } catch {
-    throw new PlanError(`the server answered no plan: ${text.slice(0, 300)}`, query);
-  }
-  if (body === null || typeof body !== 'object' || !('rootExecutionNode' in body)) {
-    const message = (body as { message?: unknown } | null)?.message;
-    throw new PlanError(typeof message === 'string' ? message : `the server answered no plan: ${text.slice(0, 300)}`, query);
-  }
-  return serverPlan(body, query, bitColumns, database);
 }
 
 interface PlanNode {

@@ -979,11 +979,11 @@ describe('a calculated column aggregates as DECLARED', () => {
     epoch: 1,
   } as const;
 
-  it('sums a column the user called a measure', async () => {
+  it('sums a numeric column the user called a measure', async () => {
     const out = (await level({
       ...base,
       derived: [{ name: 'uplift', lambda: (await row('$x.notional * 1.1')),
-        kind: 'measure' }],
+        kind: 'measure', type: 'Float' }],
       rows: ['region'],
     }));
     assert.match(out, /uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/);
@@ -1004,18 +1004,33 @@ describe('a calculated column aggregates as DECLARED', () => {
       assert.doesNotMatch(out, /bucket:x\|\$x\.bucket:y\|\$y->sum\(\)/);
     });
 
-  it('sums on the FIRST query, before any type is known', async () => {
-    // The point of asking. With the kind inferred from a learned
-    // type, the first query over a grouped cube aggregated a numeric
-    // calculated column as `unique` -- a blank column -- and only
-    // corrected itself after a second round trip.
+  it('does NOT sum a declared measure that is no number: its unique value (query.ts defaultAggregate)', async () => {
+    // The column editor starts a new column a measure whatever its type,
+    // and a saved cube can declare one: `sum` refused a Boolean or a
+    // String measure (sum(Boolean)), so grouping broke the grid.
+    const out = (await level({
+      ...base,
+      derived: [
+        { name: 'big', lambda: (await row('$x.notional > 50')), kind: 'measure', type: 'Boolean' },
+        { name: 'tag', lambda: (await row("$x.region + '!'")), kind: 'measure', type: 'String' },
+      ],
+      rows: ['region'],
+    }));
+    assert.match(out, /big:x\|\$x\.big:y\|\$y->uniqueValueOnly\(\)/);
+    assert.match(out, /tag:x\|\$x\.tag:y\|\$y->uniqueValueOnly\(\)/);
+  });
+
+  it('does not sum an UNTYPED column, declared a measure or not: no number is guessed', async () => {
+    // The default's documented contract. Every column is typed before a
+    // query reads it -- a refresh's step 0 and a compile's (plan.ts
+    // typeColumns) -- so only a runner that types nothing leaves one.
     const out = (await level({
       ...base,
       derived: [{ name: 'uplift', lambda: (await row('$x.notional * 1.1')),
         kind: 'measure' }],
       rows: ['region'],
     }));
-    assert.match(out, /uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/);
+    assert.match(out, /uplift:x\|\$x\.uplift:y\|\$y->uniqueValueOnly\(\)/);
   });
 
   it('falls back to the type when no kind was declared', async () => {
@@ -1074,9 +1089,18 @@ describe('C3: a column pivot carries CALCULATED measures', () => {
   it('aggregates a row-stage calculated measure in the pivot', async () => {
     const q = (await level(snap({
       rows: [], measures: [],
-      derived: [{ name: 'uplift', lambda: (await row('$x.notional * 1.1')), kind: 'measure' }],
+      derived: [{ name: 'uplift', lambda: (await row('$x.notional * 1.1')), kind: 'measure', type: 'Float' }],
     }), undefined, YEARS));
     assert.match(q, /'2023__\|__uplift':x\|if\(\$x\.year == 2023, \|\$x\.uplift, \|\[\]\):y\|\$y->sum\(\)/);
+  });
+
+  it('spreads a declared text measure as its unique value, never a sum (query.ts defaultAggregate)', async () => {
+    const q = (await level(snap({
+      rows: [], measures: [],
+      derived: [{ name: 'tag', lambda: (await row("$x.region + '!'")), kind: 'measure', type: 'String' }],
+    }), undefined, YEARS));
+    assert.match(q, /'2023__\|__tag':x\|if\(\$x\.year == 2023, \|\$x\.tag, \|\[\]\):y\|\$y->uniqueValueOnly\(\)/);
+    assert.doesNotMatch(q, /__tag':[^,]*,[^:]*:y\|\$y->sum\(\)/);
   });
 });
 

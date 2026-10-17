@@ -41,6 +41,11 @@ Where a step says "ask the user", stop and ask, with a recommendation. Everywher
      the same parameters, the same choice of backends (the host's own, in process, or a remote server). One shared test
      corpus holds the two alike. A two-column comparison whose columns differ in what is possible is a gap to close,
      not a design.
+   - **A host plans in process** (the user, 2026-10-15). Python as a host -- its frames, its pages, DataCube on
+     Python -- runs legend-lite's compiler in its own process. A remote engine is a client feature over the remote
+     side's own models and data (DataCube's REST client in the browser app; a future Python client on `warehouse.py`'s
+     pattern, a candidate, not built), never a mode of the host. So a Python host has one plane, and the remote
+     planners G1 built are removed (G1 below).
 2. **One implementation, storage per host.** Logic that must run on more than one host exists once; only where it keeps
    its records and how a call reaches it differ.
    - Logic a server needs too is Java, built three ways: the JVM, the browser's WebAssembly module (TeaVM), and
@@ -57,9 +62,8 @@ Where a step says "ask the user", stop and ask, with a recommendation. Everywher
    - A feature that needs legend-lite's own routes (Create a Class…) is offered only where those routes answer, as
      every action is (one-app design §3.4).
 4. **Python's DuckDB reads only what it was given (R4).** The page sends Pure, never SQL.
-   - The planner the person chose writes every line of SQL Python runs: Python's own, or a server's (G1, the user's
-     ruling of 2026-10-13: "planner arg is fine"). A server's plan is run as one query, a SELECT, never several
-     statements (the audit of G1); what that one query may still read on this machine is PARK-31's.
+   - Python's own planner, in process, writes every line of SQL Python runs (§1.1: a host plans in process; the user's
+     ruling of 2026-10-15, which replaced the server planners of 2026-10-13).
    - Python plans only over a model every table of whose Databases is one Python serves: its frames, a page's files,
      and the page's projects over them (the user's option (c), `Frames.model_for`).
    - A remote file is read only from a remote URL, matched exactly against `<scheme>://`. An Iceberg table's data files
@@ -277,6 +281,11 @@ Python libraries are twins, the same in every column.
   - the SDLC is one with lite's text routes (the page's, the model home, sdlc-server). **A real legend-sdlc is owed:**
     it answers neither `…/pure` nor `…/pureChanges`, its project ids are its own, and it may answer a stale save 500;
     reading `…/revisions/{r}/entities` and saving with `entityChanges` waits on the Studio line's leg 8 (the JSON hop);
+    **decided 2026-10-15 (the user):** the two orchestrations, model-changes (TypeScript) and model.py (Python), become
+    one Java operation in the SDLC module, "edit a project" -- approved on the condition that it works with a real
+    legend-sdlc too (its entities read and `entityChanges` saved, a project found by its coordinates, a stale save
+    answered as legend-sdlc answers it), with lite's text routes kept on lite's own SDLC; the Studio / SDLC line's PR,
+    after neema2/legend-lite#47, done when the same cases pass on lite's SDLC and a real legend-sdlc's file backend;
   - a workspace whose making is refused is read again (lite answers 500 "Branch already exists" once it has commits),
     the refusal said only when it is still not there; a save that changes nothing (the SDLC's 204) keeps the revision
     read, sdlc-client's `performPureChanges` and `performChanges` answering `Revision | undefined`;
@@ -512,10 +521,10 @@ DataCube's ten kinds are the superset, but for Query's `warm` and its unheld `pl
   `LitePlanner`, its headless host and Python's page host, and Query's and Studio's `WasmGrammar` send it.
 - Python answers every kind (`legend_lite/_planner.py` KINDS, the start-up check `_headless.check_interface` holding
   the two lists alike): the native library gains `lite_execute_json_plan`, `lite_execute_json_answer` and
-  `lite_warm_model`, each delegating to the Boundary function the tab's export delegates to. A page on Python asks
-  `planner.json` only the kinds its planner sends (`engine.py` `_PAGE_KINDS`): not an unheld plan, execute's halves or
-  a warm (the audit of b44780c8e). Its held kinds plan over the models Python serves only; its grammar (`pureV1`) and a
-  model's test data (`testData`) read the text the page sends, as a server's grammar routes do, and run no SQL.
+  `lite_warm_model`, each delegating to the Boundary function the tab's export delegates to. (A page on Python asked
+  `planner.json` the kinds its planner sent, `engine.py` `_PAGE_KINDS` -- retired 2026-10-15, PR neema2/legend-lite#47:
+  a page asks Python on legend-engine's own routes, `pure/v1`, and the host's compute, `plan-and-run.json` and its dry
+  run `plan.json`, over the models Python serves only; the one-app design's §15.10.)
 - Every kind answers folded alike on both hosts: the tab's `release` and `warm` through new exports
   (`TabExports.releaseModelOrError`, `warmModelOrError`, as the native library's entries fold them; the Plan Gen line's
   review). And one mapping of kinds to exports wherever the module runs: DataCube's LitePlanner, with no worker,
@@ -629,11 +638,11 @@ an audit.
 - **Refused at opening:** a table whose model text a frame or file of this Python, or a table from another warehouse
   or catalog, already holds. A plan names its table by the model's text alone.
 - **Plan-and-run over that model** runs on the caller's thread, not the compiler pool. Planning and reading the plan
-  go to the compiler pool, as Python's own planner's do (a server's planner is its HTTP). The SQL runs on the
+  go to the compiler pool, as Python's own planner's do. The SQL runs on the
   warehouse, through the binding, as the signed-in person; the server's Arrow chunks are the rows, typed by the plan
   as Python's own are. The binding's calls run on the compiler pool (`warehouse.set_library_thread`): a thread that
-  calls the library is attached to it for good. The planner protocol's held kinds (a grid's column types) know the
-  table's model too.
+  calls the library is attached to it for good. A page's dry run (`plan.json`, 2026-10-15) plans over the table's
+  model too.
 - **The page.** `WarehouseService` gains `table`, the host's own reading; `live` is the tab's. `pythonServices` gives
   the warehouse when Python offers it. `sources.ts` opens a table through `table` when the service has it
   (`openedHostTable`): its rows the host's runner, as a frame's are. Opening needs no `services.engine.local`. A page on
@@ -1095,7 +1104,12 @@ From `docs/DATACUBE_MODEL_DESIGN_2026_10_10.md` §13. Each lands once, in the on
 
 ### G. Follow-ups, taken where they block something
 
-1. **Remote planners on Python's pages.** Python plans through legend-lite's server or legend-engine and still runs the
+1. **Remote planners on Python's pages -- removed 2026-10-15** (the user: "the whole point of DataCube on Python is
+   that Python is the host"; §1.1, a host plans in process). `planner=`, `server=`, `ll.planner()` and
+   `legend_lite/upstream.py` are gone with the server paths of the engine, the frames and the page, and the Python
+   host's server branch (`python-host.ts` `planning`); the browser app keeps its own `UpstreamPlanner` and its corpus
+   (`datacube:upstream_plans_test`). PARK-30 and PARK-31 closed with it. What G1 was, below, is kept as history.
+   Python plans through legend-lite's server or legend-engine and still runs the
    SQL on its own DuckDB. R3: the plane is chosen once, shown, never substituted.
    - **The twin of the tab's `UpstreamPlanner`.** `datacube/src/planner.ts` asks a server's pure/v1 `generatePlan`
      (its runtime added by `fromRuntime`) and reads the first SQL node and `tdsColumns`; also `lambdaRelationType` and
@@ -1116,7 +1130,7 @@ From `docs/DATACUBE_MODEL_DESIGN_2026_10_10.md` §13. Each lands once, in the on
      server='http://...')`, or `ll.planner(...)` before the first cube; a server's sign-in is skipped for now ("dont
      stress too much about auth right now"; the user's ideal, SSO as the person running Python, is G10, for both hosts
      at once: the tab sends no sign-in to a server today either).
-   - **Built 2026-10-13 (branch `datacube/python-parity`):** `legend_lite/upstream.py` (`RemotePlanner`, the twin of
+   - **Built 2026-10-13 (branch `datacube/python-parity`; removed 2026-10-15, above):** `legend_lite/upstream.py` (`RemotePlanner`, the twin of
      `UpstreamPlanner`; the requests and the plan's reading held alike by `datacube/test/fixtures/upstream-plans.json`,
      read by `datacube:upstream_plans_test` and `python:upstream_test`); the engine's `Planner` gains `plan`, `read`
      and `refused_plan`, and plan-and-run, the pure/v1 calls and `Table.plan`/`execute` ask it; a session chooses once
@@ -1268,7 +1282,7 @@ PyPI; the npm packages' third-party notices; the FINOS name; the copyright-holde
 
 | # | Pull request | Steps | What you get |
 |---|---|---|---|
-| 1 | Python parity | G1 + G5 | Remote planners on Python's pages, Python still running the SQL on its own DuckDB; Iceberg files on Python, every data file remote |
+| 1 | Python parity | G1 + G5 | Remote planners on Python's pages (removed 2026-10-15: a host plans in process, §1.1); Iceberg files on Python, every data file remote |
 | 2 | The model actions as a generic Legend capability, and headless pages | B4 + D | Twin libraries, TypeScript and Python, for a class, an association or a data space in any project; Python's `grid.create_class()`, `page.create_association()`, `page.create_data_space()`, `page.export()` and `page.save()` |
 | 3 | Stores on one implementation | B5 + B6 | Saved queries and saved pages each one set of Java rules in the browser, Python and the server; Python's pages get saved queries; L1's saved-query differential the acceptance test |
 | 4 | One engine path | C1 + C2 + C4 | The tab answers legend-engine's execute API with Python's Java; Query's SQL button with no server; one planner protocol |
@@ -1288,9 +1302,10 @@ PyPI; the npm packages' third-party notices; the FINOS name; the copyright-holde
   R6).
 - PlanAndRun for every grid. Each host's executor types its results by the plan.
 - R4 as §1.4 states it, including option (c), the accepted `sourceUrl('file:...')`, remote-only files and Iceberg
-  data files, and a server's plan run as one query (G1).
-- Python plans on the planner chosen once per session: `ll.show(df, planner='local' | 'remote' | 'engine',
-  server='http://...')` or `ll.planner(...)` before the first cube; a server's sign-in waits for G10.
+  data files.
+- Python plans in process, always (the user, 2026-10-15: DataCube on Python has no remote engines, and Python as a host
+  is no client of one; §1.1). Running queries on a server's own models and data, if wanted, is a separate client on
+  `warehouse.py`'s pattern, recorded as a candidate.
 - The two DuckDB versions, accepted until G3. Python's one shared connection, a feature.
 - Python's model home:
   - the place `Python` (the tab's `Browser`);

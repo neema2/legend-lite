@@ -350,7 +350,12 @@ describe('ours alone: what this host refuses, and how it is installed', () => {
       runs += 1;
       if (runs === 3) clearInterval(id);
     }, 1);
-    await tick(60);
+    // waited for, not slept on: past a fixed wait, a stalled loop expires the chain's first timeout and the wait's in
+    // one turn, so it ended after one run (Windows CI, 2026-10-15). Up to five seconds by the clock for the three runs,
+    // then a wait more in which a fourth would come if the clear had not held
+    const deadline = Date.now() + 5000;
+    while (runs < 3 && Date.now() < deadline) await tick(1);
+    await tick(20);
     assert.equal(runs, 3);
   });
 });

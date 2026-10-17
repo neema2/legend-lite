@@ -12,8 +12,7 @@ from python.runfiles import runfiles
 files = runfiles.Create()
 for name in ('LEGEND_LITE_LIBRARY', 'LEGEND_LITE_CORPUS_MODEL', 'LEGEND_LITE_CORPUS_QUERIES', 'LEGEND_LITE_JVM_ANSWERS',
              'LEGEND_LITE_WHEEL', 'LEGEND_LITE_DEPENDENCY_WHEELS', 'LEGEND_LITE_SITE', 'LEGEND_LITE_DATACUBE',
-             'LEGEND_LITE_DUCKDB_EXTENSIONS', 'LEGEND_LITE_SERVER', 'LEGEND_LITE_UPSTREAM_PLANS',
-             'LEGEND_LITE_MODEL_CASES', 'LEGEND_LITE_SQLAPI_CORPUS', 'LEGEND_LITE_CHART_RULES'):
+             'LEGEND_LITE_DUCKDB_EXTENSIONS', 'LEGEND_LITE_MODEL_CASES', 'LEGEND_LITE_SQLAPI_CORPUS', 'LEGEND_LITE_CHART_RULES'):
     if name not in os.environ:
         continue
     # one path, or several separated by spaces ($(rlocationpaths ...)), handed on as os.pathsep separates them (a

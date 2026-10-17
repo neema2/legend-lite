@@ -354,6 +354,21 @@ export function drop(layout: Bands, tile: string, where: Drop): Bands {
 }
 
 /**
+ * TILES STACKED WHERE THE FIRST ONE IS (a page made in code: Python's `page.stack`): each tile after the first, then
+ * the tiles stacked with any of those, dropped onto the first's middle one at a time, as a drag drops one (`drop`'s
+ * `stack`; no second rule) -- so the first's place keeps its own tabs first, the others follow in the order given, and
+ * the first is in front. A tile not in the layout is passed over, as a drop passes it.
+ */
+export function stackTiles(layout: Bands, given: readonly string[]): Bands {
+  const [first, ...rest] = given;
+  if (first === undefined || leafOf(layout, first) === undefined) return layout;
+  const own = stackOf(layout, first);
+  const moving = [...new Set([...rest, ...rest.flatMap((tile) => stackOf(layout, tile))])]
+    .filter((tile) => !own.includes(tile));
+  return bringToFront(moving.reduce((at, tile) => drop(at, tile, { stack: first }), layout), first);
+}
+
+/**
  * A DIVIDER MOVED: in the split found by `path` (the band's index, then a part's index at each split down to the
  * split), the boundary after part `after` by `delta` of the split's size; the two parts it sits between trade share,
  * neither going below MIN_SHARE (or half of what the two hold, when that is less).
@@ -548,11 +563,37 @@ function runs(ids: readonly string[], counts: readonly number[]): string[][] {
   return out;
 }
 
+/** A preset `arrange` does not name (its one refusal), by its name. */
+export class NotALayout extends Error {
+  constructor(preset: string) {
+    super(`not a layout: ${preset}`);
+    this.name = 'NotALayout';
+  }
+}
+
 /** The counts a 'rows:' or 'columns:' preset names, refused by name when it names none. */
 function countsOf(preset: string): number[] {
   const list = preset.slice(preset.indexOf(':') + 1).split('-').map(Number);
-  if (list.length === 0 || list.some((n) => !Number.isInteger(n) || n < 1)) throw new Error(`not a layout: ${preset}`);
+  if (list.length === 0 || list.some((n) => !Number.isInteger(n) || n < 1)) throw new NotALayout(preset);
   return list;
+}
+
+/** The presets named outright, each once (the others are 'rows:' and 'columns:' with their counts): a Record over
+ *  exactly those, so a preset added to Preset and not here, or here and not there, is a compile error. */
+const NAMED: { readonly [K in Exclude<Preset, `rows:${string}` | `columns:${string}`>]: true } = {
+  'side-by-side': true,
+  stacked: true,
+  'focus-left': true,
+  'focus-right': true,
+  'focus-top': true,
+  'focus-bottom': true,
+};
+const NAMED_PRESETS: ReadonlySet<string> = new Set(Object.keys(NAMED));
+
+/** `preset`, refused by name when `arrange` does not name it -- whatever the page holds, an empty one included. */
+function checkedPreset(preset: Preset): void {
+  if (preset.startsWith('rows:') || preset.startsWith('columns:')) countsOf(preset);
+  else if (!NAMED_PRESETS.has(preset)) throw new NotALayout(String(preset));
 }
 
 /**
@@ -561,6 +602,8 @@ function countsOf(preset: string): number[] {
  * goes on (rows of 2 and 2 continue in rows of 2). Fewer: the preset closes up. The page's fit is kept.
  */
 export function arrange(layout: Bands, preset: Preset, order: readonly string[] = tiles(layout)): Bands {
+  // a preset it does not name is refused before anything is arranged: a page of one place, or none, too
+  checkedPreset(preset);
   // each tile's place, once: a stack's first tile named brings the stack
   const units: Leaf[] = [];
   for (const tile of order) {
@@ -601,7 +644,7 @@ export function arrange(layout: Bands, preset: Preset, order: readonly string[] 
     const one = { height, node: leaf(first!) };
     bands = preset === 'focus-top' ? [one, ...others] : [...others, one];
   } else {
-    throw new Error(`not a layout: ${String(preset)}`);
+    throw new NotALayout(String(preset));
   }
   return { fit: layout.fit, bands };
 }

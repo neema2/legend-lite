@@ -3,8 +3,9 @@ protocol every app that plans in a tab sends: docs/ONE_PLATFORM_PROGRAM_2026_10_
 function answering it, and that function's arguments from the request. Each
 function delegates to the Boundary function the tab's TabExports export of that kind delegates to, so the tab's worker
 and Python answer every request the same way. ``KINDS`` is that table, the one place it is written: DataCube's
-headless engine answers by it (legend_lite._headless), and so does Python's engine for a page
-(docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15: planner.json, plan-and-run.json). Python's standard library only."""
+headless engine answers by it (legend_lite._headless): DataCube's code in this process, its worker answered in process.
+A page's planner asks Python's engine over HTTP instead, on legend-engine's own routes and the host's compute
+(docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15). Python's standard library only."""
 
 from __future__ import annotations
 
@@ -31,9 +32,6 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'hostOperations': ('lite_host_operations', lambda m: (m['databaseType'], m['operations'])),
     'warm': ('lite_warm_model', lambda m: (m['model'],)),
 }
-
-# the kinds that plan against a model held (by its handle in the tab; by its text from a page to Python's engine)
-HELD = ('plan', 'relationType', 'planJson')
 
 
 def answer(lib: Library, request: dict[str, Any]) -> dict[str, Any]:

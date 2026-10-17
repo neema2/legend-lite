@@ -27,8 +27,9 @@ import {
   fromJson,
   readLambda,
   toJson as protocolJson,
+  type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
-import { DEFAULT_CONFIGURATION, type CubeConfiguration } from './config.ts';
+import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, type CubeConfiguration } from './config.ts';
 import type {
   ColumnSpec,
   CubeSnapshot,
@@ -471,6 +472,44 @@ export function openCube(
   return { snapshot, configuration, tree, notes, changed };
 }
 
+/** A source's rows as they are: grouped by nothing, up to the row cap (a person builds the cube up). */
+export function rawRows(query: ValueSpecification, columns: CubeSnapshot['columns']): CubeSnapshot {
+  return { source: { query }, columns, derived: [], rows: [], pivotOn: [], measures: [], sorts: [], epoch: 1 };
+}
+
+/**
+ * WHETHER A NEW GRID'S ROWS ARE CAPPED at the row limit: when its page holds more than one grid, counting it
+ * (`gridsOnPage`) -- a page's only grid shows its rows, one beside others its first rows (the user, 2026-10-01: "showing
+ * the max rows configured (1000 default)"). The one rule: a source added from the picker, a saved page reopened, a
+ * host's grid made headless (headless/grid.ts gridCube) each ask it.
+ */
+export function gridCapped(gridsOnPage: number): boolean {
+  return gridsOnPage > 1;
+}
+
+/**
+ * A saved cube rebuilt over a source (`relation`, its `columns` as the compiler types them now) -- its view, its
+ * configuration, the groups it had open, what it had that the source no longer has -- or a fresh one: its rows as they
+ * are, grouped by nothing; `capped` (gridCapped: a grid beside others), up to the row limit. Moved here from app/sources.ts (2026-10-15) so a host's own pages make
+ * their grids by it too, headless (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 2).
+ */
+export function rebuilt(saved: CubeDocument | undefined, relation: ValueSpecification, columns: CubeSnapshot['columns'],
+  label: string, capped: boolean,
+): { snapshot: CubeSnapshot; configuration: CubeConfiguration; tree?: TreeState; notes: readonly string[] } {
+  if (!saved) {
+    return {
+      snapshot: rawRows(relation, columns),
+      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: label, ...(capped ? { maxRows: DEFAULT_MAX_ROWS } : {}) },
+      notes: [],
+    };
+  }
+  const cube = openCube(saved, { query: relation }, columns);
+  return {
+    snapshot: cube.snapshot, configuration: cube.configuration, ...(cube.tree ? { tree: cube.tree } : {}),
+    notes: cube.notes,
+  };
+}
+
 /** The source and calculated columns a calculated column reads. */
 export function derivedReads(d: DerivedColumn): Set<string> {
   const out = new Set<string>();
@@ -527,6 +566,14 @@ function pruneFilter(node: FilterNode, gone: ReadonlySet<string>, notes: string[
 }
 
 // ---------------------------------------------------------------- the file source
+
+/** A dataframe's source as a page records it (Python's ll.Page): its name on the engine that serves it, and its columns
+ *  as the compiler typed them when the cube was opened over it. */
+export function frameSource(
+  name: string, columns: readonly { readonly name: string; readonly type: string }[],
+): FrameSource {
+  return { _type: 'frame', name, columns: columns.map((c) => ({ name: c.name, type: c.type })) };
+}
 
 /** A file's identity: its name, format, size and SHA-256, and the columns it held. */
 export async function fileSource(

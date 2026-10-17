@@ -161,6 +161,18 @@ class Names(unittest.TestCase):
         with self.assertRaises(ValueError):
             ll.Frames().register('true', trades())
 
+    def test_a_name_is_refused_as_a_literal_only_as_pure_spells_one(self):
+        # Pure's literals are `true` and `false`, as spelled: `True` is an identifier, for a page's file's table as for
+        # a frame (frames.py read the file's name lowercased, and refused it)
+        frames = ll.Frames()
+        table = frames.register('True', trades())
+        # SQL's TRUE is a keyword in any case: the frame's table is quoted where a query reads it
+        self.assertEqual(table.execute("->filter(x|$x.desk == 'EQ')->select(~[id])").to_pylist(), [{'id': 2}, {'id': 5}])
+        with frames.reading_file('False') as name:
+            self.assertEqual(name, 'False')
+        with self.assertRaises(ValueError), frames.reading_file('false'):
+            pass
+
 
 class Session(unittest.TestCase):
     def test_the_session_answers_in_utc_on_any_machine(self):
@@ -248,6 +260,24 @@ class TypedByPlan(unittest.TestCase):
             typed_by_plan(pa.table({'a': [1], 'b': [2]}), plan)
         self.assertIn("does not type the result column 'b'", str(e.exception))
 
+    def test_a_precise_integer_is_an_integer(self):
+        # a column named by a precise primitive (the lattice knows them: _type_facts) is the plain primitive it refines:
+        # an Int or a BigInt is an Integer by legend-lite's lattice (_types, generated), so an int64, and its name kept
+        from legend_lite.frames import typed_by_plan
+        plan = ll.Plan('SELECT a, b', (ll.Column('a', 'meta::pure::precisePrimitives::Int', {}),
+                                       ll.Column('b', 'meta::pure::precisePrimitives::BigInt', {})))
+        rows = typed_by_plan(pa.table({'a': pa.array([1], pa.int32()), 'b': pa.array([2], pa.int16())}), plan)
+        self.assertEqual([f.type for f in rows.schema], [pa.int64(), pa.int64()])
+        self.assertEqual(rows.schema.field('a').metadata[b'legend.type'], b'meta::pure::precisePrimitives::Int')
+
+    def test_a_column_typed_by_a_name_legend_lite_does_not_read_is_refused(self):
+        # never read as a guess: a column of the wrong type converts wrongly without a word (types.ts typeFact)
+        from legend_lite.frames import typed_by_plan
+        plan = ll.Plan('SELECT a', (ll.Column('a', 'my::Side', {}),))
+        with self.assertRaises(RuntimeError) as e:
+            typed_by_plan(pa.table({'a': ['BUY']}), plan)
+        self.assertIn("the compiler typed a column 'my::Side', which legend-lite does not read", str(e.exception))
+
     def test_pandas_keeps_an_integer_and_a_boolean_with_nulls(self):
         from legend_lite.frames import to_pandas
         frame = pa.table({'i': pa.array([1, None]), 'b': pa.array([True, None]), 'd': pa.array([Decimal('0.10'), None])})
@@ -257,6 +287,33 @@ class TypedByPlan(unittest.TestCase):
         # an integer, never 1.0 (numpy's float64 is a float)
         self.assertNotIsInstance(out['i'][0], float)
         self.assertTrue(pd.isna(out['i'][1]) and pd.isna(out['b'][1]))
+
+
+class TypeNamesAreReadHere(unittest.TestCase):
+    """A column's type is read in one place (legend_lite/_types.py, over the generated _type_facts.py), as DataCube's
+    guardrails test holds engine-client's types.ts the one: no other module of the package spells a type's name to
+    decide what it is (docs/PYTHON_ASKS_DATACUBE_2026_10_15.md, item 4) -- it asks _types, which reads either compiler's
+    name and refuses an unknown one. It scans the modules this lane holds: the compiler's and the datacube extra's
+    (notebook.py, the notebook extra's widget, is not among them; it reads no type). It sees string literals: on the
+    lanes' Python (3.12) an f-string is tokens of its own, so a type's name in an f-string's text is not seen."""
+
+    def test_no_other_module_spells_a_type_name(self):
+        import ast
+        import io
+        import pathlib
+        import tokenize
+        import legend_lite
+        from legend_lite._type_facts import TYPE_FACTS
+        names = set(TYPE_FACTS) | {plain for plain, _ in TYPE_FACTS.values()}
+        package = pathlib.Path(legend_lite.__file__).parent
+        modules = sorted(f for f in package.glob('*.py') if f.name not in ('_types.py', '_type_facts.py'))
+        self.assertIn('page.py', [f.name for f in modules], 'the scan found the package')
+        spelled = []
+        for module in modules:
+            for token in tokenize.generate_tokens(io.StringIO(module.read_text('utf-8')).readline):
+                if token.type == tokenize.STRING and ast.literal_eval(token.string) in names:
+                    spelled.append(f'{module.name}:{token.start[0]} {token.string}')
+        self.assertEqual(spelled, [], 'a type is asked of legend_lite._types, never spelled')
 
 
 class ModelFor(unittest.TestCase):

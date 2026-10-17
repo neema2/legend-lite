@@ -509,6 +509,23 @@ try {
   });
   let saved = '';
 
+  await check('New ▸ Data Source… on a blank page: its only grid, not capped; the next, beside it, capped', async () => {
+    await load();
+    page.once('dialog', (d) => { void d.accept(); });
+    await burger('Blank Page');
+    await page.locator('.dc-blank').waitFor({ state: 'visible' });
+    // the picker's "add", the page empty: the grid it makes is the page's only one (cube-document.ts gridCapped)
+    await addSample('trades', 200);
+    await page.locator('[data-tile="grid-1"] .dc-row').first().waitFor({ timeout: 60_000 });
+    await addSample('dates', 80);
+    await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 60_000 });
+    const doc = await page.evaluate(() => window.__dataPage.document('Caps'));
+    // a capped grid's configuration holds the row limit (rebuilt); an uncapped one, none
+    const caps = doc.cubes.map((c) => `${c.id}: ${c.cube.configuration.maxRows ?? 'none'}`).join(', ');
+    if (caps !== 'grid-1: none, grid-2: 1000') throw new Error(`the grids' row limits: ${caps}`);
+    return caps;
+  });
+
   await check('a page of two sources, a chart of the second, its FIRST grid removed: saved as one page', async () => {
     await load();
     const before = await statusNow();

@@ -296,6 +296,25 @@ class OnThePage(unittest.TestCase):
         self.assertEqual(set(page.model['tables']), {kept})
         self.assertEqual(set(page.model['classes']), {kept})
 
+    def test_a_class_sample_is_its_first_rows_as_datacube_writes_them(self):
+        # DataCube's own sample (sample-rows.ts sampleOf, headless gridClass), each value as its executor gives it: an
+        # integer past 2**53 as text, a decimal its digits at its scale, a date and a timestamp as text, a double as
+        # JavaScript writes it (a whole one an integer)
+        import datetime
+        from decimal import Decimal
+        page = ll.Page('Sampled')
+        grid = page.grid(pa.table({
+            'desk': ['FX', 'EQ'], 'qty': [1, 2], 'big': [2 ** 60, 3], 'notional': [1.5, 2.0],
+            'dec': pa.array([Decimal('12.30'), Decimal('1.05')], pa.decimal128(10, 2)),
+            'day': [datetime.date(2024, 1, 1), datetime.date(2024, 1, 2)],
+            'at': [datetime.datetime(2024, 1, 1, 9, 30, 0, 120000), datetime.datetime(2024, 1, 2, 10, 0)],
+            'flag': [True, None]}), name='sampled')
+        cls, asked = grid._class()
+        self.assertEqual(cls['where']['samples'][asked['table']['table']], {
+            'columns': ['desk', 'qty', 'big', 'notional', 'dec', 'day', 'at', 'flag'],
+            'rows': [['FX', 1, str(2 ** 60), Decimal('1.5'), '12.30', '2024-01-01', '2024-01-01T09:30:00.12', True],
+                     ['EQ', 2, 3, 2, '1.05', '2024-01-02', '2024-01-02T10:00:00', None]]})
+
     def test_the_project_made_is_named_as_asked(self):
         page = _page(self)
         page.grids[0].create_class('Trade', project='Desk book')

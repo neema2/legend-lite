@@ -45,6 +45,10 @@ export class CubeRefusal extends Error {
 
 export type ColumnKind = 'dimension' | 'measure';
 
+/** Every column kind, each once: a Record over ColumnKind, so a kind added to it and not here does not compile. */
+const KINDS: { readonly [K in ColumnKind]: true } = { dimension: true, measure: true };
+export const COLUMN_KINDS = Object.keys(KINDS) as readonly ColumnKind[];
+
 /**
  * The leaf count's column in a group query's result ("Show leaf
  * count"). Internal, like the tree column's `__tree`: `assemble` folds

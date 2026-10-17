@@ -32,6 +32,7 @@ import {
   levelLambda,
   TOTAL_ROWS_COLUMN,
   pivotValuesLambda,
+  sourceWithDerived,
 } from './query.ts';
 import { planPivot, typeColumns, type PivotPlan, type SchemaChange } from './plan.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
@@ -369,22 +370,44 @@ export class CubeController {
    * flat query, each with its row cap -- because a check of a
    * different query passes a draft its own run then refuses (a Row
    * Limit the planner refused sailed through a cap-less compile).
-   * Resolves to the first refused query and the refusal, the first
-   * query and null when all compile, or undefined when this plane
-   * cannot compile without executing. `shown` is the view on screen: a
+   * Its columns are typed first, as a refresh types them (step 0,
+   * `typeColumns`): an aggregate is chosen by a column's type, so a
+   * draft column left untyped would compile one aggregate where its run
+   * sends another (the one default-aggregate rule, query.ts
+   * `defaultAggregate`). Resolves to the first refused query and the
+   * refusal -- the typing query's own refusal first -- or the first
+   * query and null when all compile. `shown` is the view on screen: a
    * pivoted draft on the same keys compiles with its values.
    */
   async compile(
     state: RunState,
     shown: CubeView | null,
     signal?: AbortSignal,
-  ): Promise<CompileOutcome | undefined> {
+  ): Promise<CompileOutcome> {
     const { snapshot, tree } = state;
     const runner = this.#runner;
-    const s: CubeSnapshot = {
+    const reading: CubeSnapshot = {
       ...snapshot,
       source: { query: this.#snaps.sourceFor(snapshot.source.query) },
     };
+    // STEP 0, as a refresh's: the columns' types, from the compiler, before
+    // any query reads them to choose an aggregate. A check adopts nothing
+    // (its schema changes are the run's to report); a refusal is its answer
+    // -- building the typing query's (no query to show), or the compiler's.
+    let typing: Lambda;
+    try {
+      typing = sourceWithDerived(reading).lambda();
+    } catch (error: unknown) {
+      if (!(error instanceof CubeRefusal)) throw error;
+      return { refusal: error.message };
+    }
+    let s: CubeSnapshot;
+    try {
+      s = (await typeColumns(reading, runner, signal)).snapshot;
+    } catch (error: unknown) {
+      if (signal?.aborted) throw error;
+      return { query: typing, refusal: error instanceof Error ? error.message : String(error) };
+    }
     const scopes: (LevelScope | undefined)[] = [];
     if (s.rows.length > 0) {
       const limit = (s.maxRows ?? DEFAULT_MAX_ROWS) + 1;

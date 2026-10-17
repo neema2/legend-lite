@@ -23,7 +23,7 @@ document (``read``), and the document's own words reach what no method names: ``
 ``options`` (a chart's), ``layout_from`` (a sheet's bands). Each grid's cube is over its frame by the frame's name
 (``{"_type": "frame"}``), served by this process's engine, as ``show(df)`` serves one. A tile is placed and taken off as
 DataCube's layout places it (datacube/src/layout/bands.ts): a grid in a band of its own at the bottom, a chart beside its
-grid (four to a band at most), a tile taken off leaving its neighbours closing over its place.
+grid (as many to a band as DataCube's layout takes), a tile taken off leaving its neighbours closing over its place.
 """
 
 from __future__ import annotations
@@ -34,25 +34,19 @@ import math
 import numbers
 import re
 import uuid
+import warnings
 from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from . import _json, compiler
+from . import _json
+from ._types import is_boolean, is_decimal, is_float, is_integer
 from .frames import LIVE, SNAPPED
 
-# DataCube's own vocabularies, as its sources spell them (datacube/src/snapshot.ts, chart-spec.ts, layout/bands.ts): a
-# name outside them is refused here, at the line that names it. datacube/test/python-vocabulary.test.ts reads each
-# against DataCube's source.
-FILTER_OPERATORS = frozenset({
-    'equal', 'notEqual', 'lessThan', 'lessThanEqual', 'greaterThan', 'greaterThanEqual', 'isEmpty', 'isNotEmpty',
-    'contains', 'notContains', 'startsWith', 'notStartsWith', 'endsWith', 'notEndsWith', 'in', 'notIn',
-    'equalCaseInsensitive', 'notEqualCaseInsensitive', 'containsCaseInsensitive', 'startsWithCaseInsensitive',
-    'endsWithCaseInsensitive', 'inCaseInsensitive', 'notInCaseInsensitive', 'equalColumn', 'equalCaseInsensitiveColumn',
-    'notEqualColumn', 'notEqualCaseInsensitiveColumn', 'lessThanColumn', 'lessThanEqualColumn', 'greaterThanColumn',
-    'greaterThanEqualColumn',
-})
+# DataCube's own vocabularies, as its sources spell them (datacube/src/snapshot.ts, chart-spec.ts): a name outside
+# them is refused here, at the line that names it. datacube/test/python-vocabulary.test.ts reads each against
+# DataCube's source.
 AGGREGATES = frozenset({
     'sum', 'count', 'average', 'min', 'max', 'median', 'stdDevSample', 'stdDevPopulation', 'varianceSample',
     'variancePopulation', 'joinStrings', 'wavg', 'unique',
@@ -71,30 +65,23 @@ GRAINS = frozenset({'day', 'week', 'month', 'quarter', 'year'})
 LAYERS = frozenset({'line', 'stat', 'band', 'threshold', 'extremes'})
 STATS = frozenset({'average', 'min', 'max'})
 DIRECTIONS = frozenset({'asc', 'desc'})
-# a band added at the bottom of a sheet, in screenfuls; the places a band holds side by side, at most; the bands the
-# layout picker fits to a screen, at most
-BAND_HEIGHT = 0.5
-MAX_COLUMNS = 4
-SCREEN_BANDS = 3
 
 PAGE_KIND = 'datacube.page'
 # 4: the page's model, where its classes are (DataCube's Create a Class…); a page of Python's has none yet
 PAGE_VERSION = 4
-CUBE_KIND = 'datacube.cube'
-CUBE_VERSION = 1
-# the operators that take no value, those that take a list of them, and those that compare to another column
-_NO_VALUE = frozenset({'isEmpty', 'isNotEmpty'})
-_LIST = frozenset({'in', 'notIn', 'inCaseInsensitive', 'notInCaseInsensitive'})
-_COLUMN = frozenset(op for op in FILTER_OPERATORS if op.endswith('Column'))
-_PLAIN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 _KEEP: Any = object()
 
 
-def _named(name: Any, what: str) -> Any:
-    """A name given (a title, a sheet's, a page's): text that is not blank, or None."""
-    if name is not None and (not isinstance(name, str) or not name.strip()):
+def _given_name(session: Any, part: str, name: Any, what: str) -> str | None:
+    """A name a page, a tile or a sheet is given, by DataCube's one rule (page-names.ts givenName, asked headless:
+    nameGiven, as the screen's renames ask it): its text trimmed, a page's or a tile's blank refused in DataCube's words,
+    a sheet's blank none of its own (None). Python only refuses what is not text."""
+    if not isinstance(name, str):
         raise ValueError(f'{what} is a name, not {name!r}')
-    return name
+    said = json.loads(session.headless().call('nameGiven', part, name))
+    if 'problems' in said:
+        raise ValueError(f'{what}: ' + '; '.join(said['problems']))
+    return said['name']
 
 
 def _plain(value: Any, exact: bool = False) -> Any:
@@ -128,7 +115,7 @@ def _number(id: str) -> int:
 
 # -- filters ----------------------------------------------------------------------------------------------------------
 
-def _value(operator: str, value: Any) -> Any:
+def _value(value: Any) -> Any:
     """A filter's value as DataCube keeps one (snapshot.ts, FilterValue): text, a number, a boolean, a date relative to
     when the query runs (``{'relative': 'today' | 'now'}``) or a variant column's JSON (``{'json': text}``). A date and a
     Decimal go as their exact text, which DataCube writes as the column's type writes it (``'2024-01-31'``, ``'12.30'``)."""
@@ -145,14 +132,15 @@ def _value(operator: str, value: Any) -> Any:
     if isinstance(value, Mapping) and ((set(value) == {'relative'} and value['relative'] in ('today', 'now'))
                                        or (set(value) == {'json'} and isinstance(value['json'], str))):
         return dict(value)
-    raise ValueError(f'{operator!r} takes text, a number, a boolean, a date, {{"relative": "today" | "now"}} or '
+    raise ValueError(f'a filter takes text, a number, a boolean, a date, {{"relative": "today" | "now"}} or '
                      f'{{"json": text}}, not {value!r} (a timestamp as its text: "2024-01-31 10:30:00")')
 
 
-def _filter(node: Any, columns: set[str]) -> dict[str, Any]:
-    """A filter as the filter editor writes it: a condition ``(column, operator[, value])``, a group ``('and' | 'or',
-    [nodes])``, or ``('not', node)``; a list is all of them. Checked against the grid's columns and DataCube's operators,
-    each value against its operator."""
+def _given_filter(node: Any) -> dict[str, Any]:
+    """A filter as Python takes one -- a condition ``(column, operator[, operand])``, a group ``('and' | 'or',
+    [nodes])`` or ``('not', node)``, a list being all of them -- in the shape of the filter editor's tree, each
+    operand's values as DataCube keeps them (``_value``). What an operator takes, and whether a column takes it,
+    DataCube's code says (gridFilter)."""
     if isinstance(node, list):
         node = ('and', node)
     if not isinstance(node, tuple) or len(node) < 2:
@@ -160,39 +148,21 @@ def _filter(node: Any, columns: set[str]) -> dict[str, Any]:
                          f'not {node!r}')
     head = node[0]
     if head in ('and', 'or') and len(node) == 2 and isinstance(node[1], (list, tuple)):
-        return {'kind': head, 'children': [_filter(child, columns) for child in node[1]]}
+        return {'kind': head, 'children': [_given_filter(child) for child in node[1]]}
     if head == 'not' and len(node) == 2:
-        return {'kind': 'not', 'child': _filter(node[1], columns)}
-    column, operator, *rest = node
-    if column not in columns:
-        raise ValueError(f'the filter names {column!r}, not a column of the grid ({", ".join(sorted(columns))})')
-    if operator not in FILTER_OPERATORS:
-        raise ValueError(f'{operator!r} is not one of DataCube\'s filter operators: {", ".join(sorted(FILTER_OPERATORS))}')
-    condition: dict[str, Any] = {'kind': 'condition', 'column': column, 'operator': operator}
-    if operator in _NO_VALUE:
-        if rest:
-            raise ValueError(f'{operator!r} takes no value')
-        return condition
-    if len(rest) != 1:
-        raise ValueError(f'{operator!r} takes one value: (column, {operator!r}, value)')
-    given = rest[0]
-    if operator in _COLUMN:
-        if given not in columns:
-            raise ValueError(f'{operator!r} compares to another column: {given!r} is not one of the grid\'s')
-        condition['rightColumn'] = given
-    elif operator in _LIST:
-        if not isinstance(given, (list, tuple)):
-            raise ValueError(f'{operator!r} takes a list of values, in their order: (column, {operator!r}, [...])')
-        condition['value'] = [_value(operator, v) for v in given]
-    else:
-        if isinstance(given, (list, tuple, set, frozenset)):
-            raise ValueError(f'{operator!r} takes one value, not several (several are for "in")')
-        condition['value'] = _value(operator, given)
+        return {'kind': 'not', 'child': _given_filter(node[1])}
+    if len(node) > 3:
+        raise ValueError(f'a condition is (column, operator) or (column, operator, value), not {node!r}')
+    condition: dict[str, Any] = {'kind': 'condition', 'column': node[0], 'operator': node[1]}
+    if len(node) == 3:
+        given = node[2]
+        if isinstance(given, (set, frozenset)):
+            raise ValueError('a filter takes a list of values, in their order (a list or a tuple), not a set')
+        condition['operand'] = [_value(v) for v in given] if isinstance(given, (list, tuple)) else _value(given)
     return condition
 
 
-# -- a sheet's bands, edited as datacube/src/layout/bands.ts edits them: shares summing to 1, no split of one part nor
-# one inside a split of its own direction, a stack of two tiles or more, every tile once ------------------------------
+# -- a sheet's bands, read: DataCube edits them (datacube/src/layout/bands.ts, asked headless: Page._layout) ---------
 
 def _is_leaf(node: dict[str, Any]) -> bool:
     return 'tile' in node or 'stack' in node
@@ -200,48 +170,6 @@ def _is_leaf(node: dict[str, Any]) -> bool:
 
 def _leaf_tiles(node: dict[str, Any]) -> list[str]:
     return [node['tile']] if 'tile' in node else list(node['stack'])
-
-
-def _split(direction: str, nodes: list[dict[str, Any]], sizes: list[Any] | None = None) -> dict[str, Any]:
-    """A split of ``nodes`` in ``direction``, their shares ``sizes`` (even unless given); one node is itself. A part
-    splitting the same way is folded in, its parts taking its share between them."""
-    if len(nodes) == 1:
-        return nodes[0]
-    shares = sizes if sizes is not None else [1 / len(nodes)] * len(nodes)
-    parts: list[dict[str, Any]] = []
-    for node, share in zip(nodes, shares):
-        if not _is_leaf(node) and node['split'] == direction:
-            parts += [{'node': p['node'], 'size': p['size'] * share} for p in node['parts']]
-        else:
-            parts.append({'node': node, 'size': share})
-    total = sum(p['size'] for p in parts)
-    return {'split': direction, 'parts': [{'node': p['node'], 'size': p['size'] / total} for p in parts]}
-
-
-def _without(node: dict[str, Any], tile: str) -> dict[str, Any] | None:
-    """``node`` without ``tile`` (None when nothing is left), its neighbours taking its share; out of a stack, the stack
-    keeps its place, a stack left with one tile being that tile. (A stack's tile in front is what a page shows, not what
-    it saves -- bands.ts, asSaved -- so a stack here has none to keep.)"""
-    if _is_leaf(node):
-        if tile not in _leaf_tiles(node):
-            return node
-        rest = [t for t in _leaf_tiles(node) if t != tile]
-        return None if not rest else {'tile': rest[0]} if len(rest) == 1 else {'stack': rest}
-    kept = [(inner, p['size']) for p in node['parts'] if (inner := _without(p['node'], tile)) is not None]
-    if not kept:
-        return None
-    return kept[0][0] if len(kept) == 1 else _split(node['split'], [n for n, _ in kept], [s for _, s in kept])
-
-
-def _replaced(node: dict[str, Any], tile: str, by: dict[str, Any]) -> dict[str, Any]:
-    """``node`` with the place holding ``tile`` (it, or its stack) replaced by ``by``."""
-    if _is_leaf(node):
-        return by if tile in _leaf_tiles(node) else node
-    return _split(node['split'], [_replaced(p['node'], tile, by) for p in node['parts']], [p['size'] for p in node['parts']])
-
-
-def _contains(node: dict[str, Any], tile: str) -> bool:
-    return tile in _leaf_tiles(node) if _is_leaf(node) else any(_contains(p['node'], tile) for p in node['parts'])
 
 
 def _leaves(layout: dict[str, Any]) -> list[dict[str, Any]]:
@@ -261,45 +189,6 @@ def _leaves(layout: dict[str, Any]) -> list[dict[str, Any]]:
 
 def _tiles(layout: dict[str, Any]) -> list[str]:
     return [t for leaf in _leaves(layout) for t in _leaf_tiles(leaf)]
-
-
-def _problems(layout: Any) -> list[str]:
-    """What keeps ``layout`` from being one DataCube draws (as page-document.ts and bands.ts read it), or nothing."""
-    if not isinstance(layout, dict) or layout.get('kind') != 'bands' or not isinstance(layout.get('fit'), bool) \
-            or not isinstance(layout.get('bands'), list):
-        return ['it is not a layout of bands ({"kind": "bands", "fit": True | False, "bands": [...]})']
-    out: list[str] = []
-    seen: set[str] = set()
-
-    def share(v: Any) -> bool:
-        return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and v > 0
-
-    def walk(node: Any, parent: str | None, where: str) -> None:
-        if isinstance(node, dict) and isinstance(node.get('tile'), str):
-            tiles = [node['tile']]
-        elif isinstance(node, dict) and isinstance(node.get('stack'), list) and len(node['stack']) >= 2 \
-                and all(isinstance(t, str) for t in node['stack']):
-            tiles = node['stack']
-        elif isinstance(node, dict) and node.get('split') in ('row', 'column') and isinstance(node.get('parts'), list) \
-                and len(node['parts']) >= 2 and all(isinstance(p, dict) and share(p.get('size')) for p in node['parts']):
-            if node['split'] == parent:
-                out.append(f'{where}: a {parent} inside a {parent}')
-            if abs(sum(p['size'] for p in node['parts']) - 1) > 1e-9:
-                out.append(f'{where}: shares not summing to 1')
-            for i, part in enumerate(node['parts']):
-                walk(part.get('node'), node['split'], f'{where}.{i}')
-            return
-        else:
-            out.append(f'{where} is not a tile, a stack of two or more, or a split of two parts or more')
-            return
-        out.extend(f'{t} is in the layout twice' for t in tiles if t in seen)
-        seen.update(tiles)
-    for i, band in enumerate(layout['bands']):
-        if not isinstance(band, dict) or not share(band.get('height')):
-            out.append(f'band {i} has no height above 0')
-        else:
-            walk(band.get('node'), None, f'band {i}')
-    return out
 
 
 # -- the handles ------------------------------------------------------------------------------------------------------
@@ -339,12 +228,12 @@ class Tile:
     @title.setter
     def title(self, title: str | None) -> None:
         view = self._view
-        if _named(title, 'a title') is None:
+        if title is None:
             if self._kind == 'chart':
                 raise ValueError('a chart has a title')
             view.pop('title', None)
         else:
-            view['title'] = title
+            view['title'] = _given_name(self._page._session, 'tile', title, 'a title')
         self._page._changed()
 
     @property
@@ -442,24 +331,20 @@ class Grid(Tile):
     def _class(self, name: str | None = None, columns: Mapping[str, Any] | None = None,
                documentation: str | None = None) -> tuple[dict[str, Any], dict[str, Any]]:
         """Its rows as a class's, as the window asks for them: DataCube's own request (headless ``gridClass``: its rows
-        at their finest level, its table, its sample's query, the names offered), its sample read on Python's database
-        by the session's planner -- with the frames held still, so a Live frame is read once for both, unless a server
-        plans (its answer is awaited holding no lock of the frames'). Answers the writer's class action and what
-        DataCube said; a grid whose rows cannot be a class refused in DataCube's words (``ValueError``)."""
+        at their finest level, its table, its first rows as the window writes them into the project -- planned and run
+        on Python's database, as every headless grid's are -- and the names offered), with the frames held still.
+        Answers the writer's class action and what DataCube said; a grid whose rows cannot be a class refused in
+        DataCube's words (``ValueError``)."""
         engine, frames = self._headless()
-        local = frames.planner is None
         with frames.serving():
             asked = _json.loads(engine.call('gridClass', self._spec(frames), {'source': self.frame, 'page': self._page.name}))
-            if 'refused' in asked:
-                raise ValueError(f'{self.frame!r} cannot be a class: {asked["refused"]}')
-            sample = frames[self.frame].execute(asked['sample']) if local else None
-        if sample is None:
-            sample = frames[self.frame].execute(asked['sample'])
+        if 'refused' in asked:
+            raise ValueError(f'{self.frame!r} cannot be a class: {asked["refused"]}')
         cls = {'query': asked['query'], 'source': asked['source'], 'name': name or asked['names']['className'],
                **({'documentation': documentation} if documentation else {}),
                **({'columns': _column_choices(columns)} if columns else {}),
                'where': {'from': asked['table']['database'], 'as': 'Python',
-                         'samples': {asked['table']['table']: _sample_rows(sample)}}}
+                         'samples': {asked['table']['table']: asked['sample']}}}
         return cls, asked
 
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
@@ -520,7 +405,10 @@ class Grid(Tile):
             self._check([column], 'a measure')
         if (fn == 'wavg') != (weight is not None):
             raise ValueError('a weighted average (wavg) takes a weight column, and only it does')
-        named = _named(name, "a measure's name") or column
+        if name is not None and (not isinstance(name, str) or not name.strip()):
+            # DataCube offers no name entry for a measure (a person never types one): only the argument's own check
+            raise ValueError(f"a measure's name is a name, not {name!r}")
+        named = name or column
         measures = self._query.get('measures', [])
         if any(m['name'] == named for m in measures):
             raise ValueError(f'the grid has a measure named {named!r} already: give this one a name of its own (name=...)')
@@ -530,9 +418,19 @@ class Grid(Tile):
 
     def filter(self, condition: Any) -> Grid:
         """Its filter: a condition ``(column, operator[, value])``, a list of them (all of them), a group
-        ``('and' | 'or', [...])`` or ``('not', ...)`` -- the filter editor's own conditions; ``None`` for none."""
+        ``('and' | 'or', [...])`` or ``('not', ...)`` -- the filter editor's own conditions, set as it sets them
+        (DataCube's code, headless: gridFilter): each operator's value as it takes one (none, one, a list, another
+        column), one a column of its type is offered, the grid with it compiled, in the editor's normal form (a group of
+        one is that one, an empty one none: ``[]`` takes the filter off, as ``None`` does); ``None`` for none."""
         if condition is not None:
-            return self._set('filter', _filter(condition, self._columns()))
+            engine, frames = self._headless()
+            with frames.serving():
+                said = json.loads(engine.call('gridFilter', self._spec(frames), _json.dumps(_given_filter(condition))))
+            if 'problems' in said:
+                raise ValueError(f'{"; ".join(said["problems"])} -- in Python a condition is (column, operator) or '
+                                 '(column, operator, value), its value a list where the operator takes several')
+            if said['filter'] is not None:
+                return self._set('filter', said['filter'])
         self._query.pop('filter', None)
         self._page._changed()
         return self
@@ -544,23 +442,22 @@ class Grid(Tile):
         sort = {'column': self._check([column], 'a sort')[0], 'direction': direction}
         return self._set('sorts', [*self._query.get('sorts', []), sort])
 
-    def calculate(self, name: str, expression: str) -> Grid:
+    def calculate(self, name: str, expression: str, *, kind: str | None = None) -> Grid:
         """A calculated column computed per row, in Pure over the row ``$x`` (``'$x.qty * 2'``; a column that can be
-        empty, as a dataframe's can, ``->toOne()`` first for arithmetic), as the grid's own editor takes it. It can read
-        the grid's calculated columns before it (a window column made in DataCube excepted: Python does not type one
-        yet). The compiler checks it here, against the frame and those columns: a mistake fails at this line."""
-        if not isinstance(name, str) or not name:
-            raise ValueError(f'a calculated column has a name, not {name!r}')
-        if name in self._columns():
-            raise ValueError(f'{name!r} is a column of the grid already')
-        table = self._page._session.frames[self.frame]
-        derived = self._query.get('derived', [])
-        # typed as the grid runs it (query.ts, extendDerived): the frame's rows extended by its calculated columns in
-        # order, then by it
-        before = ''.join(_step(d) for d in derived if 'lambda' in d and 'window' not in d and 'childAggregate' not in d)
-        table.relation_type(compiler.parse(
-            f'|{table.accessor}{before}->extend(~{_pure_name(name)}:x|{expression})'))
-        return self._set('derived', [*derived, {'name': name, 'lambda': compiler.parse(f'x|{expression}')}])
+        empty, as a dataframe's can, ``->toOne()`` first for arithmetic), added as the grid's own column editor adds one
+        (DataCube's code, headless: gridCalculate): its name as DataCube takes one, ``kind`` ``'measure'`` or
+        ``'dimension'`` as declared (not given, a measure, as the editor starts a new column -- summed when grouped if it
+        is a number, its unique value if not), and the grid with it compiled as DataCube would run it -- reading any of
+        the grid's columns before it, a window column's too.
+        A mistake fails at this line, in DataCube's and the compiler's words."""
+        if not isinstance(name, str) or not isinstance(expression, str):
+            raise ValueError(f'a calculated column is a name and an expression, not {name!r} and {expression!r}')
+        engine, frames = self._headless()
+        with frames.serving():
+            said = json.loads(engine.call('gridCalculate', self._spec(frames), name, f'x|{expression}', kind))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self._set('derived', [*self._query.get('derived', []), _plain(_json.loads(said['derived']))])
 
     def configure(self, settings: Mapping[str, Any]) -> Grid:
         """Any of the grid's configuration (its Properties), in its saved document's own keys (``reportTitle``,
@@ -600,7 +497,7 @@ class Grid(Tile):
         # made as DataCube makes a new chart (what is not given is its own default), and judged as it will draw it: what
         # DataCube would refuse to draw is refused here, in its words, before the chart is kept
         spec = _made(self._page, self._view['cube'], given)
-        named = _named(title, 'a title')
+        named = None if title is None else _given_name(self._page._session, 'tile', title, 'a title')
         id = self._page._next('chart')
         self._page._doc['views'].append({'id': id, 'kind': 'chart', 'cube': self._view['cube'],
                                          'title': named or f'Chart {_number(id)}', 'spec': spec})
@@ -621,23 +518,6 @@ class Grid(Tile):
 
     def __repr__(self) -> str:
         return f'<Grid {self._id}>'
-
-
-def _pure_name(name: str) -> str:
-    """A column name in a column spec: as it is when plain, quoted otherwise."""
-    return name if _PLAIN.match(name) else "'" + name.replace('\\', '\\\\').replace("'", "\\'") + "'"
-
-
-def _step(derived: dict[str, Any]) -> str:
-    """A calculated column as the grid's query takes it, as Pure text: ``->extend(~name:x|...)``, or an exploded one's
-    ``->lateral(x|<collection>->flatten(~name))``."""
-    lambda_ = derived['lambda']
-    if not derived.get('unnest'):
-        return f'->extend(~{_pure_name(derived["name"])}:{compiler.print_tree(lambda_, "STANDARD")})'
-    # flatten's own tree, from the compiler's parse of it, around the column's collection
-    flatten = compiler.parse(f'x|$x->flatten(~{_pure_name(derived["name"])})')['body'][0]
-    flatten['parameters'][0] = lambda_['body'][0]
-    return f'->lateral({compiler.print_tree({**lambda_, "body": [flatten]}, "STANDARD")})'
 
 
 def _given(mark: str, x: Any, y: Sequence[Any] | None, split: Any, frozen: bool | None) -> dict[str, Any]:
@@ -708,12 +588,13 @@ class GridView:
 
     def __init__(self, view: Mapping[str, Any]) -> None:
         self.columns: list[dict[str, Any]] = list(view['columns'])
-        # each value as its column's type says: a Decimal's text (DataCube's exact decimals) a Decimal, a Float a float
-        # even when JSON wrote it as a whole number (10.0 is written 10)
+        # each value as its column's type says (by legend-lite's lattice, either compiler's name: _types): a Decimal's
+        # text (DataCube's exact decimals) a Decimal, a Float a float even when JSON wrote it as a whole number (10.0 is
+        # written 10)
         def typed(v: Any, type: str) -> Any:
-            if type == 'Decimal' and isinstance(v, str):
+            if is_decimal(type) and isinstance(v, str):
                 return Decimal(v)
-            if type == 'Float' and isinstance(v, int) and not isinstance(v, bool):
+            if is_float(type) and isinstance(v, int) and not isinstance(v, bool):
                 return float(v)
             return v
         types = [c['type'] for c in self.columns]
@@ -728,13 +609,15 @@ class GridView:
         """The rows as the grid shows them, a DataFrame with one column per column shown: an Integer or a Boolean
         column with nulls an integer or a boolean still (pandas' nullable types, as ``frames.to_pandas``)."""
         import pandas as pd
-        nullable = {'Integer': pd.Int64Dtype(), 'Boolean': pd.BooleanDtype()}
 
         def column(i: int, type: str) -> Any:
             values = [row[i] for row in self.rows]
+            integer = is_integer(type)
             # an Integer past 64 bits kept exact, as Python's own rows keep it (frames.to_pandas): pandas' objects
-            wide = type == 'Integer' and any(isinstance(v, int) and not -2 ** 63 <= v < 2 ** 63 for v in values)
-            return pd.Series(values, dtype=object if wide else nullable.get(type))
+            if integer and any(isinstance(v, int) and not -2 ** 63 <= v < 2 ** 63 for v in values):
+                return pd.Series(values, dtype=object)
+            nullable = pd.Int64Dtype() if integer else pd.BooleanDtype() if is_boolean(type) else None
+            return pd.Series(values, dtype=nullable)
         # by position: a pivot's columns may share a name
         frame = pd.DataFrame({i: column(i, c['type']) for i, c in enumerate(self.columns)})
         frame.columns = [c['name'] for c in self.columns]
@@ -815,10 +698,11 @@ class Sheet:
     @name.setter
     def name(self, name: str | None) -> None:
         sheet = self._doc
-        if _named(name, "a sheet's name") is None:
+        own = None if name is None else _given_name(self._page._session, 'sheet', name, "a sheet's name")
+        if own is None:
             sheet.pop('name', None)
         else:
-            sheet['name'] = name
+            sheet['name'] = own
         self._page._changed()
 
     @property
@@ -863,49 +747,48 @@ class Sheet:
             chosen.append(row)
         if used != set(leaves):
             raise ValueError(f'every tile on the sheet is in the layout: {", ".join(sorted(set(leaves) - used))} not')
-        return self._laid([{'height': _band_height(len(chosen)), 'node': _split('row', row)} for row in chosen])
+        if not chosen:
+            return self  # a sheet with no tiles, laid out in no bands: as it is (no shape names no bands)
+        # a band of each list's places side by side: DataCube's rows preset, the bands' counts and the places in order
+        return self._arranged('rows:' + '-'.join(str(len(row)) for row in chosen),
+                              [tile._id for band in bands for tile in band])
 
     def arrange(self, shape: str) -> Sheet:
-        """Its places arranged as one of the layout picker's simplest shapes, in reading order: ``'side-by-side'`` (one
-        band) or ``'stacked'`` (a band each)."""
-        leaves = _leaves(self._doc['layout'])
-        if shape == 'side-by-side':
-            return self._laid([{'height': 1, 'node': _split('row', leaves)}] if leaves else [])
-        if shape == 'stacked':
-            return self._laid([{'height': _band_height(len(leaves)), 'node': leaf} for leaf in leaves])
-        raise ValueError(f"a shape is 'side-by-side' or 'stacked' (or sheet.layout(...) band by band), not {shape!r}")
+        """Its places arranged as one of DataCube's layout picker's shapes, in reading order (a stack is one place):
+        ``'side-by-side'`` (one band), ``'stacked'`` (a band each), ``'rows:2-1'`` (bands of 2 then 1),
+        ``'columns:1-2'``, ``'focus-left'`` (the first half the page, the rest beside it) and the picker's others, as
+        DataCube names them."""
+        if not isinstance(shape, str):
+            raise ValueError(f"a shape is the layout picker's name ('side-by-side', 'rows:2-1', ...), not {shape!r}")
+        return self._arranged(shape, None)
+
+    def _arranged(self, preset: str, order: list[str] | None) -> Sheet:
+        """Its places arranged as DataCube arranges them (bands.ts arrange, asked headless), in ``order`` (their tiles;
+        None: reading order)."""
+        said = json.loads(self._page._session.headless().call(
+            'layoutArrange', _json.dumps(self._doc['layout']), preset, None if order is None else _json.dumps(order)))
+        if 'problems' in said:
+            raise ValueError(f'{"; ".join(said["problems"])} (a shape as the layout picker names it, or '
+                             f'sheet.layout(...) band by band)')
+        self._doc['layout'] = said['layout']
+        self._page._changed()
+        return self
 
     def layout_from(self, layout: Mapping[str, Any]) -> Sheet:
         """Its layout in the page document's own words -- ``{"kind": "bands", "fit": ..., "bands": [{"height": ...,
         "node": ...}]}``, each node a ``{"tile": id}``, a ``{"stack": [ids]}`` or a ``{"split": "row" | "column",
         "parts": [{"node": ..., "size": share}]}`` -- as ``page.to_dict()`` shows a sheet's. Every tile on the sheet is in
-        it once, and only they."""
-        sheet = self._doc
-        given = _copied(layout)
-        wrong = _problems(given)
-        if wrong:
-            raise ValueError(f'not a layout DataCube draws: {"; ".join(wrong)}')
-        on, named = set(_tiles(sheet['layout'])), set(_tiles(given))
-        if on != named:
-            raise ValueError(f'a sheet\'s layout holds its tiles, each once: {", ".join(sorted(on - named)) or "none"} '
-                             f'left out, {", ".join(sorted(named - on)) or "none"} not on the sheet')
-        sheet['layout'] = given
-        self._page._changed()
-        return self
-
-    def _laid(self, bands: list[dict[str, Any]]) -> Sheet:
-        layout = self._doc['layout']
-        layout['bands'] = bands
-        self._page._changed()
+        it once, and only they: the page with it is read as DataCube reads one, and refused in its words."""
+        _ = self._doc  # a sheet no longer on its page refused, as every sheet call refuses one
+        page = self._page
+        doc = _copied(page._doc)
+        next(s for s in doc['sheets'] if s['id'] == self._id)['layout'] = _copied(layout)
+        page._doc = _read_page(doc, page._session)
+        page._changed()
         return self
 
     def __repr__(self) -> str:
         return f'<Sheet {self._id}>'
-
-
-def _band_height(count: int) -> float:
-    """A band's height as the layout picker makes its bands: up to SCREEN_BANDS to a screen."""
-    return 1 / min(max(count, 1), SCREEN_BANDS)
 
 
 # -- the page ---------------------------------------------------------------------------------------------------------
@@ -917,9 +800,10 @@ class Page:
 
     def __init__(self, name: str = 'Untitled page') -> None:
         from .datacube import _current
-        if _named(name, "a page's name") is None:
+        if name is None:
             raise ValueError('a page has a name')
         self._session = _current()
+        name = _given_name(self._session, 'page', name, "a page's name")
         # the page: its one copy
         self._doc: dict[str, Any] = {'kind': PAGE_KIND, 'version': PAGE_VERSION, 'name': name, 'cubes': [], 'views': [],
                                      'sheets': [{'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}}]}
@@ -1016,21 +900,12 @@ class Page:
             if j.get('function') is None or column is None:
                 continue
             query, runtime = headless.call('classDuplicate', j['function'], column), f'{at[2]}::runtime::Python'
-            # the session's planner, as the page's own grids are planned: Python's within the frames' hold, a server's
-            # answer awaited holding none of it
-            from .engine import NativePlanner
-            planner = frames.planner if frames.planner is not None else NativePlanner()
-            plan = None
+            # planned as the page's own grids are, by Python's own compiler over the model it holds, and run there
             with frames.serving():
                 held = frames.model_for(text)
-                if held is not None and planner.plane == 'local':
-                    plan = planner.read(planner.plan(query, held, runtime))
-            if held is None:
-                continue
-            if plan is None:
-                plan = planner.read(planner.plan(query, held, runtime))
-            with frames.serving():
-                end['unique'] = frames.run(plan).num_rows == 0
+                if held is None:
+                    continue
+                end['unique'] = frames.run(held.plan(_json.loads(query), runtime)).num_rows == 0
 
     def create_data_space(self, name: str | None = None, *, title: str | None = None, description: str | None = None,
                           associations: Sequence[Any] = (), project: str | None = None, sdlc: Any = None,
@@ -1075,8 +950,9 @@ class Page:
 
     @name.setter
     def name(self, name: str) -> None:
-        if _named(name, "a page's name") is None:
+        if name is None:
             raise ValueError('a page has a name')
+        name = _given_name(self._session, 'page', name, "a page's name")
         self._doc['name'] = name
         for cube in self._doc['cubes']:
             cube['cube']['name'] = name
@@ -1115,7 +991,8 @@ class Page:
             raise ValueError(f'{sheet!r} is another page\'s')
         target = self.sheets[0] if sheet is None else sheet
         _ = target._doc
-        _named(title, 'a title')
+        if title is not None:
+            title = _given_name(self._session, 'tile', title, 'a title')
         id = self._next('grid')
         session = self._session
         if name is not None and name in session.frames:
@@ -1128,13 +1005,9 @@ class Page:
         else:
             served, new = session.register(frame, name, mode), True
         try:
-            columns_now = [{'name': c.name, 'type': c.type} for c in self._session.frames[served].columns]
-            self._doc['cubes'].append({'id': id, 'cube': {
-                'kind': CUBE_KIND, 'version': CUBE_VERSION, 'name': self.name,
-                'source': {'_type': 'frame', 'name': served, 'columns': columns_now},
-                'query': {'columns': [dict(c) for c in columns_now], 'derived': [], 'rows': [], 'pivotOn': [],
-                          'measures': [], 'sorts': []},
-                'configuration': {'reportTitle': served}, 'tree': {'open': [], 'showTotals': False}}})
+            # its cube as DataCube makes a grid's over a frame: capped at the row limit when it is not the page's only grid
+            cube, _ = self._frame_cube(served, len(self._doc['cubes']) + 1)
+            self._doc['cubes'].append({'id': id, 'cube': cube})
             self._doc['views'].append({'id': id, 'kind': 'grid', 'cube': id, **({'title': title} if title else {})})
             grid = self._tile(id, Grid)
             # set before it is placed, nothing told meanwhile
@@ -1160,7 +1033,8 @@ class Page:
 
     def sheet(self, name: str | None = None) -> Sheet:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
-        _named(name, "a sheet's name")
+        if name is not None:
+            name = _given_name(self._session, 'sheet', name, "a sheet's name")
         id = self._next('sheet')
         self._doc['sheets'].append({'id': id, **({'name': name} if name else {}),
                                     'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
@@ -1169,8 +1043,13 @@ class Page:
         return self._sheet(id)
 
     def stack(self, *tiles: Tile) -> None:
-        """``tiles`` in one place, as tabs, one shown at a time, where the first one is: all on one sheet. A tile
-        stacked already brings its stack's others, after those given."""
+        """``tiles`` in one place, as tabs, one shown at a time, where the first one is: all on one sheet. Stacked as
+        DataCube stacks a tile dropped on another's middle (bands.ts stackTiles): the first one's place keeps its own
+        tabs first, the others follow in the order given, and a tile stacked already brings its stack's others after
+        them."""
+        strays = [t for t in tiles if not isinstance(t, Tile)]
+        if strays:
+            raise ValueError(f'a stack is of tiles (grids and charts), not {", ".join(repr(t) for t in strays)}')
         if len({t._id for t in tiles}) < 2:
             raise ValueError('a stack is two tiles or more')
         if any(t._page is not self for t in tiles):
@@ -1178,13 +1057,7 @@ class Page:
         sheet = tiles[0].sheet
         if any(t.sheet is not sheet for t in tiles):
             raise ValueError('the tiles of a stack are on one sheet (put them there first: sheet.add(tile))')
-        layout = sheet._doc['layout']
-        leaves = {t: leaf for leaf in _leaves(layout) for t in _leaf_tiles(leaf)}
-        ids = list(dict.fromkeys([t._id for t in tiles] + [o for t in tiles for o in _leaf_tiles(leaves[t._id])]))
-        bands = layout['bands']
-        for other in ids[1:]:
-            bands = _bands_without(bands, other)
-        layout['bands'] = [{**b, 'node': _replaced(b['node'], ids[0], {'stack': ids})} for b in bands]
+        sheet._doc['layout'] = self._layout('layoutStack', sheet._doc['layout'], _json.dumps([t._id for t in tiles]))
         self._changed()
 
     def remove(self, tile: Tile) -> None:
@@ -1218,12 +1091,14 @@ class Page:
     def to_dict(self) -> dict[str, Any]:
         """The page as DataCube's page document (version 4), a copy: what is done to it is not done to the page. A
         calculated column's numbers are exact (``Decimal``), as the compiler writes them: ``to_json`` and ``save`` write
-        them so."""
+        them so. It is the page's document as Python holds it; ``to_json`` and ``save`` write it as DataCube writes it
+        (its reader's, headless: a chart's options filled, a key DataCube does not know left out)."""
         return _copied(self._doc)
 
     def to_json(self, indent: int | None = 2) -> str:
-        """The page document as JSON text, its numbers exact (what ``save`` writes)."""
-        return _json.dumps(self._doc, indent=indent)
+        """The page document as JSON text, its numbers exact, as DataCube writes it (what ``save`` writes): refused in
+        DataCube's words when DataCube would not open it (a page with no grid)."""
+        return _json.dumps(self._written(), indent=indent)
 
     def save(self, path: str | Path | None = None, *, name: str | None = None) -> str | None:
         """Saved. With no ``path``, as DataCube's Save keeps a page: into this user's saved pages (``ll.home()/pages``,
@@ -1237,11 +1112,9 @@ class Page:
             Path(path).write_text(self.to_json() + '\n', 'utf-8', newline='')
             return None
         from ._home import THIS_USER, pages_folder, store_call
-        named = _named(name if name is not None else self.name, "a saved page's name")
-        if named is None:
-            raise ValueError('a saved page has a name')
+        named = _given_name(self._session, 'page', name if name is not None else self.name, "a saved page's name")
         id = self._saved if self._saved is not None else str(uuid.uuid4())
-        record = _json.dumps({'id': id, 'name': named, 'content': self._doc}, indent=None)
+        record = _json.dumps({'id': id, 'name': named, 'content': self._written()}, indent=None)
         status, said = (store_call('lite_saved_cubes', pages_folder(), 'PUT', f'/{id}', '', record, THIS_USER)
                         if self._saved is not None else (404, ''))
         if status == 404:
@@ -1259,9 +1132,12 @@ class Page:
     @classmethod
     def load(cls, document: str | Path | Mapping[str, Any], frames: Mapping[str, Any], *, mode: str = LIVE) -> Page:
         """A page document (a file, or its dict) as a page again, its grids over ``frames`` by their frame names (each
-        cube's ``{"_type": "frame", "name": ...}``), served ``mode``; the document kept as it is."""
-        doc = _copied(document) if isinstance(document, Mapping) else _plain(_json.loads(Path(document).read_text('utf-8')))
-        _check(doc)
+        cube's ``{"_type": "frame", "name": ...}``), served ``mode``: the document as DataCube reads it (any version it
+        reads, brought to its own; refused in its words when DataCube would not open it)."""
+        from .datacube import _current
+        # read on the session the page will be made on (Page() takes the current one)
+        doc = _read_page(_copied(document) if isinstance(document, Mapping) else Path(document).read_text('utf-8'),
+                         _current())
         wanted = sorted({c['cube']['source']['name'] for c in doc['cubes']})
         missing = [n for n in wanted if n not in frames]
         if missing:
@@ -1283,8 +1159,7 @@ class Page:
         keep it.)"""
         said = self._session.engine().read_page(self._key) if self._shown else None
         if said is not None:
-            doc = _plain(said)
-            _check(doc)
+            doc = _read_page(said, self._session)
             unserved = sorted({c['cube']['source']['name'] for c in doc['cubes']} - set(self._served()))
             if unserved:
                 raise ValueError(f'the open page reads the frames {", ".join(unserved)}, which this session does not serve')
@@ -1300,9 +1175,18 @@ class Page:
         return f'page-{id(self):x}'
 
     def _showable(self) -> None:
-        """Refused when it cannot be shown: DataCube shows a page with a grid at least."""
-        if not self._doc['cubes']:
-            raise ValueError('a page shows a grid at least: page.grid(frame) first')
+        """Refused when it cannot be shown: a page DataCube would not open (one with no grid), in DataCube's words."""
+        self._written()
+
+    def _written(self) -> dict[str, Any]:
+        """The page as DataCube reads it, to be written, saved or shown: refused in DataCube's words -- a page with no
+        grid yet with Python's own call to make one after them, as a filter's refusals say Python's call form."""
+        try:
+            return _read_page(self._doc, self._session)
+        except ValueError as refused:
+            if self._doc['cubes']:
+                raise
+            raise ValueError(f'{refused} -- in Python, page.grid(frame) adds one') from None
 
     def _changed(self) -> None:
         """Something on the page changed: where it is shown, it is served again (and opened again there)."""
@@ -1365,54 +1249,60 @@ class Page:
         return self._tile(id, Sheet)
 
     def _place(self, id: str, sheet: Sheet, near: str | None = None) -> None:
-        """A place for tile ``id`` on ``sheet``, as DataCube places a new tile (bands.ts, add): beside ``near`` while its
-        band is a row of fewer than MAX_COLUMNS places, otherwise in a band of its own below it; with no ``near``, a band
-        at the bottom."""
+        """A place for tile ``id`` on ``sheet``, as DataCube places a new tile (bands.ts add): beside ``near`` while its
+        band has room, otherwise in a band of its own below it; with no ``near``, a band at the bottom."""
         self._ids.add(id)
-        layout = sheet._doc['layout']
-        bands = list(layout['bands'])
-        at = next((i for i, b in enumerate(bands) if near is not None and _contains(b['node'], near)), -1)
-        if at < 0:
-            bands.append({'height': BAND_HEIGHT, 'node': {'tile': id}})
-        else:
-            node = bands[at]['node']
-            across = not _is_leaf(node) and node['split'] == 'row'
-            if (len(node['parts']) if across else 1) < MAX_COLUMNS:
-                nodes = [p['node'] for p in node['parts']] if across else [node]
-                bands[at] = {**bands[at], 'node': _split('row', [*nodes, {'tile': id}])}
-            else:
-                bands.insert(at + 1, {'height': BAND_HEIGHT, 'node': {'tile': id}})
-        layout['bands'] = bands
+        sheet._doc['layout'] = self._layout('layoutAdd', sheet._doc['layout'], id, near)
         self._changed()
 
     def _unplace(self, id: str) -> None:
-        """Tile ``id`` off the sheet it is on, its place closed by its neighbours, a band it emptied gone."""
+        """Tile ``id`` off the sheet it is on, as DataCube takes one off (bands.ts remove): its place closed by its
+        neighbours, a band it emptied gone."""
         for sheet in self._doc['sheets']:
-            sheet['layout']['bands'] = _bands_without(sheet['layout']['bands'], id)
+            if id in _tiles(sheet['layout']):
+                sheet['layout'] = self._layout('layoutRemove', sheet['layout'], id)
+
+    def _layout(self, call: str, layout: dict[str, Any], *args: Any) -> dict[str, Any]:
+        """A sheet's layout edited by DataCube's own rules (datacube/src/layout/bands.ts), asked headless (``call``: its
+        layoutAdd, layoutRemove or layoutStack): the layout as a page saves it."""
+        return json.loads(self._session.headless().call(call, _json.dumps(layout), *args))
 
     def _update(self, name: str, frame: Any, mode: str | None) -> None:
-        """Frame ``name`` served again over ``frame``: its grids' columns, as the compiler types the frame now, in their
-        cubes (each column's settings kept by its name); the page served again when they changed."""
+        """Frame ``name`` served again over ``frame``: each grid's cube over it rebuilt over the frame as the compiler
+        types it now, as DataCube reopens a saved cube over its source (``_frame_cube``: a new column hidden, a gone one
+        left out of everything that read it, the open groups dropped when the grouping changed -- each said as a
+        warning, in DataCube's words); the page served again when one changed."""
         session = self._session
         session.register(frame, name, session.frames[name].mode if mode is None else mode)
-        now = [{'name': c.name, 'type': c.type} for c in session.frames[name].columns]
         moved = False
-        for cube in (c['cube'] for c in self._doc['cubes'] if c['cube']['source']['name'] == name):
-            if cube['source'].get('columns') != now:
-                kept = {c['name']: c for c in cube['query'].get('columns', [])}
-                cube['source']['columns'] = [dict(c) for c in now]
-                cube['query']['columns'] = [{**kept.get(c['name'], {}), **c} for c in now]
-                moved = True
+        for c in (c for c in self._doc['cubes'] if c['cube']['source']['name'] == name):
+            cube, notes = self._frame_cube(name, len(self._doc['cubes']), c['cube'])
+            # the frame's columns as they were: its cube stands as it is (a page opened over them rebuilds the same)
+            if cube['source'] == c['cube']['source']:
+                continue
+            for note in notes:
+                warnings.warn(f'{name}: {note}', stacklevel=3)
+            c['cube'] = cube
+            moved = True
         if moved:
             self._changed()
 
+    def _frame_cube(self, frame: str, grids_on_page: int,
+                    saved: dict[str, Any] | None = None) -> tuple[dict[str, Any], list[str]]:
+        """A grid's cube over ``frame`` as DataCube makes one (cube-document.ts rebuilt, asked headless: gridCube): a
+        new grid's (its rows as they are; capped at the row limit when ``grids_on_page``, the page's grids counting
+        it, are more than one: DataCube's gridCapped), or ``saved`` rebuilt over the frame as it is now; and what
+        DataCube says of what changed."""
+        engine, frames = self._session.headless(), self._session.frames
+        with frames.serving():
+            table = frames[frame]
+            spec = {'model': table.model, 'runtime': table.runtime, 'source': table.accessor, 'frame': frame}
+            made = json.loads(engine.call(
+                'gridCube', spec, None if saved is None else _json.dumps(saved), self.name, frame, grids_on_page))
+        return _plain(_json.loads(made['cube'])), list(made['notes'])
+
     def __repr__(self) -> str:
         return f'<Page {self.name!r}: {len(self.grids)} grids, {len(self.charts)} charts, {len(self.sheets)} sheets>'
-
-
-def _bands_without(bands: list[dict[str, Any]], tile: str) -> list[dict[str, Any]]:
-    """``bands`` without ``tile``, a band it emptied gone (bands.ts, remove)."""
-    return [{**b, 'node': n} for b in bands if (n := _without(b['node'], tile)) is not None]
 
 
 def _ids(doc: dict[str, Any]) -> set[str]:
@@ -1420,42 +1310,20 @@ def _ids(doc: dict[str, Any]) -> set[str]:
     return {x['id'] for part in ('cubes', 'views', 'sheets') for x in doc[part]}
 
 
-def _check(doc: Any) -> None:
-    """Refused, saying why, unless ``doc`` is a page document Python can work on: DataCube's (version 4), each cube over a
-    frame, each id once, each view of one of its cubes and on one sheet, each layout of the shape Python edits. What else
-    DataCube's reader asks of a page (page-document.ts: a chart's mark, a sheet's name), it asks when the page is shown:
-    Python keeps no second copy of its rules."""
-    def need(ok: bool, why: str) -> None:
-        if not ok:
-            raise ValueError(f'not a page Python reads: {why}')
-
-    def each(part: str, ok: Any) -> list[dict[str, Any]]:
-        items = doc.get(part)
-        need(isinstance(items, list) and all(isinstance(x, dict) and isinstance(x.get('id'), str) and ok(x)
-                                             for x in items), f'its {part} are not what a page holds')
-        need(len({x['id'] for x in items}) == len(items), f'two of its {part} share an id')
-        return items
-    need(isinstance(doc, dict) and doc.get('kind') == PAGE_KIND, f'it is not a DataCube page ({PAGE_KIND})')
-    need(doc.get('version') == PAGE_VERSION,
-         f'it is of version {doc.get("version")!r}, not {PAGE_VERSION} (open it in DataCube and export it again)')
-    need(isinstance(doc.get('name'), str), 'it has no name')
-    cubes = each('cubes', lambda c: isinstance(c.get('cube'), dict) and isinstance(c['cube'].get('query'), dict))
-    need(bool(cubes), 'it has no cube')
-    for c in cubes:
-        source = c['cube'].get('source')
-        need(isinstance(source, dict) and source.get('_type') == 'frame' and isinstance(source.get('name'), str),
-             f'the cube {c["id"]} reads no frame (a page in Python is over frames)')
-    ids = {c['id'] for c in cubes}
-    views = each('views', lambda v: v.get('kind') in ('grid', 'chart') and isinstance(v.get('cube'), str)
-                 and v['cube'] in ids and (v['kind'] == 'grid' or isinstance(v.get('spec'), dict)))
-    sheets = each('sheets', lambda s: True)
-    need(bool(sheets), 'it has no sheet')
-    placed: list[str] = []
-    for s in sheets:
-        wrong = _problems(s.get('layout'))
-        need(not wrong, f'the sheet {s["id"]} cannot be laid out: {"; ".join(wrong)}')
-        placed += _tiles(s['layout'])
-    need(sorted(placed) == sorted(v['id'] for v in views), 'every view has its place, on one sheet')
+def _read_page(doc: Any, session: Any) -> dict[str, Any]:
+    """``doc`` (a page document, or its JSON text as it is) as DataCube reads a page document and would write it again
+    (page-document.ts readPage and pageToJson, asked headless, on ``session``'s engine: the page's own): of any version
+    DataCube reads, migrated to its own, every rule of its reader held, and refused in its words otherwise -- Python
+    keeps no second copy of them. Then what a page in Python adds: each cube over a frame."""
+    said = json.loads(session.headless().call('pageRead', doc if isinstance(doc, str) else _json.dumps(doc)))
+    if 'problems' in said:
+        raise ValueError('; '.join(said['problems']))
+    page: dict[str, Any] = _plain(_json.loads(said['page']))
+    for c in page['cubes']:
+        source = c['cube']['source']
+        if source.get('_type') != 'frame' or not isinstance(source.get('name'), str):
+            raise ValueError(f'the cube {c["id"]} reads no frame (a page in Python is over frames)')
+    return page
 
 
 def _column_choices(columns: Mapping[str, Any]) -> dict[str, dict[str, str]]:
@@ -1468,65 +1336,6 @@ def _column_choices(columns: Mapping[str, Any]) -> dict[str, dict[str, str]]:
             raise ValueError(f"a column is a 'property', a 'key' or 'omit', not {choice.get('as')!r} ({column!r})")
         out[column] = {k: v for k, v in choice.items() if k in ('as', 'name', 'documentation')}
     return out
-
-
-def _sample_rows(rows: Any) -> dict[str, Any]:
-    """A table's first rows as the writer's sample takes them, each value written as the window writes it (the writer
-    copies a number's text and a string into the sample as they come): an integer past 2**53, a decimal (its digits at
-    its own scale), a date, a time and a timestamp (to the microsecond, its trailing zeros dropped, no zone: as
-    engine-client's values.ts writes them) as text; a double as JavaScript writes the number; anything nested as its
-    JSON."""
-    return {'columns': list(rows.column_names),
-            'rows': [[_sample_value(v) for v in row.values()] for row in rows.to_pylist()]}
-
-
-def _sample_value(v: Any) -> Any:
-    if v is None or isinstance(v, (bool, str)):
-        return v
-    if isinstance(v, int):
-        return v if abs(v) < 2 ** 53 else str(v)
-    if isinstance(v, float):
-        return _js_number(v)
-    if isinstance(v, Decimal):
-        return format(v, 'f')
-    if isinstance(v, datetime.datetime):
-        if v.tzinfo is not None:
-            v = v.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-        return f'{v.date().isoformat()}T{_time_text(v.time())}'
-    if isinstance(v, datetime.date):
-        return v.isoformat()
-    if isinstance(v, datetime.time):
-        return _time_text(v)
-    if isinstance(v, (dict, list, tuple)):
-        return _json.dumps(v)
-    return str(v)
-
-
-def _time_text(t: datetime.time) -> str:
-    """A time of day as values.ts ``timeText`` writes it: ``HH:MM:SS``, its fraction's trailing zeros dropped."""
-    fraction = f'{t.microsecond:06d}'.rstrip('0')
-    return f'{t.hour:02d}:{t.minute:02d}:{t.second:02d}' + (f'.{fraction}' if fraction else '')
-
-
-def _js_number(v: float) -> Any:
-    """A double as JavaScript writes it (Number.prototype.toString, which JSON.stringify uses): the shortest digits
-    that read back as it -- Python's own -- laid out in fixed notation from 1e-7 up to 1e21, so ``1.0`` is ``1``. A
-    whole number answers as an int and any other as a Decimal of that text, both of which JSON writes as they are;
-    beyond that range, and for what JSON cannot carry, the float itself."""
-    if not math.isfinite(v) or v == 0:
-        return 0 if v == 0 else v
-    sign, digits, exponent = Decimal(repr(v)).normalize().as_tuple()
-    k, n = len(digits), exponent + len(digits)
-    text = ''.join(map(str, digits))
-    if k <= n <= 21:
-        return -int(text + '0' * (n - k)) if sign else int(text + '0' * (n - k))
-    if 0 < n <= 21:
-        fixed = f'{text[:n]}.{text[n:]}'
-    elif -6 < n <= 0:
-        fixed = f'0.{"0" * -n}{text}'
-    else:
-        return v
-    return Decimal(('-' if sign else '') + fixed)
 
 
 def _end(end: Any) -> dict[str, Any]:

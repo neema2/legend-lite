@@ -41,7 +41,8 @@ require_datacube()
 import duckdb
 import pyarrow as pa
 
-from . import _host, _json, compiler
+from . import _host, compiler
+from ._types import UnknownType, is_integer
 
 LIVE = 'live'
 SNAPPED = 'snapped'
@@ -64,7 +65,8 @@ _ADMITTED = 8
 
 
 class UntypedColumn(RuntimeError):
-    """A result column its plan does not type: the plan and the database disagree about the query's shape."""
+    """A result column its plan does not type -- the plan and the database disagree about the query's shape -- or types
+    by a name legend-lite does not read (``_types``)."""
 
 
 def _integer(column: pa.ChunkedArray) -> pa.ChunkedArray:
@@ -84,15 +86,20 @@ def _integer(column: pa.ChunkedArray) -> pa.ChunkedArray:
 
 def typed_by_plan(rows: pa.Table, plan: compiler.Plan) -> pa.Table:
     """A planned query's rows, typed by its plan: each column the compiler's type (``TYPE_KEY``), its values exact (an
-    Integer an int64). A result column the plan does not type is refused: the two disagree about the query's shape, a
-    bug to surface, never a gap to fill (engine-client's ``typedByPlan``)."""
+    Integer an int64, by either compiler's name for one: a server's ``precisePrimitives::BigInt`` too). A result column
+    the plan does not type is refused: the two disagree about the query's shape, a bug to surface, never a gap to fill
+    (engine-client's ``typedByPlan``); so is one typed by a name legend-lite's lattice does not know (``_types``)."""
     types = {c.name: c.type for c in plan.columns}
     fields, columns = [], []
     for field, column in zip(rows.schema, rows.columns):
         typed = types.get(field.name)
         if typed is None:
             raise UntypedColumn(f"the plan does not type the result column '{field.name}': {plan.sql}")
-        if typed == 'Integer':
+        try:
+            integer = is_integer(typed)
+        except UnknownType as unknown:
+            raise UntypedColumn(f'{unknown}: {plan.sql}') from None
+        if integer:
             column = _integer(column)
         fields.append(pa.field(field.name, column.type, field.nullable, {**(field.metadata or {}), TYPE_KEY: typed}))
         columns.append(column)
@@ -224,36 +231,17 @@ class Table:
             self._refresh()
 
     def plan(self, query: str | dict[str, Any]) -> compiler.Plan:
-        """The plan for a query over this table (Pure text, a tree, or ``->...`` applied to it), by the planner the
-        frames plan with (``Frames.planner``: Python's own unless a server was chosen)."""
-        planner = self._frames.planner
-        if planner is not None:
-            return self._on_server(planner, query)
+        """The plan for a query over this table (Pure text, a tree, or ``->...`` applied to it), by Python's own
+        compiler, in this process."""
         with self._frames._lock:
             self._ready()
             return self._model().plan(self._tree(query), self.runtime)
 
     def execute(self, query: str | dict[str, Any]) -> pa.Table:
         """Runs a query over this table (as ``plan`` takes it) and answers as an Arrow table, typed by its plan."""
-        planner = self._frames.planner
-        if planner is not None:
-            plan = self._on_server(planner, query)
-            with self._frames._lock:
-                # read for this query already (_on_server): only still this table's
-                if self._closed:
-                    raise ValueError(f'the frame {self.name!r} was registered again or unregistered: use the new table')
-                return self._frames.run(plan)
         with self._frames._lock:
             self._ready()
             return self._frames.run(self._model().plan(self._tree(query), self.runtime))
-
-    def _on_server(self, planner: Any, query: str | dict[str, Any]) -> compiler.Plan:
-        """The planner chosen (R3) is a server's: it plans over this table's model, its answer awaited holding none of
-        the frames' locks (the audit of G1), and its SQL is run here."""
-        with self._frames._lock:
-            self._ready()
-            held, tree = self._model(), self._tree(query)
-        return planner.read(planner.plan(_json.dumps(tree), held, self.runtime))
 
 
 class Frames:
@@ -273,9 +261,6 @@ class Frames:
         for statement in compiler.session_setup('DuckDB'):
             self.connection.execute(statement)
         self._lock = threading.RLock()
-        # where Python's own queries over these frames (Table.plan, execute) are planned: the planner a session chose
-        # (engine.py's Planner: a server's, the program's G1), or None, Python's own in this process
-        self.planner: Any = None
         # how deep in ``serving`` the thread holding the lock is: inside, the frames are held still, each Live one read
         self._still = 0
         # DuckDB matches names without regard to case, quoted or not: so does this
@@ -353,7 +338,7 @@ class Frames:
 
     def held_for(self, model: str) -> compiler.HeldModel | None:
         """The model held for the frame or page file whose model is exactly this text -- what a page's plan is made
-        against (the engine's plan-and-run.json, planner.json) -- or None: no model this engine serves. Asked inside
+        against (the engine's plan-and-run.json, plan.json) -- or None: no model this engine serves. Asked inside
         ``serving``, the frames held still."""
         with self._lock:
             for table in self._tables.values():
@@ -409,7 +394,7 @@ class Frames:
         table or view Frames did not make in any schema, and never Frames' own ``__legend_lite_`` names -- so no page
         reads into, or later drops, a table it did not make. ``view``: a remote file, read through a view of that name.
         Inside, the model is kept with ``keep_file``; a read that fails leaves nothing under the name."""
-        if not _NAME.match(asked) or asked.lower() in _LITERALS:
+        if not _NAME.match(asked) or asked in _LITERALS:
             raise ValueError(f"a file's table is named by a plain identifier (letters, digits, '_'), not {asked!r}")
         if asked.lower().startswith(_OWN):
             raise ValueError(f'a name beginning {_OWN} is legend-lite\'s own, not a file\'s: {asked!r}')

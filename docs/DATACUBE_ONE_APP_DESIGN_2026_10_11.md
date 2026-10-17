@@ -172,8 +172,9 @@ The planes are the same three words everywhere:
 - `engine`: legend-engine.
 
 The rule of 2026-09-30 holds on every host:
-- **chosen once**, when the app opens, in one place per host: the tab's `?planner=`, and Python's
-  `ll.show(page, planner=...)` or the session's setting;
+- **chosen once**, when the app opens, in one place per host: the tab's `?planner=` (a Python host has one plane, its
+  own: a host plans in process, the program's §1.1, the user's ruling of 2026-10-15; Python's `ll.show(page,
+  planner=...)` is removed);
 - **always shown**, in the status bar's readout;
 - **never substituted**: a planner that does not answer is said, and the page stops.
 
@@ -584,9 +585,9 @@ Python's in-process services.
      other change to the engine. Python's own calls in its process (a headless grid's view, `Frames.plan`) still plan
      with the native library: routing them through the same planner is 2c's too.
    - `services.json` names the plane Python plans on and the planes it offers (today its own), and the page builds its
-     planner menu and its status word from them: no plane is written into the page. Choosing another plane is Python's
-     (`ll.show(..., planner=...)`, when 2c is built); until then the page refuses an offer of a plane it could not
-     switch to, rather than list one whose entry would fail.
+     planner menu and its status word from them: no plane is written into the page. A Python host has one plane, its
+     own (2026-10-15: a host plans in process, the program's §1.1; the server planners 2c built are removed), and the
+     page refuses an offer of any other.
 
    **2d, as built (2026-10-12): Save and Open… on Python** (the user's choice of the two shapes: the page keeps the
    store's rules, Python keeps the records).
@@ -703,9 +704,14 @@ PlanAndRun(query) = plan   the chosen planner's plan function       (the same Ja
 - **On Python, PlanAndRun is one call** over HTTP or the notebook's channel: the page sends the query and its source;
   Python plans against the model it holds for that source, runs the SQL on its DuckDB, and answers the plan and the
   rows. The page reads both with the code the tab uses.
-- **Every other question the compiler answers** (a query's columns, a parse, a print, a table's model) is the planner
-  protocol's request the tab's worker answers, which Python's native library already answers for headless
-  (`_headless.py`'s KINDS), carried over HTTP or the channel.
+- **Every other question the compiler answers** -- amended 2026-10-15 (the user: "i thought the whole point is that
+  browser, python, remote legend-lite, and remote legend-engine use the EXACT same API across all"; §15.10): a
+  question about the Pure query alone (a query's columns, a parse, a print, a whole model's compile) is legend-engine's
+  own request (`pure/v1`'s shapes), on every host -- the tab's worker in process, Python at `/api/pure/v1/...`, a
+  legend-lite or legend-engine server over HTTP. Running a host's own data, and its dry run (the compile check), is
+  PlanAndRun and its planning half (`plan.json` on Python). A remote server's data is its own standard
+  `generatePlan` / `execute`. (Until 2026-10-15 Python's page sent the tab's worker requests over HTTP, `planner.json`:
+  retired, with the allowlist and the handle translation it needed.)
 - **The warehouse is a connection**, its runner the warehouse's server: Live is PlanAndRun there. **Snap is data in**
   (R5): rows read from one connection and written into the host's, the grid's connection the host's from then on.
 - **legend-engine's answer format** is used only on the engine plane, by either host.
@@ -884,3 +890,28 @@ Rewrite line, then audited before it lands.
 - **Budget**: the grid page's gzipped script grew 390,817 -> 391,138 bytes (PlanAndRun and the shared plan
   reading), and its budget went 391,000 -> 392,000. Gzip-compressed files are 15.7's encoding follow-up, read by
   neither host today.
+
+### 15.10 Plan and run where the data is (the user, 2026-10-15)
+
+The user, stepping back over the twins PR (neema2/legend-lite#47): "can we pause and step back and think about the right
+architecture and design holistically for browser, python, remote legend-lite, remote legend-engine". What was settled,
+which is §15 itself stated across all four:
+
+| A query's data lives in | Who plans it and runs it | On which contract | The page's runner |
+|---|---|---|---|
+| the tab's DuckDB-WASM | the tab | lite's own, in process: the plan function over a held model | `PlanThenRun` |
+| Python's DuckDB | Python | lite's own, over HTTP: `plan-and-run.json`, and its dry run `plan.json` | `PlanAndRun` |
+| a remote server's databases | that server (legend-lite's or legend-engine) | legend-engine's standard `generatePlan` / `execute` | `RemoteRun` |
+
+- **A question about the Pure query alone** -- a parse, a print, a query's columns, a whole model's errors -- produces
+  no SQL, so its answer does not depend on where the query runs: it is legend-engine's own `pure/v1` request on every
+  host, the same API on all four.
+- **Planning is for a database**, so it is the data's host's: our two twin hosts plan with lite's plan function over a
+  model they hold (§15.1: legend-engine's formats, and a model compiled on every request, are why not `pure/v1`); a
+  remote server plans and runs with its own standard calls. A dry run (the compile check) uses the same planner as the
+  run it stands for: `plan.json` on Python, the held plan in the tab, a remote server's `generatePlan`.
+- **No handle crosses hosts** (§15.3): the tab's handles are its worker's cache; Python holds models for the sources it
+  serves, by their text.
+- **Not settled here, and not in PR #47**: the remote case as a source in DataCube's own app (Query already embeds it:
+  `query/src/app/cube.ts`), its dry run on the server's `generatePlan`, how Snap caches a remote result, and whether the
+  mode where a remote planner writes SQL for the tab's DuckDB is kept -- a session of its own with the user.

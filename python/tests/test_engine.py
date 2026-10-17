@@ -259,16 +259,16 @@ class ProjectQueries(Served):
 
     def test_a_page_plans_and_runs_a_projects_query_on_its_own_rows(self):
         # a saved query opened on Python's page (C5): planned over the project's model held beside its database, its
-        # mapping in the query, and run there -- and the page's planner requests answered over that model too
+        # mapping in the query, and run there -- and its dry run (the page's compile check) planned over that model too
         status, headers, body = self.post('/plan-and-run.json', json.dumps({
             'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': PARTY, 'runtime': 'demo::party::Runtime'}))
         self.assertEqual((status, headers['Content-Type']), (200, 'application/vnd.apache.arrow.stream'), body[:300])
         rows = pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all()
         self.assertEqual(rows.column('name').to_pylist(), ['Halberd Securities', 'Meridian Capital'])
-        status, _, body = self.post('/planner.json', json.dumps({
-            'kind': 'relationType', 'model': PARTY, 'query': PARTY_QUERY}))
-        said = json.loads(body)
-        self.assertTrue(said['ok'] and said['answer'].startswith('OK\n'), said)
+        status, _, body = self.post('/plan.json', json.dumps({
+            'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': PARTY, 'runtime': 'demo::party::Runtime'}))
+        self.assertEqual(status, 200, body)
+        self.assertTrue(json.loads(body)['plan'].startswith('OK\n'), body)
         self.assertEqual(len(self.server.engine.projects.names), 1)
 
     def test_kept_for_the_process_and_named_by_what_it_holds(self):
@@ -334,7 +334,7 @@ class Refusals(Served):
 
 
 class Planes(Served):
-    """Where the engine plans (R3): one planner, chosen once, which every call the compiler answers goes through, and
+    """Where the engine plans (R3): one planner, Python's own, which every call the compiler answers goes through, and
     which services.json names for the page."""
 
     def test_it_plans_on_pythons_own_planner_and_says_so(self):
@@ -363,8 +363,9 @@ class Planes(Served):
 
 class PlanAndRunRoutes(Served):
     """PLANANDRUN ON PYTHON (docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md §15): a page's grid planned against the model
-    Python holds and run on its DuckDB in one call (plan-and-run.json), the planner's other answers from Python's native
-    library (planner.json) -- only over the models this engine serves, no handle crossing, never a dropped call."""
+    Python holds and run on its DuckDB in one call (plan-and-run.json), and its dry run (plan.json, the page's compile
+    check) -- only over the models this engine serves, no handle crossing, never a dropped call. A question about the
+    Pure query alone is legend-engine's own route (/api/pure/v1/...), as every Legend server answers it."""
 
     def plan_and_run(self, steps, model=None):
         return self.post('/plan-and-run.json', json.dumps({
@@ -423,27 +424,28 @@ class PlanAndRunRoutes(Served):
     def test_a_request_that_is_not_one_is_refused(self):
         for body in ('not json', '[]', json.dumps({'lambda': 1, 'model': '', 'runtime': ''})):
             self.assertEqual(self.post('/plan-and-run.json', body)[0], 400, body)
-        for body in ('not json', '[]', json.dumps({'kind': []}), json.dumps({'kind': 'nope'})):
-            self.assertEqual(self.post('/planner.json', body)[0], 400, body)
+            self.assertEqual(self.post('/plan.json', body)[0], 400, body)
 
-    def test_the_planner_answers_over_the_model_held_and_keeps_no_handle_of_the_page(self):
+    def test_the_dry_run_plans_what_plan_and_run_plans_over_the_model_held(self):
+        # one planner function for both (the page's check compiles what its run sends): the same query's plan, the same
+        # text -- a later edit that splits them fails here, not in review
         lam = json.dumps(ll.parse('|' + self.table.accessor + GROUP))
-        status, _, body = self.post('/planner.json', json.dumps({
-            'kind': 'planJson', 'model': self.table.model, 'lambda': lam, 'runtime': self.table.runtime,
-            # a handle the page names is never used: the one Python holds for that model is
-            'handle': 'not-a-handle'}))
-        said = json.loads(body)
-        self.assertEqual(status, 200)
-        self.assertTrue(said['ok'] and said['answer'].startswith('OK\n'), said)
-        self.assertEqual(json.loads(said['answer'][3:])['sql'], self.table.plan(GROUP).sql)
-        refused = json.loads(self.post('/planner.json', json.dumps({
-            'kind': 'planJson', 'model': 'unserved', 'lambda': lam, 'runtime': self.table.runtime}))[2])
-        self.assertTrue(refused['answer'].startswith('ERR\nMODEL\n'), refused)
-        # holding and letting go are the page's own: Python holds nothing for a page; and the kinds only another host's
-        # apps send (an unheld plan, execute's halves, a warm) are not a page's to ask, so it compiles only served models
-        for kind in ('hold', 'release', 'planModel', 'executePlan', 'executeAnswer', 'warm'):
-            self.assertEqual(self.post('/planner.json', json.dumps({'kind': kind, 'model': self.table.model, 'handle': '1'}))[0], 400,
-                             kind)
+        asked = json.dumps({'lambda': lam, 'model': self.table.model, 'runtime': self.table.runtime})
+        status, headers, body = self.post('/plan.json', asked)
+        self.assertEqual((status, headers['Content-Type']), (200, 'application/json'), body)
+        dry = json.loads(body)['plan']
+        self.assertTrue(dry.startswith('OK\n'), dry)
+        _, _, rows = self.post('/plan-and-run.json', asked)
+        self.assertEqual(dry, pyarrow.ipc.open_stream(pa.py_buffer(rows)).read_all().schema.metadata[b'legend.plan'].decode())
+        # never run, and only over the models this engine serves (R4): another is the planner's refusal, in its words
+        refused = json.loads(self.post('/plan.json', json.dumps({
+            'lambda': lam, 'model': 'unserved', 'runtime': self.table.runtime}))[2])
+        self.assertTrue(refused['plan'].startswith('ERR\nMODEL\n'), refused)
+
+    def test_the_planner_worker_tunnel_is_gone(self):
+        # a page asks Python as it asks any host: legend-engine's own routes, and the host's compute -- never the tab's
+        # worker messages carried over HTTP (planner.json, retired 2026-10-15)
+        self.assertEqual(self.post('/planner.json', json.dumps({'kind': 'pureV1'}))[0], 404)
 
     def test_the_stores_need_the_token(self):
         # the saved queries and the saved pages (B5, B6): this user's, so only a page holding the engine's token asks
@@ -451,7 +453,7 @@ class PlanAndRunRoutes(Served):
             self.assertEqual(self.post(path, '{}', headers={'Authorization': 'Bearer nope'})[0], 401, path)
 
     def test_both_need_the_token_and_neither_is_a_get(self):
-        for path in ('/plan-and-run.json', '/planner.json'):
+        for path in ('/plan-and-run.json', '/plan.json'):
             self.assertEqual(self.post(path, '{}', headers={'Authorization': 'Bearer nope'})[0], 401, path)
             request = urllib.request.Request(self.server.url + path, headers={'Authorization': self.server.authorization})
             try:
@@ -1165,6 +1167,27 @@ class WarehouseOnPython(unittest.TestCase):
             "SELECT count(*) FROM duckdb_tables() WHERE table_name = 'POSITIONS'").fetchone()[0]
         made = self.frames.connection.execute("SELECT count(*) FROM duckdb_schemas() WHERE schema_name = 'trading'").fetchone()[0]
         self.assertEqual((gone, made), (0, 0), 'the copy and the schema it made are dropped')
+
+    def test_the_dry_run_plans_a_table_as_its_run_does_and_refuses_the_runtime_its_run_refuses(self):
+        # plan.json, plan-and-run's planning half (the one-app design §15.10): never run, the run's plan, and the run's
+        # refusal of a runtime (the table's rule, refused_runtime) word for word
+        m = self.opened()
+
+        def dry(runtime):
+            a = self.engine.answer('POST', '/plan.json', '', json.dumps(
+                {'lambda': self.query(m), 'model': m['model'], 'runtime': runtime}))
+            self.assertEqual(a.status, 200, a.body)
+            return json.loads(a.body)['plan']
+
+        planned = dry(m['runtime'])
+        self.assertEqual(self.pulls, 0, 'a dry run reads nothing from the warehouse')
+        run = self.plan_and_run(m, m['runtime'])
+        self.assertEqual(run.status, 200, run.body)
+        self.assertEqual(planned, pyarrow.ipc.open_stream(run.body).read_all().schema.metadata[b'legend.plan'].decode())
+        # the snap runtime with no copy held: refused by both, in the same words
+        refused = dry(m['snapRuntime'])
+        self.assertIn('or snapped, through its copy', refused)
+        self.assertEqual(refused, json.loads(self.plan_and_run(m, m['snapRuntime']).body)['plan'])
 
     def test_a_copy_that_fails_leaves_nothing(self):
         m = self.opened()

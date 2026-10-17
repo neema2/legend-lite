@@ -15,7 +15,7 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { fn } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
-import type { CubeDocument } from '../cube-document.ts';
+import { gridCapped, type CubeDocument } from '../cube-document.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
@@ -675,7 +675,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       sources.reserve(Object.values(doc.model?.tables ?? {}));
       try {
         for (const { id: cubeId, cube } of doc.cubes) {
-          const o = await sources.reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), doc.cubes.length > 1, doc.model?.tables[cubeId]);
+          const o = await sources.reopened(cube, handleKeys(id, gridOfCube(doc, cubeId)), gridCapped(doc.cubes.length), doc.model?.tables[cubeId]);
           if (o) read.push(o);
           if (!newest()) {
             for (const r of read) await r.discard?.();
@@ -1094,16 +1094,17 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     createClass = (grid, place, cube) => {
       void makeClass(grid, place, cube).catch((e: unknown) => window.alert(`Create a Class: ${e instanceof Error ? e.message : String(e)}`));
     };
-    /** The chosen source IN PLACE of the page: it empties, then one grid over the source. */
+    /** The chosen source IN PLACE of the page: it empties, then one grid over the source (its only one: gridCapped). */
     async function openInPlace(chosen: Chosen): Promise<void> {
-      await inPlace(() => sources.opened(chosen, false), sources.named(chosen));
+      await inPlace(() => sources.opened(chosen, gridCapped(1)), sources.named(chosen));
     }
 
     // THE SOURCE PICKER (the sources'): "add" makes a grid over the chosen source, beside the others; "open" puts it in
     // place of the page
     picker = (purpose: 'add' | 'open', start?: SectionId): Promise<GridMaker | undefined> => sources.pick<GridMaker>(purpose,
       async (chosen) => {
-        if (purpose === 'add') return (await sources.opened(chosen, true)).make;
+        // beside the page's grids: capped when it is not the page's only one (gridCapped, counting it)
+        if (purpose === 'add') return (await sources.opened(chosen, gridCapped(page.cubes.length + 1))).make;
         await openInPlace(chosen);
         return null;
       }, start);

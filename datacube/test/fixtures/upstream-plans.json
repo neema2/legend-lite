@@ -1,14 +1,14 @@
 {
  "_about": [
-  "The shared cases of a server planning for a page (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md G1). The tab's planner on a",
-  "server (datacube/src/planner.ts, engine-client/src/pure-v1.ts) and Python's (python/legend_lite/upstream.py) each send",
-  "every request below as its `text`, byte for byte (pure-protocol's toJson: `_type` first, then the keys in order; a",
-  "decimal keeps its digits), refuse every `refused` query before sending anything, read every plan for its `database`",
-  "(the type of its SQL's connection: Python and the tab run DuckDB) as its `sql`, `columns` and `sqlTypes` (the columns'",
-  "relationalType), and refuse every `refusals` answer in its `message`. legend-lite's plan was answered by its native",
+  "The cases of a server planning for a page (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md G1). The tab's planner on a",
+  "server (datacube/src/planner.ts, engine-client/src/pure-v1.ts) sends every request below as its `text`, byte for byte",
+  "(pure-protocol's toJson: `_type` first, then the keys in order; a decimal keeps its digits), refuses every `refused`",
+  "query before sending anything, reads every plan for its `database` (the type of its SQL's connection: the tab runs",
+  "DuckDB) as its `sql`, `columns` and `sqlTypes` (the columns' relationalType), and refuses every `refusals` answer in",
+  "its `message`. (Python's twin went 2026-10-15: a host plans in process.) legend-lite's plan was answered by its native",
   "library 2026-10-13; legend-engine's is core/src/test/resources/upstream-api/e9-groupby-sort.json, legend-engine",
   "4.145.0's, written for H2. INTERIM: these become the cases of reading a server's plan in core",
-  "(docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, phase 2), when both hand-written readers go."
+  "(docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §8, phase 2), when the tab's hand-written reader goes."
  ],
  "requests": [
   {

@@ -842,6 +842,52 @@ measurements; it is W3.1's territory (`docs/EXECUTION_PLAN_2026_09_26.md`). That
   `query/demo/config*.json` and `datacube/demo/config.json` (one `vendor` key each); `MODULE.bazel` (the `wasm_mvp`
   extension pins removed; the lock unchanged) and `engine-client/BUILD.bazel`; `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`
   (that note).
+- **Python asks DataCube: the other twins (announced 2026-10-15, before the first edit; the program:
+  `docs/PYTHON_ASKS_DATACUBE_2026_10_15.md`, its order agreed with this line the same day).** Every place Python
+  repeats DataCube's logic moves behind a call to DataCube's own code (the headless bundle) or a generated artifact,
+  one commit per item, in one PR: 4 (type families), 10 (the planner protocol's side lists), 8 (the snap's limit), 3
+  (layout editing), 1 (reading and writing a page), 5 (a calculated column), 6 (a filter), 7 (a class's sample), then 2
+  (a new grid's defaults). Branch `claude/epic-rubin-ay7upl`, from main; this line reviews each commit that changes
+  behaviour before CI. Files: `engine-client/tools/typefacts/TypeFacts.java` and `engine-client/BUILD.bazel` (Python's
+  copy of the fact table, generated), `BUILD.bazel` (its diff test in `//:generated`), `python/BUILD.bazel`,
+  `python/legend_lite/` (`_type_facts.py` generated, `_types.py` new, `page.py`, `frames.py` typing only, `engine.py`'s
+  side lists only), `python/tests/`; `engine-client/src/legend/planner-protocol.ts` (the side lists, pinned by
+  DataCube's vocabulary test: the engine runs without V8, so Python cannot read them from the bundle); `datacube/src/`
+  `layout/bands.ts`, `page-document.ts`, `cube-document.ts`, `headless/` (new calls), `query.ts`, `calc.ts`, a pure
+  module each for a filter's operand check and a class's sample (out of `ui/filter-editor.ts` and `model-actions.ts`),
+  `app/sources.ts` (`rawRows` and `rebuilt` moved out, by agreement with D5b's owner, who rebases over it), their tests,
+  `datacube/test/python-vocabulary.test.ts` (it reads `engine.py` and `_planner.py` too), `datacube/BUILD.bazel` and
+  `test_imports.bzl`. The BUILD files go to the Compiler Rewrite line. Not touched: the rest of D5b's files, core, the
+  SQL relays this line's runner plan would rewrite (`engine.py` snap, `frames.py` loading, `projects.py`,
+  `upstream.py`, `_headless._query`) beyond item 4's typing and item 8's pin. Also touched, past this list (noted
+  2026-10-15): `docs/GENERATORS.md` (item 4's generator row), `datacube/src/snapshot.ts` (`COLUMN_KINDS`, item 5),
+  `python/legend_lite/_planner.py` (a comment, item 10), and `_headless._query`'s Arrow writer, factored out unchanged
+  as `arrow_text` so item 7 hands its rows to DataCube through it (this line's ask); `docs/PARKED_WORK_LEDGER.md`
+  (PARK-30's row names items 5's and 6's checks, text only: the audit's review).
+  **Expanded, 2026-10-15 (the user: no remote planner on Python, and every weak row done properly, in this PR; the
+  design agreed with this line the same day).** Python plans in process only: `planner=`, `server=`, `ll.planner()` and
+  `upstream.py` removed, with the server paths of `engine.py`, `frames.py`, `page.py`, `datacube.py` and the Python
+  host's branch of `datacube/src/services/python-host.ts` (the browser app's own server planner stays); PARK-30 and
+  PARK-31 closed by removal; the program doc's §1.1, §1.4 and §7 reworded. Then: a class's sample planned by DataCube
+  again; the column editor's and the filter editor's cores shared with headless (`datacube/src/ui/column-editor.ts`,
+  `ui/filter-editor.ts`, `filter-operators.ts`, a new DOM-free module); one default aggregate for a measure
+  (`datacube/src/query.ts`, its three copies); the cap rule in DataCube (`datacube/src/app/datacube-app.ts`,
+  `page-document.ts`); the page-on-Python tunnel (`planner.json`) retired for legend-engine's own routes and the host's
+  compute (`/plan.json`; `engine-client/src/legend/planner-protocol.ts` back to main's), the snap limit Python's own;
+  one name rule (`page-names.ts givenName`, new, `layout/band-board.ts`, `page/page-app.ts`, `page/cube-page.ts`). (The
+  generator and the two corpora first planned here were dropped with the user, 2026-10-15.) More files: their tests,
+  `docs/PARKED_WORK_LEDGER.md`, `docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`, `test_upstream.py` and its lane (the BUILD
+  edits to the Compiler Rewrite line). Declared after the audit (2026-10-15): `core/BUILD.bazel` (`//core:server`'s
+  visibility for the removed `//python:upstream_test`, the one core edit); `datacube/src/cube.ts`
+  (`CubeController.compile` types the cube first; D5b touches only `run`); `datacube/src/planner.ts` (`readServerPlan`,
+  left with no caller, removed; comments) with `datacube/test/upstream-plans.test.ts` and its fixture;
+  `docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md` (§15.2 amended, §15.10 added); `datacube/demo/verify-cubes.mjs` (the
+  cap's case in the app); `engine.py`'s warehouse plan-and-run (its runtime rule asked of the table, `refused_runtime`,
+  which `/plan.json` asks too) and its docstrings' words. Still not touched: `engine.py`'s snap, frames and project-data
+  paths, `_headless._query` (but the `arrow_text` fold back), `warehouse.py`, the planner kinds that answer SQL -- the
+  SQL plan's ground -- but for one forced line in `_warehouse_snap` (`_on_planner_threads()`, the planner switch gone)
+  and one in `frames.py reading_file` (58e807c: a file's table named as `register` names a frame, so `True` is an
+  identifier; this line's OK).
 - **The notebook widget**, `DataCube(df)`: the same two calls over the notebook's widget channel.
 - Later: model handles and `execute` from Python, typed Pythonic queries, the shared warehouse from Python.
 

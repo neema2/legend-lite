@@ -11,6 +11,7 @@ from pathlib import Path
 from decimal import Decimal
 
 import pandas as pd
+import pyarrow.ipc
 
 import legend_lite as ll
 from legend_lite import datacube
@@ -274,6 +275,16 @@ class Files(unittest.TestCase):
         self.assertEqual(self.frames.connection.execute('SELECT count(*) FROM files_data_2').fetchone()[0], 2)
         with self.frames.serving() as models:
             self.assertIn('files_data_2', models)
+
+    def test_a_files_table_named_False_is_read_by_a_query(self):
+        # Pure's literals are `true` and `false` as spelled: `False` names a file's table (frames.reading_file), and
+        # SQL's FALSE, a keyword in any case, is quoted where a query planned over the file's model reads it
+        said = self.read('f.csv', 'a\n1\n2\n', 'False')
+        self.assertEqual(said['table'], 'False')
+        query = json.dumps({'_type': 'lambda', 'body': [said['source']], 'parameters': []})
+        answer = self.send('/plan-and-run.json', {'lambda': query, 'model': said['model'], 'runtime': said['runtime']})
+        self.assertEqual(answer.status, 200, answer.body[:300])
+        self.assertEqual(sorted(pyarrow.ipc.open_stream(answer.body).read_all()['a'].to_pylist()), [1, 2])
 
     def test_a_file_comes_a_part_at_a_time_however_large(self):
         # a CSV larger than any one call may be (16 MiB), in the page's 4 MiB parts; and one in parts of three bytes,

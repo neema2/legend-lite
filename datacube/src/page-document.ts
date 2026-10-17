@@ -30,6 +30,7 @@ import { readChart, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument } from './cube-document.ts';
 import { type Bands, type Node, fromCells, problems, tiles as tilesOf } from './layout/bands.ts';
 import type { PageModelRef } from './page-model.ts';
+import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 
 export const PAGE_KIND = 'datacube.page';
@@ -96,6 +97,10 @@ export interface PageDocument extends PageViews {
   /** Top-level fields a newer writer added, kept verbatim. */
   readonly unknown?: Readonly<Record<string, unknown>>;
 }
+
+/** Whether a saved name holds by givenName's rule (page-names.ts): text, and for a page or a tile not blank. */
+const named = (part: NamedPart, value: unknown): value is string =>
+  typeof value === 'string' && !('refused' in givenName(part, value));
 
 export class PageDocumentError extends Error {
   constructor(detail: string) {
@@ -230,6 +235,7 @@ export function readPage(input: string | unknown): PageDocument {
     throw new PageDocumentError(`written by a newer version (${version} > ${PAGE_VERSION}); upgrade to open it`);
   }
   if (typeof raw['name'] !== 'string') throw new PageDocumentError("missing 'name'");
+  if (!named('page', raw['name'])) throw new PageDocumentError("the page's name is blank");
 
   const cubesRaw = raw['cubes'];
   if (!Array.isArray(cubesRaw) || cubesRaw.length === 0) throw new PageDocumentError('it has no cube');
@@ -241,6 +247,8 @@ export function readPage(input: string | unknown): PageDocument {
     return { id: c['id'], cube: readCube(c['cube']) };
   });
   const ids = new Set(cubes.map((c) => c.id));
+  // a view names its cube by id, and the model keeps a table per cube's id: two cubes of one id are one too many
+  if (ids.size !== cubes.length) throw new PageDocumentError('two cubes share an id');
 
   const viewsRaw = plain(raw['views']);
   if (!Array.isArray(viewsRaw)) throw new PageDocumentError("'views' is not a list");
@@ -331,6 +339,9 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     throw new PageDocumentError(`view ${id} shows no cube of this page`);
   }
   if (v['kind'] === 'grid') {
+    if (v['title'] !== undefined && !named('tile', v['title'])) {
+      throw new PageDocumentError(`grid ${id}'s title is blank`);
+    }
     return {
       id,
       kind: 'grid',
@@ -340,6 +351,7 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
   }
   if (v['kind'] !== 'chart') throw new PageDocumentError(`view ${id} is of an unknown kind ${JSON.stringify(v['kind'] ?? null)}`);
   if (typeof v['title'] !== 'string') throw new PageDocumentError(`chart ${id} has no title`);
+  if (!named('tile', v['title'])) throw new PageDocumentError(`chart ${id}'s title is blank`);
   // version 1 or 2 (chart-spec.ts CHART_VERSION): every word of the spec's slots one this DataCube knows
   const spec = readChart(v['spec']);
   if (typeof spec === 'string') throw new PageDocumentError(`chart ${id} has no chart it can draw: ${spec}`);

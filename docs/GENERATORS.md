@@ -102,6 +102,7 @@ clock-stamped jar), and `//tools/reference:ref_dump`.
 | `//datacube:offer_facts` | offer-facts.ts (shipped) | our compiler, DataCube's query builder | the `//core:planner` closure |
 | `//datacube:test_imports` | test_imports.bzl | import lines of DataCube's src and test | the files it reads, not 122 npm files |
 | `//engine-client:lite_facts` | lite-facts.ts (shipped) | `compiler/element/type` | `//core:compiler_element_type` |
+| `//engine-client:lite_facts_py` | _type_facts.py (the wheel's) | `compiler/element/type` | `//core:compiler_element_type` |
 | `//legend-art:icons_gen` | icons.ts (shipped) | our `icons.mjs` table; rarely the react-icons pin | (not the bump) |
 | `//warehouse:reachability_metadata` | the native image's metadata | Duck.java, AuthenticatedUser.java, the services table | a small library on `:server_lib` |
 

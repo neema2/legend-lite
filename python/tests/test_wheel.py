@@ -43,7 +43,7 @@ except ImportError as failure:
 # what reaches the native library beside the compiler needs no extra: every module the compiler-only install holds
 # imports, and a model home answers, on the compiler's threads (an empty folder's projects: none)
 import pathlib, tempfile
-import legend_lite._home, legend_lite._pool, legend_lite.model, legend_lite.upstream
+import legend_lite._home, legend_lite._pool, legend_lite._types, legend_lite.model
 homed = list(legend_lite.model.home_call(pathlib.Path(tempfile.mkdtemp()), "sdlc", "GET", "/projects", None))
 print(json.dumps({"parsed": sorted(tree), "refused": refused, "homed": homed}))
 '''

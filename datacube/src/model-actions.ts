@@ -13,6 +13,7 @@ import { createAssociation, createDataSpace, projectState } from '../../model-ch
 import { PageModel, type PageModelRef } from './page-model.ts';
 import type { ClassAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import { suggestedClassName, suggestedDataSpaceName, suggestedPackage } from './model-names.ts';
+import { sampleOf } from './sample-rows.ts';
 import { associationDialog } from './ui/association-dialog.ts';
 import { dataSpaceDialog, type DataSpaceChoice, type DataSpaceGrid } from './ui/data-space-dialog.ts';
 import type { CreatedClass } from './ui/class-dialog.ts';
@@ -104,18 +105,6 @@ async function noRow(rows: PlanAndRun, query: Lambda): Promise<boolean | undefin
   }
 }
 
-/** A class's first rows as the route's sample takes them (a bigint as text). */
-async function sampleOf(grid: PageGrid, sample: Lambda): Promise<{ columns: string[]; rows: (string | number | boolean | null)[][] }> {
-  const { rows } = await grid.rows.host.planAndRun(sample, 0);
-  return {
-    columns: rows.columns.map((c) => c.name),
-    rows: [...Array(rows.rowCount).keys()].map((r) => rows.columns.map((c) => {
-      const v = c.values[r] ?? null;
-      return typeof v === 'bigint' ? String(v) : v;
-    })),
-  };
-}
-
 /** The facts' rows over the project's files: the place's runtime, through the model's mapping. */
 function projectRows(o: ModelActionsOf, project: string, pkg: string): PlanAndRun {
   return o.rows(project, `${pkg}::runtime::${o.place}`);
@@ -181,7 +170,7 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<PageModelRef
   // each grid not yet a class, as a class action: its first rows read once
   const samples = new Map<string, Awaited<ReturnType<typeof sampleOf>>>();
   for (const g of o.grids) {
-    if (g.cls === undefined && !('refused' in g.made)) samples.set(g.id, await sampleOf(g, g.made.sample));
+    if (g.cls === undefined && !('refused' in g.made)) samples.set(g.id, await sampleOf(g.rows.host, g.made.sample));
   }
   const actions = (choice: DataSpaceChoice): ClassAction[] => choice.made.flatMap((m) => {
     const g = o.grids.find((x) => x.id === m.id);

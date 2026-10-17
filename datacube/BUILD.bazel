@@ -39,12 +39,11 @@ exports_files(
     ],
 )
 
-# the shared cases of a server planning for a page (G1), which Python's twin is held to as the tab's planner is
+# DataCube's fixtures Python's tests read too
 exports_files(
     [
         # DataCube's chart rules, which Python's page.py is held to as well (//python:engine_test)
         "test/fixtures/chart-rules.json",
-        "test/fixtures/upstream-plans.json",
     ],
     visibility = ["//python:__pkg__"],
 )
@@ -123,8 +122,8 @@ _SCANNED = {
         "//wasm:differential",
     ],
     "menu-ids": [":src"],
-    # the vocabularies Python's ll.Page writes (python/legend_lite/page.py) against DataCube's own
-    "python-vocabulary": [":src", "//python:page_source"],
+    # the vocabularies Python's ll.Page writes (python/legend_lite/page.py), against DataCube's own
+    "python-vocabulary": [":src", "//python:vocabulary_sources"],
     # everything a build or a person runs from this package
     "portability": [":src", ":scanned_scripts"],
     "state-guardrail": [":src"],
@@ -189,7 +188,7 @@ _EXTRA_ENV = {
         # the trading rows' other two copies, held equal to its Data: the warehouse's fixture and the H2 connection's
         "TRADING_COPIES": "$(rlocationpath :trading_copies)",
     },
-    # the shared cases of a server planning for a page, which Python's twin reads too (//python:upstream_test)
+    # the shared cases of the tab's planner on a server: its requests written, its plans read
     "upstream-plans": {
         "UPSTREAM_PLANS": "$(rlocationpath test/fixtures/upstream-plans.json)",
     },

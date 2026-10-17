@@ -55,6 +55,7 @@ import {
   tiles,
   tradeBands,
 } from './bands.ts';
+import { givenName } from '../page-names.ts';
 
 export interface BandTile {
   readonly id: string;
@@ -734,12 +735,14 @@ export class BandBoard {
     const finish = (keep: boolean): void => {
       if (done) return;
       done = true;
-      const next = input.value.trim();
+      // the one rule (page-names.ts givenName): trimmed, a blank refused -- the tile keeps the title it had
+      const given = givenName('tile', input.value);
+      const next = 'name' in given ? given.name : undefined;
       input.replaceWith(p.title);
       // a stack's tabs back in its header
       p.renaming = false;
       this.#paintTabs();
-      if (keep && next !== '' && next !== p.name) {
+      if (keep && next !== undefined && next !== p.name) {
         this.rename(p.spec.id, next);
         this.#options.onRename?.(p.spec.id, next);
       }

@@ -32,21 +32,28 @@ import { docHint } from './docs.ts';
 import { emptyOperands, isEmptyOperandRefusal, sayEmpty, type EmptyAs } from '../calc-fix.ts';
 import { columnType } from '../snapshot.ts';
 import {
+  NEW_CHILD,
+  NEW_WINDOW,
+  draftCandidate,
+  draftLists,
+  draftRename,
+  draftStage,
+  newDraft,
+  type ColumnDraft,
+  type ColumnLevel,
+} from '../column-draft.ts';
+import {
   WINDOW_FUNCTIONS,
-  renameColumnReferences,
   rowColumns,
   type CubeSnapshot,
   type DerivedColumn,
-  type ChildAggregate,
   type ChildAggregateFn,
   type WindowFrame,
   type WindowFunction,
-  type WindowSpec,
 } from '../snapshot.ts';
 import { defaultKind, isVariant } from '../../../engine-client/src/types.ts';
 
-/** Upstream's DataCubeExtendedColumnKind. */
-export type ColumnLevel = 'measure' | 'dimension' | 'group';
+export type { ColumnLevel };
 
 export const LEVELS: readonly { value: ColumnLevel; label: string }[] = [
   { value: 'measure', label: 'Leaf Level Measure' },
@@ -136,31 +143,13 @@ function splitHead(text: string): { readonly head: string; readonly body: string
   return m ? { head: `${m[1]}|`, body: text.slice(m[0].length).replace(/^ /, '') } : { head: 'x|', body: text };
 }
 
-interface Draft {
-  name: string;
-  level: ColumnLevel;
-  /**
-   * An expression over one row, a window over the rows around it, or
-   * (group level) an aggregate of the child groups' figures.
-   */
-  mode: 'expression' | 'window' | 'children';
-  /** The whole lambda as the person edits it, `x|$x.a * 2` (upstream's editor shows the same). */
-  expression: string;
-  /** EXPLODE: the expression is a collection, and each row repeats once per element (`DerivedColumn.unnest`). */
-  unnest: boolean;
-  window: WindowSpec;
-  child: ChildAggregate;
-}
+/** The form's draft: the column as column-draft.ts makes it into the cube's columns, as Python's headless calls do. */
+type Draft = ColumnDraft;
 
 const CHILD_FUNCTIONS: readonly (readonly [ChildAggregateFn, string])[] = [
   ['min', 'Minimum'], ['max', 'Maximum'], ['average', 'Average'],
   ['median', 'Median'], ['sum', 'Sum'], ['count', 'Count'],
 ];
-
-/** A window to start from: a running sum, order to be chosen. */
-const NEW_WINDOW: WindowSpec = { fn: 'sum', partition: [], order: [], frame: 'running' };
-/** A child-group aggregate to start from: the smallest child. */
-const NEW_CHILD: ChildAggregate = { fn: 'min', of: '' };
 
 type Check =
   | { readonly state: 'idle' }
@@ -226,16 +215,8 @@ export class ColumnEditor {
       };
     } else {
       this.#original = undefined;
-      this.#initial = {
-        name: freshName(options.snapshot()),
-        // MEASURE by default, as upstream (DataCubeNewColumnState).
-        level: start.level ?? 'measure',
-        mode: 'expression',
-        expression: start.expression ?? 'x|',
-        unnest: false,
-        window: NEW_WINDOW,
-        child: NEW_CHILD,
-      };
+      // MEASURE by default, as upstream (DataCubeNewColumnState): column-draft.ts newDraft
+      this.#initial = newDraft(freshName(options.snapshot()), start.expression ?? 'x|', start.level);
     }
     this.#autoName = !('edit' in start);
     this.#json = !('edit' in start) && start.json !== undefined;
@@ -282,7 +263,7 @@ export class ColumnEditor {
   // -- the draft as the cube would take it --------------------------------
 
   #stage(): CalcStage {
-    return this.#draft.level === 'group' ? 'group' : 'row';
+    return draftStage(this.#draft);
   }
 
   /**
@@ -298,47 +279,17 @@ export class ColumnEditor {
     }
   }
 
-  /** The cube's two lists with this draft (its lambda parsed) in place of the original. */
+  /** The cube's two lists with this draft (its lambda parsed) in place of the original (column-draft.ts). */
   #lists(lambda?: Lambda): { row: DerivedColumn[]; group: DerivedColumn[] } {
-    const s = this.#options.snapshot();
-    const without = (list: readonly DerivedColumn[]): DerivedColumn[] =>
-      list.filter((d) => d.name !== this.#original);
-    const row = without(s.derived);
-    const group = without(s.groupDerived ?? []);
-    const d = this.#draft;
-    const next: DerivedColumn = {
-      name: d.name.trim(),
-      ...(d.mode === 'expression' && lambda ? { lambda } : {}),
-      // explode: row stage only (after grouping there are no source rows to repeat)
-      ...(d.mode === 'expression' && d.unnest && d.level !== 'group' ? { unnest: true } : {}),
-      ...(d.mode === 'window' ? { window: this.#window() } : {}),
-      ...(d.mode === 'children' ? { childAggregate: { ...d.child } } : {}),
-      // A group-level column is already past the aggregation, so it has
-      // no measure-or-dimension to decide; upstream draws the same line.
-      ...(d.level === 'group' ? {} : { kind: d.level }),
-    };
-    // In its old place when it stays at its stage, so an edit does not
-    // reorder the cube's columns.
-    const target = d.level === 'group' ? group : row;
-    const was = (d.level === 'group' ? s.groupDerived ?? [] : s.derived)
-      .findIndex((x) => x.name === this.#original);
-    if (was >= 0) target.splice(was, 0, next);
-    else target.push(next);
-    return { row, group };
+    return draftLists(this.#options.snapshot(), this.#original, this.#draft, lambda);
   }
 
   #rename(): { from: string; to: string } | undefined {
-    const to = this.#draft.name.trim();
-    return this.#original !== undefined && this.#original !== to
-      ? { from: this.#original, to }
-      : undefined;
+    return draftRename(this.#original, this.#draft);
   }
 
   #candidate(lambda?: Lambda): CubeSnapshot {
-    const { row, group } = this.#lists(lambda);
-    const next: CubeSnapshot = { ...this.#options.snapshot(), derived: row, groupDerived: group };
-    const rename = this.#rename();
-    return rename ? renameColumnReferences(next, rename.from, rename.to) : next;
+    return draftCandidate(this.#options.snapshot(), this.#original, this.#draft, lambda);
   }
 
   /** What the calculation still lacks, or null when it is complete. */
@@ -367,21 +318,6 @@ export class ColumnEditor {
       return 'Choose a partition or an order';
     }
     return null;
-  }
-
-  /** The draft window, tidied: only what its function takes. */
-  #window(): WindowSpec {
-    const w = this.#draft.window;
-    const meta = WINDOW_FUNCTIONS.find((f) => f.fn === w.fn);
-    return {
-      fn: w.fn,
-      ...(meta?.column && w.column ? { column: w.column } : {}),
-      partition: [...w.partition],
-      order: w.order.map((o) => ({ ...o })),
-      ...(meta?.framed && w.frame !== undefined ? { frame: w.frame } : {}),
-      ...((w.fn === 'lag' || w.fn === 'lead') && w.offset !== undefined ? { offset: w.offset } : {}),
-      ...(w.fn === 'ntile' ? { buckets: w.buckets ?? 4 } : {}),
-    };
   }
 
   #pivot(): readonly PivotColumn[] {

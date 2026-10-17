@@ -193,8 +193,6 @@ test_suite(
         # a notebook's cube: the widget's calls and version, show() in a kernel (legend_lite/notebook.py)
         "//python:notebook_test",
         "//python:tools_build_test",
-        # a server planning for Python's pages, against a legend-lite server it starts (legend_lite/upstream.py; G1)
-        "//python:upstream_test",
         # a class, an association or a data space into a project: the twin of model-changes/, its cases replayed (B4)
         "//python:model_test",
         # the wheel as a developer installs it: a fresh environment, offline, nothing from the repository

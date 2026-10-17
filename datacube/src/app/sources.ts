@@ -16,15 +16,15 @@ import type { CatalogObject, WarehouseEngine, WarehouseSession } from '../../../
 import type { Query, QueryReader } from '../../../query-store/src/index.ts';
 import { lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { HeldCopy } from '../app.ts';
-import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, type CubeConfiguration } from '../config.ts';
+import type { CubeConfiguration } from '../config.ts';
 import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
 import {
   fileSource,
-  openCube,
+  frameSource,
+  rebuilt,
   type CubeDocument,
   type CubeSource,
   type FileSource,
-  type FrameSource,
   type QuerySource,
   type RemoteSource,
   type WarehouseSource,
@@ -203,30 +203,6 @@ function bytes(n: number): string {
 /** A saved cube over a file: what reopening one needs is that file back. */
 type FileCube = CubeDocument & { readonly source: FileSource };
 const isFileCube = (doc: CubeDocument): doc is FileCube => doc.source._type === 'file';
-
-/** A source's rows as they are: grouped by nothing, up to the row cap (a person builds the cube up). */
-function rawRows(query: ValueSpecification, columns: CubeSnapshot['columns']): CubeSnapshot {
-  return { source: { query }, columns, derived: [], rows: [], pivotOn: [], measures: [], sorts: [], epoch: 1 };
-}
-
-/**
- * A saved cube rebuilt over a source (`relation`, its `columns` as the compiler types them now) -- its view, its
- * configuration, the groups it had open, what it had that the source no longer has -- or a fresh one: its rows as they
- * are, grouped by nothing; `capped` (a source added beside others), up to the row limit (the user, 2026-10-01: "showing
- * the max rows configured (1000 default)").
- */
-function rebuilt(saved: CubeDocument | undefined, relation: ValueSpecification, columns: CubeSnapshot['columns'],
-  label: string, capped: boolean): { snapshot: CubeSnapshot; configuration: CubeConfiguration; tree?: TreeState; notes: readonly string[] } {
-  if (!saved) {
-    return {
-      snapshot: rawRows(relation, columns),
-      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: label, ...(capped ? { maxRows: DEFAULT_MAX_ROWS } : {}) },
-      notes: [],
-    };
-  }
-  const cube = openCube(saved, { query: relation }, columns);
-  return { snapshot: cube.snapshot, configuration: cube.configuration, ...(cube.tree ? { tree: cube.tree } : {}), notes: cube.notes };
-}
 
 const lastSegment = (url: string): string => url.replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop() || url;
 
@@ -756,7 +732,7 @@ export function pageSources(d: SourcesOf): PageSources {
     const rows = services.engine.rows(m.model, m.runtime);
     const columns = await sourceColumns(typer(rows), m.source);
     framesRead.set(name, { version: m.version, model: m.model, source: JSON.stringify(m.source) });
-    const cubeSource: FrameSource = { _type: 'frame', name, columns: columns.map((c) => ({ name: c.name, type: c.type })) };
+    const cubeSource = frameSource(name, columns);
     const r = rebuilt(saved, m.source, columns, name, capped);
     return {
       label: name,

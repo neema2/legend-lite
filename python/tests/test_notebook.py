@@ -262,7 +262,7 @@ class InAKernel(Widget):
 
     def test_a_page_shows_under_the_cell_once_and_its_widget_is_shown_again(self):
         page = ll.Page('P')
-        with self.assertRaisesRegex(ValueError, 'a grid at least'):
+        with self.assertRaisesRegex(ValueError, 'it has no cube'):
             ll.show(page)
         page.grid(trades(), name='t')
         first = ll.show(page)

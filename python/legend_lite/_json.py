@@ -28,7 +28,7 @@ def dumps(value: Any, indent: int | None = None) -> str:
 def protocol(value: Any) -> str:
     """Protocol JSON as pure-protocol's ``toJson`` writes it, byte for byte: compact, every object's ``_type`` first and
     its other keys in order, ``Decimal`` as its own digits -- what a TypeScript client sends
-    and so what Python sends as its twin (legend_lite.upstream, legend_lite.model)."""
+    and so what Python sends as its twin (legend_lite.model)."""
     return dumps(_ordered(value))
 
 

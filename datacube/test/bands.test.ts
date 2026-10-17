@@ -21,6 +21,7 @@ import {
   places,
   reorderStack,
   stackOf,
+  stackTiles,
   shareText,
   sharesBeside,
   boundary,
@@ -222,6 +223,10 @@ describe('presets arrange the tiles in reading order', () => {
   it('a layout it does not know is refused by name', () => {
     assert.throws(() => arrange(EMPTY, 'rows:2-x' as never, ['a']), /not a layout: rows:2-x/);
     assert.throws(() => arrange(EMPTY, 'diagonal' as never, ['a', 'b']), /not a layout: diagonal/);
+    // refused whatever the page holds: one place, or none, as well as several
+    assert.throws(() => arrange(add(EMPTY, 'a'), 'diagonal' as never), /not a layout: diagonal/);
+    assert.throws(() => arrange(EMPTY, 'focus-middle' as never), /not a layout: focus-middle/);
+    assert.throws(() => arrange(EMPTY, 'rows:0' as never), /not a layout: rows:0/);
   });
 });
 
@@ -411,6 +416,23 @@ describe('a stack: tiles in one place, one shown', () => {
     assert.equal(bringToFront(front, 'a'), front);
     assert.deepEqual(picture(sound(reorderStack(front, 'c', 0))), ['{c,a*,b}']);
     assert.deepEqual(asSaved(front), { fit: front.fit, bands: [{ height: front.bands[0]!.height, node: { stack: ['a', 'b', 'c'] } }] });
+  });
+  it('is made in code by drops onto the first tile (stackTiles): its tabs, the rest as given, it in front', () => {
+    const row = (): Bands => add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b');
+    assert.deepEqual(picture(sound(stackTiles(row(), ['b', 'a', 'c']))), ['{b*,a,c}']);
+    // the first already stacked: its place keeps its tabs first
+    assert.deepEqual(picture(sound(stackTiles(drop(row(), 'c', { stack: 'a' }), ['a', 'b']))), ['{a*,c,b}']);
+    // a given tile brings the tiles stacked with it, after those given; a band it empties goes
+    const four = drop(add(row(), 'd', 'c'), 'd', { stack: 'b' });
+    assert.deepEqual(picture(four), ['[a:33 | {b,d*}:33 | c:33]']);
+    assert.deepEqual(picture(sound(stackTiles(four, ['a', 'b', 'c']))), ['{a*,b,c,d}']);
+    const banded = drop(row(), 'c', { band: 1 });
+    assert.deepEqual(picture(sound(stackTiles(banded, ['a', 'c']))), ['[{a*,c}:50 | b:50]']);
+    // a tile not in the layout is passed over; one tile, or none, changes nothing
+    assert.deepEqual(picture(sound(stackTiles(row(), ['a', 'x', 'b']))), ['[{a*,b}:50 | c:50]']);
+    const one = row();
+    assert.equal(stackTiles(one, ['a']), one);
+    assert.equal(stackTiles(one, []), one);
   });
   it('is one place to Arrange, and stays a stack', () => {
     const layout = drop(add(add(add(EMPTY, 'a'), 'b', 'a'), 'c', 'b'), 'c', { stack: 'a' });

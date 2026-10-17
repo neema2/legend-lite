@@ -350,8 +350,6 @@ legend_java_binary(
     visibility = [
         "//:__pkg__",
         "//fixtures/saved-queries:__pkg__",
-        # Python's planner on a server, tested against this one (//python:upstream_test; the program's G1)
-        "//python:__pkg__",
         "//query:__pkg__",
         "//query-store:__pkg__",
     ],

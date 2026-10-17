@@ -12,9 +12,11 @@ import {
   derivedReads,
   difference,
   fileSource,
+  gridCapped,
   merge,
   openCube,
   readCube,
+  rebuilt,
   sha256,
   writeCube,
   type FileSource,
@@ -23,7 +25,7 @@ import {
   type RemoteSource,
   type WarehouseSource,
 } from '../src/cube-document.ts';
-import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../src/config.ts';
+import { DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, type CubeConfiguration } from '../src/config.ts';
 import type { ColumnSpec, CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
@@ -317,5 +319,21 @@ describe('the pieces', () => {
     const d = difference(value, base);
     assert.deepEqual(d, { b: { c: 5 }, e: [1, 2, 3], f: null });
     assert.deepEqual(merge(base, d), value);
+  });
+});
+
+describe("a new grid is capped when it is not its page's only grid (gridCapped, counting it)", () => {
+  const fresh = (gridsOnPage: number) =>
+    rebuilt(undefined, accessor('db', 'T'), [{ name: 'a', type: 'Integer' }], 'T', gridCapped(gridsOnPage)).configuration;
+
+  it("a page's only grid is not capped: a new page, a source opened in place, a reopened page of one", () => {
+    assert.equal(gridCapped(1), false);
+    assert.equal(fresh(1).maxRows, undefined);
+  });
+
+  it('the first grid added beside it is capped at the row limit, as is every grid of a reopened page of several', () => {
+    assert.equal(gridCapped(2), true);
+    assert.equal(gridCapped(3), true);
+    assert.equal(fresh(2).maxRows, DEFAULT_MAX_ROWS);
   });
 });
