@@ -156,8 +156,9 @@ agent speak to the endpoint as to any GraphQL API, with any client.
 
 ## 3. The spec, the prior art and the oracles
 
-Taken on 2026-10-18 from three research passes whose reports, with every URL, are kept beside this study's working
-notes; the sources are listed in §12.
+Taken on 2026-10-18 from three research passes whose reports, with every URL and every claim they could not verify
+marked, are `docs/GRAPHQL_STUDY_2026_10_18_RESEARCH.md`; the sources are listed in §12. The adoption and accuracy
+figures below are those reports' and are second-hand; the facts about lite are read from its code.
 
 ### 3.1 The GraphQL specification
 
@@ -461,7 +462,8 @@ Class graphql::demo::PersonGroup { key: graphql::demo::PersonGroupKey[1]; ...the
 // generated beside the stored properties, as milestoning generates employees(businessDate):
 Class demo::Firm
 {
-  employeesAggregate(where: Function<{demo::Person[1]->Boolean[1]}>[0..1])
+  employeesAggregate() { ^graphql::demo::PersonAggregate(items = $this.employees) }: graphql::demo::PersonAggregate[1];
+  employeesAggregate(where: Function<{demo::Person[1]->Boolean[1]}>[1])
     { ^graphql::demo::PersonAggregate(items = $this.employees->filter($where)) }: graphql::demo::PersonAggregate[1];
 }
 Class demo::Person
@@ -472,7 +474,10 @@ Class demo::Person
 ```
 
 The precedent is milestoning: Pure generates qualified properties the source never spells, the compiler reads them as
-any other, and the tree takes their arguments. The constructor in a body (`^PersonAggregate(items = ...)`) is never
+any other, and the tree takes their arguments; both arities are generated, as milestoning generates `employees` and
+`employees(date)`. One register row the companion needs from the start: Pure's `sum` is typed `[1]` and answers 0 over
+an empty collection, SQL's and Prisma's answer null; the companion's `sum()` and `avg()` are typed `[0..1]` and mean
+SQL's (G6), a declared difference from the Pure function the body spells. The constructor in a body (`^PersonAggregate(items = ...)`) is never
 built: a constructor followed by a read of the field it set reduces to the field's expression before lowering, a
 structural rewrite that computes nothing (§6.2). A clause on an existing collection is not in the companion, because a
 fixed body cannot take a variable-length `orderBy`; it is the anonymous body of §6.2.
@@ -496,27 +501,27 @@ document ─▶ GqlParser (exists) ─▶ Gql.Document ─▶ GqlValidator: grap
 
 | GraphQL | Pure |
 |---|---|
-| root `Person(args) { sel }` | `Person.all()->graphFetch(#{Person(args){sel}}#)->serialize(#{Person(args){sel}}#)`; the root node carries the clauses exactly as a nested node does, so root and nested are one code path (§6.2) |
+| root `Person(where: W, orderBy: K, limit: n, offset: m) { sel }` | `Person.all()->filter(p \| W)->sortByReversed(...)->sortBy(...)->drop(m)->limit(n)->graphFetch(#{Person{sel}}#)->serialize(#{Person{sel}}#)`: Pure's own collection functions, chained for several keys (G16) |
 | root `topFirms(n: 3) { sel }` | `topFirms(3)->graphFetch(...)->serialize(...)` |
 | a scalar field, an enum field | a tree leaf |
 | `alias: field` | the tree's alias (`'alias': field`, which lite's tree parses) |
 | a to-one field `firm { sel }` | a tree node |
-| a to-many field with arguments | a tree node with clauses (§6.2) |
+| a to-many field with arguments | a tree node whose value is a composed body over `$this` (§6.2): `$this.employees->filter(W)->sortByReversed(...)->sortBy(...)->drop(m)->limit(n)` |
 | `salaryOn(d: $d)` | a tree node with property parameters, which lite's tree parses (`k(%2024-01-01)`) |
 | milestoning arguments | the tree's temporal parameters, which lite's tree parses |
 | `... on Employee { sel }` on a `PersonInterface` selection | the tree's `->subType(@Employee) { sel }` entry, which lite's tree parses |
-| `__typename` | a tree leaf lite adds: the class name of the set implementation that produced the row (a spelled constant per union arm, `ClassConcatenates`; C6.2 of the tenet charter: a token compared, never computed) |
+| `__typename` | the companion's `__typename()` (§5.8): the class name of the set implementation that produced the row, a spelled constant per union arm (`ClassConcatenates`; C6.2 of the tenet charter: a token compared, never computed) |
 | `where: { age: { gt: 30 } }` | `p \| $p.age > 30` |
 | `where: { firm: { legalName: { startsWith: "A" } } }` | `p \| $p.firm.legalName->startsWith('A')` with the to-one null carried as SQL carries it |
 | `where: { employees: { some: W } }` / `every` / `none` | `p \| $p.employees->exists(e \| W)` / `->forAll` / `!->exists`; the resolver's correlated subselects (`CorrelatedSubselects`) lower them |
-| `where: { asEmployee: W }` | the subclass test and the cast as the mapping spells them (`instanceOf` and `cast(@Employee)`, or the set implementation's discriminator directly: PR3 decides, measured) |
+| `where: { asEmployee: W }` | the companion's `asEmployee()` (§5.8) as a to-one hop: `instanceOf` (a registered native the resolver answers from the mapping's discriminator) and `cast(@Employee)` |
 | `where: { fullName: { equals: "x" } }` (a derived property) | the derived body inlined, as any derived property is |
 | `equals: null` / `not: null` | `->isEmpty()` / `->isNotEmpty()` |
 | `mode: insensitive` | `toLower` on both sides of that object's string comparisons |
-| `orderBy: [{ firm: { legalName: ASC } }, { age: DESC }]` | the node's ordered sort keys with directions (§6.2) |
-| `limit`, `offset` | the node's clauses; at the root also spellable as `->drop(m)->limit(n)` |
-| `employeesAggregate(where: W) { count sum { salary } }` | a tree node of kind aggregate (§6.2): the emitter's correlated subselect with `count(*)`, `sum(salary)` |
-| `PersonAggregate(where: W) { ... }` | `Person.all()->filter(W)` as the root of a one-row aggregate tree |
+| `orderBy: [{ firm: { legalName: ASC } }, { age: DESC }]` | `->sortByReversed(e \| $e.age)->sortBy(e \| $e.firm.legalName)`: the key is any property chain, the last-applied sort is the primary key (G16) |
+| `limit`, `offset` | `->drop(m)->limit(n)`, at the root and inside a composed body alike |
+| `employeesAggregate(where: W) { count sum { salary } }` | the companion's `employeesAggregate(W)` over `EmployeeAggregate`, whose `count()` and `sum()` are derived leaves; after the constructor fusion (§6.2) the emitter's correlated subselect with `count(*)`, `sum(salary)` |
+| `PersonAggregate(where: W) { ... }` | the Relation API: `Person.all()->filter(W)->groupBy(~[], ~[count: ..., ...])`, one row serialized as the object |
 | `PersonGroups(...) { key { ... } ... }` | the Relation API: `project` the keys and the aggregates, `groupBy`, `filter` for `having`, `sort`, `drop`, `limit`; the rows serialized to `{ key: {...}, count, sum: {...} }` by the key paths (PR5) |
 | `employeesGroups` under a parent | the same, correlated to the parent row and folded into its JSON array by the emitter (PR5) |
 | variables | Pure function parameters, typed by the declaration (`$w: PersonWhere!` is a typed input value, substituted into the filter at plan time) |
@@ -572,8 +577,10 @@ The three lowering increments, each small, each measured by PR2's first probes:
 Not an extension, because Pure spells it and lite lowers it today: (a) above; `some`, `every`, `none`; subtype
 selection; derived properties with arguments; milestoning arguments; root filter, limit and offset; root sorts with
 direction and several keys (G16); the root aggregate and the root groups (the Relation API); `truncate` (the
-`firstDayOf...` natives); `cast` and `instanceOf` (PR3 confirms the null-returning `asY` form on mapped instances);
-the insensitive match; the null tests.
+natives `firstDayOfYear`, `firstDayOfQuarter`, `firstDayOfMonth`, `firstDayOfWeek`, `firstHourOfDay`,
+`firstMinuteOfHour`, all registered); `cast` and `instanceOf` (both registered natives; the resolver answers
+`instanceOf` from the mapping's discriminator; PR3 confirms the null-returning `asY` form on mapped instances); the
+insensitive match; the null tests.
 
 The dumped Pure of a case, which a review reads beside the query that produced it:
 
@@ -582,7 +589,7 @@ Firm.all()->filter(f | $f.legalName->startsWith('A'))->sortBy(f | $f.legalName)-
   Firm {
     legalName,
     'top3': $this.employees->filter(e | $e.age > 30)->sortByReversed(e | $e.salary)->limit(3) { fullName, salary },
-    'headcount': employeesAggregate(e | true) { count }
+    'headcount': employeesAggregate { count }
   }
 }#)->serialize(...)
 ```
