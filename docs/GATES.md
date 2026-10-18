@@ -11354,3 +11354,62 @@ The same branch (neema2/legend-lite#56), at the seventh line's quiet point after
     - stale comments;
     - the ban fails when a root it reads yields no source;
     - the records' wording.
+
+## 2026-10-18 — GraphQL: the first landing — the schema generated from the model and the validator (the twelfth line)
+
+Announced in `docs/IN_FLIGHT.md` ("A twelfth line"). Branch `claude/graphql-study-2026-10-18`, after the study
+(`docs/GRAPHQL_STUDY_2026_10_18.md`, the user's rulings G1 to G22) and its evidence
+(`docs/GRAPHQL_STUDY_2026_10_18_RESEARCH.md`); the record of the landing is the study's §13.1: PR1 less the
+graphql-js differential (PR1b).
+
+1. **What lands.** A GraphQL schema generated from a Pure model's classes, and a validator for documents against
+   it, served as `describe` and `validate`; nothing executes yet.
+   - **The generator:** `compiler/graphql/SchemaGenerator` over a `Scope` (every user class, or a data space's
+     element scope; an association injects only when both its classes are in scope), every rule of the study's §5:
+     the object type and `XInterface` (G8; an abstract class, `<<typemodifiers.abstract>>`, the interface only),
+     `XWhere` with Prisma's names, `XListFilter`, `XOrderBy` (G2, G3), the `asY` downcasts on the input side (G9),
+     `XAggregate` with its `XSum`/`XAvg`/`XMin`/`XMax` and their `OrderBy`/`Filter` inputs (G6), `XGroup`,
+     `XGroupKey` with `truncate: DateUnit` on a date key, `XGroupHaving`, `XGroupOrderBy` (G7), the `pAggregate` and
+     `pGroups` siblings of every to-many property, the three roots per class (G4), the scalars `BigInt`, `Decimal`,
+     `Date`, `DateTime`, `Time` and one `<Scalar>Filter` each (G5), the model's enumerations with their filters,
+     `doc.doc` as descriptions and the generated inheritance hint (G19), `doc.deprecated` as `@deprecated`; the
+     refusals by element and rule (`GqlSchemaException`, G11: two classes of one simple name, a property named like
+     a generated sibling, a class named like a generated type, a name GraphQL cannot spell, a type with no GraphQL
+     type, a superclass or a property's class out of scope).
+   - **The SDL:** `SdlPrinter`, deterministic (`Query` first, then by name; fields in declaration order, inherited
+     first), pinned by the golden `core/src/test/resources/graphql-parity/schema/demo.graphql` of the worked model
+     `models/demo.pure` (923 lines of SDL for five classes).
+   - **The validator:** `GqlValidator`, `SelectionWalker`, `ValueCoercion`: one operation chosen, queries only,
+     fragments defined once, used, acyclic, on a possible type; variables declared, used, input-typed, compatible
+     with their positions; fields on their types, arguments by name and type, required ones present, `@include`
+     and `@skip` only; leaves and composites selected as their kind requires; response keys that merge; the
+     exact-type fragment trap refused with the fix (G10); the group rules (G7); the depth and list-field ceilings
+     (G17); warnings for `limit` without `orderBy` and for a deprecated field; every problem reported with its
+     selection path and the nearest name; a valid document's typed result shape. Introspection (`__schema`,
+     `__type`) is refused by name until PR2.
+   - **The routes:** `server/GraphqlApi`, `/api/lite/v1/graphql/schema` (the SDL and the classes in scope, by data
+     space name, by class list, or the whole model) and `/api/lite/v1/graphql/validate` (valid or not, the shape,
+     every error and warning with path and phase; a parse error as a PARSE error, not a 400), reached through
+     `PureV1Api.route`; a model the generator refuses is 400 COMPILATION.
+   - **The island:** the Typer's `#GQL{...}#` arm validates the island against the schema of the whole model
+     (`GqlIslands`, cached per model context) and refuses by name: an invalid island is the compile error its
+     problems spell; a valid one names its shape and PR2.
+   - **The protocol:** `Gql.InlineFragment`, its parser arm (with and without a type condition), its wire shape
+     `_type: inlineFragment` and its reader; `PlatformTypes.TYPEMODIFIERS_PROFILE`.
+   - **Declared:** `docs/SEMANTICS_REGISTER.md` S76 (the island's meaning), S77 (inline fragments), S78 (stricter
+     than graphql-js).
+2. **Judges.** 30 tests: `SchemaGeneratorTest` 6 (the golden, the interface and object pair, the transitive
+   `implements`, the input-side downcasts, a collision refused, an abstract class, a data space's scope and a
+   superclass out of it), `GqlValidatorTest` 12 (the worked example's shape, nested clauses and aggregates with a
+   variable reused, the fragment trap and its allowed forms, the nearest-name hints, values typed by the schema,
+   variables, fragments, leaves and merging, the limits, the group rules, operations and introspection, every error
+   at once with its path), `GqlIslandsTest` 2, `GraphqlApiTest` 6, `GqlInlineFragmentTest` 4. `bazel test
+   //core:core_tests //tools/deps:core_layering_test` on this tree: 26 targets, all pass (the root guards among
+   them: `CodeShapeGuardrailTest`, `PlatformNamesGuardrailTest`, `ArchitectureTest`; no guard entry needed). The
+   full local gate, `bazel test --lockfile_mode=error //gates:local`, runs after this entry; its result is the next
+   entry's first line, and the branch's CI run is the landing's full judge, as the line's rule says.
+3. **Next.** PR1b: the graphql-js differential in a Node test target and `validity.jsonl`. PR2: the translator
+   (the composed clause bodies on tree nodes, the lambda-typed tree argument, `sortBy` carrying tie-breakers, the
+   derived-child inliner's sort and limit), the endpoint and its envelope, introspection, the composer's rule for
+   the island, the Prisma oracle, and the twenty-task evaluation of the bet.
+

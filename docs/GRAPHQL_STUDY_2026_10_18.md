@@ -977,4 +977,18 @@ shapes, which is already the thing agents need most, before any row is fetched.
 
 ## 13. The record of landings
 
-None yet.
+### 13.1 PR1a, 2026-10-18: the generated schema, the validator, describe and validate, the island's arm
+
+Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the first landing". PR1 of §10 less the
+graphql-js differential (PR1b), introspection (PR2) and the composer's rule for the island (PR2).
+
+- **What the code read changed in the plan.** Nothing in the generator's rules; one scoping rule written down
+  here: an association whose two classes are not both in scope injects nothing (a data space scoped to `Firm` has no
+  `employees`), where a declared property whose class is out of scope, or a superclass out of scope, is refused
+  (§5.7). Errors carry the selection path, `Person(where).agee`, `Person.firm.nope`; line and column wait on the
+  AST carrying positions, which PR2 adds with the Typer's needs (the engine's AST carries none).
+- **Measured.** 923 lines of SDL for the five classes of §7, 103 types. The validator's rules each pinned by a
+  case (`GqlValidatorTest`); the five packages touched and then every core package and the layering policy green.
+- **Not done, on purpose.** The graphql-js differential (its Node target is PR1b); the data space's own limits
+  (G17 takes the request's `limits`, the default 8 deep and 25 list fields per level, until a data space can
+  declare them); function roots (G4's Pure functions of the data space; PR2); milestoning arguments (PR2).
