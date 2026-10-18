@@ -2344,3 +2344,34 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   against its profile (`<<graph.Edgee>>`, undeclared, compiles with zero errors; legend-engine refuses it: "Can't
   find stereotype 'Edgee' in profile 'graph'"), and `docs/LENIENCY_CATALOG.md` does not list the leniency. The
   compiler line's; this line validates the graph profile's own references in its reader (PR3).
+
+## A twelfth line, 2026-10-18: GraphQL in Pure, the schema generated from the class model (the user's ask, rule 5)
+
+The user asked for the object-query counterpart of the `#SQL{...}#` and `#Cypher{...}#` islands: standards-based,
+returning trees, that humans and agents understand. The answer (`docs/GRAPHQL_STUDY_2026_10_18.md`, the user's
+rulings G1 to G22): valid GraphQL, every convention a rule of a **schema generated from the Pure model** (Prisma's
+filter names, `where`/`orderBy`/`limit`/`offset` on every collection, the classes as roots, `XAggregate` and
+`XGroups` siblings, `XInterface` for a class with subclasses), a companion model for the shapes, no upstream
+compatibility (legend-engine's GraphQL extension is prior art only). An endpoint per data space and the `#GQL{...}#`
+island inside Pure.
+- **Branch:** `claude/graphql-study-2026-10-18`.
+- **Study:** `docs/GRAPHQL_STUDY_2026_10_18.md` (the decisions, the generator's rules §5, the translator §6, the
+  slices §10); its evidence `docs/GRAPHQL_STUDY_2026_10_18_RESEARCH.md`.
+- **Spec:** the GraphQL specification, September 2025 edition. **Oracles:** graphql-js (MIT) for validity, Prisma
+  (Apache 2.0) over the embedded Postgres for the dialect's semantics, SQL twins for inheritance (§3.3).
+- **Owned for the line's length:**
+  - `core/src/main/java/com/legend/compiler/graphql/` (the schema as data, the generator, the SDL printer, the
+    validator, the island seam; the translator in PR2)
+  - `core/src/main/java/com/legend/server/GraphqlApi.java` (the routes)
+  - `core/src/test/resources/graphql-parity/` and the tests `compiler/graphql/*Test`, `server/GraphqlApiTest`,
+    `protocol/GqlInlineFragmentTest`
+- **Cross-area edits, announced here as landed with PR1 (2026-10-18):** `protocol/spec/Gql.java` (the
+  `InlineFragment` node: the engine's grammar refuses inline fragments, the typed object query needs them for a
+  subclass's fields), `parser/GqlParser.java` (its arm), `protocol/GqlEmitter.java` and `GqlReader.java` (its wire
+  shape, lite's own), `compiler/spec/Typer.java` (the `#GQL{...}#` arm validates against the model's schema instead
+  of refusing outright), `compiler/element/type/PlatformTypes.java` (`TYPEMODIFIERS_PROFILE`),
+  `server/PureV1Api.java` (two route cases; `request` and `answer` package-private), `core/BUILD.bazel` and
+  `tools/deps/core-layers.txt` (`GraphqlApi` in `pure_v1`, which gains `:model` for the data space element).
+- **Not yet (PR1b, PR2):** the graphql-js differential and `validity.jsonl`; introspection; the translator and the
+  endpoint's execution; the composer's rule for the island (it refuses to print a model holding one, as before).
+

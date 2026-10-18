@@ -182,11 +182,10 @@ final class Typer {
             // IQ island, 2026-10-14 (M1e): the model's tables and env's variables, which IQ's names may read
             case com.legend.protocol.spec.SqlIsland si ->
                     synth(SqlIslands.desugar(si, source -> synth(source, env), ctx, env), env);
+            // #GQL{...}#: validated against the schema generated for the model (GqlIslands,
+            // docs/GRAPHQL_STUDY_2026_10_18.md §8.3); typed and executed by the line's PR2
             case com.legend.protocol.spec.GqlIsland gi ->
-                    throw new com.legend.error.NotImplementedException(
-                            "#GQL{...}# expression islands are not compilable"
-                                    + " — the graphQL extension is parse-only"
-                                    + " surface");
+                    throw com.legend.compiler.graphql.GqlIslands.refusal(gi, ctx);
             case CInteger lit -> new TypedCInteger(lit.value(), ExprType.one(Type.Primitive.INTEGER));
             case CString lit -> new TypedCString(lit.value(), ExprType.one(Type.Primitive.STRING));
             case CBoolean lit -> new TypedCBoolean(lit.value(), ExprType.one(Type.Primitive.BOOLEAN));

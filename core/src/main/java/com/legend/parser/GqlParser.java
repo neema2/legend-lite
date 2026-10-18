@@ -390,12 +390,24 @@ public final class GqlParser {
             expect('.');
             expect('.');
             ws();
+            if (peekc() == '@' || peekc() == '{') {
+                // ... @dirs { sels }: an inline fragment with no type condition (lite's node; the
+                // reference refuses inline fragments — docs/GRAPHQL_STUDY_2026_10_18.md §6.1)
+                List<Gql.Directive> ds = directives();
+                ws();
+                return new Gql.InlineFragment(null, ds, selectionSet());
+            }
             String spread = name("fragment spread name");
             if ("on".equals(spread)) {
-                // the reference REFUSES inline fragments (probed: empty-
-                // message rejection); verdict parity — so do we
-                throw fail("inline fragments are refused by the reference"
-                        + " GraphQL grammar");
+                // ... on Type @dirs { sels }: the reference REFUSES inline fragments (probed:
+                // empty-message rejection); the LEGEND_ENGINE surface keeps that refusal at the
+                // island (SpecParser), this reader builds lite's node
+                ws();
+                String typeCondition = ident("type condition");
+                ws();
+                List<Gql.Directive> ds = directives();
+                ws();
+                return new Gql.InlineFragment(typeCondition, ds, selectionSet());
             }
             // spread directives: parsed, dropped by the engine walker
             directives();

@@ -1,0 +1,923 @@
+type Query {
+  Address(where: AddressWhere, orderBy: [AddressOrderBy!], limit: Int, offset: Int): [Address!]!
+  AddressAggregate(where: AddressWhere): AddressAggregate!
+  AddressGroups(where: AddressWhere, having: AddressGroupHaving, orderBy: [AddressGroupOrderBy!], limit: Int, offset: Int): [AddressGroup!]!
+  Employee(where: EmployeeWhere, orderBy: [EmployeeOrderBy!], limit: Int, offset: Int): [EmployeeInterface!]!
+  EmployeeAggregate(where: EmployeeWhere): EmployeeAggregate!
+  EmployeeGroups(where: EmployeeWhere, having: EmployeeGroupHaving, orderBy: [EmployeeGroupOrderBy!], limit: Int, offset: Int): [EmployeeGroup!]!
+  Firm(where: FirmWhere, orderBy: [FirmOrderBy!], limit: Int, offset: Int): [Firm!]!
+  FirmAggregate(where: FirmWhere): FirmAggregate!
+  FirmGroups(where: FirmWhere, having: FirmGroupHaving, orderBy: [FirmGroupOrderBy!], limit: Int, offset: Int): [FirmGroup!]!
+  Manager(where: ManagerWhere, orderBy: [ManagerOrderBy!], limit: Int, offset: Int): [Manager!]!
+  ManagerAggregate(where: ManagerWhere): ManagerAggregate!
+  ManagerGroups(where: ManagerWhere, having: ManagerGroupHaving, orderBy: [ManagerGroupOrderBy!], limit: Int, offset: Int): [ManagerGroup!]!
+  Person(where: PersonWhere, orderBy: [PersonOrderBy!], limit: Int, offset: Int): [PersonInterface!]!
+  PersonAggregate(where: PersonWhere): PersonAggregate!
+  PersonGroups(where: PersonWhere, having: PersonGroupHaving, orderBy: [PersonGroupOrderBy!], limit: Int, offset: Int): [PersonGroup!]!
+}
+
+type Address {
+  city: String!
+  country: Country!
+  residents(where: PersonWhere, orderBy: [PersonOrderBy!], limit: Int, offset: Int): [PersonInterface!]!
+  residentsAggregate(where: PersonWhere): PersonAggregate!
+  residentsGroups(where: PersonWhere, having: PersonGroupHaving, orderBy: [PersonGroupOrderBy!], limit: Int, offset: Int): [PersonGroup!]!
+}
+
+type AddressAggregate {
+  count: BigInt!
+  min: AddressMin
+  max: AddressMax
+}
+
+input AddressAggregateOrderBy {
+  count: SortDirection
+  min: AddressMinOrderBy
+  max: AddressMaxOrderBy
+}
+
+type AddressGroup {
+  key: AddressGroupKey!
+  count: BigInt!
+  min: AddressMin
+  max: AddressMax
+}
+
+input AddressGroupHaving {
+  count: BigIntFilter
+  min: AddressMinFilter
+  max: AddressMaxFilter
+  AND: [AddressGroupHaving!]
+  OR: [AddressGroupHaving!]
+  NOT: AddressGroupHaving
+}
+
+type AddressGroupKey {
+  city: String
+  country: Country
+}
+
+input AddressGroupOrderBy {
+  count: SortDirection
+  key: AddressOrderBy
+  min: AddressMinOrderBy
+  max: AddressMaxOrderBy
+}
+
+input AddressListFilter {
+  some: AddressWhere
+  every: AddressWhere
+  none: AddressWhere
+}
+
+type AddressMax {
+  city: String
+}
+
+input AddressMaxFilter {
+  city: StringFilter
+}
+
+input AddressMaxOrderBy {
+  city: SortDirection
+}
+
+type AddressMin {
+  city: String
+}
+
+input AddressMinFilter {
+  city: StringFilter
+}
+
+input AddressMinOrderBy {
+  city: SortDirection
+}
+
+input AddressOrderBy {
+  city: SortDirection
+  country: SortDirection
+  residentsAggregate: PersonAggregateOrderBy
+}
+
+input AddressWhere {
+  city: StringFilter
+  country: CountryFilter
+  residents: PersonListFilter
+  is: AddressWhere
+  isNot: AddressWhere
+  AND: [AddressWhere!]
+  OR: [AddressWhere!]
+  NOT: AddressWhere
+}
+
+"""
+Pure's Integer: a signed 64-bit integer, written as an integer literal, carried as a JSON number (G5).
+"""
+scalar BigInt
+
+input BigIntFilter {
+  equals: BigInt
+  not: BigIntFilter
+  in: [BigInt!]
+  notIn: [BigInt!]
+  lt: BigInt
+  lte: BigInt
+  gt: BigInt
+  gte: BigInt
+}
+
+enum Country {
+  UK
+  US
+  JP
+}
+
+input CountryFilter {
+  equals: Country
+  not: CountryFilter
+  in: [Country!]
+  notIn: [Country!]
+}
+
+"""
+Pure's StrictDate: an ISO-8601 date, "2024-01-01".
+"""
+scalar Date
+
+input DateFilter {
+  equals: Date
+  not: DateFilter
+  in: [Date!]
+  notIn: [Date!]
+  lt: Date
+  lte: Date
+  gt: Date
+  gte: Date
+}
+
+"""
+The unit a date key is truncated to under `key` (G7).
+"""
+enum DateUnit {
+  YEAR
+  QUARTER
+  MONTH
+  WEEK
+  DAY
+  HOUR
+}
+
+"""
+Exact Employee instances only; spread on EmployeeInterface to include Manager.
+"""
+type Employee implements EmployeeInterface & PersonInterface {
+  firstName: String!
+  lastName: String!
+  age: BigInt!
+  born: Date
+  fullName: String!
+  firm: Firm
+  address: Address
+  salary: Float!
+  manager: EmployeeInterface
+  salaryOn(d: Date!): Float!
+}
+
+type EmployeeAggregate {
+  count: BigInt!
+  sum: EmployeeSum
+  avg: EmployeeAvg
+  min: EmployeeMin
+  max: EmployeeMax
+}
+
+input EmployeeAggregateOrderBy {
+  count: SortDirection
+  sum: EmployeeSumOrderBy
+  avg: EmployeeAvgOrderBy
+  min: EmployeeMinOrderBy
+  max: EmployeeMaxOrderBy
+}
+
+type EmployeeAvg {
+  age: Float
+  salary: Float
+}
+
+input EmployeeAvgFilter {
+  age: FloatFilter
+  salary: FloatFilter
+}
+
+input EmployeeAvgOrderBy {
+  age: SortDirection
+  salary: SortDirection
+}
+
+type EmployeeGroup {
+  key: EmployeeGroupKey!
+  count: BigInt!
+  sum: EmployeeSum
+  avg: EmployeeAvg
+  min: EmployeeMin
+  max: EmployeeMax
+}
+
+input EmployeeGroupHaving {
+  count: BigIntFilter
+  sum: EmployeeSumFilter
+  avg: EmployeeAvgFilter
+  min: EmployeeMinFilter
+  max: EmployeeMaxFilter
+  AND: [EmployeeGroupHaving!]
+  OR: [EmployeeGroupHaving!]
+  NOT: EmployeeGroupHaving
+}
+
+type EmployeeGroupKey {
+  firstName: String
+  lastName: String
+  age: BigInt
+  born(truncate: DateUnit): Date
+  fullName: String
+  firm: FirmGroupKey
+  address: AddressGroupKey
+  salary: Float
+  manager: EmployeeGroupKey
+}
+
+input EmployeeGroupOrderBy {
+  count: SortDirection
+  key: EmployeeOrderBy
+  sum: EmployeeSumOrderBy
+  avg: EmployeeAvgOrderBy
+  min: EmployeeMinOrderBy
+  max: EmployeeMaxOrderBy
+}
+
+"""
+Any Employee: Employee itself or a subclass (Manager).
+"""
+interface EmployeeInterface implements PersonInterface {
+  firstName: String!
+  lastName: String!
+  age: BigInt!
+  born: Date
+  fullName: String!
+  firm: Firm
+  address: Address
+  salary: Float!
+  manager: EmployeeInterface
+  salaryOn(d: Date!): Float!
+}
+
+input EmployeeListFilter {
+  some: EmployeeWhere
+  every: EmployeeWhere
+  none: EmployeeWhere
+}
+
+type EmployeeMax {
+  firstName: String
+  lastName: String
+  age: BigInt
+  born: Date
+  fullName: String
+  salary: Float
+}
+
+input EmployeeMaxFilter {
+  firstName: StringFilter
+  lastName: StringFilter
+  age: BigIntFilter
+  born: DateFilter
+  fullName: StringFilter
+  salary: FloatFilter
+}
+
+input EmployeeMaxOrderBy {
+  firstName: SortDirection
+  lastName: SortDirection
+  age: SortDirection
+  born: SortDirection
+  fullName: SortDirection
+  salary: SortDirection
+}
+
+type EmployeeMin {
+  firstName: String
+  lastName: String
+  age: BigInt
+  born: Date
+  fullName: String
+  salary: Float
+}
+
+input EmployeeMinFilter {
+  firstName: StringFilter
+  lastName: StringFilter
+  age: BigIntFilter
+  born: DateFilter
+  fullName: StringFilter
+  salary: FloatFilter
+}
+
+input EmployeeMinOrderBy {
+  firstName: SortDirection
+  lastName: SortDirection
+  age: SortDirection
+  born: SortDirection
+  fullName: SortDirection
+  salary: SortDirection
+}
+
+input EmployeeOrderBy {
+  firstName: SortDirection
+  lastName: SortDirection
+  age: SortDirection
+  born: SortDirection
+  fullName: SortDirection
+  firm: FirmOrderBy
+  address: AddressOrderBy
+  salary: SortDirection
+  manager: EmployeeOrderBy
+  asManager: ManagerOrderBy
+}
+
+type EmployeeSum {
+  age: BigInt
+  salary: Float
+}
+
+input EmployeeSumFilter {
+  age: BigIntFilter
+  salary: FloatFilter
+}
+
+input EmployeeSumOrderBy {
+  age: SortDirection
+  salary: SortDirection
+}
+
+input EmployeeWhere {
+  firstName: StringFilter
+  lastName: StringFilter
+  age: BigIntFilter
+  born: DateFilter
+  fullName: StringFilter
+  firm: FirmWhere
+  address: AddressWhere
+  salary: FloatFilter
+  manager: EmployeeWhere
+  """
+  The row as a Manager: its conditions, or `isNot: null` for membership (G9).
+  """
+  asManager: ManagerWhere
+  is: EmployeeWhere
+  isNot: EmployeeWhere
+  AND: [EmployeeWhere!]
+  OR: [EmployeeWhere!]
+  NOT: EmployeeWhere
+}
+
+type Firm {
+  legalName: String!
+  founded: Date!
+  employees(where: PersonWhere, orderBy: [PersonOrderBy!], limit: Int, offset: Int): [PersonInterface!]!
+  employeesAggregate(where: PersonWhere): PersonAggregate!
+  employeesGroups(where: PersonWhere, having: PersonGroupHaving, orderBy: [PersonGroupOrderBy!], limit: Int, offset: Int): [PersonGroup!]!
+}
+
+type FirmAggregate {
+  count: BigInt!
+  min: FirmMin
+  max: FirmMax
+}
+
+input FirmAggregateOrderBy {
+  count: SortDirection
+  min: FirmMinOrderBy
+  max: FirmMaxOrderBy
+}
+
+type FirmGroup {
+  key: FirmGroupKey!
+  count: BigInt!
+  min: FirmMin
+  max: FirmMax
+}
+
+input FirmGroupHaving {
+  count: BigIntFilter
+  min: FirmMinFilter
+  max: FirmMaxFilter
+  AND: [FirmGroupHaving!]
+  OR: [FirmGroupHaving!]
+  NOT: FirmGroupHaving
+}
+
+type FirmGroupKey {
+  legalName: String
+  founded(truncate: DateUnit): Date
+}
+
+input FirmGroupOrderBy {
+  count: SortDirection
+  key: FirmOrderBy
+  min: FirmMinOrderBy
+  max: FirmMaxOrderBy
+}
+
+input FirmListFilter {
+  some: FirmWhere
+  every: FirmWhere
+  none: FirmWhere
+}
+
+type FirmMax {
+  legalName: String
+  founded: Date
+}
+
+input FirmMaxFilter {
+  legalName: StringFilter
+  founded: DateFilter
+}
+
+input FirmMaxOrderBy {
+  legalName: SortDirection
+  founded: SortDirection
+}
+
+type FirmMin {
+  legalName: String
+  founded: Date
+}
+
+input FirmMinFilter {
+  legalName: StringFilter
+  founded: DateFilter
+}
+
+input FirmMinOrderBy {
+  legalName: SortDirection
+  founded: SortDirection
+}
+
+input FirmOrderBy {
+  legalName: SortDirection
+  founded: SortDirection
+  employeesAggregate: PersonAggregateOrderBy
+}
+
+input FirmWhere {
+  legalName: StringFilter
+  founded: DateFilter
+  employees: PersonListFilter
+  is: FirmWhere
+  isNot: FirmWhere
+  AND: [FirmWhere!]
+  OR: [FirmWhere!]
+  NOT: FirmWhere
+}
+
+input FloatFilter {
+  equals: Float
+  not: FloatFilter
+  in: [Float!]
+  notIn: [Float!]
+  lt: Float
+  lte: Float
+  gt: Float
+  gte: Float
+}
+
+type Manager implements EmployeeInterface & PersonInterface {
+  firstName: String!
+  lastName: String!
+  age: BigInt!
+  born: Date
+  fullName: String!
+  firm: Firm
+  address: Address
+  salary: Float!
+  manager: EmployeeInterface
+  salaryOn(d: Date!): Float!
+  budget: Float!
+}
+
+type ManagerAggregate {
+  count: BigInt!
+  sum: ManagerSum
+  avg: ManagerAvg
+  min: ManagerMin
+  max: ManagerMax
+}
+
+input ManagerAggregateOrderBy {
+  count: SortDirection
+  sum: ManagerSumOrderBy
+  avg: ManagerAvgOrderBy
+  min: ManagerMinOrderBy
+  max: ManagerMaxOrderBy
+}
+
+type ManagerAvg {
+  age: Float
+  salary: Float
+  budget: Float
+}
+
+input ManagerAvgFilter {
+  age: FloatFilter
+  salary: FloatFilter
+  budget: FloatFilter
+}
+
+input ManagerAvgOrderBy {
+  age: SortDirection
+  salary: SortDirection
+  budget: SortDirection
+}
+
+type ManagerGroup {
+  key: ManagerGroupKey!
+  count: BigInt!
+  sum: ManagerSum
+  avg: ManagerAvg
+  min: ManagerMin
+  max: ManagerMax
+}
+
+input ManagerGroupHaving {
+  count: BigIntFilter
+  sum: ManagerSumFilter
+  avg: ManagerAvgFilter
+  min: ManagerMinFilter
+  max: ManagerMaxFilter
+  AND: [ManagerGroupHaving!]
+  OR: [ManagerGroupHaving!]
+  NOT: ManagerGroupHaving
+}
+
+type ManagerGroupKey {
+  firstName: String
+  lastName: String
+  age: BigInt
+  born(truncate: DateUnit): Date
+  fullName: String
+  firm: FirmGroupKey
+  address: AddressGroupKey
+  salary: Float
+  manager: EmployeeGroupKey
+  budget: Float
+}
+
+input ManagerGroupOrderBy {
+  count: SortDirection
+  key: ManagerOrderBy
+  sum: ManagerSumOrderBy
+  avg: ManagerAvgOrderBy
+  min: ManagerMinOrderBy
+  max: ManagerMaxOrderBy
+}
+
+input ManagerListFilter {
+  some: ManagerWhere
+  every: ManagerWhere
+  none: ManagerWhere
+}
+
+type ManagerMax {
+  firstName: String
+  lastName: String
+  age: BigInt
+  born: Date
+  fullName: String
+  salary: Float
+  budget: Float
+}
+
+input ManagerMaxFilter {
+  firstName: StringFilter
+  lastName: StringFilter
+  age: BigIntFilter
+  born: DateFilter
+  fullName: StringFilter
+  salary: FloatFilter
+  budget: FloatFilter
+}
+
+input ManagerMaxOrderBy {
+  firstName: SortDirection
+  lastName: SortDirection
+  age: SortDirection
+  born: SortDirection
+  fullName: SortDirection
+  salary: SortDirection
+  budget: SortDirection
+}
+
+type ManagerMin {
+  firstName: String
+  lastName: String
+  age: BigInt
+  born: Date
+  fullName: String
+  salary: Float
+  budget: Float
+}
+
+input ManagerMinFilter {
+  firstName: StringFilter
+  lastName: StringFilter
+  age: BigIntFilter
+  born: DateFilter
+  fullName: StringFilter
+  salary: FloatFilter
+  budget: FloatFilter
+}
+
+input ManagerMinOrderBy {
+  firstName: SortDirection
+  lastName: SortDirection
+  age: SortDirection
+  born: SortDirection
+  fullName: SortDirection
+  salary: SortDirection
+  budget: SortDirection
+}
+
+input ManagerOrderBy {
+  firstName: SortDirection
+  lastName: SortDirection
+  age: SortDirection
+  born: SortDirection
+  fullName: SortDirection
+  firm: FirmOrderBy
+  address: AddressOrderBy
+  salary: SortDirection
+  manager: EmployeeOrderBy
+  budget: SortDirection
+}
+
+type ManagerSum {
+  age: BigInt
+  salary: Float
+  budget: Float
+}
+
+input ManagerSumFilter {
+  age: BigIntFilter
+  salary: FloatFilter
+  budget: FloatFilter
+}
+
+input ManagerSumOrderBy {
+  age: SortDirection
+  salary: SortDirection
+  budget: SortDirection
+}
+
+input ManagerWhere {
+  firstName: StringFilter
+  lastName: StringFilter
+  age: BigIntFilter
+  born: DateFilter
+  fullName: StringFilter
+  firm: FirmWhere
+  address: AddressWhere
+  salary: FloatFilter
+  manager: EmployeeWhere
+  budget: FloatFilter
+  is: ManagerWhere
+  isNot: ManagerWhere
+  AND: [ManagerWhere!]
+  OR: [ManagerWhere!]
+  NOT: ManagerWhere
+}
+
+"""
+A person: anyone the firm knows of.
+Exact Person instances only; spread on PersonInterface to include Employee, Manager.
+"""
+type Person implements PersonInterface {
+  firstName: String!
+  lastName: String!
+  age: BigInt!
+  born: Date
+  fullName: String!
+  firm: Firm
+  address: Address
+}
+
+type PersonAggregate {
+  count: BigInt!
+  sum: PersonSum
+  avg: PersonAvg
+  min: PersonMin
+  max: PersonMax
+}
+
+input PersonAggregateOrderBy {
+  count: SortDirection
+  sum: PersonSumOrderBy
+  avg: PersonAvgOrderBy
+  min: PersonMinOrderBy
+  max: PersonMaxOrderBy
+}
+
+type PersonAvg {
+  age: Float
+}
+
+input PersonAvgFilter {
+  age: FloatFilter
+}
+
+input PersonAvgOrderBy {
+  age: SortDirection
+}
+
+type PersonGroup {
+  key: PersonGroupKey!
+  count: BigInt!
+  sum: PersonSum
+  avg: PersonAvg
+  min: PersonMin
+  max: PersonMax
+}
+
+input PersonGroupHaving {
+  count: BigIntFilter
+  sum: PersonSumFilter
+  avg: PersonAvgFilter
+  min: PersonMinFilter
+  max: PersonMaxFilter
+  AND: [PersonGroupHaving!]
+  OR: [PersonGroupHaving!]
+  NOT: PersonGroupHaving
+}
+
+type PersonGroupKey {
+  firstName: String
+  lastName: String
+  age: BigInt
+  born(truncate: DateUnit): Date
+  fullName: String
+  firm: FirmGroupKey
+  address: AddressGroupKey
+}
+
+input PersonGroupOrderBy {
+  count: SortDirection
+  key: PersonOrderBy
+  sum: PersonSumOrderBy
+  avg: PersonAvgOrderBy
+  min: PersonMinOrderBy
+  max: PersonMaxOrderBy
+}
+
+"""
+A person: anyone the firm knows of.
+Any Person: Person itself or a subclass (Employee, Manager).
+"""
+interface PersonInterface {
+  firstName: String!
+  lastName: String!
+  age: BigInt!
+  born: Date
+  fullName: String!
+  firm: Firm
+  address: Address
+}
+
+input PersonListFilter {
+  some: PersonWhere
+  every: PersonWhere
+  none: PersonWhere
+}
+
+type PersonMax {
+  firstName: String
+  lastName: String
+  age: BigInt
+  born: Date
+  fullName: String
+}
+
+input PersonMaxFilter {
+  firstName: StringFilter
+  lastName: StringFilter
+  age: BigIntFilter
+  born: DateFilter
+  fullName: StringFilter
+}
+
+input PersonMaxOrderBy {
+  firstName: SortDirection
+  lastName: SortDirection
+  age: SortDirection
+  born: SortDirection
+  fullName: SortDirection
+}
+
+type PersonMin {
+  firstName: String
+  lastName: String
+  age: BigInt
+  born: Date
+  fullName: String
+}
+
+input PersonMinFilter {
+  firstName: StringFilter
+  lastName: StringFilter
+  age: BigIntFilter
+  born: DateFilter
+  fullName: StringFilter
+}
+
+input PersonMinOrderBy {
+  firstName: SortDirection
+  lastName: SortDirection
+  age: SortDirection
+  born: SortDirection
+  fullName: SortDirection
+}
+
+input PersonOrderBy {
+  firstName: SortDirection
+  lastName: SortDirection
+  age: SortDirection
+  born: SortDirection
+  fullName: SortDirection
+  firm: FirmOrderBy
+  address: AddressOrderBy
+  asEmployee: EmployeeOrderBy
+  asManager: ManagerOrderBy
+}
+
+type PersonSum {
+  age: BigInt
+}
+
+input PersonSumFilter {
+  age: BigIntFilter
+}
+
+input PersonSumOrderBy {
+  age: SortDirection
+}
+
+input PersonWhere {
+  firstName: StringFilter
+  lastName: StringFilter
+  age: BigIntFilter
+  born: DateFilter
+  fullName: StringFilter
+  firm: FirmWhere
+  address: AddressWhere
+  """
+  The row as a Employee: its conditions, or `isNot: null` for membership (G9).
+  """
+  asEmployee: EmployeeWhere
+  """
+  The row as a Manager: its conditions, or `isNot: null` for membership (G9).
+  """
+  asManager: ManagerWhere
+  is: PersonWhere
+  isNot: PersonWhere
+  AND: [PersonWhere!]
+  OR: [PersonWhere!]
+  NOT: PersonWhere
+}
+
+"""
+How a string comparison matches: Prisma's spelling.
+"""
+enum QueryMode {
+  default
+  insensitive
+}
+
+enum SortDirection {
+  ASC
+  DESC
+}
+
+input StringFilter {
+  equals: String
+  not: StringFilter
+  in: [String!]
+  notIn: [String!]
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  contains: String
+  startsWith: String
+  endsWith: String
+  mode: QueryMode
+}

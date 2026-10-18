@@ -251,10 +251,13 @@ legend_java_library(
         "src/main/java/com/legend/server/CreateAssociation.java",
         "src/main/java/com/legend/server/CreateClass.java",
         "src/main/java/com/legend/server/CreateDataSpace.java",
+        "src/main/java/com/legend/server/GraphqlApi.java",
         "src/main/java/com/legend/server/ModelChanges.java",
         "src/main/java/com/legend/server/PureV1Api.java",
     ],
-    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
+    # :model since 2026-10-18: the GraphQL routes read the data space element that scopes a schema
+    # (docs/GRAPHQL_STUDY_2026_10_18.md §8.4)
+    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":model", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
 )
 legend_java_library(
     name = "server_lib",
@@ -264,6 +267,7 @@ legend_java_library(
             "src/main/java/com/legend/server/CreateAssociation.java",
             "src/main/java/com/legend/server/CreateClass.java",
             "src/main/java/com/legend/server/CreateDataSpace.java",
+            "src/main/java/com/legend/server/GraphqlApi.java",
             "src/main/java/com/legend/server/ModelChanges.java",
             "src/main/java/com/legend/server/PureV1Api.java",
         ],

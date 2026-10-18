@@ -1,0 +1,55 @@
+###Pure
+Profile demo::graph
+{
+  stereotypes: [Edge, from, to, type];
+}
+
+Class {doc.doc = 'A person: anyone the firm knows of.'} demo::Person
+{
+  firstName: String[1];
+  lastName: String[1];
+  age: Integer[1];
+  born: StrictDate[0..1];
+  fullName() { $this.firstName + ' ' + $this.lastName }: String[1];
+}
+
+Class demo::Employee extends demo::Person
+{
+  salary: Float[1];
+  manager: demo::Employee[0..1];
+  salaryOn(d: StrictDate[1]) { $this.salary }: Float[1];
+}
+
+Class demo::Manager extends demo::Employee
+{
+  budget: Float[1];
+}
+
+Class demo::Firm
+{
+  legalName: String[1];
+  founded: StrictDate[1];
+}
+
+Class demo::Address
+{
+  city: String[1];
+  country: demo::Country[1];
+}
+
+Enum demo::Country
+{
+  UK, US, JP
+}
+
+Association demo::Employment
+{
+  firm: demo::Firm[0..1];
+  employees: demo::Person[*];
+}
+
+Association demo::Residence
+{
+  address: demo::Address[0..1];
+  residents: demo::Person[*];
+}

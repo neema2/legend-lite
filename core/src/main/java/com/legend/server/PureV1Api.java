@@ -111,6 +111,8 @@ public final class PureV1Api {
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
+            case "/api/lite/v1/graphql/schema" -> GraphqlApi.schema(body);
+            case "/api/lite/v1/graphql/validate" -> GraphqlApi.validate(body);
             default -> error(404, null, (path.startsWith("/api/lite/") ? "no such legend-lite API: "
                     : "no such legend-engine API in legend-lite: ") + path);
         };
@@ -131,7 +133,7 @@ public final class PureV1Api {
         return null;
     }
 
-    private static Json.Obj request(String body) {
+    static Json.Obj request(String body) {
         Json.Node n = Json.parse(body, REQUEST);
         if (n instanceof Json.Obj o) {
             return o;
@@ -790,7 +792,7 @@ public final class PureV1Api {
      *       dropped connection.</li>
      * </ul>
      */
-    private static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call) {
+    static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call) {
         try {
             return new Answer(200, call.get());
         } catch (RuntimeException | StackOverflowError e) {

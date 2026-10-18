@@ -104,6 +104,10 @@ final class GqlReader {
         if ("fragmentSpread".equals(type)) {
             return w.done(new Gql.FragmentSpread(w.str("name"), directives(w)));
         }
+        if ("inlineFragment".equals(type)) {
+            return w.done(new Gql.InlineFragment(w.optStr("typeCondition"), directives(w),
+                    selections(w, "selectionSet")));
+        }
         throw Wire.refuse("no reader rule for GraphQL selection _type '" + type + "'");
     }
 

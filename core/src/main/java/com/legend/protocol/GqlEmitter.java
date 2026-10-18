@@ -258,6 +258,19 @@ final class GqlEmitter {
                     ProtocolEmitter.str(b, fs.name());
                     b.append('}');
                 }
+                case Gql.InlineFragment inl -> {
+                    // lite's own wire shape (the engine has no inline fragment node): the keys in the
+                    // field's order, the type condition last and only when written
+                    b.append("{\"_type\":\"inlineFragment\",\"directives\":");
+                    directives(b, inl.directives());
+                    b.append(",\"selectionSet\":");
+                    selections(b, inl.selectionSet());
+                    if (inl.typeCondition() != null) {
+                        b.append(",\"typeCondition\":");
+                        ProtocolEmitter.str(b, inl.typeCondition());
+                    }
+                    b.append('}');
+                }
             }
         }
         b.append(']');

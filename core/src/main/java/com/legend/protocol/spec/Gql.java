@@ -174,7 +174,19 @@ public final class Gql {
     }
 
     /** One selection inside a selection set. */
-    public sealed interface Selection permits Field, FragmentSpread {
+    public sealed interface Selection permits Field, FragmentSpread, InlineFragment {
+    }
+
+    /** {@code ... on Type @dirs { sels }} or {@code ... @dirs { sels }}: an inline fragment. legend-engine's
+     *  GraphQL grammar refuses inline fragments, so this node is legend-lite's (docs/GRAPHQL_STUDY_2026_10_18.md
+     *  §6.1): the selection of a subclass's fields inside an interface-typed selection. Its wire form is lite's
+     *  own, {@code _type: inlineFragment}; the LEGEND_ENGINE surface keeps the engine's refusal. */
+    public record InlineFragment(@com.legend.base.Nullable String typeCondition,
+            List<Directive> directives, List<Selection> selectionSet) implements Selection {
+        public InlineFragment {
+            directives = List.copyOf(directives);
+            selectionSet = List.copyOf(selectionSet);
+        }
     }
 
     /** {@code field} — the alias keeps its trailing colon verbatim

@@ -429,6 +429,9 @@ public final class PlatformTypes {
     /** The m3 profiles the compiler reads semantics from (legend-pure
      * m3.pure / profiles.pure). */
     public static final String EQUALITY_PROFILE = "meta::pure::profiles::equality";
+    /** {@code <<typemodifiers.abstract>>}: a class with no instances of its own. Read by the GraphQL schema
+     *  generator (docs/GRAPHQL_STUDY_2026_10_18.md G8): an abstract class is an interface only. */
+    public static final String TYPEMODIFIERS_PROFILE = "meta::pure::profiles::typemodifiers";
     public static final String TEMPORAL_PROFILE = "meta::pure::profiles::temporal";
     public static final String PCT_PROFILE = "meta::pure::test::pct::PCT";
     /** The property-graph profile (the library project {@code projects/graph}, docs/CYPHER_STUDY_2026_10_15.md

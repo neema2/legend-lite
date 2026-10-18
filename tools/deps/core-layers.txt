@@ -73,7 +73,7 @@ probe	base builtin lowering model platform
 testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql sql_dialect values
 execution_plan	base json model sql
 planner	base builtin cache compiler compiler_element_type database error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
-pure_v1	base compiler compiler_element_type database error json parser plan planner protocol sql_dialect
+pure_v1	base compiler compiler_element_type database error json model parser plan planner protocol sql_dialect
 driver	base builtin cache compiler compiler_element_type database diagnostics error exec lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values
 ide	base lexer model parser
 test	base compiler driver error exec model planner protocol sql values
