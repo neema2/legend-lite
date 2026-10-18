@@ -131,7 +131,7 @@ public final class SchemaGenerator {
         for (String fqn : scope.classFqns()) {
             TypedClass c = ctx.findClass(fqn).orElseThrow();
             for (String sup : c.superClassFqns()) {
-                if (scope.classFqns().contains(sup)) {
+                if (scope.contains(sup)) {
                     subs.computeIfAbsent(sup, k -> new ArrayList<>()).add(fqn);
                 }
             }
@@ -164,7 +164,7 @@ public final class SchemaGenerator {
     private void ancestorsOf(String fqn, Scope scope, List<String> into) {
         TypedClass c = ctx.findClass(fqn).orElseThrow();
         for (String sup : c.superClassFqns()) {
-            if (!scope.classFqns().contains(sup)) {
+            if (!scope.contains(sup)) {
                 throw new GqlSchemaException(fqn + " extends " + sup + ", which the data space's scope does not"
                         + " include: a superclass must be in scope with its subclass", fqn);
             }
@@ -197,8 +197,8 @@ public final class SchemaGenerator {
             }
             String owner1 = className(ad.property2().targetClass());
             String owner2 = className(ad.property1().targetClass());
-            if (owner1 == null || owner2 == null || !scope.classFqns().contains(owner1)
-                    || !scope.classFqns().contains(owner2)) {
+            if (owner1 == null || owner2 == null || !scope.contains(owner1)
+                    || !scope.contains(owner2)) {
                 continue;
             }
             out.computeIfAbsent(owner1, k -> new ArrayList<>()).add(ad.property1());
@@ -269,7 +269,7 @@ public final class SchemaGenerator {
                 yield Kind.ENUM;
             }
             case Type.ClassType c -> {
-                if (!scope.classFqns().contains(c.fqn())) {
+                if (!scope.contains(c.fqn())) {
                     throw new GqlSchemaException(classFqn + "." + name + " is typed " + c.fqn() + ", which the data"
                             + " space's scope does not include: a property's class must be in scope", classFqn);
                 }
@@ -341,7 +341,7 @@ public final class SchemaGenerator {
     }
 
     private static @com.legend.base.Nullable String doc(@com.legend.base.Nullable String raw) {
-        return raw == null || raw.isBlank() ? null : raw.strip();
+        return raw == null || raw.trim().isEmpty() ? null : raw.strip();
     }
 
     static String simple(String fqn) {

@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeSet;
 
 /**
  * legend-lite's GraphQL routes (docs/GRAPHQL_STUDY_2026_10_18.md §8.4, the first two of the four tools):
@@ -90,7 +89,7 @@ public final class GraphqlApi {
         if (dataSpace != null) {
             scope = Scope.of(ctx, dataSpace(text, dataSpace));
         } else if (request.has("classes")) {
-            scope = new Scope(new TreeSet<>(request.getStringArray("classes")));
+            scope = new Scope(request.getStringArray("classes"));
             for (String fqn : scope.classFqns()) {
                 if (ctx.findClass(fqn).isEmpty()) {
                     throw new IllegalArgumentException("no class " + fqn + " in the model");

@@ -7,9 +7,9 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedClass;
 import com.legend.model.DataSpaceDefinition;
 
-import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
-import java.util.SortedSet;
+import java.util.Set;
 import java.util.TreeSet;
 
 /**
@@ -18,24 +18,34 @@ import java.util.TreeSet;
  * or every element under it as a package; a {@code -} entry excludes the same). Platform classes are never in
  * scope. The enumerations a class in scope refers to follow it (the generator adds them as it meets them).
  */
-public record Scope(SortedSet<String> classFqns) {
+public record Scope(List<String> classFqns) {
 
+    /** Sorted, without duplicates. (A sorted copy, not an unmodifiable sorted set: TeaVM, which compiles the
+     *  planner to WebAssembly, lacks {@code Collections.unmodifiableSortedSet}.) */
     public Scope {
-        classFqns = Collections.unmodifiableSortedSet(new TreeSet<>(classFqns));
+        classFqns = List.copyOf(new TreeSet<>(classFqns));
+    }
+
+    public static Scope of(Collection<String> classFqns) {
+        return new Scope(List.copyOf(classFqns));
+    }
+
+    public boolean contains(String fqn) {
+        return classFqns.contains(fqn);
     }
 
     /** Every user class of the model. */
     public static Scope all(ModelContext ctx) {
-        return new Scope(userClasses(ctx));
+        return of(userClasses(ctx));
     }
 
     /** The data space's element scope over the model's user classes; everything when it names nothing. */
     public static Scope of(ModelContext ctx, DataSpaceDefinition dataSpace) {
-        SortedSet<String> all = userClasses(ctx);
+        Set<String> all = userClasses(ctx);
         if (dataSpace.elements().isEmpty()) {
-            return new Scope(all);
+            return of(all);
         }
-        SortedSet<String> in = new TreeSet<>();
+        Set<String> in = new TreeSet<>();
         for (String entry : dataSpace.elements()) {
             if (!entry.startsWith("-")) {
                 for (String fqn : all) {
@@ -51,7 +61,7 @@ public record Scope(SortedSet<String> classFqns) {
                 in.removeIf(fqn -> covers(path, fqn));
             }
         }
-        return new Scope(in);
+        return of(in);
     }
 
     /** Whether an element-scope path names {@code fqn} or a package above it. */
@@ -59,8 +69,8 @@ public record Scope(SortedSet<String> classFqns) {
         return fqn.equals(path) || fqn.startsWith(path + "::");
     }
 
-    private static SortedSet<String> userClasses(ModelContext ctx) {
-        SortedSet<String> out = new TreeSet<>();
+    private static Set<String> userClasses(ModelContext ctx) {
+        Set<String> out = new TreeSet<>();
         for (String fqn : ctx.elementFqns()) {
             TypedClass c = ctx.findClass(fqn).orElse(null);
             if (c != null && !c.isNative() && !fqn.startsWith("meta::")) {
@@ -71,6 +81,6 @@ public record Scope(SortedSet<String> classFqns) {
     }
 
     public List<String> asList() {
-        return List.copyOf(classFqns);
+        return classFqns;
     }
 }
