@@ -11405,9 +11405,28 @@ graphql-js differential (PR1b).
    variables, fragments, leaves and merging, the limits, the group rules, operations and introspection, every error
    at once with its path), `GqlIslandsTest` 2, `GraphqlApiTest` 6, `GqlInlineFragmentTest` 4. `bazel test
    //core:core_tests //tools/deps:core_layering_test` on this tree: 26 targets, all pass (the root guards among
-   them: `CodeShapeGuardrailTest`, `PlatformNamesGuardrailTest`, `ArchitectureTest`; no guard entry needed). The
-   full local gate, `bazel test --lockfile_mode=error //gates:local`, runs after this entry; its result is the next
-   entry's first line, and the branch's CI run is the landing's full judge, as the line's rule says.
+   them: `CodeShapeGuardrailTest`, `PlatformNamesGuardrailTest`, `ArchitectureTest`). **The full local gate,**
+   `bazel test --lockfile_mode=error //gates:local`, after `tools/cloud-distdir.sh` seeded the reference archives
+   (docs/CLOUD_SESSIONS.md): the first run failed at `//wasm:planner` (TeaVM lacks
+   `Collections.unmodifiableSortedSet`; the scope is a sorted list now); the second ran to the end, 383 targets, 371
+   pass, 11 fail: eight were the container running as root (the seven Postgres targets and `//datacube:verify_app_test`:
+   `initdb refuses root`), green on their own with `--run_under="$PWD/tools/postgres/as_unprivileged.sh ubuntu"`;
+   three were this landing's, each fixed and the target rerun green: `//core:census` (`ParserBoundaryArchTest`: the
+   validator's test imported the parser from the compiler layer, so the three GraphQL tests moved to
+   `core/src/test/java/com/legend/graphql/`; `JavaEvalLedgerTest`: `GraphqlApi.java` registered in the server's funnel
+   register, parse, compile, generate and validate only), `//core:guardrails` (`NoSaltedIterationOrderTest`: the
+   schema's index is a `LinkedHashMap`; `ErrorShapeGuardrailTest`: a document that does not parse is 400 COMPILATION
+   through `PureV1Api.answer`'s one sentinel, no catch of its own, and the two `default -> "..."` arms became exhaustive
+   switches and an if-chain; `IdentityGuardrailTest`: the folds are an enum, the data space is found through a map,
+   platform classes are excluded by the resolver's and the system metamodel's sets rather than a package prefix, and
+   NAME_CUTTING 108 -> 109 with its dated reason, the class's simple name as the type's; `ArchitectureTest`'s
+   protocol-node rule: the schema's type references are its own records, `GqlSchema.TypeRef`, the protocol's read
+   only), `//parser-equivalence:update_ratchets_test` (`own_corpus.matched` 2875 -> 2880: five own-corpus fixtures
+   holding inline fragments inside `#GQL{...}#` islands parse now; `bazel run //parser-equivalence:update_ratchets`).
+   The gate could not be run a third time whole: the container's disk allowance was spent (1.7 GB left after the
+   seeded checkouts); every target the fixes touch reran green (`core_tests_root`, `_server`, `_protocol`,
+   `guardrails`, `census`, `core_layering_test`, `update_ratchets_test`, `//wasm/...` built, the eight unprivileged
+   targets), and the branch's CI run is the landing's full judge, as the line's rule says.
 3. **Next.** PR1b: the graphql-js differential in a Node test target and `validity.jsonl`. PR2: the translator
    (the composed clause bodies on tree nodes, the lambda-typed tree argument, `sortBy` carrying tie-breakers, the
    derived-child inliner's sort and limit), the endpoint and its envelope, introspection, the composer's rule for

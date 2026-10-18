@@ -31,8 +31,9 @@ import java.util.Map;
  * {@code /api/lite/v1/graphql/schema}, the SDL generated for a model's data space ({@code describe}), and
  * {@code /api/lite/v1/graphql/validate}, a document against that schema with every error, every warning and the
  * typed result shape ({@code validate}). Both take the model as {@code compile} does, a data space by name or a
- * class list to scope the schema, and {@code limits} (G17). A model the generator refuses is answered as a model
- * that does not compile is, 400 COMPILATION. The query and explain routes are the line's PR2.
+ * class list to scope the schema, and {@code limits} (G17). A model the generator refuses, or a document that does
+ * not parse, is answered as a model that does not compile is, 400 COMPILATION. The query and explain routes are the
+ * line's PR2.
  */
 public final class GraphqlApi {
 
@@ -57,15 +58,9 @@ public final class GraphqlApi {
             String query = request.getString("query");
             String operationName = request.getStringOr("operationName", null);
             Map<String, Object> out = new LinkedHashMap<>();
-            Gql.Document doc;
-            try {
-                doc = GqlParser.parseDocument(query, 1, 1);
-            } catch (com.legend.parser.ParseException e) {
-                out.put("valid", false);
-                out.put("errors", List.of(problem("", "PARSE", String.valueOf(e.getMessage()))));
-                out.put("warnings", List.of());
-                return Json.toCompact(out);
-            }
+            // a document that does not parse is answered as a model that does not compile is: 400 COMPILATION
+            // with the parser's message (the route's one designed sentinel is PureV1Api.answer's)
+            Gql.Document doc = GqlParser.parseDocument(query, 1, 1);
             Validation v = GqlValidator.validate(doc, scoped.schema(), limits(request), operationName);
             out.put("valid", v.valid());
             if (v.shape() != null) {
@@ -103,12 +98,17 @@ public final class GraphqlApi {
 
     private static DataSpaceDefinition dataSpace(String modelText, String name) {
         ParsedModel parsed = Compiler.parseModel(modelText);
+        Map<String, DataSpaceDefinition> byName = new LinkedHashMap<>();
         for (PackageableElement e : parsed.elements()) {
-            if (e instanceof DataSpaceDefinition ds && ds.qualifiedName().equals(name)) {
-                return ds;
+            if (e instanceof DataSpaceDefinition ds) {
+                byName.put(ds.qualifiedName(), ds);
             }
         }
-        throw new IllegalArgumentException("no data space " + name + " in the model");
+        DataSpaceDefinition ds = byName.get(name);
+        if (ds == null) {
+            throw new IllegalArgumentException("no data space " + name + " in the model");
+        }
+        return ds;
     }
 
     private static Limits limits(Json.Obj request) {
@@ -123,15 +123,15 @@ public final class GraphqlApi {
     private static List<Map<String, Object>> problems(List<Problem> problems) {
         List<Map<String, Object>> out = new ArrayList<>();
         for (Problem p : problems) {
-            out.add(problem(p.path(), "TYPE", p.message()));
+            out.add(problem(p.path(), p.message()));
         }
         return out;
     }
 
-    private static Map<String, Object> problem(String path, String phase, String message) {
+    private static Map<String, Object> problem(String path, String message) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("path", path);
-        m.put("phase", phase);
+        m.put("phase", "TYPE");
         m.put("message", message);
         return m;
     }

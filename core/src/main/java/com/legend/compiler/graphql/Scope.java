@@ -69,11 +69,26 @@ public record Scope(List<String> classFqns) {
         return fqn.equals(path) || fqn.startsWith(path + "::");
     }
 
+    /** The system metamodel's own classes (lite's views over its system tables), which every model carries. */
+    private static final Set<String> SYSTEM = systemFqns();
+
+    private static Set<String> systemFqns() {
+        Set<String> out = new TreeSet<>();
+        for (com.legend.model.PackageableElement e : com.legend.builtin.SystemMetamodel.elements()) {
+            out.add(e.qualifiedName());
+        }
+        return java.util.Collections.unmodifiableSet(out);
+    }
+
+    /** The model's classes less the platform's: the natives, the prelude's declarations, which the resolver
+     *  lists ({@code NameResolver.platformFqns()}), and the system metamodel's; each a set the element is looked
+     *  up in, never a package prefix tested as text. */
     private static Set<String> userClasses(ModelContext ctx) {
+        Set<String> platform = com.legend.compiler.NameResolver.platformFqns();
         Set<String> out = new TreeSet<>();
         for (String fqn : ctx.elementFqns()) {
             TypedClass c = ctx.findClass(fqn).orElse(null);
-            if (c != null && !c.isNative() && !fqn.startsWith("meta::")) {
+            if (c != null && !c.isNative() && !platform.contains(fqn) && !SYSTEM.contains(fqn)) {
                 out.add(fqn);
             }
         }

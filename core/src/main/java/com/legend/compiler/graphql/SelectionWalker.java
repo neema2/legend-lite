@@ -189,7 +189,7 @@ final class SelectionWalker {
         }
         arguments(def, field, here);
         TypeDef type = f.schema.find(GqlSchema.baseName(def.type()));
-        boolean list = def.type() instanceof Gql.ListType;
+        boolean list = def.type() instanceof GqlSchema.ListOf;
         String shape;
         if (type instanceof Composite child) {
             if (field.selectionSet().isEmpty()) {
@@ -279,7 +279,7 @@ final class SelectionWalker {
                 f.error(here, "@" + d.name() + " takes exactly if: Boolean!");
                 continue;
             }
-            ValueCoercion.coerce(f, d.arguments().get(0).value(), new Gql.NamedType("Boolean", false),
+            ValueCoercion.coerce(f, d.arguments().get(0).value(), new GqlSchema.Named("Boolean", false),
                     here + "@" + d.name() + "(if)");
         }
     }
@@ -360,10 +360,10 @@ final class SelectionWalker {
         return b.append(" }").toString();
     }
 
-    private static String wrap(Gql.TypeRef type, String inner) {
+    private static String wrap(GqlSchema.TypeRef type, String inner) {
         return switch (type) {
-            case Gql.NamedType n -> inner + (n.nullable() ? "?" : "");
-            case Gql.ListType l -> "[" + wrap(l.itemType(), inner) + "]" + (l.nullable() ? "?" : "");
+            case GqlSchema.Named n -> inner + (n.nullable() ? "?" : "");
+            case GqlSchema.ListOf l -> "[" + wrap(l.item(), inner) + "]" + (l.nullable() ? "?" : "");
         };
     }
 

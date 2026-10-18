@@ -92,11 +92,11 @@ class GraphqlApiTest {
     }
 
     @Test
-    void theValidateRouteAnswersAParseErrorAsAnError() {
-        Json.Obj a = answer("/api/lite/v1/graphql/validate", body(demo(), "\"query\":\"{ Person { \""));
-        assertFalse(a.getBool("valid"));
-        Json.Obj first = (Json.Obj) a.getArr("errors").items().get(0);
-        assertEquals("PARSE", first.getString("phase"));
+    void theValidateRouteAnswersAParseErrorAsACompilationFailure() {
+        PureV1Api.Answer a = PureV1Api.route("/api/lite/v1/graphql/validate", null,
+                body(demo(), "\"query\":\"{ Person { \""), NO_RUN);
+        assertEquals(400, a.status(), a.json());
+        assertTrue(a.json().contains("COMPILATION"), a.json());
     }
 
     @Test

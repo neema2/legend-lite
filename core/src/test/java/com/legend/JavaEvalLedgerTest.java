@@ -1347,6 +1347,10 @@ class JavaEvalLedgerTest {
                             // compile and PLAN only -- no connection, no JDBC, no value
                             // computed; the plan's SQL is the database's to run
                             "PureV1Api.java",
+                            // 2026-10-18, the GraphQL line's describe and validate (docs/GRAPHQL_STUDY_2026_10_18.md
+                            // §8.4): parse, compile, generate the schema and validate only -- no connection, no
+                            // JDBC, no value computed; the query route is PR2's and runs through the planner
+                            "GraphqlApi.java",
                             // (SavedQueries.java left this package 2026-10-13 for com.legend.queries, the program's B5:
                             // the rules over a records interface, one implementation for the server, Python and the page)
                             "QueryService.java"),

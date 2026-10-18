@@ -37,7 +37,7 @@ final class ValueCoercion {
     }
 
     /** Checks {@code value} against {@code type}, reporting at {@code path}. */
-    static void coerce(Frame f, Gql.Value value, Gql.TypeRef type, String path) {
+    static void coerce(Frame f, Gql.Value value, GqlSchema.TypeRef type, String path) {
         if (value instanceof Gql.VariableRef v) {
             variable(f, v.name(), type, path);
             return;
@@ -49,17 +49,17 @@ final class ValueCoercion {
             return;
         }
         switch (type) {
-            case Gql.ListType l -> {
+            case GqlSchema.ListOf l -> {
                 if (value instanceof Gql.ListValue lv) {
                     int i = 0;
                     for (Gql.Value item : lv.values()) {
-                        coerce(f, item, l.itemType(), path + "[" + i++ + "]");
+                        coerce(f, item, l.item(), path + "[" + i++ + "]");
                     }
                 } else {
-                    coerce(f, value, l.itemType(), path);
+                    coerce(f, value, l.item(), path);
                 }
             }
-            case Gql.NamedType n -> named(f, value, n.name(), path);
+            case GqlSchema.Named n -> named(f, value, n.name(), path);
         }
     }
 
@@ -113,14 +113,21 @@ final class ValueCoercion {
         }
     }
 
+    /** The spelling hint a scalar's refusal carries; nothing for the scalars whose literal is obvious. */
     private static String hint(String scalar, Gql.Value value) {
-        return switch (scalar) {
-            case SchemaGenerator.DATE -> ": write an ISO date, \"2024-01-31\"";
-            case SchemaGenerator.DATE_TIME -> ": write an ISO date-time, \"2024-01-31T10:30:00\"";
-            case SchemaGenerator.TIME -> ": write an ISO time, \"10:30:00\"";
-            case "Int" -> value instanceof Gql.IntValue ? ": Int is 32-bit; the model's integers are BigInt" : "";
-            default -> "";
-        };
+        if (SchemaGenerator.DATE.equals(scalar)) {
+            return ": write an ISO date, \"2024-01-31\"";
+        }
+        if (SchemaGenerator.DATE_TIME.equals(scalar)) {
+            return ": write an ISO date-time, \"2024-01-31T10:30:00\"";
+        }
+        if (SchemaGenerator.TIME.equals(scalar)) {
+            return ": write an ISO time, \"10:30:00\"";
+        }
+        if (SchemaGenerator.INT.equals(scalar) && value instanceof Gql.IntValue) {
+            return ": Int is 32-bit; the model's integers are BigInt";
+        }
+        return "";
     }
 
     private static void inputObject(Frame f, Gql.Value value, InputObjectType in, String path) {
@@ -156,42 +163,43 @@ final class ValueCoercion {
         }
     }
 
-    private static void variable(Frame f, String name, Gql.TypeRef location, String path) {
+    private static void variable(Frame f, String name, GqlSchema.TypeRef location, String path) {
         Gql.VariableDef def = f.variables.get(name);
         if (def == null) {
             f.error(path, "variable $" + name + " is not declared by the operation");
             return;
         }
         f.variablesUsed.add(name);
-        if (!usable(def.type(), location, def.defaultValue() != null)) {
-            f.error(path, "variable $" + name + " of type " + GqlSchema.spell(def.type()) + " used where "
+        GqlSchema.TypeRef declared = GqlSchema.TypeRef.of(def.type());
+        if (!usable(declared, location, def.defaultValue() != null)) {
+            f.error(path, "variable $" + name + " of type " + GqlSchema.spell(declared) + " used where "
                     + GqlSchema.spell(location) + " is expected");
         }
     }
 
     /** The specification's variable-usage rule: the same named type, lists matching, a nullable variable
      *  allowed in a non-null position only with a default. */
-    private static boolean usable(Gql.TypeRef variable, Gql.TypeRef location, boolean hasDefault) {
-        if (location instanceof Gql.ListType ll) {
-            if (!(variable instanceof Gql.ListType vl)) {
+    private static boolean usable(GqlSchema.TypeRef variable, GqlSchema.TypeRef location, boolean hasDefault) {
+        if (location instanceof GqlSchema.ListOf ll) {
+            if (!(variable instanceof GqlSchema.ListOf vl)) {
                 return false;
             }
             if (!ll.nullable() && vl.nullable() && !hasDefault) {
                 return false;
             }
-            return usable(vl.itemType(), ll.itemType(), false);
+            return usable(vl.item(), ll.item(), false);
         }
-        Gql.NamedType ln = (Gql.NamedType) location;
-        if (!(variable instanceof Gql.NamedType vn) || !vn.name().equals(ln.name())) {
+        GqlSchema.Named ln = (GqlSchema.Named) location;
+        if (!(variable instanceof GqlSchema.Named vn) || !vn.name().equals(ln.name())) {
             return false;
         }
         return ln.nullable() || !vn.nullable() || hasDefault;
     }
 
-    static boolean nullable(Gql.TypeRef type) {
+    static boolean nullable(GqlSchema.TypeRef type) {
         return switch (type) {
-            case Gql.NamedType n -> n.nullable();
-            case Gql.ListType l -> l.nullable();
+            case GqlSchema.Named n -> n.nullable();
+            case GqlSchema.ListOf l -> l.nullable();
         };
     }
 
@@ -209,13 +217,18 @@ final class ValueCoercion {
         };
     }
 
+    /** A scalar literal as written; a composite as an ellipsis. */
     private static String spell(Gql.Value value) {
         return switch (value) {
             case Gql.IntValue v -> Long.toString(v.value());
             case Gql.FloatValue v -> Double.toString(v.value());
             case Gql.StringValue v -> "\"" + v.value() + "\"";
             case Gql.BooleanValue v -> Boolean.toString(v.value());
-            default -> "...";
+            case Gql.NullValue v -> "null";
+            case Gql.EnumValue v -> v.value();
+            case Gql.VariableRef v -> "$" + v.name();
+            case Gql.ListValue v -> "[...]";
+            case Gql.ObjectValue v -> "{...}";
         };
     }
 

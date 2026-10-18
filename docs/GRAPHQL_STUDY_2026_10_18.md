@@ -988,7 +988,12 @@ graphql-js differential (PR1b), introspection (PR2) and the composer's rule for 
   (§5.7). Errors carry the selection path, `Person(where).agee`, `Person.firm.nope`; line and column wait on the
   AST carrying positions, which PR2 adds with the Typer's needs (the engine's AST carries none).
 - **Measured.** 923 lines of SDL for the five classes of §7, 103 types. The validator's rules each pinned by a
-  case (`GqlValidatorTest`); the five packages touched and then every core package and the layering policy green.
+  case (`GqlValidatorTest`); the five packages touched and then every core package and the layering policy green;
+  the full local gate once whole (371 of 383, the rest fixed or environmental and rerun green: the GATES entry).
+- **What the gate taught.** TeaVM's JDK is smaller than the JVM's (`Collections.unmodifiableSortedSet`); the
+  compiler layer's tests may not import the parser; a new server class registers in the funnel register with its
+  tenet argument; the schema's type references are the schema's own records, not the protocol's nodes; a scope's
+  platform classes are a set lookup, never a package prefix tested as text.
 - **Not done, on purpose.** The graphql-js differential (its Node target is PR1b); the data space's own limits
   (G17 takes the request's `limits`, the default 8 deep and 25 list fields per level, until a data space can
   declare them); function roots (G4's Pure functions of the data space; PR2); milestoning arguments (PR2).

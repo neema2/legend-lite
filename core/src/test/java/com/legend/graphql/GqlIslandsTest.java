@@ -1,7 +1,14 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.compiler.graphql;
+package com.legend.graphql;
+
+import com.legend.compiler.graphql.GqlSchema;
+import com.legend.compiler.graphql.GqlSchemaException;
+import com.legend.compiler.graphql.GqlValidator;
+import com.legend.compiler.graphql.SchemaGenerator;
+import com.legend.compiler.graphql.Scope;
+import com.legend.compiler.graphql.SdlPrinter;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;

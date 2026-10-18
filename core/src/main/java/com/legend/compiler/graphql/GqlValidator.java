@@ -173,15 +173,16 @@ public final class GqlValidator {
             if (f.variables.put(name, v) != null) {
                 f.error("", "variable $" + name + " is declared twice");
             }
-            String base = GqlSchema.baseName(v.type());
+            GqlSchema.TypeRef type = GqlSchema.TypeRef.of(v.type());
+            String base = GqlSchema.baseName(type);
             TypeDef t = f.schema.find(base);
             boolean input = t instanceof InputObjectType || t instanceof EnumType || t instanceof ScalarType
                     || ValueCoercion.isBuiltinScalar(base);
             if (!input) {
-                f.error("", "variable $" + name + " is typed " + GqlSchema.spell(v.type()) + ", which is "
+                f.error("", "variable $" + name + " is typed " + GqlSchema.spell(type) + ", which is "
                         + (t == null ? "no type of the schema" : "not an input type"));
             } else if (v.defaultValue() != null) {
-                ValueCoercion.coerce(f, v.defaultValue(), v.type(), "$" + name + " default");
+                ValueCoercion.coerce(f, v.defaultValue(), type, "$" + name + " default");
             }
         }
     }

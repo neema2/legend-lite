@@ -5,6 +5,7 @@ package com.legend.compiler.graphql;
 
 import com.legend.protocol.spec.Gql;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -14,7 +15,8 @@ import java.util.Objects;
  * The generated GraphQL schema as data (docs/GRAPHQL_STUDY_2026_10_18.md §5): what {@link SchemaGenerator} builds
  * from a Pure model, what {@link SdlPrinter} prints, what {@link GqlValidator} validates a document against. Every
  * field carries its {@link Meaning}, the Pure it stands for, so that the translator (PR2) walks the validated
- * document without a second lookup. Type references reuse the protocol's {@link Gql.TypeRef}.
+ * document without a second lookup. Type references are the schema's own ({@link TypeRef}): the protocol's nodes
+ * are the parser's to build; a variable declaration's reference is read into one ({@link TypeRef#of}).
  */
 public final class GqlSchema {
 
@@ -25,7 +27,7 @@ public final class GqlSchema {
     public record Schema(List<TypeDef> types, Map<String, TypeDef> byName) {
         public Schema {
             types = List.copyOf(types);
-            byName = Map.copyOf(byName);
+            byName = Collections.unmodifiableMap(new LinkedHashMap<>(byName));
         }
 
         public static Schema of(List<TypeDef> types) {
@@ -54,6 +56,31 @@ public final class GqlSchema {
 
     public sealed interface TypeDef permits Composite, InputObjectType, EnumType, ScalarType {
         String name();
+    }
+
+    /** A reference to a type: named, or a list of references; each nullable or not. */
+    public sealed interface TypeRef permits Named, ListOf {
+        boolean nullable();
+
+        /** The schema's reference for a document's (a variable declaration's). */
+        static TypeRef of(Gql.TypeRef ref) {
+            return switch (ref) {
+                case Gql.NamedType n -> new Named(n.name(), n.nullable());
+                case Gql.ListType l -> new ListOf(of(l.itemType()), l.nullable());
+            };
+        }
+    }
+
+    public record Named(String name, boolean nullable) implements TypeRef {
+        public Named {
+            Objects.requireNonNull(name, "name");
+        }
+    }
+
+    public record ListOf(TypeRef item, boolean nullable) implements TypeRef {
+        public ListOf {
+            Objects.requireNonNull(item, "item");
+        }
     }
 
     /** A composite output type: an object or an interface. */
@@ -125,7 +152,7 @@ public final class GqlSchema {
         }
     }
 
-    public record FieldDef(String name, @com.legend.base.Nullable String description, Gql.TypeRef type,
+    public record FieldDef(String name, @com.legend.base.Nullable String description, TypeRef type,
             List<InputValueDef> args, @com.legend.base.Nullable String deprecationReason, Meaning meaning) {
         public FieldDef {
             Objects.requireNonNull(name, "name");
@@ -144,13 +171,13 @@ public final class GqlSchema {
         }
     }
 
-    public record InputValueDef(String name, Gql.TypeRef type, @com.legend.base.Nullable String description) {
+    public record InputValueDef(String name, TypeRef type, @com.legend.base.Nullable String description) {
         public InputValueDef {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
         }
 
-        public InputValueDef(String name, Gql.TypeRef type) {
+        public InputValueDef(String name, TypeRef type) {
             this(name, type, null);
         }
     }
@@ -212,33 +239,33 @@ public final class GqlSchema {
 
     // ---- type-reference helpers ----
 
-    public static Gql.TypeRef named(String name, boolean nullable) {
-        return new Gql.NamedType(name, nullable);
+    public static TypeRef named(String name, boolean nullable) {
+        return new Named(name, nullable);
     }
 
     /** {@code [X!]!}: how every to-many position is typed (always an array, items never null). */
-    public static Gql.TypeRef listOf(String name) {
-        return new Gql.ListType(new Gql.NamedType(name, false), false);
+    public static TypeRef listOf(String name) {
+        return new ListOf(new Named(name, false), false);
     }
 
     /** {@code [X!]}: a nullable list of non-null items, the shape of a list argument. */
-    public static Gql.TypeRef nullableListOf(String name) {
-        return new Gql.ListType(new Gql.NamedType(name, false), true);
+    public static TypeRef nullableListOf(String name) {
+        return new ListOf(new Named(name, false), true);
     }
 
     /** The named type at the bottom of a reference. */
-    public static String baseName(Gql.TypeRef ref) {
+    public static String baseName(TypeRef ref) {
         return switch (ref) {
-            case Gql.NamedType n -> n.name();
-            case Gql.ListType l -> baseName(l.itemType());
+            case Named n -> n.name();
+            case ListOf l -> baseName(l.item());
         };
     }
 
     /** The reference as SDL spells it: {@code [Person!]!}, {@code String}. */
-    public static String spell(Gql.TypeRef ref) {
+    public static String spell(TypeRef ref) {
         return switch (ref) {
-            case Gql.NamedType n -> n.name() + (n.nullable() ? "" : "!");
-            case Gql.ListType l -> "[" + spell(l.itemType()) + "]" + (l.nullable() ? "" : "!");
+            case Named n -> n.name() + (n.nullable() ? "" : "!");
+            case ListOf l -> "[" + spell(l.item()) + "]" + (l.nullable() ? "" : "!");
         };
     }
 }
