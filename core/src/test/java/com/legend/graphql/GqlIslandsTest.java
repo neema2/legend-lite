@@ -46,10 +46,10 @@ class GqlIslandsTest {
 
     @Test
     void aValidIslandOnAConstructNotBuiltYetIsRefusedByName() {
-        Map<String, String> walls = walls("{ PersonGroups { key { age } count } }");
+        Map<String, String> walls = walls("{ Firm { employeesGroups { key { age } count } } }");
         String wall = walls.values().stream().findFirst().orElse(null);
-        assertNotNull(wall, "the groups root is PR5's: " + walls);
-        assertTrue(wall.contains("PR5"), wall);
+        assertNotNull(wall, "nested groups are a later increment: " + walls);
+        assertTrue(wall.contains("nested groups"), wall);
     }
 
     @Test

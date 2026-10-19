@@ -220,10 +220,25 @@ class GraphqlApiTest {
 
     @Test
     void theQueryRouteNamesWhatALaterLandingBuilds() {
-        Json.Obj a = query("{ PersonGroups { key { age } count } }", "");
+        Json.Obj a = query("{ Firm { employeesGroups { key { age } count } } }", "");
         assertEquals(400, a.getInt("_status"), a.toString());
         String errors = Json.toCompact(a.get("errors"));
-        assertTrue(errors.contains("PR5") && errors.contains("UNSUPPORTED"), errors);
+        assertTrue(errors.contains("nested groups") && errors.contains("UNSUPPORTED"), errors);
+    }
+
+    @Test
+    void theQueryRouteArrangesAGroupsRootsRows() {
+        Json.Obj a = query("{ PersonGroups(orderBy: [{ count: DESC }, { key: { firm: { legalName: ASC } } }], limit: 2)"
+                + " { key { firm { legalName } } count max { age } } }", "");
+        assertEquals(200, a.getInt("_status"), a.toString());
+        Json.Arr groups = (Json.Arr) a.getObj("data").get("PersonGroups");
+        assertEquals(2, groups.items().size(), a.toString());
+        Json.Obj first = (Json.Obj) groups.items().get(0);
+        assertEquals("Acme", first.getObj("key").getObj("firm").getString("legalName"), a.toString());
+        assertEquals(3, first.getInt("count"), a.toString());
+        assertEquals(51, first.getObj("max").getInt("age"), a.toString());
+        Json.Obj second = (Json.Obj) groups.items().get(1);
+        assertEquals("Globex", second.getObj("key").getObj("firm").getString("legalName"), a.toString());
     }
 
     @Test

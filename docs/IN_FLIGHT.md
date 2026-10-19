@@ -2397,8 +2397,11 @@ island inside Pure.
   `server/GraphqlApi.java` (a relation root's row arranged by `__` paths), `compiler/graphql/Scope.java` (the
   companion's classes are no roots), `PlatformNamesGuardrailTest` (`Companion.java` a catalog, dated),
   `CompilerFacadeTest` (counts stored properties).
-- **Not yet (PR1b, PR5, PR6):** the graphql-js differential and `validity.jsonl`; function roots; milestoning
+- **Cross-area edits, announced here as landed with PR5 (2026-10-19):** `protocol/graphql/GqlToPure.java` (the
+  groups root through the Relation API; `Root.Shape`), `server/GraphqlApi.java` (rows arranged by `__` paths). No
+  file of the resolver's, the lowering's or the normalizer's.
+- **Not yet (PR1b, PR6):** the graphql-js differential and `validity.jsonl`; function roots; milestoning
   arguments on a node; line and column in the island's errors; the composer's rule for the island inside a model;
-  `orderBy` by a nested aggregate; a string's min and max; groups (PR5), the agent surface and the evaluations
-  (PR6).
+  `orderBy` by a nested aggregate; a string's min and max; nested groups under a parent object (a relation-valued
+  child in the emitter); the agent surface and the evaluations (PR6).
 

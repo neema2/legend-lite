@@ -1165,3 +1165,48 @@ Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the fourth l
   Integer root column answers a Float of the database's rounding; the fold classes are generated for every class
   (a class no to-many property targets carries an unused aggregate class: a listing may hide it by stereotype);
   the SQL-twin run on the Postgres lane.
+
+### 13.5 PR5, 2026-10-19: groups — `XGroups` through the Relation API, `key` as the grouping, `truncate`, `having`, group `orderBy`
+
+Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the fifth landing". PR5 of §10 less nested
+groups (below).
+
+- **The groups root, a relation (G7, §6.1).** `PersonGroups(where: W, having: H, orderBy: [...], limit: n, offset:
+  m) { key { firm { legalName } born(truncate: YEAR) } count avg { age } }` is `Person.all()->filter(W)->project(~[
+  key__firm__legalName: x|$x.firm.legalName, key__born: x|$x.born->firstDayOfYear(), __one: x|1, age: x|$x.age])
+  ->groupBy(~[key__firm__legalName, key__born], ~[count: x|$x.__one : y|$y->count(), avg__age: x|$x.age :
+  y|$y->average()])->filter(g|H)->sort([...])->drop(m)->limit(n)`: one row per group whose columns are the
+  response's paths joined by `__`, the response keys spelling them (an aliased `k: key { ... }` is `k__...`). The
+  island's value is that relation (`Root.Shape.ROWS`); a Pure caller reads the rows; the endpoint arranges each
+  row into the response object by the paths (`arrangedRows`). The selection under `key` IS the grouping; a to-one
+  property nests through its own key type (`firm { legalName }` is the column `$x.firm.legalName`, null where the
+  row has no firm, a group of its own); an enum key is the enum's column; meta-fields under `key` are never keys
+  (G19).
+- **`truncate`.** `born(truncate: YEAR)` is the catalog's first-day-of head over the read (`firstDayOfYear`,
+  `firstDayOfQuarter`, `firstDayOfMonth`, `firstDayOfWeek`, `firstHourOfDay` for `DAY`, `firstMinuteOfHour` for
+  `HOUR`), each the lowering's `DATE_TRUNC`; the read made one where the property is optional (the heads take
+  `Date[1]`; an empty read is the null the database groups).
+- **`having` and `orderBy` over the grouped row.** `having` is the group row's filter: `count` and each fold's
+  properties through the scalar filters of G5 (`sum: { salary: { gt: 200000 } }` is `$g.sum__salary > 200000`),
+  with `AND`/`OR`/`NOT`. `orderBy` is the relation's `sort([~c->descending(), ...])`, the list's first key
+  primary: `count`, a key's path (selected under `key`, else refused by name), or a fold's property. A column
+  `having` or `orderBy` asks that the selection does not carry is aggregated under a hidden name (`_sum__salary`)
+  and dropped by a trailing `select` of the selected columns, so the row is the selection's.
+- **The endpoint.** A root's value has a `Shape`: a graph root's serialized TREE, an aggregate root's one ROW, a
+  groups root's ROWS; the endpoint arranges the latter two by the columns' paths. Nothing else of the envelope
+  changes.
+- **Measured.** `GqlGroupsTest`: 7 cases on DuckDB through the island (the key as the grouping with a count and a
+  fold sorted by both; `where` before the grouping and `having` after it; `having` on a fold the selection does
+  not carry, the hidden column dropped; an enum key through a to-one path; a date key truncated, sorted and paged;
+  `orderBy` a fold with an aliased key; a key not selected refused). `GraphqlApiTest`: the route arranges a groups
+  root's rows (+1). 64 GraphQL tests in all. Green: the compiler, parser, protocol, normalizer, resolver, lowering,
+  server, root and integration packages; `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test`;
+  the DuckDB corpus; the planner-on-java.base check; the full local gate (the GATES entry).
+- **Not done, on purpose: nested groups.** `employeesGroups` under a parent object (`Meaning.GroupsOf`) is refused
+  by name: a group's rows under a parent need a RELATION-VALUED child in the emitter (a correlated
+  `project->groupBy` pipeline serialized into the parent's JSON array, the §6.1 row's "folded into its JSON array
+  by the emitter"), a mechanism the tree does not have (its to-many children are navigations with filter and
+  ordering tails). The refusal names the root form with a `where` on the parent as the way to ask today
+  (`PersonGroups(where: { firm: { legalName: { equals: "Acme" } } })`). The validator accepts the nested form
+  (its rules are the schema's), so a client learns the refusal from the translator, with code `UNSUPPORTED`.
+  Also not done: a numeric `bucket:` beside `truncate` (G7 names the place); the SQL-twin run on the Postgres lane.

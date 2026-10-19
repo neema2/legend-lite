@@ -11355,6 +11355,27 @@ The same branch (neema2/legend-lite#56), at the seventh line's quiet point after
     - the ban fails when a root it reads yields no source;
     - the records' wording.
 
+## 2026-10-19 — GraphQL: the fifth landing — groups (the twelfth line)
+
+Announced in `docs/IN_FLIGHT.md` ("A twelfth line"). Branch `claude/graphql-study-2026-10-18`; the record is the
+study's §13.5 (PR5: the groups root through the Relation API, `key` as the grouping, `truncate`, `having`, group
+`orderBy`, the endpoint arranging rows; nested groups named as not done). Register rows S92 to S94.
+
+1. **What lands.** `PersonGroups(where, having, orderBy, limit, offset) { key { firm { legalName } born(truncate:
+   YEAR) } count avg { age } }` as a root, through the island (a relation, one row per group) and the endpoint
+   (the rows arranged into objects). Two files change: the translator and the endpoint; the resolver, the lowering
+   and the normalizer are untouched.
+2. **Judges.** `GqlGroupsTest` 7 on DuckDB, `GraphqlApiTest` +1: 64 GraphQL tests. Green on this tree after its
+   last change: the compiler, parser, protocol, normalizer, resolver, lowering, root, server and integration test
+   packages; `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test`; `//spec:corpus_duckdb`;
+   `//core:planner_on_java_base_test`. The full local gate runs on this commit, frozen, in the background while
+   PR6 is drafted beside it in the scratchpad; the entry is amended with its count when it ends.
+3. **What the gates taught.** The groups root landed green on its first run through every suite: a landing that
+   adds a translation and touches no lowering is cheap to judge, which is the design's point (§6.1: the Relation
+   API is the compiler's own, not the line's).
+4. **Next.** PR6 the agent surface (explain, the MCP wrapper, GraphiQL, the evaluations); PR1b the graphql-js
+   differential; nested groups when the emitter has a relation-valued child.
+
 ## 2026-10-19 — GraphQL: the fourth landing — aggregates (the twelfth line)
 
 Announced in `docs/IN_FLIGHT.md` ("A twelfth line"). Branch `claude/graphql-study-2026-10-18`; the record is the

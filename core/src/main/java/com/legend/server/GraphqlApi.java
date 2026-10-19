@@ -132,7 +132,11 @@ public final class GraphqlApi {
                 runner.run(model, root.asLambda(), runtime, rows);
                 String json = rows.toString();
                 Json.Node value = Json.parse(json.isEmpty() ? "[]" : json);
-                data.put(root.key(), root.relation() ? arranged(value, root.key()) : value);
+                data.put(root.key(), switch (root.shape()) {
+                    case TREE -> value;
+                    case ROW -> arrangedRow(value, root.key());
+                    case ROWS -> arrangedRows(value, root.key());
+                });
                 pure.put(root.key(), PureComposer.valueSpecification(root.expression(), PureComposer.Style.STANDARD));
             } catch (RuntimeException e) {
                 // all or nothing (§8.2): no partial data
@@ -167,13 +171,32 @@ public final class GraphqlApi {
      * ({@code sum__salary} is {@code sum.salary}): the database computed every value; this places each under its
      * key, as the TDS writer places rows under {@code values}.
      */
-    private static Json.Node arranged(Json.Node rows, String key) {
+    private static Json.Node arrangedRow(Json.Node rows, String key) {
         if (!(rows instanceof Json.Arr arr)) {
             throw new IllegalStateException(key + ": the database's rows are not the JSON wire's array");
         }
         if (arr.items().size() != 1 || !(arr.items().get(0) instanceof Json.Obj row)) {
             throw new IllegalStateException(key + ": an aggregate answers one row, got " + arr.items().size());
         }
+        return arranged(row);
+    }
+
+    /** A groups root's rows (one per group), each arranged by its columns' paths, in the database's order. */
+    private static Json.Node arrangedRows(Json.Node rows, String key) {
+        if (!(rows instanceof Json.Arr arr)) {
+            throw new IllegalStateException(key + ": the database's rows are not the JSON wire's array");
+        }
+        List<Json.Node> out = new ArrayList<>();
+        for (Json.Node item : arr.items()) {
+            if (!(item instanceof Json.Obj row)) {
+                throw new IllegalStateException(key + ": a group's row is not an object");
+            }
+            out.add(arranged(row));
+        }
+        return new Json.Arr(out);
+    }
+
+    private static Json.Obj arranged(Json.Obj row) {
         Json.Obj out = Json.obj();
         for (Map.Entry<String, Json.Node> e : row.fields().entrySet()) {
             String[] path = e.getKey().split(GqlToPure.PATH_SEPARATOR);
