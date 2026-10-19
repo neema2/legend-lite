@@ -13615,13 +13615,13 @@ public final class CypherToPure {
         return new Tx(Shares.share(vs), part.kind(), part.nullable(), part.whenFalse(), part.detail(), guard, marked);
     }
 
-    /** Whether a relation's column holds a value of {@code kind} as it is: not a duration (the model's class, a
-     *  struct), a Variant, a list or a node. */
+    /** Whether a relation's column holds a value of {@code kind} as it is: a scalar, a duration (the database's
+     *  struct) or a Variant; not a NULL of no type, nor a value of another kind (a list, a node). */
     private static boolean columnKind(Kind kind) {
         return switch (kind) {
             case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, TIME, ZONED,
-                    ZONED_TIME -> true;
-            case DURATION, JSON, NULL, OTHER -> false;
+                    ZONED_TIME, DURATION, JSON -> true;
+            case NULL, OTHER -> false;
         };
     }
 
