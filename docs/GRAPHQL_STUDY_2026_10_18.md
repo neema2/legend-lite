@@ -1060,3 +1060,55 @@ milestoning arguments and `Gql.Field` positions (below).
   (PR6, with the forty); the composer's rule for the island inside a model (it still refuses to print a model
   holding one); subtype fragments, `__typename` and `asY` (PR3); aggregates (PR4); groups (PR5).
 
+### 13.3 PR3, 2026-10-19: inheritance — the companion's `__typename()` and `as<Sub>()`, subtype fragments, `asSub` in `where` and `orderBy`
+
+Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the second and third landings". PR3 of §10 less
+the SQL-twin cases on the Postgres lane (below).
+
+- **The companion, as built (G15, G20).** `normalizer/CompanionSynthesis` writes the members into the parsed
+  classes after the knowledge layer's adoption and before the one index reads them (`Compiler.normalizeLayer`, the
+  graph layer only; the boot layer takes none): `__typename(): String[1]`, `if($this->instanceOf(S), |'S', |...
+  |'C')` over the transitive subclasses deepest first, and `asS(): S[0..1]`, `if($this->instanceOf(S),
+  |$this->cast(@S), |[])`, on each hierarchy's ROOT class (a subclass inherits them; declaring them again would
+  carry two members of one name). Each carries `<<meta::legend::lite::graphql.companion>>`, by which the generator
+  knows them (never fields of the type) and a listing may hide them. A class declaring one of the names is refused
+  (G11). Pure may call them. One row of the register names the one visible consequence: every root class has one
+  more derived property (`DuckDBIntegrationTest` counts the declared stored ones).
+- **The exact class, answered from the row.** The tree's `__typename` leaf inlines the companion body as any
+  derived leaf, and `GraphEmission.inlineThis` answers its two forms from the union row: `instanceOf($this, T)` is
+  the witness column tested (partial membership), true for the class and its ancestors or where the row carries
+  T's columns and no witness, false where the mapping maps no T on the row (the mapping's own statement);
+  `cast($this, @T).p` is T's thread-local column read. C6.2 holds: a constant per arm, a column compared.
+- **Fragments and the first-match CASE.** The emitter's `->subType(@X)` patches are a CASE over disjoint members;
+  GraphQL's fragments accumulate down the hierarchy. The translator folds that structurally: each subtype entry
+  carries the selections of every fragment its class satisfies, entries deepest first, so the first match is the
+  exact class with everything it inherits (`... on EmployeeInterface { salary } ... on Manager { budget }` gives
+  a Manager both). A fragment on `Employee` and one on `EmployeeInterface` are one class's entry. Under a node, the
+  tree has only the subtype VIEW (every child the subtype's): a fragment beside other fields, or two fragments,
+  under a nested node is refused by name (the not-done list).
+- **The input side (G9).** `asSub: W` is `$x->instanceOf(Sub) && if($x->instanceOf(Sub), |W($x->cast(@Sub)),
+  |false)` -- the cast's reads stand behind the membership test, which the database's CASE evaluates lazily;
+  `asSub: { isNot: null }` is the membership test alone, `is: null` its negation. A sort key `asSub: { p: DESC }`
+  is `if($x->instanceOf(Sub), |$x->cast(@Sub).p, |[])->toOne()`: the key where the row is a member, a null
+  elsewhere, where the database puts it (S80). No companion member is spelled on the input side: `instanceOf` and
+  `cast` are the resolver's own forms over the row.
+- **What the probes found in the union lowering, fixed.** (1) `StackBuilder`'s membership witness skipped an arm
+  of the union's own class, so over `union(p, e, m)` of Person, Employee[e], Manager[m] the membership of Employee
+  read as total and `instanceOf(Employee)` held on every Person: a correctness bug, now an arm conforms only when
+  its class is the target or below it (S86). (2) A sorted union's graph fetch raised an unfoldable reference to the
+  serial ordinal (`u_serial_ord__`): the injection now bails at an ordered or limited pass-through, as its own
+  contract says, and the envelope's witness keys yield to an explicit sort as the primary-key keys already did
+  (S87). The DuckDB corpus is green on both.
+- **Measured.** `GqlInheritanceTest`: 11 cases on DuckDB over a union of a class's and its subclasses' sets
+  (table per class), the SQL-twin shape: the members on the class, `__typename` in Pure and in GraphQL, subtype
+  fragments, `asSub` in `where` three ways and in `orderBy`, the exact-type trap refused with its fix (G10), a
+  reserved name refused, and four baselines of the union model (a plain tree, a sorted tree, an `instanceOf`
+  filter, a projection). 50 GraphQL tests in all; the compiler, parser, protocol, normalizer, server, resolver,
+  lowering and integration packages green; the DuckDB corpus green; `//core:guardrails`, `//core:census`,
+  `//tools/deps:core_layering_test` green; the full local gate (the GATES entry).
+- **Not done, on purpose.** The Postgres lane's SQL-twin run of the inheritance cases (the DuckDB run is the
+  judge here; the Postgres targets of the gate run unprivileged); a fragment on a subtype beside other fields under
+  a nested node (the tree has the view only; a nested subtype entry is a later protocol step); multiple inheritance
+  as a case (`implements A & B` prints; a diamond's two roots would each generate `__typename`, which the index
+  would see twice: the refusal of that case is not pinned); an abstract class as a case (the generator reads
+  `typemodifiers.abstract` since PR1a).

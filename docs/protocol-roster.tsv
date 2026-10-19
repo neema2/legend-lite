@@ -337,7 +337,7 @@ error	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.ErrorEx
 ewmaMovingAverageAggregation	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.EwmaMovingAverageAggregation	UNCOVERED
 except	org.finos.legend.engine.protocol.sql.metamodel.Except	UNCOVERED
 executableDefinition	org.finos.legend.engine.protocol.graphQL.metamodel.executable.ExecutableDefinition	UNCOVERED
-executableDocument	org.finos.legend.engine.protocol.graphQL.metamodel.ExecutableDocument	UNCOVERED
+executableDocument	org.finos.legend.engine.protocol.graphQL.metamodel.ExecutableDocument	COVERED
 executionContextInstance	org.finos.legend.engine.protocol.pure.v1.model.valueSpecification.ClassInstanceWrapper	UNCOVERED
 executionEnvironmentInstance	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.service.ExecutionEnvironmentInstance	COVERED
 existsPredicate	org.finos.legend.engine.protocol.sql.metamodel.ExistsPredicate	UNCOVERED
@@ -357,9 +357,9 @@ externalFormatInternalize	org.finos.legend.engine.protocol.pure.v1.model.executi
 externalFormatSchemaSet	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.externalFormat.ExternalFormatSchemaSet	COVERED
 extract	org.finos.legend.engine.protocol.sql.metamodel.Extract	UNCOVERED
 failOnDuplicates	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.persistence.relational.temporality.updatesHandling.appendStrategy.FailOnDuplicates	COVERED
-field	org.finos.legend.engine.protocol.graphQL.metamodel.executable.Field	UNCOVERED
-field	org.finos.legend.engine.protocol.haskell.metamodel.Field	UNCOVERED
-field	org.finos.legend.engine.protocol.protobuf3.metamodel.Field	UNCOVERED
+field	org.finos.legend.engine.protocol.graphQL.metamodel.executable.Field	COVERED
+field	org.finos.legend.engine.protocol.haskell.metamodel.Field	COVERED
+field	org.finos.legend.engine.protocol.protobuf3.metamodel.Field	COVERED
 fieldAliasProperty	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.mapping.FieldAliasProperty	UNCOVERED
 fieldBased	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.persistence.dataset.partitioning.FieldBased	UNCOVERED
 fieldBasedForGraphFetch	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.persistence.dataset.partitioning.FieldBasedForGraphFetch	COVERED
@@ -566,7 +566,7 @@ linearMovingAverageAggregation	org.finos.legend.engine.protocol.store.elasticsea
 listInstance	org.finos.legend.engine.protocol.pure.v1.model.valueSpecification.ClassInstanceWrapper	UNCOVERED
 listType	org.finos.legend.engine.protocol.haskell.metamodel.ListType	UNCOVERED
 listTypeReference	org.finos.legend.engine.protocol.graphQL.metamodel.typeSystem.ListTypeReference	UNCOVERED
-listValue	org.finos.legend.engine.protocol.graphQL.metamodel.value.ListValue	UNCOVERED
+listValue	org.finos.legend.engine.protocol.graphQL.metamodel.value.ListValue	COVERED
 literal	org.finos.legend.engine.protocol.deephaven.metamodel.store.Literal	COVERED
 literal	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.model.operation.Literal	COVERED
 literal	org.finos.legend.engine.protocol.sql.metamodel.Literal	COVERED
@@ -667,7 +667,7 @@ nGramTokenizer	org.finos.legend.engine.protocol.store.elasticsearch.v7.specifica
 namedArgumentExpression	org.finos.legend.engine.protocol.sql.metamodel.NamedArgumentExpression	UNCOVERED
 namedConstructor	org.finos.legend.engine.protocol.haskell.metamodel.NamedConstructor	UNCOVERED
 namedTypeRef	org.finos.legend.engine.protocol.haskell.metamodel.NamedTypeRef	UNCOVERED
-namedTypeReference	org.finos.legend.engine.protocol.graphQL.metamodel.typeSystem.NamedTypeReference	UNCOVERED
+namedTypeReference	org.finos.legend.engine.protocol.graphQL.metamodel.typeSystem.NamedTypeReference	COVERED
 namedWindow	org.finos.legend.engine.protocol.sql.metamodel.NamedWindow	UNCOVERED
 naturalJoin	org.finos.legend.engine.protocol.sql.metamodel.NaturalJoin	UNCOVERED
 negationOperation	org.finos.legend.engine.protocol.deephaven.metamodel.NegationOperation	UNCOVERED
@@ -715,12 +715,12 @@ objectStorageSink	org.finos.legend.engine.protocol.pure.v1.model.packageableElem
 objectType	org.finos.legend.engine.protocol.mongodb.schema.metamodel.ObjectType	COVERED
 objectTypeDefinition	org.finos.legend.engine.protocol.graphQL.metamodel.typeSystem.ObjectTypeDefinition	UNCOVERED
 objectTypeValue	org.finos.legend.engine.protocol.mongodb.schema.metamodel.aggregation.ObjectTypeValue	UNCOVERED
-objectValue	org.finos.legend.engine.protocol.graphQL.metamodel.value.ObjectValue	UNCOVERED
+objectValue	org.finos.legend.engine.protocol.graphQL.metamodel.value.ObjectValue	COVERED
 offsetOperation	org.finos.legend.engine.protocol.deephaven.metamodel.OffsetOperation	UNCOVERED
 oneOf	org.finos.legend.engine.protocol.protobuf3.metamodel.OneOf	UNCOVERED
 openPointInTimeRequest	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.global.openpointintime.OpenPointInTimeRequest	UNCOVERED
 operation	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.mapping.OperationClassMapping	COVERED
-operationDefinition	org.finos.legend.engine.protocol.graphQL.metamodel.executable.OperationDefinition	UNCOVERED
+operationDefinition	org.finos.legend.engine.protocol.graphQL.metamodel.executable.OperationDefinition	COVERED
 orOperatorExpression	org.finos.legend.engine.protocol.deephaven.metamodel.OrOperatorExpression	UNCOVERED
 orOperatorExpression	org.finos.legend.engine.protocol.mongodb.schema.metamodel.aggregation.OrOperatorExpression	UNCOVERED
 oracle	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.connection.specification.OracleDatasourceSpecification	COVERED
@@ -1086,7 +1086,7 @@ values	org.finos.legend.engine.protocol.sql.metamodel.Values	UNCOVERED
 valuesList	org.finos.legend.engine.protocol.sql.metamodel.ValuesList	UNCOVERED
 var	org.finos.legend.engine.protocol.pure.m3.valuespecification.Variable	COVERED
 varResolution	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.externalFormat.VariableResolutionExecutionNode	UNCOVERED
-variable	org.finos.legend.engine.protocol.graphQL.metamodel.value.Variable	UNCOVERED
+variable	org.finos.legend.engine.protocol.graphQL.metamodel.value.Variable	COVERED
 variableTypeValue	org.finos.legend.engine.protocol.mongodb.schema.metamodel.aggregation.VariableTypeValue	UNCOVERED
 variableWidthHistogramAggregate	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.VariableWidthHistogramAggregate	UNCOVERED
 variableWidthHistogramBucket	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.VariableWidthHistogramBucket	UNCOVERED

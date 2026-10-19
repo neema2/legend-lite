@@ -876,6 +876,11 @@ public final class SystemMetamodel {
             )
 
             ###Pure
+            Profile meta::legend::lite::graphql
+            {
+                stereotypes: [companion];
+            }
+
             Class meta::lite::metamodel::MappingVisibility
             {
                 includeRank: Integer[1];

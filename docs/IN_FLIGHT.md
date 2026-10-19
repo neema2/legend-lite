@@ -2384,7 +2384,13 @@ island inside Pure.
   `ArchitectureTest` (the protocol-node rule narrowed for `protocol/graphql`, dated), `CodeShapeGuardrailTest`
   (`GqlToPure.fresh` allowlisted with its reason), `ErrorShapeGuardrailTest` (`GraphqlApi.java` pinned at 2,
   reviewed).
-- **Not yet (PR1b, PR3 to PR6):** the graphql-js differential and `validity.jsonl`; function roots; milestoning
+- **Cross-area edits, announced here as landed with PR3 (2026-10-19):** `normalizer/CompanionSynthesis.java` (new),
+  `Compiler.java` (`normalizeLayer` writes the companion into the graph layer), `compiler/element/type/PlatformTypes.java`
+  (`GRAPHQL_PROFILE`, `GRAPHQL_COMPANION`), `resolver/GraphEmission.java` (the companion's forms in the leaf inliner;
+  the envelope's witness keys yield to an explicit sort), `resolver/StackBuilder.java` (the own-class arm is a
+  non-member of a strict subtype), `lowering/UnionSerialOrder.java` (no ordinal through an ordered pass-through),
+  `IdentityGuardrailTest` (NAME_CUTTING 109 -> 110), `integration/DuckDBIntegrationTest` (counts stored properties).
+- **Not yet (PR1b, PR4 to PR6):** the graphql-js differential and `validity.jsonl`; function roots; milestoning
   arguments on a node; line and column in the island's errors; the composer's rule for the island inside a model;
-  inheritance (PR3), aggregates (PR4), groups (PR5), the agent surface and the evaluations (PR6).
+  aggregates (PR4), groups (PR5), the agent surface and the evaluations (PR6).
 
