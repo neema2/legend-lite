@@ -46,10 +46,10 @@ class GqlIslandsTest {
 
     @Test
     void aValidIslandOnAConstructNotBuiltYetIsRefusedByName() {
-        Map<String, String> walls = walls("{ Person { fullName ... on EmployeeInterface { salary } } }");
+        Map<String, String> walls = walls("{ PersonAggregate { count } }");
         String wall = walls.values().stream().findFirst().orElse(null);
-        assertNotNull(wall, "a subtype fragment is PR3's: " + walls);
-        assertTrue(wall.contains("PR3"), wall);
+        assertNotNull(wall, "the aggregate root is PR4's: " + walls);
+        assertTrue(wall.contains("PR4"), wall);
     }
 
     @Test

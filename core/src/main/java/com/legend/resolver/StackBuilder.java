@@ -857,7 +857,10 @@ final class StackBuilder {
         for (String target : targets) {
             boolean partial = false;
             for (ClassSource a : arms) {
-                if (!a.classFqn().equals(classFqn) && !ctx.isSubtype(a.classFqn(), target)) {
+                // an arm of the union's OWN class is not a member of a strict subtype either (GraphQL PR3,
+                // 2026-10-19: Person[p] in union(p, e, m) is no Employee -- before this, the own-class arm was
+                // skipped, membership read as total, and instanceOf(Employee) held on every Person)
+                if (!ctx.isSubtype(a.classFqn(), target)) {
                     partial = true;
                 }
             }

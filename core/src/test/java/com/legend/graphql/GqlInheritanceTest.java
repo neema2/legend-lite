@@ -78,13 +78,43 @@ class GqlInheritanceTest {
         assertTrue(ctx.findProperty("demo::Person", "__typename").orElseThrow() instanceof Property.Derived);
         assertTrue(ctx.findProperty("demo::Person", "asEmployee").orElseThrow() instanceof Property.Derived);
         assertTrue(ctx.findProperty("demo::Person", "asManager").isPresent());
-        assertTrue(ctx.findProperty("demo::Employee", "asManager").isPresent());
-        assertTrue(ctx.findProperty("demo::Employee", "asEmployee").isEmpty(), "a class is not its own downcast");
+        assertTrue(ctx.findProperty("demo::Employee", "asManager").isPresent(), "inherited from the root");
+        assertTrue(ctx.findProperty("demo::Employee", "__typename").isPresent(), "inherited from the root");
         assertTrue(ctx.findProperty("demo::Firm", "__typename").isPresent());
         // the schema lists none of them as fields
         String sdl = com.legend.compiler.graphql.SdlPrinter.print(com.legend.compiler.graphql.GqlIslands.schemaOf(ctx));
-        assertTrue(!sdl.contains("asEmployee: ") && !sdl.contains("__typename"), sdl);
+        assertTrue(!sdl.contains("  __typename") && !sdl.contains("asEmployee: Employee\n")
+                && !sdl.contains("asEmployee: EmployeeInterface"), "no companion member is a field: " + sdl);
         assertTrue(sdl.contains("asEmployee: EmployeeWhere"), sdl);
+    }
+
+    /** The union model's baseline, before any companion member: a tree, a sort, a subtype filter in Pure. */
+    @Test
+    void unionBaselinePlainTree() throws SQLException {
+        String plain = pure("demo::Person.all()->graphFetch(#{ demo::Person { firstName } }#)"
+                + "->serialize(#{ demo::Person { firstName } }#)");
+        assertTrue(plain.contains("Alice") && plain.contains("Carol"), plain);
+    }
+
+    @Test
+    void unionBaselineSortedTree() throws SQLException {
+        String sorted = pure("demo::Person.all()->sortBy(p|$p.firstName)->graphFetch(#{ demo::Person { firstName } }#)"
+                + "->serialize(#{ demo::Person { firstName } }#)");
+        assertTrue(sorted.indexOf("Alice") < sorted.indexOf("Dan"), sorted);
+    }
+
+    @Test
+    void unionBaselineInstanceOfFilter() throws SQLException {
+        String filtered = pure("demo::Person.all()->filter(p|$p->instanceOf(demo::Employee))"
+                + "->graphFetch(#{ demo::Person { firstName } }#)->serialize(#{ demo::Person { firstName } }#)");
+        assertTrue(!filtered.contains("Alice") && filtered.contains("Bob"), filtered);
+    }
+
+    @Test
+    void unionBaselineProject() throws SQLException {
+        ExecutionResult r = qs.execute(MODEL, "demo::Person.all()->project(~[name: p|$p.firstName])->sort(~name->ascending())",
+                "demo::Runtime", conn);
+        assertEquals(4, r.rowCount(), r.toString());
     }
 
     @Test

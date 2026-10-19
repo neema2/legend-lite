@@ -11,7 +11,8 @@ import com.legend.protocol.Multiplicity;
 import com.legend.protocol.Protocol;
 import com.legend.protocol.Realization;
 import com.legend.protocol.TypeExpression;
-import com.legend.protocol.spec.AppliedFunction;
+import com.legend.compiler.spec.Calls;
+import com.legend.platform.CoreFn;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.PackageableElementPtr;
@@ -56,10 +57,6 @@ public final class CompanionSynthesis {
 
     public static final String TYPENAME = "__typename";
 
-    private static final String INSTANCE_OF = "instanceOf";
-    private static final String CAST = "cast";
-    private static final String IF = "if";
-
     /** Whether {@code dp} is a member the companion generated. */
     public static boolean isCompanion(DerivedPropertyDefinition dp) {
         for (Protocol.PStereotype st : dp.stereotypes()) {
@@ -103,6 +100,20 @@ public final class CompanionSynthesis {
         List<PackageableElement> out = new ArrayList<>(parsed.elements().size());
         for (PackageableElement el : parsed.elements()) {
             if (!(el instanceof ClassDefinition cd) || cd.isNative()) {
+                out.add(el);
+                continue;
+            }
+            // the members are generated on a hierarchy's ROOT (a class with no superclass in the model) and
+            // inherited below it: a subclass declaring them again would carry two members of one name. A root's
+            // __typename names every transitive subclass, so an inherited body answers a subclass's own rows.
+            boolean root = true;
+            for (TypeExpression sup : cd.superClasses()) {
+                if (sup instanceof TypeExpression.NameRef nr && classes.containsKey(nr.name())) {
+                    root = false;
+                }
+            }
+            if (!root) {
+                refuseReserved(cd, List.of());
                 out.add(el);
                 continue;
             }
@@ -167,22 +178,25 @@ public final class CompanionSynthesis {
         ValueSpecification body = new CString(simple(cd.qualifiedName()));
         for (int i = subsDeepestFirst.size() - 1; i >= 0; i--) {
             String s = subsDeepestFirst.get(i);
-            body = new AppliedFunction(IF, List.of(instanceOf(s), thunk(new CString(simple(s))), thunk(body)));
+            body = Calls.form(CoreFn.IF, List.of(instanceOf(s), thunk(new CString(simple(s))), thunk(body)));
         }
-        return member(TYPENAME, body, new TypeExpression.NameRef("String"), Multiplicity.Concrete.PURE_ONE);
+        // the m3 FQN: the elements are name-resolved before this phase, and the prelude tier spells it so
+        return member(TYPENAME, body, new TypeExpression.NameRef("meta::pure::metamodel::type::String"),
+                Multiplicity.Concrete.PURE_ONE);
     }
 
     /** {@code asS() { if($this->instanceOf(S), |$this->cast(@S), |[]) }: S[0..1]}. */
     private static DerivedPropertyDefinition as(ClassDefinition cd, String sub) {
-        ValueSpecification cast = new AppliedFunction(CAST, List.of(new Variable("this"),
+        ValueSpecification cast = Calls.form(CoreFn.CAST, List.of(new Variable("this"),
                 new TypeAnnotation.Named(new TypeExpression.NameRef(sub))));
-        ValueSpecification body = new AppliedFunction(IF, List.of(instanceOf(sub), thunk(cast),
+        ValueSpecification body = Calls.form(CoreFn.IF, List.of(instanceOf(sub), thunk(cast),
                 thunk(new PureCollection(List.of()))));
         return member(asName(sub), body, new TypeExpression.NameRef(sub), Multiplicity.Concrete.ZERO_ONE);
     }
 
     private static ValueSpecification instanceOf(String fqn) {
-        return new AppliedFunction(INSTANCE_OF, List.of(new Variable("this"), new PackageableElementPtr(fqn)));
+        return Calls.exact(com.legend.builtin.NativeFn.SubtypeForm.INSTANCE_OF.fqn(),
+                List.of(new Variable("this"), new PackageableElementPtr(fqn)));
     }
 
     private static LambdaFunction thunk(ValueSpecification body) {

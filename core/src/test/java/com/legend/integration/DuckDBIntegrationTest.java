@@ -69,7 +69,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Verify the compiled class
         var personClass = ctx.findClass("model::Person").orElseThrow();
         assertEquals("model::Person", personClass.qualifiedName());
-        assertEquals(3, personClass.properties().size());
+        // the three declared properties; the GraphQL companion's __typename() stands beside them
+        // (docs/GRAPHQL_STUDY_2026_10_18.md §5.8, a derived member on every root class)
+        assertEquals(3, personClass.properties().stream()
+                .filter(p -> p instanceof com.legend.compiler.element.Property.Stored).count());
 
         // Verify property types
         var firstName = ctx.findProperty("model::Person", "firstName").orElseThrow();
@@ -246,7 +249,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         var personClass = ctx.findClass("model::Person").orElseThrow();
 
         assertEquals("model::Person", personClass.qualifiedName());
-        assertEquals(3, personClass.properties().size());
+        // the three declared properties; the GraphQL companion's __typename() stands beside them
+        assertEquals(3, personClass.properties().stream()
+                .filter(p -> p instanceof com.legend.compiler.element.Property.Stored).count());
 
         var firstName = (com.legend.compiler.element.Property.Stored)
                 ctx.findProperty("model::Person", "firstName").orElseThrow();

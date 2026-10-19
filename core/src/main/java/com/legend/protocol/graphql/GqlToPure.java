@@ -286,6 +286,75 @@ public final class GqlToPure {
         subtypes.computeIfAbsent(condition, k -> new ArrayList<>()).addAll(selections);
     }
 
+    /**
+     * The tree's {@code ->subType(@Sub) { ... }} entries from a level's subtype fragments. The emitter's patches
+     * are a first-match CASE over disjoint members, where GraphQL's fragments accumulate down the hierarchy (a
+     * Manager is an Employee, so {@code ... on EmployeeInterface} applies to it too): each entry carries the
+     * selections of every fragment its class satisfies, and the entries stand deepest first, so the first match
+     * is the exact class with everything it inherits. A structural rearrangement; nothing is computed.
+     */
+    private List<GraphFetchLiteral.SubTypeNode> subTypeEntries(Level level, String path) {
+        // by class, the object type's name: a fragment on Employee and one on EmployeeInterface are one class's
+        Map<String, Composite> objectTypes = new LinkedHashMap<>();
+        Map<String, List<Selection>> byClass = new LinkedHashMap<>();
+        for (Map.Entry<String, List<Selection>> e : level.subtypes().entrySet()) {
+            Composite c = compositeNamed(e.getKey(), path);
+            String fqn = classFqnOf(c, path);
+            objectTypes.putIfAbsent(fqn, objectTypeOf(fqn, path));
+            byClass.computeIfAbsent(fqn, k -> new ArrayList<>()).addAll(e.getValue());
+        }
+        List<String> order = new ArrayList<>(byClass.keySet());
+        // deepest first: a class below more of the entries' classes sits lower in the hierarchy
+        Map<String, Integer> depth = new LinkedHashMap<>();
+        for (String fqn : order) {
+            int d = 0;
+            for (String other : order) {
+                if (!other.equals(fqn) && isA(objectTypes, fqn, other)) {
+                    d++;
+                }
+            }
+            depth.put(fqn, d);
+        }
+        order.sort((a, b) -> Integer.compare(depth.getOrDefault(b, 0), depth.getOrDefault(a, 0)));
+        List<GraphFetchLiteral.SubTypeNode> out = new ArrayList<>();
+        for (String fqn : order) {
+            Composite own = Objects.requireNonNull(objectTypes.get(fqn));
+            List<Selection> selections = new ArrayList<>();
+            for (Map.Entry<String, List<Selection>> e : byClass.entrySet()) {
+                if (e.getKey().equals(fqn) || isA(objectTypes, fqn, e.getKey())) {
+                    selections.addAll(e.getValue());
+                }
+            }
+            out.add(new GraphFetchLiteral.SubTypeNode(fqn, null, nodes(selections, own, path)));
+        }
+        return out;
+    }
+
+    /** Whether the class {@code sub} is the class {@code sup} or below it: its type implements {@code sup}'s
+     *  interface (a class with subclasses has one), or {@code sup}'s own type name. */
+    private static boolean isA(Map<String, Composite> objectTypes, String sub, String sup) {
+        Composite s = Objects.requireNonNull(objectTypes.get(sub));
+        Composite p = Objects.requireNonNull(objectTypes.get(sup));
+        return s.implementsList().contains(p.name() + "Interface") || s.implementsList().contains(p.name());
+    }
+
+    /** The object type generated for the class {@code fqn} (its exact type, which every fragment on it or on its
+     *  interface selects). */
+    private Composite objectTypeOf(String fqn, String path) {
+        for (TypeDef t : schema.types()) {
+            if (t instanceof GqlSchema.ObjectType o && fqn.equals(o.classFqn())) {
+                return o;
+            }
+        }
+        // an abstract class has the interface only: its entry reads the interface's fields
+        for (TypeDef t : schema.types()) {
+            if (t instanceof GqlSchema.InterfaceType i && fqn.equals(i.classFqn())) {
+                return i;
+            }
+        }
+        throw GqlTranslationException.invalid(path, "no type is generated for " + fqn);
+    }
+
     private Composite compositeNamed(String name, String path) {
         TypeDef td = schema.find(name);
         if (!(td instanceof Composite c)) {
@@ -491,14 +560,8 @@ public final class GqlToPure {
                 ValueSpecification vs = call("getAll", new PackageableElementPtr(r.classFqn()));
                 vs = clauses(vs, f.arguments(), type, path);
                 Level level = level(f.selectionSet(), type, path);
-                List<GraphFetchLiteral.SubTypeNode> subTypes = new ArrayList<>();
-                for (Map.Entry<String, List<Selection>> e : level.subtypes().entrySet()) {
-                    Composite sub = compositeNamed(e.getKey(), path);
-                    subTypes.add(new GraphFetchLiteral.SubTypeNode(classFqnOf(sub, path), null,
-                            nodes(e.getValue(), sub, path)));
-                }
-                GraphFetchLiteral tree = new GraphFetchLiteral(r.classFqn(), nodes(level.fields(), type, path),
-                        subTypes, null);
+                GraphFetchLiteral tree = new GraphFetchLiteral(r.classFqn(), nodesOf(level.fields(), type, path),
+                        subTypeEntries(level, path), null);
                 yield call("serialize", call("graphFetch", vs, tree), tree);
             }
             case Meaning.AggregateRoot a -> throw GqlTranslationException.unsupported(path, f.name()
@@ -956,8 +1019,12 @@ public final class GqlToPure {
     // ---- the tree ----
 
     private List<Node> nodes(List<Selection> selections, Composite type, String path) {
+        return nodesOf(flatten(selections, type, path), type, path);
+    }
+
+    private List<Node> nodesOf(List<Field> fields, Composite type, String path) {
         List<Node> out = new ArrayList<>();
-        for (Field f : flatten(selections, type, path)) {
+        for (Field f : fields) {
             out.add(node(f, type, path));
         }
         return out;
@@ -1016,7 +1083,7 @@ public final class GqlToPure {
                         view = classFqnOf(sub, path);
                         children = nodes(only.getValue(), sub, path);
                     } else {
-                        children = nodes(level.fields(), target, path);
+                        children = nodesOf(level.fields(), target, path);
                     }
                 }
                 if (clause) {

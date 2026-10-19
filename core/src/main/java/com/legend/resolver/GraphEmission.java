@@ -467,7 +467,11 @@ final class GraphEmission {
         // ordered. The member WITNESS columns (row-type column order =
         // declaration order) become ORDER keys — TRUE-first per member.
         List<TypedFuncCol> orderKeys = new ArrayList<>();
-        if (arrayWrap) {
+        // an EXPLICIT user sort in the pipeline governs row order over the
+        // union's branch order too (GraphQL PR3, 2026-10-19: a sorted union
+        // fetch came back member-first, the witness keys ahead of the sort)
+        boolean explicitSort = containsExplicitSort(pipeline);
+        if (arrayWrap && !explicitSort) {
             for (Type.Column c : rowType.columns()) {
                 if (com.legend.model.ClassMapping
                         .witnessPrefixOf(c.name()) == null) {
@@ -490,9 +494,7 @@ final class GraphEmission {
             // appending PK keys emitted BOTH order specs and the PK one
             // won, silently discarding the user's sortBy (study #23,
             // the near-miss the audit named)
-            if (!containsExplicitSort(pipeline)) {
-                orderKeys.addAll(pkOrderKeys(cs, pipeline, rowType, rowVar, toRow));
-            }
+            orderKeys.addAll(pkOrderKeys(cs, pipeline, rowType, rowVar, toRow));
         }
         TypedSerializeGraph node = new TypedSerializeGraph(pipeline, rowVar,
                 leaves, children, arrayWrap, false, cs.classFqn(), info,
@@ -2772,14 +2774,23 @@ final class GraphEmission {
      *  otherwise. */
     private TypedSpec membership(String t, String classFqn, Map<String, TypedSpec> bindings, ExprType info,
             String prop) {
-        if (t.equals(classFqn) || ctx.isSubtype(classFqn, t)) {
+        if (ctx.isSubtype(classFqn, t)) {
             return new com.legend.compiler.spec.typed.TypedCBoolean(true, info);
         }
         TypedSpec witness = bindings.get(com.legend.model.ClassMapping.subTypeColumn(t,
                 com.legend.model.ClassMapping.memberWitness()));
         if (witness != null) {
-            TypedFunction ne = ctx.findFunction("meta::pure::functions::collection::isNotEmpty")
-                    .orElseThrow(() -> new IllegalStateException("resolver bug: no isNotEmpty registration"));
+            TypedFunction ne = null;
+            for (TypedFunction f : ctx.findFunction(
+                    com.legend.builtin.Pure.IS_NOT_EMPTY__ANY_MANY.qualifiedName())) {
+                if (f.parameters().size() == 1) {
+                    ne = f;
+                    break;
+                }
+            }
+            if (ne == null) {
+                throw new IllegalStateException("resolver bug: no isNotEmpty(Any[*]) registration");
+            }
             return new TypedNativeCall(ne, List.of(witness), info);
         }
         String prefix = com.legend.model.ClassMapping.subTypeColumnPrefix(t);
@@ -2867,7 +2878,8 @@ final class GraphEmission {
         // exact-type test and the downcast read, answered from the union row's thread-local columns as the
         // chain's Substitution answers them -- a witness column tested, a subtype column read; never computed
         if (n instanceof TypedNativeCall io
-                && io.callee().qualifiedName().equals(Substitution.INSTANCE_OF_FQN)
+                && com.legend.builtin.NativeFn.SubtypeForm.of(io.callee().id()).orElse(null)
+                        == com.legend.builtin.NativeFn.SubtypeForm.INSTANCE_OF
                 && io.args().size() == 2
                 && io.args().get(0) instanceof TypedVariable iv && iv.name().equals(thisVar)) {
             String t = Substitution.typeTargetFqn(io.args().get(1));
@@ -2881,7 +2893,7 @@ final class GraphEmission {
                 && unwrapToOneFirst(cpa.source()) instanceof com.legend.compiler.spec.typed.TypedCast tc
                 && tc.source() instanceof TypedVariable cv && cv.name().equals(thisVar)
                 && Type.asClassType(tc.target()) instanceof Type.ClassType ct) {
-            if (ct.fqn().equals(classFqn) || ctx.isSubtype(classFqn, ct.fqn())) {
+            if (ctx.isSubtype(classFqn, ct.fqn())) {
                 // an identity or upcast: the plain read
                 return inlineThis(new TypedPropertyAccess(tc.source(), cpa.property(), cpa.info()), thisVar,
                         binds, bindings, classFqn, prop, env);

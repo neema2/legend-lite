@@ -71,10 +71,14 @@ final class UnionSerialOrder {
             return new SqlUnion(branches, true, uOuts);
         }
         if (q instanceof SqlSelect s && s.projections().isEmpty()
-                && s.groupBy().isEmpty() && !s.distinct()) {
+                && s.groupBy().isEmpty() && !s.distinct()
+                && s.orderBy().isEmpty() && s.limit() == null && s.offset() == null) {
             // star pass-through: the ordinal flows up unchanged (adding a
             // source column under DISTINCT or GROUP BY would change their
-            // semantics — those bail above)
+            // semantics — those bail above; an ORDERED or LIMITED
+            // pass-through is the query's own order, which the envelope keeps
+            // as scan order: GraphQL PR3, 2026-10-19, a sorted union's graph
+            // fetch raised an unfoldable reference to the ordinal here)
             SqlSource f2 = intoSource(s.from());
             return f2 == null ? null : s.withFrom(f2);
         }
