@@ -486,6 +486,18 @@ public final class GqlToPure {
         }
         TypeDef td = schema.find(typeName);
         if (td instanceof EnumType e) {
+            // a list of enum values (`in`, `notIn`): each item by this rule (the trading probe, 2026-10-19:
+            // `assetClass: { in: [EQUITY, RATES] }` was refused as if one value)
+            if (v instanceof Gql.ListValue l) {
+                List<ValueSpecification> items = new ArrayList<>();
+                for (Value item : l.values()) {
+                    items.add(literal(item, typeName, path));
+                }
+                return new PureCollection(items);
+            }
+            if (v instanceof Gql.NullValue) {
+                return new PureCollection(List.of());
+            }
             String name = switch (v) {
                 case Gql.EnumValue ev -> ev.value();
                 case Gql.StringValue sv -> sv.value();   // a variable's value arrives as JSON text

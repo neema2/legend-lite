@@ -263,4 +263,24 @@ class GqlExecutionTest {
         inOrder(json, "\"top2\"", "Carol", "Alice");
         assertTrue(!json.contains("Bob"), json);
     }
+
+    /** An enum list in `in` and `notIn` (the trading probe of 2026-10-19 found `in: [A, B]` refused as one value). */
+    @Test
+    void anEnumListInAndNotIn() throws SQLException {
+        String in = gql("{ Person(where: { address: { country: { in: [UK, JP] } } }, orderBy: [{ firstName: ASC }]) { firstName } }");
+        inOrder(in, "Alice", "Carol", "Eve", "Grace");
+        assertTrue(!in.contains("Bob") && !in.contains("Frank"), in);
+        String notIn = gql("{ Person(where: { address: { country: { notIn: [UK, JP] } } }, orderBy: [{ firstName: ASC }]) { firstName } }");
+        inOrder(notIn, "Bob", "Frank");
+        assertTrue(!notIn.contains("Alice"), notIn);
+    }
+
+    /** A qualifier calling a qualifier, and one with an argument (the trading probe of 2026-10-19 found
+     *  `notionalAt(rate:)`, whose body calls `notional()`, refused as not inlinable). */
+    @Test
+    void aQualifierCallingAQualifierAndOneWithAnArgument() throws SQLException {
+        String json = gql("{ Person(where: { firstName: { equals: \"Alice\" } }) { shouted salaryAt(rate: 0.5) } }");
+        assertTrue(json.contains("ALICE SMITH"), json);
+        assertTrue(json.contains("60000"), json);
+    }
 }

@@ -2411,6 +2411,8 @@ island inside Pure.
 - **The roadmap of §10 is landed (PR1a to PR6, PR1b), 2026-10-19.** Open, by name: the agent run of the forty tasks
   (a model and its key); GraphiQL in a browser; function roots; milestoning arguments on a node; line and column
   in the island's errors; the composer's rule for the island inside a model; `orderBy` by a nested aggregate; a
-  string's min and max; nested groups under a parent object (a relation-valued child in the emitter); the Prisma
-  oracle and the `lite/*.yaml` cases; the data-space path as a route; a `Variant` scalar; a numeric `bucket:`.
+  string's min and max; nested groups under a parent object (a relation-valued child in the emitter); a nested
+  aggregate's fold over a derived property (the companion's fusion path; the root form works); a milestoned
+  to-one offered by the schema and refused at execution (milestoning arguments on nodes); the Prisma oracle and
+  the `lite/*.yaml` cases; the data-space path as a route; a `Variant` scalar; a numeric `bucket:`.
 

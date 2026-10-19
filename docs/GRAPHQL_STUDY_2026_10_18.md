@@ -1275,6 +1275,20 @@ Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the sixth la
   on DuckDB, the judge marking a wrong and a missing answer wrong), `GqlValidityTest` 2: 87 GraphQL tests in
   all. Green: the server, root, compiler, protocol and normalizer packages; `//core:guardrails`, `//core:census`,
   `//tools/deps:core_layering_test`; the full local gate (the GATES entry).
+- **The trading probe (2026-10-19, after the landing).** The generator and the endpoint run over the Query app's
+  trading demo (`query/demo/models`: six classes, three enums, three associations, two temporal classes, a data
+  space, its `###Data` rows): the SDL of its data space is 947 lines, and twenty-three documents ran against the
+  rows (roots, every filter family, to-one paths in `where` and `orderBy`, a derived property as a sort key,
+  nested clauses, quantifiers two deep, aliases, fragments, variables, the root aggregate, nested aggregates,
+  groups by an enum, by a to-one path with `having`, by a week, by a two-level path, introspection, `explain`).
+  Two bugs found and fixed with their regression cases: an enum list in `in`/`notIn` was refused as one value
+  (`GqlToPure.literal`); a qualifier calling a qualifier (`notionalAt(rate)` over `notional()`) was refused as
+  not inlinable on the derived-leaf paths (`GraphEmission.derivedLeaf` β-inlines the callee first, as the node-body
+  path did). Two gaps confirmed, open by name: a nested aggregate's fold over a DERIVED property
+  (`tradesAggregate { sum { notional } }`) fails in the companion's fusion path, while the same fold at the root
+  works through the Relation API (one more reason for the relation-valued node); and a milestoned to-one
+  (`Firm.rating`) is offered by the schema and refused at execution for want of a business date (milestoning
+  arguments on nodes).
 - **Not done, on purpose.** The agent run of the forty tasks (needs a model and its key; the harness is here);
   GraphiQL opened in a browser; the data-space path (`/graphql/{ds}`) as a route of its own (the routes take
   `dataSpace` in the body, the MCP tools too); the differential as a Bazel target in the heavy lane (it would add

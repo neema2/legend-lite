@@ -6,6 +6,8 @@ Class {doc.doc = 'A person the firm knows of.'} demo::Person
   age: Integer[1];
   salary: Float[0..1];
   fullName() { $this.firstName + ' ' + $this.lastName }: String[1];
+  shouted() { $this.fullName()->toUpper() }: String[1];
+  salaryAt(rate: Float[1]) { $this.salary->toOne() * $rate }: Float[1];
 }
 
 Class demo::Firm

@@ -2298,7 +2298,9 @@ final class GraphEmission {
                 binds.put(cf.signature().parameters().get(i + 1).name(),
                         node.args().get(i));
             }
-            TypedSpec inlined = substVars(cf.body().get(0), binds);
+            // a qualifier calling a qualifier ($this.notional() * $rate) β-inlines the callee first, as the
+            // node-body and derived-child paths do (the trading probe, 2026-10-19: `notionalAt(rate:)` refused)
+            TypedSpec inlined = inlineDerivedCalls(substVars(cf.body().get(0), binds), 0);
             TypedSpec nav = navLeafSubquery(cs, inlined, thisVar,
                     context, rowVar, rowType);
             if (nav != null) {
@@ -2876,7 +2878,9 @@ final class GraphEmission {
             binds.put(cf.signature().parameters().get(i + 1).name(),
                     node.args().get(i));
         }
-        return inlineThis(cf.body().get(0), thisVar, binds, bindings,
+        // a qualifier calling a qualifier ($this.notional() * $rate): the callee β-inlined first, as the
+        // node-body path does (the trading probe, 2026-10-19)
+        return inlineThis(inlineDerivedCalls(cf.body().get(0), 0), thisVar, binds, bindings,
                 classFqn, prop, env);
     }
 
