@@ -66,6 +66,7 @@ DECL = {
     'execution:binding': '1', 'execution:external-format-binding': '1', 'execution:data-element': '14',
     'execution:multi-execution-service': '2', 'execution:post-validation': '1',
     'execution:service': '4,742', 'execution:service-parameter': '1', 'execution:service-test': '4,737 suites',
+    'execution:graph-fetch': '447 graph fetch services',
     'execution:shared-test-data': 'yes', 'execution:test-data': 'yes', 'execution:plan-generation': 'lite plans every service',
     'store:relational-semistructured-binding': '1 binding transformer',
 }

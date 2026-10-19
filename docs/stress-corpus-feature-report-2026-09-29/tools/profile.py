@@ -385,6 +385,9 @@ for s in services:
                'isEmpty', 'isNotEmpty', 'map', 'if', 'in', 'or', 'not', 'subType', 'toOne'):
         if f.get(fn):
             feats.add('q:' + fn)
+    # EMIT's execution:graph-fetch (added to emit.md after 2026-09-29): a graph fetch query executed in a test
+    if f.get('graphFetch') and s.get('testSuites'):
+        feats.add('execution:graph-fetch')
     for agg in ('count', 'sum', 'max', 'min', 'average', 'stdDev', 'median', 'distinctCount', 'uniqueValueOnly'):
         if f.get(agg):
             feats.add('q:agg:' + agg)

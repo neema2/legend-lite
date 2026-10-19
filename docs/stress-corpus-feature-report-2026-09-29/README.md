@@ -5,13 +5,16 @@ measures it against the feature inventories in legend-engine and legend-pure: th
 PCT function inventory, and legend-pure's primitive types. It covers queries, constraints, tests, mappings and stores,
 in two kinds of complexity: size and combination.
 
+First written 2026-09-29. Updated 2026-10-19 against main at `167018c4f`: the stress suites were re-run, every number
+was re-derived with [`tools/run.sh`](tools/run.sh), and what moved is listed in [Since 2026-09-29](#since-2026-09-29).
+
 ## Summary
 
-1. **The corpus is wide in relational mapping and store features, and narrow nearly everywhere else.** It tests 42 of
-   the 116 non-scaffolding EMIT features with a passing, populated test in lite. Another 12 are reached only by
+1. **The corpus is wide in relational mapping and store features, and narrow nearly everywhere else.** It tests 43 of
+   the 117 non-scaffolding EMIT features with a passing, populated test in lite. Another 12 are reached only by
    skipped, failing or untested services, 9 exist in the model with no service reaching them, and 53 are absent. Every
    feature it tests is also in EMIT. What the corpus adds is scale on those features: single-table inheritance is
-   exercised by 1,309 passing services, against one EMIT model.
+   exercised by 1,310 passing services, against one EMIT model.
 2. **Service parameters: there is one parameter in the whole corpus.** `surface::ParameterisedService` takes one
    `String[1]`, and lite never runs it because the runner only picks up `stress::` services. No service takes an
    Integer, Float, Decimal, Boolean, Number, Date, StrictDate, DateTime or StrictTime parameter, and none takes an
@@ -21,16 +24,16 @@ in two kinds of complexity: size and combination.
    the rest are arguments to qualified properties. There are no Decimal, DateTime, StrictTime, Date or Number literals
    anywhere in a query, and **no enumeration literal in any query**. Enum literals appear only inside two function
    bodies. With no DateTime anywhere, milestoning is only ever tested at day granularity: the 18 dated `all()` queries
-   all pass StrictDate literals.
+   pass StrictDate literals or `%latest`.
 4. **M2M is effectively untested.** There are 5 model-to-model class mappings with 17 property mappings, against 2,358
-   relational class mappings. Only 4 services reach M2M, and **all 4 are skipped in lite**. EMIT has 21 M2M class
-   mappings in 14 models. Relation (`~func`) mappings are thin too: 2 in the corpus against 37 in 21 EMIT models.
+   relational class mappings. Only 4 services reach M2M, and **all 4 are skipped in lite**. EMIT has 23 M2M class
+   mappings in 16 models. Relation (`~func`) mappings are thin too: 2 in the corpus against 56 in 26 EMIT models.
 5. **Only service tests exist.** There are 4,739 service tests, each with one `EqualToJson` assertion. There are no
-   mapping test suites, against 143 in EMIT, and the one function test suite (4 tests) is never run by lite.
+   mapping test suites, against 161 in EMIT, and the one function test suite (4 tests) is never run by lite.
 6. **Constraints are nearly absent: 8 in total, on 3 of 2,330 classes.** Each is a single comparison against one
    property. The richest combination is two Float properties compared to each other.
 7. **The query vocabulary is small.** Service queries use 25 platform functions, and the whole corpus touches 63 of
-   the 324 PCT function names. No query uses `let`, `or`, `in`, `if`, `exists`, `map`, string, date or math functions,
+   the 331 PCT function names. No query uses `let`, `or`, `in`, `if`, `exists`, `map`, string, date or math functions,
    `olapGroupBy`, TDS joins, window functions or the relation API.
 8. **Size complexity tops out modestly.** The widest projection is 68 columns (median 6). The biggest graph fetch has
    19 leaves, and the deepest nests 4 levels below the root. No query comes near "hundreds of columns".
@@ -42,11 +45,67 @@ in two kinds of complexity: size and combination.
     four-level trees, 16 do. `DenseMapping` (711 property mappings), the surface mappings, 32 of the 390 joins and the
     union, merge and inheritance operations are never reached by any service.
 
+## Since 2026-09-29
+
+About 1,800 commits reached main between the first edition and this update. Almost none of them touched the corpus,
+so every gap below is still open.
+
+- **The corpus barely changed.** Two generated files lost stale header comments (`60-dense-store.pure`,
+  `93-testdata.pure`), and five expected results in `94-fanout-services.pure` changed. legend-engine still builds the
+  same 7,643-element protocol document from it, and every count of the corpus's own content in §2 and §4–§9 is
+  unchanged (apart from the corrections below).
+- **Those five expectations were wrong; lite was right.** The services use `dateDiff` in hours, and the corpus's
+  Python oracle counted hour boundaries, as legend-engine's SQL does. legend-pure defines the unit as elapsed time
+  with the remainder dropped, which is what lite computes (finding F58 in `docs/UPSTREAM_FINDINGS.md`, 2026-10-05). The
+  expectations now follow Pure, so lite passes the five. The oracle lists them in its `ENGINE_QUARANTINE`, because
+  legend-engine should now fail them; no engine run has confirmed that yet.
+- **Lite's results.** On DuckDB, 4,705 tests pass, 15 fail and 16 are skipped, against 4,700, 20 and 16 before. The
+  five `dateDiff` services are the whole difference. Since 2026-10-05 gate 10 also enforces its H2 lane, which opens
+  a fresh session per test as legend-engine does: 4,676 pass, 44 fail and 16 are skipped (§6).
+- **Tested counts.** The five services reach several features, so some ✅ counts in §3 rose by 1 to 5 (derived
+  properties 1,516 → 1,521, primary keys 581 → 585). No feature changed status.
+- **EMIT moved.** This update reads a legend-engine checkout 53 commits newer (`35930373b41`, 2026-10-16). `emit.md`
+  dropped `execution:connection-time-zone` and added `execution:graph-fetch` and `store:relational-zoned-timestamp`,
+  so the taxonomy has 117 non-scaffolding features instead of 116. The corpus tests graph fetch (57 passing services
+  with rows) and has no zoned timestamp column, which makes the tally 43 tested and 53 absent. There are 134 models
+  instead of 130: seven were added (five relation-mapping graph fetch models, one reading a zoned timestamp column,
+  one M2M model) and three were removed when legend-engine reverted its time-zone fixes (legend-engine #5341).
+  Between them, those three carried service parameters, service tests, milestoning and connection time zones, which
+  is why EMIT's counts of all four fell (§3, §4.3, §6).
+- **PCT has 331 function names instead of 324.** The 7 new ones are relation set operations (`union`, `unionAll`,
+  `intersect`, `intersectAll`, `except`, `exceptAll`) and `generateSeries`. The corpus uses none of them.
+- **Corrections.** None of these came from the scripts.
+  - The first edition gave 3 tested services for self-joins (§3, "Beyond EMIT's taxonomy"). The script counts 9, with
+    10 services reaching a self-join. The 3 matches the `Pillar_LongerPillar` figure in §8, which is probably where it
+    came from.
+  - It gave the seed as 5,159 rows across 436 tables (§2, §6). Those figures are the generated header of
+    `93-testdata.pure`, which counts the generator's own table set. The protocol document has 4,942 rows in 393 tables
+    for `stress::TestData`, and 5,014 rows in 410 tables across all 11 relational data elements.
+  - It named two bitemporal tables (§3, Milestoning). There are three, as its own "3 tables, all bitemporal" says:
+    the third, `SURFACE_BITEMP`, is in a surface store no service reaches. Its one snapshot table was described as two.
+- **The scripts.** `tools/run.sh` failed under Git Bash on Windows: the engine runner read `/d/...` paths as
+  `D:\d\...`, and a second run couldn't overwrite the read-only pass list Bazel writes. It also kept its own copy of
+  the linked-project list. It now spells paths for the host, replaces the pass list, and reads the list from
+  `core/stress.bzl`. `profile.py` tags the new `execution:graph-fetch`. Re-run on the first edition's inputs
+  (legend-engine `1d40dd7251d`, legend-pure `5fed02095`, and today's pass list less the five `dateDiff` services), the
+  scripts reproduce every number in the first edition that they produce.
+
+Two things built since use the corpus or extend it, and neither changes the measures here:
+
+- **The wrong-rows tool** (`tools/wrongrows/`, plan decision D23) runs every suite through both engines, on the seeds
+  and on a generated damaged data set (a duplicate row, an all-NULL row, an orphan per join and a row of type extremes
+  per table), and compares their rows. Its first run found legend-engine counting 1 over an empty association
+  navigation (register S22) and a lite loader defect, since fixed. The corpus's own expectations still describe only
+  the seeds, so §4.6 stands.
+- **A separate `#SQL{...}#` stress corpus** (`core/src/test/resources/sql-stress/`, 83 generated queries with joins of
+  up to 50 tables, nesting to 50 levels and 2,000-deep expressions) stresses SQL islands, not Pure queries over a
+  mapping. §4.4's sizes are about the latter.
+
 ## 1. Method
 
 **Corpus model.** All 233 files (202 stress files and 31 files from the 11 linked projects) were parsed and compiled by
-legend-engine 4.145.0 (`bazel run //tools/engine-runner:testable -- <files> --pmcd-json=…`). Parsing took 18.8 s and
-compiling 9.8 s. Every count in this report comes from walking that protocol JSON (59 MB, 7,643 elements), not from
+legend-engine 4.145.0 (`bazel run //tools/engine-runner:testable -- <files> --pmcd-json=…`). Parsing took 16.2 s and
+compiling 7.0 s. Every count in this report comes from walking that protocol JSON (59 MB, 7,643 elements), not from
 regex over source text. Legend-engine loads the four files legend-lite excludes (`29-money`, `55-canonical-store`,
 `71-mapping-surface2`, `75-surface-gaps`), so their constructs are counted.
 
@@ -54,17 +113,17 @@ regex over source text. Legend-engine loads the four files legend-lite excludes 
 mapping's include closure to the set implementation, property mapping, association mapping, join and table it
 actually uses. A feature counts as *reached* only if a query gets to it.
 
-**Tested.** A feature is *tested* when at least one service that reaches it passes in lite (gate 10) with a
-**populated** expected result. Services whose expected result is empty or hollow (null at the deepest level) don't
-count, because they can only detect extra rows.
+**Tested.** A feature is *tested* when at least one service that reaches it passes in lite with a **populated**
+expected result. The pass list is gate 10's DuckDB lane (`//core:stress_suites`). Services whose expected result is
+empty or hollow (null at the deepest level) don't count, because they can only detect extra rows.
 
 **Denominators.**
-- The EMIT taxonomy in `legend-engine/docs/emit/emit.md` §6.2: 116 non-scaffolding `domain:capability` features and
-  10 scaffolding features, including the 3 features EMIT models use that aren't in the §6.2 table.
-- The 130 EMIT models (`*.emit.yaml`). Their `.pure` files, 308 of them once the persistence models and the
+- The EMIT taxonomy in `legend-engine/docs/emit/emit.md` §6.2: 117 non-scaffolding `domain:capability` features
+  (including 3 that EMIT models use but the §6.2 table doesn't list) and 10 scaffolding features.
+- The 134 EMIT models (`*.emit.yaml`). Their `.pure` files, 312 of them once the persistence models and the
   deliberate compile-failure fixture are left out, were parsed in a single legend-engine run to measure them the
   same way.
-- The PCT function inventory: 324 function names tagged `<<PCT.function>>` across legend-pure and legend-engine.
+- The PCT function inventory: 331 function names tagged `<<PCT.function>>` across legend-pure and legend-engine.
 - legend-pure's primitive types in `m3.pure`: String, Boolean, Byte, Number, Integer, StrictTime, Date, StrictDate,
   DateTime, LatestDate, Float and Decimal.
 - The protocol roster (`docs/protocol-roster.tsv`, 1,047 tags).
@@ -85,7 +144,7 @@ on that difference.
 | Mappings | 179 | 2,370 class mappings, 5,894 property mappings |
 | Databases | 30 | 437 tables, 4,843 columns, 390 joins, 1,858 filters, 7 views |
 | Connections / runtimes | 20 / 26 | |
-| Data elements | 14 | `stress::TestData`: 5,159 rows across 436 tables |
+| Data elements | 14 | 11 relational (5,014 rows in 410 tables), the largest `stress::TestData` (4,942 rows in 393 tables) |
 | Service tests | 4,739 in 4,737 suites | all `EqualToJson`, one assertion each |
 
 ## 3. Coverage against the EMIT taxonomy
@@ -99,13 +158,13 @@ with the feature.
 | grammar | 8 | 1 | 1 | 0 | 10 |
 | mapping (relational, M2M, generic) | 13 | 3 | 7 | 7 | 30 |
 | mapping (relation `~func`) | 1 | 0 | 0 | 12 | 13 |
-| store | 9 | 1 | 1 | 11 | 22 |
+| store | 9 | 1 | 1 | 12 | 23 |
 | milestoning | 5 | 1 | 0 | 1 | 7 |
-| execution | 6 | 6 | 0 | 10 | 22 |
+| execution | 7 | 6 | 0 | 9 | 22 |
 | persistence | 0 | 0 | 0 | 12 | 12 |
-| **all** | **42** | **12** | **9** | **53** | **116** |
+| **all** | **43** | **12** | **9** | **53** | **117** |
 
-EMIT's own models cover 98 of these 116. They don't cover the XStore cross-store mapping, M2M local properties, merge
+EMIT's own models cover 99 of these 117. They don't cover the XStore cross-store mapping, M2M local properties, merge
 operations, literal lists, relation binding transformers, full and right outer joins, service stores, flat-data stores,
 all-versions-in-range, BigQuery, hosted services, Snowflake apps, schema sets, post-validations, bindings, or
 external-format specifications. Every feature the corpus tests is also in EMIT.
@@ -114,14 +173,14 @@ external-format specifications. Every feature the corpus tests is also in EMIT.
 
 | Feature | Corpus | Services reaching → tested | EMIT |
 |---|---|---|---|
-| association | 250 | 2,284 → ✅ 337 | 14 |
-| class-inheritance | 1,849 subclasses | 3,571 → ✅ 1,309 | 6 |
+| association | 250 | 2,284 → ✅ 338 | 14 |
+| class-inheritance | 1,849 subclasses | 3,571 → ✅ 1,310 | 7 |
 | constraint | 8, on 3 classes | 23 (via graph fetch) → ✅ 2 | 2 |
-| derived-property | 206 | 2,093 → ✅ 1,516 | 8 |
+| derived-property | 206 | 2,093 → ✅ 1,521 | 9 |
 | enumeration | 21 | 59 → ✅ 55 | 5 |
-| function | 21 | 6 → ✅ 5 | 26 |
+| function | 21 | 6 → ✅ 5 | 25 |
 | measure | 3 | 1 (`MU0_MonetaryTrade`, skipped) → ◐ | 1 |
-| nested-association | yes | 2,065 → ✅ 154 | 3 |
+| nested-association | yes | 2,065 → ✅ 154 | 4 |
 | profile | 2 | metadata only → ○ | 1 |
 | qualified-property | 89 | 1,387 → ✅ 995 | 2 |
 
@@ -129,11 +188,11 @@ external-format specifications. Every feature the corpus tests is also in EMIT.
 
 | Feature | Corpus | Services reaching → tested | EMIT |
 |---|---|---|---|
-| relational-single-table-inheritance | 1,848 | 3,571 → ✅ 1,309 | 1 |
-| relational-primary-key | 276 | 1,741 → ✅ 581 | 1 |
-| relational-association-implementation | 238 | 2,274 → ✅ 331 | 1 |
+| relational-single-table-inheritance | 1,848 | 3,571 → ✅ 1,310 | 1 |
+| relational-primary-key | 276 | 1,741 → ✅ 585 | 1 |
+| relational-association-implementation | 238 | 2,274 → ✅ 332 | 1 |
 | mapping-include | 158 includes | almost every service (via `AllMapping`) → ✅ | 3 |
-| enumeration-mapping | 13 | 56 → ✅ 52 | 4 |
+| enumeration-mapping | 13 | 56 → ✅ 52 | 6 |
 | relational-embedded | 30 | 26 → ✅ 24 | 1 |
 | relational-literal | 138 | 18 → ✅ 18 | 1 |
 | store-union | 1 | 4 → ✅ 4 (`U1_TradePartitioned`, `G1_UnionTree`, …) | 2 |
@@ -141,12 +200,12 @@ external-format specifications. Every feature the corpus tests is also in EMIT.
 | aggregation-aware-mapping | 1 | 2 → ✅ 2 (`A0_FactDetail`, `A1_FactRollup`) | 1 |
 | relational-inline-embedded | 1 | 2 → ✅ 2 | 1 |
 | relational-otherwise-embedded | 4 | 4 → ✅ 2 (`O1_CounterpartyOtherwise` fails) | 1 |
-| mapping (generic) | 179 | ✅ | 12 |
+| mapping (generic) | 179 | ✅ | 13 |
 | cross-store (XStore) | 1 | 2 (`X0`, `X1`, skipped: two stores) → ◐ | 0 |
-| m2m-transform | 17 property mappings | 4, all skipped → ◐ | 3 |
-| m2m-chained-relational | 2 mappings via ModelChainConnection | 3, all skipped → ◐ | 1 |
+| m2m-transform | 17 property mappings | 4, all skipped → ◐ | 4 |
+| m2m-chained-relational | 2 mappings via ModelChainConnection | 3, all skipped → ◐ | 2 |
 | m2m-local-property | 1 (`75-surface-gaps`) | none → ○ | 0 |
-| operation-mapping (inheritance) | 1 (`71-mapping-surface2.pure:65`) | none → ○ | 3 |
+| operation-mapping (inheritance) | 1 (`71-mapping-surface2.pure:65`) | none → ○ | 4 |
 | router-union | 1 (`71-mapping-surface2`) | none → ○ | 1 |
 | operation-mapping-merge, -merge-validation | 1 each (`74-surface-last`) | none → ○ | 0 |
 | relational-literal-list | 2 | none → ○ | 0 |
@@ -175,16 +234,16 @@ mappings and one `ModelJoin`. None of these are covered:
 - window function
 - XStore association
 
-EMIT has 37 relation class mappings across 21 models.
+EMIT has 56 relation class mappings across 26 models.
 
 ### Store
 
 | Feature | Corpus | Services reaching → tested | EMIT |
 |---|---|---|---|
-| relational-filter | 1,856, plus 2 multigrain | 3,578 → ✅ 1,315 | 5 |
-| relational-inner-join (a Join traversed) | 390 joins | 2,316 → ✅ 368 | 13 |
-| relational-multi-table | 437 tables | 2,315 → ✅ 367 | 8 |
-| relational-left-outer-join | implicit: to-one navigation over orphan and NULL keys | ✅ 337 (by the association navigations) | 1 |
+| relational-filter | 1,856, plus 2 multigrain | 3,578 → ✅ 1,316 | 5 |
+| relational-inner-join (a Join traversed) | 390 joins | 2,316 → ✅ 369 | 13 |
+| relational-multi-table | 437 tables | 2,315 → ✅ 368 | 8 |
+| relational-left-outer-join | implicit: to-one navigation over orphan and NULL keys | ✅ 338 (by the association navigations) | 1 |
 | relational-dyna-function | 17 joins, views, 440 property mappings | 62 → ✅ 59 | 1 |
 | relational-inline-view | 7 views | 1,086 → ✅ 27 | 4 |
 | relational-nested-join | 314 join chains | 18 → ✅ 17 | 1 |
@@ -193,6 +252,7 @@ EMIT has 37 relation class mappings across 21 models.
 | relational-semistructured-binding | 1 binding transformer (`62-mapping-features.pure:126`) | 2 (hier services, skipped or failing) → ◐ | 5 |
 | relational-semistructured | 2 columns (`SemiStructured`, `Json`) | none → ○ | 13 |
 | semistructured navigation, flatten, explode, array functions, array index, wildcard path, array to-many | — | ✗ | 1–5 each |
+| relational-zoned-timestamp (a `TIMESTAMP` column the database holds with a zone) | — | ✗ | 1 |
 | outer-join (full), right-outer-join | — | ✗ (one `(OUTER)` hop in a surface mapping, no service) | 0 |
 | service-store, flat-data-store | — | ✗ | 0 |
 
@@ -200,15 +260,16 @@ EMIT has 37 relation class mappings across 21 models.
 
 | Feature | Corpus | Services → tested | EMIT |
 |---|---|---|---|
-| business-temporal | 6 tables, 3 classes | 20 → ✅ 16 | 8 |
-| processing-temporal | 3 tables, all bitemporal (no processing-only table or class) | 6 → ✅ 5 | 7 |
-| bi-temporal | 2 classes | 6 → ✅ 5 | 5 |
-| point-in-time-query | `getAll(%date)` and dated milestoned properties | 19 → ✅ 16 | 8 |
+| milestoning (the generic marker) | 6 milestoned tables (3 of them bitemporal) and 1 snapshot table | 20 → ✅ 16 | 8 |
+| business-temporal | 6 tables, 3 classes | 20 → ✅ 16 | 7 |
+| processing-temporal | 3 tables, all bitemporal (no processing-only table or class) | 6 → ✅ 5 | 6 |
+| bi-temporal | 2 classes | 6 → ✅ 5 | 3 |
+| point-in-time-query | `getAll(%date)` and dated milestoned properties | 19 → ✅ 16 | 7 |
 | all-versions-query | 1 (`surface::AllVersionsService`, no tests) | ◐ | 1 |
 | all-versions-in-range-query | — | ✗ | 0 |
 
-Snapshot milestoning (one business-snapshot table and one processing-snapshot table) is present. EMIT has no tag for
-it.
+Snapshot milestoning is present: one table, `SURFACE_SNAPSHOT`, carries both a business and a processing snapshot.
+EMIT has no tag for it.
 
 **Dated queries.** 18 services start from a dated `all()`, all in `94-fanout-services.pure` and all passing in lite.
 Fifteen expect rows. Three (`PL8`, `SC2`, `MD6`) ask for a date before the first version and expect none, which checks
@@ -226,10 +287,10 @@ One more service navigates a milestoned property with a date: `$x.ratingVersions
 `PL9_CounterpartyRatingCount` (line 5682).
 
 **Milestoning is only ever day-grained.** Every date above is a StrictDate literal or `%latest`, and there is no
-DateTime literal anywhere in the corpus. The processing dimension is day-grained in the store as well: both
-bitemporal tables declare their processing columns as `DATE`, not `TIMESTAMP` (`INSTR_RATING_BI`,
-`30-store.pure:267`, and `TS_REVISION_BI`, `30-store.pure:446`), with a StrictDate infinity date. So none of these is
-tested:
+DateTime literal anywhere in the corpus. The processing dimension is day-grained in the store as well: all three
+bitemporal tables declare their processing columns as `DATE`, not `TIMESTAMP`. The two that services reach,
+`INSTR_RATING_BI` (`30-store.pure:267`) and `TS_REVISION_BI` (`30-store.pure:446`), have a StrictDate infinity date;
+the third, `SURFACE_BITEMP` (`66-store-surface.pure:63`), is reached by no service. So none of these is tested:
 
 - a DateTime passed to `all()` or to a milestoned property
 - processing time at time-of-day precision, such as a version superseded later on the same day
@@ -239,24 +300,27 @@ tested:
 - a class milestoned on processing time alone
 - `allVersions()` (the one query that uses it has no tests) and `allVersionsInRange()`
 
-EMIT covers some of this. Its date tests pass DateTime values (28 DateTime service parameters across 6 models), and it
-has three models that name a connection time zone.
+EMIT covers some of this. Its date tests pass DateTime values (16 DateTime service parameters across 4 models), and
+one model, `relational-zoned-timestamp-column`, names a connection time zone (two connections, `UTC` and
+`America/New_York`).
 
 ### Execution
 
 | Feature | Corpus | Status |
 |---|---|---|
-| service, service-test, test-data, shared-test-data, data-element | 4,742 services; `Reference` to `###Data` | ✅ 2,222 |
+| service, service-test, test-data, shared-test-data, data-element | 4,742 services; `Reference` to `###Data` | ✅ 2,227 |
+| graph-fetch | 447 graph fetch services | ✅ 57 |
 | plan-generation | lite plans every service it runs | ✅ (lite's equivalent) |
 | service-parameter | 1 (`73-service-surface.pure:42`) | ◐, never run (`surface::`) |
 | multi-execution-service | 2 (`N4_TradeMultiExecution`, `surface::MultiRouted`) | ◐ (skipped / no tests) |
 | post-validation | 1 (`surface::PostValidatedService`) | ◐, no tests |
 | binding, external-format-binding | 1 binding | ◐ |
 | external-format (test data) | 1 (`F37_SubstringPure`) | ◐, skipped |
-| connection-time-zone | no connection sets `timeZone` | ✗ |
 | file-generation, model-generation, schema-set, serialization-date-time-format | — | ✗ |
 | legacy mapping and service tests | — | ✗ |
 | BigQuery function, hosted service, Snowflake app | — | ✗ |
+
+The taxonomy no longer has `connection-time-zone`. No corpus connection sets `timeZone` either way.
 
 ### Persistence
 
@@ -272,7 +336,7 @@ exercises:
 | Joins whose condition contains `or` | 28 |
 | Non-equality joins | 42 |
 | Multi-column joins | 39 |
-| Self-joins | 3 |
+| Self-joins | 9 |
 | Multigrain filters | 4 |
 | Views with `~groupBy` | 27 |
 | Property mappings using a dynafunction (47 distinct functions) | 23 |
@@ -304,7 +368,7 @@ They also call 7 user functions. Query shapes break down as:
 The filter predicates are `greaterThan` in 2,168 places (almost all `> ' '`), `equal` 11, `and` 63, `not` 4 and
 `lessThan` 1.
 
-Across every Pure expression in the corpus, 63 of the 324 PCT function names appear. That counts service queries,
+Across every Pure expression in the corpus, 63 of the 331 PCT function names appear. That counts service queries,
 function bodies, derived properties, constraints, M2M transforms, merge validations, XStore and ModelJoin conditions,
 measures, and the names of mapping and store dynafunctions:
 
@@ -323,7 +387,7 @@ measures, and the names of mapping and store dynafunctions:
 | standard/tbd (bit ops) | 3 / 8 | bitAnd, bitShiftLeft, bitXor |
 | unclassified/string | 2 / 18 | lpad, splitPart |
 | unclassified/flow | 1 / 1 | coalesce |
-| relation | name matches only | no query uses the relation API; 2 functions build `#>{}#` relations for the ModelJoin mapping |
+| relation | name matches only / 74 | no query uses the relation API; 2 functions build `#>{}#` relations for the ModelJoin mapping. None of the 7 names added since 2026-09-29 (the set operations, `generateSeries`) |
 | variant, hash, runtime, data-quality, quant | 0 | |
 
 Most of the string, math and date names come from the combination matrix's mapping dynafunctions and from derived
@@ -362,7 +426,7 @@ DateTime and enum constants and the corpus has neither.
 | any enumeration | 0 |
 | any multiplicity other than `[1]` | 0 |
 
-EMIT has 44 service parameters in 6 models: DateTime (28) and StrictDate (16), all `[1]`. Neither suite has an
+EMIT has 26 service parameters in 4 models: DateTime (16) and StrictDate (10), all `[1]`. Neither suite has an
 Integer, Float, Decimal, Boolean or enum service parameter.
 
 Function parameters are richer, but none is supplied by a test except `tradesByStatus(String)`. Across the 21
@@ -441,30 +505,42 @@ All 8 constraints in the corpus:
 
 ## 6. Tests
 
-| | Stress corpus | EMIT (130 models) |
+| | Stress corpus | EMIT (134 models) |
 |---|---|---|
-| Service test suites / tests | 4,737 / 4,739 | 127 tests in 13 models |
+| Service test suites / tests | 4,737 / 4,739 | 85 tests in 13 models |
 | Tests per suite | 1, except 2 suites with 2 | |
 | Assertions per test | exactly 1 | |
 | Assertion types | `EqualToJson` only | `EqualToJson` only |
-| Serialization formats | `PURE_TDSOBJECT` 4,292; default 447 (graph fetch) | `PURE_TDSOBJECT` 102, `PURE` 25 |
-| Service test data | `Reference` 4,745; `ExternalFormat` 1 | `Reference` 47, inline relational CSV 5 |
-| Tests that pass parameters | 2 (never run by lite) | 97 parameter values in 6 models (DateTime 65, StrictDate 32) |
-| Mapping test suites | **0** | **143 suites, 153 tests in 70 models** (`Reference` 128, `ModelStore` 25) |
+| Serialization formats | `PURE_TDSOBJECT` 4,292; default 447 (graph fetch) | `PURE_TDSOBJECT` 55, `PURE` 30 |
+| Service test data | `Reference` 4,745; `ExternalFormat` 1 | `Reference` 49, inline relational CSV 5, `ExternalFormat` 1 |
+| Tests that pass parameters | 2 (never run by lite) | 57 parameter values in 4 models (DateTime 37, StrictDate 20) |
+| Mapping test suites | **0** | **161 suites, 171 tests in 75 models** (`Reference` 148, `ModelStore` 25) |
 | Legacy mapping and service tests | 0 | 4 and 1 |
 | Function tests | 1 suite, 4 tests (`95-function-tests.pure:8`); lite doesn't run it | none found |
 
 - **Size:** expected payloads have a median of 119 characters and a maximum of 74 KB, and 29 are over 10 KB. The
-  seed is one shared `###Data` element of 5,159 rows across 436 tables, with the adversarial properties A1–A12 from
-  `scripts/corpus/seed.py`.
+  seed is one shared `###Data` element, `stress::TestData`, of 4,942 rows across 393 tables, with the adversarial
+  properties A1–A12 from `scripts/corpus/seed.py`.
 - **Combination:** every test combines exactly one suite, one test, one `EqualToJson` assertion and one `Reference`
   to shared data. There are no tests with several assertions, no `EqualTo`, `EqualToTDS` or `Relation` assertions, no
   inline CSV data, and no `ModelStore` data.
-- **Results in lite:** 4,700 pass, 20 fail and 16 skipped. The 20 failures fall into five known buckets: graph DateTime
-  spelling (6), `dateDiff` in hours (5), services the engine also fails (5), decimal division (2) and the hier binding
-  (2). The skips are 10 multi-store suites, 3 whose runtime lives in an excluded file, 2 multi-execution tests, and 1
-  suite with ExternalFormat test data. The 3 `surface::` service tests (2 with parameters) are outside the runner's
-  `stress::` filter.
+- **Results in lite, DuckDB** (`//core:stress_suites`, floor 4,705): 4,705 pass, 15 fail and 16 are skipped, of
+  4,736. The 15 failures fall into four known buckets:
+  - graph DateTime spelling (6): six `GG_*Tree` services (finding F24)
+  - services the engine also fails (5): `CB_NotEqualsNull`, `CF_Confluence`, `F32_TradeRollupEverything`,
+    `F37_SubstringSql` and `O1_CounterpartyOtherwise`
+  - decimal division (2): `LE0_ExposureLines` and `DSLocal_ExposureLine`
+  - the hier binding (2): `H_IssuerProd` and `SP_IssuerProdIssuerGraph`
+
+  The first edition's fifth bucket, `dateDiff` in hours (5), is gone because the expectations were corrected (see
+  [Since 2026-09-29](#since-2026-09-29)). The skips are 10 multi-store suites, 3 whose runtime lives in an excluded
+  file, 2 multi-execution tests, and 1 suite with ExternalFormat test data. The 3 `surface::` service tests (2 with
+  parameters) are outside the runner's `stress::` filter.
+- **Results in lite, H2** (`//core:stress_suites_h2`, a fresh session per test as legend-engine runs them, enforced
+  since 2026-10-05, floor 4,676): 4,676 pass, 44 fail and the same 16 are skipped. Every DuckDB failure also fails on
+  H2. The 29 H2-only failures are 15 combination cells whose bit operations H2's dialect refuses, 9 services over
+  `core-units`' unit and conversion tables, and 5 others (`CB_C14`'s `REVERSE`, the two scoped combination
+  services, `CV4_CurveShape` and `F38_FirstDayTypes`).
 
 ## 7. Mappings
 
@@ -508,7 +584,7 @@ Property mappings also use 47 distinct dynafunctions, most of them from the comb
 
 | | Stress corpus | EMIT |
 |---|---|---|
-| M2M class mappings | 5 (`canonical::M2MMapping`, `canonical::MoneyMapping`, `surface::PureSurface`, `surface::GapPureSurface`, `sub::PM`) | 21 in 14 models |
+| M2M class mappings | 5 (`canonical::M2MMapping`, `canonical::MoneyMapping`, `surface::PureSurface`, `surface::GapPureSurface`, `sub::PM`) | 23 in 16 models |
 | M2M property mappings | 17 | |
 | Transform functions | `times`, `cast` + `newUnit` (measure), `substring` | |
 | `~filter` / explode / local property | 1 / 1 / 1, all in surface mappings no service reaches | |
@@ -523,7 +599,7 @@ nothing M2M executes, and on the engine side it is four services with simple tra
 ### Relation (`~func`)
 
 2 class mappings (7 property mappings) and 1 ModelJoin, in `58-modeljoin-store.pure`. They are reached by 2 passing
-services. EMIT has 37 relation class mappings in 21 models covering 13 relation-mapping features; the corpus touches
+services. EMIT has 56 relation class mappings in 26 models covering 13 relation-mapping features; the corpus touches
 one of them.
 
 ## 8. Stores
@@ -587,8 +663,9 @@ other stores that no user model can contain.
 3. **Milestoning with time of day.** Add a bitemporal table whose processing columns are `TIMESTAMP`, with a
    DateTime infinity date and seed rows superseded more than once within a day. Query it with DateTime
    literals and with a date passed as a service parameter (`all($asOf)`), both at the root and through a
-   milestoned property. Add a class milestoned on processing time alone, a connection that sets `timeZone`, and
-   tested `allVersions()` and `allVersionsInRange()` queries.
+   milestoned property. Add a class milestoned on processing time alone, a connection that sets `timeZone`, a
+   `TIMESTAMP` column the database holds with a zone (EMIT's new `store:relational-zoned-timestamp`), and tested
+   `allVersions()` and `allVersionsInRange()` queries.
 4. **M2M.** Add an M2M block that lite can run, with `ModelStore` or JSON test data, enumeration transforms, `^`
    instantiation, class-typed and nested set implementations, `~filter`, union and merge. Bring
    `55-canonical-store.pure` back into lite once Measure/Unit support lands.
@@ -602,25 +679,31 @@ other stores that no user model can contain.
    `startsWith`/`length`, `exists`/`forAll` over to-many properties, `if`, navigated properties. Add graph fetch
    services that check them.
 8. **Query vocabulary.** Add olap and window functions, `extend`, TDS joins, `distinct`/`take`/`drop`/`slice`,
-   `exists`, `map`, `if`, string/date/math functions inside queries, `subType()`, and the relation API.
+   `exists`, `map`, `if`, string/date/math functions inside queries, `subType()`, and the relation API, including
+   its new set operations.
 9. **Declared but unreached.** Add services for `DenseMapping` (its whole point is an invariance check against the flat
    mapping), the union, merge and inheritance operations, the literal-list mappings, and the 32 unused joins.
-10. **Store breadth.** Semi-structured navigation, and full and right outer joins. (The connection `timeZone` is in
-    item 3.)
+10. **Store breadth.** Semi-structured navigation, and full and right outer joins. (The connection `timeZone` and the
+    zoned timestamp column are in item 3.)
 11. **Test shape.** Suites with several tests, tests with several assertions, and the other assertion kinds
     (`EqualTo`, `Relation`).
 12. **Skipped suites.** Multi-store test runtimes (F-A), multi-execution binding, and ExternalFormat provisioning.
 
 ## Appendix: reproducing this
 
-The legend-engine and legend-pure releases are pinned in `MODULE.bazel` (4.145.0 and 5.99.0). The EMIT models,
-`emit.md` and the PCT sources come from local checkouts; this report used legend-engine `1d40dd7251d` and a
-legend-pure 5.105.1-SNAPSHOT. The scripts are in [`tools/`](tools/), and `tools/run.sh` runs all of them in order:
+The legend-engine and legend-pure releases are pinned in `release.MODULE.bazel` (4.145.0 and 5.99.0). The EMIT
+models, `emit.md` and the PCT sources come from local checkouts. This update used legend-engine `35930373b41`
+(2026-10-16) and legend-pure `57f94a6c1` (5.108.0 and 17 commits). The first edition used legend-engine `1d40dd7251d`
+and a legend-pure 5.105.1-SNAPSHOT (`5fed02095` reproduces its PCT count). The scripts are in [`tools/`](tools/), and
+`tools/run.sh` runs all of them in order:
 
 ```
-bazel test //core:stress_suites          # the pass list the scripts judge against
+bazel test //core:stress_suites          # the pass list the scripts judge against (gate 10, DuckDB)
 docs/stress-corpus-feature-report-2026-09-29/tools/run.sh <dir holding legend-engine/ and legend-pure/> <work dir>
 ```
+
+On Windows, run both from Git Bash with `BAZEL_SH` set to Git's `bash.exe` and `MSYS_NO_PATHCONV=1`, and set
+`PYTHON=python` where there is no `python3`.
 
 | Script | What it produces | Report sections |
 |---|---|---|

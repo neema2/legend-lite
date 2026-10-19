@@ -7,25 +7,32 @@
 #
 # Needs bazel and Python 3 (set PYTHON if it isn't python3), and a gate 10 run first for the pass list:
 #   bazel test //core:stress_suites
-# (Windows: run from Git Bash with BAZEL_SH set to Git's bash.exe and MSYS_NO_PATHCONV=1.)
+# (Windows: run from Git Bash with BAZEL_SH set to Git's bash.exe and MSYS_NO_PATHCONV=1. The paths below are then
+# spelled D:/..., because the engine runner is a Windows JVM and reads /d/... as D:\d\....)
 set -euo pipefail
 PY=${PYTHON:-python3}
 
-LEGEND=$(cd "$1" && pwd)
+# a directory's absolute path, in the form a native program on this host reads (Git Bash's pwd -W; pwd elsewhere)
+abs() { (cd "$1" && { pwd -W 2>/dev/null || pwd; }); }
+LEGEND=$(abs "$1")
 mkdir -p "$2"
-WORK=$(cd "$2" && pwd)
-HERE=$(cd "$(dirname "$0")" && pwd)
-REPO=$(cd "$HERE/../../.." && pwd)
+WORK=$(abs "$2")
+HERE=$(abs "$(dirname "$0")")
+REPO=$(abs "$HERE/../../..")
 STRESS="$REPO/core/src/test/resources/stress"
 PASS="$REPO/bazel-testlogs/core/stress_suites/test.outputs/stress-suites-pass.txt"
 [ -f "$PASS" ] || { echo "no gate 10 pass list at $PASS; run: bazel test //core:stress_suites" >&2; exit 1; }
-cp "$PASS" "$WORK/stress-suites-pass.txt"
+# -f and u+w: Bazel's test outputs are read-only, and cp gives the copy the same mode, so a second run must replace it
+cp -f "$PASS" "$WORK/stress-suites-pass.txt" && chmod u+w "$WORK/stress-suites-pass.txt"
 cd "$REPO"
 
 # 1. The corpus's protocol document: the linked projects first (dependencies before dependents,
-#    StressCorpus.LINKED_PROJECTS), each in model/store/mapping order, then every stress file.
+#    core/stress.bzl's LINKED_PROJECTS, the list StressCorpus loads), each in model/store/mapping order, then every
+#    stress file.
+linked=$(sed -n '/^LINKED_PROJECTS = \[/,/^\]/p' core/stress.bzl | grep -o '"[a-z0-9-]*"' | tr -d '"')
+[ -n "$linked" ] || { echo "no LINKED_PROJECTS list in core/stress.bzl" >&2; exit 1; }
 files=()
-for p in core-types core-tenor core-fx core-ratings core-instrument core-calendar core-units core-account core-geo fee-core index-core; do
+for p in $linked; do
   for s in model store mapping; do
     [ -f "projects/$p/$s.pure" ] && files+=("$REPO/projects/$p/$s.pure")
   done
