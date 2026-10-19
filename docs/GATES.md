@@ -11371,8 +11371,9 @@ landed.
    packages; `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test`; `//spec:corpus_duckdb`;
    `//core:cypher_parity_test` and `//core:cypher_parity_postgres_test` (the fifth landing's regression, fixed
    here); the parser, resolver, lowering, integration, architecture, ide and lineage packages; the two regenerated
-   ledgers' tests. The full local gate runs on this landing's commit, frozen, and the entry is amended with its
-   count.
+   ledgers' tests. **The full local gate** (`bazel test --keep_going --lockfile_mode=error //gates:local`, as
+   root, on commit b107757c, frozen): 374 of 383 pass, 8 fail, 1 skipped; the eight are exactly the targets that need Postgres as a non-root user (`initdb refuses root`), nothing else red. The eight that need Postgres as a non-root user, rerun under
+   `tools/postgres/as_unprivileged.sh ubuntu`: 8 of 8 pass, so the tree is green on every lane of the local gate.
 3. **What the gates taught.** The graphql-js differential paid for itself on its first run: lite's validator let
    `__schema { queryTypes { name } }` through (the answerer refused it later, at the endpoint), which graphql-js
    refuses; G1's subset rule is now checked on 260 documents, and the validator runs the answerer over the
