@@ -42,7 +42,7 @@ import java.util.Set;
  * sel)}) once, in a hidden column of an extend below it, where the projection computes it on every row anyway: on a
  * path from the column that passes no condition but a NULL guard ({@code if(isEmpty(x) or ..., |[], |body)}, whose
  * body is a marked value's NULL on NULL inputs). A marked value only a condition reaches -- an {@code if}'s branch,
- * an {@code and}'s or an {@code or}'s right side, a lambda, a {@code range}'s arguments (which Postgres evaluates
+ * what follows an {@code and}'s, an {@code or}'s or a {@code coalesce}'s first argument, a lambda, a {@code range}'s arguments (which Postgres evaluates
  * when it plans) -- stays where it is, as does one read once; every mark left is then removed. So the SQL of a
  * translation with nothing to share is what it was.
  */
@@ -189,7 +189,10 @@ final class Shares {
                 specs.add(new ColSpec(e.getValue(), new LambdaFunction(List.of(new Variable(row, null, null, null)),
                         List.of(value), null), null, null));
             }
-            src = com.legend.protocol.sql.SqlToPure.call("extend", src, new ColSpecArray(specs, null));
+            // (dropping no row: an OFFSET 0, which Postgres's planner does not pull up through, so it keeps the stage
+            // a subquery rather than writing each column's value back into every read of it)
+            src = com.legend.protocol.sql.SqlToPure.call("drop", com.legend.protocol.sql.SqlToPure.call("extend", src,
+                    new ColSpecArray(specs, null)), new CInteger(0L));
         }
         List<ColSpec> rewritten = new ArrayList<>();
         IdentityHashMap<ValueSpecification, ValueSpecification> memo = new IdentityHashMap<>();
