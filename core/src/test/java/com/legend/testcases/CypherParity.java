@@ -367,10 +367,14 @@ public final class CypherParity {
             inferred.putIfAbsent(inf.graphKey(), inf);
             byGraph.computeIfAbsent(inf.graphKey(), k -> new ArrayList<>()).add(c);
         }
+        int total = byGraph.values().stream().mapToInt(List::size).sum();
+        int done = 0;
         for (Map.Entry<String, List<Case>> e : byGraph.entrySet()) {
             CypherGraph.Inferred inf = inferred.get(e.getKey());
+            long seedStart = System.nanoTime();
             try {
                 lane.seed(inf.tables());
+                CypherTiming.seeded(e.getKey(), e.getValue().size(), System.nanoTime() - seedStart);
             } catch (Exception seeding) {
                 // the graph's tables could not be made: every case over it is an error of the harness, named (the
                 // harness's last column a dialect refused, TIMESTAMP_NS on a microsecond engine, went with W13 leg 6)
@@ -382,8 +386,15 @@ public final class CypherParity {
             }
             String model = CypherGraph.model(inf, lane.connection());
             for (Case c : e.getValue()) {
-                outcomes.put(c.key(), outcome(c, java.util.Objects.requireNonNull(answers.get(c.key())),
-                        decisions.get(c.key()), model, lane));
+                CypherTiming.startCase();
+                long wall = System.nanoTime();
+                long thread = CypherTiming.threadCpu();
+                long process = CypherTiming.processCpu();
+                SqlParity.Outcome o = outcome(c, java.util.Objects.requireNonNull(answers.get(c.key())),
+                        decisions.get(c.key()), model, lane);
+                outcomes.put(c.key(), o);
+                CypherTiming.finishCase(c.key(), e.getKey(), o.status().name(), System.nanoTime() - wall,
+                        CypherTiming.threadCpu() - thread, CypherTiming.processCpu() - process, ++done, total);
             }
         }
         return outcomes;

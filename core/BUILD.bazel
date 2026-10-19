@@ -963,6 +963,8 @@ _CYPHER_SHOWCASE_DATA = [
 
 junit_test(
     name = "cypher_parity_test",
+    # THROWAWAY (debug/cypher-parity-timing, 2026-10-19): run to the end on CI, however long it takes, to be measured
+    timeout = "eternal",
     # live peak 955 MB at 1024 (measured 2026-10-18, 5062 cases, the review's cases landed): the rule's half again;
     # at 1024 the gate's cgroup killed it beside three other tests
     memory_mb = 1536,
@@ -988,6 +990,8 @@ junit_test(
 
 junit_test(
     name = "cypher_parity_postgres_test",
+    # THROWAWAY (debug/cypher-parity-timing, 2026-10-19): run to the end on CI, however long it takes, to be measured
+    timeout = "eternal",
     # live peak 840 MB, 1021 MB before a collection, at 1024 (measured 2026-10-18, 5062 cases): the rule's half again
     memory_mb = 1280,
     # 3,900 cases, each a model compiled and a query run: measured below medium's 300 s only on a fast machine

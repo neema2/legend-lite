@@ -4,7 +4,6 @@
 package com.legend.integration;
 
 import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.CypherAnswers;
@@ -145,8 +144,8 @@ class CypherParityTest {
         List<String> problems = new ArrayList<>(CypherAnswers.guards(cases, answers, CypherParity.PINNED_SERVER));
         problems.addAll(CypherParity.decisionGuards(cases, Runfile.property("cypher.parity.decisions")));
         Map<String, SqlParity.Outcome> outcomes;
-        try (Connection session = PLATFORM.open()) {
-            QueryService service = new QueryService();
+        try (AutoCloseable timing = com.legend.testcases.CypherTiming.record("duckdb");
+                Connection session = PLATFORM.open()) {
             outcomes = CypherParity.run(cases, answers.answers(), decisions, new CypherParity.Lane() {
                 @Override
                 public String connection() {
@@ -160,7 +159,7 @@ class CypherParityTest {
 
                 @Override
                 public ExecutionResult run(String model, String island) throws Exception {
-                    return service.execute(model, island, CypherGraph.RUNTIME, session);
+                    return com.legend.testcases.CypherTiming.execute(model, island, CypherGraph.RUNTIME, session);
                 }
             });
         }

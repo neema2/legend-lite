@@ -46,9 +46,9 @@ class CypherParityPostgresTest {
         problems.addAll(CypherParity.decisionGuards(cases, Runfile.property("cypher.parity.decisions")));
         EmbeddedPostgres pg = EmbeddedPostgres.shared();
         Map<String, SqlParity.Outcome> outcomes;
-        try (Connection admin = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
+        try (AutoCloseable timing = com.legend.testcases.CypherTiming.record("postgres");
+                Connection admin = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
             ensureThisAccount(admin);
-            QueryService service = new QueryService();
             String connection = String.format(Locale.ROOT, "type: Postgres;\n    specification: Static { host:"
                     + " '127.0.0.1'; port: %d; name: 'postgres'; };\n    auth: Test;", pg.port());
             outcomes = CypherParity.run(cases, answers.answers(), decisions, new CypherParity.Lane() {
@@ -65,7 +65,7 @@ class CypherParityPostgresTest {
 
                 @Override
                 public ExecutionResult run(String model, String island) throws Exception {
-                    return service.execute(model, island, CypherGraph.RUNTIME, admin);
+                    return com.legend.testcases.CypherTiming.execute(model, island, CypherGraph.RUNTIME, admin);
                 }
             });
         }
