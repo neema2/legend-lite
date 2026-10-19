@@ -1262,7 +1262,15 @@ Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the sixth la
   198 Cypher parity cases regressed (an unmapped `...::g::AAggregate` with "0 mappings"; `DurationAvg.months:
   Float` beside `Duration.months: Integer`). The study's own rule (§5.8: synthetic, hidden from listings,
   callable from Pure) is code now: `ModelContext.isSynthetic(fqn)`, read by the Cypher labels, the edge classes
-  and the GraphQL scope; `CypherParityTest` is green again on DuckDB and on Postgres.
+  and the GraphQL scope; `CypherParityTest` is green again on DuckDB and on Postgres. **The audit after it** (the
+  user's ask): every reader of the compiled model's element index was walked. Four list classes and read the
+  predicate now (the Cypher labels, the untyped relationship's ends read associations only, the graph's edge
+  classes, the GraphQL scope, the lineage scan's short-name resolution: a user's `demo::PersonAggregate` is no
+  longer ambiguous against the companion's); the others read the element index for a name lookup, not a listing
+  (the inliner's ancestors, generic-type reflection, the package index). Every app listing reads the PARSED model
+  (the diagram service, the Query app's explorer over `grammarToJson/model`, DataCube's model changes), which
+  carries no companion; the browser planner and the Python client list no classes. `SyntheticClassesTest` pins
+  the rule on each listing.
 - **Measured.** `GraphqlApiTest` +1 (explain), `GraphqlMcpTest` 5, `GqlEvaluationTest` 3 (the forty references
   on DuckDB, the judge marking a wrong and a missing answer wrong), `GqlValidityTest` 2: 87 GraphQL tests in
   all. Green: the server, root, compiler, protocol and normalizer packages; `//core:guardrails`, `//core:census`,
