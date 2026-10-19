@@ -50,6 +50,15 @@ final class DecimalKindRules {
                             == Type.Primitive.INTEGER
                     && n.args().get(1).info().type()
                             == Type.Primitive.INTEGER) {
+                if (args.get(1) instanceof SqlExpr.IntLit lit
+                        && lit.value() != 0) {
+                    // a literal divisor that is not zero: no guard to
+                    // raise, as rem's (2026-10-19: the Cypher island's
+                    // temporal parts divide by literal units, and the
+                    // dead guards were 85,531 of the 91,642 CASEs of
+                    // lite/temporal/nanos_arithmetic's SQL)
+                    return new SqlExpr.Call(SqlFn.DIVIDE, args);
+                }
                 return Scalars.guarded(
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1),
                                 new SqlExpr.IntLit(0)),
