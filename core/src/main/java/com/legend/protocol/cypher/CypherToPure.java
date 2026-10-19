@@ -563,6 +563,20 @@ public final class CypherToPure {
         };
     }
 
+    /** Whether the properties {@code chain} from the class at {@code classPath} read one value of no class: each
+     *  step to-one ({@link Shares.Paths}). */
+    private boolean scalarPath(String classPath, List<String> chain) {
+        String at = classPath;
+        for (int i = 0; i < chain.size(); i++) {
+            Property p = property(at, chain.get(i));
+            if (p == null || p.upper() != 1 || p.classTyped() != (i < chain.size() - 1)) {
+                return false;
+            }
+            at = p.type();
+        }
+        return true;
+    }
+
     private @com.legend.base.Nullable Property property(String classPath, String name) {
         Property[] found = new Property[1];
         model.property(classPath, name, (n, type, classTyped, enumTyped, lower, upper) ->
@@ -790,7 +804,7 @@ public final class CypherToPure {
     public static ValueSpecification translate(CypherAst.Statement statement, Model model) {
         CypherToPure t = new CypherToPure(model);
         t.leading = leadingUse(statement);
-        return Shares.bind(t.statement(statement));
+        return Shares.bind(t.statement(statement), t::scalarPath);
     }
 
     /** The refusal of a {@code USE} naming no DataSpace of the model (the seam's, at the clause's place). */
