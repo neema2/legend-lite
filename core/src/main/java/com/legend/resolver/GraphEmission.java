@@ -18,7 +18,11 @@ import com.legend.compiler.spec.typed.TypedNavigate;
 import com.legend.compiler.spec.typed.TypedNewInstance;
 import com.legend.compiler.spec.typed.TypedNewInstanceCast;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedDrop;
+import com.legend.compiler.spec.typed.TypedLimit;
 import com.legend.compiler.spec.typed.TypedSerializeGraph;
+import com.legend.compiler.spec.typed.TypedSlice;
+import com.legend.compiler.spec.typed.TypedSortBy;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.MappingResolutionException;
@@ -1504,6 +1508,27 @@ final class GraphEmission {
         }
         TypedSpec hop = unwrapToOneFirst(inlineDerivedCalls(
                 substVars(cf.body().get(0), argBinds), 0));
+        // ORDERING TAIL (GraphQL PR2, docs/GRAPHQL_STUDY_2026_10_18.md §6.2):
+        // a derived to-many body may end in sortBy/sortByReversed/sort,
+        // take/limit, drop, slice over its navigation head — the companion
+        // model's composed clauses are exactly these. Peeled here
+        // (outermost first), re-applied over the child relation below.
+        List<TypedSpec> tail = new ArrayList<>();
+        while (true) {
+            TypedSortBy asSort = ClassSorts.classSortOf(hop);
+            TypedSpec next = switch (hop) {
+                case TypedLimit l -> l.source();
+                case TypedDrop dr -> dr.source();
+                case TypedSlice sl -> sl.source();
+                case TypedSortBy sb -> sb.source();
+                default -> asSort == null ? null : asSort.source();
+            };
+            if (next == null) {
+                break;
+            }
+            tail.add(asSort != null ? asSort : hop);
+            hop = unwrapToOneFirst(next);
+        }
         // CHAINED two-hop body ($this.h1[->filter(p)].h2->toOne() — the
         // qualifier-inside-qualifier shape after nested-call inlining)
         if (hop instanceof TypedPropertyAccess hp2
@@ -1563,6 +1588,33 @@ final class GraphEmission {
                                             .Multiplicity.Bounded.ONE)),
                     childRel.info(), TypedFilter.Stamp.NONE /* child correlation; equality kind is push 10 */);
             extraParams.add(extraPred.parameters().get(0));
+        }
+        // the ordering tail, innermost first, each key substituted through
+        // the TARGET's bindings like the filter predicate above
+        for (int i = tail.size() - 1; i >= 0; i--) {
+            TypedSpec op = tail.get(i);
+            childRel = switch (op) {
+                case TypedSortBy sb -> {
+                    String kp = sb.key().parameters().get(0);
+                    TypedSpec kb = inlineThis(sb.key().body().get(0), kp, Map.of(),
+                            target.bindings(), target.classFqn(), node.property());
+                    extraParams.add(kp);
+                    var keyFn = new Type.FunctionType(
+                            List.of(new Type.Param(hr.targetRow(),
+                                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                            new Type.Param(sb.key().functionType().result().type(),
+                                    sb.key().functionType().result().multiplicity()));
+                    yield new TypedSortBy(childRel,
+                            new TypedLambda(List.of(target.rowVar()), List.of(kb),
+                                    new ExprType(keyFn,
+                                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                            sb.ascending(), childRel.info());
+                }
+                case TypedLimit l -> new TypedLimit(childRel, l.count(), childRel.info());
+                case TypedDrop dr -> new TypedDrop(childRel, dr.count(), childRel.info());
+                case TypedSlice sl -> new TypedSlice(childRel, sl.start(), sl.stop(), childRel.info());
+                default -> throw new IllegalStateException("peeled tail op " + op.getClass().getSimpleName());
+            };
         }
         boolean toMany = !(d.multiplicity()
                 instanceof com.legend.compiler.element.type

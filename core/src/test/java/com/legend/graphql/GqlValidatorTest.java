@@ -3,7 +3,7 @@
 
 package com.legend.graphql;
 
-import com.legend.compiler.graphql.GqlSchema;
+import com.legend.protocol.graphql.GqlSchema;
 import com.legend.compiler.graphql.GqlSchemaException;
 import com.legend.compiler.graphql.GqlValidator;
 import com.legend.compiler.graphql.SchemaGenerator;
@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.legend.compiler.graphql.GqlSchema.Schema;
+import com.legend.protocol.graphql.GqlSchema.Schema;
 import com.legend.compiler.graphql.GqlValidator.Limits;
 import com.legend.compiler.graphql.GqlValidator.Problem;
 import com.legend.compiler.graphql.GqlValidator.Validation;

@@ -1540,6 +1540,14 @@ final class ArchitectureTest {
             for (com.tngtech.archunit.core.domain.JavaConstructorCall call
                     : c.getConstructorCallsFromSelf()) {
                 String target = call.getTargetOwner().getPackageName();
+                // GraphQL PR2, 2026-10-18 (docs/GRAPHQL_STUDY_2026_10_18.md §6): protocol/graphql holds the
+                // generated schema's records (GqlSchema), data the generator computes from the model for the
+                // translator to read -- not program nodes; the translator itself (GqlToPure) lives there and
+                // builds the program, as CypherToPure does. The generator's constructions of those records are
+                // not desugaring debt.
+                if (target.equals("com.legend.protocol.graphql")) {
+                    continue;
+                }
                 if (target.equals("com.legend.protocol") || target.startsWith("com.legend.protocol.")) {
                     n++;
                 }

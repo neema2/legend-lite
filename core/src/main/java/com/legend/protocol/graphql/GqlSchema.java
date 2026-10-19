@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.compiler.graphql;
+package com.legend.protocol.graphql;
 
 import com.legend.protocol.spec.Gql;
 

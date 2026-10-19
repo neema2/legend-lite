@@ -3,12 +3,13 @@
 
 package com.legend.compiler.graphql;
 
-import com.legend.compiler.graphql.GqlSchema.Composite;
-import com.legend.compiler.graphql.GqlSchema.EnumType;
-import com.legend.compiler.graphql.GqlSchema.InputObjectType;
-import com.legend.compiler.graphql.GqlSchema.ScalarType;
-import com.legend.compiler.graphql.GqlSchema.Schema;
-import com.legend.compiler.graphql.GqlSchema.TypeDef;
+import com.legend.protocol.graphql.GqlSchema;
+import com.legend.protocol.graphql.GqlSchema.Composite;
+import com.legend.protocol.graphql.GqlSchema.EnumType;
+import com.legend.protocol.graphql.GqlSchema.InputObjectType;
+import com.legend.protocol.graphql.GqlSchema.ScalarType;
+import com.legend.protocol.graphql.GqlSchema.Schema;
+import com.legend.protocol.graphql.GqlSchema.TypeDef;
 import com.legend.protocol.spec.Gql;
 
 import java.util.ArrayList;

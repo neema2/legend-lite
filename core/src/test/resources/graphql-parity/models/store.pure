@@ -1,0 +1,114 @@
+###Pure
+Class {doc.doc = 'A person the firm knows of.'} demo::Person
+{
+  firstName: String[1];
+  lastName: String[1];
+  age: Integer[1];
+  salary: Float[0..1];
+  fullName() { $this.firstName + ' ' + $this.lastName }: String[1];
+}
+
+Class demo::Firm
+{
+  legalName: String[1];
+  founded: StrictDate[1];
+  top3() { $this.employees->sortByReversed(e|$e.salary)->take(3) }: demo::Person[*];
+  paged() { $this.employees->sortBy(e|$e.firstName)->drop(1)->take(2) }: demo::Person[*];
+  seniors() { $this.employees->filter(e|$e.age > 40) }: demo::Person[*];
+}
+
+Class demo::Address
+{
+  city: String[1];
+  country: demo::Country[1];
+}
+
+Enum demo::Country
+{
+  UK, US, JP
+}
+
+Association demo::Employment
+{
+  firm: demo::Firm[0..1];
+  employees: demo::Person[*];
+}
+
+Association demo::Residence
+{
+  address: demo::Address[0..1];
+  residents: demo::Person[*];
+}
+
+###Relational
+Database demo::Db
+(
+  Table T_PERSON (ID INTEGER PRIMARY KEY, FIRST_NAME VARCHAR(100), LAST_NAME VARCHAR(100), AGE INTEGER,
+                  SALARY DOUBLE, FIRM_ID INTEGER, ADDRESS_ID INTEGER)
+  Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100), FOUNDED DATE)
+  Table T_ADDRESS (ID INTEGER PRIMARY KEY, CITY VARCHAR(100), COUNTRY VARCHAR(10))
+  Join PersonFirm (T_PERSON.FIRM_ID = T_FIRM.ID)
+  Join PersonAddress (T_PERSON.ADDRESS_ID = T_ADDRESS.ID)
+)
+
+###Mapping
+Mapping demo::Map
+(
+  demo::Person: Relational
+  {
+    ~mainTable [demo::Db] T_PERSON
+    firstName: [demo::Db] T_PERSON.FIRST_NAME,
+    lastName: [demo::Db] T_PERSON.LAST_NAME,
+    age: [demo::Db] T_PERSON.AGE,
+    salary: [demo::Db] T_PERSON.SALARY
+  }
+  demo::Firm: Relational
+  {
+    ~mainTable [demo::Db] T_FIRM
+    legalName: [demo::Db] T_FIRM.LEGAL_NAME,
+    founded: [demo::Db] T_FIRM.FOUNDED
+  }
+  demo::Address: Relational
+  {
+    ~mainTable [demo::Db] T_ADDRESS
+    city: [demo::Db] T_ADDRESS.CITY,
+    country: EnumerationMapping CountryMap: [demo::Db] T_ADDRESS.COUNTRY
+  }
+  demo::Employment: Relational
+  {
+    AssociationMapping
+    (
+      firm: [demo::Db] @PersonFirm,
+      employees: [demo::Db] @PersonFirm
+    )
+  }
+  demo::Residence: Relational
+  {
+    AssociationMapping
+    (
+      address: [demo::Db] @PersonAddress,
+      residents: [demo::Db] @PersonAddress
+    )
+  }
+  demo::Country: EnumerationMapping CountryMap
+  {
+    UK: 'UK',
+    US: 'US',
+    JP: 'JP'
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+
+###Runtime
+Runtime demo::Runtime
+{
+  mappings: [ demo::Map ];
+  connections: [ demo::Db: [ environment: demo::Conn ] ];
+}

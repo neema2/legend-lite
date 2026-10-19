@@ -114,6 +114,9 @@ class CodeShapeGuardrailTest {
             // parser-cursor family, scoped to one parse), and CypherToPure's fresh-name counter, scoped to one
             // translation (the SqlToPure.fresh shape)
             "CypherLexer.at", "CypherLexer.line", "CypherLexer.column", "CypherParser.at", "CypherToPure.fresh",
+            // GraphQL PR2, 2026-10-18 (docs/GRAPHQL_STUDY_2026_10_18.md §6): GqlToPure's fresh-name counter, scoped
+            // to one translation (the SqlToPure.fresh shape)
+            "GqlToPure.fresh",
             // Cypher island PR2, 2026-10-15 (docs/CYPHER_STUDY_2026_10_15.md §12.5.1): CypherToPure's depth of the
             // lambdas the database computes (a comprehension's or predicate's over a collection), raised and lowered
             // around their reading, scoped to one translation (the fresh-name counter's lifecycle)

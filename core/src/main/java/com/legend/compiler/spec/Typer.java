@@ -185,7 +185,7 @@ final class Typer {
             // #GQL{...}#: validated against the schema generated for the model (GqlIslands,
             // docs/GRAPHQL_STUDY_2026_10_18.md §8.3); typed and executed by the line's PR2
             case com.legend.protocol.spec.GqlIsland gi ->
-                    throw com.legend.compiler.graphql.GqlIslands.refusal(gi, ctx);
+                    synth(com.legend.compiler.graphql.GqlIslands.desugar(gi, ctx), env);
             case CInteger lit -> new TypedCInteger(lit.value(), ExprType.one(Type.Primitive.INTEGER));
             case CString lit -> new TypedCString(lit.value(), ExprType.one(Type.Primitive.STRING));
             case CBoolean lit -> new TypedCBoolean(lit.value(), ExprType.one(Type.Primitive.BOOLEAN));

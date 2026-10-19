@@ -164,7 +164,13 @@ final class Sorts {
      */
     static SqlSelect sortBy(Lowerer lw, TypedSortBy sb) {
         SqlSelect src = lw.relation(sb.source());
-        SqlSelect base = Fold.sortFolds(src) ? src : lw.isolate(src);
+        // A sortBy over a SORTED, unlimited select COMPOSES onto it (GraphQL G16, 2026-10-18,
+        // docs/GRAPHQL_STUDY_2026_10_18.md §6.2): the new key first, the source's keys after it as
+        // tie-breakers — Pure's sort is stable, so sortBy(age)->sortBy(name) is ORDER BY name, age.
+        // The keys stay in one select, so a key EXPRESSION (which has no output name to re-address
+        // through an isolation) is carried as it is.
+        boolean onto = !src.orderBy().isEmpty() && src.limit() == null && src.offset() == null;
+        SqlSelect base = onto || Fold.sortFolds(src) ? src : lw.isolate(src);
         // One isolate retry on an unfoldable key ref (a computed projection
         // column): behind the subselect it is a plain output column.
         SqlSelect fin1 = base;
@@ -173,14 +179,26 @@ final class Sorts {
                 instanceof Resolution.Resolved r) {
             // TDS/collection sortBy = the engine-drop-in surface: NO null
             // placement (backend default), per the corpus expected values
-            return base.withOrderBy(List.of(
-                    new SqlSelect.SortKey(r.expr(), sb.ascending(), null, null)));
+            SqlSelect.SortKey fresh = new SqlSelect.SortKey(r.expr(), sb.ascending(), null, null);
+            return base.withOrderBy(onto ? composed(fresh, src.orderBy()) : List.of(fresh));
         }
         SqlSelect iso = lw.isolate(base);
         SqlExpr key = lw.scalar(LambdaBinding.last(sb.key()),
                 (v, name) -> lw.resolveOrThrow(iso, name));
         return iso.withOrderBy(List.of(
                 new SqlSelect.SortKey(key, sb.ascending(), null, null)));
+    }
+
+    /** The new key, then the sorted source's keys as tie-breakers, a key the new one re-sorts dropped. */
+    private static List<SqlSelect.SortKey> composed(SqlSelect.SortKey fresh, List<SqlSelect.SortKey> existing) {
+        List<SqlSelect.SortKey> out = new ArrayList<>();
+        out.add(fresh);
+        for (SqlSelect.SortKey k : existing) {
+            if (!k.expr().equals(fresh.expr())) {
+                out.add(k);
+            }
+        }
+        return out;
     }
 
     private static SqlSelect sortOnto(SqlSelect base, TypedSort s, SqlSelect src) {

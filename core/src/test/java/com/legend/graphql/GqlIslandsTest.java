@@ -3,7 +3,7 @@
 
 package com.legend.graphql;
 
-import com.legend.compiler.graphql.GqlSchema;
+import com.legend.protocol.graphql.GqlSchema;
 import com.legend.compiler.graphql.GqlSchemaException;
 import com.legend.compiler.graphql.GqlValidator;
 import com.legend.compiler.graphql.SchemaGenerator;
@@ -22,8 +22,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * The island inside Pure (docs/GRAPHQL_STUDY_2026_10_18.md §8.3): a {@code #GQL{...}#} body is validated against
- * the model's schema by the Typer's arm. In this landing a valid island is refused by name with its shape (its
- * execution is PR2's); an invalid one is the compile error its problems spell, every problem listed.
+ * the model's schema by the Typer's arm and typed as the Pure query it means (PR2); an invalid one is the compile
+ * error its problems spell, every problem listed; a construct a later landing builds is refused by its name.
  */
 class GqlIslandsTest {
 
@@ -39,12 +39,25 @@ class GqlIslandsTest {
     }
 
     @Test
-    void aValidIslandIsRefusedByNameWithItsShape() {
-        Map<String, String> walls = walls("{ Person(orderBy: [{ lastName: ASC }]) { fullName ... on EmployeeInterface { salary } } }");
+    void aValidIslandCompilesAsTheQueryItMeans() {
+        Map<String, String> walls = walls("{ Person(orderBy: [{ lastName: ASC }], limit: 2) { fullName age } }");
+        assertTrue(walls.isEmpty(), "the island is the Pure query it means, typed once: " + walls);
+    }
+
+    @Test
+    void aValidIslandOnAConstructNotBuiltYetIsRefusedByName() {
+        Map<String, String> walls = walls("{ Person { fullName ... on EmployeeInterface { salary } } }");
         String wall = walls.values().stream().findFirst().orElse(null);
-        assertNotNull(wall, "the island is walled, not executed: " + walls);
-        assertTrue(wall.contains("validates against the model's schema"), wall);
-        assertTrue(wall.contains("{ Person: [{ fullName: String!, salary: Float! @EmployeeInterface }] }"), wall);
+        assertNotNull(wall, "a subtype fragment is PR3's: " + walls);
+        assertTrue(wall.contains("PR3"), wall);
+    }
+
+    @Test
+    void anIslandSelectsOneRoot() {
+        Map<String, String> walls = walls("{ Person { fullName } Firm { legalName } }");
+        String wall = walls.values().stream().findFirst().orElse(null);
+        assertNotNull(wall);
+        assertTrue(wall.contains("selects 2 root fields"), wall);
     }
 
     @Test

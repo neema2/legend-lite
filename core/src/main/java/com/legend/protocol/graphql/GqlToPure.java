@@ -1,0 +1,873 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.protocol.graphql;
+
+import com.legend.protocol.graphql.GqlSchema.Composite;
+import com.legend.protocol.graphql.GqlSchema.EnumType;
+import com.legend.protocol.graphql.GqlSchema.FieldDef;
+import com.legend.protocol.graphql.GqlSchema.InputObjectType;
+import com.legend.protocol.graphql.GqlSchema.InputValueDef;
+import com.legend.protocol.graphql.GqlSchema.Meaning;
+import com.legend.protocol.graphql.GqlSchema.Schema;
+import com.legend.protocol.graphql.GqlSchema.TypeDef;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CBoolean;
+import com.legend.protocol.spec.CDate;
+import com.legend.protocol.spec.CDecimal;
+import com.legend.protocol.spec.CFloat;
+import com.legend.protocol.spec.CInteger;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.CTime;
+import com.legend.protocol.spec.EnumValue;
+import com.legend.protocol.spec.Gql;
+import com.legend.protocol.spec.Gql.Argument;
+import com.legend.protocol.spec.Gql.Field;
+import com.legend.protocol.spec.Gql.Selection;
+import com.legend.protocol.spec.Gql.Value;
+import com.legend.protocol.spec.GraphFetchLiteral;
+import com.legend.protocol.spec.GraphFetchLiteral.Node;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.PackageableElementPtr;
+import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
+import com.legend.values.PureDateLiteral;
+import com.legend.values.PureTimeLiteral;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+/**
+ * GraphQL to Pure (docs/GRAPHQL_STUDY_2026_10_18.md §6): a validated document over the schema generated from the
+ * class model, as the Pure expression a person would write, one per root field, typed once by the Typer through
+ * {@code compiler/graphql/GqlIslands} or run by the endpoint. Every construct is a Pure spelling the database runs
+ * (§6.1): a root is {@code Class.all()} with its clauses chained ({@code filter}, one {@code sortBy} or
+ * {@code sortByReversed} per key, the last-applied sort the primary key, {@code drop}, {@code limit}), fetched and
+ * serialized by the tree the selection spells; a condition is the Pure comparison its Prisma name means; a
+ * {@code some} is {@code exists}; {@code every} and {@code none} are {@code exists} negated; {@code mode:
+ * insensitive} lowers both sides. Java computes no value.
+ *
+ * <p>What this landing (PR2) spells: selections with aliases, arguments of derived properties, to-one and to-many
+ * nodes, named and inline fragments on the selection's own type, {@code @include} and {@code @skip}, variables
+ * with a value (substituted) or without one (the enclosing Pure scope's {@code $name}), the root clauses. Named by
+ * the landing that builds them, and refused until then: a clause on a nested collection (the composed body,
+ * PR2c), subtype fragments and {@code __typename} (PR3), aggregates (PR4), groups (PR5).
+ */
+public final class GqlToPure {
+
+    /** One root field translated: its response key (the alias, else the name) and its Pure expression. */
+    public record Root(String key, ValueSpecification expression) {
+    }
+
+    /** The operation translated: its roots in document order. */
+    public record Translation(List<Root> roots, Gql.Operation operation) {
+        public Translation {
+            roots = List.copyOf(roots);
+        }
+    }
+
+    private static final String WHERE = "where";
+    private static final String ORDER_BY = "orderBy";
+    private static final String LIMIT = "limit";
+    private static final String OFFSET = "offset";
+    private static final java.util.Set<String> CLAUSES = java.util.Set.of(WHERE, ORDER_BY, LIMIT, OFFSET);
+
+    private final Schema schema;
+    private final Map<String, Gql.Fragment> fragments = new TreeMap<>();
+    /** A declared variable's value: the one given, else its default; absent when it is the enclosing scope's. */
+    private final Map<String, Value> values = new TreeMap<>();
+    private final java.util.Set<String> declared = new TreeSet<>();
+    private int fresh;
+
+    private GqlToPure(Schema schema) {
+        this.schema = schema;
+    }
+
+    /**
+     * Translates the operation {@code operationName} names (the document's only one when null) over
+     * {@code schema}, with {@code variableValues} the values given for its variables (a value is the GraphQL value
+     * the caller read; an enumeration or a date may arrive as a string). A declared variable without a value and
+     * without a default is the enclosing Pure scope's variable of that name, read where a Pure value can stand.
+     */
+    public static Translation translate(Gql.Document document, Schema schema,
+            @com.legend.base.Nullable String operationName, Map<String, Value> variableValues) {
+        GqlToPure t = new GqlToPure(schema);
+        Gql.Operation op = t.operation(document, operationName);
+        for (Gql.Definition d : document.definitions()) {
+            if (d instanceof Gql.Fragment f) {
+                t.fragments.put(f.name(), f);
+            }
+        }
+        for (Gql.VariableDef v : op.variables()) {
+            String name = v.dollarName().startsWith("$") ? v.dollarName().substring(1) : v.dollarName();
+            Value given = variableValues.get(name);
+            if (given != null) {
+                t.values.put(name, given);
+            } else if (v.defaultValue() != null) {
+                t.values.put(name, v.defaultValue());
+            } else {
+                t.declared.add(name);
+            }
+        }
+        List<Root> roots = new ArrayList<>();
+        for (Field f : t.flatten(op.selectionSet(), schema.query(), "")) {
+            String key = key(f);
+            roots.add(new Root(key, t.root(f, key)));
+        }
+        if (roots.isEmpty()) {
+            throw GqlTranslationException.invalid("", "the operation selects nothing");
+        }
+        return new Translation(roots, op);
+    }
+
+    private Gql.Operation operation(Gql.Document document, @com.legend.base.Nullable String operationName) {
+        List<Gql.Operation> ops = new ArrayList<>();
+        for (Gql.Definition d : document.definitions()) {
+            if (d instanceof Gql.Operation o) {
+                ops.add(o);
+            }
+        }
+        Gql.Operation op = null;
+        if (operationName == null) {
+            if (ops.size() != 1) {
+                throw GqlTranslationException.invalid("", ops.isEmpty() ? "the document has no operation"
+                        : "the document has " + ops.size() + " operations: name the one to run (operationName)");
+            }
+            op = ops.get(0);
+        } else {
+            for (Gql.Operation o : ops) {
+                if (operationName.equals(o.name())) {
+                    op = o;
+                }
+            }
+            if (op == null) {
+                throw GqlTranslationException.invalid("", "the document has no operation named " + operationName);
+            }
+        }
+        if (op.type() != null && !op.type().equals("query")) {
+            throw GqlTranslationException.unsupported("", "a " + op.type() + " is not a query: this line reads"
+                    + " (docs/GRAPHQL_STUDY_2026_10_18.md §2.3)");
+        }
+        return op;
+    }
+
+    // ---- selections ----
+
+    /**
+     * The fields of a selection set on {@code type}, in document order, fragments inlined, {@code @include} and
+     * {@code @skip} applied, fields with one response key merged (their selections concatenated, as the
+     * specification's field merging has it; the validator checked they agree).
+     */
+    private List<Field> flatten(List<Selection> selections, Composite type, String path) {
+        Map<String, Field> byKey = new LinkedHashMap<>();
+        collect(selections, type, path, byKey);
+        return new ArrayList<>(byKey.values());
+    }
+
+    private void collect(List<Selection> selections, Composite type, String path, Map<String, Field> byKey) {
+        for (Selection s : selections) {
+            switch (s) {
+                case Field f -> {
+                    if (included(f.directives(), path)) {
+                        merge(byKey, f);
+                    }
+                }
+                case Gql.FragmentSpread fs -> {
+                    if (!included(fs.directives(), path)) {
+                        continue;
+                    }
+                    Gql.Fragment fr = fragments.get(fs.name());
+                    if (fr == null) {
+                        throw GqlTranslationException.invalid(path, "no fragment named " + fs.name());
+                    }
+                    collect(onType(fr.typeCondition(), fr.selectionSet(), type, path), type, path, byKey);
+                }
+                case Gql.InlineFragment inl -> {
+                    if (!included(inl.directives(), path)) {
+                        continue;
+                    }
+                    collect(inl.typeCondition() == null ? inl.selectionSet()
+                            : onType(inl.typeCondition(), inl.selectionSet(), type, path), type, path, byKey);
+                }
+            }
+        }
+    }
+
+    /** A fragment's selections when its type condition is the selection's own type or one it implements; a
+     *  subtype's selection is PR3's. */
+    private List<Selection> onType(String condition, List<Selection> selections, Composite type, String path) {
+        if (condition.equals(type.name()) || type.implementsList().contains(condition)) {
+            return selections;
+        }
+        throw GqlTranslationException.unsupported(path, "a fragment on " + condition + " inside a selection on "
+                + type.name() + " selects by subtype: it lands with the inheritance landing (PR3,"
+                + " docs/GRAPHQL_STUDY_2026_10_18.md §10)");
+    }
+
+    /** The response key: the alias (the parser keeps the colon inside it, as the engine's wire has it), else
+     *  the name. */
+    static String key(Field f) {
+        String alias = f.alias();
+        if (alias == null) {
+            return f.name();
+        }
+        return alias.endsWith(":") ? alias.substring(0, alias.length() - 1) : alias;
+    }
+
+    private static void merge(Map<String, Field> byKey, Field f) {
+        String key = key(f);
+        Field seen = byKey.get(key);
+        if (seen == null) {
+            byKey.put(key, f);
+            return;
+        }
+        List<Selection> merged = new ArrayList<>(seen.selectionSet());
+        merged.addAll(f.selectionSet());
+        byKey.put(key, new Field(seen.alias(), seen.name(), seen.arguments(), List.of(), merged));
+    }
+
+    /** {@code @include(if:)} and {@code @skip(if:)}, decided before typing (§6.1): the shape is per value. */
+    private boolean included(List<Gql.Directive> directives, String path) {
+        boolean in = true;
+        for (Gql.Directive d : directives) {
+            boolean include = d.name().equals("include");
+            boolean skip = d.name().equals("skip");
+            if (!include && !skip) {
+                continue;
+            }
+            Value v = null;
+            for (Argument a : d.arguments()) {
+                if (a.name().equals("if")) {
+                    v = resolve(a.value(), path + "@" + d.name());
+                }
+            }
+            if (!(v instanceof Gql.BooleanValue b)) {
+                throw GqlTranslationException.invalid(path, "@" + d.name() + " takes if: Boolean");
+            }
+            in &= include == b.value();
+        }
+        return in;
+    }
+
+    // ---- values ----
+
+    /** A value with its variable substituted: the variable's value, or a refusal where a value is needed to shape
+     *  the query (a variable the enclosing scope provides can stand only where a Pure value can). */
+    private Value resolve(Value v, String path) {
+        if (!(v instanceof Gql.VariableRef ref)) {
+            return v;
+        }
+        Value given = values.get(ref.name());
+        if (given != null) {
+            return given;
+        }
+        if (declared.contains(ref.name())) {
+            throw GqlTranslationException.invalid(path, "the shape of the query depends on $" + ref.name()
+                    + ", which has no value: give it one, or put it where a value stands (a comparison, a limit)");
+        }
+        throw GqlTranslationException.invalid(path, "$" + ref.name() + " is not declared by the operation");
+    }
+
+    /** A value with a provided variable's value substituted; a variable the enclosing scope provides stays the
+     *  reference it is, for a position where a Pure value stands ({@link #literal}). */
+    private Value peek(Value v, String path) {
+        if (v instanceof Gql.VariableRef ref && !values.containsKey(ref.name())) {
+            if (declared.contains(ref.name())) {
+                return v;
+            }
+            throw GqlTranslationException.invalid(path, "$" + ref.name() + " is not declared by the operation");
+        }
+        return resolve(v, path);
+    }
+
+    /** A value standing for a Pure value of {@code typeName} (a scalar or an enumeration of the schema). */
+    private ValueSpecification literal(Value v, String typeName, String path) {
+        if (v instanceof Gql.VariableRef ref) {
+            Value given = values.get(ref.name());
+            if (given != null) {
+                return literal(given, typeName, path);
+            }
+            if (declared.contains(ref.name())) {
+                return new Variable(ref.name());
+            }
+            throw GqlTranslationException.invalid(path, "$" + ref.name() + " is not declared by the operation");
+        }
+        TypeDef td = schema.find(typeName);
+        if (td instanceof EnumType e) {
+            String name = switch (v) {
+                case Gql.EnumValue ev -> ev.value();
+                case Gql.StringValue sv -> sv.value();   // a variable's value arrives as JSON text
+                default -> throw GqlTranslationException.invalid(path, typeName + " takes one of " + e.values());
+            };
+            if (!e.values().contains(name)) {
+                throw GqlTranslationException.invalid(path, typeName + " has no value " + name);
+            }
+            if (e.pureFqn() == null) {
+                throw GqlTranslationException.invalid(path, typeName + " is not a value a query compares");
+            }
+            return new EnumValue(e.pureFqn(), name, null, null);
+        }
+        return switch (v) {
+            case Gql.NullValue n -> new PureCollection(List.of());
+            case Gql.ListValue l -> {
+                List<ValueSpecification> items = new ArrayList<>();
+                for (Value item : l.values()) {
+                    items.add(literal(item, typeName, path));
+                }
+                yield new PureCollection(items);
+            }
+            case Gql.IntValue i -> switch (typeName) {
+                case "Float" -> new CFloat((double) i.value());
+                case "Decimal" -> new CDecimal(BigDecimal.valueOf(i.value()));
+                default -> new CInteger(i.value(), null);
+            };
+            case Gql.FloatValue f -> "Decimal".equals(typeName) ? new CDecimal(BigDecimal.valueOf(f.value()))
+                    : new CFloat(f.value());
+            case Gql.BooleanValue b -> new CBoolean(b.value(), null);
+            case Gql.StringValue s -> switch (typeName) {
+                case "Date", "DateTime" -> {
+                    try {
+                        yield new CDate(PureDateLiteral.parse(s.value()));
+                    } catch (IllegalArgumentException e) {
+                        throw GqlTranslationException.invalid(path, "not a " + typeName + ": " + s.value());
+                    }
+                }
+                case "Time" -> {
+                    try {
+                        yield new CTime(PureTimeLiteral.parse(s.value()));
+                    } catch (IllegalArgumentException e) {
+                        throw GqlTranslationException.invalid(path, "not a Time: " + s.value());
+                    }
+                }
+                case "Decimal" -> {
+                    try {
+                        yield new CDecimal(new BigDecimal(s.value()));
+                    } catch (NumberFormatException e) {
+                        throw GqlTranslationException.invalid(path, "not a Decimal: " + s.value());
+                    }
+                }
+                case "BigInt", "Int" -> {
+                    try {
+                        yield new CInteger(Long.parseLong(s.value()), null);
+                    } catch (NumberFormatException e) {
+                        throw GqlTranslationException.invalid(path, "not a " + typeName + ": " + s.value());
+                    }
+                }
+                default -> new CString(s.value());
+            };
+            case Gql.EnumValue e -> throw GqlTranslationException.invalid(path, typeName + " is not an enumeration");
+            case Gql.ObjectValue o -> throw GqlTranslationException.invalid(path, typeName + " is not an object");
+            case Gql.VariableRef r -> throw new IllegalStateException("resolved above");
+        };
+    }
+
+    private Gql.@com.legend.base.Nullable ObjectValue object(Value v, String path) {
+        Value r = resolve(v, path);
+        return switch (r) {
+            case Gql.NullValue n -> null;
+            case Gql.ObjectValue o -> o;
+            default -> throw GqlTranslationException.invalid(path, "an object is expected here");
+        };
+    }
+
+    private static @com.legend.base.Nullable Value argument(List<Argument> args, String name) {
+        for (Argument a : args) {
+            if (a.name().equals(name)) {
+                return a.value();
+            }
+        }
+        return null;
+    }
+
+    // ---- roots ----
+
+    private ValueSpecification root(Field f, String path) {
+        FieldDef fd = schema.query().field(f.name());
+        if (fd == null) {
+            throw GqlTranslationException.unsupported(path, "the root field " + f.name() + " ("
+                    + (f.name().startsWith("__") ? "introspection" : "unknown") + ") is not a query over the model");
+        }
+        return switch (fd.meaning()) {
+            case Meaning.Root r -> {
+                Composite type = composite(fd);
+                ValueSpecification vs = call("getAll", new PackageableElementPtr(r.classFqn()));
+                vs = clauses(vs, f.arguments(), type, path);
+                GraphFetchLiteral tree = new GraphFetchLiteral(r.classFqn(),
+                        nodes(f.selectionSet(), type, path), List.of(), null);
+                yield call("serialize", call("graphFetch", vs, tree), tree);
+            }
+            case Meaning.AggregateRoot a -> throw GqlTranslationException.unsupported(path, f.name()
+                    + " aggregates: it lands with the aggregates landing (PR4, docs/GRAPHQL_STUDY_2026_10_18.md §10)");
+            case Meaning.GroupsRoot g -> throw GqlTranslationException.unsupported(path, f.name()
+                    + " groups: it lands with the groups landing (PR5, docs/GRAPHQL_STUDY_2026_10_18.md §10)");
+            default -> throw GqlTranslationException.invalid(path, "not a root field: " + f.name());
+        };
+    }
+
+    /** The object or interface type a field's type names. */
+    private Composite composite(FieldDef fd) {
+        TypeDef td = schema.find(GqlSchema.baseName(fd.type()));
+        if (!(td instanceof Composite c)) {
+            throw new IllegalStateException("field " + fd.name() + " of a non-composite type " + fd.type());
+        }
+        return c;
+    }
+
+    /** {@code where}, {@code orderBy}, {@code offset}, {@code limit} over a collection of {@code type}'s class,
+     *  chained in the order Pure evaluates them (§6.1). */
+    private ValueSpecification clauses(ValueSpecification coll, List<Argument> args, Composite type, String path) {
+        ValueSpecification vs = coll;
+        Value where = argument(args, WHERE);
+        if (where != null) {
+            Gql.ObjectValue w = object(where, path + "(where)");
+            if (w != null) {
+                String v = fresh("x");
+                vs = call("filter", vs, lambda(v, where(w, whereType(type), new Variable(v), type,
+                        path + "(where)")));
+            }
+        }
+        Value orderBy = argument(args, ORDER_BY);
+        if (orderBy != null) {
+            Value r = resolve(orderBy, path + "(orderBy)");
+            List<Value> keys = switch (r) {
+                case Gql.NullValue n -> List.of();
+                case Gql.ListValue l -> l.values();
+                case Gql.ObjectValue o -> List.of(o);
+                default -> throw GqlTranslationException.invalid(path, "orderBy takes a list of keys");
+            };
+            // the last-applied sort is the primary key (G16): the first key is applied last
+            for (int i = keys.size() - 1; i >= 0; i--) {
+                Gql.ObjectValue k = object(keys.get(i), path + "(orderBy)");
+                if (k == null) {
+                    continue;
+                }
+                SortKey sk = sortKey(k, orderByType(type), type, path + "(orderBy)");
+                String v = fresh("x");
+                vs = call(sk.ascending() ? "sortBy" : "sortByReversed", vs, lambda(v, navigate(new Variable(v),
+                        sk.path())));
+            }
+        }
+        Value offset = argument(args, OFFSET);
+        if (offset != null && !(peek(offset, path) instanceof Gql.NullValue)) {
+            vs = call("drop", vs, count(offset, path + "(offset)"));
+        }
+        Value limit = argument(args, LIMIT);
+        if (limit != null && !(peek(limit, path) instanceof Gql.NullValue)) {
+            vs = call("limit", vs, count(limit, path + "(limit)"));
+        }
+        return vs;
+    }
+
+    private ValueSpecification count(Value v, String path) {
+        ValueSpecification n = literal(v, "Int", path);
+        if (n instanceof CInteger c && c.value().longValue() < 0) {
+            throw GqlTranslationException.invalid(path, "a count is not negative: " + c.value());
+        }
+        return n;
+    }
+
+    private InputObjectType whereType(Composite type) {
+        return inputType(className(type) + "Where");
+    }
+
+    private InputObjectType orderByType(Composite type) {
+        return inputType(className(type) + "OrderBy");
+    }
+
+    /** The class's simple name a composite is generated for: the object type's name, or the interface's without
+     *  its suffix. */
+    private static String className(Composite type) {
+        return type instanceof GqlSchema.InterfaceType i && i.name().endsWith("Interface")
+                ? i.name().substring(0, i.name().length() - "Interface".length()) : type.name();
+    }
+
+    private InputObjectType inputType(String name) {
+        TypeDef td = schema.find(name);
+        if (!(td instanceof InputObjectType in)) {
+            throw new IllegalStateException("no input type " + name);
+        }
+        return in;
+    }
+
+    // ---- where ----
+
+    /** The condition {@code where} spells over {@code subject}, a value of {@code type}'s class. */
+    private ValueSpecification where(Gql.ObjectValue where, InputObjectType whereType, ValueSpecification subject,
+            Composite type, String path) {
+        List<ValueSpecification> conds = new ArrayList<>();
+        for (Argument a : where.fields()) {
+            String at = path + "." + a.name();
+            Value v = resolve(a.value(), at);
+            switch (a.name()) {
+                case "AND" -> {
+                    for (Gql.ObjectValue o : objects(v, at)) {
+                        conds.add(where(o, whereType, subject, type, at));
+                    }
+                }
+                case "OR" -> {
+                    ValueSpecification or = null;
+                    for (Gql.ObjectValue o : objects(v, at)) {
+                        ValueSpecification c = where(o, whereType, subject, type, at);
+                        or = or == null ? c : call("or", or, c);
+                    }
+                    conds.add(or == null ? new CBoolean(false, null) : or);
+                }
+                case "NOT" -> {
+                    Gql.ObjectValue o = object(v, at);
+                    if (o != null) {
+                        conds.add(call("not", where(o, whereType, subject, type, at)));
+                    }
+                }
+                case "is" -> {
+                    if (v instanceof Gql.NullValue) {
+                        conds.add(call("isEmpty", subject));
+                    } else {
+                        conds.add(where(Objects.requireNonNull(object(v, at)), whereType, subject, type, at));
+                    }
+                }
+                case "isNot" -> {
+                    if (v instanceof Gql.NullValue) {
+                        conds.add(call("isNotEmpty", subject));
+                    } else {
+                        conds.add(call("not", where(Objects.requireNonNull(object(v, at)), whereType, subject,
+                                type, at)));
+                    }
+                }
+                default -> {
+                    if (v instanceof Gql.NullValue) {
+                        continue;   // a key given no condition (Prisma: a null filter filters nothing)
+                    }
+                    InputValueDef def = whereType.field(a.name());
+                    if (def == null) {
+                        throw GqlTranslationException.invalid(at, whereType.name() + " has no " + a.name());
+                    }
+                    FieldDef prop = type.field(a.name());
+                    if (prop == null) {
+                        // as<Sub>: the row as a subclass (G9)
+                        throw GqlTranslationException.unsupported(at, a.name() + " selects by subtype: it lands"
+                                + " with the inheritance landing (PR3, docs/GRAPHQL_STUDY_2026_10_18.md §10)");
+                    }
+                    conds.add(condition(a.name(), v, def, prop, subject, at));
+                }
+            }
+        }
+        if (conds.isEmpty()) {
+            return new CBoolean(true, null);
+        }
+        ValueSpecification and = conds.get(0);
+        for (int i = 1; i < conds.size(); i++) {
+            and = call("and", and, conds.get(i));
+        }
+        return and;
+    }
+
+    private List<Gql.ObjectValue> objects(Value v, String path) {
+        List<Gql.ObjectValue> out = new ArrayList<>();
+        switch (v) {
+            case Gql.NullValue n -> { }
+            case Gql.ObjectValue o -> out.add(o);
+            case Gql.ListValue l -> {
+                for (Value item : l.values()) {
+                    Gql.ObjectValue o = object(item, path);
+                    if (o != null) {
+                        out.add(o);
+                    }
+                }
+            }
+            default -> throw GqlTranslationException.invalid(path, "a condition or a list of them is expected");
+        }
+        return out;
+    }
+
+    /** One property's condition: a scalar or enumeration filter, a to-one class's nested conditions, or a
+     *  to-many class's {@code some}/{@code every}/{@code none}. */
+    private ValueSpecification condition(String name, Value v, InputValueDef def, FieldDef prop,
+            ValueSpecification subject, String path) {
+        Gql.ObjectValue o = object(v, path);
+        if (o == null) {
+            return new CBoolean(true, null);
+        }
+        InputObjectType in = inputType(GqlSchema.baseName(def.type()));
+        ValueSpecification read = new AppliedProperty(subject, name);
+        if (!(prop.meaning() instanceof Meaning.Property p)) {
+            throw GqlTranslationException.invalid(path, name + " is not a property");
+        }
+        Composite target = schema.find(GqlSchema.baseName(prop.type())) instanceof Composite c ? c : null;
+        if (target == null) {
+            // a scalar's or an enumeration's filter: its equals field names the value type
+            InputValueDef eq = in.field("equals");
+            if (eq == null) {
+                throw new IllegalStateException("filter " + in.name() + " without equals");
+            }
+            return scalarFilter(o, in, read, GqlSchema.baseName(eq.type()), path);
+        }
+        if (p.toMany()) {
+            return listFilter(o, in, read, target, path);
+        }
+        return where(o, in, read, target, path);
+    }
+
+    private ValueSpecification scalarFilter(Gql.ObjectValue ops, InputObjectType in, ValueSpecification read,
+            String scalar, String path) {
+        boolean insensitive = false;
+        for (Argument a : ops.fields()) {
+            if (a.name().equals("mode")) {
+                Value m = resolve(a.value(), path + ".mode");
+                String mode = switch (m) {
+                    case Gql.EnumValue e -> e.value();
+                    case Gql.StringValue s -> s.value();
+                    case Gql.NullValue n -> "default";
+                    default -> throw GqlTranslationException.invalid(path + ".mode", "mode takes a QueryMode");
+                };
+                insensitive = mode.equals("insensitive");
+            }
+        }
+        List<ValueSpecification> conds = new ArrayList<>();
+        for (Argument a : ops.fields()) {
+            String at = path + "." + a.name();
+            Value v = peek(a.value(), at);
+            if (in.field(a.name()) == null) {
+                throw GqlTranslationException.invalid(at, in.name() + " has no " + a.name());
+            }
+            switch (a.name()) {
+                case "mode" -> { }
+                case "equals" -> conds.add(v instanceof Gql.NullValue ? call("isEmpty", read)
+                        : call("equal", side(read, insensitive), side(literal(v, scalar, at), insensitive)));
+                case "not" -> {
+                    if (v instanceof Gql.NullValue) {
+                        conds.add(call("isNotEmpty", read));
+                    } else if (v instanceof Gql.ObjectValue nested) {
+                        conds.add(call("not", scalarFilter(nested, in, read, scalar, at)));
+                    } else {
+                        conds.add(call("not", call("equal", side(read, insensitive),
+                                side(literal(v, scalar, at), insensitive))));
+                    }
+                }
+                case "in", "notIn" -> {
+                    if (v instanceof Gql.NullValue) {
+                        continue;
+                    }
+                    ValueSpecification set = literal(v instanceof Gql.ListValue ? v : new Gql.ListValue(List.of(v)),
+                            scalar, at);
+                    if (insensitive && set instanceof PureCollection pc) {
+                        List<ValueSpecification> lowered = new ArrayList<>();
+                        for (ValueSpecification item : pc.values()) {
+                            lowered.add(call("toLower", item));
+                        }
+                        set = new PureCollection(lowered);
+                    }
+                    ValueSpecification isIn = call("in", side(read, insensitive), set);
+                    conds.add(a.name().equals("in") ? isIn : call("not", isIn));
+                }
+                case "lt", "lte", "gt", "gte" -> {
+                    if (v instanceof Gql.NullValue) {
+                        continue;
+                    }
+                    String fn = switch (a.name()) {
+                        case "lt" -> "lessThan";
+                        case "lte" -> "lessThanEqual";
+                        case "gt" -> "greaterThan";
+                        default -> "greaterThanEqual";
+                    };
+                    conds.add(call(fn, call("toOne", read), literal(v, scalar, at)));
+                }
+                case "contains", "startsWith", "endsWith" -> {
+                    if (v instanceof Gql.NullValue) {
+                        continue;
+                    }
+                    conds.add(call(a.name(), side(call("toOne", read), insensitive),
+                            side(literal(v, scalar, at), insensitive)));
+                }
+                default -> throw GqlTranslationException.invalid(at, "no such filter operation: " + a.name());
+            }
+        }
+        if (conds.isEmpty()) {
+            return new CBoolean(true, null);
+        }
+        ValueSpecification and = conds.get(0);
+        for (int i = 1; i < conds.size(); i++) {
+            and = call("and", and, conds.get(i));
+        }
+        return and;
+    }
+
+    private static ValueSpecification side(ValueSpecification v, boolean insensitive) {
+        return insensitive ? call("toLower", v) : v;
+    }
+
+    private ValueSpecification listFilter(Gql.ObjectValue ops, InputObjectType in, ValueSpecification read,
+            Composite target, String path) {
+        List<ValueSpecification> conds = new ArrayList<>();
+        InputObjectType elementWhere = whereType(target);
+        for (Argument a : ops.fields()) {
+            String at = path + "." + a.name();
+            Gql.ObjectValue w = object(a.value(), at);
+            if (w == null) {
+                continue;
+            }
+            String e = fresh("e");
+            ValueSpecification inner = where(w, elementWhere, new Variable(e), target, at);
+            conds.add(switch (a.name()) {
+                case "some" -> call("exists", read, lambda(e, inner));
+                case "none" -> call("not", call("exists", read, lambda(e, inner)));
+                case "every" -> call("not", call("exists", read, lambda(e, call("not", inner))));
+                default -> throw GqlTranslationException.invalid(at, in.name() + " has no " + a.name());
+            });
+        }
+        if (conds.isEmpty()) {
+            return new CBoolean(true, null);
+        }
+        ValueSpecification and = conds.get(0);
+        for (int i = 1; i < conds.size(); i++) {
+            and = call("and", and, conds.get(i));
+        }
+        return and;
+    }
+
+    // ---- orderBy ----
+
+    private record SortKey(List<String> path, boolean ascending) {
+    }
+
+    /** One key object: a single property with a direction, or a to-one property's own key object (a chain). */
+    private SortKey sortKey(Gql.ObjectValue key, InputObjectType orderByType, Composite type, String path) {
+        List<Argument> given = new ArrayList<>();
+        for (Argument a : key.fields()) {
+            if (!(resolve(a.value(), path) instanceof Gql.NullValue)) {
+                given.add(a);
+            }
+        }
+        if (given.size() != 1) {
+            throw GqlTranslationException.invalid(path, "a sort key names exactly one property (G16): "
+                    + orderByType.name() + " got " + given.size());
+        }
+        Argument a = given.get(0);
+        String at = path + "." + a.name();
+        InputValueDef def = orderByType.field(a.name());
+        if (def == null) {
+            throw GqlTranslationException.invalid(at, orderByType.name() + " has no " + a.name());
+        }
+        Value v = resolve(a.value(), at);
+        String typeName = GqlSchema.baseName(def.type());
+        if (typeName.equals("SortDirection")) {
+            String dir = switch (v) {
+                case Gql.EnumValue e -> e.value();
+                case Gql.StringValue s -> s.value();
+                default -> throw GqlTranslationException.invalid(at, "a direction, ASC or DESC");
+            };
+            if (!dir.equals("ASC") && !dir.equals("DESC")) {
+                throw GqlTranslationException.invalid(at, "a direction, ASC or DESC: " + dir);
+            }
+            return new SortKey(List.of(a.name()), dir.equals("ASC"));
+        }
+        FieldDef prop = type.field(a.name());
+        if (prop == null) {
+            throw GqlTranslationException.unsupported(at, a.name() + " sorts by a subtype's property: it lands"
+                    + " with the inheritance landing (PR3)");
+        }
+        if (typeName.endsWith("AggregateOrderBy")) {
+            throw GqlTranslationException.unsupported(at, a.name() + " sorts by an aggregate: it lands with the"
+                    + " aggregates landing (PR4)");
+        }
+        Composite target = schema.find(GqlSchema.baseName(prop.type())) instanceof Composite c ? c : null;
+        if (target == null || !(v instanceof Gql.ObjectValue o)) {
+            throw GqlTranslationException.invalid(at, "a key object is expected under " + a.name());
+        }
+        SortKey inner = sortKey(o, inputType(typeName), target, at);
+        List<String> chain = new ArrayList<>();
+        chain.add(a.name());
+        chain.addAll(inner.path());
+        return new SortKey(chain, inner.ascending());
+    }
+
+    private static ValueSpecification navigate(ValueSpecification from, List<String> path) {
+        ValueSpecification v = from;
+        for (String p : path) {
+            v = new AppliedProperty(v, p);
+        }
+        return v;
+    }
+
+    // ---- the tree ----
+
+    private List<Node> nodes(List<Selection> selections, Composite type, String path) {
+        List<Node> out = new ArrayList<>();
+        for (Field f : flatten(selections, type, path)) {
+            out.add(node(f, type, path));
+        }
+        return out;
+    }
+
+    private Node node(Field f, Composite type, String parentPath) {
+        String key = key(f);
+        String path = parentPath.isEmpty() ? key : parentPath + "." + key;
+        FieldDef fd = type.field(f.name());
+        if (fd == null) {
+            throw f.name().equals("__typename")
+                    ? GqlTranslationException.unsupported(path, "__typename lands with the inheritance landing"
+                            + " (PR3, docs/GRAPHQL_STUDY_2026_10_18.md §10)")
+                    : GqlTranslationException.invalid(path, type.name() + " has no field " + f.name());
+        }
+        return switch (fd.meaning()) {
+            case Meaning.Property p -> {
+                List<ValueSpecification> args = new ArrayList<>();
+                boolean clause = false;
+                for (InputValueDef a : fd.args()) {
+                    boolean collection = p.toMany() && CLAUSES.contains(a.name());
+                    Value given = argument(f.arguments(), a.name());
+                    if (collection) {
+                        clause |= given != null && !(peek(given, path) instanceof Gql.NullValue);
+                        continue;
+                    }
+                    if (given == null) {
+                        if (!a.type().nullable()) {
+                            throw GqlTranslationException.invalid(path, f.name() + " takes " + a.name());
+                        }
+                        args.add(new PureCollection(List.of()));
+                    } else {
+                        args.add(literal(given, GqlSchema.baseName(a.type()), path + "(" + a.name() + ")"));
+                    }
+                }
+                if (clause) {
+                    throw GqlTranslationException.unsupported(path, "a clause (where, orderBy, limit, offset) on"
+                            + " the nested collection " + f.name() + " lands with the composed body on a tree node"
+                            + " (PR2c, docs/GRAPHQL_STUDY_2026_10_18.md §6.2)");
+                }
+                List<Node> children = List.of();
+                if (!f.selectionSet().isEmpty()) {
+                    children = nodes(f.selectionSet(), composite(fd), path);
+                }
+                yield new Node(p.name(), null, args, f.alias() == null ? null : key, null, children);
+            }
+            case Meaning.AggregateOf a -> throw GqlTranslationException.unsupported(path, f.name()
+                    + " aggregates: it lands with the aggregates landing (PR4)");
+            case Meaning.GroupsOf g -> throw GqlTranslationException.unsupported(path, f.name()
+                    + " groups: it lands with the groups landing (PR5)");
+            case Meaning.Typename t -> throw GqlTranslationException.unsupported(path,
+                    "__typename lands with the inheritance landing (PR3)");
+            default -> throw GqlTranslationException.invalid(path, f.name() + " is not selectable here");
+        };
+    }
+
+    // ---- spelling helpers ----
+
+    private String fresh(String stem) {
+        return stem + (fresh++ == 0 ? "" : Integer.toString(fresh - 1));
+    }
+
+    private static AppliedFunction call(String fn, ValueSpecification... args) {
+        return new AppliedFunction(fn, List.of(args));
+    }
+
+    private static LambdaFunction lambda(String parameter, ValueSpecification body) {
+        return new LambdaFunction(List.of(new Variable(parameter)), List.of(body));
+    }
+}
