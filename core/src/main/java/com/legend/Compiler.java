@@ -265,7 +265,17 @@ public final class Compiler {
      */
     private static Layer normalizeLayer(ParsedModel resolved,
             java.util.@com.legend.base.Nullable Map<String, String> walls) {
+        return normalizeLayer(resolved, walls, false);
+    }
+
+    /** {@code companion}: the GraphQL companion's members are written into the graph's classes (never the boot
+     *  layer's) before the index reads them (CompanionSynthesis, docs/GRAPHQL_STUDY_2026_10_18.md §5.8). */
+    private static Layer normalizeLayer(ParsedModel resolved,
+            java.util.@com.legend.base.Nullable Map<String, String> walls, boolean companion) {
         ParsedModel adopted = KnowledgeLayer.adoptAssociationQualifiedProperties(resolved, walls);
+        if (companion) {
+            adopted = com.legend.normalizer.CompanionSynthesis.apply(adopted);
+        }
         ModelBuilder index = ModelBuilder.from(adopted);
         // a name defined twice is refused before Phase E reads the index (the
         // engine's order; D6b's "element-identity first", 2026-10-11)
@@ -464,7 +474,7 @@ public final class Compiler {
         }
         Layer user = normalizeLayer(adopted.isEmpty() ? graph
                 : new ParsedModel(own, graph.imports(), graph.source(), graph.elementOffsets(),
-                        graph.elementImports(), graph.elementSources(), graph.unclaimedSections()), walls);
+                        graph.elementImports(), graph.elementSources(), graph.unclaimedSections()), walls, true);
         NormalizedModel sys = boot.model();
         List<com.legend.model.PackageableElement> elements =
                 new java.util.ArrayList<>(user.model().elements().size() + sys.elements().size());

@@ -6,6 +6,7 @@ import com.legend.lowering.AsorRef;
 
 import com.legend.compiler.element.MilestoningStrategy;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedFilter;
@@ -2764,6 +2765,36 @@ final class GraphEmission {
                 classFqn, prop, env);
     }
 
+    /** {@code $this->instanceOf(T)} over the row of {@code classFqn}: true for the class and its ancestors; the
+     *  witness column tested where {@code T}'s membership is partial; true where the row carries {@code T}'s
+     *  columns and no witness (total membership); false where the mapping maps no {@code T} on this row (a
+     *  declared subclass with no set here: no row is one -- the mapping's own statement, not a guess); loud
+     *  otherwise. */
+    private TypedSpec membership(String t, String classFqn, Map<String, TypedSpec> bindings, ExprType info,
+            String prop) {
+        if (t.equals(classFqn) || ctx.isSubtype(classFqn, t)) {
+            return new com.legend.compiler.spec.typed.TypedCBoolean(true, info);
+        }
+        TypedSpec witness = bindings.get(com.legend.model.ClassMapping.subTypeColumn(t,
+                com.legend.model.ClassMapping.memberWitness()));
+        if (witness != null) {
+            TypedFunction ne = ctx.findFunction("meta::pure::functions::collection::isNotEmpty")
+                    .orElseThrow(() -> new IllegalStateException("resolver bug: no isNotEmpty registration"));
+            return new TypedNativeCall(ne, List.of(witness), info);
+        }
+        String prefix = com.legend.model.ClassMapping.subTypeColumnPrefix(t);
+        for (String key : bindings.keySet()) {
+            if (key.startsWith(prefix)) {
+                return new com.legend.compiler.spec.typed.TypedCBoolean(true, info);
+            }
+        }
+        if (ctx.isSubtype(t, classFqn)) {
+            return new com.legend.compiler.spec.typed.TypedCBoolean(false, info);
+        }
+        throw new NotImplementedException("derived graph leaf '" + prop + "': instanceOf(" + t + ") over the row"
+                + " of " + classFqn + ", which is neither its class nor a subclass of it");
+    }
+
     /** Substitute {@code $this.<stored>} reads with the row bindings.
      * Rebuild arms cover the expression shapes derived bodies produce;
      * an UNHANDLED node still CONTAINING {@code $this} throws loud —
@@ -2831,6 +2862,37 @@ final class GraphEmission {
                         + " stored reads inline yet");
             }
             return b;
+        }
+        // THE COMPANION'S FORMS over the row (GraphQL PR3, docs/GRAPHQL_STUDY_2026_10_18.md §5.8): the
+        // exact-type test and the downcast read, answered from the union row's thread-local columns as the
+        // chain's Substitution answers them -- a witness column tested, a subtype column read; never computed
+        if (n instanceof TypedNativeCall io
+                && io.callee().qualifiedName().equals(Substitution.INSTANCE_OF_FQN)
+                && io.args().size() == 2
+                && io.args().get(0) instanceof TypedVariable iv && iv.name().equals(thisVar)) {
+            String t = Substitution.typeTargetFqn(io.args().get(1));
+            if (t == null) {
+                throw new NotImplementedException("derived graph leaf '" + prop + "': instanceOf with a"
+                        + " non-literal type over the row");
+            }
+            return membership(t, classFqn, bindings, n.info(), prop);
+        }
+        if (n instanceof TypedPropertyAccess cpa
+                && unwrapToOneFirst(cpa.source()) instanceof com.legend.compiler.spec.typed.TypedCast tc
+                && tc.source() instanceof TypedVariable cv && cv.name().equals(thisVar)
+                && Type.asClassType(tc.target()) instanceof Type.ClassType ct) {
+            if (ct.fqn().equals(classFqn) || ctx.isSubtype(classFqn, ct.fqn())) {
+                // an identity or upcast: the plain read
+                return inlineThis(new TypedPropertyAccess(tc.source(), cpa.property(), cpa.info()), thisVar,
+                        binds, bindings, classFqn, prop, env);
+            }
+            TypedSpec col = bindings.get(com.legend.model.ClassMapping.subTypeColumn(ct.fqn(), cpa.property()));
+            if (col == null) {
+                throw new NotImplementedException("derived graph leaf '" + prop + "': the row of "
+                        + classFqn + " carries no column of " + ct.fqn() + "." + cpa.property()
+                        + " (not a mapped subtype on this row)");
+            }
+            return col;
         }
         if (n instanceof TypedVariable v && v.name().equals(thisVar)) {
             throw new NotImplementedException("derived graph leaf '" + prop

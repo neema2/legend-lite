@@ -31,8 +31,10 @@ import com.legend.protocol.spec.GraphFetchLiteral.Node;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.PackageableElementPtr;
 import com.legend.protocol.spec.PureCollection;
+import com.legend.protocol.spec.TypeAnnotation;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.spec.Variable;
+import com.legend.protocol.TypeExpression;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
 
@@ -218,12 +220,23 @@ public final class GqlToPure {
      * specification's field merging has it; the validator checked they agree).
      */
     private List<Field> flatten(List<Selection> selections, Composite type, String path) {
-        Map<String, Field> byKey = new LinkedHashMap<>();
-        collect(selections, type, path, byKey);
-        return new ArrayList<>(byKey.values());
+        return level(selections, type, path).fields();
     }
 
-    private void collect(List<Selection> selections, Composite type, String path, Map<String, Field> byKey) {
+    /** A selection set on {@code type}: its fields merged by response key, and the selections of each fragment on
+     *  a subtype (an object type implementing {@code type}), by that type's name, in document order. */
+    private record Level(List<Field> fields, Map<String, List<Selection>> subtypes) {
+    }
+
+    private Level level(List<Selection> selections, Composite type, String path) {
+        Map<String, Field> byKey = new LinkedHashMap<>();
+        Map<String, List<Selection>> subtypes = new LinkedHashMap<>();
+        collect(selections, type, path, byKey, subtypes);
+        return new Level(new ArrayList<>(byKey.values()), subtypes);
+    }
+
+    private void collect(List<Selection> selections, Composite type, String path, Map<String, Field> byKey,
+            Map<String, List<Selection>> subtypes) {
         for (Selection s : selections) {
             switch (s) {
                 case Field f -> {
@@ -239,28 +252,55 @@ public final class GqlToPure {
                     if (fr == null) {
                         throw GqlTranslationException.invalid(path, "no fragment named " + fs.name());
                     }
-                    collect(onType(fr.typeCondition(), fr.selectionSet(), type, path), type, path, byKey);
+                    fragment(fr.typeCondition(), fr.selectionSet(), type, path, byKey, subtypes);
                 }
                 case Gql.InlineFragment inl -> {
                     if (!included(inl.directives(), path)) {
                         continue;
                     }
-                    collect(inl.typeCondition() == null ? inl.selectionSet()
-                            : onType(inl.typeCondition(), inl.selectionSet(), type, path), type, path, byKey);
+                    if (inl.typeCondition() == null) {
+                        collect(inl.selectionSet(), type, path, byKey, subtypes);
+                    } else {
+                        fragment(inl.typeCondition(), inl.selectionSet(), type, path, byKey, subtypes);
+                    }
                 }
             }
         }
     }
 
-    /** A fragment's selections when its type condition is the selection's own type or one it implements; a
-     *  subtype's selection is PR3's. */
-    private List<Selection> onType(String condition, List<Selection> selections, Composite type, String path) {
+    /** A fragment on the selection's own type, or on an interface it implements, merges in place; one on a
+     *  subtype is kept under the subtype's name: the tree's {@code ->subType(@Sub) { ... }} entry (G8). */
+    private void fragment(String condition, List<Selection> selections, Composite type, String path,
+            Map<String, Field> byKey, Map<String, List<Selection>> subtypes) {
         if (condition.equals(type.name()) || type.implementsList().contains(condition)) {
-            return selections;
+            collect(selections, type, path, byKey, subtypes);
+            return;
         }
-        throw GqlTranslationException.unsupported(path, "a fragment on " + condition + " inside a selection on "
-                + type.name() + " selects by subtype: it lands with the inheritance landing (PR3,"
-                + " docs/GRAPHQL_STUDY_2026_10_18.md §10)");
+        Composite sub = compositeNamed(condition, path);
+        if (!sub.implementsList().contains(type.name())) {
+            throw GqlTranslationException.invalid(path, "a fragment on " + condition + " inside a selection on "
+                    + type.name() + ": " + condition + " does not implement it");
+        }
+        // an object type (a leaf class, or a class the validator let stand: G10) or a subclass's interface, which
+        // is the subclass with its own subclasses: the tree's ->subType(@Sub) entry is the class either way
+        subtypes.computeIfAbsent(condition, k -> new ArrayList<>()).addAll(selections);
+    }
+
+    private Composite compositeNamed(String name, String path) {
+        TypeDef td = schema.find(name);
+        if (!(td instanceof Composite c)) {
+            throw GqlTranslationException.invalid(path, "no object or interface type named " + name);
+        }
+        return c;
+    }
+
+    /** The class an object or interface type is generated for. */
+    private static String classFqnOf(Composite c, String path) {
+        String fqn = c instanceof GqlSchema.ObjectType o ? o.classFqn() : ((GqlSchema.InterfaceType) c).classFqn();
+        if (fqn == null) {
+            throw GqlTranslationException.invalid(path, c.name() + " is not a class's type");
+        }
+        return fqn;
     }
 
     /** The response key: the alias (the parser keeps the colon inside it, as the engine's wire has it), else
@@ -450,8 +490,15 @@ public final class GqlToPure {
                 Composite type = composite(fd);
                 ValueSpecification vs = call("getAll", new PackageableElementPtr(r.classFqn()));
                 vs = clauses(vs, f.arguments(), type, path);
-                GraphFetchLiteral tree = new GraphFetchLiteral(r.classFqn(),
-                        nodes(f.selectionSet(), type, path), List.of(), null);
+                Level level = level(f.selectionSet(), type, path);
+                List<GraphFetchLiteral.SubTypeNode> subTypes = new ArrayList<>();
+                for (Map.Entry<String, List<Selection>> e : level.subtypes().entrySet()) {
+                    Composite sub = compositeNamed(e.getKey(), path);
+                    subTypes.add(new GraphFetchLiteral.SubTypeNode(classFqnOf(sub, path), null,
+                            nodes(e.getValue(), sub, path)));
+                }
+                GraphFetchLiteral tree = new GraphFetchLiteral(r.classFqn(), nodes(level.fields(), type, path),
+                        subTypes, null);
                 yield call("serialize", call("graphFetch", vs, tree), tree);
             }
             case Meaning.AggregateRoot a -> throw GqlTranslationException.unsupported(path, f.name()
@@ -501,8 +548,7 @@ public final class GqlToPure {
                 }
                 SortKey sk = sortKey(k, orderByType(type), type, path + "(orderBy)");
                 String v = fresh("x");
-                vs = call(sk.ascending() ? "sortBy" : "sortByReversed", vs, lambda(v, navigate(new Variable(v),
-                        sk.path())));
+                vs = call(sk.ascending() ? "sortBy" : "sortByReversed", vs, lambda(v, sortRead(new Variable(v), sk)));
             }
         }
         Value offset = argument(args, OFFSET);
@@ -601,9 +647,10 @@ public final class GqlToPure {
                     }
                     FieldDef prop = type.field(a.name());
                     if (prop == null) {
-                        // as<Sub>: the row as a subclass (G9)
-                        throw GqlTranslationException.unsupported(at, a.name() + " selects by subtype: it lands"
-                                + " with the inheritance landing (PR3, docs/GRAPHQL_STUDY_2026_10_18.md §10)");
+                        // as<Sub>: the row as a subclass (G9): its conditions hold where the row is a Sub and
+                        // the conditions hold over the row cast; `isNot: null` alone is the membership test
+                        conds.add(asSubtype(a.name(), v, def, subject, at));
+                        continue;
                     }
                     conds.add(condition(a.name(), v, def, prop, subject, at));
                 }
@@ -617,6 +664,40 @@ public final class GqlToPure {
             and = call("and", and, conds.get(i));
         }
         return and;
+    }
+
+    /** {@code asSub: W}: {@code $x->instanceOf(Sub) && W($x->cast(@Sub))}; {@code asSub: { isNot: null }} is the
+     *  membership test alone, {@code asSub: { is: null }} its negation. The cast's reads are evaluated only where
+     *  the membership holds (the conjunction's first operand; the database's CASE guards the rest). */
+    private ValueSpecification asSubtype(String key, Value v, InputValueDef def, ValueSpecification subject,
+            String path) {
+        Gql.ObjectValue o = object(v, path);
+        if (o == null) {
+            return new CBoolean(true, null);
+        }
+        InputObjectType subWhere = inputType(GqlSchema.baseName(def.type()));
+        String subName = subWhere.name().substring(0, subWhere.name().length() - "Where".length());
+        Composite sub = compositeNamed(subName, path);
+        String subFqn = classFqnOf(sub, path);
+        ValueSpecification member = call("instanceOf", subject, new PackageableElementPtr(subFqn));
+        ValueSpecification cast = call("cast", subject, new TypeAnnotation.Named(new TypeExpression.NameRef(subFqn)));
+        List<Argument> rest = new ArrayList<>();
+        ValueSpecification out = member;
+        for (Argument a : o.fields()) {
+            Value av = resolve(a.value(), path + "." + a.name());
+            if (a.name().equals("isNot") && av instanceof Gql.NullValue) {
+                continue;   // membership: the test itself
+            }
+            if (a.name().equals("is") && av instanceof Gql.NullValue) {
+                return call("not", member);
+            }
+            rest.add(a);
+        }
+        if (!rest.isEmpty()) {
+            ValueSpecification inner = where(new Gql.ObjectValue(rest), subWhere, cast, sub, path);
+            out = call("and", member, call("if", member, thunk(inner), thunk(new CBoolean(false, null))));
+        }
+        return out;
     }
 
     private List<Gql.ObjectValue> objects(Value v, String path) {
@@ -784,7 +865,12 @@ public final class GqlToPure {
 
     // ---- orderBy ----
 
-    private record SortKey(List<String> path, boolean ascending) {
+    /** A key: the property chain, the direction, and the subtype the chain reads through ({@code asSub}; null
+     *  when none): the key is {@code if($x->instanceOf(Sub), |$x->cast(@Sub).chain, |[])}. */
+    private record SortKey(List<String> path, boolean ascending, @com.legend.base.Nullable String subtypeFqn) {
+        SortKey(List<String> path, boolean ascending) {
+            this(path, ascending, null);
+        }
     }
 
     /** One key object: a single property with a direction, or a to-one property's own key object (a chain). */
@@ -820,8 +906,15 @@ public final class GqlToPure {
         }
         FieldDef prop = type.field(a.name());
         if (prop == null) {
-            throw GqlTranslationException.unsupported(at, a.name() + " sorts by a subtype's property: it lands"
-                    + " with the inheritance landing (PR3)");
+            // as<Sub>: the key is the subtype's, read where the row is a member, empty elsewhere
+            InputObjectType subOrder = inputType(typeName);
+            String subName = subOrder.name().substring(0, subOrder.name().length() - "OrderBy".length());
+            Composite sub = compositeNamed(subName, at);
+            if (!(v instanceof Gql.ObjectValue o)) {
+                throw GqlTranslationException.invalid(at, "a key object is expected under " + a.name());
+            }
+            SortKey inner = sortKey(o, subOrder, sub, at);
+            return new SortKey(inner.path(), inner.ascending(), classFqnOf(sub, at));
         }
         if (typeName.endsWith("AggregateOrderBy")) {
             throw GqlTranslationException.unsupported(at, a.name() + " sorts by an aggregate: it lands with the"
@@ -836,6 +929,20 @@ public final class GqlToPure {
         chain.add(a.name());
         chain.addAll(inner.path());
         return new SortKey(chain, inner.ascending());
+    }
+
+    private static ValueSpecification sortRead(ValueSpecification row, SortKey sk) {
+        if (sk.subtypeFqn() == null) {
+            return navigate(row, sk.path());
+        }
+        ValueSpecification cast = call("cast", row, new TypeAnnotation.Named(new TypeExpression.NameRef(sk.subtypeFqn())));
+        // toOne: the key lambda is {T[1]->U[1]}; the empty arm is the null the database sorts
+        return call("toOne", call("if", call("instanceOf", row, new PackageableElementPtr(sk.subtypeFqn())),
+                thunk(navigate(cast, sk.path())), thunk(new PureCollection(List.of()))));
+    }
+
+    private static LambdaFunction thunk(ValueSpecification body) {
+        return new LambdaFunction(List.of(), List.of(body));
     }
 
     private static ValueSpecification navigate(ValueSpecification from, List<String> path) {
@@ -859,12 +966,16 @@ public final class GqlToPure {
     private Node node(Field f, Composite type, String parentPath) {
         String key = key(f);
         String path = parentPath.isEmpty() ? key : parentPath + "." + key;
+        return switch (f.name()) {
+            case "__typename" -> new Node("__typename", null, List.of(), key, null, List.of());
+            default -> node0(f, type, key, path);
+        };
+    }
+
+    private Node node0(Field f, Composite type, String key, String path) {
         FieldDef fd = type.field(f.name());
         if (fd == null) {
-            throw f.name().equals("__typename")
-                    ? GqlTranslationException.unsupported(path, "__typename lands with the inheritance landing"
-                            + " (PR3, docs/GRAPHQL_STUDY_2026_10_18.md §10)")
-                    : GqlTranslationException.invalid(path, type.name() + " has no field " + f.name());
+            throw GqlTranslationException.invalid(path, type.name() + " has no field " + f.name());
         }
         return switch (fd.meaning()) {
             case Meaning.Property p -> {
@@ -887,8 +998,26 @@ public final class GqlToPure {
                     }
                 }
                 List<Node> children = List.of();
+                String view = null;
                 if (!f.selectionSet().isEmpty()) {
-                    children = nodes(f.selectionSet(), composite(fd), path);
+                    Composite target = composite(fd);
+                    Level level = level(f.selectionSet(), target, path);
+                    if (!level.subtypes().isEmpty()) {
+                        // the engine's tree has a subtype VIEW under a node (prop->subType(@Sub) { ... }), every
+                        // child read as the subtype's; a subtype's fields beside the type's own, or two
+                        // subtypes, wait on a nested subtype entry (PR3's not-done list)
+                        if (!level.fields().isEmpty() || level.subtypes().size() != 1) {
+                            throw GqlTranslationException.unsupported(path, "a fragment on a subtype under "
+                                    + f.name() + " beside other fields: a nested selection reads one subtype,"
+                                    + " alone (... on " + level.subtypes().keySet() + ")");
+                        }
+                        Map.Entry<String, List<Selection>> only = level.subtypes().entrySet().iterator().next();
+                        Composite sub = compositeNamed(only.getKey(), path);
+                        view = classFqnOf(sub, path);
+                        children = nodes(only.getValue(), sub, path);
+                    } else {
+                        children = nodes(level.fields(), target, path);
+                    }
                 }
                 if (clause) {
                     // the COMPOSED BODY (§6.2): the clauses over $this.<property>, keyed by the response key
@@ -903,15 +1032,14 @@ public final class GqlToPure {
                 }
                 // a derived leaf is keyed by its call spelling ("fullName()") unless aliased: the response
                 // key is the field's, so a derived property always carries it
-                yield new Node(p.name(), null, args, f.alias() == null && !p.derived() ? null : key, null,
+                yield new Node(p.name(), null, args, f.alias() == null && !p.derived() ? null : key, view,
                         children);
             }
             case Meaning.AggregateOf a -> throw GqlTranslationException.unsupported(path, f.name()
                     + " aggregates: it lands with the aggregates landing (PR4)");
             case Meaning.GroupsOf g -> throw GqlTranslationException.unsupported(path, f.name()
                     + " groups: it lands with the groups landing (PR5)");
-            case Meaning.Typename t -> throw GqlTranslationException.unsupported(path,
-                    "__typename lands with the inheritance landing (PR3)");
+            case Meaning.Typename t -> new Node("__typename", null, List.of(), key, null, List.of());
             default -> throw GqlTranslationException.invalid(path, f.name() + " is not selectable here");
         };
     }

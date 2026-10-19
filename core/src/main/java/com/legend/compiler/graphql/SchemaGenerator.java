@@ -235,7 +235,21 @@ public final class SchemaGenerator {
             Set<String> seen) {
         TypedClass c = ctx.findClass(fqn).orElseThrow();
         ClassDefinition cd = ctx.findClassDefinition(fqn).orElse(null);
+        Set<String> companion = new TreeSet<>();
+        if (cd != null) {
+            for (com.legend.protocol.DerivedPropertyDefinition dp : cd.derivedProperties()) {
+                if (isCompanion(dp)) {
+                    companion.add(dp.name());
+                }
+            }
+        }
         for (Property p : c.properties()) {
+            if (companion.contains(p.name())) {
+                // the companion's members (__typename, as<Sub>; docs/GRAPHQL_STUDY_2026_10_18.md §5.8) are the
+                // schema's meta-field and input-side keys, never fields of the type
+                seen.add(p.name());
+                continue;
+            }
             if (!seen.add(p.name())) {
                 continue;
             }
@@ -249,6 +263,16 @@ public final class SchemaGenerator {
                     fqn + " has no property " + end.propertyName() + " its association injects", fqn));
             into.add(prop(fqn, p, scope, cd));
         }
+    }
+
+    /** Whether {@code dp} is a member the companion generated ({@code <<meta::legend::lite::graphql.companion>>}). */
+    static boolean isCompanion(com.legend.protocol.DerivedPropertyDefinition dp) {
+        for (com.legend.protocol.Protocol.PStereotype st : dp.stereotypes()) {
+            if (st.profile().equals(PlatformTypes.GRAPHQL_PROFILE) && st.value().equals(PlatformTypes.GRAPHQL_COMPANION)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Prop prop(String classFqn, Property p, Scope scope, @com.legend.base.Nullable ClassDefinition cd) {

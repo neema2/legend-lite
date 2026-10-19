@@ -432,6 +432,13 @@ public final class PlatformTypes {
     /** {@code <<typemodifiers.abstract>>}: a class with no instances of its own. Read by the GraphQL schema
      *  generator (docs/GRAPHQL_STUDY_2026_10_18.md G8): an abstract class is an interface only. */
     public static final String TYPEMODIFIERS_PROFILE = "meta::pure::profiles::typemodifiers";
+
+    /** The GraphQL line's profile (docs/GRAPHQL_STUDY_2026_10_18.md §5.8): its {@code companion} stereotype marks
+     *  the members the companion model generates beside a class's own ({@code __typename()}, {@code as<Sub>()}). */
+    public static final String GRAPHQL_PROFILE = "meta::legend::lite::graphql";
+
+    /** The stereotype of a companion-generated member. */
+    public static final String GRAPHQL_COMPANION = "companion";
     public static final String TEMPORAL_PROFILE = "meta::pure::profiles::temporal";
     public static final String PCT_PROFILE = "meta::pure::test::pct::PCT";
     /** The property-graph profile (the library project {@code projects/graph}, docs/CYPHER_STUDY_2026_10_15.md
