@@ -178,9 +178,12 @@ class GqlValidatorTest {
     }
 
     @Test
-    void operationsAreQueriesAndIntrospectionIsNotYet() {
+    void operationsAreQueriesAndIntrospectionValidates() {
         assertError(validate("mutation { Person { fullName } }"), "this endpoint reads");
-        assertError(validate("{ __schema { types { name } } }"), "not served by this landing");
+        // introspection (PR2d): the endpoint answers it from the schema; its fragments count as spread
+        assertValid(validate("{ __schema { types { ...T } } } fragment T on __Type { kind name }"));
+        assertError(validate("{ __type { name } }"), "__type takes name");
+        assertError(validate("{ __schema }"), "needs a selection");
         assertError(validate("query A { Person { fullName } } query B { Firm { legalName } }"), "name the one to run");
         assertError(validate("{ Person { fullName @foo } }"), "not a directive of this schema");
         assertValid(validate("query ($x: Boolean!) { Person { fullName @include(if: $x) } }"));

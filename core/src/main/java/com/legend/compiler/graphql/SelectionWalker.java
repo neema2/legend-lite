@@ -234,12 +234,45 @@ final class SelectionWalker {
             return false;
         }
         if (("__schema".equals(field.name()) || "__type".equals(field.name())) && "Query".equals(parent.name())) {
-            f.error(here, "introspection (" + field.name() + ") is not served by this landing: ask describe for the"
-                    + " SDL (docs/GRAPHQL_STUDY_2026_10_18.md §10, PR2)");
+            // introspection (PR2d): answered from the schema by the endpoint's Introspection, which projects the
+            // selection over the schema's own graph and refuses what is not there; its fragments count as spread
+            if ("__type".equals(field.name())) {
+                boolean named = false;
+                for (Gql.Argument a : field.arguments()) {
+                    named |= a.name().equals("name");
+                }
+                if (!named) {
+                    f.error(here, "__type takes name: String!");
+                }
+            }
+            if (field.selectionSet().isEmpty()) {
+                f.error(here, field.name() + " is an object and needs a selection");
+            }
+            spreads(field.selectionSet());
+            merge(entries, key, new Entry(field.name(), argsText(field),
+                    "__schema".equals(field.name()) ? "__Schema!" : "__Type"), here);
             return false;
         }
         f.error(here, parent.name() + " has no field " + field.name());
         return false;
+    }
+
+    /** The fragments an unwalked (introspection) selection spreads, counted as used. */
+    private void spreads(List<Gql.Selection> selections) {
+        for (Gql.Selection s : selections) {
+            switch (s) {
+                case Gql.Field fld -> spreads(fld.selectionSet());
+                case Gql.InlineFragment inl -> spreads(inl.selectionSet());
+                case Gql.FragmentSpread fs -> {
+                    if (f.fragmentsUsed.add(fs.name())) {
+                        Gql.Fragment fr = f.fragments.get(fs.name());
+                        if (fr != null) {
+                            spreads(fr.selectionSet());
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private void arguments(FieldDef def, Gql.Field field, String here) {

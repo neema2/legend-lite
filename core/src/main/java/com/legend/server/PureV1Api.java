@@ -113,6 +113,7 @@ public final class PureV1Api {
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
             case "/api/lite/v1/graphql/schema" -> GraphqlApi.schema(body);
             case "/api/lite/v1/graphql/validate" -> GraphqlApi.validate(body);
+            case "/api/lite/v1/graphql/query" -> GraphqlApi.query(body, runner);
             default -> error(404, null, (path.startsWith("/api/lite/") ? "no such legend-lite API: "
                     : "no such legend-engine API in legend-lite: ") + path);
         };
@@ -749,7 +750,7 @@ public final class PureV1Api {
     }
 
     /** The runtime: the request's own, else the one the query's {@code ->from} binds. */
-    private static String runtimeOf(Json.Obj request, com.legend.Compiler.Target target) {
+    static String runtimeOf(Json.Obj request, com.legend.Compiler.Target target) {
         Json.Obj rt = request.getObjOr("runtime", null);
         if (rt != null && rt.has("runtime")) {
             return rt.getString("runtime");

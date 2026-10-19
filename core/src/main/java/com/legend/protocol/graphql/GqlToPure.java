@@ -65,6 +65,11 @@ public final class GqlToPure {
 
     /** One root field translated: its response key (the alias, else the name) and its Pure expression. */
     public record Root(String key, ValueSpecification expression) {
+
+        /** The expression as the query lambda a runner executes ({@code |expression}). */
+        public LambdaFunction asLambda() {
+            return new LambdaFunction(List.of(), List.of(expression));
+        }
     }
 
     /** The operation translated: its roots in document order. */
@@ -72,6 +77,47 @@ public final class GqlToPure {
         public Translation {
             roots = List.copyOf(roots);
         }
+    }
+
+    /**
+     * A request's {@code variables} object as GraphQL values: a JSON string is a string (an enumeration's or a
+     * date's value arrives so and is read by the position's type), a number an Int when integral else a Float,
+     * an object an input object, an array a list.
+     */
+    public static Map<String, Value> variables(com.legend.json.Json.@com.legend.base.Nullable Obj variables) {
+        Map<String, Value> out = new TreeMap<>();
+        if (variables == null) {
+            return out;
+        }
+        for (Map.Entry<String, com.legend.json.Json.Node> e : variables.fields().entrySet()) {
+            out.put(e.getKey(), valueOf(e.getValue()));
+        }
+        return out;
+    }
+
+    /** A JSON value as the GraphQL value it is. */
+    public static Value valueOf(com.legend.json.Json.Node node) {
+        return switch (node) {
+            case com.legend.json.Json.Null n -> new Gql.NullValue();
+            case com.legend.json.Json.Bool b -> new Gql.BooleanValue(b.value());
+            case com.legend.json.Json.Str s -> new Gql.StringValue(s.value());
+            case com.legend.json.Json.Num n -> n.isInteger() ? new Gql.IntValue(n.longValue())
+                    : new Gql.FloatValue(n.doubleValue());
+            case com.legend.json.Json.Arr a -> {
+                List<Value> items = new ArrayList<>();
+                for (com.legend.json.Json.Node item : a.items()) {
+                    items.add(valueOf(item));
+                }
+                yield new Gql.ListValue(items);
+            }
+            case com.legend.json.Json.Obj o -> {
+                List<Argument> fields = new ArrayList<>();
+                for (Map.Entry<String, com.legend.json.Json.Node> e : o.fields().entrySet()) {
+                    fields.add(new Argument(e.getKey(), valueOf(e.getValue())));
+                }
+                yield new Gql.ObjectValue(fields);
+            }
+        };
     }
 
     private static final String WHERE = "where";
@@ -118,11 +164,16 @@ public final class GqlToPure {
             }
         }
         List<Root> roots = new ArrayList<>();
+        boolean introspection = false;
         for (Field f : t.flatten(op.selectionSet(), schema.query(), "")) {
+            if (Introspection.isRoot(f.name())) {
+                introspection = true;   // the endpoint answers it from the schema
+                continue;
+            }
             String key = key(f);
             roots.add(new Root(key, t.root(f, key)));
         }
-        if (roots.isEmpty()) {
+        if (roots.isEmpty() && !introspection) {
             throw GqlTranslationException.invalid("", "the operation selects nothing");
         }
         return new Translation(roots, op);
@@ -214,7 +265,7 @@ public final class GqlToPure {
 
     /** The response key: the alias (the parser keeps the colon inside it, as the engine's wire has it), else
      *  the name. */
-    static String key(Field f) {
+    public static String key(Field f) {
         String alias = f.alias();
         if (alias == null) {
             return f.name();
@@ -392,8 +443,7 @@ public final class GqlToPure {
     private ValueSpecification root(Field f, String path) {
         FieldDef fd = schema.query().field(f.name());
         if (fd == null) {
-            throw GqlTranslationException.unsupported(path, "the root field " + f.name() + " ("
-                    + (f.name().startsWith("__") ? "introspection" : "unknown") + ") is not a query over the model");
+            throw GqlTranslationException.invalid(path, "the root field " + f.name() + " is not a query over the model");
         }
         return switch (fd.meaning()) {
             case Meaning.Root r -> {
@@ -851,7 +901,10 @@ public final class GqlToPure {
                             f.arguments(), composite(fd), path);
                     yield new Node(p.name(), null, List.of(), key, null, children, body);
                 }
-                yield new Node(p.name(), null, args, f.alias() == null ? null : key, null, children);
+                // a derived leaf is keyed by its call spelling ("fullName()") unless aliased: the response
+                // key is the field's, so a derived property always carries it
+                yield new Node(p.name(), null, args, f.alias() == null && !p.derived() ? null : key, null,
+                        children);
             }
             case Meaning.AggregateOf a -> throw GqlTranslationException.unsupported(path, f.name()
                     + " aggregates: it lands with the aggregates landing (PR4)");

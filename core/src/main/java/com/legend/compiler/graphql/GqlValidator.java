@@ -160,6 +160,9 @@ public final class GqlValidator {
 
     private static void checkFragments(Frame f) {
         for (Gql.Fragment fr : f.fragments.values()) {
+            if (fr.typeCondition().startsWith("__")) {
+                continue;   // an introspection type (__Type, __InputValue): the endpoint's Introspection reads it
+            }
             TypeDef t = f.schema.find(fr.typeCondition());
             if (!(t instanceof Composite)) {
                 f.error("fragment " + fr.name(), "fragment " + fr.name() + " is on " + fr.typeCondition()

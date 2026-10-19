@@ -110,6 +110,12 @@ class ErrorShapeGuardrailTest {
             // call; a non-honest failure is a BUG, logged whole and answered 500 in the
             // engine's error shape, the split /engine/plan's handler made before it
             Map.entry("PureV1Api.java", 1),
+            // 2 = the GraphQL query route (reviewed 2026-10-19, GraphQL PR2d,
+            // docs/GRAPHQL_STUDY_2026_10_18.md §8.1): the request boundary
+            // (model, scope, document) and the execution boundary (all or
+            // nothing) each answer in the GraphQL-over-HTTP envelope, as
+            // PureV1Api.answer's one catch answers in the engine's shape
+            Map.entry("GraphqlApi.java", 2),
             // 2 = the LSP protocol boundary (reviewed): dispatch converts
             // failures to JSON-RPC error responses; rebuild converts a
             // compile crash into published diagnostics

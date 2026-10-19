@@ -64,8 +64,9 @@ public final class GqlIslands {
             };
         }
         if (t.roots().size() != 1) {
-            throw new TypeInferenceException("#GQL{...}# selects " + t.roots().size() + " root fields: an island"
-                    + " is one value, so it selects one (the endpoint runs several, each under its key)");
+            throw new TypeInferenceException("#GQL{...}# selects " + t.roots().size() + " root fields over the"
+                    + " model: an island is one value, so it selects one (the endpoint runs several, each under"
+                    + " its key, and answers introspection)");
         }
         return t.roots().get(0).expression();
     }

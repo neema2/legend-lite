@@ -106,4 +106,153 @@ class GraphqlApiTest {
         assertFalse(a.getBool("valid"));
         assertTrue(a.toString().contains("over the limit of 2"), a.toString());
     }
+
+    // ---- the query route (PR2d) ----
+
+    /** A store-backed model with its rows as Data, which the server fills a kept memory database from. */
+    static final String STORE = """
+            ###Pure
+            Class demo::Person { firstName: String[1]; lastName: String[1]; age: Integer[1]; salary: Float[0..1];
+              fullName() { $this.firstName + ' ' + $this.lastName }: String[1]; }
+            Class demo::Firm { legalName: String[1]; }
+            Association demo::Employment { firm: demo::Firm[0..1]; employees: demo::Person[*]; }
+            ###Relational
+            Database demo::Db
+            (
+              Schema DEMO
+              (
+                Table T_PERSON (ID INTEGER PRIMARY KEY, FIRST_NAME VARCHAR(100), LAST_NAME VARCHAR(100), AGE INTEGER,
+                                SALARY DOUBLE, FIRM_ID INTEGER)
+                Table T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))
+              )
+              Join PersonFirm (DEMO.T_PERSON.FIRM_ID = DEMO.T_FIRM.ID)
+            )
+            ###Mapping
+            Mapping demo::Map
+            (
+              demo::Person: Relational
+              {
+                ~primaryKey ([demo::Db] DEMO.T_PERSON.ID)
+                ~mainTable [demo::Db] DEMO.T_PERSON
+                firstName: [demo::Db] DEMO.T_PERSON.FIRST_NAME,
+                lastName: [demo::Db] DEMO.T_PERSON.LAST_NAME,
+                age: [demo::Db] DEMO.T_PERSON.AGE,
+                salary: [demo::Db] DEMO.T_PERSON.SALARY
+              }
+              demo::Firm: Relational
+              {
+                ~primaryKey ([demo::Db] DEMO.T_FIRM.ID)
+                ~mainTable [demo::Db] DEMO.T_FIRM
+                legalName: [demo::Db] DEMO.T_FIRM.LEGAL_NAME
+              }
+              demo::Employment: Relational
+              {
+                AssociationMapping
+                (
+                  firm: [demo::Db] @PersonFirm,
+                  employees: [demo::Db] @PersonFirm
+                )
+              }
+            )
+            ###Connection
+            RelationalDatabaseConnection demo::Conn { store: demo::Db; type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            Runtime demo::Runtime { mappings: [ demo::Map ]; connections: [ demo::Db: [ db: demo::Conn ] ]; }
+            ###Data
+            Data demo::Rows
+            {
+              Relational
+              #{
+                DEMO.T_FIRM:
+                  'ID,LEGAL_NAME\\n1,Acme\\n2,Globex\\n';
+                DEMO.T_PERSON:
+                  'ID,FIRST_NAME,LAST_NAME,AGE,SALARY,FIRM_ID\\n1,Alice,Smith,45,120000.0,1\\n2,Bob,Jones,32,90000.0,1\\n3,Carol,White,51,150000.0,1\\n4,Eve,Black,39,110000.0,2\\n';
+              }#
+            }
+            """;
+
+    static final PureV1Api.Runner RUN = new QueryService()::executeUpstream;
+
+    static Json.Obj query(String document, String extra) {
+        PureV1Api.Answer a = PureV1Api.route("/api/lite/v1/graphql/query", null,
+                body(STORE, "\"runtime\":{\"runtime\":\"demo::Runtime\"},\"query\":" + Json.toCompact(document)
+                        + (extra.isEmpty() ? "" : "," + extra)), RUN);
+        Json.Obj o = (Json.Obj) Json.parse(a.json(), PureV1Api.REQUEST);
+        o.fields().put("_status", Json.num(a.status()));
+        return o;
+    }
+
+    @Test
+    void theQueryRouteAnswersEachRootUnderItsKey() {
+        Json.Obj a = query("{ acme: Firm(where: { legalName: { equals: \"Acme\" } }) { legalName"
+                + " employees(orderBy: [{ salary: DESC }], limit: 2) { firstName } } seniors: Person(where: { age: { gt: 40 } },"
+                + " orderBy: [{ age: ASC }]) { fullName } }", "");
+        assertEquals(200, a.getInt("_status"), a.toString());
+        Json.Obj data = a.getObj("data");
+        String acme = Json.toCompact(data.get("acme"));
+        assertTrue(acme.contains("Carol") && acme.contains("Alice") && !acme.contains("Bob"), acme);
+        String seniors = Json.toCompact(data.get("seniors"));
+        assertTrue(seniors.indexOf("Alice Smith") < seniors.indexOf("Carol White"), seniors);
+        assertTrue(Json.toCompact(a.getObj("extensions").getObj("pure").get("acme")).contains("demo::Firm.all()"),
+                a.toString());
+        assertTrue(seniors.contains("\"fullName\":"), "the response key is the field's: " + seniors);
+        assertFalse(a.has("errors"), a.toString());
+    }
+
+    @Test
+    void theQueryRouteTakesVariables() {
+        Json.Obj a = query("query Q($min: BigInt, $n: Int) { Person(where: { age: { gte: $min } }, orderBy: [{ age: DESC }], limit: $n) { firstName age } }",
+                "\"variables\":{\"min\":40,\"n\":1}");
+        assertEquals(200, a.getInt("_status"), a.toString());
+        String people = Json.toCompact(a.getObj("data").get("Person"));
+        assertTrue(people.contains("Carol") && !people.contains("Alice"), people);
+    }
+
+    @Test
+    void theQueryRouteRefusesWithEveryValidationErrorAndNoData() {
+        Json.Obj a = query("{ Person(where: { agee: { gt: 1 } }) { fullNam } }", "");
+        assertEquals(400, a.getInt("_status"), a.toString());
+        assertFalse(a.has("data"), a.toString());
+        String errors = Json.toCompact(a.get("errors"));
+        assertTrue(errors.contains("did you mean age") && errors.contains("did you mean fullName"), errors);
+        assertTrue(errors.contains("VALIDATION"), errors);
+    }
+
+    @Test
+    void theQueryRouteNamesWhatALaterLandingBuilds() {
+        Json.Obj a = query("{ PersonAggregate { count } }", "");
+        assertEquals(400, a.getInt("_status"), a.toString());
+        String errors = Json.toCompact(a.get("errors"));
+        assertTrue(errors.contains("PR4") && errors.contains("UNSUPPORTED"), errors);
+    }
+
+    @Test
+    void theQueryRouteAnswersIntrospection() {
+        Json.Obj a = query("{ __schema { queryType { name } types { kind name } } __type(name: \"PersonWhere\") {"
+                + " kind inputFields { name type { kind name ofType { name } } } } }", "");
+        assertEquals(200, a.getInt("_status"), a.toString());
+        Json.Obj data = a.getObj("data");
+        assertEquals("Query", data.getObj("__schema").getObj("queryType").getString("name"));
+        String types = Json.toCompact(data.getObj("__schema").get("types"));
+        assertTrue(types.contains("\"name\":\"Person\"") && types.contains("\"name\":\"PersonWhere\""), types);
+        String where = Json.toCompact(data.get("__type"));
+        assertTrue(where.contains("INPUT_OBJECT") && where.contains("\"name\":\"age\"") && where.contains("BigIntFilter"), where);
+    }
+
+    @Test
+    void theQueryRouteFollowsGraphiqlsIntrospectionQuery() {
+        String q = "query IntrospectionQuery { __schema { queryType { name } mutationType { name } subscriptionType { name }"
+                + " types { ...FullType } directives { name description locations args { ...InputValue } } } }"
+                + " fragment FullType on __Type { kind name description specifiedByURL fields(includeDeprecated: true) { name description"
+                + " args { ...InputValue } type { ...TypeRef } isDeprecated deprecationReason } inputFields { ...InputValue }"
+                + " interfaces { ...TypeRef } enumValues(includeDeprecated: true) { name description isDeprecated deprecationReason }"
+                + " possibleTypes { ...TypeRef } }"
+                + " fragment InputValue on __InputValue { name description type { ...TypeRef } defaultValue }"
+                + " fragment TypeRef on __Type { kind name ofType { kind name ofType { kind name ofType { kind name ofType { kind name"
+                + " ofType { kind name ofType { kind name ofType { kind name } } } } } } } }";
+        Json.Obj a = query(q, "");
+        assertEquals(200, a.getInt("_status"), a.toString());
+        String types = Json.toCompact(a.getObj("data").getObj("__schema").get("types"));
+        assertTrue(types.contains("\"name\":\"employees\"") && types.contains("NON_NULL") && types.contains("LIST"), types);
+    }
 }
