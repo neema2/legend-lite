@@ -223,4 +223,44 @@ class GqlExecutionTest {
         String json = r.asGraph().json();
         assertTrue(json.contains("Alice") && !json.contains("Bob"), json);
     }
+
+    /** A clause on a nested collection: the composed body on the tree node (§6.2). */
+    @Test
+    void nestedWhereOrderByLimitOffset() throws SQLException {
+        String json = gql("{ Firm(orderBy: [{ legalName: ASC }]) { legalName"
+                + " employees(where: { age: { gt: 30 } }, orderBy: [{ salary: DESC }], limit: 2) { firstName salary } } }");
+        // Acme: Carol 150k, Alice 120k (Bob 90k cut by the limit; Dan 28 by the filter); Globex: Eve and Frank
+        // (Frank's null salary sits where the database puts a null under DESC: Pure's sortBy stamps no placement)
+        inOrder(json, "Acme", "Carol", "Alice", "Globex", "Initech");
+        assertTrue(json.contains("Eve") && json.contains("Frank"), json);
+        assertTrue(!json.contains("Bob") && !json.contains("Dan"), json);
+        String paged = gql("{ Firm(where: { legalName: { equals: \"Acme\" } }) { legalName"
+                + " page: employees(orderBy: [{ firstName: ASC }], offset: 1, limit: 2) { firstName } } }");
+        inOrder(paged, "\"page\"", "Bob", "Carol");
+        assertTrue(!paged.contains("Alice") && !paged.contains("Dan"), paged);
+    }
+
+    /** Two keys on a nested collection, and a nested clause under a nested node. */
+    @Test
+    void nestedTwoKeysAndDeeperNesting() throws SQLException {
+        String json = gql("{ Firm(where: { legalName: { equals: \"Acme\" } }) { legalName"
+                + " employees(orderBy: [{ lastName: DESC }, { age: ASC }]) { firstName address { city } } } }");
+        inOrder(json, "Carol", "Alice", "Bob", "Dan");
+        String deep = gql("{ Address(where: { city: { equals: \"London\" } }) { city"
+                + " residents(where: { age: { gt: 50 } }) { firstName firm { legalName } } } }");
+        assertTrue(deep.contains("Carol") && !deep.contains("Alice"), deep);
+        assertTrue(deep.contains("Acme"), deep);
+    }
+
+    /** The same query as Pure text: the composed node is ordinary Pure in a tree position, parsed back. */
+    @Test
+    void theComposedNodeSpelledInPure() throws SQLException {
+        String json = pure("""
+                demo::Firm.all()->filter(f|$f.legalName == 'Acme')
+                  ->graphFetch(#{ demo::Firm { legalName, 'top2': $this.employees->sortByReversed(e|$e.salary)->limit(2) { firstName } } }#)
+                  ->serialize(#{ demo::Firm { legalName, 'top2': $this.employees->sortByReversed(e|$e.salary)->limit(2) { firstName } } }#)
+                """);
+        inOrder(json, "\"top2\"", "Carol", "Alice");
+        assertTrue(!json.contains("Bob"), json);
+    }
 }

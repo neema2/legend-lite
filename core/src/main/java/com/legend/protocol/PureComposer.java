@@ -671,6 +671,11 @@ public final class PureComposer {
     }
 
     private String propertyGraphFetchTree(GraphFetchLiteral.Node tree) {
+        if (tree.body() != null) {
+            // the composed body (lite, GraphQL PR2c): the alias, then the expression over $this
+            return indent(tabs(1)) + convertString(java.util.Objects.requireNonNull(tree.alias()), false) + ":"
+                    + visit(tree.body()) + subTrees(tree.subTrees());
+        }
         return indent(tabs(1))
                 + (tree.alias() != null ? convertString(tree.alias(), false) + ":" : "")
                 + tree.property()

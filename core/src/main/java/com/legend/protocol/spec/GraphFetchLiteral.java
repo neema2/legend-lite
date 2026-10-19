@@ -59,17 +59,36 @@ public record GraphFetchLiteral(
      * ({@code 'nick' : prop}), optional subtype view ({@code prop->subType(@X)}, whose children read
      * X's properties), nested nodes. Subtype ENTRIES ({@code ->subType(@X) {...}}) exist only at the
      * root, as the engine's grammar has it.
+     *
+     * <p>A COMPOSED BODY (lite, GraphQL PR2c, docs/GRAPHQL_STUDY_2026_10_18.md §6.2): {@code 'top3':
+     * $this.employees->filter(e | $e.age > 30)->sortByReversed(e | $e.salary)->limit(3) { fullName }}
+     * -- an expression over {@code $this}, the node's object, whose value is the node's collection, keyed
+     * by the alias; {@code property} is the body's navigation head ({@code employees}), which the emitter
+     * correlates as it correlates the association. A query-time clause with a variable-length
+     * {@code orderBy} cannot be a fixed-body derived property, so the translator composes the body and
+     * places it on the node. The LEGEND_ENGINE surface has no such node.
      */
     public record Node(String property,
                        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
                        List<ValueSpecification> parameters,
                        @com.legend.base.Nullable String alias,
                        @com.legend.base.Nullable String subType,
-                       List<Node> subTrees) {
+                       List<Node> subTrees,
+                       @com.legend.base.Nullable ValueSpecification body) {
         public Node {
             Objects.requireNonNull(property, "property");
             parameters = List.copyOf(parameters);
             subTrees = List.copyOf(subTrees);
+            if (body != null && alias == null) {
+                throw new IllegalArgumentException("a tree node with a body is keyed by its alias");
+            }
+        }
+
+        /** A node without a body: every spelling the engine's grammar has. */
+        public Node(String property, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+                List<ValueSpecification> parameters, @com.legend.base.Nullable String alias,
+                @com.legend.base.Nullable String subType, List<Node> subTrees) {
+            this(property, pos, parameters, alias, subType, subTrees, null);
         }
 
         @Override
@@ -77,12 +96,13 @@ public record GraphFetchLiteral(
             return o instanceof Node other
                     && property.equals(other.property()) && parameters.equals(other.parameters())
                     && Objects.equals(alias, other.alias())
-                    && Objects.equals(subType, other.subType()) && subTrees.equals(other.subTrees());
+                    && Objects.equals(subType, other.subType()) && subTrees.equals(other.subTrees())
+                    && Objects.equals(body, other.body());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(property, parameters, alias, subType, subTrees);
+            return Objects.hash(property, parameters, alias, subType, subTrees, body);
         }
     }
 
@@ -124,14 +144,19 @@ public record GraphFetchLiteral(
         List<Node> out = new ArrayList<>(nodes.size());
         for (Node n : nodes) {
             out.add(new Node(n.property(), n.pos(), n.parameters(), n.alias(),
-                    n.subType() == null ? null : rename.apply(n.subType()), renamed(n.subTrees(), rename)));
+                    n.subType() == null ? null : rename.apply(n.subType()), renamed(n.subTrees(), rename),
+                    n.body()));
         }
         return out;
     }
 
+    /** The arguments, then the body (a composed body is an argument expression like any), then the children's. */
     private static void collect(List<Node> nodes, List<ValueSpecification> out) {
         for (Node n : nodes) {
             out.addAll(n.parameters());
+            if (n.body() != null) {
+                out.add(n.body());
+            }
             collect(n.subTrees(), out);
         }
     }
@@ -141,8 +166,13 @@ public record GraphFetchLiteral(
         for (Node n : nodes) {
             List<ValueSpecification> params = args.subList(next[0], next[0] + n.parameters().size());
             next[0] += n.parameters().size();
+            ValueSpecification body = null;
+            if (n.body() != null) {
+                body = args.get(next[0]);
+                next[0]++;
+            }
             out.add(new Node(n.property(), n.pos(), params, n.alias(), n.subType(),
-                    replace(n.subTrees(), args, next)));
+                    replace(n.subTrees(), args, next), body));
         }
         return out;
     }

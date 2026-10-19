@@ -363,8 +363,11 @@ final class SpecIslandReader {
             // the engine's grammar refuses ->subType below the root; so does lite's
             noSubTypes(n);
             List<ValueSpecification> args = n.listOrEmpty("parameters", SpecIslandReader::graphArg);
+            // the composed body (lite, GraphQL PR2c): a lite-only key, an ordinary value specification
+            Json.Node bodyNode = n.opt("body");
+            ValueSpecification body = bodyNode == null ? null : ProtocolReader.valueSpec(bodyNode);
             out.add(n.done(new GraphFetchLiteral.Node(n.str("property"), n.span(), args,
-                    n.optStr("alias"), n.optStr("subType"), graphNodes(n.arrOrEmpty("subTrees")))));
+                    n.optStr("alias"), n.optStr("subType"), graphNodes(n.arrOrEmpty("subTrees")), body)));
         }
         return out;
     }

@@ -3056,6 +3056,11 @@ public final class ProtocolEmitter {
             b.append(",\"subTrees\":[");
             graphNodes(b, n.subTrees());
             b.append(']');
+            if (n.body() != null) {
+                // the composed body (lite, GraphQL PR2c): a lite-only key the engine's wire never carries
+                b.append(",\"body\":");
+                valueSpec(b, n.body());
+            }
             if (n.subType() != null) {
                 b.append(",\"subType\":");
                 str(b, n.subType());

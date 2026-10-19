@@ -3414,6 +3414,23 @@ public final class SpecParser implements TokenStreamCursor {
             alias = raw.length() >= 2 ? raw.substring(1, raw.length() - 1) : raw;
             pos += 2;
         }
+        if (alias != null && !atEnd() && peek() == TokenType.DOLLAR) {
+            // the COMPOSED BODY (lite, GraphQL PR2c, docs/GRAPHQL_STUDY_2026_10_18.md §6.2): an aliased
+            // expression over $this whose value is the node's collection; the node's property is the
+            // body's navigation head
+            int start = pos;
+            ValueSpecification body = parseCombinedExpression();
+            String head = navigationHead(body);
+            if (head == null) {
+                throw new com.legend.parser.ParseException("a composed tree node navigates from $this"
+                        + " ('" + alias + "': $this.<property>->...)");
+            }
+            List<com.legend.protocol.spec.GraphFetchLiteral.Node> children =
+                    !atEnd() && peek() == TokenType.BRACE_OPEN ? parseGraphDefinition(null) : List.of();
+            nodes.add(new com.legend.protocol.spec.GraphFetchLiteral.Node(head, spanOf(start, start), List.of(),
+                    alias, null, children, body));
+            return;
+        }
         if (!isFqnSegmentToken(peek())) {
             throw error("expected property name in graph-fetch path");
         }
@@ -3433,6 +3450,33 @@ public final class SpecParser implements TokenStreamCursor {
                 !atEnd() && peek() == TokenType.BRACE_OPEN ? parseGraphDefinition(null) : List.of();
         nodes.add(new com.legend.protocol.spec.GraphFetchLiteral.Node(property, namePos, args,
                 alias, subType, children));
+    }
+
+    /** The property a composed body navigates from {@code $this} ({@code $this.employees->filter(...)}:
+     *  {@code employees}): the innermost property access on {@code $this}, through calls' first arguments
+     *  and property receivers; null when the body does not navigate from {@code $this}. */
+    private static @com.legend.base.Nullable String navigationHead(ValueSpecification body) {
+        ValueSpecification v = body;
+        while (true) {
+            switch (v) {
+                case com.legend.protocol.spec.AppliedProperty ap -> {
+                    if (ap.receiver() instanceof com.legend.protocol.spec.Variable var
+                            && var.name().equals("this")) {
+                        return ap.property();
+                    }
+                    v = ap.receiver();
+                }
+                case com.legend.protocol.spec.AppliedFunction af -> {
+                    if (af.parameters().isEmpty()) {
+                        return null;
+                    }
+                    v = af.parameters().get(0);
+                }
+                default -> {
+                    return null;
+                }
+            }
+        }
     }
 
     private boolean atSubTypeArrow() {

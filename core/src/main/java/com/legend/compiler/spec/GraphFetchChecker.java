@@ -158,6 +158,22 @@ final class GraphFetchChecker {
     }
 
     private static TypedGraphTree property(Typer t, String classFqn, Node n, String fn, Env env) {
+        if (n.body() != null) {
+            // the COMPOSED BODY (lite, GraphQL PR2c, docs/GRAPHQL_STUDY_2026_10_18.md §6.2): typed with
+            // $this the node's object, as a derived property's body is; its value's class is the child's
+            TypedSpec body = t.synth(n.body(), env.with("this",
+                    ExprType.one(new Type.ClassType(classFqn))));
+            if (!(Type.asClassType(body.info().type()) instanceof Type.ClassType bodyClass)) {
+                throw new TypeInferenceException(fn + " tree: the body of '" + n.alias() + "' is "
+                        + body.info().type().typeName() + ", not a class: a composed node is a collection"
+                        + " of objects");
+            }
+            if (n.subType() != null) {
+                throw new TypeInferenceException(fn + " tree: a composed node takes no ->subType view");
+            }
+            return new TypedGraphTree(n.property(), validate(t, bodyClass.fqn(), n.subTrees(), List.of(), fn, env),
+                    n.alias(), List.of(), false, null, body);
+        }
         Property prop = t.model().findProperty(classFqn, n.property()).orElse(null);
         String propName = n.property();
         boolean sweep = false;

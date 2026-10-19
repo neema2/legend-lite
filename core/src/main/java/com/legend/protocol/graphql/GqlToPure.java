@@ -836,14 +836,20 @@ public final class GqlToPure {
                         args.add(literal(given, GqlSchema.baseName(a.type()), path + "(" + a.name() + ")"));
                     }
                 }
-                if (clause) {
-                    throw GqlTranslationException.unsupported(path, "a clause (where, orderBy, limit, offset) on"
-                            + " the nested collection " + f.name() + " lands with the composed body on a tree node"
-                            + " (PR2c, docs/GRAPHQL_STUDY_2026_10_18.md §6.2)");
-                }
                 List<Node> children = List.of();
                 if (!f.selectionSet().isEmpty()) {
                     children = nodes(f.selectionSet(), composite(fd), path);
+                }
+                if (clause) {
+                    // the COMPOSED BODY (§6.2): the clauses over $this.<property>, keyed by the response key
+                    if (!args.isEmpty()) {
+                        throw GqlTranslationException.unsupported(path, "a clause on the derived collection "
+                                + f.name() + ", which takes arguments: a composed body navigates a stored"
+                                + " property (docs/GRAPHQL_STUDY_2026_10_18.md §6.2)");
+                    }
+                    ValueSpecification body = clauses(new AppliedProperty(new Variable("this"), p.name()),
+                            f.arguments(), composite(fd), path);
+                    yield new Node(p.name(), null, List.of(), key, null, children, body);
                 }
                 yield new Node(p.name(), null, args, f.alias() == null ? null : key, null, children);
             }

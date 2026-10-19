@@ -905,6 +905,19 @@ final class GraphEmission {
     TypedSerializeGraph.Child graphChild(ClassSource cs, TypedGraphTree node,
             StoreResolver.Context context, String parentRowVar,
             Type.RelationType parentRowType, TypedSpec parentPipeline) {
+        if (node.body() != null) {
+            // the COMPOSED BODY (lite, GraphQL PR2c): the node's own expression over $this, the shape a
+            // derived to-many body has, compiled as one
+            TypedSerializeGraph.Child bch = bodyChild(cs, node, context, parentRowVar, parentRowType,
+                    unwrapToOneFirst(inlineDerivedCalls(node.body(), 0)), "this",
+                    node.body().info().multiplicity().isMany());
+            if (bch == null) {
+                throw new NotImplementedException("graph node '" + node.alias() + "' of class '"
+                        + cs.classFqn() + "': its body is not a navigation from $this with a filter, a sort,"
+                        + " a take or a drop over it (docs/GRAPHQL_STUDY_2026_10_18.md §6.2)");
+            }
+            return bch;
+        }
         if (node.children().isEmpty()) {
             // a childless DERIVED class node still serializes (its filter
             // may make it empty — synonymsByTypes([]) yields [] per root)
@@ -1508,6 +1521,21 @@ final class GraphEmission {
         }
         TypedSpec hop = unwrapToOneFirst(inlineDerivedCalls(
                 substVars(cf.body().get(0), argBinds), 0));
+        boolean toMany = !(d.multiplicity()
+                instanceof com.legend.compiler.element.type
+                        .Multiplicity.Bounded bm
+                && Integer.valueOf(1).equals(bm.upper()));
+        return bodyChild(cs, node, context, parentRowVar, parentRowType, hop, thisVar, toMany);
+    }
+
+    /** The child a body over {@code thisVar} spells: its navigation head (optionally chained, optionally
+     *  filtered) and its ordering tail; null when the body has no such shape. A derived property's inlined
+     *  body and a composed tree node's body (GraphQL PR2c) are read alike. */
+    private TypedSerializeGraph.@com.legend.base.Nullable Child bodyChild(ClassSource cs,
+            TypedGraphTree node, StoreResolver.Context context,
+            String parentRowVar, Type.RelationType parentRowType, TypedSpec hop0, String thisVar,
+            boolean toMany) {
+        TypedSpec hop = hop0;
         // ORDERING TAIL (GraphQL PR2, docs/GRAPHQL_STUDY_2026_10_18.md §6.2):
         // a derived to-many body may end in sortBy/sortByReversed/sort,
         // take/limit, drop, slice over its navigation head — the companion
@@ -1547,7 +1575,7 @@ final class GraphEmission {
                     && Type.asClassType(hp1.info().type()) instanceof Type.ClassType) {
                 var chained = chainedDerivedChild(cs, node, context,
                         parentRowVar, parentRowType, hp1.property(),
-                        midPred, hp2.property(), d, thisVar);
+                        midPred, hp2.property(), toMany, thisVar);
                 if (chained != null) {
                     return chained;
                 }
@@ -1616,10 +1644,6 @@ final class GraphEmission {
                 default -> throw new IllegalStateException("peeled tail op " + op.getClass().getSimpleName());
             };
         }
-        boolean toMany = !(d.multiplicity()
-                instanceof com.legend.compiler.element.type
-                        .Multiplicity.Bounded bm
-                && Integer.valueOf(1).equals(bm.upper()));
         return childFromRel(target, childRel, extraParams, toMany, node,
                 context, Map.of());
     }
@@ -1676,7 +1700,7 @@ final class GraphEmission {
             ClassSource cs, TypedGraphTree node, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType,
             String firstHop, @com.legend.base.Nullable TypedLambda midPred, String secondHop,
-            com.legend.compiler.element.Property.Derived d, String thisVar) {
+            boolean toMany, String thisVar) {
         HopJoin j1 = hopJoin(cs, firstHop, context);
         HopJoin j2 = j1 == null ? null : hopJoin(j1.target(), secondHop, context);
         if (j1 == null || j2 == null) {
@@ -1769,10 +1793,6 @@ final class GraphEmission {
         Set<String> extraParams = new LinkedHashSet<>();
         extraParams.add(tName);
         extraParams.add(midName);
-        boolean toMany = !(d.multiplicity()
-                instanceof com.legend.compiler.element.type
-                        .Multiplicity.Bounded bm
-                && Integer.valueOf(1).equals(bm.upper()));
         return childFromRel(target, childRel, extraParams, toMany, node,
                 context, Map.of());
     }
