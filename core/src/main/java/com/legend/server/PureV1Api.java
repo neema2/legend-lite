@@ -114,6 +114,7 @@ public final class PureV1Api {
             case "/api/lite/v1/graphql/schema" -> GraphqlApi.schema(body);
             case "/api/lite/v1/graphql/validate" -> GraphqlApi.validate(body);
             case "/api/lite/v1/graphql/query" -> GraphqlApi.query(body, runner);
+            case "/api/lite/v1/graphql/explain" -> GraphqlApi.explain(body);
             default -> error(404, null, (path.startsWith("/api/lite/") ? "no such legend-lite API: "
                     : "no such legend-engine API in legend-lite: ") + path);
         };

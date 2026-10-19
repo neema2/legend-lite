@@ -227,6 +227,29 @@ class GraphqlApiTest {
     }
 
     @Test
+    void theExplainRouteAnswersThePureAndTheSqlPerRootWithoutRunning() {
+        Json.Obj a = answer("/api/lite/v1/graphql/explain", body(STORE,
+                "\"runtime\":{\"runtime\":\"demo::Runtime\"},\"query\":\"{ Person(orderBy: [{ age: ASC }], limit: 1)"
+                + " { fullName } PersonAggregate { count } }\""));
+        assertTrue(a.getBool("valid"), a.toString());
+        Json.Arr roots = a.getArr("roots");
+        assertEquals(2, roots.items().size(), a.toString());
+        Json.Obj person = (Json.Obj) roots.items().get(0);
+        assertEquals("Person", person.getString("key"));
+        assertEquals("TREE", person.getString("shape"));
+        assertTrue(person.getString("pure").contains("demo::Person.all()"), person.getString("pure"));
+        assertTrue(person.getString("sql").toLowerCase(java.util.Locale.ROOT).contains("select"), person.getString("sql"));
+        Json.Obj agg = (Json.Obj) roots.items().get(1);
+        assertEquals("ROW", agg.getString("shape"));
+        assertTrue(agg.getString("sql").toLowerCase(java.util.Locale.ROOT).contains("count"), agg.getString("sql"));
+        // a refusal of the translator's is an error of the verdict
+        Json.Obj nested = answer("/api/lite/v1/graphql/explain", body(STORE,
+                "\"query\":\"{ Firm { employeesGroups { key { age } count } } }\""));
+        assertFalse(nested.getBool("valid"), nested.toString());
+        assertTrue(Json.toCompact(nested.get("errors")).contains("nested groups"), nested.toString());
+    }
+
+    @Test
     void theQueryRouteArrangesAGroupsRootsRows() {
         Json.Obj a = query("{ PersonGroups(orderBy: [{ count: DESC }, { key: { firm: { legalName: ASC } } }], limit: 2)"
                 + " { key { firm { legalName } } count max { age } } }", "");

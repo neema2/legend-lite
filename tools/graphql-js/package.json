@@ -1,0 +1,8 @@
+{
+  "name": "legend-lite-graphql-js-differential",
+  "private": true,
+  "type": "module",
+  "description": "The graphql-js differential over lite's generated GraphQL schema (docs/GRAPHQL_STUDY_2026_10_18.md §9.3): a hand tool, run with node after npm install.",
+  "scripts": { "differential": "node differential.mjs" },
+  "dependencies": { "graphql": "17.0.2" }
+}

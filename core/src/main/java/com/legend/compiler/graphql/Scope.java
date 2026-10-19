@@ -89,29 +89,13 @@ public record Scope(List<String> classFqns) {
         for (String fqn : ctx.elementFqns()) {
             TypedClass c = ctx.findClass(fqn).orElse(null);
             if (c != null && !c.isNative() && !platform.contains(fqn) && !SYSTEM.contains(fqn)
-                    && !companion(ctx, fqn)) {
+                    && !ctx.isSynthetic(fqn)) {
                 out.add(fqn);
             }
         }
         return out;
     }
 
-    /** A class the companion generated ({@code <<meta::legend::lite::graphql.companion>>}, PR4): never a root,
-     *  never a type of the schema; the schema spells its shape itself. */
-    private static boolean companion(ModelContext ctx, String fqn) {
-        var cd = ctx.findClassDefinition(fqn).orElse(null);
-        if (cd == null) {
-            return false;
-        }
-        for (var st : cd.stereotypes()) {
-            if (com.legend.compiler.element.type.PlatformTypes.isProfile(st.profileName(),
-                    com.legend.compiler.element.type.PlatformTypes.GRAPHQL_PROFILE)
-                    && st.stereotypeName().equals(com.legend.compiler.element.type.PlatformTypes.GRAPHQL_COMPANION)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     public List<String> asList() {
         return classFqns;

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Legend GraphiQL</title>
+  <!--
+    GraphiQL over legend-lite's GraphQL endpoint (docs/GRAPHQL_STUDY_2026_10_18.md §8.5; PR6).
+
+    The page posts every GraphiQL request, introspection included, to the lite server's
+    POST /api/lite/v1/graphql/query with the model text beside the document, which is how that route takes a
+    model (there is no server-side model store). The query string names what to send:
+
+      ?engine=http://localhost:8080            the lite server (LegendHttpServer); this is the default
+      &models=./models/a.pure,./models/b.pure   the model files, read from this site and concatenated
+      &runtime=demo::trading::Runtime           the runtime to run on
+      &dataSpace=demo::Space | &classes=a::B,c::D   the schema's scope (optional: everything otherwise)
+
+    GraphiQL and React load from unpkg at a pinned version. The in-browser engine of the Query app (duckdb-wasm
+    and the planner as WebAssembly) does not serve this page: the GraphQL routes are the server's.
+  -->
+  <link rel="stylesheet" href="https://unpkg.com/graphiql@3.8.3/graphiql.min.css">
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #graphiql { height: 100vh; }
+    #problem { font: 14px system-ui, sans-serif; padding: 1rem; color: #a00; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <div id="graphiql"></div>
+  <div id="problem" hidden></div>
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/graphiql@3.8.3/graphiql.min.js"></script>
+  <script>
+    (async () => {
+      const params = new URLSearchParams(location.search);
+      const engine = (params.get('engine') ?? 'http://localhost:8080').replace(/\/$/, '');
+      const models = (params.get('models') ?? './models/trading.pure,./models/runtime-duckdb.pure,./models/trading-data.pure')
+        .split(',').map((s) => s.trim()).filter(Boolean);
+      const runtime = params.get('runtime') ?? 'demo::trading::Runtime';
+      const dataSpace = params.get('dataSpace');
+      const classes = params.get('classes');
+      const problem = (text) => {
+        const el = document.getElementById('problem');
+        el.hidden = false;
+        el.textContent = text;
+      };
+      let code;
+      try {
+        const texts = await Promise.all(models.map(async (m) => {
+          const r = await fetch(m);
+          if (!r.ok) throw new Error(`${m}: ${r.status}`);
+          return r.text();
+        }));
+        code = texts.join('\n');
+      } catch (e) {
+        problem(`the model files could not be read: ${e.message}`);
+        return;
+      }
+      // every request, introspection included, carries the model: the route takes a model, not a name
+      const fetcher = async (graphQLParams) => {
+        const body = { model: { _type: 'text', code }, runtime: { runtime }, query: graphQLParams.query };
+        if (graphQLParams.variables) body.variables = graphQLParams.variables;
+        if (graphQLParams.operationName) body.operationName = graphQLParams.operationName;
+        if (dataSpace) body.dataSpace = dataSpace;
+        if (classes) body.classes = classes.split(',').map((s) => s.trim()).filter(Boolean);
+        const r = await fetch(`${engine}/api/lite/v1/graphql/query`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/graphql-response+json, application/json' },
+          body: JSON.stringify(body),
+        });
+        return r.json();
+      };
+      const defaultQuery = '# legend-lite GraphQL: the schema is generated from the Pure model.\n'
+        + '# Ctrl-Space completes; the Docs panel lists the types beside their classes.\n'
+        + '{\n  __schema { queryType { fields { name } } }\n}\n';
+      ReactDOM.createRoot(document.getElementById('graphiql')).render(
+        React.createElement(GraphiQL, { fetcher, defaultQuery, defaultEditorToolsVisibility: true }),
+      );
+    })();
+  </script>
+</body>
+</html>

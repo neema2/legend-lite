@@ -4,6 +4,8 @@
 package com.legend.compiler.graphql;
 
 import com.legend.protocol.graphql.GqlSchema;
+import com.legend.protocol.graphql.GqlTranslationException;
+import com.legend.protocol.graphql.Introspection;
 import com.legend.protocol.graphql.GqlSchema.Composite;
 import com.legend.protocol.graphql.GqlSchema.EnumType;
 import com.legend.protocol.graphql.GqlSchema.InputObjectType;
@@ -116,7 +118,27 @@ public final class GqlValidator {
                 f.error("", "fragment " + name + " is defined and never spread");
             }
         }
+        introspection(f, op, schema);
         return new Validation(f.errors, f.warnings, f.errors.isEmpty() ? shape : null, op);
+    }
+
+    /**
+     * The introspection roots ({@code __schema}, {@code __type}) validated by the answerer itself: it projects the
+     * selection over the schema's own graph and refuses a field the meta-types do not have ({@code __schema {
+     * queryTypes }}), which graphql-js refuses too (G1: lite's acceptance a subset of graphql-js's; the differential
+     * of PR1b found the validator letting it through, 2026-10-19). The answer is discarded; the refusal is the
+     * error at its path.
+     */
+    private static void introspection(Frame f, Gql.Operation op, Schema schema) {
+        for (Gql.Selection s : op.selectionSet()) {
+            if (s instanceof Gql.Field root && Introspection.isRoot(root.name()) && !root.name().equals("__typename")) {
+                try {
+                    Introspection.answer(root, schema, f.fragments);
+                } catch (GqlTranslationException e) {
+                    f.error(e.path(), String.valueOf(e.getMessage()));
+                }
+            }
+        }
     }
 
     private static @com.legend.base.Nullable Gql.Operation chooseOperation(Frame f, List<Gql.Operation> operations,

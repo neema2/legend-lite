@@ -78,6 +78,58 @@ public final class GraphqlApi {
     }
 
     /**
+     * {@code POST /api/lite/v1/graphql/explain} (docs/GRAPHQL_STUDY_2026_10_18.md §8.4, G14; PR6): the document's
+     * verdict as {@code validate} answers it and, per root field, its key, the shape of its value, the Pure it
+     * means and the SQL it runs on the runtime -- planned, never run (the planner touches no database, C2a). A
+     * document the translator refuses is answered invalid with the refusal among its errors.
+     */
+    public static Answer explain(String body) {
+        return PureV1Api.answer(400, "COMPILATION", () -> {
+            Json.Obj request = PureV1Api.request(body);
+            Scoped scoped = scoped(request);
+            String operationName = request.getStringOr("operationName", null);
+            Gql.Document doc = GqlParser.parseDocument(request.getString("query"), 1, 1);
+            Validation v = GqlValidator.validate(doc, scoped.schema(), limits(request), operationName);
+            Map<String, Object> out = new LinkedHashMap<>();
+            boolean valid = v.valid();
+            if (v.shape() != null) {
+                out.put("shape", v.shape());
+            }
+            List<Map<String, Object>> errors = new ArrayList<>(problems(v.errors()));
+            List<Map<String, Object>> roots = new ArrayList<>();
+            if (valid) {
+                try {
+                    GqlToPure.Translation t = GqlToPure.translate(doc, scoped.schema(), operationName,
+                            GqlToPure.variables(request.getObjOr("variables", null)));
+                    for (GqlToPure.Root root : t.roots()) {
+                        Map<String, Object> r = new LinkedHashMap<>();
+                        r.put("key", root.key());
+                        r.put("shape", root.shape().name());
+                        r.put("pure", PureComposer.valueSpecification(root.expression(),
+                                PureComposer.Style.STANDARD));
+                        com.legend.TypedQuery q = Compiler.query(scoped.ctx(), root.asLambda());
+                        String runtime = PureV1Api.runtimeOf(request, q.target());
+                        r.put("runtime", runtime);
+                        r.put("sql", q.plan(runtime).sql());
+                        roots.add(r);
+                    }
+                } catch (GqlTranslationException e) {
+                    Map<String, Object> refusal = problem(e.path() == null ? "" : e.path(),
+                            String.valueOf(e.getMessage()));
+                    refusal.put("code", e.kind().name());
+                    errors.add(refusal);
+                    valid = false;
+                }
+            }
+            out.put("valid", valid);
+            out.put("errors", errors);
+            out.put("warnings", problems(v.warnings()));
+            out.put("roots", roots);
+            return Json.toCompact(out);
+        });
+    }
+
+    /**
      * {@code POST /api/lite/v1/graphql/query} (docs/GRAPHQL_STUDY_2026_10_18.md §8.1): the document run over the
      * model on its runtime, answered in the GraphQL-over-HTTP envelope. {@code model}, {@code query}; optionally
      * {@code variables}, {@code operationName}, {@code runtime} ({@code {"runtime": "demo::Runtime"}}),
@@ -267,7 +319,7 @@ public final class GraphqlApi {
         return List.of(dotted.split("\\."));
     }
 
-    private record Scoped(Schema schema, Scope scope) {
+    private record Scoped(Schema schema, Scope scope, ModelContext ctx) {
     }
 
     /** The model compiled and its schema over the data space named, the classes listed, or everything. */
@@ -288,7 +340,7 @@ public final class GraphqlApi {
         } else {
             scope = Scope.all(ctx);
         }
-        return new Scoped(SchemaGenerator.generate(ctx, scope), scope);
+        return new Scoped(SchemaGenerator.generate(ctx, scope), scope, ctx);
     }
 
     private static DataSpaceDefinition dataSpace(String modelText, String name) {

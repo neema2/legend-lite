@@ -46,6 +46,8 @@ public class LegendHttpServer {
     private final @com.legend.base.Nullable SavedQueries queryStore;
     /** DataCube's saved pages, beside the queries ({@code DIR/dataCube}; the program's B6), or null. */
     private final @com.legend.base.Nullable SavedCubes cubeStore;
+    /** The MCP wrapper over the GraphQL routes ({@code POST /mcp}); its pinned model is {@code --graphql-model}'s. */
+    private final GraphqlMcp mcp;
 
     /** On the loopback interface, loopback origins only: the development server. */
     public LegendHttpServer(int port) throws IOException {
@@ -56,7 +58,16 @@ public class LegendHttpServer {
      *  pages in its {@code dataCube} -- or null, every call of the store's then refused. */
     public LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
             java.nio.file.@com.legend.base.Nullable Path queryStore) throws IOException {
+        this(port, bind, origins, queryStore, null);
+    }
+
+    /** {@code graphqlModel}: the Pure model text an MCP call may leave unnamed ({@code --graphql-model FILE}),
+     *  or null, every call then naming its own. */
+    public LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
+            java.nio.file.@com.legend.base.Nullable Path queryStore,
+            @com.legend.base.Nullable String graphqlModel) throws IOException {
         this.server = HttpServer.create(new InetSocketAddress(bind, port), 0);
+        this.mcp = new GraphqlMcp(new QueryService()::executeUpstream, graphqlModel);
         this.lspServer = new PureLspServer();
         this.origins = origins;
         this.queryStore = queryStore == null ? null
@@ -125,6 +136,9 @@ public class LegendHttpServer {
         route("/api/pure/v1/", new PureV1Handler());
         // and lite's own route beside it, on the same dispatcher (every compile error; the user, 2026-10-10)
         route("/api/lite/v1/", new PureV1Handler());
+        // the Model Context Protocol over the GraphQL routes (docs/GRAPHQL_STUDY_2026_10_18.md §8.4; PR6):
+        // Streamable HTTP, one JSON-RPC message per POST
+        route("/mcp", new McpHandler());
         // legend-engine's query store and current user (SavedQueries; the Query app's G5/G7)
         route("/api/pure/v1/query", exchange -> {
             addCorsHeaders(exchange);
@@ -234,6 +248,34 @@ public class LegendHttpServer {
             PureV1Api.Answer answer = PureV1Api.route(exchange.getRequestURI().getPath(),
                     exchange.getRequestURI().getRawQuery(), body, new QueryService()::executeUpstream);
             sendResponse(exchange, answer.status(), answer.json(), answer.contentType());
+        }
+    }
+
+    /** {@code POST /mcp}: one JSON-RPC message, answered as JSON; a notification is 202 with no body. */
+    private final class McpHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            addCorsHeaders(exchange);
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+                return;
+            }
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "{\"error\":\"Method not allowed: the MCP transport posts JSON-RPC\"}");
+                return;
+            }
+            String body;
+            try (InputStream in = exchange.getRequestBody()) {
+                body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            }
+            String answer = mcp.handle(body);
+            if (answer == null) {
+                exchange.sendResponseHeaders(202, -1);
+                exchange.close();
+                return;
+            }
+            sendResponse(exchange, 200, answer);
         }
     }
 
@@ -347,10 +389,14 @@ public class LegendHttpServer {
             }
         }
         // arguments: [port] [--query-store DIR] (the saved-query store's directory)
+        //   [--graphql-model FILE] (the Pure model an MCP call may leave unnamed)
         java.nio.file.Path queryStore = null;
+        String graphqlModel = null;
         for (int i = 0; i < args.length; i++) {
             if ("--query-store".equals(args[i]) && i + 1 < args.length) {
                 queryStore = java.nio.file.Path.of(args[++i]);
+            } else if ("--graphql-model".equals(args[i]) && i + 1 < args.length) {
+                graphqlModel = java.nio.file.Files.readString(java.nio.file.Path.of(args[++i]));
             } else {
                 try {
                     port = Integer.parseInt(args[i]);
@@ -369,7 +415,7 @@ public class LegendHttpServer {
                     + " a caller's model runs its connections' setup SQL on this host.");
         }
         LegendHttpServer server = new LegendHttpServer(port, address,
-                Origins.fromEnv(System.getenv("LEGEND_LITE_ALLOWED_ORIGINS")), queryStore);
+                Origins.fromEnv(System.getenv("LEGEND_LITE_ALLOWED_ORIGINS")), queryStore, graphqlModel);
         server.start();
 
         System.out.println();
@@ -381,6 +427,8 @@ public class LegendHttpServer {
         System.out.println("  POST http://localhost:" + port + "/lsp         - LSP Protocol");
         System.out.println("  POST http://localhost:" + port + "/api/pure/v1/... - legend-engine's pure/v1 API");
         System.out.println("  POST http://localhost:" + port + "/api/lite/v1/compilation/compile - every compile error");
+        System.out.println("  POST http://localhost:" + port + "/api/lite/v1/graphql/{schema,validate,query,explain}");
+        System.out.println("  POST http://localhost:" + port + "/mcp            - the MCP wrapper over the GraphQL routes");
         System.out.println("  GET  http://localhost:" + port + "/health         - Health check");
         System.out.println();
         System.out.println("Press Ctrl+C to stop");

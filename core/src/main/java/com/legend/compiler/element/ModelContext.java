@@ -44,6 +44,30 @@ public interface ModelContext extends StoreLookups {
      * databases, runtimes, functions) — the wildcard-import candidate
      * universe for SECTION-scoped query resolution.
      */
+    /**
+     * An element the platform GENERATED beside the user's: the GraphQL companion's classes, marked
+     * {@code <<meta::legend::lite::graphql.companion>>} (docs/GRAPHQL_STUDY_2026_10_18.md G15, G20) -- callable from
+     * Pure by name, and HIDDEN from every listing that reads "every class of the model" (a label-less Cypher node,
+     * the graph's edge classes, the GraphQL schema's roots, a lineage scan): a listing that forgets this shows a
+     * generated class to a person or reads its unmapped rows (the gate of 2026-10-19: 198 Cypher cases regressed
+     * when the companion's classes stood among a label-less node's). The companion's MEMBERS on a user's class
+     * are the class's own; only its classes are synthetic.
+     */
+    default boolean isSynthetic(String fqn) {
+        var cd = findClassDefinition(fqn).orElse(null);
+        if (cd == null) {
+            return false;
+        }
+        for (var st : cd.stereotypes()) {
+            if (com.legend.compiler.element.type.PlatformTypes.isProfile(st.profileName(),
+                    com.legend.compiler.element.type.PlatformTypes.GRAPHQL_PROFILE)
+                    && st.stereotypeName().equals(com.legend.compiler.element.type.PlatformTypes.GRAPHQL_COMPANION)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     default java.util.Set<String> elementFqns() {
         return java.util.Set.of();
     }

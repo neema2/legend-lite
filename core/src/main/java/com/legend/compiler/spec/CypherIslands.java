@@ -63,7 +63,8 @@ public final class CypherIslands {
         static Labels of(ModelContext model) {
             Map<String, List<String>> out = new TreeMap<>();
             for (String fqn : new java.util.TreeSet<>(model.elementFqns())) {
-                if (model.findClass(fqn).isEmpty()) {
+                // a synthetic class (the GraphQL companion's) is no label: unmapped, and not the user's
+                if (model.findClass(fqn).isEmpty() || model.isSynthetic(fqn)) {
                     continue;
                 }
                 int i = fqn.lastIndexOf("::");
