@@ -343,7 +343,14 @@ public final class CypherParity {
         Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
         Map<String, List<Case>> byGraph = new LinkedHashMap<>();
         Map<String, CypherGraph.Inferred> inferred = new LinkedHashMap<>();
+        // THROWAWAY (debug/cypher-parity-timing): -Dcypher.timing.only=<prefix>,<prefix>... runs only the cases whose
+        // key starts with one (local measurement; the ratchet then reports every other case, as expected)
+        String only = System.getProperty("cypher.timing.only");
+        List<String> prefixes = only == null ? List.of() : List.of(only.split(","));
         for (Case c : cases) {
+            if (only != null && prefixes.stream().noneMatch(c.key()::startsWith)) {
+                continue;
+            }
             if (c.skip() != null) {
                 outcomes.put(c.key(), new SqlParity.Outcome(SqlParity.Status.SKIP, c.skip()));
                 continue;

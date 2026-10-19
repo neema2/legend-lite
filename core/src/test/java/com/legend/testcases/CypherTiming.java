@@ -35,6 +35,14 @@ public final class CypherTiming {
 
     private static final long[] STARTED = new long[1];
 
+    /** The SQL the case in flight sent, as the connection saw it. */
+    private static final List<String> SQL = new ArrayList<>();
+
+    /** The lane and its outputs directory, set by {@link #record}. */
+    private static final String[] LANE = new String[2];
+
+    private static final int[] SLOW = new int[1];
+
     private CypherTiming() {
     }
 
@@ -55,7 +63,7 @@ public final class CypherTiming {
                     new com.legend.model.ImportScope(List.of()), ctx);
             c = System.nanoTime();
             return java.util.Objects.requireNonNull(com.legend.Execution.executeResolved(resolved, ctx, runtime,
-                    connection, null, null, com.legend.ExecuteOptions.NONE), "query produced no result");
+                    capturing(connection), null, null, com.legend.ExecuteOptions.NONE), "query produced no result");
         } finally {
             long d = System.nanoTime();
             if (b == a) {
@@ -71,7 +79,41 @@ public final class CypherTiming {
         }
     }
 
+    /** {@code connection}, every SQL text it is handed recorded in {@link #SQL} (prepareStatement, and a Statement's
+     *  execute*). */
+    private static Connection capturing(Connection connection) {
+        return (Connection) java.lang.reflect.Proxy.newProxyInstance(Connection.class.getClassLoader(),
+                new Class<?>[] {Connection.class}, (proxy, method, args) -> {
+                    if (method.getName().startsWith("prepare") && args != null && args.length > 0
+                            && args[0] instanceof String text) {
+                        SQL.add(text);
+                    }
+                    Object out;
+                    try {
+                        out = method.invoke(connection, args);
+                    } catch (java.lang.reflect.InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                    if (out instanceof java.sql.Statement st && !(out instanceof java.sql.PreparedStatement)) {
+                        return java.lang.reflect.Proxy.newProxyInstance(Connection.class.getClassLoader(),
+                                new Class<?>[] {java.sql.Statement.class}, (p2, m2, a2) -> {
+                                    if (m2.getName().startsWith("execute") && a2 != null && a2.length > 0
+                                            && a2[0] instanceof String text) {
+                                        SQL.add(text);
+                                    }
+                                    try {
+                                        return m2.invoke(st, a2);
+                                    } catch (java.lang.reflect.InvocationTargetException e) {
+                                        throw e.getCause();
+                                    }
+                                });
+                    }
+                    return out;
+                });
+    }
+
     static void startCase() {
+        SQL.clear();
         PHASES[0] = 0;
         PHASES[1] = 0;
         PHASES[2] = 0;
@@ -99,8 +141,20 @@ public final class CypherTiming {
         SUMS[4] += wall;
         SUMS[5] += threadCpu;
         SUMS[6] += processCpu;
+        int chars = SQL.stream().mapToInt(String::length).sum();
         ROWS.add(String.join("\t", "CASE", graph, key, status, ms(wall), ms(PHASES[0]), ms(PHASES[1]),
-                ms(PHASES[2]), ms(threadCpu), ms(processCpu)));
+                ms(PHASES[2]), ms(threadCpu), ms(processCpu), String.valueOf(SQL.size()), String.valueOf(chars)));
+        if (wall > 1_000_000_000L && LANE[1] != null && SLOW[0] < 40) {
+            SLOW[0] += 1;
+            try {
+                Files.writeString(Path.of(LANE[1]).resolve(String.format(Locale.ROOT, "slow-%s-%02d.sql", LANE[0],
+                        SLOW[0])), "-- " + key + " (" + ms(wall) + " ms, " + SQL.size() + " statements, " + chars
+                        + " characters)\n" + String.join(";\n-- next statement\n", SQL) + "\n",
+                        StandardCharsets.UTF_8);
+            } catch (IOException e) {
+                System.err.println("[cypher-timing] could not write the slow SQL: " + e);
+            }
+        }
         if (done % 250 == 0 || done == total) {
             System.err.printf(Locale.ROOT, "[cypher-timing] %d/%d cases, %.0f s since the lane began; cases %.0f s"
                     + " (compile %.0f, resolve %.0f, plan+execute %.0f), seeding %.0f; thread CPU %.0f s, process CPU"
@@ -123,6 +177,9 @@ public final class CypherTiming {
      *  to the test's undeclared outputs. */
     public static AutoCloseable record(String lane) throws Exception {
         STARTED[0] = System.nanoTime();
+        String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
+        LANE[0] = lane;
+        LANE[1] = outputs == null ? System.getProperty("java.io.tmpdir") : outputs;
         System.err.printf(Locale.ROOT, "[cypher-timing] %s lane: %s %s, %d processors, max heap %d MB, JVM %s%n", lane,
                 System.getProperty("os.name"), System.getProperty("os.arch"),
                 Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().maxMemory() >> 20,
@@ -145,7 +202,8 @@ public final class CypherTiming {
 
     private static void write(Path file) throws IOException {
         List<String> lines = new ArrayList<>();
-        lines.add("kind\tgraph\tcase\tstatus\twall_ms\tcompile_ms\tresolve_ms\texecute_ms\tthread_cpu_ms\tprocess_cpu_ms");
+        lines.add("kind\tgraph\tcase\tstatus\twall_ms\tcompile_ms\tresolve_ms\texecute_ms\tthread_cpu_ms\tprocess_cpu_ms"
+                + "\tsql_statements\tsql_chars");
         synchronized (ROWS) {
             lines.addAll(ROWS);
         }
