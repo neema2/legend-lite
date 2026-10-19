@@ -20,6 +20,10 @@ import com.legend.protocol.spec.CFloat;
 import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.CTime;
+import com.legend.protocol.spec.ColSpec;
+import com.legend.protocol.spec.ColSpecArray;
+import com.legend.protocol.spec.KeyExpression;
+import com.legend.protocol.spec.NewInstance;
 import com.legend.protocol.spec.EnumValue;
 import com.legend.protocol.spec.Gql;
 import com.legend.protocol.spec.Gql.Argument;
@@ -65,14 +69,23 @@ import java.util.TreeSet;
  */
 public final class GqlToPure {
 
-    /** One root field translated: its response key (the alias, else the name) and its Pure expression. */
-    public record Root(String key, ValueSpecification expression) {
+    /** One root field translated: its response key (the alias, else the name), its Pure expression, and whether
+     *  its value is a RELATION whose one row (an aggregate) the endpoint arranges into the response object by the
+     *  columns' paths ({@code sum__salary} is {@code sum.salary}) -- a graph root's value is the serialized tree. */
+    public record Root(String key, ValueSpecification expression, boolean relation) {
+
+        public Root(String key, ValueSpecification expression) {
+            this(key, expression, false);
+        }
 
         /** The expression as the query lambda a runner executes ({@code |expression}). */
         public LambdaFunction asLambda() {
             return new LambdaFunction(List.of(), List.of(expression));
         }
     }
+
+    /** The separator of a relation column's path ({@code sum__salary}). */
+    public static final String PATH_SEPARATOR = "__";
 
     /** The operation translated: its roots in document order. */
     public record Translation(List<Root> roots, Gql.Operation operation) {
@@ -173,7 +186,9 @@ public final class GqlToPure {
                 continue;
             }
             String key = key(f);
-            roots.add(new Root(key, t.root(f, key)));
+            FieldDef rootDef = schema.query().field(f.name());
+            boolean relation = rootDef != null && rootDef.meaning() instanceof Meaning.AggregateRoot;
+            roots.add(new Root(key, t.root(f, key), relation));
         }
         if (roots.isEmpty() && !introspection) {
             throw GqlTranslationException.invalid("", "the operation selects nothing");
@@ -564,12 +579,134 @@ public final class GqlToPure {
                         subTypeEntries(level, path), null);
                 yield call("serialize", call("graphFetch", vs, tree), tree);
             }
-            case Meaning.AggregateRoot a -> throw GqlTranslationException.unsupported(path, f.name()
-                    + " aggregates: it lands with the aggregates landing (PR4, docs/GRAPHQL_STUDY_2026_10_18.md §10)");
+            case Meaning.AggregateRoot a -> aggregateRoot(f, fd, a.classFqn(), path);
             case Meaning.GroupsRoot g -> throw GqlTranslationException.unsupported(path, f.name()
                     + " groups: it lands with the groups landing (PR5, docs/GRAPHQL_STUDY_2026_10_18.md §10)");
             default -> throw GqlTranslationException.invalid(path, "not a root field: " + f.name());
         };
+    }
+
+    // ---- aggregates (G6; PR4) ----
+
+    /**
+     * {@code pAggregate(where: W) { count sum { salary } }}: without a clause, the companion's {@code pAggregate()}
+     * member as a node; with one, the composed body {@code ^TAggregate(items = $this.p->filter(W))} on the node
+     * (§6.2). The children are the aggregate class's members ({@code count}, a fold's object with one leaf per
+     * property).
+     */
+    private Node aggregateNode(Field f, FieldDef fd, Meaning.AggregateOf a, Composite type, String key,
+            String path) {
+        FieldDef propField = type.field(a.property());
+        if (propField == null) {
+            throw GqlTranslationException.invalid(path, type.name() + " has no property " + a.property());
+        }
+        Composite target = composite(propField);
+        String targetFqn = classFqnOf(target, path);
+        List<Node> children = aggregateChildren(f.selectionSet(), composite(fd), path);
+        Value where = argument(f.arguments(), WHERE);
+        if (where != null && object(where, path + "(where)") != null) {
+            ValueSpecification items = clauses(new AppliedProperty(new Variable("this"), a.property()),
+                    f.arguments(), target, path);
+            ValueSpecification body = new NewInstance(Companion.aggregateClass(targetFqn), List.of(),
+                    List.of(new NewInstance.KeyBinding(Companion.ITEMS, new KeyExpression(items, false, false))));
+            return new Node(a.property(), null, List.of(), key, null, children, body);
+        }
+        return new Node(Companion.aggregateProperty(a.property()), null, List.of(), key, null, children);
+    }
+
+    /** The members of an aggregate object: {@code count}, and a fold's object with its properties as leaves; each
+     *  keyed by its response key (the companion's members are derived, so the key is always spelled). */
+    private List<Node> aggregateChildren(List<Selection> selections, Composite aggType, String path) {
+        List<Node> out = new ArrayList<>();
+        for (Field f : flatten(selections, aggType, path)) {
+            String key = key(f);
+            String at = path + "." + key;
+            FieldDef fd = aggType.field(f.name());
+            if (fd == null) {
+                throw GqlTranslationException.invalid(at, aggType.name() + " has no field " + f.name());
+            }
+            switch (fd.meaning()) {
+                case Meaning.Count c -> out.add(new Node(Companion.COUNT, null, List.of(), key, null, List.of()));
+                case Meaning.Fold fold -> {
+                    Composite foldType = composite(fd);
+                    List<Node> leaves = new ArrayList<>();
+                    for (Field g : flatten(f.selectionSet(), foldType, at)) {
+                        FieldDef gd = foldType.field(g.name());
+                        if (gd == null || !(gd.meaning() instanceof Meaning.FoldOf fo)) {
+                            throw GqlTranslationException.invalid(at + "." + key(g), foldType.name()
+                                    + " has no field " + g.name());
+                        }
+                        leaves.add(new Node(fo.property(), null, List.of(), key(g), null, List.of()));
+                    }
+                    if (leaves.isEmpty()) {
+                        throw GqlTranslationException.invalid(at, fold.fn().field + " selects nothing");
+                    }
+                    out.add(new Node(fold.fn().field, null, List.of(), key, null, leaves));
+                }
+                default -> throw GqlTranslationException.invalid(at, f.name() + " is not an aggregate member");
+            }
+        }
+        if (out.isEmpty()) {
+            throw GqlTranslationException.invalid(path, "the aggregate selects nothing");
+        }
+        return out;
+    }
+
+    /**
+     * {@code PersonAggregate(where: W) { count sum { salary } }}: the Relation API (§6.1) --
+     * {@code Person.all()->filter(W)->project(~[...])->aggregate(~[count: x|$x.__one : y|$y->count(), sum__salary:
+     * x|$x.salary : y|$y->sum(), ...])}, one row whose columns are the response's paths. The island's value is that
+     * relation; the endpoint arranges the row.
+     */
+    private ValueSpecification aggregateRoot(Field f, FieldDef fd, String classFqn, String path) {
+        Composite type = objectTypeOf(classFqn, path);
+        ValueSpecification vs = call("getAll", new PackageableElementPtr(classFqn));
+        vs = clauses(vs, f.arguments(), type, path);
+        Composite aggType = composite(fd);
+        List<ColSpec> projected = new ArrayList<>();
+        List<ColSpec> aggregates = new ArrayList<>();
+        java.util.Set<String> columns = new java.util.LinkedHashSet<>();
+        String x = fresh("x");
+        for (Field g : flatten(f.selectionSet(), aggType, path)) {
+            String key = key(g);
+            String at = path + "." + key;
+            FieldDef gd = aggType.field(g.name());
+            if (gd == null) {
+                throw GqlTranslationException.invalid(at, aggType.name() + " has no field " + g.name());
+            }
+            switch (gd.meaning()) {
+                case Meaning.Count c -> {
+                    if (columns.add("__one")) {
+                        projected.add(new ColSpec("__one", lambda(x, new CInteger(1L, null)), null, null));
+                    }
+                    aggregates.add(new ColSpec(key, lambda(x, new AppliedProperty(new Variable(x), "__one")),
+                            lambda("y", call("count", new Variable("y"))), null));
+                }
+                case Meaning.Fold fold -> {
+                    Composite foldType = composite(gd);
+                    for (Field h : flatten(g.selectionSet(), foldType, at)) {
+                        FieldDef hd = foldType.field(h.name());
+                        if (hd == null || !(hd.meaning() instanceof Meaning.FoldOf fo)) {
+                            throw GqlTranslationException.invalid(at + "." + key(h), foldType.name()
+                                    + " has no field " + h.name());
+                        }
+                        if (columns.add(fo.property())) {
+                            projected.add(new ColSpec(fo.property(),
+                                    lambda(x, new AppliedProperty(new Variable(x), fo.property())), null, null));
+                        }
+                        aggregates.add(new ColSpec(key + PATH_SEPARATOR + key(h),
+                                lambda(x, new AppliedProperty(new Variable(x), fo.property())),
+                                lambda("y", call(fold.fn().pureName, new Variable("y"))), null));
+                    }
+                }
+                default -> throw GqlTranslationException.invalid(at, g.name() + " is not an aggregate member");
+            }
+        }
+        if (aggregates.isEmpty()) {
+            throw GqlTranslationException.invalid(path, "the aggregate selects nothing");
+        }
+        vs = call("project", vs, new ColSpecArray(projected));
+        return call("aggregate", vs, new ColSpecArray(aggregates));
     }
 
     /** The object or interface type a field's type names. */
@@ -1102,8 +1239,7 @@ public final class GqlToPure {
                 yield new Node(p.name(), null, args, f.alias() == null && !p.derived() ? null : key, view,
                         children);
             }
-            case Meaning.AggregateOf a -> throw GqlTranslationException.unsupported(path, f.name()
-                    + " aggregates: it lands with the aggregates landing (PR4)");
+            case Meaning.AggregateOf a -> aggregateNode(f, fd, a, type, key, path);
             case Meaning.GroupsOf g -> throw GqlTranslationException.unsupported(path, f.name()
                     + " groups: it lands with the groups landing (PR5)");
             case Meaning.Typename t -> new Node("__typename", null, List.of(), key, null, List.of());

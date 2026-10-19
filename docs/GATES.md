@@ -11355,6 +11355,28 @@ The same branch (neema2/legend-lite#56), at the seventh line's quiet point after
     - the ban fails when a root it reads yields no source;
     - the records' wording.
 
+## 2026-10-19 — GraphQL: the fourth landing — aggregates (the twelfth line)
+
+Announced in `docs/IN_FLIGHT.md` ("A twelfth line"). Branch `claude/graphql-study-2026-10-18`; the record is the
+study's §13.4 (PR4: the companion's aggregate classes and `pAggregate()` members, the nested aggregate fused into an
+inline object, the aggregate root as a relation the endpoint arranges). Register rows S88 to S91.
+
+1. **What lands.** `employeesAggregate(where: W) { count sum { salary } avg { age } max { salary } }` under any
+   node, and `PersonAggregate(where: W) { count max { age } sum { salary } }` as a root: the companion model's
+   aggregate classes (callable from Pure), the emitter's constructor-navigate fusion, the Relation API root.
+2. **Judges.** `GqlAggregateTest` 4 on DuckDB, `GraphqlApiTest` +1, `SchemaGeneratorTest` +1: 56 GraphQL tests.
+   Green on this tree after its last change: the compiler (625), parser, protocol, normalizer, resolver, lowering,
+   model, server (121), ide, lineage, cache, exec, sql, builtin, platform, architecture and integration test
+   packages; `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test`; `//spec:corpus_duckdb`;
+   `//core:planner_on_java_base_test`. The golden `demo.graphql` regenerated (strings out of min/max). The full
+   local gate runs after the groups landing (PR5), on a frozen tree, and the entry of that landing carries its
+   count.
+3. **What the gates taught.** A generated class's field is typed by the overload the catalog has (a Decimal folds
+   to a Number): the typer, not the generator, is the judge of a companion body. A walk over the parsed classes
+   runs before the index refuses a cycle, so it guards itself. A fold's name is an enum of one catalog, never a
+   string a layer compares.
+4. **Next.** PR5 groups, PR6 the agent surface and the evaluations, PR1b the graphql-js differential.
+
 ## 2026-10-19 — GraphQL: the second and third landings — execution, and inheritance (the twelfth line)
 
 Announced in `docs/IN_FLIGHT.md` ("A twelfth line"). Branch `claude/graphql-study-2026-10-18`; the records of the

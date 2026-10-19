@@ -911,8 +911,12 @@ final class GraphEmission {
         if (node.body() != null) {
             // the COMPOSED BODY (lite, GraphQL PR2c): the node's own expression over $this, the shape a
             // derived to-many body has, compiled as one
+            TypedSpec bodyHop = unwrapToOneFirst(inlineDerivedCalls(node.body(), 0));
+            if (bodyHop instanceof TypedNewInstance ni && isCompanionClass(ni.classFqn())) {
+                return companionChild(cs, node, ni, "this", context, parentRowVar, parentRowType, parentPipeline);
+            }
             TypedSerializeGraph.Child bch = bodyChild(cs, node, context, parentRowVar, parentRowType,
-                    unwrapToOneFirst(inlineDerivedCalls(node.body(), 0)), "this",
+                    bodyHop, "this",
                     node.body().info().multiplicity().isMany());
             if (bch == null) {
                 throw new NotImplementedException("graph node '" + node.alias() + "' of class '"
@@ -925,7 +929,7 @@ final class GraphEmission {
             // a childless DERIVED class node still serializes (its filter
             // may make it empty — synonymsByTypes([]) yields [] per root)
             TypedSerializeGraph.Child dch0 = derivedChild(cs, node, context,
-                    parentRowVar, parentRowType);
+                    parentRowVar, parentRowType, parentPipeline);
             if (dch0 != null) {
                 return dch0;
             }
@@ -1090,7 +1094,7 @@ final class GraphEmission {
         }
         // DERIVED (qualified) child: the inline body's nav head + filter
         TypedSerializeGraph.Child dch = derivedChild(cs, node, context,
-                parentRowVar, parentRowType);
+                parentRowVar, parentRowType, parentPipeline);
         if (dch != null) {
             return dch;
         }
@@ -1506,7 +1510,7 @@ final class GraphEmission {
 
     private TypedSerializeGraph.@com.legend.base.Nullable Child derivedChild(ClassSource cs,
             TypedGraphTree node, StoreResolver.Context context,
-            String parentRowVar, Type.RelationType parentRowType) {
+            String parentRowVar, Type.RelationType parentRowType, TypedSpec parentPipeline) {
         var p = ctx.findProperty(cs.classFqn(), node.property()).orElse(null);
         if (!(p instanceof com.legend.compiler.element.Property.Derived d)
                 || d.parameters().size() != node.args().size()) {
@@ -1524,11 +1528,120 @@ final class GraphEmission {
         }
         TypedSpec hop = unwrapToOneFirst(inlineDerivedCalls(
                 substVars(cf.body().get(0), argBinds), 0));
+        if (hop instanceof TypedNewInstance ni && isCompanionClass(ni.classFqn())) {
+            // the COMPANION'S AGGREGATE (GraphQL PR4, docs/GRAPHQL_STUDY_2026_10_18.md §5.8, §6.2): a constructor
+            // of a generated class fuses with the reads of its members
+            return companionChild(cs, node, ni, thisVar, context, parentRowVar, parentRowType, parentPipeline);
+        }
         boolean toMany = !(d.multiplicity()
                 instanceof com.legend.compiler.element.type
                         .Multiplicity.Bounded bm
                 && Integer.valueOf(1).equals(bm.upper()));
         return bodyChild(cs, node, context, parentRowVar, parentRowType, hop, thisVar, toMany);
+    }
+
+    /** Whether {@code fqn} is a class the companion generated ({@code <<meta::legend::lite::graphql.companion>>}). */
+    private boolean isCompanionClass(String fqn) {
+        var cd = ctx.findClassDefinition(fqn).orElse(null);
+        if (cd == null) {
+            return false;
+        }
+        for (var st : cd.stereotypes()) {
+            if (com.legend.compiler.element.type.PlatformTypes.isProfile(st.profileName(),
+                    com.legend.compiler.element.type.PlatformTypes.GRAPHQL_PROFILE)
+                    && st.stereotypeName().equals(com.legend.compiler.element.type.PlatformTypes.GRAPHQL_COMPANION)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * CONSTRUCTOR-NAVIGATE FUSION (GraphQL PR4, docs/GRAPHQL_STUDY_2026_10_18.md §6.2): a node whose body is a
+     * constructor of a companion class ({@code ^PersonAggregate(items = $this.employees->filter(...))}) is the
+     * inline object of the members it selects, each member's body read with the constructor's fields in place of
+     * {@code $this.<field>} -- {@code count()} is {@code items->map(x|1)->count()}, so the leaf is the reducer over
+     * the navigation, which the correlated subquery serves; a member that is itself a constructor ({@code sum()}
+     * is {@code ^PersonSum(salary = $this.items.salary->sum())}) is a nested inline object. The instance is never
+     * built: the database computes each leaf.
+     */
+    private TypedSerializeGraph.Child companionChild(ClassSource cs, TypedGraphTree node,
+            TypedNewInstance ctor, String thisVar, StoreResolver.Context context, String rowVar,
+            Type.RelationType rowType, TypedSpec parentPipeline) {
+        if (node.children().isEmpty()) {
+            throw new NotImplementedException("graph node '" + keyOf(node) + "' of the companion class "
+                    + ctor.classFqn() + " selects nothing: an aggregate names its members");
+        }
+        List<TypedFuncCol> leaves = new ArrayList<>();
+        List<TypedSerializeGraph.Child> nested = new ArrayList<>();
+        for (TypedGraphTree c : node.children()) {
+            TypedSpec member = companionMember(ctor, c.property(), keyOf(node));
+            TypedSpec m = unwrapToOneFirst(member);
+            if (m instanceof TypedNewInstance sub && isCompanionClass(sub.classFqn())) {
+                nested.add(companionChild(cs, c, sub, thisVar, context, rowVar, rowType, parentPipeline));
+                continue;
+            }
+            TypedSpec dv = inlineThis(member, thisVar, Map.of(), cs.bindings(), cs.classFqn(), c.property(),
+                    new SubqueryEnv(cs, context, rowVar, rowType));
+            var fn = new Type.FunctionType(
+                    List.of(new Type.Param(rowType, com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                    new Type.Param(dv.info().type(), dv.info().multiplicity()));
+            leaves.add(new TypedFuncCol(keyOf(c), new TypedLambda(List.of(rowVar), List.of(dv),
+                    new ExprType(fn, com.legend.compiler.element.type.Multiplicity.Bounded.ONE))));
+        }
+        ExprType rowInfo = new ExprType(rowType, com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        TypedSerializeGraph g = new TypedSerializeGraph(parentPipeline, rowVar, leaves, nested, false, false,
+                ctor.classFqn(), rowInfo, true);
+        return new TypedSerializeGraph.Child(keyOf(node), g);
+    }
+
+    /** A member of a companion constructor's class: the field's expression as bound, or the derived member's
+     *  compiled body with the fields in place of {@code $this.<field>} (an expression over the OUTER object). */
+    private TypedSpec companionMember(TypedNewInstance ctor, String name, String at) {
+        TypedSpec field = ctor.properties().get(name);
+        if (field != null) {
+            return field;
+        }
+        var p = ctx.findProperty(ctor.classFqn(), name).orElse(null);
+        if (!(p instanceof com.legend.compiler.element.Property.Derived d) || !d.parameters().isEmpty()) {
+            throw new NotImplementedException("graph node '" + at + "': " + ctor.classFqn() + " has no member '"
+                    + name + "' the constructor binds or a parameterless derived property spells");
+        }
+        var cf = sources.compileSynthFn(d.bodyFunctionFqn());
+        if (cf.body().size() != 1) {
+            throw new NotImplementedException("graph node '" + at + "': the member '" + name
+                    + "' has a multi-statement body");
+        }
+        String inner = cf.signature().parameters().get(0).name();
+        return substituteFields(cf.body().get(0), inner, ctor.properties(), at + "." + name);
+    }
+
+    /** {@code $inner.<field>} reads replaced by the constructor's bound expressions; a bare {@code $inner} is loud. */
+    private static TypedSpec substituteFields(TypedSpec n, String inner, Map<String, TypedSpec> fields, String at) {
+        if (n instanceof TypedPropertyAccess pa && pa.source() instanceof TypedVariable v && v.name().equals(inner)) {
+            TypedSpec f = fields.get(pa.property());
+            if (f == null) {
+                throw new NotImplementedException("graph node '" + at + "': the constructor binds no '"
+                        + pa.property() + "'");
+            }
+            return f;
+        }
+        if (n instanceof TypedVariable v && v.name().equals(inner)) {
+            throw new NotImplementedException("graph node '" + at + "': the member uses $" + inner
+                    + " as a whole value");
+        }
+        List<TypedSpec> kids = n.children();
+        if (kids.isEmpty()) {
+            return n;
+        }
+        List<TypedSpec> out = new ArrayList<>(kids.size());
+        boolean changed = false;
+        for (TypedSpec k : kids) {
+            TypedSpec r = substituteFields(k, inner, fields, at);
+            changed |= r != k;
+            out.add(r);
+        }
+        return changed ? n.withChildren(out) : n;
     }
 
     /** The child a body over {@code thisVar} spells: its navigation head (optionally chained, optionally

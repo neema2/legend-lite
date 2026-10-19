@@ -3472,6 +3472,17 @@ public final class SpecParser implements TokenStreamCursor {
                     }
                     v = af.parameters().get(0);
                 }
+                case com.legend.protocol.spec.NewInstance ni -> {
+                    // a companion constructor (^PersonAggregate(items = $this.employees->...)): the head is the
+                    // first binding's
+                    for (com.legend.protocol.spec.NewInstance.KeyBinding b : ni.properties()) {
+                        String h = navigationHead(b.expression().value());
+                        if (h != null) {
+                            return h;
+                        }
+                    }
+                    return null;
+                }
                 default -> {
                     return null;
                 }

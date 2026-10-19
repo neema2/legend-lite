@@ -26,27 +26,19 @@ type Address {
 
 type AddressAggregate {
   count: BigInt!
-  min: AddressMin
-  max: AddressMax
 }
 
 input AddressAggregateOrderBy {
   count: SortDirection
-  min: AddressMinOrderBy
-  max: AddressMaxOrderBy
 }
 
 type AddressGroup {
   key: AddressGroupKey!
   count: BigInt!
-  min: AddressMin
-  max: AddressMax
 }
 
 input AddressGroupHaving {
   count: BigIntFilter
-  min: AddressMinFilter
-  max: AddressMaxFilter
   AND: [AddressGroupHaving!]
   OR: [AddressGroupHaving!]
   NOT: AddressGroupHaving
@@ -60,38 +52,12 @@ type AddressGroupKey {
 input AddressGroupOrderBy {
   count: SortDirection
   key: AddressOrderBy
-  min: AddressMinOrderBy
-  max: AddressMaxOrderBy
 }
 
 input AddressListFilter {
   some: AddressWhere
   every: AddressWhere
   none: AddressWhere
-}
-
-type AddressMax {
-  city: String
-}
-
-input AddressMaxFilter {
-  city: StringFilter
-}
-
-input AddressMaxOrderBy {
-  city: SortDirection
-}
-
-type AddressMin {
-  city: String
-}
-
-input AddressMinFilter {
-  city: StringFilter
-}
-
-input AddressMinOrderBy {
-  city: SortDirection
 }
 
 input AddressOrderBy {
@@ -279,56 +245,38 @@ input EmployeeListFilter {
 }
 
 type EmployeeMax {
-  firstName: String
-  lastName: String
   age: BigInt
   born: Date
-  fullName: String
   salary: Float
 }
 
 input EmployeeMaxFilter {
-  firstName: StringFilter
-  lastName: StringFilter
   age: BigIntFilter
   born: DateFilter
-  fullName: StringFilter
   salary: FloatFilter
 }
 
 input EmployeeMaxOrderBy {
-  firstName: SortDirection
-  lastName: SortDirection
   age: SortDirection
   born: SortDirection
-  fullName: SortDirection
   salary: SortDirection
 }
 
 type EmployeeMin {
-  firstName: String
-  lastName: String
   age: BigInt
   born: Date
-  fullName: String
   salary: Float
 }
 
 input EmployeeMinFilter {
-  firstName: StringFilter
-  lastName: StringFilter
   age: BigIntFilter
   born: DateFilter
-  fullName: StringFilter
   salary: FloatFilter
 }
 
 input EmployeeMinOrderBy {
-  firstName: SortDirection
-  lastName: SortDirection
   age: SortDirection
   born: SortDirection
-  fullName: SortDirection
   salary: SortDirection
 }
 
@@ -436,32 +384,26 @@ input FirmListFilter {
 }
 
 type FirmMax {
-  legalName: String
   founded: Date
 }
 
 input FirmMaxFilter {
-  legalName: StringFilter
   founded: DateFilter
 }
 
 input FirmMaxOrderBy {
-  legalName: SortDirection
   founded: SortDirection
 }
 
 type FirmMin {
-  legalName: String
   founded: Date
 }
 
 input FirmMinFilter {
-  legalName: StringFilter
   founded: DateFilter
 }
 
 input FirmMinOrderBy {
-  legalName: SortDirection
   founded: SortDirection
 }
 
@@ -590,61 +532,43 @@ input ManagerListFilter {
 }
 
 type ManagerMax {
-  firstName: String
-  lastName: String
   age: BigInt
   born: Date
-  fullName: String
   salary: Float
   budget: Float
 }
 
 input ManagerMaxFilter {
-  firstName: StringFilter
-  lastName: StringFilter
   age: BigIntFilter
   born: DateFilter
-  fullName: StringFilter
   salary: FloatFilter
   budget: FloatFilter
 }
 
 input ManagerMaxOrderBy {
-  firstName: SortDirection
-  lastName: SortDirection
   age: SortDirection
   born: SortDirection
-  fullName: SortDirection
   salary: SortDirection
   budget: SortDirection
 }
 
 type ManagerMin {
-  firstName: String
-  lastName: String
   age: BigInt
   born: Date
-  fullName: String
   salary: Float
   budget: Float
 }
 
 input ManagerMinFilter {
-  firstName: StringFilter
-  lastName: StringFilter
   age: BigIntFilter
   born: DateFilter
-  fullName: StringFilter
   salary: FloatFilter
   budget: FloatFilter
 }
 
 input ManagerMinOrderBy {
-  firstName: SortDirection
-  lastName: SortDirection
   age: SortDirection
   born: SortDirection
-  fullName: SortDirection
   salary: SortDirection
   budget: SortDirection
 }
@@ -800,51 +724,33 @@ input PersonListFilter {
 }
 
 type PersonMax {
-  firstName: String
-  lastName: String
   age: BigInt
   born: Date
-  fullName: String
 }
 
 input PersonMaxFilter {
-  firstName: StringFilter
-  lastName: StringFilter
   age: BigIntFilter
   born: DateFilter
-  fullName: StringFilter
 }
 
 input PersonMaxOrderBy {
-  firstName: SortDirection
-  lastName: SortDirection
   age: SortDirection
   born: SortDirection
-  fullName: SortDirection
 }
 
 type PersonMin {
-  firstName: String
-  lastName: String
   age: BigInt
   born: Date
-  fullName: String
 }
 
 input PersonMinFilter {
-  firstName: StringFilter
-  lastName: StringFilter
   age: BigIntFilter
   born: DateFilter
-  fullName: StringFilter
 }
 
 input PersonMinOrderBy {
-  firstName: SortDirection
-  lastName: SortDirection
   age: SortDirection
   born: SortDirection
-  fullName: SortDirection
 }
 
 input PersonOrderBy {

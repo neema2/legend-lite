@@ -220,10 +220,20 @@ class GraphqlApiTest {
 
     @Test
     void theQueryRouteNamesWhatALaterLandingBuilds() {
-        Json.Obj a = query("{ PersonAggregate { count } }", "");
+        Json.Obj a = query("{ PersonGroups { key { age } count } }", "");
         assertEquals(400, a.getInt("_status"), a.toString());
         String errors = Json.toCompact(a.get("errors"));
-        assertTrue(errors.contains("PR4") && errors.contains("UNSUPPORTED"), errors);
+        assertTrue(errors.contains("PR5") && errors.contains("UNSUPPORTED"), errors);
+    }
+
+    @Test
+    void theQueryRouteArrangesAnAggregateRootsRow() {
+        Json.Obj a = query("{ PersonAggregate(where: { age: { gte: 40 } }) { count max { age } sum { salary } } }", "");
+        assertEquals(200, a.getInt("_status"), a.toString());
+        Json.Obj agg = a.getObj("data").getObj("PersonAggregate");
+        assertEquals(2, agg.getInt("count"), a.toString());
+        assertEquals(51, agg.getObj("max").getInt("age"), a.toString());
+        assertEquals(270000.0, agg.getObj("sum").getDouble("salary"), 0.01, a.toString());
     }
 
     @Test

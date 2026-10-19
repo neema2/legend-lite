@@ -1112,3 +1112,56 @@ the SQL-twin cases on the Postgres lane (below).
   as a case (`implements A & B` prints; a diamond's two roots would each generate `__typename`, which the index
   would see twice: the refusal of that case is not pinned); an abstract class as a case (the generator reads
   `typemodifiers.abstract` since PR1a).
+
+### 13.4 PR4, 2026-10-19: aggregates — the companion's aggregate classes, `pAggregate(where)` fused, the aggregate root as a relation
+
+Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the fourth landing". PR4 of §10.
+
+- **The companion's aggregate classes (G6, G15, §5.5, §5.8).** `normalizer/CompanionSynthesis` generates, for every
+  class `T` of the model, `meta::legend::lite::graphql::companion::<T>Aggregate { items: T[*]; count(): Integer[1];
+  sum(): <T>Sum[1]; avg(): <T>Avg[1]; min(): <T>Min[1]; max(): <T>Max[1] }` and the four fold classes, one
+  `[0..1]` field per to-one scalar of the fold's kind (sum and avg over numbers; min and max over numbers and
+  dates), each field's expression the catalog's own fold over `$this.items.<p>` by the scalar's exact overload
+  (`sum` of Integer is `SUM__INTEGER_MANY`; a Decimal folds through the Number overload and the field is `Number`;
+  `avg` is `average`, a Float). `count()` is `$this.items->map(x|1)->count()`: the reducer over the navigation, 0
+  over no items. A class with a to-many property `p` of class `T` (stored, or an association's end injected onto
+  it) carries `pAggregate(): TAggregate[1]`, `^TAggregate(items = $this.p)`. Every generated class carries
+  `<<meta::legend::lite::graphql.companion>>`: the schema's scope skips them (never a root, never a type), the
+  generator hides the members, a class naming `pAggregate` is refused (G11). The names are one catalog,
+  `protocol/graphql/Companion` (the package, `items`, `count`, the `Fold` enum with each fold's field, class suffix
+  and Pure name), which the normalizer writes by and the translator and the generator read by.
+- **The nested aggregate, fused (§6.2).** `employeesAggregate { count sum { salary } }` is the companion member as a
+  tree node; with a clause, the translator spells the composed body `^PersonAggregate(items =
+  $this.employees->filter(W))` on the node (PR2c's body). The emitter's `companionChild` fuses a node whose body
+  is a constructor of a companion class into an inline same-row object: each selected member's compiled body is
+  read with the constructor's bound fields in place of `$this.<field>` (`substituteFields`), so `count` is the
+  reducer over the navigation (`NavReducer`, the correlated subquery), and a member that is itself a constructor
+  (`sum()` is `^PersonSum(salary = $this.items.salary->sum())`) is a nested inline object. The instance is never
+  built; the database computes each leaf. C6.2 holds: the emitter rearranges shapes and compares nothing.
+- **The aggregate root, a relation (§6.1).** `PersonAggregate(where: W) { count sum { salary } }` is the Relation
+  API: `Person.all()->filter(W)->project(~[__one: x|1, salary: x|$x.salary])->aggregate(~[count: x|$x.__one :
+  y|$y->count(), sum__salary: x|$x.salary : y|$y->sum()])`, one row whose columns are the response's paths joined by
+  `__`. The island's value is that relation (`Root.relation`), typed `Relation<(count: Integer[1], ...)>`; a Pure
+  caller reads the row; the endpoint arranges the one row into the response object by the paths (`arranged`).
+- **The schema.** `min`/`max` over numbers and dates only (`comparableProps`): a string's min has no Pure
+  spelling in the catalog (the not-done list). The golden `demo.graphql` regenerated: `AddressMin`/`AddressMax`
+  gone (a city is its one scalar), the string fields gone from every `Min`/`Max`.
+- **What the suites found, fixed.** The fold overload by the scalar's exact kind (a Decimal `notional` typed
+  "expected Decimal, got Number" against the Number overload); the inherited-scalar walk guarded against an
+  inheritance cycle (two compiler tests that refuse a cycle overflowed in the companion before the index refused
+  it); the schema's `Fold` moved to the protocol's catalog as an enum so no layer compares a fold's name as a string
+  (`IdentityGuardrailTest` LOCAL_NAME_COMPARE, shrink-only); the Companion catalog allowlisted by name in
+  `PlatformNamesGuardrailTest` (its package spelling reads as a function's to the regex; the file names no
+  function); the facade test counts the declared stored properties (the companion's derived members stand beside
+  them since PR3).
+- **Measured.** `GqlAggregateTest`: 4 cases on DuckDB (the companion's classes and members, with and without a
+  clause over Acme/Globex/Initech, the root as a relation through the island); `GraphqlApiTest`: the route arranges
+  an aggregate root's row (+1); `SchemaGeneratorTest`: the companion's name refused by the model (+1). 56 GraphQL
+  tests in all. Green: the compiler, parser, protocol, normalizer, resolver, lowering, model, server, ide, lineage,
+  cache, exec, sql, builtin, platform, architecture and integration packages; `//core:guardrails`, `//core:census`,
+  `//tools/deps:core_layering_test`; the DuckDB corpus and the planner-on-java.base check (the GATES entry).
+- **Not done, on purpose.** `orderBy` by a nested aggregate (`employeesAggregate: { count: DESC }`: the schema
+  spells `PersonAggregateOrderBy`, the translator refuses it by name); a string's min and max; `avg` on an
+  Integer root column answers a Float of the database's rounding; the fold classes are generated for every class
+  (a class no to-many property targets carries an unused aggregate class: a listing may hide it by stereotype);
+  the SQL-twin run on the Postgres lane.

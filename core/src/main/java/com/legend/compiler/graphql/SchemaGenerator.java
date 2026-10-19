@@ -11,6 +11,7 @@ import com.legend.compiler.element.TypedParameter;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
+import com.legend.protocol.graphql.Companion;
 import com.legend.protocol.graphql.GqlSchema;
 import com.legend.protocol.graphql.GqlSchema.EnumType;
 import com.legend.protocol.graphql.GqlSchema.FieldDef;
@@ -63,25 +64,6 @@ public final class SchemaGenerator {
     static final String QUERY_MODE = "QueryMode";
     static final String DATE_UNIT = "DateUnit";
 
-    /** The folds of an aggregate (G6): the numeric ones over numeric properties, the others over every
-     *  comparable one; each a field named by its lowercase name. */
-    enum Fold {
-        SUM(true), AVG(true), MIN(false), MAX(false);
-
-        final boolean numericOnly;
-
-        Fold(boolean numericOnly) {
-            this.numericOnly = numericOnly;
-        }
-
-        String field() {
-            return name().toLowerCase(java.util.Locale.ROOT);
-        }
-
-        String typeSuffix() {
-            return capitalize(field());
-        }
-    }
 
     /** One property of a class as the generator sees it: own, inherited or association-injected. */
     record Prop(String name, Kind kind, Type type, Multiplicity multiplicity, boolean derived,
@@ -435,8 +417,8 @@ public final class SchemaGenerator {
         List<String> names = new ArrayList<>(List.of(s + "Interface", s + "Where", s + "ListFilter", s + "OrderBy",
                 s + "Aggregate", s + "AggregateOrderBy", s + "Group", s + "GroupKey", s + "GroupHaving",
                 s + "GroupOrderBy"));
-        for (Fold fn : Fold.values()) {
-            String f = s + fn.typeSuffix();
+        for (Companion.Fold fn : Companion.FOLDS) {
+            String f = s + fn.suffix;
             names.add(f);
             names.add(f + "OrderBy");
             names.add(f + "Filter");
@@ -661,9 +643,11 @@ public final class SchemaGenerator {
                 && isNumeric(p)).toList();
     }
 
+    /** The properties {@code min} and {@code max} fold: numbers and dates (the Pure functions exist for those; a
+     *  string's min has no Pure spelling yet, PR4's not-done list). */
     private List<Prop> comparableProps(ClassInfo c) {
         return c.props().stream().filter(p -> p.kind() == Kind.SCALAR && !p.toMany() && p.parameters().isEmpty()
-                && !BOOLEAN.equals(scalarOf(p))).toList();
+                && (isNumeric(p) || DATE.equals(scalarOf(p)) || DATE_TIME.equals(scalarOf(p)))).toList();
     }
 
     private boolean isNumeric(Prop p) {
@@ -678,29 +662,29 @@ public final class SchemaGenerator {
         agg.add(new FieldDef("count", null, GqlSchema.named(BIG_INT, false), List.of(), null, new Meaning.Count()));
         aggOrder.add(new InputValueDef("count", GqlSchema.named(SORT_DIRECTION, true)));
         scalarsUsed.add(BIG_INT);
-        for (Fold fn : Fold.values()) {
+        for (Companion.Fold fn : Companion.FOLDS) {
             List<Prop> props = fn.numericOnly ? numericProps(c) : comparableProps(c);
             if (props.isEmpty()) {
                 continue;
             }
-            String t = s + fn.typeSuffix();
+            String t = s + fn.suffix;
             List<FieldDef> fields = new ArrayList<>();
             List<InputValueDef> order = new ArrayList<>();
             List<InputValueDef> filter = new ArrayList<>();
             for (Prop p : props) {
-                String scalar = fn == Fold.AVG ? FLOAT : scalarOf(p);
+                String scalar = fn == Companion.Fold.AVG ? FLOAT : scalarOf(p);
                 scalarsUsed.add(scalar);
                 fields.add(new FieldDef(p.name(), null, GqlSchema.named(scalar, true), List.of(), null,
-                        new Meaning.FoldOf(fn.field(), c.fqn(), p.name())));
+                        new Meaning.FoldOf(fn, c.fqn(), p.name())));
                 order.add(new InputValueDef(p.name(), GqlSchema.named(SORT_DIRECTION, true)));
                 filter.add(new InputValueDef(p.name(), GqlSchema.named(scalar + "Filter", true)));
             }
             put(new ObjectType(t, null, List.of(), fields, null));
             put(new InputObjectType(t + "OrderBy", order));
             put(new InputObjectType(t + "Filter", filter));
-            agg.add(new FieldDef(fn.field(), null, GqlSchema.named(t, true), List.of(), null,
-                    new Meaning.Fold(fn.field())));
-            aggOrder.add(new InputValueDef(fn.field(), GqlSchema.named(t + "OrderBy", true)));
+            agg.add(new FieldDef(fn.field, null, GqlSchema.named(t, true), List.of(), null,
+                    new Meaning.Fold(fn)));
+            aggOrder.add(new InputValueDef(fn.field, GqlSchema.named(t + "OrderBy", true)));
         }
         put(new ObjectType(s + "Aggregate", null, List.of(), agg, null));
         put(new InputObjectType(s + "AggregateOrderBy", aggOrder));
@@ -741,15 +725,15 @@ public final class SchemaGenerator {
         having.add(new InputValueDef("count", GqlSchema.named(BIG_INT + "Filter", true)));
         order.add(new InputValueDef("count", GqlSchema.named(SORT_DIRECTION, true)));
         order.add(new InputValueDef("key", GqlSchema.named(s + "OrderBy", true)));
-        for (Fold fn : Fold.values()) {
-            String t = s + fn.typeSuffix();
+        for (Companion.Fold fn : Companion.FOLDS) {
+            String t = s + fn.suffix;
             if (!out.containsKey(t)) {
                 continue;
             }
-            group.add(new FieldDef(fn.field(), null, GqlSchema.named(t, true), List.of(), null,
-                    new Meaning.Fold(fn.field())));
-            having.add(new InputValueDef(fn.field(), GqlSchema.named(t + "Filter", true)));
-            order.add(new InputValueDef(fn.field(), GqlSchema.named(t + "OrderBy", true)));
+            group.add(new FieldDef(fn.field, null, GqlSchema.named(t, true), List.of(), null,
+                    new Meaning.Fold(fn)));
+            having.add(new InputValueDef(fn.field, GqlSchema.named(t + "Filter", true)));
+            order.add(new InputValueDef(fn.field, GqlSchema.named(t + "OrderBy", true)));
         }
         having.add(new InputValueDef("AND", GqlSchema.nullableListOf(s + "GroupHaving")));
         having.add(new InputValueDef("OR", GqlSchema.nullableListOf(s + "GroupHaving")));

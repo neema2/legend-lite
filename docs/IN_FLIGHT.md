@@ -2390,7 +2390,15 @@ island inside Pure.
   the envelope's witness keys yield to an explicit sort), `resolver/StackBuilder.java` (the own-class arm is a
   non-member of a strict subtype), `lowering/UnionSerialOrder.java` (no ordinal through an ordered pass-through),
   `IdentityGuardrailTest` (NAME_CUTTING 109 -> 110), `integration/DuckDBIntegrationTest` (counts stored properties).
-- **Not yet (PR1b, PR4 to PR6):** the graphql-js differential and `validity.jsonl`; function roots; milestoning
+- **Cross-area edits, announced here as landed with PR4 (2026-10-19):** `normalizer/CompanionSynthesis.java`
+  (the aggregate classes, fold classes and `pAggregate()` members), `protocol/graphql/Companion.java` (new: the
+  companion's names, one catalog), `parser/SpecParser.java` (a constructor as a composed body's head),
+  `resolver/GraphEmission.java` (`companionChild`: a companion constructor's node fused into an inline object),
+  `server/GraphqlApi.java` (a relation root's row arranged by `__` paths), `compiler/graphql/Scope.java` (the
+  companion's classes are no roots), `PlatformNamesGuardrailTest` (`Companion.java` a catalog, dated),
+  `CompilerFacadeTest` (counts stored properties).
+- **Not yet (PR1b, PR5, PR6):** the graphql-js differential and `validity.jsonl`; function roots; milestoning
   arguments on a node; line and column in the island's errors; the composer's rule for the island inside a model;
-  aggregates (PR4), groups (PR5), the agent surface and the evaluations (PR6).
+  `orderBy` by a nested aggregate; a string's min and max; groups (PR5), the agent surface and the evaluations
+  (PR6).
 

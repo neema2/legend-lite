@@ -33,7 +33,9 @@ class CompilerFacadeTest {
     void compileModelRunsFrontendToTypedModel() {
         ModelContext ctx = Compiler.compileModel(MODEL);
         assertTrue(ctx.findClass("test::Person").isPresent());
-        assertEquals(2, ctx.findClass("test::Person").get().properties().size());
+        // the two declared; the GraphQL companion adds derived members beside them (docs/GRAPHQL_STUDY G15)
+        assertEquals(2, ctx.findClass("test::Person").get().properties().stream()
+                .filter(p -> p instanceof com.legend.compiler.element.Property.Stored).count());
         assertTrue(ctx.findTable("test::DB", "T_PERSON").isPresent());
     }
 

@@ -131,7 +131,8 @@ public final class GraphqlApi {
                 java.io.StringWriter rows = new java.io.StringWriter();
                 runner.run(model, root.asLambda(), runtime, rows);
                 String json = rows.toString();
-                data.put(root.key(), Json.parse(json.isEmpty() ? "[]" : json));
+                Json.Node value = Json.parse(json.isEmpty() ? "[]" : json);
+                data.put(root.key(), root.relation() ? arranged(value, root.key()) : value);
                 pure.put(root.key(), PureComposer.valueSpecification(root.expression(), PureComposer.Style.STANDARD));
             } catch (RuntimeException e) {
                 // all or nothing (§8.2): no partial data
@@ -159,6 +160,38 @@ public final class GraphqlApi {
             extensions.put("warnings", warnings);
         }
         return envelope(200, data, List.of(), extensions.isEmpty() ? null : extensions);
+    }
+
+    /**
+     * A relation root's answer (an aggregate: one row) arranged into the response object by the columns' paths
+     * ({@code sum__salary} is {@code sum.salary}): the database computed every value; this places each under its
+     * key, as the TDS writer places rows under {@code values}.
+     */
+    private static Json.Node arranged(Json.Node rows, String key) {
+        if (!(rows instanceof Json.Arr arr)) {
+            throw new IllegalStateException(key + ": the database's rows are not the JSON wire's array");
+        }
+        if (arr.items().size() != 1 || !(arr.items().get(0) instanceof Json.Obj row)) {
+            throw new IllegalStateException(key + ": an aggregate answers one row, got " + arr.items().size());
+        }
+        Json.Obj out = Json.obj();
+        for (Map.Entry<String, Json.Node> e : row.fields().entrySet()) {
+            String[] path = e.getKey().split(GqlToPure.PATH_SEPARATOR);
+            Json.Obj at = out;
+            for (int i = 0; i < path.length - 1; i++) {
+                Json.Node next = at.fields().get(path[i]);
+                Json.Obj o;
+                if (next instanceof Json.Obj existing) {
+                    o = existing;
+                } else {
+                    o = Json.obj();
+                    at.fields().put(path[i], o);
+                }
+                at = o;
+            }
+            at.fields().put(path[path.length - 1], e.getValue());
+        }
+        return out;
     }
 
     /** The operation's introspection root fields, in document order. */
