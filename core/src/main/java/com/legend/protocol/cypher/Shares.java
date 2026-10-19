@@ -58,6 +58,10 @@ final class Shares {
     /** A hidden column's name: the translator's synthetic prefix. */
     private static final String PREFIX = "_cypher_let_";
 
+    /** The nodes a value must save to be computed once, as many as the Lowerer's fold lets a read of a column write
+     *  back into its readers (Fold.Budget.BLOAT): a smaller saving is not worth a column and a subquery. */
+    private static final long WORTH = 100;
+
     /** A call whose arguments Postgres evaluates when it plans (generate_series, Postgres.raise): never moved. */
     private static final String PLANNED = "range";
 
@@ -75,10 +79,17 @@ final class Shares {
         this.paths = paths;
     }
 
+    /** Whether {@code n} is a call of {@code function}. The binder reads back the Pure the translator wrote, before
+     *  any resolution: a name of the translator's own writing (a mark, a projection's shape, a construct the database
+     *  evaluates lazily), never a resolved declaration's -- read here alone. */
+    private static boolean named(ValueSpecification n, String function) {
+        return n instanceof AppliedFunction f && f.function().equals(function);
+    }
+
     /** {@code v}, marked as a value its reader reads more than once and NULL-safe; a variable, a constant or a
      *  column read as it is (nothing to share). */
     static ValueSpecification share(ValueSpecification v) {
-        if (v instanceof AppliedFunction f && f.function().equals(MARK) || v.children().isEmpty()
+        if (named(v, MARK) || v.children().isEmpty()
                 || v instanceof AppliedProperty p && p.receiver() instanceof Variable) {
             return v;
         }
@@ -107,11 +118,11 @@ final class Shares {
             out.add(r);
         }
         ValueSpecification result = changed ? n.withChildren(out) : n;
-        if (result instanceof AppliedFunction proj && proj.function().equals("project")
+        if (named(result, "project") && result instanceof AppliedFunction proj
                 && proj.parameters().size() == 2 && proj.parameters().get(1) instanceof ColSpecArray cols) {
             result = stageClass(proj, cols);
-        } else if (result instanceof AppliedFunction sel && sel.function().equals("select") && sel.parameters().size() == 2
-                && sel.parameters().get(0) instanceof AppliedFunction ext && ext.function().equals("extend")
+        } else if (named(result, "select") && result instanceof AppliedFunction sel && sel.parameters().size() == 2
+                && named(sel.parameters().get(0), "extend") && sel.parameters().get(0) instanceof AppliedFunction ext
                 && ext.parameters().size() == 2 && ext.parameters().get(1) instanceof ColSpecArray cols) {
             AppliedFunction staged = stage(ext, cols);
             if (staged != ext) {
@@ -132,7 +143,7 @@ final class Shares {
             return seen;
         }
         ValueSpecification result;
-        if (n instanceof AppliedFunction f && f.function().equals(MARK)) {
+        if (named(n, MARK) && n instanceof AppliedFunction f) {
             result = strip(f.parameters().get(0), done);
         } else {
             List<ValueSpecification> kids = n.children();
@@ -183,7 +194,14 @@ final class Shares {
         List<String> out = new ArrayList<>();
         for (String d : a.marks) {
             ValueSpecification m = java.util.Objects.requireNonNull(a.representative.get(d));
-            if (a.occurrences.getOrDefault(d, 0L) >= 2 && a.always.contains(d) && a.readsOnlyRow(m)) {
+            long occurrences = a.occurrences.getOrDefault(d, 0L);
+            ValueSpecification value = ((AppliedFunction) m).parameters().get(0);
+            if (value instanceof AppliedProperty p && p.receiver() instanceof Variable) {
+                // (a column read as it is: a property chain a projection over instances has read into a column)
+                continue;
+            }
+            if (occurrences >= 2 && a.always.contains(d) && a.readsOnlyRow(m)
+                    && a.size(value) > WORTH / (occurrences - 1)) {
                 out.add(d);
             }
         }
@@ -266,6 +284,10 @@ final class Shares {
                 return proj;
             }
         }
+        if (chainColumn.isEmpty()) {
+            // (the columns read nothing of an instance: no relation to stage over)
+            return proj;
+        }
         List<ColSpec> reads = new ArrayList<>();
         for (Map.Entry<String, String> e : chainColumn.entrySet()) {
             reads.add(new ColSpec(e.getValue(), new LambdaFunction(List.of(new Variable(row, null, null, null)),
@@ -294,11 +316,11 @@ final class Shares {
 
     /** The class a {@code getAll}, filtered or not, reads the instances of; null for any other source. */
     private static @com.legend.base.Nullable String classOf(ValueSpecification src) {
-        if (src instanceof AppliedFunction f && f.function().equals("getAll") && f.parameters().size() == 1
+        if (named(src, "getAll") && src instanceof AppliedFunction f && f.parameters().size() == 1
                 && f.parameters().get(0) instanceof PackageableElementPtr p) {
             return p.fullPath();
         }
-        if (src instanceof AppliedFunction f && f.function().equals("filter") && f.parameters().size() == 2) {
+        if (named(src, "filter") && src instanceof AppliedFunction f && f.parameters().size() == 2) {
             return classOf(f.parameters().get(0));
         }
         return null;
@@ -402,7 +424,7 @@ final class Shares {
             return seen;
         }
         ValueSpecification result;
-        String col = n instanceof AppliedFunction f && f.function().equals(MARK) ? column.get(a.digest(n)) : null;
+        String col = named(n, MARK) ? column.get(a.digest(n)) : null;
         if (col != null) {
             result = new AppliedProperty(new Variable(row, null, null, null), col, null, null);
         } else if (n instanceof LambdaFunction lf && lf.parameters().stream().anyMatch(p -> p.name().equals(row))) {
@@ -431,6 +453,7 @@ final class Shares {
         private final String row;
         private final IdentityHashMap<ValueSpecification, String> digests = new IdentityHashMap<>();
         private final IdentityHashMap<ValueSpecification, Set<String>> free = new IdentityHashMap<>();
+        private final IdentityHashMap<ValueSpecification, Long> sizes = new IdentityHashMap<>();
         final Set<String> marks = new java.util.LinkedHashSet<>();
         final Map<String, Long> occurrences = new HashMap<>();
         final Set<String> always = new HashSet<>();
@@ -467,7 +490,7 @@ final class Shares {
                 if (n instanceof LambdaFunction lf && lf.parameters().stream().anyMatch(v -> v.name().equals(row))) {
                     continue;
                 }
-                if (n instanceof AppliedFunction f && f.function().equals(MARK)) {
+                if (named(n, MARK)) {
                     String d = digest(n);
                     marks.add(d);
                     occurrences.merge(d, p, Shares::add);
@@ -488,7 +511,7 @@ final class Shares {
             }
             List<ValueSpecification> kids = n.children();
             Set<String> out = Set.of();
-            if (n instanceof AppliedFunction f && f.function().equals("if") && kids.size() == 3) {
+            if (named(n, "if") && kids.size() == 3) {
                 Set<String> elseSure = java.util.Objects.requireNonNull(sure.get(kids.get(2)));
                 out = union(java.util.Objects.requireNonNull(sure.get(kids.get(0))), nullGuard(kids.get(0),
                         kids.get(1)) ? elseSure : intersection(java.util.Objects.requireNonNull(sure.get(kids.get(1))),
@@ -500,7 +523,7 @@ final class Shares {
                     }
                 }
             }
-            if (n instanceof AppliedFunction f && f.function().equals(MARK)) {
+            if (named(n, MARK)) {
                 Set<String> with = new HashSet<>(out);
                 with.add(digest(n));
                 out = with;
@@ -537,15 +560,14 @@ final class Shares {
          *  {@code if}'s branches (but a NULL guard's body), not past an {@code and}'s, an {@code or}'s or a {@code coalesce}'s first argument,
          *  not in a lambda another call takes or a lambda over elements, not in a {@code range}'s arguments. */
         private static boolean unconditional(ValueSpecification n, int i, List<ValueSpecification> kids) {
-            if (n instanceof AppliedFunction f) {
-                String fn = f.function();
-                if (fn.equals(PLANNED)) {
+            if (n instanceof AppliedFunction) {
+                if (named(n, PLANNED)) {
                     return false;
                 }
-                if (fn.equals("if") && kids.size() == 3) {
+                if (named(n, "if") && kids.size() == 3) {
                     return i == 0 || i == 2 && nullGuard(kids.get(0), kids.get(1));
                 }
-                if (fn.equals("and") || fn.equals("or") || fn.equals("coalesce")) {
+                if (named(n, "and") || named(n, "or") || named(n, "coalesce")) {
                     // (the database reads what follows the first only where the first leaves it open)
                     return i == 0;
                 }
@@ -566,10 +588,10 @@ final class Shares {
 
         private static boolean emptinessTest(ValueSpecification c) {
             if (c instanceof AppliedFunction f) {
-                if (f.function().equals("isEmpty") && f.parameters().size() == 1) {
+                if (named(c, "isEmpty") && f.parameters().size() == 1) {
                     return true;
                 }
-                if (f.function().equals("or")) {
+                if (named(c, "or")) {
                     return f.parameters().stream().allMatch(Analysis::emptinessTest);
                 }
             }
@@ -599,6 +621,20 @@ final class Shares {
                     order.add(v);
                 }
             }
+        }
+
+        /** The nodes {@code n} is written out as (each read of a shared node again), at most Long.MAX_VALUE. */
+        long size(ValueSpecification n) {
+            Long known = sizes.get(n);
+            if (known != null) {
+                return known;
+            }
+            long s = 1;
+            for (ValueSpecification k : n.children()) {
+                s = add(s, size(k));
+            }
+            sizes.put(n, s);
+            return s;
         }
 
         /** Whether a value reads no name but the row's, nowhere binding the row's name again. */
@@ -636,7 +672,7 @@ final class Shares {
                 if (v instanceof LambdaFunction lf && lf.parameters().stream().anyMatch(p -> p.name().equals(row))) {
                     continue;
                 }
-                if (v instanceof AppliedFunction f && f.function().equals(MARK) && shared.contains(digest(v))) {
+                if (named(v, MARK) && shared.contains(digest(v))) {
                     out.add(digest(v));
                     continue;
                 }

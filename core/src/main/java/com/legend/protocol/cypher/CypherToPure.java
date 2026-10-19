@@ -13598,8 +13598,8 @@ public final class CypherToPure {
      *  A part is NULL-safe: NULL on NULL inputs, its own guard's. A strict part's body is marked too, what an
      *  operation merging the part's guard into its own reads ({@link SqlToPure#strict}). */
     private static Tx shared(Tx part) {
-        if (SqlToPure.isNullConstant(part)) {
-            // (a NULL constant read as itself: what a strict operation tests for)
+        if (SqlToPure.isNullConstant(part) || !columnKind(part.kind())) {
+            // (a NULL constant read as itself, what a strict operation tests for; a value no column holds as it is)
             return part;
         }
         ValueSpecification guard = part.guard();
@@ -13609,10 +13609,20 @@ public final class CypherToPure {
                     guard, body);
         }
         ValueSpecification marked = Shares.share(body);
-        ValueSpecification vs = part.vs() instanceof AppliedFunction f && f.function().equals("if")
+        ValueSpecification vs = part.vs() instanceof AppliedFunction f && f.parameters().size() == 3
                 && f.parameters().get(0) == guard ? call("if", guard, thunk(SqlToPure.empty()), thunk(marked))
                 : part.vs();
         return new Tx(Shares.share(vs), part.kind(), part.nullable(), part.whenFalse(), part.detail(), guard, marked);
+    }
+
+    /** Whether a relation's column holds a value of {@code kind} as it is: not a duration (the model's class, a
+     *  struct), a Variant, a list or a node. */
+    private static boolean columnKind(Kind kind) {
+        return switch (kind) {
+            case INTEGER, WHOLE, FLOAT, DECIMAL, NUMBER, INEXACT, STRING, BOOLEAN, DATE, DATETIME, TIME, ZONED,
+                    ZONED_TIME -> true;
+            case DURATION, JSON, NULL, OTHER -> false;
+        };
     }
 
     /** {@link SqlToPure#strict} over operands each a value its readers share ({@link #shared}): a strict operation
