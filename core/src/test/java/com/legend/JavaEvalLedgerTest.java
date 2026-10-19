@@ -1351,6 +1351,11 @@ class JavaEvalLedgerTest {
                             // §8.4): parse, compile, generate the schema and validate only -- no connection, no
                             // JDBC, no value computed; the query route is PR2's and runs through the planner
                             "GraphqlApi.java",
+                            // 2026-10-19, the GraphQL line's agent surface (docs/GRAPHQL_STUDY_2026_10_18.md §8.4,
+                            // PR6): the MCP wrapper builds a route's body from a call's arguments and routes it
+                            // (PureV1Api.route, the runner the server's), and the reference is text -- no
+                            // connection, no JDBC, no value computed
+                            "GraphqlMcp.java", "GraphqlReference.java",
                             // (SavedQueries.java left this package 2026-10-13 for com.legend.queries, the program's B5:
                             // the rules over a records interface, one implementation for the server, Python and the page)
                             "QueryService.java"),

@@ -26,6 +26,32 @@ public final class GraphqlMcp {
 
     public static final String PROTOCOL_VERSION = "2025-06-18";
 
+    /** The four tools (G14), each the route it names. */
+    public enum Tool {
+        DESCRIBE("describe", "/api/lite/v1/graphql/schema"),
+        VALIDATE("validate", "/api/lite/v1/graphql/validate"),
+        QUERY("query", "/api/lite/v1/graphql/query"),
+        EXPLAIN("explain", "/api/lite/v1/graphql/explain");
+
+        public final String toolName;
+        public final String route;
+
+        Tool(String toolName, String route) {
+            this.toolName = toolName;
+            this.route = route;
+        }
+
+        /** The tool a call names, or null. */
+        static @com.legend.base.Nullable Tool named(String name) {
+            for (Tool t : values()) {
+                if (t.toolName.equals(name)) {
+                    return t;
+                }
+            }
+            return null;
+        }
+    }
+
     private final PureV1Api.Runner runner;
     private final @com.legend.base.Nullable String pinnedModel;
 
@@ -51,30 +77,30 @@ public final class GraphqlMcp {
             return null;    // a notification (notifications/initialized, notifications/cancelled): no answer
         }
         Json.Obj params = message.getObjOr("params", null);
-        try {
-            return switch (method) {
-                case "initialize" -> result(id, initialize());
-                case "ping" -> result(id, new LinkedHashMap<>());
-                case "tools/list" -> {
-                    Map<String, Object> r = new LinkedHashMap<>();
-                    r.put("tools", tools());
-                    yield result(id, r);
+        return switch (method) {
+            case "initialize" -> result(id, initialize());
+            case "ping" -> result(id, new LinkedHashMap<>());
+            case "tools/list" -> {
+                Map<String, Object> r = new LinkedHashMap<>();
+                r.put("tools", tools());
+                yield result(id, r);
+            }
+            case "tools/call" -> {
+                if (params == null) {
+                    yield error(id, -32602, "tools/call takes params { name, arguments }");
                 }
-                case "tools/call" -> {
-                    if (params == null) {
-                        yield error(id, -32602, "tools/call takes params { name, arguments }");
-                    }
-                    String name = params.getStringOr("name", null);
-                    if (name == null) {
-                        yield error(id, -32602, "tools/call names its tool");
-                    }
-                    yield result(id, call(name, params.getObjOr("arguments", null)));
+                String name = params.getStringOr("name", null);
+                if (name == null) {
+                    yield error(id, -32602, "tools/call names its tool");
                 }
-                default -> error(id, -32601, "method not found: " + method);
-            };
-        } catch (IllegalArgumentException e) {
-            return error(id, -32602, String.valueOf(e.getMessage()));
-        }
+                Tool tool = Tool.named(name);
+                if (tool == null) {
+                    yield error(id, -32602, "no tool named " + name + ": describe, validate, query, explain");
+                }
+                yield call(id, tool, params.getObjOr("arguments", null));
+            }
+            default -> error(id, -32601, "method not found: " + method);
+        };
     }
 
     private static Map<String, Object> initialize() {
@@ -97,7 +123,7 @@ public final class GraphqlMcp {
     /** The four tools (G14), each with its input schema. */
     public static List<Map<String, Object>> tools() {
         List<Map<String, Object>> out = new ArrayList<>();
-        out.add(tool("describe", "Describe the schema",
+        out.add(tool(Tool.DESCRIBE.toolName, "Describe the schema",
                 "The SDL generated for the data space (dataSpace) or for the classes named (classes), with the"
                 + " one-page reference of the dialect. Ask for the classes you need, not the whole model.",
                 scopeProperties(), List.of()));
@@ -105,18 +131,18 @@ public final class GraphqlMcp {
         q.put("query", string("the GraphQL document"));
         q.put("variables", object("the operation's variables, by name"));
         q.put("operationName", string("the operation to run, when the document holds several"));
-        out.add(tool("validate", "Validate a document",
+        out.add(tool(Tool.VALIDATE.toolName, "Validate a document",
                 "The document's verdict without running it: valid, the typed result shape, every error with its"
                 + " path and the nearest valid name, the warnings (a limit without an orderBy).",
                 new LinkedHashMap<>(q), List.of("query")));
         Map<String, Object> run = new LinkedHashMap<>(q);
         run.put("runtime", string("the runtime to run on (the model's, when it has one)"));
-        out.add(tool("query", "Run a document",
+        out.add(tool(Tool.QUERY.toolName, "Run a document",
                 "The document run over the data space, answered in the GraphQL-over-HTTP envelope: data under each"
                 + " root field's key, errors with their paths, extensions.pure with the Pure each root ran. All or"
                 + " nothing: an error fails the whole request.",
                 run, List.of("query")));
-        out.add(tool("explain", "Explain a document",
+        out.add(tool(Tool.EXPLAIN.toolName, "Explain a document",
                 "The verdict of validate and, per root field, the Pure the document means and the SQL it runs on"
                 + " the runtime, without running it.",
                 new LinkedHashMap<>(run), List.of("query")));
@@ -165,23 +191,16 @@ public final class GraphqlMcp {
         return s;
     }
 
-    /** A tool called: the route's body built from the arguments, routed, its answer the tool's text. */
-    private Map<String, Object> call(String name, @com.legend.base.Nullable Json.Obj arguments) {
+    /** A tool called: the route's body built from the arguments, routed, its answer the tool's text; a call that
+     *  names no model where the server pins none is the protocol's invalid-params error. */
+    private String call(Object id, Tool tool, @com.legend.base.Nullable Json.Obj arguments) {
         Json.Obj args = arguments == null ? Json.obj() : arguments;
-        String path = switch (name) {
-            case "describe" -> "/api/lite/v1/graphql/schema";
-            case "validate" -> "/api/lite/v1/graphql/validate";
-            case "query" -> "/api/lite/v1/graphql/query";
-            case "explain" -> "/api/lite/v1/graphql/explain";
-            default -> throw new IllegalArgumentException("no tool named " + name + ": describe, validate, query,"
-                    + " explain");
-        };
         String model = args.getStringOr("model", null);
         if (model == null) {
             model = pinnedModel;
         }
         if (model == null) {
-            throw new IllegalArgumentException("the call names no model and the server was started without one"
+            return error(id, -32602, "the call names no model and the server was started without one"
                     + " (--graphql-model FILE)");
         }
         Json.Obj body = Json.obj();
@@ -200,9 +219,9 @@ public final class GraphqlMcp {
             rt.fields().put("runtime", Json.str(runtime));
             body.fields().put("runtime", rt);
         }
-        PureV1Api.Answer answer = PureV1Api.route(path, null, Json.toCompact(body), runner);
+        PureV1Api.Answer answer = PureV1Api.route(tool.route, null, Json.toCompact(body), runner);
         String text = answer.json();
-        if (name.equals("describe") && answer.status() == 200) {
+        if (tool == Tool.DESCRIBE && answer.status() == 200) {
             Json.Obj described = (Json.Obj) Json.parse(text, PureV1Api.REQUEST);
             described.fields().put("reference", Json.str(GraphqlReference.TEXT));
             text = Json.toCompact(described);
@@ -213,7 +232,7 @@ public final class GraphqlMcp {
         content.put("text", text);
         out.put("content", List.of(content));
         out.put("isError", answer.status() >= 400);
-        return out;
+        return result(id, out);
     }
 
     private static String result(Object id, Map<String, Object> result) {

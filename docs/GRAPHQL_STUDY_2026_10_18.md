@@ -1210,3 +1210,66 @@ groups (below).
   (`PersonGroups(where: { firm: { legalName: { equals: "Acme" } } })`). The validator accepts the nested form
   (its rules are the schema's), so a client learns the refusal from the translator, with code `UNSUPPORTED`.
   Also not done: a numeric `bucket:` beside `truncate` (G7 names the place); the SQL-twin run on the Postgres lane.
+
+### 13.6 PR6 and PR1b, 2026-10-19: the agent surface — `explain`, the MCP wrapper, the one-page reference, GraphiQL, the forty tasks; the graphql-js differential
+
+Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the sixth landing". PR6 of §10 and PR1b.
+
+- **`explain` (G14, §8.4).** `POST /api/lite/v1/graphql/explain`: the verdict `validate` answers and, per root
+  field, its key, the shape of its value (`TREE`, `ROW`, `ROWS`), the Pure it means (the composer's text) and the
+  SQL it runs on the runtime, planned and never run (the planner touches no database, C2a). A document the
+  translator refuses is answered invalid with the refusal among its errors and its code.
+- **The MCP wrapper (G14).** `server/GraphqlMcp`: the Model Context Protocol's Streamable HTTP transport at
+  `POST /mcp` on the lite server, one JSON-RPC 2.0 message per request (`initialize`, `notifications/initialized`,
+  `ping`, `tools/list`, `tools/call`; a notification is 202 with no body; the protocol's errors by code). The four
+  tools are the four routes: a call's arguments become the route's body and the route's answer the tool's text
+  content, `isError` where the route refused. A server started with `--graphql-model FILE` answers calls that name
+  no model; a call's own `model` wins. Nothing of the wrapper plans or runs a query. Apollo's MCP server over the
+  endpoint needs none of this, which is the point of being GraphQL; this is for a client that speaks MCP and has no
+  GraphQL client of its own.
+- **The one-page reference.** `server/GraphqlReference.TEXT`: the dialect on a page (roots, selections, `where`
+  with Prisma's names, `orderBy`, paging, aggregates, groups, inheritance, results) with five examples, three right
+  and two labelled wrong (`_gt`, a bare value), as the MCP server's `instructions`, the `describe` tool's
+  `reference`, and the tool descriptions' idiom. The schema is the authority; the page is the idiom.
+- **GraphiQL in the Query app (§8.5).** `query/demo/graphiql.html`: GraphiQL (MIT, pinned from unpkg) over the lite
+  server's query route; the page reads the model files it is told (`?models=`), sends the model beside every
+  request, introspection included (the route takes a model, there is no server-side store), and names the runtime
+  and the scope from its query string. It is a page of the static site, not of the in-browser engine: the GraphQL
+  routes are the server's. Not run in a browser in this session (the not-done list).
+- **The forty tasks (§9).** `graphql-parity/eval/tasks.json`: forty asks in words over the full feature set
+  (roots, `where` in every operator family, `orderBy`, paging, nesting, derived properties, aliases, fragments,
+  variables with defaults, `@include`, aggregates at the root and nested, groups with `having`, `orderBy` and
+  `truncate`, inheritance), each with its reference document and what its answer holds. `GqlEvaluationTest`
+  PROVES the references (every one runs on DuckDB through the island and answers as said) and holds the judge,
+  `score`: a candidate document per task, marked by its answer against the reference's. The agent run itself (a
+  model given the tool descriptions and the asks, its forty documents scored) is not in this session: no model is
+  called from the test tree; the judge and the tasks are the harness it needs.
+- **The graphql-js differential (PR1b, §9.3, G1).** `tools/graphql-js/differential.mjs`, a hand tool outside the
+  Bazel build (graphql 17.0.2 pinned, the lock committed; the npm registry is reachable from the session): the
+  thirty-two base documents of `documents.json` over the golden `demo.graphql`, as written and under a seeded set
+  of sixteen mutations (a near-miss field, Hasura's `_gt`, a bare value, an object without a selection, an unknown
+  argument, a fragment on the wrong type, a string for an Int, two keys in one sort object, a selection on a
+  scalar, two fields under one key, an undefined variable, an unused fragment, a mutation operation, an empty
+  selection, an argument twice, an introspection near-miss), graphql-js's verdict on each as the JSON lines of
+  `validity/validity.jsonl` (260 documents: 33 valid, 227 invalid). `GqlValidityTest` is lite's half: lite rejects
+  everything graphql-js rejects, and where lite is stricter the mutation is named with its §6.3 rule
+  (one document, `twoKeysInOneSortObject`, G16: a sort key names exactly one property). Every base document is valid for both. **What it found:** the validator let an introspection
+  near-miss through (`__schema { queryTypes { name } }`; the endpoint's answerer refused it, the validator did
+  not), which graphql-js refuses: the validator now runs the answerer over the introspection roots and reports
+  its refusal as the verdict's error (G1 holds on all 260).
+- **What the full gate of the fifth landing found, fixed here.** PR4's companion CLASSES, generated for every class
+  of every model, stood among the classes a label-less Cypher node reads and among the graph's edge classes:
+  198 Cypher parity cases regressed (an unmapped `...::g::AAggregate` with "0 mappings"; `DurationAvg.months:
+  Float` beside `Duration.months: Integer`). The study's own rule (§5.8: synthetic, hidden from listings,
+  callable from Pure) is code now: `ModelContext.isSynthetic(fqn)`, read by the Cypher labels, the edge classes
+  and the GraphQL scope; `CypherParityTest` is green again on DuckDB and on Postgres.
+- **Measured.** `GraphqlApiTest` +1 (explain), `GraphqlMcpTest` 5, `GqlEvaluationTest` 3 (the forty references
+  on DuckDB, the judge marking a wrong and a missing answer wrong), `GqlValidityTest` 2: 87 GraphQL tests in
+  all. Green: the server, root, compiler, protocol and normalizer packages; `//core:guardrails`, `//core:census`,
+  `//tools/deps:core_layering_test`; the full local gate (the GATES entry).
+- **Not done, on purpose.** The agent run of the forty tasks (needs a model and its key; the harness is here);
+  GraphiQL opened in a browser; the data-space path (`/graphql/{ds}`) as a route of its own (the routes take
+  `dataSpace` in the body, the MCP tools too); the differential as a Bazel target in the heavy lane (it would add
+  an npm package to `MODULE.bazel`; the hand tool and the committed lines are the record); the Prisma oracle
+  (`tools/prisma-oracle/`, §9.2) and `lite/*.yaml` cases (the DuckDB tests and the SQL twins judge today); a
+  numeric `bucket:` on group keys; nested groups.

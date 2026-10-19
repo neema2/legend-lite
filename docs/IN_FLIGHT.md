@@ -2400,8 +2400,17 @@ island inside Pure.
 - **Cross-area edits, announced here as landed with PR5 (2026-10-19):** `protocol/graphql/GqlToPure.java` (the
   groups root through the Relation API; `Root.Shape`), `server/GraphqlApi.java` (rows arranged by `__` paths). No
   file of the resolver's, the lowering's or the normalizer's.
-- **Not yet (PR1b, PR6):** the graphql-js differential and `validity.jsonl`; function roots; milestoning
-  arguments on a node; line and column in the island's errors; the composer's rule for the island inside a model;
-  `orderBy` by a nested aggregate; a string's min and max; nested groups under a parent object (a relation-valued
-  child in the emitter); the agent surface and the evaluations (PR6).
+- **Cross-area edits, announced here as landed with PR6 and PR1b (2026-10-19):** `server/GraphqlApi.java`
+  (`explain`), `server/PureV1Api.java` (the route), `server/LegendHttpServer.java` (`POST /mcp`,
+  `--graphql-model`), `server/GraphqlMcp.java` and `server/GraphqlReference.java` (new), `query/demo/graphiql.html`
+  (new), `tools/graphql-js/` (new, a hand tool outside the build), the test resources `graphql-parity/eval/` and
+  `graphql-parity/validity/`; and, from the fifth landing's full gate, `compiler/element/ModelContext.java`
+  (`isSynthetic`), `compiler/spec/CypherIslands.java` and `compiler/element/GraphEdges.java` (the Cypher line's
+  listings skip synthetic classes), `compiler/graphql/GqlValidator.java` (introspection roots validated by the
+  answerer). No file of the resolver's or the lowering's.
+- **The roadmap of §10 is landed (PR1a to PR6, PR1b), 2026-10-19.** Open, by name: the agent run of the forty tasks
+  (a model and its key); GraphiQL in a browser; function roots; milestoning arguments on a node; line and column
+  in the island's errors; the composer's rule for the island inside a model; `orderBy` by a nested aggregate; a
+  string's min and max; nested groups under a parent object (a relation-valued child in the emitter); the Prisma
+  oracle and the `lite/*.yaml` cases; the data-space path as a route; a `Variant` scalar; a numeric `bucket:`.
 
