@@ -997,3 +997,66 @@ graphql-js differential (PR1b), introspection (PR2) and the composer's rule for 
 - **Not done, on purpose.** The graphql-js differential (its Node target is PR1b); the data space's own limits
   (G17 takes the request's `limits`, the default 8 deep and 25 list fields per level, until a data space can
   declare them); function roots (G4's Pure functions of the data space; PR2); milestoning arguments (PR2).
+
+### 13.2 PR2, 2026-10-19: execution — the translator, the island, the composed node, the endpoint, introspection
+
+Branch `claude/graphql-study-2026-10-18`; the GATES entry "GraphQL: the second landing". PR2 of §10 less the Prisma
+oracle and the twenty-task evaluation (moved to PR6 with the agent surface, which they measure), function roots,
+milestoning arguments and `Gql.Field` positions (below).
+
+- **What the probes found.** The study's first probe (a model-declared `top3()` with a sort and a take, fetched in
+  a tree) stopped exactly where §6.2 said: `GraphEmission.derivedChild` recognised a navigation head and its filter
+  and nothing after them, so the body fell into the association path and failed as "property not mapped". The
+  increment was the one named: the ordering tail (`sortBy`/`sortByReversed`/`sort`, `take`/`limit`, `drop`,
+  `slice`) peeled off the body and re-applied over the correlated child relation, each key substituted through the
+  target's bindings as the filter is; the correlated emission already ordered and limited the subselect. The second
+  increment named, `Sorts.sortBy` carrying a sorted source's keys as tie-breakers, was a sort folding onto the sorted
+  select (the new key first, the source's after it) — a chain of `sortBy` is one `ORDER BY` with several keys, as
+  G16 wants. `reverse()` has no relation shape, so the translator never spells it: a descending key is
+  `sortByReversed`.
+- **Where the translator lives, and why.** `protocol/graphql/GqlToPure`, beside `protocol/cypher/CypherToPure`:
+  the architecture guard says protocol nodes are built by the parser, the normalizer and the protocol package only
+  (`ArchitectureTest.protocolNodesAreConstructedOnlyByTheParserAndTheNormalizer`), and the compiler's layer may not
+  reach the parser. The schema's records moved beside it (`protocol/graphql/GqlSchema`: JDK and the GraphQL AST
+  only), and the guard's rule was narrowed with a dated justification: a schema record is data the generator computes
+  from the model, not a program node. The compiler's seam (`compiler/graphql/GqlIslands`) validates, translates, and
+  resolves names as the Cypher seam does; the Typer types the result once.
+- **The composed node (§6.2 (ii)), as built.** `GraphFetchLiteral.Node` carries an optional body — an expression over
+  `$this` whose value is the node's collection — keyed by its alias, its `property` the body's navigation head (so
+  the emitter demands the association's parent keys as it does for the association). The parser reads `'top3':
+  $this.employees->filter(...)->sortByReversed(...)->limit(3) { fullName }`; the composer prints it; the wire carries
+  it as a lite-only `body` key; the checker types it with `$this` the node's object, as a derived body is typed;
+  `GraphEmission.bodyChild` (the second half of `derivedChild`, which a derived property now shares) builds the
+  correlated child. The own-corpus census declares it (LITE-DESIGN-graphql-tree,
+  `docs/OWN_CORPUS_DECISIONS.md`); the LEGEND_ENGINE surface has no such node.
+- **What the island means now.** One root field over the model, its value the serialized tree; the island's
+  variables are the enclosing Pure scope's (`$n` in the document is the function's `$n`); several roots, or
+  introspection, are the endpoint's. The island's errors carry the selection path (`Person(where).lastName.equals`),
+  not yet a line and column (the AST carries no positions: deferred, below).
+- **The endpoint.** `POST /api/lite/v1/graphql/query` with the GraphQL-over-HTTP envelope: `data` keyed by response
+  key, `errors` with `path` and `extensions.code` (`REQUEST`, `VALIDATION`, `INVALID`, `UNSUPPORTED`, `EXECUTION`),
+  `extensions.pure` the Pure each root ran, `extensions.warnings` the validator's; a refused request is 400 with no
+  `data`; a root that fails at execution is 200 with `data: null` (all or nothing, §8.2). Introspection
+  (`__schema`, `__type`) is answered from the generated schema by projecting the client's selection over the
+  schema's own graph (`protocol/graphql/Introspection`), so GraphiQL's introspection query and every agent's read
+  exactly the fields they asked. The data-space path (`/graphql/{dataSpace}`) and the `describe`/`explain` tool
+  names wait on PR6 with the MCP wrapper; the route takes `dataSpace` or `classes` today.
+- **Declared.** `docs/SEMANTICS_REGISTER.md` S79 (`every` and `none` as negated `exists`), S80 (a null under
+  `orderBy` sits where the database puts it), S81 (a derived leaf is keyed by the field's name), S82 (`is`/`isNot`
+  on a relation and at the root), S83 (the composed node).
+- **Measured.** 21 documents on DuckDB through the island (`GqlExecutionTest`: root clauses, two keys through a
+  to-one chain, paging, nodes with aliases, `some`/`every`/`none`, string operations with `mode: insensitive`,
+  null tests, `NOT`/`OR`, enumerations, dates, a derived leaf, fragments and directives, scope variables, nested
+  clauses with two keys and paging, a nested clause under a nested node, the composed node spelled in Pure), the
+  three derived-tail probes, 6 route cases (`GraphqlApiTest`: two roots under their keys, variables, every
+  validation error, a later landing named, introspection twice), the parser/composer agreement
+  (`ComposedTreeNodeTest`); the graphql, parser, protocol, compiler, resolver, server, lowering and integration test
+  packages green; `//core:guardrails`, `//core:census`, `//tools/deps:core_layering_test`,
+  `//parser-equivalence:diagnostics` green; the full local gate (the GATES entry).
+- **Not done, on purpose.** Function roots (G4's Pure functions of the data space: the generator has no root for
+  them yet; PR6 with the data space's declaration); milestoning arguments on a node (the tree carries them, the
+  schema does not declare them yet); `Gql.Field` positions for line and column in errors (the parser's AST carries
+  none; the path names the selection); the Prisma oracle and `prisma-answers.jsonl`, and the twenty-task evaluation
+  (PR6, with the forty); the composer's rule for the island inside a model (it still refuses to print a model
+  holding one); subtype fragments, `__typename` and `asY` (PR3); aggregates (PR4); groups (PR5).
+

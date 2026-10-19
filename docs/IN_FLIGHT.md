@@ -2360,8 +2360,8 @@ island inside Pure.
 - **Spec:** the GraphQL specification, September 2025 edition. **Oracles:** graphql-js (MIT) for validity, Prisma
   (Apache 2.0) over the embedded Postgres for the dialect's semantics, SQL twins for inheritance (§3.3).
 - **Owned for the line's length:**
-  - `core/src/main/java/com/legend/compiler/graphql/` (the schema as data, the generator, the SDL printer, the
-    validator, the island seam; the translator in PR2)
+  - `core/src/main/java/com/legend/compiler/graphql/` (the generator, the SDL printer, the validator, the island
+    seam) and `core/src/main/java/com/legend/protocol/graphql/` (the schema as data, the translator, introspection)
   - `core/src/main/java/com/legend/server/GraphqlApi.java` (the routes)
   - `core/src/test/resources/graphql-parity/` and the tests `compiler/graphql/*Test`, `server/GraphqlApiTest`,
     `protocol/GqlInlineFragmentTest`
@@ -2372,6 +2372,19 @@ island inside Pure.
   of refusing outright), `compiler/element/type/PlatformTypes.java` (`TYPEMODIFIERS_PROFILE`),
   `server/PureV1Api.java` (two route cases; `request` and `answer` package-private), `core/BUILD.bazel` and
   `tools/deps/core-layers.txt` (`GraphqlApi` in `pure_v1`, which gains `:model` for the data space element).
-- **Not yet (PR1b, PR2):** the graphql-js differential and `validity.jsonl`; introspection; the translator and the
-  endpoint's execution; the composer's rule for the island (it refuses to print a model holding one, as before).
+- **Cross-area edits, announced here as landed with PR2 (2026-10-19):** `protocol/graphql/` (new: the schema's
+  records moved from the compiler, the translator `GqlToPure`, `Introspection`, `GqlTranslationException`),
+  `protocol/spec/GraphFetchLiteral.java` (a node's optional composed body, carried through the tree's argument
+  walks), `compiler/spec/typed/TypedGraphTree.java` (its typed body), `parser/SpecParser.java` (the composed node
+  read in a tree position), `protocol/PureComposer.java` (printed), `protocol/ProtocolEmitter.java` and
+  `SpecIslandReader.java` (the lite-only `body` key), `compiler/spec/GraphFetchChecker.java` (typed with `$this`),
+  `resolver/GraphEmission.java` (`derivedChild` split into the derived half and `bodyChild`; the ordering tail of a
+  derived or composed body), `lowering/Sorts.java` (`sortBy` composes onto a sorted source), `compiler/spec/Typer.java`
+  (the island's arm desugars), `server/PureV1Api.java` (the query route; `runtimeOf` package-private),
+  `ArchitectureTest` (the protocol-node rule narrowed for `protocol/graphql`, dated), `CodeShapeGuardrailTest`
+  (`GqlToPure.fresh` allowlisted with its reason), `ErrorShapeGuardrailTest` (`GraphqlApi.java` pinned at 2,
+  reviewed).
+- **Not yet (PR1b, PR3 to PR6):** the graphql-js differential and `validity.jsonl`; function roots; milestoning
+  arguments on a node; line and column in the island's errors; the composer's rule for the island inside a model;
+  inheritance (PR3), aggregates (PR4), groups (PR5), the agent surface and the evaluations (PR6).
 
